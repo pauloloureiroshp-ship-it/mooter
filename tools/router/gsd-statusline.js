@@ -37,13 +37,23 @@ function fetchFrugalSavings() {
     if (pct >= 75) color = '\x1b[32m'; // green
     else if (pct >= 40) color = '\x1b[33m'; // yellow
     let breakdown = '';
-    const pbt = m.pct_by_tier;
-    if (pbt && typeof pbt === 'object') {
-      const TIER_LABELS = { T0: 'Ollama', T1: 'Haiku', T2: 'Sonnet', T3: 'Opus' };
-      const parts = ['T0', 'T1', 'T2', 'T3']
-        .filter(t => (pbt[t] || 0) > 0)
-        .map(t => `${TIER_LABELS[t]}:${Math.round(pbt[t])}%`);
+    // Prefer pct_by_model when tracker exposes it (newer format). Fall back
+    // to pct_by_tier + heuristic mapping for older tracker versions.
+    const pbm = m.pct_by_model;
+    if (pbm && typeof pbm === 'object') {
+      const parts = ['Ollama', 'Haiku', 'Sonnet', 'Opus']
+        .filter(name => (pbm[name] || 0) > 0)
+        .map(name => `${name}:${Math.round(pbm[name])}%`);
       if (parts.length) breakdown = ` │ \x1b[2m${parts.join(' ')}\x1b[0m`;
+    } else {
+      const pbt = m.pct_by_tier;
+      if (pbt && typeof pbt === 'object') {
+        const TIER_LABELS = { T0: 'Ollama', T1: 'Haiku', T2: 'Sonnet', T3: 'Opus' };
+        const parts = ['T0', 'T1', 'T2', 'T3']
+          .filter(t => (pbt[t] || 0) > 0)
+          .map(t => `${TIER_LABELS[t]}:${Math.round(pbt[t])}%`);
+        if (parts.length) breakdown = ` │ \x1b[2m${parts.join(' ')}\x1b[0m`;
+      }
     }
     return ` │ ${color}💰 $${saved} (${pct}%)\x1b[0m${breakdown}`;
   } catch {

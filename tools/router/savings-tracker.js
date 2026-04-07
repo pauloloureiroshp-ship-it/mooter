@@ -45,6 +45,15 @@ const COSTS = {
 };
 const NAIVE_TIER = 'T3';
 
+// Tier → human-readable model label, used to build pct_by_model.
+// Statusline reads this directly so it no longer needs a heuristic mapping.
+const TIER_TO_MODEL = {
+  T0: 'Ollama',
+  T1: 'Haiku',
+  T2: 'Sonnet',
+  T3: 'Opus',
+};
+
 // ── Cache (read decisions.log at most once per 4s) ──────────────────────────
 let cache = { ts: 0, mtime: 0, metrics: null, lastEntry: null, lineCount: 0 };
 const CACHE_MS = 4000;
@@ -96,6 +105,8 @@ function emptyMetrics() {
     by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
     cost_by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
     pct_by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
+    by_model: { Ollama: 0, Haiku: 0, Sonnet: 0, Opus: 0 },
+    pct_by_model: { Ollama: 0, Haiku: 0, Sonnet: 0, Opus: 0 },
   };
 }
 
@@ -123,6 +134,9 @@ function computeMetrics(lines) {
   if (m.prompts > 0) {
     for (const t of ['T0', 'T1', 'T2', 'T3']) {
       m.pct_by_tier[t] = (m.by_tier[t] / m.prompts) * 100;
+      const label = TIER_TO_MODEL[t];
+      m.by_model[label] = m.by_tier[t];
+      m.pct_by_model[label] = m.pct_by_tier[t];
     }
   }
 
@@ -135,6 +149,9 @@ function computeMetrics(lines) {
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     m.cost_by_tier[t] = round(m.cost_by_tier[t], 4);
     m.pct_by_tier[t] = round(m.pct_by_tier[t], 1);
+  }
+  for (const label of ['Ollama', 'Haiku', 'Sonnet', 'Opus']) {
+    m.pct_by_model[label] = round(m.pct_by_model[label], 1);
   }
   return m;
 }

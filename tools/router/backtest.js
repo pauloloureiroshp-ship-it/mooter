@@ -24,6 +24,25 @@ const TUNING_PATH = path.join(ROUTER_DIR, 'router-tuning.json');
 const TIER_COST = { T0: 0.0, T1: 0.002, T2: 0.008, T3: 0.045 };
 const NAIVE_COST = TIER_COST.T3;
 
+// Doctrine guardrail — signatures containing any of these markers must
+// NEVER be proposed as demote candidates. Mirrors HIGH_RISK in classify.js
+// (push/deploy/release/migration/.env/secret/architect/refactor/audit/CI etc).
+// Kept in sync manually; update both when adding new risk markers.
+const HIGH_RISK_MARKERS = [
+  /\bprodu(c|ç)[aã]o\b/i, /\bproduction\b/i, /\bdeploy\b/i, /\brelease\b/i,
+  /\bmigration\b/i, /\bmigra(c|ç)[aã]o\b/i, /\bdrop\s+table\b/i,
+  /\brm\s+-rf\b/i, /\bpush\b/i, /\breset\s+--hard\b/i,
+  /\benv\b/i, /\bsecret/i, /\bcredential/i, /\bapi[_ ]?key\b/i,
+  /\barquitetur/i, /\barchitect/i, /\brefator/i, /\brefactor/i,
+  /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\s+final\b/i,
+  /\bmerge\b/i, /\bci\b/i,
+];
+
+function hasHighRisk(text) {
+  if (!text) return false;
+  return HIGH_RISK_MARKERS.some(rx => rx.test(text));
+}
+
 function loadDecisions() {
   if (!fs.existsSync(LOG_PATH)) return [];
   const lines = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(Boolean);
@@ -60,6 +79,13 @@ function analyze(decisions) {
       if (!sigToTiers.has(sig)) sigToTiers.set(sig, []);
       sigToTiers.get(sig).push({ tier, conf: d.confidence, len: d.prompt_len });
     }
+    // Guardrail: a prompt preview that carries HIGH_RISK markers is never
+    // eligible as a demote/promote candidate, regardless of length/confidence.
+    // The runtime guardrail in classify.js already blocks demote on HIGH_RISK
+    // prompts, but filtering upstream keeps router-tuning.json clean and stops
+    // the daily backtest from relearning the same bad patterns every 24h.
+    const risky = hasHighRisk(d.prompt_preview);
+    if (risky) continue;
     if ((d.prompt_len || 0) < 50 && (tier === 'T2' || tier === 'T3')) {
       shortHighTier.push(d);
     }
