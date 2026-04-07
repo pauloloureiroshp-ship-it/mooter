@@ -1,0 +1,183 @@
+# Roadmap
+
+> Last updated: 2026-04-07
+
+This roadmap is the single source of truth for what's done, what's next, and what's explicitly deferred. It supersedes the summary table in [README.md](README.md) when there's a conflict.
+
+---
+
+## Legend
+
+- ✅ **Released** — shipped and running in production (dogfooded daily)
+- 🟡 **Planned** — committed for a specific version, designed, not yet built
+- 🔵 **Vision** — desirable but not yet designed, may change
+- ⏸ **Deferred** — considered and explicitly postponed with rationale
+
+---
+
+## Released
+
+### v0.1.0 — Foundation (2026-04-06)
+
+The classifier and the hook, wired into Claude Code.
+
+- ✅ `classify.js` v1 — heuristic regex classifier (<50 ms, returns `{tier, confidence, reasoning}`)
+- ✅ `inject_context.js` — UserPromptSubmit hook that emits `<router-hint>`
+- ✅ 6 subagents — `model-architect`, `model-reasoner`, `cheap-triage`, `local-summarizer`, `local-transformer`, `final-reviewer`
+- ✅ Documentation — `docs/ROUTING_POLICY.md`, `docs/HOW_IT_WORKS.md`, `docs/MODEL_MAPPING.md`, `docs/LIMITATIONS.md`, `docs/VALIDATION_REPORT.md`
+- ✅ v1 baseline measured: 31.0% T3 misroutes, 27.1% low-confidence, 27.5% savings
+
+### v0.2.0 — Doctrine (2026-04-06)
+
+Made the session itself the router.
+
+- ✅ Mediator doctrine (`~/.claude/CLAUDE.md`, 165 lines) — the core frugal philosophy Claude Code reads at session start
+- ✅ `stats.js` — aggregate routing stats from `decisions.log`
+- ✅ `benchmark.sh` — labelled-dataset accuracy harness
+- ✅ `install.sh` v1 — idempotent install with `--dry-run`, `--force`, `--uninstall`
+- ✅ Telemetry hook — logs every routing decision to `decisions.log`
+- ✅ 100% benchmark accuracy on the 200-prompt hand-labelled dataset
+- ✅ 70% savings validated on a 200-prompt real-session replay
+
+### v0.3.0 — Real-world validation (2026-04-06)
+
+Moved from synthetic benchmarks to real production corpus.
+
+- ✅ `replay.js` — replays `decisions.log` against the current classifier for regression testing
+- ✅ Validation on **1,370 real prompts**: T0: 83.9% | T2: 12.4% | T3: 3.6% | low-conf: 2.0% | **savings: 90.2%**
+- ✅ 3 fast-path detectors in `classify.js` v3 — commit→T0, architecture→T3, short→T0
+- ✅ Ambiguous sub-categories — weighted scoring for multi-tier matches
+- ✅ Low-confidence guardrail — `<0.60` escalates one tier, but only with risk evidence
+- ✅ `decisions.log` format extended with `confidence`, `sub_category`, `ambiguous`
+
+### v0.4.0 — Budget awareness + multi-provider (2026-04-07)
+
+Made frugal aware of your wallet.
+
+- ✅ Statusline with live OAuth budget — `statusline.sh` reads Anthropic OAuth usage every 2 hours
+- ✅ Budget guardrail — dynamic tier cap: 0-50%→T3, 50-70%→T2, 70-85%→T1, >85%→T0
+- ✅ MD Enrichment — `classify.js` reads `## Router Context` from the project's `CLAUDE.md`
+- ✅ SHA-256 prompt cache — identical prompts skip regex (30 min TTL)
+- ✅ Multi-provider docs: `CODEX_SETUP.md`, `GEMINI_SETUP.md`, `VSCODE_SETUP.md`
+- ✅ Rename `cloude-router` → `frugal`
+- ✅ Fixed: classify.js no longer misclassifies architecture prompts containing "commit" as T0
+
+### v0.5.0 — Auto-learning loop (2026-04-07)
+
+Made frugal tune itself.
+
+- ✅ `backtest.js` — daily analyser (scheduled via Windows Task Scheduler `FrugalRouterBacktest` @ 02:00)
+- ✅ `router-tuning.json` — structured output with `complexity_threshold`, `promote_to_t0_patterns`, `demote_from_t3_patterns`
+- ✅ `update-router.js` — idempotent patcher that injects/replaces the `TUNED-BLOCK-START/END` block in `classify.js`, with `classify.js.bak` backup
+- ✅ `classify.js` wire-up — three TUNED constants are now read at runtime:
+  - `TUNED_DEMOTE_T3` — regex list forcing T2/T3 → T1 (if `high === 0`)
+  - `TUNED_PROMOTE_T0` — regex list forcing any tier → T0 (if `high === 0`)
+  - `TUNED_COMPLEXITY_THRESHOLD` — scales the ambiguous-branch cutoffs
+- ✅ Dual-enforced doctrine guardrail — `HIGH_RISK_MARKERS` in `backtest.js` mirrors `HIGH_RISK` in `classify.js`, so HIGH_RISK previews are filtered upstream before they can ever enter candidate sets
+- ✅ Slash command `/update-router` — documented in `~/.claude/CLAUDE.md`
+- ✅ Human-readable statusline breakdown — `Ollama:62% Sonnet:18% Opus:20%` instead of `T0/T1/T2/T3`
+- ✅ `savings-tracker.js` exposes `pct_by_model` directly (statusline prefers this, falls back to the tier heuristic)
+- ✅ **11 unit tests** with `node:test` — `signature()`, `analyze()`, `buildTuning()`, `update-router` idempotency, `classify.js` integration (pre-push stays T3)
+
+**Commits:** `b432a6d`, `6c1ce2f`, `a66d948` on `origin/main`.
+
+---
+
+## Planned
+
+### v0.6.0 — Web dashboard
+
+A local-only web UI for exploring `decisions.log`, `router-tuning.json`, and cost trends.
+
+- 🟡 Next.js 15 dashboard bound to `127.0.0.1:7820`
+- 🟡 Timeline view of routing decisions (last 24h / 7d / 30d)
+- 🟡 Filter by tier, category, escalation rule, confidence
+- 🟡 Cost trend chart with naive-vs-real overlay
+- 🟡 "Retrain now" button that runs `/update-router` and shows the diff
+- 🟡 `router-tuning.json` preview with pattern explainer
+- 🟡 Expose via `savings-tracker.js` or new `dashboard.js` server
+
+**Success criteria:** Paulo can debug any misrouting in under 30 seconds without grep.
+
+### v0.7.0 — HIGH_RISK single source of truth
+
+Close the gap where `HIGH_RISK_MARKERS` in `backtest.js` is a manual copy of `HIGH_RISK` in `classify.js`.
+
+- 🟡 Extract `HIGH_RISK`, `MED_RISK`, `LOW_RISK`, `TRIVIAL` to a single `patterns.js` module
+- 🟡 Both `classify.js` and `backtest.js` require the same file
+- 🟡 Adding a new marker in one place automatically propagates
+- 🟡 Tests asserting that both files consume the same exports
+
+**Why deferred from v0.5:** extracting cross-module shared state mid-session while the auto-learning loop was still being debugged would have made root-causing harder. Easier in isolation.
+
+### v0.8.0 — Team shared config
+
+Enable small teams to share a single tuning profile via Git.
+
+- 🟡 `frugal.config.json` at project root — optional, read by `classify.js`
+- 🟡 Per-project overrides for `HIGH_RISK`, complexity threshold, budget cap
+- 🟡 Per-contributor analytics in `decisions.log` (with opt-out)
+- 🟡 Backtest runs per-contributor and per-project
+- 🟡 Shared doctrine supplement (`CLAUDE.md` fragment) that layers on top of the personal one
+
+**Open question:** privacy. Right now `decisions.log` stores prompt previews. Sharing those across a team needs either local-only anonymisation or team-level consent.
+
+---
+
+## Vision (v1.0 and beyond)
+
+Not committed. Subject to change based on beta feedback.
+
+- 🔵 **Plugin marketplace** — third-party patterns, doctrine supplements, provider adapters
+- 🔵 **MCP integration** — frugal exposed as an MCP server so other MCP clients can read routing decisions
+- 🔵 **Native Windows installer** — `.msi` that handles the Task Scheduler entry, Electron tray icon for the dashboard
+- 🔵 **Commercial support tier** — SLA, priority bug fixes, custom pattern consulting (see [NOTICE.md](NOTICE.md))
+- 🔵 **OpenAI / Gemini parity** — same routing intelligence for Codex CLI and other agent clients
+- 🔵 **Multi-agent orchestration** — detect when a single prompt should fan out to multiple parallel subagents
+
+---
+
+## Deferred (with rationale)
+
+These were considered and explicitly postponed. If you think one of them should be reopened, please open an issue.
+
+### ⏸ A small classifier LLM instead of regex
+
+**Status:** rejected for v0.x. Reconsider at v1.0.
+
+**Rationale:** would increase classification latency from <50 ms to ~200 ms, add a model download step, and introduce non-determinism. Regex misclassifications are fixable in minutes via a new pattern + test. A fine-tuned classifier misclassification requires retraining. The cost/benefit is not there until we have >10,000 real prompts in `decisions.log`.
+
+### ⏸ Remote proxy mode
+
+**Status:** rejected permanently.
+
+**Rationale:** a proxy violates Principle #1 of the architecture (*no proxy*). If you need a proxy, use LiteLLM or OpenRouter — those are good tools, just different products.
+
+### ⏸ Support for closed, non-Anthropic models as T3
+
+**Status:** deferred to v0.8.
+
+**Rationale:** adding GPT-4 or Gemini Ultra as a T3 destination is a two-line change in `MODELS` but a much larger change in the doctrine (*"when to pay for Opus vs GPT-4?"*). That's a decision table that needs real beta data to get right.
+
+### ⏸ Automatic HIGH_RISK marker learning
+
+**Status:** rejected.
+
+**Rationale:** HIGH_RISK is a safety list. It must never grow or shrink without human review — the risk of the backtest "learning" that a prompt containing the word `secret` is safe to demote because it happened to be a trivial case once is catastrophic. HIGH_RISK stays hand-curated forever.
+
+### ⏸ Full Linux/macOS native installer
+
+**Status:** deferred to v1.0.
+
+**Rationale:** frugal currently runs on Linux/macOS via the shell scripts, but the scheduled task uses Windows Task Scheduler. Porting the scheduler layer to `launchd` + `systemd timers` is straightforward but not critical for private beta (all current testers are on Windows/Mac and run the backtest manually when needed).
+
+---
+
+## How to suggest roadmap changes
+
+1. Open an issue labelled `roadmap`
+2. Say which version you're targeting (or propose a new version)
+3. Explain the user problem being solved, not the implementation
+4. If accepted, it gets added here with 🟡 status
+
+*Roadmap decisions are made by Paulo during private beta. Post-v1.0 this will transition to a lightweight RFC process.*
