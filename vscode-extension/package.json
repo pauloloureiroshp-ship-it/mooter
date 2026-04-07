@@ -1,0 +1,95 @@
+{
+  "name": "frugal-savings",
+  "displayName": "frugal — savings",
+  "description": "Live savings display for the frugal Claude Code router. Status bar, sidebar panel, and toast notifications fed by the local savings-tracker on :7821.",
+  "version": "0.4.0",
+  "publisher": "frugal",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "router",
+    "savings",
+    "frugal"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "frugal-sidebar",
+          "title": "frugal",
+          "icon": "$(symbol-numeric)"
+        }
+      ]
+    },
+    "views": {
+      "frugal-sidebar": [
+        {
+          "id": "frugal.savingsView",
+          "name": "Savings",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "frugal.showSummary",
+        "title": "frugal: Show savings summary",
+        "category": "frugal"
+      },
+      {
+        "command": "frugal.openDecisionsLog",
+        "title": "frugal: Open decisions.log",
+        "category": "frugal"
+      },
+      {
+        "command": "frugal.refresh",
+        "title": "frugal: Refresh savings",
+        "category": "frugal"
+      }
+    ],
+    "configuration": {
+      "title": "frugal",
+      "properties": {
+        "frugal.refreshIntervalMs": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "description": "How often the extension polls the savings tracker (ms)."
+        },
+        "frugal.toastThresholdUSD": {
+          "type": "number",
+          "default": 0.001,
+          "description": "Minimum average savings per prompt (USD) before showing a toast notification."
+        },
+        "frugal.showToasts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show toast notifications when new savings accumulate."
+        },
+        "frugal.statusBarAlignment": {
+          "type": "string",
+          "enum": ["left", "right"],
+          "default": "right",
+          "description": "Status bar position."
+        },
+        "frugal.trackerUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:7821",
+          "description": "URL of the savings-tracker HTTP server."
+        }
+      }
+    }
+  }
+}
