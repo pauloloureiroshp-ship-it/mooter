@@ -1,0 +1,14 @@
+node_modules/
+*.log
+decisions.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Local benchmark output (keep snapshots in docs/ for reference)
+router/benchmark-results/run-*.json
+router/benchmark-results/summary-*.json

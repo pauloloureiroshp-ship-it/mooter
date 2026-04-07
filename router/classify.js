@@ -1,0 +1,261 @@
+#!/usr/bin/env node
+/**
+ * classify.js — heuristic prompt classifier for the model router.
+ *
+ * Reads a prompt from argv[2] OR stdin. Emits JSON to stdout:
+ *   { task_category, risk_level, recommended_backend, recommended_model,
+ *     confidence, escalation_rule, reasoning, anthropic_key_present }
+ *
+ * Pure heuristics: zero LLM calls, <50ms. Designed to be safe — never blocks,
+ * never throws (errors degrade to {recommended_backend: "claude_session"}).
+ *
+ * Tier mapping (see ~/.claude/docs/ROUTING_POLICY.md):
+ *   T0 ollama   → local Ollama (qwen3:30b by default)
+ *   T1 haiku    → Anthropic API direct (cheap Claude) — needs ANTHROPIC_API_KEY
+ *   T2 sonnet   → Claude Code subagent with model: sonnet
+ *   T3 opus     → Claude Code subagent with model: opus
+ *   claude_session → just answer in the current Claude Code session (default)
+ */
+
+'use strict';
+
+// Per-tier model selection. T0 has TWO models:
+//   - ollama_terse: small, fast, terse-output (sumarização, transforms)
+//   - ollama_reason: bigger, reasoning-trained (análises locais com 1-2 hops)
+// Detected at runtime via /api/tags; falls back to whichever is installed.
+const MODELS = {
+  ollama_terse: process.env.ROUTER_OLLAMA_TERSE || 'qwen2.5:3b',
+  ollama_reason: process.env.ROUTER_OLLAMA_REASON || 'qwen3:30b',
+  ollama: process.env.ROUTER_OLLAMA_MODEL || 'qwen2.5:3b', // legacy alias
+  haiku: process.env.ROUTER_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+  sonnet: 'claude-sonnet-4-6',
+  opus: 'claude-opus-4-6',
+};
+
+const HIGH_RISK = [
+  /\bprodu(c|ç)[aã]o\b/i, /\bproduction\b/i, /\bdeploy\b/i, /\brelease\b/i,
+  /\bmigration\b/i, /\bmigra(c|ç)[aã]o\b/i, /\bdrop\s+table\b/i,
+  /\brm\s+-rf\b/i, /\bgit\s+push\s+--force\b/i, /\breset\s+--hard\b/i,
+  /\b\.env\b/, /\bsecret/i, /\bcredential/i, /\bAPI[_ ]?KEY\b/,
+  /\barquitetur/i, /\barchitect/i, /\brefator(a|ar|amento)?\b/i, /\brefactor/i,
+  /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\s+final\b/i,
+  /\bpackage\.json\b/, /\bci\b.*\bpipeline/i, /\.github\/workflows/i,
+];
+
+const MED_RISK = [
+  /\bbug\b/i, /\bdebug/i, /\broot\s*cause/i, /\bcausa\s*ra[ií]z/i,
+  /\bplan(o)?\s+t[eé]cnico/i, /\btradeoff/i, /\binvestiga/i,
+  /\banalisa(r)?\b/i, /\banalyze\b/i, /\bdecide(\s+entre)?/i,
+  // tuning v2 (added after benchmark v1 false negatives)
+  /\bporqu[eê]\b/i, /\bporque\s+[eé]\s+que\b/i, /\bwhy\b/i,
+  /\bdecomp(õ|o)e/i, /\bdecompose/i, /\bquebr(a|ar)\s+em\b/i,
+  /\bfalha(s)?\s+(intermitente|às\s+vezes|sometimes)/i, /\bintermittent/i,
+  /\breconnect/i, /\bracecondition/i, /\brace\s+condition/i,
+];
+
+const LOW_RISK = [
+  /\bresume\b/i, /\bresumo/i, /\bsummari[zs]e/i,
+  /\bexplain\b/i, /\bexplica/i, /\bo\s+que\s+[eé]\b/i, /\bwhat\s+is\b/i,
+  /\bcommit\s+message/i, /\bdocstring/i, /\bregex/i,
+  /\bformat/i, /\btransforma/i, /\btraduz/i, /\btranslate\b/i,
+  /\btypo/i, /\brename\b/i, /\bcompar(a|e)/i,
+];
+
+const TRIVIAL = [
+  /\btriagem\b/i, /\btriage\b/i, /\bclassific/i,
+  /\bextrai/i, /\bextract\b/i, /\bbrainstorm/i,
+];
+
+const FILE_HINT = /\b(\w+\.(ts|tsx|js|jsx|py|go|rs|md|json|yml|yaml|sql|sh|css|html))\b/g;
+const MULTI_FILE = /\bmulti[- ]?(arquivo|file)/i;
+
+// Bash command pastes (very common in real history): if prompt STARTS with one
+// of these, it's almost certainly a paste-and-run, not architectural intent.
+// Tier T0 — local read or simple bash, no need for Opus.
+const BASH_PASTE = /^\s*(?:cat|ls|cd|grep|rg|find|sed|awk|head|tail|cp|mv|mkdir|touch|echo|pwd|tree|wc|sort|uniq|diff|chmod|chown|tar|zip|unzip|curl|wget|ping|nslookup|ps|kill|top|df|du|env|export|source|history|which|whereis|node|npm|npx|pnpm|yarn|python|python3|pip|pip3|git|docker|kubectl|systemctl|service|brew|apt|apt-get|yum|dnf|psql|mysql|redis-cli|sqlite3)\s/;
+
+// PowerShell paste pattern (very common in this user's history)
+const PS_PASTE = /^(?:PS\s+[A-Z]:\\|>\s*$)/m;
+
+// Cat / read file: explicit read intent — pure T0
+const READ_INTENT = /^\s*(?:lê|ler|le|read|abre|cat|view|show|mostra)\s+[\w./\\-]+/i;
+
+function readPrompt() {
+  const fromArg = process.argv.slice(2).join(' ').trim();
+  if (fromArg) return Promise.resolve(fromArg);
+  return new Promise((resolve) => {
+    let data = '';
+    if (process.stdin.isTTY) return resolve('');
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => (data += chunk));
+    process.stdin.on('end', () => resolve(data.trim()));
+  });
+}
+
+function classify(prompt) {
+  const p = prompt || '';
+  const len = p.length;
+  const fileMatches = (p.match(FILE_HINT) || []).length;
+  const multiFile = MULTI_FILE.test(p) || fileMatches > 3;
+
+  const hits = (rxs) => rxs.reduce((n, r) => n + (r.test(p) ? 1 : 0), 0);
+  const high = hits(HIGH_RISK);
+  const med = hits(MED_RISK);
+  const low = hits(LOW_RISK);
+  const triv = hits(TRIVIAL);
+
+  let tier;
+  let category;
+  let risk;
+  let confidence;
+  let reasoning;
+
+  // Early-exit fast paths discovered from real-corpus replay (v3 tuning).
+  // These patterns dominate real history and were previously misclassified
+  // as ambiguous_default → escalated to T3 unnecessarily.
+  if (BASH_PASTE.test(p) || PS_PASTE.test(p)) {
+    return {
+      task_category: 'bash_command_paste',
+      risk_level: 'minimal',
+      tier: 'T0',
+      recommended_backend: 'ollama',
+      recommended_model: MODELS.ollama_terse,
+      suggested_subagent: 'local-transformer',
+      confidence: 0.9,
+      escalation_rule: 'none',
+      reasoning: 'bash/powershell command paste — no LLM reasoning needed',
+      anthropic_key_present: !!process.env.ANTHROPIC_API_KEY,
+      prompt_length: len,
+      file_hint_count: fileMatches,
+    };
+  }
+  if (READ_INTENT.test(p) && len < 200) {
+    return {
+      task_category: 'file_read_intent',
+      risk_level: 'minimal',
+      tier: 'T0',
+      recommended_backend: 'ollama',
+      recommended_model: MODELS.ollama_terse,
+      suggested_subagent: 'local-summarizer',
+      confidence: 0.85,
+      escalation_rule: 'none',
+      reasoning: 'explicit file read with no further reasoning required',
+      anthropic_key_present: !!process.env.ANTHROPIC_API_KEY,
+      prompt_length: len,
+      file_hint_count: fileMatches,
+    };
+  }
+
+  if (high > 0 || multiFile || /\barchitect|arquitetur/i.test(p)) {
+    tier = 'T3';
+    category = multiFile ? 'cross_file_change' : 'architecture_or_critical';
+    risk = 'high';
+    confidence = high >= 2 ? 0.9 : 0.75;
+    reasoning = `high-risk signals: ${high}, multiFile: ${multiFile}`;
+  } else if (med > 0 && low === 0 && triv === 0) {
+    tier = 'T2';
+    category = 'reasoning_intermediate';
+    risk = 'medium';
+    confidence = 0.7;
+    reasoning = `medium-risk reasoning signals: ${med}`;
+  } else if (low > 0 && high === 0) {
+    tier = 'T1';
+    category = 'simple_transform_or_explain';
+    risk = 'low';
+    confidence = len < 200 ? 0.85 : 0.7;
+    reasoning = `low-risk signals: ${low}, len=${len}`;
+  } else if (triv > 0 || (len < 120 && fileMatches === 0)) {
+    tier = 'T0';
+    category = 'trivial_local';
+    risk = 'minimal';
+    confidence = 0.8;
+    reasoning = `trivial signals: ${triv}, len=${len}`;
+  } else {
+    // Ambiguous: lean toward the cheapest tier that's still safe.
+    // v3 fix: real-corpus replay showed 27% of prompts hit this branch and
+    // were being escalated +1 tier to T3, which destroyed savings. Most
+    // ambiguous prompts are short to medium and don't need Opus.
+    if (len < 250 && fileMatches <= 1) {
+      tier = 'T0';
+      category = 'ambiguous_short';
+      risk = 'minimal';
+      confidence = 0.65;
+      reasoning = 'short ambiguous prompt — safe to start in local tier';
+    } else if (len < 600) {
+      tier = 'T2';
+      category = 'ambiguous_medium';
+      risk = 'medium';
+      confidence = 0.6;
+      reasoning = 'medium ambiguous prompt — Sonnet handles this fine';
+    } else {
+      tier = 'T2';
+      category = 'ambiguous_long';
+      risk = 'medium';
+      confidence = 0.55;
+      reasoning = 'long ambiguous prompt — Sonnet, escalate manually if needed';
+    }
+  }
+
+  // Guardrail: low confidence escalates 1 tier ONLY if there's at least 1
+  // medium-risk signal. v3 fix: previously this rule auto-escalated 27% of
+  // the corpus to T3 with no risk evidence, destroying savings. Now we
+  // require evidence before paying for Opus.
+  let escalation_rule = 'none';
+  if (confidence < 0.5 && tier !== 'T3' && (med > 0 || high > 0)) {
+    const order = ['T0', 'T1', 'T2', 'T3'];
+    tier = order[order.indexOf(tier) + 1];
+    escalation_rule = 'low_confidence_with_risk_signal_+1_tier';
+  }
+
+  const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
+  // T1 needs API key; degrade to T0 if absent.
+  if (tier === 'T1' && !anthropicKey) {
+    tier = 'T0';
+    escalation_rule = 'haiku_unavailable_no_api_key_degraded_to_local';
+  }
+
+  // T0 split: terse model for transforms/summarization, reasoning model for analysis.
+  // category 'trivial_local' or short prompts → terse; 'reasoning_intermediate' degraded → reason
+  const t0Model =
+    category === 'reasoning_intermediate' || category === 'ambiguous_default'
+      ? MODELS.ollama_reason
+      : MODELS.ollama_terse;
+
+  const backend = {
+    T0: { recommended_backend: 'ollama', recommended_model: t0Model, suggested_subagent: 'local-summarizer' },
+    T1: { recommended_backend: 'anthropic_api', recommended_model: MODELS.haiku, suggested_subagent: 'cheap-triage' },
+    T2: { recommended_backend: 'claude_subagent', recommended_model: MODELS.sonnet, suggested_subagent: 'model-reasoner' },
+    T3: { recommended_backend: 'claude_subagent', recommended_model: MODELS.opus, suggested_subagent: 'model-architect' },
+  }[tier];
+
+  return {
+    task_category: category,
+    risk_level: risk,
+    tier,
+    ...backend,
+    confidence: Math.round(confidence * 100) / 100,
+    escalation_rule,
+    reasoning,
+    anthropic_key_present: anthropicKey,
+    prompt_length: len,
+    file_hint_count: fileMatches,
+  };
+}
+
+(async () => {
+  try {
+    const prompt = await readPrompt();
+    const result = classify(prompt);
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+  } catch (err) {
+    process.stdout.write(
+      JSON.stringify({
+        recommended_backend: 'claude_session',
+        recommended_model: 'session-default',
+        confidence: 0,
+        escalation_rule: 'classifier_error_fallthrough',
+        error: String(err && err.message || err),
+      }) + '\n'
+    );
+  }
+})();
