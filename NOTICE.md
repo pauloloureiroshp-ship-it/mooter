@@ -60,7 +60,7 @@ If you or your employer is:
 - Interested in custom pattern consulting for a specific domain
 - Building a commercial product that includes frugal as a component
 
-… please email me at **paulo@marleyliving.com** with subject `frugal commercial — <company>`. No lawyers, no NDAs needed at this stage — just a quick note so I can prioritise the features that matter to real commercial users.
+… please email me at **paulo.loureiro.shp@gmail.com** with subject `frugal commercial — <company>`. No lawyers, no NDAs needed at this stage — just a quick note so I can prioritise the features that matter to real commercial users.
 
 ---
 

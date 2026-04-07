@@ -11,6 +11,7 @@
 [![Savings](https://img.shields.io/badge/savings-90.2%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
 [![Tests](https://img.shields.io/badge/tests-11%2F11%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
 

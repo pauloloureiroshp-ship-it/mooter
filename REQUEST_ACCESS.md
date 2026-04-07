@@ -4,7 +4,7 @@ frugal is in private beta. If you'd like to try it, here's the short version:
 
 ## The 2-line email
 
-Send an email to **paulo@marleyliving.com** with the subject line:
+Send an email to **paulo.loureiro.shp@gmail.com** with the subject line:
 
 > `frugal access request — <your name>`
 

@@ -1,0 +1,68 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/router/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/router/**'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: unit + integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check classify.js
+        run: node -c tools/router/classify.js
+
+      - name: Syntax check backtest.js
+        run: node -c tools/router/backtest.js
+
+      - name: Syntax check update-router.js
+        run: node -c tools/router/update-router.js
+
+      - name: Syntax check savings-tracker.js
+        run: node -c tools/router/savings-tracker.js
+
+      # The test suite expects classify.js/update-router.js to live under
+      # ~/.claude/tools/router/ because the integration tests spawn the
+      # real runtime paths. We mirror the repo into $HOME for the test run.
+      - name: Stage runtime into $HOME/.claude
+        run: |
+          mkdir -p "$HOME/.claude/tools/router"
+          cp tools/router/*.js "$HOME/.claude/tools/router/"
+          # Seed an empty decisions.log so backtest has a corpus to analyse
+          echo '{"event":"classified","prompt_len":14,"prompt_preview":"que horas são","tier":"T0","confidence":0.8}' > "$HOME/.claude/tools/router/decisions.log"
+          # Seed a minimal router-tuning.json so update-router.js has input
+          echo '{"generated_at":"2026-04-07T00:00:00Z","sample_size":1,"complexity_threshold":0.3,"promote_to_t0_patterns":[],"demote_from_t3_patterns":[],"notes":[]}' > "$HOME/.claude/tools/router/router-tuning.json"
+
+      - name: Run backtest (smoke)
+        run: node "$HOME/.claude/tools/router/backtest.js"
+
+      - name: Run unit + integration tests
+        run: node "$HOME/.claude/tools/router/backtest.test.js"
+
+      - name: Verify idempotency of update-router
+        run: |
+          node "$HOME/.claude/tools/router/update-router.js"
+          cp "$HOME/.claude/tools/router/classify.js" /tmp/classify.after1.js
+          node "$HOME/.claude/tools/router/update-router.js"
+          cp "$HOME/.claude/tools/router/classify.js" /tmp/classify.after2.js
+          diff -u /tmp/classify.after1.js /tmp/classify.after2.js
+          echo "update-router idempotency verified"

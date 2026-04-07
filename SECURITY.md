@@ -16,7 +16,7 @@ During private beta (v0.x), only the `main` branch is supported for security pat
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email Paulo directly at **paulo@marleyliving.com** with the subject line:
+Email Paulo directly at **paulo.loureiro.shp@gmail.com** with the subject line:
 
 > `frugal security — <short summary>`
 

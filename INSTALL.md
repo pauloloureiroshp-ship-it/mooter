@@ -29,7 +29,7 @@ ollama pull qwen3:30b     # better quality T0 (~20GB, optional)
 ## Option A: One-command install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/<YOUR_GITHUB_USERNAME>/frugal/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)
 ```
 
 Flags:
@@ -43,7 +43,7 @@ bash install.sh --uninstall  # rollback
 ## Option B: Manual install
 
 ```bash
-git clone https://github.com/<YOUR_GITHUB_USERNAME>/frugal.git ~/frugal
+git clone https://github.com/pauloloureiroshp-ship-it/frugal.git ~/frugal
 cd ~/frugal
 bash install.sh
 ```
