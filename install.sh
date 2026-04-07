@@ -149,23 +149,36 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
 fi
 
 # 5. file install: copies from repo root (this script's parent) into ~/.claude/
+#
+# Source layout in the repo:
+#   tools/router/*.{js,sh,cmd}   → runtime router scripts (canonical)
+#   agents/*.md                   → subagent definitions
+#   skills/model-router/*.md      → optional slash command skill
+#   docs/*.md                     → routing policy + how-it-works reference
+#   CLAUDE.md                     → mediator doctrine
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -d "$SRC_DIR/router" ] && [ -d "$SRC_DIR/agents" ]; then
-  do_run "mkdir -p '$ROUTER_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/skills/model-router' '$CLAUDE_DIR/docs'"
-  do_run "cp '$SRC_DIR/router/'*.js '$SRC_DIR/router/'*.sh '$ROUTER_DIR/'"
+if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
+  do_run "mkdir -p '$ROUTER_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/skills/model-router' '$CLAUDE_DIR/docs' '$CLAUDE_DIR/hooks'"
+  do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/'"
+  do_run "cp '$SRC_DIR/tools/router/'*.sh '$ROUTER_DIR/' 2>/dev/null || true"
+  do_run "cp '$SRC_DIR/tools/router/'*.cmd '$ROUTER_DIR/' 2>/dev/null || true"
+  # The statusline hook ships alongside router scripts but lives under hooks/
+  if [ -f "$SRC_DIR/tools/router/gsd-statusline.js" ]; then
+    do_run "cp '$SRC_DIR/tools/router/gsd-statusline.js' '$CLAUDE_DIR/hooks/gsd-statusline.js'"
+  fi
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
-  do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/'"
-  do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/'"
+  do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
+  do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/' 2>/dev/null || true"
   if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
     do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md'"
     ok "installed CLAUDE.md doctrine"
   else
     warn "CLAUDE.md exists — not overwriting (use --force to replace, backup is in $BACKUP_DIR)"
   fi
-  do_run "chmod +x $ROUTER_DIR/*.sh $ROUTER_DIR/*.js"
+  do_run "chmod +x $ROUTER_DIR/*.sh $ROUTER_DIR/*.js 2>/dev/null || true"
   ok "installed router files into $ROUTER_DIR"
 else
-  warn "router/ or agents/ directory not found in $SRC_DIR — running in self-test mode"
+  warn "tools/router/ or agents/ directory not found in $SRC_DIR — running in self-test mode"
 fi
 
 # 6. settings.json hook merge (non-destructive)
