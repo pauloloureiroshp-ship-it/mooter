@@ -1,29 +1,42 @@
 #!/usr/bin/env node
 /**
- * savings-tracker.js — frugal savings HTTP server
+ * savings-tracker.js — frugal savings HTTP server (v0.6, token-aware)
  *
- * Reads ~/.claude/tools/router/decisions.log (JSONL, one entry per prompt)
- * and exposes metrics on http://127.0.0.1:7821.
+ * Reads ~/.claude/tools/router/decisions.log (JSONL) and exposes metrics
+ * on http://127.0.0.1:7821.
+ *
+ * What changed in v0.6 (honest-numbers rewrite):
+ *
+ *   1. Cost is token-based, not flat-per-tier. Uses pricing.js as the
+ *      single source of truth. An Opus turn with a 10k-char prompt now
+ *      costs ~$1.20 instead of $0.045 (the flat v0.5 number was ~25×
+ *      under the real API price). See docs/COST_MODEL.md.
+ *
+ *   2. System prompts (<task-notification>, hook echoes) are filtered
+ *      out before counting, so Ollama/Sonnet/Opus percentages reflect
+ *      real user intent.
+ *
+ *   3. option_a_hit events produce a separate "guaranteed_saved" number.
+ *      These are the only prompts where Opus was *actually* skipped
+ *      (Ollama's answer was emitted verbatim). The legacy tier-based
+ *      estimate is still reported as "advisory_saved" with a clear tag.
+ *
+ *   4. Currency is pluggable. Set FRUGAL_CURRENCY=BRL (or EUR, GBP) and
+ *      every money field is returned in both USD and the target. The
+ *      statusline reads `in_<ccy>` fields directly.
+ *
+ *   5. The /real endpoint surfaces the OAuth 5h usage from .budget-cache
+ *      when it's healthy, with a clear error flag when the bearer token
+ *      is dead (we saw this in production — see inject_context.js fix).
  *
  * Endpoints:
- *   GET /health   → 200 {ok:true}
- *   GET /metrics  → JSON {prompts, real_cost, naive_cost, saved, saved_pct, by_tier}
+ *   GET /health   → 200 {ok,port,pid}
+ *   GET /metrics  → JSON full report (backwards-compatible superset)
  *   GET /summary  → text/plain human-readable
- *   GET /last     → last log entry as JSON
+ *   GET /last     → last classified entry
+ *   GET /real     → NEW: OAuth 5h truth + health of the bearer token
  *
- * Cost model (per prompt, USD, tier-flat):
- *   T0 = 0.000   (Ollama / local)
- *   T1 = 0.0008  (Haiku)
- *   T2 = 0.008   (Sonnet)
- *   T3 = 0.045   (Opus)
- *
- * Naive baseline = "what it would cost if every prompt went to T3 (Opus)".
- * Savings = naive_cost - real_cost.
- *
- * Single-instance: if port 7821 is already bound, exit silently.
- *
- * Started detached by inject_context.js, statusline.sh, or the VS Code
- * extension via a /health probe. Never crashes the host.
+ * Single-instance: if 7821 is bound, exit silently.
  */
 
 'use strict';
@@ -33,26 +46,38 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const pricing = require('./pricing');
+const fx = require('./fx');
+
 const PORT = 7821;
 const HOST = '127.0.0.1';
-const LOG_PATH = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
+const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
+const BUDGET_CACHE_PATH = path.join(ROUTER_DIR, '.budget-cache.json');
 
-const COSTS = {
-  T0: 0.0,
-  T1: 0.0008,
-  T2: 0.008,
-  T3: 0.045,
-};
-const NAIVE_TIER = 'T3';
+const CURRENCY = (process.env.FRUGAL_CURRENCY || 'USD').toUpperCase();
 
-// Tier → human-readable model label, used to build pct_by_model.
-// Statusline reads this directly so it no longer needs a heuristic mapping.
+// Tier → human-readable model label (for pct_by_model in the statusline).
 const TIER_TO_MODEL = {
   T0: 'Ollama',
   T1: 'Haiku',
   T2: 'Sonnet',
   T3: 'Opus',
 };
+
+// Patterns that identify non-user prompts injected by Claude Code itself.
+// These are hook echoes and should NOT count toward the routing stats —
+// otherwise a busy session with many tool notifications inflates Ollama %.
+const SYSTEM_PROMPT_PATTERNS = [
+  /^<task-notification>/i,
+  /^<system-reminder>/i,
+  /^<command-name>/i,
+];
+
+function isSystemPrompt(entry) {
+  const p = entry.prompt_preview || '';
+  return SYSTEM_PROMPT_PATTERNS.some((rx) => rx.test(p));
+}
 
 // ── Cache (read decisions.log at most once per 4s) ──────────────────────────
 let cache = { ts: 0, mtime: 0, metrics: null, lastEntry: null, lineCount: 0 };
@@ -84,7 +109,15 @@ function readDecisions() {
 
   const lines = raw.split('\n').filter((l) => l.trim().length > 0);
   const metrics = computeMetrics(lines);
-  const lastEntry = lines.length ? safeParse(lines[lines.length - 1]) : null;
+  // Last entry = last classified (not option_a_hit / failures / system)
+  let lastEntry = null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const e = safeParse(lines[i]);
+    if (e && e.event === 'classified' && !isSystemPrompt(e)) {
+      lastEntry = e;
+      break;
+    }
+  }
 
   cache = { ts: Date.now(), mtime, metrics, lastEntry, lineCount: lines.length };
   return cache;
@@ -96,12 +129,32 @@ function safeParse(line) {
 
 function emptyMetrics() {
   return {
-    prompts: 0,
-    real_cost: 0,
-    naive_cost: 0,
-    saved: 0,
+    // Meta
+    version: '0.6.0',
+    currency: CURRENCY,
+    methodology: 'token-estimated',
+
+    // Counts
+    prompts: 0,              // user prompts, system prompts filtered out
+    system_prompts_filtered: 0,
+    option_a_hits: 0,
+
+    // USD costs (always present, source of truth)
+    real_cost: 0,            // kept for backwards compat — now = real_cost_estimated
+    real_cost_estimated: 0,  // Σ estimateTurnCost(tier, prompt_len)
+    naive_cost: 0,           // Σ naiveOpusCost(prompt_len)
+    saved: 0,                // naive - real
     saved_pct: 0,
     avg_saved_per_prompt: 0,
+    guaranteed_saved: 0,     // Option A hits × avg Opus turn cost (REAL)
+    advisory_saved: 0,       // same as `saved`, kept explicitly for honesty
+
+    // Alternate currency (if CURRENCY != USD)
+    in_brl: null,
+    in_eur: null,
+    in_gbp: null,
+
+    // Breakdowns
     by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
     cost_by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
     pct_by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
@@ -113,23 +166,48 @@ function emptyMetrics() {
 function computeMetrics(lines) {
   const m = emptyMetrics();
 
+  // First pass: count Option A hits (regardless of filter) — they are
+  // the only guaranteed Opus skips.
+  for (const line of lines) {
+    const e = safeParse(line);
+    if (e && e.event === 'option_a_hit') m.option_a_hits += 1;
+  }
+
+  // Second pass: real cost accounting over classified user prompts.
   for (const line of lines) {
     const e = safeParse(line);
     if (!e || e.event !== 'classified' || !e.tier) continue;
-    if (!(e.tier in COSTS)) continue;
+    if (!(e.tier in TIER_TO_MODEL)) continue;
+
+    if (isSystemPrompt(e)) {
+      m.system_prompts_filtered += 1;
+      continue;
+    }
 
     m.prompts += 1;
     m.by_tier[e.tier] += 1;
 
-    const real = typeof e.cost_estimate === 'number' ? e.cost_estimate : COSTS[e.tier];
-    m.real_cost += real;
-    m.cost_by_tier[e.tier] += real;
-    m.naive_cost += COSTS[NAIVE_TIER];
+    const realUsd = pricing.estimateTurnCost(e.tier, e.prompt_len);
+    const naiveUsd = pricing.naiveOpusCost(e.prompt_len);
+
+    m.real_cost_estimated += realUsd;
+    m.cost_by_tier[e.tier] += realUsd;
+    m.naive_cost += naiveUsd;
   }
 
-  m.saved = m.naive_cost - m.real_cost;
+  // Backwards-compat alias
+  m.real_cost = m.real_cost_estimated;
+
+  m.saved = m.naive_cost - m.real_cost_estimated;
   m.saved_pct = m.naive_cost > 0 ? (m.saved / m.naive_cost) * 100 : 0;
   m.avg_saved_per_prompt = m.prompts > 0 ? m.saved / m.prompts : 0;
+  m.advisory_saved = m.saved;
+
+  // Guaranteed savings: each Option A hit replaced a full Opus turn.
+  // Use an "average Opus turn on this corpus" multiplier so it scales
+  // with actual prompt sizes, not a fixed $/turn assumption.
+  const avgOpusTurn = m.prompts > 0 ? m.naive_cost / m.prompts : 0;
+  m.guaranteed_saved = m.option_a_hits * avgOpusTurn;
 
   if (m.prompts > 0) {
     for (const t of ['T0', 'T1', 'T2', 'T3']) {
@@ -140,12 +218,26 @@ function computeMetrics(lines) {
     }
   }
 
-  // Round for stable display
+  // Currency conversion: compute dual-currency for the big 3 numbers.
+  if (CURRENCY !== 'USD') {
+    m[`in_${CURRENCY.toLowerCase()}`] = {
+      real_cost: round(fx.convert(m.real_cost_estimated, CURRENCY), 2),
+      naive_cost: round(fx.convert(m.naive_cost, CURRENCY), 2),
+      saved: round(fx.convert(m.saved, CURRENCY), 2),
+      guaranteed_saved: round(fx.convert(m.guaranteed_saved, CURRENCY), 2),
+      symbol: { BRL: 'R$', EUR: '€', GBP: '£' }[CURRENCY] || '$',
+    };
+  }
+
+  // Round USD numbers for stable display
   m.real_cost = round(m.real_cost, 4);
+  m.real_cost_estimated = round(m.real_cost_estimated, 4);
   m.naive_cost = round(m.naive_cost, 4);
   m.saved = round(m.saved, 4);
   m.saved_pct = round(m.saved_pct, 1);
   m.avg_saved_per_prompt = round(m.avg_saved_per_prompt, 5);
+  m.guaranteed_saved = round(m.guaranteed_saved, 4);
+  m.advisory_saved = round(m.advisory_saved, 4);
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     m.cost_by_tier[t] = round(m.cost_by_tier[t], 4);
     m.pct_by_tier[t] = round(m.pct_by_tier[t], 1);
@@ -161,6 +253,42 @@ function round(n, decimals) {
   return Math.round(n * f) / f;
 }
 
+// ── /real endpoint: OAuth 5h truth ──────────────────────────────────────────
+function readRealBudget() {
+  try {
+    const raw = fs.readFileSync(BUDGET_CACHE_PATH, 'utf8');
+    const j = JSON.parse(raw);
+    if (!j || !j.data) return { ok: false, reason: 'no_cache' };
+
+    // inject_context.js may have written an auth-error response —
+    // surface it clearly so the statusline can warn instead of silently
+    // showing zeros.
+    if (j.data.type === 'error') {
+      return {
+        ok: false,
+        reason: 'oauth_error',
+        error_type: j.data.error && j.data.error.type,
+        error_message: j.data.error && j.data.error.message,
+        cached_at: j.ts || 0,
+        hint: 'Run `claude auth login` to refresh the bearer token.',
+      };
+    }
+
+    const d = j.data;
+    return {
+      ok: true,
+      source: 'oauth_api',
+      five_hour_pct: d.five_hour || d.fiveHour || null,
+      session_pct: d.session || null,
+      raw: d,
+      cached_at: j.ts || 0,
+      age_seconds: j.ts ? Math.round((Date.now() - j.ts) / 1000) : null,
+    };
+  } catch (err) {
+    return { ok: false, reason: 'read_failed', error: String(err && err.message || err) };
+  }
+}
+
 // ── HTTP handlers ───────────────────────────────────────────────────────────
 function send(res, status, body, contentType) {
   res.writeHead(status, {
@@ -172,12 +300,16 @@ function send(res, status, body, contentType) {
 }
 
 function handleHealth(_req, res) {
-  send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid }));
+  send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid, version: '0.6.0' }));
 }
 
 function handleMetrics(_req, res) {
   const { metrics } = readDecisions();
   send(res, 200, JSON.stringify(metrics));
+}
+
+function handleReal(_req, res) {
+  send(res, 200, JSON.stringify(readRealBudget()));
 }
 
 function handleLast(_req, res) {
@@ -186,22 +318,38 @@ function handleLast(_req, res) {
 }
 
 function handleSummary(_req, res) {
-  const { metrics } = readDecisions();
-  const m = metrics;
+  const { metrics: m } = readDecisions();
+  const curSym = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' }[CURRENCY] || '$';
+  const alt = m[`in_${CURRENCY.toLowerCase()}`];
+  const line = (label, usd) => {
+    const usdStr = `$${usd.toFixed(4)}`;
+    if (alt && CURRENCY !== 'USD') {
+      const a = fx.convert(usd, CURRENCY).toFixed(2);
+      return `${label.padEnd(14)} ${curSym}${a}  (${usdStr})`;
+    }
+    return `${label.padEnd(14)} ${usdStr}`;
+  };
   const txt = [
-    `frugal — savings summary`,
+    `frugal — savings summary (v0.6 token-estimated)`,
     ``,
-    `Prompts:     ${m.prompts}`,
-    `Real cost:   $${m.real_cost.toFixed(4)}`,
-    `Naive (T3):  $${m.naive_cost.toFixed(4)}`,
-    `Saved:       $${m.saved.toFixed(4)}  (${m.saved_pct.toFixed(1)}%)`,
-    `Avg/prompt:  $${m.avg_saved_per_prompt.toFixed(5)} saved`,
+    `Currency:     ${CURRENCY}`,
+    `Prompts:      ${m.prompts}  (${m.system_prompts_filtered} system filtered)`,
+    ``,
+    line('Real (est):', m.real_cost_estimated),
+    line('Naive Opus:', m.naive_cost),
+    line('Advisory:', m.advisory_saved),
+    line('Guaranteed:', m.guaranteed_saved) + `  (${m.option_a_hits} Option-A hits)`,
+    `Saved pct:    ${m.saved_pct.toFixed(1)}%  (advisory)`,
     ``,
     `Tier breakdown:`,
     `  T0  ${String(m.by_tier.T0).padStart(5)}  (${m.pct_by_tier.T0.toFixed(1)}%)   $${m.cost_by_tier.T0.toFixed(4)}`,
     `  T1  ${String(m.by_tier.T1).padStart(5)}  (${m.pct_by_tier.T1.toFixed(1)}%)   $${m.cost_by_tier.T1.toFixed(4)}`,
     `  T2  ${String(m.by_tier.T2).padStart(5)}  (${m.pct_by_tier.T2.toFixed(1)}%)   $${m.cost_by_tier.T2.toFixed(4)}`,
     `  T3  ${String(m.by_tier.T3).padStart(5)}  (${m.pct_by_tier.T3.toFixed(1)}%)   $${m.cost_by_tier.T3.toFixed(4)}`,
+    ``,
+    `Methodology: ${m.methodology}`,
+    `  Guaranteed = Option-A hits × avg Opus turn (real skips)`,
+    `  Advisory   = tier-routing baseline (approximation)`,
   ].join('\n');
   send(res, 200, txt, 'text/plain; charset=utf-8');
 }
@@ -211,40 +359,53 @@ const ROUTES = {
   '/metrics': handleMetrics,
   '/summary': handleSummary,
   '/last': handleLast,
+  '/real': handleReal,
 };
 
-const server = http.createServer((req, res) => {
-  const url = (req.url || '/').split('?')[0];
-  const handler = ROUTES[url];
-  if (!handler) {
-    send(res, 404, JSON.stringify({ error: 'not found', routes: Object.keys(ROUTES) }));
-    return;
-  }
-  try {
-    handler(req, res);
-  } catch (err) {
-    send(res, 500, JSON.stringify({ error: String(err && err.message || err) }));
-  }
-});
+// Only start the HTTP server when run as a script — never when this
+// file is require()'d from tests or another consumer. Without this
+// guard, the unit test suite EADDRINUSE-exits mid-run because the
+// already-running daemon on 7821 conflicts with the spawned listener.
+if (require.main === module) {
+  const server = http.createServer((req, res) => {
+    const url = (req.url || '/').split('?')[0];
+    const handler = ROUTES[url];
+    if (!handler) {
+      send(res, 404, JSON.stringify({ error: 'not found', routes: Object.keys(ROUTES) }));
+      return;
+    }
+    try {
+      handler(req, res);
+    } catch (err) {
+      send(res, 500, JSON.stringify({ error: String(err && err.message || err) }));
+    }
+  });
 
-server.on('error', (err) => {
-  // EADDRINUSE → another instance is already running. Exit silently.
-  if (err && err.code === 'EADDRINUSE') process.exit(0);
-  // Any other error → also exit silently. Tracker is best-effort.
-  process.exit(0);
-});
-
-server.listen(PORT, HOST, () => {
-  // No console output by default — keeps detached spawn quiet.
-  if (process.env.FRUGAL_TRACKER_VERBOSE) {
-    process.stdout.write(`frugal tracker listening on http://${HOST}:${PORT}\n`);
-  }
-});
-
-// Graceful shutdown
-for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, () => {
-    try { server.close(); } catch {}
+  server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE') process.exit(0);
     process.exit(0);
   });
+
+  server.listen(PORT, HOST, () => {
+    if (process.env.FRUGAL_TRACKER_VERBOSE) {
+      process.stdout.write(`frugal tracker v0.6 listening on http://${HOST}:${PORT} (${CURRENCY})\n`);
+    }
+  });
+
+  for (const sig of ['SIGINT', 'SIGTERM']) {
+    process.on(sig, () => {
+      try { server.close(); } catch {}
+      process.exit(0);
+    });
+  }
 }
+
+// Exported for unit tests (required from backtest.test.js)
+module.exports = {
+  computeMetrics,
+  readRealBudget,
+  isSystemPrompt,
+  emptyMetrics,
+  SYSTEM_PROMPT_PATTERNS,
+  TIER_TO_MODEL,
+};

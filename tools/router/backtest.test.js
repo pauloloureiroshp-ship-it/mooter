@@ -143,3 +143,70 @@ test('classify.js: high-risk prompts ignore TUNED demote/promote', () => {
   const out = JSON.parse(r.stdout);
   assert.equal(out.tier, 'T3', 'pre-push must stay T3 regardless of TUNED patterns');
 });
+
+// ── v0.6 cost model (pricing.js + savings-tracker.js token math) ────────────
+
+const pricing = require('./pricing.js');
+const tracker = require('./savings-tracker.js');
+
+test('pricing: Opus turn costs 30-60× a Haiku turn of same size', () => {
+  const opus = pricing.priceTurn('claude-opus-4-6', 10000, 1000);
+  const haiku = pricing.priceTurn('claude-haiku-4-5', 10000, 1000);
+  const ratio = opus / haiku;
+  assert.ok(ratio >= 18 && ratio <= 60,
+    `Opus/Haiku ratio was ${ratio.toFixed(1)}, expected 18-60 (input-heavy vs output-heavy windows).`);
+});
+
+test('pricing: Ollama is strictly free and unknown models fall back', () => {
+  assert.equal(pricing.priceTurn('qwen2.5:3b', 99999, 99999), 0);
+  assert.equal(pricing.priceTurn('ollama:whatever', 1, 1), 0);
+  const fallback = pricing.priceTurn('completely-unknown-model', 1_000_000, 1_000_000);
+  // Fallback is Sonnet-tier {3, 15} → 18 USD exactly
+  assert.ok(fallback > 0 && fallback < 100, 'fallback should be finite and non-zero');
+});
+
+test('pricing: estimateTurnCost scales monotonically with prompt length', () => {
+  const small = pricing.estimateTurnCost('T3', 100);
+  const medium = pricing.estimateTurnCost('T3', 5000);
+  const large = pricing.estimateTurnCost('T3', 50000);
+  assert.ok(small < medium, 'small < medium');
+  assert.ok(medium < large, 'medium < large');
+  // Large prompt on Opus should be realistic (~$0.50-$5 range)
+  assert.ok(large > 0.1, `expected large Opus prompt > $0.10, got $${large.toFixed(4)}`);
+});
+
+test('savings-tracker: isSystemPrompt filters Claude Code hook echoes', () => {
+  assert.equal(tracker.isSystemPrompt({ prompt_preview: '<task-notification> hello' }), true);
+  assert.equal(tracker.isSystemPrompt({ prompt_preview: '<system-reminder> foo' }), true);
+  assert.equal(tracker.isSystemPrompt({ prompt_preview: 'que horas são' }), false);
+  assert.equal(tracker.isSystemPrompt({ prompt_preview: '' }), false);
+});
+
+test('savings-tracker: computeMetrics excludes system prompts from counts', () => {
+  const lines = [
+    JSON.stringify({ event: 'classified', tier: 'T0', prompt_len: 14, prompt_preview: 'que horas são' }),
+    JSON.stringify({ event: 'classified', tier: 'T3', prompt_len: 400, prompt_preview: '<task-notification> hook' }),
+    JSON.stringify({ event: 'classified', tier: 'T3', prompt_len: 800, prompt_preview: 'refactor the vault' }),
+    JSON.stringify({ event: 'option_a_hit', prompt_len: 14 }),
+  ];
+  const m = tracker.computeMetrics(lines);
+  assert.equal(m.prompts, 2, '2 user prompts after filtering');
+  assert.equal(m.system_prompts_filtered, 1, '1 system prompt filtered');
+  assert.equal(m.option_a_hits, 1, '1 Option-A hit counted');
+  assert.equal(m.by_tier.T0, 1);
+  assert.equal(m.by_tier.T3, 1);
+  assert.ok(m.guaranteed_saved > 0, 'Option-A hit should produce guaranteed savings');
+  assert.ok(m.real_cost_estimated > 0, 'T3 prompt should produce non-zero estimated cost');
+  assert.equal(m.version, '0.6.0');
+});
+
+test('savings-tracker: saved_pct is a percentage, real_cost < naive_cost', () => {
+  const lines = [];
+  for (let i = 0; i < 10; i++) {
+    lines.push(JSON.stringify({ event: 'classified', tier: 'T0', prompt_len: 50, prompt_preview: 'q' + i }));
+  }
+  lines.push(JSON.stringify({ event: 'classified', tier: 'T3', prompt_len: 5000, prompt_preview: 'big refactor' }));
+  const m = tracker.computeMetrics(lines);
+  assert.ok(m.real_cost_estimated < m.naive_cost, 'router should save money on T0-heavy corpus');
+  assert.ok(m.saved_pct > 50 && m.saved_pct < 100, `expected 50-100%, got ${m.saved_pct}`);
+});

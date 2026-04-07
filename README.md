@@ -10,7 +10,7 @@
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-90.2%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
-[![Tests](https://img.shields.io/badge/tests-11%2F11%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Tests](https://img.shields.io/badge/tests-17%2F17%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
@@ -120,10 +120,10 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | T3 routing (Opus) | 3.6% |
 | Classifier latency | <50ms (regex, zero LLM) |
 | Low-confidence rate | 2.0% |
-| **Savings vs naive Opus** | **90.2%** |
-| Mediator cost (1,370 prompts) | $1.21 |
-| Naive Opus cost (same prompts) | $12.33 |
-| Unit tests (auto-learning loop) | 11/11 passing (`node:test`) |
+| **Advisory savings vs naive Opus** | **~78-90%** (see methodology below) |
+| Guaranteed savings (Option-A hits) | measured per-session |
+| Cost model | token-estimated, [see `docs/COST_MODEL.md`](docs/COST_MODEL.md) |
+| Unit tests (loop + cost model) | **17/17** passing (`node:test`) |
 | Projects validated on | marleyliving (CRM), cloude-home, misc |
 
 ---
@@ -242,10 +242,11 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | v0.2.0 | ✅ Released | Mediator doctrine, stats.js, benchmark.sh |
 | v0.3.0 | ✅ Released | replay.js, 1,370-prompt validation, 90.2% savings |
 | v0.4.0 | ✅ Released | Statusline OAuth, budget guardrail, multi-provider |
-| **v0.5.0** | ✅ **Released** | **Auto-learning loop: backtest, TUNED wire-up, 11 tests, pct_by_model** |
-| v0.6.0 | 🟡 Planned | Web dashboard (Next.js) for decisions.log exploration |
-| v0.7.0 | 🟡 Planned | Single-source-of-truth HIGH_RISK across classifier + backtest |
-| v0.8.0 | 🟡 Planned | Team shared config via Git, per-contributor analytics |
+| v0.5.0 | ✅ Released | Auto-learning loop: backtest, TUNED wire-up, 11 tests, pct_by_model |
+| **v0.6.0** | ✅ **Released** | **Honest numbers: token cost model, BRL/EUR/GBP, guaranteed vs advisory savings, 17 tests** |
+| v0.7.0 | 🟡 Planned | Invocation telemetry (PostToolUse hook) + sub-agent cost tracking + OAuth per-window reconciliation |
+| v0.8.0 | 🟡 Planned | Web dashboard (Next.js) for decisions.log exploration |
+| v0.9.0 | 🟡 Planned | Team shared config via Git, per-contributor analytics |
 | v1.0 | 🔵 Planned | Public launch, plugin marketplace, MCP integration |
 
 ---
@@ -267,6 +268,8 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | What frugal does *not* do |
 | [docs/REAL_CORPUS_VALIDATION.md](docs/REAL_CORPUS_VALIDATION.md) | The 1,370-prompt benchmark |
 | [docs/MODEL_MAPPING.md](docs/MODEL_MAPPING.md) | How to swap providers |
+| [docs/COST_MODEL.md](docs/COST_MODEL.md) | How v0.6 measures savings (token-estimated) |
+| [AUDIT.md](AUDIT.md) | The 13-gap audit that drove v0.6 |
 
 ---
 

@@ -40,6 +40,12 @@ jobs:
       - name: Syntax check savings-tracker.js
         run: node -c tools/router/savings-tracker.js
 
+      - name: Syntax check pricing.js (v0.6)
+        run: node -c tools/router/pricing.js
+
+      - name: Syntax check fx.js (v0.6)
+        run: node -c tools/router/fx.js
+
       # The test suite expects classify.js/update-router.js to live under
       # ~/.claude/tools/router/ because the integration tests spawn the
       # real runtime paths. We mirror the repo into $HOME for the test run.

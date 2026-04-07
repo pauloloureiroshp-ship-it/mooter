@@ -84,6 +84,21 @@ function fetchBudgetSync() {
     });
     if (r.status !== 0 || !r.stdout) return null;
     const data = JSON.parse(r.stdout);
+    // Auth-error responses: cache them WITH an `error: true` sentinel
+    // so savings-tracker.js /real endpoint can surface the dead token
+    // to the user — but return null so this function's callers (the
+    // budget guardrail) don't mistake the error object for real usage
+    // data. Previously we honored the TTL on the error response and
+    // silently blinded the guardrail until a manual cache delete.
+    if (data && data.type === 'error') {
+      try {
+        fs.writeFileSync(
+          BUDGET_CACHE_PATH,
+          JSON.stringify({ ts: Date.now(), data, error: true })
+        );
+      } catch { /* non-fatal */ }
+      return null;
+    }
     try {
       fs.writeFileSync(BUDGET_CACHE_PATH, JSON.stringify({ ts: Date.now(), data }));
     } catch { /* cache write failure non-fatal */ }

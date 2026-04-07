@@ -11,6 +11,13 @@ const { spawnSync } = require('child_process');
 // frugal savings appender — fetches /metrics from local tracker (:7821).
 // Returns a coloured " │ 💰 $X.XX (NN%)" segment, or '' on any failure.
 // Uses spawnSync(node) with a 500ms hard timeout so the statusline never hangs.
+//
+// v0.6: honest labels + dual currency.
+//   - FRUGAL_CURRENCY=BRL (or EUR/GBP) shows the target currency in
+//     the primary position with USD in parens: "R$10.83 ($2.00)".
+//   - "~" prefix marks the number as estimated, not OAuth-real.
+//   - Uses guaranteed_saved (Option-A hits) when present, otherwise
+//     falls back to advisory (tier-routing estimate).
 function fetchFrugalSavings() {
   try {
     const fetchScript = `
@@ -31,11 +38,38 @@ function fetchFrugalSavings() {
     if (r.status !== 0 || !r.stdout) return '';
     const m = JSON.parse(r.stdout);
     if (!m || !m.prompts) return '';
-    const saved = (m.saved || 0).toFixed(2);
+
+    // Pick the number to display. Prefer guaranteed (real Option-A skips).
+    const advisoryUsd = m.saved || 0;
+    const guaranteedUsd = m.guaranteed_saved || 0;
+    const primaryUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
+
+    // Currency selection. The tracker already exposes a dual block in
+    // in_brl / in_eur / in_gbp when FRUGAL_CURRENCY is set.
+    const currency = (m.currency || 'USD').toUpperCase();
+    const altKey = `in_${currency.toLowerCase()}`;
+    const alt = m[altKey];
+    const symbolMap = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' };
+    const sym = symbolMap[currency] || '$';
+
+    let primaryStr;
+    if (alt && currency !== 'USD') {
+      // Use the alt-currency number the tracker computed, plus USD in parens.
+      const altAmount = guaranteedUsd > 0 ? (alt.guaranteed_saved || 0) : (alt.saved || 0);
+      primaryStr = `${sym}${altAmount.toFixed(2)} ($${primaryUsd.toFixed(2)})`;
+    } else {
+      primaryStr = `$${primaryUsd.toFixed(2)}`;
+    }
+
     const pct = Math.round(m.saved_pct || 0);
     let color = '\x1b[2m'; // dim default
     if (pct >= 75) color = '\x1b[32m'; // green
     else if (pct >= 40) color = '\x1b[33m'; // yellow
+
+    // "~" prefix = estimated. Keep it visible so the number is never
+    // mistaken for the real OAuth figure.
+    const tildePrefix = guaranteedUsd > 0 ? '' : '~';
+
     let breakdown = '';
     // Prefer pct_by_model when tracker exposes it (newer format). Fall back
     // to pct_by_tier + heuristic mapping for older tracker versions.
@@ -55,7 +89,7 @@ function fetchFrugalSavings() {
         if (parts.length) breakdown = ` │ \x1b[2m${parts.join(' ')}\x1b[0m`;
       }
     }
-    return ` │ ${color}💰 $${saved} (${pct}%)\x1b[0m${breakdown}`;
+    return ` │ ${color}💰 ${tildePrefix}${primaryStr} (${pct}%)\x1b[0m${breakdown}`;
   } catch {
     return '';
   }
