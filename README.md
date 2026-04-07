@@ -10,7 +10,7 @@
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-90.2%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
-[![Tests](https://img.shields.io/badge/tests-17%2F17%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Tests](https://img.shields.io/badge/tests-25%2F25%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
@@ -243,7 +243,8 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | v0.3.0 | ✅ Released | replay.js, 1,370-prompt validation, 90.2% savings |
 | v0.4.0 | ✅ Released | Statusline OAuth, budget guardrail, multi-provider |
 | v0.5.0 | ✅ Released | Auto-learning loop: backtest, TUNED wire-up, 11 tests, pct_by_model |
-| **v0.6.0** | ✅ **Released** | **Honest numbers: token cost model, BRL/EUR/GBP, guaranteed vs advisory savings, 17 tests** |
+| v0.6.0 | ✅ Released | Honest numbers: token cost model, BRL/EUR/GBP, guaranteed vs advisory savings |
+| **v0.6.1** | ✅ **Released** | **In-prompt user override (`usa o opus`, `@sonnet`, `force ollama`, `sem opus`) + HIGH_RISK guardrail on downgrades, 25 tests** |
 | v0.7.0 | 🟡 Planned | Invocation telemetry (PostToolUse hook) + sub-agent cost tracking + OAuth per-window reconciliation |
 | v0.8.0 | 🟡 Planned | Web dashboard (Next.js) for decisions.log exploration |
 | v0.9.0 | 🟡 Planned | Team shared config via Git, per-contributor analytics |

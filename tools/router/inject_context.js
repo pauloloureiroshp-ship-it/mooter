@@ -212,8 +212,12 @@ if (decision.confidence < 0.6) process.exit(0);
 // OPTION A — pre-compute answer via Ollama for confident T0 tasks.
 // Injects <suggested_answer> so Claude can output it verbatim, saving
 // most reasoning tokens. Falls back silently if Ollama is unavailable.
+//
+// SKIP Option A when the user explicitly pinned a model — they want the
+// session to actually run on that model, not regurgitate Ollama output.
 let suggestedAnswer = null;
-if (decision.tier === 'T0' && decision.confidence >= 0.8 && prompt.length < 500) {
+const userPinnedOverride = decision.user_override && decision.user_override.honored === true;
+if (!userPinnedOverride && decision.tier === 'T0' && decision.confidence >= 0.8 && prompt.length < 500) {
   try {
     const callScript = path.join(__dirname, 'ollama_call_node.js');
     const ollamaRes = spawnSync(process.execPath, [callScript, prompt], {
@@ -232,6 +236,27 @@ if (decision.tier === 'T0' && decision.confidence >= 0.8 && prompt.length < 500)
   }
 }
 
+// User override surface — when the prompt explicitly mentions a model, the
+// hint includes a USER_OVERRIDE block so the doctrine can honor it without
+// re-parsing. Two states: honored=true (user got what they asked for) or
+// honored=false (high-risk guardrail refused a downgrade).
+const overrideLines = [];
+if (decision.user_override) {
+  const uo = decision.user_override;
+  overrideLines.push('');
+  if (uo.honored) {
+    overrideLines.push(`USER_OVERRIDE: honored — pinned to ${uo.label || uo.requested || uo.blocked}`);
+    overrideLines.push(`override_kind: ${uo.kind}`);
+    if (uo.original_tier && uo.original_tier !== decision.tier) {
+      overrideLines.push(`original_tier: ${uo.original_tier} (overridden by user request)`);
+    }
+  } else {
+    overrideLines.push(`USER_OVERRIDE: REFUSED — ${uo.reason}`);
+    overrideLines.push(`requested: ${uo.requested || uo.blocked}`);
+    overrideLines.push('reason: high-risk signal in prompt; doctrine guardrail blocks downgrade');
+  }
+}
+
 const lines = [
   '<router-hint>',
   `task_category: ${decision.task_category}`,
@@ -243,10 +268,15 @@ const lines = [
   `confidence: ${decision.confidence}`,
   decision.max_tier ? `max_tier: ${decision.max_tier}` : null,
   decision.escalation_rule !== 'none' ? `escalation: ${decision.escalation_rule}` : null,
+  ...overrideLines,
   '',
   'Routing policy: see ~/.claude/docs/ROUTING_POLICY.md',
-  'If this is a structural/critical task, prefer the suggested subagent.',
-  'If this is a trivial local task, delegate to local-summarizer / local-transformer.',
+  decision.user_override && decision.user_override.honored
+    ? 'USER OVERRIDE ACTIVE: honor the pinned model — do not delegate to a different tier.'
+    : 'If this is a structural/critical task, prefer the suggested subagent.',
+  decision.user_override && decision.user_override.honored
+    ? null
+    : 'If this is a trivial local task, delegate to local-summarizer / local-transformer.',
   '</router-hint>',
 ].filter(Boolean);
 

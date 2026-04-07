@@ -210,3 +210,75 @@ test('savings-tracker: saved_pct is a percentage, real_cost < naive_cost', () =>
   assert.ok(m.real_cost_estimated < m.naive_cost, 'router should save money on T0-heavy corpus');
   assert.ok(m.saved_pct > 50 && m.saved_pct < 100, `expected 50-100%, got ${m.saved_pct}`);
 });
+
+// ── v0.6.1 user override (in-prompt model pinning) ─────────────────────────
+
+function classifyPrompt(prompt) {
+  const CLASSIFY = path.join(os.homedir(), '.claude', 'tools', 'router', 'classify.js');
+  const r = spawnSync(process.execPath, [CLASSIFY, prompt], { encoding: 'utf8' });
+  assert.equal(r.status, 0, `classify.js failed for "${prompt}": ${r.stderr}`);
+  return JSON.parse(r.stdout);
+}
+
+test('user override: positive "usa o opus" pins T3 + Opus', () => {
+  const r = classifyPrompt('usa o opus para revisar isto rapidamente');
+  assert.equal(r.tier, 'T3');
+  assert.equal(r.recommended_model, 'claude-opus-4-6');
+  assert.equal(r.user_override.honored, true);
+  assert.equal(r.user_override.kind, 'positive');
+  assert.equal(r.user_override.requested, 'opus');
+});
+
+test('user override: short form "@sonnet" pins T2 + Sonnet', () => {
+  const r = classifyPrompt('@sonnet diagnostica este bug do websocket');
+  assert.equal(r.tier, 'T2');
+  assert.equal(r.recommended_model, 'claude-sonnet-4-6');
+  assert.equal(r.user_override.honored, true);
+  assert.equal(r.user_override.kind, 'short');
+});
+
+test('user override: forced "force ollama" pins T0', () => {
+  const r = classifyPrompt('force ollama para esta tarefa simples');
+  assert.equal(r.tier, 'T0');
+  assert.equal(r.recommended_backend, 'ollama');
+  assert.equal(r.user_override.honored, true);
+  assert.equal(r.user_override.kind, 'forced');
+});
+
+test('user override: negative "sem opus" demotes one tier', () => {
+  // Trigger a normally-T3 prompt then negate
+  const r = classifyPrompt('sem opus, faz uma análise rápida deste código');
+  // The base prompt is short → T0 already, so refusal-reason "already_at_T0"
+  assert.equal(r.user_override.kind, 'negative');
+  assert.equal(r.user_override.honored, false);
+  assert.equal(r.user_override.reason, 'already_at_T0');
+});
+
+test('user override: HIGH_RISK refuses downgrade ("usa ollama para deploy de produção")', () => {
+  const r = classifyPrompt('usa ollama para fazer o deploy de produção');
+  assert.equal(r.tier, 'T3', 'high-risk must stay T3');
+  assert.equal(r.user_override.honored, false);
+  assert.equal(r.user_override.reason, 'high_risk_signal_present');
+  assert.equal(r.escalation_rule, 'user_override_refused_high_risk');
+});
+
+test('user override: HIGH_RISK refuses negative "@haiku review final antes de push"', () => {
+  const r = classifyPrompt('@haiku review final antes de push');
+  assert.equal(r.tier, 'T3', 'pre-push must stay T3 even with @haiku request');
+  assert.equal(r.user_override.honored, false);
+});
+
+test('user override: assignment "model: gemini" pins Gemini Flash T0', () => {
+  const r = classifyPrompt('model: gemini — explica este snippet');
+  assert.equal(r.tier, 'T0');
+  assert.equal(r.recommended_model, 'gemini-2.5-flash');
+  assert.equal(r.recommended_backend, 'gemini');
+  assert.equal(r.user_override.honored, true);
+  assert.equal(r.user_override.kind, 'assigned');
+});
+
+test('user override: NO override leaves classifier output untouched', () => {
+  const r = classifyPrompt('refactora a arquitetura para multi-tenant');
+  assert.equal(r.tier, 'T3', 'architecture should still escalate via heuristic');
+  assert.ok(!r.user_override, 'no override field when no in-prompt request');
+});

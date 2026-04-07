@@ -122,6 +122,113 @@ const TRIVIAL = [
 const FILE_HINT = /\b(\w+\.(ts|tsx|js|jsx|py|go|rs|md|json|yml|yaml|sql|sh|css|html))\b/g;
 const MULTI_FILE = /\bmulti[- ]?(arquivo|file)/i;
 
+// ── USER OVERRIDE DETECTION ─────────────────────────────────────────────────
+// "Usa o opus" / "force sonnet" / "@haiku" / "com ollama" / "sem opus" — let
+// the user pin the model directly inside the prompt. Doctrine: explicit user
+// intent always wins over heuristic tiering, EXCEPT when downgrading a prompt
+// that carries a HIGH_RISK signal (refuses to route a deploy/migration to
+// Ollama just because the user said so). Mirrors the dual-enforce guardrail
+// pattern from the auto-learning loop.
+//
+// Vocabulary supported (PT-PT + EN):
+//   positive  → use/usa/usar/com/with/via/por  + model
+//   forced    → força/forçar/force/impõe       + model
+//   short     → @opus / @sonnet / @haiku / @ollama / @gemini / @gpt
+//   assign    → model[:=] opus / modelo[:=] sonnet
+//   negative  → sem/no/não uses/don't use      + model  → demote one tier
+//
+// Models recognized → tier:
+//   opus               → T3
+//   sonnet             → T2
+//   haiku              → T1
+//   ollama|local|qwen  → T0
+//   gemini             → T0 (Flash; use_pro flag bumps to T2)
+//   gpt|gpt-4|gpt-4o   → T2 (informational backend, doctrine still routes
+//                            via Anthropic subagent — will be live in v0.7)
+const USER_OVERRIDE_MODELS = {
+  opus:    { tier: 'T3', model: 'claude-opus-4-6',    backend: 'claude_subagent', label: 'Opus' },
+  sonnet:  { tier: 'T2', model: 'claude-sonnet-4-6',  backend: 'claude_subagent', label: 'Sonnet' },
+  haiku:   { tier: 'T1', model: 'claude-haiku-4-5',   backend: 'anthropic_api',   label: 'Haiku' },
+  ollama:  { tier: 'T0', model: 'qwen2.5:3b',         backend: 'ollama',          label: 'Ollama' },
+  local:   { tier: 'T0', model: 'qwen2.5:3b',         backend: 'ollama',          label: 'Ollama' },
+  qwen:    { tier: 'T0', model: 'qwen2.5:3b',         backend: 'ollama',          label: 'Ollama' },
+  gemini:  { tier: 'T0', model: 'gemini-2.5-flash',   backend: 'gemini',          label: 'Gemini' },
+  gpt:     { tier: 'T2', model: 'gpt-4o',             backend: 'openai',          label: 'GPT' },
+  'gpt-4': { tier: 'T2', model: 'gpt-4o',             backend: 'openai',          label: 'GPT-4o' },
+  'gpt-4o':{ tier: 'T2', model: 'gpt-4o',             backend: 'openai',          label: 'GPT-4o' },
+  claude:  { tier: 'T3', model: 'claude-opus-4-6',    backend: 'claude_subagent', label: 'Opus' }, // bare "claude" → opus
+};
+
+// Build a flat alternation regex of all model keywords for matching.
+// Sorted longest-first so "gpt-4o" matches before "gpt".
+const MODEL_KEYS_RE = Object.keys(USER_OVERRIDE_MODELS)
+  .sort((a, b) => b.length - a.length)
+  .join('|')
+  .replace(/-/g, '\\-');
+
+// Positive intents: "usa o opus", "use sonnet", "with claude", "via haiku",
+// "por favor usa ollama", "rodar com gpt-4". Word boundary on the verb to
+// avoid matching "usado" / "user", and an optional connector (o/a/the/o,a).
+const POSITIVE_INTENT_RE = new RegExp(
+  '\\b(?:usa|use|usar|usando|com|with|via|por\\s+favor\\s+usa|run\\s+with|rodar\\s+com|run\\s+on)' +
+    '\\s+(?:o|a|the|um|uma)?\\s*(' + MODEL_KEYS_RE + ')\\b',
+  'i'
+);
+
+// Forced intents: stronger language, same effect.
+const FORCED_INTENT_RE = new RegExp(
+  '\\b(?:for[çc]a|for[çc]ar|for[çc]a-?me|force|impo[ee]|impor)\\s+(?:o|a|um|uma)?\\s*(' +
+    MODEL_KEYS_RE +
+    ')\\b',
+  'i'
+);
+
+// Short form: @opus, @sonnet, @haiku, @ollama, @gemini, @gpt-4o
+const SHORT_FORM_RE = new RegExp('@(' + MODEL_KEYS_RE + ')\\b', 'i');
+
+// Assignment form: "model: opus" / "modelo=sonnet" / "model = haiku"
+const ASSIGN_RE = new RegExp(
+  '\\bmodel(?:o)?\\s*[:=]\\s*(' + MODEL_KEYS_RE + ')\\b',
+  'i'
+);
+
+// Negative intents: "sem opus", "no opus", "não uses opus", "don't use opus".
+// These DEMOTE one tier (or pin lower) rather than pinning to a model.
+const NEGATIVE_INTENT_RE = new RegExp(
+  '\\b(?:sem|n[aã]o\\s+(?:uses|use|usar)|n[aã]o\\s+queiro|don\'?t\\s+use|do\\s+not\\s+use|no)\\s+(' +
+    MODEL_KEYS_RE +
+    ')\\b',
+  'i'
+);
+
+function detectUserOverride(p) {
+  if (!p || typeof p !== 'string') return null;
+
+  // Check negative first — "sem opus" should not be matched as "opus" by the
+  // positive regex. We strip the negative span before running positive checks.
+  const neg = p.match(NEGATIVE_INTENT_RE);
+  if (neg) {
+    const blocked = neg[1].toLowerCase();
+    return { kind: 'negative', blocked, raw: neg[0] };
+  }
+
+  // Forced > assigned > short > positive (priority order for same-prompt
+  // multi-mention; first match wins via priority not source position).
+  const forced = p.match(FORCED_INTENT_RE);
+  if (forced) return { kind: 'forced', model: forced[1].toLowerCase(), raw: forced[0] };
+
+  const assigned = p.match(ASSIGN_RE);
+  if (assigned) return { kind: 'assigned', model: assigned[1].toLowerCase(), raw: assigned[0] };
+
+  const short = p.match(SHORT_FORM_RE);
+  if (short) return { kind: 'short', model: short[1].toLowerCase(), raw: short[0] };
+
+  const positive = p.match(POSITIVE_INTENT_RE);
+  if (positive) return { kind: 'positive', model: positive[1].toLowerCase(), raw: positive[0] };
+
+  return null;
+}
+
 // Bash command pastes (very common in real history): if prompt STARTS with one
 // of these, it's almost certainly a paste-and-run, not architectural intent.
 // Tier T0 — local read or simple bash, no need for Opus.
@@ -349,6 +456,96 @@ function classify(prompt) {
     prompt_length: len,
     file_hint_count: fileMatches,
   };
+
+  // ── USER OVERRIDE (highest priority short of HIGH_RISK guardrail) ────────
+  // Detect "usa o opus" / "@sonnet" / "with haiku" / "sem opus" and pin
+  // tier accordingly. Upgrades are always allowed. Downgrades are refused
+  // when the prompt carries any HIGH_RISK signal — we'd rather burn an Opus
+  // turn the user doesn't want than route a deploy to Ollama.
+  const override = detectUserOverride(p);
+  if (override) {
+    const TIER_ORDER_LOCAL = ['T0', 'T1', 'T2', 'T3'];
+    const currentIdx = TIER_ORDER_LOCAL.indexOf(result.tier);
+
+    if (override.kind === 'negative') {
+      // "sem opus" → demote one tier from current (or pin at T2 if at T3).
+      // Refuse demotion under HIGH_RISK.
+      if (high === 0 && currentIdx > 0) {
+        const newTier = TIER_ORDER_LOCAL[Math.max(0, currentIdx - 1)];
+        const newBackend = {
+          T0: { recommended_backend: 'ollama',           recommended_model: MODELS.ollama_terse, suggested_subagent: 'local-summarizer' },
+          T1: { recommended_backend: 'anthropic_api',    recommended_model: MODELS.haiku,        suggested_subagent: 'cheap-triage' },
+          T2: { recommended_backend: 'claude_subagent',  recommended_model: MODELS.sonnet,       suggested_subagent: 'model-reasoner' },
+          T3: { recommended_backend: 'claude_subagent',  recommended_model: MODELS.opus,         suggested_subagent: 'model-architect' },
+        }[newTier];
+        result.tier = newTier;
+        Object.assign(result, newBackend);
+        result.confidence = 0.99;
+        result.escalation_rule = 'user_override_negative';
+        result.reasoning = `${result.reasoning}; user_override_negative ("${override.raw}") → ${newTier}`;
+        result.user_override = {
+          kind: 'negative',
+          blocked: override.blocked,
+          honored: true,
+          original_tier: TIER_ORDER_LOCAL[currentIdx],
+        };
+      } else {
+        // Refused
+        result.user_override = {
+          kind: 'negative',
+          blocked: override.blocked,
+          honored: false,
+          reason: high > 0 ? 'high_risk_signal_present' : 'already_at_T0',
+        };
+        result.reasoning = `${result.reasoning}; user_override_negative refused (${result.user_override.reason})`;
+      }
+    } else {
+      // positive / forced / assigned / short — pin to requested model.
+      const target = USER_OVERRIDE_MODELS[override.model];
+      if (target) {
+        const targetIdx = TIER_ORDER_LOCAL.indexOf(target.tier);
+        const isDowngrade = targetIdx < currentIdx;
+
+        if (isDowngrade && high > 0) {
+          // Refused: high-risk prompts cannot be routed to a cheaper tier
+          // even by explicit user request. Doctrine guardrail.
+          result.user_override = {
+            kind: override.kind,
+            requested: override.model,
+            label: target.label,
+            honored: false,
+            reason: 'high_risk_signal_present',
+            original_tier: TIER_ORDER_LOCAL[currentIdx],
+          };
+          result.reasoning = `${result.reasoning}; user_override → ${target.label} REFUSED (high-risk signal: cannot downgrade)`;
+          result.escalation_rule =
+            result.escalation_rule === 'none'
+              ? 'user_override_refused_high_risk'
+              : `${result.escalation_rule}+user_override_refused`;
+        } else {
+          // Honored. Pin tier + model + backend to user's choice.
+          result.tier = target.tier;
+          result.recommended_model = target.model;
+          result.recommended_backend = target.backend;
+          result.suggested_subagent =
+            target.tier === 'T0' ? 'local-summarizer'
+              : target.tier === 'T1' ? 'cheap-triage'
+              : target.tier === 'T2' ? 'model-reasoner'
+              : 'model-architect';
+          result.confidence = 0.99;
+          result.escalation_rule = `user_override_${override.kind}`;
+          result.reasoning = `${result.reasoning}; user_override → ${target.label} (${override.kind}: "${override.raw}")`;
+          result.user_override = {
+            kind: override.kind,
+            requested: override.model,
+            label: target.label,
+            honored: true,
+            original_tier: TIER_ORDER_LOCAL[currentIdx],
+          };
+        }
+      }
+    }
+  }
 
   // MD Enrichment — apply Router Context overrides from project CLAUDE.md
   const ctx = readRouterContext();

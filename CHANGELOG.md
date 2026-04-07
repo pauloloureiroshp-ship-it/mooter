@@ -6,6 +6,103 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [0.6.1] — 2026-04-07
+
+### User-driven model override (in-prompt pinning)
+
+The user can now pin a specific model directly inside their prompt and the
+classifier honors it. Vocabulary supported in PT-PT and EN, case-insensitive.
+
+### Added
+
+- **`detectUserOverride()` in `classify.js`** — five regex families covering
+  positive (`usa o opus`, `with sonnet`, `via haiku`, `rodar com gpt-4o`),
+  forced (`force ollama`, `força sonnet`, `impõe haiku`), short form (`@opus`,
+  `@sonnet`, `@haiku`, `@ollama`, `@gemini`, `@gpt-4o`), assignment
+  (`model: gemini`, `modelo = haiku`), and negative (`sem opus`, `não uses
+  haiku`, `don't use sonnet`, `no gemini`).
+- **`USER_OVERRIDE_MODELS` table** mapping each keyword to `{tier, model,
+  backend, label}`. Currently maps `opus → T3 / claude-opus-4-6`, `sonnet →
+  T2 / claude-sonnet-4-6`, `haiku → T1 / claude-haiku-4-5`, `ollama / local /
+  qwen → T0 / qwen2.5:3b`, `gemini → T0 / gemini-2.5-flash`, `gpt / gpt-4 /
+  gpt-4o → T2 / gpt-4o`. Bare `claude` is treated as a synonym for `opus`.
+- **Override application logic** runs after the heuristic tier is computed
+  and before the project-CLAUDE.md enrichment. Honored overrides set
+  `tier`, `recommended_model`, `recommended_backend`, `suggested_subagent`,
+  `confidence: 0.99`, and a new `user_override: { kind, requested, label,
+  honored, original_tier }` field. Refused overrides keep the heuristic tier
+  but still surface the attempt with `honored: false` and a `reason`.
+- **HIGH_RISK guardrail on downgrades.** If the prompt carries any
+  `HIGH_RISK` signal (deploy, migration, secret, architect, push, etc) and
+  the user requests a *cheaper* tier, the override is **refused** and the
+  prompt stays on the high-risk tier. Upgrades are always allowed. This
+  mirrors the dual-enforce pattern from the auto-learning loop and prevents
+  someone accidentally routing a `git push --force` to Ollama.
+- **`USER_OVERRIDE` block in `<router-hint>`** emitted by `inject_context.js`
+  — surfaces `USER_OVERRIDE: honored — pinned to <Label>` or `USER_OVERRIDE:
+  REFUSED — <reason>` so the doctrine can read it without re-parsing the
+  prompt. Last line of the hint switches between "USER OVERRIDE ACTIVE: honor
+  the pinned model — do not delegate to a different tier" (when honored) and
+  the standard tier guidance (otherwise).
+- **Option A suppression when override is honored** — `inject_context.js`
+  skips the Ollama pre-compute step entirely when `user_override.honored ===
+  true`. The user explicitly asked for a model; running Ollama and asking
+  Opus to regurgitate it would defeat the intent.
+- **Doctrine update in `~/.claude/CLAUDE.md`** — new "USER OVERRIDE" section
+  under the OPTION A clause documenting the vocabulary and the doctrine rule:
+  honor the pinned model unconditionally when `honored: true`, never delegate
+  to a different tier.
+- **8 new tests** in `backtest.test.js` (total: **25/25 passing** in ~544ms):
+  positive `usa o opus` → T3, short `@sonnet` → T2, forced `force ollama` →
+  T0, negative `sem opus` (already-at-T0 refusal), HIGH_RISK refusal of
+  `usa ollama para deploy de produção`, HIGH_RISK refusal of `@haiku review
+  final antes de push`, assignment `model: gemini` → Gemini Flash, and a
+  no-override regression check that confirms the heuristic path is unchanged
+  when the prompt has no in-prompt pin.
+
+### Examples
+
+```bash
+$ node ~/.claude/tools/router/classify.js "usa o opus para isto"
+{
+  "tier": "T3",
+  "recommended_model": "claude-opus-4-6",
+  "user_override": {
+    "kind": "positive",
+    "requested": "opus",
+    "label": "Opus",
+    "honored": true,
+    "original_tier": "T0"
+  },
+  "escalation_rule": "user_override_positive"
+}
+
+$ node ~/.claude/tools/router/classify.js "usa ollama para deploy producao"
+{
+  "tier": "T3",
+  "recommended_model": "claude-opus-4-6",
+  "user_override": {
+    "kind": "positive",
+    "requested": "ollama",
+    "label": "Ollama",
+    "honored": false,
+    "reason": "high_risk_signal_present",
+    "original_tier": "T3"
+  },
+  "escalation_rule": "user_override_refused_high_risk"
+}
+```
+
+### Why this matters
+
+Until v0.6.1, the only way to override the router was to spawn a subagent
+manually, which is verbose and breaks the flow. Now Paulo can write `usa o
+opus para isto` mid-prompt and the session pins to Opus immediately —
+without losing the high-risk safety net that prevents accidental cheap
+routing of dangerous operations.
+
+---
+
 ## [0.6.0] — 2026-04-07
 
 ### The "honest numbers" release
