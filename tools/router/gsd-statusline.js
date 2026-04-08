@@ -18,7 +18,9 @@ const { spawnSync } = require('child_process');
 //   - "~" prefix marks the number as estimated, not OAuth-real.
 //   - Uses guaranteed_saved (Option-A hits) when present, otherwise
 //     falls back to advisory (tier-routing estimate).
-function fetchFrugalSavings() {
+// v0.7.1: single fetch, shared by renderSavings + renderProviders.
+// Returns the parsed /metrics JSON or null on any failure.
+function fetchFrugalMetrics() {
   try {
     const fetchScript = `
       const http = require('http');
@@ -35,8 +37,16 @@ function fetchFrugalSavings() {
       timeout: 500,
       windowsHide: true,
     });
-    if (r.status !== 0 || !r.stdout) return '';
-    const m = JSON.parse(r.stdout);
+    if (r.status !== 0 || !r.stdout) return null;
+    return JSON.parse(r.stdout);
+  } catch {
+    return null;
+  }
+}
+
+function fetchFrugalSavings(mOpt) {
+  try {
+    const m = mOpt || fetchFrugalMetrics();
     if (!m || !m.prompts) return '';
 
     // Pick the number to display. Prefer guaranteed (real Option-A skips).
@@ -90,6 +100,42 @@ function fetchFrugalSavings() {
       }
     }
     return ` │ ${color}💰 ${tildePrefix}${primaryStr} (${pct}%)\x1b[0m${breakdown}`;
+  } catch {
+    return '';
+  }
+}
+
+// v0.7.1: provider availability indicator — renders a compact lightning-bolt
+// segment showing which of Claude/Ollama/Gemini/GPT the router could invoke
+// RIGHT NOW. Reads the providers block embedded in the /metrics response
+// (the tracker refreshes it every 30s via refreshProvidersAsync), so there's
+// no extra HTTP call from the statusline.
+//
+// Symbols:
+//   ●  (green)  — live, the router can hand work to this provider
+//   ◐  (yellow) — configured but degraded (e.g. OAuth token error)
+//   ○  (dim)    — not configured / not installed
+//
+// Layout:   │ ⚡ Claude● Ollama● Gemini○ GPT○
+function renderProviders(m) {
+  try {
+    const p = m && m.providers;
+    if (!p || typeof p !== 'object') return '';
+    const order = [
+      ['Claude', p.claude],
+      ['Ollama', p.ollama],
+      ['Gemini', p.gemini],
+      ['GPT',    p.gpt],
+    ];
+    // Dot + color by state.
+    const dotFor = (state) => {
+      if (state === 'ok')       return '\x1b[32m●\x1b[0m';       // green
+      if (state === 'degraded') return '\x1b[33m◐\x1b[0m';       // yellow
+      if (state === 'unknown')  return '\x1b[2m◌\x1b[0m';        // dim hollow
+      return '\x1b[2m○\x1b[0m';                                   // dim empty
+    };
+    const parts = order.map(([label, st]) => `\x1b[2m${label}\x1b[0m${dotFor(st)}`);
+    return ` │ \x1b[2m⚡\x1b[0m ${parts.join(' ')}`;
   } catch {
     return '';
   }
@@ -201,15 +247,17 @@ process.stdin.on('end', () => {
       } catch (e) {}
     }
 
-    // frugal savings segment (best-effort, 500ms hard timeout)
-    const savings = fetchFrugalSavings();
+    // frugal segments — one HTTP call, two renders (savings + providers)
+    const metrics = fetchFrugalMetrics();
+    const savings = fetchFrugalSavings(metrics);
+    const providers = renderProviders(metrics);
 
     // Output
     const dirname = path.basename(dir);
     if (task) {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}`);
+      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${providers}`);
     } else {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}`);
+      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${providers}`);
     }
   } catch (e) {
     // Silent fail - don't break statusline on parse errors

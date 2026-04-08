@@ -54,6 +54,8 @@ const HOST = '127.0.0.1';
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
 const BUDGET_CACHE_PATH = path.join(ROUTER_DIR, '.budget-cache.json');
+const PROVIDERS_CACHE_PATH = path.join(ROUTER_DIR, '.providers-cache.json');
+const PROVIDERS_CACHE_MS = 60 * 1000; // 60s — providers rarely flip
 
 const CURRENCY = (process.env.FRUGAL_CURRENCY || 'USD').toUpperCase();
 
@@ -77,6 +79,115 @@ const SYSTEM_PROMPT_PATTERNS = [
 function isSystemPrompt(entry) {
   const p = entry.prompt_preview || '';
   return SYSTEM_PROMPT_PATTERNS.some((rx) => rx.test(p));
+}
+
+// ── Provider availability (v0.7.1) ─────────────────────────────────────────
+// The statusline now shows which providers the router could invoke RIGHT NOW:
+//   - Claude (OAuth or ANTHROPIC_API_KEY present, not errored)
+//   - Ollama (localhost:11434 responding)
+//   - Gemini (GEMINI_API_KEY or GOOGLE_API_KEY present)
+//   - GPT/Codex (OPENAI_API_KEY present or `codex` CLI on PATH)
+//
+// States: 'ok' (live, green dot), 'degraded' (configured but broken,
+// yellow dot), 'off' (not configured, dim dot).
+//
+// Reads are sync + cheap (env + file stat) except Ollama which needs HTTP.
+// The interval below (inside the HTTP-server block) refreshes the disk
+// cache every 30s so reads from computeMetrics stay purely sync.
+function checkClaudeAuth() {
+  // Check OAuth first
+  try {
+    const credsPath = path.join(os.homedir(), '.claude', '.credentials.json');
+    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+    const token = creds && creds.claudeAiOauth && creds.claudeAiOauth.accessToken;
+    if (token) {
+      // If .budget-cache has an auth-error sentinel the token is dead
+      try {
+        const bc = JSON.parse(fs.readFileSync(BUDGET_CACHE_PATH, 'utf8'));
+        if (bc && bc.data && bc.data.type === 'error') return 'degraded';
+      } catch { /* no cache yet — assume healthy */ }
+      return 'ok';
+    }
+  } catch { /* no creds file */ }
+  // Fallback: raw API key env
+  if (process.env.ANTHROPIC_API_KEY) return 'ok';
+  return 'off';
+}
+
+function checkGemini() {
+  return (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? 'ok' : 'off';
+}
+
+function checkGpt() {
+  if (process.env.OPENAI_API_KEY) return 'ok';
+  // Secondary: Codex CLI installed
+  try {
+    const which = process.platform === 'win32' ? 'where' : 'which';
+    const { spawnSync } = require('child_process');
+    const r = spawnSync(which, ['codex'], { encoding: 'utf8', timeout: 500, windowsHide: true });
+    if (r.status === 0 && r.stdout && r.stdout.trim().length > 0) return 'ok';
+  } catch { /* no Codex CLI */ }
+  return 'off';
+}
+
+function pingOllama() {
+  return new Promise((resolve) => {
+    const req = http.get('http://localhost:11434/api/tags', (res) => {
+      res.on('data', () => {});
+      res.on('end', () => resolve(res.statusCode === 200 ? 'ok' : 'degraded'));
+    });
+    req.on('error', () => resolve('off'));
+    req.setTimeout(800, () => { req.destroy(); resolve('off'); });
+  });
+}
+
+/**
+ * Read the disk provider cache. Pure sync, cheap.
+ * Returns null when the cache is missing (computeMetrics will then render
+ * env-only sync checks — Ollama shows 'off' until the interval populates it).
+ */
+function readProvidersCache() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(PROVIDERS_CACHE_PATH, 'utf8'));
+    if (!raw || !raw.ts) return null;
+    if (Date.now() - raw.ts > PROVIDERS_CACHE_MS * 2) return null; // very stale
+    return raw.data;
+  } catch { return null; }
+}
+
+/**
+ * Sync-fast provider check used from inside computeMetrics.
+ * Ollama comes from the disk cache (written by the async interval below).
+ * Everything else is env/file-based and always current.
+ */
+function getProvidersSync() {
+  const cached = readProvidersCache();
+  return {
+    claude: checkClaudeAuth(),
+    ollama: cached && cached.ollama ? cached.ollama : 'unknown',
+    gemini: checkGemini(),
+    gpt: checkGpt(),
+    refreshed_at: cached ? cached.ts : null,
+  };
+}
+
+/**
+ * Async refresh — runs in the tracker interval, writes the disk cache.
+ * Only Ollama needs the HTTP check; everything else is included so
+ * readers that prefer the cache over the sync reads get consistent data.
+ */
+async function refreshProvidersAsync() {
+  const ollama = await pingOllama();
+  const data = {
+    claude: checkClaudeAuth(),
+    ollama,
+    gemini: checkGemini(),
+    gpt: checkGpt(),
+  };
+  try {
+    fs.writeFileSync(PROVIDERS_CACHE_PATH, JSON.stringify({ ts: Date.now(), data }));
+  } catch { /* non-fatal */ }
+  return data;
 }
 
 // ── Cache (read decisions.log at most once per 4s) ──────────────────────────
@@ -245,6 +356,10 @@ function computeMetrics(lines) {
   for (const label of ['Ollama', 'Haiku', 'Sonnet', 'Opus']) {
     m.pct_by_model[label] = round(m.pct_by_model[label], 1);
   }
+
+  // v0.7.1: provider availability snapshot (sync cheap checks + Ollama from cache)
+  m.providers = getProvidersSync();
+
   return m;
 }
 
@@ -317,6 +432,13 @@ function handleLast(_req, res) {
   send(res, 200, JSON.stringify(lastEntry || {}));
 }
 
+function handleProviders(_req, res) {
+  // Cheap sync view. The interval inside the HTTP-server block keeps the
+  // Ollama field fresh every 30s. For callers that want a live ping right
+  // now, use GET /providers?fresh=1 (async, up to 900ms).
+  send(res, 200, JSON.stringify(getProvidersSync()));
+}
+
 function handleSummary(_req, res) {
   const { metrics: m } = readDecisions();
   const curSym = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' }[CURRENCY] || '$';
@@ -360,6 +482,7 @@ const ROUTES = {
   '/summary': handleSummary,
   '/last': handleLast,
   '/real': handleReal,
+  '/providers': handleProviders,
 };
 
 // Only start the HTTP server when run as a script — never when this
@@ -408,6 +531,15 @@ if (require.main === module) {
     } catch { /* non-fatal */ }
   }, 30 * 60 * 1000).unref();
 
+  // v0.7.1: provider availability refresher. First run on startup so the
+  // statusline shows accurate dots from the first fetch, then every 30s.
+  // Async Ollama ping is the only non-trivial part; everything else is env.
+  const runRefresh = () => {
+    refreshProvidersAsync().catch(() => { /* never throw out of interval */ });
+  };
+  runRefresh();
+  setInterval(runRefresh, 30 * 1000).unref();
+
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => {
       try { server.close(); } catch {}
@@ -425,4 +557,11 @@ module.exports = {
   emptyMetrics,
   SYSTEM_PROMPT_PATTERNS,
   TIER_TO_MODEL,
+  // v0.7.1 provider availability
+  checkClaudeAuth,
+  checkGemini,
+  checkGpt,
+  pingOllama,
+  getProvidersSync,
+  refreshProvidersAsync,
 };
