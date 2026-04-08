@@ -81,6 +81,98 @@ function isSystemPrompt(entry) {
   return SYSTEM_PROMPT_PATTERNS.some((rx) => rx.test(p));
 }
 
+// ── Turn latency measurement (v0.7.2) ──────────────────────────────────────
+//
+// We pair `classified` events (logged by inject_context.js on UserPromptSubmit)
+// with `turn_end` events (logged by gsd-turn-end.js on Stop) by session_id to
+// get true wall-clock turn duration. The delta vs an estimated Opus baseline
+// is the number the user wants in the statusline — answers the honest
+// question "how much slower is the router vs going straight to Opus?".
+//
+// The Opus baseline is *estimated* from Anthropic's published Q2 2026 latency
+// specs + assumed output sizes per tier. It is NOT measured — measuring it
+// would require running every prompt twice. Everything derived from the
+// baseline is marked `~ est` in the statusline to preserve honesty.
+//
+// Baseline numbers (wall clock, typical):
+//   Opus 4.6: ~500ms first token, ~35 tok/s output stream
+//   Avg T3 prompt (1800 output tokens) → ~500 + 1800*1000/35 = ~51s
+//   Avg T2 prompt (900 tokens)         → ~500 + 900*1000/35  = ~26s
+//   Avg T1 prompt (350 tokens)         → ~500 + 350*1000/35  = ~10s
+//   Avg T0 prompt (200 tokens)         → ~500 + 200*1000/35  = ~6s
+//
+// These are CONSERVATIVE. Real Opus is often faster on short prompts, slower
+// on very long ones. Good enough for a relative display.
+const OPUS_BASELINE_MS_PER_TIER = {
+  T0: 6000,
+  T1: 10000,
+  T2: 26000,
+  T3: 51000,
+};
+
+// Turn durations longer than 10min are almost certainly user-went-away cases,
+// not real turns. Skip them from the percentile calculation.
+const MAX_REALISTIC_TURN_MS = 10 * 60 * 1000;
+
+function computeLatency(lines) {
+  const startsBySession = new Map(); // session_id → { ts_ms, tier, prompt_len }
+  const turnDurations = [];            // measured turn wall clock
+  const tierOfTurn = [];               // parallel array: tier at turn start
+
+  for (const line of lines) {
+    const e = safeParse(line);
+    if (!e || !e.event) continue;
+
+    if (e.event === 'classified' && e.ts_ms && e.session_id && !isSystemPrompt(e)) {
+      // Record the most recent classified event for this session as the
+      // "pending turn start". If multiple prompts queue before a turn_end
+      // (rare — Claude Code is sequential), the latest wins.
+      startsBySession.set(e.session_id, {
+        ts_ms: e.ts_ms,
+        tier: e.tier,
+        prompt_len: e.prompt_len,
+      });
+    } else if (e.event === 'turn_end' && e.ts_ms && e.session_id) {
+      const start = startsBySession.get(e.session_id);
+      if (!start) continue;
+      const duration = e.ts_ms - start.ts_ms;
+      if (duration > 0 && duration < MAX_REALISTIC_TURN_MS) {
+        turnDurations.push(duration);
+        tierOfTurn.push(start.tier || 'T2');
+      }
+      startsBySession.delete(e.session_id);
+    }
+  }
+
+  if (turnDurations.length === 0) return null;
+
+  // Percentiles
+  const sorted = turnDurations.slice().sort((a, b) => a - b);
+  const pick = (p) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
+  const p50 = pick(0.5);
+  const p95 = pick(0.95);
+  const avgActual = turnDurations.reduce((a, b) => a + b, 0) / turnDurations.length;
+
+  // Weighted Opus baseline based on the tier mix of the MEASURED turns.
+  // This is fairer than a flat baseline because it reflects the actual
+  // workload the user is running through the router.
+  const opusEstimates = tierOfTurn.map(
+    (t) => OPUS_BASELINE_MS_PER_TIER[t] || OPUS_BASELINE_MS_PER_TIER.T2
+  );
+  const avgOpusBaseline = opusEstimates.reduce((a, b) => a + b, 0) / opusEstimates.length;
+  const delta = avgActual - avgOpusBaseline;
+
+  return {
+    sample_size: turnDurations.length,
+    p50_ms: Math.round(p50),
+    p95_ms: Math.round(p95),
+    avg_ms: Math.round(avgActual),
+    opus_baseline_ms_est: Math.round(avgOpusBaseline),
+    delta_vs_opus_ms: Math.round(delta),
+    methodology: 'measured_turn_wall_clock_vs_estimated_opus_baseline_2026q2',
+  };
+}
+
 // ── Provider availability (v0.7.1) ─────────────────────────────────────────
 // The statusline now shows which providers the router could invoke RIGHT NOW:
 //   - Claude (OAuth or ANTHROPIC_API_KEY present, not errored)
@@ -360,6 +452,10 @@ function computeMetrics(lines) {
   // v0.7.1: provider availability snapshot (sync cheap checks + Ollama from cache)
   m.providers = getProvidersSync();
 
+  // v0.7.2: turn-level latency (requires Stop hook gsd-turn-end.js installed)
+  // Returns null when no paired start/end events exist — statusline hides segment.
+  m.latency = computeLatency(lines);
+
   return m;
 }
 
@@ -564,4 +660,7 @@ module.exports = {
   pingOllama,
   getProvidersSync,
   refreshProvidersAsync,
+  // v0.7.2 turn latency
+  computeLatency,
+  OPUS_BASELINE_MS_PER_TIER,
 };

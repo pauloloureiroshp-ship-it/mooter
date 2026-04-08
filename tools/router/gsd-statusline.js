@@ -105,6 +105,49 @@ function fetchFrugalSavings(mOpt) {
   }
 }
 
+// v0.7.2: turn-latency indicator — renders "⏱ 2.1s p50 · ~-9.3s vs Opus"
+// so the user can see both (a) how slow their turns actually are with the
+// router, and (b) the estimated delta vs a naive direct-to-Opus baseline.
+//
+// Format:
+//   ⏱ {p50_seconds}s p50 · ~{delta}s vs Opus
+//
+// Colour rules on the delta:
+//   green  : delta < -500ms      (frugal is faster)
+//   dim    : |delta| ≤ 500ms     (roughly the same)
+//   yellow : 500ms < delta ≤ 3s  (slightly slower)
+//   red    : delta > 3s          (significantly slower)
+//
+// The `~` prefix on the delta marks the Opus baseline as *estimated* from
+// public Anthropic latency specs, not measured. The p50 number has no
+// tilde — it is the real wall-clock median measured via the Stop hook.
+function renderLatency(m) {
+  try {
+    const l = m && m.latency;
+    if (!l || !l.sample_size) return '';
+    const p50s = (l.p50_ms / 1000).toFixed(1);
+    const delta = l.delta_vs_opus_ms;
+    const absS = (Math.abs(delta) / 1000).toFixed(1);
+    let color, text;
+    if (delta < -500) {
+      color = '\x1b[32m'; // green — router beat Opus baseline
+      text = `~-${absS}s vs Opus`;
+    } else if (delta <= 500) {
+      color = '\x1b[2m';  // dim — roughly equal
+      text = `~same as Opus`;
+    } else if (delta <= 3000) {
+      color = '\x1b[33m'; // yellow — slightly slower
+      text = `~+${absS}s vs Opus`;
+    } else {
+      color = '\x1b[31m'; // red — significantly slower
+      text = `~+${absS}s vs Opus`;
+    }
+    return ` │ \x1b[2m⏱ ${p50s}s p50\x1b[0m · ${color}${text}\x1b[0m`;
+  } catch {
+    return '';
+  }
+}
+
 // v0.7.1: provider availability indicator — renders a compact lightning-bolt
 // segment showing which of Claude/Ollama/Gemini/GPT the router could invoke
 // RIGHT NOW. Reads the providers block embedded in the /metrics response
@@ -247,17 +290,18 @@ process.stdin.on('end', () => {
       } catch (e) {}
     }
 
-    // frugal segments — one HTTP call, two renders (savings + providers)
+    // frugal segments — one HTTP call, three renders (savings + latency + providers)
     const metrics = fetchFrugalMetrics();
     const savings = fetchFrugalSavings(metrics);
+    const latency = renderLatency(metrics);
     const providers = renderProviders(metrics);
 
     // Output
     const dirname = path.basename(dir);
     if (task) {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${providers}`);
+      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${latency}${providers}`);
     } else {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${providers}`);
+      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${latency}${providers}`);
     }
   } catch (e) {
     // Silent fail - don't break statusline on parse errors

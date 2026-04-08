@@ -349,9 +349,14 @@ if (!decision) {
 }
 
 // Always log the decision (low-confidence too — useful for tuning).
+// v0.7.2: include ts_ms and session_id so the Stop hook can pair start→end
+// events and the savings-tracker can compute turn-level latency.
+const sessionId = payload.session_id || (payload.session && payload.session.id) || 'unknown';
 logDecision({
   ts: new Date().toISOString(),
+  ts_ms: Date.now(),
   event: 'classified',
+  session_id: sessionId,
   prompt_len: prompt.length,
   prompt_preview: prompt.slice(0, 80).replace(/\s+/g, ' '),
   tier: decision.tier,
