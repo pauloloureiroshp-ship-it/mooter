@@ -415,3 +415,142 @@ test('backtest analyze: counts cache_hits separately from total', () => {
   assert.equal(stats.cacheHits, 2);
   assert.equal(stats.total, 3);
 });
+
+// ── v0.7.2 turn latency (computeLatency pairing) ───────────────────────────
+
+test('latency: pairs classified + turn_end by session_id', () => {
+  const tracker = require('./savings-tracker.js');
+  const now = Date.now();
+  const lines = [
+    JSON.stringify({ event: 'classified', ts_ms: now - 10000, session_id: 's1', tier: 'T2', prompt_len: 500, prompt_preview: 'bug hunt' }),
+    JSON.stringify({ event: 'turn_end',   ts_ms: now - 7000,  session_id: 's1' }),
+    JSON.stringify({ event: 'classified', ts_ms: now - 6000,  session_id: 's1', tier: 'T0', prompt_len: 30, prompt_preview: 'list files' }),
+    JSON.stringify({ event: 'turn_end',   ts_ms: now - 4500,  session_id: 's1' }),
+  ];
+  const l = tracker.computeLatency(lines);
+  assert.ok(l, 'latency result should not be null');
+  assert.equal(l.sample_size, 2);
+  assert.ok(l.p50_ms > 0);
+  assert.ok(l.opus_baseline_ms_est > 0);
+});
+
+test('latency: drops anomalous turns longer than 10 minutes', () => {
+  const tracker = require('./savings-tracker.js');
+  const now = Date.now();
+  const lines = [
+    JSON.stringify({ event: 'classified', ts_ms: now - 3600000, session_id: 's1', tier: 'T2', prompt_len: 500, prompt_preview: 'user walked away' }),
+    JSON.stringify({ event: 'turn_end',   ts_ms: now,           session_id: 's1' }),
+    JSON.stringify({ event: 'classified', ts_ms: now - 5000,    session_id: 's2', tier: 'T0', prompt_len: 30, prompt_preview: 'quick one' }),
+    JSON.stringify({ event: 'turn_end',   ts_ms: now - 2000,    session_id: 's2' }),
+  ];
+  const l = tracker.computeLatency(lines);
+  assert.equal(l.sample_size, 1, 'only the realistic turn counts');
+});
+
+test('latency: returns null when no pairs exist', () => {
+  const tracker = require('./savings-tracker.js');
+  const lines = [
+    JSON.stringify({ event: 'classified', ts_ms: Date.now(), session_id: 's1', tier: 'T2', prompt_len: 500, prompt_preview: 'unclosed' }),
+  ];
+  assert.equal(tracker.computeLatency(lines), null);
+});
+
+test('latency: Opus baseline scales with tier mix', () => {
+  const tracker = require('./savings-tracker.js');
+  const now = Date.now();
+  // Heavy T3 corpus → high Opus baseline
+  const heavy = [
+    JSON.stringify({ event: 'classified', ts_ms: now - 5000, session_id: 'h', tier: 'T3', prompt_len: 5000, prompt_preview: 'architecture' }),
+    JSON.stringify({ event: 'turn_end',   ts_ms: now,        session_id: 'h' }),
+  ];
+  // Heavy T0 corpus → low Opus baseline
+  const light = [
+    JSON.stringify({ event: 'classified', ts_ms: now - 1000, session_id: 'l', tier: 'T0', prompt_len: 30, prompt_preview: 'simple' }),
+    JSON.stringify({ event: 'turn_end',   ts_ms: now,        session_id: 'l' }),
+  ];
+  const hl = tracker.computeLatency(heavy);
+  const ll = tracker.computeLatency(light);
+  assert.ok(hl.opus_baseline_ms_est > ll.opus_baseline_ms_est * 2);
+});
+
+// ── v0.8 Haiku arbiter ─────────────────────────────────────────────────────
+
+const arbiter = require('./arbiter.js');
+
+test('arbiter: extractDecision parses canonical Haiku JSON output', () => {
+  const fakeApiResp = JSON.stringify({
+    content: [{ type: 'text', text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"multi-step bug hunt with reproduction steps"}' }],
+  });
+  const d = arbiter.extractDecision(fakeApiResp);
+  assert.ok(d);
+  assert.equal(d.tier, 'T2');
+  assert.equal(d.subagent, 'model-reasoner');
+});
+
+test('arbiter: extractDecision tolerates markdown fences', () => {
+  const fakeApiResp = JSON.stringify({
+    content: [{ type: 'text', text: 'Here:\n```json\n{"tier":"T3","subagent":"model-architect","reasoning":"refactor multi-file auth"}\n```' }],
+  });
+  const d = arbiter.extractDecision(fakeApiResp);
+  assert.ok(d);
+  assert.equal(d.tier, 'T3');
+});
+
+test('arbiter: extractDecision rejects invalid tier', () => {
+  const fakeApiResp = JSON.stringify({
+    content: [{ type: 'text', text: '{"tier":"T5","subagent":"model-architect","reasoning":"x"}' }],
+  });
+  assert.equal(arbiter.extractDecision(fakeApiResp), null);
+});
+
+test('arbiter: extractDecision rejects unknown subagent', () => {
+  const fakeApiResp = JSON.stringify({
+    content: [{ type: 'text', text: '{"tier":"T2","subagent":"fake-agent","reasoning":"x"}' }],
+  });
+  assert.equal(arbiter.extractDecision(fakeApiResp), null);
+});
+
+test('arbiter: extractDecision rejects API error responses', () => {
+  const errResp = JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'bad key' } });
+  assert.equal(arbiter.extractDecision(errResp), null);
+});
+
+test('arbiter: arbitrate returns null without API key (no _mockResponse)', () => {
+  const savedKey = process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  try {
+    assert.equal(arbiter.arbitrate('hello world'), null);
+  } finally {
+    if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
+  }
+});
+
+test('arbiter: arbitrate honors _mockResponse and returns parsed decision', () => {
+  const fakeApiResp = JSON.stringify({
+    content: [{ type: 'text', text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"debug investigation"}' }],
+  });
+  const r = arbiter.arbitrate('why does this websocket reconnect flap?', {
+    _mockResponse: fakeApiResp,
+    _skipCache: true,
+  });
+  assert.ok(r);
+  assert.equal(r.tier, 'T2');
+  assert.equal(r.subagent, 'model-reasoner');
+  assert.equal(r.cached, false);
+});
+
+test('arbiter: hashKey includes system prompt version for cache invalidation', () => {
+  const k1 = arbiter.hashKey('same prompt');
+  const k2 = arbiter.hashKey('same prompt');
+  assert.equal(k1, k2, 'same prompt → same key');
+  assert.equal(k1.length, 64, 'SHA-256 hex');
+});
+
+test('arbiter: VALID_SUBAGENTS covers all 5 frugal subagents', () => {
+  assert.ok(arbiter.VALID_SUBAGENTS.has('local-summarizer'));
+  assert.ok(arbiter.VALID_SUBAGENTS.has('local-transformer'));
+  assert.ok(arbiter.VALID_SUBAGENTS.has('cheap-triage'));
+  assert.ok(arbiter.VALID_SUBAGENTS.has('model-reasoner'));
+  assert.ok(arbiter.VALID_SUBAGENTS.has('model-architect'));
+  assert.equal(arbiter.VALID_SUBAGENTS.size, 5);
+});

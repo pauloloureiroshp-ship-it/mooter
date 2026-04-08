@@ -348,6 +348,88 @@ if (!decision) {
   setClassifyCached(prompt, decision);
 }
 
+// ── v0.8 HAIKU ARBITER ─────────────────────────────────────────────────
+// When the regex classifier is uncertain (confidence < 0.75 OR the
+// task_category is ambiguous_medium / ambiguous_long), fall through to
+// the Haiku arbiter. It's cheap (~$0.001/call), fast (~400ms), and has
+// real semantic understanding of what the prompt is asking.
+//
+// Dual-enforce the HIGH_RISK guardrail: the arbiter can NEVER downgrade
+// a prompt that matches the high-risk hint. If the arbiter says T0 on a
+// `git push --force` prompt, we override it back to T3.
+//
+// Skip entirely when:
+//   - v0.7 kill-switch is active (FRUGAL_V07_DISABLE=1)
+//   - No ANTHROPIC_API_KEY in env (arbitrate() handles this as a no-op)
+//   - Cache hit on the classifier cache (already decided)
+//   - User override is honored (explicit intent wins)
+//   - Regex was confident (>= 0.75) AND not in an ambiguous_* category
+const AMBIGUOUS_CATEGORIES = new Set(['ambiguous_medium', 'ambiguous_long', 'ambiguous_short']);
+if (
+  !V07_DISABLED &&
+  !cacheHit &&
+  !(decision.user_override && decision.user_override.honored) &&
+  (decision.confidence < 0.75 || AMBIGUOUS_CATEGORIES.has(decision.task_category))
+) {
+  try {
+    const { arbitrate } = require('./arbiter.js');
+    const arbiterResult = arbitrate(prompt);
+    if (arbiterResult) {
+      const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
+      const isHighRiskPrompt = HIGH_RISK_HINT.test(prompt);
+      const regexIdx = TIER_ORDER.indexOf(decision.tier);
+      const arbiterIdx = TIER_ORDER.indexOf(arbiterResult.tier);
+      const isDowngrade = arbiterIdx < regexIdx;
+
+      if (isDowngrade && isHighRiskPrompt) {
+        // Refuse downgrade on HIGH_RISK — preserve the regex tier and
+        // record the refusal for the backtest.
+        decision.arbiter = {
+          consulted: true,
+          proposed_tier: arbiterResult.tier,
+          proposed_subagent: arbiterResult.subagent,
+          reasoning: arbiterResult.reasoning,
+          honored: false,
+          refusal_reason: 'high_risk_downgrade_refused',
+        };
+        decision.escalation_rule =
+          decision.escalation_rule === 'none'
+            ? 'arbiter_refused_high_risk'
+            : `${decision.escalation_rule}+arbiter_refused_high_risk`;
+      } else {
+        // Honor the arbiter. Replace the tier, backend, model, and
+        // subagent with the arbiter's choices.
+        const backendByTier = {
+          T0: { recommended_backend: 'ollama',          recommended_model: 'qwen2.5:3b' },
+          T1: { recommended_backend: 'anthropic_api',   recommended_model: 'claude-haiku-4-5-20251001' },
+          T2: { recommended_backend: 'claude_subagent', recommended_model: 'claude-sonnet-4-6' },
+          T3: { recommended_backend: 'claude_subagent', recommended_model: 'claude-opus-4-6' },
+        }[arbiterResult.tier];
+        const previousTier = decision.tier;
+        decision.tier = arbiterResult.tier;
+        decision.suggested_subagent = arbiterResult.subagent;
+        if (backendByTier) Object.assign(decision, backendByTier);
+        decision.arbiter = {
+          consulted: true,
+          proposed_tier: arbiterResult.tier,
+          proposed_subagent: arbiterResult.subagent,
+          reasoning: arbiterResult.reasoning,
+          honored: true,
+          previous_tier: previousTier,
+          cached: arbiterResult.cached === true,
+        };
+        decision.escalation_rule =
+          decision.escalation_rule === 'none'
+            ? 'arbiter_honored'
+            : `${decision.escalation_rule}+arbiter_honored`;
+        decision.confidence = Math.max(decision.confidence, 0.85);
+      }
+    }
+  } catch {
+    // Arbiter failed — silently fall back to the regex decision.
+  }
+}
+
 // Always log the decision (low-confidence too — useful for tuning).
 // v0.7.2: include ts_ms and session_id so the Stop hook can pair start→end
 // events and the savings-tracker can compute turn-level latency.
@@ -367,6 +449,9 @@ logDecision({
   escalation_rule: decision.escalation_rule,
   quality_intent: decision.quality_intent || false,
   cache_hit: cacheHit,
+  // v0.8: arbiter outcome (absent when arbiter did not run)
+  arbiter_honored: decision.arbiter ? decision.arbiter.honored : null,
+  arbiter_previous_tier: decision.arbiter && decision.arbiter.honored ? decision.arbiter.previous_tier : null,
 });
 
 // Apply budget guardrail before deciding what to emit.
@@ -455,6 +540,18 @@ if (decision.user_override) {
   }
 }
 
+const arbiterLines = [];
+if (decision.arbiter && decision.arbiter.consulted) {
+  arbiterLines.push('');
+  if (decision.arbiter.honored) {
+    arbiterLines.push(`ARBITER: honored (${decision.arbiter.previous_tier} → ${decision.tier})`);
+    arbiterLines.push(`arbiter_reasoning: ${decision.arbiter.reasoning}`);
+  } else {
+    arbiterLines.push(`ARBITER: refused (${decision.arbiter.refusal_reason})`);
+    arbiterLines.push(`arbiter_proposed: ${decision.arbiter.proposed_tier} — reasoning: ${decision.arbiter.reasoning}`);
+  }
+}
+
 const lines = [
   '<router-hint>',
   `task_category: ${decision.task_category}`,
@@ -467,6 +564,7 @@ const lines = [
   decision.max_tier ? `max_tier: ${decision.max_tier}` : null,
   decision.escalation_rule !== 'none' ? `escalation: ${decision.escalation_rule}` : null,
   ...overrideLines,
+  ...arbiterLines,
   '',
   'Routing policy: see ~/.claude/docs/ROUTING_POLICY.md',
   decision.user_override && decision.user_override.honored

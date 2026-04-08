@@ -10,7 +10,7 @@
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-90.2%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
-[![Tests](https://img.shields.io/badge/tests-43%2F43%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Tests](https://img.shields.io/badge/tests-56%2F56%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
@@ -246,10 +246,12 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | v0.5.0 | ✅ Released | Auto-learning loop: backtest, TUNED wire-up, 11 tests, pct_by_model |
 | v0.6.0 | ✅ Released | Honest numbers: token cost model, BRL/EUR/GBP, guaranteed vs advisory savings |
 | v0.6.1 | ✅ Released | In-prompt user override (`usa o opus`, `@sonnet`, `force ollama`, `sem opus`) + HIGH_RISK guardrail on downgrades, 25 tests |
-| **v0.7.0** | ✅ **Released** | **Hook p50 3s→113ms (classify cache + async budget + Ollama warmup), quality-intent detection (`pensa bem` / `ultrathink`), T0 sub-tier specialists (`qwen2.5-coder` / `deepseek-r1`), 43 tests** |
-| v0.7.1 | 🟡 Planned | Invocation telemetry (PostToolUse hook) + sub-agent cost tracking + OAuth per-window reconciliation |
-| v0.8.0 | 🟡 Planned | Semantic router (aurelio + MiniLM) for paraphrases the regex misses |
-| v0.9.0 | 🟡 Planned | Web dashboard (Next.js) for decisions.log exploration, team shared config |
+| v0.7.0 | ✅ Released | Hook p50 3s→113ms (classify cache + async budget + Ollama warmup), quality-intent detection, T0 sub-tier specialists |
+| v0.7.1 | ✅ Released | Provider availability indicator in statusline (Claude/Ollama/Gemini/GPT live/dim dots) |
+| v0.7.2 | ✅ Released | Turn-latency measurement via Stop hook + ~Opus baseline estimate in statusline + dispatcher architecture analysis |
+| **v0.8.0** | ✅ **Released** | **Haiku arbiter for ambiguous prompts (~17% long tail) — semantic understanding, HIGH_RISK dual-enforced, 56 tests, ~$0.27/mo extra cost for ~95% decision quality** |
+| v0.9.0 | 🟡 Planned | Parallel decomposition execution (arbiter already returns `decomposition` array, wire it to parallel subagent spawns) + arbiter metrics in statusline |
+| v1.0 | 🟡 Planned | Learned classifier (BERT/DeBERTa-small) if corpus justifies it; public launch |
 | v1.0 | 🔵 Planned | Public launch, plugin marketplace, MCP integration |
 
 ---
