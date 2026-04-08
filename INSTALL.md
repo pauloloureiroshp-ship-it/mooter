@@ -20,9 +20,43 @@ claude auth login
 Ollama optional but recommended:
 
 ```bash
-ollama pull qwen2.5:3b    # fast T0 model (~2GB)
-ollama pull qwen3:30b     # better quality T0 (~20GB, optional)
+ollama pull qwen2.5:3b    # fast T0 general model (~2GB) — REQUIRED for Option A
+ollama pull qwen3:30b     # reasoning T0 (~20GB, optional)
 ```
+
+### v0.7 — Optional local specialists (sub-tier routing)
+
+frugal v0.7 routes T0 work to specialised local models based on content:
+
+```bash
+ollama pull qwen2.5-coder:14b          # code specialist (~9GB VRAM)
+ollama pull deepseek-r1-distill-qwen:14b   # math/reasoning specialist (~9GB VRAM)
+```
+
+Both are **optional** — the router falls back to `qwen2.5:3b` when a specialist is missing. Install only what you actually use:
+
+- Mostly code work → `qwen2.5-coder:14b`
+- Math / step-by-step reasoning → `deepseek-r1-distill-qwen:14b`
+
+Verify what's installed at any time:
+
+```bash
+node ~/.claude/tools/router/check-local-models.js
+```
+
+### Ollama keep-alive (v0.7 latency optimization)
+
+For best performance, set Ollama to hold models in VRAM indefinitely:
+
+```bash
+# Windows PowerShell (system-wide)
+[Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', '-1', 'User')
+
+# macOS / Linux (shell profile)
+export OLLAMA_KEEP_ALIVE=-1
+```
+
+frugal also auto-warms `qwen2.5:3b` on every hook startup via `ollama-warmup.js`, but an infinite keep-alive is the belt-and-braces setting. Without it, Ollama's VRAM scheduler may evict models when other large models are loaded.
 
 ---
 

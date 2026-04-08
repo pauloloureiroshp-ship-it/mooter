@@ -282,3 +282,136 @@ test('user override: NO override leaves classifier output untouched', () => {
   assert.equal(r.tier, 'T3', 'architecture should still escalate via heuristic');
   assert.ok(!r.user_override, 'no override field when no in-prompt request');
 });
+
+// ── v0.7 quality intent (natural-language quality promotion) ───────────────
+
+test('quality intent: "preciso do teu melhor modelo" sets quality_intent=true', () => {
+  const r = classifyPrompt('Claude preciso do teu melhor modelo para isto');
+  assert.equal(r.quality_intent, true);
+  // Short+ambiguous (T0) → promoted to T1 → jumped to T2 (no API key path)
+  assert.ok(r.tier === 'T1' || r.tier === 'T2', `expected T1/T2, got ${r.tier}`);
+  assert.ok(r.escalation_rule.includes('quality_intent'));
+});
+
+test('quality intent: "pensa bem" promotes one tier', () => {
+  const r = classifyPrompt('pensa bem antes de responder a isto');
+  assert.equal(r.quality_intent, true);
+  assert.ok(r.escalation_rule.includes('quality_intent'));
+});
+
+test('quality intent: EN "think hard" triggers promotion', () => {
+  const r = classifyPrompt('think hard about this carefully');
+  assert.equal(r.quality_intent, true);
+});
+
+test('quality intent: "ultrathink" triggers promotion', () => {
+  const r = classifyPrompt('ultrathink this problem');
+  assert.equal(r.quality_intent, true);
+});
+
+test('quality intent: "give me your best effort" triggers promotion', () => {
+  const r = classifyPrompt('give me your best effort on this');
+  assert.equal(r.quality_intent, true);
+});
+
+test('quality intent: caps at T3 (does not go above)', () => {
+  const r = classifyPrompt('pensa bem na arquitetura do deploy para produção');
+  assert.equal(r.tier, 'T3');
+  assert.equal(r.quality_intent, true);
+});
+
+test('quality intent: @haiku user override wins over quality intent', () => {
+  const r = classifyPrompt('@haiku pensa bem nisto');
+  assert.equal(r.tier, 'T1', 'user override must win — Haiku pinned');
+  assert.equal(r.user_override.honored, true);
+  assert.equal(r.quality_intent, true, 'quality_intent detection still runs');
+});
+
+test('quality intent: NO trigger on neutral prompt', () => {
+  const r = classifyPrompt('lista os ficheiros modified hoje');
+  assert.equal(r.quality_intent, false);
+});
+
+// ── v0.7 sub-tier routing (code/math/general specialists) ──────────────────
+
+test('sub-tier: code prompt at T0 → qwen2.5-coder specialist', () => {
+  const r = classifyPrompt('explica o que faz esta função async await');
+  assert.equal(r.tier, 'T0');
+  assert.equal(r.t0_subtier, 'code');
+  assert.equal(r.recommended_model, 'qwen2.5-coder:14b-q4');
+});
+
+test('sub-tier: math prompt at T0 → deepseek-r1 specialist', () => {
+  const r = classifyPrompt('calcula o integral de x ao quadrado');
+  assert.equal(r.tier, 'T0');
+  assert.equal(r.t0_subtier, 'math');
+  assert.equal(r.recommended_model, 'deepseek-r1-distill-qwen:14b');
+});
+
+test('sub-tier: general prompt at T0 → qwen2.5:3b (default)', () => {
+  const r = classifyPrompt('lista os ficheiros modificados hoje');
+  assert.equal(r.tier, 'T0');
+  assert.equal(r.t0_subtier, 'general');
+  assert.equal(r.recommended_model, 'qwen2.5:3b');
+});
+
+test('sub-tier: non-T0 decision has t0_subtier=null', () => {
+  const r = classifyPrompt('refactora a arquitetura para multi-tenant');
+  assert.equal(r.tier, 'T3');
+  assert.equal(r.t0_subtier, null);
+});
+
+test('sub-tier: math symbol triggers specialist', () => {
+  const r = classifyPrompt('resolve a equação com ∫x²dx');
+  assert.equal(r.tier, 'T0');
+  assert.equal(r.t0_subtier, 'math');
+});
+
+// ── v0.7 pricing registry (sub-tier specialists present) ───────────────────
+
+test('pricing: qwen2.5-coder is free and has code strengths', () => {
+  const entry = pricing.PRICES['qwen2.5-coder:14b-q4'];
+  assert.ok(entry, 'qwen2.5-coder:14b-q4 must exist in registry');
+  assert.equal(entry.input, 0);
+  assert.equal(entry.output, 0);
+  assert.ok(entry.strengths.includes('code'));
+  assert.equal(entry.subtier, 'code');
+});
+
+test('pricing: deepseek-r1-distill is free and has math strengths', () => {
+  const entry = pricing.PRICES['deepseek-r1-distill-qwen:14b'];
+  assert.ok(entry, 'deepseek-r1-distill-qwen:14b must exist in registry');
+  assert.equal(entry.input, 0);
+  assert.ok(entry.strengths.includes('math'));
+  assert.equal(entry.subtier, 'math');
+});
+
+test('pricing: specialists produce zero cost via priceTurn', () => {
+  assert.equal(pricing.priceTurn('qwen2.5-coder:14b-q4', 10000, 1000), 0);
+  assert.equal(pricing.priceTurn('deepseek-r1-distill-qwen:14b', 10000, 1000), 0);
+});
+
+// ── v0.7 backtest quality_intent + cache metrics ───────────────────────────
+
+test('backtest analyze: counts quality_intent_hits', () => {
+  const { analyze: analyzeFn } = require('./backtest.js');
+  const fixture = [
+    { prompt_preview: 'normal prompt', prompt_len: 50, tier: 'T0', confidence: 0.8, quality_intent: false },
+    { prompt_preview: 'preciso do teu melhor', prompt_len: 30, tier: 'T2', confidence: 0.75, quality_intent: true },
+    { prompt_preview: 'ultrathink this', prompt_len: 20, tier: 'T2', confidence: 0.75, quality_intent: true },
+  ];
+  const stats = analyzeFn(fixture);
+  assert.equal(stats.qualityIntentHits, 2);
+});
+
+test('backtest analyze: counts cache_hits separately from total', () => {
+  const { analyze: analyzeFn } = require('./backtest.js');
+  const fixture = [
+    { prompt_preview: 'cached one', prompt_len: 20, tier: 'T0', confidence: 0.8, cache_hit: true },
+    { prompt_preview: 'cached two', prompt_len: 20, tier: 'T0', confidence: 0.8, cache_hit: true },
+    { prompt_preview: 'fresh', prompt_len: 30, tier: 'T0', confidence: 0.8, cache_hit: false },
+  ];
+  const stats = analyzeFn(fixture);
+  assert.equal(stats.cacheHits, 2);
+  assert.equal(stats.total, 3);
+});

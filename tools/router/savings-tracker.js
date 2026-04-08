@@ -387,14 +387,31 @@ if (require.main === module) {
   });
 
   server.listen(PORT, HOST, () => {
+    // v0.7: write a pid file so inject_context.js can detect a live tracker
+    // without opening a TCP socket on every hook invocation. File mtime
+    // serves as liveness signal; stale >1h triggers respawn.
+    try {
+      const pidPath = path.join(ROUTER_DIR, '.tracker.pid');
+      fs.writeFileSync(pidPath, String(process.pid));
+    } catch { /* non-fatal */ }
     if (process.env.FRUGAL_TRACKER_VERBOSE) {
       process.stdout.write(`frugal tracker v0.6 listening on http://${HOST}:${PORT} (${CURRENCY})\n`);
     }
   });
 
+  // Touch the pid file every 30min to keep it fresh (prevents false "stale"
+  // respawns when the tracker is alive but hasn't been re-started recently).
+  setInterval(() => {
+    try {
+      const pidPath = path.join(ROUTER_DIR, '.tracker.pid');
+      fs.writeFileSync(pidPath, String(process.pid));
+    } catch { /* non-fatal */ }
+  }, 30 * 60 * 1000).unref();
+
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => {
       try { server.close(); } catch {}
+      try { fs.unlinkSync(path.join(ROUTER_DIR, '.tracker.pid')); } catch {}
       process.exit(0);
     });
   }

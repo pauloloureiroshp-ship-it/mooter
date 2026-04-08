@@ -10,7 +10,7 @@
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-90.2%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
-[![Tests](https://img.shields.io/badge/tests-25%2F25%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Tests](https://img.shields.io/badge/tests-43%2F43%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
@@ -118,6 +118,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | T0 routing (free/local) | 83.9% |
 | T2 routing (Sonnet) | 12.4% |
 | T3 routing (Opus) | 3.6% |
+| Hook p50 (v0.7) | 113ms (was ~3s pre-v0.7) |
 | Classifier latency | <50ms (regex, zero LLM) |
 | Low-confidence rate | 2.0% |
 | **Advisory savings vs naive Opus** | **~78-90%** (see methodology below) |
@@ -244,10 +245,11 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | v0.4.0 | ✅ Released | Statusline OAuth, budget guardrail, multi-provider |
 | v0.5.0 | ✅ Released | Auto-learning loop: backtest, TUNED wire-up, 11 tests, pct_by_model |
 | v0.6.0 | ✅ Released | Honest numbers: token cost model, BRL/EUR/GBP, guaranteed vs advisory savings |
-| **v0.6.1** | ✅ **Released** | **In-prompt user override (`usa o opus`, `@sonnet`, `force ollama`, `sem opus`) + HIGH_RISK guardrail on downgrades, 25 tests** |
-| v0.7.0 | 🟡 Planned | Invocation telemetry (PostToolUse hook) + sub-agent cost tracking + OAuth per-window reconciliation |
-| v0.8.0 | 🟡 Planned | Web dashboard (Next.js) for decisions.log exploration |
-| v0.9.0 | 🟡 Planned | Team shared config via Git, per-contributor analytics |
+| v0.6.1 | ✅ Released | In-prompt user override (`usa o opus`, `@sonnet`, `force ollama`, `sem opus`) + HIGH_RISK guardrail on downgrades, 25 tests |
+| **v0.7.0** | ✅ **Released** | **Hook p50 3s→113ms (classify cache + async budget + Ollama warmup), quality-intent detection (`pensa bem` / `ultrathink`), T0 sub-tier specialists (`qwen2.5-coder` / `deepseek-r1`), 43 tests** |
+| v0.7.1 | 🟡 Planned | Invocation telemetry (PostToolUse hook) + sub-agent cost tracking + OAuth per-window reconciliation |
+| v0.8.0 | 🟡 Planned | Semantic router (aurelio + MiniLM) for paraphrases the regex misses |
+| v0.9.0 | 🟡 Planned | Web dashboard (Next.js) for decisions.log exploration, team shared config |
 | v1.0 | 🔵 Planned | Public launch, plugin marketplace, MCP integration |
 
 ---

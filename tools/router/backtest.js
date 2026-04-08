@@ -70,10 +70,14 @@ function analyze(decisions) {
   const sigToTiers = new Map(); // signature -> [tier...]
   const shortHighTier = []; // <50 chars on T2/T3
   const lowConfHighTier = []; // confidence < 0.6 on T2/T3 (escalation noise)
+  let qualityIntentHits = 0;   // v0.7: natural-language quality promotion count
+  let cacheHits = 0;           // v0.7: classify-cache hit count
 
   for (const d of decisions) {
     const tier = d.tier || 'T3';
     byTier[tier] = (byTier[tier] || 0) + 1;
+    if (d.quality_intent === true) qualityIntentHits += 1;
+    if (d.cache_hit === true) cacheHits += 1;
     const sig = signature(d.prompt_preview);
     if (sig) {
       if (!sigToTiers.has(sig)) sigToTiers.set(sig, []);
@@ -153,6 +157,8 @@ function analyze(decisions) {
     repeated: repeated.slice(0, 10),
     topDemote,
     promoteToT0: [...promoteCandidates],
+    qualityIntentHits,
+    cacheHits,
   };
 }
 
@@ -193,6 +199,17 @@ function report(stats, tuning) {
   lines.push('');
   lines.push(`Short prompts on T2/T3:  ${stats.shortHighTier}`);
   lines.push(`Low-conf on T2/T3:        ${stats.lowConfHighTier}`);
+  lines.push(`Quality-intent hits:      ${stats.qualityIntentHits || 0}  (natural-language quality promotions)`);
+  lines.push(`Classify-cache hits:      ${stats.cacheHits || 0}  (avoided classifier respawn)`);
+  // v0.7: if >10% of prompts trip quality_intent, surface a tuning nudge —
+  // may mean the user has a new habitual phrase that would be cleaner as a
+  // direct user_override keyword.
+  const qiRatio = stats.total ? (stats.qualityIntentHits || 0) / stats.total : 0;
+  if (qiRatio > 0.1) {
+    lines.push('');
+    lines.push(`⚠ ${(qiRatio * 100).toFixed(1)}% of prompts triggered quality_intent.`);
+    lines.push('  Consider adding the most-used phrase as a user_override shortcut.');
+  }
   lines.push('');
   lines.push('Top 3 demote candidates (short + high tier):');
   if (stats.topDemote.length === 0) lines.push('  (none)');

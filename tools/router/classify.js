@@ -72,13 +72,24 @@ function readRouterContext() {
   }
 }
 
-// Per-tier model selection. T0 has TWO models:
-//   - ollama_terse: small, fast, terse-output (sumarização, transforms)
-//   - ollama_reason: bigger, reasoning-trained (análises locais com 1-2 hops)
-// Detected at runtime via /api/tags; falls back to whichever is installed.
+// Per-tier model selection. T0 has FOUR models as of v0.7 (sub-tier specialists):
+//   - ollama_terse:  small, fast, terse-output (summarization, transforms, general)
+//   - ollama_reason: bigger, reasoning-trained (local analysis with 1-2 hops)
+//   - ollama_code:   qwen2.5-coder:14b — dedicated local code specialist
+//   - ollama_math:   deepseek-r1-distill-qwen:14b — dedicated local math/reasoning
+//
+// Sub-tier routing happens in classify() below based on detected task content:
+// code patterns → ollama_code, math/reasoning patterns → ollama_math, else terse.
+// Option A (pre-computed answer) ONLY fires for ollama_terse to avoid paying
+// 14b cold-start latency on the hook path.
+//
+// Install guard (~/.claude/tools/router/check-local-models.js) reports which
+// specialists are installed and suggests pull commands; nothing auto-installs.
 const MODELS = {
-  ollama_terse: process.env.ROUTER_OLLAMA_TERSE || 'qwen2.5:3b',
+  ollama_terse:  process.env.ROUTER_OLLAMA_TERSE  || 'qwen2.5:3b',
   ollama_reason: process.env.ROUTER_OLLAMA_REASON || 'qwen3:30b',
+  ollama_code:   process.env.ROUTER_OLLAMA_CODE   || 'qwen2.5-coder:14b-q4',
+  ollama_math:   process.env.ROUTER_OLLAMA_MATH   || 'deepseek-r1-distill-qwen:14b',
   ollama: process.env.ROUTER_OLLAMA_MODEL || 'qwen2.5:3b', // legacy alias
   haiku: process.env.ROUTER_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
   sonnet: 'claude-sonnet-4-6',
@@ -229,8 +240,60 @@ function detectUserOverride(p) {
   return null;
 }
 
-// Bash command pastes (very common in real history): if prompt STARTS with one
-// of these, it's almost certainly a paste-and-run, not architectural intent.
+// ── QUALITY INTENT DETECTION (v0.7) ────────────────────────────────────────
+// Natural-language quality/urgency signals that promote the tier one step
+// without the user having to type "@opus" explicitly. Matches phrases like:
+//   "Claude, preciso do teu melhor modelo para resolver isto"
+//   "pensa bem antes de responder"
+//   "think hard about this"
+//   "ultrathink this problem"
+//   "não podes falhar nisto"
+//   "análise profunda"
+//   "é crítico"
+//
+// Interaction rules (see classify() body):
+//  - Promotion is capped at T3 (never above).
+//  - User override (@opus etc.) still wins — quality_intent is advisory.
+//  - HIGH_RISK downgrade refusal still applies (quality_intent can't save a
+//    push/deploy from being T3 — it's already there).
+//  - The `quality_intent` flag is emitted on the decision so the doctrine
+//    reader can refuse to delegate to a lower-tier subagent.
+const QUALITY_INTENT_PATTERNS = [
+  // PT-PT
+  /\b(?:preciso|quero|d[aá]-?\s*me|gostava\s+de)\s+(?:do|o|a)?\s*(?:teu|tua|vosso)?\s*melhor\b/i,
+  /\b(?:pensa|reflecte|reflete|analisa|raciocina)\s+(?:bem|profund|com\s+cuidado|a\s+fundo|devagar)/i,
+  /\bcom\s+(?:m[aá]xima|muita|toda\s+a)\s+(?:qualidade|aten[çc][aã]o|cuidado|precis[aã]o)/i,
+  /\ban[aá]lise\s+(?:profund|detalhad|minucios|cuidados)/i,
+  /\bn[aã]o\s+(?:podes\s+)?(?:falh|errar|te\s+engan)/i,
+  /\b(?:[eé]\s+)?muito\s+cr[ií]tic/i,
+  /\b(?:absolutamente|extremamente)\s+(?:importante|cr[ií]tico)/i,
+  /\bd[aá]\s+o\s+teu\s+melhor\b/i,
+  /\bresponde\s+(?:o\s+)?melhor\s+(?:que\s+)?(?:conseguires|possas|souberes)/i,
+  // EN
+  /\bthink\s+(?:hard|deeply|carefully|step[-\s]by[-\s]step|very\s+carefully)/i,
+  /\bultrathink\b/i,
+  /\bmega\s*think\b/i,
+  /\bgive\s+(?:me\s+)?your\s+(?:best|top|finest)\s+(?:effort|model|shot|work|answer)?/i,
+  /\bbe\s+(?:very\s+|extra\s+)?thoughtful\b/i,
+  /\bdon'?t\s+(?:mess|screw|fuck)\s+(?:this|it)\s+up/i,
+  /\b(?:this\s+is\s+)?mission[-\s]critical\b/i,
+  /\bproduction[-\s](?:code|fix|deploy|critical)/i,
+  /\b(?:high|top)\s+priority\b/i,
+  /\bmaximum\s+(?:quality|effort|care)/i,
+  /\bdeep(?:[-\s]dive)?\s+(?:analysis|investigation)/i,
+];
+
+// ── SUB-TIER CONTENT PATTERNS (v0.7) ───────────────────────────────────────
+// When a prompt lands in T0, we select a local specialist model based on
+// content: code work → qwen2.5-coder:14b, math/reasoning → deepseek-r1, else
+// the general qwen2.5:3b. Patterns are deliberately broad so the classifier
+// catches common phrasings without over-escalating.
+//
+// Code signals: function/class keywords, file extensions, programming verbs.
+const CODE_SUBTIER_RE = /\b(?:function|class|import|export|const|let|var|async|await|return|def|if\s+__name__|struct|impl|trait|interface|fn\s+|pub\s+|package\s+|public\s+class)\b|\b(?:refactor|rename|extract|inline|debug|compile|lint|typecheck|transpile)\b|\b\w+\.(?:ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|hpp|rb|php|swift|kt|dart|scala|cs|sh|bash|zsh|sql|yaml|yml|toml|gradle|cmake)\b/i;
+
+// Math signals: operators, equation keywords, calculation verbs.
+const MATH_SUBTIER_RE = /\b(?:calcula(?:r|\s+a)?|compute|solve\s+(?:for|the)?|prove(?:\s+that)?|deriv[ae]|integral|integra(?:l|\s+de)?|equa[çc][aã]o|equation|theorem|lemma|corol[aá]rio|matrix|matriz|vetor|vector|determinant|eigenvalue|polin[oó]mio|polynomial|trigonom|logari[tm]|sin|cos|tan|limit\s+as|lim\s+_|sum\s+from|soma\s+de|sigma)\b|[∫∑∏∂∇√≤≥≠≈±∞]/i;
 // Tier T0 — local read or simple bash, no need for Opus.
 const BASH_PASTE = /^\s*(?:cat|ls|cd|grep|rg|find|sed|awk|head|tail|cp|mv|mkdir|touch|echo|pwd|tree|wc|sort|uniq|diff|chmod|chown|tar|zip|unzip|curl|wget|ping|nslookup|ps|kill|top|df|du|env|export|source|history|which|whereis|node|npm|npx|pnpm|yarn|python|python3|pip|pip3|git|docker|kubectl|systemctl|service|brew|apt|apt-get|yum|dnf|psql|mysql|redis-cli|sqlite3)\s/;
 
@@ -423,19 +486,70 @@ function classify(prompt) {
     reasoning = `${reasoning}; tuned_promote → T0 (pattern match from backtest)`;
   }
 
-  const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
-  // T1 needs API key; degrade to T0 if absent.
-  if (tier === 'T1' && !anthropicKey) {
-    tier = 'T0';
-    escalation_rule = 'haiku_unavailable_no_api_key_degraded_to_local';
+  // ── QUALITY INTENT PROMOTION (v0.7) ────────────────────────────────────
+  // Natural-language signal that the user wants a more capable model without
+  // explicitly typing "@opus". Promotes one tier (capped at T3).
+  // Note: this runs BEFORE user_override handling. If the user ALSO typed
+  // "@haiku", the override block below will win and pin to Haiku as requested.
+  let qualityIntent = false;
+  if (QUALITY_INTENT_PATTERNS.some((rx) => rx.test(p))) {
+    qualityIntent = true;
+    const TIER_LADDER = ['T0', 'T1', 'T2', 'T3'];
+    const idx = TIER_LADDER.indexOf(tier);
+    if (idx >= 0 && idx < TIER_LADDER.length - 1) {
+      tier = TIER_LADDER[idx + 1];
+      escalation_rule =
+        escalation_rule === 'none'
+          ? 'quality_intent_promote'
+          : `${escalation_rule}+quality_intent_promote`;
+      reasoning = `${reasoning}; quality_intent detected (natural language) → promoted to ${tier}`;
+      confidence = Math.max(confidence, 0.75);
+    } else {
+      reasoning = `${reasoning}; quality_intent detected but already at ${tier}`;
+    }
   }
 
-  // T0 split: terse model for transforms/summarization, reasoning model for analysis.
-  // category 'trivial_local' or short prompts → terse; 'reasoning_intermediate' degraded → reason
-  const t0Model =
-    category === 'reasoning_intermediate' || category === 'ambiguous_default'
-      ? MODELS.ollama_reason
-      : MODELS.ollama_terse;
+  const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
+  // T1 needs API key; degrade to T0 if absent.
+  // EXCEPT when quality_intent is set — the user asked for something more
+  // capable, so degrading past T1 into local defeats the whole purpose of
+  // the promotion. Jump UP to T2 instead (Sonnet via subagent, no key needed).
+  if (tier === 'T1' && !anthropicKey) {
+    if (qualityIntent) {
+      tier = 'T2';
+      escalation_rule =
+        escalation_rule === 'none'
+          ? 'quality_intent_jump_t2_no_haiku_key'
+          : `${escalation_rule}+quality_intent_jump_t2`;
+    } else {
+      tier = 'T0';
+      escalation_rule = 'haiku_unavailable_no_api_key_degraded_to_local';
+    }
+  }
+
+  // ── T0 SUB-TIER SELECTION (v0.7) ───────────────────────────────────────
+  // At T0, pick the best local model by content intent:
+  //   - code signals  → qwen2.5-coder:14b (falls back gracefully to terse
+  //                     if the 14b model isn't installed — classify.js has
+  //                     no way to check; check-local-models.js surfaces it)
+  //   - math signals  → deepseek-r1-distill-qwen:14b
+  //   - reasoning_intermediate degraded from T1/T2 → ollama_reason
+  //   - default        → ollama_terse (qwen2.5:3b, the Option A target)
+  let t0Model;
+  let t0Subtier = 'general';
+  if (CODE_SUBTIER_RE.test(p)) {
+    t0Model = MODELS.ollama_code;
+    t0Subtier = 'code';
+  } else if (MATH_SUBTIER_RE.test(p)) {
+    t0Model = MODELS.ollama_math;
+    t0Subtier = 'math';
+  } else if (category === 'reasoning_intermediate' || category === 'ambiguous_default') {
+    t0Model = MODELS.ollama_reason;
+    t0Subtier = 'reason';
+  } else {
+    t0Model = MODELS.ollama_terse;
+    t0Subtier = 'general';
+  }
 
   const backend = {
     T0: { recommended_backend: 'ollama', recommended_model: t0Model, suggested_subagent: 'local-summarizer' },
@@ -455,6 +569,8 @@ function classify(prompt) {
     anthropic_key_present: anthropicKey,
     prompt_length: len,
     file_hint_count: fileMatches,
+    quality_intent: qualityIntent,
+    t0_subtier: tier === 'T0' ? t0Subtier : null,
   };
 
   // ── USER OVERRIDE (highest priority short of HIGH_RISK guardrail) ────────

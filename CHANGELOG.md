@@ -6,6 +6,64 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [0.7.0] — 2026-04-08
+
+### Latency, quality intent, and sub-tier specialists
+
+Three orthogonal improvements driven by a latency audit + 2026 routing research. The doctrine is unchanged — frugal is still hint-layer, not proxy — but the hook is now 10-20× faster on repeat prompts, understands natural-language quality signals ("pensa bem", "think hard", "ultrathink"), and routes T0 work to specialised local models (`qwen2.5-coder:14b` for code, `deepseek-r1-distill-qwen:14b` for math).
+
+### Added
+
+**Phase 1 — Latency quick wins (hook p50 cut from ~3s to ~113ms):**
+
+- **Cross-session classify cache** in `inject_context.js`. Every prompt is hashed (SHA-256), decisions persisted to `.classify-cache.json` with 24h TTL and LRU cap 1000. Re-asks skip the `classify.js` spawn entirely (~80ms saved per hit). Cache is invalidated automatically when `router-tuning.json` mtime changes. User-override results are never cached (intent may shift turn-to-turn).
+- **Async budget refresh** via `refresh-budget.js`. The OAuth `/usage` fetch used to block the hook up to 3s on cache miss; now it only blocks on HIGH_RISK prompts with very-stale cache (>4h). Normal path: use stale-but-usable cache and spawn detached refresh. Lock file prevents concurrent refreshes.
+- **Ollama warmup helper** `ollama-warmup.js`. Spawned detached alongside the tracker auto-start. POSTs one lightweight `/api/generate` with `keep_alive: -1` so `qwen2.5:3b` stays resident in VRAM and Option A doesn't pay cold-start. Paired with `keep_alive: -1` on every `ollama_call_node.js` request.
+- **pid-file tracker liveness check** replaces the TCP `GET /health` socket in `inject_context.js`. One `fs.stat` instead of a socket open; mtime-refreshed by the tracker every 30min.
+- **Option A timeout reduced 9000→4000ms.** With warmup active, qwen answers short prompts in <2s. On miss, the `<router-hint>` is still emitted so Claude processes normally.
+- **`bench-hook.js`** — micro-benchmark that runs 10 canonical prompts × N iterations through the real hook via `spawnSync` and reports p50/p95/p99. Measured on v0.7: p50=113ms, p95=407ms, p99=1846ms against targets <200/<500/<4000ms.
+- **`FRUGAL_V07_DISABLE=1` kill-switch** — reverts the hook's Phase 1 latency paths to v0.6.1 behaviour (sync budget fetch, no classify cache) in case a regression needs fast rollback. Phase 2 (quality intent) and Phase 3 (sub-tier routing) are not affected by the flag because they're pure regex and have no latency cost worth disabling.
+
+**Phase 2 — Quality-intent detection (natural-language tier promotion):**
+
+- **`QUALITY_INTENT_PATTERNS`** in `classify.js` — 20 regex families in PT-PT + EN covering `"preciso do teu melhor modelo"`, `"pensa bem"`, `"análise profunda"`, `"com máxima qualidade"`, `"não podes falhar"`, `"mission critical"`, `"think hard"`, `"ultrathink"`, `"give me your best shot"`, `"don't mess this up"`, and friends. Match promotes the tier by 1 step (capped at T3) and emits `quality_intent: true` on the decision.
+- **Three precedence rules** exhaustively tested:
+  1. User override (`@haiku`, `usa o opus`) still wins — quality intent is advisory, not authoritative.
+  2. HIGH_RISK guardrail still applies — a deploy prompt with `"pensa bem"` stays T3 because it was already T3, never downgrades.
+  3. Haiku degrade path respects quality intent — if `ANTHROPIC_API_KEY` is absent and the promoted tier is T1, jump to **T2** (Sonnet via subagent) instead of degrading back to T0. This is new: the old degrade path was swallowing the promotion.
+- **Doctrine update** in `~/.claude/CLAUDE.md` — new "QUALITY INTENT" section beside "USER OVERRIDE" explaining the subagent delegation rules and the Option A suppression.
+- **Backtest metric** `quality_intent_hits` in `backtest.js` report. If >10% of prompts trigger it, surfaces a nudge to add the most-used phrase as a first-class `user_override` shortcut.
+
+**Phase 3 — T0 sub-tier specialists (local models by domain):**
+
+- **Model registry expansion** in `pricing.js` — new entries `qwen2.5-coder:14b-q4` (code specialist), `deepseek-r1-distill-qwen:14b` (math/reasoning specialist), plus `subtier` and `strengths` fields on every local entry. Registry is the single source of truth consumed by both the classifier (routing) and the install guard (guidance).
+- **Content-based sub-tier routing** in `classify.js`. When the decision lands in T0, `CODE_SUBTIER_RE` (function / class / async / file extensions / refactor verbs) and `MATH_SUBTIER_RE` (equation keywords + Unicode math symbols `∫∑∏√≤≥`) pick the right specialist. Default fallback is `qwen2.5:3b`. Emits `t0_subtier: 'code' | 'math' | 'general' | 'reason' | null`.
+- **Option A guard** — `<suggested_answer>` pre-computation only fires when `recommended_model === qwen2.5:3b`. 14b specialists are too slow for pre-compute on the hook path; Claude calls them via the session/subagent instead.
+- **`check-local-models.js`** install guard. Runs `ollama list`, compares against `pricing.PRICES` subtier entries, prints a table of installed/missing models with exact `ollama pull` commands. **Never auto-installs** — disk/VRAM is the user's call. Has `--json` and `--quiet` modes for scripting.
+
+### Changed
+
+- `inject_context.js` — complete rewrite of the hook startup block (tracker + warmup), budget fetch flow, and classify path. Decision log now records `quality_intent` and `cache_hit` fields for backtest consumption.
+- `backtest.js` — `analyze()` now returns `qualityIntentHits` and `cacheHits`, and the report surfaces both plus the nudge.
+- `ollama_call_node.js` — adds `keep_alive: -1` to the request body and drops the internal HTTPS timeout from 7s → 3.5s (hook outer timeout is 4s).
+- `savings-tracker.js` — on startup, writes `.tracker.pid` file and refreshes its mtime every 30min. Cleaned up on SIGINT/SIGTERM.
+- `pricing.js` — every known model now has optional `strengths` and `tier` metadata; unchanged models keep identical cost math.
+
+### Verification
+
+- **43/43 unit tests passing** (+18 new: 8 quality intent, 5 sub-tier, 3 pricing registry, 2 backtest metric). Run with `node backtest.test.js`.
+- **Live latency benchmark** on 50 samples: p50 113ms, p95 407ms, p99 1846ms, max 1846ms. All 3 v0.7 targets met.
+- **Smoke tests** for every Phase 2/3 path executed manually — see CHANGELOG review section and `docs/BENCHMARK.md` for numbers.
+
+### Deferred (planned for v0.8+)
+
+- **Semantic router (aurelio-labs + MiniLM embeddings)** for paraphrases the regex misses. Adds Python + 80MB encoder; only justifiable if backtest proves regex coverage is insufficient.
+- **Learned classifier** (BEST-Route DeBERTa-small or similar). Overkill until the decisions.log corpus is large enough to beat heuristics empirically.
+- **Multi-provider backends live** (Gemini, GPT-4o). Keys, quota tracking, per-provider cost accounting. Separate sprint.
+- **Single-source HIGH_RISK** — currently mirrored between `classify.js` and `backtest.js`; should be extracted to a shared constants file.
+
+---
+
 ## [0.6.1] — 2026-04-07
 
 ### User-driven model override (in-prompt pinning)

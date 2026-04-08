@@ -34,6 +34,7 @@ async function main() {
     system: SYSTEM,
     prompt,
     stream: false,
+    keep_alive: -1, // v0.7: hold model in VRAM between calls (pairs with ollama-warmup.js)
     options: { temperature: 0.2, num_predict: 256 },
   });
 
@@ -67,7 +68,10 @@ async function main() {
       }
     );
     req.on('error', reject);
-    req.setTimeout(7000, () => { req.destroy(); reject(new Error('timeout')); });
+    // v0.7: timeout reduced 7s → 3.5s. With keep_alive warmup, qwen2.5:3b
+    // answers short prompts in <2s. Outer spawn in inject_context.js has a
+    // 4s ceiling so anything above that is wasted wall-clock.
+    req.setTimeout(3500, () => { req.destroy(); reject(new Error('timeout')); });
     req.write(body);
     req.end();
   });

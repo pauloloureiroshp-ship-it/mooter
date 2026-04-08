@@ -21,23 +21,33 @@
 
 'use strict';
 
-// USD per 1M tokens. {input, output}.
+// USD per 1M tokens. {input, output, strengths?, tier?}.
+// The optional `strengths` and `tier` fields are consumed by classify.js
+// (sub-tier selection) and by check-local-models.js (install guide). They
+// don't affect cost math, but keeping everything in one registry avoids
+// drift between pricing and routing.
 const PRICES = {
   // ── Anthropic (Claude) ─────────────────────────────────────────────
-  'claude-opus-4-6':                 { input: 15.0,  output: 75.0  },
-  'claude-opus-4-6[1m]':             { input: 30.0,  output: 150.0 }, // >200k ctx: 2×
-  'claude-sonnet-4-6':               { input:  3.0,  output: 15.0  },
-  'claude-sonnet-4-6[1m]':           { input:  6.0,  output: 22.5  },
-  'claude-haiku-4-5':                { input:  0.80, output:  4.0  },
-  'claude-haiku-4-5-20251001':       { input:  0.80, output:  4.0  },
+  'claude-opus-4-6':                 { input: 15.0,  output: 75.0,  strengths: ['architecture','refactor','long-context'], tier: 'T3' },
+  'claude-opus-4-6[1m]':             { input: 30.0,  output: 150.0, strengths: ['long-context'],                            tier: 'T3' }, // >200k ctx: 2×
+  'claude-sonnet-4-6':               { input:  3.0,  output: 15.0,  strengths: ['code','reasoning','debug'],                tier: 'T2' },
+  'claude-sonnet-4-6[1m]':           { input:  6.0,  output: 22.5,  strengths: ['long-context'],                            tier: 'T2' },
+  'claude-haiku-4-5':                { input:  0.80, output:  4.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
+  'claude-haiku-4-5-20251001':       { input:  0.80, output:  4.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
   // Legacy mappings that may appear in older logs
   'claude-opus-4':                   { input: 15.0,  output: 75.0  },
   'claude-sonnet-4':                 { input:  3.0,  output: 15.0  },
   'claude-haiku-3-5':                { input:  0.80, output:  4.0  },
 
-  // ── Local / free ───────────────────────────────────────────────────
-  'qwen2.5:3b':                      { input: 0, output: 0 },
-  'qwen3:30b':                       { input: 0, output: 0 },
+  // ── Local / free (Ollama) ──────────────────────────────────────────
+  // v0.7: specialists added. See classify.js sub-tier routing + doctrine
+  // files. check-local-models.js surfaces which of these are installed.
+  'qwen2.5:3b':                      { input: 0, output: 0, strengths: ['general','summarize','translate','quick-answer'], tier: 'T0', subtier: 'general' },
+  'qwen3:30b':                       { input: 0, output: 0, strengths: ['reasoning-local'],                                 tier: 'T0', subtier: 'reason' },
+  'qwen2.5-coder:14b-q4':            { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
+  'qwen2.5-coder:14b':               { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
+  'deepseek-r1-distill-qwen:14b':    { input: 0, output: 0, strengths: ['math','reasoning','step-by-step'],                 tier: 'T0', subtier: 'math' },
+  'deepseek-r1:7b':                  { input: 0, output: 0, strengths: ['math','reasoning'],                                tier: 'T0', subtier: 'math' },
   'ollama':                          { input: 0, output: 0 }, // generic
 
   // ── Google (Gemini) — optional, not emitted by classifier yet ──────
