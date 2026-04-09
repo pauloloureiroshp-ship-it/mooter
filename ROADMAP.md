@@ -1,6 +1,6 @@
 # Roadmap
 
-> Last updated: 2026-04-07
+> Last updated: 2026-04-09
 
 This roadmap is the single source of truth for what's done, what's next, and what's explicitly deferred. It supersedes the summary table in [README.md](README.md) when there's a conflict.
 
@@ -81,6 +81,29 @@ Made frugal tune itself.
 
 **Commits:** `b432a6d`, `6c1ce2f`, `a66d948` on `origin/main`.
 
+### v0.9.0 — Statusline v3, GPU awareness, federated learning foundation (2026-04-09)
+
+Seven-segment statusline with real GPU telemetry and the privacy-preserving
+delta-export pipeline that sets up frugal's federated learning story.
+
+- ✅ **Statusline v3** — git · 🐕 brand · last-turn (tier+model+category+latency+cascade) · distribution (qwen/hku/son/ops) · savings + budget track · GPU widget · all 6 provider dots
+- ✅ **GPU probe** — `tools/router/gpu-probe.js` (NVIDIA/Apple Silicon/AMD Linux/CPU fallback), polled every 5s by the tracker
+- ✅ **Rich `/last` endpoint** — cascade_path, category_short, arbiter_used, latency_vs_opus_ms for segment ③
+- ✅ **`/gpu` endpoint** — name + utilization + warm/cold Ollama model states
+- ✅ **`POST /decision`** — fire-and-forget endpoint called by `inject_context.js` per classified hook
+- ✅ **Arbiter metrics in `/metrics.arbiter`** — calls_total, cache_hit_rate, high_risk_refused, cost_usd, avg_latency_ms
+- ✅ **Decomposition pipeline** — arbiter system prompt v2 + router-hint YAML block + CLAUDE.md doctrine section
+- ✅ **`update-router.js --dry-run`** — preview TUNED block without writing
+- ✅ **`backtest.js --explain`** — per-candidate regex + saving estimate, anonymized
+- ✅ **`backtest.js --export-delta`** — privacy-preserving fingerprint exporter
+- ✅ **`tools/router/aggregate-deltas.js`** — manual aggregator for 2-10 users with schema validation + hardware-tier weighting
+- ✅ **`docs/FEDERATED_LEARNING.md`** — protocol, privacy guarantees, `frugal-hub` Cloudflare Worker roadmap
+- ✅ **replay.js fix** — hot-loader now captures the full classify.js body (not just `const MODELS` onwards)
+- ✅ **59/59 tests passing** (3 new decomposition tests)
+- ✅ **Replay: ~90% savings** on 1,437 prompts (corpus grew from 1,370)
+
+**Commit:** `1e852f3` on `origin/main`.
+
 ---
 
 ## Planned
@@ -128,12 +151,14 @@ Enable small teams to share a single tuning profile via Git.
 
 Not committed. Subject to change based on beta feedback.
 
+- 🔵 **frugal-hub (v1.1)** — Cloudflare Worker that automates the federated learning loop described in `docs/FEDERATED_LEARNING.md`. `POST /submit-delta` + `GET /latest-tuning` + daily cron. Stack: Workers + D1 + R2 on the free tier. Gated on 5+ regular contributors.
+- 🔵 **Public launch (v1.0)** — `install.sh --one-command` + published `REQUEST_ACCESS.md` replaced by open onboarding
+- 🔵 **Cross-machine validation** — replay.js against 5+ contributor corpora, not just Paulo's
 - 🔵 **Plugin marketplace** — third-party patterns, doctrine supplements, provider adapters
 - 🔵 **MCP integration** — frugal exposed as an MCP server so other MCP clients can read routing decisions
 - 🔵 **Native Windows installer** — `.msi` that handles the Task Scheduler entry, Electron tray icon for the dashboard
 - 🔵 **Commercial support tier** — SLA, priority bug fixes, custom pattern consulting (see [NOTICE.md](NOTICE.md))
 - 🔵 **OpenAI / Gemini parity** — same routing intelligence for Codex CLI and other agent clients
-- 🔵 **Multi-agent orchestration** — detect when a single prompt should fan out to multiple parallel subagents
 
 ---
 

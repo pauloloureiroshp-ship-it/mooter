@@ -39,21 +39,25 @@ const CLASSIFY = path.join(__dirname, 'classify.js');
 // classify.js doesn't export — it runs (async IIFE). So we read its source,
 // strip the IIFE, and eval the function body. Hacky but contained to this tool.
 const classifySrc = fs.readFileSync(CLASSIFY, 'utf8');
-// Grab everything from `const MODELS` up to (but not including) `function readPrompt`.
-// This captures all top-level consts the classify() function depends on, even
-// as the file evolves with new patterns.
-const constsBlock = classifySrc.match(/const MODELS[\s\S]*?(?=\nfunction readPrompt)/);
-const fnMatch = classifySrc.match(/function classify\(prompt\) \{[\s\S]*?\n\}\n/);
-if (!fnMatch || !constsBlock) {
-  console.error('Failed to extract classify() — has classify.js changed shape?');
+// v0.9 fix: take everything from the first 'use strict' (or start-of-file)
+// up to the async IIFE at the bottom. Strip the IIFE and export classify().
+// This is robust to new helpers being added to classify.js.
+const iifeIdx = classifySrc.search(/\(async \(\) => \{/);
+if (iifeIdx < 0) {
+  console.error('Failed to locate classify.js IIFE — has the file shape changed?');
   process.exit(2);
 }
+// Strip shebang line — `new Function()` does not accept it.
+const classifyBody = classifySrc.slice(0, iifeIdx).replace(/^#!.*\n/, '');
 // eslint-disable-next-line no-new-func
-const classify = new Function(`
-  ${constsBlock[0]}
-  ${fnMatch[0]}
+// classify.js declares its own `const fs = require('fs')` etc. at the top,
+// so we only need to inject `require` itself (new Function has no closure
+// over the module-level require). The const declarations inside the body
+// will call that injected require to rebuild fs/path/crypto/os.
+const classify = new Function('require', `
+  ${classifyBody}
   return classify;
-`)();
+`)(require);
 
 // ─────────────────────────────────────────────────────────────
 // Args

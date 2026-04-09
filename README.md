@@ -4,22 +4,25 @@
 
 ### The Claude Code router that knows when to save.
 
-**Zero-proxy · Doctrine-based · Self-tuning · 90.2% cost savings validated on 1,370 real prompts**
+**Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · Federated-learning foundation · ~90% cost savings validated on 1,437 real prompts**
 
+[![Version](https://img.shields.io/badge/version-v0.9.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
-[![Savings](https://img.shields.io/badge/savings-90.2%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
+[![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
-[![Tests](https://img.shields.io/badge/tests-56%2F56%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Tests](https://img.shields.io/badge/tests-59%2F59%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
 
 ```
-⬆ /gsd-update │ Opus 4.6 │ cloude-home █░░░░░░░░░ 14% │ 💰 $1.73 (77%) │ Ollama:62% Sonnet:18% Opus:20%
+⬆ main·a1b2 │ 🐕 frugal v0.9 │ [T3] ops arch 2.5s L1→L2→T3 │ qwen 61% · hku 22% · son 13% · ops 4% │ 💰 $12.80 (90%) 79% ▓▓▓▓▓░░░ │ 💻 RTX 4090 ▓▓▓▓░░ 61% │ ●●◐○○○
 ```
 
-*Your statusline after a day of work. No router. No proxy. No extra bill.*
+*Your statusline v3 after a day of work. 7 segments: git · 🐕 brand · last-turn cascade · distribution · savings + budget track · GPU · all LLM providers. No router. No proxy. No extra bill.*
+
+**Tier emojis** — 🏠 T0 (local) · 🌸 T1 (Haiku) · 🎵 T2 (Sonnet) · 💎 T3 (Opus)
 
 </div>
 
