@@ -1,381 +1,537 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, Component } from 'react';
-import type { ReactNode, ErrorInfo } from 'react';
+import {
+  Component,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   ERROR BOUNDARY — prevents any child crash from killing the whole page
-───────────────────────────────────────────────────────────────────────────── */
-class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { error: Error | null }> {
-  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
-    super(props);
-    this.state = { error: null };
+/* ────────────────────────────────────────────────────────────────────────────
+ * Types
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+type AnalyseResult = {
+  url: string;
+  platform: string;
+  framework: string;
+  language: string;
+  llm_detected: boolean;
+  llm_signals: string[];
+  savings_pct: number;
+  monthly_savings_usd: number;
+  tier_breakdown: { t0_pct: number; t1_pct: number; t2_pct: number; t3_pct: number };
+  suggestions: { type: string; name: string; reason: string; savings?: string }[];
+  backtest_confidence: number;
+  backtest_prompts?: number;
+  community_users?: number;
+  cached: boolean;
+  error?: string;
+};
+
+type TerminalLine =
+  | { kind: 'cmd'; text: string }
+  | { kind: 'out'; text: string; variant: 'purple' | 'ok' | 'warn' | 'red' | 'dim' }
+  | { kind: 'cost'; text: string; variant: 'good' | 'bad' }
+  | { kind: 'bar'; label: string; pct: number; color: string }
+  | { kind: 'gap' };
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * ErrorBoundary — isolates crashes so the whole page never dies
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+class ErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode; label?: string },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
-  static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[frugal] caught:', error.message, info.componentStack?.slice(0, 200));
+
+  componentDidCatch(error: Error) {
+    if (typeof console !== 'undefined') {
+      console.warn('[ErrorBoundary]', this.props.label || 'section', error?.message);
+    }
   }
+
   render() {
-    if (this.state.error) {
-      return this.props.fallback ?? (
-        <div style={{ padding: '20px', color: '#ef4444', fontFamily: 'monospace', fontSize: 13 }}>
-          ⚠ {this.state.error.message}
-        </div>
+    if (this.state.hasError) {
+      return (
+        this.props.fallback ?? (
+          <div className="eb-fallback">
+            <span>this section hit a glitch — the rest of the page still works.</span>
+          </div>
+        )
       );
     }
     return this.props.children;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TYPES
-───────────────────────────────────────────────────────────────────────────── */
-type TierBreakdown = { t0_pct: number; t1_pct: number; t2_pct: number; t3_pct: number };
-type Suggestion    = { type: string; name: string; reason: string; savings?: string };
-type AnalyseResult = {
-  url: string; platform: string; framework: string; language: string;
-  llm_detected: boolean; llm_signals: string[];
-  savings_pct: number; monthly_savings_usd: number;
-  tier_breakdown: TierBreakdown; suggestions: Suggestion[];
-  backtest_confidence: number; backtest_prompts: number; community_users: number;
-  cached: boolean; error?: string;
-};
+/* ────────────────────────────────────────────────────────────────────────────
+ * Hooks
+ * ──────────────────────────────────────────────────────────────────────────── */
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   CONSTANTS
-───────────────────────────────────────────────────────────────────────────── */
-const TIERS = [
-  { key: 't0_pct', label: 'T0 — Ollama local', model: 'qwen3:30b · $0.00', color: '#7c3aed' },
-  { key: 't1_pct', label: 'T1 — Claude Haiku', model: 'haiku-4-5 · $0.80/Mtok', color: '#06b6d4' },
-  { key: 't2_pct', label: 'T2 — Sonnet',       model: 'sonnet-4-6 · $3/Mtok',   color: '#22c55e' },
-  { key: 't3_pct', label: 'T3 — Opus',          model: 'opus-4-6 · $15/Mtok',   color: '#eab308' },
-] as const;
+function useInView(threshold = 0.2) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
 
-const SUG_ICON: Record<string, string> = {
-  llm: '🤖', connector: '🔌', skill: '✨', cli: '⚡', tool: '🔬',
-};
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   ANIMATED COUNTER
-───────────────────────────────────────────────────────────────────────────── */
-function Counter({ to, suffix = '', prefix = '' }: { to: number; suffix?: string; prefix?: string }) {
-  const [val, setVal] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    let rafId: number;
-    let cancelled = false;
-    const obs = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return;
-      obs.disconnect();
-      let start = 0;
-      const step = to / 60;
-      const tick = () => {
-        if (cancelled) return;
-        start = Math.min(start + step, to);
-        setVal(Math.round(start));
-        if (start < to) rafId = requestAnimationFrame(tick);
-      };
-      rafId = requestAnimationFrame(tick);
-    }, { threshold: 0.3 });
-    if (ref.current) obs.observe(ref.current);
-    return () => {
-      cancelled = true;
-      obs.disconnect();
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [to]);
-  return <span ref={ref}>{prefix}{val.toLocaleString('en-US')}{suffix}</span>;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setInView(true);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setInView(true);
+            obs.disconnect();
+            break;
+          }
+        }
+      },
+      { threshold },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+
+  return { ref, inView };
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TERMINAL TYPEWRITER
-───────────────────────────────────────────────────────────────────────────── */
-type TLine = { type: 'cmd'|'out'|'gap'|'cost'|'bar'; text?: string; cls?: string; pct?: number; color?: string; label?: string; val?: string; ctype?: 'bad'|'good'|'dim' };
-
-function TerminalWindow({ title, tag, tagColor, lines, statusItems }: {
-  title: string; tag: string; tagColor: string;
-  lines: TLine[];
-  statusItems: { dot: string; label: string }[];
-}) {
-  const [rendered, setRendered] = useState<TLine[]>([]);
-  const [active, setActive] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setActive(true); obs.disconnect(); }
-    }, { threshold: 0.2 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, []);
+function useCountUp(target: number, active: boolean, duration = 1400) {
+  const [value, setValue] = useState(0);
 
   useEffect(() => {
     if (!active) return;
-    let i = 0;
-    let tid: ReturnType<typeof setTimeout>;
+    let raf = 0;
     let cancelled = false;
-    const run = () => {
-      if (cancelled || i >= lines.length) return;
-      setRendered(prev => [...prev, lines[i]]);
-      i++;
-      const delay = lines[i - 1]?.type === 'gap' ? 300 :
-                    lines[i - 1]?.type === 'cmd'  ? 120 : 60;
-      tid = setTimeout(run, delay);
-    };
-    run();
-    return () => { cancelled = true; clearTimeout(tid); };
-  }, [active, lines]);
+    const start =
+      typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-  useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-  }, [rendered]);
+    const tick = (now: number) => {
+      if (cancelled) return;
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(target * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [target, active, duration]);
+
+  return value;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Small presentational bits
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function Stat({
+  value,
+  suffix = '',
+  prefix = '',
+  label,
+  decimals = 0,
+}: {
+  value: number;
+  suffix?: string;
+  prefix?: string;
+  label: string;
+  decimals?: number;
+}) {
+  const { ref, inView } = useInView(0.3);
+  const current = useCountUp(value, inView);
+  const shown = decimals > 0 ? current.toFixed(decimals) : Math.round(current).toLocaleString();
 
   return (
-    <div ref={ref} className="term-window" style={{ borderColor: tagColor === '#22c55e' ? 'rgba(34,197,94,0.3)' : 'var(--border)' }}>
-      <div className="term-bar">
-        <span className="tdot r"/><span className="tdot y"/><span className="tdot g"/>
-        <span className="term-title">{title}</span>
-        <span className="term-tag" style={{ background: `${tagColor}18`, color: tagColor, border: `1px solid ${tagColor}30` }}>{tag}</span>
+    <div ref={ref} className="stat">
+      <div className="stat-num">
+        {prefix}
+        {shown}
+        {suffix}
       </div>
-      <div ref={bodyRef} className="term-body">
-        {rendered.map((l, i) => {
-          if (l.type === 'gap')  return <div key={i} style={{ height: 8 }} />;
-          if (l.type === 'cmd')  return <div key={i} className="tl-cmd"><span className="tl-p">❯</span><span className="tl-text">{l.text}</span></div>;
-          if (l.type === 'bar')  return (
-            <div key={i} className="tl-bar-row">
-              <span className="tl-bar-label">{l.label}</span>
-              <div className="tl-bar-track"><div className="tl-bar-fill" style={{ width: `${l.pct}%`, background: l.color }} /></div>
-              <span className="tl-bar-pct" style={{ color: l.color }}>{l.pct}%</span>
-            </div>
-          );
-          if (l.type === 'cost') return (
-            <div key={i} className={`tl-cost ${l.ctype}`}>
-              <span className="tl-cost-label">{l.label}</span>
-              <span className={`tl-cost-val ${l.ctype}`}>{l.val}</span>
-            </div>
-          );
-          return <div key={i} className={`tl-out ${l.cls || ''}`}>{l.text}</div>;
-        })}
-        <span className="tl-cursor">▌</span>
+      <div className="stat-label">{label}</div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Nav
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function scrollToId(id: string) {
+  return (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+}
+
+function Nav() {
+  return (
+    <nav className="nav">
+      <div className="container nav-row">
+        <a href="#top" onClick={scrollToId('top')} className="brand">
+          frugal<span className="brand-dot">.</span>
+        </a>
+        <div className="nav-links">
+          <a href="#demo" onClick={scrollToId('demo')}>Demo</a>
+          <a href="#analyse" onClick={scrollToId('analyse')}>Analyse</a>
+          <a href="#how" onClick={scrollToId('how')}>How</a>
+          <a href="#waitlist" onClick={scrollToId('waitlist')}>Pricing</a>
+        </div>
+        <a href="#waitlist" onClick={scrollToId('waitlist')} className="btn btn-primary btn-sm">
+          Early access
+        </a>
       </div>
+    </nav>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Hero
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function Hero() {
+  return (
+    <section id="top" className="hero">
+      <div className="hero-glow" aria-hidden />
+      <div className="container hero-inner">
+        <div className="hero-badge">
+          <span className="pulse-dot" /> Validated on 1,437 real prompts · 94% confidence
+        </div>
+
+        <h1 className="hero-h1">
+          Stop burning Opus tokens
+          <br />
+          <span className="gradient-text">on groceries.</span>
+        </h1>
+
+        <p className="hero-sub">
+          frugal is the Claude Code router that sends trivial tasks to free local models —
+          automatically, in &lt;1ms, with zero proxies.{' '}
+          <strong>90.2% cost reduction</strong> validated on 1,437 real prompts.
+        </p>
+
+        <div className="hero-stats">
+          <Stat value={90.2} suffix="%" decimals={1} label="Cost saved vs all-Opus" />
+          <Stat value={1437} label="Prompts backtested" />
+          <Stat value={84} suffix="%" label="Run free on Ollama" />
+          <Stat value={50} prefix="<" suffix="ms" label="Classify latency" />
+        </div>
+
+        <div className="hero-ctas">
+          <a href="#analyse" onClick={scrollToId('analyse')} className="btn btn-primary">
+            Analyse my project →
+          </a>
+          <a href="#how" onClick={scrollToId('how')} className="btn btn-ghost">
+            How it works →
+          </a>
+        </div>
+
+        <blockquote className="hero-quote">
+          &ldquo;You wouldn&rsquo;t drive a Ferrari to buy groceries.&rdquo;
+        </blockquote>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Terminal Window
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function TerminalWindow({
+  title,
+  tag,
+  tagColor,
+  lines,
+  statusBar,
+  active,
+  startDelay = 0,
+}: {
+  title: string;
+  tag: string;
+  tagColor: string;
+  lines: TerminalLine[];
+  statusBar: { text: string; color: string }[];
+  active: boolean;
+  startDelay?: number;
+}) {
+  const [rendered, setRendered] = useState<TerminalLine[]>([]);
+
+  useEffect(() => {
+    if (!active) return;
+    setRendered([]);
+
+    let i = 0;
+    let tid: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+
+    const step = () => {
+      if (cancelled || i >= lines.length) return;
+      const line = lines[i];
+      setRendered((prev) => [...prev, line]);
+      i += 1;
+      const delay =
+        line.kind === 'gap'
+          ? 220
+          : line.kind === 'cmd'
+          ? 180
+          : line.kind === 'bar'
+          ? 120
+          : 60;
+      tid = setTimeout(step, delay);
+    };
+
+    tid = setTimeout(step, startDelay);
+
+    return () => {
+      cancelled = true;
+      if (tid) clearTimeout(tid);
+    };
+  }, [active, lines, startDelay]);
+
+  return (
+    <div className="term">
+      <div className="term-head">
+        <div className="term-dots">
+          <span style={{ background: '#ff5f56' }} />
+          <span style={{ background: '#ffbd2e' }} />
+          <span style={{ background: '#27c93f' }} />
+        </div>
+        <div className="term-title">{title}</div>
+        <div className="term-tag" style={{ color: tagColor, borderColor: `${tagColor}55` }}>
+          {tag}
+        </div>
+      </div>
+
+      <div className="term-body">
+        {rendered.map((line, idx) => (
+          <LineView key={idx} line={line} />
+        ))}
+        {active && rendered.length < lines.length && <span className="term-caret">▍</span>}
+      </div>
+
       <div className="term-status">
-        {statusItems.map((s, i) => (
-          <div key={i} className="term-status-item">
-            <span className="ts-dot" style={{ background: s.dot }} />
-            {s.label}
-          </div>
+        {statusBar.map((s, i) => (
+          <span key={i} className="term-status-item" style={{ color: s.color }}>
+            ● {s.text}
+          </span>
         ))}
       </div>
     </div>
   );
 }
 
-const WITHOUT_LINES: TLine[] = [
-  { type: 'cmd',  text: 'git commit -m "fix: button color"' },
-  { type: 'gap' },
-  { type: 'out',  text: '⠸ Sending to Claude Opus 4…', cls: 'warn' },
-  { type: 'out',  text: '  model:      claude-opus-4', cls: 'dim' },
-  { type: 'out',  text: '  tokens_in:  2,847  out: 34', cls: 'dim' },
-  { type: 'gap' },
-  { type: 'cost', label: 'this prompt', val: '$0.0043', ctype: 'bad' },
-  { type: 'cost', label: '120 prompts/day →', val: '$0.52/day', ctype: 'bad' },
-  { type: 'cost', label: 'monthly estimate', val: '$15.60/mo', ctype: 'bad' },
-  { type: 'gap' },
-  { type: 'cmd',  text: '# rename a variable…' },
-  { type: 'out',  text: '⠸ Sending to Claude Opus 4…', cls: 'warn' },
-  { type: 'cost', label: 'rename variable', val: '$0.0038', ctype: 'bad' },
-  { type: 'gap' },
-  { type: 'cmd',  text: '# "explain this error"' },
-  { type: 'out',  text: '⠸ Sending to Claude Opus 4…', cls: 'warn' },
-  { type: 'cost', label: 'explain error', val: '$0.0051', ctype: 'bad' },
-  { type: 'gap' },
-  { type: 'out',  text: '■ 3 prompts  ·  $0.0132  ·  Opus for everything', cls: 'red' },
+function LineView({ line }: { line: TerminalLine }) {
+  switch (line.kind) {
+    case 'cmd':
+      return (
+        <div className="ln-cmd">
+          <span className="ln-prompt">$</span> {line.text}
+        </div>
+      );
+    case 'out':
+      return <div className={`ln-out ln-${line.variant}`}>{line.text}</div>;
+    case 'cost':
+      return <div className={`ln-cost ln-cost-${line.variant}`}>{line.text}</div>;
+    case 'bar':
+      return (
+        <div className="ln-bar">
+          <span className="ln-bar-label">{line.label}</span>
+          <div className="ln-bar-track">
+            <div
+              className="ln-bar-fill"
+              style={{ width: `${line.pct}%`, background: line.color }}
+            />
+          </div>
+          <span className="ln-bar-pct">{line.pct}%</span>
+        </div>
+      );
+    case 'gap':
+      return <div className="ln-gap" />;
+    default:
+      return null;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Terminal demo section
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const WITHOUT_LINES: TerminalLine[] = [
+  { kind: 'cmd', text: 'git commit -m "fix: button color"' },
+  { kind: 'out', text: '⠸ Sending to Claude Opus 4…', variant: 'warn' },
+  { kind: 'out', text: '  model: claude-opus-4  tokens_in: 2,847', variant: 'dim' },
+  { kind: 'cost', text: 'this prompt         → $0.0043', variant: 'bad' },
+  { kind: 'cost', text: '120 prompts/day     → $0.52/day', variant: 'bad' },
+  { kind: 'cost', text: 'monthly estimate    → $15.60/mo', variant: 'bad' },
+  { kind: 'gap' },
+  { kind: 'cmd', text: '# rename a variable…' },
+  { kind: 'out', text: '⠸ Sending to Claude Opus 4…', variant: 'warn' },
+  { kind: 'cost', text: 'rename variable     → $0.0038', variant: 'bad' },
+  { kind: 'gap' },
+  { kind: 'cmd', text: '# "explain this error"' },
+  { kind: 'out', text: '⠸ Sending to Claude Opus 4…', variant: 'warn' },
+  { kind: 'cost', text: 'explain error       → $0.0051', variant: 'bad' },
+  { kind: 'gap' },
+  { kind: 'out', text: '■ 3 prompts · $0.0132 · Opus for everything', variant: 'red' },
 ];
 
-const WITH_LINES: TLine[] = [
-  { type: 'cmd',  text: 'git commit -m "fix: button color"' },
-  { type: 'gap' },
-  { type: 'out',  text: '⚡ frugal · TRIVIAL · conf 0.97 · <1ms', cls: 'purple' },
-  { type: 'out',  text: '  → T1: claude-haiku-4-5  [25× cheaper]', cls: 'ok' },
-  { type: 'out',  text: '  tokens_in:  2,847  out: 31', cls: 'dim' },
-  { type: 'gap' },
-  { type: 'cost', label: 'this prompt', val: '$0.00017', ctype: 'good' },
-  { type: 'cost', label: 'saved vs Opus', val: '−96%', ctype: 'good' },
-  { type: 'gap' },
-  { type: 'cmd',  text: '# rename a variable…' },
-  { type: 'out',  text: '⚡ frugal · T0-inline · conf 0.99 · <1ms', cls: 'purple' },
-  { type: 'out',  text: '  → T0: ollama qwen3:30b  [free local 🆓]', cls: 'ok' },
-  { type: 'cost', label: 'rename variable', val: '$0.000', ctype: 'good' },
-  { type: 'gap' },
-  { type: 'cmd',  text: '# "explain this error"' },
-  { type: 'out',  text: '⚡ frugal · T1 · conf 0.88 · <1ms', cls: 'purple' },
-  { type: 'out',  text: '  → T1: claude-haiku-4-5', cls: 'ok' },
-  { type: 'cost', label: 'explain error', val: '$0.00019', ctype: 'good' },
-  { type: 'gap' },
-  { type: 'bar',  label: 'T0 free', pct: 84, color: '#7c3aed' },
-  { type: 'bar',  label: 'T1 Haiku', pct: 10, color: '#06b6d4' },
-  { type: 'bar',  label: 'T2 Sonnet', pct: 5, color: '#22c55e' },
-  { type: 'bar',  label: 'T3 Opus', pct: 1, color: '#eab308' },
-  { type: 'gap' },
-  { type: 'out',  text: '■ 3 prompts  ·  $0.00036  ·  84% free  ·  −97%', cls: 'ok' },
+const WITH_LINES: TerminalLine[] = [
+  { kind: 'cmd', text: 'git commit -m "fix: button color"' },
+  { kind: 'out', text: '⚡ frugal · TRIVIAL · conf 0.97 · <1ms', variant: 'purple' },
+  { kind: 'out', text: '  → T1: claude-haiku-4-5  [25× cheaper]', variant: 'ok' },
+  { kind: 'out', text: '  tokens_in: 2,847  out: 31', variant: 'dim' },
+  { kind: 'cost', text: 'this prompt         → $0.00017', variant: 'good' },
+  { kind: 'cost', text: 'saved vs Opus       → −96%', variant: 'good' },
+  { kind: 'gap' },
+  { kind: 'cmd', text: '# rename a variable…' },
+  { kind: 'out', text: '⚡ frugal · T0-inline · conf 0.99 · <1ms', variant: 'purple' },
+  { kind: 'out', text: '  → T0: ollama qwen3:30b  [free local 🆓]', variant: 'ok' },
+  { kind: 'cost', text: 'rename variable     → $0.000', variant: 'good' },
+  { kind: 'gap' },
+  { kind: 'cmd', text: '# "explain this error"' },
+  { kind: 'out', text: '⚡ frugal · T1 · conf 0.88 · <1ms', variant: 'purple' },
+  { kind: 'out', text: '  → T1: claude-haiku-4-5', variant: 'ok' },
+  { kind: 'cost', text: 'explain error       → $0.00019', variant: 'good' },
+  { kind: 'gap' },
+  { kind: 'bar', label: 'T0 free', pct: 84, color: '#7c3aed' },
+  { kind: 'bar', label: 'T1 Haiku', pct: 10, color: '#06b6d4' },
+  { kind: 'bar', label: 'T2 Sonnet', pct: 5, color: '#22c55e' },
+  { kind: 'bar', label: 'T3 Opus', pct: 1, color: '#eab308' },
+  { kind: 'gap' },
+  { kind: 'out', text: '■ 3 prompts · $0.00036 · 84% free · −97%', variant: 'ok' },
 ];
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   ANALYSE RESULT CARD
-───────────────────────────────────────────────────────────────────────────── */
-function ResultCard({ result }: { result: AnalyseResult }) {
-  const tierVals = TIERS.map(t => result.tier_breakdown[t.key] ?? 0);
-
-  const platIcon: Record<string, string> = {
-    'Vercel': '▲', 'Netlify': '◆', 'Railway': '🚂', 'GitHub Pages': '⬡',
-    'Cloudflare Pages': '☁', 'Fly.io': '✈', 'AWS': '☁', 'Render': '◉',
-  };
+function TerminalDemo() {
+  const { ref, inView } = useInView(0.15);
 
   return (
-    <div className="result-root">
-
-      {/* ── Row 1: Stack + Savings ── */}
-      <div className="result-row-2">
-
-        {/* Stack card */}
-        <div className="rcard">
-          <div className="rcard-title">Stack detected</div>
-          <div className="stack-list">
-            {[
-              { k: 'Platform',  v: result.platform,  extra: platIcon[result.platform] || '⬛' },
-              { k: 'Framework', v: result.framework },
-              { k: 'Language',  v: result.language  },
-            ].map(row => (
-              <div key={row.k} className="stack-row">
-                <span className="sk">{row.k}</span>
-                <span className="sv">{row.extra && <span style={{ marginRight: 6, opacity: 0.7 }}>{row.extra}</span>}{row.v}</span>
-              </div>
-            ))}
-            <div className="stack-row">
-              <span className="sk">LLM signals</span>
-              <span className="sv">
-                {result.llm_detected
-                  ? <span className="badge-warn">⚡ {result.llm_signals.length} found</span>
-                  : <span className="badge-ok">✓ None</span>}
-              </span>
-            </div>
-            {result.llm_detected && (
-              <div className="signal-chips">
-                {result.llm_signals.map(s => <span key={s} className="chip-warn">{s}</span>)}
-              </div>
-            )}
-            {result.cached && <div className="cache-hint">⚡ Cached result · &lt;1ms</div>}
-          </div>
+    <section id="demo" className="section">
+      <div ref={ref} className="container">
+        <div className="section-head">
+          <h2 className="section-h2">Watch the router decide — live.</h2>
+          <p className="section-sub">
+            Every prompt classified in &lt;1ms by a pure regex engine. No LLM in the hot path.
+            Trivial tasks route free. Opus is reserved for the 3.6% that genuinely need it.
+          </p>
         </div>
 
-        {/* Savings card */}
-        <div className="rcard savings-card">
-          <div className="rcard-title">frugal savings estimate</div>
-          <div className="sav-big">{result.savings_pct}<span className="sav-pct">%</span></div>
-          <div className="sav-sub">cost reduction on your Claude Code bill</div>
-          <div className="sav-monthly">
-            <span className="sav-m-num">≈ ${result.monthly_savings_usd}</span>
-            <span className="sav-m-label">/mo saved</span>
-          </div>
-          <div className="sav-meta">
-            <div className="conf-row">
-              <span>Confidence</span>
-              <div className="conf-track"><div className="conf-fill" style={{ width: `${result.backtest_confidence}%` }} /></div>
-              <span className="conf-num">{result.backtest_confidence}%</span>
-            </div>
-            <div className="sav-dots">
-              <span>📊 {result.backtest_prompts.toLocaleString()} prompts</span>
-              <span>·</span>
-              <span>👥 {result.community_users}+ devs</span>
-              <span>·</span>
-              <span>🔄 auto-tuning daily</span>
-            </div>
-          </div>
-        </div>
-      </div>
+        <div className="term-grid">
+          <ErrorBoundary label="terminal-without">
+            <TerminalWindow
+              title="claude-code ~ without frugal"
+              tag="Opus for everything"
+              tagColor="#ef4444"
+              lines={WITHOUT_LINES}
+              active={inView}
+              startDelay={200}
+              statusBar={[
+                { text: 'Opus only', color: '#ef4444' },
+                { text: '$0.52/day', color: '#ef4444' },
+                { text: '$15.60/mo', color: '#ef4444' },
+                { text: '0% free', color: '#8888aa' },
+              ]}
+            />
+          </ErrorBoundary>
 
-      {/* ── Row 2: Tier breakdown ── */}
-      <div className="rcard">
-        <div className="rcard-title">Router tier breakdown — how frugal allocates your prompts</div>
-        <div className="tier-grid">
-          {TIERS.map((t, i) => (
-            <div key={t.key} className="tier-item">
-              <div className="tier-top">
-                <span className="tier-label">{t.label}</span>
-                <span className="tier-pct" style={{ color: t.color }}>{tierVals[i]}%</span>
-              </div>
-              <div className="tier-track">
-                <div className="tier-fill" style={{ width: `${tierVals[i]}%`, background: t.color }} />
-              </div>
-              <div className="tier-model">{t.model}</div>
-            </div>
-          ))}
-        </div>
-        <div className="tier-footnote">
-          T0 runs free on your local GPU via Ollama. T3 (Opus) is reserved for architecture decisions, final reviews, and multi-file refactors only.
-        </div>
-      </div>
-
-      {/* ── Row 3: Suggestions + CTA ── */}
-      <div className="result-row-2">
-        <div className="rcard">
-          <div className="rcard-title">Recommended for your stack</div>
-          <div className="sug-list">
-            {result.suggestions.map((s, i) => (
-              <div key={i} className="sug-item">
-                <div className={`sug-icon si-${s.type}`}>{SUG_ICON[s.type] || '🔧'}</div>
-                <div className="sug-body">
-                  <div className="sug-name">{s.name}</div>
-                  <div className="sug-reason">{s.reason}</div>
-                  {s.savings && <div className="sug-savings">↑ {s.savings}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
+          <ErrorBoundary label="terminal-with">
+            <TerminalWindow
+              title="claude-code ~ with frugal"
+              tag="Routed automatically"
+              tagColor="#22c55e"
+              lines={WITH_LINES}
+              active={inView}
+              startDelay={1400}
+              statusBar={[
+                { text: 'frugal active', color: '#7c3aed' },
+                { text: '$0.054/day', color: '#22c55e' },
+                { text: '$1.62/mo', color: '#22c55e' },
+                { text: '84% free local', color: '#22c55e' },
+              ]}
+            />
+          </ErrorBoundary>
         </div>
 
-        <div className="rcard cta-card">
-          <div className="cta-domain">
-            {result.url.replace(/^https?:\/\//, '').split('/')[0]}
-          </div>
-          <div className="cta-headline">
-            Save ~${result.monthly_savings_usd}/mo<br />starting today
-          </div>
-          <div className="cta-body">
-            frugal runs locally, never proxies your prompts, and auto-tunes every night from your real usage.
-          </div>
-          <div className="cta-proof">
-            <div className="cta-proof-row">
-              <span className="cta-proof-dot" style={{ background: '#22c55e' }} />
-              <span>Zero proxy · no latency added</span>
-            </div>
-            <div className="cta-proof-row">
-              <span className="cta-proof-dot" style={{ background: '#7c3aed' }} />
-              <span>84% of prompts run 100% free</span>
-            </div>
-            <div className="cta-proof-row">
-              <span className="cta-proof-dot" style={{ background: '#06b6d4' }} />
-              <span>If frugal dies, Claude Code still works</span>
-            </div>
-          </div>
-          <button
-            type="button" className="btn-cta"
-            onClick={() => document.getElementById('waitlist')?.scrollIntoView({ behavior: 'smooth' })}
-          >
-            Get early access →
-          </button>
+        <div className="cost-table-wrap">
+          <table className="cost-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Without</th>
+                <th></th>
+                <th>With</th>
+                <th>Tier</th>
+                <th>Saving</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>git commit message</td>
+                <td className="mono bad">$0.0043</td>
+                <td className="dim">→</td>
+                <td className="mono good">$0.00017</td>
+                <td><span className="chip chip-cyan">T1 Haiku</span></td>
+                <td className="good bold">−96%</td>
+              </tr>
+              <tr>
+                <td>rename variable</td>
+                <td className="mono bad">$0.0038</td>
+                <td className="dim">→</td>
+                <td className="mono good">$0.000</td>
+                <td><span className="chip chip-purple">T0 Ollama</span></td>
+                <td className="good bold">−100%</td>
+              </tr>
+              <tr>
+                <td>explain this error</td>
+                <td className="mono bad">$0.0051</td>
+                <td className="dim">→</td>
+                <td className="mono good">$0.00019</td>
+                <td><span className="chip chip-cyan">T1 Haiku</span></td>
+                <td className="good bold">−96%</td>
+              </tr>
+              <tr>
+                <td>debug race condition</td>
+                <td className="mono bad">$0.0062</td>
+                <td className="dim">→</td>
+                <td className="mono warn">$0.0018</td>
+                <td><span className="chip chip-green">T2 Sonnet</span></td>
+                <td className="good bold">−71%</td>
+              </tr>
+              <tr>
+                <td>redesign auth system</td>
+                <td className="mono warn">$0.018</td>
+                <td className="dim">→</td>
+                <td className="mono warn">$0.018</td>
+                <td><span className="chip chip-yellow">T3 Opus ✓</span></td>
+                <td className="dim">0% (correctly Opus)</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-
-    </div>
+    </section>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   LOADING ANIMATION
-───────────────────────────────────────────────────────────────────────────── */
-const LOAD_STEPS = [
+/* ────────────────────────────────────────────────────────────────────────────
+ * URL Analyser
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const LOADING_STEPS = [
   'Resolving hostname…',
   'Fetching HTTP headers…',
   'Detecting platform & CDN…',
@@ -385,406 +541,729 @@ const LOAD_STEPS = [
   'Generating savings projection…',
 ];
 
-function LoadingView({ step }: { step: number }) {
+function LoadingView() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    let tid: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    const tick = (i: number) => {
+      if (cancelled || i >= LOADING_STEPS.length) return;
+      setStep(i);
+      tid = setTimeout(() => tick(i + 1), 520);
+    };
+    tick(0);
+    return () => {
+      cancelled = true;
+      if (tid) clearTimeout(tid);
+    };
+  }, []);
+
   return (
-    <div className="load-root">
-      <div className="load-term">
-        <div className="load-bar">
-          <span className="tdot r"/><span className="tdot y"/><span className="tdot g"/>
-          <span className="load-title">frugal analyser</span>
+    <div className="loading-term">
+      <div className="term-head">
+        <div className="term-dots">
+          <span style={{ background: '#ff5f56' }} />
+          <span style={{ background: '#ffbd2e' }} />
+          <span style={{ background: '#27c93f' }} />
         </div>
-        <div className="load-body">
-          {LOAD_STEPS.map((s, i) => (
-            <div key={i} className={`load-step ${i < step ? 'done' : i === step - 1 ? 'active' : 'pending'}`}>
-              <span className="load-step-icon">
-                {i < step ? '✓' : i === step - 1 ? '⠸' : '·'}
-              </span>
-              {s}
+        <div className="term-title">frugal analyse ~ running</div>
+      </div>
+      <div className="term-body">
+        {LOADING_STEPS.slice(0, step + 1).map((line, i) => {
+          const isCurrent = i === step;
+          return (
+            <div key={i} className={`loading-line ${isCurrent ? 'current' : 'done'}`}>
+              <span className="loading-icon">{isCurrent ? '⠸' : '✓'}</span> {line}
             </div>
-          ))}
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function normaliseUrl(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  const withProto = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  try {
+    const u = new URL(withProto);
+    if (u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+function suggestionIcon(type: string): string {
+  switch (type) {
+    case 'llm': return '🧠';
+    case 'connector': return '🔌';
+    case 'skill': return '✦';
+    case 'cli': return '⌨';
+    case 'tool': return '🛠';
+    default: return '•';
+  }
+}
+
+function TierBar({ label, pct, color }: { label: string; pct: number; color: string }) {
+  return (
+    <div className="tbar">
+      <div className="tbar-label">{label}</div>
+      <div className="tbar-track">
+        <div className="tbar-fill" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <div className="tbar-pct">{pct}%</div>
+    </div>
+  );
+}
+
+function ResultCard({ result }: { result: AnalyseResult }) {
+  const domain = useMemo(() => {
+    try { return new URL(result.url).hostname; } catch { return result.url; }
+  }, [result.url]);
+
+  const tiers = result.tier_breakdown;
+
+  return (
+    <div className="result-card">
+      <div className="result-head">
+        <div>
+          <div className="result-label">Analysis for</div>
+          <div className="result-domain">{domain}</div>
+        </div>
+        {result.cached && <span className="chip chip-cyan">cached</span>}
+      </div>
+
+      {result.error === 'unreachable' && (
+        <div className="result-warn">
+          We couldn&rsquo;t reach this URL directly, but the projection below is based on the
+          backtest distribution for similar projects.
+        </div>
+      )}
+
+      <div className="result-grid-2">
+        <div className="result-sub-card">
+          <div className="result-sub-title">Stack detected</div>
+          <dl className="kv">
+            <dt>Platform</dt>
+            <dd>{result.platform}</dd>
+            <dt>Framework</dt>
+            <dd>{result.framework}</dd>
+            <dt>Language</dt>
+            <dd>{result.language}</dd>
+            <dt>LLM in use</dt>
+            <dd>
+              {result.llm_detected && result.llm_signals.length > 0 ? (
+                <div className="llm-badges">
+                  {result.llm_signals.map((s) => (
+                    <span key={s} className="chip chip-purple">{s}</span>
+                  ))}
+                </div>
+              ) : (
+                <span className="dim">none detected</span>
+              )}
+            </dd>
+          </dl>
+        </div>
+
+        <div className="result-sub-card savings-card">
+          <div className="result-sub-title">Projected savings</div>
+          <div className="savings-big gradient-text">{result.savings_pct}%</div>
+          <div className="savings-sub">
+            ≈ ${result.monthly_savings_usd}/mo saved on Claude Code
+          </div>
+          <div className="conf-row">
+            <div className="conf-label">Backtest confidence</div>
+            <div className="conf-bar">
+              <div
+                className="conf-fill"
+                style={{ width: `${result.backtest_confidence}%` }}
+              />
+            </div>
+            <div className="conf-pct">{result.backtest_confidence}%</div>
+          </div>
+          <div className="meta-dots">
+            <span>● {(result.backtest_prompts ?? 1437).toLocaleString()} prompts replayed</span>
+            <span>● {result.community_users ?? 312} developers</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="result-sub-card">
+        <div className="result-sub-title">How your prompts would route</div>
+        <div className="tier-bars">
+          <TierBar label="T0 · free local (Ollama)" pct={tiers.t0_pct} color="#7c3aed" />
+          <TierBar label="T1 · Haiku" pct={tiers.t1_pct} color="#06b6d4" />
+          <TierBar label="T2 · Sonnet" pct={tiers.t2_pct} color="#22c55e" />
+          <TierBar label="T3 · Opus (architecture only)" pct={tiers.t3_pct} color="#eab308" />
+        </div>
+        <div className="tier-foot">
+          T0 runs free on your local GPU via Ollama. T3 (Opus) is reserved for architecture
+          decisions, final reviews, and multi-file refactors only.
+        </div>
+      </div>
+
+      <div className="result-grid-2">
+        <div className="result-sub-card">
+          <div className="result-sub-title">Recommendations for your stack</div>
+          <ul className="sugg-list">
+            {result.suggestions.map((s, i) => (
+              <li key={i} className="sugg">
+                <div className="sugg-icon">{suggestionIcon(s.type)}</div>
+                <div className="sugg-body">
+                  <div className="sugg-head">
+                    <strong>{s.name}</strong>
+                    {s.savings && <span className="sugg-saving">{s.savings}</span>}
+                  </div>
+                  <div className="sugg-reason">{s.reason}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="result-sub-card cta-card">
+          <div className="result-sub-title">Your estimate</div>
+          <div className="cta-domain">{domain}</div>
+          <div className="cta-headline">
+            Save ~${result.monthly_savings_usd}/mo starting today
+          </div>
+          <ul className="cta-bullets">
+            <li>✓ Zero proxy · runs locally on your machine</li>
+            <li>✓ HIGH_RISK patterns always escalate to Opus</li>
+            <li>✓ Auto-tunes nightly from your own usage</li>
+          </ul>
+          <a href="#waitlist" onClick={scrollToId('waitlist')} className="btn btn-primary btn-block">
+            Get early access →
+          </a>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────────────────────────────────────── */
-export default function LandingPage() {
-  const [url, setUrl]                 = useState('');
-  const [analysing, setAnalysing]     = useState(false);
-  const [loadStep, setLoadStep]       = useState(0);
-  const [result, setResult]           = useState<AnalyseResult | null>(null);
-  const [analyseErr, setAnalyseErr]   = useState<string | null>(null);
-  const analyserRef                   = useRef<HTMLDivElement>(null);
-
-  const [email, setEmail]             = useState('');
-  const [wlUrl, setWlUrl]             = useState('');
-  const [joining, setJoining]         = useState(false);
-  const [joined, setJoined]           = useState(false);
-  const [wlErr, setWlErr]             = useState<string | null>(null);
-  const [wlCount, setWlCount]         = useState<number | null>(null);
+function UrlAnalyser() {
+  const [url, setUrl] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [result, setResult] = useState<AnalyseResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    fetch('/api/waitlist').then(r => r.json())
-      .then(d => { if (typeof d.total === 'number') setWlCount(d.total); })
-      .catch(() => {});
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
 
-  const scrollToAnalyser = useCallback(() => {
-    analyserRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  const submit = async (raw: string) => {
+    const normalised = normaliseUrl(raw);
+    if (!normalised) {
+      setStatus('error');
+      setErrorMsg('That doesn’t look like a valid URL. Try vercel.com or https://nextjs.org');
+      return;
+    }
 
-  async function doAnalyse(e: React.FormEvent) {
-    e.preventDefault();
-    setAnalyseErr(null); setResult(null); setAnalysing(true); setLoadStep(1);
-    // Save timeout IDs so we can cancel them when the response arrives
-    const tids: ReturnType<typeof setTimeout>[] = [];
-    LOAD_STEPS.forEach((_, i) => {
-      tids.push(setTimeout(() => setLoadStep(i + 2), 600 * (i + 1)));
-    });
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    setStatus('loading');
+    setErrorMsg('');
+    setResult(null);
+
     try {
-      const res  = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-      const data = await res.json() as AnalyseResult & { hint?: string };
-      tids.forEach(clearTimeout); // cancel pending step timers
-      if (!res.ok) { setAnalyseErr(data.hint || data.error || 'Something went wrong'); return; }
+      const res = await fetch('/api/analyse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: normalised }),
+        signal: ac.signal,
+      });
+      const data = (await res.json()) as AnalyseResult & { error?: string };
+      if (!res.ok && !data?.platform) {
+        setStatus('error');
+        setErrorMsg(
+          data?.error === 'invalid_url'
+            ? 'URL must be public HTTPS.'
+            : 'Analysis failed. Try another URL.',
+        );
+        return;
+      }
       setResult(data);
-      setWlUrl(url);
+      setStatus('done');
     } catch (err) {
-      tids.forEach(clearTimeout);
-      setAnalyseErr(err instanceof Error ? err.message : 'network error');
-    } finally { setAnalysing(false); setLoadStep(0); }
-  }
+      if ((err as { name?: string })?.name === 'AbortError') return;
+      setStatus('error');
+      setErrorMsg('Network hiccup. Try again in a second.');
+    }
+  };
 
-  async function doWaitlist(e: React.FormEvent) {
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setWlErr(null); setJoining(true);
-    try {
-      const res  = await fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, url: wlUrl || undefined, savings_estimate: result?.savings_pct }) });
-      const data = await res.json();
-      if (!res.ok) { setWlErr(data.hint || data.error || 'Failed to join waitlist'); return; }
-      setJoined(true);
-      if (typeof data.total === 'number') setWlCount(data.total);
-    } catch (err) {
-      setWlErr(err instanceof Error ? err.message : 'network error');
-    } finally { setJoining(false); }
-  }
+    if (status === 'loading') return;
+    submit(url);
+  };
+
+  const tryExample = (example: string) => {
+    setUrl(example);
+    submit(example);
+  };
 
   return (
-    <>
-      {/* ─── NAV ─────────────────────────────────────────────────────────── */}
-      <nav className="nav">
-        <a href="/" className="nav-logo">frugal<span>.</span></a>
-        <div className="nav-links">
-          <a href="#demo">Demo</a>
-          <a href="#analyse">Analyse</a>
-          <a href="#how">How</a>
-          <a href="#waitlist" className="nav-cta">Early access</a>
+    <section id="analyse" className="section section-alt">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">
+            See exactly what frugal saves <em>you</em>.
+          </h2>
+          <p className="section-sub">
+            Paste any public URL. We detect your platform, framework, LLM signals, and show how
+            your prompts would be routed — with real dollar estimates from backtest data.
+          </p>
         </div>
-      </nav>
 
-      <main>
+        <form className="analyse-form" onSubmit={onSubmit}>
+          <div className="analyse-input-wrap">
+            <span className="analyse-icon">🔍</span>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="vercel.com   ·   https://nextjs.org   ·   railway.app"
+              className="analyse-input"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={status === 'loading' || url.trim().length === 0}
+          >
+            {status === 'loading' ? 'Analysing…' : 'Analyse →'}
+          </button>
+        </form>
 
-        {/* ─── HERO ────────────────────────────────────────────────────────── */}
-        <section className="hero">
-          <div className="wrap">
-            <div className="hero-pill">
-              <span className="pill-dot" /> Backtest-validated · Auto-tuning · Open source · MIT
+        <div className="analyse-examples">
+          <span className="dim">Try:</span>
+          {['vercel.com', 'nextjs.org', 'railway.app'].map((e) => (
+            <button
+              key={e}
+              type="button"
+              className="example-chip"
+              onClick={() => tryExample(e)}
+              disabled={status === 'loading'}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+
+        {status === 'error' && (
+          <div className="analyse-error">{errorMsg || 'Something went wrong.'}</div>
+        )}
+
+        <ErrorBoundary label="loading-view">
+          {status === 'loading' && <LoadingView />}
+        </ErrorBoundary>
+
+        <ErrorBoundary label="result-card">
+          {status === 'done' && result && (
+            <div className="fadeup">
+              <ResultCard result={result} />
             </div>
-            <h1 className="hero-h1">Stop burning<br /><span className="grad">Opus tokens</span><br />on groceries.</h1>
-            <p className="hero-sub">
-              frugal is the Claude Code router that sends trivial tasks to free local models — automatically, in &lt;1ms, with zero proxies.<br />
-              <strong>90.2% cost reduction</strong> validated on 1,437 real prompts.
-            </p>
-            <div className="hero-stats">
-              {[
-                { n: 90,    suf: '.2%',  label: 'cost saved'        },
-                { n: 1437,  suf: '',     label: 'prompts backtested' },
-                { n: 84,    suf: '%',    label: 'run free on Ollama' },
-                { n: 50,    suf: 'ms',   label: 'classify latency', pre: '<' },
-              ].map((s, i) => (
-                <div key={i} className="hstat">
-                  <div className="hstat-n"><Counter to={s.n} suffix={s.suf} prefix={s.pre} /></div>
-                  <div className="hstat-l">{s.label}</div>
+          )}
+        </ErrorBoundary>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * How it works
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const HOW_CARDS = [
+  {
+    n: '01',
+    title: 'Classify',
+    body: 'Pure regex classifier in <1ms. No LLM in the hot path. SHA-256 cache avoids re-classifying identical prompts. Weighted scoring across 6 signal categories.',
+    tag: 'classify.js · 165 lines',
+  },
+  {
+    n: '02',
+    title: 'Route',
+    body: '4 tiers: T0 Ollama (free local), T1 Haiku (25× cheaper), T2 Sonnet (reasoning), T3 Opus (architecture only). HIGH_RISK patterns always escalate, no exceptions.',
+    tag: 'patterns.js · dual-enforced',
+  },
+  {
+    n: '03',
+    title: 'Save',
+    body: '84% of prompts route to free local Ollama. 90.2% cost reduction validated on 1,437 real production prompts across 3 projects, zero cherry-picking.',
+    tag: '1,437 prompts · 3 projects',
+  },
+  {
+    n: '04',
+    title: 'Learn',
+    body: 'Every night at 02:00, a scheduled task replays decisions, finds over-routing, and patches the classifier idempotently. Gets smarter from your own usage.',
+    tag: 'backtest.js · daily @ 02:00',
+  },
+];
+
+function HowItWorks() {
+  return (
+    <section id="how" className="section">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">How frugal routes every prompt.</h2>
+          <p className="section-sub">
+            Four stages. Zero proxies. Nothing between Claude Code and the cheapest viable model.
+          </p>
+        </div>
+
+        <div className="how-grid">
+          {HOW_CARDS.map((c) => (
+            <div className="how-card" key={c.n}>
+              <div className="how-num">{c.n}</div>
+              <div className="how-title">{c.title}</div>
+              <div className="how-body">{c.body}</div>
+              <div className="how-tag mono">{c.tag}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="safety-card">
+          <div className="safety-head">🔒 The safety guarantee</div>
+          <p>
+            HIGH_RISK patterns are dual-enforced in the classifier and the backtest. No matter
+            what the auto-tuner learns, these patterns always escalate to Opus:
+          </p>
+          <div className="safety-chips">
+            {[
+              'git push --force',
+              'rm -rf',
+              'drop table',
+              '.env / secrets',
+              'deploy / migration',
+              'reset --hard',
+              'production',
+              'architecture',
+            ].map((s) => (
+              <span key={s} className="chip chip-red mono">{s}</span>
+            ))}
+          </div>
+          <p className="safety-foot">
+            Zero-blast-radius: if frugal dies, Claude Code falls back to its default behaviour
+            instantly.
+          </p>
+        </div>
+
+        <div className="statusline-card">
+          <div className="statusline-head">Live statusline — after every Claude Code prompt</div>
+          <div className="statusline-bar mono">
+            ⬆ main·a1b2 │ 🐕 frugal v0.9 │ [T1] hku 0.3s │ qwn 84%·hku 10%·son 5%·ops 1% │ 💰 $1.21 (90%↑) ▓▓▓▓▓▓▓░░░ │ 💻 RTX 4090 ▓▓░ 61% │ ●●◐○○○
+          </div>
+          <div className="statusline-legend">
+            <span>[git branch]</span>
+            <span>[frugal brand]</span>
+            <span>[last turn tier]</span>
+            <span>[session distribution]</span>
+            <span>[savings + budget bar]</span>
+            <span>[GPU usage]</span>
+            <span>[provider dots]</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Social proof
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const PROOF = [
+  {
+    value: 90.2,
+    suffix: '%',
+    decimals: 1,
+    color: '#22c55e',
+    label: 'Cost saved vs all-Opus',
+    sub: 'Real replay · $12.33 → $1.21 on 1,437 prompts',
+  },
+  {
+    value: 84,
+    suffix: '%',
+    decimals: 0,
+    color: '#7c3aed',
+    label: 'Prompts run free on Ollama',
+    sub: '1,150 of 1,370 prompts needed zero API spend',
+  },
+  {
+    value: 94,
+    suffix: '%',
+    decimals: 0,
+    color: '#06b6d4',
+    label: 'Backtest confidence',
+    sub: '95% of decisions high-confidence (conf ≥ 0.6)',
+  },
+  {
+    value: 50,
+    prefix: '<',
+    suffix: 'ms',
+    decimals: 0,
+    color: '#f97316',
+    label: 'Classify latency',
+    sub: 'Pure regex, no LLM, SHA-256 cache, zero blocking',
+  },
+  {
+    value: 10,
+    suffix: 'min',
+    decimals: 0,
+    color: '#eab308',
+    label: 'To tune from your data',
+    sub: 'Run replay on your own Claude Code history',
+  },
+  {
+    value: 59,
+    suffix: '/59',
+    decimals: 0,
+    color: '#22c55e',
+    label: 'Tests passing',
+    sub: 'node:test · zero external frameworks',
+  },
+];
+
+function ProofCard({
+  value,
+  suffix,
+  prefix,
+  decimals,
+  color,
+  label,
+  sub,
+}: {
+  value: number;
+  suffix?: string;
+  prefix?: string;
+  decimals: number;
+  color: string;
+  label: string;
+  sub: string;
+}) {
+  const { ref, inView } = useInView(0.3);
+  const current = useCountUp(value, inView);
+  const shown = decimals > 0 ? current.toFixed(decimals) : Math.round(current).toLocaleString();
+
+  return (
+    <div ref={ref} className="proof-card">
+      <div className="proof-num" style={{ color }}>
+        {prefix}
+        {shown}
+        {suffix}
+      </div>
+      <div className="proof-label">{label}</div>
+      <div className="proof-sub">{sub}</div>
+    </div>
+  );
+}
+
+function SocialProof() {
+  return (
+    <section className="section section-alt">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">Validated. Not projected.</h2>
+          <p className="section-sub">
+            Every number here comes from real replay on real Claude Code transcripts. No
+            projections. No marketing math.
+          </p>
+        </div>
+
+        <div className="proof-grid">
+          {PROOF.map((p, i) => (
+            <ProofCard key={i} {...p} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Waitlist
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function Waitlist() {
+  const [email, setEmail] = useState('');
+  const [url, setUrl] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [total, setTotal] = useState<number | null>(null);
+  const [position, setPosition] = useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const ac = new AbortController();
+    fetch('/api/waitlist', { signal: ac.signal })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (typeof d?.total === 'number') setTotal(d.total);
+      })
+      .catch(() => {
+        /* counter is optional */
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, []);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (status === 'loading') return;
+    setStatus('loading');
+    setErrorMsg('');
+
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, url: url || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setStatus('error');
+        setErrorMsg(
+          data?.error === 'invalid_email'
+            ? 'That email looks off. Double-check?'
+            : 'Couldn’t save your spot. Try again?',
+        );
+        return;
+      }
+      setTotal(data.total);
+      setPosition(data.total);
+      setStatus('done');
+    } catch {
+      setStatus('error');
+      setErrorMsg('Network error. Try again in a moment.');
+    }
+  };
+
+  return (
+    <section id="waitlist" className="section section-dark">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">Get frugal before the public launch.</h2>
+          <p className="section-sub">
+            Installer · VS Code extension · Community backtest data · Plugin marketplace (roadmap).
+            Free and open source forever. MIT license.
+          </p>
+        </div>
+
+        <div className="waitlist-card">
+          {status !== 'done' ? (
+            <form className="waitlist-form" onSubmit={onSubmit}>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                className="waitlist-input"
+                autoComplete="email"
+              />
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="Your project URL — we'll pre-calculate your savings (optional)"
+                className="waitlist-input"
+                autoComplete="off"
+              />
+              <button
+                type="submit"
+                className="btn btn-primary btn-block"
+                disabled={status === 'loading'}
+              >
+                {status === 'loading' ? 'Saving…' : 'Get early access →'}
+              </button>
+              {status === 'error' && <div className="waitlist-err">{errorMsg}</div>}
+              {total !== null && (
+                <div className="waitlist-counter">
+                  <span className="pulse-dot" /> {total.toLocaleString()} developers already on the list
                 </div>
-              ))}
-            </div>
-            <div className="hero-ctas">
-              <button type="button" className="btn-primary" onClick={scrollToAnalyser}>Analyse my project →</button>
-              <a href="#waitlist" className="btn-ghost">How it works →</a>
-            </div>
-            <div className="hero-quote">
-              &ldquo;You wouldn&apos;t drive a Ferrari to buy groceries.&rdquo;
-            </div>
-          </div>
-        </section>
-
-        {/* ─── TERMINAL DEMO ───────────────────────────────────────────────── */}
-        <section id="demo" className="section demo-section">
-          <div className="wrap">
-            <div className="section-kicker">Real savings · In your terminal</div>
-            <h2 className="section-h2">Watch the router decide — live.</h2>
-            <p className="section-sub">
-              Every prompt classified in &lt;1ms by a pure regex engine. No LLM in the hot path. <br />
-              Trivial tasks route free. Opus is reserved for the 3.6% that genuinely need it.
-            </p>
-            <div className="demo-grid">
-              <div>
-                <div className="demo-label bad">WITHOUT frugal</div>
-                <ErrorBoundary fallback={<div className="term-window" style={{padding:20,color:'#ef4444'}}>Failed to load demo</div>}>
-                <TerminalWindow
-                  title="VS Code — bash" tag="Opus for everything" tagColor="#ef4444"
-                  lines={WITHOUT_LINES}
-                  statusItems={[
-                    { dot: '#ef4444', label: 'Opus only' },
-                    { dot: '#ef4444', label: '$0.52/day' },
-                    { dot: '#ef4444', label: '$15.60/mo' },
-                    { dot: '#6b6b7e', label: '0% free' },
-                  ]}
-                />
-                </ErrorBoundary>
-              </div>
-              <div>
-                <div className="demo-label good">WITH frugal</div>
-                <ErrorBoundary fallback={<div className="term-window" style={{padding:20,color:'#22c55e'}}>Failed to load demo</div>}>
-                <TerminalWindow
-                  title="VS Code — bash + frugal" tag="Routed automatically" tagColor="#22c55e"
-                  lines={WITH_LINES}
-                  statusItems={[
-                    { dot: '#22c55e', label: 'frugal active' },
-                    { dot: '#22c55e', label: '$0.054/day' },
-                    { dot: '#22c55e', label: '$1.62/mo' },
-                    { dot: '#7c3aed', label: '84% free local' },
-                  ]}
-                />
-                </ErrorBoundary>
-              </div>
-            </div>
-
-            {/* Cost comparison table */}
-            <div className="cost-table">
-              <div className="cost-table-header">Real cost per prompt type</div>
-              <div className="cost-rows">
-                {[
-                  { task: 'git commit message',   without: '$0.0043', with: '$0.00017', tier: 'T1 Haiku',    save: '−96%' },
-                  { task: 'rename variable',       without: '$0.0038', with: '$0.000',  tier: 'T0 Ollama',   save: '−100%' },
-                  { task: 'explain this error',    without: '$0.0051', with: '$0.00019',tier: 'T1 Haiku',    save: '−96%' },
-                  { task: 'debug race condition',  without: '$0.0062', with: '$0.0018', tier: 'T2 Sonnet',   save: '−71%' },
-                  { task: 'redesign auth system',  without: '$0.018',  with: '$0.018',  tier: 'T3 Opus ✓',   save: '0%',  note: 'correctly Opus' },
-                ].map((row, i) => (
-                  <div key={i} className="cost-row-item">
-                    <span className="cr-task">{row.task}</span>
-                    <span className="cr-without">{row.without}</span>
-                    <span className="cr-arrow">→</span>
-                    <span className="cr-with">{row.with}</span>
-                    <span className="cr-tier">{row.tier}</span>
-                    <span className={`cr-save ${row.save === '0%' ? 'dim' : 'green'}`}>{row.save}</span>
-                    {row.note && <span className="cr-note">{row.note}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        {/* ─── URL ANALYSER ────────────────────────────────────────────────── */}
-        <section id="analyse" className="section analyse-section">
-          <div ref={analyserRef} style={{ position: 'absolute', top: -60 }} />
-          <div className="wrap">
-            <div className="section-kicker">Your project · Your numbers</div>
-            <h2 className="section-h2">See exactly what frugal saves <em>you</em>.</h2>
-            <p className="section-sub">
-              Paste any public URL. We detect your platform, framework, LLM signals, and show a breakdown of how your prompts would be routed — with real dollar estimates from backtest data.
-            </p>
-
-            <form onSubmit={doAnalyse} className="analyse-form">
-              <div className="analyse-input-wrap">
-                <span className="analyse-icon">🔍</span>
-                <input
-                  type="url" required
-                  placeholder="https://github.com/you/project  ·  https://yourapp.vercel.app  ·  https://yourdomain.com"
-                  value={url}
-                  onChange={e => setUrl(e.target.value)}
-                  disabled={analysing}
-                  className="analyse-input"
-                />
-                <button type="submit" className="btn-primary" disabled={analysing || !url} style={{ flexShrink: 0 }}>
-                  {analysing ? 'Analysing…' : 'Analyse →'}
-                </button>
-              </div>
-              <div className="analyse-examples">
-                Try:&nbsp;
-                {['https://vercel.com', 'https://nextjs.org', 'https://railway.app'].map(ex => (
-                  <button key={ex} type="button" className="ex-btn" onClick={() => setUrl(ex)}>{ex.replace('https://', '')}</button>
-                ))}
-              </div>
-              {analyseErr && <div className="err-msg">⚠ {analyseErr}</div>}
+              )}
             </form>
-
-            {analysing && <ErrorBoundary><LoadingView step={loadStep} /></ErrorBoundary>}
-            {result && <ErrorBoundary fallback={<div className="err-msg">⚠ Failed to render result — try again</div>}><ResultCard result={result} /></ErrorBoundary>}
-
-          </div>
-        </section>
-
-        {/* ─── HOW IT WORKS ────────────────────────────────────────────────── */}
-        <section id="how" className="section">
-          <div className="wrap">
-            <div className="section-kicker">Under the hood</div>
-            <h2 className="section-h2">How frugal routes every prompt.</h2>
-            <div className="how-grid">
-              {[
-                { n: '01', title: 'Classify', desc: 'Pure regex classifier in <1ms. No LLM in the hot path. SHA-256 cache avoids re-classifying identical prompts. Weighted scoring across 6 signal categories.', tag: 'classify.js · 165 lines' },
-                { n: '02', title: 'Route',    desc: '4 tiers: T0 Ollama (free local), T1 Haiku (25× cheaper), T2 Sonnet (reasoning), T3 Opus (architecture only). HIGH_RISK patterns always escalate, no exceptions.', tag: 'patterns.js · dual-enforced' },
-                { n: '03', title: 'Save',     desc: '84% of prompts route to free local Ollama. 90.2% cost reduction validated on 1,437 real production prompts across 3 projects, zero cherry-picking.', tag: '1,437 prompts · 3 projects' },
-                { n: '04', title: 'Learn',    desc: 'Every night at 02:00, a scheduled task replays decisions, finds over-routing, and patches classify.js idempotently. Gets smarter from your own usage.', tag: 'backtest.js · daily @ 02:00' },
-              ].map(c => (
-                <div key={c.n} className="how-card">
-                  <div className="how-n">{c.n}</div>
-                  <div className="how-title">{c.title}</div>
-                  <div className="how-desc">{c.desc}</div>
-                  <div className="how-tag">{c.tag}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Safety guarantee */}
-            <div className="safety-card">
-              <div className="safety-header">
-                <span className="safety-icon">🔒</span>
-                <strong>The safety guarantee</strong>
-              </div>
-              <div className="safety-body">
-                HIGH_RISK patterns are dual-enforced in <code>classify.js</code> and <code>backtest.js</code>. No matter what the auto-tuner learns, these patterns <em>always</em> escalate to Opus:
-                <div className="safety-chips">
-                  {['git push --force', 'rm -rf', 'drop table', '.env / secrets', 'deploy / migration', 'reset --hard', 'production', 'architecture'].map(p => (
-                    <span key={p} className="chip-red">{p}</span>
-                  ))}
-                </div>
-                Zero-blast-radius: if frugal dies, Claude Code falls back to its default behaviour instantly.
+          ) : (
+            <div className="waitlist-success">
+              <div className="success-check">✓</div>
+              <div className="success-title">You&rsquo;re on the list.</div>
+              <div className="success-sub">
+                Developer #{position ?? total ?? '—'} · we&rsquo;ll be in touch.
               </div>
             </div>
-
-            {/* Statusline preview */}
-            <div className="statusline-card">
-              <div className="statusline-label">Live statusline — after every Claude Code prompt</div>
-              <div className="statusline-preview">
-                <span className="sl-seg git">⬆ main·a1b2</span>
-                <span className="sl-sep">│</span>
-                <span className="sl-seg brand">🐕 frugal v0.9</span>
-                <span className="sl-sep">│</span>
-                <span className="sl-seg tier">[T1] hku 0.3s</span>
-                <span className="sl-sep">│</span>
-                <span className="sl-seg dist">qwn <span style={{color:'#7c3aed'}}>84%</span> · hku <span style={{color:'#06b6d4'}}>10%</span> · son <span style={{color:'#22c55e'}}>5%</span> · ops <span style={{color:'#eab308'}}>1%</span></span>
-                <span className="sl-sep">│</span>
-                <span className="sl-seg savings">💰 $1.21 <span style={{color:'#22c55e'}}>(90%↑)</span> ▓▓▓▓▓▓▓░░░</span>
-                <span className="sl-sep">│</span>
-                <span className="sl-seg gpu">💻 RTX 4090 ▓▓▓▓░ 61%</span>
-                <span className="sl-sep">│</span>
-                <span className="sl-seg dots">●●◐○○○</span>
-              </div>
-              <div className="statusline-legend">
-                {['git branch', 'frugal brand', 'last turn tier', 'session distribution', 'savings + budget bar', 'GPU usage', 'provider dots'].map((l, i) => (
-                  <span key={i} className="sl-legend-item">{l}</span>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        {/* ─── SOCIAL PROOF ────────────────────────────────────────────────── */}
-        <section className="section proof-section">
-          <div className="wrap">
-            <div className="section-kicker">The numbers</div>
-            <h2 className="section-h2">Validated. Not projected.</h2>
-            <div className="proof-grid">
-              {[
-                { n: 90,   suf: '.2%', color: '#22c55e', label: 'Cost saved vs all-Opus', sub: 'Real replay · $12.33 → $1.21 on 1,437 prompts' },
-                { n: 84,   suf: '%',   color: '#7c3aed', label: 'Prompts run free on Ollama', sub: '1,150 of 1,370 prompts needed zero API spend' },
-                { n: 94,   suf: '%',   color: '#06b6d4', label: 'Backtest confidence', sub: '95% of decisions high-confidence (conf ≥ 0.6)' },
-                { n: 1,    suf: 'ms',  color: '#f97316', label: 'Classify latency', pre: '<', sub: 'Pure regex, no LLM, SHA-256 cache, zero blocking' },
-                { n: 10,   suf: 'min', color: '#eab308', label: 'To tune from your data', sub: 'Run replay.js on your own Claude Code history' },
-                { n: 59,   suf: '/59', color: '#22c55e', label: 'Tests passing',    sub: 'node:test · zero external frameworks' },
-              ].map((p, i) => (
-                <div key={i} className="proof-card">
-                  <div className="proof-n" style={{ color: p.color }}>
-                    <Counter to={p.n} suffix={p.suf} prefix={p.pre} />
-                  </div>
-                  <div className="proof-label">{p.label}</div>
-                  <div className="proof-sub">{p.sub}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ─── WAITLIST ────────────────────────────────────────────────────── */}
-        <section id="waitlist" className="section wl-section">
-          <div className="wrap wl-wrap">
-            <div className="section-kicker">Early access</div>
-            <h2 className="section-h2">Get frugal before the public launch.</h2>
-            <p className="section-sub">
-              Installer · VS Code extension · Community backtest data · Plugin marketplace (roadmap).<br />
-              Free and open source forever. MIT license.
-            </p>
-
-            {joined ? (
-              <div className="wl-success">
-                <div className="wl-check">✓</div>
-                <div className="wl-success-msg">You&apos;re on the list.</div>
-                {wlCount !== null && <div className="wl-count">Developer #{wlCount} · we&apos;ll be in touch.</div>}
-              </div>
-            ) : (
-              <form onSubmit={doWaitlist} className="wl-form">
-                <input type="email" required placeholder="your@email.com"
-                  value={email} onChange={e => setEmail(e.target.value)} disabled={joining} className="wl-input" />
-                <input type="url" placeholder="Your project URL (optional — we'll pre-calculate savings)"
-                  value={wlUrl} onChange={e => setWlUrl(e.target.value)} disabled={joining} className="wl-input" />
-                <button type="submit" className="btn-primary btn-full" disabled={joining || !email}>
-                  {joining ? 'Joining…' : 'Get early access →'}
-                </button>
-                {wlErr && <div className="err-msg">⚠ {wlErr}</div>}
-                <div className="wl-counter">
-                  {wlCount !== null
-                    ? `${wlCount} developer${wlCount === 1 ? '' : 's'} already on the list`
-                    : 'MIT · Local-first · No proxy · Open source'}
-                </div>
-              </form>
-            )}
-
-            <div className="wl-features">
-              {[
-                { icon: '⚡', title: 'One-command install',  desc: 'bash install.sh — no ports, no daemons, no config' },
-                { icon: '🔒', title: 'Zero proxy',           desc: 'frugal runs locally. Your prompts never leave your machine' },
-                { icon: '🔄', title: 'Auto-tuning',          desc: 'Daily backtest tunes the router from your own usage' },
-                { icon: '🌐', title: 'Federated learning',   desc: 'Community patterns improve everyone (roadmap)' },
-              ].map((f, i) => (
-                <div key={i} className="wl-feat">
-                  <span className="wl-feat-icon">{f.icon}</span>
-                  <div>
-                    <div className="wl-feat-title">{f.title}</div>
-                    <div className="wl-feat-desc">{f.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-      </main>
-
-      {/* ─── FOOTER ──────────────────────────────────────────────────────── */}
-      <footer className="footer">
-        <div>frugal · MIT License · Made by Paulo Loureiro</div>
-        <div className="footer-links">
-          <a href="#waitlist">Early access</a>
-          <a href="#analyse">Analyse project</a>
-          <a href="#waitlist">Early access</a>
+          )}
         </div>
-      </footer>
-    </>
+
+        <div className="feature-grid">
+          {[
+            { icon: '⚡', title: 'One-command install', body: 'bash install.sh — no ports, no daemons, no config' },
+            { icon: '🔒', title: 'Zero proxy', body: 'frugal runs locally. Your prompts never leave your machine' },
+            { icon: '🔄', title: 'Auto-tuning', body: 'Daily backtest tunes the router from your own usage' },
+            { icon: '🌐', title: 'Federated learning', body: 'Community patterns improve everyone (roadmap)' },
+          ].map((f) => (
+            <div key={f.title} className="feature-card">
+              <div className="feature-icon">{f.icon}</div>
+              <div className="feature-title">{f.title}</div>
+              <div className="feature-body">{f.body}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Footer
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="container footer-row">
+        <div className="footer-brand">
+          frugal<span className="brand-dot">.</span>
+          <span className="footer-meta"> · MIT License · Made by Paulo Loureiro</span>
+        </div>
+        <div className="footer-links">
+          <a href="#analyse" onClick={scrollToId('analyse')}>Analyse project</a>
+          <a href="#waitlist" onClick={scrollToId('waitlist')}>Early access</a>
+          <a href="#how" onClick={scrollToId('how')}>How it works</a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Page
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export default function Page() {
+  return (
+    <main>
+      <Nav />
+      <ErrorBoundary label="hero"><Hero /></ErrorBoundary>
+      <ErrorBoundary label="terminal-demo"><TerminalDemo /></ErrorBoundary>
+      <ErrorBoundary label="url-analyser"><UrlAnalyser /></ErrorBoundary>
+      <ErrorBoundary label="how"><HowItWorks /></ErrorBoundary>
+      <ErrorBoundary label="proof"><SocialProof /></ErrorBoundary>
+      <ErrorBoundary label="waitlist"><Waitlist /></ErrorBoundary>
+      <Footer />
+    </main>
   );
 }
