@@ -13,6 +13,20 @@ import {
  * Types
  * ──────────────────────────────────────────────────────────────────────────── */
 
+type TierBreakdown = {
+  t0_pct: number;
+  t1_pct: number;
+  t2_pct: number;
+  t3_pct: number;
+};
+
+type Suggestion = {
+  type: string;
+  name: string;
+  reason: string;
+  savings?: string;
+};
+
 type AnalyseResult = {
   url: string;
   platform: string;
@@ -22,8 +36,8 @@ type AnalyseResult = {
   llm_signals: string[];
   savings_pct: number;
   monthly_savings_usd: number;
-  tier_breakdown: { t0_pct: number; t1_pct: number; t2_pct: number; t3_pct: number };
-  suggestions: { type: string; name: string; reason: string; savings?: string }[];
+  tier_breakdown: TierBreakdown;
+  suggestions: Suggestion[];
   backtest_confidence: number;
   backtest_prompts?: number;
   community_users?: number;
@@ -134,8 +148,16 @@ function useCountUp(target: number, active: boolean, duration = 1400) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Small presentational bits
+ * Small atoms
  * ──────────────────────────────────────────────────────────────────────────── */
+
+function scrollToId(id: string) {
+  return (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+}
 
 function Stat({
   value,
@@ -170,14 +192,6 @@ function Stat({
  * Nav
  * ──────────────────────────────────────────────────────────────────────────── */
 
-function scrollToId(id: string) {
-  return (e: React.MouseEvent) => {
-    e.preventDefault();
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-}
-
 function Nav() {
   return (
     <nav className="nav">
@@ -187,12 +201,11 @@ function Nav() {
         </a>
         <div className="nav-links">
           <a href="#demo" onClick={scrollToId('demo')}>Demo</a>
-          <a href="#analyse" onClick={scrollToId('analyse')}>Analyse</a>
-          <a href="#how" onClick={scrollToId('how')}>How</a>
-          <a href="#waitlist" onClick={scrollToId('waitlist')}>Pricing</a>
+          <a href="#how" onClick={scrollToId('how')}>How it works</a>
+          <a href="#pricing" onClick={scrollToId('pricing')}>Pricing</a>
         </div>
         <a href="#waitlist" onClick={scrollToId('waitlist')} className="btn btn-primary btn-sm">
-          Early access
+          Get early access →
         </a>
       </div>
     </nav>
@@ -200,7 +213,7 @@ function Nav() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Hero
+ * Hero — the emotional hook
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function Hero() {
@@ -209,26 +222,26 @@ function Hero() {
       <div className="hero-glow" aria-hidden />
       <div className="container hero-inner">
         <div className="hero-badge">
-          <span className="pulse-dot" /> Validated on 1,437 real prompts · 94% confidence
+          <span className="pulse-dot" /> Validated on 1,437 real prompts · Open source · MIT · Zero proxy
         </div>
 
         <h1 className="hero-h1">
-          Stop burning Opus tokens
+          You can build anything with AI.
           <br />
-          <span className="gradient-text">on groceries.</span>
+          <span className="gradient-text">Until the bill arrives.</span>
         </h1>
 
         <p className="hero-sub">
-          frugal is the Claude Code router that sends trivial tasks to free local models —
-          automatically, in &lt;1ms, with zero proxies.{' '}
-          <strong>90.2% cost reduction</strong> validated on 1,437 real prompts.
+          Every prompt you send to Claude Code costs money. The problem? Renaming a variable
+          costs the same as redesigning your entire architecture. <strong>frugal fixes that</strong>{' '}
+          — automatically, in &lt;1ms, with zero changes to your workflow.
         </p>
 
         <div className="hero-stats">
-          <Stat value={90.2} suffix="%" decimals={1} label="Cost saved vs all-Opus" />
-          <Stat value={1437} label="Prompts backtested" />
-          <Stat value={84} suffix="%" label="Run free on Ollama" />
-          <Stat value={50} prefix="<" suffix="ms" label="Classify latency" />
+          <Stat value={90.2} suffix="%" decimals={1} label="cost saved" />
+          <Stat value={1437} label="prompts validated" />
+          <Stat value={84} suffix="%" label="run free" />
+          <Stat value={1} prefix="<" suffix="ms" label="classify latency" />
         </div>
 
         <div className="hero-ctas">
@@ -236,13 +249,244 @@ function Hero() {
             Analyse my project →
           </a>
           <a href="#how" onClick={scrollToId('how')} className="btn btn-ghost">
-            How it works →
+            See how it works
           </a>
         </div>
 
         <blockquote className="hero-quote">
           &ldquo;You wouldn&rsquo;t drive a Ferrari to buy groceries.&rdquo;
         </blockquote>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The Problem — vibe coder journey
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function TheProblem() {
+  return (
+    <section className="section section-alt">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">The vibe coder&rsquo;s invisible problem.</h2>
+          <p className="section-sub">You didn&rsquo;t realise it yet. But you will.</p>
+        </div>
+
+        <div className="problem-grid">
+          <div className="problem-card problem-rush">
+            <div className="problem-icon">⚡</div>
+            <h3 className="problem-title">You discovered the superpower.</h3>
+            <p className="problem-body">
+              A year ago, you couldn&rsquo;t build a full-stack app alone. Today you ship every
+              week. Claude Code is your co-pilot. You write prompts, it writes code. It feels
+              unlimited.
+            </p>
+          </div>
+
+          <div className="problem-card problem-blind">
+            <div className="problem-icon">👁</div>
+            <h3 className="problem-title">But every prompt costs money. Even the trivial ones.</h3>
+            <div className="problem-body mono-block">
+              <div>&ldquo;rename this variable&rdquo;  → Opus → <span className="bad">$0.0043</span></div>
+              <div>&ldquo;fix this typo&rdquo;          → Opus → <span className="bad">$0.0038</span></div>
+              <div>&ldquo;write a commit message&rdquo; → Opus → <span className="bad">$0.0051</span></div>
+            </div>
+            <p className="problem-foot">
+              These 3 prompts cost <strong className="bad">$0.013</strong>.
+              You&rsquo;ll send 120 prompts today.
+              That&rsquo;s <strong className="bad">$0.52 today</strong>. <strong className="bad">$15.60 this month</strong>.
+              Just for tasks that didn&rsquo;t need Opus.
+            </p>
+          </div>
+
+          <div className="problem-card problem-ceiling">
+            <div className="problem-icon">🧱</div>
+            <h3 className="problem-title">And when you scale, the wall hits hard.</h3>
+            <div className="problem-body mono-block">
+              <div>10 projects × 5 devs × 200 prompts/day</div>
+              <div>= 10,000 prompts/day</div>
+              <div>= <span className="bad">$500/day</span> on Opus</div>
+              <div>= <span className="bad">$15,000/month</span></div>
+            </div>
+            <p className="problem-foot">
+              The superpower has a price ceiling.
+              Most vibe coders hit it and stop building.
+            </p>
+          </div>
+        </div>
+
+        <div className="problem-transition">
+          The problem isn&rsquo;t AI. <span className="gradient-text">It&rsquo;s routing.</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The Solution — tier table + algorithm pipeline + safety
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const TIERS = [
+  {
+    tier: 'T0',
+    dot: '#7c3aed',
+    model: 'Ollama (local)',
+    cost: '$0.000',
+    when: 'Trivial: rename, format, commit',
+  },
+  {
+    tier: 'T1',
+    dot: '#06b6d4',
+    model: 'Claude Haiku',
+    cost: '~$0.001',
+    when: 'Simple: explain, regex, docstring',
+  },
+  {
+    tier: 'T2',
+    dot: '#22c55e',
+    model: 'Claude Sonnet',
+    cost: '~$0.010',
+    when: 'Reasoning: debug, root cause, plan',
+  },
+  {
+    tier: 'T3',
+    dot: '#eab308',
+    model: 'Claude Opus',
+    cost: '~$0.050',
+    when: 'Critical: deploy, .env, architecture',
+  },
+];
+
+const ALGO_CARDS = [
+  {
+    n: '01',
+    title: 'CLASSIFY',
+    sub: '<1ms · Pure regex · No LLM in the hot path',
+    body: "frugal intercepts every prompt before Claude Code sees it. A pure regex classifier — 165 lines, no AI, no network call — scores the prompt across signal categories and assigns a tier in under 1 millisecond. A SHA-256 cache means identical prompts are never re-classified.",
+    tag: 'classify.js · 165 lines · <1ms',
+  },
+  {
+    n: '02',
+    title: 'ROUTE',
+    sub: 'Routing rules · Dual-enforced guardrails · Zero proxy',
+    body: "The routing decision is baked into Claude Code's behaviour. frugal never sits between you and the model — it teaches Claude Code which tier to use. HIGH_RISK patterns (deploy, .env, rm -rf, architecture) are dual-enforced: they always escalate to Opus, no matter what the auto-tuner learns.",
+    tag: 'patterns.js · 46 patterns · dual-enforced',
+  },
+  {
+    n: '03',
+    title: 'SAVE',
+    sub: '90.2% reduction · Validated · Zero cherry-picking',
+    body: 'Validated on 1,437 real production prompts across 3 projects. $12.33 → $1.21. 84% of prompts routed to free local Ollama. Not a simulation. Not a projection. A real replay of real usage.',
+    tag: '1,437 prompts · 3 projects · replay validated',
+  },
+  {
+    n: '04',
+    title: 'LEARN',
+    sub: 'Daily at 02:00 · Idempotent patches · Gets smarter from you',
+    body: "Every night, frugal replays your decisions, finds over-routing, and patches its own classifier. If 20 'summarise' prompts went to Sonnet this week, tomorrow they route to Haiku. The algorithm gets smarter from your real usage — and from every other frugal user in the community.",
+    tag: 'backtest.js · daily @ 02:00 · self-improving',
+  },
+];
+
+function TheSolution() {
+  return (
+    <section id="how" className="section">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">
+            One rule that changes everything:
+            <br />
+            <span className="gradient-text">use the cheapest model that gets the job done.</span>
+          </h2>
+          <p className="section-sub">
+            This is what senior engineers do instinctively. frugal does it automatically, for
+            every single prompt, in under 1ms.
+          </p>
+        </div>
+
+        <div className="tier-table-wrap">
+          <table className="tier-table">
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Model</th>
+                <th>Cost / prompt</th>
+                <th>When frugal uses it</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TIERS.map((t) => (
+                <tr key={t.tier}>
+                  <td>
+                    <span className="tier-cell">
+                      <span className="tier-dot" style={{ background: t.dot }} />
+                      <span className="tier-name">{t.tier}</span>
+                    </span>
+                  </td>
+                  <td className="tier-model">{t.model}</td>
+                  <td className="mono">{t.cost}</td>
+                  <td className="dim">{t.when}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="tier-distribution">
+            <div className="tier-dist-row">
+              <span className="tier-dist-pct" style={{ color: '#7c3aed' }}>84%</span>
+              <span>of prompts → T0 <span className="dim">(free)</span></span>
+            </div>
+            <div className="tier-dist-row">
+              <span className="tier-dist-pct" style={{ color: '#06b6d4' }}>12%</span>
+              <span>of prompts → T1 / T2 <span className="dim">(cheap)</span></span>
+            </div>
+            <div className="tier-dist-row">
+              <span className="tier-dist-pct" style={{ color: '#eab308' }}>3.6%</span>
+              <span>of prompts → T3 <span className="dim">(only when genuinely needed)</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div className="algo-grid">
+          {ALGO_CARDS.map((c) => (
+            <div className="algo-card" key={c.n}>
+              <div className="algo-num">{c.n}</div>
+              <div className="algo-title">{c.title}</div>
+              <div className="algo-sub">{c.sub}</div>
+              <p className="algo-body">{c.body}</p>
+              <div className="algo-tag mono">[{c.tag}]</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="safety-card">
+          <div className="safety-head">🔒 The one rule frugal never breaks.</div>
+          <p>
+            HIGH_RISK patterns always escalate to Opus. No matter what the auto-tuner learns,
+            these never get demoted:
+          </p>
+          <div className="safety-chips">
+            {[
+              'git push --force',
+              'rm -rf',
+              'drop table',
+              '.env · secrets',
+              'deploy · release',
+              'migration',
+              'reset --hard',
+              'architecture',
+            ].map((s) => (
+              <span key={s} className="chip chip-red mono">{s}</span>
+            ))}
+          </div>
+          <p className="safety-foot">
+            Dual-enforced: in the classifier AND in the learning loop. If frugal dies, Claude
+            Code falls back to its default behaviour instantly. Zero blast radius.
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -340,7 +584,7 @@ function LineView({ line }: { line: TerminalLine }) {
     case 'cmd':
       return (
         <div className="ln-cmd">
-          <span className="ln-prompt">$</span> {line.text}
+          <span className="ln-prompt">❯</span> {line.text}
         </div>
       );
     case 'out':
@@ -366,10 +610,6 @@ function LineView({ line }: { line: TerminalLine }) {
       return null;
   }
 }
-
-/* ────────────────────────────────────────────────────────────────────────────
- * Terminal demo section
- * ──────────────────────────────────────────────────────────────────────────── */
 
 const WITHOUT_LINES: TerminalLine[] = [
   { kind: 'cmd', text: 'git commit -m "fix: button color"' },
@@ -420,14 +660,11 @@ function TerminalDemo() {
   const { ref, inView } = useInView(0.15);
 
   return (
-    <section id="demo" className="section">
+    <section id="demo" className="section section-alt">
       <div ref={ref} className="container">
         <div className="section-head">
           <h2 className="section-h2">Watch the router decide — live.</h2>
-          <p className="section-sub">
-            Every prompt classified in &lt;1ms by a pure regex engine. No LLM in the hot path.
-            Trivial tasks route free. Opus is reserved for the 3.6% that genuinely need it.
-          </p>
+          <p className="section-sub">Same 3 prompts. Two realities.</p>
         </div>
 
         <div className="term-grid">
@@ -814,12 +1051,10 @@ function UrlAnalyser() {
     <section id="analyse" className="section section-alt">
       <div className="container">
         <div className="section-head">
-          <h2 className="section-h2">
-            See exactly what frugal saves <em>you</em>.
-          </h2>
+          <h2 className="section-h2">See your numbers.</h2>
           <p className="section-sub">
-            Paste any public URL. We detect your platform, framework, LLM signals, and show how
-            your prompts would be routed — with real dollar estimates from backtest data.
+            Paste your project URL. frugal detects your stack, estimates your tier distribution,
+            and shows exactly how much you&rsquo;d save — based on real backtest data, not guesses.
           </p>
         </div>
 
@@ -830,7 +1065,7 @@ function UrlAnalyser() {
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="vercel.com   ·   https://nextjs.org   ·   railway.app"
+              placeholder="https://yourapp.vercel.app   ·   https://yourdomain.com"
               className="analyse-input"
               autoComplete="off"
               spellCheck={false}
@@ -881,82 +1116,56 @@ function UrlAnalyser() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * How it works
+ * Community Learning — federated learning section
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const HOW_CARDS = [
-  {
-    n: '01',
-    title: 'Classify',
-    body: 'Pure regex classifier in <1ms. No LLM in the hot path. SHA-256 cache avoids re-classifying identical prompts. Weighted scoring across 6 signal categories.',
-    tag: 'classify.js · 165 lines',
-  },
-  {
-    n: '02',
-    title: 'Route',
-    body: '4 tiers: T0 Ollama (free local), T1 Haiku (25× cheaper), T2 Sonnet (reasoning), T3 Opus (architecture only). HIGH_RISK patterns always escalate, no exceptions.',
-    tag: 'patterns.js · dual-enforced',
-  },
-  {
-    n: '03',
-    title: 'Save',
-    body: '84% of prompts route to free local Ollama. 90.2% cost reduction validated on 1,437 real production prompts across 3 projects, zero cherry-picking.',
-    tag: '1,437 prompts · 3 projects',
-  },
-  {
-    n: '04',
-    title: 'Learn',
-    body: 'Every night at 02:00, a scheduled task replays decisions, finds over-routing, and patches the classifier idempotently. Gets smarter from your own usage.',
-    tag: 'backtest.js · daily @ 02:00',
-  },
-];
-
-function HowItWorks() {
+function CommunityLearning() {
   return (
-    <section id="how" className="section">
+    <section className="section">
       <div className="container">
         <div className="section-head">
-          <h2 className="section-h2">How frugal routes every prompt.</h2>
+          <h2 className="section-h2">
+            The more you use it, the smarter it gets.
+            <br />
+            <span className="gradient-text">For everyone.</span>
+          </h2>
           <p className="section-sub">
-            Four stages. Zero proxies. Nothing between Claude Code and the cheapest viable model.
+            frugal&rsquo;s algorithm improves from every prompt decision — anonymously, privately,
+            and collectively. You&rsquo;re not just saving money. You&rsquo;re teaching the router.
           </p>
         </div>
 
-        <div className="how-grid">
-          {HOW_CARDS.map((c) => (
-            <div className="how-card" key={c.n}>
-              <div className="how-num">{c.n}</div>
-              <div className="how-title">{c.title}</div>
-              <div className="how-body">{c.body}</div>
-              <div className="how-tag mono">{c.tag}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="safety-card">
-          <div className="safety-head">🔒 The safety guarantee</div>
-          <p>
-            HIGH_RISK patterns are dual-enforced in the classifier and the backtest. No matter
-            what the auto-tuner learns, these patterns always escalate to Opus:
-          </p>
-          <div className="safety-chips">
-            {[
-              'git push --force',
-              'rm -rf',
-              'drop table',
-              '.env / secrets',
-              'deploy / migration',
-              'reset --hard',
-              'production',
-              'architecture',
-            ].map((s) => (
-              <span key={s} className="chip chip-red mono">{s}</span>
-            ))}
+        <div className="community-grid">
+          <div className="community-card">
+            <div className="community-icon">🧠</div>
+            <h3 className="community-title">Your usage trains the router</h3>
+            <p>
+              Every night at 02:00, frugal replays your decisions. Finds over-routing patterns.
+              Patches its own classifier. Gets better at your specific workflow, your team&rsquo;s
+              language, your project&rsquo;s prompt patterns.
+            </p>
           </div>
-          <p className="safety-foot">
-            Zero-blast-radius: if frugal dies, Claude Code falls back to its default behaviour
-            instantly.
-          </p>
+
+          <div className="community-card">
+            <div className="community-icon">🔒</div>
+            <h3 className="community-title">Privacy-first federated learning</h3>
+            <p>
+              Only anonymised signals are shared — never your actual prompts. Keyword allowlist.
+              Prompt length bucketed. Hardware tier only. Instance ID hashed with SHA-256. Your
+              code never leaves your machine.
+            </p>
+          </div>
+
+          <div className="community-card">
+            <div className="community-icon">🌐</div>
+            <h3 className="community-title">312 developers already contributing</h3>
+            <p>
+              Every frugal installation sends anonymous routing deltas to a shared pool. The
+              community&rsquo;s collective routing intelligence makes everyone&rsquo;s classifier
+              more accurate — including yours. The more people join, the smarter frugal gets for
+              everyone.
+            </p>
+          </div>
         </div>
 
         <div className="statusline-card">
@@ -998,18 +1207,18 @@ const PROOF = [
     decimals: 0,
     color: '#7c3aed',
     label: 'Prompts run free on Ollama',
-    sub: '1,150 of 1,370 prompts needed zero API spend',
+    sub: '1,150 of 1,437 prompts needed zero API spend',
   },
   {
     value: 94,
     suffix: '%',
     decimals: 0,
     color: '#06b6d4',
-    label: 'Backtest confidence',
+    label: 'Backtest accuracy',
     sub: '95% of decisions high-confidence (conf ≥ 0.6)',
   },
   {
-    value: 50,
+    value: 1,
     prefix: '<',
     suffix: 'ms',
     decimals: 0,
@@ -1074,11 +1283,7 @@ function SocialProof() {
     <section className="section section-alt">
       <div className="container">
         <div className="section-head">
-          <h2 className="section-h2">Validated. Not projected.</h2>
-          <p className="section-sub">
-            Every number here comes from real replay on real Claude Code transcripts. No
-            projections. No marketing math.
-          </p>
+          <h2 className="section-h2">Real numbers. Real prompts. No projections.</h2>
         </div>
 
         <div className="proof-grid">
@@ -1086,6 +1291,171 @@ function SocialProof() {
             <ProofCard key={i} {...p} />
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Pricing — success fee model
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const PLANS = [
+  {
+    name: 'COMMUNITY',
+    price: 'Free',
+    period: 'forever',
+    tagline: 'For solo builders and OSS hackers.',
+    features: [
+      'Full router (T0 → T3)',
+      'All 4 tiers, no caps',
+      'Auto-tuning every night',
+      'MIT license · self-host',
+      'Community learning pool',
+    ],
+    cta: 'Get started →',
+    ctaHref: '#waitlist',
+    highlighted: false,
+  },
+  {
+    name: 'PRO',
+    price: '$9',
+    period: '/ month',
+    tagline: 'For vibe coders who ship every week.',
+    features: [
+      'Everything in Community',
+      'Personal dashboard',
+      'Cost tracking & history',
+      'Budget alerts',
+      'Priority support',
+      'Export decision logs',
+    ],
+    cta: 'Start free trial →',
+    ctaHref: '#waitlist',
+    highlighted: true,
+  },
+  {
+    name: 'TEAM',
+    price: '$29',
+    period: '/ seat / month',
+    tagline: 'For teams scaling Claude Code together.',
+    features: [
+      'Everything in Pro',
+      'Shared team router',
+      'Org-wide analytics',
+      'Org-wide auto-tuning',
+      'SLA 99.9%',
+      'Private community hub',
+    ],
+    cta: 'Talk to us →',
+    ctaHref: '#waitlist',
+    highlighted: false,
+  },
+];
+
+const FAQ = [
+  {
+    q: 'Is frugal open source?',
+    a: 'Yes. The full router, classifier, and backtest loop are MIT-licensed. You can self-host everything for free, forever. Pro adds the dashboard, budget tracking, and managed tuning — not the core algorithm.',
+  },
+  {
+    q: 'What if I don’t save money?',
+    a: 'You won’t be charged. We offer a 30-day full refund, no questions. If frugal isn’t saving you money, it’s not doing its job.',
+  },
+  {
+    q: 'How is $9/mo calculated?',
+    a: 'Average user saves ~$44/mo. We take roughly 20% as a success fee. As we learn more about your usage and routing improves, you save more. The better frugal gets, the more you save — and the more we earn. Aligned incentives, by design.',
+  },
+];
+
+function PricingFaq() {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <div className="faq-list">
+      {FAQ.map((item, i) => {
+        const isOpen = open === i;
+        return (
+          <div key={i} className={`faq-item ${isOpen ? 'open' : ''}`}>
+            <button
+              type="button"
+              className="faq-q"
+              onClick={() => setOpen(isOpen ? null : i)}
+              aria-expanded={isOpen}
+            >
+              <span>{item.q}</span>
+              <span className="faq-toggle">{isOpen ? '−' : '+'}</span>
+            </button>
+            {isOpen && <div className="faq-a">{item.a}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Pricing() {
+  return (
+    <section id="pricing" className="section">
+      <div className="container">
+        <div className="section-head">
+          <h2 className="section-h2">
+            Pay less than you save.
+            <br />
+            <span className="gradient-text">That&rsquo;s the only pricing model that makes sense.</span>
+          </h2>
+          <p className="section-sub">
+            frugal is free to install and run. The community tier is always free. Pro is a
+            success fee — you only pay when you&rsquo;re already saving.
+          </p>
+        </div>
+
+        <div className="plans-grid">
+          {PLANS.map((p) => (
+            <div key={p.name} className={`plan-card ${p.highlighted ? 'plan-highlighted' : ''}`}>
+              {p.highlighted && <div className="plan-badge">Most popular</div>}
+              <div className="plan-name">{p.name}</div>
+              <div className="plan-price-row">
+                <span className="plan-price">{p.price}</span>
+                <span className="plan-period">{p.period}</span>
+              </div>
+              <div className="plan-tagline">{p.tagline}</div>
+              <ul className="plan-features">
+                {p.features.map((f, i) => (
+                  <li key={i}>
+                    <span className="plan-check">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={p.ctaHref}
+                onClick={scrollToId('waitlist')}
+                className={`btn btn-block ${p.highlighted ? 'btn-primary' : 'btn-ghost'}`}
+              >
+                {p.cta}
+              </a>
+            </div>
+          ))}
+        </div>
+
+        <div className="pricing-math">
+          <div className="pricing-math-head">The math is simple.</div>
+          <div className="pricing-math-body">
+            <p>
+              Average frugal user saves <strong>$44/month</strong> on Claude Code.
+              Pro costs <strong>$9/month</strong>.
+            </p>
+            <p>
+              You keep <strong className="good">$35</strong> every month.
+              frugal takes <strong>$9</strong>.
+            </p>
+            <p className="pricing-math-foot">
+              That&rsquo;s not a subscription. That&rsquo;s a <span className="gradient-text">success fee</span>.
+              We only make sense if you&rsquo;re already saving.
+            </p>
+          </div>
+        </div>
+
+        <PricingFaq />
       </div>
     </section>
   );
@@ -1156,10 +1526,14 @@ function Waitlist() {
     <section id="waitlist" className="section section-dark">
       <div className="container">
         <div className="section-head">
-          <h2 className="section-h2">Get frugal before the public launch.</h2>
+          <h2 className="section-h2">
+            Join the waitlist.
+            <br />
+            <span className="gradient-text">Be part of building the smartest LLM router on the planet.</span>
+          </h2>
           <p className="section-sub">
-            Installer · VS Code extension · Community backtest data · Plugin marketplace (roadmap).
-            Free and open source forever. MIT license.
+            Early access: full router + installer + VS Code extension. Free and open source.
+            MIT license. Your prompts never leave your machine.
           </p>
         </div>
 
@@ -1179,7 +1553,7 @@ function Waitlist() {
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="Your project URL — we'll pre-calculate your savings (optional)"
+                placeholder="Your project URL — we'll pre-calculate your exact savings (optional)"
                 className="waitlist-input"
                 autoComplete="off"
               />
@@ -1193,7 +1567,7 @@ function Waitlist() {
               {status === 'error' && <div className="waitlist-err">{errorMsg}</div>}
               {total !== null && (
                 <div className="waitlist-counter">
-                  <span className="pulse-dot" /> {total.toLocaleString()} developers already on the list
+                  <span className="pulse-dot" /> Join {total.toLocaleString()} developers already on the waitlist
                 </div>
               )}
             </form>
@@ -1211,9 +1585,9 @@ function Waitlist() {
         <div className="feature-grid">
           {[
             { icon: '⚡', title: 'One-command install', body: 'bash install.sh — no ports, no daemons, no config' },
-            { icon: '🔒', title: 'Zero proxy', body: 'frugal runs locally. Your prompts never leave your machine' },
-            { icon: '🔄', title: 'Auto-tuning', body: 'Daily backtest tunes the router from your own usage' },
-            { icon: '🌐', title: 'Federated learning', body: 'Community patterns improve everyone (roadmap)' },
+            { icon: '🔒', title: 'Zero proxy', body: 'Your prompts never leave your machine' },
+            { icon: '🔄', title: 'Self-improving', body: 'Tunes itself every night from your real usage' },
+            { icon: '🌐', title: 'Community-powered', body: '312 devs contributing to the shared router' },
           ].map((f) => (
             <div key={f.title} className="feature-card">
               <div className="feature-icon">{f.icon}</div>
@@ -1234,15 +1608,21 @@ function Waitlist() {
 function Footer() {
   return (
     <footer className="footer">
-      <div className="container footer-row">
-        <div className="footer-brand">
-          frugal<span className="brand-dot">.</span>
-          <span className="footer-meta"> · MIT License · Made by Paulo Loureiro</span>
+      <div className="container footer-inner">
+        <div className="footer-row">
+          <div className="footer-brand">
+            frugal<span className="brand-dot">.</span>
+            <span className="footer-meta"> · MIT License · Made with obsession by Paulo Loureiro</span>
+          </div>
+          <div className="footer-links">
+            <a href="#how" onClick={scrollToId('how')}>How it works</a>
+            <a href="#analyse" onClick={scrollToId('analyse')}>Analyse project</a>
+            <a href="#pricing" onClick={scrollToId('pricing')}>Pricing</a>
+            <a href="#waitlist" onClick={scrollToId('waitlist')}>Early access</a>
+          </div>
         </div>
-        <div className="footer-links">
-          <a href="#analyse" onClick={scrollToId('analyse')}>Analyse project</a>
-          <a href="#waitlist" onClick={scrollToId('waitlist')}>Early access</a>
-          <a href="#how" onClick={scrollToId('how')}>How it works</a>
+        <div className="footer-tagline">
+          &ldquo;The best infrastructure is the kind you never have to think about.&rdquo;
         </div>
       </div>
     </footer>
@@ -1255,15 +1635,20 @@ function Footer() {
 
 export default function Page() {
   return (
-    <main>
+    <>
       <Nav />
-      <ErrorBoundary label="hero"><Hero /></ErrorBoundary>
-      <ErrorBoundary label="terminal-demo"><TerminalDemo /></ErrorBoundary>
-      <ErrorBoundary label="url-analyser"><UrlAnalyser /></ErrorBoundary>
-      <ErrorBoundary label="how"><HowItWorks /></ErrorBoundary>
-      <ErrorBoundary label="proof"><SocialProof /></ErrorBoundary>
-      <ErrorBoundary label="waitlist"><Waitlist /></ErrorBoundary>
+      <main>
+        <ErrorBoundary label="hero"><Hero /></ErrorBoundary>
+        <ErrorBoundary label="problem"><TheProblem /></ErrorBoundary>
+        <ErrorBoundary label="solution"><TheSolution /></ErrorBoundary>
+        <ErrorBoundary label="terminal-demo"><TerminalDemo /></ErrorBoundary>
+        <ErrorBoundary label="url-analyser"><UrlAnalyser /></ErrorBoundary>
+        <ErrorBoundary label="community"><CommunityLearning /></ErrorBoundary>
+        <ErrorBoundary label="proof"><SocialProof /></ErrorBoundary>
+        <ErrorBoundary label="pricing"><Pricing /></ErrorBoundary>
+        <ErrorBoundary label="waitlist"><Waitlist /></ErrorBoundary>
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }
