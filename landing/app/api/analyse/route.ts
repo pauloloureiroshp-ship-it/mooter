@@ -214,7 +214,7 @@ async function fetchLimited(startUrl: string, maxBytes: number, timeoutMs: numbe
     if (!isPublicUrlString(currentUrl)) throw new Error('redirect_to_private_host');
     const res = await fetch(currentUrl, {
       signal,
-      headers: { 'User-Agent': 'frugal-landing/1.0 (+https://github.com/pauloloureiroshp-ship-it/frugal)' },
+      headers: { 'User-Agent': 'frugal-landing/1.0' },
       redirect: 'manual',
     });
     if (res.status >= 300 && res.status < 400) {

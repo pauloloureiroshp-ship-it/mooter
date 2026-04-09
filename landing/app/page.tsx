@@ -512,7 +512,7 @@ export default function LandingPage() {
             </div>
             <div className="hero-ctas">
               <button type="button" className="btn-primary" onClick={scrollToAnalyser}>Analyse my project →</button>
-              <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener noreferrer" className="btn-ghost">View source</a>
+              <a href="#waitlist" className="btn-ghost">How it works →</a>
             </div>
             <div className="hero-quote">
               &ldquo;You wouldn&apos;t drive a Ferrari to buy groceries.&rdquo;
@@ -780,7 +780,7 @@ export default function LandingPage() {
       <footer className="footer">
         <div>frugal · MIT License · Made by Paulo Loureiro</div>
         <div className="footer-links">
-          <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="#waitlist">Early access</a>
           <a href="#analyse">Analyse project</a>
           <a href="#waitlist">Early access</a>
         </div>
