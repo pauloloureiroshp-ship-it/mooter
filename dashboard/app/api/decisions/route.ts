@@ -85,7 +85,10 @@ export async function GET(req: NextRequest) {
   // replays, simulated prompts) that share old timestamps. A `break` on
   // the first stale entry would silently drop all real entries that follow.
   const results: DecisionEntry[] = [];
-  const seen = new Set<string>(); // deduplicate by (ts_ms + prompt_preview)
+  // Deduplicate by (preview[:60] | tier | category) — benchmark entries
+  // repeat the same prompt with different timestamps, so a ts_ms-based key
+  // would fail to dedupe them.
+  const seen = new Set<string>();
   for (let i = lines.length - 1; i >= 0 && results.length < limit; i--) {
     const entry = safeParse(lines[i]);
     if (!entry || entry.event !== 'classified') continue;

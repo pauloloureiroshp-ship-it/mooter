@@ -14,6 +14,7 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const { analyze, buildTuning, signature } = require('./backtest.js');
+const patterns = require('./patterns.js');
 
 // ── signature() ────────────────────────────────────────────────────────────
 
@@ -595,4 +596,105 @@ test('arbiter: VALID_SUBAGENTS covers all 5 frugal subagents', () => {
   assert.ok(arbiter.VALID_SUBAGENTS.has('model-reasoner'));
   assert.ok(arbiter.VALID_SUBAGENTS.has('model-architect'));
   assert.equal(arbiter.VALID_SUBAGENTS.size, 5);
+});
+
+// ── v0.7: patterns.js shared source of truth ──────────────────────────────
+test('patterns v0.7: exports the 5 canonical arrays', () => {
+  assert.ok(Array.isArray(patterns.HIGH_RISK));
+  assert.ok(Array.isArray(patterns.MED_RISK));
+  assert.ok(Array.isArray(patterns.LOW_RISK));
+  assert.ok(Array.isArray(patterns.TRIVIAL));
+  assert.ok(Array.isArray(patterns.TUNING_EXCLUDE));
+  assert.ok(patterns.HIGH_RISK.length > 0);
+  assert.ok(patterns.TUNING_EXCLUDE.length > 0);
+});
+
+test('patterns v0.7: every pattern is a RegExp (no string leaks)', () => {
+  const all = [
+    ...patterns.HIGH_RISK,
+    ...patterns.MED_RISK,
+    ...patterns.LOW_RISK,
+    ...patterns.TRIVIAL,
+    ...patterns.TUNING_EXCLUDE,
+  ];
+  for (const p of all) {
+    assert.ok(p instanceof RegExp, `expected RegExp, got ${typeof p}: ${p}`);
+  }
+});
+
+test('patterns v0.7: TUNING_EXCLUDE is a superset of HIGH_RISK', () => {
+  // Every source-level HIGH_RISK pattern must be present in TUNING_EXCLUDE.
+  // We compare by .source because RegExp instances aren't === comparable.
+  const excludeSources = new Set(patterns.TUNING_EXCLUDE.map((r) => r.source));
+  for (const hr of patterns.HIGH_RISK) {
+    assert.ok(
+      excludeSources.has(hr.source),
+      `TUNING_EXCLUDE missing HIGH_RISK pattern: ${hr.source}`
+    );
+  }
+});
+
+test('patterns v0.7: classify.js imports HIGH_RISK from patterns.js', () => {
+  // Read classify.js source and assert it does NOT define HIGH_RISK inline.
+  // If someone re-inlines it, this test catches the regression.
+  const classifySrc = fs.readFileSync(path.join(__dirname, 'classify.js'), 'utf8');
+  assert.ok(
+    /require\(['"]\.\/patterns['"]\)/.test(classifySrc),
+    'classify.js must require("./patterns")'
+  );
+  assert.ok(
+    !/^const HIGH_RISK = \[/m.test(classifySrc),
+    'classify.js must NOT define HIGH_RISK inline'
+  );
+});
+
+test('patterns v0.7: backtest.js imports TUNING_EXCLUDE from patterns.js', () => {
+  const backtestSrc = fs.readFileSync(path.join(__dirname, 'backtest.js'), 'utf8');
+  assert.ok(
+    /require\(['"]\.\/patterns['"]\)/.test(backtestSrc),
+    'backtest.js must require("./patterns")'
+  );
+  // The old inline HIGH_RISK_MARKERS definition must be gone.
+  assert.ok(
+    !/^const HIGH_RISK_MARKERS = \[/m.test(backtestSrc),
+    'backtest.js must NOT define HIGH_RISK_MARKERS inline'
+  );
+});
+
+test('patterns v0.7: HIGH_RISK still matches production-critical tokens', () => {
+  // Regression: make sure the move to patterns.js didn't drop any strict
+  // matcher. Spot-check the most load-bearing tokens.
+  const mustMatch = [
+    'git push --force',
+    'drop table users',
+    'rm -rf /',
+    'migration plan',
+    'architect this system',
+    'refactor the auth layer',
+    'touch local.env before deploy', // .env matches via \b\.env\b after word char
+    'review final antes do merge',
+    'package.json dependency bump',
+    '.github/workflows/ci.yml',
+  ];
+  for (const text of mustMatch) {
+    const hit = patterns.HIGH_RISK.some((r) => r.test(text));
+    assert.ok(hit, `HIGH_RISK should match: "${text}"`);
+  }
+});
+
+test('patterns v0.7: TUNING_EXCLUDE catches v0.9 hardening additions', () => {
+  // The broader tuning-exclude markers added in v0.9 must still catch
+  // their intended prompts, even though classify.js HIGH_RISK stays strict.
+  const mustExclude = [
+    'git push',           // bare push — excluded from auto-tuning
+    'merge this branch',  // bare merge
+    'review this diff',   // bare review
+    'database schema change',
+    'alter schema users',
+    '--force flag',
+  ];
+  for (const text of mustExclude) {
+    const hit = patterns.TUNING_EXCLUDE.some((r) => r.test(text));
+    assert.ok(hit, `TUNING_EXCLUDE should match: "${text}"`);
+  }
 });

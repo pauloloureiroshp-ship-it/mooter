@@ -28,18 +28,12 @@ const NAIVE_COST = TIER_COST.T3;
 // NEVER be proposed as demote candidates. Mirrors HIGH_RISK in classify.js
 // (push/deploy/release/migration/.env/secret/architect/refactor/audit/CI etc).
 // Kept in sync manually; update both when adding new risk markers.
-// v0.9: hardened HIGH_RISK filter. Any prompt matching ANY of these is
-// excluded from demote/promote candidate lists. Mirrors classify.js HIGH_RISK.
-const HIGH_RISK_MARKERS = [
-  /\bprodu(c|ç)[aã]o\b/i, /\bproduction\b/i, /\bdeploy\b/i, /\brelease\b/i,
-  /\bmigration\b/i, /\bmigra(c|ç)[aã]o\b/i, /\bdrop\s+table\b/i,
-  /\brm\s+-rf\b/i, /\bpush\b/i, /\breset\s+--hard\b/i,
-  /\benv\b/i, /\.env/i, /\bsecret/i, /\bcredential/i, /\bapi[_ ]?key\b/i,
-  /\barquitetur/i, /\barchitect/i, /\brefator/i, /\brefactor/i,
-  /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\b/i,
-  /\bmerge\b/i, /\bci\b/i, /\bdatabase\b/i, /\bschema\b/i,
-  /--force\b/i, /\bforce[- ]push\b/i,
-];
+// v0.7: HIGH_RISK_MARKERS is now imported from the shared patterns.js module.
+// TUNING_EXCLUDE is a superset of classify.js HIGH_RISK plus v0.9 broader
+// tuning-exclusion markers (bare `push`, `merge`, `review`, `database`,
+// `schema`, `--force`, `force-push`, `ci`). Kept as HIGH_RISK_MARKERS for
+// backwards compatibility with existing module exports.
+const { TUNING_EXCLUDE: HIGH_RISK_MARKERS } = require('./patterns');
 
 function hasHighRisk(text) {
   if (!text) return false;
