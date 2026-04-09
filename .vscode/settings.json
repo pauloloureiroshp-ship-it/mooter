@@ -1,0 +1,63 @@
+{
+  // ── Editor ──────────────────────────────────────────────────────────────
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.rulers": [100],
+  "editor.wordWrap": "wordWrapColumn",
+  "editor.wordWrapColumn": 100,
+
+  // ── Files ────────────────────────────────────────────────────────────────
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "output/**": false,
+    "**/*.bak": false
+  },
+
+  // ── JS / Node ────────────────────────────────────────────────────────────
+  "javascript.preferences.quoteStyle": "double",
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+    "editor.wordWrap": "on"
+  },
+
+  // ── Terminal ─────────────────────────────────────────────────────────────
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.env.windows": {
+    "FRUGAL_ROOT": "${workspaceFolder}"
+  },
+
+  // ── Frugal — ficheiros importantes em destaque ──────────────────────────
+  "workbench.colorTheme": "Default Dark+",
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "classify.js": "classify.js.bak, router-tuning.json",
+    "backtest.js": "backtest.test.js",
+    "savings-tracker.js": "decisions.log",
+    "CLAUDE.md": "SYNC.md",
+    "package.json": "package-lock.json, .npmrc"
+  },
+
+  // ── Gitlens ──────────────────────────────────────────────────────────────
+  "gitlens.currentLine.enabled": true,
+  "gitlens.hovers.currentLine.over": "line",
+
+  // ── Pesquisa — excluir output/logs do search ──────────────────────────
+  "search.exclude": {
+    "**/node_modules": true,
+    "output/": true,
+    "**/*.bak": true
+  }
+}

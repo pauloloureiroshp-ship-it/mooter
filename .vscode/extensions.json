@@ -1,0 +1,26 @@
+{
+  "recommendations": [
+    // JavaScript / Node
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "christian-kohler.npm-intellisense",
+
+    // Git
+    "eamodio.gitlens",
+    "github.vscode-pull-request-github",
+
+    // Markdown
+    "DavidAnson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+
+    // Utilidades gerais
+    "streetsidesoftware.code-spell-checker",
+    "streetsidesoftware.code-spell-checker-portuguese-european",
+    "usernamehw.errorlens",
+    "formulahendry.code-runner",
+
+    // Shell (para os .sh e .cmd)
+    "timonwong.shellcheck",
+    "foxundermoon.shell-format"
+  ]
+}

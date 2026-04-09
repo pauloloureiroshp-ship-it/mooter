@@ -1,0 +1,74 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // ── Debug: classify.js com prompt ────────────────────────────────────
+    {
+      "name": "Debug: classify prompt",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/router/classify.js",
+      "args": ["${input:promptText}"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+
+    // ── Debug: backtest.js ────────────────────────────────────────────────
+    {
+      "name": "Debug: backtest.js",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/router/backtest.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Debug: backtest.js --explain",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/router/backtest.js",
+      "args": ["--explain"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+
+    // ── Debug: update-router.js dry-run ──────────────────────────────────
+    {
+      "name": "Debug: update-router --dry-run",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/router/update-router.js",
+      "args": ["--dry-run"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+
+    // ── Debug: savings-tracker.js ────────────────────────────────────────
+    {
+      "name": "Debug: savings-tracker",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/router/savings-tracker.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+
+    // ── Testes com --inspect ──────────────────────────────────────────────
+    {
+      "name": "Debug: run tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/router/backtest.test.js",
+      "runtimeArgs": ["--test"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "promptText",
+      "type": "promptString",
+      "description": "Prompt a classificar",
+      "default": "rename handleConnect to onConnect"
+    }
+  ]
+}

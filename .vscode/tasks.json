@@ -1,0 +1,119 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ── Testes ──────────────────────────────────────────────────────────────
+    {
+      "label": "frugal: run tests",
+      "type": "shell",
+      "command": "node --test tools/router/backtest.test.js",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+
+    // ── Classifier ──────────────────────────────────────────────────────────
+    {
+      "label": "frugal: classify prompt",
+      "type": "shell",
+      "command": "node tools/router/classify.js \"${input:promptText}\"",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Backtest ─────────────────────────────────────────────────────────────
+    {
+      "label": "frugal: backtest (analyse decisions.log)",
+      "type": "shell",
+      "command": "node tools/router/backtest.js",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "frugal: backtest --explain",
+      "type": "shell",
+      "command": "node tools/router/backtest.js --explain",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "frugal: backtest --export-delta",
+      "type": "shell",
+      "command": "node tools/router/backtest.js --export-delta",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Update router ─────────────────────────────────────────────────────
+    {
+      "label": "frugal: update-router (apply tuning)",
+      "type": "shell",
+      "command": "node tools/router/update-router.js",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "frugal: update-router --dry-run",
+      "type": "shell",
+      "command": "node tools/router/update-router.js --dry-run",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Savings tracker ───────────────────────────────────────────────────
+    {
+      "label": "frugal: start savings-tracker",
+      "type": "shell",
+      "command": "node tools/router/savings-tracker.js",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "frugal: stats",
+      "type": "shell",
+      "command": "node tools/router/stats.js",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Replay ───────────────────────────────────────────────────────────
+    {
+      "label": "frugal: replay decisions.log",
+      "type": "shell",
+      "command": "node tools/router/replay.js",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": []
+    },
+
+    // ── Install ───────────────────────────────────────────────────────────
+    {
+      "label": "frugal: install (dry-run)",
+      "type": "shell",
+      "command": "bash install.sh --dry-run",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "promptText",
+      "type": "promptString",
+      "description": "Prompt a classificar",
+      "default": "rename handleConnect to onConnect"
+    }
+  ]
+}

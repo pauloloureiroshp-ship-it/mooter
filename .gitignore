@@ -6,7 +6,11 @@ decisions.log
 .DS_Store
 Thumbs.db
 *.swp
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 .idea/
 
 # Local benchmark output (keep snapshots in docs/ for reference)
