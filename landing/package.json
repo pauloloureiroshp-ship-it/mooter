@@ -1,0 +1,23 @@
+{
+  "name": "frugal-landing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Public landing page for frugal (v0.9.1) — URL analyser + waitlist.",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 7819",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 7819",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.4.0"
+  }
+}
