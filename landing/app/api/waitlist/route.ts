@@ -32,10 +32,11 @@ export async function POST(req: NextRequest) {
   const url = body.url && typeof body.url === 'string' ? body.url.slice(0, 500) : null;
   const savings = typeof body.savings_estimate === 'number' ? body.savings_estimate : null;
 
+  // Real Supabase schema uses savings_est (not savings_estimate).
   const row = await insert<WaitlistRow>('waitlist', {
     email,
     url,
-    savings_estimate: savings,
+    savings_est: savings,
     created_at: new Date().toISOString(),
   });
 
