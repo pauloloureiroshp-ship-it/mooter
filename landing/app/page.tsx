@@ -1,6 +1,31 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, Component } from 'react';
+import type { ReactNode, ErrorInfo } from 'react';
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ERROR BOUNDARY — prevents any child crash from killing the whole page
+───────────────────────────────────────────────────────────────────────────── */
+class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[frugal] caught:', error.message, info.componentStack?.slice(0, 200));
+  }
+  render() {
+    if (this.state.error) {
+      return this.props.fallback ?? (
+        <div style={{ padding: '20px', color: '#ef4444', fontFamily: 'monospace', fontSize: 13 }}>
+          ⚠ {this.state.error.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -59,7 +84,7 @@ function Counter({ to, suffix = '', prefix = '' }: { to: number; suffix?: string
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, [to]);
-  return <span ref={ref}>{prefix}{val.toLocaleString()}{suffix}</span>;
+  return <span ref={ref}>{prefix}{val.toLocaleString('en-US')}{suffix}</span>;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -414,14 +439,20 @@ export default function LandingPage() {
   async function doAnalyse(e: React.FormEvent) {
     e.preventDefault();
     setAnalyseErr(null); setResult(null); setAnalysing(true); setLoadStep(1);
-    LOAD_STEPS.forEach((_, i) => setTimeout(() => setLoadStep(i + 2), 600 * (i + 1)));
+    // Save timeout IDs so we can cancel them when the response arrives
+    const tids: ReturnType<typeof setTimeout>[] = [];
+    LOAD_STEPS.forEach((_, i) => {
+      tids.push(setTimeout(() => setLoadStep(i + 2), 600 * (i + 1)));
+    });
     try {
       const res  = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
       const data = await res.json() as AnalyseResult & { hint?: string };
+      tids.forEach(clearTimeout); // cancel pending step timers
       if (!res.ok) { setAnalyseErr(data.hint || data.error || 'Something went wrong'); return; }
       setResult(data);
       setWlUrl(url);
     } catch (err) {
+      tids.forEach(clearTimeout);
       setAnalyseErr(err instanceof Error ? err.message : 'network error');
     } finally { setAnalysing(false); setLoadStep(0); }
   }
@@ -501,6 +532,7 @@ export default function LandingPage() {
             <div className="demo-grid">
               <div>
                 <div className="demo-label bad">WITHOUT frugal</div>
+                <ErrorBoundary fallback={<div className="term-window" style={{padding:20,color:'#ef4444'}}>Failed to load demo</div>}>
                 <TerminalWindow
                   title="VS Code — bash" tag="Opus for everything" tagColor="#ef4444"
                   lines={WITHOUT_LINES}
@@ -511,9 +543,11 @@ export default function LandingPage() {
                     { dot: '#6b6b7e', label: '0% free' },
                   ]}
                 />
+                </ErrorBoundary>
               </div>
               <div>
                 <div className="demo-label good">WITH frugal</div>
+                <ErrorBoundary fallback={<div className="term-window" style={{padding:20,color:'#22c55e'}}>Failed to load demo</div>}>
                 <TerminalWindow
                   title="VS Code — bash + frugal" tag="Routed automatically" tagColor="#22c55e"
                   lines={WITH_LINES}
@@ -524,6 +558,7 @@ export default function LandingPage() {
                     { dot: '#7c3aed', label: '84% free local' },
                   ]}
                 />
+                </ErrorBoundary>
               </div>
             </div>
 
@@ -588,8 +623,8 @@ export default function LandingPage() {
               {analyseErr && <div className="err-msg">⚠ {analyseErr}</div>}
             </form>
 
-            {analysing && <LoadingView step={loadStep} />}
-            {result && <ResultCard result={result} />}
+            {analysing && <ErrorBoundary><LoadingView step={loadStep} /></ErrorBoundary>}
+            {result && <ErrorBoundary fallback={<div className="err-msg">⚠ Failed to render result — try again</div>}><ResultCard result={result} /></ErrorBoundary>}
 
           </div>
         </section>
