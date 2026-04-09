@@ -37,20 +37,27 @@ function Counter({ to, suffix = '', prefix = '' }: { to: number; suffix?: string
   const [val, setVal] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
+    let rafId: number;
+    let cancelled = false;
     const obs = new IntersectionObserver(([e]) => {
       if (!e.isIntersecting) return;
       obs.disconnect();
       let start = 0;
       const step = to / 60;
       const tick = () => {
+        if (cancelled) return;
         start = Math.min(start + step, to);
         setVal(Math.round(start));
-        if (start < to) requestAnimationFrame(tick);
+        if (start < to) rafId = requestAnimationFrame(tick);
       };
-      requestAnimationFrame(tick);
+      rafId = requestAnimationFrame(tick);
     }, { threshold: 0.3 });
     if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
+    return () => {
+      cancelled = true;
+      obs.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [to]);
   return <span ref={ref}>{prefix}{val.toLocaleString()}{suffix}</span>;
 }
@@ -81,15 +88,18 @@ function TerminalWindow({ title, tag, tagColor, lines, statusItems }: {
   useEffect(() => {
     if (!active) return;
     let i = 0;
+    let tid: ReturnType<typeof setTimeout>;
+    let cancelled = false;
     const run = () => {
-      if (i >= lines.length) return;
+      if (cancelled || i >= lines.length) return;
       setRendered(prev => [...prev, lines[i]]);
       i++;
       const delay = lines[i - 1]?.type === 'gap' ? 300 :
                     lines[i - 1]?.type === 'cmd'  ? 120 : 60;
-      setTimeout(run, delay);
+      tid = setTimeout(run, delay);
     };
     run();
+    return () => { cancelled = true; clearTimeout(tid); };
   }, [active, lines]);
 
   useEffect(() => {
@@ -382,7 +392,7 @@ export default function LandingPage() {
   const [loadStep, setLoadStep]       = useState(0);
   const [result, setResult]           = useState<AnalyseResult | null>(null);
   const [analyseErr, setAnalyseErr]   = useState<string | null>(null);
-  const analyserRef                   = useRef<HTMLElement>(null);
+  const analyserRef                   = useRef<HTMLDivElement>(null);
 
   const [email, setEmail]             = useState('');
   const [wlUrl, setWlUrl]             = useState('');
@@ -545,7 +555,8 @@ export default function LandingPage() {
         </section>
 
         {/* ─── URL ANALYSER ────────────────────────────────────────────────── */}
-        <section id="analyse" className="section analyse-section" ref={analyserRef as React.RefObject<HTMLElement>}>
+        <section id="analyse" className="section analyse-section">
+          <div ref={analyserRef} style={{ position: 'absolute', top: -60 }} />
           <div className="wrap">
             <div className="section-kicker">Your project · Your numbers</div>
             <h2 className="section-h2">See exactly what frugal saves <em>you</em>.</h2>
