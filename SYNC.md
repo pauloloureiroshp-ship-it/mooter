@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-09 — Paulo via Cowork
+> **Última actualização:** 2026-04-09 — Claude Code (sessão #1) após aplicar instruções Cowork
 
 ---
 
@@ -100,7 +100,7 @@ Dashboard local `127.0.0.1:7820` em Next.js 15.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
 **Última actualização Cowork:** 2026-04-09
-**Estado:** 🟡 Por ler
+**Estado:** ✅ Lido em sessão #1 — 2026-04-09
 
 ---
 
@@ -161,3 +161,72 @@ Próximo milestone. Nada foi ainda iniciado.
 
 **Quando terminares a sessão:**
 Actualiza o corpo deste SYNC.md com o estado real pós-sessão e marca esta secção como `✅ Lido em sessão #N — [data]`.
+
+---
+
+## 📤 CLAUDE CODE → COWORK
+### Relatório da sessão #1 — 2026-04-09
+> Esta secção é escrita pelo Claude Code no fim da sessão. Cowork lê e limpa.
+
+### O que foi feito nesta sessão
+
+**Prioridade 1 — ✅ Commit .vscode + SYNC.md + workspace (commit `e97e8a4`)**
+- `.gitignore` patcheado com allowlist: `.vscode/*` blanket-ignore + `!settings/tasks/launch/extensions.json` para manter outros ficheiros `.vscode/*` não versionados
+- 7 ficheiros adicionados, 481 inserções
+
+**Prioridade 2 — ✅ v0.6.0 Dashboard iniciado (scaffold completo, não instalado)**
+Pasta: `dashboard/` (14 ficheiros, ~1150 linhas)
+- `package.json` — Next.js 15 + React 19, scripts `dev`/`build`/`start` com `-H 127.0.0.1 -p 7820`
+- `tsconfig.json`, `next.config.mjs`, `next-env.d.ts`, `.gitignore`, `README.md`
+- `app/layout.tsx` + `app/globals.css` — tema escuro, paleta v0.9 (T0 teal, T1 blue, T2 yellow, T3 red)
+- `app/page.tsx` — main view single-page, client component com auto-refresh 10s, todas as 6 secções (KPIs, distribuição, decisions filtráveis, cost trend SVG, tuning preview, retrain)
+- `app/lib/paths.ts` — resolver que respeita `FRUGAL_ROOT` env var
+- `app/api/metrics/route.ts` — proxy server-side para `:7821/metrics`
+- `app/api/decisions/route.ts` — lê `decisions.log` paginado com filtros (window, tier, category, conf band, limit)
+- `app/api/tuning/route.ts` — lê `router-tuning.json` + plain-language explainer por padrão
+- `app/api/retrain/route.ts` — POST que corre `backtest.js && update-router.js`, com `--dry-run` default (timeout 30s, stdout cap 10k)
+
+**Decisões autónomas tomadas:**
+- **Sem Tailwind** — CSS plain com variáveis, para manter `node_modules` magro
+- **Sem bibliotecas de gráficos** — cost trend é SVG inline (~80 linhas), não precisa recharts
+- **Componentes inline em `page.tsx`** — em vez de ficheiros separados para `Timeline`/`CostTrend`/etc. Menos overhead para um dashboard single-page
+- **API routes como camada server-side** — o browser NUNCA fala directamente com o tracker, garante que só o Next.js backend toca em `decisions.log`. Privacidade por construção.
+- **Retrain com `--dry-run` como default** — o botão "Retrain now" requer clique explícito no botão primary para escrever. O botão ghost "Preview" é o fallback seguro
+
+**Não foi feito (intencionalmente):**
+- `npm install` não foi corrido — a decisão de descarregar ~300 MB de deps deve ser tua
+- `next build` não foi corrido pelo mesmo motivo
+- Visual testes da Prioridade 3 — não automatizáveis em one-shot CLI session (precisam de UI runtime + Claude Code vivo). Documentados em `dashboard/README.md` §Troubleshooting
+
+### Para correr o dashboard
+
+```bash
+cd dashboard
+npm install      # primeira vez
+npm run dev      # http://127.0.0.1:7820
+```
+
+Se o `savings-tracker` não estiver a correr:
+```bash
+node ~/.claude/tools/router/savings-tracker.js &
+```
+
+### Estado do repo após sessão
+
+```
+commit (HEAD) — v0.6.0 Dashboard scaffold
+commit e97e8a4 — chore: add VS Code workspace config and SYNC.md
+commit 5989b62 — chore(v0.9.0): replay.js fix, README/ROADMAP updates
+commit 1e852f3 — feat: v0.9.0 — statusline v3, GPU, federated learning
+tag v0.9.0 — pushed
+```
+
+**Testes:** 59/59 passing (baseline mantida)
+**Replay:** 89.7% savings em 1,437 prompts (sem regressão)
+
+### Próximos passos sugeridos para a próxima sessão
+
+1. Correr `cd dashboard && npm install` e abrir `http://127.0.0.1:7820`
+2. Validar visualmente as 6 secções do dashboard
+3. Completar Prioridade 3 (testes visuais da statusline em 3 cenários)
+4. v0.7.0 — extrair `HIGH_RISK` para `patterns.js` partilhado por classify.js e backtest.js (ver ROADMAP.md)
