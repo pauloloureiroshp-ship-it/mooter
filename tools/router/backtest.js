@@ -28,14 +28,17 @@ const NAIVE_COST = TIER_COST.T3;
 // NEVER be proposed as demote candidates. Mirrors HIGH_RISK in classify.js
 // (push/deploy/release/migration/.env/secret/architect/refactor/audit/CI etc).
 // Kept in sync manually; update both when adding new risk markers.
+// v0.9: hardened HIGH_RISK filter. Any prompt matching ANY of these is
+// excluded from demote/promote candidate lists. Mirrors classify.js HIGH_RISK.
 const HIGH_RISK_MARKERS = [
   /\bprodu(c|ç)[aã]o\b/i, /\bproduction\b/i, /\bdeploy\b/i, /\brelease\b/i,
   /\bmigration\b/i, /\bmigra(c|ç)[aã]o\b/i, /\bdrop\s+table\b/i,
   /\brm\s+-rf\b/i, /\bpush\b/i, /\breset\s+--hard\b/i,
-  /\benv\b/i, /\bsecret/i, /\bcredential/i, /\bapi[_ ]?key\b/i,
+  /\benv\b/i, /\.env/i, /\bsecret/i, /\bcredential/i, /\bapi[_ ]?key\b/i,
   /\barquitetur/i, /\barchitect/i, /\brefator/i, /\brefactor/i,
-  /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\s+final\b/i,
-  /\bmerge\b/i, /\bci\b/i,
+  /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\b/i,
+  /\bmerge\b/i, /\bci\b/i, /\bdatabase\b/i, /\bschema\b/i,
+  /--force\b/i, /\bforce[- ]push\b/i,
 ];
 
 function hasHighRisk(text) {
@@ -230,12 +233,193 @@ function report(stats, tuning) {
   return lines.join('\n');
 }
 
+// ── v0.9: --explain mode ──────────────────────────────────────────────────
+// For each demote/promote candidate, print the anonymized prompt fingerprints
+// that triggered it (length + keyword signals only — never raw text). Used by
+// the Paulo when inspecting tuning suggestions before applying them.
+function explainCandidates(decisions) {
+  const lines = [];
+  lines.push('frugal — backtest --explain');
+  lines.push('');
+  const stats = analyze(decisions);
+
+  lines.push('Demote candidates (short prompts repeatedly high-tier):');
+  if (stats.topDemote.length === 0) lines.push('  (none)');
+  for (const d of stats.topDemote) {
+    lines.push(`  pattern "${d.pattern}" ×${d.count}`);
+    lines.push(`    current tier: T2/T3  →  suggested: T0/T1`);
+    const rx = `/\\b${d.pattern.split(/\s+/).join('\\s+')}\\b/i`;
+    lines.push(`    regex:        ${rx}`);
+    const savingEst = d.count * (TIER_COST.T3 - TIER_COST.T1);
+    lines.push(`    saving est:   $${savingEst.toFixed(4)}`);
+  }
+  lines.push('');
+  lines.push('Promote-to-T0 patterns (short, low-confidence, high-tier):');
+  if (stats.promoteToT0.length === 0) lines.push('  (none)');
+  for (const p of stats.promoteToT0) {
+    const rx = `/\\b${p.split(/\s+/).join('\\s+')}\\b/i`;
+    lines.push(`  "${p}"  →  ${rx}`);
+  }
+  lines.push('');
+  lines.push(`Total sample: ${stats.total} prompts`);
+  lines.push(`HIGH_RISK filter removed prompts from candidates silently.`);
+  return lines.join('\n');
+}
+
+// ── v0.9: delta export (federated learning Phase 2) ──────────────────────
+// Exports an anonymized fingerprint JSON with NO prompt text, NO paths,
+// NO variable/function names. Safe to share via GitHub issue or PR.
+//
+// Privacy guarantees (see docs/FEDERATED_LEARNING.md):
+//   - keyword_signals only contains tokens from KEYWORD_ALLOW_LIST
+//   - prompt_len_bucket is a 50-char bucket, not the exact length
+//   - session_hour is only the hour, no date
+//   - instance_id is a SHA-256(machine-id) truncated to 8 chars
+//   - has_file_refs / has_code_block are booleans
+
+const KEYWORD_ALLOW_LIST = new Set([
+  'commit', 'message', 'docstring', 'summarize', 'explain', 'fix',
+  'bug', 'error', 'debug', 'trace', 'root cause', 'refactor', 'extract',
+  'classify', 'plan', 'design', 'architect', 'review', 'test', 'deploy',
+  'migration', 'secret', 'credentials', 'production', 'merge', 'schema',
+  'math', 'proof', 'equation', 'step by step', 'reasoning',
+]);
+
+function lenBucket(n) {
+  if (!n) return '0-50';
+  const lo = Math.floor(n / 50) * 50;
+  return `${lo}-${lo + 50}`;
+}
+
+function hourOf(tsIso) {
+  try {
+    const d = new Date(tsIso);
+    return d.getUTCHours();
+  } catch { return null; }
+}
+
+function extractKeywordSignals(preview) {
+  if (!preview) return [];
+  const low = preview.toLowerCase();
+  const hits = [];
+  for (const kw of KEYWORD_ALLOW_LIST) {
+    if (low.includes(kw)) hits.push(kw);
+  }
+  return hits;
+}
+
+function instanceIdSync() {
+  try {
+    const mid = require('os').hostname() + '|' + (require('os').userInfo().username || '');
+    return require('crypto').createHash('sha256').update(mid).digest('hex').slice(0, 8);
+  } catch { return 'unknown0'; }
+}
+
+function hardwareTier() {
+  try {
+    const probe = require('./gpu-probe');
+    const g = probe.probeSync ? probe.probeSync() : null;
+    if (!g) return 'cpu-only';
+    if (g.vendor === 'apple') return 'apple-silicon';
+    if (g.vendor === 'cpu') return 'cpu-only';
+    if (g.vendor === 'nvidia') {
+      const n = (g.name_short || '').toLowerCase();
+      if (/(4090|4080|3090)/.test(n)) return 'gpu-high';
+      if (/(3080|4070|3070)/.test(n)) return 'gpu-mid';
+      return 'gpu-low';
+    }
+    return 'gpu-low';
+  } catch { return 'cpu-only'; }
+}
+
+function exportDelta(decisions) {
+  // Bucket decisions by (decided_tier, prompt_len_bucket, keyword signals).
+  const deltaBuckets = new Map();
+  const promoteBuckets = new Map();
+
+  for (const d of decisions) {
+    if (!d || !d.tier || !d.prompt_preview) continue;
+    if (hasHighRisk(d.prompt_preview)) continue; // never export HIGH_RISK
+    const bucket = lenBucket(d.prompt_len || 0);
+    const signals = extractKeywordSignals(d.prompt_preview);
+    const key = `${d.tier}|${bucket}|${signals.join(',')}`;
+    // Misroute heuristic: low confidence + high tier = candidate for T0.
+    if ((d.confidence || 0) < 0.6 && (d.tier === 'T2' || d.tier === 'T3')) {
+      const existing = deltaBuckets.get(key) || {
+        delta_type: 'misroute',
+        decided_tier: d.tier,
+        correct_tier: 'T0',
+        prompt_len_bucket: bucket,
+        has_file_refs: /\.(js|ts|py|go|md|json)\b/.test(d.prompt_preview),
+        has_code_block: /```/.test(d.prompt_preview),
+        keyword_signals: signals,
+        session_hour: hourOf(d.ts),
+        n: 0,
+      };
+      existing.n += 1;
+      deltaBuckets.set(key, existing);
+    }
+    // Underpowered: quality_intent promoted + bug/debug keywords at T1
+    if (d.tier === 'T1' && signals.some((s) => ['bug', 'debug', 'trace', 'root cause'].includes(s))) {
+      const existing = promoteBuckets.get(key) || {
+        delta_type: 'underpowered',
+        decided_tier: 'T1',
+        correct_tier: 'T2',
+        keyword_signals: signals,
+        n: 0,
+      };
+      existing.n += 1;
+      promoteBuckets.set(key, existing);
+    }
+  }
+
+  // Filter: only keep buckets with n >= 3.
+  const deltas = [...deltaBuckets.values()].filter((d) => d.n >= 3);
+  const promote_signals = [...promoteBuckets.values()].filter((p) => p.n >= 3);
+
+  return {
+    frugal_version: '0.9.0',
+    classifier_version: '1.0.0',
+    generated_at: new Date().toISOString(),
+    instance_id: instanceIdSync(),
+    hardware_tier: hardwareTier(),
+    deltas,
+    promote_signals,
+  };
+}
+
 function main() {
+  const args = process.argv.slice(2);
+  const explain = args.includes('--explain');
+  const exportMode = args.includes('--export-delta');
+  const outputIdx = args.indexOf('--output');
+  const outputPath =
+    outputIdx >= 0 && args[outputIdx + 1]
+      ? args[outputIdx + 1]
+      : path.join(ROUTER_DIR, 'backtest-delta.json');
+
   const decisions = loadDecisions();
   if (decisions.length === 0) {
     console.log('frugal backtest: decisions.log empty or missing.');
     process.exit(0);
   }
+
+  if (explain) {
+    console.log(explainCandidates(decisions));
+    return;
+  }
+
+  if (exportMode) {
+    const delta = exportDelta(decisions);
+    fs.writeFileSync(outputPath, JSON.stringify(delta, null, 2));
+    console.log(`frugal backtest: delta written to ${outputPath}`);
+    console.log(`  deltas:          ${delta.deltas.length}`);
+    console.log(`  promote_signals: ${delta.promote_signals.length}`);
+    console.log(`  hardware_tier:   ${delta.hardware_tier}`);
+    console.log(`  instance_id:     ${delta.instance_id}`);
+    return;
+  }
+
   const stats = analyze(decisions);
   const tuning = buildTuning(stats);
   fs.writeFileSync(TUNING_PATH, JSON.stringify(tuning, null, 2));
@@ -243,4 +427,15 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { analyze, buildTuning, signature };
+module.exports = {
+  analyze,
+  buildTuning,
+  signature,
+  // v0.9 exports
+  exportDelta,
+  explainCandidates,
+  KEYWORD_ALLOW_LIST,
+  hardwareTier,
+  HIGH_RISK_MARKERS,
+  hasHighRisk,
+};

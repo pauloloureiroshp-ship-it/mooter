@@ -546,6 +546,48 @@ test('arbiter: hashKey includes system prompt version for cache invalidation', (
   assert.equal(k1.length, 64, 'SHA-256 hex');
 });
 
+// ── v0.9: decomposition tests ─────────────────────────────────────────────
+test('arbiter v0.9: extractDecision parses decomposition object', () => {
+  const payload = {
+    content: [{
+      type: 'text',
+      text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"multi","decomposition":{"applicable":true,"subtasks":[{"description":"summarize file A","tier":"T0","rationale":"trivial"},{"description":"find bug in file B","tier":"T2","rationale":"reasoning"}]}}',
+    }],
+  };
+  const d = arbiter.extractDecision(JSON.stringify(payload));
+  assert.ok(d);
+  assert.ok(d.decomposition);
+  assert.equal(d.decomposition.applicable, true);
+  assert.equal(d.decomposition.subtasks.length, 2);
+  assert.equal(d.decomposition.subtasks[0].tier, 'T0');
+});
+
+test('arbiter v0.9: extractDecision normalizes decomposition as bare array', () => {
+  const payload = {
+    content: [{
+      type: 'text',
+      text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"multi","decomposition":[{"task":"a","tier":"T0"},{"task":"b","tier":"T1"}]}',
+    }],
+  };
+  const d = arbiter.extractDecision(JSON.stringify(payload));
+  assert.ok(d);
+  assert.ok(d.decomposition);
+  assert.equal(d.decomposition.applicable, true);
+  assert.equal(d.decomposition.subtasks.length, 2);
+});
+
+test('arbiter v0.9: decomposition with < 2 subtasks is non-applicable', () => {
+  const payload = {
+    content: [{
+      type: 'text',
+      text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"small","decomposition":{"applicable":true,"subtasks":[{"description":"one","tier":"T0"}]}}',
+    }],
+  };
+  const d = arbiter.extractDecision(JSON.stringify(payload));
+  assert.ok(d);
+  assert.equal(d.decomposition.applicable, false);
+});
+
 test('arbiter: VALID_SUBAGENTS covers all 5 frugal subagents', () => {
   assert.ok(arbiter.VALID_SUBAGENTS.has('local-summarizer'));
   assert.ok(arbiter.VALID_SUBAGENTS.has('local-transformer'));

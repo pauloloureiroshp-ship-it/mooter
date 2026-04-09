@@ -41,7 +41,7 @@ const { spawnSync } = require('child_process');
 
 // Bump this when ARBITER_SYSTEM_PROMPT changes so cached decisions based on
 // the old rules are invalidated automatically.
-const ARBITER_SYSTEM_PROMPT_VERSION = 1;
+const ARBITER_SYSTEM_PROMPT_VERSION = 2;
 
 const ARBITER_SYSTEM_PROMPT = `You are the routing arbiter for frugal, a cost-aware Claude Code router.
 Given a user prompt, pick the minimum-viable tier and the correct subagent.
@@ -67,11 +67,18 @@ HEURISTICS:
 - When in doubt between two tiers, pick the cheaper.
 - Short prompts (<100 chars) without risk signals → usually T0.
 - Natural quality signals ("pensa bem", "think hard", "best effort") → promote one tier.
-- If the prompt decomposes naturally into substeps of different complexity, include a "decomposition" array.
+
+DECOMPOSITION (v0.9):
+When the task clearly splits into 2-4 INDEPENDENT subtasks with no data
+dependencies between them, return a decomposition object. Otherwise omit it.
+- Do NOT decompose tasks expected to need fewer than 3 tool calls.
+- Do NOT decompose HIGH_RISK tasks (see SAFETY OVERRIDES).
+- Each subtask must be executable in isolation with only the prompt context.
 
 OUTPUT SCHEMA (exact):
-{"tier":"T0|T1|T2|T3","subagent":"<name>","reasoning":"<≤15 words>","decomposition":[{"task":"...","tier":"...","subagent":"..."}]?}
+{"tier":"T0|T1|T2|T3","subagent":"<name>","reasoning":"<≤15 words>","decomposition":{"applicable":true|false,"subtasks":[{"description":"...","tier":"...","rationale":"..."}]}}
 
+The "decomposition" field is OPTIONAL. When omitted, treat as applicable:false.
 Respond with ONLY the JSON.`;
 
 const MODEL = process.env.ARBITER_MODEL || 'claude-haiku-4-5-20251001';
@@ -200,6 +207,18 @@ function extractDecision(apiResponseText) {
     if (!['T0', 'T1', 'T2', 'T3'].includes(decision.tier)) return null;
     if (!VALID_SUBAGENTS.has(decision.subagent)) return null;
     if (typeof decision.reasoning !== 'string') decision.reasoning = '';
+    // v0.9: normalize decomposition. Accept either { applicable, subtasks }
+    // or a bare array (older arbiter responses). Drop anything malformed.
+    if (decision.decomposition) {
+      const d = decision.decomposition;
+      if (Array.isArray(d)) {
+        decision.decomposition = { applicable: d.length >= 2, subtasks: d };
+      } else if (typeof d === 'object' && Array.isArray(d.subtasks)) {
+        d.applicable = d.applicable === true && d.subtasks.length >= 2;
+      } else {
+        delete decision.decomposition;
+      }
+    }
     return decision;
   } catch {
     return null;

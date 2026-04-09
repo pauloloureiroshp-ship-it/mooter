@@ -6,6 +6,72 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [0.9.0] — 2026-04-09
+
+### Statusline v3 + GPU awareness + federated learning foundation
+
+Seven-segment statusline with a 🐕 mascot, real GPU telemetry, cascade path
+per turn, and a privacy-preserving delta-export pipeline that sets up
+frugal's federated learning story.
+
+### Added
+- **Statusline v3** — 7-segment layout: git/session · 🐕 brand · last-turn
+  (tier + model + category + latency + cascade path) · distribution (qwen/hku/son/ops)
+  · savings + budget track mini-bar · GPU widget · all 6 provider dots.
+- **GPU probe** (`tools/router/gpu-probe.js`) — NVIDIA via `nvidia-smi`,
+  Apple Silicon via `system_profiler`, Linux AMD via `/sys/class/drm`,
+  graceful CPU-only fallback. Used by the statusline GPU widget.
+- **`/last` endpoint** — rich decision projection (tier, model_short,
+  category_short, cascade_path, latency_vs_opus_ms, arbiter_used,
+  user_override) for statusline segment ③.
+- **`/gpu` endpoint** — live GPU name/utilization + warm/cold Ollama model
+  states (read from `ollama list` and `decisions.log`).
+- **`POST /decision`** — fire-and-forget endpoint called by `inject_context.js`
+  on every classified hook so `/last` is always fresh without re-parsing
+  `decisions.log`.
+- **`POST /arbiter-event`** + **arbiter metrics in `/metrics.arbiter`** —
+  calls_total, cache_hits, cache_hit_rate, high_risk_refused, cost_usd,
+  avg_latency_ms.
+- **Decomposition pipeline** — arbiter system prompt gains explicit
+  decomposition schema; `inject_context.js` emits a `decomposition:` YAML
+  block in the `<router-hint>` when the arbiter proposes 2-4 independent
+  subtasks; `CLAUDE.md` doctrine gains a DECOMPOSITION EXECUTION section
+  explaining parallel Task spawn rules.
+- **`update-router.js --dry-run`** — print the tuned block that would be
+  injected into `classify.js` without modifying anything.
+- **`backtest.js --explain`** — anonymized demote/promote candidate
+  explanation with per-pattern regex + saving estimate.
+- **`backtest.js --export-delta`** — anonymized fingerprint exporter. No
+  prompt text, no paths, no variable names. See `docs/FEDERATED_LEARNING.md`.
+- **`tools/router/aggregate-deltas.js`** — manual aggregator for 2-10 users
+  with schema validation, `hardware_tier` weighting, and per-group
+  contributor counting.
+- **`docs/FEDERATED_LEARNING.md`** — protocol, privacy guarantees, manual
+  flow, and the `frugal-hub` Cloudflare Worker roadmap.
+- **3 new arbiter decomposition tests** in `backtest.test.js` (59/59 passing).
+
+### Changed
+- **Arbiter system prompt bumped to v2** — cache auto-invalidates on next run.
+- **Arbiter cache** already persisted to disk (7-day TTL, LRU 500). Kept as-is.
+- **HIGH_RISK filter in `backtest.js`** hardened — added `database`,
+  `schema`, `--force`, `force-push`, `.env` (pattern form), and tightened
+  `review` to bare word.
+- **Distribution segment** now uses abbreviated model names
+  (`qwen / hku / son / ops`) with per-tier color from the canonical v0.9
+  palette, separated by `·` (middle dot) instead of space.
+- **Provider segment** always shows all 6 providers (claude · ollama · gemini
+  · gpt · grok · mistral) as `●/◐/○` dots, including unconfigured ones
+  (drawn in dark grey). Order is configurable via `FRUGAL_PROVIDERS` env var.
+
+### Guarantees preserved
+- `decisions.log` untouched (append-only, never rewritten).
+- 59/59 tests passing (was 56/56 in v0.8).
+- Existing `CLAUDE.md` / agents / decisions.log all preserved.
+- Hook fail-open contract intact — the new POST calls are detached,
+  fire-and-forget, and non-blocking.
+
+---
+
 ## [0.8.0] — 2026-04-08
 
 ### Haiku arbiter for ambiguous prompts (dispatcher v1)

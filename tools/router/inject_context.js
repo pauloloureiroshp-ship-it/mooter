@@ -11,6 +11,9 @@
 
 'use strict';
 
+// v0.9: hook-start timestamp for cascade latency reporting.
+global.__frugal_hook_start = Date.now();
+
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -221,6 +224,38 @@ function logDecision(entry) {
   } catch { /* never fail the hook over telemetry */ }
 }
 
+// v0.9: fire-and-forget POST to the tracker. Non-blocking, swallows errors.
+// Used for /decision (statusline segment ③) and /arbiter-event (metrics).
+function postTracker(urlPath, payload) {
+  try {
+    const body = JSON.stringify(payload);
+    const scriptText = `
+      const http = require('http');
+      const body = process.argv[2];
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port: 7821,
+        path: '${urlPath}',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
+      }, (res) => { res.on('data', () => {}); res.on('end', () => process.exit(0)); });
+      req.on('error', () => process.exit(0));
+      req.setTimeout(250, () => { req.destroy(); process.exit(0); });
+      req.write(body);
+      req.end();
+    `;
+    const child = execFile(process.execPath, ['-e', scriptText, body], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.unref();
+  } catch { /* non-fatal */ }
+}
+
 function safeJson(str) {
   try { return JSON.parse(str); } catch { return null; }
 }
@@ -418,6 +453,17 @@ if (
           previous_tier: previousTier,
           cached: arbiterResult.cached === true,
         };
+        // v0.9: carry decomposition onto decision so it can be emitted in
+        // the router-hint (and used downstream for parallel Task spawning).
+        if (
+          arbiterResult.decomposition &&
+          arbiterResult.decomposition.applicable &&
+          Array.isArray(arbiterResult.decomposition.subtasks) &&
+          arbiterResult.decomposition.subtasks.length >= 2 &&
+          !HIGH_RISK_HINT.test(prompt) // never decompose HIGH_RISK
+        ) {
+          decision.decomposition = arbiterResult.decomposition;
+        }
         decision.escalation_rule =
           decision.escalation_rule === 'none'
             ? 'arbiter_honored'
@@ -540,6 +586,29 @@ if (decision.user_override) {
   }
 }
 
+// v0.9: decomposition block — only emitted when the arbiter flagged the
+// task as cleanly decomposable AND the prompt is not HIGH_RISK.
+const decompositionLines = [];
+if (decision.decomposition && decision.decomposition.applicable) {
+  decompositionLines.push('');
+  decompositionLines.push('decomposition:');
+  decompositionLines.push('  applicable: true');
+  decompositionLines.push('  subtasks:');
+  for (const sub of decision.decomposition.subtasks) {
+    const desc = String(sub.description || sub.task || '').replace(/\n/g, ' ').slice(0, 200);
+    const subTier = sub.tier || 'T2';
+    const subModelByTier = {
+      T0: 'qwen2.5:3b',
+      T1: 'claude-haiku-4-5-20251001',
+      T2: 'claude-sonnet-4-6',
+      T3: 'claude-opus-4-6',
+    };
+    decompositionLines.push(`    - description: "${desc}"`);
+    decompositionLines.push(`      tier: ${subTier}`);
+    decompositionLines.push(`      model: ${subModelByTier[subTier] || 'claude-sonnet-4-6'}`);
+  }
+}
+
 const arbiterLines = [];
 if (decision.arbiter && decision.arbiter.consulted) {
   arbiterLines.push('');
@@ -565,6 +634,7 @@ const lines = [
   decision.escalation_rule !== 'none' ? `escalation: ${decision.escalation_rule}` : null,
   ...overrideLines,
   ...arbiterLines,
+  ...decompositionLines,
   '',
   'Routing policy: see ~/.claude/docs/ROUTING_POLICY.md',
   decision.user_override && decision.user_override.honored
@@ -588,4 +658,43 @@ if (suggestedAnswer) {
 }
 
 process.stdout.write(lines.join('\n') + '\n');
+
+// v0.9: POST the decision to the tracker so statusline segment ③ can render
+// [tier] model category latency cascade. Fire-and-forget.
+try {
+  const cascadePath = (decision.arbiter && decision.arbiter.consulted)
+    ? `L1→L2→${decision.tier}`
+    : `L1→${decision.tier}`;
+  const hookLatency = Date.now() - (global.__frugal_hook_start || Date.now());
+  postTracker('/decision', {
+    tier: decision.tier,
+    task_category: decision.task_category,
+    recommended_model: decision.recommended_model,
+    recommended_backend: decision.recommended_backend,
+    confidence: decision.confidence,
+    escalation_rule: decision.escalation_rule,
+    arbiter_honored: decision.arbiter ? decision.arbiter.honored : null,
+    user_override: decision.user_override || null,
+    cascade_path: cascadePath,
+    hook_latency_ms: hookLatency,
+    latency_ms: hookLatency,
+    session_id: sessionId,
+    ts: new Date().toISOString(),
+    ts_ms: Date.now(),
+  });
+
+  // v0.9: arbiter-event metric for /metrics.arbiter
+  if (decision.arbiter && decision.arbiter.consulted) {
+    let outcome;
+    if (!decision.arbiter.honored) outcome = 'refused';
+    else if (decision.arbiter.cached) outcome = 'hit';
+    else outcome = 'miss';
+    postTracker('/arbiter-event', {
+      outcome,
+      latency_ms: decision.arbiter.latency_ms || 0,
+      cost_usd: outcome === 'miss' ? 0.001 : 0,
+    });
+  }
+} catch { /* non-fatal */ }
+
 process.exit(0);

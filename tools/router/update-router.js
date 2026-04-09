@@ -60,6 +60,8 @@ function buildTunedBlock(tuning) {
 }
 
 function main() {
+  const dryRun = process.argv.includes('--dry-run');
+
   if (!fs.existsSync(TUNING)) {
     console.error(`update-router: ${TUNING} not found. Run backtest.js first.`);
     process.exit(1);
@@ -71,6 +73,18 @@ function main() {
 
   const tuning = JSON.parse(fs.readFileSync(TUNING, 'utf8'));
   const original = fs.readFileSync(CLASSIFY, 'utf8');
+
+  if (dryRun) {
+    console.log('── DRY RUN — no files will be modified ──');
+    console.log('');
+    console.log('Tuned block that would be injected into classify.js:');
+    console.log('');
+    console.log(buildTunedBlock(tuning));
+    console.log('');
+    console.log('Notes:');
+    for (const note of tuning.notes || []) console.log(`  - ${note}`);
+    return;
+  }
 
   // Backup (overwrites previous backup)
   fs.writeFileSync(BACKUP, original);

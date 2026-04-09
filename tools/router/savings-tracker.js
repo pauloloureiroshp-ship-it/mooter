@@ -57,6 +57,20 @@ const BUDGET_CACHE_PATH = path.join(ROUTER_DIR, '.budget-cache.json');
 const PROVIDERS_CACHE_PATH = path.join(ROUTER_DIR, '.providers-cache.json');
 const PROVIDERS_CACHE_MS = 60 * 1000; // 60s — providers rarely flip
 
+// ── v0.9: in-memory last-decision state + arbiter metrics ──────────────────
+// inject_context.js POSTs /decision on every classified event. The tracker
+// holds the latest shape in memory so /last can return a rich projection
+// without re-parsing decisions.log on every request (stale-fallback ok).
+let LAST_DECISION = null;
+const ARBITER_METRICS = {
+  calls_total: 0,
+  cache_hits: 0,
+  cache_misses: 0,
+  high_risk_refused: 0,
+  cost_usd: 0,
+  total_latency_ms: 0,
+};
+
 const CURRENCY = (process.env.FRUGAL_CURRENCY || 'USD').toUpperCase();
 
 // Tier → human-readable model label (for pct_by_model in the statusline).
@@ -456,7 +470,24 @@ function computeMetrics(lines) {
   // Returns null when no paired start/end events exist — statusline hides segment.
   m.latency = computeLatency(lines);
 
+  // v0.9: arbiter metrics (in-memory, from POST /arbiter-event)
+  m.arbiter = buildArbiterMetrics();
+
   return m;
+}
+
+function buildArbiterMetrics() {
+  const total = ARBITER_METRICS.calls_total;
+  const served = ARBITER_METRICS.cache_hits + ARBITER_METRICS.cache_misses;
+  return {
+    calls_total: total,
+    cache_hits: ARBITER_METRICS.cache_hits,
+    cache_misses: ARBITER_METRICS.cache_misses,
+    cache_hit_rate: served > 0 ? round(ARBITER_METRICS.cache_hits / served, 3) : 0,
+    high_risk_refused: ARBITER_METRICS.high_risk_refused,
+    cost_usd: round(ARBITER_METRICS.cost_usd, 4),
+    avg_latency_ms: total > 0 ? Math.round(ARBITER_METRICS.total_latency_ms / total) : 0,
+  };
 }
 
 function round(n, decimals) {
@@ -523,9 +554,197 @@ function handleReal(_req, res) {
   send(res, 200, JSON.stringify(readRealBudget()));
 }
 
+// v0.9: rich /last shape used by statusline segment ③.
+// Prefers the in-memory LAST_DECISION posted by inject_context.js; falls back
+// to reconstruction from the last classified line in decisions.log.
+const CATEGORY_SHORT = {
+  architecture_or_critical: 'arch',
+  bug_hunt_or_debug: 'bug',
+  refactor: 'rfct',
+  plan_or_design: 'plan',
+  summarize_or_trivial: 'sum',
+  commit_or_docstring: 'doc',
+  code_generation: 'code',
+  math_or_reasoning: 'math',
+  ambiguous_short: 'amb',
+  ambiguous_medium: 'amb',
+  ambiguous_long: 'amb',
+};
+
+const MODEL_SHORT_BY_TIER = { T0: 'qwen', T1: 'hku', T2: 'son', T3: 'ops' };
+
+function modelShort(tier, modelFull) {
+  if (tier === 'T0' && typeof modelFull === 'string') {
+    if (/coder/i.test(modelFull)) return 'coder';
+    if (/deepseek|math|r1/i.test(modelFull)) return 'deep';
+    return 'qwen';
+  }
+  return MODEL_SHORT_BY_TIER[tier] || 'unk';
+}
+
+// Estimated Opus baseline (ms) for the given tier — mirrors
+// OPUS_BASELINE_MS_PER_TIER used in computeLatency. Used to annotate
+// /last with latency_vs_opus_ms when actual latency is measured.
+function estOpusBaseline(tier) {
+  return OPUS_BASELINE_MS_PER_TIER[tier] || OPUS_BASELINE_MS_PER_TIER.T2;
+}
+
+function shapeLast(raw) {
+  if (!raw) return {};
+  const tier = raw.tier || 'T2';
+  const category = raw.task_category || raw.category || 'ambiguous_medium';
+  const arbiterUsed = raw.arbiter_honored !== null && raw.arbiter_honored !== undefined;
+  const cascade =
+    raw.cascade_path ||
+    (arbiterUsed ? `L1→L2→${tier}` : `L1→${tier}`);
+  const latency = raw.latency_ms || raw.hook_latency_ms || 0;
+  return {
+    tier,
+    model_short: modelShort(tier, raw.recommended_model),
+    model_full: raw.recommended_model || null,
+    category,
+    category_short: CATEGORY_SHORT[category] || 'amb',
+    confidence: raw.confidence || 0,
+    arbiter_used: arbiterUsed,
+    arbiter_confirmed: arbiterUsed ? raw.arbiter_honored === true : null,
+    user_override: raw.user_override || null,
+    cascade_path: cascade,
+    latency_ms: latency,
+    latency_vs_opus_ms: latency ? latency - estOpusBaseline(tier) : null,
+    ts: raw.ts || new Date().toISOString(),
+  };
+}
+
 function handleLast(_req, res) {
+  if (LAST_DECISION) {
+    send(res, 200, JSON.stringify(shapeLast(LAST_DECISION)));
+    return;
+  }
   const { lastEntry } = readDecisions();
-  send(res, 200, JSON.stringify(lastEntry || {}));
+  send(res, 200, JSON.stringify(shapeLast(lastEntry)));
+}
+
+// ── v0.9: POST /decision — called by inject_context.js after every hook
+// invocation. Fire-and-forget, 200ms timeout on the client side.
+function handleDecision(req, res) {
+  readBody(req, (body) => {
+    try {
+      const json = safeParse(body);
+      if (json && typeof json === 'object') {
+        LAST_DECISION = json;
+      }
+    } catch { /* non-fatal */ }
+    send(res, 200, '{"ok":true}');
+  });
+}
+
+// ── v0.9: POST /arbiter-event — arbiter.js posts one of these after each call.
+// Body: { outcome: 'hit'|'miss'|'refused'|'failed', latency_ms, cost_usd }
+function handleArbiterEvent(req, res) {
+  readBody(req, (body) => {
+    try {
+      const e = safeParse(body);
+      if (e && typeof e === 'object') {
+        ARBITER_METRICS.calls_total += 1;
+        if (typeof e.latency_ms === 'number') {
+          ARBITER_METRICS.total_latency_ms += e.latency_ms;
+        }
+        if (typeof e.cost_usd === 'number') {
+          ARBITER_METRICS.cost_usd += e.cost_usd;
+        }
+        if (e.outcome === 'hit') ARBITER_METRICS.cache_hits += 1;
+        else if (e.outcome === 'miss') ARBITER_METRICS.cache_misses += 1;
+        else if (e.outcome === 'refused') ARBITER_METRICS.high_risk_refused += 1;
+      }
+    } catch { /* non-fatal */ }
+    send(res, 200, '{"ok":true}');
+  });
+}
+
+function readBody(req, cb) {
+  let data = '';
+  req.on('data', (chunk) => { data += chunk; if (data.length > 1e6) { data = ''; req.destroy(); } });
+  req.on('end', () => cb(data));
+  req.on('error', () => cb(''));
+}
+
+// ── v0.9: GPU probe wiring — import lazily so the tracker doesn't crash on
+// platforms where the probe fails at load time. State is cached in-memory and
+// refreshed by an interval (see HTTP-server block).
+let GPU_STATE = { vendor: 'cpu', name_short: 'CPU-only', vramMB: null, utilPct: null, platform: process.platform };
+let OLLAMA_MODELS = null; // populated by refreshOllamaModels
+
+function refreshGpu() {
+  try {
+    const probe = require('./gpu-probe');
+    const s = probe.probeSync ? probe.probeSync() : null;
+    if (s) GPU_STATE = s;
+  } catch { /* probe not installed yet → keep CPU fallback */ }
+}
+
+function refreshGpuUtil() {
+  try {
+    const probe = require('./gpu-probe');
+    if (probe.fetchUtilSync && GPU_STATE.vendor === 'nvidia') {
+      const u = probe.fetchUtilSync();
+      if (typeof u === 'number') GPU_STATE.utilPct = u;
+    }
+  } catch { /* keep stale */ }
+}
+
+async function refreshOllamaModels() {
+  return new Promise((resolve) => {
+    const req = http.get('http://localhost:11434/api/tags', (res) => {
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const now = Date.now();
+          // Use decisions.log to find last-use times per model.
+          let lines = [];
+          try { lines = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(-500); } catch {}
+          const lastUseByModel = new Map();
+          for (const l of lines) {
+            const e = safeParse(l);
+            if (!e || e.event !== 'classified' || !e.recommended_model) continue;
+            if (!e.recommended_model.startsWith('qwen') && !e.recommended_model.startsWith('deepseek')) continue;
+            const ms = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+            if (!ms) continue;
+            const prev = lastUseByModel.get(e.recommended_model) || 0;
+            if (ms > prev) lastUseByModel.set(e.recommended_model, ms);
+          }
+          const models = (parsed.models || []).map((m) => {
+            const lu = lastUseByModel.get(m.name) || 0;
+            const ageMin = lu ? Math.round((now - lu) / 60000) : null;
+            const warm = ageMin !== null && ageMin < 10;
+            const params = (m.details && m.details.parameter_size) || null;
+            return {
+              name: m.name,
+              state: warm ? 'warm' : 'cold',
+              params,
+              last_used_min: ageMin,
+            };
+          });
+          OLLAMA_MODELS = models;
+        } catch { OLLAMA_MODELS = null; }
+        resolve();
+      });
+    });
+    req.on('error', () => { OLLAMA_MODELS = null; resolve(); });
+    req.setTimeout(800, () => { req.destroy(); resolve(); });
+  });
+}
+
+function handleGpu(_req, res) {
+  send(res, 200, JSON.stringify({
+    vendor: GPU_STATE.vendor,
+    name_short: GPU_STATE.name_short,
+    vramMB: GPU_STATE.vramMB,
+    utilPct: GPU_STATE.utilPct,
+    platform: GPU_STATE.platform,
+    ollama_models: OLLAMA_MODELS,
+  }));
 }
 
 function handleProviders(_req, res) {
@@ -579,6 +798,13 @@ const ROUTES = {
   '/last': handleLast,
   '/real': handleReal,
   '/providers': handleProviders,
+  '/gpu': handleGpu,
+};
+
+// POST-only routes (body-consuming)
+const POST_ROUTES = {
+  '/decision': handleDecision,
+  '/arbiter-event': handleArbiterEvent,
 };
 
 // Only start the HTTP server when run as a script — never when this
@@ -588,12 +814,17 @@ const ROUTES = {
 if (require.main === module) {
   const server = http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];
-    const handler = ROUTES[url];
-    if (!handler) {
-      send(res, 404, JSON.stringify({ error: 'not found', routes: Object.keys(ROUTES) }));
-      return;
-    }
+    const method = (req.method || 'GET').toUpperCase();
     try {
+      if (method === 'POST' && POST_ROUTES[url]) {
+        POST_ROUTES[url](req, res);
+        return;
+      }
+      const handler = ROUTES[url];
+      if (!handler) {
+        send(res, 404, JSON.stringify({ error: 'not found', routes: Object.keys(ROUTES) }));
+        return;
+      }
       handler(req, res);
     } catch (err) {
       send(res, 500, JSON.stringify({ error: String(err && err.message || err) }));
@@ -635,6 +866,15 @@ if (require.main === module) {
   };
   runRefresh();
   setInterval(runRefresh, 30 * 1000).unref();
+
+  // v0.9: GPU probe — one-shot name/vram detection at startup, then poll
+  // utilization every 5s (NVIDIA only). Never throws out of the interval.
+  refreshGpu();
+  setInterval(refreshGpuUtil, 5 * 1000).unref();
+
+  // v0.9: Ollama model state (warm/cold) — refresh every 30s.
+  refreshOllamaModels().catch(() => {});
+  setInterval(() => refreshOllamaModels().catch(() => {}), 30 * 1000).unref();
 
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => {

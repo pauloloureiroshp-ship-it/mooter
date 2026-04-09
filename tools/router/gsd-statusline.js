@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// gsd-hook-version: 1.32.0
+// gsd-hook-version: 1.34.2
 // Claude Code Statusline - GSD Edition
 // Shows: model | current task | directory | context usage
 
@@ -44,6 +44,105 @@ function fetchFrugalMetrics() {
   }
 }
 
+// v0.9: cheap helper — fetch a JSON endpoint on the tracker with a short
+// hard timeout. Returns parsed JSON or null.
+function fetchTrackerJson(urlPath, timeoutMs) {
+  try {
+    const fetchScript = `
+      const http = require('http');
+      const req = http.get('http://127.0.0.1:7821${'${urlPath}'}', (res) => {
+        let body = '';
+        res.on('data', d => body += d);
+        res.on('end', () => process.stdout.write(body));
+      });
+      req.on('error', () => process.exit(1));
+      req.setTimeout(${'${tmo}'}, () => { req.destroy(); process.exit(2); });
+    `.replace('${urlPath}', urlPath).replace('${tmo}', String(timeoutMs - 50));
+    const r = spawnSync(process.execPath, ['-e', fetchScript], {
+      encoding: 'utf8',
+      timeout: timeoutMs,
+      windowsHide: true,
+    });
+    if (r.status !== 0 || !r.stdout) return null;
+    return JSON.parse(r.stdout);
+  } catch {
+    return null;
+  }
+}
+
+// ── v0.9: tier color + abbreviated name helpers ─────────────────────────
+// Canonical tier palette (ANSI 24-bit where supported). Used by all v0.9
+// segments (last-turn, distribution, GPU util).
+const TIER_COLOR = {
+  T0: '\x1b[38;2;78;201;176m',   // teal  #4ec9b0
+  T1: '\x1b[38;2;86;156;214m',   // blue  #569cd6
+  T2: '\x1b[38;2;220;220;170m',  // yellow #dcdcaa
+  T3: '\x1b[38;2;244;71;71m',    // red   #f44747
+};
+const RESET = '\x1b[0m';
+const DIM = '\x1b[2m';
+
+// v0.9: segment ③ — last-turn renderer. Reads /last and builds:
+//   [T3] ops arch 2.5s L1→L2→T3
+function renderLastTurn() {
+  try {
+    const l = fetchTrackerJson('/last', 250);
+    if (!l || !l.tier) return '';
+    const color = TIER_COLOR[l.tier] || '';
+    const tierLabel = `${color}[${l.tier}]${RESET}`;
+    const modelShort = l.model_short || '';
+    const catShort = l.category_short || '';
+    const latencyMs = l.latency_ms || 0;
+    const latS = (latencyMs / 1000).toFixed(1);
+    let latColor = '\x1b[38;2;78;201;176m';
+    if (latencyMs >= 3000) latColor = '\x1b[38;2;244;71;71m';
+    else if (latencyMs >= 500) latColor = '\x1b[38;2;220;220;170m';
+
+    // Optional indicators
+    const indicators = [];
+    const overrideRefused = l.user_override && l.user_override.honored === false;
+    if (overrideRefused && l.arbiter_used) indicators.push('⚠↯🌸arb');
+    else if (overrideRefused) indicators.push('⚠↯');
+    else if (l.arbiter_used) indicators.push('🌸arb');
+
+    // Δ vs Opus (estimated) — only show if meaningful
+    let delta = '';
+    if (l.latency_vs_opus_ms != null && Math.abs(l.latency_vs_opus_ms) > 2000) {
+      const absS = (Math.abs(l.latency_vs_opus_ms) / 1000).toFixed(1);
+      const sign = l.latency_vs_opus_ms < 0 ? '-' : '+';
+      delta = ` ${DIM}~${sign}${absS}s${RESET}`;
+    }
+
+    const indStr = indicators.length ? ' ' + indicators.join(' ') : '';
+    const cascade = l.cascade_path || '';
+    return ` │ ${tierLabel} ${modelShort}${indStr} ${catShort} ${latColor}${latS}s${RESET}${delta} ${DIM}${cascade}${RESET}`;
+  } catch {
+    return '';
+  }
+}
+
+// v0.9: segment ⑥ — GPU widget. Reads /gpu.
+function renderGpu() {
+  try {
+    const g = fetchTrackerJson('/gpu', 300);
+    if (!g || !g.vendor || g.vendor === 'cpu') return '';
+    const name = g.name_short || 'GPU';
+    if (g.utilPct == null) {
+      // Apple Silicon / AMD w/o util
+      return ` │ 💻 ${DIM}${name}${RESET}`;
+    }
+    const pct = g.utilPct;
+    const filled = Math.min(6, Math.max(0, Math.round((pct / 100) * 6)));
+    const bar = '▓'.repeat(filled) + '░'.repeat(6 - filled);
+    let c = '\x1b[38;2;78;201;176m';
+    if (pct >= 80) c = '\x1b[38;2;197;134;192m'; // purple
+    else if (pct >= 50) c = '\x1b[38;2;220;220;170m';
+    return ` │ 💻 ${DIM}${name}${RESET} ${c}${bar} ${pct}%${RESET}`;
+  } catch {
+    return '';
+  }
+}
+
 function fetchFrugalSavings(mOpt) {
   try {
     const m = mOpt || fetchFrugalMetrics();
@@ -80,26 +179,42 @@ function fetchFrugalSavings(mOpt) {
     // mistaken for the real OAuth figure.
     const tildePrefix = guaranteedUsd > 0 ? '' : '~';
 
+    // v0.9: segment ④ — distribution with abbreviated names (qwen/hku/son/ops)
+    // and per-tier color from TIER_COLOR. Dimmed when pct = 0.
     let breakdown = '';
-    // Prefer pct_by_model when tracker exposes it (newer format). Fall back
-    // to pct_by_tier + heuristic mapping for older tracker versions.
-    const pbm = m.pct_by_model;
-    if (pbm && typeof pbm === 'object') {
-      const parts = ['Ollama', 'Haiku', 'Sonnet', 'Opus']
-        .filter(name => (pbm[name] || 0) > 0)
-        .map(name => `${name}:${Math.round(pbm[name])}%`);
-      if (parts.length) breakdown = ` │ \x1b[2m${parts.join(' ')}\x1b[0m`;
-    } else {
-      const pbt = m.pct_by_tier;
-      if (pbt && typeof pbt === 'object') {
-        const TIER_LABELS = { T0: 'Ollama', T1: 'Haiku', T2: 'Sonnet', T3: 'Opus' };
-        const parts = ['T0', 'T1', 'T2', 'T3']
-          .filter(t => (pbt[t] || 0) > 0)
-          .map(t => `${TIER_LABELS[t]}:${Math.round(pbt[t])}%`);
-        if (parts.length) breakdown = ` │ \x1b[2m${parts.join(' ')}\x1b[0m`;
+    const pbt = m.pct_by_tier || {};
+    const SHORT = [
+      ['T0', 'qwen', TIER_COLOR.T0],
+      ['T1', 'hku',  TIER_COLOR.T1],
+      ['T2', 'son',  TIER_COLOR.T2],
+      ['T3', 'ops',  TIER_COLOR.T3],
+    ];
+    const parts = SHORT.map(([t, label, clr]) => {
+      const v = Math.round(pbt[t] || 0);
+      if (v === 0) return `${DIM}${label} 0%${RESET}`;
+      return `${clr}${label} ${v}%${RESET}`;
+    });
+    if (parts.length) breakdown = ` │ ${parts.join(' · ')}`;
+
+    // v0.9: segment ⑤ — budget track mini-bar (8 chars) appended to savings.
+    let budgetBar = '';
+    try {
+      const real = fetchTrackerJson('/real', 250);
+      let budgetPct = null;
+      if (real && real.ok && typeof real.five_hour_pct === 'number') {
+        budgetPct = real.five_hour_pct;
       }
-    }
-    return ` │ ${color}💰 ${tildePrefix}${primaryStr} (${pct}%)\x1b[0m${breakdown}`;
+      if (budgetPct != null) {
+        const filled = Math.min(8, Math.max(0, Math.round((budgetPct / 100) * 8)));
+        const bar = '▓'.repeat(filled) + '░'.repeat(8 - filled);
+        let bColor = '\x1b[38;2;78;201;176m'; // teal
+        if (budgetPct > 80) bColor = '\x1b[38;2;244;71;71m'; // red
+        else if (budgetPct > 50) bColor = '\x1b[38;2;220;220;170m'; // yellow
+        budgetBar = ` ${bColor}${Math.round(budgetPct)}% ${bar}${RESET}`;
+      }
+    } catch { /* budget bar is best-effort */ }
+
+    return ` │ ${color}💰 ${tildePrefix}${primaryStr} (${pct}%)${RESET}${budgetBar}${breakdown}`;
   } catch {
     return '';
   }
@@ -160,25 +275,27 @@ function renderLatency(m) {
 //   ○  (dim)    — not configured / not installed
 //
 // Layout:   │ ⚡ Claude● Ollama● Gemini○ GPT○
+// v0.9: all 6 providers rendered as compact dots in fixed order.
+// Anthropic · Ollama · Gemini · GPT · Grok · Mistral
+// Unconfigured providers still appear (as ○) so the row is always 6 wide.
 function renderProviders(m) {
   try {
-    const p = m && m.providers;
-    if (!p || typeof p !== 'object') return '';
-    const order = [
-      ['Claude', p.claude],
-      ['Ollama', p.ollama],
-      ['Gemini', p.gemini],
-      ['GPT',    p.gpt],
-    ];
-    // Dot + color by state.
+    const p = (m && m.providers) || {};
+    // Allow env override of provider order (comma-separated).
+    const envOrder = process.env.FRUGAL_PROVIDERS;
+    const defaultOrder = ['claude', 'ollama', 'gemini', 'gpt', 'grok', 'mistral'];
+    const order = envOrder
+      ? envOrder.toLowerCase().split(',').map((s) => s.trim()).filter(Boolean)
+      : defaultOrder;
+
     const dotFor = (state) => {
-      if (state === 'ok')       return '\x1b[32m●\x1b[0m';       // green
-      if (state === 'degraded') return '\x1b[33m◐\x1b[0m';       // yellow
-      if (state === 'unknown')  return '\x1b[2m◌\x1b[0m';        // dim hollow
-      return '\x1b[2m○\x1b[0m';                                   // dim empty
+      if (state === 'ok')       return '\x1b[38;2;35;209;139m●\x1b[0m'; // bright green
+      if (state === 'degraded') return '\x1b[38;2;220;220;170m◐\x1b[0m'; // yellow
+      if (state === 'unknown')  return '\x1b[38;2;90;90;90m◌\x1b[0m';    // dim hollow
+      return '\x1b[38;2;58;58;58m○\x1b[0m';                                // off (dark)
     };
-    const parts = order.map(([label, st]) => `\x1b[2m${label}\x1b[0m${dotFor(st)}`);
-    return ` │ \x1b[2m⚡\x1b[0m ${parts.join(' ')}`;
+    const parts = order.map((key) => dotFor(p[key] || 'off'));
+    return ` │ ${parts.join('')}`;
   } catch {
     return '';
   }
@@ -290,18 +407,29 @@ process.stdin.on('end', () => {
       } catch (e) {}
     }
 
-    // frugal segments — one HTTP call, three renders (savings + latency + providers)
+    // frugal v0.9 segments. One /metrics fetch; /last, /gpu, /real each have
+    // their own cheap call with short timeouts inside the renderers.
     const metrics = fetchFrugalMetrics();
-    const savings = fetchFrugalSavings(metrics);
-    const latency = renderLatency(metrics);
-    const providers = renderProviders(metrics);
+
+    // Segment ② — brand (🐕 frugal v0.9). Ultra-savings mode (T0 > 90%) turns
+    // the separator teal for a subtle visual cue.
+    const t0pct = (metrics && metrics.pct_by_tier && metrics.pct_by_tier.T0) || 0;
+    const ultraSavings = t0pct > 90;
+    const brandColor = ultraSavings ? '\x1b[38;2;78;201;176m' : DIM;
+    const brand = ` │ 🐕 ${brandColor}frugal v0.9${RESET}`;
+
+    const lastTurn = renderLastTurn();                    // ③
+    const savings = fetchFrugalSavings(metrics);          // ⑤ (+ dist ④)
+    const gpu = renderGpu();                              // ⑥
+    const providers = renderProviders(metrics);           // ⑦
+    const latency = renderLatency(metrics);               // legacy (kept)
 
     // Output
     const dirname = path.basename(dir);
     if (task) {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${latency}${providers}`);
+      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${brand}${lastTurn}${savings}${gpu}${providers}${latency}`);
     } else {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${savings}${latency}${providers}`);
+      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${brand}${lastTurn}${savings}${gpu}${providers}${latency}`);
     }
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
