@@ -342,7 +342,146 @@ Actualiza SYNC.md:
 ### Relatório do que foi feito (para o Cowork ler)
 > Esta secção é escrita pelo Claude Code. O Cowork lê-a no início de cada sessão de review.
 
-**Última actualização:** 2026-04-09 (sessão #2)
+**Última actualização:** 2026-04-09 (sessão #4 — landing page v0.9.1)
+
+### Sessão #4 — relatório ✅
+
+4 commits pushed para `origin/main`:
+
+| Commit | Tipo | Descrição |
+|---|---|---|
+| `8af879f` | refactor(v0.7.0) | patterns.js single source of truth (já estava pushed da sessão #3) |
+| `b78cf4a` | feat(v0.9.1) | landing page scaffold — 14 ficheiros |
+| `ef22ebd` | fix(landing) | SSRF hardening + apostrophe fix |
+
+#### Landing page v0.9.1 — validada localmente ✅
+
+Pasta `landing/` criada com Next.js 15 + React 19. Mesma stack do `dashboard/`.
+
+**5 secções implementadas** (spec do SYNC.md):
+1. Hero — "frugal · Route smarter. Spend less. · ~90% cost savings"
+2. URL Analyser — `POST /api/analyse` com detecção real de Platform + Framework + LLM
+3. How it works — 3 cards (Classify → Route → Save)
+4. Waitlist form — `POST /api/waitlist` com contador dinâmico
+5. Footer — MIT + GitHub link
+
+**Smoke test real (`curl` contra o dev server local):**
+- `https://vercel.com` → Platform=Vercel, Framework=Next.js ✅
+- `https://nextjs.org` → Platform=Vercel, Framework=Next.js ✅
+- `https://wikipedia.org` → redirect apex→www, detection OK ✅
+- `https://github.com/pauloloureiroshp-ship-it/frugal` → Platform=GitHub Pages ✅
+- Cache hit funciona (`cached:true` no 2º request) ✅
+- `GET /api/waitlist` → `{total: 0}` ✅
+
+**Decisões autónomas:**
+- **Sem `@supabase/supabase-js`** — raw fetch contra Supabase REST API em `app/lib/supabase.ts` (~120 linhas). Poupa ~300KB de deps e evita version mismatches.
+- **CSS plain + Inter via preconnect** — consistente com dashboard, zero Tailwind, zero chart libs.
+- **API routes `runtime: 'nodejs'`** — precisamos do `fetch` com `AbortSignal.timeout` e streaming byte-limited reader (50KB, 8s).
+- **Fail-open nos writes** — `upsert` returns null silenciosamente em erros; UX prioritária.
+- **Savings fixo a 89%** — nunca inventado. Real replay result em 1,437 prompts.
+
+#### ⚠️ IMPORTANTE — 2 correcções ao spec do Cowork
+
+**1. Schema real do `url_analyses` (Supabase)**
+
+O spec dizia `{url, platform, framework, llm_detected, savings_pct}`. Schema real descoberto durante smoke test via REST API:
+
+```
+url_analyses:
+  url (unique)
+  platform
+  language        ← NOVO, nullable
+  framework
+  has_llm         ← NÃO llm_detected
+  llm_providers   ← NOVO, nullable array
+  raw_signals     ← NOVO, nullable jsonb
+  savings_est     ← NÃO savings_pct
+  analysed_at
+```
+
+**Mapeamento feito no boundary da API** — o client-facing response mantém `llm_detected`/`savings_pct` (mais friendly), os writes usam `has_llm`/`savings_est`. Ambas as conversões em `landing/app/api/analyse/route.ts`.
+
+**2. Waitlist RLS bloqueia anon INSERT ❌**
+
+PostgREST retorna `error 42501 "new row violates row-level security policy for table waitlist"` quando tentamos INSERT com a anon key. Verificado com curl verbose (header `proxy-status: PostgREST; error=42501`).
+
+**Acção necessária do Paulo** no Supabase dashboard:
+```
+Table Editor → waitlist → Policies → New policy
+  Name: "Allow anon INSERT"
+  Allowed operation: INSERT
+  Target roles: anon
+  USING expression: (deixa vazio)
+  WITH CHECK expression: true
+```
+
+Enquanto isto não for corrigido: o botão "Get early access" mostrará o erro "Supabase INSERT failed — check RLS policy on waitlist table" ao user, que é honest-fail (não silenciosamente mente que foi adicionado).
+
+#### SSRF hardening (após final-reviewer BLOCK na 1ª review)
+
+A 1ª review do final-reviewer **bloqueou** o commit da landing por SSRF:
+- `/api/analyse` fazia `fetch(userUrl)` com `redirect: 'follow'`
+- Só validava o URL inicial — attacker podia submeter `https://attacker.com` que 302 para `http://169.254.169.254/` (AWS metadata) ou `http://127.0.0.1/`
+- Dados derivados via regex podiam vazar no response
+
+**Fix aplicado (commit `ef22ebd`):**
+- `isHttpsUrl()` agora é `isPublicUrlString()` — rejeita IPv6 (`:`), IPv4 literals (dotted-quad), FORBIDDEN_HOSTS (localhost, metadata.google.internal, etc.), PRIVATE_IP_RE (10/8, 127/8, 169.254/16, 172.16/12, 192.168/16, 0/8, 100.64/10 CGNAT), e hostnames sem pelo menos um `.` + TLD não-numérico
+- `fetchLimited()` passou a `redirect: 'manual'` com loop de até 3 hops
+- Cada iteração re-valida o URL actual (incluindo relative/scheme-relative resolvidos via `new URL(loc, currentUrl)`)
+- Smoke test confirmou: `localhost` / `169.254.*` / `http://` todos rejeitados ✅, redirects legítimos (`wikipedia.org` apex→www) continuam a funcionar ✅
+
+**Residual risk documentado**: DNS rebinding não é fixável no layer de aplicação sem um DNS hook. Aceitável para MVP, comentado para follow-up.
+
+**Final-reviewer 2ª passagem: GO** (7/7 findings, doctrine invariants intactos).
+
+#### 🚨 DEPLOY VERCEL — NÃO EXECUTADO
+
+O spec diz:
+```bash
+cd landing && npx vercel --prod --team pauloloureiroshp-ship-its-projects
+```
+
+**Não executei porque:**
+- `vercel` CLI requer `vercel login` interactivo na primeira vez (browser flow)
+- `--prod` é uma acção destrutiva (publica) que a doutrina manda confirmar
+- Vercel project name precisa de ser decidido (frugal-landing?) — primeiro run pergunta
+- Env vars `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` precisam de ser adicionadas no dashboard Vercel manualmente **antes** do primeiro deploy, senão o build não consegue embutir as vars
+
+**Ordem sugerida para o Paulo fazer manualmente:**
+```bash
+cd C:\Users\Paulo Loureiro\frugal\landing
+npx vercel login          # browser flow, primeira vez
+npx vercel link           # cria o projecto "frugal-landing" na team
+# No dashboard Vercel → Settings → Environment Variables:
+#   NEXT_PUBLIC_SUPABASE_URL = https://eymtobwinevywmmlmxqa.supabase.co
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY = <o JWT que está no .env.local>
+npx vercel --prod         # primeiro deploy
+```
+
+**URL Vercel final:** (por preencher após deploy manual)
+
+#### Dev server local ainda activo
+
+Background task `b1qhwydyk` — dashboard Next.js landing em `http://127.0.0.1:7819`.
+Mata com `Ctrl-C` ou deixa a correr para validação visual antes do deploy.
+
+#### Estado do repo após sessão #4
+
+```
+ef22ebd  fix(landing): SSRF hardening + apostrophe cosmetic fix  ← HEAD
+b78cf4a  feat(v0.9.1): public landing page with URL analyser and waitlist
+8af879f  refactor(v0.7.0): extract patterns.js
+76dcd94  fix(dashboard): deduplicate decisions
+fa2ee52  feat(v0.6.0): dashboard scaffold
+e97e8a4  chore: .vscode + SYNC
+5989b62  chore(v0.9.0): replay fix
+1e852f3  feat: v0.9.0
+tag v0.9.0 ← origin
+```
+
+**Testes:** 66/66 (sem regressão) · **Replay:** 89.8% savings / 1,437 prompts
+
+---
 
 ### Sessão #2 — relatório ✅
 
