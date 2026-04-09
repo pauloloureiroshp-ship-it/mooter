@@ -80,16 +80,26 @@ export async function GET(req: NextRequest) {
   const cutoff = Date.now() - (WINDOW_MS[windowKey] ?? WINDOW_MS['24h']);
 
   // Walk the log backward for efficiency — we want the newest entries.
+  // NOTE: use `continue` (not `break`) for the time filter — the log is
+  // mostly append-only but may contain out-of-order entries (benchmark
+  // replays, simulated prompts) that share old timestamps. A `break` on
+  // the first stale entry would silently drop all real entries that follow.
   const results: DecisionEntry[] = [];
+  const seen = new Set<string>(); // deduplicate by (ts_ms + prompt_preview)
   for (let i = lines.length - 1; i >= 0 && results.length < limit; i--) {
     const entry = safeParse(lines[i]);
     if (!entry || entry.event !== 'classified') continue;
     const tsMs = entry.ts_ms ?? (entry.ts ? Date.parse(entry.ts) : 0);
-    if (tsMs < cutoff) break; // log is append-only, older entries follow
+    if (tsMs < cutoff) continue; // skip stale — don't break (log may be unordered)
     if (tier && entry.tier !== tier) continue;
     if (category && entry.task_category !== category) continue;
     const conf = entry.confidence ?? 0;
     if (conf < minConf || conf > maxConf) continue;
+    // Deduplicate: benchmark/replay entries repeat the same prompt_preview
+    // (possibly at different timestamps). Key on preview + tier + category.
+    const dedupKey = `${(entry.prompt_preview || '').slice(0, 60)}|${entry.tier}|${entry.task_category}`;
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
     results.push({
       ts: entry.ts,
       ts_ms: tsMs,

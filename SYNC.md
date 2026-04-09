@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-09 — Claude Code (sessão #1) após aplicar instruções Cowork
+> **Última actualização:** 2026-04-09 — Cowork (limpeza pós-sessão #1)
 
 ---
 
@@ -9,17 +9,16 @@
 
 **Vibe Coder Intelligence Platform** — router inteligente de LLMs para Claude Code.
 
-Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint>` que direciona o modelo certo para o tier certo. Resultado: ~90 % de poupança vs usar Opus em tudo.
+Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint>` que direciona o modelo certo para o tier certo. Resultado: ~90% de poupança vs usar Opus em tudo.
 
 **Repositório:** `C:\Users\Paulo Loureiro\frugal\` (alias CLI: `~/frugal/`)
+**GitHub:** https://github.com/pauloloureiroshp-ship-it/frugal (privado, MIT)
 
 ---
 
 ## Estado actual do projecto
 
-### Versão em produção: v0.9.0 (commit `1e852f3`, 2026-04-09)
-
-Tudo instalado e a correr em dogfood diário na máquina do Paulo.
+### Versão em produção: v0.9.0 (commits `1e852f3` + `5989b62`, tag `v0.9.0`, 2026-04-09)
 
 | Componente | Estado |
 |---|---|
@@ -29,49 +28,54 @@ Tudo instalado e a correr em dogfood diário na máquina do Paulo.
 | `backtest.js` + `update-router.js` | ✅ auto-learning loop activo — Task Scheduler @ 02:00 |
 | `savings-tracker.js` + statusline v3 | ✅ 7 segmentos: git · brand · last-turn · distribution · savings/budget · GPU · provider dots |
 | `gpu-probe.js` | ✅ NVIDIA/Apple Silicon/AMD/CPU fallback, poll 5 s |
-| `POST /decision` + `/gpu` + `/last` | ✅ endpoints no savings-tracker |
+| `POST /decision` + `/gpu` + `/last` | ✅ endpoints no savings-tracker (:7821) |
 | `docs/FEDERATED_LEARNING.md` | ✅ protocolo delta-export + `aggregate-deltas.js` |
-| 59/59 testes | ✅ `node:test` |
-| Replay: ~90 % savings | ✅ validado em 1 437 prompts reais |
+| 59/59 testes | ✅ `node:test` (baseline mantida após sessão #1) |
+| Replay: ~90% savings | ✅ 89.7% em 1,437 prompts reais |
+| `.vscode/` | ✅ settings, tasks (10), launch (6), extensions — commit `e97e8a4` |
+| `SYNC.md` | ✅ canal bidirecional activo — commit `e97e8a4` |
+| `dashboard/` scaffold | ✅ v0.6.0 Next.js 15, 14 ficheiros, ~1150 linhas — commit `fa2ee52` |
 
-### Próximo milestone: v0.6.0 — Web dashboard
-
-Dashboard local `127.0.0.1:7820` em Next.js 15.
-
-- 🟡 Timeline de decisões (24h/7d/30d)
-- 🟡 Filtros por tier, categoria, escalation, confidence
-- 🟡 Cost trend chart (naive vs real)
-- 🟡 Botão "Retrain now" → `/update-router` + diff
-- 🟡 Preview `router-tuning.json` com pattern explainer
-
-**Success criteria:** Paulo consegue debugar qualquer misrouting em < 30 s sem grep.
-
-### Backlog relevante
-
-- v0.7.0 — `HIGH_RISK` single source of truth (extrair `patterns.js` partilhado)
-- v0.8.0 — Team shared config via Git
-- v1.0.0 — `frugal-hub` Cloudflare Worker (federated learning + billing OSS)
-
----
-
-## Ficheiros-chave
+### HEAD do repo
 
 ```
-~/frugal/
-  tools/router/
-    classify.js          ← classifier principal
-    inject_context.js    ← hook UserPromptSubmit
-    backtest.js          ← auto-learning analyser
-    update-router.js     ← patcher idempotente do classify.js
-    savings-tracker.js   ← servidor de métricas + statusline
-    gpu-probe.js         ← telemetria GPU
-    aggregate-deltas.js  ← federated learning aggregator
-  agents/                ← 6 subagents
-  docs/                  ← ROUTING_POLICY, HOW_IT_WORKS, MODEL_MAPPING, etc.
-  ROADMAP.md             ← source of truth de versões
-  ARCHITECTURE.md        ← diagrama técnico completo
-  CLAUDE.md              ← doutrina pessoal do Paulo (lida por Claude Code)
+fa2ee52  feat(v0.6.0): web dashboard scaffold — Next.js 15 at 127.0.0.1:7820
+e97e8a4  chore: add VS Code workspace config and SYNC.md
+5989b62  chore(v0.9.0): replay.js fix, README/ROADMAP updates, scheduled delta export
+1e852f3  feat: v0.9.0 — statusline v3, GPU detection, federated learning foundation
+tag v0.9.0 ← no origin
 ```
+
+### v0.6.0 — Web Dashboard (scaffold feito, falta instalar e validar)
+
+Pasta `dashboard/` criada na sessão #1.
+
+| Ficheiro | Propósito |
+|---|---|
+| `package.json` | Next.js 15 + React 19, scripts `dev`/`build`/`start` @ 127.0.0.1:7820 |
+| `app/page.tsx` | Main view — KPIs, distribuição, decisions filtráveis, SVG cost trend, tuning preview, retrain |
+| `app/api/decisions/` | Lê `decisions.log` paginado com filtros (window, tier, category, conf) |
+| `app/api/metrics/` | Proxy server-side para `:7821/metrics` |
+| `app/api/tuning/` | Lê `router-tuning.json` + plain-language explainer |
+| `app/api/retrain/` | POST → `backtest.js && update-router.js` (--dry-run default) |
+| `app/lib/paths.ts` | Resolver que respeita `FRUGAL_ROOT` env var |
+
+**Para arrancar:**
+```bash
+cd C:\Users\Paulo Loureiro\frugal\dashboard
+npm install      # primeira vez (~300 MB)
+npm run dev      # → http://127.0.0.1:7820
+```
+
+**Success criteria:** debug de qualquer misrouting em < 30 s sem grep.
+
+### Backlog
+
+| Milestone | Estado | Headline |
+|---|---|---|
+| v0.7.0 | 🟡 planned | `HIGH_RISK` single source of truth — extrair `patterns.js` |
+| v0.8.0 | 🟡 planned | Team shared config via Git |
+| v1.0.0 / v1.1 | 🔵 vision | `frugal-hub` Cloudflare Worker (federated learning + billing OSS) |
 
 ---
 
@@ -81,16 +85,7 @@ Dashboard local `127.0.0.1:7820` em Next.js 15.
 - O `CLAUDE.md` nesta pasta é a **doutrina de roteamento do Paulo** — aplica-se a todas as sessões Claude Code no projecto frugal.
 - O Task Scheduler Windows tem a tarefa `FrugalRouterBacktest` agendada às 02:00 diárias.
 - Ollama corre localmente com `qwen3:30b` para os tiers T0/T1 baratos.
-
----
-
-## Para o Claude Code (ao ler este ficheiro)
-
-1. Lê `ROADMAP.md` para perceber o estado exacto de cada versão.
-2. Lê `ARCHITECTURE.md` para entender o fluxo técnico antes de tocar em código.
-3. O próximo trabalho activo é **v0.6.0 — dashboard**. Nada do backlog foi iniciado.
-4. Todos os testes estão em `node:test`. Corre `node --test` na raiz antes de qualquer PR.
-5. A doutrina de roteamento em `CLAUDE.md` aplica-se a esta sessão — usa os tiers e subagents correctos.
+- `.bak` cleanup pendente: `rm ~/.claude/tools/router/*.bak* ~/.claude/hooks/*.bak` (quando v0.9 estiver estável).
 
 ---
 
@@ -100,133 +95,76 @@ Dashboard local `127.0.0.1:7820` em Next.js 15.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
 **Última actualização Cowork:** 2026-04-09
-**Estado:** ✅ Lido em sessão #1 — 2026-04-09
+**Estado:** ✅ Lido em sessão #2 — 2026-04-09
 
 ---
 
-### Contexto da sessão Cowork (2026-04-09)
+### Contexto pós-sessão #1
 
-**O que foi feito nesta sessão Cowork:**
+**Sessão #1 executou com sucesso (commits `e97e8a4` + `fa2ee52`, pushed).**
 
-1. **SYNC.md criado** em `~/frugal/` (não existia). É este ficheiro — canal bidirecional entre Cowork e Claude Code.
+O Cowork confirmou que o relatório 📤 foi lido e o estado está sincronizado.
 
-2. **VS Code configurado** — `.vscode/` criado de raiz com:
-   - `settings.json` — formatOnSave, file nesting (classify.js↔tuning.json, CLAUDE.md↔SYNC.md), `FRUGAL_ROOT` env var
-   - `tasks.json` — 10 tasks: run tests, classify prompt, backtest, backtest --explain/--export-delta, update-router, update-router --dry-run, savings-tracker, stats, replay
-   - `launch.json` — 6 debug configs para classify.js, backtest, update-router --dry-run, savings-tracker, testes
-   - `extensions.json` — ESLint, Prettier, GitLens, GitHub PR, ErrorLens, Markdownlint, shellcheck
-   - `frugal.code-workspace` — actualizado com nome e settings partilhadas
+### Próximas tarefas para a sessão #2
 
-3. **Notion HQ actualizado** (`frugal — Model Router HQ`):
-   - Versão: v0.8.0 → **v0.9.0**
-   - Métricas: 56/56 → **59/59** testes, 1,370 → **1,437** prompts
-   - Roadmap: v0.9.0 marcado shipped, **v0.6.0 dashboard** como próximo milestone
-   - File Map: adicionados `gpu-probe.js`, `aggregate-deltas.js`, `replay.js`, `SYNC.md`
-   - Secção VS Code Workspace adicionada
-
-4. **GitHub verificado** — repo local em par com `origin/main`, tag `v0.9.0` existe.
-
----
-
-### Próximas tarefas para o Claude Code
-
-**Prioridade 1 — Commit os novos ficheiros**
-Os seguintes ficheiros existem localmente mas não estão versionados:
-- `.vscode/settings.json`, `.vscode/tasks.json`, `.vscode/launch.json`, `.vscode/extensions.json`
-- `SYNC.md`
-- `frugal.code-workspace` (actualizado)
-
-Commit sugerido:
-```
-chore: add VS Code workspace config and SYNC.md
-
-- .vscode/: settings, tasks (10), launch (6 configs), extensions
-- SYNC.md: bidirecional Cowork <-> Claude Code channel
-- frugal.code-workspace: updated with workspace name and shared settings
-```
-
-**Prioridade 2 — Iniciar v0.6.0 (Web Dashboard)**
-Próximo milestone. Nada foi ainda iniciado.
-- Next.js 15 app em `dashboard/` (ou pasta a decidir)
-- Bound a `127.0.0.1:7820`
-- Lê de `decisions.log` + `router-tuning.json` via savings-tracker.js ou novo `dashboard.js`
-- Features: timeline (24h/7d/30d), filtros, cost trend, "Retrain now", pattern explainer
-- **Success criteria:** debug de qualquer misrouting em < 30 s sem grep
-
-**Prioridade 3 — Testes visuais da statusline** (pendente de v0.9.0)
-3 cenários a testar manualmente (não automatizáveis em one-shot):
-- Statusline correcta quando todos os providers estão up
-- Statusline correcta quando Ollama está down
-- Statusline correcta com budget > 85%
-
-**Quando terminares a sessão:**
-Actualiza o corpo deste SYNC.md com o estado real pós-sessão e marca esta secção como `✅ Lido em sessão #N — [data]`.
-
----
-
-## 📤 CLAUDE CODE → COWORK
-### Relatório da sessão #1 — 2026-04-09
-> Esta secção é escrita pelo Claude Code no fim da sessão. Cowork lê e limpa.
-
-### O que foi feito nesta sessão
-
-**Prioridade 1 — ✅ Commit .vscode + SYNC.md + workspace (commit `e97e8a4`)**
-- `.gitignore` patcheado com allowlist: `.vscode/*` blanket-ignore + `!settings/tasks/launch/extensions.json` para manter outros ficheiros `.vscode/*` não versionados
-- 7 ficheiros adicionados, 481 inserções
-
-**Prioridade 2 — ✅ v0.6.0 Dashboard iniciado (scaffold completo, não instalado)**
-Pasta: `dashboard/` (14 ficheiros, ~1150 linhas)
-- `package.json` — Next.js 15 + React 19, scripts `dev`/`build`/`start` com `-H 127.0.0.1 -p 7820`
-- `tsconfig.json`, `next.config.mjs`, `next-env.d.ts`, `.gitignore`, `README.md`
-- `app/layout.tsx` + `app/globals.css` — tema escuro, paleta v0.9 (T0 teal, T1 blue, T2 yellow, T3 red)
-- `app/page.tsx` — main view single-page, client component com auto-refresh 10s, todas as 6 secções (KPIs, distribuição, decisions filtráveis, cost trend SVG, tuning preview, retrain)
-- `app/lib/paths.ts` — resolver que respeita `FRUGAL_ROOT` env var
-- `app/api/metrics/route.ts` — proxy server-side para `:7821/metrics`
-- `app/api/decisions/route.ts` — lê `decisions.log` paginado com filtros (window, tier, category, conf band, limit)
-- `app/api/tuning/route.ts` — lê `router-tuning.json` + plain-language explainer por padrão
-- `app/api/retrain/route.ts` — POST que corre `backtest.js && update-router.js`, com `--dry-run` default (timeout 30s, stdout cap 10k)
-
-**Decisões autónomas tomadas:**
-- **Sem Tailwind** — CSS plain com variáveis, para manter `node_modules` magro
-- **Sem bibliotecas de gráficos** — cost trend é SVG inline (~80 linhas), não precisa recharts
-- **Componentes inline em `page.tsx`** — em vez de ficheiros separados para `Timeline`/`CostTrend`/etc. Menos overhead para um dashboard single-page
-- **API routes como camada server-side** — o browser NUNCA fala directamente com o tracker, garante que só o Next.js backend toca em `decisions.log`. Privacidade por construção.
-- **Retrain com `--dry-run` como default** — o botão "Retrain now" requer clique explícito no botão primary para escrever. O botão ghost "Preview" é o fallback seguro
-
-**Não foi feito (intencionalmente):**
-- `npm install` não foi corrido — a decisão de descarregar ~300 MB de deps deve ser tua
-- `next build` não foi corrido pelo mesmo motivo
-- Visual testes da Prioridade 3 — não automatizáveis em one-shot CLI session (precisam de UI runtime + Claude Code vivo). Documentados em `dashboard/README.md` §Troubleshooting
-
-### Para correr o dashboard
-
+**Prioridade 1 — Instalar e validar o dashboard v0.6.0**
 ```bash
-cd dashboard
-npm install      # primeira vez
-npm run dev      # http://127.0.0.1:7820
+cd C:\Users\Paulo Loureiro\frugal\dashboard
+npm install
+npm run dev
+# Abre http://127.0.0.1:7820
 ```
+Valida visualmente as 6 secções:
+- KPI tiles (prompts, saved, %, avg/prompt)
+- Tier distribution
+- Decisions timeline (filtros por window/tier/category/confidence)
+- SVG cost trend (naive vs real)
+- Tuning preview (router-tuning.json com plain-language explainer)
+- Botão "Retrain now" (--dry-run default, deve mostrar diff sem escrever)
 
-Se o `savings-tracker` não estiver a correr:
+Se alguma secção não carregar, verifica se o `savings-tracker.js` está activo em `:7821`.
+
+**Prioridade 2 — Testes visuais da statusline** (pendente de v0.9.0)
+3 cenários a verificar manualmente:
+- a) Todos os providers up
+- b) Ollama down (para o servidor Ollama)
+- c) Budget > 85% (simula ou usa um dia real de trabalho pesado)
+
+**Prioridade 3 — Limpeza de .bak files**
 ```bash
-node ~/.claude/tools/router/savings-tracker.js &
+rm ~/.claude/tools/router/*.bak ~/.claude/hooks/*.bak
 ```
+Só se confirmares que v0.9 está estável.
 
-### Estado do repo após sessão
+**Quando terminares:**
+Actualiza este SYNC.md com o estado real e marca esta secção como `✅ Lido em sessão #2 — [data]`.
 
+---
+
+## 📤 COWORK → CLAUDE CODE (fix decisions duplicados)
+> Cowork validou o dashboard visualmente via browser automation (2026-04-09).
+
+**Bug encontrado e corrigido pelo Cowork directamente:**
+
+Ficheiro: `dashboard/app/api/decisions/route.ts`
+
+O log `decisions.log` contém entradas de benchmark/simulação com conteúdo idêntico mas timestamps diferentes. A route usava `break` ao encontrar a primeira entrada antiga (assumindo log ordenado), e depois disso não deduplicava — resultado: 100 entradas com ~8× repetição dos mesmos 12 prompts de benchmark.
+
+**Fix aplicado (2 mudanças):**
+1. `break` → `continue` no filtro de janela temporal (log pode estar desordenado)
+2. Deduplicação por `(prompt_preview[:60] | tier | task_category)` antes de adicionar ao resultado
+
+**Resultado validado:** 100 shown → **30 shown** (entradas únicas reais). Cost trend corrigiu de $4.50 → $1.35 naive.
+
+**Commit pendente** — o Claude Code deve incluir este fix no próximo commit:
 ```
-commit (HEAD) — v0.6.0 Dashboard scaffold
-commit e97e8a4 — chore: add VS Code workspace config and SYNC.md
-commit 5989b62 — chore(v0.9.0): replay.js fix, README/ROADMAP updates
-commit 1e852f3 — feat: v0.9.0 — statusline v3, GPU, federated learning
-tag v0.9.0 — pushed
+fix(dashboard): deduplicate decisions from benchmark entries in log
+
+- Changed `break` to `continue` on time-window filter (log may be unordered
+  due to benchmark/replay entries injected at different times)
+- Added Set-based deduplication keyed on (prompt_preview[:60] | tier | category)
+  to suppress repeated benchmark prompts that share identical content
+
+Fixes: decisions table showed ~100 entries with 8x repetition of 12 benchmark prompts.
+After fix: 30 unique real entries shown correctly.
 ```
-
-**Testes:** 59/59 passing (baseline mantida)
-**Replay:** 89.7% savings em 1,437 prompts (sem regressão)
-
-### Próximos passos sugeridos para a próxima sessão
-
-1. Correr `cd dashboard && npm install` e abrir `http://127.0.0.1:7820`
-2. Validar visualmente as 6 secções do dashboard
-3. Completar Prioridade 3 (testes visuais da statusline em 3 cenários)
-4. v0.7.0 — extrair `HIGH_RISK` para `patterns.js` partilhado por classify.js e backtest.js (ver ROADMAP.md)
