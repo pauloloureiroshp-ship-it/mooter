@@ -54,13 +54,66 @@ type CachedRow = {
 // Cache TTL: 24h. Older entries get re-analysed.
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-function isHttpsUrl(u: string): boolean {
+// SSRF blocklist: private/loopback/link-local/metadata. Rejects both the
+// initial URL and any redirected `res.url`. Bare IP literals are refused
+// entirely — only DNS hostnames with at least one dot are accepted.
+const PRIVATE_IP_RE = [
+  /^10\./,                           // 10.0.0.0/8
+  /^127\./,                          // 127.0.0.0/8 loopback
+  /^169\.254\./,                     // 169.254.0.0/16 link-local (AWS metadata)
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,  // 172.16.0.0/12
+  /^192\.168\./,                     // 192.168.0.0/16
+  /^0\./,                            // 0.0.0.0/8
+  /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // 100.64.0.0/10 CGNAT
+];
+const FORBIDDEN_HOSTS = new Set([
+  'localhost',
+  'metadata.google.internal',
+  'metadata',
+  '0.0.0.0',
+  '::1',
+]);
+
+function isPublicHostname(host: string): boolean {
+  const h = host.toLowerCase();
+  if (FORBIDDEN_HOSTS.has(h)) return false;
+  // Reject any IPv6 literal.
+  if (h.includes(':')) return false;
+  // If it LOOKS like an IPv4 literal, refuse unconditionally — we only
+  // accept DNS names, which must contain at least one dot AND a non-numeric
+  // TLD label.
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) {
+    // Even for "public" IPs we refuse — attacker could still target
+    // internal hosts via DNS rebinding later. Force DNS names only.
+    return false;
+  }
+  // Must have at least one dot and no leading/trailing dots.
+  if (!h.includes('.') || h.startsWith('.') || h.endsWith('.')) return false;
+  // Last label must contain a non-digit (i.e. not numeric-only).
+  const tld = h.split('.').pop() || '';
+  if (!/[a-z]/.test(tld)) return false;
+  return true;
+}
+
+// After fetch, Node resolves DNS and exposes the final URL (post-redirects).
+// We can't check the resolved IP from inside fetch's stdlib without a second
+// DNS lookup, but we CAN re-check `res.url` against our hostname allowlist
+// in case a redirect drifted to localhost/a private IP literal.
+function isPublicUrlString(u: string): boolean {
   try {
     const parsed = new URL(u);
-    return parsed.protocol === 'https:';
+    if (parsed.protocol !== 'https:') return false;
+    if (!isPublicHostname(parsed.hostname)) return false;
+    // Extra: reject bare-IP-literal check via the private ranges list.
+    if (PRIVATE_IP_RE.some((rx) => rx.test(parsed.hostname))) return false;
+    return true;
   } catch {
     return false;
   }
+}
+
+function isHttpsUrl(u: string): boolean {
+  return isPublicUrlString(u);
 }
 
 function detectPlatform(headers: Headers, url: string): string {
@@ -97,29 +150,60 @@ function detectLlmUsage(html: string): boolean {
   return /\b(anthropic|openai|claude|gpt-4|llm|language[- ]?model)\b/i.test(html);
 }
 
-async function fetchLimited(url: string, maxBytes: number, timeoutMs: number) {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(timeoutMs),
-    headers: {
-      'User-Agent': 'frugal-landing/0.9.1 (+https://github.com/pauloloureiroshp-ship-it/frugal)',
-    },
-    redirect: 'follow',
-  });
-  if (!res.ok || !res.body) {
-    return { headers: res.headers, html: '', status: res.status };
+// SSRF-safe fetcher: we manually follow redirects (max 3 hops) and
+// re-validate every intermediate URL against `isPublicUrlString`. This
+// blocks redirect-based pivots to internal services (localhost, RFC1918,
+// 169.254.* cloud metadata, etc.). A user-controlled URL that eventually
+// redirects to a private host is treated as `unreachable`.
+const MAX_REDIRECTS = 3;
+
+async function fetchLimited(startUrl: string, maxBytes: number, timeoutMs: number) {
+  const signal = AbortSignal.timeout(timeoutMs);
+  let currentUrl = startUrl;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (!isPublicUrlString(currentUrl)) {
+      throw new Error('redirect_to_private_host');
+    }
+    const res = await fetch(currentUrl, {
+      signal,
+      headers: {
+        'User-Agent': 'frugal-landing/0.9.1 (+https://github.com/pauloloureiroshp-ship-it/frugal)',
+      },
+      redirect: 'manual',
+    });
+
+    // Redirect? Resolve the Location header and re-validate.
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return { headers: res.headers, html: '', status: res.status };
+      // Resolve relative redirects against the current URL.
+      try {
+        currentUrl = new URL(loc, currentUrl).toString();
+      } catch {
+        throw new Error('invalid_redirect');
+      }
+      continue;
+    }
+
+    // Terminal response.
+    if (!res.ok || !res.body) {
+      return { headers: res.headers, html: '', status: res.status };
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    let html = '';
+    let total = 0;
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      html += decoder.decode(value, { stream: true });
+    }
+    try { await reader.cancel(); } catch { /* noop */ }
+    return { headers: res.headers, html, status: res.status };
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  let html = '';
-  let total = 0;
-  while (total < maxBytes) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    html += decoder.decode(value, { stream: true });
-  }
-  try { await reader.cancel(); } catch { /* noop */ }
-  return { headers: res.headers, html, status: res.status };
+  // Ran out of hops.
+  throw new Error('too_many_redirects');
 }
 
 export async function POST(req: NextRequest) {

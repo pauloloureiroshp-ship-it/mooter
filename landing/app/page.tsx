@@ -232,7 +232,7 @@ export default function LandingPage() {
               <div className="waitlist-counter">
                 {waitlistCount !== null
                   ? `You are developer #${waitlistCount} on the waitlist.`
-                  : 'We&apos;ll be in touch.'}
+                  : "We'll be in touch."}
               </div>
             </>
           ) : (
