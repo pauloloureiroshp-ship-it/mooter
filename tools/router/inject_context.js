@@ -30,6 +30,22 @@ const V07_DISABLED = process.env.FRUGAL_V07_DISABLE === '1';
 // (avoids TCP connect overhead on every hook invocation) and also drives the
 // Ollama warmup helper so T0 calls don't pay a cold-start penalty.
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
+
+// ── Onboarding check (v0.9.2) ─────────────────────────────────────────────
+// Se hw-capability.json ou subscription-profile.json estão ausentes,
+// corre onboarding.js de forma síncrona antes de classificar.
+// Só corre uma vez por instalação. Silencioso se onboarding.js não existe.
+const HW_CAP_PATH   = path.join(ROUTER_DIR, 'hw-capability.json');
+const SUB_PROF_PATH = path.join(ROUTER_DIR, 'subscription-profile.json');
+
+if (!fs.existsSync(HW_CAP_PATH) || !fs.existsSync(SUB_PROF_PATH)) {
+  const onboardingPath = path.join(ROUTER_DIR, 'onboarding.js');
+  if (fs.existsSync(onboardingPath)) {
+    spawnSync(process.execPath, [onboardingPath], { stdio: 'inherit' });
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────
+
 const TRACKER_PID_PATH = path.join(ROUTER_DIR, '.tracker.pid');
 const TRACKER_STALE_MS = 60 * 60 * 1000; // 1h
 
@@ -613,6 +629,56 @@ if (budget) {
   decision.max_tier = 'T3';
 }
 
+// ── Active Mode override (v0.9.3) ────────────────────────────────────────
+// Reads ~/.claude/tools/router/.frugal-mode.json set by frugal-mode.js.
+// beast → floor T3 on all prompts (bypass budget cap).
+// zen   → ceil T1 on all prompts (except T3-gate safety tasks).
+// auto  → file absent, no override.
+// Silent on any read error.
+(function applyActiveMode() {
+  const MODE_FILE = path.join(ROUTER_DIR, '.frugal-mode.json');
+  let activeMode = null;
+  try {
+    if (fs.existsSync(MODE_FILE)) {
+      const raw = fs.readFileSync(MODE_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      if (data && data.mode && data.mode !== 'auto') activeMode = data.mode;
+    }
+  } catch { /* silent */ }
+
+  if (!activeMode) return;
+
+  const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
+
+  if (activeMode === 'beast') {
+    // Force T3 regardless of classifier, budget, or arbiter.
+    decision.tier = 'T3';
+    decision.max_tier = 'T3';
+    decision.escalation_rule = 'beast_mode';
+    decision.active_mode = 'beast';
+  } else if (activeMode === 'zen') {
+    // Cap at T1 unless this is a T3-gate safety task.
+    const isGate = decision.escalation_rule === 'T3_gate' ||
+                   /\b(push|merge|deploy|release|migration)\b/i.test(prompt);
+    if (!isGate) {
+      const currentIdx = TIER_ORDER.indexOf(decision.tier);
+      if (currentIdx > 1) { // > T1
+        decision.tier = 'T1';
+        decision.escalation_rule = (decision.escalation_rule && decision.escalation_rule !== 'none')
+          ? decision.escalation_rule + '+zen_cap'
+          : 'zen_cap';
+      }
+      decision.max_tier = 'T1';
+      decision.active_mode = 'zen';
+    }
+    // If it IS a gate task, zen mode is bypassed for safety. Log it.
+    if (isGate) {
+      decision.active_mode = 'zen_bypassed_gate';
+    }
+  }
+})();
+// ─────────────────────────────────────────────────────────────────────────
+
 // Only emit hint when confident enough that it adds value.
 if (decision.confidence < 0.6) process.exit(0);
 
@@ -726,6 +792,8 @@ const lines = [
   `confidence: ${decision.confidence}`,
   decision.max_tier ? `max_tier: ${decision.max_tier}` : null,
   decision.escalation_rule !== 'none' ? `escalation: ${decision.escalation_rule}` : null,
+  decision.active_mode ? `MODE: ${decision.active_mode}` : null,
+  decision.active_mode ? `FORCED: true` : null,
   ...overrideLines,
   ...arbiterLines,
   ...decompositionLines,

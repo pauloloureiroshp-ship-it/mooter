@@ -85,6 +85,13 @@ if [ "$DOCTOR" = "1" ]; then
   else
     warn "no decisions yet — telemetry will start on next prompt"
   fi
+
+  SKILL_COUNT=$(ls "$CLAUDE_DIR/skills/" 2>/dev/null | grep -c "^frugal" || echo 0)
+  if [ "$SKILL_COUNT" -ge 8 ]; then
+    ok "$SKILL_COUNT frugal slash commands installed (/frugal-status, /frugal-savings, /frugal-beast, /frugal-zen, /frugal-auto, etc.)"
+  else
+    warn "frugal slash commands missing ($SKILL_COUNT/8) — re-run install.sh to add them"
+  fi
   echo ""
   exit 0
 fi
@@ -102,6 +109,9 @@ if [ "$UNINSTALL" = "1" ]; then
   do_run "rm -f '$CLAUDE_DIR/CLAUDE.md'"
   do_run "rm -rf '$ROUTER_DIR'"
   do_run "rm -rf '$CLAUDE_DIR/skills/model-router'"
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto; do
+    do_run "rm -rf '$CLAUDE_DIR/skills/$skill'"
+  done
   for a in model-architect model-reasoner cheap-triage local-summarizer local-transformer final-reviewer; do
     do_run "rm -f '$CLAUDE_DIR/agents/$a.md'"
   done
@@ -168,6 +178,14 @@ if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
   fi
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
   do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
+  # Install frugal slash command skills
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto; do
+    if [ -d "$SRC_DIR/skills/$skill" ]; then
+      do_run "mkdir -p '$CLAUDE_DIR/skills/$skill'"
+      do_run "cp '$SRC_DIR/skills/$skill/SKILL.md' '$CLAUDE_DIR/skills/$skill/SKILL.md'"
+    fi
+  done
+  ok "installed 8 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto)"
   do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/' 2>/dev/null || true"
   if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
     do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md'"
