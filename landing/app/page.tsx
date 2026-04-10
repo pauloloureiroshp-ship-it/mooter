@@ -183,8 +183,8 @@ function OpenAIIcon({ size = 20 }: { size?: number }) {
 
 function GeminiIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="#4285F4">
-      <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#8E75B2">
+      <path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81" />
     </svg>
   );
 }
@@ -1095,22 +1095,6 @@ function AfterInstallTimeline() {
   );
 }
 
-function AfterInstallSection() {
-  return (
-    <section id="after-install" className="section section-alt">
-      <div className="container">
-        <Reveal><h2 className="section-h2">After install, this is your life</h2></Reveal>
-        <Reveal>
-          <p className="section-sub">Everything works. Nothing changes. Except your bill.</p>
-        </Reveal>
-
-        <StatuslineSection />
-        <SlashCommandsGrid />
-        <AfterInstallTimeline />
-      </div>
-    </section>
-  );
-}
 
 /* ────────────────────────────────────────────────────────────────────────────
  * S7 — THE PROOF
@@ -1171,93 +1155,6 @@ function ProofSection() {
     </section>
   );
 }
-
-/* ────────────────────────────────────────────────────────────────────────────
- * S8 — COMMUNITY LOOP
- * ──────────────────────────────────────────────────────────────────────────── */
-
-function CommunitySection() {
-  const { stats } = useCommunityStats();
-
-  return (
-    <section className="section section-alt">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">
-            The classifier gets smarter.
-            <br />
-            Your prompts never leave your machine.
-          </h2>
-          <p className="section-sub-center">This is how frugal builds a moat &mdash; without a data centre.</p>
-        </Reveal>
-
-        <Reveal>
-          <div className="community-stats">
-            <div className="cs-stat">
-              <strong><AnimatedNumber value={stats.prompt_count} /></strong>
-              <span>prompts contributed to shared classifier</span>
-            </div>
-            <div className="cs-stat">
-              <strong><AnimatedNumber value={stats.user_count} /></strong>
-              <span>machines improving the model</span>
-            </div>
-          </div>
-        </Reveal>
-
-        <Reveal>
-          <div className="community-flow">
-            <div className="flow-step">
-              <div className="flow-label">Your machine</div>
-              <div className="flow-desc">misroute detected &middot; backtest runs &middot; export optional</div>
-            </div>
-            <div className="flow-arrow">\u2192</div>
-            <div className="flow-step flow-step-mid">
-              <div className="flow-label">delta: fingerprint only</div>
-              <div className="flow-desc">No prompts. No code. No paths. Ever.</div>
-            </div>
-            <div className="flow-arrow">\u2192</div>
-            <div className="flow-step">
-              <div className="flow-label">Community</div>
-              <div className="flow-desc">shared classifier gets smarter for everyone</div>
-            </div>
-          </div>
-        </Reveal>
-
-        <Reveal>
-          <p className="community-copy">
-            When frugal gets a routing decision wrong, it notices. Every night, backtest.js finds
-            the misroutes and learns from them. You can export a delta &mdash; a privacy-preserving
-            fingerprint of where the classifier was wrong. That delta feeds a shared classifier
-            that gets better for everyone.
-          </p>
-        </Reveal>
-
-        <Reveal>
-          <div className="privacy-card">
-            <div className="privacy-head">&#x1F512; A delta contains:</div>
-            <div className="privacy-body">
-              <div className="privacy-yes">\u2713 keyword signals (e.g. [&quot;commit&quot;, &quot;message&quot;])</div>
-              <div className="privacy-yes">\u2713 prompt length bucket (e.g. &quot;50&ndash;100 chars&quot;)</div>
-              <div className="privacy-yes">\u2713 tier mismatch (decided T2 \u2192 should have been T0)</div>
-              <div className="privacy-no">\u2717 never your prompt text</div>
-              <div className="privacy-no">\u2717 never file paths or variable names</div>
-              <div className="privacy-no">\u2717 never anything reversible to your code or identity</div>
-            </div>
-          </div>
-        </Reveal>
-
-        <Reveal>
-          <p className="community-close">
-            This is how frugal gets better than any single team could make it &mdash;
-            powered by the community, not a training run.
-          </p>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-
 /* ────────────────────────────────────────────────────────────────────────────
  * INSTALL JOURNEY — step-by-step FOR DUMMIES
  * ──────────────────────────────────────────────────────────────────────────── */
