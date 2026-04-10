@@ -55,22 +55,27 @@ function useCommunityStats() {
   const [live, setLive] = useState(false);
 
   useEffect(() => {
-    fetch('https://frugal-hub.frugal-hub.workers.dev/api/stats', {
-      signal: AbortSignal.timeout(3000),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data?.prompt_count) {
-          setStats({
-            prompt_count: data.prompt_count,
-            savings_pct: data.avg_savings_pct ?? 90.2,
-            savings_usd: data.total_savings_usd ?? 6.29,
-            user_count: data.user_count ?? 1,
-          });
-          setLive(true);
-        }
+    const fetchStats = () =>
+      fetch('https://frugal-hub.frugal-hub.workers.dev/api/stats', {
+        signal: AbortSignal.timeout(3000),
       })
-      .catch(() => {});
+        .then(r => r.json())
+        .then(data => {
+          if (data?.prompt_count) {
+            setStats({
+              prompt_count: data.prompt_count,
+              savings_pct: data.avg_savings_pct ?? 90.2,
+              savings_usd: data.total_savings_usd ?? 6.29,
+              user_count: data.user_count ?? 1,
+            });
+            setLive(true);
+          }
+        })
+        .catch(() => {});
+
+    fetchStats();
+    const id = setInterval(fetchStats, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   return { stats, live };
@@ -243,6 +248,17 @@ function Hero() {
           <br />
           For every prompt. Automatically.
         </h1>
+
+        {live && (
+          <div className="hero-savings-banner">
+            <span className="hsb-live">● LIVE</span>
+            <span className="hsb-text">
+              Community saved{' '}
+              <strong>${stats.savings_usd.toFixed(2)}</strong> across{' '}
+              <strong>{stats.prompt_count.toLocaleString()}</strong> prompts
+            </span>
+          </div>
+        )}
 
         <p className="hero-sub">
           frugal is a Claude Code router. It classifies every prompt in &lt;50ms
