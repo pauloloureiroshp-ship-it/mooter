@@ -232,3 +232,48 @@ export async function getProfile(accessToken: string, userId: string): Promise<R
     return null;
   }
 }
+
+/* ─── GitHub OAuth helpers ─── */
+
+/**
+ * Redirect to GitHub OAuth via Supabase GoTrue.
+ * Call from the browser (client-side only).
+ */
+export function signInWithGitHub() {
+  const redirectTo = `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`;
+  window.location.href =
+    `${SUPABASE_URL}/auth/v1/authorize` +
+    `?provider=github` +
+    `&redirect_to=${encodeURIComponent(redirectTo)}` +
+    `&scopes=read:user,public_repo`;
+}
+
+/**
+ * Fetch GitHub profile metadata from the GitHub API.
+ * Only reads public repo metadata — NEVER code or private repos.
+ */
+export async function getGitHubProfile(accessToken: string) {
+  const repos = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10000),
+  }).then(r => r.json());
+
+  if (!Array.isArray(repos)) return null;
+
+  const languages: Record<string, number> = {};
+  for (const repo of repos) {
+    if (repo.language) {
+      languages[repo.language] = (languages[repo.language] || 0) + 1;
+    }
+  }
+
+  const primaryLanguage = Object.entries(languages)
+    .sort(([, a], [, b]) => (b as number) - (a as number))[0]?.[0] || 'unknown';
+
+  return {
+    github_username: repos[0]?.owner?.login ?? null,
+    primary_language: primaryLanguage,
+    language_distribution: languages,
+    public_repos_count: repos.length,
+  };
+}

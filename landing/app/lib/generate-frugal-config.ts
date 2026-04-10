@@ -1,0 +1,53 @@
+interface UserProfile {
+  hardware_tier: string;
+  subscriptions: string[];
+  github_primary_language?: string;
+  experience_level?: string;
+  prompts_per_day_estimate?: number;
+}
+
+interface FrugalConfig {
+  default_mode: 'auto' | 'zen' | 'beast';
+  t0_threshold: number;
+  t1_enabled: boolean;
+  ollama_enabled: boolean;
+  ollama_model: string;
+  hub_push_enabled: boolean;
+  suggested_install_command: string;
+  personalized_message: string;
+}
+
+export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
+  const hasClaude = profile.subscriptions.includes('claude_max') ||
+                    profile.subscriptions.includes('claude_api');
+  const hasGPT = profile.subscriptions.includes('gpt_plus') ||
+                 profile.subscriptions.includes('gpt_api');
+  const isMac = profile.hardware_tier === 'mac_m_series';
+  const hasGPU = profile.hardware_tier.includes('nvidia') || isMac;
+
+  const config: FrugalConfig = {
+    default_mode: 'auto',
+    t0_threshold: 0.85,
+    t1_enabled: true,
+    ollama_enabled: hasGPU,
+    ollama_model: isMac ? 'qwen2.5:3b' : 'qwen2.5:7b',
+    hub_push_enabled: true,
+    suggested_install_command: isMac
+      ? 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)'
+      : 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex',
+    personalized_message: '',
+  };
+
+  if (profile.github_primary_language === 'Python') {
+    config.t0_threshold = 0.80;
+  }
+
+  if (profile.experience_level === 'beginner') {
+    config.personalized_message = 'Your frugal has been configured for your setup. Everything works automatically.';
+  } else if (profile.experience_level === 'advanced') {
+    config.t0_threshold = 0.90;
+    config.personalized_message = 'Config optimized for your profile. /frugal-beast when you need full power.';
+  }
+
+  return config;
+}
