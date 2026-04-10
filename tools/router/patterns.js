@@ -39,6 +39,12 @@ const HIGH_RISK = [
   /\bpackage\.json\b/, /\bci\b.*\bpipeline/i, /\.github\/workflows/i,
   /\bredesenha/i, /\bredesign/i,       // added v0.9.3 — "redesenha o auth" misrouted to T0
   /\bmulti[- ]?tenant/i,               // added v0.9.3 — architecture pattern, was T0
+  // v0.9.3 stress-test batch — 16 failures found in 47-prompt suite
+  /\bpush\s+(para|to)\s+(main|master|prod)/i, // "push para main" was T0
+  /\bmerge\s+(a\s+)?branch/i,          // "merge a branch" was T0
+  /\bmigrate\b/i,                      // "migrate the database" — verb form missing (only had "migration")
+  /\bmicroservic/i,                    // "create a new microservice" — architecture signal
+  /\bmove\b.*\bupdate\s+(all\s+)?imports/i, // "move folder and update all imports" — multi-file
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────
@@ -54,6 +60,11 @@ const MED_RISK = [
   /\boptimiz(a|e|ar)\b/i,              // added v0.9.3 — "optimiza a query SQL" was T0
   /\bcria(r)?\s+(um\s+)?endpoint/i,    // added v0.9.3 — feature creation needs reasoning
   /\bcreate\s+(a\s+|an\s+)?endpoint/i, // added v0.9.3 — EN variant
+  // v0.9.3 stress-test batch
+  /\bplan\s+(the\s+)?implement/i,      // "plan the implementation of" — reasoning task
+  /\breescrev/i,                       // "reescreve este componente" — significant rewrite PT
+  /\brewrite\b/i,                      // "rewrite" EN variant
+  /\berror\s+handling\b.*\ball\b/i,    // "add error handling to all" — multi-file scope
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
