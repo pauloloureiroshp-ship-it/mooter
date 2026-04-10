@@ -285,6 +285,24 @@ function readPrompt() {
   });
 }
 
+// ── PROMPT FEATURE EXTRACTION (v0.9.1) ────────────────────────────────────
+// Derives boolean/numeric features from the prompt WITHOUT storing text.
+// Used for enriching decisions.log and future classifier improvements.
+const PT_TOKENS = /\b(?:porqu[eê]|preciso|podes|tenho|est[aá]|estou|vou|fazer|como|quando|porque|consegues|tens|deves|quero|precisas|mostra|ajuda)\b/i;
+
+function extractPromptFeatures(text) {
+  const t = text || '';
+  return {
+    has_code_block: /```[\s\S]{10,}```/.test(t) || /`[^`]{3,}`/.test(t),
+    has_file_refs: /\b\w+\.(ts|js|py|go|rs|java|md|json|yaml|toml|env)\b/.test(t),
+    file_ref_count: Math.min((t.match(/\b\w+\.(ts|js|py|go|rs|java|md|json|yaml)\b/g) || []).length, 10),
+    lang_detected: (t.match(new RegExp(PT_TOKENS.source, 'gi')) || []).length >= 2 ? 'pt' : /\b(?:why|how|please|can you|make|create|should|would|could)\b/i.test(t) ? 'en' : 'other',
+    has_error_trace: /at \w+\s*\([\w/:.]+:\d+:\d+\)/.test(t) || /(?:Error|TypeError|ReferenceError|SyntaxError):/.test(t),
+    is_question: /[?？]\s*$/.test(t.trim()),
+    has_url: /https?:\/\//.test(t),
+  };
+}
+
 function classify(prompt) {
   const cached = getCached(prompt || '');
   if (cached) return cached;
@@ -521,12 +539,21 @@ function classify(prompt) {
     t0Subtier = 'general';
   }
 
+  // v0.9.1: hw-aware T0 model — override terse fallback with recommended model
+  // from hw-capability.json (passed via env var by inject_context.js).
+  // Only applies to 'general' subtier; code/math/reason specialists keep their models.
+  if (t0Subtier === 'general' && process.env.FRUGAL_HW_RECOMMENDED_T0) {
+    t0Model = process.env.FRUGAL_HW_RECOMMENDED_T0;
+  }
+
   const backend = {
     T0: { recommended_backend: 'ollama', recommended_model: t0Model, suggested_subagent: 'local-summarizer' },
     T1: { recommended_backend: 'anthropic_api', recommended_model: MODELS.haiku, suggested_subagent: 'cheap-triage' },
     T2: { recommended_backend: 'claude_subagent', recommended_model: MODELS.sonnet, suggested_subagent: 'model-reasoner' },
     T3: { recommended_backend: 'claude_subagent', recommended_model: MODELS.opus, suggested_subagent: 'model-architect' },
   }[tier];
+
+  const promptFeatures = extractPromptFeatures(p);
 
   const result = {
     task_category: category,
@@ -541,6 +568,8 @@ function classify(prompt) {
     file_hint_count: fileMatches,
     quality_intent: qualityIntent,
     t0_subtier: tier === 'T0' ? t0Subtier : null,
+    // v0.9.1: prompt features (derived booleans, never raw text)
+    ...promptFeatures,
   };
 
   // ── USER OVERRIDE (highest priority short of HIGH_RISK guardrail) ────────

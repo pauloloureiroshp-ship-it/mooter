@@ -55,6 +55,8 @@ const entry = {
   session_id: sessionId,
   // Optional: some Claude Code versions expose stop_reason on the Stop hook
   stop_reason: payload.stop_reason || null,
+  // v0.9.1: placeholder for feedback — resolved by backtest.js look-ahead
+  followup_pending: true,
 };
 
 try {

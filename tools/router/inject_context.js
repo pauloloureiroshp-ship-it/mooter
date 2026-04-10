@@ -200,8 +200,31 @@ function fetchBudgetSyncLegacy() {
   }
 }
 
+// ── Subscription profile (v0.9.1) ─────────────────────────────────────────
+// Reads the user-declared subscription profile to adjust budget cap behaviour.
+// Cached for the entire hook invocation (file read once, not per-prompt).
+const SUB_PROFILE_PATH = path.join(ROUTER_DIR, 'subscription-profile.json');
+let _subProfileCache = undefined;
+
+function readSubscriptionProfile() {
+  if (_subProfileCache !== undefined) return _subProfileCache;
+  try {
+    _subProfileCache = JSON.parse(fs.readFileSync(SUB_PROFILE_PATH, 'utf8'));
+  } catch {
+    _subProfileCache = null;
+  }
+  return _subProfileCache;
+}
+
 function applyBudgetCap(tier, budget) {
   if (!budget) return tier;
+
+  // v0.9.1: Claude Max users have no budget cap
+  const subProfile = readSubscriptionProfile();
+  if (subProfile && subProfile.profiles && subProfile.profiles.anthropic === 'max') {
+    return tier;
+  }
+
   const fiveHour = budget.five_hour || budget.fiveHour || 0;
   const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
 
@@ -210,6 +233,13 @@ function applyBudgetCap(tier, budget) {
   else if (fiveHour < 70) maxTier = 'T2';
   else if (fiveHour < 85) maxTier = 'T1';
   else maxTier = 'T0';
+
+  // v0.9.1: api-free users get aggressive cap (shift thresholds down)
+  if (subProfile && subProfile.profiles && subProfile.profiles.anthropic === 'api-free') {
+    if (fiveHour < 30) maxTier = 'T3';
+    else if (fiveHour < 50) maxTier = 'T1';
+    else maxTier = 'T0';
+  }
 
   const current = TIER_ORDER.indexOf(tier);
   const max = TIER_ORDER.indexOf(maxTier);
@@ -334,6 +364,27 @@ function setClassifyCached(prompt, decision, cache) {
 // for whether to pay the extra 2.5s for fresh budget data on very-stale cache.
 const HIGH_RISK_HINT = /\b(?:push|deploy|release|migration|migrac|drop\s+table|rm\s+-rf|reset\s+--hard|\.env|secret|credential|api[_ ]?key|architect|arquitetur|refactor|refator|critical|cr[ií]tic|audit|review\s+final|merge|ci\s+pipeline|\.github\/workflow)/i;
 
+// ── Hardware capability cache (v0.9.1) ────────────────────────────────────
+// Read hw-capability.json once per hook invocation. If missing, attempt to
+// build it from a fresh GPU probe (best-effort, non-blocking).
+const HW_CAPABILITY_PATH = path.join(ROUTER_DIR, 'hw-capability.json');
+let _hwCapability = undefined;
+
+(function initHwCapability() {
+  try {
+    _hwCapability = JSON.parse(fs.readFileSync(HW_CAPABILITY_PATH, 'utf8'));
+  } catch {
+    // No cached capability — try a fresh probe (fire-and-forget write)
+    try {
+      const { probeSync, buildHwCapability } = require('./gpu-probe');
+      const probe = probeSync();
+      if (probe && probe.vendor !== 'cpu') {
+        _hwCapability = buildHwCapability(probe);
+      }
+    } catch { /* non-fatal */ }
+  }
+})();
+
 let raw = '';
 try {
   raw = require('fs').readFileSync(0, 'utf8');
@@ -363,9 +414,18 @@ if (cachedResult) {
 
 if (!decision) {
   const classifier = path.join(__dirname, 'classify.js');
+  // v0.9.1: pass hw-recommended T0 model via env var
+  const classifyEnv = Object.assign({}, process.env);
+  if (_hwCapability && _hwCapability.recommended_t0) {
+    classifyEnv.FRUGAL_HW_RECOMMENDED_T0 = _hwCapability.recommended_t0;
+  }
+  if (_hwCapability && _hwCapability.hw_tier) {
+    classifyEnv.FRUGAL_HW_TIER = _hwCapability.hw_tier;
+  }
   const res = spawnSync(process.execPath, [classifier, prompt], {
     encoding: 'utf8',
     timeout: 1500,
+    env: classifyEnv,
   });
 
   if (res.status !== 0 || !res.stdout) {
@@ -495,6 +555,19 @@ logDecision({
   escalation_rule: decision.escalation_rule,
   quality_intent: decision.quality_intent || false,
   cache_hit: cacheHit,
+  // v0.9.1: prompt features from classifier
+  has_code_block: decision.has_code_block || false,
+  has_file_refs: decision.has_file_refs || false,
+  file_ref_count: decision.file_ref_count || 0,
+  lang_detected: decision.lang_detected || 'en',
+  has_error_trace: decision.has_error_trace || false,
+  is_question: decision.is_question || false,
+  has_url: decision.has_url || false,
+  // v0.9.1: subscription profile
+  sub_profile: (() => { const sp = readSubscriptionProfile(); return sp && sp.profiles ? sp.profiles.anthropic : 'unknown'; })(),
+  // v0.9.1: hardware context
+  hw_tier: _hwCapability ? _hwCapability.hw_tier : 'unknown',
+  vram_mb: _hwCapability ? _hwCapability.vram_mb : null,
   // v0.8: arbiter outcome (absent when arbiter did not run)
   arbiter_honored: decision.arbiter ? decision.arbiter.honored : null,
   arbiter_previous_tier: decision.arbiter && decision.arbiter.honored ? decision.arbiter.previous_tier : null,

@@ -61,6 +61,46 @@ function signature(preview) {
     .join(' ');
 }
 
+// ── v0.9.1: Implicit feedback resolution ──────────────────────────────────
+// Resolves turn_end events with followup_pending: true by looking ahead in
+// the log for the next classified event with the same session_id.
+function resolveFeedback(allEvents) {
+  const feedbackSignals = { accepted: 0, followup_immediate: 0 };
+  const turnEnds = allEvents.filter(e => e.event === 'turn_end');
+  const classified = allEvents.filter(e => e.event === 'classified');
+
+  for (const te of turnEnds) {
+    if (!te.followup_pending) continue;
+    const teMs = te.ts_ms || 0;
+    const sid = te.session_id;
+
+    // Find next classified event with same session_id after this turn_end
+    const next = classified.find(c =>
+      c.session_id === sid && (c.ts_ms || 0) > teMs
+    );
+
+    if (next) {
+      const delta = (next.ts_ms || 0) - teMs;
+      if (delta < 30000) {
+        te.followup_within_30s = true;
+        te.feedback_signal = 'followup_immediate';
+        feedbackSignals.followup_immediate++;
+      } else {
+        te.followup_within_30s = false;
+        te.feedback_signal = 'accepted';
+        feedbackSignals.accepted++;
+      }
+    } else {
+      // No follow-up found — assume accepted
+      te.followup_within_30s = false;
+      te.feedback_signal = 'accepted';
+      feedbackSignals.accepted++;
+    }
+  }
+
+  return { feedbackSignals, turnEnds };
+}
+
 function analyze(decisions) {
   const total = decisions.length;
   const byTier = { T0: 0, T1: 0, T2: 0, T3: 0 };
@@ -220,6 +260,13 @@ function report(stats, tuning) {
     lines.push(`  "${r.sig}"  ×${r.count}`);
   }
   lines.push('');
+  // v0.9.1: feedback signals
+  if (stats.feedbackSignals) {
+    lines.push('Feedback signals (implicit):');
+    lines.push(`  accepted:            ${stats.feedbackSignals.accepted}`);
+    lines.push(`  followup_immediate:  ${stats.feedbackSignals.followup_immediate}`);
+    lines.push('');
+  }
   lines.push(`Tuning written: ${TUNING_PATH}`);
   lines.push(`  complexity_threshold: ${tuning.complexity_threshold}`);
   lines.push(`  promote_to_t0_patterns: ${tuning.promote_to_t0_patterns.length}`);
@@ -398,23 +445,34 @@ function main() {
     process.exit(0);
   }
 
+  // v0.9.1: resolve feedback signals from turn_end events
+  const { feedbackSignals } = resolveFeedback(decisions);
+
   if (explain) {
     console.log(explainCandidates(decisions));
+    console.log('');
+    console.log('Feedback signals:');
+    console.log(`  accepted:            ${feedbackSignals.accepted}`);
+    console.log(`  followup_immediate:  ${feedbackSignals.followup_immediate}`);
     return;
   }
 
   if (exportMode) {
     const delta = exportDelta(decisions);
+    // v0.9.1: include feedback signals in delta
+    delta.feedback_signals = feedbackSignals;
     fs.writeFileSync(outputPath, JSON.stringify(delta, null, 2));
     console.log(`frugal backtest: delta written to ${outputPath}`);
     console.log(`  deltas:          ${delta.deltas.length}`);
     console.log(`  promote_signals: ${delta.promote_signals.length}`);
     console.log(`  hardware_tier:   ${delta.hardware_tier}`);
     console.log(`  instance_id:     ${delta.instance_id}`);
+    console.log(`  feedback:        ${JSON.stringify(feedbackSignals)}`);
     return;
   }
 
   const stats = analyze(decisions);
+  stats.feedbackSignals = feedbackSignals;
   const tuning = buildTuning(stats);
   fs.writeFileSync(TUNING_PATH, JSON.stringify(tuning, null, 2));
   console.log(report(stats, tuning));
@@ -432,4 +490,6 @@ module.exports = {
   hardwareTier,
   HIGH_RISK_MARKERS,
   hasHighRisk,
+  // v0.9.1 exports
+  resolveFeedback,
 };
