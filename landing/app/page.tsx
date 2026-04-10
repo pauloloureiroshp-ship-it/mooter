@@ -1214,6 +1214,183 @@ function CommunitySection() {
 
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * INSTALL JOURNEY — step-by-step FOR DUMMIES
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const INSTALL_STEPS = [
+  {
+    num: '01',
+    title: 'Got Claude Code?',
+    desc: 'frugal lives inside Claude Code. If you don\u2019t have it yet, install it first.',
+    check: 'claude --version',
+    notYetUrl: 'https://claude.ai/download',
+    notYetLabel: 'Install from claude.ai/download',
+    time: '5 min',
+    prereq: true,
+  },
+  {
+    num: '02',
+    title: 'Got Node.js 20+?',
+    desc: 'The frugal router runs on Node.js. Most developers already have it.',
+    check: 'node --version',
+    notYetUrl: 'https://nodejs.org',
+    notYetLabel: 'Install from nodejs.org (pick LTS)',
+    time: '3 min',
+    prereq: true,
+  },
+  {
+    num: '03',
+    title: 'Install frugal',
+    desc: 'One line. Paste in your terminal. The installer detects your system automatically.',
+    time: '30 sec',
+    prereq: false,
+  },
+  {
+    num: '04',
+    title: 'Open Claude Code and send any prompt',
+    desc: 'Anything. "rename this variable", "fix this bug", "write a test". frugal is already working silently.',
+    example: 'rename the handleConnect function to onConnect',
+    time: '5 sec',
+    prereq: false,
+  },
+  {
+    num: '05',
+    title: 'Run /frugal-status',
+    desc: 'See what happened. Which model was used. How much you saved. Your first WOW moment.',
+    example: '/frugal-status',
+    time: '2 sec',
+    prereq: false,
+  },
+];
+
+const INSTALL_CMD_WIN = 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex';
+
+function InstallJourneySection() {
+  const [tab, setTab] = useState<'mac' | 'win'>('mac');
+  const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const copyCmd = (cmd: string) => {
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const toggleExpand = (key: string) => {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  return (
+    <section id="install" className="section section-alt">
+      <div className="container">
+        <Reveal><h2 className="section-h2">Install in under 2 minutes</h2></Reveal>
+        <Reveal>
+          <p className="section-sub">
+            No proxies. No configuration. No API keys to rotate.
+            Five steps and you&apos;re saving money.
+          </p>
+        </Reveal>
+
+        <div className="install-journey">
+          {INSTALL_STEPS.map((step, i) => (
+            <Reveal key={step.num} className="ij-step" style={{ '--i': i } as React.CSSProperties}>
+              <div className="ij-connector">
+                <div className="ij-dot">{step.num}</div>
+                {i < INSTALL_STEPS.length - 1 && <div className="ij-line" />}
+              </div>
+              <div className="ij-body">
+                <div className="ij-header">
+                  <h3 className="ij-title">{step.title}</h3>
+                  <span className="ij-time">{step.time}</span>
+                </div>
+                <p className="ij-desc">{step.desc}</p>
+
+                {/* Step 01 — Claude Code tooltip */}
+                {step.num === '01' && (
+                  <div className="ij-extra">
+                    <button className="ij-toggle" onClick={() => toggleExpand('claude')}>
+                      {expanded['claude'] ? '\u25BE' : '\u25B8'} What is Claude Code?
+                    </button>
+                    {expanded['claude'] && (
+                      <div className="ij-tooltip">
+                        Claude Code is Anthropic&apos;s AI programming tool.
+                        It runs in your terminal (command line) and is the environment where frugal lives.
+                        If you&apos;re new to vibe coding, start by installing Claude Code and come back here.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Prereq steps — check command + not yet link */}
+                {step.prereq && step.check && (
+                  <div className="ij-check">
+                    <code className="ij-cmd">{step.check}</code>
+                    <span className="ij-check-label">Check in your terminal</span>
+                    {step.notYetUrl && (
+                      <a href={step.notYetUrl} target="_blank" rel="noopener" className="ij-notyet">
+                        Don&apos;t have it? {step.notYetLabel} &rarr;
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 03 — install command with OS tabs */}
+                {step.num === '03' && (
+                  <div className="ij-install">
+                    <div className="ij-tabs">
+                      <button className={`ij-tab ${tab === 'mac' ? 'ij-tab-active' : ''}`} onClick={() => setTab('mac')}>
+                        Mac / Linux
+                      </button>
+                      <button className={`ij-tab ${tab === 'win' ? 'ij-tab-active' : ''}`} onClick={() => setTab('win')}>
+                        Windows
+                      </button>
+                    </div>
+                    <div className="ij-cmd-block" onClick={() => copyCmd(tab === 'mac' ? INSTALL_CMD : INSTALL_CMD_WIN)}>
+                      <code>{tab === 'mac' ? INSTALL_CMD : INSTALL_CMD_WIN}</code>
+                      <span className="ij-copy">{copied ? '\u2713 Copied' : 'Copy'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 04 — example prompt */}
+                {step.num === '04' && step.example && (
+                  <div className="ij-example">
+                    <code>&gt; {step.example}</code>
+                  </div>
+                )}
+
+                {/* Step 05 — terminal mockup */}
+                {step.num === '05' && (
+                  <div className="ij-terminal">
+                    <div className="ij-term-bar">
+                      <span className="ij-term-dot" style={{ background: '#f47373' }} />
+                      <span className="ij-term-dot" style={{ background: '#dcdcaa' }} />
+                      <span className="ij-term-dot" style={{ background: '#4ec9b0' }} />
+                    </div>
+                    <pre className="ij-term-body">{`frugal status — all green
+  Router: active · last prompt · T0 (free) ✓
+  Savings: $0.05 saved already
+  Ollama: qwen2.5:3b online
+  Hub: connected`}</pre>
+                  </div>
+                )}
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal>
+          <p className="ij-footer">
+            Total: less than 2 minutes. No configuration, no proxies, no risk.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * S9 — COMPARISON TABLE (Why frugal wins)
  * ────────────────────────────────────────────────────────────────────────────── */
 
@@ -1744,6 +1921,7 @@ export default function Page() {
         <AfterInstallSection />
         <ProofSection />
         <CommunitySection />
+        <InstallJourneySection />
         <ComparisonSection />
         <PricingAccess />
       </main>
