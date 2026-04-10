@@ -73,6 +73,10 @@ const HIGH_RISK = [
   /\bconvert\s+all\b/i,                // "convert all class components" — multi-file refactor
   /\breplica/i,                         // "read replicas" — database architecture
   /\bmonolith/i,                        // "split the monolith" — architecture
+  // v0.9.3 adversarial-gen batch — template mismatches
+  /\breview\b.*\bpush/i,               // "review before pushing to main" — pre-push gate
+  /\bbypass/i,                          // "auth bypass" — security signal
+  /\bpatch(ed)?\b/i,                   // "needs to be patched" — security fix
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────
