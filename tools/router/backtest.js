@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { spawn } = require('child_process');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
@@ -468,6 +469,20 @@ function main() {
     console.log(`  hardware_tier:   ${delta.hardware_tier}`);
     console.log(`  instance_id:     ${delta.instance_id}`);
     console.log(`  feedback:        ${JSON.stringify(feedbackSignals)}`);
+
+    // ── Auto-push to frugal-hub (v0.9.2) ──────────────────────────────────────
+    // Fire-and-forget: não bloqueia nem falha se hub offline.
+    const hubPushPath = path.join(ROUTER_DIR, 'hub-push.js');
+    if (fs.existsSync(hubPushPath)) {
+      const child = spawn(process.execPath, [hubPushPath, outputPath], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      console.log('[backtest] delta queued for hub-push (background)');
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     return;
   }
 

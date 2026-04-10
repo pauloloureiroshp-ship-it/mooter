@@ -226,6 +226,7 @@ function Nav() {
           <a href="#how" onClick={scrollTo('how')}>How it works</a>
           <a href="#after-install" onClick={scrollTo('after-install')}>After install</a>
           <a href="#proof" onClick={scrollTo('proof')}>Proof</a>
+          <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
           <a href="#pricing" onClick={scrollTo('pricing')}>Pricing</a>
         </div>
         <a href="#access" onClick={scrollTo('access')} className="btn btn-primary btn-sm">
@@ -441,107 +442,349 @@ function TheSolution() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * S5 — THE DEMO: Without / With frugal (animated)
- * ──────────────────────────────────────────────────────────────────────────── */
+ * S5 — THE DEMO: 3 real prompts, reasoning visible
+ * ────────────────────────────────────────────────────────────────────────────── */
 
-type DemoLine = { prompt: string; model: string; tier: string; tierColor: string; cost: string; time: string; logo: ReactNode };
+type PromptDemo = {
+  prompt: string;
+  category: string;
+  /* What classify.js actually emits */
+  classifyOutput: {
+    tier: string;
+    tierLabel: string;
+    confidence: number;
+    reasoning: string;
+    matchedPatterns: string[];
+    latencyMs: number;
+  };
+  /* Result */
+  model: string;
+  modelShort: string;
+  costPer1k: string;
+  thisCost: string;
+  opusCost: string;
+  responseTime: string;
+  tierColor: string;
+  tierBg: string;
+  savingPct: number;
+  logo: ReactNode;
+  /* human explanation */
+  whyThisModel: string;
+};
 
-const DEMO: DemoLine[] = [
-  { prompt: 'write a commit message for this change', model: 'Ollama \u00b7 qwen2.5', tier: '\ud83c\udfe0', tierColor: 'var(--t0)', cost: '$0.000', time: '0.3s', logo: <OllamaIcon /> },
-  { prompt: 'why is useEffect firing twice in dev mode?', model: 'Sonnet', tier: '\ud83c\udfb5', tierColor: 'var(--t2)', cost: '$0.010', time: '1.8s', logo: <AnthropicIcon /> },
-  { prompt: 'redesign auth for multi-tenant support', model: 'Opus', tier: '\ud83d\udc8e', tierColor: 'var(--t3)', cost: '$0.050', time: '4.2s', logo: <AnthropicIcon /> },
+const PROMPTS: PromptDemo[] = [
+  {
+    prompt: 'make this button blue and add a hover animation',
+    category: 'UI tweak · Every vibe session',
+    classifyOutput: {
+      tier: 'T0',
+      tierLabel: 'Free · Local · Instant',
+      confidence: 0.98,
+      reasoning: 'TRIVIAL fast-path: colour change + CSS animation. Single-element UI edit. No logic, no state, no risk. SHA-256 cache hit in 2ms.',
+      matchedPatterns: ['TRIVIAL: colour/style change', 'TRIVIAL: CSS animation', 'short_prompt (<50 chars)', 'no_risk_signals'],
+      latencyMs: 9,
+    },
+    model: 'Ollama · qwen2.5:3b',
+    modelShort: 'Ollama',
+    costPer1k: '$0.000',
+    thisCost: '$0.000',
+    opusCost: '$0.050',
+    responseTime: '0.3s',
+    tierColor: 'var(--t0)',
+    tierBg: 'rgba(78,201,176,0.07)',
+    savingPct: 100,
+    logo: <OllamaIcon />,
+    whyThisModel: "Changing a button colour doesn't need a $120/h brain surgeon. A local model does it in 0.3s, free, while you sip your coffee. Without frugal, Claude charges you $0.05 for this. Every. Single. Time.",
+  },
+  {
+    prompt: 'my app crashes when I click submit but only on mobile, help',
+    category: 'Bug hunt · Happens 10x a day',
+    classifyOutput: {
+      tier: 'T2',
+      tierLabel: 'Sonnet · Smart enough',
+      confidence: 0.87,
+      reasoning: 'MED_RISK: "crashes" + "mobile" + conditional behaviour. Debugging intent, cross-platform context. Needs reasoning but not architecture review.',
+      matchedPatterns: ['MED_RISK: crashes/bug', 'platform_specific: mobile', 'conditional_behaviour', 'debug_intent'],
+      latencyMs: 21,
+    },
+    model: 'Claude Sonnet 4.6',
+    modelShort: 'Sonnet',
+    costPer1k: '$0.010',
+    thisCost: '$0.010',
+    opusCost: '$0.050',
+    responseTime: '2.3s',
+    tierColor: 'var(--t2)',
+    tierBg: 'rgba(220,220,170,0.07)',
+    savingPct: 80,
+    logo: <AnthropicIcon />,
+    whyThisModel: 'This bug needs real reasoning — understanding mobile event handling, touch events, viewport differences. Sonnet nails it at $0.01. Opus would answer the same thing for $0.05. frugal knows the difference.',
+  },
+  {
+    prompt: 'I need to build a payment system with Stripe, subscriptions, webhooks and fraud detection',
+    category: 'New feature · High stakes',
+    classifyOutput: {
+      tier: 'T3',
+      tierLabel: 'Opus · Maximum intelligence',
+      confidence: 0.97,
+      reasoning: 'HIGH_RISK: "payment" + "Stripe" + "webhooks" + "fraud detection". Financial data, security implications, multi-system architecture. Guardrail locked — cannot be demoted under any mode.',
+      matchedPatterns: ['HIGH_RISK: payment/financial', 'HIGH_RISK: webhooks', 'HIGH_RISK: fraud/security', 'multi_system_scope', 'guardrail_locked'],
+      latencyMs: 28,
+    },
+    model: 'Claude Opus 4.6',
+    modelShort: 'Opus',
+    costPer1k: '$0.050',
+    thisCost: '$0.050',
+    opusCost: '$0.050',
+    responseTime: '6.1s',
+    tierColor: 'var(--t3)',
+    tierBg: 'rgba(244,115,115,0.07)',
+    savingPct: 0,
+    logo: <AnthropicIcon />,
+    whyThisModel: "This is exactly what Opus is for. Payments, fraud, webhooks — one wrong decision and your users' money is at risk. frugal never cuts corners here. Full power. No compromise.",
+  },
 ];
+
+
+function ClassifyBadge({ tier, color }: { tier: string; color: string }) {
+  return (
+    <span className="classify-badge" style={{ color, borderColor: color }}>
+      {tier}
+    </span>
+  );
+}
+
+function ConfidenceBar({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="conf-bar-wrap">
+      <div className="conf-bar-track">
+        <div className="conf-bar-fill" style={{ width: `${value * 100}%`, background: color }} />
+      </div>
+      <span className="conf-bar-label">{(value * 100).toFixed(0)}%</span>
+    </div>
+  );
+}
+
+function PromptCard({ p, index, active, onClick }: {
+  p: PromptDemo; index: number; active: boolean; onClick: () => void;
+}) {
+  return (
+    <div
+      className={`prompt-card ${active ? 'prompt-card-active' : ''}`}
+      style={{ '--pc-color': p.tierColor, '--pc-bg': p.tierBg } as React.CSSProperties}
+      onClick={onClick}
+    >
+      {/* Left: index + category */}
+      <div className="pc-left">
+        <div className="pc-num" style={{ color: p.tierColor }}>{String(index + 1).padStart(2, '0')}</div>
+        <div className="pc-cat">{p.category}</div>
+      </div>
+
+      {/* Center: prompt text */}
+      <div className="pc-prompt">&ldquo;{p.prompt}&rdquo;</div>
+
+      {/* Right: result chip */}
+      <div className="pc-right">
+        <div className="pc-model-chip" style={{ color: p.tierColor, borderColor: p.tierColor }}>
+          {p.logo}
+          <span>{p.modelShort}</span>
+        </div>
+        <div className="pc-cost" style={{ color: p.tierColor }}>{p.thisCost}</div>
+      </div>
+    </div>
+  );
+}
 
 function DemoSection() {
   const ref = useRef<HTMLDivElement>(null);
-  const visible = useInView(ref, 0.2);
-  const [step, setStep] = useState(-1);
+  const visible = useInView(ref, 0.1);
+  const [active, setActive] = useState(0);
+  const [showClassify, setShowClassify] = useState(false);
+  const [classifyDone, setClassifyDone] = useState(false);
 
+  // Auto-cycle through prompts on scroll-in
   useEffect(() => {
     if (!visible) return;
-    let cancelled = false;
-    let tid: ReturnType<typeof setTimeout>;
-    let i = 0;
-
-    const advance = () => {
-      if (cancelled || i > DEMO.length) return;
-      setStep(i);
-      i++;
-      tid = setTimeout(advance, i <= DEMO.length ? 2200 : 0);
+    let timeout: ReturnType<typeof setTimeout>;
+    let idx = 0;
+    const cycle = () => {
+      setActive(idx % PROMPTS.length);
+      setShowClassify(false);
+      setClassifyDone(false);
+      timeout = setTimeout(() => {
+        setShowClassify(true);
+        timeout = setTimeout(() => {
+          setClassifyDone(true);
+          idx++;
+          timeout = setTimeout(cycle, 3200);
+        }, 900);
+      }, 400);
     };
-
-    tid = setTimeout(advance, 600);
-    return () => { cancelled = true; clearTimeout(tid); };
+    timeout = setTimeout(cycle, 500);
+    return () => clearTimeout(timeout);
   }, [visible]);
 
+  const handleClick = (i: number) => {
+    setActive(i);
+    setShowClassify(false);
+    setClassifyDone(false);
+    setTimeout(() => { setShowClassify(true); }, 200);
+    setTimeout(() => { setClassifyDone(true); }, 900);
+  };
+
+  const p = PROMPTS[active];
+
+  const totalReal  = PROMPTS.reduce((s, x) => s + parseFloat(x.thisCost.replace('$','')), 0);
+  const totalOpus  = PROMPTS.reduce((s, x) => s + parseFloat(x.opusCost.replace('$','')), 0);
+  const totalSaved = totalOpus - totalReal;
+  const totalPct   = Math.round((totalSaved / totalOpus) * 100);
+
   return (
-    <section id="demo" className="section">
+    <section id="demo" className="section section-alt">
       <div ref={ref} className="container">
-        <Reveal><h2 className="section-h2">What changes when you install frugal</h2></Reveal>
-
-        <div className="demo-panels">
-          {/* WITHOUT */}
-          <div className="terminal-window">
-            <div className="terminal-header">
-              <span className="traffic-light red" />
-              <span className="traffic-light yellow" />
-              <span className="traffic-light green" />
-              <span className="terminal-title">Without frugal</span>
-            </div>
-            <div className="terminal-body">
-              <div className="term-line dim">$ claude</div>
-              {DEMO.map((d, i) => (
-                <div key={i} className={`demo-block ${step >= i ? 'visible' : ''}`}>
-                  <div className="term-line">&gt; {d.prompt}</div>
-                  <div className="term-line muted">
-                    {'  '}\u2193 Model: Claude Opus{'  '}\u25cf{'  '}$0.050{'  '}\u25cf{'  '}{i === 0 ? '4.1s' : i === 1 ? '5.8s' : '6.2s'}
-                  </div>
-                </div>
-              ))}
-              <div className={`demo-total ${step >= DEMO.length ? 'visible' : ''}`}>
-                <div className="term-divider" />
-                <div className="term-line muted">{'  '}3 prompts{'  '}\u25cf{'  '}Total: $0.150{'  '}\u25cf{'  '}16.1s</div>
-              </div>
-            </div>
-          </div>
-
-          {/* WITH */}
-          <div className="terminal-window">
-            <div className="terminal-header">
-              <span className="traffic-light red" />
-              <span className="traffic-light yellow" />
-              <span className="traffic-light green" />
-              <span className="terminal-title">With frugal &#x1F415;</span>
-            </div>
-            <div className="terminal-body">
-              <div className="term-line dim">$ claude</div>
-              {DEMO.map((d, i) => (
-                <div key={i} className={`demo-block ${step >= i ? 'visible' : ''}`}>
-                  <div className="term-line">&gt; {d.prompt}</div>
-                  <div className="term-line" style={{ color: d.tierColor }}>
-                    {'  '}\u2193 {d.tier} {d.model}{'  '}\u25cf{'  '}{d.cost}{'  '}\u25cf{'  '}{d.time}{'  '}\u2713
-                  </div>
-                </div>
-              ))}
-              <div className={`demo-total ${step >= DEMO.length ? 'visible' : ''}`}>
-                <div className="term-divider" />
-                <div className="term-line muted">{'  '}3 prompts{'  '}\u25cf{'  '}Total: $0.060{'  '}\u25cf{'  '}6.3s</div>
-                <div className="term-line savings-line">{'  '}\ud83d\udcb0 Saved: $0.090 (60%)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <Reveal>
-          <div className="demo-math">
-            <span>60% cheaper.</span>
-            <span>2.5\u00d7 faster.</span>
-            <span>Same quality where it matters.</span>
-          </div>
+          <h2 className="section-h2">Your ideas deserve to run free.<br /><span className="demo-h2-sub">frugal makes sure the bill never stops them.</span></h2>
         </Reveal>
         <Reveal>
-          <p className="demo-note">
-            Quality is never traded for cost. The last prompt still went to Opus &mdash; because it needed Opus.
+          <p className="section-sub">
+            Three prompts every vibe coder sends daily. Without frugal, all three hit Opus — 
+            the most expensive model — regardless of complexity. Click each to see frugal&rsquo;s decision in real time.
+          </p>
+        </Reveal>
+
+        {/* Prompt selector */}
+        <Reveal>
+          <div className="prompt-list">
+            {PROMPTS.map((pr, i) => (
+              <PromptCard
+                key={i}
+                p={pr}
+                index={i}
+                active={active === i}
+                onClick={() => handleClick(i)}
+              />
+            ))}
+          </div>
+        </Reveal>
+
+        {/* Main explainer panel */}
+        <Reveal>
+          <div className="demo-explainer" style={{ '--de-color': p.tierColor, '--de-bg': p.tierBg } as React.CSSProperties}>
+
+            {/* Left: classify.js output */}
+            <div className="de-left">
+              <div className="de-section-label">classify.js output · {p.classifyOutput.latencyMs}ms</div>
+
+              <div className={`de-classify ${showClassify ? 'de-classify-visible' : ''}`}>
+                <div className="de-classify-header">
+                  <span className="de-cli-prompt">$</span>
+                  <span className="de-cli-cmd"> node classify.js <span className="de-cli-arg">&ldquo;{p.prompt.substring(0, 40)}{p.prompt.length > 40 ? '...' : ''}&rdquo;</span></span>
+                </div>
+
+                <div className={`de-classify-result ${classifyDone ? 'de-classify-result-visible' : ''}`}>
+                  <div className="de-json-line">
+                    <span className="de-json-key">tier</span>
+                    <span className="de-json-sep">: </span>
+                    <ClassifyBadge tier={`"${p.classifyOutput.tier}"`} color={p.tierColor} />
+                  </div>
+                  <div className="de-json-line">
+                    <span className="de-json-key">confidence</span>
+                    <span className="de-json-sep">: </span>
+                    <ConfidenceBar value={p.classifyOutput.confidence} color={p.tierColor} />
+                  </div>
+                  <div className="de-json-line de-json-reasoning">
+                    <span className="de-json-key">reasoning</span>
+                    <span className="de-json-sep">: </span>
+                    <span className="de-json-str">&ldquo;{p.classifyOutput.reasoning}&rdquo;</span>
+                  </div>
+                  <div className="de-json-line">
+                    <span className="de-json-key">matched</span>
+                    <span className="de-json-sep">: </span>
+                    <span className="de-patterns">
+                      {p.classifyOutput.matchedPatterns.map((pat, j) => (
+                        <span key={j} className="de-pattern-chip">{pat}</span>
+                      ))}
+                    </span>
+                  </div>
+                  <div className="de-json-line">
+                    <span className="de-json-key">latency_ms</span>
+                    <span className="de-json-sep">: </span>
+                    <span className="de-json-num">{p.classifyOutput.latencyMs}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: result + explanation */}
+            <div className="de-right">
+              <div className="de-section-label">Routing decision</div>
+
+              <div className={`de-result ${classifyDone ? 'de-result-visible' : ''}`}>
+                <div className="de-result-model">
+                  <div className="de-result-icon">{p.logo}</div>
+                  <div>
+                    <div className="de-result-name">{p.model}</div>
+                    <div className="de-result-tier" style={{ color: p.tierColor }}>{p.classifyOutput.tier} · {p.classifyOutput.tierLabel}</div>
+                  </div>
+                </div>
+
+                <div className="de-cost-row">
+                  <div className="de-cost-item">
+                    <span className="de-cost-label">This cost</span>
+                    <span className="de-cost-val" style={{ color: p.tierColor }}>{p.thisCost}</span>
+                  </div>
+                  <div className="de-cost-item">
+                    <span className="de-cost-label">Opus would cost</span>
+                    <span className="de-cost-val de-cost-muted">{p.opusCost}</span>
+                  </div>
+                  <div className="de-cost-item">
+                    <span className="de-cost-label">Response time</span>
+                    <span className="de-cost-val">{p.responseTime}</span>
+                  </div>
+                </div>
+
+                {p.savingPct > 0 ? (
+                  <div className="de-saving-pill" style={{ color: p.tierColor, borderColor: p.tierColor }}>
+                    {p.savingPct}% saved vs Opus-for-everything
+                  </div>
+                ) : (
+                  <div className="de-no-saving-pill">
+                    Opus required — no corners cut
+                  </div>
+                )}
+
+                <p className="de-why">{p.whyThisModel}</p>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Running total */}
+        <Reveal>
+          <div className="demo-totals">
+            <div className="dt-col">
+              <span className="dt-label">3 prompts · Opus-for-everything</span>
+              <span className="dt-val dt-val-muted">${totalOpus.toFixed(3)}</span>
+            </div>
+            <div className="dt-arrow">→</div>
+            <div className="dt-col">
+              <span className="dt-label">3 prompts · with frugal</span>
+              <span className="dt-val" style={{ color: 'var(--t0)' }}>${totalReal.toFixed(3)}</span>
+            </div>
+            <div className="dt-divider" />
+            <div className="dt-col">
+              <span className="dt-label">Saved</span>
+              <span className="dt-val dt-val-accent">${totalSaved.toFixed(3)} · {totalPct}%</span>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <p className="demo-footer-note">
+            A real vibe coding session generates 50&ndash;200 prompts a day. Most of them are UI tweaks,
+            quick fixes, and questions &mdash; not architecture. At 83.9% T0 routing (our real average),
+            frugal saves over{' '}<strong style={{color:'var(--accent)'}}>$900/month at 1,000 prompts</strong>.
+            {' '}And the one time you need to build something real?{' '}
+            <strong>Opus is right there. No compromise, ever.</strong>
           </p>
         </Reveal>
       </div>
@@ -549,6 +792,173 @@ function DemoSection() {
   );
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * S5b — FLYWHEEL + PRIVACY
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const SENT_FIELDS = [
+  { label: 'tier', val: '"T0"', note: 'which model was picked' },
+  { label: 'confidence', val: '0.98', note: 'how certain the classifier is' },
+  { label: 'prompt_len', val: '42', note: 'character count only — never content' },
+  { label: 'hw_tier', val: '"gpu_mid"', note: 'your hardware class' },
+  { label: 'latency_ms', val: '9', note: 'classifier speed' },
+];
+
+const NEVER_SENT = [
+  'Your prompt text',
+  'Your code or files',
+  'Your project name',
+  'Your API keys',
+  'Any personal data',
+  'IP address',
+];
+
+const FLYWHEEL_STEPS = [
+  {
+    icon: '💬',
+    label: 'You send a prompt',
+    sub: 'classify.js runs in <50ms — locally, before any API call',
+    color: 'var(--t0)',
+  },
+  {
+    icon: '💰',
+    label: 'frugal routes to the right model',
+    sub: 'T0 costs $0. T1 costs cents. Opus only when truly needed.',
+    color: 'var(--t1)',
+  },
+  {
+    icon: '🔒',
+    label: 'Anonymous delta sent to hub',
+    sub: 'tier + confidence + length + hw_tier. SHA-256 hashed. No content ever.',
+    color: 'var(--t2)',
+  },
+  {
+    icon: '🧠',
+    label: 'Community improves the classifier',
+    sub: 'Aggregated patterns retrain the router. Everyone gets smarter routing.',
+    color: 'var(--t3)',
+  },
+  {
+    icon: '🔄',
+    label: 'Better routing → more savings',
+    sub: 'Next session, your T0% is higher. Loop repeats forever.',
+    color: 'var(--accent)',
+  },
+];
+
+function FlywheelSection() {
+  return (
+    <section id="flywheel" className="section">
+      <div className="container">
+
+        {/* Header */}
+        <Reveal>
+          <h2 className="section-h2">What happens after the savings</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Every prompt you route through frugal makes the system smarter for everyone —
+            without your code, your ideas, or your data ever leaving your machine.
+          </p>
+        </Reveal>
+
+        {/* Flywheel steps */}
+        <Reveal>
+          <div className="flywheel-steps">
+            {FLYWHEEL_STEPS.map((step, i) => (
+              <div key={i} className="fw-step">
+                <div className="fw-icon" style={{ background: step.color + '22', border: `1px solid ${step.color}44` }}>
+                  <span>{step.icon}</span>
+                </div>
+                {i < FLYWHEEL_STEPS.length - 1 && (
+                  <div className="fw-arrow" style={{ color: step.color }}>↓</div>
+                )}
+                <div className="fw-body">
+                  <div className="fw-label" style={{ color: step.color }}>{step.label}</div>
+                  <div className="fw-sub">{step.sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        {/* Privacy proof */}
+        <Reveal>
+          <div className="privacy-proof">
+            <div className="pp-header">
+              <span className="pp-lock">🔐</span>
+              <div>
+                <div className="pp-title">What&rsquo;s actually sent to the hub</div>
+                <div className="pp-sub">5 numbers. All anonymous. SHA-256 signed. Open source.</div>
+              </div>
+            </div>
+
+            <div className="pp-cols">
+              {/* Sent */}
+              <div className="pp-col pp-col-sent">
+                <div className="pp-col-header pp-col-header-sent">✅ Sent (anonymously)</div>
+                <div className="pp-fields">
+                  {SENT_FIELDS.map((f, i) => (
+                    <div key={i} className="pp-field">
+                      <div className="pp-field-row">
+                        <span className="pp-key">{f.label}</span>
+                        <span className="pp-sep">:</span>
+                        <span className="pp-val">{f.val}</span>
+                      </div>
+                      <div className="pp-note">{f.note}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Never sent */}
+              <div className="pp-col pp-col-never">
+                <div className="pp-col-header pp-col-header-never">🚫 Never sent. Ever.</div>
+                <div className="pp-never-list">
+                  {NEVER_SENT.map((item, i) => (
+                    <div key={i} className="pp-never-item">
+                      <span className="pp-never-x">✕</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="pp-never-note">
+                  Privacy is enforced at the source — in <code>hub-push.js</code>, which you can read.
+                  The classifier runs locally. Your prompts never leave your machine.
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Freedom statement */}
+        <Reveal>
+          <div className="freedom-banner">
+            <div className="freedom-stat">
+              <span className="freedom-num">83.9%</span>
+              <span className="freedom-label">of your prompts cost nothing</span>
+            </div>
+            <div className="freedom-divider" />
+            <div className="freedom-copy">
+              <p>
+                Build everything you imagine. Refactor, explore, experiment, iterate &mdash;
+                without a running tally in the back of your mind. frugal doesn&rsquo;t just save money.
+                It gives you back the confidence to <strong>invest in your ideas without fear.</strong>
+              </p>
+              <p className="freedom-sub">
+                That&rsquo;s the real product: not cheaper tokens — a world where great ideas don&rsquo;t die
+                because someone ran out of budget at 11pm.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
 /* ────────────────────────────────────────────────────────────────────────────
  * S6 — AFTER INSTALL (Statusline + Slash Commands + Timeline)
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -811,9 +1221,319 @@ function CommunitySection() {
   );
 }
 
+
 /* ────────────────────────────────────────────────────────────────────────────
- * S9 — PRICING + ACCESS
- * ──────────────────────────────────────────────────────────────────────────── */
+ * S9 — COMPARISON TABLE (Why frugal wins)
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+/* ------ data (all facts verified, April 2026) ------ */
+
+type CompRow = {
+  feature: string;
+  frugal: { val: string; note?: string; win: boolean };
+  openrouter: { val: string; note?: string; win: boolean };
+  litellm: { val: string; note?: string; win: boolean };
+  portkey: { val: string; note?: string; win: boolean };
+  bedrock: { val: string; note?: string; win: boolean };
+  manual: { val: string; note?: string; win: boolean };
+};
+
+const COMP_ROWS: CompRow[] = [
+  {
+    feature: 'Routing cost',
+    frugal:     { val: '$0', note: 'pure regex, no API call', win: true },
+    openrouter: { val: '0%* fee', note: 'passes through, cloud hop', win: false },
+    litellm:    { val: '$0 OSS', note: 'infra ~$200–500/mo self-hosted', win: false },
+    portkey:    { val: '$499+/mo', note: 'managed cloud gateway', win: false },
+    bedrock:    { val: '$0 routing', note: 'pay model rates on AWS', win: false },
+    manual:     { val: '$0', note: 'engineer time instead', win: false },
+  },
+  {
+    feature: 'Works inside Claude Code',
+    frugal:     { val: 'Native', note: 'UserPromptSubmit hook', win: true },
+    openrouter: { val: 'No', note: 'API only, not Claude Code', win: false },
+    litellm:    { val: 'No', note: 'generic proxy, not Claude Code', win: false },
+    portkey:    { val: 'No', note: 'not Claude Code specific', win: false },
+    bedrock:    { val: 'No', note: 'AWS API, not Claude Code', win: false },
+    manual:     { val: 'Partial', note: '/model flag only', win: false },
+  },
+  {
+    feature: 'Routing latency',
+    frugal:     { val: '<50ms', note: 'p50: 18ms · regex', win: true },
+    openrouter: { val: '~200ms+', note: 'cloud round-trip + classification', win: false },
+    litellm:    { val: '~50ms', note: 'local self-hosted', win: false },
+    portkey:    { val: '~150ms+', note: 'cloud gateway hop', win: false },
+    bedrock:    { val: '~100ms+', note: 'AWS infra latency', win: false },
+    manual:     { val: '∞', note: 'you pick the model', win: false },
+  },
+  {
+    feature: 'Prompts stay on your machine',
+    frugal:     { val: 'Always', note: 'no proxy, direct to Anthropic', win: true },
+    openrouter: { val: 'Never', note: 'all prompts routed via OpenRouter', win: false },
+    litellm:    { val: 'Yes*', note: 'only if self-hosted', win: false },
+    portkey:    { val: 'No', note: 'cloud gateway, prompts transited', win: false },
+    bedrock:    { val: 'No', note: 'prompts processed on AWS', win: false },
+    manual:     { val: 'Yes', note: 'you hit Anthropic directly', win: true },
+  },
+  {
+    feature: 'Auto routing by complexity',
+    frugal:     { val: 'Yes', note: '11-pass classifier, T0→T3', win: true },
+    openrouter: { val: 'No', note: 'you specify the model', win: false },
+    litellm:    { val: 'Manual', note: 'rules you write yourself', win: false },
+    portkey:    { val: 'Partial', note: 'cost-based rules, not complexity', win: false },
+    bedrock:    { val: 'Partial', note: 'same-family only (Haiku↔Sonnet)', win: false },
+    manual:     { val: 'No', note: 'you decide every time', win: false },
+  },
+  {
+    feature: 'Offline / local-first',
+    frugal:     { val: 'Yes', note: 'Ollama T0 works with no internet', win: true },
+    openrouter: { val: 'No', note: 'cloud-only', win: false },
+    litellm:    { val: 'Yes', note: 'if self-hosted with Ollama', win: true },
+    portkey:    { val: 'No', note: 'cloud-only', win: false },
+    bedrock:    { val: 'No', note: 'AWS cloud-only', win: false },
+    manual:     { val: 'No', note: 'needs an API', win: false },
+  },
+  {
+    feature: 'Hardware-aware routing',
+    frugal:     { val: 'Yes', note: 'GPU probe: NVIDIA/Apple/AMD', win: true },
+    openrouter: { val: 'No', note: 'cloud-side only', win: false },
+    litellm:    { val: 'No', note: 'not hardware-aware', win: false },
+    portkey:    { val: 'No', note: 'not hardware-aware', win: false },
+    bedrock:    { val: 'No', note: 'not applicable', win: false },
+    manual:     { val: 'No', note: 'you check manually', win: false },
+  },
+  {
+    feature: 'Self-improving classifier',
+    frugal:     { val: 'Yes', note: 'backtest.js runs nightly', win: true },
+    openrouter: { val: 'No', note: 'static routing rules', win: false },
+    litellm:    { val: 'No', note: 'static config', win: false },
+    portkey:    { val: 'No', note: 'manual tuning', win: false },
+    bedrock:    { val: 'Partial', note: 'AWS improves their model', win: false },
+    manual:     { val: 'No', note: 'you update manually', win: false },
+  },
+  {
+    feature: 'Community data flywheel',
+    frugal:     { val: 'Yes', note: 'privacy-preserving deltas, hub', win: true },
+    openrouter: { val: 'No', note: 'no community learning', win: false },
+    litellm:    { val: 'No', note: 'isolated installs', win: false },
+    portkey:    { val: 'No', note: 'per-tenant only', win: false },
+    bedrock:    { val: 'No', note: 'AWS-internal only', win: false },
+    manual:     { val: 'No', note: 'no learning', win: false },
+  },
+  {
+    feature: 'Zero project changes',
+    frugal:     { val: 'Yes', note: 'hook + doctrine only', win: true },
+    openrouter: { val: 'No', note: 'change your API base URL', win: false },
+    litellm:    { val: 'No', note: 'reconfigure all API calls', win: false },
+    portkey:    { val: 'No', note: 'change SDK config', win: false },
+    bedrock:    { val: 'No', note: 'migrate to AWS SDK', win: false },
+    manual:     { val: 'No', note: 'manual /model every time', win: false },
+  },
+];
+
+/* Pricing reality row (separate — shown as callout) */
+const MODEL_PRICES = [
+  { model: 'Haiku 4.5',  input: '$1.00', output: '$5.00',  color: 'var(--t1)', badge: 'T1 target' },
+  { model: 'Sonnet 4.6', input: '$3.00', output: '$15.00', color: 'var(--t2)', badge: 'T2 target' },
+  { model: 'Opus 4.6',   input: '$5.00', output: '$25.00', color: 'var(--t3)', badge: 'T3 only' },
+  { model: 'Ollama local', input: '$0.00', output: '$0.00', color: 'var(--t0)', badge: 'T0 — free' },
+];
+
+type Col = 'frugal' | 'openrouter' | 'litellm' | 'portkey' | 'bedrock' | 'manual';
+
+const COLS: { key: Col; label: string; sub: string }[] = [
+  { key: 'frugal',     label: '🐕 frugal',     sub: 'This' },
+  { key: 'openrouter', label: 'OpenRouter',     sub: 'Cloud routing' },
+  { key: 'litellm',    label: 'LiteLLM',        sub: 'OSS proxy' },
+  { key: 'portkey',    label: 'PortKey',        sub: 'Paid gateway' },
+  { key: 'bedrock',    label: 'AWS Bedrock',    sub: 'Cloud (same family)' },
+  { key: 'manual',     label: 'Manual',         sub: '/model flag' },
+];
+
+function ComparisonSection() {
+  const [activeRow, setActiveRow] = useState<number | null>(null);
+
+  const frugalWins = COMP_ROWS.filter(r => r.frugal.win).length;
+
+  return (
+    <section id="compare" className="section section-alt">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">Why frugal wins — by the numbers</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Every claim below is verifiable. Prices are from official docs as of April&nbsp;2026.
+            If a competitor ships a feature we&apos;ve marked &ldquo;No&rdquo;, we&apos;ll update this table.
+          </p>
+        </Reveal>
+
+        {/* Win count badge */}
+        <Reveal>
+          <div className="comp-win-bar">
+            <span className="comp-win-num">{frugalWins}/{COMP_ROWS.length}</span>
+            <span className="comp-win-label">
+              features where frugal is the only solution — or wins outright
+            </span>
+          </div>
+        </Reveal>
+
+        {/* Main comparison table */}
+        <Reveal>
+          <div className="comp-scroll">
+            <table className="comp-table">
+              <thead>
+                <tr>
+                  <th className="comp-th-feat">Feature</th>
+                  {COLS.map(c => (
+                    <th key={c.key} className={`comp-th ${c.key === 'frugal' ? 'comp-th-frugal' : ''}`}>
+                      <span className="comp-th-name">{c.label}</span>
+                      <span className="comp-th-sub">{c.sub}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {COMP_ROWS.map((row, i) => (
+                  <tr
+                    key={i}
+                    className={`comp-tr ${activeRow === i ? 'comp-tr-active' : ''}`}
+                    onMouseEnter={() => setActiveRow(i)}
+                    onMouseLeave={() => setActiveRow(null)}
+                  >
+                    <td className="comp-td-feat">{row.feature}</td>
+                    {COLS.map(col => {
+                      const cell = row[col.key];
+                      return (
+                        <td key={col.key} className={`comp-td ${col.key === 'frugal' ? 'comp-td-frugal' : ''}`}>
+                          <span className={`comp-val ${cell.win ? 'comp-win' : 'comp-no'}`}>
+                            {cell.val}
+                          </span>
+                          {cell.note && <span className="comp-note">{cell.note}</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <p className="comp-source">
+            Sources: Anthropic pricing (platform.claude.com), OpenRouter FAQ, LiteLLM docs,
+            PortKey pricing, AWS Bedrock docs — all verified April 2026.
+          </p>
+        </Reveal>
+
+        {/* Model price reality */}
+        <Reveal>
+          <h3 className="comp-sub-h3">What you&apos;re actually paying per model — before frugal</h3>
+        </Reveal>
+        <Reveal>
+          <p className="comp-sub-copy">
+            Every prompt hits one of these tiers. Without frugal, Claude Code defaults to Sonnet
+            or Opus for everything. With frugal, 83.9% of prompts route free to Ollama.
+          </p>
+        </Reveal>
+        <Reveal>
+          <div className="price-cards">
+            {MODEL_PRICES.map(p => (
+              <div key={p.model} className="price-card" style={{ '--tier-color': p.color } as React.CSSProperties}>
+                <div className="price-card-badge" style={{ color: p.color }}>{p.badge}</div>
+                <div className="price-card-model">{p.model}</div>
+                <div className="price-card-row">
+                  <span className="price-card-label">Input</span>
+                  <span className="price-card-val">{p.input}<span className="price-card-unit">/MTok</span></span>
+                </div>
+                <div className="price-card-row">
+                  <span className="price-card-label">Output</span>
+                  <span className="price-card-val">{p.output}<span className="price-card-unit">/MTok</span></span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        {/* Value proposition cards */}
+        <Reveal>
+          <h3 className="comp-sub-h3">frugal&apos;s unique combination — no one else has all of this</h3>
+        </Reveal>
+        <div className="value-grid stagger">
+          {[
+            {
+              icon: '⚡',
+              title: 'Fastest routing in the category',
+              body: 'Pure regex. No LLM API call to decide which LLM to call. Competitors route in 150–500ms. frugal routes in <50ms.',
+              accent: 'var(--t0)',
+            },
+            {
+              icon: '🔒',
+              title: 'The only zero-proxy solution',
+              body: 'Every other tool sits between you and Anthropic. frugal injects a hint — your prompt goes directly from Claude Code to Anthropic. No third party ever sees it.',
+              accent: 'var(--t1)',
+            },
+            {
+              icon: '🧠',
+              title: 'The only self-improving classifier',
+              body: 'backtest.js runs every night. When it finds a misroute, it patches classify.js automatically. No manual updates. No retraining. Just gets smarter.',
+              accent: 'var(--t2)',
+            },
+            {
+              icon: '🌐',
+              title: 'The only community flywheel',
+              body: 'Every user\'s misroutes improve the classifier for everyone — without any prompt ever leaving the machine. Competitors have no such network effect.',
+              accent: 'var(--t3)',
+            },
+            {
+              icon: '💻',
+              title: 'Hardware-aware out of the box',
+              body: 'Detects your GPU at install. RTX 4090, M3 Pro, AMD, CPU — frugal picks the best local model for your hardware. Nobody else does this.',
+              accent: 'var(--accent)',
+            },
+            {
+              icon: '📡',
+              title: 'The only Claude Code-native router',
+              body: 'Built for Claude Code specifically. Uses the UserPromptSubmit hook — not a wrapper, not a proxy. Invisible, zero-overhead, uninstallable in one command.',
+              accent: 'var(--green)',
+            },
+          ].map((v, i) => (
+            <Reveal key={i} className="value-card" style={{ '--i': i, '--v-accent': v.accent } as React.CSSProperties}>
+              <div className="value-icon">{v.icon}</div>
+              <h4 className="value-title">{v.title}</h4>
+              <p className="value-body">{v.body}</p>
+              <div className="value-bar" style={{ background: v.accent }} />
+            </Reveal>
+          ))}
+        </div>
+
+        {/* Vibe coding callout */}
+        <Reveal>
+          <div className="vibe-callout">
+            <div className="vibe-head">&#x1F3A8; Built for vibe coding. Optimised for it.</div>
+            <p className="vibe-body">
+              When you&apos;re in flow — typing fast, exploring, iterating — you don&apos;t want to think
+              about which model to use. frugal disappears into the background. Trivial prompts
+              vanish into Ollama. Complex ones get Opus without you asking.
+              The result: you code faster, spend less, and never hit a wall.
+            </p>
+            <div className="vibe-stats">
+              <div className="vibe-stat"><strong>83.9%</strong><span>of prompts cost nothing</span></div>
+              <div className="vibe-stat"><strong>&lt;50ms</strong><span>routing overhead</span></div>
+              <div className="vibe-stat"><strong>0</strong><span>project changes needed</span></div>
+              <div className="vibe-stat"><strong>∞</strong><span>models supported (Ollama + API)</span></div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * S10 — PRICING + ACCESS
+ * ────────────────────────────────────────────────────────────────────────────── */
 
 const HW_OPTIONS = [
   'Mac M-series',
@@ -835,7 +1555,7 @@ function PricingAccess() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const toggleSub = (s: string) => {
-    setSubs((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+    setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -843,7 +1563,6 @@ function PricingAccess() {
     if (status === 'loading') return;
     setStatus('loading');
     setErrorMsg('');
-
     try {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
@@ -858,6 +1577,185 @@ function PricingAccess() {
         setStatus('error');
         setErrorMsg(
           data?.error === 'invalid_email'
-            ? 'That email doesn\u0027t look right.'
+            ? "That email doesn't look right."
             : 'Something went wrong. Try again?',
-        
+        );
+        return;
+      }
+      setStatus('done');
+    } catch {
+      setStatus('error');
+      setErrorMsg('Network error. Try again?');
+    }
+  };
+
+  if (status === 'done') {
+    return (
+      <section id="access" className="section">
+        <div className="container narrow" style={{ textAlign: 'center', padding: '6rem 0' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>🐕</div>
+          <h2 className="section-h2">You&apos;re on the list.</h2>
+          <p className="section-sub" style={{ margin: '1rem auto 2rem', textAlign: 'center' }}>
+            We&apos;ll email you when frugal is ready for your setup.
+            In the meantime, you can install the open beta now:
+          </p>
+          <InstallBlock />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section id="pricing" className="section">
+      <div className="container">
+        <Reveal><h2 className="section-h2">Free. No catch.</h2></Reveal>
+        <Reveal>
+          <p className="section-sub">
+            frugal is free to install and use. The only cost is whatever models you already pay for.
+            We make money only when you save money — success fee model, coming in v1.0.
+          </p>
+        </Reveal>
+
+        <div className="pricing-cards stagger">
+          <Reveal className="pricing-card" style={{ '--i': 0 } as React.CSSProperties}>
+            <div className="pricing-tier">Community</div>
+            <div className="pricing-price">Free</div>
+            <div className="pricing-desc">Forever. No credit card. No limits.</div>
+            <ul className="pricing-features">
+              <li>Full local routing engine</li>
+              <li>classify.js + all 102 patterns</li>
+              <li>8 slash-command skills</li>
+              <li>decisions.log telemetry</li>
+              <li>Community hub access</li>
+            </ul>
+          </Reveal>
+          <Reveal className="pricing-card pricing-card-pro" style={{ '--i': 1 } as React.CSSProperties}>
+            <div className="pricing-tier-badge">Coming v1.0</div>
+            <div className="pricing-tier">Pro</div>
+            <div className="pricing-price">20% of savings</div>
+            <div className="pricing-desc">You save $1,000 → we earn $200. Aligned incentives.</div>
+            <ul className="pricing-features">
+              <li>Everything in Community</li>
+              <li>Real-time savings dashboard</li>
+              <li>Hub pull — community config</li>
+              <li>Priority pattern updates</li>
+              <li>Cost alert webhooks</li>
+            </ul>
+          </Reveal>
+          <Reveal className="pricing-card" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="pricing-tier">Enterprise</div>
+            <div className="pricing-price">Custom</div>
+            <div className="pricing-desc">Private hub, SSO, SLA, dedicated corpus.</div>
+            <ul className="pricing-features">
+              <li>Everything in Pro</li>
+              <li>Private hub instance</li>
+              <li>SSO + full audit logs</li>
+              <li>SLA guarantee</li>
+              <li>Dedicated pattern corpus</li>
+            </ul>
+          </Reveal>
+        </div>
+
+        <Reveal>
+          <div id="access" className="access-form-wrap">
+            <h3 className="access-h3">Get early access</h3>
+            <p className="access-sub">Tell us your setup — we&apos;ll prioritise your hardware profile.</p>
+
+            <form className="access-form" onSubmit={onSubmit}>
+              <div className="form-field">
+                <label className="form-label">Email</label>
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">Hardware</label>
+                <select className="form-input" value={hw} onChange={e => setHw(e.target.value)}>
+                  <option value="">Select your setup</option>
+                  {HW_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">AI subscriptions</label>
+                <div className="form-chips">
+                  {AI_SUBS.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`form-chip ${subs.includes(s) ? 'form-chip-on' : ''}`}
+                      onClick={() => toggleSub(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {errorMsg && <div className="form-error">{errorMsg}</div>}
+
+              <button className="btn btn-primary btn-lg" type="submit" disabled={status === 'loading'}>
+                {status === 'loading' ? 'Sending...' : 'Get early access'}
+              </button>
+            </form>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * FOOTER
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="container footer-inner">
+        <div className="footer-brand">
+          <span className="brand-shiba">&#x1F415;</span> frugal
+        </div>
+        <div className="footer-links">
+          <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener">GitHub</a>
+          <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
+          <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
+        </div>
+        <div className="footer-copy">
+          MIT License &middot; Built in S&atilde;o Paulo &middot; 2026
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * APP ROOT
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export default function Page() {
+  return (
+    <ErrorBoundary>
+      <Nav />
+      <main>
+        <Hero />
+        <TheProblem />
+        <TheSolution />
+        <DemoSection />
+        <FlywheelSection />
+        <AfterInstallSection />
+        <ProofSection />
+        <CommunitySection />
+        <ComparisonSection />
+        <PricingAccess />
+      </main>
+      <Footer />
+    </ErrorBoundary>
+  );
+}

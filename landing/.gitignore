@@ -6,3 +6,5 @@ out/
 !.env.local.example
 .vercel
 next-env.d.ts.bak
+
+.vercel

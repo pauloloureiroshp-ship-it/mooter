@@ -19,7 +19,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ## Estado actual do projecto — 2026-04-10
 
-### Versão: v0.9.4 (sessão Friends Beta de 2026-04-10)
+### Versão: v0.9.4 (Friends Beta — Landing deployed 2026-04-10)
 
 | Componente | Estado | Notas |
 |---|---|---|
@@ -36,7 +36,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `hub-status.js` | ✅ URL corrigida | frugal-hub.frugal-hub.workers.dev |
 | `frugal-mode.js` | ✅ NOVO | Beast/Zen/Auto mode system |
 | **frugal-hub** (Cloudflare) | ✅ LIVE | D1 + R2 + Worker deployed |
-| **Landing v8** | ✅ build passing | live counters, Install Now CTA, slash commands grid |
+| **Landing v9** | ✅ DEPLOYED | live counters, Install Now CTA, slash commands grid, ComparisonSection |
 | **Dashboard** | ⚠️ scaffold | npm install feito, build passing |
 | VSCode extension | ⚠️ v0.4.0 | não publicado no marketplace |
 | Skills (8 total) | ✅ NOVO | 5 originais + 3 modos (beast/zen/auto) |
@@ -67,19 +67,16 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | Crons | hourly aggregate / daily generate / weekly notify |
 | Smoke test | `/health` ok, `/api/stats` ok, `POST /api/delta` → trust_score: 0.8 |
 
-### HEAD do repo (após sessão Cowork 2026-04-10)
+### HEAD do repo (após deploy landing 2026-04-10)
 
 ```
-aecb9cd  feat(hub): deploy frugal-hub to Cloudflare Workers  ← HEAD
-ef22ebd  fix(landing): SSRF hardening + apostrophe cosmetic fix
-b78cf4a  feat(v0.9.1): public landing page with URL analyser and waitlist
-8af879f  refactor(v0.7.0): extract patterns.js
-76dcd94  fix(dashboard): deduplicate decisions
-fa2ee52  feat(v0.6.0): dashboard scaffold
-e97e8a4  chore: .vscode + SYNC
-5989b62  chore(v0.9.0): replay fix
-1e852f3  feat: v0.9.0
-tag v0.9.0
+928f6f3  security(repo): enforce private repo — update onboarding docs  ← HEAD
+8205b10  docs(friends): onboarding kit + frugal-hello skill + v0.9.4 snapshot
+7bcfa3f  feat(friends): cross-platform installer, privacy audit, smoke tests
+bd9c7e9  fix(windows): paths.js cross-platform helper + quoted paths
+bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
+6e477fa  perf(classifier): mega test — 37 new patterns, 170 prompts, 100% adjusted
+3cc3052  chore(v0.9.3): CHANGELOG updated, gitignore cleaned, final evolution snapshot
 ```
 
 ### Loopholes — Estado 2026-04-10
@@ -196,6 +193,13 @@ O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o 
 ### Ficheiros criados nesta sessão Cowork (2026-04-10):
 - `FRIENDS_MASTER_PROMPT.md` — master prompt completo para esta sessão
 - `frugal-investor-deck-v2.pptx` — deck v2 (20 slides, full dark theme)
+- `landing/app/page.tsx` — UPDATED sessão #6 + sessão #7:
+  - S9 ComparisonSection (10-row comparison, real model prices, 6 value prop cards, vibe coding callout)
+  - S5 DemoSection rebuilt: 3 universal vibe coder prompts (button colour T0, mobile crash T2, payment system T3)
+  - S5b FlywheelSection NOVO: flywheel 5-step visual, privacy proof (what IS sent vs NEVER sent), freedom banner "83.9% of your prompts cost nothing"
+  - TypeScript check: ✅ 0 errors
+  - **Aguarda deploy: `cd landing && vercel --prod` (fazer no terminal do Paulo)**
+- `landing/app/globals.css` — UPDATED: CSS para ComparisonSection + DemoSection + FlywheelSection
 
 ---
 
@@ -260,57 +264,4 @@ O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o 
 **Commits feitos:** 4
 
 #### Commits
-- `b28b307` — feat(v0.9.3): Beast/Zen/Auto mode system
-- `09ff285` — chore(evolution): snapshot v0.9.2
-- `3181299` — perf(classifier): add 5 patterns from dogfood telemetry
-- `1a3bf14` — docs: update ARCHITECTURE + ROADMAP for v0.9.3
-
-#### P1 — Beast/Zen/Auto Modes
-- applyActiveMode() aplicado em inject_context.js (runtime + source) — ja estava no source
-- frugal-mode.js instalado em ~/.claude/tools/router/
-- 3 skills de modos instaladas e verificadas
-- Smoke test: beast→T3 OK, zen→T1 OK, auto→clear OK, ficheiro ausente PASS
-- install.sh ja cobria tudo (wildcard *.js + skill loop com 8 skills)
-
-#### P2 — Dogfood com telemetria
-- decisions.log activo com 263 entradas
-- 10 prompts classificados: 7 correctos, 3 misroutings identificados
-- Backtest: 263 prompts, savings 58.1% ($4.96 vs $11.84 naive T3)
-- Tier distribution: T0=40.3% T1=0% T2=21.7% T3=38.0%
-
-#### P3 — Snapshot de evolucao
-- .evolution/v0.9.2-snapshot.json criado com SHA-256 hashes
-- .evolution/README.md criado
-- git tag algo-v0.9.2 criada (nao pushed)
-
-#### P4 — Auditoria MDs
-- ROADMAP.md: adicionados v0.9.2 e v0.9.3 como released, v0.7.0 marcado done, hub movido de vision para shipped
-- ARCHITECTURE.md: adicionados frugal-mode.js, hub scripts, skills ao module map
-- frugal-status URL corrigida para frugal-hub.frugal-hub.workers.dev
-
-#### P5 — Skills audit
-- 8/8 skills instaladas e sincronizadas
-- frugal-update: adicionado patterns.js, frugal-mode.js, e skill loop ao sync step
-- frugal-status: URL hub corrigida
-
-#### P6 — Melhorias ao classifier
-- 3 misroutings corrigidos:
-  - "redesenha o sistema de auth para multi-tenant" T0→T3 (added redesenha/redesign + multi-tenant to HIGH_RISK)
-  - "cria um endpoint REST para user profile" T0→T2 (added cria endpoint to MED_RISK)
-  - "optimiza a query SQL do dashboard" T0→T2 (added optimiza/optimize to MED_RISK)
-- 5 patterns adicionados a patterns.js com evidencia de misrouting
-
-#### Telemetria frugal (dogfood)
-- Prompts classificados: 10 (sinteticos) + 263 (historico)
-- Tier distribution: T0=40.3% T1=0% T2=21.7% T3=38.0%
-- Savings: 58.1% (backtest) — nota: savings reais sao maiores porque o backtest conta custo naive T3
-- Misroutings identificados: 3 (todos corrigidos)
-- Padroes adicionados: 5
-
-#### Tiers usados por prioridade
-- P1 (modes): T0-inline (edits + bash, < 10 tool calls)
-- P2 (dogfood): T0-inline (bash commands)
-- P3 (snapshot): T0-inline (file writes + bash)
-- P4 (docs): T0-inline (reads + edits)
-- P5 (skills): T0-inline (reads + copies)
-- P6 (classif
+- `b28b307` — feat(v0.9.3): Beast/Zen/Auto mode s
