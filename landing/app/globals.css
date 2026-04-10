@@ -202,6 +202,7 @@ main       { display: flex; flex-direction: column; }
 }
 
 .brand-shiba { font-size: 1.25rem; }
+.nav-brand-name { color: var(--t0); }
 
 .nav-links {
   display: flex;
