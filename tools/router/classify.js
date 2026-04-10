@@ -360,6 +360,27 @@ function classify(prompt) {
     };
   }
 
+  // Fast-path: commit message generation → T1 (cheap-triage subagent).
+  // Without this, the LOW_RISK hit sets T1 but the no-API-key guardrail
+  // (line ~510) degrades it to T0. cheap-triage works without ANTHROPIC_API_KEY
+  // because it runs as a Claude Code subagent, not a direct Haiku call.
+  if (/\bcommit\s+(message|msg)\b/i.test(p) || /\bgera\s+(mensagem|msg)\s+de\s+commit/i.test(p)) {
+    return {
+      task_category: 'cheap_task',
+      risk_level: 'low',
+      tier: 'T1',
+      recommended_backend: 'claude_subagent',
+      recommended_model: 'claude-haiku-4-5-20251001',
+      suggested_subagent: 'cheap-triage',
+      confidence: 0.9,
+      escalation_rule: 'none',
+      reasoning: 'commit message generation — cheap-triage handles this well',
+      anthropic_key_present: !!process.env.ANTHROPIC_API_KEY,
+      prompt_length: len,
+      file_hint_count: fileMatches,
+    };
+  }
+
   if (high > 0 || multiFile || /\barchitect|arquitetur/i.test(p)) {
     tier = 'T3';
     category = multiFile ? 'cross_file_change' : 'architecture_or_critical';
