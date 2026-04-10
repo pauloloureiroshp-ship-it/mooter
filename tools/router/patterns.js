@@ -52,6 +52,27 @@ const HIGH_RISK = [
   /\bauthenticat\b/i,                   // "authentication with JWT" — auth design
   /\breview\b.*\bmerge\b/i,             // "review before merge" — pre-merge gate
   /\bPR\s*#?\d+\b.*\breview/i,          // "PR #42 needs review" — code review
+  // v0.9.3 mega-test batch — security (9 fails), arch (5), devops (3)
+  /\bXSS\b/,                            // "vulnerable to XSS" — security
+  /\bCSRF\b/,                           // "CSRF protection" — security
+  /\bSQL\s*inject/i,                    // "SQL injection" — security
+  /\bOWASP\b/,                          // "OWASP ZAP scan" — security
+  /\bauthoriz/i,                        // "authorization checks" — security (distinct from authenticat)
+  /\bvulnerab/i,                        // "vulnerable to XSS" — security signal
+  /\bJWT\b/,                            // "JWT token rotation" — auth architecture
+  /\bbrute\s*force/i,                   // "prevent brute force" — security
+  /\brotate\b.*\b(key|token|secret)/i,  // "rotate API keys" — security ops
+  /\bbcrypt|password\s+hash/i,          // "bcrypt hashing to replace MD5" — security
+  /\bSSL\b.*\b(expir|certific)/i,       // "SSL certificate expired" — infra critical
+  /\bblue[- ]green/i,                   // "blue-green deployment" — deploy architecture
+  /\bTerraform\b/i,                     // "set up Terraform" — infra as code
+  /\bCQRS\b/i,                          // "CQRS pattern" — architecture pattern
+  /\bAPI\s*(versioning|gateway)\b/i,    // "API versioning/gateway" — architecture
+  /\bmulti[- ]?region/i,               // "multi-region failover" — architecture
+  /\bGraphQL\b.*\bREST\b|\bREST\b.*\bGraphQL\b/i, // "GraphQL vs REST" — arch decision
+  /\bconvert\s+all\b/i,                // "convert all class components" — multi-file refactor
+  /\breplica/i,                         // "read replicas" — database architecture
+  /\bmonolith/i,                        // "split the monolith" — architecture
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────
@@ -79,6 +100,24 @@ const MED_RISK = [
   /\bfailing\s+on\s+CI\b/i,           // "tests failing on CI" — CI debugging
   /\bexhaust/i,                       // "pool exhausting under load" — perf signal
   /\brobust(a|o)?\b/i,                // "solução robusta" — design quality signal PT
+  // v0.9.3 mega-test batch — debug/perf (10 fails), frontend (4), backend (4)
+  /\bcrash(es|ing)?\b/i,              // "worker crashes after 1000 messages"
+  /\bdeadlock/i,                      // "database deadlocks"
+  /\bmemory\s*leak/i,                 // "event listener causes memory leak"
+  /\bN\+1\b/,                         // "N+1 query problem"
+  /\bstale\s*closure/i,              // "useCallback stale closures"
+  /\bsegfault/i,                     // "segfault in native addon"
+  /\bbundle\s*size/i,                // "bundle size is 4.2MB"
+  /\bvirtualiz/i,                    // "infinite scroll with virtualization"
+  /\brate\s*limit/i,                 // "add rate limiting"
+  /\bdegrad(e|es|ing)\b/i,          // "response time degrades linearly"
+  /\bflaky\b/i,                      // "flaky test passes locally"
+  /\bdrops?\s+(after|every)/i,       // "WebSocket drops after 60 seconds"
+  /\btakes\s+\d+\s*(s|sec|min|hour)/i, // "query takes 8 seconds" — perf investigation
+  /\bslow\s+(test|query|page|load)/i,  // "find the slow tests" — perf signal
+  /\bstring\s+concatenat/i,           // "SQL uses string concatenation" — security smell
+  /\b\d+\s*MB\b/i,                    // "bundle 4.2MB", "files over 100MB" — size investigation
+  /\bpromise\s+instead/i,             // "returns promise instead of value" — async bug
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────

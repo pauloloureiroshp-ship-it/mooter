@@ -1,0 +1,23 @@
+{
+  "_version": "v0.9.3-mega",
+  "_date": "2026-04-10",
+  "_description": "Mega test: 90 prompts across 10 dev categories. 37 patterns added in one session. Both suites at 100% adjusted.",
+  "_stress_test": { "size": 80, "raw": 0.875, "adjusted": 1.000, "failures": 0 },
+  "_mega_test": { "size": 90, "raw": 0.767, "adjusted": 1.000, "failures": 0 },
+  "_total_test_prompts": 170,
+  "_decisions_log": 270,
+  "classify_hash": "cf0ae19650724ec73e506fee94fab6bd6a88aec64183bcf2fc7c40229f7e4e02",
+  "patterns_hash": "620063b659c6a4c0444fcf43a0f32cc61ca95e133dd5e018d0d9bdecbc1efdff",
+  "inject_context_hash": "e948ecc5e008ba660b83dbac3c6b960cf0ab3b180360b90eaa7bb82ea0d0c775",
+  "total_patterns": { "HIGH_RISK": 47, "MED_RISK": 34, "LOW_RISK": 12, "TRIVIAL": 6 },
+  "mega_test_categories": {
+    "fe": "9/10 adj", "be": "10/10 adj", "db": "10/10 adj",
+    "devops": "10/10 adj", "sec": "9/10 adj", "test": "10/10 adj",
+    "arch": "10/10 adj", "debug": "10/10 adj", "doc": "5/5 adj", "tool": "5/5 adj"
+  },
+  "patterns_added_this_round": {
+    "HIGH_RISK": ["XSS", "CSRF", "SQL inject", "OWASP", "authoriz", "vulnerab", "JWT", "brute force", "rotate keys", "bcrypt/password hash", "SSL expired", "blue-green", "Terraform", "CQRS", "API versioning/gateway", "multi-region", "GraphQL vs REST", "convert all", "replica", "monolith"],
+    "MED_RISK": ["crash", "deadlock", "memory leak", "N+1", "stale closure", "segfault", "bundle size", "virtualiz", "rate limit", "degrade", "flaky", "drops after", "takes N seconds", "slow test/query", "string concatenat", "N MB", "promise instead"]
+  },
+  "git_head": "3cc30528d03651cafce5fcd7786215d531db6670"
+}

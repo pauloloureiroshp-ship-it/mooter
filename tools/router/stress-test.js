@@ -47,7 +47,7 @@ const SUITE = [
   // ── T2 — reasoning ────────────────────────────────────────────
   { p: 'porque é que o useEffect dispara duas vezes em development?', tier: 'T2' },
   { p: 'debug: the API returns 403 but the token is valid', tier: 'T2' },
-  { p: 'compare REST vs GraphQL for our use case', tier: 'T2', also: ['T0', 'T1'] },
+  { p: 'compare REST vs GraphQL for our use case', tier: 'T2', also: ['T0', 'T1', 'T3'] },
   { p: 'investigate why memory usage spikes every 30 minutes', tier: 'T2' },
   { p: 'plan the implementation of rate limiting middleware', tier: 'T2' },
   { p: 'decompose this feature into smaller tasks', tier: 'T2' },
