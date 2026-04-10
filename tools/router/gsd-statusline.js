@@ -82,31 +82,84 @@ const TIER_COLOR = {
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
 
-// ── v0.10: redesigned statusline segments ─────────────────────────────────
-// Philosophy: glanceable in 1 second. Answer 3 questions:
-//   1. How much am I saving?  →  🐕 89%↓ $3.84
-//   2. What tier was last?    →  T0 · qwen · 0.2s
-//   3. Is everything healthy? →  mode badge only if beast/zen active
+// ── v0.11: statusline redesign — savings hero + distribution proof ─────────
+// The statusline is frugal's business card. In one glance it must prove:
+//   "frugal saves you real money by routing most work to cheap/free models."
 //
-// Removed: distribution breakdown (noise), provider dots (unclear),
-// latency-vs-opus (noise), cascade path (debug-only).
+// Layout:
+//   🐕 ↓89% ~$3.84 │ █░░▒▒▓▓▓▓▓ ops:9 son:22 free:69
+//                     ^^^red  ^^^yellow  ^^^^^^^teal
+//
+// The colored bar IS the proof: mostly teal = mostly free.
+// Labels: expensive→cheap order so the eye sees Opus is tiny.
+// Mode badge (🦁/🧘) only when active.
+//
+// No T0/latency segment — removed per user feedback ("useless for most people").
+// No provider dots — removed ("nobody knows what they mean").
+// No latency-vs-opus — removed ("noise").
 
-// Segment A — last turn (compact: tier colored dot + model + latency)
-function renderLastTurn() {
-  try {
-    const l = fetchTrackerJson('/last', 250);
-    if (!l || !l.tier) return '';
-    const color = TIER_COLOR[l.tier] || '';
-    const modelShort = l.model_short || '';
-    const latencyMs = l.latency_ms || 0;
-    const latS = (latencyMs / 1000).toFixed(1);
-    let latColor = '\x1b[38;2;78;201;176m';
-    if (latencyMs >= 3000) latColor = '\x1b[38;2;244;71;71m';
-    else if (latencyMs >= 500) latColor = '\x1b[38;2;220;220;170m';
-    return ` │ ${color}${l.tier}${RESET} ${DIM}${modelShort}${RESET} ${latColor}${latS}s${RESET}`;
-  } catch {
-    return '';
+// ── Distribution bar renderer ─────────────────────────────────────────────
+// Reads pct_by_tier from metrics (or falls back to decisions.log).
+// Returns: colored 10-char bar + labeled percentages, expensive→cheap.
+function renderDistribution(metrics) {
+  let pbt = null;
+
+  // Try metrics first (from savings-tracker HTTP)
+  if (metrics && metrics.pct_by_tier) {
+    pbt = metrics.pct_by_tier;
   }
+
+  // Fallback: read decisions.log directly
+  if (!pbt) {
+    try {
+      const logPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+      if (fs.existsSync(logPath)) {
+        const lines = fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean);
+        const tiers = { T0: 0, T1: 0, T2: 0, T3: 0 };
+        let total = 0;
+        // Read last 200 lines max for speed
+        const recent = lines.slice(-200);
+        recent.forEach(l => {
+          try {
+            const d = JSON.parse(l);
+            if (d.tier) { tiers[d.tier]++; total++; }
+          } catch { /* skip */ }
+        });
+        if (total > 0) {
+          pbt = {};
+          Object.entries(tiers).forEach(([k, v]) => { pbt[k] = (v / total) * 100; });
+        }
+      }
+    } catch { /* silent */ }
+  }
+
+  if (!pbt) return '';
+
+  // Merge T0+T1 as "free" tier (T1 degrades to local when no API key)
+  const opsPct = Math.round(pbt.T3 || 0);
+  const sonPct = Math.round(pbt.T2 || 0);
+  const freePct = Math.round((pbt.T0 || 0) + (pbt.T1 || 0));
+
+  // Build 10-char proportional bar: Opus(red) → Sonnet(yellow) → Free(teal)
+  const total = opsPct + sonPct + freePct;
+  if (total === 0) return '';
+  const barLen = 10;
+  const opsChars = Math.round((opsPct / total) * barLen);
+  const sonChars = Math.round((sonPct / total) * barLen);
+  const freeChars = barLen - opsChars - sonChars;
+
+  const bar =
+    (opsChars > 0 ? `${TIER_COLOR.T3}${'█'.repeat(opsChars)}${RESET}` : '') +
+    (sonChars > 0 ? `${TIER_COLOR.T2}${'█'.repeat(sonChars)}${RESET}` : '') +
+    (freeChars > 0 ? `${TIER_COLOR.T0}${'█'.repeat(freeChars)}${RESET}` : '');
+
+  // Labels: expensive→cheap, colored, compact
+  const labels = [];
+  if (opsPct > 0) labels.push(`${TIER_COLOR.T3}ops:${opsPct}${RESET}`);
+  if (sonPct > 0) labels.push(`${TIER_COLOR.T2}son:${sonPct}${RESET}`);
+  if (freePct > 0) labels.push(`${TIER_COLOR.T0}free:${freePct}${RESET}`);
+
+  return ` ${bar} ${labels.join('·')}`;
 }
 
 // v0.9: segment ⑥ — GPU widget. Reads /gpu.
@@ -131,42 +184,66 @@ function renderGpu() {
   }
 }
 
-// Segment B — savings (clean: 🐕 emoji IS frugal + savings % + dollar)
-// The shiba emoji is the brand. Savings is the #1 metric. One glance.
-// Format: 🐕 89%↓ $3.84    (green if ≥75%, yellow if ≥40%, dim otherwise)
-// With mode: 🐕🦁 89%↓ $3.84  or  🐕🧘 89%↓ $3.84
-function fetchFrugalSavings(mOpt) {
+// ── Savings hero renderer ──────────────────────────────────────────────────
+// Format: ↓89% ~$3.84   (bright green ≥75%, yellow ≥40%, dim otherwise)
+// The ↓ arrow + green = instant "you're saving money" signal.
+// The $ amount is secondary context, slightly dimmer.
+function renderSavingsHero(mOpt) {
   try {
     const m = mOpt || fetchFrugalMetrics();
-    if (!m || !m.prompts) return '';
 
-    const advisoryUsd = m.saved || 0;
-    const guaranteedUsd = m.guaranteed_saved || 0;
-    const primaryUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
+    // If tracker is running, use it
+    if (m && m.prompts) {
+      const advisoryUsd = m.saved || 0;
+      const guaranteedUsd = m.guaranteed_saved || 0;
+      const primaryUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
 
-    const currency = (m.currency || 'USD').toUpperCase();
-    const altKey = `in_${currency.toLowerCase()}`;
-    const alt = m[altKey];
-    const symbolMap = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' };
-    const sym = symbolMap[currency] || '$';
+      const currency = (m.currency || 'USD').toUpperCase();
+      const altKey = `in_${currency.toLowerCase()}`;
+      const alt = m[altKey];
+      const symbolMap = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' };
+      const sym = symbolMap[currency] || '$';
 
-    let amountStr;
-    if (alt && currency !== 'USD') {
-      const altAmount = guaranteedUsd > 0 ? (alt.guaranteed_saved || 0) : (alt.saved || 0);
-      amountStr = `${sym}${altAmount.toFixed(2)}`;
-    } else {
-      amountStr = `$${primaryUsd.toFixed(2)}`;
+      let amountStr;
+      if (alt && currency !== 'USD') {
+        const altAmount = guaranteedUsd > 0 ? (alt.guaranteed_saved || 0) : (alt.saved || 0);
+        amountStr = `${sym}${altAmount.toFixed(2)}`;
+      } else {
+        amountStr = `$${primaryUsd.toFixed(2)}`;
+      }
+
+      const pct = Math.round(m.saved_pct || 0);
+      const tildePrefix = guaranteedUsd > 0 ? '' : '~';
+      let pctColor = DIM;
+      if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m'; // bright green
+      else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m'; // warm yellow
+      const arrow = pct >= 30 ? '↓' : '';
+
+      return `${pctColor}${arrow}${pct}%${RESET} ${DIM}${tildePrefix}${amountStr}${RESET}`;
     }
 
-    const pct = Math.round(m.saved_pct || 0);
-    let color = DIM;
-    if (pct >= 75) color = '\x1b[38;2;78;201;176m'; // teal (matches brand)
-    else if (pct >= 40) color = '\x1b[33m'; // yellow
-
-    const tildePrefix = guaranteedUsd > 0 ? '' : '~';
-    const arrow = pct >= 50 ? '↓' : '';
-
-    return ` │ ${color}${pct}%${arrow} ${tildePrefix}${amountStr}${RESET}`;
+    // Fallback: compute from decisions.log
+    try {
+      const logPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+      if (!fs.existsSync(logPath)) return '';
+      const lines = fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean);
+      const tiers = { T0: 0, T1: 0, T2: 0, T3: 0 };
+      let total = 0;
+      lines.slice(-200).forEach(l => {
+        try { const d = JSON.parse(l); if (d.tier) { tiers[d.tier]++; total++; } } catch {}
+      });
+      if (total === 0) return '';
+      const COST = { T0: 0, T1: 0.006, T2: 0.024, T3: 0.12 };
+      let actual = 0;
+      Object.entries(tiers).forEach(([t, n]) => { actual += n * (COST[t] || 0); });
+      const naive = total * COST.T3;
+      const pct = Math.round((1 - actual / naive) * 100);
+      let pctColor = DIM;
+      if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m';
+      else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m';
+      const arrow = pct >= 30 ? '↓' : '';
+      return `${pctColor}${arrow}${pct}%${RESET} ${DIM}~$${(naive - actual).toFixed(2)}${RESET}`;
+    } catch { return ''; }
   } catch {
     return '';
   }
@@ -359,13 +436,14 @@ process.stdin.on('end', () => {
       } catch (e) {}
     }
 
-    // ── frugal v0.10 statusline ──────────────────────────────────────
-    // Design: clean, glanceable. 3 frugal segments max:
-    //   🐕 savings%  │  T0 model 0.2s  │  ⚡GPU
-    // Mode badge (🦁/🧘) appears after 🐕 only when active.
+    // ── frugal v0.11 statusline ──────────────────────────────────────
+    // Layout:
+    //   🐕 ↓89% ~$3.84 │ █░░▒▒▓▓▓▓▓ ops:9·son:22·free:69
+    //   🐕🦁 ↓89% ~$3.84 │ ██████████ ops:100  (beast mode)
+    //   🐕🧘 ↓95% ~$0.12 │ ██████████ free:100 (zen mode)
     const metrics = fetchFrugalMetrics();
 
-    // Mode badge — read .frugal-mode.json
+    // Mode badge
     let modeBadge = '';
     try {
       const modeFile = path.join(os.homedir(), '.claude', 'tools', 'router', '.frugal-mode.json');
@@ -376,11 +454,12 @@ process.stdin.on('end', () => {
       }
     } catch { /* silent */ }
 
-    // Compose: 🐕[mode] savings │ lastTurn │ gpu
-    const savings = fetchFrugalSavings(metrics);
-    const lastTurn = renderLastTurn();
-    const gpu = renderGpu();
-    const frugalSegment = ` │ 🐕${modeBadge}${savings}${lastTurn}${gpu}`;
+    // Compose: 🐕[mode] savings │ distribution-bar labels
+    const savingsHero = renderSavingsHero(metrics);
+    const dist = renderDistribution(metrics);
+    const frugalSegment = savingsHero || dist
+      ? ` │ 🐕${modeBadge} ${savingsHero}${dist ? ' │' + dist : ''}`
+      : '';
 
     // Output
     const dirname = path.basename(dir);
