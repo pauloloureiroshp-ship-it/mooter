@@ -36,6 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Plausible analytics — privacy-first, no cookies, GDPR-compliant
+            Replace data-domain with your final domain when ready */}
+        <script defer data-domain="frugal.dev" src="https://plausible.io/js/script.js" />
       </head>
       <body>{children}</body>
     </html>
