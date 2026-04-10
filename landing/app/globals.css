@@ -2601,6 +2601,34 @@ main       { display: flex; flex-direction: column; }
   .freedom-label { max-width: none; }
 }
 
+/* ── How / After-install tabs ────────────────────────────── */
+
+.how-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 2.5rem;
+}
+
+.how-tab {
+  padding: 8px 24px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: var(--font);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.how-tab:first-child { border-radius: 8px 0 0 8px; }
+.how-tab:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+.how-tab-active {
+  background: var(--t0)15;
+  border-color: var(--t0)44;
+  color: var(--t0);
+}
+
 /* ── Install Journey ─────────────────────────────────────── */
 
 .install-journey {

@@ -342,6 +342,8 @@ function TheProblem() {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function TheSolution() {
+  const [howTab, setHowTab] = useState<'how' | 'after'>('how');
+
   return (
     <section id="how" className="section section-alt">
       <div className="container">
@@ -352,81 +354,108 @@ function TheSolution() {
           </p>
         </Reveal>
 
-        <div className="pillars stagger">
-          <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
-            <div className="pillar-icon">&#x1F9E0;</div>
-            <h3>Classifies every prompt in &lt;50ms</h3>
-            <p>11-pass regex engine. Zero LLM, zero cost. ~90% accuracy on real developer prompts.</p>
-          </Reveal>
-          <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
-            <div className="pillar-icon">&#x1F4BB;</div>
-            <h3>Detects your hardware automatically</h3>
-            <p>RTX 4090? M3 Pro? Ollama gets the best model for your VRAM. No config needed.</p>
-          </Reveal>
-          <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
-            <div className="pillar-icon">&#x1F4CB;</div>
-            <h3>Knows your subscription plan</h3>
-            <p>Claude Max? No cap. API-only? Conservative. Time-aware routing respects your limits.</p>
-          </Reveal>
-          <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
-            <div className="pillar-icon">&#x1F504;</div>
-            <h3>Gets smarter with every user</h3>
-            <p>Community deltas improve the classifier for all. Your prompts: never shared.</p>
-          </Reveal>
-        </div>
-
+        {/* Tab toggle */}
         <Reveal>
-          <div className="arch-title">Every prompt takes the right path</div>
-        </Reveal>
-
-        <Reveal>
-          <div className="arch">
-            <div className="arch-input">Your Prompt</div>
-            <div className="arch-arrow-down">&#x25BC;</div>
-            <div className="arch-classifier">
-              <span>&#x1F415;</span> frugal classifier
-              <span className="arch-meta">&lt;50ms &middot; local &middot; pure regex</span>
-            </div>
-            <div className="arch-arrow-down">&#x25BC;</div>
-            <div className="arch-branches">
-              <div className="arch-branch" style={{ borderColor: 'var(--t0)' }}>
-                <div className="arch-branch-head"><OllamaIcon /><span style={{ color: 'var(--t0)' }}>&#x1F3E0; T0</span></div>
-                <div className="arch-branch-model">Ollama &middot; qwen</div>
-                <div className="arch-branch-cost" style={{ color: 'var(--green)' }}>FREE</div>
-                <div className="arch-branch-pct">83.9% of prompts</div>
-              </div>
-              <div className="arch-branch" style={{ borderColor: 'var(--t1)' }}>
-                <div className="arch-branch-head"><AnthropicIcon /><span style={{ color: 'var(--t1)' }}>&#x1F338; T1</span></div>
-                <div className="arch-branch-model">Claude Haiku</div>
-                <div className="arch-branch-cost">~$0.001</div>
-                <div className="arch-branch-pct">~5%</div>
-              </div>
-              <div className="arch-branch" style={{ borderColor: 'var(--t2)' }}>
-                <div className="arch-branch-head"><AnthropicIcon /><span style={{ color: 'var(--t2)' }}>&#x1F3B5; T2</span></div>
-                <div className="arch-branch-model">Claude Sonnet</div>
-                <div className="arch-branch-cost">~$0.010</div>
-                <div className="arch-branch-pct">~12%</div>
-              </div>
-              <div className="arch-branch" style={{ borderColor: 'var(--t3)' }}>
-                <div className="arch-branch-head"><AnthropicIcon /><span style={{ color: 'var(--t3)' }}>&#x1F48E; T3</span></div>
-                <div className="arch-branch-model">Claude Opus</div>
-                <div className="arch-branch-cost">~$0.050</div>
-                <div className="arch-branch-pct">~3.6%</div>
-              </div>
-            </div>
-            <div className="arch-providers">
-              <span className="arch-prov-label">Also supports:</span>
-              <GeminiIcon /> <OpenAIIcon /> <GrokIcon /> <MistralIcon />
-            </div>
+          <div className="how-tabs">
+            <button className={`how-tab ${howTab === 'how' ? 'how-tab-active' : ''}`} onClick={() => setHowTab('how')}>
+              How it works
+            </button>
+            <button className={`how-tab ${howTab === 'after' ? 'how-tab-active' : ''}`} onClick={() => setHowTab('after')}>
+              After install
+            </button>
           </div>
         </Reveal>
 
-        <Reveal>
-          <p className="arch-foot-copy">
-            frugal doesn&rsquo;t replace your AI tools. It makes them work as a team,
-            automatically, in every session.
-          </p>
-        </Reveal>
+        {howTab === 'how' ? (
+          <>
+            <div className="pillars stagger">
+              <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
+                <div className="pillar-icon">&#x1F9E0;</div>
+                <h3>Classifies every prompt in &lt;50ms</h3>
+                <p>11-pass regex engine. Zero LLM, zero cost. ~90% accuracy on real developer prompts.</p>
+              </Reveal>
+              <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
+                <div className="pillar-icon">&#x1F4BB;</div>
+                <h3>Detects your hardware automatically</h3>
+                <p>RTX 4090? M3 Pro? Ollama gets the best model for your VRAM. No config needed.</p>
+              </Reveal>
+              <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
+                <div className="pillar-icon">&#x1F4CB;</div>
+                <h3>Knows your subscription plan</h3>
+                <p>Claude Max? No cap. API-only? Conservative. Time-aware routing respects your limits.</p>
+              </Reveal>
+              <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
+                <div className="pillar-icon">&#x1F504;</div>
+                <h3>Gets smarter with every user</h3>
+                <p>Community deltas improve the classifier for all. Your prompts: never shared.</p>
+              </Reveal>
+            </div>
+
+            <Reveal>
+              <div className="arch-title">Every prompt takes the right path</div>
+            </Reveal>
+
+            <Reveal>
+              <div className="arch">
+                <div className="arch-input">Your Prompt</div>
+                <div className="arch-arrow-down">&#x25BC;</div>
+                <div className="arch-classifier">
+                  <span>&#x1F415;</span> frugal classifier
+                  <span className="arch-meta">&lt;50ms &middot; local &middot; pure regex</span>
+                </div>
+                <div className="arch-arrow-down">&#x25BC;</div>
+                <div className="arch-branches">
+                  <div className="arch-branch" style={{ borderColor: 'var(--t0)' }}>
+                    <div className="arch-branch-head"><OllamaIcon /><span style={{ color: 'var(--t0)' }}>&#x1F3E0; T0</span></div>
+                    <div className="arch-branch-model">Ollama &middot; qwen</div>
+                    <div className="arch-branch-cost" style={{ color: 'var(--green)' }}>FREE</div>
+                    <div className="arch-branch-pct">83.9% of prompts</div>
+                  </div>
+                  <div className="arch-branch" style={{ borderColor: 'var(--t1)' }}>
+                    <div className="arch-branch-head"><AnthropicIcon /><span style={{ color: 'var(--t1)' }}>&#x1F338; T1</span></div>
+                    <div className="arch-branch-model">Claude Haiku</div>
+                    <div className="arch-branch-cost">~$0.001</div>
+                    <div className="arch-branch-pct">~5%</div>
+                  </div>
+                  <div className="arch-branch" style={{ borderColor: 'var(--t2)' }}>
+                    <div className="arch-branch-head"><AnthropicIcon /><span style={{ color: 'var(--t2)' }}>&#x1F3B5; T2</span></div>
+                    <div className="arch-branch-model">Claude Sonnet</div>
+                    <div className="arch-branch-cost">~$0.010</div>
+                    <div className="arch-branch-pct">~12%</div>
+                  </div>
+                  <div className="arch-branch" style={{ borderColor: 'var(--t3)' }}>
+                    <div className="arch-branch-head"><AnthropicIcon /><span style={{ color: 'var(--t3)' }}>&#x1F48E; T3</span></div>
+                    <div className="arch-branch-model">Claude Opus</div>
+                    <div className="arch-branch-cost">~$0.050</div>
+                    <div className="arch-branch-pct">~3.6%</div>
+                  </div>
+                </div>
+                <div className="arch-providers">
+                  <span className="arch-prov-label">Also supports:</span>
+                  <GeminiIcon /> <OpenAIIcon /> <GrokIcon /> <MistralIcon />
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal>
+              <p className="arch-foot-copy">
+                frugal doesn&rsquo;t replace your AI tools. It makes them work as a team,
+                automatically, in every session.
+              </p>
+            </Reveal>
+          </>
+        ) : (
+          <>
+            <Reveal>
+              <p className="section-sub" style={{ marginBottom: '2rem' }}>
+                Everything works. Nothing changes. Except your bill.
+              </p>
+            </Reveal>
+            <StatuslineSection />
+            <SlashCommandsGrid />
+            <AfterInstallTimeline />
+          </>
+        )}
       </div>
     </section>
   );
@@ -1914,13 +1943,10 @@ export default function Page() {
       <Nav />
       <main>
         <Hero />
-        <TheProblem />
         <TheSolution />
         <DemoSection />
         <FlywheelSection />
-        <AfterInstallSection />
         <ProofSection />
-        <CommunitySection />
         <InstallJourneySection />
         <ComparisonSection />
         <PricingAccess />
