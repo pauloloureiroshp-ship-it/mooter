@@ -37,6 +37,8 @@ const HIGH_RISK = [
   /\barquitetur/i, /\barchitect/i, /\brefator(a|ar|amento)?\b/i, /\brefactor/i,
   /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\s+final\b/i,
   /\bpackage\.json\b/, /\bci\b.*\bpipeline/i, /\.github\/workflows/i,
+  /\bredesenha/i, /\bredesign/i,       // added v0.9.3 — "redesenha o auth" misrouted to T0
+  /\bmulti[- ]?tenant/i,               // added v0.9.3 — architecture pattern, was T0
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────
@@ -49,6 +51,9 @@ const MED_RISK = [
   /\bdecomp(õ|o)e/i, /\bdecompose/i, /\bquebr(a|ar)\s+em\b/i,
   /\bfalha(s)?\s+(intermitente|às\s+vezes|sometimes)/i, /\bintermittent/i,
   /\breconnect/i, /\bracecondition/i, /\brace\s+condition/i,
+  /\boptimiz(a|e|ar)\b/i,              // added v0.9.3 — "optimiza a query SQL" was T0
+  /\bcria(r)?\s+(um\s+)?endpoint/i,    // added v0.9.3 — feature creation needs reasoning
+  /\bcreate\s+(a\s+|an\s+)?endpoint/i, // added v0.9.3 — EN variant
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
