@@ -1790,11 +1790,14 @@ function PricingAccess() {
     return (
       <section id="access" className="section">
         <div className="container narrow" style={{ textAlign: 'center', padding: '6rem 0' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>🐕</div>
-          <h2 className="section-h2">You&apos;re on the list.</h2>
+          <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>&#x2709;&#xFE0F;</div>
+          <h2 className="section-h2">Check your email.</h2>
           <p className="section-sub" style={{ margin: '1rem auto 2rem', textAlign: 'center' }}>
-            We&apos;ll email you when frugal is ready for your setup.
-            In the meantime, you can install the open beta now:
+            We sent a magic link to <strong>{email}</strong>.
+            Click it to create your profile and set up frugal for your machine.
+          </p>
+          <p className="section-sub" style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+            Can&apos;t wait? Install the open beta now:
           </p>
           <InstallBlock />
         </div>
