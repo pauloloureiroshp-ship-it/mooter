@@ -408,17 +408,22 @@ function classify(prompt) {
       confidence = 0.65;
       reasoning = `short ambiguous prompt — safe to start in local tier (cutoff=${shortCutoff})`;
     } else if (len < mediumCutoff) {
-      tier = 'T2';
+      // v0.9.3 fix: was T2 (Sonnet), now T1 (Haiku). Ambiguous prompts without
+      // MED_RISK signals don't need Sonnet-level reasoning — Haiku handles them
+      // fine. This closes the T1 gap (was 0% of all prompts) and improves savings.
+      tier = 'T1';
       category = 'ambiguous_medium';
-      risk = 'medium';
+      risk = 'low';
       confidence = 0.6;
-      reasoning = `medium ambiguous prompt — Sonnet handles this fine (cutoff=${mediumCutoff})`;
+      reasoning = `medium ambiguous prompt — Haiku handles this fine (cutoff=${mediumCutoff})`;
     } else {
-      tier = 'T2';
+      // v0.9.3 fix: long ambiguous without risk signals → T1 not T2.
+      // Sonnet reserved for prompts with actual MED_RISK evidence.
+      tier = 'T1';
       category = 'ambiguous_long';
-      risk = 'medium';
+      risk = 'low';
       confidence = 0.55;
-      reasoning = 'long ambiguous prompt — Sonnet, escalate manually if needed';
+      reasoning = 'long ambiguous prompt — Haiku, escalate manually if needed';
     }
   }
 

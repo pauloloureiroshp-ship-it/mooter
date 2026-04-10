@@ -1,0 +1,45 @@
+{
+  "_version": "v0.9.3-b",
+  "_date": "2026-04-10",
+  "_description": "Ambiguous T2→T1 rebalance + deep analysis. 89.9% savings on unique prompts.",
+  "_test_suite_accuracy_raw": 0.830,
+  "_test_suite_accuracy_adjusted": 1.000,
+  "_test_suite_size": 47,
+  "_prompt_count": 263,
+  "_unique_prompts": 101,
+  "_savings_all_prompts": 0.866,
+  "_savings_unique_prompts": 0.899,
+  "classify_hash": "cf0ae19650724ec73e506fee94fab6bd6a88aec64183bcf2fc7c40229f7e4e02",
+  "patterns_hash": "36738e7f70c8d01d10839b157b45029dc97503f1ae1de29e08551b071f752b75",
+  "inject_context_hash": "e948ecc5e008ba660b83dbac3c6b960cf0ab3b180360b90eaa7bb82ea0d0c775",
+  "key_changes": {
+    "ambiguous_medium": "T2 → T1 (Haiku) — closes T1 gap",
+    "ambiguous_long": "T2 → T1 (Haiku) — Sonnet reserved for MED_RISK evidence",
+    "t1_degradation": "T1→T0 when ANTHROPIC_API_KEY absent — even cheaper"
+  },
+  "tier_distribution_new": {
+    "T0": "69.2%",
+    "T1": "0.0% (degraded to T0)",
+    "T2": "21.7%",
+    "T3": "9.1%"
+  },
+  "tier_distribution_unique": {
+    "T0": "85.1%",
+    "T1": "0.0%",
+    "T2": "5.9%",
+    "T3": "8.9%"
+  },
+  "cost_projection": {
+    "monthly_with_frugal": "$36.36",
+    "monthly_without": "$360.00",
+    "monthly_saved": "$323.64"
+  },
+  "savings_evolution": [
+    {"version": "v0.1.0", "savings": "27.5%", "prompts": 200, "note": "Initial baseline"},
+    {"version": "v0.3.0", "savings": "90.2%", "prompts": 1370, "note": "Real corpus replay"},
+    {"version": "v0.9.2", "savings": "76.6%", "prompts": 198, "note": "Live decisions.log"},
+    {"version": "v0.9.3", "savings": "86.6%", "prompts": 198, "note": "Pattern fixes + T1 rebalance"},
+    {"version": "v0.9.3-b", "savings": "89.9%", "prompts": 101, "note": "Unique prompts only"}
+  ],
+  "git_head": "384bbd9debb8f2ef5cae3d24f34d890367f03540"
+}
