@@ -9,17 +9,24 @@ It works on Mac and Windows. It's free.
 - **Node.js 20+** — check with: `node --version`
 - **Optional:** [Ollama](https://ollama.com) — enables free local model for trivial tasks
 
+## Getting access
+
+frugal is a private repo. Paulo will add you as a collaborator on GitHub.
+Once you have access:
+
 ## Mac / Linux (1 command)
 
 ```bash
-git clone https://github.com/pauloloureiroshp-ship-it/frugal.git /tmp/frugal && bash /tmp/frugal/install.sh
+git clone git@github.com:pauloloureiroshp-ship-it/frugal.git /tmp/frugal && bash /tmp/frugal/install.sh
 ```
 
 ## Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/pauloloureiroshp-ship-it/frugal.git $env:TEMP\frugal; & $env:TEMP\frugal\install-windows.ps1
+git clone git@github.com:pauloloureiroshp-ship-it/frugal.git $env:TEMP\frugal; & $env:TEMP\frugal\install-windows.ps1
 ```
+
+> No SSH keys? Ask Paulo for a zip file instead.
 
 ## After installing
 

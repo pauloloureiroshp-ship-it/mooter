@@ -9,17 +9,19 @@ Hey! I want you to be one of the first to try **frugal**.
 It's a tool I built that saves ~90% of Claude Code costs.
 No changes to your project, no risk, no cost. Installs in 30 seconds.
 
-**You need:** Claude Code + Node.js 20+
+**You need:** Claude Code + Node.js 20+ + GitHub access (I'll add you as collaborator)
 
 **Mac/Linux:**
 ```
-git clone https://github.com/pauloloureiroshp-ship-it/frugal.git /tmp/frugal && bash /tmp/frugal/install.sh
+git clone git@github.com:pauloloureiroshp-ship-it/frugal.git /tmp/frugal && bash /tmp/frugal/install.sh
 ```
 
 **Windows (PowerShell):**
 ```
-git clone https://github.com/pauloloureiroshp-ship-it/frugal.git $env:TEMP\frugal; & $env:TEMP\frugal\install-windows.ps1
+git clone git@github.com:pauloloureiroshp-ship-it/frugal.git $env:TEMP\frugal; & $env:TEMP\frugal\install-windows.ps1
 ```
+
+(If you don't have SSH keys set up, I'll send you a zip instead.)
 
 After installing, open Claude Code and type `/frugal-status`.
 
@@ -33,7 +35,8 @@ Any problems, let me know!
 
 ## Notes for Paulo
 
-- Update the git clone URLs once the repo is public
-- If repo stays private, share via zip or add friends as collaborators
+- Repo is PRIVATE — add friends as collaborators: `gh repo add-collaborator <github-username>`
+- Alternative: create a zip release for friends without GitHub/SSH setup
 - Track friend installs via frugal-hub dashboard (/api/stats)
 - Each friend's data flows automatically — no setup needed on their end
+- Never make the repo public — the algorithm is our competitive advantage
