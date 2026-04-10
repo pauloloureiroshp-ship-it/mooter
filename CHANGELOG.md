@@ -6,6 +6,67 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [0.9.3] — 2026-04-10
+
+### Beast/Zen/Auto modes, self-improving pipeline, statusline v0.12
+
+The biggest single-session leap: from 76.6% to 89.9% savings, a self-improving
+test pipeline, and a statusline that proves frugal's value at a glance.
+
+### Added
+- **Beast/Zen/Auto mode system** — `frugal-mode.js` CLI + `applyActiveMode()` in
+  inject_context.js. Beast forces T3 (Opus), Zen caps T1, Auto clears.
+  Zen bypasses for T3-gate safety tasks (push/deploy/merge).
+- **80-prompt stress test suite** (`stress-test.js`) — regression gate across
+  T0/T1/T2/T3 with PT-PT, EN, compound, deceptive, and edge case prompts.
+  Exit code 1 if adjusted accuracy drops below 85%.
+- **UX insights collector** (`ux-insights.js`) — analyzes decisions.log for
+  friction signals: user overrides, low confidence, quality intent.
+  Generates improvement suggestions. Appends to history for trend tracking.
+- **Weekly evolution report** (`weekly-evolution.js`) — full pipeline:
+  stress test + backtest + UX insights + suggestions.
+- **Algorithm evolution archive** (`.evolution/`) — SHA-256 snapshots of
+  classify.js, patterns.js, inject_context.js after each improvement round.
+  5 snapshots created: v0.9.2, v0.9.3, v0.9.3-b, v0.9.3-c.
+- **27 new patterns** in patterns.js from 3 rounds of stress testing:
+  push-to-staging, delete-table, OAuth, authenticate, merge-review,
+  PR-review, caching-distribuido, connection-pool, RBAC, and more.
+- **Statusline v0.12** — complete redesign:
+  `🐕 💰 ↓89% saved ~$3.84 · spent ~$0.47 │ ██▓▓█████ 🔴 Opus 9% 12k · 🟡 Sonnet 22% 31k · 🟢 Local 69% 98k ⚡RTX 4090`
+
+### Changed
+- **Ambiguous prompts T2→T1** — medium/long prompts without MED_RISK signals
+  now route to Haiku (T1) instead of Sonnet (T2). With T1→T0 degradation
+  (no API key), these become free Ollama calls. Savings: 76.6% → 89.9%.
+- **`.env` regex fix** — `\b\.env\b` changed to `\.env\b` (word boundary
+  before dot doesn't work in regex).
+- **Repo reorganised** — 20 master prompts moved to `prompts/`, docs artifacts
+  relocated, root reduced from 30 to 11 files.
+
+### Fixed
+- **Onboarding re-trigger** — `setup-profile.js` failed silently in non-TTY
+  hook context. Now creates default `subscription-profile.json` automatically.
+
+### Metrics
+- Stress test: 80 prompts, 87.5% raw, 100% adjusted accuracy
+- Savings: 89.9% on unique prompts ($323/month projected savings)
+- T0 absorption: 85.1% (free tier)
+- T3 (Opus): 8.9% of prompts
+- decisions.log: 270 entries
+
+---
+
+## [0.9.2] — 2026-04-09
+
+### Community hub + 8 slash commands
+
+- **frugal-hub** deployed at `frugal-hub.frugal-hub.workers.dev` (Workers + D1 + R2)
+- **Community intelligence loop** — hub-push, hub-pull, hub-status
+- **8 slash commands** — /frugal-status, -savings, -route, -summary, -update, -beast, -zen, -auto
+- **install.sh v2** — idempotent install of all skills and router files
+
+---
+
 ## [0.9.0] — 2026-04-09
 
 ### Statusline v3 + GPU awareness + federated learning foundation

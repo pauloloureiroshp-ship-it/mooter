@@ -1,0 +1,34 @@
+{
+  "_version": "v0.9.3-final",
+  "_date": "2026-04-10",
+  "_description": "End-of-session snapshot: 89.9% savings, 80-prompt suite, statusline v0.12.1, auto-improve pipeline, onboarding fix.",
+  "_session_commits": 19,
+  "_test_suite_size": 80,
+  "_test_suite_accuracy_raw": 0.875,
+  "_test_suite_accuracy_adjusted": 1.000,
+  "_savings_unique_prompts": 0.899,
+  "_decisions_log_entries": 270,
+  "classify_hash": "cf0ae19650724ec73e506fee94fab6bd6a88aec64183bcf2fc7c40229f7e4e02",
+  "patterns_hash": "c3047317c7af54cf2c8ab011dcd5c6a4395264a901e5e2da895fd52ce52d61f3",
+  "inject_context_hash": "e948ecc5e008ba660b83dbac3c6b960cf0ab3b180360b90eaa7bb82ea0d0c775",
+  "statusline_hash": "a452db90eabbb8a0ecf4c6aed3e62fb40ae2885e3495b45afbd443f5349998c7",
+  "total_patterns": {
+    "HIGH_RISK": 27,
+    "MED_RISK": 22,
+    "LOW_RISK": 12,
+    "TRIVIAL": 6
+  },
+  "session_highlights": [
+    "Beast/Zen/Auto mode system with applyActiveMode()",
+    "80-prompt stress test suite (3 rounds of creative testing)",
+    "27 new patterns from dogfood + stress testing",
+    "Ambiguous T2→T1 rebalance (closed T1 gap)",
+    "Statusline v0.12.1 with full model names, tokens, saved vs spent, GPU",
+    "UX insights collector + weekly evolution report scripts",
+    "Onboarding non-TTY fix",
+    "Repo reorganisation (30→11 root files)",
+    "6 evolution snapshots in .evolution/",
+    "8+ Notion pages documenting everything"
+  ],
+  "git_head": "55137d0a909465404dfecdee8256e3d5e4252651"
+}

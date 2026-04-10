@@ -41,3 +41,12 @@ hub/.wrangler/
 landing/tsconfig.tsbuildinfo
 vscode-extension/*.vsix
 vscode-extension/node_modules/
+
+# Temp files (Office lock files, etc.)
+~$*
+
+# Generated output artifacts
+output/
+
+# Investor decks (keep in Google Drive, not git)
+*.pptx
