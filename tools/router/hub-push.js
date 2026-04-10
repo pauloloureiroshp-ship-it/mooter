@@ -113,9 +113,10 @@ function pushToHub(delta) {
 async function main() {
   const args = process.argv.slice(2);
   const force = args.includes('--force');
+  const dryRun = args.includes('--dry-run');
   const filePath = args.find(a => !a.startsWith('--')) || DELTA_PATH;
 
-  if (!force && !shouldPush()) {
+  if (!force && !dryRun && !shouldPush()) {
     if (!args.includes('--quiet')) {
       console.log('frugal hub-push: cooldown active (last push < 24h ago). Use --force to override.');
     }
@@ -143,6 +144,13 @@ async function main() {
   }
 
   delta = enrichDelta(delta);
+
+  if (dryRun) {
+    console.log('frugal hub-push [dry-run]: payload that WOULD be sent:');
+    console.log(JSON.stringify(delta, null, 2));
+    console.log('\nfrugal hub-push [dry-run]: no data was sent. Use without --dry-run to push.');
+    process.exit(0);
+  }
 
   const result = await pushToHub(delta);
   if (result.ok) {

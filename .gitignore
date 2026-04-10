@@ -33,6 +33,11 @@ tools/router/.budget-cache.json
 tools/router/.budget-refresh.lock
 tools/router/.tracker.pid
 tools/router/router-tuning.json
+tools/router/backtest-delta.json
+tools/router/backtest-latest.log
+tools/router/classify.js.bak
+tools/router/classify.js.bak2
+tools/router/.env
 
 # Wrangler local state
 hub/.wrangler/

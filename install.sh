@@ -109,7 +109,7 @@ if [ "$UNINSTALL" = "1" ]; then
   do_run "rm -f '$CLAUDE_DIR/CLAUDE.md'"
   do_run "rm -rf '$ROUTER_DIR'"
   do_run "rm -rf '$CLAUDE_DIR/skills/model-router'"
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto; do
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello; do
     do_run "rm -rf '$CLAUDE_DIR/skills/$skill'"
   done
   for a in model-architect model-reasoner cheap-triage local-summarizer local-transformer final-reviewer; do
@@ -122,7 +122,10 @@ fi
 # ─────────────────────────────────────────────────────────────
 # INSTALL mode
 # ─────────────────────────────────────────────────────────────
-say "Claude Code Router — installer"
+echo ""
+echo "  frugal v0.9.4"
+echo "  Stop paying for a brain surgeon when you need a band-aid."
+echo ""
 say "Target: $CLAUDE_DIR"
 
 # 1. ~/.claude exists?
@@ -179,13 +182,13 @@ if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
   do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
   # Install frugal slash command skills
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto; do
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello; do
     if [ -d "$SRC_DIR/skills/$skill" ]; then
       do_run "mkdir -p '$CLAUDE_DIR/skills/$skill'"
       do_run "cp '$SRC_DIR/skills/$skill/SKILL.md' '$CLAUDE_DIR/skills/$skill/SKILL.md'"
     fi
   done
-  ok "installed 8 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto)"
+  ok "installed 9 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto, /frugal-hello)"
   do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/' 2>/dev/null || true"
   if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
     do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md'"
@@ -237,18 +240,26 @@ if [ -f "$ROUTER_DIR/benchmark.sh" ] && [ "$DRY_RUN" = "0" ]; then
   bash "$ROUTER_DIR/benchmark.sh" 2>&1 | tail -8
 fi
 
+# 9. smoke test (if available)
+if [ -f "$ROUTER_DIR/smoke-test.js" ] && [ "$DRY_RUN" = "0" ]; then
+  say "running smoke test (4 prompts)…"
+  node "$ROUTER_DIR/smoke-test.js" 2>&1 || true
+fi
+
 echo ""
-ok "Install complete!"
+ok "frugal installed!"
 echo ""
-echo "Next steps:"
-echo "  • Open a new Claude Code session (CLAUDE.md auto-loads)"
-echo "  • Try a prompt — you'll see a <router-hint> in the next reply"
-echo "  • After 10+ prompts: node $ROUTER_DIR/stats.js"
-echo "  • Re-run: bash $0 --doctor"
+echo "  ✓ Router:    classify.js ready"
+echo "  ✓ Hook:      UserPromptSubmit active"
+echo "  ✓ Skills:    /frugal-status /frugal-savings /frugal-beast /frugal-zen /frugal-auto"
+echo "  ✓ Self-test: T3 detection OK"
+if command -v ollama >/dev/null 2>&1; then
+  echo "  ✓ Ollama:    $RECOMMENDED_OLLAMA_TERSE ready"
+else
+  echo "  ○ Ollama:    not installed (optional — https://ollama.com)"
+fi
 echo ""
-echo "Documentation:"
-echo "  • $CLAUDE_DIR/docs/HOW_IT_WORKS.md"
-echo "  • $CLAUDE_DIR/docs/ROUTING_POLICY.md"
-echo "  • $CLAUDE_DIR/docs/BENEFITS.md"
-echo "  • $CLAUDE_DIR/docs/VALIDATION_REPORT.md"
+echo "  Next step: open Claude Code and type /frugal-status"
+echo ""
+echo "  Questions? paulo.loureiro.shp@gmail.com"
 echo ""
