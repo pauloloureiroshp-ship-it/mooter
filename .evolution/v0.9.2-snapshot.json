@@ -1,0 +1,32 @@
+{
+  "_version": "v0.9.2",
+  "_date": "2026-04-10",
+  "_description": "Sessao Cowork #5 — hub deployed, 8 skills, Beast/Zen/Auto modes",
+  "_savings_validated": 0.581,
+  "_prompt_count": 263,
+  "_t0_absorption": 0.403,
+  "classify_hash": "2b20d55b8b68a7437b05416b1399879aafd36e71dd7a254c21e7ca78ac399c23",
+  "patterns_hash": "3d6217d2f0547be65cc298f4cefe0551072eab971c8c1dc9a9679e1e110ac814",
+  "inject_context_hash": "e948ecc5e008ba660b83dbac3c6b960cf0ab3b180360b90eaa7bb82ea0d0c775",
+  "key_thresholds": {
+    "high_risk_floor": "T3",
+    "trivial_ceiling": "T0",
+    "confidence_arbiter_threshold": 0.6,
+    "tuned_complexity_threshold": 0.25
+  },
+  "tier_distribution": {
+    "T0": "40.3%",
+    "T1": "0.0%",
+    "T2": "21.7%",
+    "T3": "38.0%"
+  },
+  "backtest_metrics": {
+    "naive_cost_t3": "$11.8350",
+    "actual_cost": "$4.9560",
+    "ideal_post_tune": "$4.6520",
+    "savings_pct": "58.1%"
+  },
+  "fast_paths": ["bash_command_paste", "ps_paste", "file_read_intent"],
+  "patterns_added_v093": ["redesenha/redesign", "multi-tenant", "optimiza/optimize", "cria endpoint/create endpoint"],
+  "git_head": "b28b307c70b69312f2692daa076ac46c570a8350"
+}
