@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { upsertProfile, getUser, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { upsertProfile, getUser, SUPABASE_URL, SUPABASE_ANON_KEY, signInWithGitHub } from '../lib/supabase';
+import { generateFrugalConfig } from '../lib/generate-frugal-config';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -18,21 +19,12 @@ const SUB_OPTIONS = ['Claude Max', 'Claude API', 'GPT Plus', 'GPT API', 'Gemini'
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
 const INSTALL_CMD_WIN = 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex';
 
-const PROMPT_TIERS = [10, 50, 100, 200, 500];
-
-function estimateCost(prompts: number): { without: number; with: number } {
-  // Rough estimate: avg prompt ~$0.03 on Opus, frugal saves ~90%
-  const without = prompts * 30 * 0.03;
-  const withFrugal = without * 0.1;
-  return { without: Math.round(without), with: Math.round(withFrugal) };
-}
-
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [hw, setHw] = useState('');
   const [subs, setSubs] = useState<string[]>([]);
-  const [prompts, setPrompts] = useState(100);
   const [saving, setSaving] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
 
   const toggleSub = (s: string) => {
     setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -52,8 +44,6 @@ export default function OnboardingPage() {
         id: userId,
         hardware_tier: hw,
         subscriptions: subs,
-        prompts_per_day_estimate: prompts,
-        ollama_available: !hw.includes('cloud'),
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
       });
@@ -63,8 +53,6 @@ export default function OnboardingPage() {
       setSaving(false);
     }
   };
-
-  const costs = estimateCost(prompts);
 
   return (
     <div className="onboarding-page">
@@ -122,39 +110,41 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 2: Usage estimate */}
+        {/* Step 2: Connect GitHub */}
         {step === 2 && (
           <div className="onboarding-step">
-            <h2>How much do you use Claude Code?</h2>
+            <h2>Connect GitHub</h2>
+            <p className="onboarding-sub">
+              We only read public repo metadata — languages and activity.
+              We never access code or private repos.
+            </p>
 
-            <div className="onboarding-slider-wrap">
-              <input
-                type="range"
-                min={0}
-                max={PROMPT_TIERS.length - 1}
-                value={PROMPT_TIERS.indexOf(prompts)}
-                onChange={e => setPrompts(PROMPT_TIERS[parseInt(e.target.value)])}
-                className="onboarding-slider"
-              />
-              <div className="onboarding-slider-label">{prompts} prompts/day</div>
-            </div>
-
-            <div className="onboarding-estimate">
-              <div className="onboarding-est-row">
-                <span>Without frugal</span>
-                <span className="onboarding-est-val onboarding-est-high">~${costs.without}/mo</span>
+            <div className="onboarding-scopes">
+              <div className="onboarding-scope-item">
+                <span className="onboarding-scope-icon">✓</span>
+                <span><strong>read:user</strong> — your username and avatar</span>
               </div>
-              <div className="onboarding-est-row">
-                <span>With frugal</span>
-                <span className="onboarding-est-val onboarding-est-low">~${costs.with}/mo</span>
+              <div className="onboarding-scope-item">
+                <span className="onboarding-scope-icon">✓</span>
+                <span><strong>public_repo</strong> — public repo metadata only</span>
               </div>
-              <div className="onboarding-est-savings">
-                You save ~${costs.without - costs.with}/mo
+              <div className="onboarding-scope-item">
+                <span className="onboarding-scope-icon">✗</span>
+                <span>No code access. No private repos. No file contents.</span>
               </div>
             </div>
 
-            <button className="onboarding-next" onClick={() => setStep(3)}>
-              Next &rarr;
+            <button
+              className="onboarding-next"
+              onClick={() => signInWithGitHub()}
+            >
+              Connect GitHub
+            </button>
+            <button
+              className="onboarding-skip"
+              onClick={() => setStep(3)}
+            >
+              Skip for now
             </button>
           </div>
         )}
@@ -184,33 +174,48 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 4: Verify */}
+        {/* Step 4: Personalized config */}
         {step === 4 && (
           <div className="onboarding-step">
-            <h2>Verify it works</h2>
-            <p className="onboarding-sub">Run this in Claude Code:</p>
+            <h2>Your personalized config</h2>
+            <p className="onboarding-sub">
+              frugal has been configured specifically for your setup.
+            </p>
 
-            <div className="onboarding-cmd-block">
-              <code>/frugal-status</code>
-            </div>
-
-            <p className="onboarding-sub" style={{ marginTop: '1.5rem' }}>What you should see:</p>
-
-            <div className="onboarding-terminal">
-              <div className="onboarding-term-bar">
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f47373' }} />
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#dcdcaa' }} />
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#4ec9b0' }} />
-              </div>
-              <pre className="onboarding-term-body">{`frugal status — all green
-  Router: active · last prompt · T0 (free) ✓
-  Savings: $0.05 saved already
-  Ollama: qwen2.5:3b online
-  Hub: connected`}</pre>
-            </div>
+            {(() => {
+              const config = generateFrugalConfig({
+                hardware_tier: hw,
+                subscriptions: subs.map(s => s.toLowerCase().replace(' ', '_')),
+              });
+              return (
+                <div className="onboarding-config-display">
+                  <div className="onboarding-config-row">
+                    <span className="onboarding-config-label">Mode</span>
+                    <span className="onboarding-config-val">{config.default_mode}</span>
+                  </div>
+                  <div className="onboarding-config-row">
+                    <span className="onboarding-config-label">Ollama</span>
+                    <span className="onboarding-config-val">
+                      {config.ollama_enabled ? `${config.ollama_model} (active)` : 'Disabled'}
+                    </span>
+                  </div>
+                  <div className="onboarding-config-row">
+                    <span className="onboarding-config-label">T0 threshold</span>
+                    <span className="onboarding-config-val">{config.t0_threshold}</span>
+                  </div>
+                  <div className="onboarding-config-row">
+                    <span className="onboarding-config-label">Hub push</span>
+                    <span className="onboarding-config-val">{config.hub_push_enabled ? 'Enabled' : 'Disabled'}</span>
+                  </div>
+                  {config.personalized_message && (
+                    <p className="onboarding-config-msg">{config.personalized_message}</p>
+                  )}
+                </div>
+              );
+            })()}
 
             <a href="/dashboard" className="onboarding-next" style={{ textAlign: 'center', display: 'block', textDecoration: 'none' }}>
-              {saving ? 'Saving...' : 'I see this! Go to dashboard \u2192'}
+              {saving ? 'Saving...' : 'Go to dashboard →'}
             </a>
           </div>
         )}

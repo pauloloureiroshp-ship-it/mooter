@@ -247,6 +247,24 @@ main       { display: flex; flex-direction: column; }
   margin-bottom: 1.75rem;
 }
 
+.hero-savings-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid rgba(78,201,176,0.3);
+  border-radius: 100px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+}
+.hsb-live {
+  color: var(--green);
+  font-size: 0.7rem;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.hsb-text strong { color: var(--green); }
+
 .hero-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1075,6 +1093,7 @@ main       { display: flex; flex-direction: column; }
   color: var(--green);
   display: block;
   font-variant-numeric: tabular-nums;
+  transition: color 0.3s;
 }
 
 .counter-label {
@@ -3080,6 +3099,59 @@ main       { display: flex; flex-direction: column; }
   color: var(--t0);
   margin: 0;
   white-space: pre;
+}
+.onboarding-scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+  text-align: left;
+}
+.onboarding-scope-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.onboarding-scope-icon { font-size: 1rem; }
+.onboarding-skip {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+  text-decoration: underline;
+}
+.onboarding-config-display {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+}
+.onboarding-config-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.onboarding-config-row:last-of-type { border-bottom: none; }
+.onboarding-config-label { color: var(--muted); font-size: 0.85rem; }
+.onboarding-config-val { color: var(--green); font-weight: 600; }
+.onboarding-config-msg {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+  font-style: italic;
+}
+.dashboard-link {
+  color: var(--green);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  margin-top: 0.5rem;
+  display: inline-block;
 }
 
 /* ── Dashboard ───────────────────────────────────────────── */

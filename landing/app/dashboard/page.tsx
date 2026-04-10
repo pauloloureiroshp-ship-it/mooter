@@ -6,10 +6,17 @@ interface Profile {
   id: string;
   email: string;
   hardware_tier: string;
+  os_type: string;
   subscriptions: string[];
   prompts_per_day_estimate: number;
-  ollama_available: boolean;
   onboarding_completed: boolean;
+  github_username: string | null;
+  github_primary_language: string | null;
+  github_public_repos_count: number;
+  experience_level: string;
+  frugal_config: Record<string, unknown>;
+  install_completed: boolean;
+  frugal_version: string | null;
 }
 
 export default function DashboardPage() {
@@ -76,34 +83,78 @@ export default function DashboardPage() {
                   <span className="dashboard-label">Subscriptions</span>
                   <span className="dashboard-val">{profile.subscriptions?.join(', ') || 'None'}</span>
                 </div>
+                {profile.github_username && (
+                  <>
+                    <div className="dashboard-field">
+                      <span className="dashboard-label">GitHub</span>
+                      <span className="dashboard-val">@{profile.github_username}</span>
+                    </div>
+                    <div className="dashboard-field">
+                      <span className="dashboard-label">Primary language</span>
+                      <span className="dashboard-val">{profile.github_primary_language || '—'}</span>
+                    </div>
+                    <div className="dashboard-field">
+                      <span className="dashboard-label">Public repos</span>
+                      <span className="dashboard-val">{profile.github_public_repos_count}</span>
+                    </div>
+                  </>
+                )}
                 <div className="dashboard-field">
-                  <span className="dashboard-label">Prompts/day</span>
-                  <span className="dashboard-val">{profile.prompts_per_day_estimate || '—'}</span>
-                </div>
-                <div className="dashboard-field">
-                  <span className="dashboard-label">Ollama</span>
-                  <span className="dashboard-val">{profile.ollama_available ? 'Available' : 'Not detected'}</span>
+                  <span className="dashboard-label">Level</span>
+                  <span className="dashboard-val">{profile.experience_level || 'unknown'}</span>
                 </div>
               </div>
+              <a href="/onboarding" className="dashboard-link">Edit profile</a>
             </div>
 
-            {/* Savings card — placeholder */}
+            {/* Savings card */}
             <div className="dashboard-card">
               <h2>Savings</h2>
-              <p className="dashboard-muted">
-                Awaiting first data. Start using Claude Code with frugal installed and your savings will appear here.
-              </p>
+              {!profile.install_completed ? (
+                <div>
+                  <p className="dashboard-muted">
+                    We haven&apos;t detected your first prompt yet. Install frugal and start using Claude Code.
+                  </p>
+                  <a href="/onboarding" className="dashboard-link">View install instructions</a>
+                </div>
+              ) : (
+                <p className="dashboard-muted">
+                  Savings data will appear here once usage sessions are synced.
+                </p>
+              )}
             </div>
 
-            {/* Community hub link */}
+            {/* Config card */}
             <div className="dashboard-card">
-              <h2>Community hub</h2>
+              <h2>Your frugal config</h2>
+              {profile.frugal_config && Object.keys(profile.frugal_config).length > 0 ? (
+                <div className="dashboard-grid">
+                  {Object.entries(profile.frugal_config).map(([key, val]) => (
+                    <div className="dashboard-field" key={key}>
+                      <span className="dashboard-label">{key.replace(/_/g, ' ')}</span>
+                      <span className="dashboard-val">{String(val)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="dashboard-muted">Config will be generated after onboarding.</p>
+              )}
+            </div>
+
+            {/* Community */}
+            <div className="dashboard-card">
+              <h2>Community</h2>
               <p className="dashboard-muted">
-                See live community stats at the{' '}
-                <a href="https://frugal-hub.frugal-hub.workers.dev/api/stats" target="_blank" rel="noopener">
-                  frugal hub API
-                </a>.
+                Your routing decisions help improve the algorithm for everyone.
               </p>
+              <a
+                href="https://frugal-hub.frugal-hub.workers.dev/api/stats"
+                target="_blank"
+                rel="noopener"
+                className="dashboard-link"
+              >
+                View live community stats
+              </a>
             </div>
 
             {/* Install on another machine */}
