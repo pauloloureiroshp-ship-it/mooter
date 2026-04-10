@@ -20,6 +20,10 @@ router/benchmark-results/summary-*.json
 # Local-only generated files (never commit)
 hw-capability.json
 subscription-profile.json
+community-tuning.json
+.last-hub-pull
+.last-hub-push
+backtest-delta.json
 
 # VS Code extension build artifacts
 vscode-extension/*.vsix

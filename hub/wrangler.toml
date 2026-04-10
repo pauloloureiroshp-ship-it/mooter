@@ -1,0 +1,24 @@
+name = "frugal-hub"
+main = "worker.js"
+compatibility_date = "2026-04-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "frugal-hub"
+database_id = "TO_BE_FILLED"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "frugal-hub-storage"
+
+[triggers]
+crons = ["0 * * * *", "0 6 * * *", "0 6 * * 1"]
+# hourly: aggregate deltas
+# daily 06:00 UTC: generate router-tuning
+# weekly Monday 06:00 UTC: notify Paulo + prune old deltas
+
+[vars]
+DELTA_TTL_DAYS = "7"
+MIN_TRUST_SCORE = "0.4"
+NEW_MODEL_THRESHOLD = "10"
+ACCURACY_DROP_THRESHOLD = "0.15"

@@ -1,0 +1,18 @@
+{
+  "_version": "1.0.0",
+  "_updated": "2026-04-10",
+  "_source": "frugal-hub",
+  "models": {
+    "claude-opus-4-6": { "tier": "t3", "provider": "anthropic", "known_since": "2026-03" },
+    "claude-sonnet-4-6": { "tier": "t2", "provider": "anthropic", "known_since": "2026-03" },
+    "claude-haiku-4-5-20251001": { "tier": "t1", "provider": "anthropic", "known_since": "2025-10" },
+    "gpt-4o": { "tier": "t2", "provider": "openai", "known_since": "2024-05" },
+    "gemini-2.5-flash": { "tier": "t0", "provider": "google", "known_since": "2025-12" },
+    "qwen2.5:3b": { "tier": "t0", "provider": "ollama", "vram_min_mb": 2048 },
+    "qwen2.5-coder:7b": { "tier": "t0", "provider": "ollama", "vram_min_mb": 4096 },
+    "qwen2.5-coder:14b-q4": { "tier": "t0", "provider": "ollama", "vram_min_mb": 9216 },
+    "deepseek-r1-distill-qwen:14b": { "tier": "t0", "provider": "ollama", "vram_min_mb": 9216 },
+    "qwen2.5:32b-q4": { "tier": "t0", "provider": "ollama", "vram_min_mb": 20480 },
+    "qwen3:30b": { "tier": "t0", "provider": "ollama", "vram_min_mb": 20480 }
+  }
+}

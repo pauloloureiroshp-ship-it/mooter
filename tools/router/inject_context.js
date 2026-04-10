@@ -385,6 +385,27 @@ let _hwCapability = undefined;
   }
 })();
 
+// ── Hub pull (v0.9.1) — fire-and-forget community config update ────────────
+// Checks for newer router-tuning and model-catalog from the hub on session
+// startup. Respects a 4h cooldown. Never blocks the hook.
+(function maybeHubPull() {
+  try {
+    const pullScript = path.join(ROUTER_DIR, 'hub-pull.js');
+    if (!fs.existsSync(pullScript)) return;
+    const lastPullPath = path.join(ROUTER_DIR, '.last-hub-pull');
+    try {
+      const stat = fs.statSync(lastPullPath);
+      if (Date.now() - stat.mtimeMs < 4 * 60 * 60 * 1000) return; // 4h cooldown
+    } catch { /* never pulled */ }
+    const child = execFile(process.execPath, [pullScript, '--quiet'], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.unref();
+  } catch { /* non-fatal */ }
+})();
+
 let raw = '';
 try {
   raw = require('fs').readFileSync(0, 'utf8');
