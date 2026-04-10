@@ -1,0 +1,22 @@
+{
+  "_version": "v0.9.3-c",
+  "_date": "2026-04-10",
+  "_description": "Creative test batch: compound, deceptive, informal PT, real-world patterns. 70-prompt suite.",
+  "_test_suite_accuracy_raw": 0.886,
+  "_test_suite_accuracy_adjusted": 1.000,
+  "_test_suite_size": 70,
+  "_prompt_count": 263,
+  "classify_hash": "cf0ae19650724ec73e506fee94fab6bd6a88aec64183bcf2fc7c40229f7e4e02",
+  "patterns_hash": "c3047317c7af54cf2c8ab011dcd5c6a4395264a901e5e2da895fd52ce52d61f3",
+  "inject_context_hash": "e948ecc5e008ba660b83dbac3c6b960cf0ab3b180360b90eaa7bb82ea0d0c775",
+  "patterns_added": {
+    "HIGH_RISK": ["push to staging", "delete table", "OAuth", "authenticate", "review+merge", "PR review", ".env fix (\\b removal)"],
+    "MED_RISK": ["caching distribuido", "connection pool", "RBAC", "failing on CI", "exhaust", "robusta/o"]
+  },
+  "test_categories_added": ["compound_prompts", "ultra_short", "code_pastes", "pt_informal", "deceptive_trivial", "deceptive_complex", "real_world_dev"],
+  "savings_evolution": [
+    {"version": "v0.9.3-b", "savings": "89.9%", "suite": 47, "adjusted": "100%"},
+    {"version": "v0.9.3-c", "savings": "89.9%", "suite": 70, "adjusted": "100%"}
+  ],
+  "git_head": "1309f20"
+}

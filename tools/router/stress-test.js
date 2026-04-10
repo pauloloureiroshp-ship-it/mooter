@@ -81,6 +81,44 @@ const SUITE = [
   { p: 'cria um endpoint REST para gestão de subscriptions', tier: 'T2' },
   { p: 'merge a branch feature/auth into main', tier: 'T3' },
   { p: 'set up Sentry for error tracking in production', tier: 'T3' },
+
+  // ── Creative batch (v0.9.3-c) ─────────────────────────────────
+  // Compound prompts
+  { p: 'fix the button color and then push to staging', tier: 'T3' },
+  { p: 'explain this error and refactor the handler', tier: 'T3' },
+  { p: 'add a test and update the README', tier: 'T0', also: ['T1'] },
+
+  // Ultra-short
+  { p: 'type error', tier: 'T0' },
+  { p: 'help', tier: 'T0' },
+
+  // Code/error pastes
+  { p: 'const x = arr.map(i => i * 2).filter(Boolean)', tier: 'T0' },
+  { p: '$ npm install express && npm run dev', tier: 'T0' },
+  { p: 'Error: ENOENT: no such file or directory', tier: 'T0' },
+
+  // Portuguese informal
+  { p: 'mete isso a funcionar', tier: 'T0' },
+  { p: 'o que é que este código faz?', tier: 'T0' },
+  { p: 'preciso de uma solução robusta para caching distribuído', tier: 'T2' },
+
+  // Deceptive (sound trivial but critical)
+  { p: 'just delete the user table', tier: 'T3' },
+  { p: 'quickly update the production config', tier: 'T3' },
+  { p: 'simply change the API key in .env', tier: 'T3' },
+
+  // Deceptive (sound complex but trivial)
+  { p: 'implement a sophisticated hello world function', tier: 'T0', also: ['T1'] },
+  { p: 'architect a console.log statement', tier: 'T3' },
+
+  // Real-world developer patterns
+  { p: 'the tests are failing on CI, can you check?', tier: 'T2' },
+  { p: 'PR #42 needs review before merge', tier: 'T3' },
+  { p: 'add CORS headers to the API', tier: 'T0' },
+  { p: 'set up authentication with OAuth2 and JWT', tier: 'T3' },
+  { p: 'the database connection pool is exhausting under load', tier: 'T2' },
+  { p: 'make the sidebar responsive on mobile', tier: 'T0' },
+  { p: 'we need to implement RBAC for the admin panel', tier: 'T2' },
 ];
 
 // ── Run ──────────────────────────────────────────────────────────
