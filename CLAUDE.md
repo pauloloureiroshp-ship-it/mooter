@@ -142,6 +142,21 @@ Se a sessão terminar sem página Notion → a sessão não está registada → 
 
 ---
 
+## MAPA DE REFERÊNCIA RÁPIDA
+
+Antes de perguntar "onde está X?" ou "qual é o comando para Y?", lê o ficheiro certo:
+
+| Precisas de saber... | Ficheiro |
+|---|---|
+| URL, ID, credencial, endpoint de qualquer serviço | **`INFRA.md`** |
+| Estado actual do projecto, versão, loopholes | **`SYNC.md`** |
+| O que fazer na próxima sessão | **`SYNC.md` → secção COWORK→CLAUDE CODE** |
+| Como o router funciona em detalhe | `~/.claude/docs/ROUTING_POLICY.md` |
+| Visão estratégica v2.0 | `VISION_V2.md` |
+| Arquitectura dataset/model privado | `ARCHITECTURE_PRIVATE.md` |
+
+---
+
 ## REGRAS GERAIS (independentes do roteamento)
 
 - **Nunca** alterar ficheiros do projeto para construir infraestrutura pessoal. Setup de harness/Claude Code → `~/.claude/`.
