@@ -11,8 +11,11 @@
  * reads/writes happen from server code, not the browser.
  */
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const URL = SUPABASE_URL;
+const KEY = SUPABASE_ANON_KEY;
 
 function headers(extra: Record<string, string> = {}): HeadersInit {
   return {
@@ -116,6 +119,114 @@ export async function selectOne<T>(
     );
     if (!res.ok) return null;
     const data = (await res.json()) as T[];
+    return data[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/* ─── Auth helpers (magic link via Supabase GoTrue REST) ─── */
+
+/**
+ * Send a magic link OTP to the given email. The user clicks the link in
+ * their inbox and gets redirected to `redirectTo`.
+ */
+export async function signInWithEmail(email: string, redirectTo: string): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const res = await fetch(`${URL}/auth/v1/otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: KEY },
+      body: JSON.stringify({ email, options: { emailRedirectTo: redirectTo } }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Exchange an auth code (from the magic link callback) for an access token.
+ */
+export async function exchangeCodeForSession(code: string): Promise<{
+  access_token: string;
+  refresh_token: string;
+  user: { id: string; email: string };
+} | null> {
+  if (!isConfigured()) return null;
+  try {
+    const res = await fetch(`${URL}/auth/v1/token?grant_type=pkce`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: KEY },
+      body: JSON.stringify({ auth_code: code }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the current user from an access token.
+ */
+export async function getUser(accessToken: string): Promise<{ id: string; email: string } | null> {
+  if (!isConfigured()) return null;
+  try {
+    const res = await fetch(`${URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${accessToken}`, apikey: KEY },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Insert or update a profile row. Uses the user's own access token for RLS.
+ */
+export async function upsertProfile(
+  accessToken: string,
+  profile: Record<string, unknown>,
+): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const res = await fetch(`${URL}/rest/v1/profiles`, {
+      method: 'POST',
+      headers: {
+        apikey: KEY,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(profile),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read the current user's profile.
+ */
+export async function getProfile(accessToken: string, userId: string): Promise<Record<string, unknown> | null> {
+  if (!isConfigured()) return null;
+  try {
+    const res = await fetch(`${URL}/rest/v1/profiles?id=eq.${userId}&limit=1`, {
+      headers: {
+        apikey: KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
     return data[0] ?? null;
   } catch {
     return null;

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { insert, count } from '@/app/lib/supabase';
+import { insert, count, signInWithEmail } from '@/app/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,8 +56,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Send magic link for auth — best effort, don't block on failure
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://frugal.dev';
+  const redirectTo = `${siteUrl}/auth/callback`;
+  await signInWithEmail(email, redirectTo).catch(() => {});
+
   const total = await count('waitlist');
-  return NextResponse.json({ ok: true, total });
+  return NextResponse.json({ ok: true, total, magicLinkSent: true });
 }
 
 // GET /api/waitlist — returns the current count (for the dynamic counter in
