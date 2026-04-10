@@ -25,6 +25,19 @@ community-tuning.json
 .last-hub-push
 backtest-delta.json
 
-# VS Code extension build artifacts
+# Router transient state (runtime only)
+tools/router/.frugal-mode.json
+tools/router/.classify-cache.json
+tools/router/.arbiter-cache.json
+tools/router/.budget-cache.json
+tools/router/.budget-refresh.lock
+tools/router/.tracker.pid
+tools/router/router-tuning.json
+
+# Wrangler local state
+hub/.wrangler/
+
+# Build artifacts
+landing/tsconfig.tsbuildinfo
 vscode-extension/*.vsix
 vscode-extension/node_modules/
