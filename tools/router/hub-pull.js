@@ -20,7 +20,7 @@ const https = require('https');
 const http = require('http');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
-const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.workers.dev';
+const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.frugal-hub.workers.dev';
 const PULL_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4h between pulls
 const LAST_PULL_PATH = path.join(ROUTER_DIR, '.last-hub-pull');
 const COMMUNITY_TUNING_PATH = path.join(ROUTER_DIR, 'community-tuning.json');

@@ -21,7 +21,7 @@ const http = require('http');
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const DELTA_PATH = path.join(ROUTER_DIR, 'backtest-delta.json');
 const LAST_PUSH_PATH = path.join(ROUTER_DIR, '.last-hub-push');
-const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.workers.dev';
+const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.frugal-hub.workers.dev';
 const PUSH_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h minimum between pushes
 
 function shouldPush() {

@@ -5,7 +5,7 @@ compatibility_date = "2026-04-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "frugal-hub"
-database_id = "TO_BE_FILLED"
+database_id = "320b55f6-9444-4deb-bcd5-e8227739546e"
 
 [[r2_buckets]]
 binding = "STORAGE"
