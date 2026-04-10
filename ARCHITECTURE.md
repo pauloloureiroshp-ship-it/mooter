@@ -132,6 +132,13 @@ user types "rename handleConnect to onConnect across the file"
 │   ├── anthropic_call.sh         ← direct Haiku/Sonnet API helper
 │   ├── ollama_call.sh            ← direct Ollama call helper
 │   └── ollama_call_node.js       ← Node version of above
+│   ├── frugal-mode.js            ← Beast/Zen/Auto mode CLI (v0.9.3)
+│   ├── hub-push.js               ← privacy-preserving delta push to frugal-hub
+│   ├── hub-pull.js               ← pull community config from frugal-hub
+│   └── hub-status.js             ← hub health check
+├── skills/
+│   ├── frugal-{status,savings,route,summary,update}/ ← 5 utility skills
+│   └── frugal-{beast,zen,auto}/  ← 3 mode skills (v0.9.3)
 └── agents/
     ├── model-architect.md        ← T3 Opus subagent
     ├── model-reasoner.md         ← T2 Sonnet subagent
@@ -141,7 +148,7 @@ user types "rename handleConnect to onConnect across the file"
     └── final-reviewer.md         ← pre-merge gate (Opus)
 ```
 
-The repository at `github.com/pauloloureiroshp-ship-it/frugal` mirrors `~/.claude/tools/router/` + the doctrine + the agents, plus the docs you are currently reading. **The canonical runtime state lives in `~/.claude/`** — the repo is the distribution format.
+The repository at `github.com/pauloloureiroshp-ship-it/frugal` mirrors `~/.claude/tools/router/` + the doctrine + the agents + the skills, plus the docs you are currently reading. **The canonical runtime state lives in `~/.claude/`** — the repo is the distribution format.
 
 ---
 

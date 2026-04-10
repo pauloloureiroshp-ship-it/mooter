@@ -1,6 +1,6 @@
 # Roadmap
 
-> Last updated: 2026-04-09
+> Last updated: 2026-04-10
 
 This roadmap is the single source of truth for what's done, what's next, and what's explicitly deferred. It supersedes the summary table in [README.md](README.md) when there's a conflict.
 
@@ -104,6 +104,30 @@ delta-export pipeline that sets up frugal's federated learning story.
 
 **Commit:** `1e852f3` on `origin/main`.
 
+### v0.9.2 — Community hub + 8 slash commands (2026-04-09)
+
+frugal-hub deployed, full skill system, URL consolidation.
+
+- ✅ **frugal-hub** — Cloudflare Worker deployed at `frugal-hub.frugal-hub.workers.dev` (D1 + R2)
+- ✅ **Community intelligence loop** — `hub-push.js`, `hub-pull.js`, `hub-status.js` with privacy-preserving deltas
+- ✅ **8 slash commands** — `/frugal-status`, `/frugal-savings`, `/frugal-route`, `/frugal-summary`, `/frugal-update`, `/frugal-beast`, `/frugal-zen`, `/frugal-auto`
+- ✅ **install.sh v2** — idempotent install of all skills, router files, and doctor check
+- ✅ **URL fix** — all hub references consolidated to `frugal-hub.frugal-hub.workers.dev`
+
+**Commits:** `aecb9cd`, `ec474ee` on `origin/main`.
+
+### v0.9.3 — Beast/Zen/Auto modes + pattern fixes (2026-04-10)
+
+User-controlled mode overrides and classifier improvements from dogfood telemetry.
+
+- ✅ **Mode system** — `frugal-mode.js` CLI for beast (force T3), zen (cap T1), auto (router decides)
+- ✅ **`applyActiveMode()`** — in `inject_context.js`, reads `.frugal-mode.json`, overrides tier before hint emission
+- ✅ **Zen safety bypass** — T3-gate tasks (push/deploy/merge) bypass zen cap
+- ✅ **5 new patterns** — `redesenha/redesign`, `multi-tenant` (HIGH_RISK); `optimiza/optimize`, `cria/create endpoint` (MED_RISK)
+- ✅ **Algorithm snapshot** — `.evolution/v0.9.2-snapshot.json` with SHA-256 hashes and metrics
+
+**Commits:** `b28b307`, `09ff285`, `3181299` on `main`.
+
 ---
 
 ## Planned
@@ -122,16 +146,14 @@ A local-only web UI for exploring `decisions.log`, `router-tuning.json`, and cos
 
 **Success criteria:** Paulo can debug any misrouting in under 30 seconds without grep.
 
-### v0.7.0 — HIGH_RISK single source of truth
+### v0.7.0 — HIGH_RISK single source of truth ✅
 
-Close the gap where `HIGH_RISK_MARKERS` in `backtest.js` is a manual copy of `HIGH_RISK` in `classify.js`.
+Completed as part of the v0.9.x release cycle.
 
-- 🟡 Extract `HIGH_RISK`, `MED_RISK`, `LOW_RISK`, `TRIVIAL` to a single `patterns.js` module
-- 🟡 Both `classify.js` and `backtest.js` require the same file
-- 🟡 Adding a new marker in one place automatically propagates
-- 🟡 Tests asserting that both files consume the same exports
-
-**Why deferred from v0.5:** extracting cross-module shared state mid-session while the auto-learning loop was still being debugged would have made root-causing harder. Easier in isolation.
+- ✅ `patterns.js` — single module exporting `HIGH_RISK`, `MED_RISK`, `LOW_RISK`, `TRIVIAL`, `TUNING_EXCLUDE`
+- ✅ Both `classify.js` and `backtest.js` consume the same exports
+- ✅ Adding a new marker in one place automatically propagates
+- ✅ Invariant: `TUNING_EXCLUDE ⊇ HIGH_RISK` (documented in patterns.js)
 
 ### v0.8.0 — Team shared config
 
@@ -151,7 +173,7 @@ Enable small teams to share a single tuning profile via Git.
 
 Not committed. Subject to change based on beta feedback.
 
-- 🔵 **frugal-hub (v1.1)** — Cloudflare Worker that automates the federated learning loop described in `docs/FEDERATED_LEARNING.md`. `POST /submit-delta` + `GET /latest-tuning` + daily cron. Stack: Workers + D1 + R2 on the free tier. Gated on 5+ regular contributors.
+- ~~🔵 **frugal-hub (v1.1)**~~ → ✅ **Shipped in v0.9.2** — live at `frugal-hub.frugal-hub.workers.dev` (Workers + D1 + R2)
 - 🔵 **Public launch (v1.0)** — `install.sh --one-command` + published `REQUEST_ACCESS.md` replaced by open onboarding
 - 🔵 **Cross-machine validation** — replay.js against 5+ contributor corpora, not just Paulo's
 - 🔵 **Plugin marketplace** — third-party patterns, doctrine supplements, provider adapters
