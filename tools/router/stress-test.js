@@ -119,6 +119,21 @@ const SUITE = [
   { p: 'the database connection pool is exhausting under load', tier: 'T2' },
   { p: 'make the sidebar responsive on mobile', tier: 'T0' },
   { p: 'we need to implement RBAC for the admin panel', tier: 'T2' },
+
+  // ── Advanced edge cases (v0.9.3-d) ─────────────────────────────
+  // Code blocks, stack traces, diffs
+  { p: 'I get this error:\n```\nTypeError: Cannot read properties of undefined\n```\nwhat is wrong?', tier: 'T0' },
+  { p: 'at Object.<anonymous> (/app/src/index.js:42:15)\nat Module._compile', tier: 'T0' },
+  { p: 'here is my diff, generate a good commit message:\n- const old = true\n+ const new = false', tier: 'T0', also: ['T1'] },
+
+  // Multi-file, metrics, deploy context
+  { p: 'update src/auth.ts, src/middleware.ts, src/routes/admin.ts, and tests/auth.test.ts to use the new JWT library', tier: 'T3' },
+  { p: 'hey can u check why the login page is broken?', tier: 'T0', also: ['T2'] },
+  { p: 'the p95 latency went from 200ms to 3.2s after the last deploy, investigate', tier: 'T2', also: ['T3'] },
+  { p: 'faz deploy do fix para o staging environment e depois testa', tier: 'T3' },
+  { p: 'do NOT push this to production yet', tier: 'T3' },
+  { p: 'how does the frugal router classify prompts?', tier: 'T0' },
+  { p: 'show me the savings from this session', tier: 'T0' },
 ];
 
 // ── Run ──────────────────────────────────────────────────────────
