@@ -147,6 +147,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | 🚀 Sessão tarde 2026-04-10 (Landing v10 + OS Vision) | `33e6f6e4-2bc4-8100-9c74-e1bb9551106a` | https://www.notion.so/33e6f6e42bc481009c74e1bb9551106a |
 | 👥 Friends Beta — Onboarding & Tracking | `33e6f6e4-2bc4-8135-ae61-cccc625406d8` | https://www.notion.so/33e6f6e42bc48135ae61cccc625406d8 |
 | 🌍 frugal v2.0 — Sistema Operativo do Vibe Coder | `33e6f6e4-2bc4-8128-9155-d79fbc14a6e5` | https://www.notion.so/33e6f6e42bc481289155d79fbc14a6e5 |
+| 🧪 E2E MVP Validation — 2026-04-10 | `33e6f6e4-2bc4-81bc-8e01-ee0160b00928` | https://www.notion.so/33e6f6e42bc481bc8e01ee0160b00928 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -252,7 +253,20 @@ O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o 
 ### Relatório do que foi feito (para o Cowork ler)
 > Esta secção é escrita pelo Claude Code. O Cowork lê-a no início de cada sessão de review.
 
-**Última actualização:** 2026-04-10 (sessão Friends Beta)
+**Última actualização:** 2026-04-10 (sessão E2E MVP Validation)
+
+### Sessão E2E MVP Validation — 2026-04-10
+
+**Missão:** Simular jornada completa do Paulo no MacBook Pro, validar cada passo, corrigir o que está partido.
+
+**Veredicto:** PRONTO COM CONDIÇÕES — core funciona (classifier 5/5, hub live, landing deployed, installer dry-run OK, 0 TS errors). Dois bloqueios manuais:
+
+1. **Repo privado** — install one-liner retorna 404 para amigos. Opções: tornar público (recomendado, 0 secrets) ou hospedar install.sh na landing.
+2. **Supabase RLS** — form de waitlist retorna `persist_failed`. Fix: `CREATE POLICY "Allow anon insert" ON waitlist FOR INSERT TO anon WITH CHECK (true);` no dashboard.
+
+**Relatório completo:** `E2E_REPORT.md`
+
+---
 
 ### Sessão Friends Beta — 2026-04-10
 
