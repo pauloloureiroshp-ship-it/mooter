@@ -173,14 +173,34 @@ function renderDistribution(metrics) {
     (sonChars > 0 ? `${TIER_COLOR.T2}${'█'.repeat(sonChars)}${RESET}` : '') +
     (localChars > 0 ? `${TIER_COLOR.T0}${'█'.repeat(localChars)}${RESET}` : '');
 
-  // Labels: expensive→cheap, full names, emoji dots, with token counts
+  // Labels: expensive→cheap, full names, emoji with space, token counts
   // 🔴 Opus 9% 12k · 🟡 Sonnet 22% 31k · 🟢 Local 69% 98k
   const labels = [];
-  if (opsPct > 0) labels.push(`${TIER_COLOR.T3}🔴Opus ${opsPct}%${RESET}${opsTok}`);
-  if (sonPct > 0) labels.push(`${TIER_COLOR.T2}🟡Sonnet ${sonPct}%${RESET}${sonTok}`);
-  if (localPct > 0) labels.push(`${TIER_COLOR.T0}🟢Local ${localPct}%${RESET}${localTok}`);
+  if (opsPct > 0) labels.push(`${TIER_COLOR.T3}🔴 Opus ${opsPct}%${RESET}${opsTok}`);
+  if (sonPct > 0) labels.push(`${TIER_COLOR.T2}🟡 Sonnet ${sonPct}%${RESET}${sonTok}`);
+  if (localPct > 0) labels.push(`${TIER_COLOR.T0}🟢 Local ${localPct}%${RESET}${localTok}`);
 
-  return ` ${bar} ${labels.join(' · ')}`;
+  // GPU tag for the Local tier — shows what hardware powers Ollama
+  let gpuTag = '';
+  try {
+    // Try tracker endpoint first
+    const g = fetchTrackerJson('/gpu', 200);
+    if (g && g.name_short && g.vendor !== 'cpu') {
+      gpuTag = ` ${DIM}⚡${g.name_short}${RESET}`;
+    }
+  } catch { /* silent */ }
+  if (!gpuTag) {
+    // Fallback: read hw-capability.json directly
+    try {
+      const hwPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'hw-capability.json');
+      if (fs.existsSync(hwPath)) {
+        const hw = JSON.parse(fs.readFileSync(hwPath, 'utf8'));
+        if (hw.name) gpuTag = ` ${DIM}⚡${hw.name}${RESET}`;
+      }
+    } catch { /* silent */ }
+  }
+
+  return ` ${bar} ${labels.join(' · ')}${gpuTag}`;
 }
 
 // v0.9: segment ⑥ — GPU widget. Reads /gpu.
