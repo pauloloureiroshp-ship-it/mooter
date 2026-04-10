@@ -57,15 +57,35 @@ async function main() {
 
   // Step 2: Subscription profile
   step(2, 'Subscription profile...');
-  const setupProfile = path.join(ROUTER_DIR, 'setup-profile.js');
-  if (fs.existsSync(setupProfile)) {
-    const r = spawnSync(process.execPath, [setupProfile], {
-      stdio: 'inherit',
-      timeout: 120000,
-    });
-    if (r.status !== 0) {
-      console.log('     ⚠ Profile setup skipped — using defaults');
+  if (!fs.existsSync(SUB_PROFILE_PATH)) {
+    const setupProfile = path.join(ROUTER_DIR, 'setup-profile.js');
+    // Check if stdin is a TTY (interactive). In hook context, stdin is a pipe
+    // so interactive prompts fail silently. Create default profile instead.
+    const isTTY = process.stdin.isTTY;
+    if (isTTY && fs.existsSync(setupProfile)) {
+      const r = spawnSync(process.execPath, [setupProfile], {
+        stdio: 'inherit',
+        timeout: 120000,
+      });
+      if (r.status !== 0) {
+        console.log('     ⚠ Profile setup skipped — using defaults');
+      }
     }
+    // If still missing (non-TTY or setup failed), create a default profile
+    if (!fs.existsSync(SUB_PROFILE_PATH)) {
+      const defaultProfile = {
+        created_at: new Date().toISOString(),
+        profiles: { anthropic: 'unknown' },
+        routing_hints: { prefer_local_t0: true, haiku_available: false, budget_tracking: 'oauth' },
+        notes: 'Auto-created (non-interactive context). Update via: node setup-profile.js',
+      };
+      try {
+        fs.writeFileSync(SUB_PROFILE_PATH, JSON.stringify(defaultProfile, null, 2));
+        console.log('     ✓ Default profile created (run setup-profile.js for full config)');
+      } catch { console.log('     ⚠ Could not write default profile'); }
+    }
+  } else {
+    console.log('     ✓ Profile already configured');
   }
   console.log('');
 

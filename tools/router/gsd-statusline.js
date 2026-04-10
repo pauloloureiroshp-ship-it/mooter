@@ -411,12 +411,22 @@ process.stdin.on('end', () => {
     // their own cheap call with short timeouts inside the renderers.
     const metrics = fetchFrugalMetrics();
 
-    // Segment ② — brand (🐕 frugal v0.9). Ultra-savings mode (T0 > 90%) turns
-    // the separator teal for a subtle visual cue.
+    // Segment ② — brand + active mode. Shows beast/zen emoji when active.
+    // Ultra-savings mode (T0 > 90%) turns separator teal.
     const t0pct = (metrics && metrics.pct_by_tier && metrics.pct_by_tier.T0) || 0;
     const ultraSavings = t0pct > 90;
     const brandColor = ultraSavings ? '\x1b[38;2;78;201;176m' : DIM;
-    const brand = ` │ 🐕 ${brandColor}frugal v0.9${RESET}`;
+    // Read active mode for visual indicator
+    let modeTag = '';
+    try {
+      const modeFile = path.join(os.homedir(), '.claude', 'tools', 'router', '.frugal-mode.json');
+      if (fs.existsSync(modeFile)) {
+        const md = JSON.parse(fs.readFileSync(modeFile, 'utf8'));
+        if (md.mode === 'beast') modeTag = ' \x1b[38;2;255;140;0m🦁 beast\x1b[0m';
+        else if (md.mode === 'zen') modeTag = ' \x1b[38;2;120;200;120m🧘 zen\x1b[0m';
+      }
+    } catch { /* silent */ }
+    const brand = ` │ 🐕 ${brandColor}frugal${RESET}${modeTag}`;
 
     const lastTurn = renderLastTurn();                    // ③
     const savings = fetchFrugalSavings(metrics);          // ⑤ (+ dist ④)
