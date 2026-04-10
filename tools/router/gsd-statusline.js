@@ -82,31 +82,31 @@ const TIER_COLOR = {
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
 
-// ── v0.11: statusline redesign — savings hero + distribution proof ─────────
-// The statusline is frugal's business card. In one glance it must prove:
-//   "frugal saves you real money by routing most work to cheap/free models."
+// ── v0.12: statusline — full transparency with model names + tokens ────────
+// The statusline is frugal's business card. It must prove at a glance:
+//   "frugal saves you real money — here's the proof."
 //
-// Layout:
-//   🐕 ↓89% ~$3.84 │ █░░▒▒▓▓▓▓▓ ops:9 son:22 free:69
-//                     ^^^red  ^^^yellow  ^^^^^^^teal
+// Layout (normal session):
+//   🐕 ↓89% 💰saved ~$3.84 │ ████████░░ 🔴Opus 9% 🟡Sonnet 22% 🟢Local 69%
+//
+// Layout (with token counts, when tracker is running):
+//   🐕 ↓89% 💰~$3.84 │ ████████░░ 🔴Opus 9% 12k 🟡Sonnet 22% 31k 🟢Local 69% 98k
 //
 // The colored bar IS the proof: mostly teal = mostly free.
-// Labels: expensive→cheap order so the eye sees Opus is tiny.
-// Mode badge (🦁/🧘) only when active.
-//
-// No T0/latency segment — removed per user feedback ("useless for most people").
-// No provider dots — removed ("nobody knows what they mean").
-// No latency-vs-opus — removed ("noise").
+// Full model names: "Opus", "Sonnet", "Local" — no jargon.
+// Emoji dots: 🔴 expensive → 🟡 mid → 🟢 free — universal language.
+// Token counts: optional, shown when available from tracker.
 
-// ── Distribution bar renderer ─────────────────────────────────────────────
-// Reads pct_by_tier from metrics (or falls back to decisions.log).
-// Returns: colored 10-char bar + labeled percentages, expensive→cheap.
+// ── Distribution renderer ─────────────────────────────────────────────────
 function renderDistribution(metrics) {
   let pbt = null;
+  let tokensByTier = null;
 
   // Try metrics first (from savings-tracker HTTP)
   if (metrics && metrics.pct_by_tier) {
     pbt = metrics.pct_by_tier;
+    // Token counts if available
+    if (metrics.tokens_by_tier) tokensByTier = metrics.tokens_by_tier;
   }
 
   // Fallback: read decisions.log directly
@@ -116,18 +116,26 @@ function renderDistribution(metrics) {
       if (fs.existsSync(logPath)) {
         const lines = fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean);
         const tiers = { T0: 0, T1: 0, T2: 0, T3: 0 };
+        const tokens = { T0: 0, T1: 0, T2: 0, T3: 0 };
         let total = 0;
-        // Read last 200 lines max for speed
-        const recent = lines.slice(-200);
-        recent.forEach(l => {
+        lines.slice(-200).forEach(l => {
           try {
             const d = JSON.parse(l);
-            if (d.tier) { tiers[d.tier]++; total++; }
+            if (d.tier) {
+              tiers[d.tier]++; total++;
+              // Estimate tokens from prompt length (rough: 1 token ≈ 4 chars)
+              const estTokens = Math.round((d.prompt_length || 200) / 4) + 1500; // in + estimated out
+              tokens[d.tier] += estTokens;
+            }
           } catch { /* skip */ }
         });
         if (total > 0) {
           pbt = {};
-          Object.entries(tiers).forEach(([k, v]) => { pbt[k] = (v / total) * 100; });
+          tokensByTier = {};
+          Object.entries(tiers).forEach(([k, v]) => {
+            pbt[k] = (v / total) * 100;
+            tokensByTier[k] = tokens[k];
+          });
         }
       }
     } catch { /* silent */ }
@@ -135,31 +143,44 @@ function renderDistribution(metrics) {
 
   if (!pbt) return '';
 
-  // Merge T0+T1 as "free" tier (T1 degrades to local when no API key)
+  // Merge T0+T1 as "Local" (T1 degrades to local when no API key)
   const opsPct = Math.round(pbt.T3 || 0);
   const sonPct = Math.round(pbt.T2 || 0);
-  const freePct = Math.round((pbt.T0 || 0) + (pbt.T1 || 0));
+  const localPct = Math.round((pbt.T0 || 0) + (pbt.T1 || 0));
 
-  // Build 10-char proportional bar: Opus(red) → Sonnet(yellow) → Free(teal)
-  const total = opsPct + sonPct + freePct;
+  const total = opsPct + sonPct + localPct;
   if (total === 0) return '';
+
+  // Token counts (formatted as "12k" or "1.2M")
+  const fmtTok = (n) => {
+    if (!n || n === 0) return '';
+    if (n >= 1000000) return ` ${DIM}${(n/1000000).toFixed(1)}M${RESET}`;
+    if (n >= 1000) return ` ${DIM}${Math.round(n/1000)}k${RESET}`;
+    return ` ${DIM}${n}${RESET}`;
+  };
+  const opsTok = tokensByTier ? fmtTok((tokensByTier.T3 || 0)) : '';
+  const sonTok = tokensByTier ? fmtTok((tokensByTier.T2 || 0)) : '';
+  const localTok = tokensByTier ? fmtTok(((tokensByTier.T0 || 0) + (tokensByTier.T1 || 0))) : '';
+
+  // Build 10-char proportional bar
   const barLen = 10;
   const opsChars = Math.round((opsPct / total) * barLen);
   const sonChars = Math.round((sonPct / total) * barLen);
-  const freeChars = barLen - opsChars - sonChars;
+  const localChars = Math.max(0, barLen - opsChars - sonChars);
 
   const bar =
     (opsChars > 0 ? `${TIER_COLOR.T3}${'█'.repeat(opsChars)}${RESET}` : '') +
     (sonChars > 0 ? `${TIER_COLOR.T2}${'█'.repeat(sonChars)}${RESET}` : '') +
-    (freeChars > 0 ? `${TIER_COLOR.T0}${'█'.repeat(freeChars)}${RESET}` : '');
+    (localChars > 0 ? `${TIER_COLOR.T0}${'█'.repeat(localChars)}${RESET}` : '');
 
-  // Labels: expensive→cheap, colored, compact
+  // Labels: expensive→cheap, full names, emoji dots, with token counts
+  // 🔴 Opus 9% 12k · 🟡 Sonnet 22% 31k · 🟢 Local 69% 98k
   const labels = [];
-  if (opsPct > 0) labels.push(`${TIER_COLOR.T3}ops:${opsPct}${RESET}`);
-  if (sonPct > 0) labels.push(`${TIER_COLOR.T2}son:${sonPct}${RESET}`);
-  if (freePct > 0) labels.push(`${TIER_COLOR.T0}free:${freePct}${RESET}`);
+  if (opsPct > 0) labels.push(`${TIER_COLOR.T3}🔴Opus ${opsPct}%${RESET}${opsTok}`);
+  if (sonPct > 0) labels.push(`${TIER_COLOR.T2}🟡Sonnet ${sonPct}%${RESET}${sonTok}`);
+  if (localPct > 0) labels.push(`${TIER_COLOR.T0}🟢Local ${localPct}%${RESET}${localTok}`);
 
-  return ` ${bar} ${labels.join('·')}`;
+  return ` ${bar} ${labels.join(' · ')}`;
 }
 
 // v0.9: segment ⑥ — GPU widget. Reads /gpu.
@@ -185,41 +206,45 @@ function renderGpu() {
 }
 
 // ── Savings hero renderer ──────────────────────────────────────────────────
-// Format: ↓89% ~$3.84   (bright green ≥75%, yellow ≥40%, dim otherwise)
-// The ↓ arrow + green = instant "you're saving money" signal.
-// The $ amount is secondary context, slightly dimmer.
+// Format: 💰 ↓89% saved ~$3.84 · spent ~$0.47
+// Green ≥75%, yellow ≥40%, dim otherwise.
+// Shows both saved AND spent for full transparency.
 function renderSavingsHero(mOpt) {
   try {
     const m = mOpt || fetchFrugalMetrics();
+
+    // Helper: format with currency
+    const fmtMoney = (usd, m) => {
+      const currency = (m && m.currency || 'USD').toUpperCase();
+      const altKey = `in_${currency.toLowerCase()}`;
+      const alt = m && m[altKey];
+      const symbolMap = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' };
+      const sym = symbolMap[currency] || '$';
+      if (alt && currency !== 'USD' && alt.saved != null) {
+        return `${sym}${(alt.saved * usd / (m.saved || 1)).toFixed(2)}`;
+      }
+      return `$${usd.toFixed(2)}`;
+    };
 
     // If tracker is running, use it
     if (m && m.prompts) {
       const advisoryUsd = m.saved || 0;
       const guaranteedUsd = m.guaranteed_saved || 0;
-      const primaryUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
-
-      const currency = (m.currency || 'USD').toUpperCase();
-      const altKey = `in_${currency.toLowerCase()}`;
-      const alt = m[altKey];
-      const symbolMap = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' };
-      const sym = symbolMap[currency] || '$';
-
-      let amountStr;
-      if (alt && currency !== 'USD') {
-        const altAmount = guaranteedUsd > 0 ? (alt.guaranteed_saved || 0) : (alt.saved || 0);
-        amountStr = `${sym}${altAmount.toFixed(2)}`;
-      } else {
-        amountStr = `$${primaryUsd.toFixed(2)}`;
-      }
+      const savedUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
+      const spentUsd = m.actual_cost || 0;
+      const tildePrefix = guaranteedUsd > 0 ? '' : '~';
 
       const pct = Math.round(m.saved_pct || 0);
-      const tildePrefix = guaranteedUsd > 0 ? '' : '~';
       let pctColor = DIM;
       if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m'; // bright green
       else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m'; // warm yellow
       const arrow = pct >= 30 ? '↓' : '';
 
-      return `${pctColor}${arrow}${pct}%${RESET} ${DIM}${tildePrefix}${amountStr}${RESET}`;
+      const savedStr = fmtMoney(savedUsd, m);
+      let spent = '';
+      if (spentUsd > 0) spent = ` ${DIM}· spent ${tildePrefix}${fmtMoney(spentUsd, m)}${RESET}`;
+
+      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ${tildePrefix}${savedStr}${RESET}${spent}`;
     }
 
     // Fallback: compute from decisions.log
@@ -237,12 +262,13 @@ function renderSavingsHero(mOpt) {
       let actual = 0;
       Object.entries(tiers).forEach(([t, n]) => { actual += n * (COST[t] || 0); });
       const naive = total * COST.T3;
+      const saved = naive - actual;
       const pct = Math.round((1 - actual / naive) * 100);
       let pctColor = DIM;
       if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m';
       else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m';
       const arrow = pct >= 30 ? '↓' : '';
-      return `${pctColor}${arrow}${pct}%${RESET} ${DIM}~$${(naive - actual).toFixed(2)}${RESET}`;
+      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~$${saved.toFixed(2)} · spent ~$${actual.toFixed(2)}${RESET}`;
     } catch { return ''; }
   } catch {
     return '';
