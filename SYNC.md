@@ -19,7 +19,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ## Estado actual do projecto — 2026-04-10
 
-### Versão: v0.9.2 (sessão Cowork de 2026-04-10)
+### Versão: v0.9.4 (sessão Friends Beta de 2026-04-10)
 
 | Componente | Estado | Notas |
 |---|---|---|
@@ -156,48 +156,46 @@ tag v0.9.0
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-10
-**Estado:** 🟡 Por ler
+**Última actualização Cowork:** 2026-04-10 (sessão #6 — Friends Beta)
+**Estado:** ✅ Lido em sessão Friends Beta — 2026-04-10
 
 ---
 
-### Prioridade 1 — Aplicar MODES_MASTER_PROMPT.md (Beast/Zen/Auto)
+### MISSÃO DESTA SESSÃO: Friends Beta — "pronto para amigos hoje"
 
-O ficheiro `~/frugal/MODES_MASTER_PROMPT.md` contém o patch exacto para implementar o sistema de modos. Os ficheiros `frugal-mode.js` e os 3 SKILL.md já existem no repo. Falta:
+O Paulo quer partilhar o frugal com 3-10 amigos (Mac e Windows) ainda hoje.
+O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o inteiro antes de começar.
 
-1. Aplicar o patch em `inject_context.js` (função `applyActiveMode()` após `applyBudgetCap()`)
-2. Adicionar campo `MODE:` e `FORCED:` ao router-hint output
-3. Instalar as 3 skills em `~/.claude/skills/` (frugal-beast, frugal-zen, frugal-auto)
-4. Copiar `frugal-mode.js` para `~/.claude/tools/router/`
-5. Actualizar `install.sh` com as novas skills e o `frugal-mode.js`
-6. Actualizar a skill `frugal-update` para sincronizar os ficheiros de modos
-7. Smoke test: `node ~/.claude/tools/router/frugal-mode.js beast` → `node inject_context.js` → verificar `MODE: beast` no hint
+**Resumo das 10 prioridades (detalhes no FRIENDS_MASTER_PROMPT.md):**
 
-### Prioridade 2 — Actualizar webhook Paulo
+| P | O que fazer | Bloqueia amigos? | Requer aprovação Paulo? |
+|---|---|---|---|
+| **P1** | Fix Windows paths com espaços (crons partidos) | Sim | Não |
+| **P2** | One-line installer Mac + Windows (curl/irm) | Sim | Sim (Gist ou repo público) |
+| **P3** | Auditoria privacidade hub-push + PRIVACY.md | Sim (confiança) | Não |
+| **P4** | frugal-hello skill + frugal-status friendly | Alto impacto | Não |
+| **P5** | Auditoria secrets + repo pronto para ser público | Sim | Sim (tornar público) |
+| **P6** | ONBOARDING_GUIDE.md + FRIEND_KIT.md | Sim | Não |
+| **P7** | Fluxo hub-push end-to-end para multi-user | Médio | Não |
+| **P8** | smoke-test.js + graceful degradation | Alto (confiança) | Não |
+| **P9** | Fix Windows health checks (paths sem aspas) | Urgente | Não |
+| **P10** | SYNC.md, Notion Friends Beta, snapshot, push | Sempre | Sim (push) |
 
-Substituir o placeholder do secret PAULO_WEBHOOK_URL por um webhook real:
+### Contexto crítico que o master prompt explica:
+- O maior problema Windows: `C:/Users/Paulo Loureiro/` com espaço parte todos os bash commands
+- Privacy contract: hub-push envia APENAS tier+confidence+prompt_len+hw_tier. NADA de conteúdo.
+- Instalar a partir de URL só funciona se repo for público OU via GitHub Gist/Release
+- A experiência "WOW" é: amigo instala → faz 1 prompt → corre /frugal-status → vê que foi grátis
 
-```powershell
-echo "URL_REAL_DO_WEBHOOK" | npx wrangler secret put PAULO_WEBHOOK_URL
-```
+### Decisões que o Paulo tomou nesta sessão Cowork:
+- Zero cobrança para amigos (free para sempre para beta testers)
+- Dados de amigos são bem-vindos e esperados (é o ponto)
+- Privacidade é inegociável: prompts nunca saem da máquina
+- O Paulo quer controlar quando o repo fica público (aguardar aprovação)
 
-Sugestão: criar conta em webhook.site ou Zapier/Make para receber notificações do hub.
-
-### Prioridade 3 — Fix RLS Supabase waitlist
-
-No Supabase dashboard:
-- Table Editor → waitlist → Policies → New policy
-- Name: "Allow anon INSERT"
-- Operation: INSERT / Target: anon / WITH CHECK: `true`
-
-Sem isto, o botão "Get early access" da landing falha silenciosamente.
-
-### Prioridade 4 — Tornar repo GitHub público (quando pronto)
-
-O repo está privado. Antes de tornar público:
-- Verificar que não há chaves de API no histórico git
-- Adicionar `.env.example` com placeholders
-- Confirmar que `SECURITY.md` está actualizado
+### Ficheiros criados nesta sessão Cowork (2026-04-10):
+- `FRIENDS_MASTER_PROMPT.md` — master prompt completo para esta sessão
+- `frugal-investor-deck-v2.pptx` — deck v2 (20 slides, full dark theme)
 
 ---
 
@@ -205,7 +203,55 @@ O repo está privado. Antes de tornar público:
 ### Relatório do que foi feito (para o Cowork ler)
 > Esta secção é escrita pelo Claude Code. O Cowork lê-a no início de cada sessão de review.
 
-**Última actualização:** 2026-04-11 (sessão overnight autónoma)
+**Última actualização:** 2026-04-10 (sessão Friends Beta)
+
+### Sessão Friends Beta — 2026-04-10
+
+**Missão:** Preparar frugal para partilha com 3-10 amigos (Mac + Windows)
+
+#### Ficheiros criados/modificados
+- `tools/router/paths.js` — NEW: cross-platform path resolver
+- `tools/router/smoke-test.js` — NEW: post-install verification (4/4 pass, avg 51ms)
+- `tools/router/.env.example` — NEW: placeholder env vars
+- `tools/router/run-backtest.cmd` — FIXED: relative paths via %~dp0
+- `tools/router/hub-push.js` — ADDED: --dry-run support
+- `install.sh` — IMPROVED: banner, smoke test step, frugal-hello, friendly output
+- `install-windows.ps1` — NEW: native PowerShell installer (Doctor/Uninstall/DryRun)
+- `skills/frugal-hello/SKILL.md` — NEW: first-use WOW moment skill
+- `skills/frugal-status/SKILL.md` — IMPROVED: friendly output format
+- `PRIVACY.md` — NEW: transparent telemetry documentation
+- `ONBOARDING_GUIDE.md` — NEW: friend-facing install guide
+- `FRIEND_KIT.md` — NEW: copy-paste message for WhatsApp/email
+- `.gitignore` — ADDED: backtest-delta.json, backtest-latest.log, classify.js.bak*
+- `.evolution/v0.9.4-friends-beta.json` — NEW: evolution snapshot
+
+#### Prioridades — Estado
+
+| P | Título | Estado |
+|---|--------|--------|
+| P1 | Fix Windows paths + paths.js | ✅ Feito |
+| P2 | install-windows.ps1 + install.sh | ✅ Feito |
+| P3 | PRIVACY.md + audit hub-push | ✅ Feito |
+| P4 | frugal-hello + frugal-status friendly | ✅ Feito |
+| P5 | Security audit (.gitignore, .env.example) | ✅ Feito |
+| P6 | ONBOARDING_GUIDE.md + FRIEND_KIT.md | ✅ Feito |
+| P7 | hub-push --dry-run | ✅ Feito |
+| P8 | smoke-test.js + graceful degradation | ✅ Feito (4/4 pass) |
+| P9 | Windows health checks (run-backtest.cmd) | ✅ Feito |
+| P10 | SYNC.md + snapshot + report | ✅ Feito |
+
+#### Requer aprovação do Paulo
+1. [ ] Tornar o repo público? (audit de secrets feito, .gitignore actualizado)
+2. [ ] Push e tag v0.9.4?
+3. [ ] Personalizar kit para algum amigo específico?
+
+#### Notas
+- O classifier é agressivo no T0 (commit messages → T0 em vez de T1). Isto é uma optimização, não um bug.
+- O install one-liner via curl/irm requer repo público ou Gist. Por agora, `git clone` funciona.
+- Dashboard (P7) continua em scaffold — dados reais do hub existem, mas falta UI multi-user.
+- Smoke test: 4/4 passed, avg 51ms.
+
+---
 
 ### Sessão Overnight 2026-04-10 → 2026-04-11 — relatório
 
@@ -267,88 +313,4 @@ O repo está privado. Antes de tornar público:
 - P3 (snapshot): T0-inline (file writes + bash)
 - P4 (docs): T0-inline (reads + edits)
 - P5 (skills): T0-inline (reads + copies)
-- P6 (classifier): T2-equivalent (pattern analysis + edits + verification)
-
-#### Para o Paulo fazer manualmente
-- [ ] `git push` (nao foi feito — requer aprovacao)
-- [ ] `git push --tags` (tag algo-v0.9.2)
-- [ ] Configurar PAULO_WEBHOOK_URL real no Cloudflare
-- [ ] Fix RLS Supabase waitlist
-- [ ] Hub delta push quando hub estiver acessivel
-
----
-
-### Sessao Cowork 2026-04-10 — O que foi feito
-
-Esta foi uma sessão longa e intensa no Cowork. Resumo do que foi produzido:
-
-#### Documentos criados
-
-| Ficheiro | Descrição |
-|---|---|
-| `INTELLIGENCE_LOOP_MASTER_PROMPT.md` | Arquitectura completa do community feedback loop v1.1 |
-| `FIXES_MASTER_PROMPT.md` | Master prompt L1+L3+L4 + 5 skills + install.sh |
-| `MODES_MASTER_PROMPT.md` | Beast/Zen/Auto mode system completo |
-| `LANDING_MASTER_PROMPT_V8.md` | Landing v8 com live counters + CTA + slash commands |
-| `tools/router/frugal-mode.js` | CLI para set/get/clear modo activo |
-| `skills/frugal-beast/SKILL.md` | Skill `/frugal-beast` |
-| `skills/frugal-zen/SKILL.md` | Skill `/frugal-zen` |
-| `skills/frugal-auto/SKILL.md` | Skill `/frugal-auto` |
-
-#### Deploy frugal-hub (L1 fechado)
-
-- D1 criado: `frugal-hub` (320b55f6-9444-4deb-bcd5-e8227739546e)
-- R2 activado e bucket criado: `frugal-hub-storage`
-- Migrations aplicadas remotamente: 9 queries, 17 rows
-- Secrets configurados: PAULO_WEBHOOK_URL, PAULO_EMAIL
-- R2 base objects uploaded: router-tuning-latest.json, model-catalog-latest.json
-- Worker deployed: `https://frugal-hub.frugal-hub.workers.dev`
-- Smoke test: `/health` ✅, `/api/stats` ✅, `POST /api/delta` → trust_score: 0.8 ✅
-
-#### URLs actualizadas
-
-`hub-pull.js`, `hub-push.js`, `hub-status.js`, `landing/app/page.tsx` — todos actualizados para `frugal-hub.frugal-hub.workers.dev`
-
-#### Commit
-
-`aecb9cd` — feat(hub): deploy frugal-hub to Cloudflare Workers
-
-#### Notion HQ — páginas criadas
-
-| Página | URL |
-|---|---|
-| 🗺️ System Architecture Deep Dive | https://www.notion.so/33e6f6e42bc481618221fd034f2e1dd5 |
-| 🚀 frugal v0.9.2 — Fixes + Skills | https://www.notion.so/33e6f6e42bc48108a0cce71c35ceb78 |
-| 🌍 Landing v8 | https://www.notion.so/33e6f6e42bc481838948c759d612bd9f |
-| 🦁🧘 Beast/Zen/Auto Modes | https://www.notion.so/33e6f6e42bc4818489bfdacd426c847d |
-
-#### Pendente (para Claude Code)
-
-1. `MODES_MASTER_PROMPT.md` — aplicar patch em `inject_context.js`
-2. Webhook Paulo — substituir placeholder
-3. RLS Supabase waitlist — fix policy
-4. GitHub repo — tornar público quando pronto
-
----
-
-### Sessão #4 — relatório ✅
-
-4 commits pushed. Landing page v0.9.1 criada e validada. SSRF hardening aplicado. Ver sessão #4 completa acima no histórico.
-
----
-
-### Sessão #3 — relatório ✅
-
-patterns.js extraído (v0.7.0). Dashboard deduplicate fix (sessão #2). Landing deferida.
-
----
-
-### Sessão #2 — relatório ✅
-
-Commit `76dcd94`. Dashboard deduplication fix. 59/59 testes.
-
----
-
-### Sessão #1 — relatório ✅
-
-Commits `e97e8a4` + `fa2ee52`. .vscode/ + SYNC.md + dashboard scaffold.
+- P6 (classif

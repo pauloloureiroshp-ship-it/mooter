@@ -1,0 +1,35 @@
+{
+  "version": "0.9.4",
+  "label": "friends-beta",
+  "generated_at": "2026-04-10T11:00:00Z",
+  "description": "Friends beta release — cross-platform installer, privacy audit, smoke tests, onboarding kit",
+  "file_hashes": {
+    "tools/router/classify.js": "cf0ae19650724ec7",
+    "tools/router/inject_context.js": "e948ecc5e008ba66",
+    "tools/router/hub-push.js": "aebf2bc5f19c7482",
+    "tools/router/paths.js": "5d88d78e69e903db",
+    "tools/router/smoke-test.js": "eca46e7f1c41b73f",
+    "install.sh": "e3fa7bf45a22e263",
+    "install-windows.ps1": "870d3f7dbd9228ae"
+  },
+  "new_features": [
+    "install-windows.ps1 — native PowerShell installer",
+    "paths.js — cross-platform path resolver",
+    "smoke-test.js — post-install verification (4 prompts)",
+    "frugal-hello skill — first-use WOW moment",
+    "PRIVACY.md — transparent telemetry documentation",
+    "ONBOARDING_GUIDE.md — friend-facing install guide",
+    "FRIEND_KIT.md — copy-paste message for WhatsApp/email",
+    ".env.example — placeholder env vars",
+    "hub-push.js --dry-run support",
+    "run-backtest.cmd — relative paths via %~dp0",
+    "install.sh — friendly output + smoke test step + frugal-hello skill",
+    "frugal-status skill — improved friendly output"
+  ],
+  "target_users": "3-10 friends (Mac + Windows)",
+  "classifier": {
+    "patterns": 102,
+    "accuracy": "100% (170 curated prompts)",
+    "smoke_test": "4/4 passed, avg 51ms"
+  }
+}
