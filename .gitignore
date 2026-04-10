@@ -55,3 +55,16 @@ output/
 
 # Investor decks (keep in Google Drive, not git)
 *.pptx
+
+# frugal-core — nunca no repo público
+.frugal-core/
+frugal-core/
+
+# Auth local
+tools/router/.frugal-auth.json
+
+# Dataset e modelo
+*.jsonl
+training-*.json
+model-weights/
+*.onnx
