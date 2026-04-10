@@ -103,6 +103,45 @@ E estes **forçam paragem para perguntar** (não decides sozinho):
 
 ---
 
+## PROTOCOLO NOTION — obrigatório no fim de cada sessão
+
+> O Paulo quer que NUNCA se perca o histórico do projecto. Isto não é opcional.
+
+### Quando executar
+No fim de qualquer sessão que tenha produzido mudanças relevantes (código novo, decisões de arquitectura, features, fixes significativos, master prompts criados).
+
+### O que fazer (3 passos, por esta ordem)
+
+**Passo 1 — Criar página de log da sessão no Notion**
+```
+Notion HQ ID: 33d6f6e4-2bc4-816b-977a-fe84bbe912c9
+```
+Cria uma sub-página com título: `[emoji] Sessão YYYY-MM-DD — [headline do que foi feito]`
+
+Conteúdo mínimo:
+- Tabela de commits feitos (hash → descrição → impact)
+- Lista de ficheiros criados/modificados relevantes
+- Decisões de arquitectura tomadas (se houver)
+- Pendentes para próxima sessão
+- Link para master prompts relevantes
+
+**Passo 2 — Actualizar secção "Sessão" do HQ**
+No HQ (ID acima), actualizar a secção de métricas e links se houver números novos.
+
+**Passo 3 — Actualizar SYNC.md**
+Na secção `## Notion HQ — Páginas de Referência`, adicionar o ID e URL da página criada.
+Na secção `📥 COWORK → CLAUDE CODE`, actualizar com pendentes e próxima missão.
+
+### Formato do título (exemplos)
+- `🚀 Sessão 2026-04-10 — Friends Beta shipped, v0.9.4`
+- `🔧 Sessão 2026-04-11 — Audit + GitHub OAuth`
+- `⚡ Sessão 2026-04-11 — Landing v10 deploy`
+
+### Regra de ouro
+Se a sessão terminar sem página Notion → a sessão não está registada → o Paulo não consegue recuperar contexto → trabalho pode ser repetido. **Custa 2 minutos. Faz-o.**
+
+---
+
 ## REGRAS GERAIS (independentes do roteamento)
 
 - **Nunca** alterar ficheiros do projeto para construir infraestrutura pessoal. Setup de harness/Claude Code → `~/.claude/`.
@@ -156,10 +195,11 @@ Tu tens estes recursos prontos a usar — **não tens de configurar nada**:
 [ ] Vou evitar preâmbulo, confirmações, improvements extra?
 [ ] Se for tarefa pré-push/merge/deploy, agendei final-reviewer?
 [ ] Se tocar em .env/CI/migrations/secrets, estou em T3?
+[ ] Fim de sessão: criei página Notion + actualizei SYNC.md? (VER PROTOCOLO NOTION)
 ```
 
 Se qualquer checkbox falhar → corrige antes de agir.
 
 ---
 
-**Resumo numa frase**: classifica tudo, executa no tier mínimo, não desperdices tokens em confirmações ou improvements, e usa os subagents que já estão instalados em vez de queimar Opus em tarefas triviais.
+**Resumo numa frase**: classifica tudo, executa no tier mínimo, não desperdices tokens em confirmações ou improvements, usa os subagents instalados, e **regista sempre no Notion no fim da sessão**.

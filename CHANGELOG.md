@@ -6,6 +6,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [0.9.4] — 2026-04-10 — Friends Beta
+
+### Added
+- Beast/Zen/Auto mode system (`frugal-mode.js`, 3 new skills)
+- Cross-platform installer: `install-windows.ps1` with Doctor/Uninstall/DryRun
+- `frugal-hello` skill — first-use WOW moment
+- `smoke-test.js` — post-install verification (4/4 pass, avg 51ms)
+- `paths.js` — cross-platform path resolver
+- `PRIVACY.md` — transparent telemetry documentation
+- `ONBOARDING_GUIDE.md` + `FRIEND_KIT.md` — friend-facing docs
+- `.env.example` — placeholder env vars
+- Full security audit (AUDIT_REPORT.md)
+
+### Fixed
+- Windows paths with spaces now handled correctly via `paths.js`
+- `run-backtest.cmd` uses quoted paths
+- `hub-push.js` + `hub-pull.js` + `hub-status.js` URLs corrected
+- `install.sh` improvements: banner, smoke test step, friendly output
+- `.gitignore`: added `.env.*`, `*.env`, `.next/`, `.vercel/`
+
+### Changed
+- `frugal-status` skill: improved friendly output format
+- 102 patterns total (was 65)
+- 170 test prompts, 100% accuracy
+- SECURITY.md updated to reference v0.9.x
+
+---
+
 ## [0.9.3] — 2026-04-10
 
 ### Beast/Zen/Auto modes, self-improving pipeline, statusline v0.12

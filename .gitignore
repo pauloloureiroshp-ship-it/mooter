@@ -2,7 +2,11 @@ node_modules/
 *.log
 decisions.log
 .env
+.env.*
+*.env
 .env.local
+.next/
+.vercel/
 .DS_Store
 Thumbs.db
 *.swp

@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-10 — Cowork (sessão Cowork intensa — sessão #5)
+> **Última actualização:** 2026-04-10 — Cowork (sessão #8 — Landing v10 + frugal OS Vision)
 
 ---
 
@@ -125,7 +125,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 
 ---
 
-## Master Prompts criados hoje (para Claude Code)
+## Master Prompts criados (para Claude Code)
 
 | Ficheiro | Conteúdo |
 |---|---|
@@ -133,6 +133,23 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | `MODES_MASTER_PROMPT.md` | Beast/Zen/Auto mode system — inject_context.js patch |
 | `LANDING_MASTER_PROMPT_V8.md` | Landing v8 — live counters + Install Now + slash commands |
 | `INTELLIGENCE_LOOP_MASTER_PROMPT.md` | frugal-hub architecture + community feedback loop |
+| `FRIENDS_MASTER_PROMPT.md` | Friends Beta — 10 prioridades, cross-platform installer |
+| `FRUGAL_OS_MASTER_PROMPT.md` | frugal v2.0 OS vision — GitHub OAuth, onboarding, hub-push |
+| `AUDIT_MASTER_PROMPT.md` | Auditoria completa 7 blocos → AUDIT_REPORT.md |
+| `LANDING_V10_MASTER_PROMPT.md` | Landing v10 — logo, Simple Icons, install journey, signup |
+| `CLAUDE_AI_BROWSER_MASTER_PROMPT.md` | Tarefas browser: GitHub OAuth, Supabase RLS, Cloudflare, Vercel |
+
+## Notion HQ — Páginas de Referência
+
+| Página | ID | URL |
+|---|---|---|
+| ⚡ frugal — Model Router HQ | `33d6f6e4-2bc4-816b-977a-fe84bbe912c9` | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| 🚀 Sessão tarde 2026-04-10 (Landing v10 + OS Vision) | `33e6f6e4-2bc4-8100-9c74-e1bb9551106a` | https://www.notion.so/33e6f6e42bc481009c74e1bb9551106a |
+| 👥 Friends Beta — Onboarding & Tracking | `33e6f6e4-2bc4-8135-ae61-cccc625406d8` | https://www.notion.so/33e6f6e42bc48135ae61cccc625406d8 |
+| 🌍 frugal v2.0 — Sistema Operativo do Vibe Coder | `33e6f6e4-2bc4-8128-9155-d79fbc14a6e5` | https://www.notion.so/33e6f6e42bc481289155d79fbc14a6e5 |
+
+> **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
+> ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
 
 ---
 
@@ -153,12 +170,40 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-10 (sessão #6 — Friends Beta)
-**Estado:** ✅ Lido em sessão Friends Beta — 2026-04-10
+**Última actualização Cowork:** 2026-04-10 (sessão #8 — Landing v10 + frugal OS Vision)
+**Estado:** 🆕 Para ler na próxima sessão Claude Code
 
 ---
 
-### MISSÃO DESTA SESSÃO: Friends Beta — "pronto para amigos hoje"
+### MISSÃO PRÓXIMA SESSÃO CLAUDE CODE: Auditoria + Browser tasks
+
+**Prioridade 1 — AUDIT_MASTER_PROMPT.md**
+Correr auditoria completa → gerar AUDIT_REPORT.md → responder: "pronto para amigos: sim/não/com condições"
+
+**Prioridade 2 — FRUGAL_OS_MASTER_PROMPT.md (P2-P7)**
+P2: GitHub OAuth code já está em `lib/supabase.ts` — falta Claude AI activar no GitHub + Supabase dashboard
+P3: Onboarding wizard 4 steps em `/app/onboarding/page.tsx`
+P4: Live savings banner no hero
+P5: hub-push.js + frugal-link.js
+P6: .gitignore protecção frugal-core/
+P7: Deploy + SYNC.md update
+
+**Prioridade 3 — CLAUDE_AI_BROWSER_MASTER_PROMPT.md**
+Estas tarefas requerem browser (GitHub OAuth UI, Supabase dashboard, Cloudflare Worker settings, Vercel env vars):
+- T1: github.com/settings/applications/new → criar OAuth App "frugal"
+- T2: Supabase SQL Editor → RLS policy anon INSERT na waitlist
+- T3: Verificar tabelas profiles + usage_sessions
+- T4: Cloudflare → PAULO_WEBHOOK_URL (webhook.site ou Discord)
+- T5: Vercel → NEXT_PUBLIC_SUPABASE_ANON_KEY + NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SITE_URL
+
+**Protocolo Notion (obrigatório no fim de cada sessão):**
+1. Criar página de log em Notion sob o HQ (ID: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`)
+2. Actualizar secção "Sessão" do HQ com o que foi feito
+3. Actualizar este SYNC.md com os IDs das páginas criadas
+
+---
+
+### [ARQUIVADO] MISSÃO ANTERIOR: Friends Beta — "pronto para amigos hoje"
 
 O Paulo quer partilhar o frugal com 3-10 amigos (Mac e Windows) ainda hoje.
 O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o inteiro antes de começar.

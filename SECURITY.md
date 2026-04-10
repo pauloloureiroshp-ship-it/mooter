@@ -7,8 +7,8 @@ During private beta (v0.x), only the `main` branch is supported for security pat
 | Version | Supported |
 |---|---|
 | `main` (latest) | ✅ Yes |
-| Tagged releases (v0.5.x) | ✅ Yes, while v0.5 is current |
-| Older tagged releases | ❌ No — upgrade |
+| Tagged releases (v0.9.x) | ✅ Yes, while v0.9 is current |
+| Older tagged releases (< v0.9) | ❌ No — upgrade |
 
 ---
 

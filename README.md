@@ -6,7 +6,7 @@
 
 **Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · Federated-learning foundation · ~90% cost savings validated on 1,437 real prompts**
 
-[![Version](https://img.shields.io/badge/version-v0.9.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.9.4-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
@@ -278,6 +278,10 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | [docs/MODEL_MAPPING.md](docs/MODEL_MAPPING.md) | How to swap providers |
 | [docs/COST_MODEL.md](docs/COST_MODEL.md) | How v0.6 measures savings (token-estimated) |
 | [AUDIT.md](AUDIT.md) | The 13-gap audit that drove v0.6 |
+| [PRIVACY.md](PRIVACY.md) | What data is collected and what stays local |
+| [ONBOARDING_GUIDE.md](ONBOARDING_GUIDE.md) | 5-minute install guide for Mac and Windows |
+
+**Landing page:** [landing-five-azure-16.vercel.app](https://landing-five-azure-16.vercel.app)
 
 ---
 

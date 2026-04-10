@@ -22,6 +22,12 @@ git clone git@github.com:pauloloureiroshp-ship-it/frugal.git /tmp/frugal && bash
 
 ## Windows (PowerShell)
 
+> **Note:** If you get a security error running the script, open PowerShell and run:
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
+> Then retry the install command below.
+
 ```powershell
 git clone git@github.com:pauloloureiroshp-ship-it/frugal.git $env:TEMP\frugal; & $env:TEMP\frugal\install-windows.ps1
 ```
