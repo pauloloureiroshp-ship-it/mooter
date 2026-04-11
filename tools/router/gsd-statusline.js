@@ -104,18 +104,101 @@ const DIM = '\x1b[2m';
 // Token counts: optional, shown when available from tracker.
 
 // ── Distribution renderer ─────────────────────────────────────────────────
-function renderDistribution(metrics) {
+// Map a raw model id to one of 6 display buckets that the distribution bar
+// knows how to render. Mirrors the emoji logic in PostToolUse.js so the
+// terminal per-call indicator and the statusline bar never disagree.
+function bucketFor(model) {
+  const m = String(model || '').toLowerCase();
+  if (m.includes('opus'))   return 'opus';
+  if (m.includes('sonnet')) return 'sonnet';
+  if (m.includes('haiku'))  return 'haiku';
+  if (m.includes('qwen') || m.includes('ollama') || m.includes('local')) return 'local';
+  if (m.includes('gpt') || m.includes('codex') || m.includes('openai'))  return 'gpt';
+  if (m.includes('gemini') || m.includes('google')) return 'gemini';
+  return null;
+}
+
+// v0.11: read execution.log and count REAL Bash tool calls by model bucket
+// for the current session. This is the ground truth — same data source as
+// the PostToolUse emoji that the user sees after every Bash call.
+// Returns { opus, sonnet, haiku, local, gpt, gemini, total } or null on error.
+function realExecutionCounts(sessionId) {
+  try {
+    const execPath = path.join(os.homedir(), '.claude', 'hooks', 'execution.log');
+    if (!fs.existsSync(execPath)) return null;
+    const stat = fs.statSync(execPath);
+    const MAX = 512 * 1024; // 512 KB tail is plenty
+    const start = Math.max(0, stat.size - MAX);
+    const fd = fs.openSync(execPath, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+
+    const counts = { opus: 0, sonnet: 0, haiku: 0, local: 0, gpt: 0, gemini: 0 };
+    let total = 0;
+    for (const line of lines) {
+      if (sessionId) {
+        const sm = line.match(/session=(\S+)/);
+        if (!sm || sm[1] !== sessionId) continue;
+      }
+      const mm = line.match(/model=(\S+)/);
+      if (!mm) continue;
+      const b = bucketFor(mm[1]);
+      if (!b) continue;
+      counts[b]++;
+      total++;
+    }
+    if (total === 0) return null;
+    counts.total = total;
+    return counts;
+  } catch {
+    return null;
+  }
+}
+
+// renderDistribution — the distribution bar below the savings hero.
+// v0.11: source of truth is execution.log (real Bash per-call models) so the
+// bar matches what the user sees in the terminal emojis. Falls back to the
+// previous advisory source (decisions.log / tracker pct_by_tier) only when
+// execution.log has nothing for the current session, and then tags the bar
+// with a "(advisory)" marker so the difference is never ambiguous.
+function renderDistribution(metrics, sessionId) {
+  // PRIMARY: real execution from execution.log (session-scoped).
+  const real = realExecutionCounts(sessionId);
   let pbt = null;
   let tokensByTier = null;
+  let source = 'real';      // 'real' | 'advisory'
+  let callCountsByBucket = null;
 
-  // Try metrics first (from savings-tracker HTTP)
-  if (metrics && metrics.pct_by_tier) {
+  if (real && real.total > 0) {
+    callCountsByBucket = real;
+    pbt = {
+      T3: (real.opus   / real.total) * 100,
+      T2: (real.sonnet / real.total) * 100,
+      T1: (real.haiku  / real.total) * 100,
+      T0: (real.local  / real.total) * 100,
+      GPT: (real.gpt   / real.total) * 100,
+      GEM: (real.gemini/ real.total) * 100,
+    };
+    // Token estimate via call counts × ~400 chars unit of work
+    const unit = Math.round(400 / 4) + 1500;
+    tokensByTier = {
+      T3: real.opus   * unit,
+      T2: real.sonnet * unit,
+      T1: real.haiku  * unit,
+      T0: real.local  * unit,
+    };
+  }
+
+  // FALLBACK 1: tracker HTTP metrics (recommendation-based)
+  if (!pbt && metrics && metrics.pct_by_tier) {
     pbt = metrics.pct_by_tier;
-    // Token counts if available
+    source = 'advisory';
     if (metrics.tokens_by_tier) tokensByTier = metrics.tokens_by_tier;
   }
 
-  // Fallback: read decisions.log directly
+  // FALLBACK 2: read decisions.log directly (recommendation-based)
   if (!pbt) {
     try {
       const logPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
@@ -129,8 +212,7 @@ function renderDistribution(metrics) {
             const d = JSON.parse(l);
             if (d.tier) {
               tiers[d.tier]++; total++;
-              // Estimate tokens from prompt length (rough: 1 token ≈ 4 chars)
-              const estTokens = Math.round((d.prompt_length || 200) / 4) + 1500; // in + estimated out
+              const estTokens = Math.round((d.prompt_length || 200) / 4) + 1500;
               tokens[d.tier] += estTokens;
             }
           } catch { /* skip */ }
@@ -142,6 +224,7 @@ function renderDistribution(metrics) {
             pbt[k] = (v / total) * 100;
             tokensByTier[k] = tokens[k];
           });
+          source = 'advisory';
         }
       }
     } catch { /* silent */ }
@@ -149,12 +232,15 @@ function renderDistribution(metrics) {
 
   if (!pbt) return '';
 
-  // Merge T0+T1 as "Local" (T1 degrades to local when no API key)
-  const opsPct = Math.round(pbt.T3 || 0);
-  const sonPct = Math.round(pbt.T2 || 0);
-  const localPct = Math.round((pbt.T0 || 0) + (pbt.T1 || 0));
+  // Bucket percentages — from execution data (real mode) or decisions (advisory).
+  const opsPct   = Math.round(pbt.T3 || 0);
+  const sonPct   = Math.round(pbt.T2 || 0);
+  const hkuPct   = Math.round(pbt.T1 || 0);
+  const localPct = Math.round(pbt.T0 || 0);
+  const gptPct   = Math.round(pbt.GPT || 0);
+  const gemPct   = Math.round(pbt.GEM || 0);
 
-  const total = opsPct + sonPct + localPct;
+  const total = opsPct + sonPct + hkuPct + localPct + gptPct + gemPct;
   if (total === 0) return '';
 
   // Token counts (formatted as "12k" or "1.2M")
@@ -164,27 +250,51 @@ function renderDistribution(metrics) {
     if (n >= 1000) return ` ${DIM}${Math.round(n/1000)}k${RESET}`;
     return ` ${DIM}${n}${RESET}`;
   };
-  const opsTok = tokensByTier ? fmtTok((tokensByTier.T3 || 0)) : '';
-  const sonTok = tokensByTier ? fmtTok((tokensByTier.T2 || 0)) : '';
-  const localTok = tokensByTier ? fmtTok(((tokensByTier.T0 || 0) + (tokensByTier.T1 || 0))) : '';
+  const opsTok   = tokensByTier ? fmtTok(tokensByTier.T3 || 0) : '';
+  const sonTok   = tokensByTier ? fmtTok(tokensByTier.T2 || 0) : '';
+  const hkuTok   = tokensByTier ? fmtTok(tokensByTier.T1 || 0) : '';
+  const localTok = tokensByTier ? fmtTok(tokensByTier.T0 || 0) : '';
 
-  // Build 10-char proportional bar
+  // Build 10-char proportional bar (all 6 buckets).
   const barLen = 10;
-  const opsChars = Math.round((opsPct / total) * barLen);
-  const sonChars = Math.round((sonPct / total) * barLen);
-  const localChars = Math.max(0, barLen - opsChars - sonChars);
+  const share = (pct) => Math.round((pct / total) * barLen);
+  let opsC  = share(opsPct);
+  let sonC  = share(sonPct);
+  let hkuC  = share(hkuPct);
+  let locC  = share(localPct);
+  let gptC  = share(gptPct);
+  let gemC  = share(gemPct);
+  // Clamp rounding drift so the bar is always exactly barLen chars.
+  const drift = barLen - (opsC + sonC + hkuC + locC + gptC + gemC);
+  if (drift !== 0) locC = Math.max(0, locC + drift);
+
+  const HAIKU_COLOR  = '\x1b[38;2;180;180;255m';
+  const GPT_COLOR    = '\x1b[38;2;120;220;120m';
+  const GEMINI_COLOR = '\x1b[38;2;140;180;255m';
 
   const bar =
-    (opsChars > 0 ? `${TIER_COLOR.T3}${'█'.repeat(opsChars)}${RESET}` : '') +
-    (sonChars > 0 ? `${TIER_COLOR.T2}${'█'.repeat(sonChars)}${RESET}` : '') +
-    (localChars > 0 ? `${TIER_COLOR.T0}${'█'.repeat(localChars)}${RESET}` : '');
+    (opsC > 0 ? `${TIER_COLOR.T3}${'█'.repeat(opsC)}${RESET}` : '') +
+    (sonC > 0 ? `${TIER_COLOR.T2}${'█'.repeat(sonC)}${RESET}` : '') +
+    (hkuC > 0 ? `${HAIKU_COLOR}${'█'.repeat(hkuC)}${RESET}`   : '') +
+    (locC > 0 ? `${TIER_COLOR.T0}${'█'.repeat(locC)}${RESET}` : '') +
+    (gptC > 0 ? `${GPT_COLOR}${'█'.repeat(gptC)}${RESET}`     : '') +
+    (gemC > 0 ? `${GEMINI_COLOR}${'█'.repeat(gemC)}${RESET}`  : '');
 
-  // Labels: expensive→cheap, full names, emoji with space, token counts
-  // 🔴 Opus 9% 12k · 🟡 Sonnet 22% 31k · 🟢 Local 69% 98k
+  // Source marker — "exec" (real) vs "adv" (advisory/recommendation).
+  // Tagging the bar makes it impossible to confuse the two sources.
+  const sourceBadge = source === 'real'
+    ? `${DIM}exec${RESET}`
+    : `\x1b[38;2;255;180;80madv\x1b[0m`;
+
+  // Labels always show all 6 LLMs (0% when unused) so the legend is stable.
+  const dimIf = (pct, color) => pct === 0 ? DIM : color;
   const labels = [];
-  if (opsPct > 0) labels.push(`${TIER_COLOR.T3}🔴 Opus ${opsPct}%${RESET}${opsTok}`);
-  if (sonPct > 0) labels.push(`${TIER_COLOR.T2}🟡 Sonnet ${sonPct}%${RESET}${sonTok}`);
-  if (localPct > 0) labels.push(`${TIER_COLOR.T0}🟢 Local ${localPct}%${RESET}${localTok}`);
+  labels.push(`${dimIf(opsPct,   TIER_COLOR.T3)}🔴 Opus ${opsPct}%${RESET}${opsTok}`);
+  labels.push(`${dimIf(sonPct,   TIER_COLOR.T2)}🟡 Sonnet ${sonPct}%${RESET}${sonTok}`);
+  labels.push(`${dimIf(hkuPct,   HAIKU_COLOR)}⚡ Haiku ${hkuPct}%${RESET}${hkuTok}`);
+  labels.push(`${dimIf(localPct, TIER_COLOR.T0)}🦙 Local ${localPct}%${RESET}${localTok}`);
+  labels.push(`${dimIf(gptPct,   GPT_COLOR)}🟩 GPT ${gptPct}%${RESET}`);
+  labels.push(`${dimIf(gemPct,   GEMINI_COLOR)}💎 Gemini ${gemPct}%${RESET}`);
 
   // GPU tag for the Local tier — shows what hardware powers Ollama
   let gpuTag = '';
@@ -206,7 +316,7 @@ function renderDistribution(metrics) {
     } catch { /* silent */ }
   }
 
-  return ` ${bar} ${labels.join(' · ')}${gpuTag}`;
+  return ` ${bar} ${sourceBadge} ${labels.join(' · ')}${gpuTag}`;
 }
 
 // v0.9: segment ⑥ — GPU widget. Reads /gpu.
@@ -522,7 +632,7 @@ process.stdin.on('end', () => {
 
     // Compose: 🐕[mode] savings │ distribution-bar labels
     const savingsHero = renderSavingsHero(metrics);
-    const dist = renderDistribution(metrics);
+    const dist = renderDistribution(metrics, session);
     const frugalSegment = savingsHero || dist
       ? ` │ 🐕${modeBadge} ${savingsHero}${dist ? ' │' + dist : ''}`
       : '';

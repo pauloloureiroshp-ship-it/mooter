@@ -191,7 +191,10 @@ if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
   if [ -f "$SRC_DIR/tools/router/gsd-turn-end.js" ]; then
     do_run "cp '$SRC_DIR/tools/router/gsd-turn-end.js' '$CLAUDE_DIR/hooks/gsd-turn-end.js'"
   fi
-  do_run "rm -f '$ROUTER_DIR/gsd-statusline.js' '$ROUTER_DIR/gsd-turn-end.js' 2>/dev/null || true"
+  if [ -f "$SRC_DIR/tools/router/frugal-turn-header.js" ]; then
+    do_run "cp '$SRC_DIR/tools/router/frugal-turn-header.js' '$CLAUDE_DIR/hooks/frugal-turn-header.js'"
+  fi
+  do_run "rm -f '$ROUTER_DIR/gsd-statusline.js' '$ROUTER_DIR/gsd-turn-end.js' '$ROUTER_DIR/frugal-turn-header.js' 2>/dev/null || true"
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
   do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
   # Install frugal slash command skills
@@ -231,6 +234,24 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
       fs.writeFileSync(path, JSON.stringify(s, null, 2));
     \""
     ok "hook registered in settings.json"
+  fi
+  # frugal-turn-header.js — second UserPromptSubmit hook that emits a visible
+  # "routing → tier · model · confidence · est. save" message every turn, so
+  # users SEE the routing decision (not just hidden in the hint).
+  if grep -q "frugal-turn-header.js" "$CLAUDE_DIR/settings.json"; then
+    ok "turn-header hook already registered"
+  else
+    say "merging turn-header hook into settings.json…"
+    do_run "node -e \"
+      const fs=require('fs');
+      const path='$CLAUDE_DIR/settings.json';
+      const s=JSON.parse(fs.readFileSync(path,'utf8'));
+      s.hooks=s.hooks||{};
+      s.hooks.UserPromptSubmit=s.hooks.UserPromptSubmit||[];
+      s.hooks.UserPromptSubmit.push({hooks:[{type:'command',command:'node \\\"$CLAUDE_DIR/hooks/frugal-turn-header.js\\\"',timeout:3}]});
+      fs.writeFileSync(path, JSON.stringify(s, null, 2));
+    \""
+    ok "turn-header hook registered in settings.json"
   fi
   # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
   if grep -q "gsd-turn-end.js" "$CLAUDE_DIR/settings.json"; then

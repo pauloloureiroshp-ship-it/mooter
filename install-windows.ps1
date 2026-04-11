@@ -247,9 +247,16 @@ if ((Test-Path (Join-Path $SrcDir "tools\router")) -and (Test-Path (Join-Path $S
             Copy-Item $turnEnd (Join-Path $ClaudeDir "hooks\gsd-turn-end.js") -Force
         }
     }
+    $turnHeader = Join-Path $SrcDir "tools\router\frugal-turn-header.js"
+    if (Test-Path $turnHeader) {
+        DoRun "Copy turn-header hook" {
+            Copy-Item $turnHeader (Join-Path $ClaudeDir "hooks\frugal-turn-header.js") -Force
+        }
+    }
     DoRun "Remove router/ hook orphans" {
         Remove-Item (Join-Path $RouterDir "gsd-statusline.js") -Force -ErrorAction SilentlyContinue
         Remove-Item (Join-Path $RouterDir "gsd-turn-end.js") -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $RouterDir "frugal-turn-header.js") -Force -ErrorAction SilentlyContinue
     }
 
     # Copy agents
@@ -317,6 +324,28 @@ fs.writeFileSync(p, JSON.stringify(s, null, 2));
 "@
         }
         Ok "Hook installed"
+    }
+    # frugal-turn-header.js — second UserPromptSubmit hook emitting the visible
+    # routing summary each turn.
+    $settingsContent15 = Get-Content $settingsPath -Raw
+    if ($settingsContent15 -match "frugal-turn-header") {
+        Ok "Turn-header hook already registered"
+    } else {
+        Say "Merging turn-header hook into settings.json..."
+        DoRun "Inject turn-header hook" {
+            & node -e @"
+const fs = require('fs');
+const p = '$($settingsPath -replace '\\','/')';
+const s = JSON.parse(fs.readFileSync(p, 'utf8'));
+s.hooks = s.hooks || {};
+s.hooks.UserPromptSubmit = s.hooks.UserPromptSubmit || [];
+s.hooks.UserPromptSubmit.push({
+  hooks: [{ type: 'command', command: 'node \"$($ClaudeDir -replace '\\','/')\/hooks\/frugal-turn-header.js\"', timeout: 3 }]
+});
+fs.writeFileSync(p, JSON.stringify(s, null, 2));
+"@
+        }
+        Ok "Turn-header hook installed"
     }
     # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
     $settingsContent2 = Get-Content $settingsPath -Raw
