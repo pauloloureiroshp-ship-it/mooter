@@ -122,6 +122,10 @@ const MED_RISK = [
   /\bstring\s+concatenat/i,           // "SQL uses string concatenation" — security smell
   /\b\d+\s*MB\b/i,                    // "bundle 4.2MB", "files over 100MB" — size investigation
   /\bpromise\s+instead/i,             // "returns promise instead of value" — async bug
+  /\bcompar[ae]\b/i,                  // "compara React vs Vue" — comparison reasoning PT+EN
+  /\b\w+\s+vs\.?\s+\w+/i,            // "React vs Vue", "Redis vs Memcached" — comparison
+  /\bpros\s+(and|e)\s+cons\b/i,      // "pros and cons" — decision analysis
+  /\bwhich\s+(is\s+)?better\b/i,     // "which is better for X" — comparison reasoning
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
@@ -130,7 +134,7 @@ const LOW_RISK = [
   /\bexplain\b/i, /\bexplica/i, /\bo\s+que\s+[eé]\b/i, /\bwhat\s+is\b/i,
   /\bcommit\s+message/i, /\bdocstring/i, /\bregex/i,
   /\bformat/i, /\btransforma/i, /\btraduz/i, /\btranslate\b/i,
-  /\btypo/i, /\brename\b/i, /\bcompar(a|e)/i,
+  /\btypo/i, /\brename\b/i,
 ];
 
 // ── TRIVIAL (triage, classification, brainstorm) ───────────────────────────

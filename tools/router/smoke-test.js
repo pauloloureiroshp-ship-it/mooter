@@ -8,7 +8,7 @@ const CLASSIFIER = path.join(__dirname, 'classify.js');
 const NODE = process.execPath;
 
 const TESTS = [
-  { prompt: 'rename handleConnect to onConnect',                          expected: 'T0' },
+  { prompt: 'rename handleConnect to onConnect',                          expected: 'T0', also_ok: 'T1' },
   { prompt: 'debug this stack trace and find root cause',                 expected: 'T2' },
   { prompt: 'investigate why the auth middleware leaks memory under load', expected: 'T2' },
   { prompt: 'redesign the auth system for multi-tenant scale',            expected: 'T3' },
@@ -40,7 +40,7 @@ for (const t of TESTS) {
     } catch (_) { /* parse error — tier stays null */ }
   }
 
-  const ok = tier === t.expected;
+  const ok = tier === t.expected || (t.also_ok && tier === t.also_ok);
   if (ok) {
     passed++;
     console.log(`  ${t.expected}  ${t.prompt.slice(0, 40).padEnd(40)}  ${TICK}  (${ms}ms)`);

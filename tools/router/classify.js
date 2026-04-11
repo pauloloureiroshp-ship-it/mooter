@@ -265,7 +265,7 @@ const CODE_SUBTIER_RE = /\b(?:function|class|import|export|const|let|var|async|a
 // Math signals: operators, equation keywords, calculation verbs.
 const MATH_SUBTIER_RE = /\b(?:calcula(?:r|\s+a)?|compute|solve\s+(?:for|the)?|prove(?:\s+that)?|deriv[ae]|integral|integra(?:l|\s+de)?|equa[çc][aã]o|equation|theorem|lemma|corol[aá]rio|matrix|matriz|vetor|vector|determinant|eigenvalue|polin[oó]mio|polynomial|trigonom|logari[tm]|sin|cos|tan|limit\s+as|lim\s+_|sum\s+from|soma\s+de|sigma)\b|[∫∑∏∂∇√≤≥≠≈±∞]/i;
 // Tier T0 — local read or simple bash, no need for Opus.
-const BASH_PASTE = /^\s*(?:cat|ls|cd|grep|rg|find|sed|awk|head|tail|cp|mv|mkdir|touch|echo|pwd|tree|wc|sort|uniq|diff|chmod|chown|tar|zip|unzip|curl|wget|ping|nslookup|ps|kill|top|df|du|env|export|source|history|which|whereis|node|npm|npx|pnpm|yarn|python|python3|pip|pip3|git|docker|kubectl|systemctl|service|brew|apt|apt-get|yum|dnf|psql|mysql|redis-cli|sqlite3)\s/;
+const BASH_PASTE = /^\s*(?:cat|ls|cd|grep|rg|find|sed|awk|head|tail|cp|mv|mkdir|touch|echo|pwd|tree|wc|sort|uniq|diff|chmod|chown|tar|zip|unzip|curl|wget|ping|nslookup|ps|kill|top|df|du|env|export|source|history|which(?=\s+\S+\s*$)|whereis|node|npm|npx|pnpm|yarn|python|python3|pip|pip3|git|docker|kubectl|systemctl|service|brew|apt|apt-get|yum|dnf|psql|mysql|redis-cli|sqlite3)\s/;
 
 // PowerShell paste pattern (very common in this user's history)
 const PS_PASTE = /^(?:PS\s+[A-Z]:\\|>\s*$)/m;
@@ -387,7 +387,7 @@ function classify(prompt) {
     risk = 'high';
     confidence = high >= 2 ? 0.9 : 0.75;
     reasoning = `high-risk signals: ${high}, multiFile: ${multiFile}`;
-  } else if (med > 0 && low === 0 && triv === 0) {
+  } else if (med > 0 && med >= low) {
     tier = 'T2';
     category = 'reasoning_intermediate';
     risk = 'medium';
