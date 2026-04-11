@@ -60,6 +60,9 @@ output/
 # Investor decks (keep in Google Drive, not git)
 *.pptx
 
+# Master prompts — strategic content, not for public repo
+prompts/
+
 # frugal-core — nunca no repo público
 .frugal-core/
 frugal-core/
