@@ -166,6 +166,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | 🧠 Sessão 2026-04-11 — classify.js v0.10 (3 melhorias router) | `33f6f6e4-2bc4-81e4-8e0f-ddbd4b599359` | https://www.notion.so/33f6f6e42bc481e48e0fddbd4b599359 |
 | 🔁 Sessão 2026-04-11 — Feedback loop + install hardening (P0→P4) | `33f6f6e4-2bc4-81ee-a03a-f973d3747461` | https://www.notion.so/33f6f6e42bc481eea03af973d3747461 |
 | 📊 Evolução + Status atual — 2026-04-11 | `33f6f6e4-2bc4-81fe-a8e1-e065f53ee73b` | https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b |
+| 👁️ Sessão 2026-04-11 — Visibility stack + delegação real | `33f6f6e4-2bc4-8136-9255-d80e8780ed03` | https://www.notion.so/33f6f6e42bc48136 9255d80e8780ed03 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
