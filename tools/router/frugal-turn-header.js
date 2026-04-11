@@ -189,6 +189,40 @@ function findFreshClassified(sessionId, freshnessWindowMs) {
     } catch { /* non-fatal */ }
   }
 
+  // v0.12: session compliance warning — if this session has already logged
+  // ≥ 5 Bash calls all in Opus and the current recommendation is T0/T1,
+  // show a prominent ⚠ marker so the user SEES the doctrine being violated.
+  // The runtime-side enforcement (delegation_directive) lives in
+  // inject_context.js; this just mirrors the signal visually.
+  try {
+    const execPath = path.join(os.homedir(), '.claude', 'hooks', 'execution.log');
+    if (fs.existsSync(execPath)) {
+      const stat = fs.statSync(execPath);
+      const start = Math.max(0, stat.size - 256 * 1024);
+      const fd = fs.openSync(execPath, 'r');
+      const buf = Buffer.alloc(stat.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      fs.closeSync(fd);
+      const execLines = buf.toString('utf8').split('\n').filter(Boolean);
+      let bashCount = 0, opusCount = 0;
+      const sid = classified.session_id;
+      for (const line of execLines) {
+        const sm = line.match(/session=(\S+)/);
+        if (!sm || sm[1] !== sid) continue;
+        const mm = line.match(/model=(\S+)/);
+        if (!mm) continue;
+        bashCount++;
+        if (/opus/i.test(mm[1])) opusCount++;
+      }
+      const isUserOpusOverride = /user_override/.test(esc)
+        && /opus/i.test(String(classified.recommended_model || ''));
+      if (bashCount >= 5 && opusCount === bashCount
+          && (tier === 'T0' || tier === 'T1') && !isUserOpusOverride) {
+        parts.push(`⚠ session 100% Opus — delegate now`);
+      }
+    }
+  } catch { /* non-fatal */ }
+
   const header = `frugal recommends → ${parts.join(' · ')}`;
 
   process.stdout.write(JSON.stringify({

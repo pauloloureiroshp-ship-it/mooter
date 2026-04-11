@@ -58,10 +58,45 @@ Se tu (Opus) estás a fazer uma tarefa que um Ollama local faria igual de bem �
 | "explica este erro: TypeError: x is not a function" | spawn `local-summarizer` ou responde inline em 1 frase | parágrafo longo em Opus |
 | "lê estes 6 ficheiros e diz-me o que fazem" | spawn `local-summarizer` para cada um em paralelo | tu sequencial em Opus |
 
-### Quando NÃO spawnar subagent (importante)
+### Delegar vs inline — a regra correcta (v2, 2026-04-11)
 
-Spawn de subagent custa ~1-2s + overhead. **Não vale a pena se a tarefa total é < 5 tool calls**. Nesses casos, executa inline mas com **disciplina anti-bazuca**:
+A regra antiga ("inline se < 5 tool calls") estava errada e produzia sessões 100% Opus com poupança real de $0. **A nova regra é pragmática e obrigatória**:
 
+**Por ordem de precedência:**
+
+1. **Header diz T0/T1** (recomendação `local-summarizer` / `local-transformer` / `cheap-triage`)
+   → **DELEGA SEMPRE** via Agent tool. Sem excepções de conveniência.
+   **Única excepção válida**: a tarefa depende de estado acumulado na sessão (ficheiros já lidos, decisões tomadas em turns anteriores) que um subagent fresco não consegue ver. Neste caso, declara a dependência em UMA linha antes de qualquer outra tool call, e só então inlineia.
+   **"É mais rápido escrever inline" NÃO É razão válida.**
+
+2. **Header diz T2** (recomendação `model-reasoner`)
+   → **DELEGA** para investigação, root cause, comparações. Inline apenas em follow-up mecânico do que já estás a fazer.
+
+3. **Header diz T3** (recomendação `model-architect`)
+   → Inline (tu és Opus). Spawna `model-architect` só para isolamento/paralelização genuínos.
+
+4. **USER_OVERRIDE: honored pinning Opus**
+   → Inline em Opus sem culpa — o Paulo pediu explicitamente.
+
+5. **Pré-merge/push/deploy/release**
+   → `final-reviewer` sempre, sem excepção.
+
+### Runtime enforcement — `<delegation_directive>`
+
+Se a sessão actual tiver ≥ 5 Bash calls e 100% forem em Opus E o prompt actual for T0/T1, o hook `inject_context.js` injecta um bloco `<delegation_directive>` obrigatório no contexto. **Quando vires esse bloco, segue-o**: delega. Não há "aquela vez" em que ignoras.
+
+### Teste do cheiro (aplicar sempre antes de inlinear)
+
+Estás prestes a fazer Read + Grep + Edit para o Paulo? **Pergunta**: "o `local-summarizer` ou `cheap-triage` consegue fazer isto sozinho com os inputs que eu lhe der?" Se sim → **DELEGA**. A economia de "1-2s de overhead de spawn" não se compara a `$0.25 × N Bash calls` que deixam de sair. A poupança só é real quando a delegação acontece; caso contrário o statusline mostra `∅ 0% saved (all-Opus)`.
+
+### Inline ainda é correcto quando
+
+- Typo / rename / mudança de cor claramente isolada num único ficheiro
+- Follow-up mecânico dentro de um fluxo de investigação já em curso
+- Tarefa que depende de estado de sessão declarado (ver excepção acima)
+- Tier recomendado é T3 e tu és o modelo adequado
+
+Mesmo nesses casos, mantém **disciplina anti-bazuca**:
 - Lê só o estritamente necessário (10-50 linhas, não o ficheiro todo)
 - Não validas coisas que não foram pedidas
 - Não fazes "improvements" extra
@@ -99,7 +134,7 @@ E estes **forçam paragem para perguntar** (não decides sozinho):
 7. **Não adiciones comentários, docstrings, types a código que não tocaste.**
 8. **Se a tarefa tem > 3 partes, decompõe e roteia cada parte separadamente.** Não trates monólitos como tarefa única em Opus.
 9. **Em dúvida entre 2 modelos, escolhe o mais barato e escala se falhar.** Não escales preventivamente.
-10. **Antes de spawnar subagent, pergunta-te: "isto vale 1-2s de overhead?"** Se a tarefa é < 5 tool calls, faz inline.
+10. **Antes de inlinear**: se o header recomendou T0/T1, estás **obrigado** a delegar, a menos que consigas articular em 1 linha qual o estado da sessão que o subagent não veria. A regra antiga "inline se < 5 tool calls" foi revogada — produzia sessões 100% Opus com poupança real de $0. Ver secção "Delegar vs inline — a regra correcta".
 
 ---
 
@@ -206,7 +241,7 @@ Tu tens estes recursos prontos a usar — **não tens de configurar nada**:
 [ ] O tier que escolhi é o MÍNIMO viável?
 [ ] Vou ler só o estritamente necessário?
 [ ] Vou paralelizar tool calls independentes?
-[ ] Vou spawn subagent só se tarefa > 5 tool calls?
+[ ] Se header diz T0/T1, vou delegar via Agent tool (não inlinear)?
 [ ] Vou evitar preâmbulo, confirmações, improvements extra?
 [ ] Se for tarefa pré-push/merge/deploy, agendei final-reviewer?
 [ ] Se tocar em .env/CI/migrations/secrets, estou em T3?

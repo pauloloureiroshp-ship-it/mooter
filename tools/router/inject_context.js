@@ -263,6 +263,63 @@ function applyBudgetCap(tier, budget) {
 }
 
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
+const EXEC_LOG_PATH = path.join(os.homedir(), '.claude', 'hooks', 'execution.log');
+
+// v0.12: session compliance — count how many Bash calls in this session
+// actually ran in Opus vs a cheaper tier. Used to inject a runtime
+// directive when compliance drops to 0% (session is all-Opus even though
+// the router keeps recommending T0/T1). Bounded tail (256 KB), silent on
+// failure. Returns { bashCount, opusCount, nonOpusCount } or null.
+function readSessionCompliance(sid) {
+  if (!sid || sid === 'unknown') return null;
+  try {
+    if (!fs.existsSync(EXEC_LOG_PATH)) return null;
+    const stat = fs.statSync(EXEC_LOG_PATH);
+    const start = Math.max(0, stat.size - 256 * 1024);
+    const fd = fs.openSync(EXEC_LOG_PATH, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const rawLines = buf.toString('utf8').split('\n').filter(Boolean);
+    let bashCount = 0;
+    let opusCount = 0;
+    for (const line of rawLines) {
+      const sm = line.match(/session=(\S+)/);
+      if (!sm || sm[1] !== sid) continue;
+      const mm = line.match(/model=(\S+)/);
+      if (!mm) continue;
+      bashCount++;
+      if (/opus/i.test(mm[1])) opusCount++;
+    }
+    return { bashCount, opusCount, nonOpusCount: bashCount - opusCount };
+  } catch { return null; }
+}
+
+// v0.10: read the most recent classified tier for this session from
+// decisions.log. Bounded tail (32 KB) — silent on failure. Used to seed
+// FRUGAL_PREV_TIER for the follow-up inheritance rule in classify.js.
+function readLastSessionTier(sid) {
+  if (!sid || sid === 'unknown') return null;
+  try {
+    const stat = fs.statSync(LOG_PATH);
+    const size = stat.size;
+    const start = Math.max(0, size - 32768);
+    const fd = fs.openSync(LOG_PATH, 'r');
+    const len = size - start;
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let obj;
+      try { obj = JSON.parse(lines[i]); } catch (e) { continue; }
+      if (obj.event !== 'classified') continue;
+      if (obj.session_id !== sid) continue;
+      if (obj.tier) return obj.tier;
+    }
+  } catch (e) {}
+  return null;
+}
 
 function logDecision(entry) {
   try {
@@ -322,8 +379,11 @@ const TUNING_PATH = path.join(ROUTER_DIR, 'router-tuning.json');
 const CLASSIFY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CLASSIFY_CACHE_MAX = 1000;
 
-function hashPrompt(p) {
-  return crypto.createHash('sha256').update(p).digest('hex');
+// v0.10: include prevTier in the cache key so short follow-ups with different
+// inherited tiers don't collide across sessions.
+function hashPrompt(p, prevTier) {
+  const composite = (p || '') + '|' + (prevTier || '');
+  return crypto.createHash('sha256').update(composite).digest('hex');
 }
 
 function tuningMtime() {
@@ -357,21 +417,21 @@ function saveClassifyCache(cache) {
   } catch { /* non-fatal */ }
 }
 
-function getClassifyCached(prompt) {
+function getClassifyCached(prompt, prevTier) {
   if (V07_DISABLED) return null;
   const cache = loadClassifyCache();
-  const key = hashPrompt(prompt);
+  const key = hashPrompt(prompt, prevTier);
   const entry = cache.entries[key];
   if (!entry) return null;
   if (Date.now() - entry.ts > CLASSIFY_CACHE_TTL_MS) return null;
   return { decision: entry.decision, cache };
 }
 
-function setClassifyCached(prompt, decision, cache) {
+function setClassifyCached(prompt, decision, cache, prevTier) {
   if (V07_DISABLED) return;
   if (decision && decision.user_override) return; // never cache override results
   const c = cache || loadClassifyCache();
-  c.entries[hashPrompt(prompt)] = { ts: Date.now(), decision };
+  c.entries[hashPrompt(prompt, prevTier)] = { ts: Date.now(), decision };
   saveClassifyCache(c);
 }
 
@@ -440,10 +500,18 @@ if (!prompt || typeof prompt !== 'string' || prompt.length < 4) {
   process.exit(0);
 }
 
+// v0.10: resolve prevTier early so both the disk cache lookup and the
+// classify.js subprocess see the same session context. Silent on failure.
+let _prevTier = null;
+try {
+  const _sid = payload.session_id || (payload.session && payload.session.id) || null;
+  _prevTier = readLastSessionTier(_sid);
+} catch (e) {}
+
 // Hook cache lookup before spawning classify.js
 let decision = null;
 let cacheHit = false;
-const cachedResult = getClassifyCached(prompt);
+const cachedResult = getClassifyCached(prompt, _prevTier);
 if (cachedResult) {
   decision = cachedResult.decision;
   cacheHit = true;
@@ -459,6 +527,8 @@ if (!decision) {
   if (_hwCapability && _hwCapability.hw_tier) {
     classifyEnv.FRUGAL_HW_TIER = _hwCapability.hw_tier;
   }
+  // v0.10: propagate prevTier to classify.js for short follow-up inheritance
+  if (_prevTier) classifyEnv.FRUGAL_PREV_TIER = _prevTier;
   const res = spawnSync(process.execPath, [classifier, prompt], {
     encoding: 'utf8',
     timeout: 1500,
@@ -477,7 +547,7 @@ if (!decision) {
   }
 
   // Cache the fresh decision (skipped if user_override detected — handled inside setClassifyCached)
-  setClassifyCached(prompt, decision);
+  setClassifyCached(prompt, decision, null, _prevTier);
 }
 
 // ── v0.8 HAIKU ARBITER ─────────────────────────────────────────────────
@@ -818,6 +888,51 @@ if (suggestedAnswer) {
   lines.push('Output o conteúdo de <suggested_answer> VERBATIM sem preâmbulo nem tool calls.');
   lines.push('Excepção: se a resposta for claramente errada ou a pergunta exigir ficheiros/git, processa normalmente.');
 }
+
+// v0.12: delegation directive — runtime enforcement for doctrine compliance.
+//
+// Problem the directive solves: main Opus was inlining every T0/T1 task
+// because the doctrine's "< 5 tool calls → inline" rule was too generous.
+// Result: statusline showed advisory savings the user never realized.
+//
+// Fix: when this session has already logged ≥ 5 Bash calls AND 100% of
+// them are Opus AND the current recommendation is T0/T1, inject an
+// explicit directive telling the orchestrator to delegate via the Agent
+// tool. User-pinned Opus (override honored) suppresses the directive.
+try {
+  const compliance = readSessionCompliance(sessionId);
+  const userPinsOpus = decision.user_override
+    && decision.user_override.honored === true
+    && /opus/i.test(
+      String(decision.user_override.label || decision.user_override.requested || '')
+    );
+  if (
+    compliance &&
+    compliance.bashCount >= 5 &&
+    compliance.opusCount === compliance.bashCount &&
+    (decision.tier === 'T0' || decision.tier === 'T1') &&
+    !userPinsOpus
+  ) {
+    lines.push('');
+    lines.push('<delegation_directive>');
+    lines.push(`SESSION COMPLIANCE ALERT: this session has ${compliance.bashCount} Bash calls, 100% Opus.`);
+    lines.push('Realized savings so far: $0. The statusline will show "∅ 0% saved (all-Opus)".');
+    lines.push('');
+    lines.push(`Router classified this prompt as ${decision.tier} → recommended subagent: ${decision.suggested_subagent}.`);
+    lines.push('');
+    lines.push('DIRECTIVE (doctrine compliance v2):');
+    lines.push(`  For this turn, spawn \`${decision.suggested_subagent}\` via the Agent tool`);
+    lines.push('  instead of inlining the work in Opus. This is how savings actually');
+    lines.push('  materialize — advisory savings without delegation are a lie.');
+    lines.push('');
+    lines.push('Single exception: this task requires accumulated session state');
+    lines.push('(files read earlier in this conversation, decisions made in prior');
+    lines.push('turns) that a fresh subagent cannot access. If so, state the exact');
+    lines.push('state dependency in ONE sentence before any other tool call, then');
+    lines.push('proceed inline. "It is faster to write inline" is NOT a valid reason.');
+    lines.push('</delegation_directive>');
+  }
+} catch { /* directive is best-effort */ }
 
 process.stdout.write(lines.join('\n') + '\n');
 
