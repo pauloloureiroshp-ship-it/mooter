@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-11 — Cowork (sessão #11 — classify.js v0.10, 3 melhorias router)
+> **Última actualização:** 2026-04-11 — Claude Code (sessão #12 — feedback loop + install hardening + evolution snapshot)
 
 ---
 
@@ -42,6 +42,17 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | Skills (10 total) | ✅ NOVO | 5 originais + 3 modos + frugal-hello + frugal-doctor |
 | `frugal-doctor.js` | ✅ NOVO (2026-04-11) | Diagnóstico completo cross-platform, --fix mode |
 | `install.sh` v2 | ✅ NOVO (2026-04-11) | LaunchAgent macOS + wizard subscriptions + smoke test |
+| `gsd-turn-end.js` Stop hook | ✅ LIVE (2026-04-11 pm) | feedback loop agora registado em settings.json via install.sh + install-windows.ps1 |
+| Multi-model telemetry | ✅ LIVE (2026-04-11 pm) | `detectExternalModel()` regista codex/gemini/aider no execution.log |
+
+### Evolução recente (snapshot completo em [📊 Notion](https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b))
+
+- **v0.7 → v0.8** — classifier regex core + weighted scoring + arbiter Haiku para long tail
+- **v0.8 → v0.9** — mode system, subscription profile, decomposition, adversarial test generator
+- **v0.9 → v0.9.3** — hub Cloudflare deployed, GPU probe, statusline v0.12, Windows compat, onboarding auto
+- **v0.9.3 → v0.9.4** — security audit, landing v9, Supabase + GitHub OAuth, 4-step onboarding, cross-platform installer
+- **Sessões 2026-04-10/11** — E2E MVP validation, Landing v10 + OS Vision, classify.js v0.10, frugal-doctor, install.sh v2
+- **Sessão #12 (hoje pm)** — bug crítico do feedback loop descoberto e corrigido (Stop hook nunca estava em `settings.json`), P0 cache key, P1 mode system, P3 multi-model telemetry, P4 SSOT dedup, push entregue (9 commits)
 
 ### Skills instaladas
 
@@ -154,6 +165,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | 🦙 Sessão 2026-04-11 — Model emoji + role label em cada Bash | `33f6f6e4-2bc4-816e-a1cf-d331893036b2` | https://www.notion.so/33f6f6e42bc4816ea1cfd331893036b2 |
 | 🧠 Sessão 2026-04-11 — classify.js v0.10 (3 melhorias router) | `33f6f6e4-2bc4-81e4-8e0f-ddbd4b599359` | https://www.notion.so/33f6f6e42bc481e48e0fddbd4b599359 |
 | 🔁 Sessão 2026-04-11 — Feedback loop + install hardening (P0→P4) | `33f6f6e4-2bc4-81ee-a03a-f973d3747461` | https://www.notion.so/33f6f6e42bc481eea03af973d3747461 |
+| 📊 Evolução + Status atual — 2026-04-11 | `33f6f6e4-2bc4-81fe-a8e1-e065f53ee73b` | https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
