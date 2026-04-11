@@ -404,6 +404,8 @@ function computeMetrics(lines) {
   }
 
   // Second pass: real cost accounting over classified user prompts.
+  m.total_input_tokens = 0;
+  m.total_output_tokens = 0;
   for (const line of lines) {
     const e = safeParse(line);
     if (!e || e.event !== 'classified' || !e.tier) continue;
@@ -417,13 +419,20 @@ function computeMetrics(lines) {
     m.prompts += 1;
     m.by_tier[e.tier] += 1;
 
-    const realUsd = pricing.estimateTurnCost(e.tier, e.prompt_len);
-    const naiveUsd = pricing.naiveOpusCost(e.prompt_len);
+    const promptLen = e.prompt_len || 0;
+    const realUsd = pricing.estimateTurnCost(e.tier, promptLen);
+    const naiveUsd = pricing.naiveOpusCost(promptLen);
 
     m.real_cost_estimated += realUsd;
     m.cost_by_tier[e.tier] += realUsd;
     m.naive_cost += naiveUsd;
+
+    // Token accounting (estimated): input from prompt_len + base context,
+    // output from per-tier average. Same numbers pricing.js uses for cost.
+    m.total_input_tokens += pricing.estimateInputTokens(promptLen);
+    m.total_output_tokens += pricing.AVG_OUTPUT_TOK[e.tier] || 0;
   }
+  m.total_tokens = m.total_input_tokens + m.total_output_tokens;
 
   // Backwards-compat alias
   m.real_cost = m.real_cost_estimated;

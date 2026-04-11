@@ -89,8 +89,14 @@ function colorForSavingsPct(pct) {
 
 function fmtUsd(n) {
   if (typeof n !== 'number' || isNaN(n)) return '–';
-  if (n < 1) return `$${n.toFixed(2)}`;
   return `$${n.toFixed(2)}`;
+}
+
+function fmtTokens(n) {
+  if (typeof n !== 'number' || isNaN(n) || n === 0) return '0';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1000)}k`;
+  return String(n);
 }
 
 function renderStatusBar(metrics) {
@@ -104,33 +110,23 @@ function renderStatusBar(metrics) {
     return;
   }
   // savings-tracker.js reads the FULL decisions.log on every /metrics call,
-  // so `metrics.saved` is already the all-time accumulated savings — not just
-  // this session. The previous version showed `real_cost` under the "alltime"
-  // label, which was wrong (real_cost is what you SPENT, not what you SAVED).
-  const plan = metrics.plan || 'unknown';
-  const isApiOnly = plan === 'api_only' || plan === 'api-free' || plan === 'unknown';
+  // so `metrics.saved` is already the all-time accumulated savings.
+  // Statusbar shows only the 3 numbers that matter: saved, prompts, tokens.
+  // Detail (real cost, naive, plan, audit) lives in the tooltip.
   const saved = fmtUsd(metrics.saved);
   const pct = Math.round(metrics.saved_pct || 0);
-  const real = fmtUsd(metrics.real_cost);
-
-  if (isApiOnly) {
-    statusBarItem.text = `💰 ${saved} saved (${pct}%) │ ${real} real │ ${metrics.prompts} prompts`;
-  } else {
-    // Plan users (claude_max, claude_pro): the "saved" $ doesn't reflect
-    // out-of-pocket savings (they pay flat). Show how many Opus prompts
-    // were deflected to free tiers instead.
-    const deflected = (metrics.by_tier?.T0 || 0) + (metrics.by_tier?.T1 || 0);
-    const planLabel = plan === 'claude_max' ? 'Claude Max' : plan === 'claude_pro' ? 'Claude Pro' : plan;
-    statusBarItem.text = `💰 ${deflected} deflected (${pct}% to Ollama/Haiku) │ ${planLabel}`;
-  }
+  const tokens = fmtTokens(metrics.total_tokens || 0);
+  statusBarItem.text = `💰 ${saved} │ ${metrics.prompts} prompts │ ${tokens} tokens`;
 
   statusBarItem.color = colorForSavingsPct(metrics.saved_pct || 0);
+  const plan = metrics.plan || 'unknown';
   const tooltipLines = [
-    `**frugal — savings**`,
+    `**frugal — savings (all-time)**`,
     ``,
     `| | |`,
     `|-|-|`,
-    `| Prompts (all-time) | ${metrics.prompts} |`,
+    `| Prompts | ${metrics.prompts} |`,
+    `| Tokens | ${fmtTokens(metrics.total_tokens || 0)} (in: ${fmtTokens(metrics.total_input_tokens || 0)} · out: ${fmtTokens(metrics.total_output_tokens || 0)}) |`,
     `| Real cost | ${fmtUsd(metrics.real_cost)} |`,
     `| Naive (all Opus) | ${fmtUsd(metrics.naive_cost)} |`,
     `| **Saved (est)** | **${fmtUsd(metrics.saved)} (${pct}%)** |`,
