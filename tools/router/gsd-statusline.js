@@ -20,18 +20,24 @@ const { spawnSync } = require('child_process');
 //     falls back to advisory (tier-routing estimate).
 // v0.7.1: single fetch, shared by renderSavings + renderProviders.
 // Returns the parsed /metrics JSON or null on any failure.
-function fetchFrugalMetrics() {
+// When sessionId is provided, returns metrics scoped to that session only —
+// each Claude Code terminal then shows ITS own savings, not the all-time
+// total (which lives in the VS Code extension statusbar instead).
+function fetchFrugalMetrics(sessionId) {
   try {
+    const path = sessionId
+      ? `/metrics?session_id=${encodeURIComponent(sessionId)}`
+      : '/metrics';
     const fetchScript = `
       const http = require('http');
-      const req = http.get('http://127.0.0.1:7821/metrics', (res) => {
+      const req = http.get('http://127.0.0.1:7821${'__PATH__'}', (res) => {
         let body = '';
         res.on('data', d => body += d);
         res.on('end', () => process.stdout.write(body));
       });
       req.on('error', () => process.exit(1));
       req.setTimeout(400, () => { req.destroy(); process.exit(2); });
-    `;
+    `.replace('__PATH__', path);
     const r = spawnSync(process.execPath, ['-e', fetchScript], {
       encoding: 'utf8',
       timeout: 500,
@@ -498,7 +504,10 @@ process.stdin.on('end', () => {
     //   🐕 ↓89% ~$3.84 │ █░░▒▒▓▓▓▓▓ ops:9·son:22·free:69
     //   🐕🦁 ↓89% ~$3.84 │ ██████████ ops:100  (beast mode)
     //   🐕🧘 ↓95% ~$0.12 │ ██████████ free:100 (zen mode)
-    const metrics = fetchFrugalMetrics();
+    //
+    // Per-session: each Claude Code terminal shows ITS own savings (this
+    // conversation). The VS Code extension statusbar shows all-time totals.
+    const metrics = fetchFrugalMetrics(session);
 
     // Mode badge
     let modeBadge = '';

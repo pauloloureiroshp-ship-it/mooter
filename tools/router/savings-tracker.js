@@ -628,9 +628,43 @@ function handleHealth(_req, res) {
   send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid, version: '0.6.0' }));
 }
 
-function handleMetrics(_req, res) {
+function handleMetrics(req, res) {
+  // Optional ?session_id=X — returns metrics scoped to a single Claude Code
+  // session. Used by gsd-statusline.js so each terminal shows ITS savings,
+  // while the VS Code extension keeps polling all-time via /metrics.
+  const url = req.url || '/metrics';
+  const qIdx = url.indexOf('?');
+  let sessionId = null;
+  if (qIdx >= 0) {
+    const qs = url.slice(qIdx + 1);
+    const params = new URLSearchParams(qs);
+    sessionId = params.get('session_id');
+  }
+  if (sessionId) {
+    const metrics = computeMetricsForSession(sessionId);
+    send(res, 200, JSON.stringify(metrics));
+    return;
+  }
   const { metrics } = readDecisions();
   send(res, 200, JSON.stringify(metrics));
+}
+
+// Session-scoped metrics: filters decisions.log by session_id, then runs the
+// same computeMetrics() pipeline. NOT cached (session size is small, runs on
+// every statusline poll).
+function computeMetricsForSession(sessionId) {
+  if (!sessionId) return emptyMetrics();
+  let raw = '';
+  try { raw = fs.readFileSync(LOG_PATH, 'utf8'); } catch { return emptyMetrics(); }
+  const lines = raw.split('\n').filter((l) => l.trim().length > 0);
+  const filtered = lines.filter((l) => {
+    const e = safeParse(l);
+    return e && e.session_id === sessionId;
+  });
+  const m = computeMetrics(filtered);
+  m.scope = 'session';
+  m.session_id = sessionId;
+  return m;
 }
 
 function handleReal(_req, res) {
