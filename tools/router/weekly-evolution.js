@@ -120,7 +120,7 @@ if (stats) {
 // UX/UI suggestions based on data
 suggestions.push({
   area: 'landing',
-  action: `Update live counters: ${stats?.total_decisions || '?'} prompts, ${stats?.free_pct || '?'}% free, ~${Math.round(100 - (stats?.t3_pct || 0) * 0.12 / 0.12 * 100) || '?'}% savings.`,
+  action: `Update live counters: ${stats?.total_decisions || '?'} prompts, ${stats?.free_pct || '?'}% free, ~${stats?.savings_pct ?? '?'}% savings.`,
 });
 
 if (uxData?.friction_signals?.quality_intent?.pct > 10) {

@@ -30,19 +30,19 @@ const lines=require('fs').readFileSync(0,'utf8').trim().split('\n');
 lines.forEach(l=>{try{const d=JSON.parse(l);console.log(d.ts.slice(11,19)+' '+d.tier+' conf='+d.confidence.toFixed(2)+' '+d.task_category)}catch{}})
 " 2>/dev/null
 
-# 4. Session stats (today)
+# 4. Session stats (today + all-time) — uses pricing.js for consistency
+#    with statusline and /frugal-savings. No more mismatched numbers.
 node -e "
-const fs=require('fs'),path=require('path');
-const log=path.join(require('os').homedir(),'.claude','tools','router','decisions.log');
+const fs=require('fs'),path=require('path'),os=require('os');
+const pricing=require(path.join(os.homedir(),'.claude','tools','router','pricing'));
+const log=path.join(os.homedir(),'.claude','tools','router','decisions.log');
 try{
   const lines=fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean);
   const today=new Date().toISOString().slice(0,10);
-  const tierCost={T0:0,T1:0.002,T2:0.008,T3:0.045};
   let tiers={T0:0,T1:0,T2:0,T3:0},actual=0,naive=0,count=0;
-  for(const l of lines){try{const d=JSON.parse(l);if(d.tier&&d.ts&&d.ts.startsWith(today)){tiers[d.tier]++;actual+=tierCost[d.tier]||0;naive+=0.045;count++}}catch{}}
-  const allActual=lines.reduce((s,l)=>{try{const d=JSON.parse(l);return s+(tierCost[d.tier]||0)}catch{return s}},0);
-  const allNaive=lines.length*0.045;
-  console.log(JSON.stringify({count,tiers,actual:actual.toFixed(2),naive:naive.toFixed(2),saved:(naive-actual).toFixed(2),pct:naive>0?((1-actual/naive)*100).toFixed(0):'0',total:lines.length,totalSaved:(allNaive-allActual).toFixed(2),totalPct:allNaive>0?((1-allActual/allNaive)*100).toFixed(0):'0'}));
+  let allActual=0,allNaive=0,allCount=0;
+  for(const l of lines){try{const d=JSON.parse(l);if(!d.tier)continue;const pl=d.prompt_length||d.prompt_len||200;const r=pricing.estimateTurnCost(d.tier,pl);const n=pricing.naiveOpusCost(pl);allActual+=r;allNaive+=n;allCount++;if(d.ts&&d.ts.startsWith(today)){tiers[d.tier]++;actual+=r;naive+=n;count++}}catch{}}
+  console.log(JSON.stringify({count,tiers,actual:actual.toFixed(2),naive:naive.toFixed(2),saved:(naive-actual).toFixed(2),pct:naive>0?((1-actual/naive)*100).toFixed(0):'0',total:allCount,totalActual:allActual.toFixed(2),totalNaive:allNaive.toFixed(2),totalSaved:(allNaive-allActual).toFixed(2),totalPct:allNaive>0?((1-allActual/allNaive)*100).toFixed(0):'0'}));
 }catch{console.log(JSON.stringify({count:0,tiers:{T0:0,T1:0,T2:0,T3:0},saved:'0.00',pct:'0',total:0,totalSaved:'0.00',totalPct:'0'}))}
 " 2>/dev/null
 

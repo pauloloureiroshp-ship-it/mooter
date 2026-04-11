@@ -24,17 +24,11 @@ const LOG = path.join(
   '.claude', 'tools', 'router', 'decisions.log'
 );
 
-// rough $/Mtok output prices (early-2026 est., update as needed)
-const PRICE_PER_MTOK = {
-  'claude-opus-4-6': 15.0,
-  'claude-sonnet-4-6': 3.0,
-  'claude-haiku-4-5-20251001': 0.80,
-  'qwen2.5:3b': 0,
-  'qwen3:30b': 0,
-};
-
-// rough avg output tokens per task by tier (calibrated against demo run)
-const AVG_OUTPUT_TOK = { T0: 200, T1: 350, T2: 600, T3: 1200 };
+// Cost computation — delegated to pricing.js (single source of truth).
+// Previously stats.js had its own (broken) cost math: it multiplied
+// AVG_OUTPUT_TOK × INPUT_PRICE which understated savings. Now uses
+// pricing.estimateTurnCost which correctly accounts for input + output.
+const pricing = require('./pricing');
 
 const args = process.argv.slice(2);
 const wantJson = args.includes('--json');
@@ -73,13 +67,10 @@ for (const e of entries) {
   byCategory[e.task_category] = (byCategory[e.task_category] || 0) + 1;
   byBackend[e.recommended_backend] = (byBackend[e.recommended_backend] || 0) + 1;
 
-  const tok = AVG_OUTPUT_TOK[e.tier] || 500;
-  const actualPrice = PRICE_PER_MTOK[e.recommended_model] || 0;
-  const naivePrice = PRICE_PER_MTOK['claude-opus-4-6'];
-
-  actualCostUSD += (tok * actualPrice) / 1e6;
-  naiveOpusCostUSD += (tok * naivePrice) / 1e6;
-  if (e.tier !== 'T3') savedTokOpus += tok;
+  const promptLen = e.prompt_length || e.prompt_len || 200;
+  actualCostUSD += pricing.estimateTurnCost(e.tier, promptLen);
+  naiveOpusCostUSD += pricing.naiveOpusCost(promptLen);
+  if (e.tier !== 'T3') savedTokOpus += pricing.AVG_OUTPUT_TOK[e.tier] || 500;
 
   if (e.confidence < 0.6) {
     lowConf.push({ ts: e.ts, conf: e.confidence, preview: e.prompt_preview });

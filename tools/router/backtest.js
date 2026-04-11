@@ -21,9 +21,17 @@ const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
 const TUNING_PATH = path.join(ROUTER_DIR, 'router-tuning.json');
 
-// Naive cost per prompt (Opus baseline) vs actual tier
-const TIER_COST = { T0: 0.0, T1: 0.002, T2: 0.008, T3: 0.045 };
-const NAIVE_COST = TIER_COST.T3;
+// Cost computation — delegated to pricing.js (single source of truth).
+// Previously hardcoded as { T0: 0, T1: 0.002, T2: 0.008, T3: 0.045 } which
+// drifted from real Anthropic pricing and produced savings numbers that
+// didn't match the statusline or /frugal-savings command.
+const pricing = require('./pricing');
+function tierCostFor(tier, promptLen) {
+  return pricing.estimateTurnCost(tier, promptLen || 200);
+}
+function naiveCostFor(promptLen) {
+  return pricing.naiveOpusCost(promptLen || 200);
+}
 
 // Doctrine guardrail — signatures containing any of these markers must
 // NEVER be proposed as demote candidates. Mirrors HIGH_RISK in classify.js
@@ -167,20 +175,22 @@ function analyze(decisions) {
     }
   }
 
-  // Cost analysis: actual vs naive vs ideal-if-demoted
+  // Cost analysis: actual vs naive vs ideal-if-demoted (uses pricing.js)
   let actualCost = 0;
   let idealCost = 0;
+  let naiveCost = 0;
   for (const d of decisions) {
     const t = d.tier || 'T3';
-    actualCost += TIER_COST[t] || 0;
+    const pl = d.prompt_length || d.prompt_len || 200;
+    actualCost += tierCostFor(t, pl);
+    naiveCost += naiveCostFor(pl);
     // ideal: if it was a demote candidate, drop one tier
     const sig = signature(d.prompt_preview);
     const isDemote = demoteCandidates.has(sig);
-    if (isDemote && t === 'T3') idealCost += TIER_COST.T2;
-    else if (isDemote && t === 'T2') idealCost += TIER_COST.T1;
-    else idealCost += TIER_COST[t] || 0;
+    if (isDemote && t === 'T3') idealCost += tierCostFor('T2', pl);
+    else if (isDemote && t === 'T2') idealCost += tierCostFor('T1', pl);
+    else idealCost += tierCostFor(t, pl);
   }
-  const naiveCost = total * NAIVE_COST;
   const additionalSavings = Math.max(0, actualCost - idealCost);
 
   return {
@@ -292,7 +302,7 @@ function explainCandidates(decisions) {
     lines.push(`    current tier: T2/T3  →  suggested: T0/T1`);
     const rx = `/\\b${d.pattern.split(/\s+/).join('\\s+')}\\b/i`;
     lines.push(`    regex:        ${rx}`);
-    const savingEst = d.count * (TIER_COST.T3 - TIER_COST.T1);
+    const savingEst = d.count * (naiveCostFor(200) - tierCostFor('T1', 200));
     lines.push(`    saving est:   $${savingEst.toFixed(4)}`);
   }
   lines.push('');

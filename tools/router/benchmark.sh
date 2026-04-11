@@ -50,11 +50,10 @@ TOTAL=${#PROMPTS[@]}
 NAIVE_OPUS_COST=0
 MEDIATOR_COST=0
 
-# Pricing in micro-dollars per output token (×1e-6), avg output 400 tok per task
-PRICE_OPUS_USD_PER_TOK="0.000015"
-PRICE_SONNET_USD_PER_TOK="0.000003"
-PRICE_HAIKU_USD_PER_TOK="0.0000008"
-AVG_TOK=400
+# Cost computation now delegates to pricing.js (single source of truth).
+# Previously this used hardcoded $/tok constants that drifted from real
+# Anthropic prices and the rest of the toolchain.
+PROMPT_LEN_DEFAULT=200
 
 for i in "${!PROMPTS[@]}"; do
   PROMPT="${PROMPTS[$i]}"
@@ -68,15 +67,9 @@ for i in "${!PROMPTS[@]}"; do
   MATCH="false"
   if [ "$TIER" = "$EXPECTED" ]; then MATCH="true"; CORRECT=$((CORRECT+1)); fi
 
-  # Cost calc — naive: always Opus
-  NAIVE_USD=$(node -e "console.log(($AVG_TOK * $PRICE_OPUS_USD_PER_TOK).toFixed(6));")
-  case "$TIER" in
-    T0) MED_USD="0.000000" ;;
-    T1) MED_USD=$(node -e "console.log(($AVG_TOK * $PRICE_HAIKU_USD_PER_TOK).toFixed(6));") ;;
-    T2) MED_USD=$(node -e "console.log(($AVG_TOK * $PRICE_SONNET_USD_PER_TOK).toFixed(6));") ;;
-    T3) MED_USD=$(node -e "console.log(($AVG_TOK * $PRICE_OPUS_USD_PER_TOK).toFixed(6));") ;;
-    *)  MED_USD="0.000000" ;;
-  esac
+  # Cost calc — uses pricing.js for both naive and mediator costs.
+  NAIVE_USD=$(node -e "const p=require('$ROUTER_DIR/pricing');console.log(p.naiveOpusCost($PROMPT_LEN_DEFAULT).toFixed(6));")
+  MED_USD=$(node -e "const p=require('$ROUTER_DIR/pricing');console.log(p.estimateTurnCost('$TIER',$PROMPT_LEN_DEFAULT).toFixed(6));")
 
   NAIVE_OPUS_COST=$(node -e "console.log(($NAIVE_OPUS_COST + $NAIVE_USD).toFixed(6));")
   MEDIATOR_COST=$(node -e "console.log(($MEDIATOR_COST + $MED_USD).toFixed(6));")

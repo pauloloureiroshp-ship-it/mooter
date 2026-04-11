@@ -267,21 +267,32 @@ function renderSavingsHero(mOpt) {
       return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ${tildePrefix}${savedStr}${RESET}${spent}`;
     }
 
-    // Fallback: compute from decisions.log
+    // Fallback: compute from decisions.log using pricing.js (SSOT)
+    // Critical: this MUST match what savings-tracker.js produces, otherwise
+    // the statusline shows a different number than /frugal-savings.
     try {
       const logPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
       if (!fs.existsSync(logPath)) return '';
+      let pricing;
+      try { pricing = require('./pricing'); } catch { return ''; }
       const lines = fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean);
-      const tiers = { T0: 0, T1: 0, T2: 0, T3: 0 };
       let total = 0;
-      lines.slice(-200).forEach(l => {
-        try { const d = JSON.parse(l); if (d.tier) { tiers[d.tier]++; total++; } } catch {}
-      });
-      if (total === 0) return '';
-      const COST = { T0: 0, T1: 0.006, T2: 0.024, T3: 0.12 };
       let actual = 0;
-      Object.entries(tiers).forEach(([t, n]) => { actual += n * (COST[t] || 0); });
-      const naive = total * COST.T3;
+      let naive = 0;
+      // Use ALL entries (not last 200) so the statusline matches all-time
+      // totals shown by /frugal-savings. The user was seeing mismatches
+      // because the statusline was windowed and /frugal-savings was not.
+      lines.forEach(l => {
+        try {
+          const d = JSON.parse(l);
+          if (!d.tier || d.event && d.event !== 'classified') return;
+          const promptLen = d.prompt_length || d.prompt_len || 200;
+          actual += pricing.estimateTurnCost(d.tier, promptLen);
+          naive += pricing.naiveOpusCost(promptLen);
+          total++;
+        } catch {}
+      });
+      if (total === 0 || naive === 0) return '';
       const saved = naive - actual;
       const pct = Math.round((1 - actual / naive) * 100);
       let pctColor = DIM;

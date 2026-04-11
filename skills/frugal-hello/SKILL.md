@@ -17,39 +17,59 @@ Shows new users what frugal just did on their last prompt. Designed to create a 
 Run these commands, then format the output:
 
 ```bash
-# 1. Read last decision from log
-tail -1 ~/.claude/tools/router/decisions.log 2>/dev/null | node -e "
-const line = require('fs').readFileSync(0,'utf8').trim();
-try {
-  const d = JSON.parse(line);
-  const tierCost = { T0: 0.00, T1: 0.002, T2: 0.008, T3: 0.045 };
-  const tierLabel = { T0: 'Ollama local — free', T1: 'Haiku — very cheap', T2: 'Sonnet — moderate', T3: 'Opus — full power' };
-  const saved = tierCost.T3 - (tierCost[d.tier] || 0);
-  console.log(JSON.stringify({
-    tier: d.tier,
-    category: d.task_category,
-    confidence: d.confidence,
-    prompt_len: d.prompt_len,
-    model: d.recommended_model,
-    cost_label: tierLabel[d.tier] || 'unknown',
-    saved_per_prompt: saved.toFixed(3),
-    cache_hit: d.cache_hit || false,
-    ts: d.ts
-  }));
-} catch { console.log('NO_DATA'); }
-"
-
-# 2. Count total decisions and savings
+# 1. Read last decision from log + 2. Total decisions and savings
+# Both use pricing.js (single source of truth) — same numbers as statusline
+# and /frugal-savings, no more inconsistencies.
 node -e "
-const fs = require('fs'), path = require('path');
-const log = path.join(require('os').homedir(), '.claude', 'tools', 'router', 'decisions.log');
+const fs = require('fs'), path = require('path'), os = require('os');
+const pricing = require(path.join(os.homedir(), '.claude', 'tools', 'router', 'pricing'));
+const log = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+const tierLabel = { T0: 'Ollama local — free', T1: 'Haiku — very cheap', T2: 'Sonnet — moderate', T3: 'Opus — full power' };
 try {
   const lines = fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean);
-  const tierCost = { T0: 0, T1: 0.002, T2: 0.008, T3: 0.045 };
-  let actual = 0, naive = 0;
-  for (const l of lines) { try { const d = JSON.parse(l); if (d.tier) { actual += tierCost[d.tier]||0; naive += 0.045; } } catch {} }
-  console.log(JSON.stringify({ total: lines.length, saved: (naive-actual).toFixed(2), pct: naive > 0 ? ((1-actual/naive)*100).toFixed(0) : '0' }));
-} catch { console.log(JSON.stringify({ total: 0, saved: '0.00', pct: '0' })); }
+  // Last decision
+  let last = null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try { const d = JSON.parse(lines[i]); if (d.tier) { last = d; break; } } catch {}
+  }
+  if (last) {
+    const pl = last.prompt_length || last.prompt_len || 200;
+    const realCost = pricing.estimateTurnCost(last.tier, pl);
+    const naiveCost = pricing.naiveOpusCost(pl);
+    console.log(JSON.stringify({
+      tier: last.tier,
+      category: last.task_category,
+      confidence: last.confidence,
+      prompt_len: pl,
+      model: last.recommended_model,
+      cost_label: tierLabel[last.tier] || 'unknown',
+      real_cost: realCost.toFixed(4),
+      naive_cost: naiveCost.toFixed(4),
+      saved_per_prompt: (naiveCost - realCost).toFixed(4),
+      cache_hit: last.cache_hit || false,
+      ts: last.ts
+    }));
+  } else { console.log('NO_DATA'); }
+  // Cumulative
+  let actual = 0, naive = 0, count = 0;
+  for (const l of lines) {
+    try {
+      const d = JSON.parse(l);
+      if (!d.tier) continue;
+      const pl = d.prompt_length || d.prompt_len || 200;
+      actual += pricing.estimateTurnCost(d.tier, pl);
+      naive += pricing.naiveOpusCost(pl);
+      count++;
+    } catch {}
+  }
+  console.log(JSON.stringify({
+    total: count,
+    real_cost: actual.toFixed(2),
+    naive_cost: naive.toFixed(2),
+    saved: (naive - actual).toFixed(2),
+    pct: naive > 0 ? ((1 - actual / naive) * 100).toFixed(0) : '0'
+  }));
+} catch { console.log('NO_DATA'); console.log(JSON.stringify({ total: 0, real_cost: '0.00', naive_cost: '0.00', saved: '0.00', pct: '0' })); }
 "
 ```
 
@@ -68,7 +88,7 @@ Here's what happened on your last prompt:
   Tier         T0 (Ollama local — free)
   Model        qwen2.5:3b
   Confidence   0.94
-  Cost         $0.000 (instead of ~$0.045 with Opus)
+  Cost         $0.000 (instead of ~$0.26 with Opus)
 
   Your prompts never leave your machine.
   Only the tier (T0/T1/T2/T3) is shared anonymously to improve the algorithm.

@@ -175,7 +175,21 @@ if (uniqueCategories < 5 && total > 100) {
 insights.suggestions.push({
   area: 'landing',
   priority: 'info',
-  suggestion: `Update landing page metrics: ${total} prompts classified, ${insights.tier_health.free_tier_pct}% free tier, ~${Math.round((1 - (tiers.T2 * 0.024 + tiers.T3 * 0.12) / (total * 0.12)) * 100)}% savings.`,
+  suggestion: (() => {
+    // Compute savings via pricing.js (SSOT) — no more hardcoded constants
+    try {
+      const pricing = require('./pricing');
+      let actual = 0, naive = 0;
+      Object.entries(tiers).forEach(([t, n]) => {
+        actual += n * pricing.estimateTurnCost(t, 200);
+        naive += n * pricing.naiveOpusCost(200);
+      });
+      const pct = naive > 0 ? Math.round((1 - actual / naive) * 100) : 0;
+      return `Update landing page metrics: ${total} prompts classified, ${insights.tier_health.free_tier_pct}% free tier, ~${pct}% savings.`;
+    } catch {
+      return `Update landing page metrics: ${total} prompts classified, ${insights.tier_health.free_tier_pct}% free tier.`;
+    }
+  })(),
 });
 
 // ── Output ──────────────────────────────────────────────────────
