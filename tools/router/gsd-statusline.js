@@ -344,10 +344,14 @@ function renderGpu() {
 // ── Savings hero renderer ──────────────────────────────────────────────────
 // Format: 💰 ↓89% saved ~$3.84 · spent ~$0.47
 // Green ≥75%, yellow ≥40%, dim otherwise.
-// Shows both saved AND spent for full transparency.
-function renderSavingsHero(mOpt) {
+//
+// v0.12: PRIMARY source is execution.log (real per-Bash models) so the hero
+// agrees with the distribution bar and the footer. Advisory tracker data is
+// only used as a fallback when execution.log has nothing for the session,
+// and when used it's tagged with "(advisory)" so there's no ambiguity.
+function renderSavingsHero(mOpt, sessionId) {
   try {
-    const m = mOpt || fetchFrugalMetrics();
+    const m = mOpt || fetchFrugalMetrics(sessionId);
 
     // Helper: format with currency
     const fmtMoney = (usd, m) => {
@@ -362,7 +366,59 @@ function renderSavingsHero(mOpt) {
       return `$${usd.toFixed(2)}`;
     };
 
-    // If tracker is running, use it
+    // ── PRIMARY: real execution data from execution.log ───────────────────
+    // Count Bash calls per model for this session, map each to a tier, use
+    // pricing.js to compute what was actually spent vs what all-Opus would
+    // have cost. This is the SAME data source as the distribution bar — the
+    // two numbers are guaranteed to agree.
+    try {
+      const real = realExecutionCounts(sessionId);
+      if (real && real.total > 0) {
+        let pricing;
+        try { pricing = require('../tools/router/pricing'); }
+        catch {
+          try { pricing = require(path.join(os.homedir(), '.claude', 'tools', 'router', 'pricing.js')); }
+          catch { pricing = null; }
+        }
+        if (pricing) {
+          // 400 chars ≈ one Bash tool-use roundtrip worth of IO.
+          // The absolute number is imperfect but the RATIO (real vs baseline)
+          // is the signal the user actually cares about.
+          const CHAR_UNIT = 400;
+          const costAt = (tier) => pricing.estimateTurnCost(tier, CHAR_UNIT);
+          const opusUnit = pricing.naiveOpusCost(CHAR_UNIT);
+
+          const realSpent =
+            real.opus   * costAt('T3') +
+            real.sonnet * costAt('T2') +
+            real.haiku  * costAt('T1') +
+            real.local  * costAt('T0') +
+            real.gpt    * costAt('T2') +  // external APIs ≈ Sonnet price band
+            real.gemini * costAt('T2');
+
+          const baseline = real.total * opusUnit;
+          const saved = Math.max(0, baseline - realSpent);
+          const pct = baseline > 0 ? Math.round((saved / baseline) * 100) : 0;
+
+          let pctColor = DIM;
+          if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m';
+          else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m';
+          else if (pct === 0) pctColor = '\x1b[38;2;244;71;71m'; // red — no savings
+
+          const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
+          const savedStr = `$${saved.toFixed(2)}`;
+          const spentStr = `$${realSpent.toFixed(2)}`;
+
+          // When savings are zero (all-Opus session) we make this EXPLICIT.
+          if (pct === 0 || saved < 0.001) {
+            return `💰 ${pctColor}∅ 0% saved${RESET} ${DIM}· spent ~${spentStr} (all-Opus)${RESET}`;
+          }
+          return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~${savedStr} · spent ~${spentStr}${RESET}`;
+        }
+      }
+    } catch { /* fall through to advisory */ }
+
+    // ── FALLBACK 1: tracker HTTP metrics (advisory, lifetime/session) ─────
     if (m && m.prompts) {
       const advisoryUsd = m.saved || 0;
       const guaranteedUsd = m.guaranteed_saved || 0;
@@ -372,15 +428,16 @@ function renderSavingsHero(mOpt) {
 
       const pct = Math.round(m.saved_pct || 0);
       let pctColor = DIM;
-      if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m'; // bright green
-      else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m'; // warm yellow
+      if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m';
+      else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m';
       const arrow = pct >= 30 ? '↓' : '';
 
       const savedStr = fmtMoney(savedUsd, m);
       let spent = '';
       if (spentUsd > 0) spent = ` ${DIM}· spent ${tildePrefix}${fmtMoney(spentUsd, m)}${RESET}`;
 
-      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ${tildePrefix}${savedStr}${RESET}${spent}`;
+      // Explicit advisory tag — prevents the mismatch the user saw in v0.11.
+      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ${tildePrefix}${savedStr} (advisory)${RESET}${spent}`;
     }
 
     // Fallback: compute from decisions.log using pricing.js (SSOT)
@@ -415,7 +472,7 @@ function renderSavingsHero(mOpt) {
       if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m';
       else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m';
       const arrow = pct >= 30 ? '↓' : '';
-      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~$${saved.toFixed(2)} · spent ~$${actual.toFixed(2)}${RESET}`;
+      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~$${saved.toFixed(2)} · spent ~$${actual.toFixed(2)} (advisory)${RESET}`;
     } catch { return ''; }
   } catch {
     return '';
@@ -631,7 +688,7 @@ process.stdin.on('end', () => {
     } catch { /* silent */ }
 
     // Compose: 🐕[mode] savings │ distribution-bar labels
-    const savingsHero = renderSavingsHero(metrics);
+    const savingsHero = renderSavingsHero(metrics, session);
     const dist = renderDistribution(metrics, session);
     const frugalSegment = savingsHero || dist
       ? ` │ 🐕${modeBadge} ${savingsHero}${dist ? ' │' + dist : ''}`
