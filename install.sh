@@ -53,8 +53,15 @@ do_run() { if [ "$DRY_RUN" = "1" ]; then echo "  [dry-run] $*"; else eval "$@"; 
 # ─────────────────────────────────────────────────────────────
 if [ "$DOCTOR" = "1" ]; then
   echo ""
-  echo "Claude Code Router — Doctor"
-  echo "═══════════════════════════"
+  echo "  frugal — running comprehensive doctor check..."
+  echo ""
+  if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/frugal-doctor.js" ]; then
+    node "$ROUTER_DIR/frugal-doctor.js" "$@"
+    exit $?
+  fi
+  # Fallback: basic checks if frugal-doctor.js not installed yet
+  echo "Claude Code Router — Doctor (basic)"
+  echo "════════════════════════════════════"
   [ -d "$CLAUDE_DIR" ] && ok "~/.claude exists" || fail "~/.claude missing"
   [ -f "$CLAUDE_DIR/CLAUDE.md" ] && ok "CLAUDE.md present" || warn "CLAUDE.md missing"
   [ -f "$CLAUDE_DIR/settings.json" ] && ok "settings.json present" || warn "settings.json missing"
@@ -109,7 +116,7 @@ if [ "$UNINSTALL" = "1" ]; then
   do_run "rm -f '$CLAUDE_DIR/CLAUDE.md'"
   do_run "rm -rf '$ROUTER_DIR'"
   do_run "rm -rf '$CLAUDE_DIR/skills/model-router'"
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello; do
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor; do
     do_run "rm -rf '$CLAUDE_DIR/skills/$skill'"
   done
   for a in model-architect model-reasoner cheap-triage local-summarizer local-transformer final-reviewer; do
@@ -175,20 +182,26 @@ if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
   do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/'"
   do_run "cp '$SRC_DIR/tools/router/'*.sh '$ROUTER_DIR/' 2>/dev/null || true"
   do_run "cp '$SRC_DIR/tools/router/'*.cmd '$ROUTER_DIR/' 2>/dev/null || true"
-  # The statusline hook ships alongside router scripts but lives under hooks/
+  # Hook files ship alongside router scripts in the repo but live under hooks/ at runtime.
+  # Keep the canonical copies in ~/.claude/hooks/ and remove the duplicates created
+  # by the bulk *.js cp above (which would otherwise sit in router/ as orphans).
   if [ -f "$SRC_DIR/tools/router/gsd-statusline.js" ]; then
     do_run "cp '$SRC_DIR/tools/router/gsd-statusline.js' '$CLAUDE_DIR/hooks/gsd-statusline.js'"
   fi
+  if [ -f "$SRC_DIR/tools/router/gsd-turn-end.js" ]; then
+    do_run "cp '$SRC_DIR/tools/router/gsd-turn-end.js' '$CLAUDE_DIR/hooks/gsd-turn-end.js'"
+  fi
+  do_run "rm -f '$ROUTER_DIR/gsd-statusline.js' '$ROUTER_DIR/gsd-turn-end.js' 2>/dev/null || true"
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
   do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
   # Install frugal slash command skills
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello; do
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor; do
     if [ -d "$SRC_DIR/skills/$skill" ]; then
       do_run "mkdir -p '$CLAUDE_DIR/skills/$skill'"
       do_run "cp '$SRC_DIR/skills/$skill/SKILL.md' '$CLAUDE_DIR/skills/$skill/SKILL.md'"
     fi
   done
-  ok "installed 9 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto, /frugal-hello)"
+  ok "installed 10 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto, /frugal-hello, /frugal-doctor)"
   do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/' 2>/dev/null || true"
   if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
     do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md'"
@@ -215,51 +228,184 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
       s.hooks=s.hooks||{};
       s.hooks.UserPromptSubmit=s.hooks.UserPromptSubmit||[];
       s.hooks.UserPromptSubmit.push({hooks:[{type:'command',command:'node \\\"$ROUTER_DIR/inject_context.js\\\"',timeout:3}]});
-      fs.writeFileSync(path,JSON.stringify(s,null,2));
+      fs.writeFileSync(path, JSON.stringify(s, null, 2));
     \""
-    ok "hook installed"
+    ok "hook registered in settings.json"
   fi
-fi
-
-# 7. self-test
-say "running self-test…"
-if [ -f "$ROUTER_DIR/classify.js" ]; then
-  TEST_OUT=$(node "$ROUTER_DIR/classify.js" "refator a arquitetura para multi-tenant" 2>&1 || echo FAIL)
-  if echo "$TEST_OUT" | grep -q '"tier": "T3"'; then
-    ok "classifier working: T3 detected for architecture prompt"
+  # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
+  if grep -q "gsd-turn-end.js" "$CLAUDE_DIR/settings.json"; then
+    ok "Stop hook already registered"
   else
-    fail "classifier self-test failed:"
-    echo "$TEST_OUT"
-    exit 4
+    say "merging Stop hook into settings.json…"
+    do_run "node -e \"
+      const fs=require('fs');
+      const path='$CLAUDE_DIR/settings.json';
+      const s=JSON.parse(fs.readFileSync(path,'utf8'));
+      s.hooks=s.hooks||{};
+      s.hooks.Stop=s.hooks.Stop||[];
+      s.hooks.Stop.push({hooks:[{type:'command',command:'node \\\"$CLAUDE_DIR/hooks/gsd-turn-end.js\\\"',timeout:3}]});
+      fs.writeFileSync(path, JSON.stringify(s, null, 2));
+    \""
+    ok "Stop hook registered in settings.json (feedback loop enabled)"
+  fi
+else
+  warn "settings.json not found — Claude Code may not be installed or not yet run once"
+  warn "  Open Claude Code at least once, then re-run this installer to register the hook"
+fi
+
+# 7. Subscription profile wizard (interactive, only if not already configured)
+SUB_PROFILE_PATH="$ROUTER_DIR/subscription-profile.json"
+if [ ! -f "$SUB_PROFILE_PATH" ] || [ "$FORCE" = "1" ]; then
+  echo ""
+  say "Let's configure your subscription profile so frugal can route optimally."
+  echo ""
+  printf "  Do you have Claude Max (unlimited Opus)? [y/N]: "
+  read -r HAS_MAX < /dev/tty 2>/dev/null || HAS_MAX="n"
+  printf "  Do you have an Anthropic API key (pay-per-token)? [y/N]: "
+  read -r HAS_API < /dev/tty 2>/dev/null || HAS_API="n"
+  printf "  Do you have an OpenAI API key? [y/N]: "
+  read -r HAS_OPENAI < /dev/tty 2>/dev/null || HAS_OPENAI="n"
+  printf "  Do you have Gemini API access? [y/N]: "
+  read -r HAS_GEMINI < /dev/tty 2>/dev/null || HAS_GEMINI="n"
+
+  # Map answers to profile values
+  case "${HAS_MAX,,}" in y|yes|s|sim) ANTHROPIC_PLAN="max" ;;
+    *) case "${HAS_API,,}" in y|yes|s|sim) ANTHROPIC_PLAN="api-paid" ;;
+       *) ANTHROPIC_PLAN="none" ;; esac ;;
+  esac
+  case "${HAS_OPENAI,,}" in y|yes|s|sim) OPENAI_PLAN="api-paid" ;; *) OPENAI_PLAN="none" ;; esac
+  case "${HAS_GEMINI,,}" in y|yes|s|sim) GEMINI_PLAN="api-paid" ;; *) GEMINI_PLAN="none" ;; esac
+
+  do_run "node -e \"
+    const fs=require('fs');
+    const profile={
+      updated_at: new Date().toISOString(),
+      profiles: { anthropic: '$ANTHROPIC_PLAN', openai: '$OPENAI_PLAN', gemini: '$GEMINI_PLAN' },
+      budget_strategy: 'auto',
+      notes: 'Configured during install.sh v2'
+    };
+    fs.writeFileSync('$SUB_PROFILE_PATH', JSON.stringify(profile, null, 2));
+  \""
+  ok "subscription profile saved (anthropic: $ANTHROPIC_PLAN | openai: $OPENAI_PLAN | gemini: $GEMINI_PLAN)"
+else
+  ok "subscription profile already configured — skipping wizard"
+fi
+
+# 8. macOS LaunchAgent for auto-learning backtest at 02:00 daily
+if [ "$(uname)" = "Darwin" ]; then
+  LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+  PLIST_PATH="$LAUNCH_AGENTS_DIR/com.frugal.backtest.plist"
+  BACKTEST_LOG="$ROUTER_DIR/backtest-cron.log"
+
+  if [ ! -f "$PLIST_PATH" ]; then
+    say "Installing macOS LaunchAgent (backtest at 02:00 daily)…"
+    do_run "mkdir -p '$LAUNCH_AGENTS_DIR'"
+    if [ "$DRY_RUN" = "0" ]; then
+      cat > "$PLIST_PATH" << PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.frugal.backtest</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$(command -v node)</string>
+        <string>$ROUTER_DIR/backtest.js</string>
+        <string>--export-delta</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>$BACKTEST_LOG</string>
+    <key>StandardErrorPath</key>
+    <string>$BACKTEST_LOG</string>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+</dict>
+</plist>
+PLIST_EOF
+      if launchctl load "$PLIST_PATH" 2>/dev/null; then
+        ok "LaunchAgent installed and loaded (backtest runs daily at 02:00)"
+      else
+        ok "LaunchAgent file installed at $PLIST_PATH"
+        warn "Could not load automatically — run: launchctl load '$PLIST_PATH'"
+      fi
+    fi
+  else
+    ok "macOS LaunchAgent already installed"
+  fi
+elif [ "$(uname)" != "Darwin" ] && [ ! "$IS_WINDOWS" ]; then
+  # Linux cron fallback
+  if command -v crontab >/dev/null 2>&1; then
+    if ! crontab -l 2>/dev/null | grep -q "backtest.js"; then
+      say "Adding cron job for auto-learning backtest at 02:00 daily…"
+      do_run "(crontab -l 2>/dev/null; echo '0 2 * * * $(command -v node) $ROUTER_DIR/backtest.js --export-delta >> $ROUTER_DIR/backtest-cron.log 2>&1') | crontab -"
+      ok "cron job added (backtest at 02:00 daily)"
+    else
+      ok "cron job already configured"
+    fi
   fi
 fi
 
-# 8. benchmark (optional)
-if [ -f "$ROUTER_DIR/benchmark.sh" ] && [ "$DRY_RUN" = "0" ]; then
-  say "running benchmark (12 prompts, ~5s)…"
-  bash "$ROUTER_DIR/benchmark.sh" 2>&1 | tail -8
+# 9. Start savings tracker in background
+if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/savings-tracker.js" ]; then
+  if ! curl -sf "http://127.0.0.1:7821/health" >/dev/null 2>&1; then
+    say "Starting savings tracker (port 7821)…"
+    do_run "nohup node '$ROUTER_DIR/savings-tracker.js' >/dev/null 2>&1 &"
+    sleep 1
+    if curl -sf "http://127.0.0.1:7821/health" >/dev/null 2>&1; then
+      ok "savings tracker running on :7821"
+    else
+      warn "savings tracker starting (will be ready on next prompt)"
+    fi
+  else
+    ok "savings tracker already running on :7821"
+  fi
 fi
 
-# 9. smoke test (if available)
-if [ -f "$ROUTER_DIR/smoke-test.js" ] && [ "$DRY_RUN" = "0" ]; then
-  say "running smoke test (4 prompts)…"
-  node "$ROUTER_DIR/smoke-test.js" 2>&1 || true
+# 10. Smoke test — validate the classifier works
+if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/smoke-test.js" ]; then
+  say "Running smoke test…"
+  SMOKE_OUT=$(node "$ROUTER_DIR/smoke-test.js" 2>&1)
+  SMOKE_EXIT=$?
+  if [ "$SMOKE_EXIT" = "0" ]; then
+    ok "smoke test passed — classifier is working"
+  else
+    warn "smoke test had failures:"
+    echo "$SMOKE_OUT" | grep "✗" | sed 's/^/    /'
+  fi
 fi
 
+# ── Final summary ────────────────────────────────────────────────────────────
 echo ""
-ok "frugal installed!"
+echo "  ┌────────────────────────────────────────────────────┐"
+echo "  │   frugal v0.9.4 installation complete              │"
+echo "  └────────────────────────────────────────────────────┘"
 echo ""
-echo "  ✓ Router:    classify.js ready"
-echo "  ✓ Hook:      UserPromptSubmit active"
-echo "  ✓ Skills:    /frugal-status /frugal-savings /frugal-beast /frugal-zen /frugal-auto"
-echo "  ✓ Self-test: T3 detection OK"
-if command -v ollama >/dev/null 2>&1; then
-  echo "  ✓ Ollama:    $RECOMMENDED_OLLAMA_TERSE ready"
-else
-  echo "  ○ Ollama:    not installed (optional — https://ollama.com)"
+ok "Files installed to $CLAUDE_DIR"
+ok "Hook registered in settings.json"
+if [ "$(uname)" = "Darwin" ]; then
+  ok "LaunchAgent: backtest auto-learning at 02:00 daily"
 fi
 echo ""
-echo "  Next step: open Claude Code and type /frugal-status"
+say "Next steps:"
+echo "  1. Open Claude Code in any project"
+echo "  2. Type: /frugal-hello  (see your first routing decision)"
+echo "  3. Type: /frugal-status (full health check)"
+echo "  4. Use Claude normally — frugal routes silently in the background"
 echo ""
-echo "  Questions? paulo.loureiro.shp@gmail.com"
+say "Verify everything is working:"
+echo "  node $ROUTER_DIR/frugal-doctor.js"
+echo "  node $ROUTER_DIR/frugal-doctor.js --fix   (auto-fix issues)"
 echo ""

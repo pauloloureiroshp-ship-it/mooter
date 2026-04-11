@@ -55,7 +55,9 @@ const entry = {
   session_id: sessionId,
   // Optional: some Claude Code versions expose stop_reason on the Stop hook
   stop_reason: payload.stop_reason || null,
-  // v0.9.1: placeholder for feedback — resolved by backtest.js look-ahead
+  // Signal to backtest.resolveFeedback() that this turn should be paired
+  // with the next classified event in the same session (if any, <30s → followup_immediate;
+  // else → accepted). Without this flag, feedback resolution skips the event entirely.
   followup_pending: true,
 };
 

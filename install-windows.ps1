@@ -233,12 +233,23 @@ if ((Test-Path (Join-Path $SrcDir "tools\router")) -and (Test-Path (Join-Path $S
         Copy-Item (Join-Path $SrcDir "tools\router\*.cmd") $RouterDir -Force -ErrorAction SilentlyContinue
     }
 
-    # Copy statusline hook
+    # Copy hook files that ship inside tools/router/ in the repo but live under hooks/ at runtime.
+    # Remove the bulk-copy duplicates so they don't linger as orphans in router/.
     $statusline = Join-Path $SrcDir "tools\router\gsd-statusline.js"
     if (Test-Path $statusline) {
         DoRun "Copy statusline hook" {
             Copy-Item $statusline (Join-Path $ClaudeDir "hooks\gsd-statusline.js") -Force
         }
+    }
+    $turnEnd = Join-Path $SrcDir "tools\router\gsd-turn-end.js"
+    if (Test-Path $turnEnd) {
+        DoRun "Copy turn-end hook" {
+            Copy-Item $turnEnd (Join-Path $ClaudeDir "hooks\gsd-turn-end.js") -Force
+        }
+    }
+    DoRun "Remove router/ hook orphans" {
+        Remove-Item (Join-Path $RouterDir "gsd-statusline.js") -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $RouterDir "gsd-turn-end.js") -Force -ErrorAction SilentlyContinue
     }
 
     # Copy agents
@@ -306,6 +317,27 @@ fs.writeFileSync(p, JSON.stringify(s, null, 2));
 "@
         }
         Ok "Hook installed"
+    }
+    # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
+    $settingsContent2 = Get-Content $settingsPath -Raw
+    if ($settingsContent2 -match "gsd-turn-end") {
+        Ok "Stop hook already registered"
+    } else {
+        Say "Merging Stop hook into settings.json..."
+        DoRun "Inject Stop hook" {
+            & node -e @"
+const fs = require('fs');
+const p = '$($settingsPath -replace '\\','/')';
+const s = JSON.parse(fs.readFileSync(p, 'utf8'));
+s.hooks = s.hooks || {};
+s.hooks.Stop = s.hooks.Stop || [];
+s.hooks.Stop.push({
+  hooks: [{ type: 'command', command: 'node \"$($ClaudeDir -replace '\\','/')\/hooks\/gsd-turn-end.js\"', timeout: 3 }]
+});
+fs.writeFileSync(p, JSON.stringify(s, null, 2));
+"@
+        }
+        Ok "Stop hook installed (feedback loop enabled)"
     }
 }
 
