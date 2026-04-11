@@ -2,7 +2,7 @@
   "name": "frugal-savings",
   "displayName": "frugal — savings",
   "description": "Live savings display for the frugal Claude Code router. Status bar, sidebar panel, and toast notifications fed by the local savings-tracker on :7821.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "frugal",
   "license": "MIT",
   "engines": {

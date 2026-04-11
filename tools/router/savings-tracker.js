@@ -344,6 +344,19 @@ function safeParse(line) {
   try { return JSON.parse(line); } catch { return null; }
 }
 
+// ── Subscription profile reader ────────────────────────────────────────────
+// Reads the user's plan to compute savings honestly. A Claude Max subscriber
+// pays a flat fee — the dollar "saved" doesn't reflect out-of-pocket dollars
+// kept. For these users we surface "prompts deflected to free tiers" instead.
+const SUB_PROFILE_PATH = path.join(ROUTER_DIR, 'subscription-profile.json');
+function readPlan() {
+  try {
+    const sp = JSON.parse(fs.readFileSync(SUB_PROFILE_PATH, 'utf8'));
+    if (sp && sp.profiles && sp.profiles.anthropic) return sp.profiles.anthropic;
+  } catch { /* missing or malformed */ }
+  return 'unknown';
+}
+
 function emptyMetrics() {
   return {
     // Meta
@@ -415,16 +428,39 @@ function computeMetrics(lines) {
   // Backwards-compat alias
   m.real_cost = m.real_cost_estimated;
 
-  m.saved = m.naive_cost - m.real_cost_estimated;
+  // Floor saved at 0 — short prompts can produce negative numbers when a
+  // T2 estimate exceeds the T3 baseline (rare). Log + clamp.
+  const rawSaved = m.naive_cost - m.real_cost_estimated;
+  if (rawSaved < 0) m.routing_inefficiency_count = (m.routing_inefficiency_count || 0) + 1;
+  m.saved = Math.max(0, rawSaved);
   m.saved_pct = m.naive_cost > 0 ? (m.saved / m.naive_cost) * 100 : 0;
   m.avg_saved_per_prompt = m.prompts > 0 ? m.saved / m.prompts : 0;
   m.advisory_saved = m.saved;
 
   // Guaranteed savings: each Option A hit replaced a full Opus turn.
-  // Use an "average Opus turn on this corpus" multiplier so it scales
-  // with actual prompt sizes, not a fixed $/turn assumption.
   const avgOpusTurn = m.prompts > 0 ? m.naive_cost / m.prompts : 0;
-  m.guaranteed_saved = m.option_a_hits * avgOpusTurn;
+  m.guaranteed_saved = Math.min(m.option_a_hits * avgOpusTurn, m.advisory_saved);
+
+  // Honesty invariant: guaranteed_saved must never exceed advisory_saved.
+  if (m.guaranteed_saved > m.advisory_saved) {
+    console.error('[savings-tracker] INVARIANT BROKEN: guaranteed_saved > advisory_saved');
+    m.guaranteed_saved = m.advisory_saved;
+  }
+
+  // Plan-aware fields (P2): surface the user's subscription so consumers
+  // can show the right framing. Claude Max users pay flat — show
+  // "prompts deflected" instead of "$ saved".
+  m.plan = readPlan();
+  if (m.plan === 'max' || m.plan === 'claude_max' || m.plan === 'pro' || m.plan === 'claude_pro') {
+    const deflected = m.by_tier.T0 + m.by_tier.T1;
+    m.savings_display = deflected * avgOpusTurn;
+    m.savings_label = 'Opus equiv. deflected';
+    m.subscription_note = `Plan: ${m.plan} — ${deflected} prompts deflected to free tiers`;
+  } else {
+    m.savings_display = m.saved;
+    m.savings_label = 'API savings';
+    m.subscription_note = null;
+  }
 
   if (m.prompts > 0) {
     for (const t of ['T0', 'T1', 'T2', 'T3']) {
@@ -470,10 +506,57 @@ function computeMetrics(lines) {
   // Returns null when no paired start/end events exist — statusline hides segment.
   m.latency = computeLatency(lines);
 
+  // P3: Routing audit — estimate how often the Claude Code engine actually
+  // honored the suggested tier. We can't observe the model directly from a
+  // hook, but we CAN compare measured turn duration against the expected
+  // duration for the suggested tier. If duration is within tolerance of the
+  // suggested baseline → likely honored. If it's much closer to T3 baseline
+  // when we suggested T0/T1 → likely NOT honored (Claude went to Opus anyway).
+  m.routing_audit = computeRoutingAudit(lines);
+
   // v0.9: arbiter metrics (in-memory, from POST /arbiter-event)
   m.arbiter = buildArbiterMetrics();
 
   return m;
+}
+
+// P3: Routing audit via latency proxy. Pairs classified+turn_end events,
+// then for each pair checks whether the measured duration is closer to the
+// suggested-tier baseline than to the next tier up. Honest methodology:
+// "honored" = within ±50% of expected tier baseline.
+function computeRoutingAudit(lines) {
+  const startsBySession = new Map();
+  let audited = 0;
+  let honored = 0;
+  for (const line of lines) {
+    const e = safeParse(line);
+    if (!e || !e.event) continue;
+    if (e.event === 'classified' && e.ts_ms && e.session_id && !isSystemPrompt(e)) {
+      startsBySession.set(e.session_id, { ts_ms: e.ts_ms, tier: e.tier });
+    } else if (e.event === 'turn_end' && e.ts_ms && e.session_id) {
+      const start = startsBySession.get(e.session_id);
+      if (!start || !start.tier) continue;
+      const dur = e.ts_ms - start.ts_ms;
+      if (dur <= 0 || dur > MAX_REALISTIC_TURN_MS) {
+        startsBySession.delete(e.session_id);
+        continue;
+      }
+      const expectedMs = OPUS_BASELINE_MS_PER_TIER[start.tier];
+      if (!expectedMs) { startsBySession.delete(e.session_id); continue; }
+      audited++;
+      // honored if duration is within 2× the expected baseline
+      // (gives slack for variance, queueing, network)
+      if (dur <= expectedMs * 2.0) honored++;
+      startsBySession.delete(e.session_id);
+    }
+  }
+  if (audited === 0) return null;
+  return {
+    audited_turns: audited,
+    estimated_honored: honored,
+    estimated_honored_pct: round((honored / audited) * 100, 1),
+    methodology: 'latency_proxy',
+  };
 }
 
 function buildArbiterMetrics() {

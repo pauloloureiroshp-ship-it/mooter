@@ -103,33 +103,58 @@ function renderStatusBar(metrics) {
     statusBarItem.show();
     return;
   }
+  // savings-tracker.js reads the FULL decisions.log on every /metrics call,
+  // so `metrics.saved` is already the all-time accumulated savings — not just
+  // this session. The previous version showed `real_cost` under the "alltime"
+  // label, which was wrong (real_cost is what you SPENT, not what you SAVED).
+  const plan = metrics.plan || 'unknown';
+  const isApiOnly = plan === 'api_only' || plan === 'api-free' || plan === 'unknown';
   const saved = fmtUsd(metrics.saved);
   const pct = Math.round(metrics.saved_pct || 0);
   const real = fmtUsd(metrics.real_cost);
-  const alltime = fmtUsd(metrics.real_cost);
 
-  statusBarItem.text = `💰 ${saved} (${pct}%) │ ${real} real │ alltime ${alltime}`;
+  if (isApiOnly) {
+    statusBarItem.text = `💰 ${saved} saved (${pct}%) │ ${real} real │ ${metrics.prompts} prompts`;
+  } else {
+    // Plan users (claude_max, claude_pro): the "saved" $ doesn't reflect
+    // out-of-pocket savings (they pay flat). Show how many Opus prompts
+    // were deflected to free tiers instead.
+    const deflected = (metrics.by_tier?.T0 || 0) + (metrics.by_tier?.T1 || 0);
+    const planLabel = plan === 'claude_max' ? 'Claude Max' : plan === 'claude_pro' ? 'Claude Pro' : plan;
+    statusBarItem.text = `💰 ${deflected} deflected (${pct}% to Ollama/Haiku) │ ${planLabel}`;
+  }
+
   statusBarItem.color = colorForSavingsPct(metrics.saved_pct || 0);
-  statusBarItem.tooltip = new vscode.MarkdownString(
-    [
-      `**frugal — savings**`,
-      ``,
-      `| | |`,
-      `|-|-|`,
-      `| Prompts | ${metrics.prompts} |`,
-      `| Real cost | ${fmtUsd(metrics.real_cost)} |`,
-      `| Naive (T3) | ${fmtUsd(metrics.naive_cost)} |`,
-      `| **Saved** | **${fmtUsd(metrics.saved)} (${pct}%)** |`,
-      ``,
-      `**Tier breakdown**`,
-      `- T0: ${metrics.by_tier.T0} (${(metrics.pct_by_tier.T0 || 0).toFixed(0)}%)`,
-      `- T1: ${metrics.by_tier.T1} (${(metrics.pct_by_tier.T1 || 0).toFixed(0)}%)`,
-      `- T2: ${metrics.by_tier.T2} (${(metrics.pct_by_tier.T2 || 0).toFixed(0)}%)`,
-      `- T3: ${metrics.by_tier.T3} (${(metrics.pct_by_tier.T3 || 0).toFixed(0)}%)`,
-      ``,
-      `Click for full summary.`,
-    ].join('\n')
+  const tooltipLines = [
+    `**frugal — savings**`,
+    ``,
+    `| | |`,
+    `|-|-|`,
+    `| Prompts (all-time) | ${metrics.prompts} |`,
+    `| Real cost | ${fmtUsd(metrics.real_cost)} |`,
+    `| Naive (all Opus) | ${fmtUsd(metrics.naive_cost)} |`,
+    `| **Saved (est)** | **${fmtUsd(metrics.saved)} (${pct}%)** |`,
+    `| Guaranteed saved | ${fmtUsd(metrics.guaranteed_saved || 0)} |`,
+    `| Plan | ${plan} |`,
+  ];
+  if (metrics.subscription_note) {
+    tooltipLines.push(`| Note | ${metrics.subscription_note} |`);
+  }
+  if (metrics.routing_audit) {
+    tooltipLines.push(`| Routing honored (est) | ${metrics.routing_audit.estimated_honored_pct}% |`);
+  }
+  tooltipLines.push(
+    ``,
+    `**Tier breakdown**`,
+    `- T0 Ollama: ${metrics.by_tier.T0} (${(metrics.pct_by_tier.T0 || 0).toFixed(0)}%)`,
+    `- T1 Haiku: ${metrics.by_tier.T1} (${(metrics.pct_by_tier.T1 || 0).toFixed(0)}%)`,
+    `- T2 Sonnet: ${metrics.by_tier.T2} (${(metrics.pct_by_tier.T2 || 0).toFixed(0)}%)`,
+    `- T3 Opus: ${metrics.by_tier.T3} (${(metrics.pct_by_tier.T3 || 0).toFixed(0)}%)`,
+    ``,
+    `Methodology: token-estimated vs naive Opus baseline`,
+    `Click for full summary.`
   );
+  statusBarItem.tooltip = new vscode.MarkdownString(tooltipLines.join('\n'));
   statusBarItem.command = 'frugal.showSummary';
   statusBarItem.show();
 }

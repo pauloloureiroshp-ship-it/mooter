@@ -64,14 +64,52 @@ function enrichDelta(delta) {
     if (!delta.hw_tier) delta.hw_tier = 'cpu-only';
   }
 
+  // P4: Enrich with real savings from the local tracker. The hub aggregates
+  // these to power the landing page community counters with REAL numbers,
+  // not estimates from tier distribution.
+  try {
+    const metrics = fetchLocalMetricsSync();
+    if (metrics) {
+      delta.savings_usd = round4(metrics.saved);
+      delta.saved_pct = round4(metrics.saved_pct);
+      delta.guaranteed_saved_usd = round4(metrics.guaranteed_saved);
+      delta.real_cost_usd = round4(metrics.real_cost);
+      delta.naive_cost_usd = round4(metrics.naive_cost);
+      // Routing audit (if turn_end hook is installed)
+      if (metrics.routing_audit) {
+        delta.routing_honored_pct = metrics.routing_audit.estimated_honored_pct;
+      }
+    }
+  } catch { /* tracker offline — push without savings, hub will count distribution only */ }
+
   // Ensure required fields
-  delta.delta_version = '2';
+  delta.delta_version = '3'; // bumped: now includes savings_usd
   if (!delta.prompt_count) delta.prompt_count = 1;
   if (!delta.tier_distribution) {
     delta.tier_distribution = { t0: 0, t1: 0, t2: 0, t3: 1 };
   }
 
   return delta;
+}
+
+function round4(n) {
+  if (typeof n !== 'number' || isNaN(n)) return 0;
+  return Math.round(n * 10000) / 10000;
+}
+
+// Fetch metrics from the local savings-tracker HTTP server (if running).
+// Synchronous-ish via execSync to keep this script's flow simple.
+function fetchLocalMetricsSync() {
+  const { execSync } = require('child_process');
+  try {
+    const out = execSync(
+      'node -e "const http=require(\'http\');http.get(\'http://127.0.0.1:7821/metrics\',r=>{let d=\'\';r.on(\'data\',c=>d+=c);r.on(\'end\',()=>process.stdout.write(d))})"',
+      { encoding: 'utf8', timeout: 2000 }
+    );
+    return JSON.parse(out);
+  } catch {
+    return null;
+  }
 }
 
 function pushToHub(delta) {
