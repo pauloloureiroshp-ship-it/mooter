@@ -195,6 +195,61 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 
 ---
 
+### ESTADO PÓS-SESSÃO #13 (Claude Code 2026-04-11 pm) — Visibility stack + delegação real
+
+✅ **CONFIRMADO EM TERMINAL NOVO** — `FRUGAL_ROUTING_TEST.md` correu com sucesso.
+
+**Motivação:** sessão #12 fixou install + feedback loop mas a statusline mostrava advisory savings que nunca materializavam. User frustrado: "evoluímos tanto para nada?"
+
+**5 bugs em camadas descobertos e corrigidos:**
+
+| # | Sintoma | Causa raiz | Commit |
+|---|---|---|---|
+| 1 | Bar mostrava Ollama% mas Bash todos 🔴 | `renderDistribution` lia `decisions.log` (advisory) | `08a6609` |
+| 2 | Hero ↓62% saved com barra 100% vermelha | `renderSavingsHero` via tracker HTTP (advisory) | `2136164` |
+| 3 | Orquestrador nunca delegava, tudo inline Opus | Doutrina "inline se < 5 tool calls" demasiado permissiva | `3cece08` |
+| 4 | Subagents delegados não apareciam em `execution.log` | Hooks com matcher `Bash` apenas | `e0efe95` |
+| 5 | User não via recomendação antes do turn | Faltava turn header visível | `08a6609` |
+
+**3 camadas de enforcement activadas:**
+1. **Doutrina CLAUDE.md v2** — T0/T1 obriga delegar, excepção única com estado de sessão declarado
+2. **Runtime directive** em `inject_context.js` — injecta `<delegation_directive>` quando compliance 0% + tier T0/T1
+3. **Visual warning** em `frugal-turn-header.js` — `⚠ session 100% Opus` no header
+
+**Subagent tracking:**
+- `exec-logger.js` + `PostToolUse.js` agora com matcher `Bash|Agent|Task`
+- `subagentTypeToModel()` mapeia `subagent_type` → modelo efectivo
+- Agent calls registados como `cmd=agent:<type>` com modelo real
+
+**Proof of work (terminal novo, 4 turns):**
+
+| # | Subagent | Modelo efectivo | Saved |
+|---|---|---|---|
+| 1 | local-summarizer | qwen2.5-coder:14b-q4 | $0.257 |
+| 2 | local-transformer | qwen3:30b | $0.257 |
+| 3 | local-summarizer | qwen2.5-coder:14b-q4 | $0.257 |
+| 4 | model-reasoner | claude-sonnet-4-6 | $0.219 |
+
+Statusline live: `🐕 💰 ↓100% saved ~$0.51 · spent ~$0.00 │ ██████████ exec 🦙 Local 100%`
+
+**Ficheiros tocados:**
+- `tools/router/gsd-statusline.js`, `gsd-turn-end.js`, `inject_context.js`
+- `tools/router/frugal-turn-header.js` (NOVO), `exec-logger.js` (NOVO no repo), `PostToolUse.js` (NOVO no repo)
+- `install.sh` / `install-windows.ps1` — copy hooks + matcher migration
+- `CLAUDE.md` (pessoal + projeto) — doutrina v2
+- `FRUGAL_ROUTING_TEST.md` (NOVO) — teste de aceitação visual
+
+**Commits:** `08a6609` `2136164` `3cece08` `e0efe95` `35e1304`
+
+**Página Notion:** [👁️ Visibility stack + delegação real](https://www.notion.so/33f6f6e42bc481369255d80e8780ed03) (com Proof of work appended)
+
+**Pendentes próxima sessão:**
+1. **[MÉDIA]** Browser tasks do `CLAUDE_AI_BROWSER_MASTER_PROMPT.md`
+2. **[BAIXA]** `install.sh ${HAS_MAX,,}` bash 3.2 compat macOS
+3. **[BAIXA]** Consolidar override detection entre `inject_context.js` (structured) e `frugal-turn-header.js` (substring)
+
+---
+
 ### ESTADO PÓS-SESSÃO #12 (Claude Code 2026-04-11) — Feedback loop + install hardening
 
 ✅ Lido em sessão #12 — 2026-04-11 (pendentes #11 resolvidos abaixo)
