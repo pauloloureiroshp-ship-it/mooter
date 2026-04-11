@@ -18,6 +18,8 @@
  *   node replay.js --substantive            # filter out trivial slash-cmds + cd
  *   node replay.js --top-low-conf 30        # show top N low-conf for tuning
  *   node replay.js --per-project            # per-project breakdown
+ *   node replay.js --gold-labels            # validate against gold-labels.json
+ *   node replay.js --gold-labels path.json  # validate against custom labels file
  */
 
 'use strict';
@@ -69,6 +71,12 @@ const jsonOut = wantJson ? args[argi('--json') + 1] : null;
 const substantive = argi('--substantive') >= 0;
 const topLowConf = argi('--top-low-conf') >= 0 ? parseInt(args[argi('--top-low-conf') + 1], 10) : 0;
 const perProject = argi('--per-project') >= 0;
+const goldLabelsMode = argi('--gold-labels') >= 0;
+const goldLabelsPath = goldLabelsMode
+  ? (args[argi('--gold-labels') + 1] && !args[argi('--gold-labels') + 1].startsWith('--')
+      ? args[argi('--gold-labels') + 1]
+      : path.join(__dirname, 'gold-labels.json'))
+  : null;
 
 // ─────────────────────────────────────────────────────────────
 // Pricing model (early-2026 estimates, output tokens only)
@@ -101,6 +109,65 @@ function isTrivialCommand(p) {
   if (/^cd\s/i.test(t)) return true;
   if (t === 'y' || t === 'n' || t === 'yes' || t === 'no') return true;
   return false;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Gold labels validation mode
+// ─────────────────────────────────────────────────────────────
+if (goldLabelsMode) {
+  if (!fs.existsSync(goldLabelsPath)) {
+    console.error(`Gold labels file not found: ${goldLabelsPath}`);
+    process.exit(2);
+  }
+  const labels = JSON.parse(fs.readFileSync(goldLabelsPath, 'utf8'));
+  const mismatches = [];
+  const byTierExpected = {};
+  const byTierCorrect = {};
+
+  for (const label of labels) {
+    const d = classify(label.prompt);
+    const got = d.tier;
+    const expected = label.expected_tier;
+    byTierExpected[expected] = (byTierExpected[expected] || 0) + 1;
+    if (got === expected) {
+      byTierCorrect[expected] = (byTierCorrect[expected] || 0) + 1;
+    } else {
+      mismatches.push({
+        id: label.id,
+        expected,
+        got,
+        confidence: d.confidence,
+        prompt: label.prompt,
+      });
+    }
+  }
+
+  const total = labels.length;
+  const correct = total - mismatches.length;
+  const accuracy = ((correct / total) * 100).toFixed(1);
+
+  console.log('');
+  console.log(`Gold labels validation: ${correct}/${total} correct (${accuracy}%)`);
+  console.log('');
+
+  if (mismatches.length > 0) {
+    console.log('Mismatches:');
+    for (const m of mismatches) {
+      console.log(`  ${m.id}: expected ${m.expected}, got ${m.got} (confidence: ${m.confidence}) — "${m.prompt.slice(0, 80)}"`);
+    }
+    console.log('');
+  }
+
+  console.log('Precision by tier:');
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    const exp = byTierExpected[t] || 0;
+    const cor = byTierCorrect[t] || 0;
+    const pct = exp > 0 ? ((cor / exp) * 100).toFixed(0) : 'N/A';
+    console.log(`  ${t}: ${cor}/${exp} (${pct}%)`);
+  }
+  console.log('');
+
+  process.exit(parseFloat(accuracy) >= 85.0 ? 0 : 1);
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -440,11 +440,35 @@ function exportDelta(decisions) {
   };
 }
 
+function exportEvents(decisions, outputPath) {
+  const eventBuilder = require('./event-builder.js');
+  const events = [];
+
+  for (const d of decisions) {
+    const event = eventBuilder.buildEvent(d, [], null, {});
+    if (!event) continue;
+    const validation = eventBuilder.validateEventPrivacy(event);
+    if (!validation.ok) continue;
+    events.push(event);
+  }
+
+  fs.writeFileSync(outputPath, JSON.stringify(events, null, 2));
+  console.log(`Exported ${events.length} events to ${outputPath} (privacy contract applied)`);
+  console.log(`  Decisions scanned: ${decisions.length}`);
+  console.log(`  Events filtered:   ${decisions.length - events.length} (HIGH_RISK / validation)`);
+}
+
 function main() {
   const args = process.argv.slice(2);
   const explain = args.includes('--explain');
   const exportMode = args.includes('--export-delta');
+  const exportEventsMode = args.includes('--export-events');
   const outputIdx = args.indexOf('--output');
+  const exportEventsIdx = args.indexOf('--export-events');
+  const exportEventsPath =
+    exportEventsIdx >= 0 && args[exportEventsIdx + 1] && !args[exportEventsIdx + 1].startsWith('--')
+      ? args[exportEventsIdx + 1]
+      : path.join(ROUTER_DIR, 'events-export.json');
   const outputPath =
     outputIdx >= 0 && args[outputIdx + 1]
       ? args[outputIdx + 1]
@@ -454,6 +478,11 @@ function main() {
   if (decisions.length === 0) {
     console.log('frugal backtest: decisions.log empty or missing.');
     process.exit(0);
+  }
+
+  if (exportEventsMode) {
+    exportEvents(decisions.filter(d => d.event === 'classified'), exportEventsPath);
+    return;
   }
 
   // v0.9.1: resolve feedback signals from turn_end events
@@ -503,7 +532,8 @@ function main() {
   console.log(report(stats, tuning));
 }
 
-if (require.main === module) main();
+// Exports MUST be set before main() runs, because exportEvents() lazy-requires
+// event-builder.js which circular-requires backtest.js at its top level.
 module.exports = {
   analyze,
   buildTuning,
@@ -517,4 +547,8 @@ module.exports = {
   hasHighRisk,
   // v0.9.1 exports
   resolveFeedback,
+  // v0.9.5 exports
+  exportEvents,
 };
+
+if (require.main === module) main();
