@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-10 — Cowork (sessão #8 — Landing v10 + frugal OS Vision)
+> **Última actualização:** 2026-04-11 — Cowork (sessão #11 — classify.js v0.10, 3 melhorias router)
 
 ---
 
@@ -17,14 +17,14 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ---
 
-## Estado actual do projecto — 2026-04-10
+## Estado actual do projecto — 2026-04-11
 
 ### Versão: v0.9.4 (Friends Beta — Landing deployed 2026-04-10)
 
 | Componente | Estado | Notas |
 |---|---|---|
-| `classify.js` v3 | ✅ em prod | fast-paths, weighted scoring, SHA-256 cache |
-| `inject_context.js` | ✅ v0.9.2 | onboarding auto (L3 fix), mode override (v0.9.3 pendente) |
+| `classify.js` v0.10 | ✅ em prod | +variant_hint, +SUBAGENT_SPAWN_RE, +previous_tier inheritance |
+| `inject_context.js` | ✅ v0.10 | +readLastSessionTier() + export FRUGAL_PREV_TIER |
 | `patterns.js` | ✅ em prod | single source of truth (v0.7.0) |
 | 6 subagents | ✅ em prod | model-architect, model-reasoner, cheap-triage, local-summarizer, local-transformer, final-reviewer |
 | `backtest.js` | ✅ v0.9.2 | hub-push auto no --export-delta (L4 fix) |
@@ -39,7 +39,9 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | **Landing v9** | ✅ DEPLOYED | live counters, Install Now CTA, slash commands grid, ComparisonSection |
 | **Dashboard** | ⚠️ scaffold | npm install feito, build passing |
 | VSCode extension | ⚠️ v0.4.0 | não publicado no marketplace |
-| Skills (8 total) | ✅ NOVO | 5 originais + 3 modos (beast/zen/auto) |
+| Skills (10 total) | ✅ NOVO | 5 originais + 3 modos + frugal-hello + frugal-doctor |
+| `frugal-doctor.js` | ✅ NOVO (2026-04-11) | Diagnóstico completo cross-platform, --fix mode |
+| `install.sh` v2 | ✅ NOVO (2026-04-11) | LaunchAgent macOS + wizard subscriptions + smoke test |
 
 ### Skills instaladas
 
@@ -148,6 +150,10 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | 👥 Friends Beta — Onboarding & Tracking | `33e6f6e4-2bc4-8135-ae61-cccc625406d8` | https://www.notion.so/33e6f6e42bc48135ae61cccc625406d8 |
 | 🌍 frugal v2.0 — Sistema Operativo do Vibe Coder | `33e6f6e4-2bc4-8128-9155-d79fbc14a6e5` | https://www.notion.so/33e6f6e42bc481289155d79fbc14a6e5 |
 | 🧪 E2E MVP Validation — 2026-04-10 | `33e6f6e4-2bc4-81bc-8e01-ee0160b00928` | https://www.notion.so/33e6f6e42bc481bc8e01ee0160b00928 |
+| 🔬 Sessão 2026-04-11 — frugal-doctor + install.sh v2 | `33e6f6e4-2bc4-817e-bd88-f17bbd39c597` | https://www.notion.so/33e6f6e42bc4817ebd88f17bbd39c597 |
+| 🦙 Sessão 2026-04-11 — Model emoji + role label em cada Bash | `33f6f6e4-2bc4-816e-a1cf-d331893036b2` | https://www.notion.so/33f6f6e42bc4816ea1cfd331893036b2 |
+| 🧠 Sessão 2026-04-11 — classify.js v0.10 (3 melhorias router) | `33f6f6e4-2bc4-81e4-8e0f-ddbd4b599359` | https://www.notion.so/33f6f6e42bc481e48e0fddbd4b599359 |
+| 🔁 Sessão 2026-04-11 — Feedback loop + install hardening (P0→P4) | `33f6f6e4-2bc4-81ee-a03a-f973d3747461` | https://www.notion.so/33f6f6e42bc481eea03af973d3747461 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -171,31 +177,167 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-10 (sessão #8 — Landing v10 + frugal OS Vision)
+**Última actualização Cowork:** 2026-04-11 (sessão #11 — classify.js v0.10, 3 melhorias router)
 **Estado:** 🆕 Para ler na próxima sessão Claude Code
 
 ---
 
-### MISSÃO PRÓXIMA SESSÃO CLAUDE CODE: Auditoria + Browser tasks
+### ESTADO PÓS-SESSÃO #12 (Claude Code 2026-04-11) — Feedback loop + install hardening
 
-**Prioridade 1 — AUDIT_MASTER_PROMPT.md**
-Correr auditoria completa → gerar AUDIT_REPORT.md → responder: "pronto para amigos: sim/não/com condições"
+✅ Lido em sessão #12 — 2026-04-11 (pendentes #11 resolvidos abaixo)
 
-**Prioridade 2 — FRUGAL_OS_MASTER_PROMPT.md (P2-P7)**
-P2: GitHub OAuth code já está em `lib/supabase.ts` — falta Claude AI activar no GitHub + Supabase dashboard
-P3: Onboarding wizard 4 steps em `/app/onboarding/page.tsx`
-P4: Live savings banner no hero
-P5: hub-push.js + frugal-link.js
-P6: .gitignore protecção frugal-core/
-P7: Deploy + SYNC.md update
+**Pendentes da sessão #11 — estado:**
 
-**Prioridade 3 — CLAUDE_AI_BROWSER_MASTER_PROMPT.md**
-Estas tarefas requerem browser (GitHub OAuth UI, Supabase dashboard, Cloudflare Worker settings, Vercel env vars):
+| # | Item | Estado |
+|---|---|---|
+| 1 | [ALTA] Cache key fix `SHA256(prompt + '|' + FRUGAL_PREV_TIER)` | ✅ em prod |
+| 2 | [MÉDIA] Browser tasks (GitHub OAuth, Supabase RLS, Cloudflare, Vercel) | ⏳ próxima sessão |
+| 3 | [MÉDIA] `applyActiveMode()` patch em `inject_context.js` | ✅ em prod |
+| 4 | [BAIXA] Tracking GPT/Gemini/aider no execution.log | ✅ em prod (`detectExternalModel()` shared) |
+| 5 | [BAIXA] Dedup statusline + turn-end | ✅ SSOT em `~/.claude/hooks/` |
+
+**Bug crítico descoberto e resolvido nesta sessão:**
+
+O hook `Stop` → `gsd-turn-end.js` nunca tinha sido instalado em `settings.json` em nenhuma máquina. `backtest.resolveFeedback()` corria sem dados. RESOLVIDO em `install.sh` + `install-windows.ps1`: merge idempotente do Stop hook no install e no `/frugal-update`.
+
+**Commit:** `766844b feat(install): feedback loop Stop hook + router/hooks dedup`
+
+**Pendentes para próxima sessão:**
+
+1. **[MÉDIA] Browser tasks** — continuar `CLAUDE_AI_BROWSER_MASTER_PROMPT.md`
+2. **[BAIXA] Verificar em produção** que o Stop hook dispara e `backtest.resolveFeedback` está a parear `turn_end` com os eventos do turn seguinte
+
+---
+
+### ESTADO PÓS-SESSÃO #11 (Cowork 2026-04-11) — classify.js v0.10
+
+**O que ficou em produção:**
+
+| Componente | Ficheiro | Estado |
+|---|---|---|
+| `variant_hint` no result object | `classify.js` L~579 | ✅ T0 expõe variante Ollama; outros tiers `null` |
+| `SUBAGENT_SPAWN_RE` + `detectSubagentSpawn()` | `classify.js` L~170-206 | ✅ detecta spawn explícito e bare; `user_override: true`, tier preservado |
+| `previous_tier` inheritance | `classify.js` L~454 | ✅ follow-ups < 50ch sem sinais herdam T2/T3 via `FRUGAL_PREV_TIER` |
+| `readLastSessionTier()` + export `FRUGAL_PREV_TIER` | `inject_context.js` L~270, L~462 | ✅ tail 32KB decisions.log, silent on failure |
+
+**Pendentes para próxima sessão:**
+
+1. **[ALTA] Fix cache key** — `getCached`/`setCache` usa apenas `SHA256(prompt)`, não inclui `FRUGAL_PREV_TIER`. Dois prompts idênticos de sessões com tiers diferentes partilham resultado cached errado. Fix: `SHA256(prompt + '|' + (FRUGAL_PREV_TIER || ''))`. Mudança de 2 linhas em `classify.js`.
+
+2. **[MÉDIA] Browser tasks** (CLAUDE_AI_BROWSER_MASTER_PROMPT.md):
+   - GitHub OAuth App "frugal" em github.com/settings/applications/new
+   - Supabase RLS: `CREATE POLICY "Allow anon insert" ON waitlist FOR INSERT TO anon WITH CHECK (true);`
+   - Cloudflare: secret `PAULO_WEBHOOK_URL` real
+   - Vercel: env vars `NEXT_PUBLIC_SUPABASE_ANON_KEY` + `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SITE_URL`
+
+3. **[MÉDIA] MODES_MASTER_PROMPT.md** — aplicar patch `applyActiveMode()` em `inject_context.js`
+
+4. **[BAIXA] Tracking GPT/Gemini** no execution.log — heurística análoga ao `ollama_call.sh` para `codex`, `gemini-cli`, `openai` em comandos bash
+
+5. **[BAIXA] Dedup statusline** — `hooks/gsd-statusline.js` e `tools/router/gsd-statusline.js` fora de sincronia
+
+---
+
+### ESTADO PÓS-SESSÃO #10 (Claude Code 2026-04-11) — Model transparency per-call
+
+**O que ficou em produção:**
+
+| Componente | Ficheiro | Estado |
+|---|---|---|
+| Visual hook (PostToolUse) | `~/.claude/hooks/PostToolUse.js` | ✅ resolve modelo real por `tool_use_id`, com Pass 1.5 que varre `subagents/*.jsonl` (mtime < 30s) |
+| Execution log hook | `~/.claude/hooks/exec-logger.js` | ✅ escreve `~/.claude/hooks/execution.log` em cada Bash call com schema `[ISO] session model role cmd resolve_ms mode` |
+| Hook registration | `~/.claude/settings.json` | ✅ 2 hooks PostToolUse para matcher `Bash` (visual + logger), PostToolUse.js preservado intocado na lógica visual |
+| Heurística T0 | ambos | ✅ comando contém `ollama_call.sh` → override para `qwen3:30b` / role `local` |
+| Self-tuning perf | `exec-logger.js` + `exec-logger-perf.json` | ✅ rolling 20 samples, threshold 200ms, auto-flip para `decisions_log` se transcript scan ficar lento |
+
+**Smoke test final (4/4 tiers correctos):**
+```
+T3 inline                → claude-opus-4-6            / architect   (resolve 1ms)
+T2 model-reasoner        → claude-sonnet-4-6          / reasoning   (resolve 2ms)
+T1 cheap-triage          → claude-haiku-4-5-20251001  / reflex      (resolve 2ms)
+T0 local-summarizer+ollama_call.sh → qwen3:30b        / local       (resolve 2ms)
+```
+
+Mode actual: `transcript_scan`. Média 1.5–2 ms/call → 130× abaixo do threshold, não há risco de flip.
+
+**Iterações que foram necessárias (para referência se bug aparecer):**
+1. Primeira abordagem (instrução nos agent files para escreverem eles próprios o log) **falhou** — os modelos improvisam formato livre. Abandonada.
+2. Hook global sem Pass 1.5 atribuía tudo ao parent (opus) porque `transcript_path` é sempre o do orquestrador.
+3. Sibling scan no mesmo dir também falhava — sub-agent transcripts vivem em `<project>/<session-id>/subagents/*.jsonl`, não ao lado do parent.
+4. Pass 1.5 final: `path.join(parentDir, basename(no-ext), 'subagents')` + filtro mtime < 30s → bounded I/O, 1-3 ficheiros, resolve em 1-2ms.
+
+**Ficheiros modificados nesta sessão:**
+- `~/.claude/hooks/PostToolUse.js` — Pass 1.5 sibling scan + heurística ollama_call.sh
+- `~/.claude/hooks/exec-logger.js` — NOVO, cloned do PostToolUse.js com append ao execution.log + perf self-tuning
+- `~/.claude/hooks/execution.log` — NOVO, persistent log per-Bash-call
+- `~/.claude/hooks/exec-logger-perf.json` — NOVO, perf samples rolling window
+- `~/.claude/settings.json` — + 1 PostToolUse hook entry (Bash matcher)
+- `~/.claude/agents/local-summarizer.md`, `model-reasoner.md`, `cheap-triage.md` — tentativa 1 deixou instruções de logging nos agent files (ficam como documentação, não são críticas, o hook faz o trabalho)
+
+**Pendentes para próxima sessão:**
+
+1. **Tracking real de modelos externos no classify.js** — o router já sabe quando recomenda GPT/Gemini, mas o `recommended_model` escrito em `decisions.log` é genérico. Precisa ligar ao output real do subprocess (quando existe) para podermos distinguir, no execution.log, entre `claude-opus-4-6` e uma call a `gpt-4o` via bash. Heurística análoga à do `ollama_call.sh`: se comando contém `codex`, `openai`, `gemini-cli`, etc → override para o modelo correspondente.
+
+2. **Issue upstream: titlePrefix no Claude Code** — os sub-agents não expõem o seu próprio modelo no PostToolUse payload do parent hook. Tivemos de scan ao filesystem para resolver. Seria mais limpo se o runtime passasse o `agent_model` no payload de PostToolUse, ou se aceitasse um `titlePrefix` do hook para decorar a statusline por sub-agent. Vale abrir issue em anthropics/claude-code.
+
+3. **Commit `~/.claude/`** — não é git repo. Se queres versionar a doutrina + hooks + agents, fazer `git init` em `~/.claude/` em sessão dedicada. Blast radius alto, pausou-se e decidiu-se skip nesta sessão (opção 2).
+
+4. **Dedup statusline** — memória `feedback_dual_statusline_files` já flagged: `hooks/` e `tools/router/` têm cópias fora-de-sincronia do statusline. Relembrar quando mexer em statusline.
+
+---
+
+### ESTADO PÓS-SESSÃO #9 (Cowork 2026-04-11)
+
+**Ficheiros novos criados nesta sessão:**
+
+| Ficheiro | Propósito |
+|---|---|
+| `tools/router/frugal-doctor.js` | Diagnóstico completo: 9 secções, --fix mode, --json mode |
+| `skills/frugal-doctor/SKILL.md` | Slash command `/frugal-doctor` |
+| `FRUGAL_EXPERIENCE_REPORT.md` | Diagnóstico de gaps cross-platform + plano de acção |
+
+**Ficheiros modificados:**
+
+| Ficheiro | O que mudou |
+|---|---|
+| `install.sh` | + wizard subscriptions interativo, + LaunchAgent macOS (02:00 backtest), + cron Linux, + auto-start tracker, + smoke test, + summary visual final, + `/frugal-doctor` na lista de skills |
+
+**Causa raiz dos problemas MacBook identificados:**
+1. LaunchAgent macOS em falta → dados nunca chegavam ao hub → algoritmo não melhorava → **FIXED** (install.sh v2)
+2. Subscription profile vazio (anthropic: 'unknown') → router não sabia do Claude Max → **FIXED** (wizard no install)
+3. Tracker não arrancava na 1ª sessão → statusline simplificada → **FIXED** (auto-start no install)
+4. Sem visibilidade pós-install → utilizador sem confirmação → **FIXED** (frugal-doctor + summary visual)
+
+**Para aplicar no MacBook (fazer antes da próxima sessão Claude Code):**
+```bash
+cd ~/frugal && git pull origin main
+bash install.sh   # responder às perguntas de subscriptions
+node ~/.claude/tools/router/frugal-doctor.js  # verificar tudo
+node ~/.claude/tools/router/frugal-doctor.js --fix  # corrigir o que falhar
+```
+
+---
+
+### MISSÃO PRÓXIMA SESSÃO CLAUDE CODE: Cache key fix + Browser tasks + Mode system
+
+**Prioridade 0 — Fix cache key em classify.js (2 linhas, fazer primeiro)**
+Em `getCached`/`setCache`, mudar a key de `SHA256(prompt)` para `SHA256(prompt + '|' + (process.env.FRUGAL_PREV_TIER || ''))`.
+Testar: `rm .classify-cache.json && FRUGAL_PREV_TIER=T3 node classify.js "e agora?" | grep tier` vs `FRUGAL_PREV_TIER=T1 node classify.js "e agora?" | grep tier` — devem dar resultados diferentes.
+
+**Prioridade 1 — MODES_MASTER_PROMPT.md**
+Aplicar o patch do mode system em `inject_context.js` — função `applyActiveMode()` após `applyBudgetCap()`.
+O ficheiro MODES_MASTER_PROMPT.md tem o patch exacto pronto a aplicar.
+
+**Prioridade 2 — Browser tasks (CLAUDE_AI_BROWSER_MASTER_PROMPT.md)**
+Estas tarefas requerem browser:
 - T1: github.com/settings/applications/new → criar OAuth App "frugal"
-- T2: Supabase SQL Editor → RLS policy anon INSERT na waitlist
-- T3: Verificar tabelas profiles + usage_sessions
-- T4: Cloudflare → PAULO_WEBHOOK_URL (webhook.site ou Discord)
-- T5: Vercel → NEXT_PUBLIC_SUPABASE_ANON_KEY + NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SITE_URL
+- T2: Supabase SQL Editor → RLS anon INSERT na `waitlist`: `CREATE POLICY "Allow anon insert" ON waitlist FOR INSERT TO anon WITH CHECK (true);`
+- T3: Cloudflare → secret `PAULO_WEBHOOK_URL` (webhook.site ou Discord)
+- T4: Vercel → env vars NEXT_PUBLIC_SUPABASE_ANON_KEY + NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SITE_URL
+
+**Prioridade 3 — Decisão repo público**
+Para que amigos instalem com o oneliner, o repo tem de ser público OU o install.sh hospedado na landing.
+Paulo decide quando tornar público (auditoria de segurança: ✅ feita em v0.9.4).
 
 **Protocolo Notion (obrigatório no fim de cada sessão):**
 1. Criar página de log em Notion sob o HQ (ID: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`)
@@ -222,105 +364,4 @@ O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o 
 | **P7** | Fluxo hub-push end-to-end para multi-user | Médio | Não |
 | **P8** | smoke-test.js + graceful degradation | Alto (confiança) | Não |
 | **P9** | Fix Windows health checks (paths sem aspas) | Urgente | Não |
-| **P10** | SYNC.md, Notion Friends Beta, snapshot, push | Sempre | Sim (push) |
-
-### Contexto crítico que o master prompt explica:
-- O maior problema Windows: `C:/Users/Paulo Loureiro/` com espaço parte todos os bash commands
-- Privacy contract: hub-push envia APENAS tier+confidence+prompt_len+hw_tier. NADA de conteúdo.
-- Instalar a partir de URL só funciona se repo for público OU via GitHub Gist/Release
-- A experiência "WOW" é: amigo instala → faz 1 prompt → corre /frugal-status → vê que foi grátis
-
-### Decisões que o Paulo tomou nesta sessão Cowork:
-- Zero cobrança para amigos (free para sempre para beta testers)
-- Dados de amigos são bem-vindos e esperados (é o ponto)
-- Privacidade é inegociável: prompts nunca saem da máquina
-- O Paulo quer controlar quando o repo fica público (aguardar aprovação)
-
-### Ficheiros criados nesta sessão Cowork (2026-04-10):
-- `FRIENDS_MASTER_PROMPT.md` — master prompt completo para esta sessão
-- `frugal-investor-deck-v2.pptx` — deck v2 (20 slides, full dark theme)
-- `landing/app/page.tsx` — UPDATED sessão #6 + sessão #7:
-  - S9 ComparisonSection (10-row comparison, real model prices, 6 value prop cards, vibe coding callout)
-  - S5 DemoSection rebuilt: 3 universal vibe coder prompts (button colour T0, mobile crash T2, payment system T3)
-  - S5b FlywheelSection NOVO: flywheel 5-step visual, privacy proof (what IS sent vs NEVER sent), freedom banner "83.9% of your prompts cost nothing"
-  - TypeScript check: ✅ 0 errors
-  - **Aguarda deploy: `cd landing && vercel --prod` (fazer no terminal do Paulo)**
-- `landing/app/globals.css` — UPDATED: CSS para ComparisonSection + DemoSection + FlywheelSection
-
----
-
-## 📤 CLAUDE CODE → COWORK
-### Relatório do que foi feito (para o Cowork ler)
-> Esta secção é escrita pelo Claude Code. O Cowork lê-a no início de cada sessão de review.
-
-**Última actualização:** 2026-04-10 (sessão E2E MVP Validation)
-
-### Sessão E2E MVP Validation — 2026-04-10
-
-**Missão:** Simular jornada completa do Paulo no MacBook Pro, validar cada passo, corrigir o que está partido.
-
-**Veredicto:** PRONTO COM CONDIÇÕES — core funciona (classifier 5/5, hub live, landing deployed, installer dry-run OK, 0 TS errors). Dois bloqueios manuais:
-
-1. **Repo privado** — install one-liner retorna 404 para amigos. Opções: tornar público (recomendado, 0 secrets) ou hospedar install.sh na landing.
-2. **Supabase RLS** — form de waitlist retorna `persist_failed`. Fix: `CREATE POLICY "Allow anon insert" ON waitlist FOR INSERT TO anon WITH CHECK (true);` no dashboard.
-
-**Relatório completo:** `E2E_REPORT.md`
-
----
-
-### Sessão Friends Beta — 2026-04-10
-
-**Missão:** Preparar frugal para partilha com 3-10 amigos (Mac + Windows)
-
-#### Ficheiros criados/modificados
-- `tools/router/paths.js` — NEW: cross-platform path resolver
-- `tools/router/smoke-test.js` — NEW: post-install verification (4/4 pass, avg 51ms)
-- `tools/router/.env.example` — NEW: placeholder env vars
-- `tools/router/run-backtest.cmd` — FIXED: relative paths via %~dp0
-- `tools/router/hub-push.js` — ADDED: --dry-run support
-- `install.sh` — IMPROVED: banner, smoke test step, frugal-hello, friendly output
-- `install-windows.ps1` — NEW: native PowerShell installer (Doctor/Uninstall/DryRun)
-- `skills/frugal-hello/SKILL.md` — NEW: first-use WOW moment skill
-- `skills/frugal-status/SKILL.md` — IMPROVED: friendly output format
-- `PRIVACY.md` — NEW: transparent telemetry documentation
-- `ONBOARDING_GUIDE.md` — NEW: friend-facing install guide
-- `FRIEND_KIT.md` — NEW: copy-paste message for WhatsApp/email
-- `.gitignore` — ADDED: backtest-delta.json, backtest-latest.log, classify.js.bak*
-- `.evolution/v0.9.4-friends-beta.json` — NEW: evolution snapshot
-
-#### Prioridades — Estado
-
-| P | Título | Estado |
-|---|--------|--------|
-| P1 | Fix Windows paths + paths.js | ✅ Feito |
-| P2 | install-windows.ps1 + install.sh | ✅ Feito |
-| P3 | PRIVACY.md + audit hub-push | ✅ Feito |
-| P4 | frugal-hello + frugal-status friendly | ✅ Feito |
-| P5 | Security audit (.gitignore, .env.example) | ✅ Feito |
-| P6 | ONBOARDING_GUIDE.md + FRIEND_KIT.md | ✅ Feito |
-| P7 | hub-push --dry-run | ✅ Feito |
-| P8 | smoke-test.js + graceful degradation | ✅ Feito (4/4 pass) |
-| P9 | Windows health checks (run-backtest.cmd) | ✅ Feito |
-| P10 | SYNC.md + snapshot + report | ✅ Feito |
-
-#### Requer aprovação do Paulo
-1. [ ] Tornar o repo público? (audit de secrets feito, .gitignore actualizado)
-2. [ ] Push e tag v0.9.4?
-3. [ ] Personalizar kit para algum amigo específico?
-
-#### Notas
-- O classifier é agressivo no T0 (commit messages → T0 em vez de T1). Isto é uma optimização, não um bug.
-- O install one-liner via curl/irm requer repo público ou Gist. Por agora, `git clone` funciona.
-- Dashboard (P7) continua em scaffold — dados reais do hub existem, mas falta UI multi-user.
-- Smoke test: 4/4 passed, avg 51ms.
-
----
-
-### Sessão Overnight 2026-04-10 → 2026-04-11 — relatório
-
-**Início:** ~04:55 UTC (2026-04-10)
-**Fim:** ~05:15 UTC (2026-04-10)
-**Commits feitos:** 4
-
-#### Commits
-- `b28b307` — feat(v0.9.3): Beast/Zen/Auto mode s
+| **P10** | SYNC.md, Notion Friends Beta, snapshot, push | Sempre | 
