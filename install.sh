@@ -194,7 +194,16 @@ if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
   if [ -f "$SRC_DIR/tools/router/frugal-turn-header.js" ]; then
     do_run "cp '$SRC_DIR/tools/router/frugal-turn-header.js' '$CLAUDE_DIR/hooks/frugal-turn-header.js'"
   fi
-  do_run "rm -f '$ROUTER_DIR/gsd-statusline.js' '$ROUTER_DIR/gsd-turn-end.js' '$ROUTER_DIR/frugal-turn-header.js' 2>/dev/null || true"
+  # exec-logger.js + PostToolUse.js — the visibility stack for delegation
+  # tracking. Ship from frugal so that fresh installs get subagent-aware
+  # logging + visual indicators out of the box.
+  if [ -f "$SRC_DIR/tools/router/exec-logger.js" ]; then
+    do_run "cp '$SRC_DIR/tools/router/exec-logger.js' '$CLAUDE_DIR/hooks/exec-logger.js'"
+  fi
+  if [ -f "$SRC_DIR/tools/router/PostToolUse.js" ]; then
+    do_run "cp '$SRC_DIR/tools/router/PostToolUse.js' '$CLAUDE_DIR/hooks/PostToolUse.js'"
+  fi
+  do_run "rm -f '$ROUTER_DIR/gsd-statusline.js' '$ROUTER_DIR/gsd-turn-end.js' '$ROUTER_DIR/frugal-turn-header.js' '$ROUTER_DIR/exec-logger.js' '$ROUTER_DIR/PostToolUse.js' 2>/dev/null || true"
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
   do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
   # Install frugal slash command skills
@@ -253,6 +262,29 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
     \""
     ok "turn-header hook registered in settings.json"
   fi
+  # Matcher migration — exec-logger.js and PostToolUse.js previously shipped
+  # with matcher "Bash" so Agent/Task tool calls (subagent spawns) went
+  # unrecorded, making all delegation invisible to the compliance tracker.
+  # This migration upgrades any "Bash"-only matcher that points at those two
+  # hooks to "Bash|Agent|Task". Idempotent.
+  say "upgrading exec-logger + PostToolUse matchers to Bash|Agent|Task…"
+  do_run "node -e \"
+    const fs=require('fs');
+    const p='$CLAUDE_DIR/settings.json';
+    const s=JSON.parse(fs.readFileSync(p,'utf8'));
+    let touched=0;
+    for (const h of (s.hooks && s.hooks.PostToolUse) || []) {
+      if (h.matcher === 'Bash') {
+        const s2=JSON.stringify(h);
+        if (s2.includes('exec-logger.js') || s2.includes('PostToolUse.js')) {
+          h.matcher='Bash|Agent|Task';
+          touched++;
+        }
+      }
+    }
+    if (touched>0) fs.writeFileSync(p, JSON.stringify(s, null, 2));
+    console.log('matchers_upgraded='+touched);
+  \""
   # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
   if grep -q "gsd-turn-end.js" "$CLAUDE_DIR/settings.json"; then
     ok "Stop hook already registered"

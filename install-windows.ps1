@@ -253,10 +253,24 @@ if ((Test-Path (Join-Path $SrcDir "tools\router")) -and (Test-Path (Join-Path $S
             Copy-Item $turnHeader (Join-Path $ClaudeDir "hooks\frugal-turn-header.js") -Force
         }
     }
+    $execLogger = Join-Path $SrcDir "tools\router\exec-logger.js"
+    if (Test-Path $execLogger) {
+        DoRun "Copy exec-logger hook" {
+            Copy-Item $execLogger (Join-Path $ClaudeDir "hooks\exec-logger.js") -Force
+        }
+    }
+    $postToolUse = Join-Path $SrcDir "tools\router\PostToolUse.js"
+    if (Test-Path $postToolUse) {
+        DoRun "Copy PostToolUse hook" {
+            Copy-Item $postToolUse (Join-Path $ClaudeDir "hooks\PostToolUse.js") -Force
+        }
+    }
     DoRun "Remove router/ hook orphans" {
         Remove-Item (Join-Path $RouterDir "gsd-statusline.js") -Force -ErrorAction SilentlyContinue
         Remove-Item (Join-Path $RouterDir "gsd-turn-end.js") -Force -ErrorAction SilentlyContinue
         Remove-Item (Join-Path $RouterDir "frugal-turn-header.js") -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $RouterDir "exec-logger.js") -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $RouterDir "PostToolUse.js") -Force -ErrorAction SilentlyContinue
     }
 
     # Copy agents
@@ -346,6 +360,29 @@ fs.writeFileSync(p, JSON.stringify(s, null, 2));
 "@
         }
         Ok "Turn-header hook installed"
+    }
+    # Matcher migration — upgrade exec-logger.js and PostToolUse.js PostToolUse
+    # hooks from matcher "Bash" to "Bash|Agent|Task" so subagent spawns are
+    # tracked. Idempotent: only modifies matchers that currently match "Bash".
+    Say "Upgrading exec-logger + PostToolUse matchers to Bash|Agent|Task..."
+    DoRun "Upgrade PostToolUse matchers" {
+        & node -e @"
+const fs = require('fs');
+const p = '$($settingsPath -replace '\\','/')';
+const s = JSON.parse(fs.readFileSync(p, 'utf8'));
+let touched = 0;
+for (const h of (s.hooks && s.hooks.PostToolUse) || []) {
+  if (h.matcher === 'Bash') {
+    const s2 = JSON.stringify(h);
+    if (s2.includes('exec-logger.js') || s2.includes('PostToolUse.js')) {
+      h.matcher = 'Bash|Agent|Task';
+      touched++;
+    }
+  }
+}
+if (touched > 0) fs.writeFileSync(p, JSON.stringify(s, null, 2));
+console.log('matchers_upgraded=' + touched);
+"@
     }
     # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
     $settingsContent2 = Get-Content $settingsPath -Raw
