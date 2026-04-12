@@ -156,10 +156,10 @@ export async function exchangeCodeForSession(code: string): Promise<{
 } | null> {
   if (!isConfigured()) return null;
   try {
-    const res = await fetch(`${URL}/auth/v1/token?grant_type=pkce`, {
+    const res = await fetch(`${URL}/auth/v1/token?grant_type=authorization_code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: KEY },
-      body: JSON.stringify({ auth_code: code }),
+      body: JSON.stringify({ code }),
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
