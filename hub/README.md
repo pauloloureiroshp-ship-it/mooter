@@ -38,7 +38,7 @@ npx wrangler deploy
 - **Worker URL:** https://frugal-hub.frugal-hub.workers.dev
 - **D1 database:** `frugal-hub-db`
 - **R2 bucket:** `frugal-hub-storage`
-- **Account:** paulo.loureiro.shp@gmail.com
+- **Account:** (see INFRA.md)
 
 ## Migrations
 
