@@ -118,8 +118,19 @@ function analyze(decisions) {
   const lowConfHighTier = []; // confidence < 0.6 on T2/T3 (escalation noise)
   let qualityIntentHits = 0;   // v0.7: natural-language quality promotion count
   let cacheHits = 0;           // v0.7: classify-cache hit count
+  let optimizerHits = 0;       // Sprint 5-A: prompt_optimized event count
+  let optimizerTokensSaved = 0;
+  const optimizerStrategyCounts = {};
 
   for (const d of decisions) {
+    // Sprint 5-A: count prompt_optimized events (separate event type)
+    if (d.event === 'prompt_optimized') {
+      optimizerHits++;
+      optimizerTokensSaved += (d.tokens_saved_est || 0);
+      const s = d.strategy || 'unknown';
+      optimizerStrategyCounts[s] = (optimizerStrategyCounts[s] || 0) + 1;
+      continue;
+    }
     const tier = d.tier || 'T3';
     byTier[tier] = (byTier[tier] || 0) + 1;
     if (d.quality_intent === true) qualityIntentHits += 1;
@@ -207,6 +218,10 @@ function analyze(decisions) {
     promoteToT0: [...promoteCandidates],
     qualityIntentHits,
     cacheHits,
+    optimizerHits,
+    optimizerTokensSaved,
+    optimizerTopStrategies: Object.entries(optimizerStrategyCounts)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([s, n]) => `${s} ×${n}`),
   };
 }
 
@@ -249,6 +264,13 @@ function report(stats, tuning) {
   lines.push(`Low-conf on T2/T3:        ${stats.lowConfHighTier}`);
   lines.push(`Quality-intent hits:      ${stats.qualityIntentHits || 0}  (natural-language quality promotions)`);
   lines.push(`Classify-cache hits:      ${stats.cacheHits || 0}  (avoided classifier respawn)`);
+  if (stats.optimizerHits > 0) {
+    const optRate = stats.total ? ((stats.optimizerHits / stats.total) * 100).toFixed(1) : '0.0';
+    lines.push(`Prompt optimizer hits:    ${stats.optimizerHits}  (${optRate}% of prompts, ~${stats.optimizerTokensSaved} tokens saved)`);
+    if (stats.optimizerTopStrategies.length > 0) {
+      lines.push(`  top strategies:         ${stats.optimizerTopStrategies.join(', ')}`);
+    }
+  }
   // v0.7: if >10% of prompts trip quality_intent, surface a tuning nudge —
   // may mean the user has a new habitual phrase that would be cleaner as a
   // direct user_override keyword.
@@ -459,9 +481,74 @@ function exportEvents(decisions, outputPath) {
   console.log(`  Tip: run hub-submit-events.js to send these events to frugal-hub`);
 }
 
+// ── P5: --optimizer-dryrun (overnight-tuning 2026-04-12) ──────────────────
+// Simulates the prompt optimizer against the full historical corpus.
+// For each classified event, runs optimizer.optimize() and aggregates
+// results: total optimized, est tokens saved, strategies by tier.
+function optimizerDryrun(decisions) {
+  const optimizer = require('./prompt-optimizer');
+  const classifySrc = fs.readFileSync(path.join(__dirname, 'classify.js'), 'utf8');
+  const iifeIdx = classifySrc.search(/\(async \(\) => \{/);
+  const classifyBody = classifySrc.slice(0, iifeIdx).replace(/^#!.*\n/, '');
+  const classifyFn = new Function('require', `${classifyBody}\nreturn classify;`)(require);
+
+  const classified = decisions.filter(d => d.event === 'classified');
+  let totalOptimized = 0;
+  let totalTokensSaved = 0;
+  const byTier = { T0: { n: 0, optimized: 0, tokens: 0 }, T1: { n: 0, optimized: 0, tokens: 0 }, T2: { n: 0, optimized: 0, tokens: 0 }, T3: { n: 0, optimized: 0, tokens: 0 } };
+  const strategyCounts = {};
+
+  for (const d of classified) {
+    const preview = d.prompt_preview || '';
+    if (!preview || preview.length < 30) continue;
+
+    // Re-classify to get full decision object
+    const decision = classifyFn(preview);
+    const tier = decision.tier || 'T3';
+    if (!byTier[tier]) byTier[tier] = { n: 0, optimized: 0, tokens: 0 };
+    byTier[tier].n++;
+
+    const result = optimizer.optimize(preview, decision);
+    if (result) {
+      totalOptimized++;
+      totalTokensSaved += result.tokens_saved_est;
+      byTier[tier].optimized++;
+      byTier[tier].tokens += result.tokens_saved_est;
+      const s = result.strategy || 'unknown';
+      strategyCounts[s] = (strategyCounts[s] || 0) + 1;
+    }
+  }
+
+  const lines = [];
+  lines.push('frugal — optimizer dryrun (retrospective simulation)');
+  lines.push('');
+  lines.push(`Corpus:             ${classified.length} classified events`);
+  lines.push(`Eligible (≥30ch):   ${Object.values(byTier).reduce((s, t) => s + t.n, 0)}`);
+  lines.push(`Optimized:          ${totalOptimized} (${classified.length ? ((totalOptimized / classified.length) * 100).toFixed(1) : 0}%)`);
+  lines.push(`Tokens saved (est): ${totalTokensSaved}`);
+  lines.push('');
+  lines.push('By tier:');
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    const b = byTier[t];
+    if (b.n === 0) { lines.push(`  ${t}: 0 eligible`); continue; }
+    const pct = ((b.optimized / b.n) * 100).toFixed(1);
+    lines.push(`  ${t}: ${b.optimized}/${b.n} optimized (${pct}%), ~${b.tokens} tokens saved`);
+  }
+  lines.push('');
+  lines.push('Strategy breakdown:');
+  const sortedStrats = Object.entries(strategyCounts).sort((a, b) => b[1] - a[1]);
+  if (sortedStrats.length === 0) lines.push('  (none)');
+  for (const [s, n] of sortedStrats) {
+    lines.push(`  ${s}: ${n} hits`);
+  }
+
+  console.log(lines.join('\n'));
+}
+
 function main() {
   const args = process.argv.slice(2);
   const explain = args.includes('--explain');
+  const optimizerDryrunMode = args.includes('--optimizer-dryrun');
   const exportMode = args.includes('--export-delta');
   const exportEventsMode = args.includes('--export-events');
   const outputIdx = args.indexOf('--output');
@@ -483,6 +570,11 @@ function main() {
 
   if (exportEventsMode) {
     exportEvents(decisions.filter(d => d.event === 'classified'), exportEventsPath);
+    return;
+  }
+
+  if (optimizerDryrunMode) {
+    optimizerDryrun(decisions);
     return;
   }
 
@@ -531,6 +623,21 @@ function main() {
   const tuning = buildTuning(stats);
   fs.writeFileSync(TUNING_PATH, JSON.stringify(tuning, null, 2));
   console.log(report(stats, tuning));
+
+  // ── Auto-update metrics snapshot (v0.9.6+) ──────────────────────────────
+  // Keeps metrics-snapshot.json in sync after every backtest run so the
+  // corpus count in docs/statusline is always the real value from decisions.log
+  // (not the stale 1,437 manual snapshot). Fire-and-forget — never blocks.
+  const updateMetricsPath = path.join(ROUTER_DIR, 'update-metrics.js');
+  if (fs.existsSync(updateMetricsPath)) {
+    const metricsChild = spawn(process.execPath, [updateMetricsPath], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    metricsChild.unref();
+    console.log('[backtest] metrics-snapshot.json update queued (background)');
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 }
 
 // Exports MUST be set before main() runs, because exportEvents() lazy-requires
