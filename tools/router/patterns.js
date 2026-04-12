@@ -126,6 +126,8 @@ const MED_RISK = [
   /\b\w+\s+vs\.?\s+\w+/i,            // "React vs Vue", "Redis vs Memcached" — comparison
   /\bpros\s+(and|e)\s+cons\b/i,      // "pros and cons" — decision analysis
   /\bwhich\s+(is\s+)?better\b/i,     // "which is better for X" — comparison reasoning
+  // overnight-tuning 2026-04-12: compound "implement" → T2 (fixes gl-046, gl-051)
+  /\bimplement\w*\b.{30,}/i,          // "implement X with Y, Z and W" — multi-concern feature
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
