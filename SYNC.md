@@ -19,7 +19,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ## Estado actual do projecto — 2026-04-11
 
-### Versão: v0.9.4 (Friends Beta — Landing deployed 2026-04-10)
+### Versão: v0.9.5 (Sprint 2 — Feedback Loop + Repo Cleanup)
 
 | Componente | Estado | Notas |
 |---|---|---|
@@ -27,7 +27,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `inject_context.js` | ✅ v0.10 | +readLastSessionTier() + export FRUGAL_PREV_TIER |
 | `patterns.js` | ✅ em prod | single source of truth (v0.7.0) |
 | 6 subagents | ✅ em prod | model-architect, model-reasoner, cheap-triage, local-summarizer, local-transformer, final-reviewer |
-| `backtest.js` | ✅ v0.9.2 | hub-push auto no --export-delta (L4 fix) |
+| `backtest.js` | ✅ v0.9.5 | +--export-events flag, circular dep fix |
 | `savings-tracker.js` | ✅ em prod | HTTP :7821, statusline v3 |
 | `gpu-probe.js` | ✅ em prod | NVIDIA/Apple/AMD/CPU fallback |
 | `onboarding.js` | ✅ em prod | chamado automaticamente pelo inject_context.js |
@@ -44,6 +44,14 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `install.sh` v2 | ✅ NOVO (2026-04-11) | LaunchAgent macOS + wizard subscriptions + smoke test |
 | `gsd-turn-end.js` Stop hook | ✅ LIVE (2026-04-11 pm) | feedback loop agora registado em settings.json via install.sh + install-windows.ps1 |
 | Multi-model telemetry | ✅ LIVE (2026-04-11 pm) | `detectExternalModel()` regista codex/gemini/aider no execution.log |
+| `feedback-collector.js` | ✅ NOVO (Sprint 2) | CLI interactivo para ratings de decisões do router |
+| `gold-labels.json` | ✅ NOVO (Sprint 2) | 62 entradas curadas, 95.2% accuracy validada |
+| `replay.js --gold-labels` | ✅ NOVO (Sprint 2) | Validação offline do classifier contra gold labels |
+| `backtest.js --export-events` | ✅ NOVO (Sprint 2) | Export de eventos com privacy contract enforced |
+| `prompts/` gitignored | ✅ (Sprint 2) | Conteúdo estratégico removido do repo público |
+| `hub/README.md` | ✅ NOVO (Sprint 2) | Documentação de deploy do Worker |
+| `ARCHITECTURE.md` | ✅ Actualizado (Sprint 2) | Module map + runtime flow com sessions #10-13 |
+| `CLAUDE.md.template` | ✅ NOVO (Sprint 2) | Doutrina backup no repo |
 
 ### Evolução recente (snapshot completo em [📊 Notion](https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b))
 
@@ -52,7 +60,8 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 - **v0.9 → v0.9.3** — hub Cloudflare deployed, GPU probe, statusline v0.12, Windows compat, onboarding auto
 - **v0.9.3 → v0.9.4** — security audit, landing v9, Supabase + GitHub OAuth, 4-step onboarding, cross-platform installer
 - **Sessões 2026-04-10/11** — E2E MVP validation, Landing v10 + OS Vision, classify.js v0.10, frugal-doctor, install.sh v2
-- **Sessão #12 (hoje pm)** — bug crítico do feedback loop descoberto e corrigido (Stop hook nunca estava em `settings.json`), P0 cache key, P1 mode system, P3 multi-model telemetry, P4 SSOT dedup, push entregue (9 commits)
+- **Sessão #12 (2026-04-11 pm)** — bug crítico do feedback loop descoberto e corrigido (Stop hook nunca estava em `settings.json`), P0 cache key, P1 mode system, P3 multi-model telemetry, P4 SSOT dedup, push entregue (9 commits)
+- **Sessão #14 (2026-04-11 noite)** — Sprint 2 completo: feedback-collector.js, gold-labels.json (62 entries, 95.2%), --gold-labels em replay.js, --export-events em backtest.js. Repo cleanup: prompts/ gitignored, hub/README.md, ARCHITECTURE.md actualizado, CLAUDE.md.template. 4 commits pushed
 
 ### Skills instaladas
 
@@ -151,6 +160,9 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | `AUDIT_MASTER_PROMPT.md` | Auditoria completa 7 blocos → AUDIT_REPORT.md |
 | `LANDING_V10_MASTER_PROMPT.md` | Landing v10 — logo, Simple Icons, install journey, signup |
 | `CLAUDE_AI_BROWSER_MASTER_PROMPT.md` | Tarefas browser: GitHub OAuth, Supabase RLS, Cloudflare, Vercel |
+| `master-prompt-feedback-loop-v1.md` | Feedback loop v1 (supersedido por v2) |
+| `master-prompt-feedback-loop-v2.md` | Sprint 1 feedback loop — event-builder, frugal_events, privacy contract |
+| `master-prompt-sprint2-repo-cleanup.md` | Sprint 2 — feedback-collector, gold-labels, repo cleanup, ARCHITECTURE update |
 
 ## Notion HQ — Páginas de Referência
 
@@ -166,7 +178,8 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | 🧠 Sessão 2026-04-11 — classify.js v0.10 (3 melhorias router) | `33f6f6e4-2bc4-81e4-8e0f-ddbd4b599359` | https://www.notion.so/33f6f6e42bc481e48e0fddbd4b599359 |
 | 🔁 Sessão 2026-04-11 — Feedback loop + install hardening (P0→P4) | `33f6f6e4-2bc4-81ee-a03a-f973d3747461` | https://www.notion.so/33f6f6e42bc481eea03af973d3747461 |
 | 📊 Evolução + Status atual — 2026-04-11 | `33f6f6e4-2bc4-81fe-a8e1-e065f53ee73b` | https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b |
-| 👁️ Sessão 2026-04-11 — Visibility stack + delegação real | `33f6f6e4-2bc4-8136-9255-d80e8780ed03` | https://www.notion.so/33f6f6e42bc48136 9255d80e8780ed03 |
+| 👁️ Sessão 2026-04-11 — Visibility stack + delegação real | `33f6f6e4-2bc4-8136-9255-d80e8780ed03` | https://www.notion.so/33f6f6e42bc481369255d80e8780ed03 |
+| 📝 Sessão 2026-04-11 — Cowork: PRIVACY.md + README + ONBOARDING_DEV + Sprint 2 master prompt | `33f6f6e4-2bc4-8110-b415-e3ec18bad318` | https://www.notion.so/33f6f6e42bc48110b415e3ec18bad318 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -190,8 +203,46 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-11 (sessão #11 — classify.js v0.10, 3 melhorias router)
+**Última actualização Cowork:** 2026-04-11 (sessão de documentação — PRIVACY.md, README.md, ONBOARDING_DEV.md, Sprint 2 master prompt)
 **Estado:** 🆕 Para ler na próxima sessão Claude Code
+
+---
+
+### ESTADO PÓS-COWORK 2026-04-11 (documentação + Sprint 2 prep)
+
+**O que o Cowork fez nesta sessão:**
+
+| Ficheiro | Acção | Notas |
+|---|---|---|
+| `PRIVACY.md` | ✅ Reescrito | Actualizado com event-builder.js, FRUGAL_TELEMETRY=off, privacy contract, execution.log section |
+| `README.md` | ✅ Actualizado | Test count 17→59, T0 sub-tiers, exec-logger no diagrama, slash commands section (10), frugal-doctor section, badge skills |
+| `ONBOARDING_DEV.md` | ✅ Criado | Guia para novo dev em 15 min — fluxo completo, mapa de ficheiros, armadilhas |
+| `prompts/master-prompt-sprint2-repo-cleanup.md` | ✅ Criado | Sprint 2 completo + repo cleanup detalhado |
+
+**🚨 MISSÃO SPRINT 2 — PRÓXIMA SESSÃO CLAUDE CODE:**
+
+Lê `prompts/master-prompt-sprint2-repo-cleanup.md` e executa pela ordem definida.
+
+Resumo das tarefas:
+
+1. **R1** — `.gitignore` para `prompts/` (estratégico, não deve ser público no GitHub)
+2. **S2.2** — `gold-labels.json` com 60+ entradas curadas (T0/T1/T2/T3)
+3. **S2.3** — flag `--gold-labels` em `replay.js` (≥85% accuracy = CI pass)
+4. **S2.1** — `feedback-collector.js` — CLI interactivo para ratings pós-sessão
+5. **S2.4** — flag `--export-events` em `backtest.js` (usa event-builder.js já existente)
+6. **R2** — copiar código do Worker para `hub/src/index.js` (recovery path)
+7. **R3** — actualizar `ARCHITECTURE.md` com módulos sessões #10-13
+8. **R4** — `CLAUDE.md.template` no repo + install.sh copia se ausente
+
+**Pendentes de sessões anteriores (manter):**
+- [MÉDIA] Browser tasks do `CLAUDE_AI_BROWSER_MASTER_PROMPT.md`
+- [BAIXA] `install.sh ${HAS_MAX,,}` bash 3.2 compat macOS
+- [BAIXA] Consolidar override detection entre `inject_context.js` e `frugal-turn-header.js`
+
+**Decisão arquitectural tomada no Cowork:**
+- `prompts/` deve ser gitignored — contém decisões estratégicas não adequadas para repo público
+- `hub/` deve ter o código do Worker — sem recovery path é risco de perda total
+- `CLAUDE.md.template` deve estar no repo — a doutrina é o coração do sistema
 
 ---
 
@@ -339,97 +390,4 @@ Mode actual: `transcript_scan`. Média 1.5–2 ms/call → 130× abaixo do thres
 - `~/.claude/hooks/exec-logger.js` — NOVO, cloned do PostToolUse.js com append ao execution.log + perf self-tuning
 - `~/.claude/hooks/execution.log` — NOVO, persistent log per-Bash-call
 - `~/.claude/hooks/exec-logger-perf.json` — NOVO, perf samples rolling window
-- `~/.claude/settings.json` — + 1 PostToolUse hook entry (Bash matcher)
-- `~/.claude/agents/local-summarizer.md`, `model-reasoner.md`, `cheap-triage.md` — tentativa 1 deixou instruções de logging nos agent files (ficam como documentação, não são críticas, o hook faz o trabalho)
-
-**Pendentes para próxima sessão:**
-
-1. **Tracking real de modelos externos no classify.js** — o router já sabe quando recomenda GPT/Gemini, mas o `recommended_model` escrito em `decisions.log` é genérico. Precisa ligar ao output real do subprocess (quando existe) para podermos distinguir, no execution.log, entre `claude-opus-4-6` e uma call a `gpt-4o` via bash. Heurística análoga à do `ollama_call.sh`: se comando contém `codex`, `openai`, `gemini-cli`, etc → override para o modelo correspondente.
-
-2. **Issue upstream: titlePrefix no Claude Code** — os sub-agents não expõem o seu próprio modelo no PostToolUse payload do parent hook. Tivemos de scan ao filesystem para resolver. Seria mais limpo se o runtime passasse o `agent_model` no payload de PostToolUse, ou se aceitasse um `titlePrefix` do hook para decorar a statusline por sub-agent. Vale abrir issue em anthropics/claude-code.
-
-3. **Commit `~/.claude/`** — não é git repo. Se queres versionar a doutrina + hooks + agents, fazer `git init` em `~/.claude/` em sessão dedicada. Blast radius alto, pausou-se e decidiu-se skip nesta sessão (opção 2).
-
-4. **Dedup statusline** — memória `feedback_dual_statusline_files` já flagged: `hooks/` e `tools/router/` têm cópias fora-de-sincronia do statusline. Relembrar quando mexer em statusline.
-
----
-
-### ESTADO PÓS-SESSÃO #9 (Cowork 2026-04-11)
-
-**Ficheiros novos criados nesta sessão:**
-
-| Ficheiro | Propósito |
-|---|---|
-| `tools/router/frugal-doctor.js` | Diagnóstico completo: 9 secções, --fix mode, --json mode |
-| `skills/frugal-doctor/SKILL.md` | Slash command `/frugal-doctor` |
-| `FRUGAL_EXPERIENCE_REPORT.md` | Diagnóstico de gaps cross-platform + plano de acção |
-
-**Ficheiros modificados:**
-
-| Ficheiro | O que mudou |
-|---|---|
-| `install.sh` | + wizard subscriptions interativo, + LaunchAgent macOS (02:00 backtest), + cron Linux, + auto-start tracker, + smoke test, + summary visual final, + `/frugal-doctor` na lista de skills |
-
-**Causa raiz dos problemas MacBook identificados:**
-1. LaunchAgent macOS em falta → dados nunca chegavam ao hub → algoritmo não melhorava → **FIXED** (install.sh v2)
-2. Subscription profile vazio (anthropic: 'unknown') → router não sabia do Claude Max → **FIXED** (wizard no install)
-3. Tracker não arrancava na 1ª sessão → statusline simplificada → **FIXED** (auto-start no install)
-4. Sem visibilidade pós-install → utilizador sem confirmação → **FIXED** (frugal-doctor + summary visual)
-
-**Para aplicar no MacBook (fazer antes da próxima sessão Claude Code):**
-```bash
-cd ~/frugal && git pull origin main
-bash install.sh   # responder às perguntas de subscriptions
-node ~/.claude/tools/router/frugal-doctor.js  # verificar tudo
-node ~/.claude/tools/router/frugal-doctor.js --fix  # corrigir o que falhar
-```
-
----
-
-### MISSÃO PRÓXIMA SESSÃO CLAUDE CODE: Cache key fix + Browser tasks + Mode system
-
-**Prioridade 0 — Fix cache key em classify.js (2 linhas, fazer primeiro)**
-Em `getCached`/`setCache`, mudar a key de `SHA256(prompt)` para `SHA256(prompt + '|' + (process.env.FRUGAL_PREV_TIER || ''))`.
-Testar: `rm .classify-cache.json && FRUGAL_PREV_TIER=T3 node classify.js "e agora?" | grep tier` vs `FRUGAL_PREV_TIER=T1 node classify.js "e agora?" | grep tier` — devem dar resultados diferentes.
-
-**Prioridade 1 — MODES_MASTER_PROMPT.md**
-Aplicar o patch do mode system em `inject_context.js` — função `applyActiveMode()` após `applyBudgetCap()`.
-O ficheiro MODES_MASTER_PROMPT.md tem o patch exacto pronto a aplicar.
-
-**Prioridade 2 — Browser tasks (CLAUDE_AI_BROWSER_MASTER_PROMPT.md)**
-Estas tarefas requerem browser:
-- T1: github.com/settings/applications/new → criar OAuth App "frugal"
-- T2: Supabase SQL Editor → RLS anon INSERT na `waitlist`: `CREATE POLICY "Allow anon insert" ON waitlist FOR INSERT TO anon WITH CHECK (true);`
-- T3: Cloudflare → secret `PAULO_WEBHOOK_URL` (webhook.site ou Discord)
-- T4: Vercel → env vars NEXT_PUBLIC_SUPABASE_ANON_KEY + NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SITE_URL
-
-**Prioridade 3 — Decisão repo público**
-Para que amigos instalem com o oneliner, o repo tem de ser público OU o install.sh hospedado na landing.
-Paulo decide quando tornar público (auditoria de segurança: ✅ feita em v0.9.4).
-
-**Protocolo Notion (obrigatório no fim de cada sessão):**
-1. Criar página de log em Notion sob o HQ (ID: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`)
-2. Actualizar secção "Sessão" do HQ com o que foi feito
-3. Actualizar este SYNC.md com os IDs das páginas criadas
-
----
-
-### [ARQUIVADO] MISSÃO ANTERIOR: Friends Beta — "pronto para amigos hoje"
-
-O Paulo quer partilhar o frugal com 3-10 amigos (Mac e Windows) ainda hoje.
-O master prompt completo está em `~/frugal/FRIENDS_MASTER_PROMPT.md` — lê-o inteiro antes de começar.
-
-**Resumo das 10 prioridades (detalhes no FRIENDS_MASTER_PROMPT.md):**
-
-| P | O que fazer | Bloqueia amigos? | Requer aprovação Paulo? |
-|---|---|---|---|
-| **P1** | Fix Windows paths com espaços (crons partidos) | Sim | Não |
-| **P2** | One-line installer Mac + Windows (curl/irm) | Sim | Sim (Gist ou repo público) |
-| **P3** | Auditoria privacidade hub-push + PRIVACY.md | Sim (confiança) | Não |
-| **P4** | frugal-hello skill + frugal-status friendly | Alto impacto | Não |
-| **P5** | Auditoria secrets + repo pronto para ser público | Sim | Sim (tornar público) |
-| **P6** | ONBOARDING_GUIDE.md + FRIEND_KIT.md | Sim | Não |
-| **P7** | Fluxo hub-push end-to-end para multi-user | Médio | Não |
-| **P8** | smoke-test.js + graceful degradation | Alto (confiança) | Não |
-| **P9** | Fix Windows health checks (paths sem aspas) | Urgente | Não |
-| **P10** | SYNC.md, Notion Friends Beta, snapshot, push | Sempre | 
+- `~/.claude/settings.json` — + 1 P
