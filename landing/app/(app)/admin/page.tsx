@@ -777,54 +777,30 @@ export default function AdminPage() {
       .catch(e => { setError(e.message); setLoading(false); });
   }, []);
 
-  if (loading) return <div className="dashboard-page"><div className="dashboard-container"><div className="dashboard-loading">Loading...</div></div></div>;
-  if (error) return <div className="dashboard-page"><div className="dashboard-container"><div style={{ color: '#f44747', padding: '2rem 0' }}>{error}</div></div></div>;
+  if (loading) return <div className="dashboard-loading">Loading...</div>;
+  if (error) return <div style={{ color: '#f44747', padding: '2rem 0' }}>{error}</div>;
   if (!stats) return null;
 
   return (
-    <div className="dashboard-page">
-      <div style={{ maxWidth: 960, margin: '0 auto' }}>
-        {/* Header */}
-        <div className="dashboard-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <a href="/dashboard" className="dashboard-brand">
-              <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
-              <span>frugal admin</span>
-            </a>
-            <span style={{ fontSize: '0.7rem', color: 'var(--muted)', background: 'var(--surface-2, #1a1a1a)', padding: '2px 8px', borderRadius: 4 }}>Admin mode</span>
-          </div>
-          <a href="/dashboard" style={{ fontSize: '0.85rem', color: 'var(--muted)', textDecoration: 'none' }} title="User dashboard">{'\u2197'}</a>
-        </div>
-
-        {/* Tab navigation */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border, #222)', marginBottom: '1.5rem' }}>
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: '0.75rem 1.25rem',
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t.key ? '2px solid var(--t0, #4ec9b0)' : '2px solid transparent',
-                color: tab === t.key ? 'var(--t0, #4ec9b0)' : 'var(--muted, #666)',
-                fontSize: '0.85rem',
-                fontWeight: tab === t.key ? 700 : 400,
-                cursor: 'pointer',
-                transition: 'color 0.2s, border-color 0.2s',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        {tab === 'overview' && <OverviewTab stats={stats} />}
-        {tab === 'users' && <UsersTab stats={stats} />}
-        {tab === 'devices' && <DevicesTab stats={stats} />}
-        {tab === 'health' && <HealthTab stats={stats} />}
+    <div style={{ maxWidth: 960 }}>
+      {/* Tab navigation */}
+      <div className="app-tabs">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            className={`app-tab${tab === t.key ? ' active' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {/* Tab content */}
+      {tab === 'overview' && <OverviewTab stats={stats} />}
+      {tab === 'users' && <UsersTab stats={stats} />}
+      {tab === 'devices' && <DevicesTab stats={stats} />}
+      {tab === 'health' && <HealthTab stats={stats} />}
     </div>
   );
 }

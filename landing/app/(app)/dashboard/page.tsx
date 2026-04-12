@@ -121,49 +121,141 @@ function aggregateDevices(profile: Profile): { decisionsCount: number; savingsUs
   return cfgVal(cfg);
 }
 
-// ── MP-12: DevicesCard ──────────────────────────────────────────────────
-function DevicesCard({ profile }: { profile: Profile }) {
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - Date.parse(iso);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function osIcon(os: string): string {
+  if (os === 'win32') return '\uD83E\uDE9F';
+  if (os === 'darwin') return '\uD83C\uDF4E';
+  return '\uD83D\uDC27';
+}
+
+// ── MP-14: DevicesTab content ───────────────────────────────────────────
+function DevicesTab({ profile }: { profile: Profile }) {
   const devices = profile.devices || [];
-  if (devices.length < 2) return null;
-
-  const osIcon = (os: string) => {
-    if (os === 'win32') return '\uD83E\uDE9F';
-    if (os === 'darwin') return '\uD83C\uDF4E';
-    return '\uD83D\uDC27';
-  };
-
-  const timeAgo = (iso: string) => {
-    const diff = Date.now() - Date.parse(iso);
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-  };
+  if (devices.length === 0) return <p className="dashboard-muted">No devices synced yet. Run <code>frugal-doctor --sync</code> to register this device.</p>;
 
   return (
-    <div className="dashboard-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h2 style={{ margin: 0 }}>Your devices</h2>
-        <span className="dashboard-muted" style={{ fontSize: '0.8rem' }}>{devices.length} devices</span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {devices.map(d => (
-          <div key={d.device_id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--surface-2, #1a1a1a)', borderRadius: 8 }}>
-            <span style={{ fontSize: '1.2rem' }}>{osIcon(d.os_type)}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{d.device_name || 'Unknown device'}</div>
-              <div className="dashboard-muted" style={{ fontSize: '0.8rem' }}>
-                {d.hw_tier?.replace(/_/g, ' ')} {d.frugal_version && `· v${d.frugal_version}`}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.85rem' }}>{d.decisions_count || 0} prompts · ${Number(d.savings_usd || 0).toFixed(2)}</div>
-              <div className="dashboard-muted" style={{ fontSize: '0.75rem' }}>{d.last_sync_at ? timeAgo(d.last_sync_at) : 'never'}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      {devices.map(d => (
+        <div key={d.device_id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'var(--surface-2, #1a1a1a)', borderRadius: 8, border: '1px solid var(--border)' }}>
+          <span style={{ fontSize: '1.2rem' }}>{osIcon(d.os_type)}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{d.device_name || 'Unknown device'}</div>
+            <div className="dashboard-muted" style={{ fontSize: '0.8rem' }}>
+              {d.hw_tier?.replace(/_/g, ' ')} {d.frugal_version && `· v${d.frugal_version}`}
             </div>
           </div>
-        ))}
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.85rem' }}>{d.decisions_count || 0} prompts · ${Number(d.savings_usd || 0).toFixed(2)}</div>
+            <div className="dashboard-muted" style={{ fontSize: '0.75rem' }}>{d.last_sync_at ? timeAgo(d.last_sync_at) : 'never'}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── MP-14: Terminal mockup ──────────────────────────────────────────────
+function TerminalBlock({ lines }: { lines: string[] }) {
+  return (
+    <div style={{
+      background: '#0d0d0d',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '12px 16px',
+      fontFamily: 'var(--mono)',
+      fontSize: '0.8rem',
+      lineHeight: 1.6,
+    }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f47373', display: 'inline-block' }}/>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#dcdcaa', display: 'inline-block' }}/>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#23d18b', display: 'inline-block' }}/>
       </div>
+      {lines.map((line, i) => (
+        <div key={i} style={{ color: line.startsWith('\u2713') ? '#23d18b' : line.startsWith('\u276F') ? '#4ec9b0' : '#ccc' }}>
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── MP-14: Setup Guide tab ──────────────────────────────────────────────
+function SetupGuideTab({ profile }: { profile: Profile }) {
+  const latestDevice = (profile.devices || [])[0];
+  const config = (profile.frugal_config || {}) as Record<string, unknown>;
+  const legacyCfg = cfgVal(config);
+  const hasOllama = latestDevice ? latestDevice.has_ollama : legacyCfg.hasOllama;
+  const { decisionsCount } = aggregateDevices(profile);
+
+  const steps = [
+    {
+      label: 'Install frugal',
+      done: profile.install_completed || decisionsCount > 0,
+      terminal: [
+        '\u276F bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)',
+        '  Downloading frugal...',
+        '  \u2713 Installed to ~/.claude/tools/router/',
+        '  \u2713 Hook configured',
+      ],
+    },
+    {
+      label: 'First sync',
+      done: decisionsCount > 0,
+      terminal: [
+        '\u276F frugal-doctor --sync',
+        '  frugal doctor \u2014 health check',
+        '  win32 \u00b7 x64 \u00b7 Node v24',
+        '  \u2713 Core Files         10/10',
+        '  \u2713 Hook               active',
+        '  \u2713 Savings %          69%',
+        '  \u2713 profile updated',
+      ],
+    },
+    {
+      label: 'Configure Ollama',
+      done: hasOllama,
+      terminal: [
+        '\u276F ollama pull qwen2.5:3b',
+        '  pulling manifest...',
+        '  pulling layers...',
+        '  \u2713 qwen2.5:3b ready for T0 routing',
+      ],
+    },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {steps.map((step, i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: step.done ? 'var(--accent)' : 'var(--surface-2)',
+              color: step.done ? '#000' : 'var(--muted)',
+              display: 'grid', placeItems: 'center',
+              fontSize: '0.75rem', fontWeight: 700,
+            }}>
+              {step.done ? '\u2713' : i + 1}
+            </span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 500, color: step.done ? 'var(--text)' : 'var(--muted)' }}>
+              {step.label}
+            </span>
+            {step.done && <span className="status-pill ok">Done</span>}
+          </div>
+          {!step.done && <TerminalBlock lines={step.terminal} />}
+        </div>
+      ))}
     </div>
   );
 }
@@ -893,32 +985,110 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
   );
 }
 
-// ── Dashboard Header ─────────────────────────────────────────────────────
-function DashboardHeader({ profile }: { profile: Profile }) {
-  const { decisionsCount } = aggregateDevices(profile);
+// ── MP-14: Overview tab content ─────────────────────────────────────────
+function OverviewTab({ profile }: { profile: Profile }) {
+  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
+  const allOpusCost = decisionsCount * 0.015;
+  const savingsPct = allOpusCost > 0 ? Math.min(100, Math.round((savingsUsd / allOpusCost) * 100)) : 0;
+
+  const config = (profile.frugal_config || {}) as Record<string, unknown>;
+  const legacyCfg = cfgVal(config);
+  const latestDevice = (profile.devices || [])[0];
+  const hasOllama = latestDevice ? latestDevice.has_ollama : legacyCfg.hasOllama;
+  const hasAnthropicKey = latestDevice ? latestDevice.has_anthropic_key : legacyCfg.hasAnthropicKey;
+  const hasMax = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('max') || s.toLowerCase().includes('claude max'));
+  const hasOpenAI = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('gpt') || s.toLowerCase().includes('openai')) || config.has_openai_key === true;
+
+  const healthItems = [
+    { label: 'Router', ok: decisionsCount > 0 },
+    { label: 'Hook', ok: profile.install_completed || decisionsCount > 0 },
+    { label: 'Tracker', ok: savingsUsd > 0 },
+    { label: 'Sync', ok: !!(profile.devices && profile.devices.length > 0) },
+  ];
 
   return (
-    <div className="dashboard-header">
-      <a href="/" className="dashboard-brand">
-        <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
-        <span>frugal</span>
-      </a>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <span className="dashboard-muted" style={{ fontSize: '0.8rem' }}>
-          {profile.frugal_version && `v${profile.frugal_version}`}
-          {profile.hardware_tier && profile.hardware_tier !== 'unknown' && ` \u00b7 ${profile.hardware_tier.replace(/_/g, ' ')}`}
-          {decisionsCount > 0 && ` \u00b7 ${decisionsCount} decisions`}
-        </span>
-        <a href="/api/logout" className="dashboard-logout">Sign out</a>
+    <>
+      {/* Savings Hero */}
+      {decisionsCount > 0 && (
+        <div className="savings-hero">
+          <div>
+            <div className="savings-hero-number">${savingsUsd.toFixed(2)}</div>
+            <div className="savings-hero-label">Saved</div>
+          </div>
+          <div>
+            <div className="savings-hero-number">{decisionsCount}</div>
+            <div className="savings-hero-label">Decisions</div>
+          </div>
+          <div>
+            <div className="savings-hero-number">{savingsPct}%</div>
+            <div className="savings-hero-label">Routed away from Opus</div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Stack — 3 columns */}
+      <div className="dashboard-card" style={{ marginBottom: 16 }}>
+        <h2>AI Stack</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <div style={{ padding: '12px', background: 'var(--surface-2)', borderRadius: 8, textAlign: 'center' }}>
+            <AnthropicLogo />
+            <div style={{ fontSize: '0.85rem', marginTop: 6, fontWeight: 500 }}>Anthropic</div>
+            <span className={`status-pill ${hasAnthropicKey || hasMax ? 'ok' : 'err'}`} style={{ marginTop: 6 }}>
+              {hasAnthropicKey || hasMax ? '\u2713 Active' : '\u2717 Inactive'}
+            </span>
+          </div>
+          <div style={{ padding: '12px', background: 'var(--surface-2)', borderRadius: 8, textAlign: 'center' }}>
+            <OllamaLogo />
+            <div style={{ fontSize: '0.85rem', marginTop: 6, fontWeight: 500 }}>Ollama</div>
+            <span className={`status-pill ${hasOllama ? 'ok' : 'err'}`} style={{ marginTop: 6 }}>
+              {hasOllama ? '\u2713 Active' : '\u2717 Inactive'}
+            </span>
+          </div>
+          <div style={{ padding: '12px', background: 'var(--surface-2)', borderRadius: 8, textAlign: 'center' }}>
+            <OpenAILogo />
+            <div style={{ fontSize: '0.85rem', marginTop: 6, fontWeight: 500 }}>OpenAI</div>
+            <span className={`status-pill ${hasOpenAI ? 'ok' : 'err'}`} style={{ marginTop: 6 }}>
+              {hasOpenAI ? '\u2713 Active' : '\u2717 Inactive'}
+            </span>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Health bar */}
+      <div className="dashboard-card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {healthItems.map(h => (
+            <span key={h.label} className={`status-pill ${h.ok ? 'ok' : 'err'}`}>
+              {h.ok ? '\u2713' : '\u2717'} {h.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Rest of overview cards */}
+      <SavingsCalculatorCard />
+      <RecommendedModeCard profile={profile} />
+      <ProjectContextCard profile={profile} />
+      <RecommendationsCard profile={profile} />
+    </>
   );
 }
 
 // ── Main Dashboard ───────────────────────────────────────────────────────
+type DashTab = 'overview' | 'devices' | 'setup';
+
+const DASH_TABS: { key: DashTab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'devices', label: 'Devices' },
+  { key: 'setup', label: 'Setup Guide' },
+];
+
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<DashTab>('overview');
 
   useEffect(() => {
     fetch('/api/me')
@@ -936,143 +1106,36 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) {
+    return <div className="dashboard-loading">Loading...</div>;
+  }
+
+  if (!profile) {
     return (
-      <div className="dashboard-page">
-        <div className="dashboard-container">
-          <div className="dashboard-loading">Loading...</div>
-        </div>
+      <div className="dashboard-card">
+        <p>No profile found. <a href="/onboarding">Complete onboarding</a> to set up your profile.</p>
       </div>
     );
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-container">
-        {profile ? <DashboardHeader profile={profile} /> : (
-          <div className="dashboard-header">
-            <a href="/" className="dashboard-brand">
-              <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
-              <span>frugal</span>
-            </a>
-            <a href="/api/logout" className="dashboard-logout">Sign out</a>
-          </div>
-        )}
-
-        <h1 className="dashboard-h1">Your dashboard</h1>
-
-        {!profile ? (
-          <div className="dashboard-card">
-            <p>No profile found. <a href="/onboarding">Complete onboarding</a> to set up your profile.</p>
-          </div>
-        ) : (
-          <>
-            {/* Savings Hero (top, prominent) */}
-            <SavingsHeroCard profile={profile} />
-
-            {/* AI Stack */}
-            <AIStackCard profile={profile} />
-
-            {/* Setup Stepper */}
-            <SetupStepperCard profile={profile} />
-
-            {/* Devices (only shows when ≥ 2) */}
-            <DevicesCard profile={profile} />
-
-            {/* Savings Calculator */}
-            <SavingsCalculatorCard />
-
-            {/* Recommended mode card */}
-            <RecommendedModeCard profile={profile} />
-
-            {/* Project context card */}
-            <ProjectContextCard profile={profile} />
-
-            {/* Recommendations card */}
-            <RecommendationsCard profile={profile} />
-
-            {/* Profile card */}
-            <div className="dashboard-card">
-              <h2>Profile</h2>
-              <div className="dashboard-grid">
-                <div className="dashboard-field">
-                  <span className="dashboard-label">Email</span>
-                  <span className="dashboard-val">{profile.email}</span>
-                </div>
-                <div className="dashboard-field">
-                  <span className="dashboard-label">Hardware</span>
-                  <span className="dashboard-val">{profile.hardware_tier?.replace(/_/g, ' ') || 'Not set'}</span>
-                </div>
-                <div className="dashboard-field">
-                  <span className="dashboard-label">Subscriptions</span>
-                  <span className="dashboard-val">{profile.subscriptions?.join(', ') || 'None'}</span>
-                </div>
-                {profile.github_username && (
-                  <>
-                    <div className="dashboard-field">
-                      <span className="dashboard-label">GitHub</span>
-                      <span className="dashboard-val">@{profile.github_username}</span>
-                    </div>
-                    <div className="dashboard-field">
-                      <span className="dashboard-label">Primary language</span>
-                      <span className="dashboard-val">{profile.github_primary_language || '\u2014'}</span>
-                    </div>
-                    <div className="dashboard-field">
-                      <span className="dashboard-label">Public repos</span>
-                      <span className="dashboard-val">{profile.github_public_repos_count}</span>
-                    </div>
-                  </>
-                )}
-                <div className="dashboard-field">
-                  <span className="dashboard-label">Level</span>
-                  <span className="dashboard-val">{profile.experience_level || 'unknown'}</span>
-                </div>
-              </div>
-              <a href="/onboarding" className="dashboard-link">Edit profile</a>
-            </div>
-
-            {/* Config card */}
-            <div className="dashboard-card">
-              <h2>Your frugal config</h2>
-              {profile.frugal_config && Object.keys(profile.frugal_config).length > 0 ? (
-                <div className="dashboard-grid">
-                  {Object.entries(profile.frugal_config).map(([key, val]) => (
-                    <div className="dashboard-field" key={key}>
-                      <span className="dashboard-label">{key.replace(/_/g, ' ')}</span>
-                      <span className="dashboard-val">{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="dashboard-muted">Config will be generated after onboarding.</p>
-              )}
-            </div>
-
-            {/* Community */}
-            <div className="dashboard-card">
-              <h2>Community</h2>
-              <p className="dashboard-muted">
-                Your routing decisions help improve the algorithm for everyone.
-              </p>
-              <a
-                href="https://frugal-hub.frugal-hub.workers.dev/api/stats"
-                target="_blank"
-                rel="noopener"
-                className="dashboard-link"
-              >
-                View live community stats
-              </a>
-            </div>
-
-            {/* Install on another machine */}
-            <div className="dashboard-card">
-              <h2>Install on another machine</h2>
-              <div className="dashboard-cmd">
-                <code>bash &lt;(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)</code>
-              </div>
-            </div>
-          </>
-        )}
+    <div style={{ maxWidth: 800 }}>
+      {/* Tabs */}
+      <div className="app-tabs">
+        {DASH_TABS.map(t => (
+          <button
+            key={t.key}
+            className={`app-tab${tab === t.key ? ' active' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {/* Tab content */}
+      {tab === 'overview' && <OverviewTab profile={profile} />}
+      {tab === 'devices' && <DevicesTab profile={profile} />}
+      {tab === 'setup' && <SetupGuideTab profile={profile} />}
     </div>
   );
 }
