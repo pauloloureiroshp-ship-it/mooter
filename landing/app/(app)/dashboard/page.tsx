@@ -890,7 +890,11 @@ type Recommendation = {
 
 function getRecommendations(profile: Profile): Recommendation[] {
   const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
-  const { hasOllama, hasAnthropicKey, decisionsCount } = cfgVal(cfg);
+  const legacyCfg = cfgVal(cfg);
+  const latestDevice = (profile.devices || [])[0];
+  const hasOllama = latestDevice ? latestDevice.has_ollama : legacyCfg.hasOllama;
+  const hasAnthropicKey = latestDevice ? latestDevice.has_anthropic_key : legacyCfg.hasAnthropicKey;
+  const { decisionsCount } = aggregateDevices(profile);
   const recs: Recommendation[] = [];
 
   if (!hasOllama) {
@@ -1133,7 +1137,7 @@ function MetricsTab({ profile }: { profile: Profile }) {
               source: 'VSCode Claude plugin',
               badge: 'real',
               badgeColor: 'var(--t0)',
-              what: '~3.7M tokens \u00b7 real USD cost',
+              what: 'Real token count \u00b7 real USD cost',
               how: 'Reads directly from Anthropic OAuth session. Counts every token sent and received, including system prompts and tool calls.',
               why: 'This is the ground truth for token usage. Higher than frugal\u2019s prompt count because it includes all context.',
             },
@@ -1141,7 +1145,7 @@ function MetricsTab({ profile }: { profile: Profile }) {
               source: 'decisions.log (local)',
               badge: 'raw',
               badgeColor: 'var(--muted)',
-              what: '645 lines (includes hooks + system prompts)',
+              what: 'All classify() calls (includes hooks + system prompts)',
               how: 'Raw log of every classify() call. Includes UserPromptSubmit hooks, PostToolUse hooks, and system messages.',
               why: 'More lines than \u201cdecisions\u201d because frugal filters system prompts out before counting.',
             },

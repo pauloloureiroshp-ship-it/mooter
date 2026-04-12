@@ -410,7 +410,7 @@ async function main() {
     try {
       const metricsRes = await httpGet('http://127.0.0.1:7821/metrics', 800);
       if (metricsRes.ok && metricsRes.json) {
-        savingsUsd = metricsRes.json.guaranteed_saved || 0;
+        savingsUsd = metricsRes.json.saved || metricsRes.json.advisory_saved || 0;
       }
     } catch {}
 
