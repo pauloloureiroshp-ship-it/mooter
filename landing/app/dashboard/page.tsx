@@ -59,8 +59,8 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
     s.toLowerCase().includes('max') || s.toLowerCase().includes('claude max'));
   const hasGpu = profile.hardware_tier &&
     !['cpu_only', 'cloud', 'other', 'unknown', ''].includes(profile.hardware_tier);
-  const hasOllama = cfg.has_ollama === true;
-  const hasAnthropicKey = cfg.has_anthropic_key === true;
+  const hasOllama = cfg.has_ollama === true || cfg.ollama_enabled === true;
+  const hasAnthropicKey = cfg.has_anthropic_key === true || cfg.anthropic_key === true;
 
   if (hasMax) {
     return {
@@ -268,9 +268,11 @@ type Recommendation = {
 
 function getRecommendations(profile: Profile): Recommendation[] {
   const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  const hasOllama = cfg.has_ollama === true || cfg.ollama_enabled === true;
+  const hasAnthropicKey = cfg.has_anthropic_key === true || cfg.anthropic_key === true;
   const recs: Recommendation[] = [];
 
-  if (!cfg.has_ollama) {
+  if (!hasOllama) {
     recs.push({
       id: 'install-ollama',
       title: 'Instala Ollama para T0 gratuito',
@@ -281,7 +283,7 @@ function getRecommendations(profile: Profile): Recommendation[] {
     });
   }
 
-  if (cfg.has_ollama && !cfg.ollama_has_qwen3b) {
+  if (hasOllama && !cfg.ollama_has_qwen3b) {
     recs.push({
       id: 'pull-qwen3b',
       title: 'Instala qwen2.5:3b para T0 r\u00e1pido',
@@ -294,7 +296,7 @@ function getRecommendations(profile: Profile): Recommendation[] {
 
   const hasGpu = profile.hardware_tier &&
     !['cpu_only', 'cloud', 'other', 'unknown', ''].includes(profile.hardware_tier);
-  if (cfg.has_ollama && hasGpu && !cfg.ollama_has_qwen30b) {
+  if (hasOllama && hasGpu && !cfg.ollama_has_qwen30b) {
     recs.push({
       id: 'pull-qwen30b',
       title: 'Instala qwen3:30b para T0-smart',
@@ -317,7 +319,7 @@ function getRecommendations(profile: Profile): Recommendation[] {
     });
   }
 
-  if (!cfg.has_anthropic_key && profile.install_completed) {
+  if (!hasAnthropicKey && profile.install_completed) {
     recs.push({
       id: 'add-anthropic-key',
       title: 'Adiciona ANTHROPIC_API_KEY',
@@ -386,13 +388,13 @@ function SetupHealthCard({ profile }: { profile: Profile }) {
     },
     {
       label: 'Anthropic API key',
-      ok: config.has_anthropic_key === true,
+      ok: config.has_anthropic_key === true || config.anthropic_key === true,
       warn: false,
-      value: config.has_anthropic_key === true ? 'configured' : 'missing',
-      fix: config.has_anthropic_key === true ? null : 'export ANTHROPIC_API_KEY=sk-ant-... in your shell profile',
+      value: (config.has_anthropic_key === true || config.anthropic_key === true) ? 'configured' : 'missing',
+      fix: (config.has_anthropic_key === true || config.anthropic_key === true) ? null : 'export ANTHROPIC_API_KEY=sk-ant-... in your shell profile',
     },
     (() => {
-      const hasOllama = config.has_ollama === true;
+      const hasOllama = config.has_ollama === true || config.ollama_enabled === true;
       const hasQwen3b = config.ollama_has_qwen3b === true;
       if (hasOllama && hasQwen3b) return { label: 'Ollama', ok: true, warn: false, value: 'qwen2.5:3b ready', fix: null };
       if (hasOllama && !hasQwen3b) return { label: 'Ollama', ok: false, warn: true, value: 'installed, missing qwen2.5:3b', fix: 'ollama pull qwen2.5:3b' };
