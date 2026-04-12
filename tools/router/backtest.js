@@ -456,6 +456,7 @@ function exportEvents(decisions, outputPath) {
   console.log(`Exported ${events.length} events to ${outputPath} (privacy contract applied)`);
   console.log(`  Decisions scanned: ${decisions.length}`);
   console.log(`  Events filtered:   ${decisions.length - events.length} (HIGH_RISK / validation)`);
+  console.log(`  Tip: run hub-submit-events.js to send these events to frugal-hub`);
 }
 
 function main() {
