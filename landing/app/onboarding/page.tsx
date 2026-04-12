@@ -23,6 +23,8 @@ export default function OnboardingPage() {
   const [hw, setHw] = useState('');
   const [subs, setSubs] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [cliToken, setCliToken] = useState('');
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   const toggleSub = (s: string) => {
     setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -58,6 +60,15 @@ export default function OnboardingPage() {
           },
         }),
       });
+
+      // Fetch CLI token for display
+      try {
+        const tokenRes = await fetch('/api/cli-token');
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          if (tokenData.token) setCliToken(tokenData.token);
+        }
+      } catch { /* best-effort */ }
     } catch {
       // best-effort
     } finally {
@@ -186,8 +197,30 @@ export default function OnboardingPage() {
               );
             })()}
 
+            {cliToken && (
+              <div style={{ margin: '1.5rem 0', padding: '1rem', border: '1px solid #333', borderRadius: 8, background: '#111' }}>
+                <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>
+                  If you installed via CLI, paste this token when prompted:
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <code style={{ flex: 1, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#080808', padding: '6px 8px', borderRadius: 6, border: '1px solid #222' }}>
+                    {cliToken}
+                  </code>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(cliToken).catch(() => {}); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000); }}
+                    style={{ background: tokenCopied ? '#4ec9b0' : 'none', color: tokenCopied ? '#000' : '#4ec9b0', border: '1px solid #333', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+                  >
+                    {tokenCopied ? '\u2713 Copied' : 'Copy'}
+                  </button>
+                </div>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#666' }}>
+                  This token connects your CLI to your dashboard.
+                </p>
+              </div>
+            )}
+
             <a href="/dashboard" className="onboarding-next" style={{ textAlign: 'center', display: 'block', textDecoration: 'none' }}>
-              {saving ? 'Saving...' : 'Go to dashboard →'}
+              {saving ? 'Saving...' : 'Go to dashboard \u2192'}
             </a>
           </div>
         )}
