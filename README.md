@@ -6,12 +6,13 @@
 
 **Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · Federated-learning foundation · ~90% cost savings validated on 1,437 real prompts**
 
-[![Version](https://img.shields.io/badge/version-v0.9.4-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.9.8-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
-[![Tests](https://img.shields.io/badge/tests-59%2F59%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Tests](https://img.shields.io/badge/tests-62%2F62%20passing-brightgreen.svg)](tools/router/backtest.test.js)
+[![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
 [![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
@@ -127,7 +128,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | **Advisory savings vs naive Opus** | **~78-90%** (see methodology below) |
 | Guaranteed savings (Option-A hits) | measured per-session |
 | Cost model | token-estimated, [see `docs/COST_MODEL.md`](docs/COST_MODEL.md) |
-| Unit tests (loop + cost model) | **17/17** passing (`node:test`) |
+| Unit tests (loop + cost model) | **59/59** passing (`node:test`) |
 | Projects validated on | marleyliving (CRM), cloude-home, misc |
 
 ---
@@ -174,6 +175,7 @@ It is **not** for: production AI workloads where latency matters more than cost,
 │       └─► final-reviewer      (Opus,   pre-merge gate)                  │
 │                                                                         │
 │   Every decision → decisions.log                                        │
+│   Every tool call → execution.log  (exec-logger PostToolUse hook)       │
 └───────────────────────┬─────────────────────────────────────────────────┘
                         │
                         │ 02:00 daily (Windows Task Scheduler)
@@ -192,7 +194,9 @@ For a deeper walkthrough see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 | Tier | Provider | Cost/prompt | When it's used |
 |---|---|---|---|
-| **T0** | Ollama (qwen2.5:3b), Gemini Flash | Free | Formatting, renaming, commit messages, trivial edits |
+| **T0-general** | Ollama (qwen3:30b) | Free | Summaries, brainstorm, translations, docs |
+| **T0-code** | Ollama (qwen2.5-coder:7b) | Free | Formatting, renaming, commit messages, trivial edits |
+| **T0-math** | Ollama (qwen2-math:7b) | Free | Calculations, data transforms, regex |
 | **T1** | Claude Haiku | ~$0.001 | Light code, explanations, translations, regex |
 | **T2** | Claude Sonnet, Codex CLI | ~$0.01 | Features, debugging, refactors, planning |
 | **T3** | Claude Opus | ~$0.05 | Architecture, multi-file refactors, final review, anything touching secrets/prod |
@@ -259,6 +263,36 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 
 ---
 
+## Slash commands (10 built-in)
+
+| Command | What it does |
+|---|---|
+| `/frugal-status` | Health check: hook active, Ollama live, hub reachable, last 5 decisions |
+| `/frugal-savings` | Economic report: session savings, projected annual, tier distribution |
+| `/frugal-route <task>` | Classify any task description before running it |
+| `/frugal-summary` | What the router decided this session (full breakdown) |
+| `/frugal-update` | Pull from GitHub + sync classifier (idempotent) |
+| `/frugal-beast` | Beast Mode: forces T3 (Opus) on everything until reset |
+| `/frugal-zen` | Zen Mode: caps at T1 (Haiku/Ollama) — great for focused writing |
+| `/frugal-auto` | Resets to intelligent auto-routing |
+| `/frugal-hello` | Onboarding walkthrough for first-time users |
+| `/frugal-doctor` | Full system diagnostic: hooks, models, log permissions, --fix mode |
+
+---
+
+## frugal-doctor
+
+`frugal-doctor.js` is a cross-platform diagnostic tool that runs 12 health checks and can auto-fix common issues:
+
+```bash
+node ~/.claude/hooks/frugal-doctor.js          # diagnose
+node ~/.claude/hooks/frugal-doctor.js --fix    # diagnose + repair
+```
+
+Checks: hook registration in settings.json, Ollama reachability, GPU probe, decisions.log write permission, exec-logger presence, statusline segments, CLAUDE.md doctrine version, hub connectivity, and more.
+
+---
+
 ## Documentation
 
 | Doc | Purpose |
@@ -287,14 +321,4 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 
 ## License
 
-MIT — see [LICENSE](LICENSE). See [NOTICE.md](NOTICE.md) for why the repo is currently private despite the permissive license, and for details on commercial use.
-
----
-
-<div align="center">
-
-**Built with Claude Code. Validated on real production prompts. Dogfooded daily.**
-
-*Paulo Loureiro · 2026 · Lisbon*
-
-</div>
+MIT — see [LICENSE](LICENSE). See [NOTICE.md](NOTICE.m

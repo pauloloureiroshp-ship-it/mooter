@@ -6,6 +6,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [0.9.8] — 2026-04-12 — Quality Intent & Hook Fixes
+
+### Fixed
+- `classify.js`: TUNED_DEMOTE block moved after quality_intent check — auto-tuning
+  can no longer silently cancel explicit user quality intent ("pensa bem")
+- `PostToolUse.js`: Bash calls now show correct subagent model (Haiku/Sonnet/Ollama)
+  instead of always falling back to parent Opus session model
+- `inject_context.js`: writes `last-subagent.json` (30s TTL) to track active subagent
+
+### Added
+- `classify.test.js` — 3 unit tests for quality_intent vs tuned_demote precedence
+- `ROUTING_LESSONS.md` — registro de misroutes reais para informar melhorias futuras
+- `CLAUDE.md`: definição explícita de "estado de sessão" na secção GUARDRAILS
+
+### Docs
+- Master prompts e relatórios históricos movidos para `docs/sessions/`
+
+---
+
 ## [0.9.4] — 2026-04-10 — Friends Beta
 
 ### Added
