@@ -106,6 +106,13 @@ npx tsc --noEmit
 |---|---|---|
 | `PAULO_WEBHOOK_URL` | ⚠️ Placeholder | `echo "URL_REAL" \| npx wrangler secret put PAULO_WEBHOOK_URL` |
 | `PAULO_EMAIL` | Definido | `paulo.loureiro.shp@gmail.com` |
+| `FRUGAL_SUBMIT_TOKEN` | ✅ Configurado (2026-04-11) | Valor guardado no password manager do Paulo — corre `npx wrangler secret list` para confirmar |
+
+### GitHub Actions Secrets (repo frugal)
+
+| Secret | Estado | Propósito |
+|---|---|---|
+| `CF_API_TOKEN` | ✅ Configurado (2026-04-11) | Auto-deploy do Worker quando hub/ muda — template "Edit Cloudflare Workers" |
 
 ### Endpoints do hub
 
@@ -161,7 +168,7 @@ npx wrangler secret list
 
 | Tabela | Propósito | RLS |
 |---|---|---|
-| `waitlist` | Emails de inscrição + savings estimate | ⚠️ INSERT para anon: VERIFICAR |
+| `waitlist` | Emails de inscrição + savings estimate | ✅ `Allow anonymous inserts` activa |
 | `profiles` | Perfis de utilizadores autenticados | ✅ Apenas próprio user |
 | `usage_sessions` | Sessões de uso por utilizador | ✅ Apenas próprio user |
 
@@ -236,6 +243,8 @@ WITH CHECK (true);
 | `/frugal-zen` | `/frugal-zen` | `~/.claude/skills/frugal-zen/` |
 | `/frugal-auto` | `/frugal-auto` | `~/.claude/skills/frugal-auto/` |
 | `/frugal-hello` | `/frugal-hello` | `~/.claude/skills/frugal-hello/` |
+| `/frugal-doctor` | `/frugal-doctor` | `~/.claude/skills/frugal-doctor/` |
+| `/frugal-dashboard` | `/frugal-dashboard` | `~/.claude/skills/frugal-dashboard/` |
 
 ### Scheduled Tasks Windows
 
@@ -292,8 +301,9 @@ schtasks /query /tn "FrugalRouterBacktest" /fo list
 | `POST_AUDIT_MASTER_PROMPT.md` | Fixes pós-auditoria (docs, version, gitignore) | ✅ Executado — commit dd7a9fa |
 | `SELF_FIX_MASTER_PROMPT.md` | classify.js T1 fix + scheduled task | 🟡 Pendente execução |
 | `LANDING_V10_MASTER_PROMPT.md` | Landing v10 — logo, Simple Icons, install journey | 🟡 Pendente |
-| `CLAUDE_AI_BROWSER_MASTER_PROMPT.md` | Browser tasks — GitHub OAuth, Supabase RLS, Cloudflare | 🟡 Pendente (requer browser) |
+| `CLAUDE_AI_BROWSER_MASTER_PROMPT.md` | Browser tasks — GitHub OAuth, Supabase RLS, Cloudflare | 🟡 Parcial (RLS ✅, OAuth pendente) |
 | `FRIENDS_MASTER_PROMPT.md` | Friends Beta — 10 prioridades | ✅ Executado — v0.9.4 |
+| `master-prompt-sprint4-browser-dashboard.md` | Sprint 4 — Dashboard MVP + browser tasks | ✅ Executado — v0.9.7 |
 
 ---
 
@@ -312,9 +322,9 @@ schtasks /query /tn "FrugalRouterBacktest" /fo list
 
 | Campo | Valor |
 |---|---|
-| Versão | `v0.9.4` |
+| Versão | `v0.9.7` |
 | Canal | `friends-beta` |
-| Data | `2026-04-10` |
+| Data | `2026-04-11` |
 | Patterns | 102 |
 | Test prompts | 170 (100% accuracy) |
 | Savings validados | 89.9% (1,437 prompts reais) |

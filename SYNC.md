@@ -59,6 +59,13 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `.github/workflows/test.yml` | ✅ Actualizado (Sprint 3) | +gold-labels +event-builder +latency |
 | `.github/workflows/deploy-hub.yml` | ✅ NOVO (Sprint 3) | Auto-deploy Worker em hub/ changes |
 | `install.sh` bash 3.2 compat | ✅ FIX (Sprint 3) | ${var,,} → tr lowercase |
+| `MASTER_ARCHITECTURE.md` | ✅ NOVO (Sessão #16) | 48KB, 25 secções — mapa técnico completo da solução |
+| `architecture-diagram.html` | ✅ NOVO (Sessão #16) | 66KB, 10 tabs interactivos, dark theme |
+| `frugal-flowmap.html` | ✅ NOVO (Sessão #16) | 74KB, 6 vistas operacionais ultra-profissional |
+| `update-metrics.js` | ✅ NOVO (Sessão #16) | Conta corpus real de decisions.log → metrics-snapshot.json |
+| `backtest.js` | ✅ RESTAURADO + integrado | Restaurado 555 linhas do git + auto-spawn update-metrics em main() |
+| `savings-tracker.js` | ✅ RESTAURADO + /corpus | Restaurado 1032 linhas + GET /corpus endpoint com fallback live |
+| `run-backtest.cmd` | ✅ actualizado (Sessão #16) | +update-metrics.js --readme no fim de cada run diário |
 
 ### Evolução recente (snapshot completo em [📊 Notion](https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b))
 
@@ -70,6 +77,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 - **Sessão #12 (2026-04-11 pm)** — bug crítico do feedback loop descoberto e corrigido (Stop hook nunca estava em `settings.json`), P0 cache key, P1 mode system, P3 multi-model telemetry, P4 SSOT dedup, push entregue (9 commits)
 - **Sessão #14 (2026-04-11 noite)** — Sprint 2 completo: feedback-collector.js, gold-labels.json (62 entries, 95.2%), --gold-labels em replay.js, --export-events em backtest.js. Repo cleanup: prompts/ gitignored, hub/README.md, ARCHITECTURE.md actualizado, CLAUDE.md.template. 4 commits pushed
 - **Sessão #15 (2026-04-12)** — Sprint 3 completo: migration 002 aplicada no D1, POST /submit-events + GET /aggregate-stats no Worker, hub-submit-events.js cliente, CI test.yml expandido, deploy-hub.yml, install.sh bash 3.2 compat. 4 commits pushed
+- **Sessão #16 (2026-04-11 noite)** — Documentação total da arquitectura: MASTER_ARCHITECTURE.md (48KB, 25 secções), architecture-diagram.html (66KB, 10 tabs), frugal-flowmap.html (74KB, 6 vistas operacionais). Corpus auto-update: update-metrics.js, backtest.js integrado (spawn background), savings-tracker.js +/corpus endpoint, run-backtest.cmd actualizado. Dois ficheiros restaurados do git (estavam truncados: backtest.js 414→555 linhas, savings-tracker.js 877→1032 linhas). [Notion](https://www.notion.so/3406f6e42bc4810fbb95d2901a1979ac)
 
 ### Skills instaladas
 
@@ -97,16 +105,16 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | Crons | hourly aggregate / daily generate / weekly notify |
 | Smoke test | `/health` ok, `/api/stats` ok, `POST /api/delta` → trust_score: 0.8 |
 
-### HEAD do repo (após deploy landing 2026-04-10)
+### HEAD do repo (após sessão #16, 2026-04-11)
 
 ```
-928f6f3  security(repo): enforce private repo — update onboarding docs  ← HEAD
-8205b10  docs(friends): onboarding kit + frugal-hello skill + v0.9.4 snapshot
-7bcfa3f  feat(friends): cross-platform installer, privacy audit, smoke tests
-bd9c7e9  fix(windows): paths.js cross-platform helper + quoted paths
-bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
-6e477fa  perf(classifier): mega test — 37 new patterns, 170 prompts, 100% adjusted
-3cc3052  chore(v0.9.3): CHANGELOG updated, gitignore cleaned, final evolution snapshot
+8db12ec  docs(sync): session #16 — Sprint 4 complete, v0.9.7  ← HEAD
+bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
+92c3c19  feat(dashboard): Sprint 4 — dashboard MVP + misroutes + community pages
+7a399c9  docs(sync): session #15 — Sprint 3 complete, v0.9.6
+93313fb  fix(install): bash 3.2 compat — replace ${var,,} with tr lowercase
+62998ed  ci: add gold-labels + event-builder to test.yml, deploy-hub workflow
+7696ead  feat(router): hub-submit-events.js client + backtest tip
 ```
 
 ### Loopholes — Estado 2026-04-10
@@ -117,7 +125,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | L2 | install.sh não instalava onboarding/hub-push/hub-pull | ✅ FECHADO — glob *.js inclui, doctor check adicionado |
 | L3 | inject_context.js não chamava onboarding automaticamente | ✅ FECHADO — fix aplicado pelo Claude Code |
 | L4 | backtest.js não chamava hub-push automaticamente | ✅ FECHADO — fix aplicado pelo Claude Code |
-| L5 | Dashboard não funcional | ⚠️ Scaffold validado, npm install feito |
+| L5 | Dashboard não funcional | ✅ FECHADO — v0.6.0 com 3 páginas + sidebar em localhost:7820 |
 | L6 | URL frugal-hub.workers.dev inexistente | ✅ FECHADO — URL correcta em todos os ficheiros |
 | L7 | VSCode extension não publicada | 🟡 Pendente |
 | L8 | Time-based routing não implementado | 🟡 Pendente |
@@ -144,7 +152,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | URL | `https://eymtobwinevywmmlmxqa.supabase.co` |
 | Region | `sa-east-1` |
 | Status | `ACTIVE_HEALTHY` |
-| ⚠️ Pendente | RLS policy anon INSERT na tabela `waitlist` |
+| RLS | ✅ `Allow anonymous inserts` activa na tabela `waitlist` |
 
 ### Vercel — Landing
 
@@ -368,12 +376,4 @@ O hook `Stop` → `gsd-turn-end.js` nunca tinha sido instalado em `settings.json
 
 ---
 
-### ESTADO PÓS-SESSÃO #10 (Claude Code 2026-04-11) — Model transparency per-call
-
-**O que ficou em produção:**
-
-| Componente | Ficheiro | Estado |
-|---|---|---|
-| Visual hook (PostToolUse) | `~/.claude/hooks/PostToolUse.js` | ✅ resolve modelo real por `tool_use_id`, com Pass 1.5 que varre `subagents/*.jsonl` (mtime < 30s) |
-| Execution log hook | `~/.claude/hooks/exec-logger.js` | ✅ escreve `~/.claude/hooks/execution.log` em cada Bash call com schema `[ISO] session model role cmd resolve_ms mode` |
-| Hook registration | `~/.claude/settings.json` | ✅ 2 hooks PostToolUse para ma
+### ESTADO PÓS-SESSÃO 
