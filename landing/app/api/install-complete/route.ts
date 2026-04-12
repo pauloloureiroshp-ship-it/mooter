@@ -13,6 +13,8 @@ interface InstallPayload {
   ollama_has_qwen3b: boolean;
   ollama_has_qwen30b: boolean;
   frugal_version: string;
+  gpu_name?: string | null;
+  gpu_vram_mb?: number | null;
   os_type: string;
   arch: string;
   decisions_count: number;
@@ -88,6 +90,8 @@ export async function POST(request: NextRequest) {
         os_type: payload.os_type,
         arch: payload.arch,
         hw_tier: payload.hw_tier,
+        gpu_name: payload.gpu_name || null,
+        gpu_vram_mb: payload.gpu_vram_mb || null,
         has_ollama: payload.has_ollama,
         ollama_models: payload.ollama_models,
         ollama_has_qwen3b: payload.ollama_has_qwen3b,

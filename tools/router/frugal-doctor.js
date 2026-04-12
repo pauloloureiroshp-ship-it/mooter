@@ -428,6 +428,8 @@ async function main() {
       device_id: deviceId,
       device_name: `${os.hostname()} (${process.platform})`,
       hw_tier: hwCap?.hw_tier || 'unknown',
+      gpu_name: hwCap?.name_short || hwCap?.name || null,
+      gpu_vram_mb: hwCap?.vramMB || null,
       has_anthropic_key: hasAnthropicKey,
       has_openai_key: hasOpenAIKey,
       has_gemini_key: !!process.env.GOOGLE_API_KEY || !!process.env.GEMINI_API_KEY,

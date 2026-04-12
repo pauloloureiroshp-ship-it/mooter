@@ -8,6 +8,10 @@ const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 interface ShellUser {
   email: string;
   is_admin: boolean;
+  hw_tier: string | null;
+  gpu_name: string | null;
+  os_type: string | null;
+  frugal_version: string | null;
 }
 
 // ── SVG Icons (inline, no deps) ────────────────────────────────────────────
@@ -85,7 +89,14 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
       .then(r => r.json())
       .then(data => {
         if (data.email) {
-          setUser({ email: data.email, is_admin: data.email === ADMIN_EMAIL });
+          setUser({
+            email: data.email,
+            is_admin: data.email === ADMIN_EMAIL,
+            hw_tier: data.hw_tier || null,
+            gpu_name: data.gpu_name || null,
+            os_type: data.os_type || null,
+            frugal_version: data.frugal_version || null,
+          });
         }
       })
       .catch(() => {})
@@ -185,6 +196,22 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
               {user.email}
             </span>
           </div>
+          {user.gpu_name && (
+            <div style={{
+              fontSize: '0.7rem',
+              color: 'var(--muted)',
+              fontFamily: 'var(--mono)',
+              padding: '4px 0',
+              borderTop: '1px solid var(--border)',
+              marginTop: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}>
+              <span style={{ color: 'var(--accent)' }}>{user.gpu_name}</span>
+              <span>{user.os_type} · {user.hw_tier}</span>
+            </div>
+          )}
           <button
             onClick={handleLogout}
             className="app-nav-link"
@@ -207,7 +234,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
             {pageTitle(pathname)}
           </h1>
           <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
-            v0.9.8
+            {user.frugal_version ? `v${user.frugal_version}` : 'v\u2014'}
           </span>
         </div>
 

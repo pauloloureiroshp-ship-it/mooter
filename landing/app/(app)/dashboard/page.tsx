@@ -7,6 +7,8 @@ interface Device {
   device_name: string;
   os_type: string;
   hw_tier: string;
+  gpu_name?: string | null;
+  gpu_vram_mb?: number | null;
   has_ollama: boolean;
   has_anthropic_key: boolean;
   frugal_version: string;
@@ -1025,6 +1027,26 @@ function OverviewTab({ profile }: { profile: Profile }) {
             <div className="savings-hero-number">{savingsPct}%</div>
             <div className="savings-hero-label">Routed away from Opus</div>
           </div>
+          {/* Device context line */}
+          {latestDevice && (
+            <div style={{
+              fontSize: '0.75rem',
+              color: 'var(--muted)',
+              fontFamily: 'var(--mono)',
+              marginTop: 12,
+              paddingTop: 12,
+              borderTop: '1px solid rgba(78,201,176,0.15)',
+              display: 'flex',
+              gap: 16,
+              flexWrap: 'wrap',
+              width: '100%',
+            }}>
+              {latestDevice.gpu_name && <span>{latestDevice.gpu_name}</span>}
+              {latestDevice.os_type && <span>{latestDevice.os_type === 'win32' ? 'Windows' : latestDevice.os_type === 'darwin' ? 'macOS' : 'Linux'}</span>}
+              {latestDevice.hw_tier && <span>{latestDevice.hw_tier}</span>}
+              {latestDevice.frugal_version && <span>frugal v{latestDevice.frugal_version}</span>}
+            </div>
+          )}
         </div>
       )}
 
@@ -1076,13 +1098,158 @@ function OverviewTab({ profile }: { profile: Profile }) {
   );
 }
 
+// ── MP-16: Metrics Transparency tab ─────────────────────────────────────
+function MetricsTab({ profile }: { profile: Profile }) {
+  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: 6 }}>How frugal measures savings</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.875rem', lineHeight: 1.6 }}>
+          frugal tracks routing decisions, not tokens. Here&apos;s what each number means and why
+          they may differ from what you see in VSCode or the Claude interface.
+        </p>
+      </div>
+
+      {/* Source comparison table */}
+      <div style={{ marginBottom: 28 }}>
+        <h3 style={{ fontSize: '0.875rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+          Where each number comes from
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {[
+            {
+              source: 'frugal dashboard',
+              badge: '~est',
+              badgeColor: 'var(--yellow)',
+              what: `${decisionsCount} decisions · $${savingsUsd.toFixed(2)} saved`,
+              how: 'Counts user prompts routed. Savings = (what Opus would cost) \u2212 (what frugal paid). Uses estimated token counts from prompt length.',
+              why: 'Honest estimate. Not real tokens \u2014 real token counts require API access frugal doesn\u2019t have.',
+            },
+            {
+              source: 'VSCode Claude plugin',
+              badge: 'real',
+              badgeColor: 'var(--t0)',
+              what: '~3.7M tokens \u00b7 real USD cost',
+              how: 'Reads directly from Anthropic OAuth session. Counts every token sent and received, including system prompts and tool calls.',
+              why: 'This is the ground truth for token usage. Higher than frugal\u2019s prompt count because it includes all context.',
+            },
+            {
+              source: 'decisions.log (local)',
+              badge: 'raw',
+              badgeColor: 'var(--muted)',
+              what: '645 lines (includes hooks + system prompts)',
+              how: 'Raw log of every classify() call. Includes UserPromptSubmit hooks, PostToolUse hooks, and system messages.',
+              why: 'More lines than \u201cdecisions\u201d because frugal filters system prompts out before counting.',
+            },
+            {
+              source: 'statusline (terminal)',
+              badge: '~est',
+              badgeColor: 'var(--yellow)',
+              what: 'Live savings % per session',
+              how: 'Reads the same decisions.log. Shows per-session and cumulative savings with tier breakdown.',
+              why: 'Same methodology as the dashboard \u2014 refreshes in real time as you work.',
+            },
+          ].map(row => (
+            <div key={row.source} style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '14px 16px',
+              display: 'grid',
+              gridTemplateColumns: '160px 1fr',
+              gap: '8px 16px',
+              alignItems: 'start',
+            }}>
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                  {row.source}
+                </div>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '1px 7px',
+                  borderRadius: 100,
+                  fontSize: '0.65rem',
+                  fontFamily: 'var(--mono)',
+                  background: `color-mix(in srgb, ${row.badgeColor} 13%, transparent)`,
+                  color: row.badgeColor,
+                  border: `1px solid color-mix(in srgb, ${row.badgeColor} 27%, transparent)`,
+                }}>
+                  {row.badge}
+                </span>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--accent)', fontFamily: 'var(--mono)', marginBottom: 6 }}>
+                  {row.what}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5, marginBottom: 4 }}>
+                  <strong style={{ color: 'var(--text)' }}>How: </strong>{row.how}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text)' }}>Why different: </strong>{row.why}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Key insight callout */}
+      <div style={{
+        background: 'rgba(78,201,176,0.06)',
+        border: '1px solid rgba(78,201,176,0.2)',
+        borderRadius: 8,
+        padding: '14px 16px',
+        marginBottom: 20,
+      }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
+          The number that matters
+        </div>
+        <p style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+          frugal&apos;s <strong style={{ color: 'var(--text)' }}>decisions count</strong> tells you how many times
+          the router intervened. The <strong style={{ color: 'var(--text)' }}>savings estimate</strong> is a
+          lower bound &mdash; real savings are higher because frugal also reduces latency and context window usage.
+          The VSCode token count is the ground truth for what Anthropic actually processed.
+        </p>
+      </div>
+
+      {/* Glossary */}
+      <div>
+        <h3 style={{ fontSize: '0.875rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+          Glossary
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { term: 'decision', def: 'One user prompt that went through classify.js and was routed to a tier.' },
+            { term: 'naive cost', def: 'What that decision would have cost if routed to Opus every time.' },
+            { term: 'real cost (est.)', def: 'Estimated actual cost based on the tier it was routed to \u00d7 avg token estimate.' },
+            { term: 'saved (est.)', def: 'naive cost \u2212 real cost (est.). This is the savings number shown in the dashboard.' },
+            { term: 'guaranteed saved', def: 'Only Option A hits where Ollama answered directly instead of Opus. Conservative floor.' },
+            { term: 'savings %', def: 'saved / naive \u00d7 100. 68% means frugal spent 32% of what pure-Opus would cost.' },
+          ].map(({ term, def }) => (
+            <div key={term} style={{ display: 'flex', gap: 12, fontSize: '0.8rem' }}>
+              <code style={{ color: 'var(--accent)', fontFamily: 'var(--mono)', minWidth: 140, flexShrink: 0 }}>{term}</code>
+              <span style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{def}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────────────────
-type DashTab = 'overview' | 'devices' | 'setup';
+type DashTab = 'overview' | 'devices' | 'setup' | 'metrics';
 
 const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'devices', label: 'Devices' },
   { key: 'setup', label: 'Setup Guide' },
+  { key: 'metrics', label: 'Metrics' },
 ];
 
 export default function DashboardPage() {
@@ -1136,6 +1303,7 @@ export default function DashboardPage() {
       {tab === 'overview' && <OverviewTab profile={profile} />}
       {tab === 'devices' && <DevicesTab profile={profile} />}
       {tab === 'setup' && <SetupGuideTab profile={profile} />}
+      {tab === 'metrics' && <MetricsTab profile={profile} />}
     </div>
   );
 }
