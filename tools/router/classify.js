@@ -459,26 +459,6 @@ function classify(prompt) {
     escalation_rule = 'low_confidence_with_risk_signal_+1_tier';
   }
 
-  // TUNED demote pass — auto-learning backtest discovers patterns that are
-  // consistently over-routed to T2/T3 and injects regexes into TUNED_DEMOTE_T3.
-  // If a pattern matches, force the suggested tier down to T1 (Haiku) to
-  // recover savings. Low-cost, reversible: update-router.js keeps a backup
-  // and the block is idempotent, so re-runs never compound.
-  if (
-    Array.isArray(TUNED_DEMOTE_T3) &&
-    TUNED_DEMOTE_T3.length > 0 &&
-    (tier === 'T2' || tier === 'T3') &&
-    high === 0 && // doctrine guardrail: never demote prompts with high-risk signals
-    TUNED_DEMOTE_T3.some((rx) => rx.test(p))
-  ) {
-    tier = 'T1';
-    escalation_rule =
-      escalation_rule === 'none'
-        ? 'tuned_demote_from_backtest'
-        : `${escalation_rule}+tuned_demote`;
-    reasoning = `${reasoning}; tuned_demote → T1 (pattern match from backtest)`;
-  }
-
   // TUNED promote pass — backtest discovers patterns that are consistently
   // wasted on T1/T2/T3 and injects regexes into TUNED_PROMOTE_T0. Same
   // high-risk guardrail applies: never promote a prompt that carries any
@@ -521,6 +501,27 @@ function classify(prompt) {
     } else {
       reasoning = `${reasoning}; quality_intent detected but already at ${tier}`;
     }
+  }
+
+  // TUNED demote pass — auto-learning backtest discovers patterns that are
+  // consistently over-routed to T2/T3 and injects regexes into TUNED_DEMOTE_T3.
+  // If a pattern matches, force the suggested tier down to T1 (Haiku) to
+  // recover savings. Runs AFTER quality_intent so that explicit user intent
+  // ("pensa bem") is never silently cancelled by auto-tuning.
+  if (
+    Array.isArray(TUNED_DEMOTE_T3) &&
+    TUNED_DEMOTE_T3.length > 0 &&
+    (tier === 'T2' || tier === 'T3') &&
+    high === 0 && // doctrine guardrail: never demote prompts with high-risk signals
+    !qualityIntent && // never override explicit user quality intent
+    TUNED_DEMOTE_T3.some((rx) => rx.test(p))
+  ) {
+    tier = 'T1';
+    escalation_rule =
+      escalation_rule === 'none'
+        ? 'tuned_demote_from_backtest'
+        : `${escalation_rule}+tuned_demote`;
+    reasoning = `${reasoning}; tuned_demote → T1 (pattern match from backtest)`;
   }
 
   const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
