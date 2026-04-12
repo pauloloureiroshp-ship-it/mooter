@@ -1,6 +1,6 @@
 # Roadmap
 
-> Last updated: 2026-04-10
+> Last updated: 2026-04-11
 
 This roadmap is the single source of truth for what's done, what's next, and what's explicitly deferred. It supersedes the summary table in [README.md](README.md) when there's a conflict.
 
@@ -128,23 +128,38 @@ User-controlled mode overrides and classifier improvements from dogfood telemetr
 
 **Commits:** `b28b307`, `09ff285`, `3181299` on `main`.
 
+### v0.9.7 — Sprint 4: Dashboard MVP + Browser tasks (2026-04-11)
+
+Dashboard shipped, Supabase RLS validated, community hub stats integrated.
+
+- ✅ **Dashboard MVP** — 3 pages (Overview, Misroutes, Community) at `127.0.0.1:7820`
+- ✅ **Supabase RLS** — `Allow anonymous inserts` policy validated on `waitlist` table
+- ✅ **Community API** — `/api/community` route proxying hub `/aggregate-stats`
+- ✅ **Sidebar navigation** — persistent nav replacing header-only layout
+- ✅ **`/frugal-dashboard` skill** — start server + open browser
+- ✅ **install.sh** — 11 skills (added frugal-dashboard)
+- ✅ **ROADMAP.md** — v0.6.0 dashboard marked complete
+
 ---
 
 ## Planned
 
-### v0.6.0 — Web dashboard
+### v0.6.0 — Web dashboard ✅
 
-A local-only web UI for exploring `decisions.log`, `router-tuning.json`, and cost trends.
+Completed as part of Sprint 4 (2026-04-11).
 
-- 🟡 Next.js 15 dashboard bound to `127.0.0.1:7820`
-- 🟡 Timeline view of routing decisions (last 24h / 7d / 30d)
-- 🟡 Filter by tier, category, escalation rule, confidence
-- 🟡 Cost trend chart with naive-vs-real overlay
-- 🟡 "Retrain now" button that runs `/update-router` and shows the diff
-- 🟡 `router-tuning.json` preview with pattern explainer
-- 🟡 Expose via `savings-tracker.js` or new `dashboard.js` server
+- ✅ Next.js 15 dashboard bound to `127.0.0.1:7820`
+- ✅ Overview page — KPI tiles, tier distribution bar, decisions table, cost trend SVG, tuning preview
+- ✅ Filter by tier, category, escalation rule, confidence range, time window
+- ✅ Cost trend chart with naive-vs-real overlay (cumulative SVG)
+- ✅ "Retrain now" button with dry-run preview
+- ✅ `router-tuning.json` preview with pattern explainer (promote/demote lists)
+- ✅ Misroutes page — dedicated low-confidence decision debugger
+- ✅ Community page — hub aggregate stats vs local tier distribution
+- ✅ Sidebar navigation (Overview, Misroutes, Community)
+- ✅ `/frugal-dashboard` slash command to start + open
 
-**Success criteria:** Paulo can debug any misrouting in under 30 seconds without grep.
+**Success criteria:** Paulo can debug any misrouting in under 30 seconds without grep. ✅
 
 ### v0.7.0 — HIGH_RISK single source of truth ✅
 

@@ -1037,19 +1037,24 @@ function StatuslineSection() {
 }
 
 const SLASH_COMMANDS = [
-  { cmd: '/frugal-status',  desc: 'Health check: hook, Ollama, hub, last decisions' },
-  { cmd: '/frugal-savings', desc: 'Economic report: saved so far + annual projection' },
-  { cmd: '/frugal-route',   desc: 'Classify any task before you run it' },
-  { cmd: '/frugal-summary', desc: 'What the router decided this session, and why' },
-  { cmd: '/frugal-update',  desc: 'Pull latest from GitHub + sync classifier' },
-  { cmd: '/router',         desc: 'Quick on-demand routing recommendation' },
+  { cmd: '/frugal-status',    desc: 'Health check: hook, Ollama, hub, last decisions' },
+  { cmd: '/frugal-savings',   desc: 'Economic report: saved so far + annual projection' },
+  { cmd: '/frugal-route',     desc: 'Classify any task before you run it' },
+  { cmd: '/frugal-summary',   desc: 'What the router decided this session, and why' },
+  { cmd: '/frugal-update',    desc: 'Pull latest from GitHub + sync classifier' },
+  { cmd: '/frugal-dashboard', desc: 'Open local dashboard at localhost:7820' },
+  { cmd: '/frugal-beast',     desc: 'Force Opus on everything (max quality)' },
+  { cmd: '/frugal-zen',       desc: 'Cap at Haiku/Ollama (max savings)' },
+  { cmd: '/frugal-auto',      desc: 'Return to intelligent auto-routing' },
+  { cmd: '/frugal-doctor',    desc: 'Diagnose + auto-fix installation issues' },
+  { cmd: '/router',           desc: 'Quick on-demand routing recommendation' },
 ];
 
 function SlashCommandsGrid() {
   return (
     <>
       <Reveal>
-        <h3 className="after-sub-title">Six commands. Everything you need.</h3>
+        <h3 className="after-sub-title">Eleven commands. Everything you need.</h3>
       </Reveal>
       <Reveal>
         <div className="slash-grid">
@@ -1737,7 +1742,7 @@ function PricingAccess() {
             <ul className="pricing-features">
               <li>Full local routing engine</li>
               <li>classify.js + all 102 patterns</li>
-              <li>8 slash-command skills</li>
+              <li>11 slash-command skills</li>
               <li>decisions.log telemetry</li>
               <li>Community hub access</li>
             </ul>

@@ -6,19 +6,39 @@ export const metadata: Metadata = {
   description: 'Local-only routing dashboard for the frugal classifier.',
 };
 
+const NAV = [
+  { href: '/', label: 'Overview', icon: '\u{1F3E0}' },
+  { href: '/misroutes', label: 'Misroutes', icon: '\u{1F50D}' },
+  { href: '/community', label: 'Community', icon: '\u{1F310}' },
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <header className="top">
-          <div className="brand">
-            <span className="mascot">🐕</span>
-            <span className="title">frugal</span>
-            <span className="version">v0.9.0</span>
-            <span className="badge">dashboard · 127.0.0.1:7820</span>
+        <div className="shell">
+          <aside className="sidebar">
+            <div className="brand-side">
+              <span className="mascot">&#x1F415;</span>
+              <span className="title">frugal</span>
+              <span className="version">v0.9.7</span>
+            </div>
+            <nav className="nav">
+              {NAV.map((n) => (
+                <a key={n.href} href={n.href} className="nav-link">
+                  <span className="nav-icon">{n.icon}</span>
+                  {n.label}
+                </a>
+              ))}
+            </nav>
+            <div className="sidebar-footer">
+              <span className="badge">127.0.0.1:7820</span>
+            </div>
+          </aside>
+          <div className="content">
+            <main>{children}</main>
           </div>
-        </header>
-        <main>{children}</main>
+        </div>
       </body>
     </html>
   );

@@ -116,7 +116,7 @@ if [ "$UNINSTALL" = "1" ]; then
   do_run "rm -f '$CLAUDE_DIR/CLAUDE.md'"
   do_run "rm -rf '$ROUTER_DIR'"
   do_run "rm -rf '$CLAUDE_DIR/skills/model-router'"
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor; do
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor frugal-dashboard; do
     do_run "rm -rf '$CLAUDE_DIR/skills/$skill'"
   done
   for a in model-architect model-reasoner cheap-triage local-summarizer local-transformer final-reviewer; do
@@ -207,13 +207,13 @@ if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
   do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
   do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
   # Install frugal slash command skills
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor; do
+  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor frugal-dashboard; do
     if [ -d "$SRC_DIR/skills/$skill" ]; then
       do_run "mkdir -p '$CLAUDE_DIR/skills/$skill'"
       do_run "cp '$SRC_DIR/skills/$skill/SKILL.md' '$CLAUDE_DIR/skills/$skill/SKILL.md'"
     fi
   done
-  ok "installed 10 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto, /frugal-hello, /frugal-doctor)"
+  ok "installed 11 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto, /frugal-hello, /frugal-doctor, /frugal-dashboard)"
   do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/' 2>/dev/null || true"
   if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
     do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md'"
@@ -460,7 +460,8 @@ say "Next steps:"
 echo "  1. Open Claude Code in any project"
 echo "  2. Type: /frugal-hello  (see your first routing decision)"
 echo "  3. Type: /frugal-status (full health check)"
-echo "  4. Use Claude normally — frugal routes silently in the background"
+echo "  4. Type: /frugal-dashboard (open local dashboard at localhost:7820)"
+echo "  5. Use Claude normally — frugal routes silently in the background"
 echo ""
 say "Verify everything is working:"
 echo "  node $ROUTER_DIR/frugal-doctor.js"
