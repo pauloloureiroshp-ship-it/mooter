@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [cliToken, setCliToken] = useState('');
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [tokenRevealed, setTokenRevealed] = useState(false);
 
   const toggleSub = (s: string) => {
     setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -200,21 +201,28 @@ export default function OnboardingPage() {
             {cliToken && (
               <div style={{ margin: '1.5rem 0', padding: '1rem', border: '1px solid #333', borderRadius: 8, background: '#111' }}>
                 <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>
-                  If you installed via CLI, paste this token when prompted:
+                  Paste this token in Claude Cowork when prompted during setup:
                 </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <code style={{ flex: 1, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#080808', padding: '6px 8px', borderRadius: 6, border: '1px solid #222' }}>
-                    {cliToken}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <code style={{ flex: 1, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#080808', padding: '6px 8px', borderRadius: 6, border: '1px solid #222', fontFamily: 'var(--mono)' }}>
+                    {tokenRevealed ? cliToken : `${cliToken.slice(0, 10)}...${cliToken.slice(-6)}`}
                   </code>
                   <button
+                    onClick={() => setTokenRevealed(v => !v)}
+                    title={tokenRevealed ? 'Hide token' : 'Reveal token'}
+                    style={{ background: 'none', border: '1px solid #333', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: '0.9rem', color: '#666', lineHeight: 1 }}
+                  >
+                    {tokenRevealed ? '\uD83D\uDE48' : '\uD83D\uDC41'}
+                  </button>
+                  <button
                     onClick={() => { navigator.clipboard.writeText(cliToken).catch(() => {}); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000); }}
-                    style={{ background: tokenCopied ? '#4ec9b0' : 'none', color: tokenCopied ? '#000' : '#4ec9b0', border: '1px solid #333', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+                    style={{ background: tokenCopied ? '#4ec9b0' : 'none', color: tokenCopied ? '#000' : '#4ec9b0', border: '1px solid #333', borderRadius: 6, padding: '4px 14px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                   >
                     {tokenCopied ? '\u2713 Copied' : 'Copy'}
                   </button>
                 </div>
                 <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#666' }}>
-                  This token connects your CLI to your dashboard.
+                  This token connects your CLI to your dashboard. <a href="/setup" style={{ color: '#4ec9b0' }}>{'\u2192'} Open frugal setup guide</a>
                 </p>
               </div>
             )}
