@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const protectedPaths = ['/dashboard', '/onboarding'];
+  const protectedPaths = ['/dashboard', '/onboarding', '/admin'];
 
   if (protectedPaths.some(p => pathname.startsWith(p))) {
     const session = request.cookies.get('sb-access-token');
@@ -16,5 +16,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/onboarding/:path*'],
+  matcher: ['/dashboard/:path*', '/onboarding/:path*', '/admin/:path*'],
 };

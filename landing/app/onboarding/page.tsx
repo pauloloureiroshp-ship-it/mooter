@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { upsertProfile, getUser, SUPABASE_URL, SUPABASE_ANON_KEY, signInWithGitHub } from '../lib/supabase';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
 
 const HW_OPTIONS = [
@@ -24,7 +23,6 @@ export default function OnboardingPage() {
   const [hw, setHw] = useState('');
   const [subs, setSubs] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [githubConnected, setGithubConnected] = useState(false);
 
   const toggleSub = (s: string) => {
     setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -35,20 +33,33 @@ export default function OnboardingPage() {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      // Read access token from cookie via a simple API call
       const res = await fetch('/api/me');
       if (!res.ok) return;
-      const { accessToken, userId } = await res.json();
+      const { userId, email } = await res.json();
 
-      await upsertProfile(accessToken, {
-        id: userId,
+      const config = generateFrugalConfig({
         hardware_tier: hw,
-        subscriptions: subs,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString(),
+        subscriptions: subs.map(s => s.toLowerCase().replace(/\s+/g, '_')),
+      });
+
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          data: {
+            id: userId,
+            email,
+            hardware_tier: hw,
+            subscriptions: subs,
+            frugal_config: config,
+            onboarding_completed: true,
+            updated_at: new Date().toISOString(),
+          },
+        }),
       });
     } catch {
-      // Silent fail — profile save is best-effort
+      // best-effort
     } finally {
       setSaving(false);
     }
@@ -63,7 +74,7 @@ export default function OnboardingPage() {
         </div>
 
         <div className="onboarding-progress">
-          {[1, 2, 3, 4].map(s => (
+          {[1, 2, 3].map(s => (
             <div key={s} className={`onboarding-dot ${step >= s ? 'onboarding-dot-active' : ''}`} />
           ))}
         </div>
@@ -110,47 +121,8 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 2: Connect GitHub */}
+        {/* Step 2: Install */}
         {step === 2 && (
-          <div className="onboarding-step">
-            <h2>Connect GitHub</h2>
-            <p className="onboarding-sub">
-              We only read public repo metadata — languages and activity.
-              We never access code or private repos.
-            </p>
-
-            <div className="onboarding-scopes">
-              <div className="onboarding-scope-item">
-                <span className="onboarding-scope-icon">✓</span>
-                <span><strong>read:user</strong> — your username and avatar</span>
-              </div>
-              <div className="onboarding-scope-item">
-                <span className="onboarding-scope-icon">✓</span>
-                <span><strong>public_repo</strong> — public repo metadata only</span>
-              </div>
-              <div className="onboarding-scope-item">
-                <span className="onboarding-scope-icon">✗</span>
-                <span>No code access. No private repos. No file contents.</span>
-              </div>
-            </div>
-
-            <button
-              className="onboarding-next"
-              onClick={() => signInWithGitHub()}
-            >
-              Connect GitHub
-            </button>
-            <button
-              className="onboarding-skip"
-              onClick={() => setStep(3)}
-            >
-              Skip for now
-            </button>
-          </div>
-        )}
-
-        {/* Step 3: Install */}
-        {step === 3 && (
           <div className="onboarding-step">
             <h2>Install frugal</h2>
             <p className="onboarding-sub">
@@ -168,14 +140,14 @@ export default function OnboardingPage() {
               </button>
             </div>
 
-            <button className="onboarding-next" onClick={() => { saveProfile(); setStep(4); }}>
+            <button className="onboarding-next" onClick={() => { saveProfile(); setStep(3); }}>
               Done, next &rarr;
             </button>
           </div>
         )}
 
-        {/* Step 4: Personalized config */}
-        {step === 4 && (
+        {/* Step 3: Personalized config */}
+        {step === 3 && (
           <div className="onboarding-step">
             <h2>Your personalized config</h2>
             <p className="onboarding-sub">
@@ -185,7 +157,7 @@ export default function OnboardingPage() {
             {(() => {
               const config = generateFrugalConfig({
                 hardware_tier: hw,
-                subscriptions: subs.map(s => s.toLowerCase().replace(' ', '_')),
+                subscriptions: subs.map(s => s.toLowerCase().replace(/\s+/g, '_')),
               });
               return (
                 <div className="onboarding-config-display">
