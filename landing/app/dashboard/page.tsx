@@ -2,6 +2,19 @@
 
 import { useEffect, useState } from 'react';
 
+interface Device {
+  device_id: string;
+  device_name: string;
+  os_type: string;
+  hw_tier: string;
+  has_ollama: boolean;
+  has_anthropic_key: boolean;
+  frugal_version: string;
+  decisions_count: number;
+  savings_usd: number;
+  last_sync_at: string;
+}
+
 interface Profile {
   id: string;
   email: string;
@@ -17,6 +30,7 @@ interface Profile {
   frugal_config: Record<string, unknown>;
   install_completed: boolean;
   frugal_version: string | null;
+  devices?: Device[];
 }
 
 // ── Legacy field helpers ────────────────────────────────────────────────
@@ -94,10 +108,69 @@ function OllamaLogo() {
   );
 }
 
+// ── MP-12: Aggregate device data helper ─────────────────────────────────
+function aggregateDevices(profile: Profile): { decisionsCount: number; savingsUsd: number } {
+  const devices = profile.devices || [];
+  if (devices.length > 0) {
+    return {
+      decisionsCount: devices.reduce((sum, d) => sum + (d.decisions_count || 0), 0),
+      savingsUsd: devices.reduce((sum, d) => sum + (Number(d.savings_usd) || 0), 0),
+    };
+  }
+  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  return cfgVal(cfg);
+}
+
+// ── MP-12: DevicesCard ──────────────────────────────────────────────────
+function DevicesCard({ profile }: { profile: Profile }) {
+  const devices = profile.devices || [];
+  if (devices.length < 2) return null;
+
+  const osIcon = (os: string) => {
+    if (os === 'win32') return '\uD83E\uDE9F';
+    if (os === 'darwin') return '\uD83C\uDF4E';
+    return '\uD83D\uDC27';
+  };
+
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - Date.parse(iso);
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  return (
+    <div className="dashboard-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <h2 style={{ margin: 0 }}>Your devices</h2>
+        <span className="dashboard-muted" style={{ fontSize: '0.8rem' }}>{devices.length} devices</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {devices.map(d => (
+          <div key={d.device_id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--surface-2, #1a1a1a)', borderRadius: 8 }}>
+            <span style={{ fontSize: '1.2rem' }}>{osIcon(d.os_type)}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{d.device_name || 'Unknown device'}</div>
+              <div className="dashboard-muted" style={{ fontSize: '0.8rem' }}>
+                {d.hw_tier?.replace(/_/g, ' ')} {d.frugal_version && `· v${d.frugal_version}`}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.85rem' }}>{d.decisions_count || 0} prompts · ${Number(d.savings_usd || 0).toFixed(2)}</div>
+              <div className="dashboard-muted" style={{ fontSize: '0.75rem' }}>{d.last_sync_at ? timeAgo(d.last_sync_at) : 'never'}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── PEÇA 2a: Savings Hero Card ───────────────────────────────────────────
 function SavingsHeroCard({ profile }: { profile: Profile }) {
-  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
-  const { decisionsCount, savingsUsd } = cfgVal(cfg);
+  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
 
   if (decisionsCount === 0) return null;
 
@@ -310,8 +383,13 @@ function AIStackCard({ profile }: { profile: Profile }) {
 
 // ── PEÇA 2c: Setup Stepper Card ──────────────────────────────────────────
 function SetupStepperCard({ profile }: { profile: Profile }) {
+  // MP-12: prefer latest device data over legacy frugal_config
+  const latestDevice = (profile.devices || [])[0];
   const config = (profile.frugal_config || {}) as Record<string, unknown>;
-  const { hasOllama, hasAnthropicKey, decisionsCount, savingsUsd } = cfgVal(config);
+  const legacyCfg = cfgVal(config);
+  const hasOllama = latestDevice ? latestDevice.has_ollama : legacyCfg.hasOllama;
+  const hasAnthropicKey = latestDevice ? latestDevice.has_anthropic_key : legacyCfg.hasAnthropicKey;
+  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
 
   type Step = { label: string; ok: boolean; detail: string; fix: string | null };
   const steps: Step[] = [
@@ -817,8 +895,7 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
 
 // ── Dashboard Header ─────────────────────────────────────────────────────
 function DashboardHeader({ profile }: { profile: Profile }) {
-  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
-  const { decisionsCount } = cfgVal(cfg);
+  const { decisionsCount } = aggregateDevices(profile);
 
   return (
     <div className="dashboard-header">
@@ -897,6 +974,9 @@ export default function DashboardPage() {
 
             {/* Setup Stepper */}
             <SetupStepperCard profile={profile} />
+
+            {/* Devices (only shows when ≥ 2) */}
+            <DevicesCard profile={profile} />
 
             {/* Savings Calculator */}
             <SavingsCalculatorCard />
