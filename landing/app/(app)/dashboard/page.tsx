@@ -1283,8 +1283,8 @@ function DiamondIcon() {
 }
 
 // ── MP-17: AnimatedCounter ──────────────────────────────────────────────
-function AnimatedCounter({ value, prefix = '', suffix = '', duration = 1500 }: {
-  value: number; prefix?: string; suffix?: string; duration?: number;
+function AnimatedCounter({ value, prefix = '', suffix = '', decimals = 2, duration = 1500 }: {
+  value: number; prefix?: string; suffix?: string; decimals?: number; duration?: number;
 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
@@ -1297,7 +1297,7 @@ function AnimatedCounter({ value, prefix = '', suffix = '', duration = 1500 }: {
     };
     requestAnimationFrame(tick);
   }, [value, duration]);
-  return <span>{prefix}{display.toFixed(2)}{suffix}</span>;
+  return <span>{prefix}{display.toFixed(decimals)}{suffix}</span>;
 }
 
 // ── MP-17: FlowNode ────────────────────────────────────────────────────
@@ -1502,13 +1502,13 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '1.75rem', fontWeight: 700, fontFamily: 'var(--mono)' }}>
-                <AnimatedCounter value={decisionsCount} prefix="" suffix="" />
+                <AnimatedCounter value={decisionsCount} decimals={0} />
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>decisions</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '1.75rem', fontWeight: 700, fontFamily: 'var(--mono)' }}>
-                <AnimatedCounter value={routedAwayPct} suffix="%" />
+                <AnimatedCounter value={routedAwayPct} suffix="%" decimals={0} />
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>routed away</div>
             </div>
