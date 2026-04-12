@@ -680,6 +680,45 @@ logDecision({
   arbiter_previous_tier: decision.arbiter && decision.arbiter.honored ? decision.arbiter.previous_tier : null,
 });
 
+// Write last-subagent state so PostToolUse:Bash can show the correct model
+// instead of always falling back to the parent Opus session model.
+if (decision.suggested_subagent && decision.recommended_model) {
+  try {
+    fs.writeFileSync(
+      path.join(ROUTER_DIR, 'last-subagent.json'),
+      JSON.stringify({
+        model: decision.recommended_model,
+        subagent: decision.suggested_subagent,
+        tier: decision.tier,
+        ts: Date.now(),
+      }),
+      'utf8'
+    );
+  } catch { /* never fail the hook over state tracking */ }
+}
+
+// ── Prompt Optimizer (Sprint 5-A) ──────────────────────────────────────
+// Heuristic reformatting of the user prompt for the destination tier.
+// Zero latency (<5ms) — pure regex/string, no LLM call.
+// Result rides in <optimized-task> within the hint; original prompt unchanged.
+let optimizedTask = null;
+if (!cacheHit) {
+  try {
+    const optimizer = require('./prompt-optimizer');
+    const optResult = optimizer.optimize(prompt, decision);
+    if (optResult && optResult.optimized_task !== prompt) {
+      optimizedTask = optResult;
+      logDecision({
+        ts: new Date().toISOString(),
+        event: 'prompt_optimized',
+        strategy: optResult.strategy,
+        tokens_saved_est: optResult.tokens_saved_est,
+        tier: decision.tier,
+      });
+    }
+  } catch { /* never fail loudly */ }
+}
+
 // Apply budget guardrail before deciding what to emit.
 // v0.7: getBudget is async-by-default; only blocks on HIGH_RISK prompts with
 // very-stale cache (safety). High-risk hint is cheap local regex, not the
@@ -882,6 +921,14 @@ const lines = [
     : 'If this is a trivial local task, delegate to local-summarizer / local-transformer.',
   '</router-hint>',
 ].filter(Boolean);
+
+// Append <optimized-task> when the optimizer produced a reformulation.
+if (optimizedTask) {
+  lines.push('');
+  lines.push(`<optimized-task tier="${decision.tier}" strategy="${optimizedTask.strategy}" tokens-saved="${optimizedTask.tokens_saved_est}">`);
+  lines.push(optimizedTask.optimized_task);
+  lines.push('</optimized-task>');
+}
 
 if (suggestedAnswer) {
   lines.push('');

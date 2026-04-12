@@ -207,6 +207,20 @@ function findDecision(sessionId) {
     } catch (e) {}
   }
 
+  // Pass 3 — last-subagent state file written by inject_context.js.
+  // If a subagent was spawned in the last 30s, use its model instead of the
+  // parent session model (which is always Opus). This fixes the statusline
+  // showing Opus for Bash calls that ran inside a Haiku/Sonnet/Ollama subagent.
+  if (!subagentType) {
+    try {
+      const lsPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'last-subagent.json');
+      const ls = JSON.parse(fs.readFileSync(lsPath, 'utf8'));
+      if (ls && ls.model && (Date.now() - ls.ts) < 30000) {
+        model = ls.model;
+      }
+    } catch (e) {}
+  }
+
   // External LLM CLI detection: codex/gemini/aider/ollama → show the real worker.
   const externalModel = detectExternalModel(command);
   if (externalModel) model = externalModel;
