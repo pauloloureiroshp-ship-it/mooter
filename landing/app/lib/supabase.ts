@@ -299,8 +299,8 @@ export async function insertDecisionsSnapshot(
   try {
     // Check last entry for this device — skip if < 5 min ago
     const filter = deviceId
-      ? `user_id=eq.${userId}&device_id=eq.${deviceId}`
-      : `user_id=eq.${userId}&device_id=is.null`;
+      ? `user_id=eq.${encodeURIComponent(userId)}&device_id=eq.${encodeURIComponent(deviceId)}`
+      : `user_id=eq.${encodeURIComponent(userId)}&device_id=is.null`;
     const checkRes = await fetch(
       `${URL}/rest/v1/decisions_log?${filter}&order=recorded_at.desc&limit=1`,
       {

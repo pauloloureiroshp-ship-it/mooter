@@ -63,7 +63,7 @@ async function handleStats(request, env) {
         SUM(savings_usd) as total_savings_usd,
         SUM(prompt_count) as total_prompts_all
       FROM deltas
-      WHERE received_at > datetime('now', '-30 days')
+      WHERE received_at > datetime('now', '-7 days')
         AND savings_usd IS NOT NULL
     `).first();
 
