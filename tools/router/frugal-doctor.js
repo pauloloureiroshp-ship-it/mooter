@@ -18,6 +18,7 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -413,7 +414,19 @@ async function main() {
       }
     } catch {}
 
+    // MP-12: generate stable device_id
+    const deviceIdPath = path.join(os.homedir(), '.frugal', 'device.id');
+    let deviceId;
+    try { deviceId = fs.readFileSync(deviceIdPath, 'utf8').trim(); } catch {}
+    if (!deviceId) {
+      deviceId = crypto.randomUUID();
+      fs.mkdirSync(path.join(os.homedir(), '.frugal'), { recursive: true });
+      fs.writeFileSync(deviceIdPath, deviceId);
+    }
+
     const syncPayload = {
+      device_id: deviceId,
+      device_name: `${os.hostname()} (${process.platform})`,
       hw_tier: hwCap?.hw_tier || 'unknown',
       has_anthropic_key: hasAnthropicKey,
       has_openai_key: hasOpenAIKey,
