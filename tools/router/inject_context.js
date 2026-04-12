@@ -763,26 +763,31 @@ if (decision.confidence < 0.6) process.exit(0);
 //     like qwen2.5-coder:14b are too slow for pre-compute and used in the
 //     session directly)
 //
-// Timeout reduced from 9s → 4s in v0.7 — with keep_alive=-1 and the warmup
-// helper, qwen2.5:3b answers short prompts in <2s. If we miss, the hint is
-// still emitted, so the Claude session just processes normally.
+// OPTION A — pre-compute answer via Ollama for confident T0 tasks.
+// v0.9.7: fixed model check — was hardcoded to qwen2.5:3b, now accepts any
+// Ollama T0 model (including hw-recommended qwen3:30b on high-VRAM GPUs).
+// Timeout raised 4s → 8s to accommodate larger models. Confidence lowered
+// 0.8 → 0.75 and prompt limit raised 500 → 800 to cover more real T0 prompts.
 let suggestedAnswer = null;
 const userPinnedOverride = decision.user_override && decision.user_override.honored === true;
-const isGeneralOllama = decision.recommended_model === 'qwen2.5:3b' || /^qwen2\.5:3b$/.test(decision.recommended_model || '');
+const isOllamaT0 = decision.recommended_backend === 'ollama' && decision.tier === 'T0';
 if (
   !userPinnedOverride &&
   !decision.quality_intent &&
-  decision.tier === 'T0' &&
-  isGeneralOllama &&
-  decision.confidence >= 0.8 &&
-  prompt.length < 500
+  isOllamaT0 &&
+  decision.confidence >= 0.75 &&
+  prompt.length < 800
 ) {
   try {
     const callScript = path.join(__dirname, 'ollama_call_node.js');
+    const ollamaEnv = Object.assign({}, process.env);
+    if (decision.recommended_model) {
+      ollamaEnv.OLLAMA_OPTION_A_MODEL = decision.recommended_model;
+    }
     const ollamaRes = spawnSync(process.execPath, [callScript, prompt], {
       encoding: 'utf8',
-      timeout: 4000,
-      env: process.env,
+      timeout: 8000,
+      env: ollamaEnv,
     });
     if (ollamaRes.status === 0 && ollamaRes.stdout && ollamaRes.stdout.trim().length > 5) {
       suggestedAnswer = ollamaRes.stdout.trim();
@@ -973,5 +978,54 @@ try {
     });
   }
 } catch { /* non-fatal */ }
+
+// ── Sprint 1 feedback loop — .last-classified.json + cascade detection ──
+// Additive state file consumed by gsd-turn-end.js (augments with
+// turn_end_ts + response_len_bucket) and by event-builder.js (joined
+// against decisions.log to build frugal_events). Never holds prompt text.
+//
+// Cascade detection: natural-language phrases that indicate the user is
+// asking for a stronger model in the CURRENT turn, which retroactively
+// signals the PREVIOUS turn was under-routed. Stored as a separate
+// cascade_detected event in decisions.log so Sprint 2 event-builder can
+// pair it with the preceding classified event in the same session.
+try {
+  const LAST_CLASSIFIED_PATH = path.join(ROUTER_DIR, '.last-classified.json');
+  const CASCADE_RE = /usa\s+opus|usa\s+o\s+melhor|melhor\s+modelo|thinks?\s+harder|ultrathink|preciso\s+do\s+teu\s+melhor/i;
+  const cascadeDetected = CASCADE_RE.test(prompt);
+
+  function lenBucketLocal(n) {
+    const v = n || 0;
+    if (v < 50) return '0-50';
+    if (v < 100) return '50-100';
+    if (v < 200) return '100-200';
+    if (v < 500) return '200-500';
+    return '500+';
+  }
+
+  // If cascade detected, append a retroactive marker to decisions.log so
+  // Sprint 2 event-builder can tag the preceding classified event.
+  if (cascadeDetected) {
+    logDecision({
+      ts: new Date().toISOString(),
+      ts_ms: Date.now(),
+      event: 'cascade_detected',
+      session_id: sessionId,
+      refers_to_previous: true,
+    });
+  }
+
+  const lastClassified = {
+    session_id: sessionId,
+    ts_ms: Date.now(),
+    tier: decision.tier,
+    task_category: decision.task_category,
+    prompt_len_bucket: lenBucketLocal(prompt.length),
+    cascade_upgrade: cascadeDetected ? 1 : 0,
+    response_len_bucket: null,
+    turn_end_ts: null,
+  };
+  fs.writeFileSync(LAST_CLASSIFIED_PATH, JSON.stringify(lastClassified));
+} catch { /* telemetry best-effort */ }
 
 process.exit(0);
