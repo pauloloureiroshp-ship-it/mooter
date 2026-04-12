@@ -66,6 +66,9 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `backtest.js` | ✅ RESTAURADO + integrado | Restaurado 555 linhas do git + auto-spawn update-metrics em main() |
 | `savings-tracker.js` | ✅ RESTAURADO + /corpus | Restaurado 1032 linhas + GET /corpus endpoint com fallback live |
 | `run-backtest.cmd` | ✅ actualizado (Sessão #16) | +update-metrics.js --readme no fim de cada run diário |
+| `prompt-optimizer.js` | ✅ NOVO (Sprint 5-A) | 5 estratégias S1-S5, guardrails, <5ms, 46/46 testes |
+| `prompt-optimizer.test.js` | ✅ NOVO (Sprint 5-A) | 46 testes — padding, tier, category, error, lang |
+| `inject_context.js` | ✅ v0.10+ (Sprint 5-A) | +optimizer call + `<optimized-task>` emission + logging |
 
 ### Evolução recente (snapshot completo em [📊 Notion](https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b))
 
@@ -78,6 +81,8 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 - **Sessão #14 (2026-04-11 noite)** — Sprint 2 completo: feedback-collector.js, gold-labels.json (62 entries, 95.2%), --gold-labels em replay.js, --export-events em backtest.js. Repo cleanup: prompts/ gitignored, hub/README.md, ARCHITECTURE.md actualizado, CLAUDE.md.template. 4 commits pushed
 - **Sessão #15 (2026-04-12)** — Sprint 3 completo: migration 002 aplicada no D1, POST /submit-events + GET /aggregate-stats no Worker, hub-submit-events.js cliente, CI test.yml expandido, deploy-hub.yml, install.sh bash 3.2 compat. 4 commits pushed
 - **Sessão #16 (2026-04-11 noite)** — Documentação total da arquitectura: MASTER_ARCHITECTURE.md (48KB, 25 secções), architecture-diagram.html (66KB, 10 tabs), frugal-flowmap.html (74KB, 6 vistas operacionais). Corpus auto-update: update-metrics.js, backtest.js integrado (spawn background), savings-tracker.js +/corpus endpoint, run-backtest.cmd actualizado. Dois ficheiros restaurados do git (estavam truncados: backtest.js 414→555 linhas, savings-tracker.js 877→1032 linhas). [Notion](https://www.notion.so/3406f6e42bc4810fbb95d2901a1979ac)
+- **Sessão #17 (2026-04-11 noite) — MILESTONE** — Sprint 5-A: Prompt Optimizer completo. frugal passa a optimizar o prompt além de o rotear. prompt-optimizer.js (5 estratégias S1-S5, <5ms, 46/46 testes), inject_context.js +<optimized-task>, backtest.js +optimizer report, savings-tracker.js +/optimizer-stats. Dry-run: 56% dos 363 prompts históricos optimizados, ~850-1400 tokens saved est. real. Value prop evolui: "envia o prompt certo para o modelo certo". [Notion Milestone](https://www.notion.so/3406f6e42bc481f48bd9ecc919b4055e)
+- **Sessão #18 (2026-04-12)** — Validação 9/9 do router (97% saved, $0.06 gasto), fix bug TUNED_DEMOTE vs quality_intent (classify.js + 3 testes), fix PostToolUse:Bash model reporting (last-subagent.json TTL 30s), ROUTING_LESSONS.md criado, CLAUDE.md global+projecto actualizados com definição de "estado de sessão". 3 commits pushed (973b2a3, d40ed71, 58e2dd1). [Notion](https://www.notion.so/3406f6e42bc4817c86bfcd9acc67f55e)
 
 ### Skills instaladas
 
@@ -105,16 +110,15 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | Crons | hourly aggregate / daily generate / weekly notify |
 | Smoke test | `/health` ok, `/api/stats` ok, `POST /api/delta` → trust_score: 0.8 |
 
-### HEAD do repo (após sessão #16, 2026-04-11)
+### HEAD do repo (após sessão #18, 2026-04-12)
 
 ```
-8db12ec  docs(sync): session #16 — Sprint 4 complete, v0.9.7  ← HEAD
+58e2dd1  fix: PostToolUse:Bash must not report main session model  ← HEAD
+d40ed71  docs: clarify session-state exception to prevent false Opus inline
+973b2a3  fix: tuned_demote must not override quality_intent
+8db12ec  docs(sync): session #16 — Sprint 4 complete, v0.9.7
 bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 92c3c19  feat(dashboard): Sprint 4 — dashboard MVP + misroutes + community pages
-7a399c9  docs(sync): session #15 — Sprint 3 complete, v0.9.6
-93313fb  fix(install): bash 3.2 compat — replace ${var,,} with tr lowercase
-62998ed  ci: add gold-labels + event-builder to test.yml, deploy-hub workflow
-7696ead  feat(router): hub-submit-events.js client + backtest tip
 ```
 
 ### Loopholes — Estado 2026-04-10
@@ -376,4 +380,4 @@ O hook `Stop` → `gsd-turn-end.js` nunca tinha sido instalado em `settings.json
 
 ---
 
-### ESTADO PÓS-SESSÃO 
+### ESTADO PÓS-SESSÃO              
