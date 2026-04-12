@@ -19,7 +19,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ## Estado actual do projecto — 2026-04-11
 
-### Versão: v0.9.6 (Sprint 3 — Hub Event Ingestion + CI)
+### Versão: v0.9.7 (Sprint 4 — Dashboard MVP + Option A fix)
 
 | Componente | Estado | Notas |
 |---|---|---|
@@ -37,9 +37,9 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `frugal-mode.js` | ✅ NOVO | Beast/Zen/Auto mode system |
 | **frugal-hub** (Cloudflare) | ✅ LIVE | D1 + R2 + Worker deployed |
 | **Landing v9** | ✅ DEPLOYED | live counters, Install Now CTA, slash commands grid, ComparisonSection |
-| **Dashboard** | ⚠️ scaffold | npm install feito, build passing |
+| **Dashboard** | ✅ v0.6.0 | 3 páginas + sidebar + /frugal-dashboard skill |
 | VSCode extension | ⚠️ v0.4.0 | não publicado no marketplace |
-| Skills (10 total) | ✅ NOVO | 5 originais + 3 modos + frugal-hello + frugal-doctor |
+| Skills (11 total) | ✅ | 5 originais + 3 modos + frugal-hello + frugal-doctor + frugal-dashboard |
 | `frugal-doctor.js` | ✅ NOVO (2026-04-11) | Diagnóstico completo cross-platform, --fix mode |
 | `install.sh` v2 | ✅ NOVO (2026-04-11) | LaunchAgent macOS + wizard subscriptions + smoke test |
 | `gsd-turn-end.js` Stop hook | ✅ LIVE (2026-04-11 pm) | feedback loop agora registado em settings.json via install.sh + install-windows.ps1 |
@@ -188,6 +188,7 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 | 📊 Evolução + Status atual — 2026-04-11 | `33f6f6e4-2bc4-81fe-a8e1-e065f53ee73b` | https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b |
 | 👁️ Sessão 2026-04-11 — Visibility stack + delegação real | `33f6f6e4-2bc4-8136-9255-d80e8780ed03` | https://www.notion.so/33f6f6e42bc481369255d80e8780ed03 |
 | 📝 Sessão 2026-04-11 — Cowork: PRIVACY.md + README + ONBOARDING_DEV + Sprint 2 master prompt | `33f6f6e4-2bc4-8110-b415-e3ec18bad318` | https://www.notion.so/33f6f6e42bc48110b415e3ec18bad318 |
+| 📊 Sessão 2026-04-11 — Sprint 4: Dashboard MVP + Option A fix | `3406f6e4-2bc4-81bf-8d92-c754d040c4d2` | https://www.notion.so/3406f6e42bc481bf8d92c754d040c4d2 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -211,31 +212,47 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-11 (Sprint 3 master prompt criado)
-**Estado:** 🆕 Para ler na próxima sessão Claude Code
+**Última actualização Claude Code:** 2026-04-11 (Sessão #16 — Sprint 4 completo)
+**Estado:** ✅ Lido e executado em sessão #16 — 2026-04-11
 
 ---
 
-### MISSÃO SPRINT 3 — PRÓXIMA SESSÃO CLAUDE CODE
+### ESTADO PÓS-SESSÃO #16 (Claude Code 2026-04-11) — Sprint 4: Dashboard MVP + Option A fix
 
-Lê `prompts/master-prompt-sprint3-hub-ci.md` e executa pela ordem definida.
+**Commits pushed:** `92c3c19`, `bd9e67a`
 
-**Resumo das tarefas (detalhes completos no master prompt):**
+**Sprint 4 — estado:**
 
-1. **H1** — Verificar/aplicar migration `002_frugal_events.sql` no D1
-2. **H2** — Endpoint `POST /submit-events` no Worker (com validação de schema + rate limiting + auth token)
-3. **H3** — `hub-submit-events.js` — cliente local para enviar eventos para o hub
-4. **H4** — Endpoint `GET /aggregate-stats` (dados agregados para dashboard + hub-pull)
-5. **CI1** — `.github/workflows/test.yml` (testes automáticos em PR)
-6. **CI2** — `.github/workflows/deploy-hub.yml` (auto-deploy do Worker)
-7. **P2** — bash 3.2 compat no `install.sh` (se tempo)
-8. **P3** — consolidar override detection (se tempo)
+| Task | Estado | Notas |
+|---|---|---|
+| B1 — Supabase RLS | ✅ | Já existia, validado com curl (201) |
+| B2 — GitHub OAuth | ⏳ | Requer browser manual do Paulo |
+| B3 — Testar landing form | ⏳ | Depende de B2 |
+| D1-D2 — Dashboard setup + Overview | ✅ | Scaffold já avançado |
+| D3 — Misroutes page | ✅ | Criado — low-confidence debugger |
+| D4 — Tuning + Retrain | ✅ | Já existia no Overview |
+| D5 — Community page | ✅ | Criado — hub stats vs local |
+| D6 — Sidebar navigation | ✅ | Layout refeito |
+| D7 — install.sh + skill | ✅ | /frugal-dashboard + 11 skills |
+| C1 — ROADMAP.md | ✅ | v0.6.0 completo, v0.9.7 adicionado |
+| C2 — Landing v11 | ✅ | Slash commands 6→11 |
 
-**⚡ Nota de custo:** Corre SEM `--dangerously-skip-permissions` para poupar $5-6. O frugal vai rotear H2/H3/H4 para Sonnet. Só `final-reviewer` precisa de Opus.
+**Bug crítico corrigido: Option A nunca disparava**
+- `hw-capability.json` → `recommended_t0: qwen3:30b`
+- `inject_context.js` → verificava hardcoded `qwen2.5:3b`
+- Fix: check genérico `backend === 'ollama' && tier === 'T0'` + modelo via env var
+
+**Pendentes para próxima sessão:**
+1. **[ALTA]** Testar Option A em sessão nova — confirmar `option_a_hit` no decisions.log
+2. **[MÉDIA]** GitHub OAuth App — criar manualmente no browser + ligar ao Supabase
+3. **[MÉDIA]** Dual statusline advisory vs realized
+4. **[BAIXA]** Dashboard: version.json SSOT em vez de hardcoded
+
+**⚡ Nota de custo:** Corre SEM `--dangerously-skip-permissions`. Estimativa $2-4 total.
 
 ```bash
 cd ~/frugal
-cat prompts/master-prompt-sprint3-hub-ci.md | claude
+cat prompts/master-prompt-sprint4-browser-dashboard.md | claude
 ```
 
 ---
@@ -359,18 +376,4 @@ O hook `Stop` → `gsd-turn-end.js` nunca tinha sido instalado em `settings.json
 |---|---|---|
 | Visual hook (PostToolUse) | `~/.claude/hooks/PostToolUse.js` | ✅ resolve modelo real por `tool_use_id`, com Pass 1.5 que varre `subagents/*.jsonl` (mtime < 30s) |
 | Execution log hook | `~/.claude/hooks/exec-logger.js` | ✅ escreve `~/.claude/hooks/execution.log` em cada Bash call com schema `[ISO] session model role cmd resolve_ms mode` |
-| Hook registration | `~/.claude/settings.json` | ✅ 2 hooks PostToolUse para matcher `Bash` (visual + logger), PostToolUse.js preservado intocado na lógica visual |
-| Heurística T0 | ambos | ✅ comando contém `ollama_call.sh` → override para `qwen3:30b` / role `local` |
-| Self-tuning perf | `exec-logger.js` + `exec-logger-perf.json` | ✅ rolling 20 samples, threshold 200ms, auto-flip para `decisions_log` se transcript scan ficar lento |
-
-**Smoke test final (4/4 tiers correctos):**
-```
-T3 inline                → claude-opus-4-6            / architect   (resolve 1ms)
-T2 model-reasoner        → claude-sonnet-4-6          / reasoning   (resolve 2ms)
-T1 cheap-triage          → claude-haiku-4-5-20251001  / reflex      (resolve 2ms)
-T0 local-summarizer+ollama_call.sh → qwen3:30b        / local       (resolve 2ms)
-```
-
-Mode actual: `transcript_scan`. Média 1.5–2 ms/call → 130× abaixo do threshold, não há risco de flip.
-
-**Iterações que fo
+| Hook registration | `~/.claude/settings.json` | ✅ 2 hooks PostToolUse para ma
