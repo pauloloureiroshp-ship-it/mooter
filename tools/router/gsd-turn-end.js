@@ -206,4 +206,86 @@ function emitFooter() {
 
 try { emitFooter(); } catch { /* never block the turn */ }
 
+// ── Sprint 1 feedback loop — augment .last-classified.json ──────────────
+// Reads the state file written by inject_context.js at the start of this
+// turn, augments it with turn_end_ts and response_len_bucket (derived
+// from the last assistant message in transcript_path when available),
+// and rewrites it. Silent on any error. Additive only.
+function augmentLastClassified() {
+  const LAST_CLASSIFIED_PATH = path.join(ROUTER_DIR, '.last-classified.json');
+  let state;
+  try {
+    state = JSON.parse(fs.readFileSync(LAST_CLASSIFIED_PATH, 'utf8'));
+  } catch { return; }
+  if (!state || typeof state !== 'object') return;
+  if (!sessionId || sessionId === 'unknown') return;
+  if (state.session_id !== sessionId) return;
+
+  // Derive response_len_bucket from the last assistant message in the
+  // transcript, if the Stop payload provides a transcript_path.
+  let responseLen = null;
+  try {
+    const tp = payload.transcript_path || payload.transcriptPath || null;
+    if (tp && fs.existsSync(tp)) {
+      const lines = tailLines(tp, 262144);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        let obj;
+        try { obj = JSON.parse(lines[i]); } catch { continue; }
+        const msg = obj && obj.message;
+        if (!msg || msg.role !== 'assistant') continue;
+        const content = Array.isArray(msg.content) ? msg.content : null;
+        if (!content) continue;
+        let total = 0;
+        for (const block of content) {
+          if (block && typeof block.text === 'string') total += block.text.length;
+        }
+        if (total > 0) { responseLen = total; break; }
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  let responseLenBucket = null;
+  if (responseLen != null) {
+    if (responseLen < 500) responseLenBucket = '0-500';
+    else if (responseLen < 1000) responseLenBucket = '500-1000';
+    else if (responseLen < 2000) responseLenBucket = '1000-2000';
+    else responseLenBucket = '2000+';
+  }
+
+  state.turn_end_ts = turnEndMs;
+  if (responseLenBucket) state.response_len_bucket = responseLenBucket;
+
+  try {
+    fs.writeFileSync(LAST_CLASSIFIED_PATH, JSON.stringify(state));
+  } catch { /* telemetry best-effort */ }
+}
+try { augmentLastClassified(); } catch { /* never block the turn */ }
+
+// ── PEÇA 4: Auto-sync silencioso (a cada 25 chamadas) ────────────────────
+function autoSync() {
+  const { spawn } = require('child_process');
+  const SYNC_INTERVAL = 25;
+  const COUNTER_PATH = path.join(ROUTER_DIR, '.turn-counter');
+  const AUTH_TOKEN_PATH = path.join(os.homedir(), '.frugal', 'auth.token');
+
+  let count = 0;
+  try { count = parseInt(fs.readFileSync(COUNTER_PATH, 'utf8'), 10) || 0; } catch { /* first run */ }
+  count++;
+  try { fs.writeFileSync(COUNTER_PATH, String(count)); } catch { /* best-effort */ }
+
+  if (count % SYNC_INTERVAL === 0 && fs.existsSync(AUTH_TOKEN_PATH)) {
+    const doctorPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'frugal-doctor.js');
+    if (fs.existsSync(doctorPath)) {
+      try {
+        const child = spawn('node', [doctorPath, '--sync', '--silent'], {
+          detached: true,
+          stdio: 'ignore',
+        });
+        child.unref();
+      } catch { /* non-fatal */ }
+    }
+  }
+}
+try { autoSync(); } catch { /* never block the turn */ }
+
 process.exit(0);
