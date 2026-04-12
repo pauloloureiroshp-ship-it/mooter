@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const user = await getUser(access_token);
     if (!user) return NextResponse.json({ ok: false }, { status: 401 });
 
-    const res = NextResponse.json({ ok: true });
+    const res = NextResponse.json({ ok: true, token: access_token });
     res.cookies.set('sb-access-token', access_token, {
       httpOnly: true,
       secure: true,
