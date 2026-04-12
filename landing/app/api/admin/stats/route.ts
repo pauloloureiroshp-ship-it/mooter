@@ -25,22 +25,47 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?select=*&order=created_at.desc`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
+  const [profilesRes, devicesRes] = await Promise.all([
+    fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?select=*&order=created_at.desc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        signal: AbortSignal.timeout(8000),
       },
-      signal: AbortSignal.timeout(8000),
-    },
-  );
+    ),
+    fetch(
+      `${SUPABASE_URL}/rest/v1/devices?select=*&order=last_sync_at.desc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        signal: AbortSignal.timeout(8000),
+      },
+    ),
+  ]);
 
-  if (!res.ok) {
+  if (!profilesRes.ok) {
     return NextResponse.json({ error: 'supabase_error' }, { status: 500 });
   }
 
-  const profiles = (await res.json()) as ProfileRow[];
+  const profiles = (await profilesRes.json()) as ProfileRow[];
+
+  interface DeviceRow {
+    device_id: string;
+    user_id: string;
+    device_name: string;
+    os_type: string;
+    hw_tier: string;
+    frugal_version: string;
+    decisions_count: number;
+    savings_usd: number;
+    last_sync_at: string;
+  }
+  const devices: DeviceRow[] = devicesRes.ok ? await devicesRes.json() : [];
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
@@ -77,6 +102,15 @@ export async function GET(req: NextRequest) {
 
   const avgSavingsPct = savingsUsers > 0 ? Math.round(totalSavings / savingsUsers) : 0;
 
+  // MP-12: device aggregation
+  const devicesByUser: Record<string, DeviceRow[]> = {};
+  for (const d of devices) {
+    if (!devicesByUser[d.user_id]) devicesByUser[d.user_id] = [];
+    devicesByUser[d.user_id].push(d);
+  }
+  const usersWithDevices = Object.keys(devicesByUser).length;
+  const devicesPerUser = usersWithDevices > 0 ? +(devices.length / usersWithDevices).toFixed(1) : 0;
+
   return NextResponse.json({
     totalUsers: profiles.length,
     activeUsers: activeCount,
@@ -84,12 +118,24 @@ export async function GET(req: NextRequest) {
     avgSavingsPct,
     hardwareDist,
     subDist,
+    totalDevices: devices.length,
+    devicesPerUser,
     users: profiles.map(p => ({
       email: p.email,
       hardware: p.hardware_tier,
       version: p.frugal_version,
       decisions: Number((p.frugal_config || {}).decisions_count || (p.frugal_config || {}).decision_count || 0),
       lastSync: p.updated_at,
+      devices: (devicesByUser[p.id] || []).map(d => ({
+        device_id: d.device_id,
+        device_name: d.device_name,
+        os_type: d.os_type,
+        hw_tier: d.hw_tier,
+        version: d.frugal_version,
+        decisions: d.decisions_count,
+        savings: d.savings_usd,
+        lastSync: d.last_sync_at,
+      })),
     })),
   });
 }
