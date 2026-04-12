@@ -64,6 +64,24 @@ jobs:
       - name: Run unit + integration tests
         run: node "$HOME/.claude/tools/router/backtest.test.js"
 
+      - name: Run event-builder self-test
+        run: node tools/router/event-builder.js --self-test
+
+      - name: Run gold labels validation
+        run: node tools/router/replay.js --gold-labels
+
+      - name: Check classifier latency
+        run: |
+          node -e "
+            const start = Date.now();
+            for (let i = 0; i < 100; i++) {
+              require('child_process').execFileSync(process.execPath, ['tools/router/classify.js', 'rename x to y'], { timeout: 5000 });
+            }
+            const ms = (Date.now() - start) / 100;
+            if (ms > 200) { console.error('Classifier too slow: ' + ms + 'ms'); process.exit(1); }
+            console.log('Classifier avg: ' + ms.toFixed(1) + 'ms');
+          "
+
       - name: Verify idempotency of update-router
         run: |
           node "$HOME/.claude/tools/router/update-router.js"
