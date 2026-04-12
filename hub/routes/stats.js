@@ -56,6 +56,17 @@ async function handleStats(request, env) {
       ? 1 - ((tierAvg.avg_t0 || 0) * 0 + (tierAvg.avg_t1 || 0) * 0.044 + (tierAvg.avg_t2 || 0) * 0.178 + (tierAvg.avg_t3 || 0) * 1.0)
       : null;
 
+    // MP-18: Total savings and unique users from deltas with savings_usd
+    const savingsAndUsers = await env.DB.prepare(`
+      SELECT
+        COUNT(DISTINCT profile_hash) as user_count,
+        SUM(savings_usd) as total_savings_usd,
+        SUM(prompt_count) as total_prompts_all
+      FROM deltas
+      WHERE received_at > datetime('now', '-30 days')
+        AND savings_usd IS NOT NULL
+    `).first();
+
     // Pending model signals
     const pendingModels = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM model_signals WHERE status = 'pending'
@@ -64,6 +75,11 @@ async function handleStats(request, env) {
     return new Response(JSON.stringify({
       period: 'last_7_days',
       generated_at: new Date().toISOString(),
+      // MP-18: Fields expected by the landing page
+      prompt_count: Number(savingsAndUsers?.total_prompts_all || totals?.total_prompts || 0),
+      user_count: Number(savingsAndUsers?.user_count || 1),
+      total_savings_usd: Math.round((Number(savingsAndUsers?.total_savings_usd) || 0) * 100) / 100,
+      avg_savings_pct: avgSavings !== null ? Math.round(avgSavings * 1000) / 10 : null,
       totals: {
         deltas: totals?.total_deltas || 0,
         prompts: totals?.total_prompts || 0,

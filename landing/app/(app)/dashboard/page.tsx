@@ -1526,8 +1526,73 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
   );
 }
 
+// ── MP-18: DecisionsTab — sync history from decisions_log ───────────────
+function DecisionsTab({ profile }: { profile: Profile }) {
+  const [log, setLog] = useState<Array<{ recorded_at: string; decisions: number; savings_usd: number; device_id: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/decisions-log')
+      .then(r => r.json())
+      .then(data => { setLog(data?.rows || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ color: 'var(--muted)', padding: 32 }}>Loading history...</div>;
+
+  if (log.length === 0) {
+    return (
+      <div style={{ color: 'var(--muted)', padding: 32, textAlign: 'center' }}>
+        <p>No sync history yet.</p>
+        <p style={{ fontSize: '0.8rem', marginTop: 8 }}>
+          History populates automatically after the next Claude Code session.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ fontSize: '0.875rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Sync history &mdash; {log.length} entries
+        </h3>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {log.slice(0, 50).map((row, i) => {
+          const dt = new Date(row.recorded_at);
+          const dateStr = dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+          const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          const prev = log[i + 1];
+          const delta = prev ? row.decisions - prev.decisions : null;
+          return (
+            <div key={i} style={{
+              display: 'grid',
+              gridTemplateColumns: '100px 1fr 80px 80px',
+              gap: 12,
+              padding: '8px 12px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              fontSize: '0.78rem',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--muted)' }}>{dateStr} {timeStr}</span>
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>{row.decisions.toLocaleString()} decisions</span>
+              <span style={{ color: '#4ec9b0' }}>${Number(row.savings_usd).toFixed(2)}</span>
+              {delta !== null && delta > 0 ? (
+                <span style={{ color: 'var(--muted)', fontSize: '0.72rem' }}>+{delta} new</span>
+              ) : <span />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────────────────
-type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks';
+type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks' | 'decisions';
 
 const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -1535,6 +1600,7 @@ const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'setup', label: 'Setup Guide' },
   { key: 'metrics', label: 'Metrics' },
   { key: 'howitworks', label: 'How it works' },
+  { key: 'decisions', label: 'Decisions' },
 ];
 
 export default function DashboardPage() {
@@ -1590,6 +1656,7 @@ export default function DashboardPage() {
       {tab === 'setup' && <SetupGuideTab profile={profile} />}
       {tab === 'metrics' && <MetricsTab profile={profile} />}
       {tab === 'howitworks' && <HowItWorksTab profile={profile} />}
+      {tab === 'decisions' && <DecisionsTab profile={profile} />}
     </div>
   );
 }

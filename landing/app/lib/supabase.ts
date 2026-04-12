@@ -285,6 +285,62 @@ export async function getDevices(
   }
 }
 
+/**
+ * MP-18: Insert a snapshot into decisions_log for historical tracking.
+ * Rate-limited: skips insert if last row for same device is < 5 min old.
+ */
+export async function insertDecisionsSnapshot(
+  accessToken: string,
+  userId: string,
+  deviceId: string | null,
+  data: { decisions: number; savings_usd: number },
+): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    // Check last entry for this device — skip if < 5 min ago
+    const filter = deviceId
+      ? `user_id=eq.${userId}&device_id=eq.${deviceId}`
+      : `user_id=eq.${userId}&device_id=is.null`;
+    const checkRes = await fetch(
+      `${URL}/rest/v1/decisions_log?${filter}&order=recorded_at.desc&limit=1`,
+      {
+        headers: {
+          apikey: KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        signal: AbortSignal.timeout(3000),
+      },
+    );
+    if (checkRes.ok) {
+      const rows = await checkRes.json();
+      if (rows?.[0]?.recorded_at) {
+        const lastTs = new Date(rows[0].recorded_at).getTime();
+        if (Date.now() - lastTs < 5 * 60 * 1000) return false; // 5 min cooldown
+      }
+    }
+
+    const res = await fetch(`${URL}/rest/v1/decisions_log`, {
+      method: 'POST',
+      headers: {
+        apikey: KEY,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        device_id: deviceId,
+        decisions: data.decisions,
+        savings_usd: data.savings_usd,
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /* ─── GitHub OAuth helpers ─── */
 
 /**

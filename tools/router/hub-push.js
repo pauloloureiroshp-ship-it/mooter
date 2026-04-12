@@ -82,8 +82,15 @@ function enrichDelta(delta) {
     }
   } catch { /* tracker offline — push without savings, hub will count distribution only */ }
 
+  // MP-18: Anonymous profile hash (SHA256 of device_id — never sends device_id directly)
+  try {
+    const { createHash } = require('crypto');
+    const deviceId = fs.readFileSync(path.join(os.homedir(), '.frugal', 'device.id'), 'utf8').trim();
+    delta.profile_hash = createHash('sha256').update(deviceId).digest('hex').slice(0, 16);
+  } catch { /* non-fatal */ }
+
   // Ensure required fields
-  delta.delta_version = '3'; // bumped: now includes savings_usd
+  delta.delta_version = '4'; // bumped: now includes profile_hash
   if (!delta.prompt_count) delta.prompt_count = 1;
   if (!delta.tier_distribution) {
     delta.tier_distribution = { t0: 0, t1: 0, t2: 0, t3: 1 };

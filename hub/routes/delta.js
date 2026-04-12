@@ -61,19 +61,23 @@ async function handleDelta(request, env) {
     feedback_signals: body.feedback_signals ? JSON.stringify(body.feedback_signals) : null,
     delta_version: body.delta_version || '1',
     trust_score: trustScore,
+    savings_usd: typeof body.savings_usd === 'number' ? body.savings_usd : null,
+    profile_hash: body.profile_hash || null,
   };
 
   try {
     await env.DB.prepare(`
       INSERT INTO deltas (id, received_at, expires_at, hw_tier, sub_profile, lang,
         session_count, prompt_count, tier_distribution, keyword_signals,
-        unknown_models, feedback_signals, delta_version, trust_score)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        unknown_models, feedback_signals, delta_version, trust_score,
+        savings_usd, profile_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       delta.id, delta.received_at, delta.expires_at, delta.hw_tier,
       delta.sub_profile, delta.lang, delta.session_count, delta.prompt_count,
       delta.tier_distribution, delta.keyword_signals, delta.unknown_models,
-      delta.feedback_signals, delta.delta_version, delta.trust_score
+      delta.feedback_signals, delta.delta_version, delta.trust_score,
+      delta.savings_usd, delta.profile_hash
     ).run();
 
     // Process unknown models (fire-and-forget — don't fail the request)

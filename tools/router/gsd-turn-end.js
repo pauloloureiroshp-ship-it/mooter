@@ -185,13 +185,46 @@ function emitFooter() {
   }
   const saved = Math.max(0, baselineCost - realCost);
 
+  // MP-18: Compute total accumulated stats from all execution.log entries
+  let totalDecisions = 0;
+  let totalRealCost = 0;
+  let totalBaselineCost = 0;
+  if (pricing) {
+    try {
+      const allExec = tailLines(EXEC_LOG_PATH, 2097152); // 2MB — covers full history
+      const allModelCounts = {};
+      for (const line of allExec) {
+        const modelMatch = line.match(/model=(\S+)/);
+        const model = modelMatch ? modelMatch[1] : null;
+        if (model) {
+          allModelCounts[model] = (allModelCounts[model] || 0) + 1;
+          totalDecisions++;
+        }
+      }
+      for (const [model, n] of Object.entries(allModelCounts)) {
+        const m = String(model).toLowerCase();
+        let tier = 'T2';
+        if (m.includes('opus')) tier = 'T3';
+        else if (m.includes('sonnet')) tier = 'T2';
+        else if (m.includes('haiku')) tier = 'T1';
+        else if (m.includes('qwen') || m.includes('ollama') || m.includes('local')) tier = 'T0';
+        totalRealCost += pricing.estimateTurnCost(tier, CHAR_UNIT) * n;
+        totalBaselineCost += pricing.naiveOpusCost(CHAR_UNIT) * n;
+      }
+    } catch { /* non-fatal */ }
+  }
+  const totalSaved = Math.max(0, totalBaselineCost - totalRealCost);
+  const totalSavedPct = totalBaselineCost > 0 ? Math.round((totalSaved / totalBaselineCost) * 100) : 0;
+  const sessionSavedPct = baselineCost > 0 ? Math.round((saved / baselineCost) * 100) : 0;
+
   // "actual ~" marks this as a tier-based estimate (~400 chars per Bash call)
   // since execution.log doesn't store per-call token counts. Still far more
   // accurate than the old advisory-only source: the model mix is ground truth.
   const parts = [...segments];
   if (realCost > 0) parts.push(`actual ~${fmtUsd(realCost)}`);
-  if (saved >= 0.001) parts.push(`saved ${fmtUsd(saved)} vs all-Opus`);
-  else if (realCost > 0 && saved === 0) parts.push('no savings (all-Opus turn)');
+  // MP-18: session + total format instead of just session savings
+  parts.push(`session: ${sessionSavedPct}%`);
+  if (totalDecisions > 0) parts.push(`total: ${totalSavedPct}% · ${totalDecisions} decisions`);
 
   const footer = `frugal turn end → ${parts.join(' · ')}`;
 
@@ -287,5 +320,18 @@ function autoSync() {
   }
 }
 try { autoSync(); } catch { /* never block the turn */ }
+
+// ── MP-18: Auto-sync silencioso via auto-sync.js (fire-and-forget) ──────
+try {
+  const autoSyncPath = path.join(ROUTER_DIR, 'auto-sync.js');
+  if (fs.existsSync(autoSyncPath)) {
+    const { spawn } = require('child_process');
+    const child = spawn(process.execPath, [autoSyncPath], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+  }
+} catch { /* never block the turn */ }
 
 process.exit(0);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUser, getProfile, upsertProfile, upsertDevice, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
+import { getUser, getProfile, upsertProfile, upsertDevice, insertDecisionsSnapshot, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 
 interface InstallPayload {
   device_id?: string;
@@ -104,6 +104,18 @@ export async function POST(request: NextRequest) {
         savings_usd: payload.savings_usd,
         last_sync_at: new Date().toISOString(),
       });
+    }
+
+    // MP-18 PEÇA 2: insert snapshot into decisions_log for historical tracking
+    if (payload.decisions_count > 0) {
+      try {
+        await insertDecisionsSnapshot(accessToken, user.id, payload.device_id || null, {
+          decisions: payload.decisions_count,
+          savings_usd: payload.savings_usd,
+        });
+      } catch {
+        // Non-fatal: profile/device sync already succeeded
+      }
     }
 
     return NextResponse.json({ ok: true, userId: user.id, deviceId: payload.device_id || null });
