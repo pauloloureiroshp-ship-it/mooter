@@ -321,13 +321,17 @@ if [ ! -f "$SUB_PROFILE_PATH" ] || [ "$FORCE" = "1" ]; then
   printf "  Do you have Gemini API access? [y/N]: "
   read -r HAS_GEMINI < /dev/tty 2>/dev/null || HAS_GEMINI="n"
 
-  # Map answers to profile values
-  case "${HAS_MAX,,}" in y|yes|s|sim) ANTHROPIC_PLAN="max" ;;
-    *) case "${HAS_API,,}" in y|yes|s|sim) ANTHROPIC_PLAN="api-paid" ;;
+  # Map answers to profile values (bash 3.2 compat — no ${var,,})
+  HAS_MAX_LC=$(echo "$HAS_MAX" | tr '[:upper:]' '[:lower:]')
+  HAS_API_LC=$(echo "$HAS_API" | tr '[:upper:]' '[:lower:]')
+  HAS_OPENAI_LC=$(echo "$HAS_OPENAI" | tr '[:upper:]' '[:lower:]')
+  HAS_GEMINI_LC=$(echo "$HAS_GEMINI" | tr '[:upper:]' '[:lower:]')
+  case "$HAS_MAX_LC" in y|yes|s|sim) ANTHROPIC_PLAN="max" ;;
+    *) case "$HAS_API_LC" in y|yes|s|sim) ANTHROPIC_PLAN="api-paid" ;;
        *) ANTHROPIC_PLAN="none" ;; esac ;;
   esac
-  case "${HAS_OPENAI,,}" in y|yes|s|sim) OPENAI_PLAN="api-paid" ;; *) OPENAI_PLAN="none" ;; esac
-  case "${HAS_GEMINI,,}" in y|yes|s|sim) GEMINI_PLAN="api-paid" ;; *) GEMINI_PLAN="none" ;; esac
+  case "$HAS_OPENAI_LC" in y|yes|s|sim) OPENAI_PLAN="api-paid" ;; *) OPENAI_PLAN="none" ;; esac
+  case "$HAS_GEMINI_LC" in y|yes|s|sim) GEMINI_PLAN="api-paid" ;; *) GEMINI_PLAN="none" ;; esac
 
   do_run "node -e \"
     const fs=require('fs');
