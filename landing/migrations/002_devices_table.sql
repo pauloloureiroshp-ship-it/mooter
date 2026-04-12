@@ -42,3 +42,10 @@ CREATE POLICY "Users can update own devices"
 CREATE POLICY "Users can delete own devices"
   ON devices FOR DELETE
   USING (auth.uid() = user_id);
+
+-- Admin can view all devices (for /api/admin/stats)
+CREATE POLICY "Admin can view all devices"
+  ON devices FOR SELECT
+  USING (
+    auth.jwt() ->> 'email' = 'paulo.loureiro.shp@gmail.com'
+  );
