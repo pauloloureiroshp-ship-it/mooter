@@ -382,6 +382,11 @@ function SetupStepperCard({ profile }: { profile: Profile }) {
           </div>
         ))}
       </div>
+      {completed < steps.length && (
+        <a href="/setup" style={{ display: 'block', marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--t0, #4ec9b0)' }}>
+          {'\u2192'} Setup guide
+        </a>
+      )}
     </div>
   );
 }

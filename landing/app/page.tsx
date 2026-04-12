@@ -248,6 +248,9 @@ function Nav() {
           <a href="#access" onClick={scrollTo('access')} className="btn btn-primary btn-sm">
             Install now
           </a>
+          <a href="/setup" className="btn btn-sm" style={{ border: '1px solid rgba(255,255,255,0.3)', color: 'inherit', textDecoration: 'none' }}>
+            Quick Setup Guide
+          </a>
         </div>
       </div>
     </nav>
