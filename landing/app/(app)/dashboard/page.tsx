@@ -1246,14 +1246,295 @@ function MetricsTab({ profile }: { profile: Profile }) {
   );
 }
 
+// ── MP-17: SVG Icons for flowchart ──────────────────────────────────────
+function PromptIcon() {
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <rect x="1" y="4" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M5 8h8M5 11h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>;
+}
+
+function ChipIcon() {
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <rect x="4" y="4" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M7 1v3M11 1v3M7 14v3M11 14v3M1 7h3M1 11h3M14 7h3M14 11h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <rect x="6.5" y="6.5" width="5" height="5" rx="0.5" fill="currentColor" opacity="0.3"/>
+  </svg>;
+}
+
+function LightningIcon() {
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
+    <path d="M10.5 1L3 10.5h6L7.5 17 15 7.5H9L10.5 1z"/>
+  </svg>;
+}
+
+function ScanIcon() {
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M12 12l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M6 8h4M8 6v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>;
+}
+
+function DiamondIcon() {
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M9 1L17 9L9 17L1 9L9 1Z" stroke="currentColor" strokeWidth="1.5"/>
+  </svg>;
+}
+
+// ── MP-17: AnimatedCounter ──────────────────────────────────────────────
+function AnimatedCounter({ value, prefix = '', suffix = '', duration = 1500 }: {
+  value: number; prefix?: string; suffix?: string; duration?: number;
+}) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const start = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(value * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [value, duration]);
+  return <span>{prefix}{display.toFixed(2)}{suffix}</span>;
+}
+
+// ── MP-17: FlowNode ────────────────────────────────────────────────────
+function FlowNode({ index, icon, label, badge, tooltip, highlight, children }: {
+  index: number;
+  icon: React.ReactNode;
+  label: string;
+  badge?: string;
+  tooltip: string;
+  highlight?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flow-node"
+      style={{
+        animationDelay: `${index * 0.1}s`,
+        border: highlight ? '2px solid var(--accent, #4ec9b0)' : '1px solid var(--border)',
+        background: highlight ? 'rgba(78,201,176,0.08)' : 'var(--surface-2, #1a1a1a)',
+        borderRadius: 12,
+        padding: '16px 20px',
+        position: 'relative',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: children ? 10 : 0 }}>
+        <span style={{ color: highlight ? 'var(--accent)' : 'var(--muted)', display: 'flex' }}>{icon}</span>
+        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{label}</span>
+        {badge && (
+          <span style={{
+            fontSize: '0.7rem',
+            padding: '2px 8px',
+            borderRadius: 20,
+            background: highlight ? 'rgba(78,201,176,0.15)' : 'rgba(255,255,255,0.06)',
+            color: highlight ? 'var(--accent)' : 'var(--muted)',
+            fontFamily: 'var(--mono)',
+          }}>{badge}</span>
+        )}
+      </div>
+      {children}
+      <div className="flow-tooltip">{tooltip}</div>
+    </div>
+  );
+}
+
+// ── MP-17: FlowArrow ───────────────────────────────────────────────────
+function FlowArrow() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+      <svg width="2" height="28" viewBox="0 0 2 28" style={{ overflow: 'visible' }}>
+        <line x1="1" y1="0" x2="1" y2="28" className="flow-arrow" stroke="var(--border-light, #2e2e2e)" strokeWidth="2"/>
+      </svg>
+    </div>
+  );
+}
+
+// ── MP-17: ModelCard ───────────────────────────────────────────────────
+function ModelCard({ label, badge, color, cost, tooltip }: {
+  label: string; badge: string; color: string; cost: string; tooltip: string;
+}) {
+  return (
+    <div className="flow-node" style={{
+      animationDelay: '0.5s',
+      border: `1px solid ${color}33`,
+      background: `${color}0a`,
+      borderRadius: 10,
+      padding: '12px 14px',
+      position: 'relative',
+      flex: 1,
+      minWidth: 130,
+    }}>
+      <div style={{ fontWeight: 600, fontSize: '0.85rem', color, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 6 }}>{badge}</div>
+      <div style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'var(--mono)' }}>{cost}</div>
+      <div className="flow-tooltip">{tooltip}</div>
+    </div>
+  );
+}
+
+// ── MP-17: HowItWorksTab ───────────────────────────────────────────────
+function HowItWorksTab({ profile }: { profile: Profile }) {
+  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
+  const config = (profile.frugal_config || {}) as Record<string, unknown>;
+  const pctByTier = (config.pct_by_tier || {}) as Record<string, number>;
+  const t0Pct = pctByTier.t0 ?? 59;
+  const t1Pct = pctByTier.t1 ?? 12;
+  const t2Pct = pctByTier.t2 ?? 0;
+  const t3Pct = pctByTier.t3 ?? 29;
+  const routedAwayPct = Math.round(t0Pct + t1Pct + t2Pct);
+
+  const latestDevice = (profile.devices || [])[0];
+  const gpuName = latestDevice?.gpu_name || 'GPU';
+  const osType = latestDevice?.os_type || profile.os_type || 'unknown';
+  const frugalVersion = latestDevice?.frugal_version || profile.frugal_version || '0.9';
+
+  const naiveCost = decisionsCount * 0.045;
+
+  const tiers: { key: string; pct: number; color: string }[] = [
+    { key: 'T0', pct: t0Pct, color: 'var(--t0, #4ec9b0)' },
+    { key: 'T1', pct: t1Pct, color: 'var(--t1, #569cd6)' },
+    { key: 'T2', pct: t2Pct, color: 'var(--t2, #dcdcaa)' },
+    { key: 'T3', pct: t3Pct, color: 'var(--t3, #f47373)' },
+  ];
+
+  const featurePills = [
+    'has_code_block', 'has_file_refs', 'has_error_trace',
+    'lang_detected', 'quality_intent', 'complexity_score', 'risk_level',
+  ];
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: 6 }}>How frugal works</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.875rem', lineHeight: 1.6 }}>
+          Every prompt you write is classified in under 50ms &mdash; before any model sees it.
+          frugal reads 40+ signals, extracts 7 features, and routes to the cheapest model
+          that can do the job. No guessing. No waste.
+        </p>
+      </div>
+
+      {/* Flow */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+        {/* Node 1 — Your prompt */}
+        <FlowNode index={0} icon={<PromptIcon />} label="Your prompt" tooltip="Every message you send in Claude Code passes through frugal before reaching any model. Nothing is sent to any LLM until frugal decides which one.">
+          <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>The question you typed</div>
+        </FlowNode>
+        <FlowArrow />
+
+        {/* Node 2 — Pre-processing */}
+        <FlowNode index={1} icon={<ChipIcon />} label="Pre-processing" badge="LOCAL · ~1ms" tooltip="frugal normalizes your prompt locally — strips noise, detects language (PT/EN), identifies code blocks, file references, error traces, and URLs. Zero data leaves your machine at this step.">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {['language detection', 'code block?', 'file refs', 'error trace?'].map(f => (
+              <span key={f} style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{f}</span>
+            ))}
+          </div>
+        </FlowNode>
+        <FlowArrow />
+
+        {/* Node 3 — classify.js (CORE — highlighted) */}
+        <FlowNode index={2} icon={<LightningIcon />} label="classify.js" badge="< 50ms · zero LLM" highlight tooltip="The router. Pure regex heuristics, no AI involved. Reads 40+ patterns across HIGH_RISK, MED_RISK, LOW_RISK, and TRIVIAL signal buckets. Trained on 230 real decisions from your own usage. Complexity threshold: 0.25.">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {['230 samples trained', '40+ patterns', 'SHA-256 cache (30min TTL)'].map(f => (
+              <span key={f} style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 20, background: 'rgba(78,201,176,0.12)', color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{f}</span>
+            ))}
+          </div>
+        </FlowNode>
+        <FlowArrow />
+
+        {/* Node 4 — Signal extraction */}
+        <FlowNode index={3} icon={<ScanIcon />} label="Signal extraction" badge="7 features" tooltip="Before routing, frugal extracts boolean/numeric features from the prompt: has_code_block, has_file_refs, has_error_trace, is_question, has_url, lang_detected, file_ref_count. These feed the complexity score and future auto-learning.">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {featurePills.map((f, i) => (
+              <span key={f} className="flow-pill" style={{ animationDelay: `${0.3 + i * 0.07}s`, fontSize: '0.7rem', padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{f}</span>
+            ))}
+          </div>
+        </FlowNode>
+        <FlowArrow />
+
+        {/* Node 5 — Tier decision (diamond) */}
+        <FlowNode index={4} icon={<DiamondIcon />} label="Tier decision" tooltip="Based on signal weights, frugal assigns a tier. HIGH_RISK signals (prod, deploy, migrations, secrets) always force T3. TRIVIAL signals (rename, color change, single file) go T0. The complexity threshold (0.25) was tuned from your real history.">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+            {tiers.map(t => (
+              <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--mono)', width: 24, color: t.color, fontWeight: 600 }}>{t.key}</span>
+                <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                  <div className="tier-bar" style={{ '--target-width': `${t.pct}%`, height: '100%', borderRadius: 4, background: t.color } as React.CSSProperties} />
+                </div>
+                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--mono)', width: 36, textAlign: 'right', color: t.color }}>{t.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </FlowNode>
+        <FlowArrow />
+
+        {/* Node 6 — Model cards */}
+        <div className="flow-node" style={{ animationDelay: '0.5s', padding: 0, border: 'none', background: 'transparent' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <ModelCard label="Ollama" badge="FREE · LOCAL" color="#4ec9b0" cost="$0.00" tooltip={`Runs entirely on your ${gpuName}. No API calls. No data sent anywhere. frugal warms the model in RAM before you need it so there's no cold-start penalty.`} />
+            <ModelCard label="Claude Haiku" badge="API · FAST" color="#569cd6" cost="~$0.001" tooltip="Anthropic's fastest Claude. Used for light code tasks, commit messages, explanations, regex. 40× cheaper than Opus." />
+            <ModelCard label="Claude Sonnet" badge="API · BALANCED" color="#dcdcaa" cost="~$0.01" tooltip="Used for debugging, root cause analysis, comparing approaches. 5× cheaper than Opus with 90% of the capability for most tasks." />
+            <ModelCard label="Claude Opus" badge="API · MAXIMUM" color="#f47373" cost="~$0.15" tooltip={`Reserved for architecture decisions, multi-file refactors, production-critical tasks. frugal only sends here when it has to — your ${t3Pct}% T3 rate means ${routedAwayPct}% of prompts were handled cheaper.`} />
+          </div>
+        </div>
+      </div>
+
+      {/* Savings block */}
+      {decisionsCount > 0 && (
+        <div style={{
+          marginTop: 32,
+          padding: '20px 24px',
+          borderRadius: 12,
+          background: 'linear-gradient(135deg, rgba(78,201,176,0.08) 0%, rgba(78,201,176,0.02) 100%)',
+          border: '1px solid rgba(78,201,176,0.25)',
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--t0, #4ec9b0)', fontFamily: 'var(--mono)' }}>
+                <AnimatedCounter value={savingsUsd} prefix="$" />
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>saved</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                <AnimatedCounter value={decisionsCount} prefix="" suffix="" />
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>decisions</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                <AnimatedCounter value={routedAwayPct} suffix="%" />
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>routed away</div>
+            </div>
+          </div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.7 }}>
+            If every prompt went to Opus: ~${naiveCost.toFixed(2)}<br />
+            frugal actually spent: ~${Math.max(0, naiveCost - savingsUsd).toFixed(2)}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--faint)', textAlign: 'center', marginTop: 10, fontFamily: 'var(--mono)' }}>
+            {gpuName} · {osType} · frugal v{frugalVersion}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────────────────
-type DashTab = 'overview' | 'devices' | 'setup' | 'metrics';
+type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks';
 
 const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'devices', label: 'Devices' },
   { key: 'setup', label: 'Setup Guide' },
   { key: 'metrics', label: 'Metrics' },
+  { key: 'howitworks', label: 'How it works' },
 ];
 
 export default function DashboardPage() {
@@ -1308,6 +1589,7 @@ export default function DashboardPage() {
       {tab === 'devices' && <DevicesTab profile={profile} />}
       {tab === 'setup' && <SetupGuideTab profile={profile} />}
       {tab === 'metrics' && <MetricsTab profile={profile} />}
+      {tab === 'howitworks' && <HowItWorksTab profile={profile} />}
     </div>
   );
 }

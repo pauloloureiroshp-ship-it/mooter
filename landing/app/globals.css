@@ -3403,3 +3403,72 @@ main       { display: flex; flex-direction: column; }
     padding: 20px;
   }
 }
+
+/* ── MP-17: How it works flowchart animations ───────────────── */
+
+@keyframes flow-pulse {
+  0%   { stroke-dashoffset: 20; opacity: 0.3; }
+  50%  { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
+}
+
+.flow-arrow {
+  stroke-dasharray: 4 4;
+  animation: flow-pulse 1.5s linear infinite;
+}
+
+@keyframes node-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.flow-node {
+  animation: node-enter 0.4s ease-out both;
+  position: relative;
+}
+
+@keyframes pill-enter {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.flow-pill {
+  animation: pill-enter 0.3s ease-out both;
+}
+
+@keyframes bar-grow {
+  from { width: 0%; }
+  to   { width: var(--target-width); }
+}
+
+.tier-bar {
+  animation: bar-grow 1s cubic-bezier(0.4, 0, 0.2, 1) 0.5s both;
+}
+
+.flow-tooltip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  background: var(--surface, #111);
+  border: 1px solid var(--border-light, #2e2e2e);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted, #666);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+
+.flow-node:hover > .flow-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .flow-node { padding: 12px 14px !important; }
+}
