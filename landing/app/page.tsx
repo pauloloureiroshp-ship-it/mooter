@@ -1619,4 +1619,320 @@ function ComparisonSection() {
             {
               icon: '🌐',
               title: 'The only community flywheel',
-              body: 'E
+              body: 'Every user\'s misroutes improve the classifier for everyone — without any prompt ever leaving the machine. Competitors have no such network effect.',
+              accent: 'var(--t3)',
+            },
+            {
+              icon: '💻',
+              title: 'Hardware-aware out of the box',
+              body: 'Detects your GPU at install. RTX 4090, M3 Pro, AMD, CPU — frugal picks the best local model for your hardware. Nobody else does this.',
+              accent: 'var(--accent)',
+            },
+            {
+              icon: '📡',
+              title: 'The only Claude Code-native router',
+              body: 'Built for Claude Code specifically. Uses the UserPromptSubmit hook — not a wrapper, not a proxy. Invisible, zero-overhead, uninstallable in one command.',
+              accent: 'var(--green)',
+            },
+          ].map((v, i) => (
+            <Reveal key={i} className="value-card" style={{ '--i': i, '--v-accent': v.accent } as React.CSSProperties}>
+              <div className="value-icon">{v.icon}</div>
+              <h4 className="value-title">{v.title}</h4>
+              <p className="value-body">{v.body}</p>
+              <div className="value-bar" style={{ background: v.accent }} />
+            </Reveal>
+          ))}
+        </div>
+
+        {/* Vibe coding callout */}
+        <Reveal>
+          <div className="vibe-callout">
+            <div className="vibe-head">&#x1F3A8; Built for vibe coding. Optimised for it.</div>
+            <p className="vibe-body">
+              When you&apos;re in flow — typing fast, exploring, iterating — you don&apos;t want to think
+              about which model to use. frugal disappears into the background. Trivial prompts
+              vanish into Ollama. Complex ones get Opus without you asking.
+              The result: you code faster, spend less, and never hit a wall.
+            </p>
+            <div className="vibe-stats">
+              <div className="vibe-stat"><strong>83.9%</strong><span>of prompts cost nothing</span></div>
+              <div className="vibe-stat"><strong>&lt;50ms</strong><span>routing overhead</span></div>
+              <div className="vibe-stat"><strong>0</strong><span>project changes needed</span></div>
+              <div className="vibe-stat"><strong>∞</strong><span>models supported (Ollama + API)</span></div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * S10 — PRICING + ACCESS
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+const HW_OPTIONS = [
+  'Mac M-series',
+  'Windows + NVIDIA',
+  'Windows + AMD',
+  'Linux + NVIDIA',
+  'Linux + AMD',
+  'Cloud',
+  'Other',
+];
+
+const AI_SUBS = ['Claude Max', 'Claude API', 'GPT Plus', 'GPT API', 'Gemini', 'None'];
+
+function PricingAccess() {
+  const [email, setEmail] = useState('');
+  const [hw, setHw] = useState('');
+  const [subs, setSubs] = useState<string[]>([]);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const toggleSub = (s: string) => {
+    setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (status === 'loading') return;
+    setStatus('loading');
+    setErrorMsg('');
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          url: [hw, subs.join(', ')].filter(Boolean).join(' | ') || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setStatus('error');
+        setErrorMsg(
+          data?.error === 'invalid_email'
+            ? "That email doesn't look right."
+            : 'Something went wrong. Try again?',
+        );
+        return;
+      }
+      setStatus('done');
+    } catch {
+      setStatus('error');
+      setErrorMsg('Network error. Try again?');
+    }
+  };
+
+  if (status === 'done') {
+    return (
+      <section id="access" className="section">
+        <div className="container narrow" style={{ textAlign: 'center', padding: '6rem 0' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>&#x2709;&#xFE0F;</div>
+          <h2 className="section-h2">Check your email.</h2>
+          <p className="section-sub" style={{ margin: '1rem auto 2rem', textAlign: 'center' }}>
+            We sent a magic link to <strong>{email}</strong>.
+            Click it to create your profile and set up frugal for your machine.
+          </p>
+          <p className="section-sub" style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+            Can&apos;t wait? Install the open beta now:
+          </p>
+          <InstallBlock />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section id="pricing" className="section">
+      <div className="container">
+        <Reveal><h2 className="section-h2">Free. No catch.</h2></Reveal>
+        <Reveal>
+          <p className="section-sub">
+            frugal is free to install and use. The only cost is whatever models you already pay for.
+            We make money only when you save money — success fee model, coming in v1.0.
+          </p>
+        </Reveal>
+
+        <div className="pricing-cards stagger">
+          <Reveal className="pricing-card" style={{ '--i': 0 } as React.CSSProperties}>
+            <div className="pricing-tier">Community</div>
+            <div className="pricing-price">Free</div>
+            <div className="pricing-desc">Forever. No credit card. No limits.</div>
+            <ul className="pricing-features">
+              <li>Full local routing engine</li>
+              <li>classify.js + all 102 patterns</li>
+              <li>11 slash-command skills</li>
+              <li>decisions.log telemetry</li>
+              <li>Community hub access</li>
+            </ul>
+          </Reveal>
+          <Reveal className="pricing-card pricing-card-pro" style={{ '--i': 1 } as React.CSSProperties}>
+            <div className="pricing-tier-badge">Coming v1.0</div>
+            <div className="pricing-tier">Pro</div>
+            <div className="pricing-price">20% of savings</div>
+            <div className="pricing-desc">You save $1,000 → we earn $200. Aligned incentives.</div>
+            <ul className="pricing-features">
+              <li>Everything in Community</li>
+              <li>Real-time savings dashboard</li>
+              <li>Hub pull — community config</li>
+              <li>Priority pattern updates</li>
+              <li>Cost alert webhooks</li>
+            </ul>
+          </Reveal>
+          <Reveal className="pricing-card" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="pricing-tier">Enterprise</div>
+            <div className="pricing-price">Custom</div>
+            <div className="pricing-desc">Private hub, SSO, SLA, dedicated corpus.</div>
+            <ul className="pricing-features">
+              <li>Everything in Pro</li>
+              <li>Private hub instance</li>
+              <li>SSO + full audit logs</li>
+              <li>SLA guarantee</li>
+              <li>Dedicated pattern corpus</li>
+            </ul>
+          </Reveal>
+        </div>
+
+        <Reveal>
+          <div id="access" className="access-form-wrap">
+            <h3 className="access-h3">Get early access</h3>
+            <p className="access-sub">Tell us your setup — we&apos;ll prioritise your hardware profile.</p>
+
+            <form className="access-form" onSubmit={onSubmit}>
+              <div className="form-field">
+                <label className="form-label">Email</label>
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">Hardware</label>
+                <select className="form-input" value={hw} onChange={e => setHw(e.target.value)}>
+                  <option value="">Select your setup</option>
+                  {HW_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">AI subscriptions</label>
+                <div className="form-chips">
+                  {AI_SUBS.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`form-chip ${subs.includes(s) ? 'form-chip-on' : ''}`}
+                      onClick={() => toggleSub(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {errorMsg && <div className="form-error">{errorMsg}</div>}
+
+              <button className="btn btn-primary btn-lg" type="submit" disabled={status === 'loading'}>
+                {status === 'loading' ? 'Sending...' : 'Get early access'}
+              </button>
+            </form>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * FOOTER
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="container footer-inner">
+        <div className="footer-brand">
+          <img src="/frugal-logo.svg" alt="frugal" width={24} height={24} />
+          <span className="nav-brand-name">frugal</span>
+        </div>
+        <div className="footer-links">
+          <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener">GitHub</a>
+          <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
+          <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
+        </div>
+        <div className="footer-copy">
+          Built in S&atilde;o Paulo &#x1F415; &middot; MIT License &middot; 2026
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * ACCESS CTA
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+function AccessSection() {
+  return (
+    <section id="access" className="section" style={{ background: 'var(--bg-card, #0f0f0f)' }}>
+      <div className="container narrow" style={{ textAlign: 'center', padding: '80px 0' }}>
+        <Reveal>
+          <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '1rem' }}>
+            Start saving today
+          </h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '1.1rem', maxWidth: '480px', margin: '0 auto 2rem' }}>
+            Free during friends beta. Install in 30 seconds.
+          </p>
+        </Reveal>
+        <Reveal>
+          <button
+            onClick={loginWithGitHub}
+            className="btn btn-primary"
+            style={{ padding: '0.875rem 2.5rem', fontSize: '1.05rem', display: 'inline-flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            Sign in with GitHub
+          </button>
+        </Reveal>
+        <Reveal>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1.25rem' }}>
+            No credit card. No waitlist. We only read public GitHub metadata.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * APP ROOT
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export default function Page() {
+  return (
+    <ErrorBoundary>
+      <Nav />
+      <main>
+        <Hero />
+        <TheSolution />
+        <DemoSection />
+        <FlywheelSection />
+        <ProofSection />
+        <InstallJourneySection />
+        <ComparisonSection />
+        <PricingAccess />
+        <AccessSection />
+      </main>
+      <Footer />
+    </ErrorBoundary>
+  );
+}
