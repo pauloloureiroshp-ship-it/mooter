@@ -121,6 +121,9 @@ E estes **forçam paragem para perguntar** (não decides sozinho):
 - Mudança em config partilhada (CI, hooks, settings.json do projeto)
 - Spawn de >5 subagents num turno (custa muito, pergunta primeiro)
 
+**Definição de "estado de sessão" (para a excepção de inline):**
+Ficheiros no disco **não são estado de sessão**. "Já li este ficheiro antes nesta conversa" NÃO é razão válida para inlinear em Opus se o tier recomendado for T0/T1/T2 — um subagent consegue ler o mesmo ficheiro. Estado de sessão válido = variáveis em memória, decisões tomadas em turns anteriores, outputs intermédios de tool calls que não estão persistidos em ficheiro.
+
 ---
 
 ## DISCIPLINA DE TOKENS — hábitos a aplicar sempre
