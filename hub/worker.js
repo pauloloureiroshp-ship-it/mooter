@@ -18,6 +18,7 @@ import { handleDelta } from './routes/delta';
 import { handleStats } from './routes/stats';
 import { handleModels } from './routes/models';
 import { handleVersion } from './routes/version';
+import { handleSubmitEvents, handleAggregateStats } from './routes/events';
 import { runAggregate } from './jobs/aggregate';
 import { runGenerate } from './jobs/generate';
 import { runNotify } from './jobs/notify';
@@ -31,7 +32,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
 
     if (request.method === 'OPTIONS') {
@@ -52,6 +53,12 @@ export default {
           break;
         case '/api/version':
           response = await handleVersion(request, env);
+          break;
+        case '/submit-events':
+          response = await handleSubmitEvents(request, env);
+          break;
+        case '/aggregate-stats':
+          response = await handleAggregateStats(request, env);
           break;
         case '/health':
           response = new Response(JSON.stringify({ ok: true, ts: new Date().toISOString() }), {
