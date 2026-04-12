@@ -19,7 +19,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ## Estado actual do projecto — 2026-04-11
 
-### Versão: v0.9.5 (Sprint 2 — Feedback Loop + Repo Cleanup)
+### Versão: v0.9.6 (Sprint 3 — Hub Event Ingestion + CI)
 
 | Componente | Estado | Notas |
 |---|---|---|
@@ -52,6 +52,13 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | `hub/README.md` | ✅ NOVO (Sprint 2) | Documentação de deploy do Worker |
 | `ARCHITECTURE.md` | ✅ Actualizado (Sprint 2) | Module map + runtime flow com sessions #10-13 |
 | `CLAUDE.md.template` | ✅ NOVO (Sprint 2) | Doutrina backup no repo |
+| `frugal_events` table (D1) | ✅ APLICADA (Sprint 3) | Migration 002 aplicada, tabela vazia |
+| `POST /submit-events` | ✅ NOVO (Sprint 3) | Schema validation, bearer auth, rate limiting |
+| `GET /aggregate-stats` | ✅ NOVO (Sprint 3) | Live aggregation de frugal_events |
+| `hub-submit-events.js` | ✅ NOVO (Sprint 3) | Cliente local, batching, dry-run |
+| `.github/workflows/test.yml` | ✅ Actualizado (Sprint 3) | +gold-labels +event-builder +latency |
+| `.github/workflows/deploy-hub.yml` | ✅ NOVO (Sprint 3) | Auto-deploy Worker em hub/ changes |
+| `install.sh` bash 3.2 compat | ✅ FIX (Sprint 3) | ${var,,} → tr lowercase |
 
 ### Evolução recente (snapshot completo em [📊 Notion](https://www.notion.so/33f6f6e42bc481fea8e1e065f53ee73b))
 
@@ -62,6 +69,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 - **Sessões 2026-04-10/11** — E2E MVP validation, Landing v10 + OS Vision, classify.js v0.10, frugal-doctor, install.sh v2
 - **Sessão #12 (2026-04-11 pm)** — bug crítico do feedback loop descoberto e corrigido (Stop hook nunca estava em `settings.json`), P0 cache key, P1 mode system, P3 multi-model telemetry, P4 SSOT dedup, push entregue (9 commits)
 - **Sessão #14 (2026-04-11 noite)** — Sprint 2 completo: feedback-collector.js, gold-labels.json (62 entries, 95.2%), --gold-labels em replay.js, --export-events em backtest.js. Repo cleanup: prompts/ gitignored, hub/README.md, ARCHITECTURE.md actualizado, CLAUDE.md.template. 4 commits pushed
+- **Sessão #15 (2026-04-12)** — Sprint 3 completo: migration 002 aplicada no D1, POST /submit-events + GET /aggregate-stats no Worker, hub-submit-events.js cliente, CI test.yml expandido, deploy-hub.yml, install.sh bash 3.2 compat. 4 commits pushed
 
 ### Skills instaladas
 
@@ -203,46 +211,32 @@ bb12e7a  feat(testing): adversarial prompt generator + 3 more patterns
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-11 (sessão de documentação — PRIVACY.md, README.md, ONBOARDING_DEV.md, Sprint 2 master prompt)
+**Última actualização Cowork:** 2026-04-11 (Sprint 3 master prompt criado)
 **Estado:** 🆕 Para ler na próxima sessão Claude Code
 
 ---
 
-### ESTADO PÓS-COWORK 2026-04-11 (documentação + Sprint 2 prep)
+### MISSÃO SPRINT 3 — PRÓXIMA SESSÃO CLAUDE CODE
 
-**O que o Cowork fez nesta sessão:**
+Lê `prompts/master-prompt-sprint3-hub-ci.md` e executa pela ordem definida.
 
-| Ficheiro | Acção | Notas |
-|---|---|---|
-| `PRIVACY.md` | ✅ Reescrito | Actualizado com event-builder.js, FRUGAL_TELEMETRY=off, privacy contract, execution.log section |
-| `README.md` | ✅ Actualizado | Test count 17→59, T0 sub-tiers, exec-logger no diagrama, slash commands section (10), frugal-doctor section, badge skills |
-| `ONBOARDING_DEV.md` | ✅ Criado | Guia para novo dev em 15 min — fluxo completo, mapa de ficheiros, armadilhas |
-| `prompts/master-prompt-sprint2-repo-cleanup.md` | ✅ Criado | Sprint 2 completo + repo cleanup detalhado |
+**Resumo das tarefas (detalhes completos no master prompt):**
 
-**🚨 MISSÃO SPRINT 2 — PRÓXIMA SESSÃO CLAUDE CODE:**
+1. **H1** — Verificar/aplicar migration `002_frugal_events.sql` no D1
+2. **H2** — Endpoint `POST /submit-events` no Worker (com validação de schema + rate limiting + auth token)
+3. **H3** — `hub-submit-events.js` — cliente local para enviar eventos para o hub
+4. **H4** — Endpoint `GET /aggregate-stats` (dados agregados para dashboard + hub-pull)
+5. **CI1** — `.github/workflows/test.yml` (testes automáticos em PR)
+6. **CI2** — `.github/workflows/deploy-hub.yml` (auto-deploy do Worker)
+7. **P2** — bash 3.2 compat no `install.sh` (se tempo)
+8. **P3** — consolidar override detection (se tempo)
 
-Lê `prompts/master-prompt-sprint2-repo-cleanup.md` e executa pela ordem definida.
+**⚡ Nota de custo:** Corre SEM `--dangerously-skip-permissions` para poupar $5-6. O frugal vai rotear H2/H3/H4 para Sonnet. Só `final-reviewer` precisa de Opus.
 
-Resumo das tarefas:
-
-1. **R1** — `.gitignore` para `prompts/` (estratégico, não deve ser público no GitHub)
-2. **S2.2** — `gold-labels.json` com 60+ entradas curadas (T0/T1/T2/T3)
-3. **S2.3** — flag `--gold-labels` em `replay.js` (≥85% accuracy = CI pass)
-4. **S2.1** — `feedback-collector.js` — CLI interactivo para ratings pós-sessão
-5. **S2.4** — flag `--export-events` em `backtest.js` (usa event-builder.js já existente)
-6. **R2** — copiar código do Worker para `hub/src/index.js` (recovery path)
-7. **R3** — actualizar `ARCHITECTURE.md` com módulos sessões #10-13
-8. **R4** — `CLAUDE.md.template` no repo + install.sh copia se ausente
-
-**Pendentes de sessões anteriores (manter):**
-- [MÉDIA] Browser tasks do `CLAUDE_AI_BROWSER_MASTER_PROMPT.md`
-- [BAIXA] `install.sh ${HAS_MAX,,}` bash 3.2 compat macOS
-- [BAIXA] Consolidar override detection entre `inject_context.js` e `frugal-turn-header.js`
-
-**Decisão arquitectural tomada no Cowork:**
-- `prompts/` deve ser gitignored — contém decisões estratégicas não adequadas para repo público
-- `hub/` deve ter o código do Worker — sem recovery path é risco de perda total
-- `CLAUDE.md.template` deve estar no repo — a doutrina é o coração do sistema
+```bash
+cd ~/frugal
+cat prompts/master-prompt-sprint3-hub-ci.md | claude
+```
 
 ---
 
@@ -379,15 +373,4 @@ T0 local-summarizer+ollama_call.sh → qwen3:30b        / local       (resolve 2
 
 Mode actual: `transcript_scan`. Média 1.5–2 ms/call → 130× abaixo do threshold, não há risco de flip.
 
-**Iterações que foram necessárias (para referência se bug aparecer):**
-1. Primeira abordagem (instrução nos agent files para escreverem eles próprios o log) **falhou** — os modelos improvisam formato livre. Abandonada.
-2. Hook global sem Pass 1.5 atribuía tudo ao parent (opus) porque `transcript_path` é sempre o do orquestrador.
-3. Sibling scan no mesmo dir também falhava — sub-agent transcripts vivem em `<project>/<session-id>/subagents/*.jsonl`, não ao lado do parent.
-4. Pass 1.5 final: `path.join(parentDir, basename(no-ext), 'subagents')` + filtro mtime < 30s → bounded I/O, 1-3 ficheiros, resolve em 1-2ms.
-
-**Ficheiros modificados nesta sessão:**
-- `~/.claude/hooks/PostToolUse.js` — Pass 1.5 sibling scan + heurística ollama_call.sh
-- `~/.claude/hooks/exec-logger.js` — NOVO, cloned do PostToolUse.js com append ao execution.log + perf self-tuning
-- `~/.claude/hooks/execution.log` — NOVO, persistent log per-Bash-call
-- `~/.claude/hooks/exec-logger-perf.json` — NOVO, perf samples rolling window
-- `~/.claude/settings.json` — + 1 P
+**Iterações que fo
