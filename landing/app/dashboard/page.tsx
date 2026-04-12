@@ -19,6 +19,26 @@ interface Profile {
   frugal_version: string | null;
 }
 
+// ── Legacy field helpers ────────────────────────────────────────────────
+function cfgVal(cfg: Record<string, unknown>): {
+  hasOllama: boolean;
+  hasAnthropicKey: boolean;
+  decisionsCount: number;
+  savingsUsd: number;
+  installDone: boolean;
+} {
+  const hasOllama = cfg.has_ollama === true || cfg.ollama_enabled === true;
+  const hasAnthropicKey = cfg.has_anthropic_key === true || cfg.anthropic_key === true;
+  const decisionsCount = Number(cfg.decisions_count || cfg.decision_count || 0);
+  const savingsUsd = Number(cfg.savings_usd || cfg.total_savings || 0);
+  return { hasOllama, hasAnthropicKey, decisionsCount, savingsUsd, installDone: decisionsCount > 0 };
+}
+
+function isInstalled(profile: Profile): boolean {
+  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  return profile.install_completed === true || cfgVal(cfg).decisionsCount > 0;
+}
+
 // ── Shared copy-to-clipboard hook ────────────────────────────────────────
 function useCopyButton(): [Record<string, boolean>, (id: string, text: string) => void] {
   const [copied, setCopied] = useState<Record<string, boolean>>({});
@@ -36,12 +56,405 @@ function CopyBtn({ id, text, copied, onCopy }: { id: string; text: string; copie
       onClick={() => onCopy(id, text)}
       style={{ background: 'none', border: '1px solid var(--border, #333)', borderRadius: 6, padding: '2px 10px', color: copied[id] ? 'var(--success, #4ec9b0)' : 'inherit', cursor: 'pointer', fontSize: '0.8em', marginLeft: 8 }}
     >
-      {copied[id] ? '✓' : 'Copy'}
+      {copied[id] ? '\u2713' : 'Copy'}
     </button>
   );
 }
 
-// ── PEÇA 1: RecommendedModeCard ──────────────────────────────────────────
+// ── SVG Logos (inline, no external deps) ─────────────────────────────────
+function AnthropicLogo() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M13.827 3.52L20.785 20.48h-3.562l-1.378-3.42H9.546L8.17 20.48H4.608L11.566 3.52h2.261zm-.689 4.132l-2.466 6.108h4.932l-2.466-6.108z" fill="#D97757"/>
+    </svg>
+  );
+}
+
+function OpenAILogo() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.688.5a6.074 6.074 0 00-5.804 4.292 5.99 5.99 0 00-3.993 2.9 6.05 6.05 0 00.742 7.129 5.98 5.98 0 00.516 4.911 6.05 6.05 0 006.51 2.9A6.07 6.07 0 0013.22 23.5a6.077 6.077 0 005.804-4.293 5.99 5.99 0 003.993-2.9 6.034 6.034 0 00-.742-7.129" fill="#10A37F" fillOpacity="0.85"/>
+    </svg>
+  );
+}
+
+function GeminiLogo() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3.14.69 4.22 1.78L12 11l-4.22-4.22A5.96 5.96 0 0112 5zm-7 7c0-1.66.69-3.14 1.78-4.22L11 12l-4.22 4.22A5.96 5.96 0 015 12zm7 7c-1.66 0-3.14-.69-4.22-1.78L12 13l4.22 4.22A5.96 5.96 0 0112 19zm5.22-2.78L13 12l4.22-4.22A5.96 5.96 0 0119 12a5.96 5.96 0 01-1.78 4.22z" fill="#4285F4"/>
+    </svg>
+  );
+}
+
+function OllamaLogo() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2C8 2 6 6 6 10c0 2 .5 3.5 1.5 5C9 17 10 20 12 22c2-2 3-5 4.5-7 1-1.5 1.5-3 1.5-5 0-4-2-8-6-8zm0 3c1.5 0 3 2 3 5s-1 4-3 5c-2-1-3-2-3-5s1.5-5 3-5z" fill="#FF6B35"/>
+    </svg>
+  );
+}
+
+// ── PEÇA 2a: Savings Hero Card ───────────────────────────────────────────
+function SavingsHeroCard({ profile }: { profile: Profile }) {
+  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  const { decisionsCount, savingsUsd } = cfgVal(cfg);
+
+  if (decisionsCount === 0) return null;
+
+  const allOpusCost = decisionsCount * 0.015;
+  const savingsPct = allOpusCost > 0 ? Math.min(100, Math.round((savingsUsd / allOpusCost) * 100)) : 0;
+  const timeSavedHrs = (decisionsCount * 0.025).toFixed(1); // ~1.5min saved per routed prompt
+
+  return (
+    <div className="dashboard-card" style={{ background: 'linear-gradient(135deg, rgba(78,201,176,0.08) 0%, rgba(78,201,176,0.02) 100%)', border: '1px solid rgba(78,201,176,0.25)' }}>
+      <h2 style={{ color: 'var(--t0, #4ec9b0)' }}>Your savings</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', margin: '1rem 0' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--t0, #4ec9b0)' }}>${savingsUsd.toFixed(2)}</div>
+          <div className="dashboard-label">SAVED</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{decisionsCount}</div>
+          <div className="dashboard-label">PROMPTS</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--t0, #4ec9b0)' }}>{savingsPct}%</div>
+          <div className="dashboard-label">AVG SAVINGS</div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, height: 8, overflow: 'hidden', marginBottom: '0.75rem' }}>
+        <div style={{ width: `${savingsPct}%`, height: '100%', background: 'var(--t0, #4ec9b0)', borderRadius: 8, transition: 'width 0.6s ease' }} />
+      </div>
+
+      <div className="dashboard-muted" style={{ fontSize: '0.85em' }}>
+        vs all-Opus: would have spent ~${allOpusCost.toFixed(2)} &middot; Time saved: ~{timeSavedHrs}h
+      </div>
+    </div>
+  );
+}
+
+// ── PEÇA 2b: AI Stack Card ───────────────────────────────────────────────
+type LLMProvider = {
+  id: string;
+  name: string;
+  logo: React.ReactNode;
+  tier: string;
+  hasKey: boolean;
+  keyPattern: RegExp;
+  keyPrefix: string;
+  fieldName: string;
+};
+
+function AIStackCard({ profile }: { profile: Profile }) {
+  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  const { hasOllama, hasAnthropicKey } = cfgVal(cfg);
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<string | null>(null);
+
+  const hasMax = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('max') || s.toLowerCase().includes('claude max'));
+  const hasGptPlus = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('gpt plus') || s.toLowerCase().includes('gpt_plus'));
+
+  const providers: LLMProvider[] = [
+    {
+      id: 'anthropic_max',
+      name: hasMax ? 'Claude Max' : 'Claude (subscription)',
+      logo: <AnthropicLogo />,
+      tier: hasMax ? 'T2/T3' : '--',
+      hasKey: !!hasMax,
+      keyPattern: /./,
+      keyPrefix: '',
+      fieldName: '',
+    },
+    {
+      id: 'anthropic_api',
+      name: 'Claude API',
+      logo: <AnthropicLogo />,
+      tier: 'T1',
+      hasKey: hasAnthropicKey,
+      keyPattern: /^sk-ant-/,
+      keyPrefix: 'sk-ant-...',
+      fieldName: 'anthropic_api_key',
+    },
+    {
+      id: 'openai_plus',
+      name: 'GPT Plus',
+      logo: <OpenAILogo />,
+      tier: '--',
+      hasKey: !!hasGptPlus,
+      keyPattern: /./,
+      keyPrefix: '',
+      fieldName: '',
+    },
+    {
+      id: 'openai_api',
+      name: 'GPT API',
+      logo: <OpenAILogo />,
+      tier: 'T2',
+      hasKey: cfg.has_openai_key === true,
+      keyPattern: /^sk-/,
+      keyPrefix: 'sk-...',
+      fieldName: 'openai_api_key',
+    },
+    {
+      id: 'gemini',
+      name: 'Gemini',
+      logo: <GeminiLogo />,
+      tier: '--',
+      hasKey: profile.subscriptions?.some(s => s.toLowerCase().includes('gemini')) || false,
+      keyPattern: /./,
+      keyPrefix: '',
+      fieldName: '',
+    },
+    {
+      id: 'ollama',
+      name: 'Ollama',
+      logo: <OllamaLogo />,
+      tier: 'T0',
+      hasKey: hasOllama,
+      keyPattern: /./,
+      keyPrefix: '',
+      fieldName: '',
+    },
+  ];
+
+  const handleSaveKey = async (provider: LLMProvider) => {
+    if (!keyInput || !provider.keyPattern.test(keyInput)) {
+      setSaveResult('Invalid key format');
+      return;
+    }
+    setSaving(true);
+    setSaveResult(null);
+    try {
+      const res = await fetch('/api/save-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: provider.id, key: keyInput }),
+      });
+      if (res.ok) {
+        setSaveResult('Key validated. Add it to your shell profile to use locally.');
+        setKeyInput('');
+        setExpandedProvider(null);
+      } else {
+        const data = await res.json();
+        setSaveResult(data.error || 'Failed to save');
+      }
+    } catch {
+      setSaveResult('Network error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-card">
+      <h2>Your AI stack</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {providers.map(p => (
+          <div key={p.id}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0' }}>
+              <span style={{ flexShrink: 0 }}>{p.logo}</span>
+              <span style={{ flex: 1, fontSize: '0.9rem' }}>{p.name}</span>
+              <span className="dashboard-muted" style={{ fontSize: '0.8rem', minWidth: 40 }}>{p.tier}</span>
+              {p.hasKey ? (
+                <span style={{ color: 'var(--success, #4ec9b0)', fontSize: '0.9rem' }}>{'\u2713'}</span>
+              ) : p.fieldName ? (
+                <button
+                  onClick={() => setExpandedProvider(expandedProvider === p.id ? null : p.id)}
+                  style={{ background: 'none', border: '1px solid var(--border, #333)', borderRadius: 6, padding: '2px 8px', color: 'var(--t0, #4ec9b0)', cursor: 'pointer', fontSize: '0.75rem' }}
+                >
+                  + Add key
+                </button>
+              ) : (
+                <span style={{ color: 'var(--error, #f44747)', fontSize: '0.9rem' }}>{'\u2717'}</span>
+              )}
+            </div>
+            {expandedProvider === p.id && p.fieldName && (
+              <div style={{ marginLeft: 32, padding: '0.5rem 0.75rem', border: '1px solid var(--border, #333)', borderRadius: 8, marginBottom: '0.5rem', background: 'var(--surface-2, #1a1a1a)' }}>
+                <div style={{ fontSize: '0.8rem', marginBottom: 6 }} className="dashboard-muted">
+                  {p.keyPrefix && <>Format: <code>{p.keyPrefix}</code></>}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="password"
+                    value={keyInput}
+                    onChange={e => setKeyInput(e.target.value)}
+                    placeholder={p.keyPrefix}
+                    style={{ flex: 1, background: 'var(--bg, #080808)', border: '1px solid var(--border, #333)', borderRadius: 6, padding: '4px 8px', color: 'var(--text, #ededed)', fontSize: '0.85rem', fontFamily: 'var(--mono)' }}
+                  />
+                  <button
+                    onClick={() => handleSaveKey(p)}
+                    disabled={saving}
+                    style={{ background: 'var(--t0, #4ec9b0)', color: '#000', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+                  >
+                    {saving ? '...' : 'Save'}
+                  </button>
+                </div>
+                {saveResult && <div className="dashboard-muted" style={{ fontSize: '0.8rem', marginTop: 4 }}>{saveResult}</div>}
+                <div className="dashboard-muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>
+                  Key is never stored in plaintext. Only validates format and records availability.
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── PEÇA 2c: Setup Stepper Card ──────────────────────────────────────────
+function SetupStepperCard({ profile }: { profile: Profile }) {
+  const config = (profile.frugal_config || {}) as Record<string, unknown>;
+  const { hasOllama, hasAnthropicKey, decisionsCount, savingsUsd } = cfgVal(config);
+
+  type Step = { label: string; ok: boolean; detail: string; fix: string | null };
+  const steps: Step[] = [
+    {
+      label: 'Logged in',
+      ok: true,
+      detail: profile.email,
+      fix: null,
+    },
+    {
+      label: 'Hardware detected',
+      ok: !!profile.hardware_tier && !['unknown', ''].includes(profile.hardware_tier),
+      detail: profile.hardware_tier?.replace(/_/g, ' ') || 'not detected',
+      fix: '/onboarding',
+    },
+    {
+      label: 'Ollama installed',
+      ok: hasOllama,
+      detail: hasOllama ? (config.ollama_has_qwen3b ? 'qwen2.5:3b ready' : 'installed') : 'not installed',
+      fix: hasOllama ? null : 'https://ollama.com/download',
+    },
+    {
+      label: 'API key configured',
+      ok: hasAnthropicKey,
+      detail: hasAnthropicKey ? 'configured' : 'missing',
+      fix: hasAnthropicKey ? null : 'export ANTHROPIC_API_KEY=sk-ant-...',
+    },
+    {
+      label: 'First sync',
+      ok: decisionsCount > 0,
+      detail: decisionsCount > 0 ? `${decisionsCount} prompts · $${savingsUsd.toFixed(2)}` : 'not synced',
+      fix: decisionsCount > 0 ? null : 'frugal-doctor --sync',
+    },
+  ];
+
+  const completed = steps.filter(s => s.ok).length;
+
+  return (
+    <div className="dashboard-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <h2 style={{ margin: 0 }}>Setup progress</h2>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {steps.map((s, i) => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: s.ok ? 'var(--t0, #4ec9b0)' : 'var(--border, #333)' }} />
+          ))}
+          <span className="dashboard-muted" style={{ fontSize: '0.8rem', marginLeft: 6 }}>{completed}/{steps.length}</span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '0.25rem 0' }}>
+            <span style={{ flexShrink: 0, color: s.ok ? 'var(--success, #4ec9b0)' : 'var(--muted, #666)', fontSize: '0.9rem', width: 18, textAlign: 'center' }}>
+              {s.ok ? '\u2713' : '\u25CB'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.9rem', color: s.ok ? 'var(--text, #ededed)' : 'var(--muted, #666)' }}>{s.label}</div>
+              <div className="dashboard-muted" style={{ fontSize: '0.8rem' }}>{s.detail}</div>
+            </div>
+            {s.fix && !s.ok && (
+              s.fix.startsWith('/') ? (
+                <a href={s.fix} style={{ fontSize: '0.75rem', color: 'var(--t0, #4ec9b0)' }}>Fix</a>
+              ) : s.fix.startsWith('http') ? (
+                <a href={s.fix} target="_blank" rel="noopener" style={{ fontSize: '0.75rem', color: 'var(--t0, #4ec9b0)' }}>Install</a>
+              ) : (
+                <code style={{ fontSize: '0.7rem', color: 'var(--muted, #666)' }}>{s.fix}</code>
+              )
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── PEÇA 2d: Savings Calculator ──────────────────────────────────────────
+function SavingsCalculatorCard() {
+  const [promptsPerDay, setPromptsPerDay] = useState(50);
+  const [avgTokens, setAvgTokens] = useState(2000);
+
+  const opusPricePerToken = 0.000015;
+  const withoutFrugal = promptsPerDay * avgTokens * opusPricePerToken;
+  const savingsRate = 0.7; // conservative 70% savings
+  const withFrugal = withoutFrugal * (1 - savingsRate);
+  const monthlySaving = (withoutFrugal - withFrugal) * 30;
+
+  const sliderStyle = {
+    width: '100%',
+    accentColor: 'var(--t0, #4ec9b0)',
+    background: 'transparent',
+    cursor: 'pointer',
+  };
+
+  return (
+    <div className="dashboard-card">
+      <h2>Savings calculator</h2>
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span className="dashboard-label">Prompts/day</span>
+          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{promptsPerDay}</span>
+        </div>
+        <input
+          type="range"
+          min={5}
+          max={200}
+          value={promptsPerDay}
+          onChange={e => setPromptsPerDay(Number(e.target.value))}
+          style={sliderStyle}
+        />
+      </div>
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span className="dashboard-label">Avg tokens</span>
+          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{avgTokens}</span>
+        </div>
+        <input
+          type="range"
+          min={500}
+          max={8000}
+          step={500}
+          value={avgTokens}
+          onChange={e => setAvgTokens(Number(e.target.value))}
+          style={sliderStyle}
+        />
+      </div>
+      <div style={{ background: 'var(--surface-2, #1a1a1a)', borderRadius: 8, padding: '0.75rem 1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>Without frugal</span>
+          <span style={{ fontSize: '0.9rem' }}>~${withoutFrugal.toFixed(2)}/day</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>With frugal</span>
+          <span style={{ fontSize: '0.9rem', color: 'var(--t0, #4ec9b0)' }}>~${withFrugal.toFixed(2)}/day</span>
+        </div>
+        <div style={{ borderTop: '1px solid var(--border, #333)', paddingTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Monthly saving</span>
+          <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--t0, #4ec9b0)' }}>~${monthlySaving.toFixed(0)}/month</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── RecommendedModeCard ──────────────────────────────────────────────────
 type RecommendedMode = {
   mode: 'beast' | 'auto' | 'zen';
   emoji: string;
@@ -55,12 +468,11 @@ type RecommendedMode = {
 
 function calcRecommendedMode(profile: Profile): RecommendedMode {
   const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  const { hasOllama, hasAnthropicKey } = cfgVal(cfg);
   const hasMax = profile.subscriptions?.some(s =>
     s.toLowerCase().includes('max') || s.toLowerCase().includes('claude max'));
   const hasGpu = profile.hardware_tier &&
     !['cpu_only', 'cloud', 'other', 'unknown', ''].includes(profile.hardware_tier);
-  const hasOllama = cfg.has_ollama === true || cfg.ollama_enabled === true;
-  const hasAnthropicKey = cfg.has_anthropic_key === true || cfg.anthropic_key === true;
 
   if (hasMax) {
     return {
@@ -118,6 +530,12 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
 
   const rec = calcRecommendedMode(profile);
 
+  const modeCompare = [
+    { mode: 'beast', label: 'Beast', desc: 'T3 Opus always', cost: 'Highest', savings: 'None' },
+    { mode: 'auto', label: 'Auto', desc: 'Smart routing', cost: 'Balanced', savings: 'High' },
+    { mode: 'zen', label: 'Zen', desc: 'T0/T1 only', cost: 'Lowest', savings: 'Maximum' },
+  ];
+
   return (
     <div className="dashboard-card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -154,6 +572,33 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
           <span className="dashboard-val">{rec.est_savings_day}</span>
         </div>
       </div>
+
+      {/* Mode comparison table */}
+      <div style={{ marginTop: '0.75rem', overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border, #333)', color: 'var(--muted, #666)' }}>Mode</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border, #333)', color: 'var(--muted, #666)' }}>Strategy</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border, #333)', color: 'var(--muted, #666)' }}>Cost</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border, #333)', color: 'var(--muted, #666)' }}>Savings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {modeCompare.map(m => (
+              <tr key={m.mode} style={{ background: m.mode === rec.mode ? 'rgba(78,201,176,0.08)' : 'transparent' }}>
+                <td style={{ padding: '4px 8px', fontWeight: m.mode === rec.mode ? 700 : 400 }}>
+                  {m.mode === rec.mode ? '\u2192 ' : ''}{m.label}
+                </td>
+                <td style={{ padding: '4px 8px' }} className="dashboard-muted">{m.desc}</td>
+                <td style={{ padding: '4px 8px' }} className="dashboard-muted">{m.cost}</td>
+                <td style={{ padding: '4px 8px' }} className="dashboard-muted">{m.savings}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div style={{ marginTop: '0.75rem', padding: '8px 10px', background: 'var(--card-bg-alt, rgba(255,255,255,0.03))', borderRadius: 6, fontSize: '0.85em' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span className="dashboard-muted">Router Context for your CLAUDE.md</span>
@@ -165,7 +610,7 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
   );
 }
 
-// ── PEÇA 2: ProjectContextCard ───────────────────────────────────────────
+// ── ProjectContextCard ───────────────────────────────────────────────────
 type ProjectType = 'frontend' | 'backend' | 'fullstack' | 'cli' | '';
 type Language = 'typescript' | 'python' | 'go' | 'rust' | 'other' | '';
 type Sensitive = 'migrations' | 'secrets' | 'experiments';
@@ -189,7 +634,7 @@ function ProjectContextCard({ profile }: { profile: Profile }) {
   const [sensitive, setSensitive] = useState<Sensitive[]>([]);
   const [copied, copy] = useCopyButton();
 
-  if (!profile.install_completed) return null;
+  if (!isInstalled(profile)) return null;
 
   const toggleSensitive = (s: Sensitive) => {
     setSensitive(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -256,7 +701,7 @@ function ProjectContextCard({ profile }: { profile: Profile }) {
   );
 }
 
-// ── PEÇA 3: RecommendationsCard ──────────────────────────────────────────
+// ── RecommendationsCard ──────────────────────────────────────────────────
 type Recommendation = {
   id: string;
   title: string;
@@ -268,8 +713,7 @@ type Recommendation = {
 
 function getRecommendations(profile: Profile): Recommendation[] {
   const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
-  const hasOllama = cfg.has_ollama === true || cfg.ollama_enabled === true;
-  const hasAnthropicKey = cfg.has_anthropic_key === true || cfg.anthropic_key === true;
+  const { hasOllama, hasAnthropicKey, decisionsCount } = cfgVal(cfg);
   const recs: Recommendation[] = [];
 
   if (!hasOllama) {
@@ -307,7 +751,6 @@ function getRecommendations(profile: Profile): Recommendation[] {
     });
   }
 
-  const decisionsCount = Number(cfg.decisions_count) || 0;
   if (decisionsCount > 200) {
     recs.push({
       id: 'run-backtest',
@@ -319,7 +762,7 @@ function getRecommendations(profile: Profile): Recommendation[] {
     });
   }
 
-  if (!hasAnthropicKey && profile.install_completed) {
+  if (!hasAnthropicKey && isInstalled(profile)) {
     recs.push({
       id: 'add-anthropic-key',
       title: 'Adiciona ANTHROPIC_API_KEY',
@@ -367,91 +810,30 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
   );
 }
 
-function SetupHealthCard({ profile }: { profile: Profile }) {
-  const config = (profile.frugal_config || {}) as Record<string, unknown>;
-
-  type Check = { label: string; ok: boolean; warn: boolean; value: string; fix: string | null };
-  const checks: Check[] = [
-    {
-      label: 'Frugal installed',
-      ok: !!profile.install_completed && !!profile.frugal_version,
-      warn: false,
-      value: profile.frugal_version ? `v${profile.frugal_version}` : '',
-      fix: profile.install_completed ? null : '/onboarding',
-    },
-    {
-      label: 'Hardware detected',
-      ok: !!profile.hardware_tier && profile.hardware_tier !== 'unknown' && profile.hardware_tier !== '',
-      warn: false,
-      value: profile.hardware_tier?.replace(/_/g, ' ') || '',
-      fix: (!profile.hardware_tier || profile.hardware_tier === 'unknown' || profile.hardware_tier === '') ? '/onboarding' : null,
-    },
-    {
-      label: 'Anthropic API key',
-      ok: config.has_anthropic_key === true || config.anthropic_key === true,
-      warn: false,
-      value: (config.has_anthropic_key === true || config.anthropic_key === true) ? 'configured' : 'missing',
-      fix: (config.has_anthropic_key === true || config.anthropic_key === true) ? null : 'export ANTHROPIC_API_KEY=sk-ant-... in your shell profile',
-    },
-    (() => {
-      const hasOllama = config.has_ollama === true || config.ollama_enabled === true;
-      const hasQwen3b = config.ollama_has_qwen3b === true;
-      if (hasOllama && hasQwen3b) return { label: 'Ollama', ok: true, warn: false, value: 'qwen2.5:3b ready', fix: null };
-      if (hasOllama && !hasQwen3b) return { label: 'Ollama', ok: false, warn: true, value: 'installed, missing qwen2.5:3b', fix: 'ollama pull qwen2.5:3b' };
-      return { label: 'Ollama', ok: false, warn: false, value: 'not installed', fix: 'https://ollama.com/download' };
-    })(),
-    {
-      label: 'Savings synced',
-      ok: (config.decisions_count as number || 0) > 0,
-      warn: false,
-      value: (config.decisions_count as number || 0) > 0
-        ? `${config.decisions_count} prompts · $${(Number(config.savings_usd) || 0).toFixed(2)} saved`
-        : 'no data yet',
-      fix: (config.decisions_count as number || 0) > 0 ? null : 'Run frugal-doctor --sync after first Claude Code session',
-    },
-  ];
-
-  const score = checks.filter(c => c.ok).length;
+// ── Dashboard Header ─────────────────────────────────────────────────────
+function DashboardHeader({ profile }: { profile: Profile }) {
+  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  const { decisionsCount } = cfgVal(cfg);
 
   return (
-    <div className="dashboard-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Setup <span className="dashboard-muted" style={{ fontWeight: 400, fontSize: '0.85em' }}>{score}/5</span></h2>
-        <button
-          onClick={() => window.location.reload()}
-          style={{ background: 'none', border: '1px solid var(--border, #333)', borderRadius: 6, padding: '4px 12px', color: 'inherit', cursor: 'pointer', fontSize: '0.85em' }}
-        >
-          Refresh
-        </button>
-      </div>
-      <div className="dashboard-grid" style={{ gap: '0.5rem' }}>
-        {checks.map((c) => (
-          <div className="dashboard-field" key={c.label} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <span style={{ flexShrink: 0, fontSize: '1.1em' }}>
-              {c.ok ? '✓' : c.warn ? '⚠' : '✗'}
-            </span>
-            <div>
-              <span className="dashboard-label">{c.label}</span>
-              <span className="dashboard-val" style={{ color: c.ok ? 'var(--success, #4ec9b0)' : c.warn ? 'var(--warning, #dcdc aa)' : 'var(--error, #f44747)' }}>
-                {c.value}
-              </span>
-              {c.fix && (
-                c.fix.startsWith('/') ? (
-                  <a href={c.fix} className="dashboard-link" style={{ fontSize: '0.8em', display: 'block' }}>Fix: go to {c.fix}</a>
-                ) : c.fix.startsWith('http') ? (
-                  <a href={c.fix} target="_blank" rel="noopener" className="dashboard-link" style={{ fontSize: '0.8em', display: 'block' }}>Fix: {c.fix}</a>
-                ) : (
-                  <span className="dashboard-muted" style={{ fontSize: '0.8em', display: 'block' }}>Fix: <code>{c.fix}</code></span>
-                )
-              )}
-            </div>
-          </div>
-        ))}
+    <div className="dashboard-header">
+      <a href="/" className="dashboard-brand">
+        <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
+        <span>frugal</span>
+      </a>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <span className="dashboard-muted" style={{ fontSize: '0.8rem' }}>
+          {profile.frugal_version && `v${profile.frugal_version}`}
+          {profile.hardware_tier && profile.hardware_tier !== 'unknown' && ` \u00b7 ${profile.hardware_tier.replace(/_/g, ' ')}`}
+          {decisionsCount > 0 && ` \u00b7 ${decisionsCount} decisions`}
+        </span>
+        <a href="/api/logout" className="dashboard-logout">Sign out</a>
       </div>
     </div>
   );
 }
 
+// ── Main Dashboard ───────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -484,13 +866,15 @@ export default function DashboardPage() {
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
-        <div className="dashboard-header">
-          <a href="/" className="dashboard-brand">
-            <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
-            <span>frugal</span>
-          </a>
-          <a href="/api/logout" className="dashboard-logout">Sign out</a>
-        </div>
+        {profile ? <DashboardHeader profile={profile} /> : (
+          <div className="dashboard-header">
+            <a href="/" className="dashboard-brand">
+              <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
+              <span>frugal</span>
+            </a>
+            <a href="/api/logout" className="dashboard-logout">Sign out</a>
+          </div>
+        )}
 
         <h1 className="dashboard-h1">Your dashboard</h1>
 
@@ -500,6 +884,27 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
+            {/* Savings Hero (top, prominent) */}
+            <SavingsHeroCard profile={profile} />
+
+            {/* AI Stack */}
+            <AIStackCard profile={profile} />
+
+            {/* Setup Stepper */}
+            <SetupStepperCard profile={profile} />
+
+            {/* Savings Calculator */}
+            <SavingsCalculatorCard />
+
+            {/* Recommended mode card */}
+            <RecommendedModeCard profile={profile} />
+
+            {/* Project context card */}
+            <ProjectContextCard profile={profile} />
+
+            {/* Recommendations card */}
+            <RecommendationsCard profile={profile} />
+
             {/* Profile card */}
             <div className="dashboard-card">
               <h2>Profile</h2>
@@ -524,7 +929,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="dashboard-field">
                       <span className="dashboard-label">Primary language</span>
-                      <span className="dashboard-val">{profile.github_primary_language || '—'}</span>
+                      <span className="dashboard-val">{profile.github_primary_language || '\u2014'}</span>
                     </div>
                     <div className="dashboard-field">
                       <span className="dashboard-label">Public repos</span>
@@ -538,35 +943,6 @@ export default function DashboardPage() {
                 </div>
               </div>
               <a href="/onboarding" className="dashboard-link">Edit profile</a>
-            </div>
-
-            {/* Setup Health Check card */}
-            <SetupHealthCard profile={profile} />
-
-            {/* Recommended mode card (MP-8) */}
-            <RecommendedModeCard profile={profile} />
-
-            {/* Project context card (MP-8) */}
-            <ProjectContextCard profile={profile} />
-
-            {/* Recommendations card (MP-8) */}
-            <RecommendationsCard profile={profile} />
-
-            {/* Savings card */}
-            <div className="dashboard-card">
-              <h2>Savings</h2>
-              {!profile.install_completed ? (
-                <div>
-                  <p className="dashboard-muted">
-                    We haven&apos;t detected your first prompt yet. Install frugal and start using Claude Code.
-                  </p>
-                  <a href="/onboarding" className="dashboard-link">View install instructions</a>
-                </div>
-              ) : (
-                <p className="dashboard-muted">
-                  Savings data will appear here once usage sessions are synced.
-                </p>
-              )}
             </div>
 
             {/* Config card */}
