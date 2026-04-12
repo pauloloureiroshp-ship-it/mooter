@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUser, getProfile, upsertProfile, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
+import { getUser, getProfile, upsertProfile, upsertDevice, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 
 interface InstallPayload {
+  device_id?: string;
+  device_name?: string;
   hw_tier: string;
   has_anthropic_key: boolean;
   has_openai_key: boolean;
@@ -77,7 +79,30 @@ export async function POST(request: NextRequest) {
 
     await upsertProfile(accessToken, update);
 
-    return NextResponse.json({ ok: true, userId: user.id });
+    // MP-12: upsert device if device_id provided
+    if (payload.device_id) {
+      await upsertDevice(accessToken, {
+        device_id: payload.device_id,
+        user_id: user.id,
+        device_name: payload.device_name || `${payload.os_type} device`,
+        os_type: payload.os_type,
+        arch: payload.arch,
+        hw_tier: payload.hw_tier,
+        has_ollama: payload.has_ollama,
+        ollama_models: payload.ollama_models,
+        ollama_has_qwen3b: payload.ollama_has_qwen3b,
+        ollama_has_qwen30b: payload.ollama_has_qwen30b,
+        has_anthropic_key: payload.has_anthropic_key,
+        has_openai_key: payload.has_openai_key,
+        has_gemini_key: payload.has_gemini_key,
+        frugal_version: payload.frugal_version,
+        decisions_count: payload.decisions_count,
+        savings_usd: payload.savings_usd,
+        last_sync_at: new Date().toISOString(),
+      });
+    }
+
+    return NextResponse.json({ ok: true, userId: user.id, deviceId: payload.device_id || null });
   } catch {
     return NextResponse.json({ error: 'internal_error' }, { status: 500 });
   }

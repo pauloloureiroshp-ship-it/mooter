@@ -233,6 +233,58 @@ export async function getProfile(accessToken: string, userId: string): Promise<R
   }
 }
 
+/**
+ * Upsert a device row. Uses the user's access token for RLS.
+ */
+export async function upsertDevice(
+  accessToken: string,
+  device: Record<string, unknown>,
+): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const res = await fetch(`${URL}/rest/v1/devices?on_conflict=device_id`, {
+      method: 'POST',
+      headers: {
+        apikey: KEY,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(device),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetch all devices for a user. Uses the user's access token for RLS.
+ */
+export async function getDevices(
+  accessToken: string,
+  userId: string,
+): Promise<Record<string, unknown>[]> {
+  if (!isConfigured()) return [];
+  try {
+    const res = await fetch(
+      `${URL}/rest/v1/devices?user_id=eq.${userId}&order=last_sync_at.desc`,
+      {
+        headers: {
+          apikey: KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        signal: AbortSignal.timeout(3000),
+      }
+    );
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
 /* ─── GitHub OAuth helpers ─── */
 
 /**

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProfile, getUser, upsertProfile } from '../../lib/supabase';
+import { getProfile, getUser, upsertProfile, getDevices } from '../../lib/supabase';
 
 export async function GET(request: NextRequest) {
   const accessToken = request.cookies.get('sb-access-token')?.value;
@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  return NextResponse.json(profile);
+  const devices = await getDevices(accessToken, userId);
+
+  return NextResponse.json({ ...profile, devices });
 }
 
 export async function POST(request: NextRequest) {
