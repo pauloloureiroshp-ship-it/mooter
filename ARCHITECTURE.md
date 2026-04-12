@@ -101,6 +101,20 @@ user types "rename handleConnect to onConnect across the file"
 ┌───────────────────────────────────────────────────────────────────┐
 │ 7. classify.js also appends a line to decisions.log for telemetry │
 └───────────────────────────────────────────────────────────────────┘
+
+During and after the turn:
+
+┌───────────────────────────────────────────────────────────────────┐
+│ 8. PostToolUse → exec-logger.js → execution.log                  │
+│    Records actual model used per Bash call (TSV format)           │
+└───────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────────────┐
+│ 9. Stop → gsd-turn-end.js → decisions.log (turn_end event)       │
+│    Augments .last-classified.json with response_len_bucket +      │
+│    turn_end_ts, appends turn_end event to decisions.log           │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -111,34 +125,40 @@ user types "rename handleConnect to onConnect across the file"
 ~/.claude/
 ├── CLAUDE.md                     ← mediator doctrine (read every session)
 ├── hooks/
-│   └── gsd-statusline.js         ← renders statusline, reads /metrics from tracker
+│   ├── gsd-statusline.js         ← renders statusline, reads /metrics from tracker
+│   ├── exec-logger.js            ← PostToolUse hook, logs actual model to execution.log
+│   └── gsd-turn-end.js           ← Stop hook, augments decisions.log with turn_end
 ├── tools/router/
-│   ├── classify.js               ← the classifier (pure JS, zero deps)
-│   ├── inject_context.js         ← the UserPromptSubmit hook
+│   ├── classify.js               ← the classifier v0.10 (pure JS, zero deps, 11-pass)
+│   ├── inject_context.js         ← the UserPromptSubmit hook + CASCADE_RE detection
 │   ├── savings-tracker.js        ← HTTP server on :7821, reads decisions.log
-│   ├── backtest.js               ← daily auto-learning analyser
+│   ├── backtest.js               ← daily auto-learning analyser + --export-events
 │   ├── update-router.js          ← idempotent patcher for classify.js
-│   ├── backtest.test.js          ← node:test unit + integration suite (11 tests)
+│   ├── backtest.test.js          ← node:test unit + integration suite
+│   ├── event-builder.js          ← privacy contract enforcer, frugal_event builder
+│   ├── feedback-collector.js     ← CLI for rating router decisions (Sprint 2)
+│   ├── gold-labels.json          ← 62 curated test prompts for offline validation
 │   ├── decisions.log             ← JSONL, one line per classification
+│   ├── execution.log             ← TSV, actual model per Bash call (from exec-logger)
 │   ├── router-tuning.json        ← backtest output, consumed by update-router
 │   ├── backtest-latest.log       ← daily backtest stdout (human-readable)
 │   ├── classify.js.bak           ← auto backup before each update-router run
-│   ├── classify.js.bak2          ← hand backup from manual wire-up sessions
 │   ├── run-backtest.cmd          ← Windows wrapper for scheduled task
 │   ├── benchmark.sh              ← labelled-dataset accuracy harness
-│   ├── replay.js                 ← replays decisions.log against current classifier
+│   ├── replay.js                 ← replays history + --gold-labels validation
 │   ├── stats.js                  ← aggregate stats printer
-│   ├── statusline.sh             ← legacy shell statusline
 │   ├── anthropic_call.sh         ← direct Haiku/Sonnet API helper
 │   ├── ollama_call.sh            ← direct Ollama call helper
-│   └── ollama_call_node.js       ← Node version of above
+│   ├── ollama_call_node.js       ← Node version of above
 │   ├── frugal-mode.js            ← Beast/Zen/Auto mode CLI (v0.9.3)
+│   ├── frugal-doctor.js          ← diagnostic cross-platform health check
 │   ├── hub-push.js               ← privacy-preserving delta push to frugal-hub
 │   ├── hub-pull.js               ← pull community config from frugal-hub
 │   └── hub-status.js             ← hub health check
 ├── skills/
 │   ├── frugal-{status,savings,route,summary,update}/ ← 5 utility skills
-│   └── frugal-{beast,zen,auto}/  ← 3 mode skills (v0.9.3)
+│   ├── frugal-{beast,zen,auto}/  ← 3 mode skills (v0.9.3)
+│   └── frugal-doctor/            ← diagnostic skill
 └── agents/
     ├── model-architect.md        ← T3 Opus subagent
     ├── model-reasoner.md         ← T2 Sonnet subagent
