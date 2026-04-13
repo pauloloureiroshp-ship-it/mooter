@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-11 — Claude Code (sessão #12 — feedback loop + install hardening + evolution snapshot)
+> **Última actualização:** 2026-04-13 — Claude Code (sessão #roadmap-execution — T0+T1+T2 completos, 7 novos módulos, safety gates passados)
 
 ---
 
@@ -17,7 +17,179 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ---
 
-## Estado actual do projecto — 2026-04-11
+## Estado actual do projecto — 2026-04-13
+
+### Versão: v0.9.9 (Sessão #roadmap-execution — ROADMAP T0+T1+T2 completos)
+
+#### Novidades da sessão #roadmap-execution (Claude Code, 2026-04-13)
+
+**3 commits:**
+| Hash | Descrição | Impact |
+|---|---|---|
+| `58acd6b` | fix(core): hub https + gpu-probe/ollama repo (T0-B/D) | Hub connectivity fix, fixes synced to repo |
+| `6db982d` | feat(platform): admin + budget + model-profile + budget-engine (T0-E/T1) | 8 ficheiros, admin UI, budget onboarding |
+| `583189c` | feat(intelligence): model-manager + project-context + activity + feedback (T2) | 4 novos módulos de inteligência |
+
+**Ficheiros criados (7):**
+- `landing/app/admin/page.tsx` — dashboard admin com stats, funnel, users, activity
+- `tools/router/model-profile.json` — 7 modelos com 8 quality dimensions
+- `tools/router/budget-engine.js` — calcula config óptima por perfil (hw+subs+budget)
+- `tools/router/model-manager.js` — detecta modelos Ollama, benchmark, recomenda upgrades
+- `tools/router/project-context.js` — detecta tipo de projecto e maturity
+- `tools/router/activity-classifier.js` — detecta padrões repetitivos, sugere skills
+- `tools/router/feedback-collector.js` — recolhe quality ratings para backtest
+
+**Ficheiros modificados (9):**
+- `frugal-doctor.js` — https fix + --optimize flag + frugal-hello detection
+- `inject_context.js` — maybeHubPush fire-and-forget
+- `gsd-statusline.js` — session + total savings side by side
+- `generate-frugal-config.ts` — budget_tier + monthly_budget_usd
+- `onboarding/page.tsx` — budget-first flow com 5 tiers
+- `gold-labels.json` — 77 entries (era 62)
+- `gpu-probe.js` + `ollama_call_node.js` — synced to repo
+
+**Safety Gates:**
+- T0: ✅ PASS (classifier T2, hub reachable, doctor green, TSC 0 errors)
+- T1: ✅ PASS (hub data, budget engine, model-profile, mode system)
+- T2: ✅ PASS (model-manager, project-context, activity-classifier, --optimize)
+
+#### 📥 COWORK → CLAUDE CODE — Missão para próxima sessão
+
+**T3 requer ≥ 3 Friends Beta activos com dados reais.** Não avançar sem utilizadores.
+
+Próximos passos:
+1. **Paulo: acções browser** — criar GitHub OAuth App + activar provider Supabase + deploy
+2. **Paulo: publicar VSCode extension** — .vsix já gerado, precisa PAT do Azure DevOps
+3. **Convidar 3 friends** — após OAuth live, onboarding budget-first está pronto
+4. **Quando ≥ 3 users com dados** → avançar para T3 (Desktop App, MCP Server, Federated Learning)
+
+---
+
+### Versão: v0.9.8 (Sessão #23 — fix: qwen3 think mode + Option A protection para novos utilizadores)
+
+#### Novidades da sessão #23
+| Componente | Estado | Notas |
+|---|---|---|
+| **`inject_context.js`** | ✅ COMMIT `9b558e7` | Option A lê `_hwCapability.option_a_model` com fallback `qwen2.5:3b` — hardcode removido |
+| **`gpu-probe.js`** | ✅ LOCAL | `buildHwCapability()` agora grava `option_a_model: 'qwen2.5:3b'` no hw-capability.json — protege novos utilizadores com GPU potente |
+| **`ollama_call_node.js`** | ✅ LOCAL | `think: false` no body do request ao Ollama — desactiva thinking mode do qwen3 para Option A |
+
+**Root cause do bug:** `hw-capability.json` detectava RTX 4090 e recomendava `qwen3:30b` como `recommended_t0`. O `inject_context.js` usava esse valor para Option A. O qwen3:30b com thinking mode demora 17s+, o timeout era de 8s → erro 500 em cada hook invocation.
+
+**Fix arquitectural:** separar `recommended_t0` (modelo para delegação) de `option_a_model` (modelo para pre-compute rápido). O qwen2.5:3b é sempre usado para Option A independentemente da GPU.
+
+**Pendente para Claude Code:** `gpu-probe.js` e `ollama_call_node.js` estão em `~/.claude/` fora do repo. O fix local foi aplicado mas não está no repo. Para proteger novos utilizadores na instalação, o `install.sh` e `install-windows.ps1` precisam de aplicar o patch durante o setup. Ver MP-19.
+
+---
+
+### Versão: v0.9.8 (Sessão #strategic-review — Cowork — ROADMAP_MASTER_V2)
+
+#### Novidades da sessão #strategic-review (Cowork, 2026-04-13)
+| Componente | Estado | Notas |
+|---|---|---|
+| **ROADMAP_MASTER_V2.md** | ✅ CRIADO | `~/frugal/ROADMAP_MASTER_V2.md` — 4 tiers, safety gates, atlas de soluções públicas |
+| **Notion** | ✅ REGISTADO | [🗺️ Sessão 2026-04-13](https://www.notion.so/3416f6e42bc481a8b6bce232218e7098) |
+
+#### 📥 COWORK → CLAUDE CODE — Missão para próxima sessão
+
+**Abrir `ROADMAP_MASTER_V2.md` e executar TIER 0 pela ordem indicada.**
+
+Estado a verificar antes de começar:
+```bash
+node ~/frugal/tools/router/classify.js "debug this stack trace" --debug
+# Esperado ACTUAL: T0 (errado) → TIER 0 vai corrigir para T2
+
+node ~/frugal/tools/router/frugal-doctor.js
+node ~/frugal/tools/router/replay.js --gold-labels 2>&1 | grep accuracy
+```
+
+Ordem de execução TIER 0:
+1. **T0-A** — classifier debug misroutes + gold-labels gl-063 a gl-072
+2. **T0-B** — hub timeout fix (3s→6s + retry)
+3. **T0-C** — frugal-hello skill em falta
+4. **T0-D** — gpu-probe.js + ollama_call_node.js para o repo (fix sessão #23)
+5. **T0-E** — Friends Beta completar (verificar MP-1 a MP-6, aplicar o que falta)
+
+Safety gate T0 obrigatório antes de avançar para T1.
+
+---
+
+### Versão: v0.9.8 (Sessão #22 — MP-15/16/17/18: audit, GPU, flowchart, metrics coherence)
+
+#### Novidades da sessão #22
+| Componente | Estado | Notas |
+|---|---|---|
+| **MP-15 Pre-flight audit** | ✅ LIVE | `tools/audit/preflight-audit.js` — 5 blocos, READY FOR MACBOOK |
+| **MP-16 GPU + Metrics tab** | ✅ LIVE | GPU name na sidebar, tab Metrics com comparação de fontes |
+| **MP-17 Flowchart interactivo** | ✅ EM PROGRESSO | Tab "How it works" com 6 nós animados, dados reais |
+| **MP-18 Metrics Coherence** | 📋 SPEC PRONTA | `docs/MP-18-metrics-coherence.md` — auto-sync pipeline completo |
+| **Migration 004** | ✅ EXECUTADA | `gpu_name TEXT + gpu_vram_mb INTEGER` na tabela devices |
+| **frugal-doctor --sync** | ✅ OK | gpu_name agora incluso no payload (RTX 4090) |
+| **Savings field fix** | ✅ FIX | `saved` em vez de `guaranteed_saved` — $72.83 correctos |
+
+#### Pendentes para próxima sessão (prioritários)
+1. **MP-19** — `docs/MP-19-backlog-windows-fixes.md` — 5 grupos: classifier debug fix, hub timeout, frugal-hello, gold-labels expansion, applyActiveMode
+2. **MP-20** — `docs/MP-20-savings-transparency.md` — methodology visível em todas as superfícies + success-fee model
+3. **MP-21** — `docs/MP-21-intelligence-platform-v2.md` — perfil exclusivo por utilizador, rich terminal feedback, qualidade no backtest, Commands FAQ, sanitize-log, arquitectura actualizada
+4. **MacBook install** — quando o Mac estiver disponível (não urgente)
+
+#### Estado das 5 superfícies de métricas (antes do MP-18)
+| Superfície | Estado | Fix em MP-18 |
+|---|---|---|
+| Statusline terminal | ⚠️ Só sessão atual | Peça 6: session% + total% |
+| Dashboard Supabase | ⚠️ Sync manual | Peça 1: auto-sync.js |
+| decisions_log Supabase | ❌ VAZIA | Peça 2: INSERT em install-complete |
+| frugal-hub D1 | ❌ VAZIA | Peça 3+4: hub-push automático |
+| Landing page counters | ❌ Fallback 1437/1 | Peça 5: mapear campos reais |
+
+---
+
+### Versão: v0.9.8 (Sessão #21 — MP-12/13/14: multi-device, admin dashboard, app shell redesign)
+
+#### Novidades da sessão #21
+| Componente | Estado | Notas |
+|---|---|---|
+| **MP-12 Multi-device** | ✅ LIVE | `devices` table + RLS + DevicesCard + frugal-doctor sync com device_id |
+| **MP-13 Admin dashboard** | ✅ LIVE | 4 tabs (Overview/Users/Devices/Health), filtros, CSV export, decisions_log |
+| **MP-14 App shell redesign** | ✅ LIVE | Sidebar fixa, 3 tabs dashboard, Settings page, admin integrado no shell |
+| **Supabase migrations** | ✅ EXECUTADAS | 002_devices_table.sql + 003_decisions_log.sql em produção |
+| **frugal-doctor --sync** | ✅ OK | 409 decisões, 69% savings, $72.83 poupados (Windows RTX 4090) |
+| **Route group (app)** | ✅ NOVO | Auth check centralizado, sidebar, admin link condicional |
+| **Settings page** | ✅ NOVO | /settings com profile, subscriptions, devices, logout |
+
+#### Estado actual da área logada
+- URL: https://landing-five-azure-16.vercel.app/dashboard
+- Shell com sidebar: Dashboard / Settings / Admin (só para paulo.loureiro.shp@gmail.com)
+- Dashboard: 3 tabs — Overview (Savings Hero + AI Stack + Health), Devices, Setup Guide (TerminalBlock)
+- Admin: 4 tabs — Overview (funnel + metrics), Users (search/filter/CSV), Devices, Health
+
+#### Pendentes para próxima sessão
+1. `v0.9.8` hardcoded na sidebar → passar a dinâmico (ler de `frugal_version` do profile)
+2. Decisions tab no dashboard (histórico via `decisions_log` table)
+3. Install frugal no MacBook
+4. Auto-sync silencioso no hook PostToolUse
+5. Setup Wizard master prompts para utilizadores beginner (spec em `docs/PRD-setup-wizard.md`)
+
+---
+
+### Versão: v0.9.8 (Sessão #19 — Friends Beta OAuth + Setup Health Check)
+
+#### Novidades da sessão #19
+| Componente | Estado | Notas |
+|---|---|---|
+| **OAuth GitHub** | ✅ LIVE | Client ID corrigido (O vs 0), Supabase Site URL, Redirect URLs |
+| **Implicit flow bridge** | ✅ LIVE | /auth/callback HTML bridge + /auth/token endpoint |
+| **POST /api/install-complete** | ✅ NOVO | Endpoint para CLI sincronizar dados com Supabase |
+| **Dashboard Setup Health Check** | ✅ NOVO | Card 5 checks (installed, hw, anthropic, ollama, savings) |
+| **frugal-doctor --sync** | ✅ NOVO | Sincroniza dados locais para o dashboard |
+| **auth/token token no response** | ✅ NOVO | CLI pode guardar token para --sync |
+
+#### Arquitectura de dados por utilizador (estado actual)
+- **Local**: subscription-profile.json, hw-capability.json, decisions.log
+- **Supabase**: profiles (user_id, hardware_tier, frugal_config com has_anthropic_key, has_ollama, decisions_count, savings_usd)
+- **Gap fechado**: frugal-doctor --sync sobe dados locais para Supabase
+
+---
 
 ### Versão: v0.9.7 (Sprint 4 — Dashboard MVP + Option A fix)
 
@@ -201,6 +373,12 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 | 👁️ Sessão 2026-04-11 — Visibility stack + delegação real | `33f6f6e4-2bc4-8136-9255-d80e8780ed03` | https://www.notion.so/33f6f6e42bc481369255d80e8780ed03 |
 | 📝 Sessão 2026-04-11 — Cowork: PRIVACY.md + README + ONBOARDING_DEV + Sprint 2 master prompt | `33f6f6e4-2bc4-8110-b415-e3ec18bad318` | https://www.notion.so/33f6f6e42bc48110b415e3ec18bad318 |
 | 📊 Sessão 2026-04-11 — Sprint 4: Dashboard MVP + Option A fix | `3406f6e4-2bc4-81bf-8d92-c754d040c4d2` | https://www.notion.so/3406f6e42bc481bf8d92c754d040c4d2 |
+| 🏗️ Sessão 2026-04-12 — MP-12/13/14: multi-device, admin dashboard, app shell redesign | `3406f6e4-2bc4-8179-aa58-c2f372bf6cfb` | https://www.notion.so/3406f6e42bc48179aa58c2f372bf6cfb |
+| 🔗 Sessão 2026-04-12 — MP-15/16/17/18: audit, GPU, flowchart, metrics coherence | `3406f6e4-2bc4-81cf-a9be-e6737f9349d8` | https://www.notion.so/3406f6e42bc481cfa9bee6737f9349d8 |
+| 🔧 Sessão 2026-04-13 — fix: qwen3 think mode breaking Option A (high-VRAM GPUs) | `3416f6e4-2bc4-81a8-af8a-d65ea11eef7e` | https://www.notion.so/3416f6e42bc481a8af8ad65ea11eef7e |
+| 🔧 MP-19 — Backlog Windows: classifier fix + hub timeout + gold-labels + applyActiveMode | `3416f6e4-2bc4-8117-84dd-e9e088872a40` | https://www.notion.so/3416f6e42bc4811784dde9e088872a40 |
+| 💰 MP-20 — Savings Transparency: mecânica clara em todas as superfícies + success-fee | `3416f6e4-2bc4-81a0-b3a0-d9710cbf8780` | https://www.notion.so/3416f6e42bc481a0b3a0d9710cbf8780 |
+| 🧠 MP-21 — frugal Intelligence Platform v2: perfil exclusivo + rich terminal + qualidade + segurança | `3416f6e4-2bc4-811e-99e4-dc07919f8794` | https://www.notion.so/3416f6e42bc4811e99e4dc07919f8794 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -224,8 +402,27 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Claude Code:** 2026-04-11 (Sessão #16 — Sprint 4 completo)
-**Estado:** ✅ Lido e executado em sessão #16 — 2026-04-11
+**Última actualização Cowork:** 2026-04-13 (Sessão #23 — fix qwen3 Option A bug)
+**Estado:** 🟡 Por ler
+
+---
+
+### INSTRUÇÃO PARA PRÓXIMA SESSÃO — fix instalador para novos utilizadores
+
+**Contexto:** Sessão #23 (Cowork, 2026-04-13) corrigiu um bug crítico onde o qwen3:30b (detectado via hw-capability.json em GPUs potentes) era usado para Option A, causando timeout 500 em cada hook invocation.
+
+**Fix local aplicado (3 ficheiros em `~/.claude/`):**
+- `gpu-probe.js` — `buildHwCapability()` agora grava `option_a_model: 'qwen2.5:3b'`
+- `ollama_call_node.js` — `think: false` no body do Ollama request
+- `inject_context.js` — lê `_hwCapability.option_a_model` (commit `9b558e7`)
+
+**O que falta (tarefa para Claude Code):**
+Os primeiros dois ficheiros estão em `~/.claude/` fora do repo e não foram commitados. Qualquer utilizador novo que instale via `install.sh` vai ter o bug. Fix necessário:
+1. Adicionar ao `install.sh` um patch step que aplica `option_a_model: 'qwen2.5:3b'` no `gpu-probe.js` após cópia
+2. Adicionar ao `install-windows.ps1` o equivalente
+3. Ou melhor: commitar as versões correctas de `gpu-probe.js` e `ollama_call_node.js` no repo para que o install.sh copie já as versões fixas
+
+**Prioridade:** Alta — afecta qualquer utilizador com GPU potente (RTX 3090+, M2 Max+).
 
 ---
 
