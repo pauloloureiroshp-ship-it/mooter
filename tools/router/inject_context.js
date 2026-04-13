@@ -986,6 +986,21 @@ try {
   }
 } catch { /* directive is best-effort */ }
 
+// MP-20: methodology context line when session is heavy (< 5% savings)
+try {
+  const mRes = await httpGet('http://127.0.0.1:7821/metrics', 400);
+  if (mRes && mRes.ok && mRes.json && (mRes.json.prompts || 0) > 10) {
+    const sessionPct = mRes.json.session_saved_pct || mRes.json.saved_pct || 0;
+    if (sessionPct < 5) {
+      const totalSaved = (mRes.json.saved || 0).toFixed(2);
+      const guaranteed = mRes.json.guaranteed_saved || 0;
+      const gLabel = guaranteed > 0 ? ` · $${guaranteed.toFixed(2)} guaranteed` : '';
+      lines.push('');
+      lines.push(`ℹ  Total savings: ~$${totalSaved} advisory${gLabel} · methodology: token-estimated vs Opus baseline`);
+    }
+  }
+} catch { /* best-effort */ }
+
 process.stdout.write(lines.join('\n') + '\n');
 
 // v0.9: POST the decision to the tracker so statusline segment ③ can render
