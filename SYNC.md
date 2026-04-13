@@ -88,7 +88,8 @@ Próximos passos:
 | Componente | Estado | Notas |
 |---|---|---|
 | **ROADMAP_MASTER_V2.md** | ✅ CRIADO | `~/frugal/ROADMAP_MASTER_V2.md` — 4 tiers, safety gates, atlas de soluções públicas |
-| **Notion** | ✅ REGISTADO | [🗺️ Sessão 2026-04-13](https://www.notion.so/3416f6e42bc481a8b6bce232218e7098) |
+| **Notion** | ✅ REGISTADO | [🗺️ Sessão 2026-04-13 strategic-review](https://www.notion.so/3416f6e42bc481a8b6bce232218e7098) |
+| **Notion** | ✅ REGISTADO | [🚀 Sessão 2026-04-13 roadmap-execution](https://www.notion.so/3416f6e42bc481dc93c3fb4c62521b06) |
 
 #### 📥 COWORK → CLAUDE CODE — Missão para próxima sessão
 
