@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-13 — Claude Code (sessão #roadmap-execution — T0+T1+T2 completos, 7 novos módulos, safety gates passados)
+> **Última actualização:** 2026-04-13 — Claude Code (sessão #statusline-phase3 — responsive layout, provider layers, latency tradeoff)
 
 ---
 
@@ -53,15 +53,53 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 - T1: ✅ PASS (hub data, budget engine, model-profile, mode system)
 - T2: ✅ PASS (model-manager, project-context, activity-classifier, --optimize)
 
+### Sessão #statusline-phase3 (Claude Code, 2026-04-13)
+
+**2 commits:**
+| Hash | Descrição | Impact |
+|---|---|---|
+| `0e8fc16` | feat(statusline): Phase 1+2 — complete main, semantic coherence, cow rebrand | 3 ficheiros, fix render truncado, 🐕→🐮 |
+| `ffe82f6` | feat(statusline): Phase 3 — responsive layout, provider layers, latency tradeoff | 118 ins, 77 del em gsd-statusline.js |
+
+**Notion:** [🎨 Sessão 2026-04-13 statusline-phase3](https://www.notion.so/3416f6e42bc48139893ff3669e170102)
+
+**Destaques:**
+- Statusline responsivo (savings hero em linha própria)
+- Distribution por camadas: 🏠 Local │ ☁️ Claude │ 🔌 External
+- 10 modelos com abreviaturas 3-char, só activos visíveis
+- Provider dots nomeados (Cld● Oll● DSk○...)
+- Session vs lifetime separados (📍 sessão vs 🌍 lifetime)
+- Latency tradeoff explícito (⏱ ~Xs/prompt · +Ys for savings)
+- VS Code extension v0.5.1→v0.5.2, settings.json single source
+
+---
+
 #### 📥 COWORK → CLAUDE CODE — Missão para próxima sessão
+> Actualizado pelo Cowork em 2026-04-13. Estado: ✅ Lido em sessão 2026-04-13 (Claude Code)
 
-**T3 requer ≥ 3 Friends Beta activos com dados reais.** Não avançar sem utilizadores.
+**INFRA.md foi reescrito com todos os IDs reais.** Antes de qualquer trabalho, lê `INFRA.md` — tem os IDs de Vercel, Supabase, Cloudflare e Notion + padrões exactos de tool call MCP.
 
-Próximos passos:
-1. **Paulo: acções browser** — criar GitHub OAuth App + activar provider Supabase + deploy
-2. **Paulo: publicar VSCode extension** — .vsix já gerado, precisa PAT do Azure DevOps
-3. **Convidar 3 friends** — após OAuth live, onboarding budget-first está pronto
-4. **Quando ≥ 3 users com dados** → avançar para T3 (Desktop App, MCP Server, Federated Learning)
+**Confirmações desta sessão Cowork (não precisas de verificar):**
+- ✅ GitHub OAuth App "Frugal" já existe (github.com/settings/developers)
+- ✅ Supabase GitHub provider já está activo
+- ✅ v0.9.9 live em https://landing-five-azure-16.vercel.app (commit 4adf734 corrigiu duplicate admin page)
+- ✅ Vercel auto-deploy activo — `git push origin main` é suficiente
+
+**IDs críticos (agora em INFRA.md):**
+- Vercel team: `team_q3kDk3fEFhlL6AcNryTzH3o2` | landing project: `prj_2aZMQagzjYOtLyvofeWPnEA0mM1b`
+- Supabase frugal: `eymtobwinevywmmlmxqa` (sa-east-1, ACTIVE)
+- Cloudflare account: `b1093c8a6e663afd02f98a1e87d0fa34` | D1: `320b55f6-9444-4deb-bcd5-e8227739546e`
+- Notion HQ: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
+
+**Próximas prioridades:**
+1. **Paulo: convidar 3 amigos Friends Beta** — link: https://landing-five-azure-16.vercel.app — desbloqueia T3
+2. **Paulo: VSCode extension publish** — .vsix gerado, aguarda Azure DevOps PAT
+3. **Quando ≥ 3 users com dados reais** → avançar T3: Desktop App (Tauri v2), MCP Server, Federated Learning v2
+
+**O que NÃO fazer na próxima sessão:**
+- Não criar GitHub OAuth App (já existe)
+- Não activar Supabase provider (já activo)
+- Não fazer deploy manual — push para main é suficiente
 
 ---
 
@@ -403,27 +441,73 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-13 (Sessão #23 — fix qwen3 Option A bug)
-**Estado:** 🟡 Por ler
+**Última actualização Cowork:** 2026-04-13 (sessão #statusline-redesign)
+**Estado:** 🟡 Por ler — **MISSÃO 3 é prioridade absoluta**
 
 ---
 
-### INSTRUÇÃO PARA PRÓXIMA SESSÃO — fix instalador para novos utilizadores
+### MISSÃO 1 (5 min) — Contexto actualizado
 
-**Contexto:** Sessão #23 (Cowork, 2026-04-13) corrigiu um bug crítico onde o qwen3:30b (detectado via hw-capability.json em GPUs potentes) era usado para Option A, causando timeout 500 em cada hook invocation.
+Lê `INFRA.md` antes de qualquer trabalho — foi reescrito com todos os IDs reais de Vercel/Supabase/Cloudflare/Notion obtidos via MCP. Não precisas de navegar browsers para nada desta sessão.
 
-**Fix local aplicado (3 ficheiros em `~/.claude/`):**
-- `gpu-probe.js` — `buildHwCapability()` agora grava `option_a_model: 'qwen2.5:3b'`
-- `ollama_call_node.js` — `think: false` no body do Ollama request
-- `inject_context.js` — lê `_hwCapability.option_a_model` (commit `9b558e7`)
+IDs críticos:
+- Vercel team: `team_q3kDk3fEFhlL6AcNryTzH3o2` | landing: `prj_2aZMQagzjYOtLyvofeWPnEA0mM1b`
+- Supabase frugal: `eymtobwinevywmmlmxqa` | Cloudflare: `b1093c8a6e663afd02f98a1e87d0fa34`
+- Confirmado: OAuth ✅, Supabase provider ✅, Vercel auto-deploy ✅ (git push = deploy)
 
-**O que falta (tarefa para Claude Code):**
-Os primeiros dois ficheiros estão em `~/.claude/` fora do repo e não foram commitados. Qualquer utilizador novo que instale via `install.sh` vai ter o bug. Fix necessário:
-1. Adicionar ao `install.sh` um patch step que aplica `option_a_model: 'qwen2.5:3b'` no `gpu-probe.js` após cópia
-2. Adicionar ao `install-windows.ps1` o equivalente
-3. Ou melhor: commitar as versões correctas de `gpu-probe.js` e `ollama_call_node.js` no repo para que o install.sh copie já as versões fixas
+---
 
-**Prioridade:** Alta — afecta qualquer utilizador com GPU potente (RTX 3090+, M2 Max+).
+### MISSÃO 3 (3-4 sessões × 1h) — STATUSLINE REDESIGN [PRIORIDADE ABSOLUTA]
+
+**Abre e executa `STATUSLINE_REDESIGN_MASTER_PROMPT.md`** na raiz do repo.
+
+**Bug crítico descoberto pelo Cowork (2026-04-13):** `tools/router/gsd-statusline.js` está **literalmente truncado** a meio da linha 712 (`tail -c 50` mostra `...'router', '.frugal-mod`). Funções `renderDistribution`, `renderSavingsHero`, `renderProviders`, `renderLatency`, `renderGpu` existem completas, mas a função `main` que as assembla foi cortada — nunca são chamadas. É por isto que:
+- Tela pequena → quase vazia
+- Tela grande → emojis sem labels
+- Layout 2 linhas referenciado em comentários mas não implementado em produção
+- VS Code statusbar e terminal mostram números diferentes sem labels de scope (sessão vs lifetime)
+
+**O master prompt resolve em 7 fases por ordem:**
+1. Reparar truncamento + completar `main()` (CRÍTICO)
+2. Coerência semântica sessão↔lifetime↔VSCode (📍 vs 🌍 prefixes)
+3. Responsive multi-linha (compact/standard/wide por COLUMNS)
+4. Per-Ollama-model breakdown (qwen3 / qwen2.5 / gemma / deepseek com emojis próprios)
+5. Source-of-truth tagging (exec verde / adv amarelo)
+6. Falha graciosa (tracker offline → mensagem clara)
+7. Documentação `docs/STATUSLINE.md` + bump v0.9.10
+
+**Ficheiros-alvo:** `tools/router/gsd-statusline.js`, `hooks/PostToolUse.js` (espelhar `bucketFor`), VS Code extension statusbar (Fase 2).
+
+**Ship em fases — cada fase tem gate próprio. Não avançar sem validar visualmente.**
+
+---
+
+### MISSÃO 2 (90-120 min) — Multi-Model Routing V2 [BLOQUEADA atrás de M3]
+
+**Antes:** executar M3. Depois: abrir `MODEL_ROUTING_V2_MASTER_PROMPT.md`.
+
+Razão: M3 reconstrói a UI que M2 precisa para mostrar o resultado dos novos modelos. Fazer M2 antes seria pintar paredes numa casa sem chão.
+
+Alguns elementos de M2 já foram parcialmente feitos numa sessão anterior (gemma3 e deepseek-r1 instalados, `bestOllamaT0()`, statusline 2 linhas iniciada). Validar estado contra o master prompt antes de re-fazer.
+
+---
+
+### MISSÃO 4 (12-18h, 6 sub-sessões) — INTELLIGENCE V3 [PARQUEADA]
+
+**Não executar agora.** O master prompt `INTELLIGENCE_V3_MASTER_PROMPT.md` está pronto e descreve a transição de cost router → specialist router (quality matrix empírica + feedback loop + vectorização + selector + retrain federado).
+
+**Gate para arrancar:** M3 + M2 completas e em produção há ≥1 semana de dogfooding sem regressões.
+
+---
+
+### Pendente de sessão anterior (Alta prioridade)
+`gpu-probe.js` e `ollama_call_node.js` com fix Option A estão em `~/.claude/` mas não no repo. O master prompt T2 pode incluir este fix (commitar versões correctas para o install.sh copiar). Verifica se ainda está por fazer antes de avançar.
+
+---
+
+### Pendentes do Paulo (não são tarefas de código)
+1. Convidar 3 amigos Friends Beta → https://landing-five-azure-16.vercel.app (desbloqueia T3 product)
+2. VSCode extension publish → .vsix gerado, aguarda Azure DevOps PAT
 
 ---
 
@@ -533,49 +617,4 @@ Statusline live: `🐕 💰 ↓100% saved ~$0.51 · spent ~$0.00 │ ███�
 | 1 | [ALTA] Cache key fix `SHA256(prompt + '|' + FRUGAL_PREV_TIER)` | ✅ em prod |
 | 2 | [MÉDIA] Browser tasks (GitHub OAuth, Supabase RLS, Cloudflare, Vercel) | ⏳ próxima sessão |
 | 3 | [MÉDIA] `applyActiveMode()` patch em `inject_context.js` | ✅ em prod |
-| 4 | [BAIXA] Tracking GPT/Gemini/aider no execution.log | ✅ em prod (`detectExternalModel()` shared) |
-| 5 | [BAIXA] Dedup statusline + turn-end | ✅ SSOT em `~/.claude/hooks/` |
-
-**Bug crítico descoberto e resolvido nesta sessão:**
-
-O hook `Stop` → `gsd-turn-end.js` nunca tinha sido instalado em `settings.json` em nenhuma máquina. `backtest.resolveFeedback()` corria sem dados. RESOLVIDO em `install.sh` + `install-windows.ps1`: merge idempotente do Stop hook no install e no `/frugal-update`.
-
-**Commit:** `766844b feat(install): feedback loop Stop hook + router/hooks dedup`
-
-**Pendentes para próxima sessão:**
-
-1. **[MÉDIA] Browser tasks** — continuar `CLAUDE_AI_BROWSER_MASTER_PROMPT.md`
-2. **[BAIXA] Verificar em produção** que o Stop hook dispara e `backtest.resolveFeedback` está a parear `turn_end` com os eventos do turn seguinte
-
----
-
-### ESTADO PÓS-SESSÃO #11 (Cowork 2026-04-11) — classify.js v0.10
-
-**O que ficou em produção:**
-
-| Componente | Ficheiro | Estado |
-|---|---|---|
-| `variant_hint` no result object | `classify.js` L~579 | ✅ T0 expõe variante Ollama; outros tiers `null` |
-| `SUBAGENT_SPAWN_RE` + `detectSubagentSpawn()` | `classify.js` L~170-206 | ✅ detecta spawn explícito e bare; `user_override: true`, tier preservado |
-| `previous_tier` inheritance | `classify.js` L~454 | ✅ follow-ups < 50ch sem sinais herdam T2/T3 via `FRUGAL_PREV_TIER` |
-| `readLastSessionTier()` + export `FRUGAL_PREV_TIER` | `inject_context.js` L~270, L~462 | ✅ tail 32KB decisions.log, silent on failure |
-
-**Pendentes para próxima sessão:**
-
-1. **[ALTA] Fix cache key** — `getCached`/`setCache` usa apenas `SHA256(prompt)`, não inclui `FRUGAL_PREV_TIER`. Dois prompts idênticos de sessões com tiers diferentes partilham resultado cached errado. Fix: `SHA256(prompt + '|' + (FRUGAL_PREV_TIER || ''))`. Mudança de 2 linhas em `classify.js`.
-
-2. **[MÉDIA] Browser tasks** (CLAUDE_AI_BROWSER_MASTER_PROMPT.md):
-   - GitHub OAuth App "frugal" em github.com/settings/applications/new
-   - Supabase RLS: `CREATE POLICY "Allow anon insert" ON waitlist FOR INSERT TO anon WITH CHECK (true);`
-   - Cloudflare: secret `PAULO_WEBHOOK_URL` real
-   - Vercel: env vars `NEXT_PUBLIC_SUPABASE_ANON_KEY` + `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SITE_URL`
-
-3. **[MÉDIA] MODES_MASTER_PROMPT.md** — aplicar patch `applyActiveMode()` em `inject_context.js`
-
-4. **[BAIXA] Tracking GPT/Gemini** no execution.log — heurística análoga ao `ollama_call.sh` para `codex`, `gemini-cli`, `openai` em comandos bash
-
-5. **[BAIXA] Dedup statusline** — `hooks/gsd-statusline.js` e `tools/router/gsd-statusline.js` fora de sincronia
-
----
-
-### ESTADO PÓS-SESSÃO              
+| 4 | [BAIXA] Tracking GPT/Gemini/aider no 
