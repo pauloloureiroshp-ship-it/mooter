@@ -461,6 +461,36 @@ let _hwCapability = undefined;
   }
 })();
 
+// ── Hub push (v0.9.8) — fire-and-forget event submission ────────────────────
+// Periodically pushes decisions to the hub. 1h cooldown, minimum 10 new
+// decisions since last push. Non-blocking, non-fatal.
+(function maybeHubPush() {
+  try {
+    const pushScript = path.join(ROUTER_DIR, 'hub-submit-events.js');
+    if (!fs.existsSync(pushScript)) return;
+    if (!process.env.FRUGAL_SUBMIT_TOKEN) return;
+    const lastPushPath = path.join(ROUTER_DIR, '.last-submit.json');
+    try {
+      const stat = fs.statSync(lastPushPath);
+      if (Date.now() - stat.mtimeMs < 60 * 60 * 1000) return; // 1h cooldown
+    } catch { /* never pushed */ }
+    // Check minimum decision count since last push
+    try {
+      const logPath = path.join(ROUTER_DIR, 'decisions.log');
+      const stat = fs.statSync(logPath);
+      const lastPushStat = (() => { try { return fs.statSync(lastPushPath); } catch { return null; } })();
+      if (lastPushStat && stat.size === lastPushStat.size) return; // no new data
+    } catch { /* proceed anyway */ }
+    const child = execFile(process.execPath, [pushScript], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: { ...process.env },
+    });
+    child.unref();
+  } catch { /* non-fatal */ }
+})();
+
 // ── Hub pull (v0.9.1) — fire-and-forget community config update ────────────
 // Checks for newer router-tuning and model-catalog from the hub on session
 // startup. Respects a 4h cooldown. Never blocks the hook.

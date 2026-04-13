@@ -409,11 +409,23 @@ function renderSavingsHero(mOpt, sessionId) {
           const savedStr = `$${saved.toFixed(2)}`;
           const spentStr = `$${realSpent.toFixed(2)}`;
 
+          // MP-18 Peça 6: show session + total savings side by side
+          // Fetch total metrics (no session filter) for lifetime context
+          let totalSuffix = '';
+          try {
+            const totalMetrics = fetchFrugalMetrics(null);
+            if (totalMetrics && totalMetrics.prompts && totalMetrics.prompts > real.total) {
+              const totalPct = Math.round(totalMetrics.saved_pct || 0);
+              const totalDecisions = totalMetrics.prompts || 0;
+              totalSuffix = ` ${DIM}· total: ${totalPct}% · ${totalDecisions} decisions${RESET}`;
+            }
+          } catch { /* non-fatal */ }
+
           // When savings are zero (all-Opus session) we make this EXPLICIT.
           if (pct === 0 || saved < 0.001) {
-            return `💰 ${pctColor}∅ 0% saved${RESET} ${DIM}· spent ~${spentStr} (all-Opus)${RESET}`;
+            return `💰 ${pctColor}∅ 0% saved${RESET} ${DIM}· spent ~${spentStr} (all-Opus)${RESET}${totalSuffix}`;
           }
-          return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~${savedStr} · spent ~${spentStr}${RESET}`;
+          return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~${savedStr} · spent ~${spentStr}${RESET}${totalSuffix}`;
         }
       }
     } catch { /* fall through to advisory */ }

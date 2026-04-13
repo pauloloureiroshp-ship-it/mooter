@@ -15,6 +15,14 @@ const HW_OPTIONS = [
 
 const SUB_OPTIONS = ['Claude Max', 'Claude API', 'GPT Plus', 'GPT API', 'Gemini'];
 
+const BUDGET_OPTIONS = [
+  { value: 0,   label: 'Free only' },
+  { value: 10,  label: '~$10/mo' },
+  { value: 30,  label: '~$30/mo' },
+  { value: 100, label: '~$100/mo' },
+  { value: 999, label: 'No limit' },
+];
+
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
 const INSTALL_CMD_WIN = 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex';
 
@@ -22,6 +30,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [hw, setHw] = useState('');
   const [subs, setSubs] = useState<string[]>([]);
+  const [budget, setBudget] = useState(30);
   const [saving, setSaving] = useState(false);
   const [cliToken, setCliToken] = useState('');
   const [tokenCopied, setTokenCopied] = useState(false);
@@ -43,6 +52,7 @@ export default function OnboardingPage() {
       const config = generateFrugalConfig({
         hardware_tier: hw,
         subscriptions: subs.map(s => s.toLowerCase().replace(/\s+/g, '_')),
+        monthly_budget_usd: budget,
       });
 
       await fetch('/api/profile', {
@@ -123,6 +133,20 @@ export default function OnboardingPage() {
               ))}
             </div>
 
+            <p className="onboarding-sub" style={{ marginTop: '2rem' }}>Monthly token budget (beyond existing subscriptions)?</p>
+
+            <div className="onboarding-chips">
+              {BUDGET_OPTIONS.map(b => (
+                <button
+                  key={b.value}
+                  className={`onboarding-chip ${budget === b.value ? 'onboarding-chip-active' : ''}`}
+                  onClick={() => setBudget(b.value)}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+
             <button
               className="onboarding-next"
               disabled={!hw}
@@ -170,6 +194,7 @@ export default function OnboardingPage() {
               const config = generateFrugalConfig({
                 hardware_tier: hw,
                 subscriptions: subs.map(s => s.toLowerCase().replace(/\s+/g, '_')),
+                monthly_budget_usd: budget,
               });
               return (
                 <div className="onboarding-config-display">
@@ -190,6 +215,12 @@ export default function OnboardingPage() {
                   <div className="onboarding-config-row">
                     <span className="onboarding-config-label">Hub push</span>
                     <span className="onboarding-config-val">{config.hub_push_enabled ? 'Enabled' : 'Disabled'}</span>
+                  </div>
+                  <div className="onboarding-config-row">
+                    <span className="onboarding-config-label">Budget</span>
+                    <span className="onboarding-config-val">
+                      {config.monthly_budget_usd === 999 ? 'No limit' : `$${config.monthly_budget_usd}/mo (${config.budget_tier})`}
+                    </span>
                   </div>
                   {config.personalized_message && (
                     <p className="onboarding-config-msg">{config.personalized_message}</p>

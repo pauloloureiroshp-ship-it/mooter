@@ -4,7 +4,10 @@ interface UserProfile {
   github_primary_language?: string;
   experience_level?: string;
   prompts_per_day_estimate?: number;
+  monthly_budget_usd?: number;
 }
+
+type BudgetTier = 'free' | 'light' | 'moderate' | 'serious' | 'unlimited';
 
 interface FrugalConfig {
   default_mode: 'auto' | 'zen' | 'beast';
@@ -15,6 +18,16 @@ interface FrugalConfig {
   hub_push_enabled: boolean;
   suggested_install_command: string;
   personalized_message: string;
+  monthly_budget_usd: number;
+  budget_tier: BudgetTier;
+}
+
+function toBudgetTier(budget: number): BudgetTier {
+  if (budget === 0) return 'free';
+  if (budget <= 10) return 'light';
+  if (budget <= 50) return 'moderate';
+  if (budget <= 150) return 'serious';
+  return 'unlimited';
 }
 
 export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
@@ -25,10 +38,13 @@ export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
   const isMac = profile.hardware_tier === 'mac_m_series';
   const hasGPU = profile.hardware_tier.includes('nvidia') || isMac;
 
+  const budget = profile.monthly_budget_usd ?? 30;
+  const budgetTier = toBudgetTier(budget);
+
   const config: FrugalConfig = {
-    default_mode: 'auto',
+    default_mode: budgetTier === 'free' ? 'zen' : 'auto',
     t0_threshold: 0.85,
-    t1_enabled: true,
+    t1_enabled: budgetTier !== 'free',
     ollama_enabled: hasGPU,
     ollama_model: isMac ? 'qwen2.5:3b' : 'qwen2.5:7b',
     hub_push_enabled: true,
@@ -36,6 +52,8 @@ export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
       ? 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)'
       : 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex',
     personalized_message: '',
+    monthly_budget_usd: budget,
+    budget_tier: budgetTier,
   };
 
   if (profile.github_primary_language === 'Python') {

@@ -1,0 +1,174 @@
+{
+  "_version": "1.0.0",
+  "_updated": "2026-04-13",
+  "_note": "Latência: p50 medido localmente. Qualidade: 0-10 por categoria (estimativa curada). Actualizar após cada major release.",
+
+  "models": {
+    "claude-opus-4-6": {
+      "tier": "T3",
+      "provider": "anthropic",
+      "cost_input_per_mtok": 15.0,
+      "cost_output_per_mtok": 75.0,
+      "latency_p50_ms": 4500,
+      "latency_p95_ms": 12000,
+      "context_window": 200000,
+      "quality": {
+        "trivial_edit": 9,
+        "debug": 10,
+        "architecture": 10,
+        "summarize": 8,
+        "transform": 7,
+        "explain": 9,
+        "test_gen": 9,
+        "math": 10
+      },
+      "strengths": ["reasoning", "architecture", "long-context", "code"],
+      "weaknesses": ["cost", "latency"],
+      "notes": "Baseline para savings. Nunca usar para trivial-edit."
+    },
+
+    "claude-sonnet-4-6": {
+      "tier": "T2",
+      "provider": "anthropic",
+      "cost_input_per_mtok": 3.0,
+      "cost_output_per_mtok": 15.0,
+      "latency_p50_ms": 2200,
+      "latency_p95_ms": 6000,
+      "context_window": 200000,
+      "quality": {
+        "trivial_edit": 8,
+        "debug": 9,
+        "architecture": 8,
+        "summarize": 9,
+        "transform": 9,
+        "explain": 9,
+        "test_gen": 8,
+        "math": 8
+      },
+      "strengths": ["balance", "speed", "code", "summarize"],
+      "weaknesses": [],
+      "notes": "Sweet spot para debug e investigação. 5x mais barato que Opus."
+    },
+
+    "claude-haiku-4-5": {
+      "tier": "T1",
+      "provider": "anthropic",
+      "cost_input_per_mtok": 0.80,
+      "cost_output_per_mtok": 4.0,
+      "latency_p50_ms": 800,
+      "latency_p95_ms": 2000,
+      "context_window": 200000,
+      "quality": {
+        "trivial_edit": 7,
+        "debug": 6,
+        "architecture": 4,
+        "summarize": 8,
+        "transform": 9,
+        "explain": 7,
+        "test_gen": 6,
+        "math": 5
+      },
+      "strengths": ["speed", "cost", "transform", "summarize"],
+      "weaknesses": ["reasoning", "architecture"],
+      "notes": "Ideal para transformações e explicações simples. Mais rápido que Ollama frio."
+    },
+
+    "qwen3:30b": {
+      "tier": "T0",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 1800,
+      "latency_p95_ms": 5000,
+      "latency_cold_start_ms": 12000,
+      "context_window": 32000,
+      "quality": {
+        "trivial_edit": 8,
+        "debug": 8,
+        "architecture": 7,
+        "summarize": 9,
+        "transform": 9,
+        "explain": 9,
+        "test_gen": 8,
+        "math": 8
+      },
+      "strengths": ["multilingual", "instruction-following", "long-context", "free", "privacy"],
+      "weaknesses": ["think-mode-latency", "vram-hungry", "cold_start"],
+      "ollama_id": "qwen3:30b",
+      "notes": "Usar com think:false obrigatório. Para delegation, não para Option A."
+    },
+
+    "qwen2.5:3b": {
+      "tier": "T0",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 800,
+      "latency_p95_ms": 2000,
+      "latency_cold_start_ms": 3000,
+      "context_window": 8000,
+      "quality": {
+        "trivial_edit": 7,
+        "debug": 5,
+        "architecture": 3,
+        "summarize": 7,
+        "transform": 8,
+        "explain": 6,
+        "test_gen": 5,
+        "math": 4
+      },
+      "strengths": ["speed", "free", "simple_transform"],
+      "weaknesses": ["reasoning", "long_context", "debug"],
+      "ollama_id": "qwen2.5:3b",
+      "notes": "Uso apenas para trivial-edit e Option A pre-compute. Rápido como Haiku mas gratuito."
+    },
+
+    "gemma3:12b": {
+      "tier": "T0",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 900,
+      "latency_p95_ms": 2800,
+      "context_window": 128000,
+      "quality": {
+        "trivial_edit": 8,
+        "debug": 7,
+        "architecture": 6,
+        "summarize": 8,
+        "transform": 8,
+        "explain": 8,
+        "test_gen": 7,
+        "math": 7
+      },
+      "strengths": ["multimodal", "speed", "code-generation"],
+      "weaknesses": ["complex-reasoning"],
+      "ollama_id": "gemma3:12b",
+      "notes": "Google Gemma 3 12B — excelente para T0/T1. Melhor que qwen2.5:3b em qualidade, similar em velocidade."
+    },
+
+    "deepseek-v3:7b": {
+      "tier": "T1",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 1200,
+      "latency_p95_ms": 4000,
+      "context_window": 128000,
+      "quality": {
+        "trivial_edit": 9,
+        "debug": 9,
+        "architecture": 8,
+        "summarize": 8,
+        "transform": 9,
+        "explain": 9,
+        "test_gen": 9,
+        "math": 9
+      },
+      "strengths": ["coding", "reasoning", "math", "multilingual"],
+      "weaknesses": ["latency-on-small-gpu"],
+      "ollama_id": "deepseek-v3:7b",
+      "notes": "DeepSeek V3 — performance rival GPT-4 para coding. Usar como T1 alternativo ao Haiku quando offline."
+    }
+  }
+}
