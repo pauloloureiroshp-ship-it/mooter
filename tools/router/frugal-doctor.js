@@ -30,6 +30,8 @@ const IS_MAC = process.platform === 'darwin';
 const JSON_MODE = process.argv.includes('--json');
 const FIX_MODE = process.argv.includes('--fix');
 const SYNC_MODE = process.argv.includes('--sync');
+const OPTIMIZE_MODE = process.argv.includes('--optimize');
+const DRY_RUN = process.argv.includes('--dry-run');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
@@ -78,7 +80,8 @@ function cmdExists(cmd) {
 function httpGet(url, timeoutMs = 1000) {
   return new Promise((resolve) => {
     try {
-      const req = http.get(url, (res) => {
+      const mod = url.startsWith('https') ? require('https') : http;
+      const req = mod.get(url, (res) => {
         let body = '';
         res.on('data', d => body += d);
         res.on('end', () => {
@@ -292,15 +295,18 @@ async function main() {
     trackerHealth.ok ? null : 'Start manually: node ~/.claude/tools/router/savings-tracker.js &');
   report.checks.tracker_running = trackerHealth.ok;
 
-  // Hub connectivity
+  // Hub connectivity (2 attempts, 6s timeout each — cold start can be slow)
   let hubOk = false;
-  try {
-    const hubRes = await httpGet('https://frugal-hub.frugal-hub.workers.dev/health', 3000);
-    hubOk = hubRes.ok && hubRes.status === 200;
-  } catch {}
+  for (let attempt = 0; attempt < 2 && !hubOk; attempt++) {
+    try {
+      const hubRes = await httpGet('https://frugal-hub.frugal-hub.workers.dev/health', 6000);
+      hubOk = hubRes.ok && hubRes.status === 200;
+    } catch {}
+    if (!hubOk && attempt === 0) await new Promise(r => setTimeout(r, 1000));
+  }
   row(hubOk ? TICK : WARN, 'frugal-hub connectivity',
-    hubOk ? 'reachable' : 'unreachable (check internet)',
-    hubOk ? null : 'Required for auto-learning sync');
+    hubOk ? 'reachable' : 'unreachable after 2 attempts (timeout 6s)',
+    hubOk ? null : 'Test manually: curl https://frugal-hub.frugal-hub.workers.dev/health');
   report.checks.hub_reachable = hubOk;
 
   // Last hub-push
@@ -375,15 +381,21 @@ async function main() {
     const metrics = await httpGet('http://127.0.0.1:7821/metrics', 800);
     if (metrics.ok && metrics.json) {
       const m = metrics.json;
+      const advisoryUsd = m.saved || 0;
+      const guaranteedUsd = m.guaranteed_saved || 0;
+      const advisoryCovers = advisoryUsd > 0 ? Math.round(((advisoryUsd - guaranteedUsd) / advisoryUsd) * 100) : 100;
+      const verifiedPct = 100 - advisoryCovers;
       row(TICK, 'Total decisions', String(m.prompts || 0));
-      row(TICK, 'Savings %', `${Math.round(m.saved_pct || 0)}%`);
-      row(TICK, 'Saved (estimated)', `~$${(m.saved || 0).toFixed(2)}`);
+      row(TICK, 'Savings % (advisory)', `${Math.round(m.saved_pct || 0)}%  ← token-estimated vs Opus baseline, assumes hints honoured`);
+      row(TICK, 'Saved (advisory ~)', `~$${advisoryUsd.toFixed(2)}`);
+      row(guaranteedUsd > 0 ? TICK : '○', 'Guaranteed saved', `$${guaranteedUsd.toFixed(2)}  ← only Option-A hits (Ollama verbatim)`);
+      row(TICK, 'Advisory covers', `${advisoryCovers}% of total  (${verifiedPct}% verified)`);
       row(TICK, 'Actual spend', `~$${(m.actual_cost || 0).toFixed(2)}`);
       if (m.pct_by_tier) {
         row(TICK, 'T0 (Ollama/free)', `${Math.round(m.pct_by_tier.T0 || 0)}%`);
         row(TICK, 'T3 (Opus)', `${Math.round(m.pct_by_tier.T3 || 0)}%`);
       }
-      report.checks.savings = { pct: m.saved_pct, saved_usd: m.saved, spent_usd: m.actual_cost };
+      report.checks.savings = { pct: m.saved_pct, saved_usd: m.saved, guaranteed_usd: guaranteedUsd, spent_usd: m.actual_cost };
     }
   } else {
     row(WARN, 'Savings data', 'tracker not running — will show after next prompt');
@@ -407,10 +419,12 @@ async function main() {
 
     // Try to get savings from tracker
     let savingsUsd = 0;
+    let guaranteedSavedUsd = 0;
     try {
       const metricsRes = await httpGet('http://127.0.0.1:7821/metrics', 800);
       if (metricsRes.ok && metricsRes.json) {
         savingsUsd = metricsRes.json.saved || metricsRes.json.advisory_saved || 0;
+        guaranteedSavedUsd = metricsRes.json.guaranteed_saved || 0;
       }
     } catch {}
 
@@ -442,6 +456,7 @@ async function main() {
       arch: process.arch,
       decisions_count: decisionCount,
       savings_usd: savingsUsd,
+      guaranteed_saved_usd: guaranteedSavedUsd,
     };
 
     // Read auth token
@@ -507,6 +522,7 @@ async function main() {
     console.log(`  ${C.dim('Run with --json for machine-readable output.')}`);
     console.log(`  ${C.dim('Run with --fix to attempt automatic fixes (where safe).')}`);
     console.log(`  ${C.dim('Run with --sync to sync your setup to the frugal dashboard.')}`);
+    console.log(`  ${C.dim('Run with --optimize to check OS performance optimizations.')}`);
     console.log('');
   } else {
     console.log(JSON.stringify(report, null, 2));
@@ -580,6 +596,89 @@ async function main() {
       }
     }
 
+    console.log('');
+  }
+
+  // ── OPTIMIZE mode (--optimize) ──────────────────────────────────────────
+  if (OPTIMIZE_MODE && !JSON_MODE) {
+    console.log(C.bold('  OS Optimization Checklist'));
+    console.log('');
+
+    const optimizations = [];
+
+    if (IS_WINDOWS) {
+      // 1. Power plan
+      try {
+        const pp = runCmd('powercfg /getactivescheme');
+        const isHighPerf = pp.stdout && /high performance|ultimate/i.test(pp.stdout);
+        if (isHighPerf) {
+          console.log(`  ${TICK}  Power plan: High Performance`);
+        } else {
+          console.log(`  ${WARN}  Power plan: not High Performance`);
+          const fix = 'powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c';
+          console.log(`     ${C.dim('Fix: ' + fix)}`);
+          optimizations.push({ name: 'power_plan', fix, applied: false });
+          if (!DRY_RUN) {
+            try { runCmd(fix); console.log(`     ${TICK} Applied`); optimizations[optimizations.length - 1].applied = true; } catch { /* needs admin */ }
+          }
+        }
+      } catch { console.log(`  ${C.dim('  Power plan: could not check')}`); }
+
+      // 2. Defender exclusion for Ollama models
+      try {
+        const ollamaModels = path.join(process.env.LOCALAPPDATA || '', 'Ollama', 'models');
+        if (fs.existsSync(ollamaModels)) {
+          console.log(`  ${WARN}  Defender exclusion for Ollama models`);
+          console.log(`     ${C.dim('Fix (run as admin): Add-MpPreference -ExclusionPath "' + ollamaModels + '"')}`);
+          optimizations.push({ name: 'defender_exclusion', path: ollamaModels, applied: false });
+        } else {
+          console.log(`  ${C.dim('  Ollama models dir not found — skipped')}`);
+        }
+      } catch {}
+    }
+
+    if (IS_MAC) {
+      // Sleep check
+      try {
+        const sleep = runCmd('pmset -g | grep " sleep"');
+        const sleepVal = sleep.stdout && sleep.stdout.match(/sleep\s+(\d+)/);
+        if (sleepVal && parseInt(sleepVal[1]) > 0) {
+          console.log(`  ${WARN}  Sleep enabled (${sleepVal[1]} min) — may interrupt long sessions`);
+          console.log(`     ${C.dim('Fix: sudo pmset -a sleep 0 (during long sessions)')}`);
+          optimizations.push({ name: 'sleep', current: sleepVal[1] });
+        } else {
+          console.log(`  ${TICK}  Sleep: disabled or 0`);
+        }
+      } catch {}
+    }
+
+    // 3. NVIDIA CUDA check
+    try {
+      const nvidia = runCmd('nvidia-smi --query-gpu=driver_version --format=csv,noheader');
+      if (nvidia.status === 0 && nvidia.stdout) {
+        const ver = nvidia.stdout.trim();
+        console.log(`  ${TICK}  NVIDIA driver: ${ver}`);
+      }
+    } catch { /* no nvidia */ }
+
+    // 4. Ollama GPU layers
+    const ollamaGpuLayers = process.env.OLLAMA_NUM_GPU;
+    const hwCap = readJson(path.join(ROUTER_DIR, 'hw-capability.json'));
+    const vram = hwCap?.vramMB || 0;
+    if (vram > 8000 && !ollamaGpuLayers) {
+      console.log(`  ${WARN}  OLLAMA_NUM_GPU not set (VRAM: ${Math.round(vram / 1024)}GB)`);
+      console.log(`     ${C.dim('Fix: set OLLAMA_NUM_GPU=999 in your shell profile for max GPU offload')}`);
+      optimizations.push({ name: 'ollama_gpu_layers', vram });
+    } else if (ollamaGpuLayers) {
+      console.log(`  ${TICK}  OLLAMA_NUM_GPU: ${ollamaGpuLayers}`);
+    }
+
+    console.log('');
+    if (optimizations.length === 0) {
+      console.log(`  ${TICK}  ${C.green('All optimizations applied.')}`);
+    } else {
+      console.log(`  ${C.dim(`${optimizations.length} optimization(s) available. Use without --dry-run to auto-apply where safe.`)}`);
+    }
     console.log('');
   }
 

@@ -179,6 +179,7 @@ function buildHwCapability(probe) {
     hw_tier: hwTier,
     t0_models_available: t0Models,
     recommended_t0: recommended,
+    option_a_model: 'qwen2.5:3b', // Option A always uses fast model — qwen3 think mode is too slow
   };
 
   try {
@@ -201,3 +202,4 @@ if (require.main === module) {
     console.log('\nNo GPU detected — hw-capability.json not written.');
   }
 }
+

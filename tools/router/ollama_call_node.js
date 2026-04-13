@@ -36,6 +36,7 @@ async function main() {
     stream: false,
     keep_alive: -1, // v0.7: hold model in VRAM between calls (pairs with ollama-warmup.js)
     options: { temperature: 0.2, num_predict: 256 },
+    think: false,
   });
 
   const url = new URL('/api/generate', hostUrl);
@@ -78,3 +79,5 @@ async function main() {
 }
 
 main().then(() => process.exit(0)).catch(() => process.exit(1));
+
+
