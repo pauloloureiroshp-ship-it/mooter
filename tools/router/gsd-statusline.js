@@ -93,10 +93,10 @@ const DIM = '\x1b[2m';
 //   "frugal saves you real money — here's the proof."
 //
 // Layout (normal session):
-//   🐕 ↓89% 💰saved ~$3.84 │ ████████░░ 🔴Opus 9% 🟡Sonnet 22% 🟢Local 69%
+//   🐮 ↓89% 💰saved ~$3.84 │ ████████░░ 🔴Opus 9% 🟡Sonnet 22% 🟢Local 69%
 //
 // Layout (with token counts, when tracker is running):
-//   🐕 ↓89% 💰~$3.84 │ ████████░░ 🔴Opus 9% 12k 🟡Sonnet 22% 31k 🟢Local 69% 98k
+//   🐮 ↓89% 💰~$3.84 │ ████████░░ 🔴Opus 9% 12k 🟡Sonnet 22% 31k 🟢Local 69% 98k
 //
 // The colored bar IS the proof: mostly teal = mostly free.
 // Full model names: "Opus", "Sonnet", "Local" — no jargon.
@@ -112,6 +112,8 @@ function bucketFor(model) {
   if (m.includes('opus'))   return 'opus';
   if (m.includes('sonnet')) return 'sonnet';
   if (m.includes('haiku'))  return 'haiku';
+  if (m.includes('deepseek'))                                            return 'deepseek';
+  if (m.includes('gemma'))                                               return 'gemma';
   if (m.includes('qwen') || m.includes('ollama') || m.includes('local')) return 'local';
   if (m.includes('gpt') || m.includes('codex') || m.includes('openai'))  return 'gpt';
   if (m.includes('gemini') || m.includes('google')) return 'gemini';
@@ -135,7 +137,7 @@ function realExecutionCounts(sessionId) {
     fs.closeSync(fd);
     const lines = buf.toString('utf8').split('\n').filter(Boolean);
 
-    const counts = { opus: 0, sonnet: 0, haiku: 0, local: 0, gpt: 0, gemini: 0 };
+    const counts = { opus: 0, sonnet: 0, haiku: 0, local: 0, gpt: 0, gemini: 0, deepseek: 0, gemma: 0 };
     let total = 0;
     for (const line of lines) {
       if (sessionId) {
@@ -174,12 +176,14 @@ function renderDistribution(metrics, sessionId) {
   if (real && real.total > 0) {
     callCountsByBucket = real;
     pbt = {
-      T3: (real.opus   / real.total) * 100,
-      T2: (real.sonnet / real.total) * 100,
-      T1: (real.haiku  / real.total) * 100,
-      T0: (real.local  / real.total) * 100,
-      GPT: (real.gpt   / real.total) * 100,
-      GEM: (real.gemini/ real.total) * 100,
+      T3: (real.opus    / real.total) * 100,
+      T2: (real.sonnet  / real.total) * 100,
+      T1: (real.haiku   / real.total) * 100,
+      T0: (real.local   / real.total) * 100,
+      GPT: (real.gpt    / real.total) * 100,
+      GEM: (real.gemini / real.total) * 100,
+      DSP: (real.deepseek / real.total) * 100,
+      GMM: (real.gemma  / real.total) * 100,
     };
     // Token estimate via call counts × ~400 chars unit of work
     const unit = Math.round(400 / 4) + 1500;
@@ -239,8 +243,10 @@ function renderDistribution(metrics, sessionId) {
   const localPct = Math.round(pbt.T0 || 0);
   const gptPct   = Math.round(pbt.GPT || 0);
   const gemPct   = Math.round(pbt.GEM || 0);
+  const dspPct   = Math.round(pbt.DSP || 0);
+  const gmmPct   = Math.round(pbt.GMM || 0);
 
-  const total = opsPct + sonPct + hkuPct + localPct + gptPct + gemPct;
+  const total = opsPct + sonPct + hkuPct + localPct + gptPct + gemPct + dspPct + gmmPct;
   if (total === 0) return '';
 
   // Token counts (formatted as "12k" or "1.2M")
@@ -264,19 +270,25 @@ function renderDistribution(metrics, sessionId) {
   let locC  = share(localPct);
   let gptC  = share(gptPct);
   let gemC  = share(gemPct);
+  let dspC  = share(dspPct);
+  let gmmC  = share(gmmPct);
   // Clamp rounding drift so the bar is always exactly barLen chars.
-  const drift = barLen - (opsC + sonC + hkuC + locC + gptC + gemC);
+  const drift = barLen - (opsC + sonC + hkuC + locC + gptC + gemC + dspC + gmmC);
   if (drift !== 0) locC = Math.max(0, locC + drift);
 
-  const HAIKU_COLOR  = '\x1b[38;2;180;180;255m';
-  const GPT_COLOR    = '\x1b[38;2;120;220;120m';
-  const GEMINI_COLOR = '\x1b[38;2;140;180;255m';
+  const HAIKU_COLOR    = '\x1b[38;2;180;180;255m';
+  const GPT_COLOR      = '\x1b[38;2;120;220;120m';
+  const GEMINI_COLOR   = '\x1b[38;2;140;180;255m';
+  const DEEPSEEK_COLOR = '\x1b[38;2;99;179;237m';
+  const GEMMA_COLOR    = '\x1b[38;2;154;205;50m';
 
   const bar =
     (opsC > 0 ? `${TIER_COLOR.T3}${'█'.repeat(opsC)}${RESET}` : '') +
     (sonC > 0 ? `${TIER_COLOR.T2}${'█'.repeat(sonC)}${RESET}` : '') +
     (hkuC > 0 ? `${HAIKU_COLOR}${'█'.repeat(hkuC)}${RESET}`   : '') +
     (locC > 0 ? `${TIER_COLOR.T0}${'█'.repeat(locC)}${RESET}` : '') +
+    (dspC > 0 ? `${DEEPSEEK_COLOR}${'█'.repeat(dspC)}${RESET}` : '') +
+    (gmmC > 0 ? `${GEMMA_COLOR}${'█'.repeat(gmmC)}${RESET}`    : '') +
     (gptC > 0 ? `${GPT_COLOR}${'█'.repeat(gptC)}${RESET}`     : '') +
     (gemC > 0 ? `${GEMINI_COLOR}${'█'.repeat(gemC)}${RESET}`  : '');
 
@@ -286,15 +298,20 @@ function renderDistribution(metrics, sessionId) {
     ? `${DIM}exec${RESET}`
     : `\x1b[38;2;255;180;80madv\x1b[0m`;
 
-  // Labels always show all 6 LLMs (0% when unused) so the legend is stable.
-  const dimIf = (pct, color) => pct === 0 ? DIM : color;
+  // Labels: compact when 0% (emoji + pct only), full when active (emoji + name + pct).
+  const compactLabel = (emoji, name, pct, color, tok) =>
+    pct === 0
+      ? `${DIM}${emoji} 0%${RESET}`
+      : `${color}${emoji} ${name} ${pct}%${RESET}${tok || ''}`;
   const labels = [];
-  labels.push(`${dimIf(opsPct,   TIER_COLOR.T3)}🔴 Opus ${opsPct}%${RESET}${opsTok}`);
-  labels.push(`${dimIf(sonPct,   TIER_COLOR.T2)}🟡 Sonnet ${sonPct}%${RESET}${sonTok}`);
-  labels.push(`${dimIf(hkuPct,   HAIKU_COLOR)}⚡ Haiku ${hkuPct}%${RESET}${hkuTok}`);
-  labels.push(`${dimIf(localPct, TIER_COLOR.T0)}🦙 Local ${localPct}%${RESET}${localTok}`);
-  labels.push(`${dimIf(gptPct,   GPT_COLOR)}🟩 GPT ${gptPct}%${RESET}`);
-  labels.push(`${dimIf(gemPct,   GEMINI_COLOR)}💎 Gemini ${gemPct}%${RESET}`);
+  labels.push(compactLabel('🔴', 'Opus',     opsPct,   TIER_COLOR.T3, opsTok));
+  labels.push(compactLabel('🟡', 'Sonnet',   sonPct,   TIER_COLOR.T2, sonTok));
+  labels.push(compactLabel('⚡', 'Haiku',    hkuPct,   HAIKU_COLOR,   hkuTok));
+  labels.push(compactLabel('🦙', 'Qwen',     localPct, TIER_COLOR.T0, localTok));
+  labels.push(compactLabel('🐉', 'DeepSeek', dspPct,   DEEPSEEK_COLOR));
+  labels.push(compactLabel('🌺', 'Gemma',    gmmPct,   GEMMA_COLOR));
+  labels.push(compactLabel('🟩', 'GPT',      gptPct,   GPT_COLOR));
+  labels.push(compactLabel('💎', 'Gemini',   gemPct,   GEMINI_COLOR));
 
   // GPU tag for the Local tier — shows what hardware powers Ollama
   let gpuTag = '';
@@ -316,7 +333,9 @@ function renderDistribution(metrics, sessionId) {
     } catch { /* silent */ }
   }
 
-  return ` ${bar} ${sourceBadge} ${labels.join(' · ')}${gpuTag}`;
+  // 2-line layout: line 1 = bar + source, line 2 = per-model breakdown
+  const line2 = `  ${labels.join(' · ')}${gpuTag}`;
+  return ` ${bar} ${sourceBadge}\n${line2}`;
 }
 
 // v0.9: segment ⑥ — GPU widget. Reads /gpu.
@@ -417,15 +436,15 @@ function renderSavingsHero(mOpt, sessionId) {
             if (totalMetrics && totalMetrics.prompts && totalMetrics.prompts > real.total) {
               const totalPct = Math.round(totalMetrics.saved_pct || 0);
               const totalDecisions = totalMetrics.prompts || 0;
-              totalSuffix = ` ${DIM}· total: ${totalPct}% · ${totalDecisions} decisions${RESET}`;
+              totalSuffix = ` ${DIM}· 🌍 ${totalPct}% saved · ${totalDecisions} prompts${RESET}`;
             }
           } catch { /* non-fatal */ }
 
           // When savings are zero (all-Opus session) we make this EXPLICIT.
           if (pct === 0 || saved < 0.001) {
-            return `💰 ${pctColor}∅ 0% saved${RESET} ${DIM}· spent ~${spentStr} (all-Opus)${RESET}${totalSuffix}`;
+            return `📍 ${pctColor}∅ 0% saved${RESET} ${DIM}· spent ~${spentStr} (all-Opus)${RESET}${totalSuffix}`;
           }
-          return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~${savedStr} · spent ~${spentStr}${RESET}${totalSuffix}`;
+          return `📍 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~${savedStr} · spent ~${spentStr}${RESET}${totalSuffix}`;
         }
       }
     } catch { /* fall through to advisory */ }
@@ -449,7 +468,7 @@ function renderSavingsHero(mOpt, sessionId) {
       if (spentUsd > 0) spent = ` ${DIM}· spent ${tildePrefix}${fmtMoney(spentUsd, m)}${RESET}`;
 
       // Explicit advisory tag — prevents the mismatch the user saw in v0.11.
-      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ${tildePrefix}${savedStr} (advisory)${RESET}${spent}`;
+      return `📍 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ${tildePrefix}${savedStr} (advisory)${RESET}${spent}`;
     }
 
     // Fallback: compute from decisions.log using pricing.js (SSOT)
@@ -484,7 +503,7 @@ function renderSavingsHero(mOpt, sessionId) {
       if (pct >= 75) pctColor = '\x1b[38;2;50;220;120m';
       else if (pct >= 40) pctColor = '\x1b[38;2;220;220;100m';
       const arrow = pct >= 30 ? '↓' : '';
-      return `💰 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~$${saved.toFixed(2)} · spent ~$${actual.toFixed(2)} (advisory)${RESET}`;
+      return `📍 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~$${saved.toFixed(2)} · spent ~$${actual.toFixed(2)} (advisory)${RESET}`;
     } catch { return ''; }
   } catch {
     return '';
@@ -678,17 +697,16 @@ process.stdin.on('end', () => {
       } catch (e) {}
     }
 
-    // ── frugal v0.11 statusline ──────────────────────────────────────
-    // Layout:
-    //   🐕 ↓89% ~$3.84 │ █░░▒▒▓▓▓▓▓ ops:9·son:22·free:69
-    //   🐕🦁 ↓89% ~$3.84 │ ██████████ ops:100  (beast mode)
-    //   🐕🧘 ↓95% ~$0.12 │ ██████████ free:100 (zen mode)
+    // ── frugal statusline (redesign v1.0) ─────────────────────────────
+    // Layout (standard, 2 lines):
+    //   ◈ Opus 4.6 │ dir │ ████░░ 14% │ 📍 $13.35 spent · $0 saved │ 🌍 69% · 431p
+    //     ██████████ exec │ 🔴Opus 100% · 🟡Sonnet 0% · ⚡Haiku 0% · 🦙Qwen3 0% · ⚡RTX 4090
     //
-    // Per-session: each Claude Code terminal shows ITS own savings (this
-    // conversation). The VS Code extension statusbar shows all-time totals.
+    // Per-session: each Claude Code terminal shows ITS own savings.
+    // The VS Code extension statusbar shows all-time (lifetime) totals.
     const metrics = fetchFrugalMetrics(session);
 
-    // Mode badge
+    // Mode badge (beast/zen)
     let modeBadge = '';
     try {
       const modeFile = path.join(os.homedir(), '.claude', 'tools', 'router', '.frugal-mode.json');
@@ -699,20 +717,34 @@ process.stdin.on('end', () => {
       }
     } catch { /* silent */ }
 
-    // Compose: 🐕[mode] savings │ distribution-bar labels
+    // Assemble all render segments
     const savingsHero = renderSavingsHero(metrics, session);
     const dist = renderDistribution(metrics, session);
-    const frugalSegment = savingsHero || dist
-      ? ` │ 🐕${modeBadge} ${savingsHero}${dist ? ' │' + dist : ''}`
-      : '';
+    const providers = renderProviders(metrics);
+    const latency = renderLatency(metrics);
 
-    // Output
+    // Line 1: model │ [task │] dir │ ctx │ 🐮[mode] hero
     const dirname = path.basename(dir);
-    if (task) {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[1m${task}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${frugalSegment}`);
-    } else {
-      process.stdout.write(`${gsdUpdate}\x1b[2m${model}\x1b[0m │ \x1b[2m${dirname}\x1b[0m${ctx}${frugalSegment}`);
+    const heroSegment = savingsHero ? ` │ 🐮${modeBadge} ${savingsHero}` : '';
+    const taskSegment = task ? ` │ \x1b[1m${task}\x1b[0m` : '';
+    const line1 = `${gsdUpdate}\x1b[2m${model}\x1b[0m${taskSegment} │ \x1b[2m${dirname}\x1b[0m${ctx}${heroSegment}`;
+
+    // Line 2: distribution bar + labels + gpu (renderDistribution returns "bar\n  labels")
+    // Line 3: providers + latency + mode badge
+    let line2 = '';
+    let line3 = '';
+    if (dist) {
+      // renderDistribution returns " bar exec\n  labels·gpu" — use as-is
+      line2 = `\n ${dist}`;
     }
+    const line3Parts = [providers, latency].filter(Boolean).join('');
+    if (line3Parts || modeBadge) {
+      const modeTag = modeBadge ? ` │ ${modeBadge}` : '';
+      line3 = `\n ${line3Parts}${modeTag}`;
+    }
+
+    // Output (multi-line when data available, single line as fallback)
+    process.stdout.write(`${line1}${line2}${line3}`);
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
   }

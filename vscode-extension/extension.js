@@ -102,8 +102,8 @@ function fmtTokens(n) {
 function renderStatusBar(metrics) {
   if (!statusBarItem) return;
   if (!metrics || metrics.prompts === 0) {
-    statusBarItem.text = '$(symbol-numeric) frugal: –';
-    statusBarItem.tooltip = 'frugal: tracker idle (no prompts yet)';
+    statusBarItem.text = '🐮 frugal: –';
+    statusBarItem.tooltip = '🐮 frugal: tracker idle (no prompts yet)';
     statusBarItem.color = undefined;
     statusBarItem.command = 'frugal.showSummary';
     statusBarItem.show();
@@ -116,12 +116,14 @@ function renderStatusBar(metrics) {
   const saved = fmtUsd(metrics.saved);
   const pct = Math.round(metrics.saved_pct || 0);
   const tokens = fmtTokens(metrics.total_tokens || 0);
-  statusBarItem.text = `💰 ${saved} │ ${metrics.prompts} prompts │ ${tokens} tokens`;
+  const isAdvisory = (metrics.guaranteed_saved || 0) < metrics.saved * 0.1;
+  const prefix = isAdvisory ? '~' : '';
+  statusBarItem.text = `🐮 🌍 ${prefix}${saved} saved │ ${metrics.prompts} prompts`;
 
   statusBarItem.color = colorForSavingsPct(metrics.saved_pct || 0);
   const plan = metrics.plan || 'unknown';
   const tooltipLines = [
-    `**frugal — savings (all-time)**`,
+    `**🐮 frugal — savings (🌍 lifetime)**`,
     ``,
     `| | |`,
     `|-|-|`,
@@ -129,8 +131,10 @@ function renderStatusBar(metrics) {
     `| Tokens | ${fmtTokens(metrics.total_tokens || 0)} (in: ${fmtTokens(metrics.total_input_tokens || 0)} · out: ${fmtTokens(metrics.total_output_tokens || 0)}) |`,
     `| Real cost | ${fmtUsd(metrics.real_cost)} |`,
     `| Naive (all Opus) | ${fmtUsd(metrics.naive_cost)} |`,
-    `| **Saved (est)** | **${fmtUsd(metrics.saved)} (${pct}%)** |`,
+    `| **Saved (advisory ~)** | **${fmtUsd(metrics.saved)} (${pct}%)** |`,
     `| Guaranteed saved | ${fmtUsd(metrics.guaranteed_saved || 0)} |`,
+    `| | _advisory = token-estimated vs Opus baseline_ |`,
+    `| | _guaranteed = Option-A hits (Ollama verbatim)_ |`,
     `| Plan | ${plan} |`,
   ];
   if (metrics.subscription_note) {
@@ -209,6 +213,17 @@ class SavingsViewProvider {
         ${tierRow('T0')}${tierRow('T1')}${tierRow('T2')}${tierRow('T3')}
       </table>
 
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:0.8em;color:var(--vscode-descriptionForeground)">How is this calculated?</summary>
+        <div style="font-size:0.75em;margin-top:8px;line-height:1.5;color:var(--vscode-descriptionForeground)">
+          <p><strong>Advisory (~)</strong>: token-estimated. Assumes frugal's routing hint was honoured.
+          Formula: <code>naive_opus_cost − estimated_real_cost</code></p>
+          <p><strong>Guaranteed</strong>: only Option-A hits — prompts where Ollama answered verbatim
+          inside the hook, bypassing Opus processing.</p>
+          <p>Naive baseline: Claude Opus 4.6 at $15/MTok input, $75/MTok output.</p>
+        </div>
+      </details>
+
       <div class="actions">
         <button onclick="vscode.postMessage({command:'summary'})">Full summary</button>
         <button onclick="vscode.postMessage({command:'openDecisions'})">decisions.log</button>
@@ -286,7 +301,7 @@ function startPolling() {
 // ── Activation ──────────────────────────────────────────────────────────────
 async function activate(context) {
   statusBarItem = vscode.window.createStatusBarItem(alignmentFromConfig(), 50);
-  statusBarItem.text = '$(symbol-numeric) frugal: …';
+  statusBarItem.text = '🐮 frugal: …';
   statusBarItem.command = 'frugal.showSummary';
   context.subscriptions.push(statusBarItem);
   statusBarItem.show();

@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>frugal — Architecture Map v0.9.6</title>
+<style>
+  :root {
+    --bg: #080808;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --accent: #00ff88;
+    --accent2: #00aaff;
+    --accent3: #ff6b35;
+    --accent4: #a855f7;
+    --text: #e0e0e0;
+    --muted: #666;
+    --t0: #00c853;
+    --t1: #ffab00;
+    --t2: #2979ff;
+    --t3: #d500f9;
+    --warning: #ff6b35;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(8,8,8,0.96);
+    backdrop-filter: blur(10px);
+    z-index: 100;
+  }
+
+  header h1 {
+    font-size: 18px;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .version-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .nav-pills {
+    display: flex;
+    gap: 8px;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: var(--bg);
+    position: sticky;
+    top: 65px;
+    z-index: 99;
+  }
+
+  .nav-pill {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    font-size: 11px;
+    transition: all 0.2s;
+  }
+
+  .nav-pill:hover, .nav-pill.active {
+    background: var(--surface2);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .main {
+    padding: 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .section {
+    display: none;
+  }
+
+  .section.active {
+    display: block;
+  }
+
+  /* ── SECTION HEADERS ── */
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .section-subtitle {
+    color: var(--muted);
+    margin-bottom: 28px;
+    font-size: 12px;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent2);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── TIER GRID ── */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .tier-card {
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tier-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .tier-t0 { background: rgba(0,200,83,0.05); border-color: rgba(0,200,83,0.3); }
+  .tier-t0::before { background: var(--t0); }
+  .tier-t1 { background: rgba(255,171,0,0.05); border-color: rgba(255,171,0,0.3); }
+  .tier-t1::before { background: var(--t1); }
+  .tier-t2 { background: rgba(41,121,255,0.05); border-color: rgba(41,121,255,0.3); }
+  .tier-t2::before { background: var(--t2); }
+  .tier-t3 { background: rgba(213,0,249,0.05); border-color: rgba(213,0,249,0.3); }
+  .tier-t3::before { background: var(--t3); }
+
+  .tier-label {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .t0 { color: var(--t0); }
+  .t1 { color: var(--t1); }
+  .t2 { color: var(--t2); }
+  .t3 { color: var(--t3); }
+  .gate { color: var(--warning); }
+
+  .tier-name { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+  .tier-model { font-size: 12px; margin-bottom: 8px; color: var(--text); }
+  .tier-cost { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+
+  .tier-examples { font-size: 11px; }
+  .tier-examples p { color: var(--muted); margin-bottom: 4px; padding: 4px 8px; background: var(--surface2); border-radius: 4px; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
+  }
+
+  .flow-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    width: 100%;
+    max-width: 700px;
+    position: relative;
+  }
+
+  .flow-step:hover {
+    border-color: var(--accent);
+  }
+
+  .flow-step-num {
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .flow-step-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .flow-step-body {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .flow-arrow {
+    width: 2px;
+    height: 24px;
+    background: var(--border);
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .flow-arrow::after {
+    content: '▼';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .flow-branch {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .flow-branch-item {
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+    font-size: 11px;
+    border: 1px solid;
+  }
+
+  /* ── ALGORITHM PASSES ── */
+  .passes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .pass-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .pass-num {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--accent);
+    min-width: 32px;
+    line-height: 1;
+  }
+
+  .pass-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .pass-desc { font-size: 11px; color: var(--muted); }
+
+  /* ── INFRA MAP ── */
+  .infra-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .infra-node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .infra-node-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .dot-green { background: #00c853; }
+  .dot-yellow { background: #ffab00; }
+  .dot-red { background: #f44336; }
+
+  .infra-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .infra-row:last-child { border-bottom: none; }
+  .infra-row span:last-child { color: var(--text); font-family: 'SF Mono', monospace; }
+
+  /* ── GUARDRAIL ── */
+  .guardrail-box {
+    background: rgba(255,107,53,0.05);
+    border: 1px solid rgba(255,107,53,0.4);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .guardrail-title {
+    color: var(--warning);
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  /* ── DATA LEVELS ── */
+  .data-levels {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .data-level {
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .level-label {
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .level-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .level-body { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+  .level-1 { background: rgba(0,200,83,0.05); }
+  .level-2 { background: rgba(0,170,255,0.05); }
+  .level-3 { background: rgba(168,85,247,0.05); }
+  .level-4 { background: rgba(255,107,53,0.1); border-color: rgba(255,107,53,0.3); }
+
+  /* ── ROADMAP ── */
+  .roadmap-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .roadmap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .roadmap-status {
+    font-size: 16px;
+    min-width: 24px;
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  .roadmap-version { font-size: 11px; color: var(--accent); font-weight: 700; min-width: 60px; }
+  .roadmap-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .roadmap-desc { font-size: 11px; color: var(--muted); }
+
+  /* ── SUBAGENTS ── */
+  .agents-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .agent-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .agent-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .agent-tier { font-size: 11px; margin-bottom: 8px; }
+  .agent-model { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .agent-when { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* ── METRICS TABLE ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* ── CODE BLOCKS ── */
+  .code-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    font-size: 11px;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+    color: #b0bec5;
+    margin-bottom: 16px;
+  }
+
+  .code-block .kw { color: #82aaff; }
+  .code-block .str { color: #c3e88d; }
+  .code-block .cm { color: #546e7a; }
+  .code-block .fn { color: #82aaff; }
+  .code-block .t0c { color: var(--t0); }
+  .code-block .t1c { color: var(--t1); }
+  .code-block .t2c { color: var(--t2); }
+  .code-block .t3c { color: var(--t3); }
+
+  /* ── SKILLS ── */
+  .skills-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .skill-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+  }
+
+  .skill-trigger { font-size: 12px; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+  .skill-desc { font-size: 11px; color: var(--muted); }
+
+  /* ── LOOP DIAGRAM ── */
+  .loop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .loop-side {
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .loop-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .loop-step {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    align-items: flex-start;
+    font-size: 11px;
+  }
+
+  .loop-icon { font-size: 14px; min-width: 20px; }
+  .loop-step-body { color: var(--muted); }
+  .loop-step-body b { color: var(--text); }
+
+  /* ── BADGES ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .badge-green { background: rgba(0,200,83,0.15); color: var(--t0); }
+  .badge-yellow { background: rgba(255,171,0,0.15); color: var(--t1); }
+  .badge-red { background: rgba(244,67,54,0.15); color: #f44336; }
+  .badge-purple { background: rgba(168,85,247,0.15); color: var(--accent4); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .tier-grid { grid-template-columns: repeat(2, 1fr); }
+    .infra-grid { grid-template-columns: 1fr; }
+    .passes-grid { grid-template-columns: 1fr; }
+    .agents-grid { grid-template-columns: repeat(2, 1fr); }
+    .skills-grid { grid-template-columns: repeat(2, 1fr); }
+    .data-levels { grid-template-columns: 1fr; }
+    .loop-grid { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐮 frugal — Architecture Map</h1>
+  <span class="version-badge">v0.9.6 · 2026-04-11</span>
+</header>
+
+<div class="nav-pills">
+  <button class="nav-pill active" onclick="show('overview')">Overview</button>
+  <button class="nav-pill" onclick="show('algorithm')">Algoritmo</button>
+  <button class="nav-pill" onclick="show('flow')">Fluxo por Prompt</button>
+  <button class="nav-pill" onclick="show('subagents')">Subagents</button>
+  <button class="nav-pill" onclick="show('loop')">Auto-learning</button>
+  <button class="nav-pill" onclick="show('infra')">Infraestrutura</button>
+  <button class="nav-pill" onclick="show('data')">Dados & Motor</button>
+  <button class="nav-pill" onclick="show('skills')">Skills</button>
+  <button class="nav-pill" onclick="show('roadmap')">Roadmap</button>
+  <button class="nav-pill" onclick="show('metrics')">Performance</button>
+</div>
+
+<div class="main">
+
+<!-- ════════════════════════════════════════════ OVERVIEW ════ -->
+<div class="section active" id="s-overview">
+  <div class="section-title">Sistema Operativo do Vibe Coder</div>
+  <div class="section-subtitle">Router inteligente de LLMs para Claude Code · classifica em &lt;50ms · ~90% savings validados · 1,437 prompts reais</div>
+
+  <div class="tier-grid">
+    <div class="tier-card tier-t0">
+      <div class="tier-label t0">T0</div>
+      <div class="tier-name">LOCAL FREE</div>
+      <div class="tier-model">Ollama · qwen3:30b / qwen2.5:3b</div>
+      <div class="tier-cost">$0.00 / prompt</div>
+      <div class="tier-examples">
+        <p>Resumo de ficheiro</p>
+        <p>Muda cor do botão</p>
+        <p>Explica este erro simples</p>
+        <p>Converte JSON → CSV</p>
+      </div>
+    </div>
+    <div class="tier-card tier-t1">
+      <div class="tier-label t1">T1</div>
+      <div class="tier-name">CHEAP TRIAGE</div>
+      <div class="tier-model">Haiku API · claude-haiku-4-5</div>
+      <div class="tier-cost">~$0.001 / prompt</div>
+      <div class="tier-examples">
+        <p>Gera commit message</p>
+        <p>Docstring para função</p>
+        <p>Regex para validar email</p>
+        <p>Explica este warning</p>
+      </div>
+    </div>
+    <div class="tier-card tier-t2">
+      <div class="tier-label t2">T2</div>
+      <div class="tier-name">REASONER</div>
+      <div class="tier-model">Sonnet · claude-sonnet-4-6</div>
+      <div class="tier-cost">~$0.01 / prompt</div>
+      <div class="tier-examples">
+        <p>Porquê falha o websocket?</p>
+        <p>Plano para migrar auth</p>
+        <p>Compara abordagem A vs B</p>
+        <p>Root cause deste bug</p>
+      </div>
+    </div>
+    <div class="tier-card tier-t3">
+      <div class="tier-label t3">T3</div>
+      <div class="tier-name">ARCHITECT</div>
+      <div class="tier-model">Opus · claude-opus-4-6</div>
+      <div class="tier-cost">~$0.05+ / prompt</div>
+      <div class="tier-examples">
+        <p>Redesenha o vault para multi-user</p>
+        <p>Migração do schema prod</p>
+        <p>Review antes do push</p>
+        <p>Refactor 5+ ficheiros</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+    <div class="card">
+      <div class="card-title">📐 5 Princípios</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8;">
+        <div><span style="color:var(--accent)">1.</span> No proxy — frugal nunca senta entre user e LLM</div>
+        <div><span style="color:var(--accent)">2.</span> Zero LLM cost na classificação — regex puro, &lt;50ms</div>
+        <div><span style="color:var(--accent)">3.</span> Doctrine &gt; configuration — 165 linhas Markdown</div>
+        <div><span style="color:var(--accent)">4.</span> Explainability — cada decisão tem <code>reasoning</code></div>
+        <div><span style="color:var(--accent)">5.</span> Doctrine nunca cede ao optimizador — dual-enforce</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Métricas de Produção</div>
+      <div style="font-size:11px;color:var(--muted);line-height:2;">
+        <div>Savings validados <span style="color:var(--t0);float:right">~90%</span></div>
+        <div>Corpus real <span style="color:var(--text);float:right">1,437 prompts</span></div>
+        <div>Patterns <span style="color:var(--text);float:right">102 regexes</span></div>
+        <div>Gold labels <span style="color:var(--text);float:right">62 curados</span></div>
+        <div>Gold accuracy <span style="color:var(--t0);float:right">95.2%</span></div>
+        <div>Latência típica <span style="color:var(--text);float:right">20–45ms</span></div>
+        <div>Latência cached <span style="color:var(--text);float:right">2ms</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏗️ Stack</div>
+      <div style="font-size:11px;color:var(--muted);line-height:2;">
+        <div>Classifier <span style="color:var(--text);float:right">Node.js puro, zero deps</span></div>
+        <div>Landing <span style="color:var(--text);float:right">Next.js 15 / Vercel</span></div>
+        <div>Backend <span style="color:var(--text);float:right">Cloudflare Workers + D1 + R2</span></div>
+        <div>Auth/DB <span style="color:var(--text);float:right">Supabase (sa-east-1)</span></div>
+        <div>CI/CD <span style="color:var(--text);float:right">GitHub Actions</span></div>
+        <div>Modelos locais <span style="color:var(--text);float:right">Ollama :11434</span></div>
+        <div>Dashboard <span style="color:var(--text);float:right">Next.js :7820 (Sprint 4)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗺️ Arquitectura de Alto Nível</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;margin-top:8px;">
+      <!-- Coluna 1: Local -->
+      <div style="background:var(--surface2);border-radius:6px;padding:16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">🖥️ Local (máquina do Paulo)</div>
+        <div style="font-size:11px;line-height:2.2;">
+          <div style="color:var(--accent)">Claude Code (session)</div>
+          <div style="padding-left:8px;color:var(--muted)">↓ UserPromptSubmit</div>
+          <div style="padding-left:8px;color:var(--accent2)">inject_context.js</div>
+          <div style="padding-left:16px;color:var(--muted)">↓ spawn</div>
+          <div style="padding-left:16px;color:var(--accent2)">classify.js v0.10</div>
+          <div style="padding-left:16px;color:var(--muted)">↓ &lt;router-hint&gt;</div>
+          <div style="padding-left:8px;color:var(--accent)">Claude Code honra hint</div>
+          <div style="padding-left:8px;color:var(--muted)">↓ PostToolUse</div>
+          <div style="padding-left:8px;color:var(--accent2)">exec-logger.js</div>
+          <div style="padding-left:8px;color:var(--muted)">↓ Stop hook</div>
+          <div style="padding-left:8px;color:var(--accent2)">gsd-turn-end.js</div>
+          <div style="margin-top:8px;color:var(--t0)">Ollama :11434</div>
+          <div style="color:var(--accent4)">savings-tracker :7821</div>
+          <div style="color:var(--accent4)">dashboard :7820</div>
+          <div style="margin-top:8px;color:var(--muted)">decisions.log (JSONL)</div>
+          <div style="color:var(--muted)">execution.log (TSV)</div>
+        </div>
+      </div>
+      <!-- Coluna 2: APIs pagas -->
+      <div style="background:var(--surface2);border-radius:6px;padding:16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">☁️ APIs Pagas</div>
+        <div style="font-size:11px;line-height:2.2;">
+          <div style="color:var(--t1)">Anthropic API</div>
+          <div style="padding-left:8px;color:var(--muted)">Haiku (T1) ~$0.001</div>
+          <div style="padding-left:8px;color:var(--muted)">Sonnet subagent (T2) ~$0.01</div>
+          <div style="padding-left:8px;color:var(--muted)">Opus subagent (T3) ~$0.05+</div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin:16px 0 8px;text-transform:uppercase;letter-spacing:1px;">🌐 Cloudflare Workers</div>
+        <div style="font-size:11px;line-height:2.2;">
+          <div style="color:var(--accent2)">frugal-hub (Worker)</div>
+          <div style="padding-left:8px;color:var(--muted)">POST /api/delta</div>
+          <div style="padding-left:8px;color:var(--muted)">GET /api/stats</div>
+          <div style="padding-left:8px;color:var(--muted)">POST /submit-events</div>
+          <div style="padding-left:8px;color:var(--muted)">GET /aggregate-stats</div>
+          <div style="color:var(--accent2)">D1 SQLite</div>
+          <div style="padding-left:8px;color:var(--muted)">routing_deltas</div>
+          <div style="padding-left:8px;color:var(--muted)">frugal_events</div>
+          <div style="color:var(--accent2)">R2 Storage</div>
+          <div style="padding-left:8px;color:var(--muted)">router-tuning-latest.json</div>
+        </div>
+      </div>
+      <!-- Coluna 3: Web -->
+      <div style="background:var(--surface2);border-radius:6px;padding:16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">🌍 Web</div>
+        <div style="font-size:11px;line-height:2.2;">
+          <div style="color:var(--accent)">Landing (Vercel)</div>
+          <div style="padding-left:8px;color:var(--muted)">landing-five-azure-16.vercel.app</div>
+          <div style="padding-left:8px;color:var(--muted)">Next.js 15 App Router</div>
+          <div style="padding-left:8px;color:var(--muted)">Hero+Demo+How+Pricing</div>
+          <div style="margin-top:8px;color:var(--accent)">Supabase Auth/DB</div>
+          <div style="padding-left:8px;color:var(--muted)">waitlist table</div>
+          <div style="padding-left:8px;color:var(--muted)">profiles table</div>
+          <div style="padding-left:8px;color:var(--muted)">Magic Link ✅</div>
+          <div style="padding-left:8px;color:var(--warning)">GitHub OAuth ⏳</div>
+          <div style="margin-top:8px;color:var(--accent)">GitHub</div>
+          <div style="padding-left:8px;color:var(--muted)">Repo + Actions CI/CD</div>
+          <div style="padding-left:8px;color:var(--muted)">test.yml + deploy-hub.yml</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ ALGORITHM ════ -->
+<div class="section" id="s-algorithm">
+  <div class="section-title">O Algoritmo — classify.js v0.10</div>
+  <div class="section-subtitle">Regex puro, 11 passes, zero LLM calls · JSON com tier, confidence, reasoning</div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title">Input → Output</div>
+    <div class="code-block"><span class="cm">// Input: string do prompt</span>
+<span class="cm">// Output:</span>
+{
+  <span class="str">"tier"</span>: <span class="str">"T2"</span>,                           <span class="cm">// T0 | T1 | T2 | T3</span>
+  <span class="str">"task_category"</span>: <span class="str">"debug_investigation"</span>,
+  <span class="str">"recommended_backend"</span>: <span class="str">"claude_subagent"</span>,
+  <span class="str">"recommended_model"</span>: <span class="str">"claude-sonnet-4-6"</span>,
+  <span class="str">"suggested_subagent"</span>: <span class="str">"model-reasoner"</span>,
+  <span class="str">"confidence"</span>: 0.8,
+  <span class="str">"escalation_rule"</span>: <span class="str">"none"</span>,
+  <span class="str">"reasoning"</span>: <span class="str">"med-risk signals: 2, high: 0"</span>,
+  <span class="str">"variant_hint"</span>: <span class="kw">null</span>,              <span class="cm">// T0 sub-tier se aplicável</span>
+  <span class="str">"user_override"</span>: <span class="kw">false</span>,
+  <span class="str">"previous_tier"</span>: <span class="str">"T2"</span>,            <span class="cm">// herdado da sessão anterior</span>
+  <span class="str">"anthropic_key_present"</span>: <span class="kw">true</span>,
+  <span class="str">"prompt_length"</span>: 68
+}</div>
+  </div>
+
+  <div class="passes-grid" style="margin-bottom:24px;">
+    <div class="pass-item">
+      <div class="pass-num">1</div>
+      <div>
+        <div class="pass-name">Cache Lookup</div>
+        <div class="pass-desc">SHA256(prompt + prev_tier) → hit? retorna cached (30min TTL). Cache quente = 2ms.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">2</div>
+      <div>
+        <div class="pass-name">MD Enrichment</div>
+        <div class="pass-desc">Lê <code>## Router Context</code> do CLAUDE.md do projecto. Contexto adicional sem custo.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">3</div>
+      <div>
+        <div class="pass-name">User Override Detection</div>
+        <div class="pass-desc">"usa opus" / "@sonnet" / "força haiku" → pin directo ao modelo pedido (excepto HIGH_RISK + downgrade).</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">4</div>
+      <div>
+        <div class="pass-name">Subagent Spawn Detection</div>
+        <div class="pass-desc">"spawn model-architect" → user_override: true, tier preservado. Respeita intenção explícita.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">5</div>
+      <div>
+        <div class="pass-name">Previous Tier Inheritance</div>
+        <div class="pass-desc">Follow-ups curtos (&lt;50ch) sem sinais herdam tier da sessão anterior via FRUGAL_PREV_TIER.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">6</div>
+      <div>
+        <div class="pass-name">Fast Paths</div>
+        <div class="pass-desc">BASH_PASTE (~30 CLI tools) → T0 terse. PS_PASTE → T0. READ_INTENT (lê/read + filename, curto) → T0 summarizer.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">7</div>
+      <div>
+        <div class="pass-name">Score Principal (4 categorias)</div>
+        <div class="pass-desc">HIGH(16 patterns) → T3. MED(14) + high==0 → T2. LOW(11) → T1. TRIVIAL(5) ou muito curto → T0. Else ambiguous.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">8</div>
+      <div>
+        <div class="pass-name">Low-confidence Escalation</div>
+        <div class="pass-desc">conf &lt;0.5 AND (med>0 OR high>0) → bump tier +1. Só escala com evidência de risco.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">9</div>
+      <div>
+        <div class="pass-name">TUNED_DEMOTE_T3</div>
+        <div class="pass-desc">tier T2/T3 AND high==0 AND pattern match → force T1. Aprende do backtest diário.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">10</div>
+      <div>
+        <div class="pass-name">TUNED_PROMOTE_T0</div>
+        <div class="pass-desc">tier ≠ T0 AND high==0 AND pattern match → force T0. Aprende do backtest diário.</div>
+      </div>
+    </div>
+    <div class="pass-item">
+      <div class="pass-num">11</div>
+      <div>
+        <div class="pass-name">Degradações</div>
+        <div class="pass-desc">T1 sem ANTHROPIC_API_KEY → T0. Budget >95% → hard cap T0. Falha-safe sempre para baixo.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="guardrail-box">
+    <div class="guardrail-title">⚠️ O Guardrail Dual-Enforce — a regra mais importante do codebase</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.8;">
+      <b style="color:var(--text)">O bug (2026-04-07):</b> backtest aprendia "review final antes" como candidato a demote. Runtime bloqueava. Mas o <code>router-tuning.json</code> ficava envenenado e era re-injectado todos os dias.<br><br>
+      <b style="color:var(--text)">A solução — duas camadas simultâneas:</b><br>
+      <b style="color:var(--warning)">Runtime</b> (classify.js): <code>if (high === 0)</code> → só demote/promote se zero sinais HIGH_RISK<br>
+      <b style="color:var(--warning)">Upstream</b> (backtest.js): <code>if (hasHighRisk(d.prompt_preview)) continue</code> → filtra corpus ANTES de derivar candidatos<br><br>
+      <b style="color:var(--text)">A regra:</b> quando o runtime bloqueia uma acção do pipeline de auto-learning, o pipeline que gera as regras também tem de ser ensinado a não propor essa acção.
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ FLOW ════ -->
+<div class="section" id="s-flow">
+  <div class="section-title">Fluxo por Prompt</div>
+  <div class="section-subtitle">O que acontece desde que o user prime Enter até o Claude Code responder</div>
+
+  <div class="flow-container">
+    <div class="flow-step">
+      <div class="flow-step-num">USER</div>
+      <div class="flow-step-title">User escreve prompt</div>
+      <div class="flow-step-body">"porquê falha o websocket reconnect às vezes?"</div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">HOOK #1 — UserPromptSubmit</div>
+      <div class="flow-step-title">inject_context.js dispara (~2ms)</div>
+      <div class="flow-step-body">Lê FRUGAL_PREV_TIER do env · spawn classify.js com prompt · timeout 500ms</div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">CLASSIFIER — classify.js v0.10</div>
+      <div class="flow-step-title">11 passes em ~20-45ms</div>
+      <div class="flow-step-body">Cache → MD Enrichment → User Override → Subagent Spawn → Prev Tier → Fast Paths → Score Principal → Low Conf → TUNED_DEMOTE → TUNED_PROMOTE → Degradações</div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">HOOK OUTPUT</div>
+      <div class="flow-step-title">inject_context.js emite &lt;router-hint&gt;</div>
+      <div class="flow-step-body">JSON injectado no contexto da sessão · decisions.log appended · frugal-turn-header.js emite header visual</div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">CLAUDE CODE SESSION</div>
+      <div class="flow-step-title">Lê hint + CLAUDE.md (doutrina)</div>
+      <div class="flow-step-body">O resultado do classifier é uma sugestão. A doutrina decide. O guardrail força T3 para push/deploy/migrate.</div>
+    </div>
+    <div class="flow-arrow"></div>
+
+    <div class="flow-branch">
+      <div class="flow-branch-item" style="border-color:rgba(0,200,83,0.4);background:rgba(0,200,83,0.05);">
+        <div class="t0" style="font-weight:700;margin-bottom:4px;">T0 trivial</div>
+        <div style="font-size:10px;color:var(--muted)">inline ou<br>local-summarizer<br>(Ollama)<br>$0.00</div>
+      </div>
+      <div class="flow-branch-item" style="border-color:rgba(0,200,83,0.4);background:rgba(0,200,83,0.05);">
+        <div class="t0" style="font-weight:700;margin-bottom:4px;">T0 transform</div>
+        <div style="font-size:10px;color:var(--muted)">local-transformer<br>(Ollama)<br>$0.00</div>
+      </div>
+      <div class="flow-branch-item" style="border-color:rgba(255,171,0,0.4);background:rgba(255,171,0,0.05);">
+        <div class="t1" style="font-weight:700;margin-bottom:4px;">T1</div>
+        <div style="font-size:10px;color:var(--muted)">cheap-triage<br>(Haiku API)<br>~$0.001</div>
+      </div>
+      <div class="flow-branch-item" style="border-color:rgba(41,121,255,0.4);background:rgba(41,121,255,0.05);">
+        <div class="t2" style="font-weight:700;margin-bottom:4px;">T2</div>
+        <div style="font-size:10px;color:var(--muted)">model-reasoner<br>(Sonnet)<br>~$0.01</div>
+      </div>
+      <div class="flow-branch-item" style="border-color:rgba(213,0,249,0.4);background:rgba(213,0,249,0.05);">
+        <div class="t3" style="font-weight:700;margin-bottom:4px;">T3</div>
+        <div style="font-size:10px;color:var(--muted)">model-architect<br>(Opus)<br>~$0.05+</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">HOOK #2 — PostToolUse</div>
+      <div class="flow-step-title">exec-logger.js regista cada Bash/Agent call</div>
+      <div class="flow-step-body">TSV com modelo efectivo + role + latência → execution.log</div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">HOOK #3 — Stop</div>
+      <div class="flow-step-title">gsd-turn-end.js augments decisions.log</div>
+      <div class="flow-step-body">Appenda turn_end event · response_len_bucket · turn_end_ts · base para feedback loop</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ SUBAGENTS ════ -->
+<div class="section" id="s-subagents">
+  <div class="section-title">Subagents — A Equipa de Modelos</div>
+  <div class="section-subtitle">Ficheiros Markdown em ~/.claude/agents/ · Claude Code spawna via Agent tool · zero plumbing externo</div>
+
+  <div class="agents-grid" style="margin-bottom:24px;">
+    <div class="agent-card" style="border-color:rgba(0,200,83,0.3);">
+      <div class="agent-name t0">local-summarizer</div>
+      <div class="agent-tier"><span class="badge badge-green">T0 — Local</span></div>
+      <div class="agent-model">Ollama · qwen3:30b</div>
+      <div class="agent-when">Resumo de ficheiros, comparação de snippets, extracção de campos. $0.00 sempre.</div>
+    </div>
+    <div class="agent-card" style="border-color:rgba(0,200,83,0.3);">
+      <div class="agent-name t0">local-transformer</div>
+      <div class="agent-tier"><span class="badge badge-green">T0 — Local</span></div>
+      <div class="agent-model">Ollama · qwen3:30b</div>
+      <div class="agent-when">Transforms de formato, regex, reformatação, conversões. $0.00 sempre.</div>
+    </div>
+    <div class="agent-card" style="border-color:rgba(255,171,0,0.3);">
+      <div class="agent-name t1">cheap-triage</div>
+      <div class="agent-tier"><span class="badge badge-yellow">T1 — Haiku</span></div>
+      <div class="agent-model">claude-haiku-4-5-20251001 · API Anthropic</div>
+      <div class="agent-when">Commit messages, docstrings, geração de regex, explicações ligeiras. ~$0.001.</div>
+    </div>
+    <div class="agent-card" style="border-color:rgba(41,121,255,0.3);">
+      <div class="agent-name t2">model-reasoner</div>
+      <div class="agent-tier"><span class="badge" style="background:rgba(41,121,255,0.15);color:var(--t2)">T2 — Sonnet</span></div>
+      <div class="agent-model">claude-sonnet-4-6 · Claude Code subagent</div>
+      <div class="agent-when">Bug hunts, root cause analysis, planeamento técnico, comparação de abordagens. ~$0.01.</div>
+    </div>
+    <div class="agent-card" style="border-color:rgba(213,0,249,0.3);">
+      <div class="agent-name t3">model-architect</div>
+      <div class="agent-tier"><span class="badge badge-purple">T3 — Opus</span></div>
+      <div class="agent-model">claude-opus-4-6 · Claude Code subagent</div>
+      <div class="agent-when">Arquitectura, refactor multi-ficheiro, decisões com tradeoffs, mexer em prod/secrets/CI. ~$0.05+.</div>
+    </div>
+    <div class="agent-card" style="border-color:rgba(255,107,53,0.4);">
+      <div class="agent-name gate">final-reviewer</div>
+      <div class="agent-tier"><span class="badge badge-red">T3-GATE — Opus</span></div>
+      <div class="agent-model">claude-opus-4-6 · Gate não-skipável</div>
+      <div class="agent-when">Obrigatório antes de push, merge, release, deploy. Não existe "aquela vez" em que ignoras.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">T0 Sub-tiers — 4 Especialistas Locais</div>
+    <table>
+      <tr>
+        <th>Sub-tier</th>
+        <th>Modelo</th>
+        <th>Quando</th>
+        <th>Custo</th>
+      </tr>
+      <tr>
+        <td><code>ollama_terse</code></td>
+        <td>qwen2.5:3b</td>
+        <td>Resumo, transforms, output curto, resposta rápida</td>
+        <td class="t0">$0.00</td>
+      </tr>
+      <tr>
+        <td><code>ollama_reason</code></td>
+        <td>qwen3:30b</td>
+        <td>Análise local com 1-2 hops de reasoning</td>
+        <td class="t0">$0.00</td>
+      </tr>
+      <tr>
+        <td><code>ollama_code</code></td>
+        <td>qwen2.5-coder:14b-q4</td>
+        <td>Tarefas de código local (detectado por padrões)</td>
+        <td class="t0">$0.00</td>
+      </tr>
+      <tr>
+        <td><code>ollama_math</code></td>
+        <td>deepseek-r1-distill-qwen:14b</td>
+        <td>Math e reasoning complexo local</td>
+        <td class="t0">$0.00</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ LOOP ════ -->
+<div class="section" id="s-loop">
+  <div class="section-title">Auto-learning Loop</div>
+  <div class="section-subtitle">O que transforma o frugal de "classifier hand-tuned" em "classifier que se auto-melhora"</div>
+
+  <div class="loop-grid" style="margin-bottom:24px;">
+    <div class="loop-side" style="background:rgba(0,200,83,0.03);">
+      <div class="loop-title">⚡ Runtime (cada prompt)</div>
+      <div class="loop-step">
+        <div class="loop-icon">📝</div>
+        <div class="loop-step-body"><b>classify.js</b> corre os 11 passes</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon">📋</div>
+        <div class="loop-step-body"><b>decisions.log</b> appended (JSONL) com tier, confidence, preview</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon">🔧</div>
+        <div class="loop-step-body">Lê <b>TUNED_DEMOTE_T3</b>, <b>TUNED_PROMOTE_T0</b>, <b>TUNED_COMPLEXITY_THRESHOLD</b> — constantes actualizadas pelo backtest diário</div>
+      </div>
+    </div>
+    <div class="loop-side" style="background:rgba(0,170,255,0.03);">
+      <div class="loop-title">🌙 Offline (02:00 diário)</div>
+      <div class="loop-step">
+        <div class="loop-icon">📊</div>
+        <div class="loop-step-body"><b>backtest.js</b> carrega decisions.log</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon">🔍</div>
+        <div class="loop-step-body">Filtra HIGH_RISK do corpus (guardrail upstream). Agrupa por signature (3 primeiras palavras)</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon">🎯</div>
+        <div class="loop-step-body">Identifica: <b>shortHighTier</b> (&lt;50ch em T2/T3) · <b>lowConfHighTier</b> (conf&lt;0.6 em T2/T3) · <b>repeated</b> (mesma sig ≥3x)</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon">📄</div>
+        <div class="loop-step-body">Emite <b>router-tuning.json</b> + relatório human-readable</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon">✏️</div>
+        <div class="loop-step-body"><b>update-router.js</b>: backup classify.js.bak → lê tuning.json → constrói bloco TUNED → escreve de volta (idempotente)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bloco TUNED injectado em classify.js</div>
+    <div class="code-block"><span class="cm">// ── TUNED-BLOCK-START (auto-generated by update-router.js) ──</span>
+<span class="cm">// generated_at: 2026-04-09T12:48:23.924Z</span>
+<span class="cm">// sample_size: 230</span>
+<span class="kw">const</span> TUNED_COMPLEXITY_THRESHOLD = 0.25;
+<span class="kw">const</span> TUNED_PROMOTE_T0 = [];
+<span class="kw">const</span> TUNED_DEMOTE_T3 = [
+  /\bpensa\s+bem\s+antes\b/i,
+  /\bsonnet\s+diagnostica\s+este\b/i,
+  /\bultrathink\s+this\s+problem\b/i
+];
+<span class="cm">// ── TUNED-BLOCK-END ──</span></div>
+  </div>
+
+  <div class="guardrail-box">
+    <div class="guardrail-title">🛡️ Garantias do Loop</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px;margin-top:8px;">
+      <div><span style="color:var(--t0)">✓</span> <b style="color:var(--text)">Idempotência:</b> <span style="color:var(--muted)">correr update-router.js 2x = byte-idêntico</span></div>
+      <div><span style="color:var(--t0)">✓</span> <b style="color:var(--text)">Testado:</b> <span style="color:var(--muted)">backtest.test.js verifica idempotência automaticamente</span></div>
+      <div><span style="color:var(--t0)">✓</span> <b style="color:var(--text)">Dual guardrail:</b> <span style="color:var(--muted)">HIGH_RISK filtrado runtime + upstream</span></div>
+      <div><span style="color:var(--t0)">✓</span> <b style="color:var(--text)">Human-readable:</b> <span style="color:var(--muted)">backtest-latest.log auditável manualmente</span></div>
+      <div><span style="color:var(--t0)">✓</span> <b style="color:var(--text)">Backup:</b> <span style="color:var(--muted)">classify.js.bak antes de cada update-router run</span></div>
+      <div><span style="color:var(--t0)">✓</span> <b style="color:var(--text)">Gold labels:</b> <span style="color:var(--muted)">62 prompts curados, 95.2% accuracy validada offline</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ INFRA ════ -->
+<div class="section" id="s-infra">
+  <div class="section-title">Infraestrutura</div>
+  <div class="section-subtitle">Todos os serviços, endpoints e recursos de terceiros</div>
+
+  <div class="infra-grid" style="margin-bottom:24px;">
+    <div class="infra-node">
+      <div class="infra-node-title"><span class="status-dot dot-green"></span> frugal-hub · Cloudflare Worker</div>
+      <div class="infra-row"><span>URL</span><span>frugal-hub.frugal-hub.workers.dev</span></div>
+      <div class="infra-row"><span>Account</span><span>paulo.loureiro.shp@gmail.com</span></div>
+      <div class="infra-row"><span>POST /api/delta</span><span>recebe deltas anónimos</span></div>
+      <div class="infra-row"><span>GET /api/stats</span><span>agregados públicos</span></div>
+      <div class="infra-row"><span>POST /submit-events</span><span>eventos (bearer auth)</span></div>
+      <div class="infra-row"><span>GET /aggregate-stats</span><span>stats eventos</span></div>
+      <div class="infra-row"><span>Cron hourly</span><span>aggregate deltas</span></div>
+      <div class="infra-row"><span>Cron daily</span><span>generate tuning</span></div>
+      <div class="infra-row"><span>Cron weekly</span><span>notify + prune</span></div>
+    </div>
+    <div class="infra-node">
+      <div class="infra-node-title"><span class="status-dot dot-green"></span> D1 + R2 · Cloudflare</div>
+      <div class="infra-row"><span>D1 ID</span><span>320b55f6-9444-4deb-bcd5</span></div>
+      <div class="infra-row"><span>routing_deltas</span><span>deltas comunidade</span></div>
+      <div class="infra-row"><span>frugal_events</span><span>telemetria estruturada</span></div>
+      <div class="infra-row"><span>R2 bucket</span><span>frugal-hub-storage</span></div>
+      <div class="infra-row"><span>router-tuning-latest.json</span><span>R2 object</span></div>
+      <div class="infra-row"><span>model-catalog-latest.json</span><span>R2 object</span></div>
+      <div class="infra-row"><span>FRUGAL_SUBMIT_TOKEN</span><span>✅ configurado</span></div>
+      <div class="infra-row"><span>CF_API_TOKEN (GH)</span><span>✅ configurado</span></div>
+    </div>
+    <div class="infra-node">
+      <div class="infra-node-title"><span class="status-dot dot-green"></span> Supabase · Auth + DB</div>
+      <div class="infra-row"><span>Project ID</span><span>eymtobwinevywmmlmxqa</span></div>
+      <div class="infra-row"><span>Região</span><span>sa-east-1 (São Paulo)</span></div>
+      <div class="infra-row"><span>waitlist</span><span>emails de waitlist</span></div>
+      <div class="infra-row"><span>profiles</span><span>perfis autenticados</span></div>
+      <div class="infra-row"><span>usage_sessions</span><span>sessões por user</span></div>
+      <div class="infra-row"><span>Magic Link</span><span>✅ activo</span></div>
+      <div class="infra-row"><span>GitHub OAuth</span><span>⏳ pendente Sprint 4</span></div>
+      <div class="infra-row"><span>RLS anon INSERT</span><span>⏳ pendente Sprint 4</span></div>
+    </div>
+    <div class="infra-node">
+      <div class="infra-node-title"><span class="status-dot dot-green"></span> Landing · Vercel</div>
+      <div class="infra-row"><span>URL</span><span>landing-five-azure-16.vercel.app</span></div>
+      <div class="infra-row"><span>Framework</span><span>Next.js 15 App Router</span></div>
+      <div class="infra-row"><span>Tema</span><span>#080808 / #00ff88</span></div>
+      <div class="infra-row"><span>Hero</span><span>live counters + install CTA</span></div>
+      <div class="infra-row"><span>Demo</span><span>routing animado</span></div>
+      <div class="infra-row"><span>Flywheel</span><span>5-step privacy proof</span></div>
+      <div class="infra-row"><span>Comparison</span><span>frugal vs concorrentes</span></div>
+      <div class="infra-row"><span>Deploy</span><span>vercel --prod</span></div>
+    </div>
+    <div class="infra-node">
+      <div class="infra-node-title"><span class="status-dot dot-green"></span> GitHub + CI/CD</div>
+      <div class="infra-row"><span>Repo</span><span>pauloloureiroshp-ship-it/frugal</span></div>
+      <div class="infra-row"><span>test.yml</span><span>gold-labels + event-builder + latency</span></div>
+      <div class="infra-row"><span>deploy-hub.yml</span><span>auto-deploy Worker (hub/ changes)</span></div>
+      <div class="infra-row"><span>CF_API_TOKEN</span><span>✅ "Edit Workers" template</span></div>
+    </div>
+    <div class="infra-node">
+      <div class="infra-node-title"><span class="status-dot dot-green"></span> Serviços Locais</div>
+      <div class="infra-row"><span>Ollama</span><span>:11434 — modelos T0</span></div>
+      <div class="infra-row"><span>savings-tracker.js</span><span>:7821 — métricas HTTP</span></div>
+      <div class="infra-row"><span>Dashboard</span><span>:7820 — UI debug (Sprint 4)</span></div>
+      <div class="infra-row"><span>Windows Task Scheduler</span><span>FrugalRouterBacktest 02:00</span></div>
+      <div class="infra-row"><span>qwen3:30b</span><span>T0 reason (Ollama)</span></div>
+      <div class="infra-row"><span>qwen2.5:3b</span><span>T0 terse (Ollama)</span></div>
+      <div class="infra-row"><span>qwen2.5-coder:14b-q4</span><span>T0 code (Ollama)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ DATA ════ -->
+<div class="section" id="s-data">
+  <div class="section-title">Dados & Motor Proprietário</div>
+  <div class="section-subtitle">A arquitectura de dados é o activo central do frugal — não o código</div>
+
+  <div class="data-levels" style="margin-bottom:24px;">
+    <div class="data-level level-1">
+      <div class="level-label">Nível 1</div>
+      <div class="level-title" style="color:var(--t0)">🌐 Público (MIT)</div>
+      <div class="level-body">classify.js, inject_context.js, install.sh, landing/, hub/ (worker público). O código que qualquer um pode ver e copiar. <b>NÃO é o diferenciador.</b></div>
+    </div>
+    <div class="data-level level-2">
+      <div class="level-label">Nível 2</div>
+      <div class="level-title" style="color:var(--accent2)">👥 Comunidade (agregado, anónimo)</div>
+      <div class="level-body">tier + confidence + prompt_len + hw_tier + cascade_path. Melhora o classify.js automaticamente. Parcialmente público (stats na landing). <b>Via frugal-hub.</b></div>
+    </div>
+    <div class="data-level level-3">
+      <div class="level-label">Nível 3</div>
+      <div class="level-title" style="color:var(--accent4)">🔒 Perfil (privado por user, encriptado)</div>
+      <div class="level-body">hardware, subscriptions, stack, GitHub repos metadata, routing history, savings history, custom patterns. Nunca sai da conta do utilizador. <b>Base da personalização.</b></div>
+    </div>
+    <div class="data-level level-4">
+      <div class="level-label">Nível 4</div>
+      <div class="level-title" style="color:var(--warning)">🔐 Motor (privado, repo frugal-core)</div>
+      <div class="level-body">O modelo treinado nos dados do Nível 2. O dataset com labels de qualidade. As decisões de arquitectura do algoritmo. <b>Nunca público. O segredo da Coca-Cola.</b></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Evolução do Motor de Routing</div>
+    <table>
+      <tr>
+        <th>Fase</th>
+        <th>Quando</th>
+        <th>Técnica</th>
+        <th>Latência</th>
+        <th>Dataset</th>
+      </tr>
+      <tr>
+        <td><b style="color:var(--t0)">1 — Actual</b></td>
+        <td>v0.x</td>
+        <td>Regex puro, 102 patterns, 11 passes</td>
+        <td>&lt; 50ms</td>
+        <td>1,437 prompts</td>
+      </tr>
+      <tr>
+        <td><b style="color:var(--t2)">2</b></td>
+        <td>v1.5 (5k+ prompts)</td>
+        <td>Regex + TF-IDF + tabela estatística da comunidade</td>
+        <td>~0ms (lookup local)</td>
+        <td>5,000+</td>
+      </tr>
+      <tr>
+        <td><b style="color:var(--t3)">3</b></td>
+        <td>v2.0 (50k+ prompts)</td>
+        <td>Modelo tiny ONNX (1-3M params) treinado em corpus</td>
+        <td>&lt; 10ms (CPU)</td>
+        <td>50,000+</td>
+      </tr>
+      <tr>
+        <td><b style="color:var(--warning)">4</b></td>
+        <td>v3.0 (1M+ prompts)</td>
+        <td>Modelo base + fine-tuning por cohort de utilizador</td>
+        <td>&lt; 10ms</td>
+        <td>1,000,000+</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">O que protege o negócio</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;font-size:12px;">
+      <div style="padding:12px;background:var(--surface2);border-radius:6px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">O Dataset</div>
+        <div style="color:var(--muted)">1,437 prompts hoje → 1,000,000 amanhã. Não replicável sem os utilizadores.</div>
+      </div>
+      <div style="padding:12px;background:var(--surface2);border-radius:6px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">Os Perfis</div>
+        <div style="color:var(--muted)">Conhecimento acumulado de cada utilizador ao longo do tempo. Não replicável.</div>
+      </div>
+      <div style="padding:12px;background:var(--surface2);border-radius:6px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">A Comunidade</div>
+        <div style="color:var(--muted)">Utilizadores que confiam, partilham dados, recomendam. Demora anos a construir.</div>
+      </div>
+      <div style="padding:12px;background:var(--surface2);border-radius:6px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">A Reputação de Privacidade</div>
+        <div style="color:var(--muted)">"Nunca vimos o teu código" — promessa cumprida desde o dia 1.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ SKILLS ════ -->
+<div class="section" id="s-skills">
+  <div class="section-title">Skills — Slash Commands</div>
+  <div class="section-subtitle">Pastas em ~/.claude/skills/ · cada uma com SKILL.md · 11 skills instaladas</div>
+
+  <div class="skills-grid" style="margin-bottom:24px;">
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-status</div>
+      <div class="skill-desc">Health check: hook, Ollama, hub, últimas decisões</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-savings</div>
+      <div class="skill-desc">Report económico: savings + projecção anual</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-route &lt;task&gt;</div>
+      <div class="skill-desc">Classifica uma tarefa antes de executar</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-summary</div>
+      <div class="skill-desc">O que o router decidiu nesta sessão</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-update</div>
+      <div class="skill-desc">Pull do GitHub + sync classifier</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-beast</div>
+      <div class="skill-desc">Beast Mode: força T3 (Opus) em tudo</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-zen</div>
+      <div class="skill-desc">Zen Mode: cap em T1, nunca acima. T3-gate bypass incluído.</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-auto</div>
+      <div class="skill-desc">Volta ao routing inteligente automático (default)</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-hello</div>
+      <div class="skill-desc">Onboarding interactivo para novos utilizadores</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-doctor</div>
+      <div class="skill-desc">Diagnóstico completo cross-platform + --fix mode</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">/frugal-dashboard</div>
+      <div class="skill-desc">Abre o dashboard local em :7820 (Sprint 4)</div>
+    </div>
+    <div class="skill-chip">
+      <div class="skill-trigger">model-router</div>
+      <div class="skill-desc">Skill de routing interno (automático)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Mode System — frugal-mode.js</div>
+    <table>
+      <tr><th>Mode</th><th>Trigger</th><th>Efeito</th><th>Persistência</th><th>Excepção</th></tr>
+      <tr>
+        <td><b class="t3">Beast</b></td>
+        <td>/frugal-beast</td>
+        <td>Força T3 (Opus) em todos os prompts</td>
+        <td>.frugal-mode.json {mode:"beast"}</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><b class="t1">Zen</b></td>
+        <td>/frugal-zen</td>
+        <td>Cap em T1, nunca vai acima de Haiku</td>
+        <td>.frugal-mode.json {mode:"zen"}</td>
+        <td>T3-gate tasks (push/deploy) fazem bypass</td>
+      </tr>
+      <tr>
+        <td><b class="t0">Auto</b></td>
+        <td>/frugal-auto</td>
+        <td>Router decide (comportamento default)</td>
+        <td>Apaga .frugal-mode.json</td>
+        <td>—</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ ROADMAP ════ -->
+<div class="section" id="s-roadmap">
+  <div class="section-title">Roadmap</div>
+  <div class="section-subtitle">Historial completo de versões + próximos marcos + visão de produto</div>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.1.0</div>
+          <div class="roadmap-name">Foundation</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-06</span>
+        </div>
+        <div class="roadmap-desc">Classifier + hook wired to Claude Code. 6 subagents. Baseline: 31% T3 misroutes, 27.5% savings.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.2.0</div>
+          <div class="roadmap-name">Doctrine</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-06</span>
+        </div>
+        <div class="roadmap-desc">Mediator doctrine (CLAUDE.md, 165 linhas). install.sh v1. 100% accuracy em 200 prompts. 70% savings.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.3.0</div>
+          <div class="roadmap-name">Real-world Validation</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-06</span>
+        </div>
+        <div class="roadmap-desc">replay.js. 1,370 prompts reais: T0:83.9% T2:12.4% T3:3.6% · savings 90.2%. 3 fast-path detectors.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.4.0</div>
+          <div class="roadmap-name">Budget Awareness</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-07</span>
+        </div>
+        <div class="roadmap-desc">Statusline com OAuth budget. Guardrail orçamental dinâmico. SHA-256 cache. MD Enrichment.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.5.0</div>
+          <div class="roadmap-name">Auto-learning Loop</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-07</span>
+        </div>
+        <div class="roadmap-desc">backtest.js + update-router.js + TUNED block. Dual-enforce guardrail. 11 unit tests. 59/59 passing.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.7.0</div>
+          <div class="roadmap-name">SSOT Patterns</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-09</span>
+        </div>
+        <div class="roadmap-desc">patterns.js como single source of truth. Shared por classify.js e backtest.js. TUNING_EXCLUDE ⊇ HIGH_RISK.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.9.0</div>
+          <div class="roadmap-name">Statusline v3 + GPU + Federated</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-09</span>
+        </div>
+        <div class="roadmap-desc">7-segmentos. gpu-probe.js. /gpu endpoint. POST /decision. Decomposition pipeline. backtest --export-delta.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.9.2–0.9.4</div>
+          <div class="roadmap-name">Hub + Skills + Modes + Friends Beta</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-09/10</span>
+        </div>
+        <div class="roadmap-desc">frugal-hub deployed. 8 skills. Beast/Zen/Auto. Security audit. Landing v9/v10. Supabase + GitHub OAuth (pendente).</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.9.5</div>
+          <div class="roadmap-name">frugal-doctor + classify.js v0.10</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-11</span>
+        </div>
+        <div class="roadmap-desc">frugal-doctor.js (cross-platform, --fix). install.sh v2. variant_hint + SUBAGENT_SPAWN_RE + previous_tier inheritance.</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-status">✅</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.9.6</div>
+          <div class="roadmap-name">Feedback Loop + Hub Event Ingestion</div>
+          <span style="font-size:10px;color:var(--muted)">2026-04-11</span>
+        </div>
+        <div class="roadmap-desc">Sprint 2: feedback-collector, gold-labels (62, 95.2%), --export-events. Sprint 3: D1 migration, POST /submit-events, GET /aggregate-stats, CI/CD.</div>
+      </div>
+    </div>
+    <div class="roadmap-item" style="border-color:rgba(255,171,0,0.3);">
+      <div class="roadmap-status">🔨</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.6.0</div>
+          <div class="roadmap-name">Web Dashboard</div>
+          <span style="color:var(--warning);font-size:10px;">Sprint 4 — em construção</span>
+        </div>
+        <div class="roadmap-desc">Next.js :7820. Overview + Misroutes + Tuning + Community. "Retrain now" button. Skill /frugal-dashboard.</div>
+      </div>
+    </div>
+    <div class="roadmap-item" style="border-color:rgba(255,171,0,0.3);">
+      <div class="roadmap-status">⏳</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v0.8.0</div>
+          <div class="roadmap-name">Team Shared Config</div>
+          <span style="color:var(--muted);font-size:10px;">Após Friends Beta</span>
+        </div>
+        <div class="roadmap-desc">frugal.config.json por projecto. Per-project overrides. Per-contributor analytics.</div>
+      </div>
+    </div>
+    <div class="roadmap-item" style="border-color:rgba(41,121,255,0.3);">
+      <div class="roadmap-status">🔵</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v1.0</div>
+          <div class="roadmap-name">Public Launch</div>
+          <span style="color:var(--muted);font-size:10px;">Q2 2026</span>
+        </div>
+        <div class="roadmap-desc">install.sh --one-command. Open onboarding. 10+ utilizadores. Savings tracker público.</div>
+      </div>
+    </div>
+    <div class="roadmap-item" style="border-color:rgba(168,85,247,0.3);">
+      <div class="roadmap-status">🔵</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="roadmap-version">v2.0–v3.0</div>
+          <div class="roadmap-name">OS Vision + Motor Proprietário</div>
+          <span style="color:var(--muted);font-size:10px;">Q3–Q4 2026</span>
+        </div>
+        <div class="roadmap-desc">Success fee 20%. TF-IDF → ONNX model. Perfis GitHub. API pública. frugal para teams. Dataset licensing B2B.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ METRICS ════ -->
+<div class="section" id="s-metrics">
+  <div class="section-title">Performance & Falhas</div>
+  <div class="section-subtitle">Budgets de latência + modos de falha + degradação graceful</div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Performance Budget</div>
+    <table>
+      <tr><th>Operação</th><th>Budget</th><th>Típico</th><th>Worst case</th></tr>
+      <tr><td>classify.js (cold)</td><td>&lt;50ms</td><td>20-45ms</td><td>90ms (1ª run)</td></tr>
+      <tr><td>classify.js (cached)</td><td>&lt;5ms</td><td>2ms</td><td>10ms</td></tr>
+      <tr><td>inject_context.js overhead</td><td>&lt;5ms</td><td>2ms</td><td>20ms</td></tr>
+      <tr><td>Savings tracker /metrics</td><td>&lt;50ms</td><td>15ms</td><td>400ms (hard timeout)</td></tr>
+      <tr><td>Statusline total</td><td>&lt;100ms</td><td>35ms</td><td>500ms (timeout CC)</td></tr>
+      <tr><td>backtest.js (60 prompts)</td><td>&lt;200ms</td><td>80ms</td><td>400ms</td></tr>
+      <tr><td>update-router.js</td><td>&lt;100ms</td><td>30ms</td><td>150ms</td></tr>
+      <tr><td>Suite de testes completa</td><td>&lt;500ms</td><td>143ms</td><td>800ms</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Modos de Falha e Degradação Graceful</div>
+    <table>
+      <tr><th>Falha</th><th>O que acontece</th><th>Porque é seguro</th></tr>
+      <tr>
+        <td>classify.js lança excepção</td>
+        <td>inject_context.js retorna hint vazio</td>
+        <td>Claude Code usa comportamento default</td>
+      </tr>
+      <tr>
+        <td>classify.js &gt;500ms</td>
+        <td>Hook aborta, hint vazio</td>
+        <td>Session = frugal não instalado. Nada piora.</td>
+      </tr>
+      <tr>
+        <td>decisions.log ilegível</td>
+        <td>Tracker retorna métricas vazias</td>
+        <td>Statusline omite savings segment</td>
+      </tr>
+      <tr>
+        <td>Tracker down</td>
+        <td>Statusline omite savings + breakdown</td>
+        <td>Zero impacto no routing</td>
+      </tr>
+      <tr>
+        <td>router-tuning.json corrompido</td>
+        <td>update-router.js sai com erro, classify.js mantém TUNED anterior</td>
+        <td>Humano vê erro no próximo /update-router</td>
+      </tr>
+      <tr>
+        <td>Ollama offline</td>
+        <td>T0 subagent falha, Claude Code responde inline</td>
+        <td>Sem escalamento de custo — ainda T0</td>
+      </tr>
+      <tr>
+        <td>Sem ANTHROPIC_API_KEY</td>
+        <td>T1 degrada automaticamente para T0</td>
+        <td>Documentado no output do classifier</td>
+      </tr>
+      <tr>
+        <td>Budget &gt;95%</td>
+        <td>Hard cap em T0 para todos os tiers pagos</td>
+        <td>Previne gasto excessivo</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>
