@@ -117,6 +117,8 @@ function bucketFor(model) {
   if (m.includes('qwen') || m.includes('ollama') || m.includes('local')) return 'local';
   if (m.includes('gpt') || m.includes('codex') || m.includes('openai'))  return 'gpt';
   if (m.includes('gemini') || m.includes('google')) return 'gemini';
+  if (m.includes('grok'))                          return 'grok';
+  if (m.includes('mistral') || m.includes('codestral') || m.includes('mixtral')) return 'mistral';
   return null;
 }
 
@@ -137,7 +139,7 @@ function realExecutionCounts(sessionId) {
     fs.closeSync(fd);
     const lines = buf.toString('utf8').split('\n').filter(Boolean);
 
-    const counts = { opus: 0, sonnet: 0, haiku: 0, local: 0, gpt: 0, gemini: 0, deepseek: 0, gemma: 0 };
+    const counts = { opus: 0, sonnet: 0, haiku: 0, local: 0, gpt: 0, gemini: 0, deepseek: 0, gemma: 0, grok: 0, mistral: 0 };
     let total = 0;
     for (const line of lines) {
       if (sessionId) {
@@ -184,6 +186,8 @@ function renderDistribution(metrics, sessionId) {
       GEM: (real.gemini / real.total) * 100,
       DSP: (real.deepseek / real.total) * 100,
       GMM: (real.gemma  / real.total) * 100,
+      GRK: (real.grok   / real.total) * 100,
+      MST: (real.mistral / real.total) * 100,
     };
     // Token estimate via call counts × ~400 chars unit of work
     const unit = Math.round(400 / 4) + 1500;
@@ -245,8 +249,10 @@ function renderDistribution(metrics, sessionId) {
   const gemPct   = Math.round(pbt.GEM || 0);
   const dspPct   = Math.round(pbt.DSP || 0);
   const gmmPct   = Math.round(pbt.GMM || 0);
+  const grkPct   = Math.round(pbt.GRK || 0);
+  const mstPct   = Math.round(pbt.MST || 0);
 
-  const total = opsPct + sonPct + hkuPct + localPct + gptPct + gemPct + dspPct + gmmPct;
+  const total = opsPct + sonPct + hkuPct + localPct + gptPct + gemPct + dspPct + gmmPct + grkPct + mstPct;
   if (total === 0) return '';
 
   // Token counts (formatted as "12k" or "1.2M")
@@ -272,8 +278,10 @@ function renderDistribution(metrics, sessionId) {
   let gemC  = share(gemPct);
   let dspC  = share(dspPct);
   let gmmC  = share(gmmPct);
+  let grkC  = share(grkPct);
+  let mstC  = share(mstPct);
   // Clamp rounding drift so the bar is always exactly barLen chars.
-  const drift = barLen - (opsC + sonC + hkuC + locC + gptC + gemC + dspC + gmmC);
+  const drift = barLen - (opsC + sonC + hkuC + locC + gptC + gemC + dspC + gmmC + grkC + mstC);
   if (drift !== 0) locC = Math.max(0, locC + drift);
 
   const HAIKU_COLOR    = '\x1b[38;2;180;180;255m';
@@ -281,6 +289,8 @@ function renderDistribution(metrics, sessionId) {
   const GEMINI_COLOR   = '\x1b[38;2;140;180;255m';
   const DEEPSEEK_COLOR = '\x1b[38;2;99;179;237m';
   const GEMMA_COLOR    = '\x1b[38;2;154;205;50m';
+  const GROK_COLOR     = '\x1b[38;2;255;100;50m';
+  const MISTRAL_COLOR  = '\x1b[38;2;255;140;0m';
 
   const bar =
     (opsC > 0 ? `${TIER_COLOR.T3}${'█'.repeat(opsC)}${RESET}` : '') +
@@ -290,51 +300,65 @@ function renderDistribution(metrics, sessionId) {
     (dspC > 0 ? `${DEEPSEEK_COLOR}${'█'.repeat(dspC)}${RESET}` : '') +
     (gmmC > 0 ? `${GEMMA_COLOR}${'█'.repeat(gmmC)}${RESET}`    : '') +
     (gptC > 0 ? `${GPT_COLOR}${'█'.repeat(gptC)}${RESET}`     : '') +
-    (gemC > 0 ? `${GEMINI_COLOR}${'█'.repeat(gemC)}${RESET}`  : '');
+    (gemC > 0 ? `${GEMINI_COLOR}${'█'.repeat(gemC)}${RESET}`  : '') +
+    (grkC > 0 ? `${GROK_COLOR}${'█'.repeat(grkC)}${RESET}`    : '') +
+    (mstC > 0 ? `${MISTRAL_COLOR}${'█'.repeat(mstC)}${RESET}` : '');
 
-  // Source marker — "exec" (real) vs "adv" (advisory/recommendation).
-  // Tagging the bar makes it impossible to confuse the two sources.
+  // Source marker — subtle icon instead of jargon.
+  // ✓ = real execution data, ~ = advisory/estimated.
   const sourceBadge = source === 'real'
-    ? `${DIM}exec${RESET}`
-    : `\x1b[38;2;255;180;80madv\x1b[0m`;
+    ? `${DIM}✓${RESET}`
+    : `${DIM}~${RESET}`;
 
-  // Labels: compact when 0% (emoji + pct only), full when active (emoji + name + pct).
-  const compactLabel = (emoji, name, pct, color, tok) =>
-    pct === 0
-      ? `${DIM}${emoji} 0%${RESET}`
-      : `${color}${emoji} ${name} ${pct}%${RESET}${tok || ''}`;
-  const labels = [];
-  labels.push(compactLabel('🔴', 'Opus',     opsPct,   TIER_COLOR.T3, opsTok));
-  labels.push(compactLabel('🟡', 'Sonnet',   sonPct,   TIER_COLOR.T2, sonTok));
-  labels.push(compactLabel('⚡', 'Haiku',    hkuPct,   HAIKU_COLOR,   hkuTok));
-  labels.push(compactLabel('🦙', 'Qwen',     localPct, TIER_COLOR.T0, localTok));
-  labels.push(compactLabel('🐉', 'DeepSeek', dspPct,   DEEPSEEK_COLOR));
-  labels.push(compactLabel('🌺', 'Gemma',    gmmPct,   GEMMA_COLOR));
-  labels.push(compactLabel('🟩', 'GPT',      gptPct,   GPT_COLOR));
-  labels.push(compactLabel('💎', 'Gemini',   gemPct,   GEMINI_COLOR));
+  // Labels grouped by provider layer — only active models shown.
+  const L = (emoji, name, pct, color, tok) =>
+    `${color}${emoji} ${name} ${pct}%${RESET}${tok || ''}`;
 
-  // GPU tag for the Local tier — shows what hardware powers Ollama
+  // Layer 1: Local (free, GPU-powered)
+  const local = [];
+  if (localPct > 0) local.push(L('🦙', 'Qwn', localPct, TIER_COLOR.T0, localTok));
+  if (dspPct > 0)   local.push(L('🐉', 'DSk', dspPct,   DEEPSEEK_COLOR));
+  if (gmmPct > 0)   local.push(L('🌺', 'Gma', gmmPct,   GEMMA_COLOR));
+
+  // GPU tag for local layer
   let gpuTag = '';
   try {
-    // Try tracker endpoint first
     const g = fetchTrackerJson('/gpu', 200);
     if (g && g.name_short && g.vendor !== 'cpu') {
-      gpuTag = ` ${DIM}⚡${g.name_short}${RESET}`;
+      gpuTag = ` ${TIER_COLOR.T0}⚡${g.name_short}${RESET}`;
     }
   } catch { /* silent */ }
   if (!gpuTag) {
-    // Fallback: read hw-capability.json directly
     try {
       const hwPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'hw-capability.json');
       if (fs.existsSync(hwPath)) {
         const hw = JSON.parse(fs.readFileSync(hwPath, 'utf8'));
-        if (hw.name) gpuTag = ` ${DIM}⚡${hw.name}${RESET}`;
+        if (hw.name) gpuTag = ` ${TIER_COLOR.T0}⚡${hw.name}${RESET}`;
       }
     } catch { /* silent */ }
   }
 
-  // 2-line layout: line 1 = bar + source, line 2 = per-model breakdown
-  const line2 = `  ${labels.join(' · ')}${gpuTag}`;
+  // Layer 2: Claude API (paid)
+  const claude = [];
+  if (opsPct > 0) claude.push(L('🔴', 'Ops', opsPct, TIER_COLOR.T3, opsTok));
+  if (sonPct > 0) claude.push(L('🟡', 'Son', sonPct, TIER_COLOR.T2, sonTok));
+  if (hkuPct > 0) claude.push(L('⚡', 'Hai', hkuPct, HAIKU_COLOR,   hkuTok));
+
+  // Layer 3: External APIs (paid)
+  const external = [];
+  if (gptPct > 0) external.push(L('🟩', 'GPT', gptPct, GPT_COLOR));
+  if (gemPct > 0) external.push(L('💎', 'Gmi', gemPct, GEMINI_COLOR));
+  if (grkPct > 0) external.push(L('🔥', 'Grk', grkPct, GROK_COLOR));
+  if (mstPct > 0) external.push(L('🌀', 'Mis', mstPct, MISTRAL_COLOR));
+
+  // Assemble groups with separators — only show groups that have active models
+  const groups = [];
+  if (local.length > 0)    groups.push(`${DIM}🏠${RESET} ${local.join(' · ')}${gpuTag}`);
+  if (claude.length > 0)   groups.push(`${DIM}☁️${RESET} ${claude.join(' · ')}`);
+  if (external.length > 0) groups.push(`${DIM}🔌${RESET} ${external.join(' · ')}`);
+
+  // 2-line layout: line 1 = bar + source, line 2 = grouped breakdown
+  const line2 = `  ${groups.join('  │  ')}`;
   return ` ${bar} ${sourceBadge}\n${line2}`;
 }
 
@@ -408,12 +432,14 @@ function renderSavingsHero(mOpt, sessionId) {
           const opusUnit = pricing.naiveOpusCost(CHAR_UNIT);
 
           const realSpent =
-            real.opus   * costAt('T3') +
-            real.sonnet * costAt('T2') +
-            real.haiku  * costAt('T1') +
-            real.local  * costAt('T0') +
-            real.gpt    * costAt('T2') +  // external APIs ≈ Sonnet price band
-            real.gemini * costAt('T2');
+            real.opus    * costAt('T3') +
+            real.sonnet  * costAt('T2') +
+            real.haiku   * costAt('T1') +
+            real.local   * costAt('T0') +
+            real.gpt     * costAt('T2') +  // external APIs ≈ Sonnet price band
+            real.gemini  * costAt('T2') +
+            real.grok    * costAt('T2') +
+            real.mistral * costAt('T1');   // Mistral ≈ Haiku price band
 
           const baseline = real.total * opusUnit;
           const saved = Math.max(0, baseline - realSpent);
@@ -428,23 +454,24 @@ function renderSavingsHero(mOpt, sessionId) {
           const savedStr = `$${saved.toFixed(2)}`;
           const spentStr = `$${realSpent.toFixed(2)}`;
 
-          // MP-18 Peça 6: show session + total savings side by side
-          // Fetch total metrics (no session filter) for lifetime context
+          // Session prompt count from execution.log (real, this terminal only)
+          const sessionPrompts = real.total;
+
+          // Lifetime context (all sessions combined) — brief suffix
           let totalSuffix = '';
           try {
             const totalMetrics = fetchFrugalMetrics(null);
-            if (totalMetrics && totalMetrics.prompts && totalMetrics.prompts > real.total) {
+            if (totalMetrics && totalMetrics.prompts && totalMetrics.prompts > sessionPrompts) {
               const totalPct = Math.round(totalMetrics.saved_pct || 0);
-              const totalDecisions = totalMetrics.prompts || 0;
-              totalSuffix = ` ${DIM}· 🌍 ${totalPct}% saved · ${totalDecisions} prompts${RESET}`;
+              totalSuffix = ` ${DIM}· 🌍 ${totalPct}% · ${totalMetrics.prompts}p${RESET}`;
             }
           } catch { /* non-fatal */ }
 
           // When savings are zero (all-Opus session) we make this EXPLICIT.
           if (pct === 0 || saved < 0.001) {
-            return `📍 ${pctColor}∅ 0% saved${RESET} ${DIM}· spent ~${spentStr} (all-Opus)${RESET}${totalSuffix}`;
+            return `📍 ${pctColor}∅ 0%${RESET} ${DIM}· ~${spentStr} spent · ${sessionPrompts}p (all-Opus)${RESET}${totalSuffix}`;
           }
-          return `📍 ${pctColor}${arrow}${pct}%${RESET} ${DIM}saved ~${savedStr} · spent ~${spentStr}${RESET}${totalSuffix}`;
+          return `📍 ${pctColor}${arrow}${pct}%${RESET} ${DIM}~${savedStr} saved · ~${spentStr} spent · ${sessionPrompts}p${RESET}${totalSuffix}`;
         }
       }
     } catch { /* fall through to advisory */ }
@@ -530,24 +557,33 @@ function renderLatency(m) {
   try {
     const l = m && m.latency;
     if (!l || !l.sample_size) return '';
-    const p50s = (l.p50_ms / 1000).toFixed(1);
+    const avgS = (l.p50_ms / 1000).toFixed(0);
     const delta = l.delta_vs_opus_ms;
-    const absS = (Math.abs(delta) / 1000).toFixed(1);
-    let color, text;
-    if (delta < -500) {
-      color = '\x1b[32m'; // green — router beat Opus baseline
-      text = `~-${absS}s vs Opus`;
-    } else if (delta <= 500) {
-      color = '\x1b[2m';  // dim — roughly equal
-      text = `~same as Opus`;
-    } else if (delta <= 3000) {
-      color = '\x1b[33m'; // yellow — slightly slower
-      text = `~+${absS}s vs Opus`;
-    } else {
-      color = '\x1b[31m'; // red — significantly slower
-      text = `~+${absS}s vs Opus`;
+
+    // Color based on absolute speed
+    let color;
+    if (l.p50_ms <= 10000)      color = '\x1b[38;2;35;209;139m';  // green
+    else if (l.p50_ms <= 30000) color = '\x1b[38;2;220;220;170m'; // yellow
+    else                        color = '\x1b[38;2;244;71;71m';    // red
+
+    // Tradeoff message: explain what the time means in practice
+    let tradeoff = '';
+    if (delta != null) {
+      const absDelta = Math.abs(delta);
+      const deltaSec = (absDelta / 1000).toFixed(0);
+      if (delta < -500) {
+        // Routing is FASTER than all-Opus — best case
+        tradeoff = ` ${DIM}· ${deltaSec}s faster + cheaper${RESET}`;
+      } else if (absDelta <= 500) {
+        // Same speed — no tradeoff
+        tradeoff = ` ${DIM}· same speed, less cost${RESET}`;
+      } else {
+        // Routing is slower — show the tradeoff honestly
+        tradeoff = ` ${DIM}· +${deltaSec}s for savings${RESET}`;
+      }
     }
-    return ` │ \x1b[2m⏱ ${p50s}s p50\x1b[0m · ${color}${text}\x1b[0m`;
+
+    return ` │ ${color}⏱ ~${avgS}s/prompt${RESET}${tradeoff}`;
   } catch {
     return '';
   }
@@ -573,19 +609,21 @@ function renderProviders(m) {
     const p = (m && m.providers) || {};
     // Allow env override of provider order (comma-separated).
     const envOrder = process.env.FRUGAL_PROVIDERS;
-    const defaultOrder = ['claude', 'ollama', 'gemini', 'gpt', 'grok', 'mistral'];
+    const defaultOrder = ['claude', 'ollama', 'deepseek', 'gemma', 'gemini', 'gpt', 'grok', 'mistral'];
     const order = envOrder
       ? envOrder.toLowerCase().split(',').map((s) => s.trim()).filter(Boolean)
       : defaultOrder;
 
-    const dotFor = (state) => {
-      if (state === 'ok')       return '\x1b[38;2;35;209;139m●\x1b[0m'; // bright green
-      if (state === 'degraded') return '\x1b[38;2;220;220;170m◐\x1b[0m'; // yellow
-      if (state === 'unknown')  return '\x1b[38;2;90;90;90m◌\x1b[0m';    // dim hollow
-      return '\x1b[38;2;58;58;58m○\x1b[0m';                                // off (dark)
+    const SHORT = { claude: 'Cld', ollama: 'Oll', deepseek: 'DSk', gemma: 'Gma', gemini: 'Gmi', gpt: 'GPT', grok: 'Grk', mistral: 'Mis' };
+    const labelFor = (key, state) => {
+      const name = SHORT[key] || key.charAt(0).toUpperCase() + key.slice(1);
+      if (state === 'ok')       return `\x1b[38;2;35;209;139m${name}●\x1b[0m`;
+      if (state === 'degraded') return `\x1b[38;2;220;220;170m${name}◐\x1b[0m`;
+      if (state === 'unknown')  return `\x1b[38;2;90;90;90m${name}◌\x1b[0m`;
+      return `\x1b[38;2;58;58;58m${name}○\x1b[0m`;
     };
-    const parts = order.map((key) => dotFor(p[key] || 'off'));
-    return ` │ ${parts.join('')}`;
+    const parts = order.map((key) => labelFor(key, p[key] || 'off'));
+    return ` │ ${parts.join(' ')}`;
   } catch {
     return '';
   }
@@ -723,28 +761,31 @@ process.stdin.on('end', () => {
     const providers = renderProviders(metrics);
     const latency = renderLatency(metrics);
 
-    // Line 1: model │ [task │] dir │ ctx │ 🐮[mode] hero
+    // ── Responsive layout ──────────────────────────────────────────
+    // The statusline runs via pipe so process.stdout.columns is
+    // unavailable. Always break the savings hero onto its own line
+    // so it's fully visible regardless of window width.
     const dirname = path.basename(dir);
-    const heroSegment = savingsHero ? ` │ 🐮${modeBadge} ${savingsHero}` : '';
     const taskSegment = task ? ` │ \x1b[1m${task}\x1b[0m` : '';
-    const line1 = `${gsdUpdate}\x1b[2m${model}\x1b[0m${taskSegment} │ \x1b[2m${dirname}\x1b[0m${ctx}${heroSegment}`;
+    const line1 = `${gsdUpdate}\x1b[2m${model}\x1b[0m${taskSegment} │ \x1b[2m${dirname}\x1b[0m${ctx}`;
+    const heroLine = savingsHero ? `\n 🐮${modeBadge} ${savingsHero}` : '';
 
-    // Line 2: distribution bar + labels + gpu (renderDistribution returns "bar\n  labels")
-    // Line 3: providers + latency + mode badge
+    // Distribution bar + labels + gpu
     let line2 = '';
-    let line3 = '';
     if (dist) {
-      // renderDistribution returns " bar exec\n  labels·gpu" — use as-is
       line2 = `\n ${dist}`;
     }
+
+    // Providers + latency + mode badge
+    let line3 = '';
     const line3Parts = [providers, latency].filter(Boolean).join('');
     if (line3Parts || modeBadge) {
       const modeTag = modeBadge ? ` │ ${modeBadge}` : '';
       line3 = `\n ${line3Parts}${modeTag}`;
     }
 
-    // Output (multi-line when data available, single line as fallback)
-    process.stdout.write(`${line1}${line2}${line3}`);
+    // Output (multi-line, responsive)
+    process.stdout.write(`${line1}${heroLine}${line2}${line3}`);
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
   }
