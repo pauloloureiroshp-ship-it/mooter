@@ -14,7 +14,8 @@ const https = require('https');
 const http = require('http');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
-const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.frugal-hub.workers.dev';
+const { getHubUrl } = require('./env');
+const HUB_URL = getHubUrl();
 
 function httpGet(urlStr) {
   return new Promise((resolve) => {

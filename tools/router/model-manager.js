@@ -13,6 +13,7 @@
 
 const { execSync } = require('child_process');
 const fs = require('fs');
+const { getHubUrl } = require('./env');
 const path = require('path');
 const os = require('os');
 const https = require('https');
@@ -329,10 +330,10 @@ async function checkUpdates() {
     .filter(([, v]) => v.provider === 'ollama')
     .map(([k]) => k);
 
-  console.log('Checking frugal hub for model updates...');
+  console.log('Checking mooter hub for model updates...');
 
   const hubData = await new Promise((resolve) => {
-    const url = 'https://frugal-hub.frugal-hub.workers.dev/api/models';
+    const url = getHubUrl() + '/api/models';
     const req = https.get(url, { timeout: 5000 }, (res) => {
       let body = '';
       res.on('data', d => { body += d; });
@@ -401,6 +402,21 @@ function runBenchmark() {
   }
 }
 
+// ── Sync installed models to hw-capability.json ──────────────────────────────
+function syncModelsToHwCapability(installedModels) {
+  try {
+    let hw = {};
+    try { hw = JSON.parse(fs.readFileSync(HW_CAPABILITY_PATH, 'utf8')); } catch { /* ok */ }
+    hw.available_ollama_models = installedModels.map(m => ({
+      name: m.name,
+      size_gb: m.size_gb || m.sizeGB,
+      vram_est_mb: estimateVramMb(m.name),
+    }));
+    hw.ollama_models_updated_at = new Date().toISOString();
+    fs.writeFileSync(HW_CAPABILITY_PATH, JSON.stringify(hw, null, 2) + '\n');
+  } catch { /* non-fatal */ }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const args = process.argv.slice(2);
@@ -430,6 +446,9 @@ async function main() {
   }
 
   const analysis = analyzeModels();
+
+  // Sync installed models to hw-capability.json for warmup + budget-engine
+  syncModelsToHwCapability(analysis.installed);
 
   if (jsonMode) {
     console.log(JSON.stringify(analysis, null, 2));

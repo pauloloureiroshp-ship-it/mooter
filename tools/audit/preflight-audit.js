@@ -11,8 +11,10 @@ const { execSync } = require('child_process');
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const HOME = os.homedir();
 const FRUGAL_DIR = path.join(HOME, '.frugal');
+const MOOTER_DIR = path.join(HOME, '.mooter');
 const BASE_URL = 'https://landing-five-azure-16.vercel.app';
-const HUB_URL = 'https://frugal-hub.frugal-hub.workers.dev';
+const { getHubUrl } = require('../router/env');
+const HUB_URL = getHubUrl();
 
 // ── Result accumulator ──────────────────────────────────────────────────────
 const results = { B1: [], B2: [], B3: [], B4: [], B5: [] };

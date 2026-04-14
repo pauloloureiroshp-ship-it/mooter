@@ -32,7 +32,10 @@ const fs   = require('fs');
 const os   = require('os');
 
 const ROUTER_DIR  = path.join(os.homedir(), '.claude', 'tools', 'router');
-const MODE_FILE   = path.join(ROUTER_DIR, '.frugal-mode.json');
+const MODE_FILE_NEW = path.join(ROUTER_DIR, '.mooter-mode.json');
+const MODE_FILE_OLD = path.join(ROUTER_DIR, '.frugal-mode.json');
+// Write to new; read from new with fallback to old (legacy migration).
+const MODE_FILE = MODE_FILE_NEW;
 
 const VALID_MODES = ['beast', 'zen', 'auto'];
 
@@ -64,8 +67,12 @@ const MODE_META = {
 
 function readMode() {
   try {
-    if (!fs.existsSync(MODE_FILE)) return null;
-    const raw = fs.readFileSync(MODE_FILE, 'utf8');
+    // Prefer new file; fall back to legacy .frugal-mode.json
+    const file = fs.existsSync(MODE_FILE_NEW) ? MODE_FILE_NEW
+               : fs.existsSync(MODE_FILE_OLD) ? MODE_FILE_OLD
+               : null;
+    if (!file) return null;
+    const raw = fs.readFileSync(file, 'utf8');
     const data = JSON.parse(raw);
     if (!data.mode || !VALID_MODES.includes(data.mode) || data.mode === 'auto') return null;
     return data;
@@ -81,7 +88,8 @@ function writeMode(mode) {
 
   try {
     if (data === null) {
-      if (fs.existsSync(MODE_FILE)) fs.unlinkSync(MODE_FILE);
+      if (fs.existsSync(MODE_FILE_NEW)) fs.unlinkSync(MODE_FILE_NEW);
+      if (fs.existsSync(MODE_FILE_OLD)) fs.unlinkSync(MODE_FILE_OLD);
     } else {
       if (!fs.existsSync(ROUTER_DIR)) fs.mkdirSync(ROUTER_DIR, { recursive: true });
       fs.writeFileSync(MODE_FILE, JSON.stringify(data, null, 2), 'utf8');

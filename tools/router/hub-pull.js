@@ -20,7 +20,8 @@ const https = require('https');
 const http = require('http');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
-const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.frugal-hub.workers.dev';
+const { getHubUrl } = require('./env');
+const HUB_URL = getHubUrl();
 const PULL_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4h between pulls
 const LAST_PULL_PATH = path.join(ROUTER_DIR, '.last-hub-pull');
 const COMMUNITY_TUNING_PATH = path.join(ROUTER_DIR, 'community-tuning.json');
@@ -50,7 +51,7 @@ function httpGet(urlStr) {
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: url.pathname + url.search,
       method: 'GET',
-      headers: { 'User-Agent': 'frugal-hub-pull/1.0' },
+      headers: { 'User-Agent': 'mooter-hub-pull/1.0' },
     }, (res) => {
       let data = '';
       res.on('data', (d) => data += d);

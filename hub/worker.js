@@ -1,8 +1,8 @@
 /**
- * worker.js — frugal-hub Cloudflare Worker entry point.
+ * worker.js — mooter-hub Cloudflare Worker entry point.
  *
  * Routes:
- *   POST /api/delta    — receive anonymized delta from frugal instances
+ *   POST /api/delta    — receive anonymized delta from mooter instances
  *   GET  /api/stats    — public aggregate statistics
  *   GET  /api/models   — model catalog + community-detected models
  *   GET  /api/version  — current versions of router-tuning and catalog

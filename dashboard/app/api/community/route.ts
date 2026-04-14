@@ -1,4 +1,4 @@
-const HUB_URL = 'https://frugal-hub.frugal-hub.workers.dev';
+const HUB_URL = process.env.NEXT_PUBLIC_MOOTER_HUB_URL || process.env.NEXT_PUBLIC_FRUGAL_HUB_URL || 'https://mooter-hub.frugal-hub.workers.dev';
 
 export async function GET() {
   try {

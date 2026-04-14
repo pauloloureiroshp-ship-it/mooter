@@ -1,8 +1,8 @@
 {
-  "name": "frugal-dashboard",
+  "name": "mooter-dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-only web dashboard for the frugal router (127.0.0.1:7820).",
+  "description": "Local-only web dashboard for the mooter router (127.0.0.1:7820).",
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 7820",
     "build": "next build",

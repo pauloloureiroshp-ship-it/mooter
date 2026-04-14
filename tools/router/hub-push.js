@@ -21,7 +21,8 @@ const http = require('http');
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const DELTA_PATH = path.join(ROUTER_DIR, 'backtest-delta.json');
 const LAST_PUSH_PATH = path.join(ROUTER_DIR, '.last-hub-push');
-const HUB_URL = process.env.FRUGAL_HUB_URL || 'https://frugal-hub.frugal-hub.workers.dev';
+const { getHubUrl } = require('./env');
+const HUB_URL = getHubUrl();
 const PUSH_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h minimum between pushes
 
 function shouldPush() {
@@ -85,7 +86,12 @@ function enrichDelta(delta) {
   // MP-18: Anonymous profile hash (SHA256 of device_id — never sends device_id directly)
   try {
     const { createHash } = require('crypto');
-    const deviceId = fs.readFileSync(path.join(os.homedir(), '.frugal', 'device.id'), 'utf8').trim();
+    let deviceId;
+    try {
+      deviceId = fs.readFileSync(path.join(os.homedir(), '.mooter', 'device.id'), 'utf8').trim();
+    } catch {
+      deviceId = fs.readFileSync(path.join(os.homedir(), '.frugal', 'device.id'), 'utf8').trim();
+    }
     delta.profile_hash = createHash('sha256').update(deviceId).digest('hex').slice(0, 16);
   } catch { /* non-fatal */ }
 
@@ -133,7 +139,7 @@ function pushToHub(delta) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
-        'User-Agent': 'frugal-hub-push/1.0',
+        'User-Agent': 'mooter-hub-push/1.0',
       },
     }, (res) => {
       let data = '';

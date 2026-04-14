@@ -1,7 +1,7 @@
 {
   "_version": "1.0.0",
   "_updated": "2026-04-10",
-  "_source": "frugal-hub",
+  "_source": "mooter-hub",
   "models": {
     "claude-opus-4-6": { "tier": "t3", "provider": "anthropic", "known_since": "2026-03" },
     "claude-sonnet-4-6": { "tier": "t2", "provider": "anthropic", "known_since": "2026-03" },

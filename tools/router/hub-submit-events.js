@@ -19,7 +19,8 @@ const https = require('https');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const DEFAULT_EVENTS = path.join(ROUTER_DIR, 'events-export.json');
-const HUB_URL = 'https://frugal-hub.frugal-hub.workers.dev/submit-events';
+const { getHubUrl } = require('./env');
+const HUB_URL = getHubUrl() + '/submit-events';
 const BATCH_SIZE = 50;
 const LAST_SUBMIT = path.join(ROUTER_DIR, '.last-submit.json');
 

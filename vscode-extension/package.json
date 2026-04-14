@@ -1,9 +1,9 @@
 {
-  "name": "frugal-savings",
-  "displayName": "frugal — savings",
-  "description": "Live savings display for the frugal Claude Code router. Status bar, sidebar panel, and toast notifications fed by the local savings-tracker on :7821.",
-  "version": "0.5.1",
-  "publisher": "frugal",
+  "name": "mooter-savings",
+  "displayName": "mooter — savings",
+  "description": "Live savings display for the mooter Claude Code router. Status bar, sidebar panel, and toast notifications fed by the local savings-tracker on :7821.",
+  "version": "0.5.2",
+  "publisher": "mooter",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"

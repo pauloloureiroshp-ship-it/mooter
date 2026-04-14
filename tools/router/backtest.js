@@ -478,7 +478,7 @@ function exportEvents(decisions, outputPath) {
   console.log(`Exported ${events.length} events to ${outputPath} (privacy contract applied)`);
   console.log(`  Decisions scanned: ${decisions.length}`);
   console.log(`  Events filtered:   ${decisions.length - events.length} (HIGH_RISK / validation)`);
-  console.log(`  Tip: run hub-submit-events.js to send these events to frugal-hub`);
+  console.log(`  Tip: run hub-submit-events.js to send these events to mooter-hub`);
 }
 
 // ── P5: --optimizer-dryrun (overnight-tuning 2026-04-12) ──────────────────
@@ -602,7 +602,7 @@ function main() {
     console.log(`  instance_id:     ${delta.instance_id}`);
     console.log(`  feedback:        ${JSON.stringify(feedbackSignals)}`);
 
-    // ── Auto-push to frugal-hub (v0.9.2) ──────────────────────────────────────
+    // ── Auto-push to mooter-hub (v0.9.2) ──────────────────────────────────────
     // Fire-and-forget: não bloqueia nem falha se hub offline.
     const hubPushPath = path.join(ROUTER_DIR, 'hub-push.js');
     if (fs.existsSync(hubPushPath)) {

@@ -461,6 +461,17 @@ let _hwCapability = undefined;
   }
 })();
 
+// ── Best Ollama T0 model (v1.0) ───────────────────────────────────────────────
+// Dynamic T0 model selection based on what's actually installed in Ollama.
+function bestOllamaT0() {
+  const preferred = ['qwen3:30b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5:3b'];
+  try {
+    const models = (_hwCapability && _hwCapability.available_ollama_models) || [];
+    const names = models.map(m => (m.name || m).toLowerCase());
+    return preferred.find(p => names.includes(p.toLowerCase())) || 'qwen3:30b';
+  } catch { return 'qwen3:30b'; }
+}
+
 // ── Hub push (v0.9.8) — fire-and-forget event submission ────────────────────
 // Periodically pushes decisions to the hub. 1h cooldown, minimum 10 new
 // decisions since last push. Non-blocking, non-fatal.
@@ -632,7 +643,7 @@ if (
         // Honor the arbiter. Replace the tier, backend, model, and
         // subagent with the arbiter's choices.
         const backendByTier = {
-          T0: { recommended_backend: 'ollama',          recommended_model: 'qwen2.5:3b' },
+          T0: { recommended_backend: 'ollama',          recommended_model: bestOllamaT0() },
           T1: { recommended_backend: 'anthropic_api',   recommended_model: 'claude-haiku-4-5-20251001' },
           T2: { recommended_backend: 'claude_subagent', recommended_model: 'claude-sonnet-4-6' },
           T3: { recommended_backend: 'claude_subagent', recommended_model: 'claude-opus-4-6' },
@@ -769,13 +780,16 @@ if (budget) {
 }
 
 // ── Active Mode override (v0.9.3) ────────────────────────────────────────
-// Reads ~/.claude/tools/router/.frugal-mode.json set by frugal-mode.js.
+// Reads ~/.claude/tools/router/.mooter-mode.json (with fallback to .frugal-mode.json)
+// set by frugal-mode.js / mooter-mode.js.
 // beast → floor T3 on all prompts (bypass budget cap).
 // zen   → ceil T1 on all prompts (except T3-gate safety tasks).
 // auto  → file absent, no override.
 // Silent on any read error.
 (function applyActiveMode() {
-  const MODE_FILE = path.join(ROUTER_DIR, '.frugal-mode.json');
+  const MODE_FILE_NEW = path.join(ROUTER_DIR, '.mooter-mode.json');
+  const MODE_FILE_OLD = path.join(ROUTER_DIR, '.frugal-mode.json');
+  const MODE_FILE = fs.existsSync(MODE_FILE_NEW) ? MODE_FILE_NEW : MODE_FILE_OLD;
   let activeMode = null;
   try {
     if (fs.existsSync(MODE_FILE)) {
@@ -902,7 +916,7 @@ if (decision.decomposition && decision.decomposition.applicable) {
     const desc = String(sub.description || sub.task || '').replace(/\n/g, ' ').slice(0, 200);
     const subTier = sub.tier || 'T2';
     const subModelByTier = {
-      T0: 'qwen2.5:3b',
+      T0: bestOllamaT0(),
       T1: 'claude-haiku-4-5-20251001',
       T2: 'claude-sonnet-4-6',
       T3: 'claude-opus-4-6',

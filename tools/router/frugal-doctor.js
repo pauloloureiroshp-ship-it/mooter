@@ -20,6 +20,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const { getHubUrl } = require('./env');
 const path = require('path');
 const os = require('os');
 const http = require('http');
@@ -299,14 +300,14 @@ async function main() {
   let hubOk = false;
   for (let attempt = 0; attempt < 2 && !hubOk; attempt++) {
     try {
-      const hubRes = await httpGet('https://frugal-hub.frugal-hub.workers.dev/health', 6000);
+      const hubRes = await httpGet(getHubUrl() + '/health', 6000);
       hubOk = hubRes.ok && hubRes.status === 200;
     } catch {}
     if (!hubOk && attempt === 0) await new Promise(r => setTimeout(r, 1000));
   }
-  row(hubOk ? TICK : WARN, 'frugal-hub connectivity',
+  row(hubOk ? TICK : WARN, 'mooter-hub connectivity',
     hubOk ? 'reachable' : 'unreachable after 2 attempts (timeout 6s)',
-    hubOk ? null : 'Test manually: curl https://frugal-hub.frugal-hub.workers.dev/health');
+    hubOk ? null : `Test manually: curl ${getHubUrl()}/health`);
   report.checks.hub_reachable = hubOk;
 
   // Last hub-push
