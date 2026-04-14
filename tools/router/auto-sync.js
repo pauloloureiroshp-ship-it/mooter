@@ -25,7 +25,9 @@ const TOKEN_PATH = path.join(FRUGAL_DIR, 'auth.token');
 const DEVICE_ID_PATH = path.join(FRUGAL_DIR, 'device.id');
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
-const LANDING_URL = process.env.FRUGAL_LANDING_URL || 'https://landing-five-azure-16.vercel.app';
+const LANDING_URL = process.env.MOOTER_LANDING_URL
+  || process.env.FRUGAL_LANDING_URL
+  || 'https://mooter.ai';
 
 function safeRead(p) {
   try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; }
@@ -134,6 +136,7 @@ async function main() {
     arch: process.arch,
     decisions_count: metrics.prompts || metrics.total_prompts || 0,
     savings_usd: metrics.saved || metrics.advisory_saved || 0,
+    guaranteed_saved_usd: metrics.guaranteed_saved || 0,
   };
 
   // 5. Sync

@@ -68,7 +68,7 @@ function useCommunityStats() {
 
   useEffect(() => {
     const fetchStats = () =>
-      fetch('https://frugal-hub.frugal-hub.workers.dev/api/stats', {
+      fetch((process.env.NEXT_PUBLIC_MOOTER_HUB_URL || process.env.NEXT_PUBLIC_FRUGAL_HUB_URL || 'https://mooter-hub.frugal-hub.workers.dev') + '/api/stats', {
         signal: AbortSignal.timeout(3000),
       })
         .then(r => r.json())
@@ -1867,6 +1867,7 @@ function Footer() {
         </div>
         <div className="footer-links">
           <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener">GitHub</a>
+          <a href="/methodology">Savings methodology</a>
           <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
         </div>
