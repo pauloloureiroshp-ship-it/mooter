@@ -1,7 +1,7 @@
 # SYNC.md — frugal
 
 > Canal bidirecional entre Cowork (Claude Desktop) e Claude Code CLI.
-> **Última actualização:** 2026-04-13 — Claude Code (sessão #statusline-phase3 — responsive layout, provider layers, latency tradeoff)
+> **Última actualização:** 2026-04-14 — Claude Code (sessão Gemma 4 swap + validação read-only)
 
 ---
 
@@ -75,6 +75,22 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 ---
 
 #### 📥 COWORK → CLAUDE CODE — Missão para próxima sessão
+> Actualizado em 2026-04-14 (Claude Code). Estado: ✅ Validação Gemma 4 concluída (read-only)
+
+**Sessão 2026-04-14 — Gemma 4 swap + validação** · [Notion](https://www.notion.so/3426f6e42bc481708ef0f196b82b15d6)
+
+- ✅ Ollama 0.20.7 · gemma4:e4b (9.6GB) · env vars User-scope OK
+- ✅ Curl directo a Gemma 4 responde (eval_count:152, done:stop)
+- ✅ backtest.js corre limpo — 761 prompts, poupança 46.4% ($18.37 vs $34.25 naive T3)
+- ⚠️ **Bug `ollama_call.sh`**: `--text` retorna vazio silenciosamente (exit 0). Root cause: `MODEL` não exportada para subshell do node. Fix = `export MODEL` antes do `PAYLOAD=$(...)`. Não corrigido (instrução read-only).
+- ⚠️ **Gap pipeline**: 0 entries `gemma4` em decisions.log — arbiter não disparou desde swap (prompts recentes em user_override / cross_file_change, não ambiguous_*). Aguardar 2-3 dias de uso orgânico.
+- 🟡 **Parser `<think>`** em benchmark-arbiter.js continua conhecido (strip thinking tokens).
+
+**Próxima missão:** Fix 1-line em `ollama_call.sh` (task T1, delegável a cheap-triage) + correr `/update-router` para capturar primeiras decisões Gemma no log.
+
+---
+
+#### 📥 COWORK → CLAUDE CODE — Missão anterior (arquivo)
 > Actualizado pelo Cowork em 2026-04-13. Estado: ✅ Lido em sessão 2026-04-13 (Claude Code)
 
 **INFRA.md foi reescrito com todos os IDs reais.** Antes de qualquer trabalho, lê `INFRA.md` — tem os IDs de Vercel, Supabase, Cloudflare e Notion + padrões exactos de tool call MCP.
@@ -418,6 +434,7 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 | 🔧 MP-19 — Backlog Windows: classifier fix + hub timeout + gold-labels + applyActiveMode | `3416f6e4-2bc4-8117-84dd-e9e088872a40` | https://www.notion.so/3416f6e42bc4811784dde9e088872a40 |
 | 💰 MP-20 — Savings Transparency: mecânica clara em todas as superfícies + success-fee | `3416f6e4-2bc4-81a0-b3a0-d9710cbf8780` | https://www.notion.so/3416f6e42bc481a0b3a0d9710cbf8780 |
 | 🧠 MP-21 — frugal Intelligence Platform v2: perfil exclusivo + rich terminal + qualidade + segurança | `3416f6e4-2bc4-811e-99e4-dc07919f8794` | https://www.notion.so/3416f6e42bc4811e99e4dc07919f8794 |
+| 🔧 Sessão 2026-04-14 — Mooter rebrand Fase 1+2 + validação DNS | `3426f6e4-2bc4-816c-bdc3-dd2f50946018` | https://www.notion.so/3426f6e42bc4816cbdc3dd2f50946018 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -441,8 +458,46 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-13 (sessão #statusline-redesign)
-**Estado:** 🟡 Por ler — **MISSÃO 3 é prioridade absoluta**
+**Última actualização Cowork:** 2026-04-14 (sessão #mooter-rebrand-fase1-2-dns)
+**Estado:** 🟡 Por ler — **MISSÃO 0 (mooter rebrand) tem novidades críticas; MISSÃO 3 continua em aberto**
+
+---
+
+### MISSÃO 0 (NOVA, 2026-04-14) — Mooter rebrand Fase 1+2 core CONCLUÍDA
+
+**Commits feitos nesta sessão:**
+- `0187b46` — Fase 1: Worker `mooter-hub` + D1 `mooter-hub` + R2 `mooter-hub-storage` criados; hub URLs hardcoded substituídos nos 11 ficheiros P0 (tools/router/, landing, dashboard)
+- `9821a92` — Fase 2 core: runtime aceita `MOOTER_*` e `FRUGAL_*` env vars (fallback); state file migra auto `.frugal-mode.json` → `.mooter-mode.json`
+
+**Infra actual:**
+- Worker live: `mooter-hub.frugal-hub.workers.dev` (URL técnico, não user-facing)
+- Worker `frugal-hub` mantido em paralelo durante deprecation window (≥30 dias)
+- Tabela `mooter_events` criada via migration nova; `frugal_events` mantida
+- `@mooter/cli@0.0.1` publicado em npm; scope `@mooter/*` reservado
+- Domínio `mooter.ai` comprado via Vercel Registrar ($160, 2 anos, factura #2363-4787)
+
+**DNS decision — ADIADO (importante):**
+Tentámos CNAME `hub.mooter.ai → mooter-hub.frugal-hub.workers.dev` via Vercel DNS mas NÃO funciona com HTTPS (cert Workers é `*.workers.dev`, não cobre custom domain). Para `hub.mooter.ai` funcionar precisa:
+1. Migrar zona DNS de Vercel para Cloudflare (mudar NS no Vercel Registrar, 1-4h propagação)
+2. Usar Worker Custom Domain no Cloudflare
+
+**Decisão do Paulo:** adiado para janela planeada (sem data). Hub fica em `mooter-hub.frugal-hub.workers.dev` até lá. CNAME errado já foi removido do Vercel DNS.
+
+**Ver radar completo:** `/sessions/kind-nifty-albattani/mnt/.auto-memory/project_mooter_rebrand_radar.md` (actualizado 2026-04-14).
+
+**Pendentes mooter (por ordem de prioridade):**
+1. **[BLOQUEADO por DNS]** Fase 3 swap público — landing, logo, strings user-visible. Não faz sentido avançar até `hub.mooter.ai` existir.
+2. **[MÉDIA]** Criar projecto Supabase `mooter` em sa-east-1 (Supabase não renomeia projectos via API, só recriar). Migrar tabelas/auth/storage do projecto `frugal` (eymtobwinevywmmlmxqa) quando houver janela.
+3. **[MÉDIA]** Migração skills `frugal-*` → `mooter-*` em `~/.claude/skills/` (sessão dedicada; aliases backward-compat obrigatórios).
+4. **[BAIXA]** Fase 4 cleanup P2 docs (~79 ficheiros .md) via find/replace com review. Só depois de 30 dias sem regressões em prod.
+5. **[BAIXA]** Criar org GitHub `mooter-ai` e mover repo `pauloloureiroshp-ship-it/frugal` → `mooter-ai/mooter`.
+6. **[BAIXA]** VSCode extension rename (package.json: name, displayName, publisher, command IDs, config keys) antes de publish.
+
+**Guardrails (não violar):**
+- NÃO usar find/replace cego por "frugal" — git history, `.frugal-mode.json` em máquinas de users existentes, e URL `frugal-hub.workers.dev` não podem ser renomeados.
+- NÃO dropar tabela `frugal_events` sem migrar dados para `mooter_events` primeiro.
+- NÃO deletar Worker `frugal-hub` até confirmar zero tráfego por ≥30 dias.
+- Backward-compat obrigatório: env vars (`FRUGAL_HUB_URL` + `MOOTER_HUB_URL`), paths de estado, nomes de skills — aceitar ambos durante transição.
 
 ---
 
@@ -597,24 +652,4 @@ Statusline live: `🐕 💰 ↓100% saved ~$0.51 · spent ~$0.00 │ ███�
 
 **Commits:** `08a6609` `2136164` `3cece08` `e0efe95` `35e1304`
 
-**Página Notion:** [👁️ Visibility stack + delegação real](https://www.notion.so/33f6f6e42bc481369255d80e8780ed03) (com Proof of work appended)
-
-**Pendentes próxima sessão:**
-1. **[MÉDIA]** Browser tasks do `CLAUDE_AI_BROWSER_MASTER_PROMPT.md`
-2. **[BAIXA]** `install.sh ${HAS_MAX,,}` bash 3.2 compat macOS
-3. **[BAIXA]** Consolidar override detection entre `inject_context.js` (structured) e `frugal-turn-header.js` (substring)
-
----
-
-### ESTADO PÓS-SESSÃO #12 (Claude Code 2026-04-11) — Feedback loop + install hardening
-
-✅ Lido em sessão #12 — 2026-04-11 (pendentes #11 resolvidos abaixo)
-
-**Pendentes da sessão #11 — estado:**
-
-| # | Item | Estado |
-|---|---|---|
-| 1 | [ALTA] Cache key fix `SHA256(prompt + '|' + FRUGAL_PREV_TIER)` | ✅ em prod |
-| 2 | [MÉDIA] Browser tasks (GitHub OAuth, Supabase RLS, Cloudflare, Vercel) | ⏳ próxima sessão |
-| 3 | [MÉDIA] `applyActiveMode()` patch em `inject_context.js` | ✅ em prod |
-| 4 | [BAIXA] Tracking GPT/Gemini/aider no 
+**Página Notion:** [👁️ Visib
