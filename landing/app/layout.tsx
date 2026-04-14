@@ -2,26 +2,39 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'frugal — Route smarter. Spend less.',
+  title: 'mooter — Route smarter. Ship faster.',
   description:
-    '~90% cost savings on Claude Code prompts. Zero proxy router that classifies every prompt in under 50ms.',
+    'The right model, every prompt. Automatically. Mooter routes Claude Code prompts across Ollama, Haiku, Sonnet and Opus — saving ~90% on AI costs with zero code changes.',
   icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
+    icon: '/mooter-logo.svg',
+    shortcut: '/mooter-logo.svg',
+  },
+  metadataBase: new URL('https://mooter.ai'),
+  alternates: {
+    canonical: 'https://mooter.ai',
   },
   openGraph: {
-    title: 'frugal — Route smarter. Spend less.',
-    description: '~90% cost savings on Claude Code prompts. Validated on months of real developer usage.',
+    title: 'mooter — Route smarter. Ship faster.',
+    description: '~90% cost savings on Claude Code prompts. Validated on 1,437 real developer prompts.',
     type: 'website',
-    images: [{ url: '/api/og?savings=90.2%25', width: 1200, height: 630 }],
+    url: 'https://mooter.ai',
+    siteName: 'mooter',
+    images: [{ url: '/api/og?savings=90.2%25', width: 1200, height: 630, alt: 'mooter — Route smarter. Ship faster.' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'mooter — Route smarter. Ship faster.',
+    description: '~90% cost savings on Claude Code prompts. Zero proxy. Just a hook.',
+    images: ['/api/og?savings=90.2%25'],
   },
 };
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'frugal',
-  description: 'Claude Code router that saves 90% on LLM costs via automatic tier routing',
+  name: 'mooter',
+  url: 'https://mooter.ai',
+  description: 'Claude Code hook-based LLM router that saves ~90% on AI costs via automatic tier routing across Ollama, Haiku, Sonnet and Opus.',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'macOS, Windows, Linux',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
@@ -36,9 +49,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {/* Plausible analytics — privacy-first, no cookies, GDPR-compliant
-            Replace data-domain with your final domain when ready */}
-        <script defer data-domain="frugal.dev" src="https://plausible.io/js/script.js" />
+        {/* Plausible analytics — privacy-first, no cookies, GDPR-compliant */}
+        <script defer data-domain="mooter.ai" src="https://plausible.io/js/script.js" />
       </head>
       <body>{children}</body>
     </html>
