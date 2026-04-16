@@ -24,12 +24,24 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 | Métrica | Valor |
 |---|---|
-| Classifier accuracy | 96.7% (gold-labels) |
+| Classifier accuracy (validation-set) | 80.0% (60 prompts, era 75%) |
+| Classifier accuracy (adversarial) | 92% (25 prompts, era 80%) |
+| Gold labels | 84 (era 77, +7 do tester) |
 | Savings validados | 89.9% (1,437+ prompts reais) |
-| Patterns | 102 |
+| Patterns | 108+ (era 102, +6 MED_RISK, +2 LOW_RISK) |
 | Módulos tools/router/ | 66 JS files |
 | Skills | 15 (11 frugal-* + 3 mooter-* + model-router) |
 | Sprint B | ✅ Completo (shadow mode, closed loop, signals, ground-truth) |
+| Tester (24/7) | 176 prompts testados, 13 A/B tests, 6 modelos benchmarked |
+
+### Melhorias classifier sessão 2026-04-16
+
+- **Demotion logic** — simple task intent (regex/explain/translate/show) com risk keywords no conteúdo demota para tier correcto
+- **package.json** — HIGH_RISK só com verbo de modificação (read-only = T0)
+- **GraphQL+REST** — requer contexto de decisão (explain ≠ architecture)
+- **arquitec?tur** — ambas grafias PT reconhecidas
+- **MED_RISK novos** — "how should we handle", "review this approach", "qual a melhor", "não está a funcionar", "avaliação técnica", "not working"
+- **LOW_RISK novos** — "diferença/difference"
 
 ### Loopholes abertos
 
@@ -37,6 +49,8 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 |---|---|
 | L7 | VSCode extension não publicada (aguarda Azure DevOps PAT) |
 | L8 | Time-based routing não implementado |
+| L9 | 5 drift items T1→T0: degradação sem ANTHROPIC_API_KEY (infra, não classifier) |
+| L10 | mooter-review ainda não consulta contexto completo do projecto (ver visão self-healing) |
 
 ---
 
@@ -61,6 +75,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 ### Sprint B.4+ (próximos passos técnicos)
 
+- **Self-healing mooter-review** — redesenhar para consultar contexto completo (decisions.log, tools, skills, MDs, gold-labels, trends) e gerar backlogs priorizados com retroalimentação automática. Ciclo virtuoso: tester→review→backlog→fix→tester.
 - Thompson Sampling bandit (zona confidence 0.5–0.75)
 - Semantic layer L1.5 (centróides por categoria, nomic-embed-text)
 - A/B test via `docs/MASTER_PROMPTS/MOOTER_AB_TEST.md`
@@ -97,6 +112,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | 👥 Friends Beta — Onboarding & Tracking | `33e6f6e4-2bc4-8135-ae61-cccc625406d8` |
 | 🌍 frugal v2.0 — OS Vision | `33e6f6e4-2bc4-8128-9155-d79fbc14a6e5` |
 | 📊 Evolução + Status | `33f6f6e4-2bc4-81fe-a8e1-e065f53ee73b` |
+| 🔧 Sessão 2026-04-16 — Classifier 75%→80% | `3446f6e4-2bc4-8186-8164-c3c654755a81` |
 
 > Lista completa de 25+ sessões Notion em `docs/CHANGELOG_SESSIONS.md` secção "Notion HQ — Páginas de Referência".
 

@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 /**
- * mooter-review.js — Real-time review of tester findings.
+ * mooter-review.js — Delta-based review of tester findings.
  *
- * Reads DIRECTLY from mooter-tester-history.jsonl (live data) — no need to
- * wait for the hourly backlog. Works the moment the tester has generated
- * even 1 cycle of data.
+ * v2: Snapshot-delta model. Each invocation reads only NEW events since the
+ * last review (watermark). Previous findings are "closed" — already applied
+ * or rejected. Cumulative stats are still shown for context.
+ *
+ * Watermark stored in mooter-review-state.json:
+ *   { last_review_at, last_event_index, review_count, reviews[] }
  *
  * Usage:
- *   node mooter-review.js                # snapshot summary (always fresh)
- *   node mooter-review.js --report       # detailed markdown for Claude to read
- *   node mooter-review.js --export-gold  # accept misroutings → gold-labels.json
- *   node mooter-review.js --counters     # JSON counters for landing/dashboard
+ *   node mooter-review.js                # delta summary (new since last review)
+ *   node mooter-review.js --report       # detailed delta report for Claude
+ *   node mooter-review.js --export-gold  # accept delta misroutings → gold-labels.json
+ *   node mooter-review.js --counters     # JSON counters (cumulative, for dashboard)
+ *   node mooter-review.js --full         # ignore watermark, show everything
+ *   node mooter-review.js --history      # show past review summaries
  *
  * Designed to be called by /mooter-review skill in Claude Code.
  */
@@ -24,14 +29,29 @@ const SCRIPT_DIR = __dirname;
 const HISTORY_PATH = path.join(SCRIPT_DIR, 'mooter-tester-history.jsonl');
 const GOLD_LABELS_PATH = path.join(SCRIPT_DIR, 'gold-labels.json');
 const STATS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-stats.json');
-const QUALITY_MATRIX_PATH = path.join(SCRIPT_DIR, 'mooter-quality-matrix.json');
+const REVIEW_STATE_PATH = path.join(SCRIPT_DIR, 'mooter-review-state.json');
 
 const args = process.argv.slice(2);
 const reportMode = args.includes('--report');
 const countersOnly = args.includes('--counters');
 const exportGold = args.includes('--export-gold');
+const fullMode = args.includes('--full');
+const historyMode = args.includes('--history');
 
-// ── Load all events from history ────────────────────────────────────
+// ── Watermark state ────────────────────────────────────────────────
+function loadState() {
+  try {
+    return JSON.parse(fs.readFileSync(REVIEW_STATE_PATH, 'utf8'));
+  } catch {
+    return { last_review_at: null, last_event_index: 0, review_count: 0, reviews: [] };
+  }
+}
+
+function saveState(state) {
+  fs.writeFileSync(REVIEW_STATE_PATH, JSON.stringify(state, null, 2));
+}
+
+// ── Load events from history ───────────────────────────────────────
 function loadHistory() {
   if (!fs.existsSync(HISTORY_PATH)) {
     console.error('No tester history found. Is the mooter-tester running?');
@@ -49,32 +69,18 @@ function loadHistory() {
   return events;
 }
 
-// ── Build snapshot from live data ───────────────────────────────────
+// ── Build snapshot from events ─────────────────────────────────────
 function buildSnapshot(events) {
   const snapshot = {
     total_events: events.length,
     first_event: events[0]?.ts || null,
     last_event: events[events.length - 1]?.ts || null,
-
-    // Classifications
     classifications: events.filter(e => e.event === 'tester_classification').length,
-
-    // Misroutings
     misroutings: [],
-
-    // Executions
     executions: { total: 0, by_model: {} },
-
-    // A/B model tests
     ab_tests: [],
-
-    // Optimizer A/B
     optimizer_tests: [],
-
-    // Embeddings
     embeddings: events.filter(e => e.event === 'tester_embedding').length,
-
-    // Tier accuracy
     tier_accuracy: {},
   };
 
@@ -148,92 +154,115 @@ function buildSnapshot(events) {
 }
 
 // ── Summary ─────────────────────────────────────────────────────────
-function showSummary(snap) {
-  const uptime = snap.first_event && snap.last_event
-    ? Math.round((new Date(snap.last_event) - new Date(snap.first_event)) / 60000)
-    : 0;
-
-  // Model A/B winners
-  const modelWins = {};
-  for (const ab of snap.ab_tests) {
-    const winner = ab.winner === 'A' ? ab.model_a : ab.winner === 'B' ? ab.model_b : null;
-    if (winner) { modelWins[winner] = (modelWins[winner] || 0) + 1; }
-  }
-
-  // Optimizer stats
-  const optWins = snap.optimizer_tests.filter(t => t.winner === 'optimized').length;
-  const optTotal = snap.optimizer_tests.length;
+function showSummary(deltaSnap, allSnap, state, totalEvents) {
+  const isFirstReview = state.review_count === 0;
+  const deltaLabel = isFirstReview ? 'First review (all data)' : `Since review #${state.review_count}`;
+  const deltaRange = deltaSnap.first_event && deltaSnap.last_event
+    ? `${deltaSnap.first_event.slice(0, 19)} → ${deltaSnap.last_event.slice(0, 19)}`
+    : 'no new data';
 
   console.log(`
 ╔══════════════════════════════════════════════════════════════════╗
-║           🐮 MOOTER REVIEW — Live Snapshot                      ║
+║           🐮 MOOTER REVIEW — Delta Snapshot #${state.review_count + 1}${' '.repeat(Math.max(0, 19 - String(state.review_count + 1).length))}║
 ╚══════════════════════════════════════════════════════════════════╝
 
-  Data: ${snap.first_event?.slice(0, 19) || '?'} → ${snap.last_event?.slice(0, 19) || '?'} (${uptime} min)
-  Events: ${snap.total_events}
-
-  📊 Activity:
-    Classifications:    ${snap.classifications}
-    Model executions:   ${snap.executions.total}
-    A/B model tests:    ${snap.ab_tests.length}
-    Optimizer A/B:      ${optTotal}${optTotal > 0 ? ` (optimizer wins: ${optWins}/${optTotal} = ${Math.round(optWins / optTotal * 100)}%)` : ''}
-    Embeddings:         ${snap.embeddings}
-
-  🔍 Findings:
-    Misroutings:        ${snap.misroutings.length} (new gold-label candidates)
-    ${snap.misroutings.length > 0 ? 'Run: node mooter-review.js --report    for details' : ''}
-    ${snap.misroutings.length > 0 ? '     node mooter-review.js --export-gold  to apply' : ''}
+  ${deltaLabel}
+  Delta range: ${deltaRange}
+  Delta events: ${deltaSnap.total_events} (of ${totalEvents} total)
 `);
 
-  // Model performance
-  const models = Object.entries(snap.executions.by_model);
-  if (models.length > 0) {
-    console.log('  🏎️ Model Performance:');
-    for (const [model, data] of models.sort((a, b) => b[1].runs - a[1].runs)) {
-      const avg = data.runs > 0 ? Math.round(data.total_latency / data.runs) : 0;
-      const wins = modelWins[model] || 0;
-      console.log(`    ${model.padEnd(22)} ${String(data.runs).padStart(3)} runs  ${String(avg).padStart(5)}ms avg  ${wins} A/B wins  ${data.errors} err`);
-    }
-    console.log('');
+  if (deltaSnap.total_events === 0) {
+    console.log('  No new tester data since last review. Tester may be stopped.');
+    console.log('  Use --full to see all-time data.\n');
+    return;
   }
 
-  // Tier accuracy
-  const tiers = Object.entries(snap.tier_accuracy);
+  // Delta findings
+  console.log('  📊 New Activity (delta):');
+  console.log(`    Classifications:    ${deltaSnap.classifications}`);
+  console.log(`    Model executions:   ${deltaSnap.executions.total}`);
+  console.log(`    A/B model tests:    ${deltaSnap.ab_tests.length}`);
+  console.log(`    Optimizer A/B:      ${deltaSnap.optimizer_tests.length}`);
+  console.log(`    Embeddings:         ${deltaSnap.embeddings}`);
+  console.log('');
+
+  console.log('  🔍 New Findings (delta):');
+  console.log(`    Misroutings:        ${deltaSnap.misroutings.length} (new gold-label candidates)`);
+  if (deltaSnap.misroutings.length > 0) {
+    console.log('    Run: node mooter-review.js --report    for details');
+    console.log('         node mooter-review.js --export-gold  to apply');
+  }
+  console.log('');
+
+  // Delta tier accuracy
+  const tiers = Object.entries(deltaSnap.tier_accuracy);
   if (tiers.length > 0) {
-    console.log('  🎯 Classifier Accuracy:');
+    console.log('  🎯 Classifier Accuracy (delta):');
     for (const [tier, data] of tiers.sort()) {
       const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
       console.log(`    ${tier}: ${pct}% (${data.correct}/${data.total})`);
     }
     console.log('');
   }
+
+  // Cumulative context (always all-time)
+  console.log('  📈 Cumulative (all-time):');
+  console.log(`    Total classifications: ${allSnap.classifications}`);
+  console.log(`    Total A/B tests:       ${allSnap.ab_tests.length}`);
+  console.log(`    Total misroutings:     ${allSnap.misroutings.length} (after gold-label dedup)`);
+  console.log(`    Reviews completed:     ${state.review_count}`);
+  console.log('');
+
+  // Model performance (delta)
+  const models = Object.entries(deltaSnap.executions.by_model);
+  if (models.length > 0) {
+    console.log('  🏎️ Model Performance (delta):');
+    for (const [model, data] of models.sort((a, b) => b[1].runs - a[1].runs)) {
+      const avg = data.runs > 0 ? Math.round(data.total_latency / data.runs) : 0;
+      console.log(`    ${model.padEnd(22)} ${String(data.runs).padStart(3)} runs  ${String(avg).padStart(5)}ms avg  ${data.errors} err`);
+    }
+    console.log('');
+  }
 }
 
 // ── Report (detailed, for Claude) ───────────────────────────────────
-function showReport(snap) {
-  console.log('# MOOTER TESTER — Live Review Report');
-  console.log(`# Snapshot: ${new Date().toISOString()}`);
-  console.log(`# Data range: ${snap.first_event?.slice(0, 19)} → ${snap.last_event?.slice(0, 19)}\n`);
+function showReport(deltaSnap, allSnap, state, totalEvents) {
+  const isFirstReview = state.review_count === 0;
+  const reviewNum = state.review_count + 1;
 
-  // Misroutings
-  console.log(`## Misroutings (${snap.misroutings.length} — gold-label candidates)\n`);
-  if (snap.misroutings.length === 0) {
-    console.log('No misroutings found — classifier is accurate on generated prompts.\n');
+  console.log(`# MOOTER TESTER — Delta Review #${reviewNum}`);
+  console.log(`# Snapshot: ${new Date().toISOString()}`);
+  console.log(`# Delta: ${deltaSnap.first_event?.slice(0, 19) || 'n/a'} → ${deltaSnap.last_event?.slice(0, 19) || 'n/a'}`);
+  console.log(`# Events: ${deltaSnap.total_events} new (${totalEvents} total)`);
+  if (!isFirstReview) {
+    console.log(`# Last review: ${state.last_review_at} (review #${state.review_count})`);
+  }
+  console.log('');
+
+  if (deltaSnap.total_events === 0) {
+    console.log('No new tester data since last review.\n');
+    console.log('Use `--full` to see all-time report.\n');
+    return;
+  }
+
+  // Delta Misroutings
+  console.log(`## New Misroutings (${deltaSnap.misroutings.length} — gold-label candidates)\n`);
+  if (deltaSnap.misroutings.length === 0) {
+    console.log('No new misroutings — classifier is accurate on all new prompts.\n');
   } else {
     console.log('| # | Prompt | Expected | Got | Category |');
     console.log('|---|--------|----------|-----|----------|');
-    snap.misroutings.forEach((m, i) => {
+    deltaSnap.misroutings.forEach((m, i) => {
       console.log(`| ${i + 1} | ${m.prompt.slice(0, 60).replace(/\|/g, '\\|')} | ${m.expected} | ${m.classified} | ${m.category || ''} |`);
     });
     console.log('\nTo add these as gold labels: `node tools/router/mooter-review.js --export-gold`\n');
   }
 
-  // A/B Model Tests
-  console.log(`## A/B Model Tests (${snap.ab_tests.length})\n`);
-  if (snap.ab_tests.length > 0) {
-    // Aggregate by model pair
+  // Delta A/B Model Tests
+  console.log(`## New A/B Model Tests (${deltaSnap.ab_tests.length})\n`);
+  if (deltaSnap.ab_tests.length > 0) {
     const pairStats = {};
-    for (const ab of snap.ab_tests) {
+    for (const ab of deltaSnap.ab_tests) {
       const key = [ab.model_a, ab.model_b].sort().join(' vs ');
       if (!pairStats[key]) pairStats[key] = { wins: {}, ties: 0, total: 0 };
       pairStats[key].total++;
@@ -248,20 +277,21 @@ function showReport(snap) {
       console.log(`| ${pair} | ${results}${data.ties > 0 ? `, TIE: ${data.ties}` : ''} | ${data.total} |`);
     }
     console.log('');
+  } else {
+    console.log('No new A/B tests.\n');
   }
 
-  // Optimizer effectiveness
-  console.log(`## Optimizer (Tropicalization) Tests (${snap.optimizer_tests.length})\n`);
-  if (snap.optimizer_tests.length > 0) {
-    const optWins = snap.optimizer_tests.filter(t => t.winner === 'optimized').length;
-    const rawWins = snap.optimizer_tests.filter(t => t.winner === 'raw').length;
-    const ties = snap.optimizer_tests.filter(t => t.winner === 'tie').length;
-    console.log(`Overall: optimizer wins ${optWins}, raw wins ${rawWins}, ties ${ties}`);
-    console.log(`Win rate: ${(optWins / snap.optimizer_tests.length * 100).toFixed(0)}%\n`);
+  // Delta Optimizer
+  console.log(`## New Optimizer Tests (${deltaSnap.optimizer_tests.length})\n`);
+  if (deltaSnap.optimizer_tests.length > 0) {
+    const optWins = deltaSnap.optimizer_tests.filter(t => t.winner === 'optimized').length;
+    const rawWins = deltaSnap.optimizer_tests.filter(t => t.winner === 'raw').length;
+    const ties = deltaSnap.optimizer_tests.filter(t => t.winner === 'tie').length;
+    console.log(`Delta: optimizer wins ${optWins}, raw wins ${rawWins}, ties ${ties}`);
+    console.log(`Win rate: ${(optWins / deltaSnap.optimizer_tests.length * 100).toFixed(0)}%\n`);
 
-    // Per model
     const byModel = {};
-    for (const t of snap.optimizer_tests) {
+    for (const t of deltaSnap.optimizer_tests) {
       if (!byModel[t.model]) byModel[t.model] = { opt: 0, raw: 0, tie: 0, strategies: {} };
       if (t.winner === 'optimized') byModel[t.model].opt++;
       else if (t.winner === 'raw') byModel[t.model].raw++;
@@ -277,37 +307,58 @@ function showReport(snap) {
       console.log(`| ${model} | ${data.opt} | ${data.raw} | ${data.tie} | ${strats} |`);
     }
     console.log('');
+  } else {
+    console.log('No new optimizer tests.\n');
   }
 
-  // Tier accuracy
-  console.log('## Classifier Accuracy by Tier\n');
-  console.log('| Tier | Accuracy | Correct/Total |');
-  console.log('|------|----------|---------------|');
-  for (const [tier, data] of Object.entries(snap.tier_accuracy).sort()) {
-    const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
-    console.log(`| ${tier} | ${pct}% | ${data.correct}/${data.total} |`);
+  // Delta Tier accuracy
+  console.log('## Classifier Accuracy (delta)\n');
+  const deltaTiers = Object.entries(deltaSnap.tier_accuracy);
+  if (deltaTiers.length > 0) {
+    console.log('| Tier | Accuracy | Correct/Total |');
+    console.log('|------|----------|---------------|');
+    for (const [tier, data] of deltaTiers.sort()) {
+      const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
+      console.log(`| ${tier} | ${pct}% | ${data.correct}/${data.total} |`);
+    }
+  } else {
+    console.log('No tier classification data in delta.');
   }
   console.log('');
 
-  // Counters
-  console.log('## Counters (for landing page)\n');
+  // Cumulative accuracy (all-time context)
+  console.log('## Classifier Accuracy (cumulative — all-time)\n');
+  const allTiers = Object.entries(allSnap.tier_accuracy);
+  if (allTiers.length > 0) {
+    console.log('| Tier | Accuracy | Correct/Total |');
+    console.log('|------|----------|---------------|');
+    for (const [tier, data] of allTiers.sort()) {
+      const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
+      console.log(`| ${tier} | ${pct}% | ${data.correct}/${data.total} |`);
+    }
+  }
+  console.log('');
+
+  // Cumulative counters
+  console.log('## Counters (cumulative — for landing page)\n');
   console.log('```json');
   console.log(JSON.stringify({
-    prompts_tested: snap.classifications,
-    models_benchmarked: Object.keys(snap.executions.by_model).length,
-    ab_tests_run: snap.ab_tests.length,
-    optimizer_tests: snap.optimizer_tests.length,
-    misroutings_found: snap.misroutings.length,
-    embeddings_built: snap.embeddings,
+    prompts_tested: allSnap.classifications,
+    models_benchmarked: Object.keys(allSnap.executions.by_model).length,
+    ab_tests_run: allSnap.ab_tests.length,
+    optimizer_tests: allSnap.optimizer_tests.length,
+    misroutings_found: allSnap.misroutings.length,
+    embeddings_built: allSnap.embeddings,
+    reviews_completed: state.review_count,
     cost_usd: 0,
   }, null, 2));
   console.log('```\n');
 }
 
-// ── Export gold labels ──────────────────────────────────────────────
-function doExportGold(snap) {
-  if (snap.misroutings.length === 0) {
-    console.log('No misroutings to export. Classifier is accurate on all tested prompts.');
+// ── Export gold labels (delta only) ─────────────────────────────────
+function doExportGold(deltaSnap) {
+  if (deltaSnap.misroutings.length === 0) {
+    console.log('No new misroutings to export. Classifier is accurate on all new prompts.');
     return;
   }
 
@@ -316,7 +367,7 @@ function doExportGold(snap) {
   const existing = new Set(goldLabels.map(g => g.prompt));
   let added = 0;
 
-  for (const m of snap.misroutings) {
+  for (const m of deltaSnap.misroutings) {
     if (existing.has(m.prompt)) continue;
     goldLabels.push({
       id: `gl-tester-${goldLabels.length + 1}`,
@@ -338,26 +389,26 @@ function doExportGold(snap) {
     console.log('  node tools/router/backtest.js                # generate tuning');
     console.log('  node tools/router/update-router.js           # apply fixes');
   } else {
-    console.log('All misroutings already in gold-labels.json.');
+    console.log('All delta misroutings already in gold-labels.json.');
   }
 }
 
-// ── Counters (JSON for landing/dashboard) ───────────────────────────
-function showCounters(snap) {
-  // Also merge with live stats if available
+// ── Counters (JSON for landing/dashboard — always cumulative) ───────
+function showCounters(allSnap, state) {
   let live = {};
   try { live = JSON.parse(fs.readFileSync(STATS_PATH, 'utf8')); } catch {}
 
   console.log(JSON.stringify({
-    prompts_tested: snap.classifications,
-    prompts_executed: snap.executions.total,
-    models_benchmarked: Object.keys(snap.executions.by_model).length,
-    ab_tests: snap.ab_tests.length,
-    optimizer_tests: snap.optimizer_tests.length,
-    optimizer_win_rate: snap.optimizer_tests.length > 0
-      ? (snap.optimizer_tests.filter(t => t.winner === 'optimized').length / snap.optimizer_tests.length * 100).toFixed(1) + '%' : 'n/a',
-    misroutings: snap.misroutings.length,
-    embeddings: snap.embeddings,
+    prompts_tested: allSnap.classifications,
+    prompts_executed: allSnap.executions.total,
+    models_benchmarked: Object.keys(allSnap.executions.by_model).length,
+    ab_tests: allSnap.ab_tests.length,
+    optimizer_tests: allSnap.optimizer_tests.length,
+    optimizer_win_rate: allSnap.optimizer_tests.length > 0
+      ? (allSnap.optimizer_tests.filter(t => t.winner === 'optimized').length / allSnap.optimizer_tests.length * 100).toFixed(1) + '%' : 'n/a',
+    misroutings: allSnap.misroutings.length,
+    embeddings: allSnap.embeddings,
+    reviews_completed: state.review_count,
     uptime: live.uptime_human || null,
     cycles: live.cycles || null,
     cost_usd: 0,
@@ -365,11 +416,76 @@ function showCounters(snap) {
   }, null, 2));
 }
 
-// ── Main ─────────────────────────────────────────────────────────────
-const events = loadHistory();
-const snap = buildSnapshot(events);
+// ── Review history ──────────────────────────────────────────────────
+function showHistory(state) {
+  if (state.reviews.length === 0) {
+    console.log('No reviews completed yet. Run: node mooter-review.js --report');
+    return;
+  }
 
-if (countersOnly) showCounters(snap);
-else if (reportMode) showReport(snap);
-else if (exportGold) doExportGold(snap);
-else showSummary(snap);
+  console.log(`\n  📜 Review History (${state.reviews.length} reviews)\n`);
+  console.log('  | # | Date | Delta Events | Misroutings | Gold Added |');
+  console.log('  |---|------|-------------|-------------|------------|');
+  for (const r of state.reviews) {
+    console.log(`  | ${r.review_num} | ${r.reviewed_at.slice(0, 16)} | ${r.delta_events} | ${r.delta_misroutings} | ${r.gold_added || 0} |`);
+  }
+  console.log('');
+}
+
+// ── Main ─────────────────────────────────────────────────────────────
+const state = loadState();
+const allEvents = loadHistory();
+
+// Split events: delta (new since last review) vs all
+const watermark = fullMode ? 0 : (state.last_event_index || 0);
+const deltaEvents = allEvents.slice(watermark);
+
+const allSnap = buildSnapshot(allEvents);
+const deltaSnap = buildSnapshot(deltaEvents);
+
+if (historyMode) {
+  showHistory(state);
+} else if (countersOnly) {
+  // Counters are always cumulative, don't advance watermark
+  showCounters(allSnap, state);
+} else if (reportMode) {
+  showReport(deltaSnap, allSnap, state, allEvents.length);
+  // Advance watermark
+  state.last_review_at = new Date().toISOString();
+  state.last_event_index = allEvents.length;
+  state.review_count++;
+  state.reviews.push({
+    review_num: state.review_count,
+    reviewed_at: state.last_review_at,
+    delta_events: deltaEvents.length,
+    delta_misroutings: deltaSnap.misroutings.length,
+    delta_ab_tests: deltaSnap.ab_tests.length,
+    delta_classifications: deltaSnap.classifications,
+  });
+  // Keep only last 50 reviews in history
+  if (state.reviews.length > 50) state.reviews = state.reviews.slice(-50);
+  saveState(state);
+} else if (exportGold) {
+  doExportGold(deltaSnap);
+  // Record gold export in last review entry
+  if (state.reviews.length > 0) {
+    state.reviews[state.reviews.length - 1].gold_added = deltaSnap.misroutings.length;
+    saveState(state);
+  }
+} else {
+  showSummary(deltaSnap, allSnap, state, allEvents.length);
+  // Summary also advances watermark (user saw the data)
+  state.last_review_at = new Date().toISOString();
+  state.last_event_index = allEvents.length;
+  state.review_count++;
+  state.reviews.push({
+    review_num: state.review_count,
+    reviewed_at: state.last_review_at,
+    delta_events: deltaEvents.length,
+    delta_misroutings: deltaSnap.misroutings.length,
+    delta_ab_tests: deltaSnap.ab_tests.length,
+    delta_classifications: deltaSnap.classifications,
+  });
+  if (state.reviews.length > 50) state.reviews = state.reviews.slice(-50);
+  saveState(state);
+}
