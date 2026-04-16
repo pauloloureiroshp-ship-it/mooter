@@ -13,7 +13,7 @@
  * FALLBACK_PRICE (Sonnet-tier) so we never crash on a typo — but the
  * estimate will be wrong until added here.
  *
- * Last reviewed: 2026-04-07. Cross-check against:
+ * Last reviewed: 2026-04-16. Cross-check against:
  *   https://www.anthropic.com/pricing
  *   https://platform.openai.com/docs/pricing
  *   https://ai.google.dev/pricing
@@ -27,15 +27,18 @@
 // don't affect cost math, but keeping everything in one registry avoids
 // drift between pricing and routing.
 const PRICES = {
-  // ── Anthropic (Claude) ─────────────────────────────────────────────
-  'claude-opus-4-6':                 { input: 15.0,  output: 75.0,  strengths: ['architecture','refactor','long-context'], tier: 'T3' },
-  'claude-opus-4-6[1m]':             { input: 30.0,  output: 150.0, strengths: ['long-context'],                            tier: 'T3' }, // >200k ctx: 2×
+  // ── Anthropic (Claude) — verified 2026-04-16 from platform.claude.com ──
+  // NOTE: Opus 4.6 dropped from $15/$75 to $5/$25. 1M context is now
+  // included at standard pricing (no 2x surcharge). The $30/$150 rate
+  // is "Fast Mode" (6x), NOT extended context.
+  'claude-opus-4-6':                 { input:  5.0,  output: 25.0,  strengths: ['architecture','refactor','long-context'], tier: 'T3' },
+  'claude-opus-4-6[fast]':           { input: 30.0,  output: 150.0, strengths: ['long-context'],                            tier: 'T3' }, // fast mode: 6× standard
+  'claude-opus-4-6[1m]':             { input:  5.0,  output: 25.0,  strengths: ['long-context'],                            tier: 'T3' }, // alias: 1M included in standard
   'claude-sonnet-4-6':               { input:  3.0,  output: 15.0,  strengths: ['code','reasoning','debug'],                tier: 'T2' },
-  'claude-sonnet-4-6[1m]':           { input:  6.0,  output: 22.5,  strengths: ['long-context'],                            tier: 'T2' },
-  'claude-haiku-4-5':                { input:  0.80, output:  4.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
-  'claude-haiku-4-5-20251001':       { input:  0.80, output:  4.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
+  'claude-haiku-4-5':                { input:  1.0,  output:  5.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
+  'claude-haiku-4-5-20251001':       { input:  1.0,  output:  5.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
   // Legacy mappings that may appear in older logs
-  'claude-opus-4':                   { input: 15.0,  output: 75.0  },
+  'claude-opus-4':                   { input: 15.0,  output: 75.0  }, // old pricing, kept for log compat
   'claude-sonnet-4':                 { input:  3.0,  output: 15.0  },
   'claude-haiku-3-5':                { input:  0.80, output:  4.0  },
 
@@ -53,13 +56,34 @@ const PRICES = {
   'gemma3:12b':                       { input: 0, output: 0, strengths: ['general','summarize','translate'],              tier: 'T0', subtier: 'general' },
   'ollama':                          { input: 0, output: 0 }, // generic
 
-  // ── Google (Gemini) — optional, not emitted by classifier yet ──────
-  'gemini-2.5-flash':                { input: 0.075, output: 0.30 },
-  'gemini-2.5-pro':                  { input: 1.25,  output: 5.0  },
+  // ── Google (Gemini) — verified 2026-04-16 from ai.google.dev ────────
+  'gemini-2.5-pro':                  { input: 1.25,  output: 10.0,  strengths: ['reasoning','long-context','code'], tier: 'T2' },
+  'gemini-2.5-pro[200k+]':          { input: 2.50,  output: 15.0,  strengths: ['long-context'],                    tier: 'T2' },
+  'gemini-2.5-flash':                { input: 0.30,  output: 2.50,  strengths: ['fast','cheap','multimodal'],       tier: 'T1' },
+  'gemini-2.5-flash-lite':           { input: 0.10,  output: 0.40,  strengths: ['ultra-cheap','fast'],              tier: 'T0' },
 
-  // ── OpenAI (if Codex CLI or similar is added later) ────────────────
-  'gpt-4o':                          { input: 2.50,  output: 10.0 },
-  'gpt-4o-mini':                     { input: 0.15,  output: 0.60 },
+  // ── OpenAI — verified 2026-04-16 from developers.openai.com ───────
+  'gpt-4o':                          { input: 2.50,  output: 10.0,  strengths: ['general','multimodal','tools'],    tier: 'T2' },
+  'o3':                              { input: 2.00,  output:  8.0,  strengths: ['reasoning','math','code'],         tier: 'T2' },
+  'o4-mini':                         { input: 1.10,  output:  4.40, strengths: ['reasoning','cheap'],               tier: 'T1' },
+  'gpt-4o-mini':                     { input: 0.15,  output:  0.60, strengths: ['fast','cheap'],                    tier: 'T0' },
+
+  // ── DeepSeek — verified 2026-04-16 from api-docs.deepseek.com ─────
+  'deepseek-v3':                     { input: 0.27,  output:  1.10, strengths: ['general','cheap'],                 tier: 'T0' },
+  'deepseek-r1':                     { input: 0.55,  output:  2.19, strengths: ['reasoning','math','cheap'],        tier: 'T1' },
+  'deepseek-v4':                     { input: 0.30,  output:  0.50, strengths: ['newest','general','ultra-cheap'],  tier: 'T0' },
+
+  // ── xAI (Grok) — verified 2026-04-16 from docs.x.ai ──────────────
+  'grok-4':                          { input: 3.00,  output: 15.0,  strengths: ['reasoning','2M-context'],          tier: 'T3' },
+  'grok-4.1-fast':                   { input: 0.20,  output:  0.50, strengths: ['fast','cheap','2M-context'],       tier: 'T0' },
+
+  // ── Mistral — verified 2026-04-16 from mistral.ai/pricing ─────────
+  'mistral-large-3':                 { input: 0.50,  output:  1.50, strengths: ['multilingual','reasoning'],        tier: 'T1' },
+  'codestral':                       { input: 0.30,  output:  0.90, strengths: ['code','fill-in-middle'],           tier: 'T1' },
+
+  // ── Meta (Llama — via providers, not direct API) ──────────────────
+  'llama-4-maverick':                { input: 0.20,  output:  0.60, strengths: ['open-source','general'],           tier: 'T0' },
+  'llama-4-scout':                   { input: 0.10,  output:  0.30, strengths: ['open-source','fast'],              tier: 'T0' },
 };
 
 // Unknown model fallback — Sonnet-tier so the estimate is neither

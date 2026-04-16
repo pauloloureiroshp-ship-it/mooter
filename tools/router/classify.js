@@ -103,7 +103,7 @@ const MODELS = {
   ollama_terse:   process.env.ROUTER_OLLAMA_TERSE   || 'qwen2.5:3b',
   ollama_general: process.env.ROUTER_OLLAMA_GENERAL || 'gemma4:e4b',
   ollama_reason:  process.env.ROUTER_OLLAMA_REASON  || 'qwen3:30b',
-  ollama_code:    process.env.ROUTER_OLLAMA_CODE    || 'qwen2.5-coder:14b-q4',
+  ollama_code:    process.env.ROUTER_OLLAMA_CODE    || 'qwen2.5-coder:14b',
   ollama_math:   process.env.ROUTER_OLLAMA_MATH   || 'deepseek-r1-distill-qwen:14b',
   ollama: process.env.ROUTER_OLLAMA_MODEL || 'qwen2.5:3b', // legacy alias
   haiku: process.env.ROUTER_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',

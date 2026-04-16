@@ -79,13 +79,16 @@
         "tier": "T3",
         "emoji": "🔴",
         "pricing": {
-          "input_per_mtok": 15.0,
-          "output_per_mtok": 75.0,
-          "input_per_mtok_1m": 30.0,
-          "output_per_mtok_1m": 150.0,
-          "cache_write_per_mtok": 18.75,
-          "cache_read_per_mtok": 1.875,
-          "note": "1M context variant (used by Claude Code) costs 2x. Cache reads are 10x cheaper."
+          "input_per_mtok": 5.0,
+          "output_per_mtok": 25.0,
+          "fast_mode_input_per_mtok": 30.0,
+          "fast_mode_output_per_mtok": 150.0,
+          "cache_5m_write_multiplier": 1.25,
+          "cache_1h_write_multiplier": 2.0,
+          "cache_read_multiplier": 0.1,
+          "batch_input_per_mtok": 2.50,
+          "batch_output_per_mtok": 12.50,
+          "note": "Price dropped from $15/$75 to $5/$25 (Apr 2026). 1M context included at standard pricing. Fast mode = 6x ($30/$150). Cache reads = 10% of base."
         },
         "context_window": 1000000,
         "max_output_tokens": 32000,
@@ -141,9 +144,11 @@
         "tier": "T1",
         "emoji": "🟢",
         "pricing": {
-          "input_per_mtok": 0.80,
-          "output_per_mtok": 4.0,
-          "note": "19x cheaper than Opus. Best for structured, low-reasoning tasks."
+          "input_per_mtok": 1.0,
+          "output_per_mtok": 5.0,
+          "batch_input_per_mtok": 0.50,
+          "batch_output_per_mtok": 2.50,
+          "note": "5x cheaper than Opus. Best for structured, low-reasoning tasks. Updated Apr 2026."
         },
         "context_window": 200000,
         "max_output_tokens": 8192,
@@ -165,24 +170,70 @@
         "when_not_to_use": "Anything requiring reasoning > 2 steps",
         "requires": "ANTHROPIC_API_KEY or Claude Code subagent"
       },
-      "gemini-2.5-flash": {
+      "gemini-2.5-pro": {
         "provider": "google",
-        "tier": "T0",
-        "emoji": "⚡",
+        "tier": "T2",
+        "emoji": "💜",
         "pricing": {
-          "input_per_mtok": 0.075,
-          "output_per_mtok": 0.30,
-          "note": "200x cheaper than Opus. Near-free for high volume."
+          "input_per_mtok": 1.25,
+          "output_per_mtok": 10.0,
+          "input_per_mtok_200k_plus": 2.50,
+          "output_per_mtok_200k_plus": 15.0,
+          "batch_discount": "50%",
+          "note": "Best reasoning model from Google. Free tier available with limits."
         },
         "context_window": 1000000,
         "max_output_tokens": 65536,
+        "capabilities": ["completion", "vision", "tools", "thinking"],
         "quality": {
-          "trivial_edit": 7, "debug": 6, "architecture": 5,
+          "trivial_edit": 8, "debug": 8, "architecture": 8,
+          "summarize": 8, "transform": 8, "explain": 9,
+          "test_gen": 8, "math": 9, "code_gen": 8, "reasoning": 9
+        },
+        "strengths": ["reasoning", "math", "1M context", "free tier", "multimodal"],
+        "weaknesses": ["instruction following vs Claude", "tool use reliability"],
+        "requires": "GEMINI_API_KEY or GOOGLE_API_KEY"
+      },
+      "gemini-2.5-flash": {
+        "provider": "google",
+        "tier": "T1",
+        "emoji": "⚡",
+        "pricing": {
+          "input_per_mtok": 0.30,
+          "output_per_mtok": 2.50,
+          "note": "17x cheaper than Opus. Free tier available."
+        },
+        "context_window": 1000000,
+        "max_output_tokens": 65536,
+        "capabilities": ["completion", "vision", "tools", "thinking"],
+        "quality": {
+          "trivial_edit": 7, "debug": 7, "architecture": 5,
           "summarize": 8, "transform": 8, "explain": 7,
           "test_gen": 6, "math": 7, "code_gen": 7, "reasoning": 7
         },
-        "strengths": ["fast", "cheap", "long context", "multilingual"],
-        "weaknesses": ["code quality vs Claude", "instruction following"],
+        "strengths": ["fast", "cheap", "1M context", "free tier", "multimodal"],
+        "weaknesses": ["complex reasoning", "architecture decisions"],
+        "requires": "GEMINI_API_KEY or GOOGLE_API_KEY"
+      },
+      "gemini-2.5-flash-lite": {
+        "provider": "google",
+        "tier": "T0",
+        "emoji": "💨",
+        "pricing": {
+          "input_per_mtok": 0.10,
+          "output_per_mtok": 0.40,
+          "note": "50x cheaper than Opus. Cheapest cloud model available."
+        },
+        "context_window": 1000000,
+        "max_output_tokens": 65536,
+        "capabilities": ["completion", "vision"],
+        "quality": {
+          "trivial_edit": 6, "debug": 5, "architecture": 3,
+          "summarize": 7, "transform": 7, "explain": 6,
+          "test_gen": 5, "math": 5, "code_gen": 5, "reasoning": 5
+        },
+        "strengths": ["ultra-cheap", "fast", "1M context"],
+        "weaknesses": ["low quality on complex tasks"],
         "requires": "GEMINI_API_KEY or GOOGLE_API_KEY"
       },
       "gpt-4o": {
@@ -195,14 +246,181 @@
         },
         "context_window": 128000,
         "max_output_tokens": 16384,
+        "capabilities": ["completion", "vision", "tools"],
         "quality": {
           "trivial_edit": 8, "debug": 8, "architecture": 8,
           "summarize": 8, "transform": 8, "explain": 9,
           "test_gen": 8, "math": 8, "code_gen": 8, "reasoning": 8
         },
-        "strengths": ["general purpose", "tool use", "multimodal"],
+        "strengths": ["general purpose", "tool use", "multimodal", "well-documented"],
         "weaknesses": ["code generation vs Claude"],
         "requires": "OPENAI_API_KEY"
+      },
+      "o3": {
+        "provider": "openai",
+        "tier": "T2",
+        "emoji": "🧮",
+        "pricing": {
+          "input_per_mtok": 2.00,
+          "output_per_mtok": 8.0
+        },
+        "context_window": 200000,
+        "max_output_tokens": 100000,
+        "capabilities": ["completion", "vision", "tools", "thinking"],
+        "quality": {
+          "trivial_edit": 7, "debug": 9, "architecture": 8,
+          "summarize": 7, "transform": 7, "explain": 8,
+          "test_gen": 8, "math": 10, "code_gen": 9, "reasoning": 10
+        },
+        "strengths": ["frontier reasoning", "math", "science", "code"],
+        "weaknesses": ["slower", "verbose thinking output"],
+        "requires": "OPENAI_API_KEY"
+      },
+      "o4-mini": {
+        "provider": "openai",
+        "tier": "T1",
+        "emoji": "🔢",
+        "pricing": {
+          "input_per_mtok": 1.10,
+          "output_per_mtok": 4.40
+        },
+        "context_window": 200000,
+        "max_output_tokens": 100000,
+        "capabilities": ["completion", "vision", "tools", "thinking"],
+        "quality": {
+          "trivial_edit": 7, "debug": 8, "architecture": 7,
+          "summarize": 7, "transform": 7, "explain": 7,
+          "test_gen": 7, "math": 9, "code_gen": 8, "reasoning": 9
+        },
+        "strengths": ["reasoning at half cost of o3", "math", "200k context"],
+        "weaknesses": ["general quality below GPT-4o"],
+        "requires": "OPENAI_API_KEY"
+      },
+      "deepseek-v3": {
+        "provider": "deepseek",
+        "tier": "T0",
+        "emoji": "🐋",
+        "pricing": {
+          "input_per_mtok": 0.27,
+          "output_per_mtok": 1.10,
+          "cache_hit_per_mtok": 0.07,
+          "note": "Among cheapest frontier models. MoE architecture."
+        },
+        "context_window": 128000,
+        "max_output_tokens": 8192,
+        "capabilities": ["completion", "tools"],
+        "quality": {
+          "trivial_edit": 7, "debug": 7, "architecture": 6,
+          "summarize": 7, "transform": 7, "explain": 7,
+          "test_gen": 6, "math": 8, "code_gen": 8, "reasoning": 7
+        },
+        "strengths": ["ultra-cheap", "strong code/math", "MoE efficiency"],
+        "weaknesses": ["instruction following", "tool use reliability", "China-hosted"],
+        "requires": "DEEPSEEK_API_KEY"
+      },
+      "deepseek-r1-cloud": {
+        "provider": "deepseek",
+        "tier": "T1",
+        "emoji": "🐉",
+        "pricing": {
+          "input_per_mtok": 0.55,
+          "output_per_mtok": 2.19,
+          "cache_hit_per_mtok": 0.14,
+          "note": "Best reasoning-per-dollar ratio in the market."
+        },
+        "context_window": 128000,
+        "max_output_tokens": 8192,
+        "capabilities": ["completion", "thinking"],
+        "quality": {
+          "trivial_edit": 6, "debug": 8, "architecture": 7,
+          "summarize": 6, "transform": 6, "explain": 7,
+          "test_gen": 7, "math": 10, "code_gen": 7, "reasoning": 10
+        },
+        "strengths": ["math", "reasoning", "chain-of-thought", "cheapest reasoning"],
+        "weaknesses": ["verbose", "instruction following", "latency"],
+        "requires": "DEEPSEEK_API_KEY"
+      },
+      "grok-4": {
+        "provider": "xai",
+        "tier": "T3",
+        "emoji": "🦊",
+        "pricing": {
+          "input_per_mtok": 3.00,
+          "output_per_mtok": 15.0,
+          "tool_use_per_1k_calls": 2.50,
+          "note": "$25 free credits on signup. $150/mo data sharing program."
+        },
+        "context_window": 2000000,
+        "max_output_tokens": 131072,
+        "capabilities": ["completion", "vision", "tools", "thinking"],
+        "quality": {
+          "trivial_edit": 8, "debug": 9, "architecture": 9,
+          "summarize": 8, "transform": 8, "explain": 9,
+          "test_gen": 8, "math": 9, "code_gen": 9, "reasoning": 9
+        },
+        "strengths": ["2M context (largest)", "strong reasoning", "real-time data via X"],
+        "weaknesses": ["tool use charges extra", "less documented ecosystem"],
+        "requires": "XAI_API_KEY"
+      },
+      "grok-4.1-fast": {
+        "provider": "xai",
+        "tier": "T0",
+        "emoji": "🏎️",
+        "pricing": {
+          "input_per_mtok": 0.20,
+          "output_per_mtok": 0.50
+        },
+        "context_window": 2000000,
+        "max_output_tokens": 131072,
+        "capabilities": ["completion", "tools"],
+        "quality": {
+          "trivial_edit": 7, "debug": 6, "architecture": 5,
+          "summarize": 7, "transform": 7, "explain": 7,
+          "test_gen": 6, "math": 6, "code_gen": 6, "reasoning": 6
+        },
+        "strengths": ["ultra-cheap", "2M context", "fast"],
+        "weaknesses": ["lower quality than Grok 4"],
+        "requires": "XAI_API_KEY"
+      },
+      "mistral-large-3": {
+        "provider": "mistral",
+        "tier": "T1",
+        "emoji": "🇫🇷",
+        "pricing": {
+          "input_per_mtok": 0.50,
+          "output_per_mtok": 1.50
+        },
+        "context_window": 128000,
+        "max_output_tokens": 8192,
+        "capabilities": ["completion", "vision", "tools"],
+        "quality": {
+          "trivial_edit": 7, "debug": 7, "architecture": 7,
+          "summarize": 7, "transform": 7, "explain": 8,
+          "test_gen": 7, "math": 7, "code_gen": 7, "reasoning": 7
+        },
+        "strengths": ["multilingual (especially French)", "EU data sovereignty", "open weights"],
+        "weaknesses": ["smaller ecosystem", "less tool use documentation"],
+        "requires": "MISTRAL_API_KEY"
+      },
+      "codestral": {
+        "provider": "mistral",
+        "tier": "T1",
+        "emoji": "💻",
+        "pricing": {
+          "input_per_mtok": 0.30,
+          "output_per_mtok": 0.90
+        },
+        "context_window": 256000,
+        "max_output_tokens": 8192,
+        "capabilities": ["completion", "fill-in-middle"],
+        "quality": {
+          "trivial_edit": 8, "debug": 6, "architecture": 4,
+          "summarize": 5, "transform": 8, "explain": 5,
+          "test_gen": 7, "math": 5, "code_gen": 9, "reasoning": 5
+        },
+        "strengths": ["code generation", "fill-in-middle", "256k context", "cheap"],
+        "weaknesses": ["non-code tasks", "reasoning"],
+        "requires": "MISTRAL_API_KEY"
       }
     },
 
@@ -310,7 +528,7 @@
         "when_to_use": "Math problems, algorithmic reasoning, step-by-step proofs",
         "recommended_for_hw_tier": ["gpu-high", "gpu-mid", "gpu-low"]
       },
-      "qwen2.5-coder:14b-q4": {
+      "qwen2.5-coder:14b": {
         "provider": "ollama",
         "tier": "T0",
         "subtier": "code",
@@ -332,7 +550,7 @@
         "weaknesses": ["reasoning", "architecture", "not installed by default"],
         "when_to_use": "Local code generation, refactoring, regex building",
         "recommended_for_hw_tier": ["gpu-high"],
-        "install": "ollama pull qwen2.5-coder:14b-q4"
+        "install": "ollama pull qwen2.5-coder:14b"
       },
       "qwen2.5:3b": {
         "provider": "ollama",
@@ -373,7 +591,7 @@
       "recommended_models": {
         "general": "gemma4:e4b",
         "reason": "qwen3:30b",
-        "code": "qwen2.5-coder:14b-q4",
+        "code": "qwen2.5-coder:14b",
         "math": "deepseek-r1:7b",
         "terse": "qwen2.5:3b"
       },
@@ -429,7 +647,7 @@
       "recommended_models": {
         "general": "gemma4:e4b",
         "reason": "qwen3:30b",
-        "code": "qwen2.5-coder:14b-q4",
+        "code": "qwen2.5-coder:14b",
         "math": "deepseek-r1:7b",
         "terse": "qwen2.5:3b"
       },
