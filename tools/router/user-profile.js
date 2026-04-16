@@ -74,8 +74,13 @@ function defaultProfile() {
       openai_plus: false,
       other: [],
     },
+    // NOTE: budget.monthly_budget_usd matches the field name read by
+    // budget-engine.js:183 (`profile.monthly_budget_usd`). Do not rename
+    // without coordinating with budget-engine.js. The runtime chain is:
+    //   user-profile.json  →  budget-engine.js  →  budget-config.json
+    //                         →  inject_context.js (applyBudgetCap)
     budget: {
-      monthly_usd_cap: null,
+      monthly_budget_usd: null,
       monthly_spent_usd: 0.0,
       reset_day: 1,
       alert_at_pct: [50, 80, 95],
@@ -285,7 +290,7 @@ function prettyPrint(profile) {
   lines.push(`    OpenAI Plus:    ${bool(profile.subscriptions.openai_plus)}`);
   lines.push('');
   lines.push('  ── Budget ────────────────────────────────────────────────────');
-  lines.push(`    Monthly cap:    ${money(profile.budget.monthly_usd_cap)}`);
+  lines.push(`    Monthly cap:    ${money(profile.budget.monthly_budget_usd)}`);
   lines.push(`    Spent MTD:      ${money(profile.budget.monthly_spent_usd)}`);
   lines.push(`    Reset day:      ${profile.budget.reset_day}`);
   lines.push(`    Hard-cap:       ${profile.budget.hard_cap_behavior}`);
@@ -338,7 +343,7 @@ function main() {
   let mutated = false;
   const setBudget = valAfter('--set-budget');
   if (setBudget != null) {
-    profile.budget.monthly_usd_cap = +setBudget;
+    profile.budget.monthly_budget_usd = +setBudget;
     mutated = true;
   }
   const setQuality = valAfter('--set-quality');

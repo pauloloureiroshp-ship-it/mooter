@@ -4,18 +4,18 @@
   "_source": "mooter-hub",
   "_reference_model": "claude-opus-4-6",
   "_reference_as_of": "2026-04-16",
-  "_notes": "latency_ms_p50 is an estimate for a ~900-token input reference workload. Per-tier baselines used in savings computation live in savings-tracker.js OPUS_BASELINE_MS_PER_TIER. See docs/METHODOLOGY.md §2 and §13.",
+  "_notes": "Catalog of KNOWN models (tier + provider + vram requirements + reference_eligible flag). Does NOT duplicate measured values — costs live in pricing.js, measured latency/quality live in model-profile.json. See docs/METHODOLOGY.md §13. model-profile.json is authoritative for runtime savings math; this catalog is the hub-synced 'what models exist' registry.",
   "models": {
-    "claude-opus-4-6":                 { "tier": "t3", "provider": "anthropic", "known_since": "2026-03", "latency_ms_p50": 30000, "latency_ms_p95": 60000, "reference_eligible": true },
-    "claude-sonnet-4-6":               { "tier": "t2", "provider": "anthropic", "known_since": "2026-03", "latency_ms_p50": 12000, "latency_ms_p95": 28000, "reference_eligible": false },
-    "claude-haiku-4-5-20251001":       { "tier": "t1", "provider": "anthropic", "known_since": "2025-10", "latency_ms_p50":  5000, "latency_ms_p95": 12000, "reference_eligible": false },
-    "gpt-4o":                          { "tier": "t2", "provider": "openai",    "known_since": "2024-05", "latency_ms_p50": 10000, "latency_ms_p95": 22000, "reference_eligible": false },
-    "gemini-2.5-flash":                { "tier": "t0", "provider": "google",    "known_since": "2025-12", "latency_ms_p50":  3000, "latency_ms_p95":  8000, "reference_eligible": false },
-    "qwen2.5:3b":                      { "tier": "t0", "provider": "ollama",    "vram_min_mb":  2048, "latency_ms_p50":  1500, "latency_ms_p95":  4000, "reference_eligible": false },
-    "qwen2.5-coder:7b":                { "tier": "t0", "provider": "ollama",    "vram_min_mb":  4096, "latency_ms_p50":  2500, "latency_ms_p95":  6000, "reference_eligible": false },
-    "qwen2.5-coder:14b-q4":            { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9216, "latency_ms_p50":  4000, "latency_ms_p95":  9000, "reference_eligible": false },
-    "deepseek-r1-distill-qwen:14b":    { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9216, "latency_ms_p50":  5000, "latency_ms_p95": 12000, "reference_eligible": false },
-    "qwen2.5:32b-q4":                  { "tier": "t0", "provider": "ollama",    "vram_min_mb": 20480, "latency_ms_p50":  6500, "latency_ms_p95": 15000, "reference_eligible": false },
-    "qwen3:30b":                       { "tier": "t0", "provider": "ollama",    "vram_min_mb": 20480, "latency_ms_p50":  6000, "latency_ms_p95": 14000, "reference_eligible": false }
+    "claude-opus-4-6":                 { "tier": "t3", "provider": "anthropic", "known_since": "2026-03", "reference_eligible": true },
+    "claude-sonnet-4-6":               { "tier": "t2", "provider": "anthropic", "known_since": "2026-03", "reference_eligible": false },
+    "claude-haiku-4-5-20251001":       { "tier": "t1", "provider": "anthropic", "known_since": "2025-10", "reference_eligible": false },
+    "gpt-4o":                          { "tier": "t2", "provider": "openai",    "known_since": "2024-05", "reference_eligible": false },
+    "gemini-2.5-flash":                { "tier": "t0", "provider": "google",    "known_since": "2025-12", "reference_eligible": false },
+    "qwen2.5:3b":                      { "tier": "t0", "provider": "ollama",    "vram_min_mb":  2048 },
+    "qwen2.5-coder:7b":                { "tier": "t0", "provider": "ollama",    "vram_min_mb":  4096 },
+    "qwen2.5-coder:14b-q4":            { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9216 },
+    "deepseek-r1-distill-qwen:14b":    { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9216 },
+    "qwen2.5:32b-q4":                  { "tier": "t0", "provider": "ollama",    "vram_min_mb": 20480 },
+    "qwen3:30b":                       { "tier": "t0", "provider": "ollama",    "vram_min_mb": 20480 }
   }
 }

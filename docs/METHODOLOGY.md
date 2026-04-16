@@ -40,14 +40,16 @@ Ou em linguagem humana: **poupa o máximo possível sem nunca sacrificar qualida
 
 ### 2.1 Baseline
 
-O **baseline** é o modelo mais caro do catálogo actual com capacidade garantida para qualquer tarefa. Hoje: `claude-opus-4-6`. Declarado em `model-catalog.json` como `reference_model`. Evolui quando o catálogo muda.
+O **baseline** é o modelo mais caro do catálogo actual com capacidade garantida para qualquer tarefa. Hoje: `claude-opus-4-6`. Declarado em `model-catalog.json` como `_reference_model`. Evolui quando o catálogo muda.
 
 ```json
 {
-  "reference_model": "claude-opus-4-6",
-  "reference_as_of": "2026-04-16"
+  "_reference_model": "claude-opus-4-6",
+  "_reference_as_of": "2026-04-16"
 }
 ```
+
+**Dados medidos** (preços, latências, quality scores por categoria) vivem em `model-profile.json` — ver §13 para os três-ficheiros e seus roles. `model-catalog.json` é só o registry "que modelos existem"; `model-profile.json` é o SSOT runtime para a fórmula de saving.
 
 ### 2.2 Fórmula por decisão
 
@@ -155,7 +157,7 @@ A metodologia **tem de** reflectir isto. Profile é load-bearing.
     "other": []
   },
   "budget": {
-    "monthly_usd_cap": null,
+    "monthly_budget_usd": null,
     "monthly_spent_usd": 0.0,
     "reset_day": 1,
     "alert_at_pct": [50, 80, 95],
@@ -510,31 +512,27 @@ User novo → `user-profile.json` gerado com defaults. `learned` vazio. Após 50
 
 ---
 
-## 13. Evolução do catálogo (além de Opus 4.6)
+## 13. Três registries de modelo e seus roles
 
-`model-catalog.json` é versionado. Cada entry tem:
+A informação de modelos está intencionalmente separada em 3 ficheiros com responsabilidades distintas. **Não duplicar dados entre eles.**
 
-```json
-{
-  "id": "claude-opus-4-6",
-  "tier": "T3",
-  "provider": "anthropic",
-  "known_since": "2026-03",
-  "deprecated": false,
-  "reference_eligible": true,
-  "latency_ms_p50": 8500,
-  "latency_ms_p95": 18000
-}
-```
+| Ficheiro | Role | Quem escreve | Quem lê |
+|---|---|---|---|
+| `model-catalog.json` | "que modelos existem" — tier, provider, known_since, vram_min, reference_eligible | hub-pull.js (community sync) | event-builder.js, onboarding.js |
+| `model-profile.json` | **SSOT runtime** — preços medidos, latência p50/p95 (medida localmente), quality scores por categoria, strengths/weaknesses | Paulo (manual + futuro refresh automático) | savings-tracker.js, budget-engine.js, classify.js (sub-tier selection), validate-set.js |
+| `pricing.js` | View-layer computacional — preços em formato `{input, output}` para cálculo rápido `tokens × price / 1M` | Manual (acompanha pricing.anthropic.com) | savings-tracker.js, replay.js, stats.js |
 
-**Flow de refresh** (mensal, auto):
+**Regra de ouro**: se precisas de latência ou quality score → `model-profile.json`. Se precisas de preço para math → `pricing.js`. Se precisas de saber se um modelo existe e a que tier pertence → `model-catalog.json`.
 
-1. Fetch pricing de anthropic.com, openai.com, ai.google.dev, etc.
-2. Fetch catálogo Ollama local (`ollama list`).
-3. Comparar com `model-catalog.json`. Diff → novos modelos, price changes, deprecations.
-4. Para novos modelos com potencial `reference_eligible`: correr benchmark mínimo (10 prompts gold-labels).
-5. Gerar `catalog-delta.json`. User aprova via `/mooter-update`.
-6. Aplicar. Bump `catalog_version`. Backtest re-corre últimos 30 dias com novo baseline.
+**Evolução do catálogo**:
+
+O `_reference_model` em `model-catalog.json` aponta para o baseline de saving. Quando um modelo novo entra:
+
+1. hub-pull.js (ou manual) adiciona entry a `model-catalog.json` com tier+provider.
+2. Paulo (ou futuro `model-catalog-refresh.js`) preenche `model-profile.json` com latência medida + quality scores.
+3. `pricing.js` é actualizado com preços publicados.
+4. Se `reference_eligible: true`, correr benchmark contra validation-set (10 prompts canonical).
+5. Se aprovado, trocar `_reference_model`. Backtest re-corre últimos 30 dias com novo baseline.
 
 ---
 
@@ -573,8 +571,9 @@ Schema v3 (actual): cada evento tem `ts`, `ts_ms`, `event`, `session_id`, mais c
 ├── replay.js                ⚠️  histórico; FALTA --gold-labels
 ├── feedback-collector.js    ✅ explicit ratings
 ├── savings-tracker.js       ✅ mede tokens, custo, latency real
-├── pricing.js               ✅ SSOT preços
-├── model-catalog.json       ⚠️  sem latency_ms_baseline
+├── pricing.js               ✅ view-layer preços (input/output per MTok)
+├── model-catalog.json       ✅ hub-sync registry (tier, provider, reference_eligible)
+├── model-profile.json       ✅ SSOT runtime (latência medida, quality scores, preços)
 ├── subscription-profile.json ✅ shape existe, pouco preenchido
 ├── hw-capability.json       ✅ probed
 ├── adversarial-gen.js       ✅ stress test
@@ -593,7 +592,7 @@ tools/router/validation-set.test.js        ▶ schema test
 tools/router/replay.js  (extender)         ▶ --gold-labels mode
 tools/router/user-profile.json             ▶ consolidado
 tools/router/user-profile.js               ▶ consolidador + CLI
-tools/router/model-catalog.json (extender) ▶ adicionar latency_ms_p50/p95
+tools/router/model-catalog.json (extender) ▶ _reference_model + reference_eligible (latências NÃO — vivem em model-profile.json)
 ```
 
 ### 15.3 A criar em Sprints seguintes
@@ -603,7 +602,7 @@ Sprint B.1 (Shadow Mode):
   tools/router/shadow-mode.js
   tools/router/shadow-mode.test.js
   tools/router/shadow-judge.js
-  hub/migrations/003_shadow_events.sql
+  hub/migrations/005_shadow_events.sql
 
 Sprint B.2 (Closed Loop):
   tools/router/signals.js
