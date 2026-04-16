@@ -245,6 +245,13 @@ function optimize(prompt, decision) {
 
   const tier = decision.tier;
   const category = decision.task_category || '';
+  const model = decision.recommended_model || '';
+
+  // v0.10.2: Model-aware strategy preference from A/B test data (57 tests).
+  // qwen2.5:3b benefits from s1+s2 (padding + tier reformat).
+  // Larger models (gemma3, gemma4, deepseek-r1) benefit from s1+s3 (padding + category frame).
+  // This biases strategy order: for small models, prioritise s2; for large, prioritise s3.
+  const preferCategoryFrame = /gemma|deepseek|qwen3/i.test(model);
 
   // Guardrails.
   if (prompt.length < 30) return null;
@@ -275,18 +282,23 @@ function optimize(prompt, decision) {
     }
   }
 
-  // S2 — Tier-aware reformatting.
-  const afterTier = tierReformat(working, tier);
-  if (afterTier !== working) {
-    strategies.push('s2');
-    working = afterTier;
-  }
-
-  // S3 — Category-aware framing.
-  const afterCategory = categoryFrame(working, category);
-  if (afterCategory !== working) {
-    strategies.push('s3');
-    working = afterCategory;
+  // v0.10.2: Model-aware strategy order. A/B data (57 tests) shows:
+  //   Small models (qwen2.5:3b): s2 first → s3 (s1+s2 dominant, 17-14 wins)
+  //   Large models (gemma3/4, deepseek): s3 first → s2 (s1+s3 dominant, 8-1 wins)
+  // When s3 runs first, it adds category prefix ("Debug:", "Solve step-by-step:")
+  // which gives larger models better framing before tier reformat.
+  if (preferCategoryFrame) {
+    // S3 first for larger models
+    const afterCategory = categoryFrame(working, category);
+    if (afterCategory !== working) { strategies.push('s3'); working = afterCategory; }
+    const afterTier = tierReformat(working, tier);
+    if (afterTier !== working) { strategies.push('s2'); working = afterTier; }
+  } else {
+    // S2 first for smaller models (default, original order)
+    const afterTier = tierReformat(working, tier);
+    if (afterTier !== working) { strategies.push('s2'); working = afterTier; }
+    const afterCategory = categoryFrame(working, category);
+    if (afterCategory !== working) { strategies.push('s3'); working = afterCategory; }
   }
 
   // S5 — Language normalization hint.

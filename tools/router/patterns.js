@@ -68,7 +68,7 @@ const HIGH_RISK = [
   /\bSSL\b.*\b(expir|certific)/i,       // "SSL certificate expired" — infra critical
   /\bblue[- ]green/i,                   // "blue-green deployment" — deploy architecture
   /\bTerraform\b/i,                     // "set up Terraform" — infra as code
-  /\bCQRS\b/i,                          // "CQRS pattern" — architecture pattern
+  // CQRS moved to MED_RISK (v0.10.2) — design pattern, not destructive operation
   /\bAPI\s*(versioning|gateway)\b/i,    // "API versioning/gateway" — architecture
   /\bmulti[- ]?region/i,               // "multi-region failover" — architecture
   /\b(?:use|choose|pick|adopt|switch\s+to|migrate\s+to|should\s+we)\b.*\b(?:GraphQL\b.*\bREST|REST\b.*\bGraphQL)\b/i, // "should we use GraphQL vs REST" — arch decision (refined: explain/compare without decision intent → T1)
@@ -173,6 +173,7 @@ const MED_RISK = [
   /\bconcurren(?:t|cy)\s+(?:write|read|access|update)/i,     // "concurrent writes" — systems design
   /\bgraceful\s+(?:shutdown|degradation|failover)/i,          // "graceful shutdown" — systems design
   /\bnetwork\s+partition/i,                                    // "network partition" — distributed systems
+  /\bCQRS\b/,                                                  // "CQRS pattern" — design pattern (moved from HIGH_RISK v0.10.2)
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
