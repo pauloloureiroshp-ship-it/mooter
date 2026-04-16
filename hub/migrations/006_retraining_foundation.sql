@@ -14,36 +14,30 @@
 --   6. drift_monitor view — detects accuracy degradation over time
 --
 -- Execute via:
---   wrangler d1 execute mooter-hub --remote --file=hub/migrations/006_retraining_foundation.sql
+--   wrangler d1 execute frugal-hub --remote --file=hub/migrations/006_retraining_foundation.sql
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 1. ENHANCE mooter_events with retraining columns
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- NOTE: SQLite ALTER TABLE ADD COLUMN has no IF NOT EXISTS.
+-- This migration must only run ONCE per database. Re-running will fail
+-- with "duplicate column name". Check via: PRAGMA table_info(frugal_events);
+
 -- Which version of the algorithm made this decision?
 -- Format: "v0.9.10-65ba0d3" (semver + git short hash)
 ALTER TABLE frugal_events ADD COLUMN algorithm_version TEXT;
 
--- Composite complexity score 0.0-1.0 computed from prompt features:
---   len_bucket weight + file_ref_count + code_block + keyword_density
--- Allows grouping "easy T0" vs "hard T0" for fine-grained accuracy analysis
+-- Composite complexity score 0.0-1.0 computed from prompt features
 ALTER TABLE frugal_events ADD COLUMN prompt_complexity_score REAL;
 
 -- Outcome quality score: -1.0 (bad) to +1.0 (good), NULL = unknown
--- Populated by:
---   1. explicit_rating (user feedback) → maps -1/0/+1 directly
---   2. implicit signals (signals.js) → maps to -0.5/+0.5
---   3. shadow verdict → maps primary_better=+1, tie=0, shadow_better=-1
---   4. heuristic (no retry within 3 min = +0.3)
--- Multiple sources are averaged with confidence weighting.
 ALTER TABLE frugal_events ADD COLUMN outcome_score REAL;
 
--- Source of the outcome_score for provenance
--- Values: 'explicit' | 'implicit' | 'shadow' | 'heuristic' | 'composite'
+-- Source of the outcome_score: 'explicit'|'implicit'|'shadow'|'heuristic'|'composite'
 ALTER TABLE frugal_events ADD COLUMN outcome_source TEXT;
 
--- Estimated savings in USD for THIS specific decision (not session aggregate)
--- Computed: opus_cost_estimate - actual_model_cost_estimate
+-- Estimated savings in USD for THIS specific decision
 ALTER TABLE frugal_events ADD COLUMN per_decision_savings_usd REAL;
 
 -- ═══════════════════════════════════════════════════════════════════════════
