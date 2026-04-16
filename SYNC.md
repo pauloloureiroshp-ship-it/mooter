@@ -75,18 +75,84 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 ---
 
 #### 📥 COWORK → CLAUDE CODE — Missão para próxima sessão
-> Actualizado em 2026-04-14 (Claude Code). Estado: ✅ Validação Gemma 4 concluída (read-only)
+> Actualizado em 2026-04-14 (Claude Code · rebrand P0/P1). Estado: ✅ Rebrand tools/router concluído — 1 pendente bloqueado por dados (Fase 3)
 
-**Sessão 2026-04-14 — Gemma 4 swap + validação** · [Notion](https://www.notion.so/3426f6e42bc481708ef0f196b82b15d6)
+**Sessão 2026-04-14 — Mooter rebrand P0/P1 tools/router (Claude Code)** · [Notion](https://app.notion.com/p/3426f6e42bc481f1b5aae8ec3c332232)
 
-- ✅ Ollama 0.20.7 · gemma4:e4b (9.6GB) · env vars User-scope OK
-- ✅ Curl directo a Gemma 4 responde (eval_count:152, done:stop)
-- ✅ backtest.js corre limpo — 761 prompts, poupança 46.4% ($18.37 vs $34.25 naive T3)
-- ⚠️ **Bug `ollama_call.sh`**: `--text` retorna vazio silenciosamente (exit 0). Root cause: `MODEL` não exportada para subshell do node. Fix = `export MODEL` antes do `PAYLOAD=$(...)`. Não corrigido (instrução read-only).
-- ⚠️ **Gap pipeline**: 0 entries `gemma4` em decisions.log — arbiter não disparou desde swap (prompts recentes em user_override / cross_file_change, não ambiguous_*). Aguardar 2-3 dias de uso orgânico.
-- 🟡 **Parser `<think>`** em benchmark-arbiter.js continua conhecido (strip thinking tokens).
+Commits: `c330b3d` (mooter-mode.js + frugal-mode.js alias) · `6dbad9a` (.env.local.example mooter.ai) · `ac1a56c` (migration 004 mooter_events view)
 
-**Próxima missão:** Fix 1-line em `ollama_call.sh` (task T1, delegável a cheap-triage) + correr `/update-router` para capturar primeiras decisões Gemma no log.
+✅ **Concluído:**
+- Hub URLs → `mooter-hub.frugal-hub.workers.dev` (já feito em 0187b46/9821a92 — confirmado)
+- `.frugal-mode.json` → `.mooter-mode.json` com auto-migração silenciosa
+- `mooter-mode.js` canónico + `frugal-mode.js` como require-shim (backward compat)
+- `landing/.env.local.example` NEXT_PUBLIC_SITE_URL → mooter.ai
+- Migration `004_mooter_events_alias.sql` — VIEW sobre frugal_events (no-drop)
+- Dashboard community route — já tinha `MOOTER_HUB_URL || FRUGAL_HUB_URL` fallback
+
+⏳ **Pendente Fase 3 (bloqueado — não tocar ainda):**
+- `hub/wrangler.toml` swap para D1 mooter-hub: D1 existe (UUID 3659b56e) mas está vazia (0 tabelas). Swap imediato perde histórico de `frugal_events`. Precisa de migração de dados primeiro.
+- `landing/app/setup/page.tsx` paths `~/.frugal/auth.token` — runtime ainda usa; alterar quebra install-flow. Bloqueia até rebrand do CLI.
+
+**Safety gate final:** classify.js ✅ · curl mooter-hub ✅ · mooter-mode.js ✅ · frugal-doctor.js ✅ (1 warning não relacionado)
+
+**Próxima missão:** Continuar Gemma 4 work — `classify.js` ambiguous thresholds (ver secção arquivo abaixo). Fase 3 rebrand (D1 data migration) fica para depois de ter ≥3 beta users.
+
+---
+
+#### 📥 COWORK → CLAUDE CODE — Sprint B handoff (novo, 2026-04-15)
+> Actualizado em 2026-04-15 (Claude Code · Sprint A entregue). Estado: 🟡 Aguarda dados de rating antes de Sprint B.
+
+**Sessão 2026-04-15 — Feedback loop UX + Sprint B handoff (Claude Code)** · [Notion](https://www.notion.so/3446f6e42bc481269744cc7780b095fe)
+
+✅ **Sprint A concluído atomicamente:**
+- `skills/mooter-good/SKILL.md` — `/mooter-good` + `/frugal-good` + "foi bom" → `feedback-collector.js --rate good`
+- `skills/mooter-bad/SKILL.md` — `/mooter-bad` + "rota errada" + "overkill" → `--rate bad`, captura razão opcional
+- `skills/mooter-feedback/SKILL.md` — `/mooter-feedback` → `--stats`, tabela por tier × categoria
+- Mirror de `feedback-collector.js` para runtime `~/.claude/tools/router/` (faltava)
+
+**Descobertas que pouparam trabalho:**
+- `feedback-collector.js` já estava 100% implementado no repo — faltavam só entry points para o user
+- `replay.js --gold-labels` já falha com exit 1 se accuracy < 85% e CI já o invoca em `test.yml` linha 71 → **gate #4 da recomendação já existia**
+- Zero edits em `classify.js`, `inject_context.js`, `patterns.js`, migrations ou workflows CI
+
+⚠️ **Pré-requisito para Sprint B (bloqueia tudo):**
+Paulo acumular ≥ 30 ratings reais via slash commands ao longo de 1–3 dias de uso. Sem sinal suficiente, shadow mode e bandit aprendem ruído. Alvo mínimo: 10 T0/T1/T2 + 5 T3.
+
+🎯 **Sprint B (ordem sugerida, uma sessão dedicada cada):**
+1. **Shadow Mode Lite 5%** — spawn tier-1 em background, Ollama LLM-as-judge nightly. Schema D1 tem colunas prontas (`ab_variant`, `shadow_output`). Feature flag obrigatório default OFF.
+2. **Thompson Sampling bandit** na zona confidence 0.5–0.75 — Beta distribution per `(task_category × arm)`, reward = `3×rating + no_followup + no_override`. Substitui ~50% das chamadas Haiku arbiter. Ref: [BaRP arXiv 2510.07429](https://arxiv.org/abs/2510.07429).
+3. **L1.5 Semantic layer** — `nomic-embed-text` via Ollama, centróides por categoria, cosine similarity entre regex e Haiku arbiter. Latency budget <50ms. Ref: [vLLM Semantic Router](https://blog.vllm.ai/2025/09/11/semantic-router.html).
+4. **Sentry** (10min, qualquer altura) — `savings-tracker.js` :7821 + landing Next.js.
+
+**Critério de sucesso Sprint B**: overall ≥ 85% good após 100+ ratings; shadow apanha ≥5 over-routings em 100 amostras; bandit reduz custo arbiter ≥40% sem regressão; semantic apanha ≥20% dos casos que hoje vão ao Haiku.
+
+**Safety gates Sprint B**: cada change em classify/inject_context → commit atómico + CI verde (gold-labels ≥85%) + feature flag default OFF + final-reviewer antes de merge.
+
+---
+
+#### 📥 COWORK → CLAUDE CODE — Missão anterior (arquivo — Gemma 4 E2E)
+> Actualizado em 2026-04-14 (Claude Code · sessão E2E). Estado: ⚠️ Gemma 4 validado com 2 bloqueadores identificados
+
+**Sessão 2026-04-14 — Gemma 4 E2E validation + feedback loop** · [Notion](https://app.notion.com/p/3426f6e42bc481c7b797fb258084cbb0)
+
+- ✅ Smoke test 3 prompts: trivial 2.5s / ambíguo 4.2s (empty) / reasoning 4.2s (PT→ES drift)
+- ❌ **Wrapper estrangula Gemma 4**: `num_predict:512` + `think` default no ollama_call.sh → o thinking preamble consome todo o budget e `response` vem `""`. Fix testado manualmente: `num_predict:2048` + `think:false` → 549 tokens em 4.5s, resposta limpa em PT-PT.
+- ❌ **Arbiter nunca activou**: 0 entries `arbiter_honored:true` em 788 prompts. Condição (`ambiguous_*` + confidence < 0.75) nunca satisfeita em uso real — classifier está a resolver tudo em fast path.
+- ✅ backtest+update-router: 788 prompts, poupança 45.7% ($19.27 actual vs $35.46 naive T3); ideal $18.15 com +$1.12 se 3 demote patterns aplicados (já aplicados via update-router.js).
+- ⚠️ **Language drift**: prompt C em PT respondeu em ES — Gemma 4 tem tendência multilingual menos disciplinada que qwen3.
+- 🟡 classify.js.bak actualizado automaticamente; zero edits manuais em classify.js / inject_context.js / ollama_call.sh (read-only honrado).
+
+**Follow-up aplicado na mesma sessão (2ª passagem):**
+- ✅ `ollama_call.sh` fixado: `num_predict:2048` + `think:false` + system prompt de language-matching. 3/3 prompts testados respondem em PT-PT correctamente.
+- ✅ `arbiter.js` refactorado: novo `callOllamaSync()` + `extractDecisionFromText()` + arbitrate() prefere Ollama, fallback para Haiku se `ANTHROPIC_API_KEY` existir.
+- ✅ Criado `_arbiter_ollama_call.js` (helper dedicado) — spawnSync no Windows corrompe argv inline com payloads >2KB, ficheiro separado resolve.
+- ✅ Testado: `node arbiter.js "devo refatorar?"` → T2/model-reasoner em 825ms, backend:ollama, custo:$0. Segundo prompt → T0/local-summarizer em 576ms. JSON válido nos dois.
+
+**Estado real do arbiter agora**: funcional via CLI; **invocação automática via inject_context ainda não dispara** porque o classifier regex é demasiado confiante (emite confidence ≥0.75 para quase tudo, nunca cai em `ambiguous_*`). Este é o último bloqueador para o arbiter trabalhar organicamente em produção.
+
+**Master prompt reutilizável**: `~/.claude/docs/MASTER_PROMPTS/GEMMA_VALIDATION.md` — cola-se noutro terminal para validar/trocar modelo Ollama do arbiter sem risco.
+
+**Próxima missão (T2):** Rever thresholds em `classify.js` — especificamente as condições que emitem `ambiguous_short/medium/long` e o cálculo de confidence. Em 788 prompts reais, 0 caíram em categoria ambígua. Hipótese: os regex de task_category matcham cedo demais. Solução provável: baixar confidence quando o match é fraco (<3 keywords), ou criar `ambiguous_default` como fallback quando nenhum pattern bate com score alto.
 
 ---
 
@@ -435,6 +501,8 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 | 💰 MP-20 — Savings Transparency: mecânica clara em todas as superfícies + success-fee | `3416f6e4-2bc4-81a0-b3a0-d9710cbf8780` | https://www.notion.so/3416f6e42bc481a0b3a0d9710cbf8780 |
 | 🧠 MP-21 — frugal Intelligence Platform v2: perfil exclusivo + rich terminal + qualidade + segurança | `3416f6e4-2bc4-811e-99e4-dc07919f8794` | https://www.notion.so/3416f6e42bc4811e99e4dc07919f8794 |
 | 🔧 Sessão 2026-04-14 — Mooter rebrand Fase 1+2 + validação DNS | `3426f6e4-2bc4-816c-bdc3-dd2f50946018` | https://www.notion.so/3426f6e42bc4816cbdc3dd2f50946018 |
+| 🔬 Sessão 2026-04-14 — Gemma 4 E2E validation + ollama_call.sh think-strip | `3426f6e4-2bc4-815e-8c22-d051c19411e4` | https://www.notion.so/3426f6e42bc4815e8c22d051c19411e4 |
+| 🔁 Sessão 2026-04-15 — Feedback loop UX + Sprint B handoff | `3446f6e4-2bc4-8126-9744-cc7780b095fe` | https://www.notion.so/3446f6e42bc481269744cc7780b095fe |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
@@ -592,64 +660,4 @@ Alguns elementos de M2 já foram parcialmente feitos numa sessão anterior (gemm
 - Fix: check genérico `backend === 'ollama' && tier === 'T0'` + modelo via env var
 
 **Pendentes para próxima sessão:**
-1. **[ALTA]** Testar Option A em sessão nova — confirmar `option_a_hit` no decisions.log
-2. **[MÉDIA]** GitHub OAuth App — criar manualmente no browser + ligar ao Supabase
-3. **[MÉDIA]** Dual statusline advisory vs realized
-4. **[BAIXA]** Dashboard: version.json SSOT em vez de hardcoded
-
-**⚡ Nota de custo:** Corre SEM `--dangerously-skip-permissions`. Estimativa $2-4 total.
-
-```bash
-cd ~/frugal
-cat prompts/master-prompt-sprint4-browser-dashboard.md | claude
-```
-
----
-
-### ESTADO PÓS-SESSÃO #13 (Claude Code 2026-04-11 pm) — Visibility stack + delegação real
-
-✅ **CONFIRMADO EM TERMINAL NOVO** — `FRUGAL_ROUTING_TEST.md` correu com sucesso.
-
-**Motivação:** sessão #12 fixou install + feedback loop mas a statusline mostrava advisory savings que nunca materializavam. User frustrado: "evoluímos tanto para nada?"
-
-**5 bugs em camadas descobertos e corrigidos:**
-
-| # | Sintoma | Causa raiz | Commit |
-|---|---|---|---|
-| 1 | Bar mostrava Ollama% mas Bash todos 🔴 | `renderDistribution` lia `decisions.log` (advisory) | `08a6609` |
-| 2 | Hero ↓62% saved com barra 100% vermelha | `renderSavingsHero` via tracker HTTP (advisory) | `2136164` |
-| 3 | Orquestrador nunca delegava, tudo inline Opus | Doutrina "inline se < 5 tool calls" demasiado permissiva | `3cece08` |
-| 4 | Subagents delegados não apareciam em `execution.log` | Hooks com matcher `Bash` apenas | `e0efe95` |
-| 5 | User não via recomendação antes do turn | Faltava turn header visível | `08a6609` |
-
-**3 camadas de enforcement activadas:**
-1. **Doutrina CLAUDE.md v2** — T0/T1 obriga delegar, excepção única com estado de sessão declarado
-2. **Runtime directive** em `inject_context.js` — injecta `<delegation_directive>` quando compliance 0% + tier T0/T1
-3. **Visual warning** em `frugal-turn-header.js` — `⚠ session 100% Opus` no header
-
-**Subagent tracking:**
-- `exec-logger.js` + `PostToolUse.js` agora com matcher `Bash|Agent|Task`
-- `subagentTypeToModel()` mapeia `subagent_type` → modelo efectivo
-- Agent calls registados como `cmd=agent:<type>` com modelo real
-
-**Proof of work (terminal novo, 4 turns):**
-
-| # | Subagent | Modelo efectivo | Saved |
-|---|---|---|---|
-| 1 | local-summarizer | qwen2.5-coder:14b-q4 | $0.257 |
-| 2 | local-transformer | qwen3:30b | $0.257 |
-| 3 | local-summarizer | qwen2.5-coder:14b-q4 | $0.257 |
-| 4 | model-reasoner | claude-sonnet-4-6 | $0.219 |
-
-Statusline live: `🐕 💰 ↓100% saved ~$0.51 · spent ~$0.00 │ ██████████ exec 🦙 Local 100%`
-
-**Ficheiros tocados:**
-- `tools/router/gsd-statusline.js`, `gsd-turn-end.js`, `inject_context.js`
-- `tools/router/frugal-turn-header.js` (NOVO), `exec-logger.js` (NOVO no repo), `PostToolUse.js` (NOVO no repo)
-- `install.sh` / `install-windows.ps1` — copy hooks + matcher migration
-- `CLAUDE.md` (pessoal + projeto) — doutrina v2
-- `FRUGAL_ROUTING_TEST.md` (NOVO) — teste de aceitação visual
-
-**Commits:** `08a6609` `2136164` `3cece08` `e0efe95` `35e1304`
-
-**Página Notion:** [👁️ Visib
+1. **[ALTA]** Testar Option A em sessão n
