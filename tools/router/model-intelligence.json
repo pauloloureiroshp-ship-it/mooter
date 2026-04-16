@@ -1,0 +1,491 @@
+{
+  "_version": "1.0.0",
+  "_updated": "2026-04-16",
+  "_purpose": "Single source of truth for ALL model knowledge. Consumed by classify.js, budget-engine.js, hardware-matcher.js, and the dashboard. Every routing decision traces back to this file.",
+
+  "plans": {
+    "claude_max": {
+      "label": "Claude Max",
+      "price_usd_monthly": 200,
+      "token_cost_per_mtok": 0,
+      "rate_limit_tier": "default_claude_max_20x",
+      "models_included": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
+      "context_window": 1000000,
+      "rate_limits": {
+        "requests_per_minute": 60,
+        "tokens_per_minute": 400000,
+        "tokens_per_day": null,
+        "concurrent_sessions": 5,
+        "note": "20x rate limit vs Pro. No per-token cost. Rate-limited by usage windows (5h rolling)."
+      },
+      "savings_framing": "prompts_deflected",
+      "savings_note": "Max users don't pay per token. Mooter value = deflecting prompts from Opus rate limit window to cheaper models, allowing more work in the same period."
+    },
+    "claude_pro": {
+      "label": "Claude Pro",
+      "price_usd_monthly": 20,
+      "token_cost_per_mtok": 0,
+      "rate_limit_tier": "default_claude_pro",
+      "models_included": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
+      "context_window": 200000,
+      "rate_limits": {
+        "requests_per_minute": 30,
+        "tokens_per_minute": 80000,
+        "tokens_per_day": null,
+        "concurrent_sessions": 2,
+        "note": "Standard rate limits. Opus usage is rate-limited more aggressively than Sonnet/Haiku."
+      },
+      "savings_framing": "prompts_deflected",
+      "savings_note": "Pro users pay flat. Value = extending rate limit budget by deflecting to Sonnet/Haiku/Ollama."
+    },
+    "api_pay_per_use": {
+      "label": "API (Pay-per-use)",
+      "price_usd_monthly": 0,
+      "token_cost_per_mtok": "varies_by_model",
+      "rate_limit_tier": "api_default",
+      "models_included": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
+      "context_window": 200000,
+      "rate_limits": {
+        "requests_per_minute": 50,
+        "tokens_per_minute": 200000,
+        "tokens_per_day": null,
+        "note": "Pay per token. Savings are REAL USD saved."
+      },
+      "savings_framing": "usd_saved",
+      "savings_note": "Every prompt routed away from Opus saves real money. This is the primary savings audience."
+    },
+    "free": {
+      "label": "Free",
+      "price_usd_monthly": 0,
+      "token_cost_per_mtok": 0,
+      "rate_limit_tier": "free",
+      "models_included": ["claude-sonnet-4-6"],
+      "context_window": 200000,
+      "rate_limits": {
+        "requests_per_minute": 10,
+        "tokens_per_minute": 20000,
+        "tokens_per_day": 100000,
+        "note": "Very limited. Mooter maximizes what you can do by routing to Ollama aggressively."
+      },
+      "savings_framing": "prompts_enabled",
+      "savings_note": "Free users can't afford many cloud prompts. Mooter enables more work by using local models."
+    }
+  },
+
+  "models": {
+    "cloud": {
+      "claude-opus-4-6": {
+        "provider": "anthropic",
+        "tier": "T3",
+        "emoji": "🔴",
+        "pricing": {
+          "input_per_mtok": 15.0,
+          "output_per_mtok": 75.0,
+          "input_per_mtok_1m": 30.0,
+          "output_per_mtok_1m": 150.0,
+          "cache_write_per_mtok": 18.75,
+          "cache_read_per_mtok": 1.875,
+          "note": "1M context variant (used by Claude Code) costs 2x. Cache reads are 10x cheaper."
+        },
+        "context_window": 1000000,
+        "max_output_tokens": 32000,
+        "avg_output_tokens_per_turn": 1800,
+        "latency": {
+          "first_token_ms": 500,
+          "tokens_per_second": 35,
+          "p50_total_ms": 4500,
+          "p95_total_ms": 12000
+        },
+        "quality": {
+          "trivial_edit": 9, "debug": 10, "architecture": 10,
+          "summarize": 8, "transform": 7, "explain": 9,
+          "test_gen": 9, "math": 10, "code_gen": 10, "reasoning": 10
+        },
+        "strengths": ["architecture", "multi-file refactor", "long-context", "security review", "complex reasoning"],
+        "weaknesses": ["cost", "latency", "overkill for trivial tasks"],
+        "when_to_use": "Architecture decisions, security reviews, multi-file changes, pre-merge gates, complex debugging",
+        "when_not_to_use": "Typos, renames, color changes, simple explanations, commit messages"
+      },
+      "claude-sonnet-4-6": {
+        "provider": "anthropic",
+        "tier": "T2",
+        "emoji": "🟡",
+        "pricing": {
+          "input_per_mtok": 3.0,
+          "output_per_mtok": 15.0,
+          "input_per_mtok_1m": 6.0,
+          "output_per_mtok_1m": 22.5,
+          "note": "5x cheaper than Opus. Sweet spot for reasoning tasks."
+        },
+        "context_window": 1000000,
+        "max_output_tokens": 16000,
+        "avg_output_tokens_per_turn": 900,
+        "latency": {
+          "first_token_ms": 400,
+          "tokens_per_second": 50,
+          "p50_total_ms": 2200,
+          "p95_total_ms": 6000
+        },
+        "quality": {
+          "trivial_edit": 8, "debug": 9, "architecture": 8,
+          "summarize": 8, "transform": 8, "explain": 9,
+          "test_gen": 8, "math": 8, "code_gen": 9, "reasoning": 9
+        },
+        "strengths": ["bug investigation", "root cause analysis", "comparisons", "code generation", "structured reasoning"],
+        "weaknesses": ["complex architecture", "long multi-step planning"],
+        "when_to_use": "Bug hunting, technical comparisons, plan decomposition, code review",
+        "when_not_to_use": "Architecture redesign, security audits, anything requiring Opus judgment"
+      },
+      "claude-haiku-4-5": {
+        "provider": "anthropic",
+        "tier": "T1",
+        "emoji": "🟢",
+        "pricing": {
+          "input_per_mtok": 0.80,
+          "output_per_mtok": 4.0,
+          "note": "19x cheaper than Opus. Best for structured, low-reasoning tasks."
+        },
+        "context_window": 200000,
+        "max_output_tokens": 8192,
+        "avg_output_tokens_per_turn": 350,
+        "latency": {
+          "first_token_ms": 200,
+          "tokens_per_second": 100,
+          "p50_total_ms": 800,
+          "p95_total_ms": 2500
+        },
+        "quality": {
+          "trivial_edit": 7, "debug": 6, "architecture": 4,
+          "summarize": 7, "transform": 8, "explain": 7,
+          "test_gen": 6, "math": 5, "code_gen": 7, "reasoning": 6
+        },
+        "strengths": ["commit messages", "docstrings", "regex", "format transforms", "quick explanations"],
+        "weaknesses": ["complex reasoning", "architecture", "multi-step debugging"],
+        "when_to_use": "Commit messages, docstrings, regex generation, simple test generation",
+        "when_not_to_use": "Anything requiring reasoning > 2 steps",
+        "requires": "ANTHROPIC_API_KEY or Claude Code subagent"
+      },
+      "gemini-2.5-flash": {
+        "provider": "google",
+        "tier": "T0",
+        "emoji": "⚡",
+        "pricing": {
+          "input_per_mtok": 0.075,
+          "output_per_mtok": 0.30,
+          "note": "200x cheaper than Opus. Near-free for high volume."
+        },
+        "context_window": 1000000,
+        "max_output_tokens": 65536,
+        "quality": {
+          "trivial_edit": 7, "debug": 6, "architecture": 5,
+          "summarize": 8, "transform": 8, "explain": 7,
+          "test_gen": 6, "math": 7, "code_gen": 7, "reasoning": 7
+        },
+        "strengths": ["fast", "cheap", "long context", "multilingual"],
+        "weaknesses": ["code quality vs Claude", "instruction following"],
+        "requires": "GEMINI_API_KEY or GOOGLE_API_KEY"
+      },
+      "gpt-4o": {
+        "provider": "openai",
+        "tier": "T2",
+        "emoji": "🔵",
+        "pricing": {
+          "input_per_mtok": 2.50,
+          "output_per_mtok": 10.0
+        },
+        "context_window": 128000,
+        "max_output_tokens": 16384,
+        "quality": {
+          "trivial_edit": 8, "debug": 8, "architecture": 8,
+          "summarize": 8, "transform": 8, "explain": 9,
+          "test_gen": 8, "math": 8, "code_gen": 8, "reasoning": 8
+        },
+        "strengths": ["general purpose", "tool use", "multimodal"],
+        "weaknesses": ["code generation vs Claude"],
+        "requires": "OPENAI_API_KEY"
+      }
+    },
+
+    "local": {
+      "gemma4:e4b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "general",
+        "emoji": "💎",
+        "architecture": "gemma4",
+        "parameters": "8B",
+        "quantization": "Q4_K_M",
+        "size_gb": 9.6,
+        "vram_required_mb": 6144,
+        "vram_recommended_mb": 8192,
+        "context_window": 131072,
+        "capabilities": ["completion", "vision", "audio", "tools", "thinking"],
+        "latency": {
+          "p50_total_ms": 2500,
+          "p95_total_ms": 7000,
+          "note": "On RTX 4090. Scales linearly with VRAM bandwidth."
+        },
+        "quality": {
+          "trivial_edit": 8, "debug": 7, "architecture": 6,
+          "summarize": 8, "transform": 8, "explain": 8,
+          "test_gen": 7, "math": 7, "code_gen": 7, "reasoning": 8
+        },
+        "strengths": ["best overall local model", "multimodal", "thinking mode", "tool use", "long context"],
+        "weaknesses": ["larger than qwen2.5:3b", "slower first token"],
+        "when_to_use": "Default T0 for general tasks, summarization, explanation, translation",
+        "recommended_for_hw_tier": ["gpu-high", "gpu-mid"],
+        "replaces": "qwen2.5:3b as default general model (v0.10)"
+      },
+      "qwen3:30b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "reason",
+        "emoji": "🧠",
+        "architecture": "qwen3moe",
+        "parameters": "30.5B (MoE)",
+        "quantization": "Q4_K_M",
+        "size_gb": 18,
+        "vram_required_mb": 16384,
+        "vram_recommended_mb": 20480,
+        "context_window": 262144,
+        "capabilities": ["completion", "tools", "thinking"],
+        "latency": {
+          "p50_total_ms": 4000,
+          "p95_total_ms": 12000,
+          "note": "MoE — only ~8B active params per token, fast for its size."
+        },
+        "quality": {
+          "trivial_edit": 6, "debug": 8, "architecture": 7,
+          "summarize": 7, "transform": 6, "explain": 8,
+          "test_gen": 7, "math": 8, "code_gen": 7, "reasoning": 9
+        },
+        "strengths": ["local reasoning", "thinking mode", "262k context", "analysis"],
+        "weaknesses": ["18GB VRAM needed", "slower than smaller models", "think-mode verbose"],
+        "when_to_use": "T0 reasoning tasks when cloud is unavailable or T1/T2 degraded to local",
+        "recommended_for_hw_tier": ["gpu-high"]
+      },
+      "gemma3:12b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "general",
+        "emoji": "🟣",
+        "architecture": "gemma3",
+        "parameters": "12.2B",
+        "quantization": "Q4_K_M",
+        "size_gb": 8.1,
+        "vram_required_mb": 6144,
+        "vram_recommended_mb": 8192,
+        "context_window": 131072,
+        "capabilities": ["completion", "vision"],
+        "quality": {
+          "trivial_edit": 7, "debug": 6, "architecture": 5,
+          "summarize": 7, "transform": 7, "explain": 7,
+          "test_gen": 6, "math": 6, "code_gen": 6, "reasoning": 7
+        },
+        "strengths": ["vision", "good general quality", "128k context"],
+        "weaknesses": ["superseded by gemma4 for most tasks"],
+        "when_to_use": "Fallback if gemma4 unavailable, or vision tasks on older hardware",
+        "recommended_for_hw_tier": ["gpu-high", "gpu-mid"]
+      },
+      "deepseek-r1:7b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "math",
+        "emoji": "🐉",
+        "architecture": "qwen2",
+        "parameters": "7.6B",
+        "quantization": "Q4_K_M",
+        "size_gb": 4.7,
+        "vram_required_mb": 4096,
+        "vram_recommended_mb": 5120,
+        "context_window": 131072,
+        "capabilities": ["completion", "thinking"],
+        "quality": {
+          "trivial_edit": 5, "debug": 7, "architecture": 5,
+          "summarize": 6, "transform": 5, "explain": 6,
+          "test_gen": 5, "math": 8, "code_gen": 5, "reasoning": 8
+        },
+        "strengths": ["math", "chain-of-thought reasoning", "step-by-step"],
+        "weaknesses": ["verbose thinking output", "general quality below gemma4"],
+        "when_to_use": "Math problems, algorithmic reasoning, step-by-step proofs",
+        "recommended_for_hw_tier": ["gpu-high", "gpu-mid", "gpu-low"]
+      },
+      "qwen2.5-coder:14b-q4": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "code",
+        "emoji": "💻",
+        "architecture": "qwen2",
+        "parameters": "14B",
+        "quantization": "Q4_K_M",
+        "size_gb": 8.7,
+        "vram_required_mb": 8192,
+        "vram_recommended_mb": 10240,
+        "context_window": 32768,
+        "capabilities": ["completion", "tools"],
+        "quality": {
+          "trivial_edit": 8, "debug": 6, "architecture": 4,
+          "summarize": 6, "transform": 8, "explain": 6,
+          "test_gen": 7, "math": 5, "code_gen": 9, "reasoning": 5
+        },
+        "strengths": ["code generation", "code transforms", "code completion", "lint", "regex"],
+        "weaknesses": ["reasoning", "architecture", "not installed by default"],
+        "when_to_use": "Local code generation, refactoring, regex building",
+        "recommended_for_hw_tier": ["gpu-high"],
+        "install": "ollama pull qwen2.5-coder:14b-q4"
+      },
+      "qwen2.5:3b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "terse",
+        "emoji": "⚡",
+        "architecture": "qwen2",
+        "parameters": "3.1B",
+        "quantization": "Q4_K_M",
+        "size_gb": 1.9,
+        "vram_required_mb": 1536,
+        "vram_recommended_mb": 2048,
+        "context_window": 32768,
+        "capabilities": ["completion", "tools"],
+        "latency": {
+          "p50_total_ms": 800,
+          "p95_total_ms": 2000,
+          "note": "Ultra-fast. Best for Option A pre-computed answers."
+        },
+        "quality": {
+          "trivial_edit": 6, "debug": 4, "architecture": 2,
+          "summarize": 5, "transform": 6, "explain": 5,
+          "test_gen": 4, "math": 4, "code_gen": 5, "reasoning": 4
+        },
+        "strengths": ["ultra-fast", "tiny VRAM footprint", "good enough for simple tasks"],
+        "weaknesses": ["low quality on anything complex", "32k context only"],
+        "when_to_use": "Option A pre-computed answers, ultra-fast terse responses, low-VRAM machines",
+        "recommended_for_hw_tier": ["gpu-high", "gpu-mid", "gpu-low", "cpu-only"]
+      }
+    }
+  },
+
+  "hardware_tiers": {
+    "gpu-high": {
+      "label": "GPU High",
+      "description": "Dedicated GPU with >= 16GB VRAM (RTX 4080/4090, A6000, etc.)",
+      "vram_min_mb": 16384,
+      "recommended_models": {
+        "general": "gemma4:e4b",
+        "reason": "qwen3:30b",
+        "code": "qwen2.5-coder:14b-q4",
+        "math": "deepseek-r1:7b",
+        "terse": "qwen2.5:3b"
+      },
+      "can_run_simultaneously": ["gemma4:e4b", "qwen2.5:3b"],
+      "optimal_config_note": "Can run all 5 specialists. Best experience: keep gemma4 warm for general, qwen2.5:3b for Option A."
+    },
+    "gpu-mid": {
+      "label": "GPU Mid",
+      "description": "Dedicated GPU with 8-16GB VRAM (RTX 3070/3080/4060/4070)",
+      "vram_min_mb": 8192,
+      "recommended_models": {
+        "general": "gemma4:e4b",
+        "reason": "gemma4:e4b",
+        "code": "gemma4:e4b",
+        "math": "deepseek-r1:7b",
+        "terse": "qwen2.5:3b"
+      },
+      "can_run_simultaneously": ["qwen2.5:3b"],
+      "optimal_config_note": "Can run gemma4 or deepseek-r1 one at a time. Use gemma4 as universal model, qwen2.5:3b for Option A."
+    },
+    "gpu-low": {
+      "label": "GPU Low",
+      "description": "Integrated GPU or < 8GB VRAM (iGPU, MX series, GTX 1650)",
+      "vram_min_mb": 2048,
+      "recommended_models": {
+        "general": "qwen2.5:3b",
+        "reason": "deepseek-r1:7b",
+        "code": "qwen2.5:3b",
+        "math": "deepseek-r1:7b",
+        "terse": "qwen2.5:3b"
+      },
+      "can_run_simultaneously": ["qwen2.5:3b"],
+      "optimal_config_note": "Limited to small models. deepseek-r1:7b works but slow. qwen2.5:3b is the safe default."
+    },
+    "cpu-only": {
+      "label": "CPU Only",
+      "description": "No GPU or Ollama not configured",
+      "vram_min_mb": 0,
+      "recommended_models": {
+        "general": "qwen2.5:3b",
+        "reason": "qwen2.5:3b",
+        "code": "qwen2.5:3b",
+        "math": "qwen2.5:3b",
+        "terse": "qwen2.5:3b"
+      },
+      "can_run_simultaneously": [],
+      "optimal_config_note": "CPU inference is 5-10x slower. Use qwen2.5:3b only. Consider disabling T0 and routing to T1 (Haiku) for better UX."
+    },
+    "apple-silicon": {
+      "label": "Apple Silicon",
+      "description": "M1/M2/M3/M4 with unified memory (8-128GB shared RAM+VRAM)",
+      "vram_min_mb": 8192,
+      "recommended_models": {
+        "general": "gemma4:e4b",
+        "reason": "qwen3:30b",
+        "code": "qwen2.5-coder:14b-q4",
+        "math": "deepseek-r1:7b",
+        "terse": "qwen2.5:3b"
+      },
+      "can_run_simultaneously": ["gemma4:e4b", "qwen2.5:3b"],
+      "optimal_config_note": "Unified memory makes large models viable. M3 Pro+ can run qwen3:30b comfortably. Metal acceleration is excellent."
+    }
+  },
+
+  "routing_decision_matrix": {
+    "_note": "This matrix maps (task_type, hardware_tier, plan) → optimal model. Used by classify.js and budget-engine.js.",
+    "trivial_edit": {
+      "any_hw": "inline_opus",
+      "note": "Trivial edits (typo, rename, color) are fastest inline. Don't pay subagent spawn overhead."
+    },
+    "summarize": {
+      "gpu-high": "gemma4:e4b",
+      "gpu-mid": "gemma4:e4b",
+      "gpu-low": "qwen2.5:3b",
+      "cpu-only": "claude-haiku-4-5"
+    },
+    "commit_message": {
+      "any_hw_with_api_key": "claude-haiku-4-5",
+      "any_hw_no_api_key": "gemma4:e4b"
+    },
+    "bug_investigation": {
+      "any_plan": "claude-sonnet-4-6",
+      "note": "Sonnet outperformed Opus in A/B test for structured reasoning (P6, P9, P10)"
+    },
+    "architecture": {
+      "any_plan": "claude-opus-4-6",
+      "note": "Never downgrade architecture decisions. Guardrail: always T3."
+    },
+    "security_review": {
+      "any_plan": "claude-opus-4-6",
+      "note": "Security reviews are HIGH_RISK. Always T3."
+    },
+    "pre_merge": {
+      "any_plan": "final-reviewer (opus)",
+      "note": "Never skip. Guardrail: always spawn final-reviewer."
+    }
+  },
+
+  "learning_signals": {
+    "_note": "How we learn from user behavior to improve the routing matrix over time.",
+    "positive_signals": [
+      "User moves to next topic within 30-180s (implicit acceptance)",
+      "No retry of same prompt (no correction needed)",
+      "Explicit thumbs up / mooter-good",
+      "Shadow mode: primary response judged better or tie"
+    ],
+    "negative_signals": [
+      "User retries same prompt within 30s (correction/dissatisfaction)",
+      "User manually escalates tier ('use opus for this')",
+      "Explicit thumbs down / mooter-bad",
+      "Shadow mode: shadow response judged better"
+    ],
+    "calibration_loop": "auto-feedback.js → outcomes.jsonl → backtest.js → pattern updates → new classify.js version → algorithm_versions table"
+  }
+}
