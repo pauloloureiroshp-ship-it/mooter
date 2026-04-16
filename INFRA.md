@@ -263,7 +263,7 @@ savings_usd, created_at
 
 | Nome | **Worker Tag** | URL | Modificado |
 |---|---|---|---|
-| `frugal-hub` | `a8b8a0a3808c4b359325fb213b3899fc` | https://frugal-hub.frugal-hub.workers.dev | 2026-04-13 |
+| `frugal-hub` | `a8b8a0a3808c4b359325fb213b3899fc` | https://mooter-hub.frugal-hub.workers.dev | 2026-04-13 |
 
 ### D1 Databases
 

@@ -10,7 +10,7 @@
 frugal v0.9.8 — Windows · RTX 4090 · Node v24.14.0
 decisions.log: 663 entradas
 gold-labels.json: 62 entradas (95.2% accuracy)
-Hub: frugal-hub.frugal-hub.workers.dev — DEPLOYED ✅
+Hub: mooter-hub.frugal-hub.workers.dev — DEPLOYED ✅
 Supabase: eymtobwinevywmmlmxqa.supabase.co — HEALTHY ✅
 Dashboard sync: ✅ a funcionar após renovação token
 ```
@@ -78,11 +78,11 @@ O doctor reporta:
 ⚠  frugal-hub connectivity   unreachable (check internet)
 ```
 Mas o Worker está deployed e responde. Confirmado hoje:
-- `npx wrangler deploy` → `https://frugal-hub.frugal-hub.workers.dev` ✅
+- `npx wrangler deploy` → `https://mooter-hub.frugal-hub.workers.dev` ✅
 - `/health` endpoint existe no worker.js ✅
 
 ### Root cause provável
-O `frugal-doctor.js` faz `httpGet('https://frugal-hub.frugal-hub.workers.dev/health', 3000)` mas o timeout pode ser demasiado agressivo para uma primeira ligação a frio (cold start do Worker).
+O `frugal-doctor.js` faz `httpGet('https://mooter-hub.frugal-hub.workers.dev/health', 3000)` mas o timeout pode ser demasiado agressivo para uma primeira ligação a frio (cold start do Worker).
 
 ### O que fazer
 
@@ -92,13 +92,13 @@ Em `tools/router/frugal-doctor.js`, na secção 6, linha ~298:
 
 ```js
 // Antes:
-const hubRes = await httpGet('https://frugal-hub.frugal-hub.workers.dev/health', 3000);
+const hubRes = await httpGet('https://mooter-hub.frugal-hub.workers.dev/health', 3000);
 
 // Depois: timeout 6s + 1 retry
 let hubOk = false;
 for (let attempt = 0; attempt < 2 && !hubOk; attempt++) {
   try {
-    const hubRes = await httpGet('https://frugal-hub.frugal-hub.workers.dev/health', 6000);
+    const hubRes = await httpGet('https://mooter-hub.frugal-hub.workers.dev/health', 6000);
     hubOk = hubRes.ok && hubRes.status === 200;
   } catch { /* retry */ }
   if (!hubOk && attempt === 0) await new Promise(r => setTimeout(r, 1000));
@@ -112,7 +112,7 @@ Se continuar a falhar após retry, mostrar o erro real em vez de "check internet
 ```js
 row(hubOk ? TICK : WARN, 'frugal-hub connectivity',
   hubOk ? 'reachable' : `unreachable after 2 attempts (timeout 6s)`,
-  hubOk ? null : `Test manually: curl https://frugal-hub.frugal-hub.workers.dev/health`);
+  hubOk ? null : `Test manually: curl https://mooter-hub.frugal-hub.workers.dev/health`);
 ```
 
 ---

@@ -439,7 +439,7 @@ Step 4: "Verifica que está a funcionar"
 Dashboard simples com:
 - Savings do utilizador (vai ser 0 inicialmente — ok, mostrar "a aguardar primeiros dados")
 - O hardware/subscriptions configurados (editável)
-- Link para o hub público (frugal-hub.frugal-hub.workers.dev/api/stats)
+- Link para o hub público (mooter-hub.frugal-hub.workers.dev/api/stats)
 - Tabela das últimas 10 decisões de routing (se decisions.log for enviado — opcional)
 - Botão "Instalar no outro computador" (gera um link de onboarding personalizado)
 

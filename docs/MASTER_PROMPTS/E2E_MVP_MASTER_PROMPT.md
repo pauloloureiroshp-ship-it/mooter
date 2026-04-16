@@ -19,7 +19,7 @@ Resultado validado: 89.9% de savings em 1,437 prompts reais.
 ### Stack completo
 - **Runtime**: `~/.claude/tools/router/` — classify.js, inject_context.js, savings-tracker.js
 - **Landing**: Next.js 15, `landing/` — deployed em https://landing-five-azure-16.vercel.app
-- **Backend**: Cloudflare Worker `frugal-hub` — https://frugal-hub.frugal-hub.workers.dev
+- **Backend**: Cloudflare Worker `frugal-hub` — https://mooter-hub.frugal-hub.workers.dev
 - **Auth + DB**: Supabase — project `eymtobwinevywmmlmxqa` (sa-east-1)
 - **Repo**: `C:\Users\Paulo Loureiro\frugal\` (Windows dev machine) + GitHub privado
 
@@ -317,13 +317,13 @@ Se algum estiver errado → documenta mas não corrige agora (requer análise de
 
 ```bash
 # Hub health:
-curl -s https://frugal-hub.frugal-hub.workers.dev/health | python3 -m json.tool
+curl -s https://mooter-hub.frugal-hub.workers.dev/health | python3 -m json.tool
 
 # Stats actuais (o que a landing mostra):
-curl -s https://frugal-hub.frugal-hub.workers.dev/api/stats | python3 -m json.tool
+curl -s https://mooter-hub.frugal-hub.workers.dev/api/stats | python3 -m json.tool
 
 # Simula um delta do Paulo a chegar ao hub:
-curl -s -X POST https://frugal-hub.frugal-hub.workers.dev/api/delta \
+curl -s -X POST https://mooter-hub.frugal-hub.workers.dev/api/delta \
   -H "Content-Type: application/json" \
   -d '{"hw_tier":"high","sub_profile":"api_only","prompt_count":5,"tier_distribution":{"T0":4,"T1":1},"delta_version":"0.9.4"}' \
   | python3 -m json.tool

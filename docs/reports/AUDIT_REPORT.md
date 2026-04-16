@@ -57,7 +57,7 @@ Nota: muitos itens usam paths especificos (`tools/router/...`) em vez de globais
 - O payload contem apenas: `tier_distribution`, `prompt_count`, `hw_tier`, `vram_mb`, `sub_profile`, `delta_version` — todos anonimos
 - O `enrichDelta()` adiciona hardware e subscription info — sem PII
 - Nenhum username, hostname, email, ou path absoluto no payload
-- Endpoint de destino e HTTPS (`https://frugal-hub.frugal-hub.workers.dev`)
+- Endpoint de destino e HTTPS (`https://mooter-hub.frugal-hub.workers.dev`)
 - Existe try/catch com timeout de 5s — se hub offline, exit silencioso
 - Cooldown de 24h entre pushes (anti-spam)
 
@@ -420,7 +420,7 @@ Nenhum issue critico encontrado. O projecto e seguro para partilhar.
 | router-hint sem prompt | VERIFICADO | Apenas categorias e tiers |
 | decisions.log local only | VERIFICADO | Gitignored, nunca uploaded |
 | Supabase RLS activo | NAO VERIFICADO | Requer check manual no dashboard |
-| Hub endpoint HTTPS | VERIFICADO | `https://frugal-hub.frugal-hub.workers.dev` |
+| Hub endpoint HTTPS | VERIFICADO | `https://mooter-hub.frugal-hub.workers.dev` |
 
 ---
 

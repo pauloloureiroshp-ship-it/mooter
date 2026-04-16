@@ -17,7 +17,7 @@ O código está todo implementado e deployed. O que falta são configurações e
 
 **Stack:**
 - Frontend: Next.js deployed no Vercel → https://landing-five-azure-16.vercel.app
-- Backend: Cloudflare Worker → https://frugal-hub.frugal-hub.workers.dev
+- Backend: Cloudflare Worker → https://mooter-hub.frugal-hub.workers.dev
 - Auth + DB: Supabase → https://eymtobwinevywmmlmxqa.supabase.co
 - Código: GitHub → https://github.com/pauloloureiroshp-ship-it/frugal (privado)
 
@@ -171,7 +171,7 @@ Se adicionaste variáveis → Redeploy no Vercel.
 
 ### 6c. Hub
 ```bash
-curl -s https://frugal-hub.frugal-hub.workers.dev/api/stats
+curl -s https://mooter-hub.frugal-hub.workers.dev/api/stats
 ```
 
 ---

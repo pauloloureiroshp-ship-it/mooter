@@ -13,7 +13,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 **Repositório:** `C:\Users\Paulo Loureiro\frugal\` (alias CLI: `~/frugal/`)
 **GitHub:** https://github.com/pauloloureiroshp-ship-it/frugal (privado, MIT)
-**Hub live:** https://frugal-hub.frugal-hub.workers.dev
+**Hub live:** https://mooter-hub.frugal-hub.workers.dev
 **Domínio:** mooter.ai (comprado, DNS pendente migração para Cloudflare)
 
 ---

@@ -220,7 +220,7 @@ VERCEL ENDPOINTS LIVE
 └── GET https://landing-five-azure-16.vercel.app/api/me → status 401 (sem token = esperado)
 
 HUB CONNECTIVITY
-└── GET https://frugal-hub.frugal-hub.workers.dev/health → status 200
+└── GET https://mooter-hub.frugal-hub.workers.dev/health → status 200
 
 LOCAL SERVICES
 ├── GET http://127.0.0.1:7821/health → status 200 (savings-tracker)

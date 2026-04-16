@@ -51,7 +51,7 @@ Local: ~/.claude/tools/router/
   [backtest.js nocturnamente]
         │ gera delta anonimizado
         ▼
-Hub: frugal-hub.frugal-hub.workers.dev
+Hub: mooter-hub.frugal-hub.workers.dev
   POST /api/delta → D1 (deltas table)
   GET /api/version → verifica se há novo tuning
   GET (R2) router-tuning-latest.json → tuning comunitário

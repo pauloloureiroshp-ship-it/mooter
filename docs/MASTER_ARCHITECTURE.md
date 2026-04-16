@@ -618,7 +618,7 @@ Emitido pelo hook antes do turn. Permite ao user ver a recomendação ANTES que 
 ### Arquitectura do Worker
 
 ```
-frugal-hub.frugal-hub.workers.dev
+mooter-hub.frugal-hub.workers.dev
 │
 ├── worker.js (entry point)
 │   ├── POST /api/delta     → handleDelta (routes/delta.js)

@@ -304,7 +304,7 @@
       "weight": 0.03,
       "icon": "🌐",
       "description": "Cloudflare Worker, D1, R2, delta sync, community stats, federated learning",
-      "current_state": "frugal-hub.frugal-hub.workers.dev (Cloudflare Worker). D1 database (320b55f6). R2 storage (frugal-hub-storage). hub-push.js sends anonymised deltas (24h cooldown). hub-pull.js fetches community tuning (4h cooldown). Hub never receives raw prompts — only tier distribution, hw_tier, saved_usd, profile_hash.",
+      "current_state": "mooter-hub.frugal-hub.workers.dev (Cloudflare Worker). D1 database (320b55f6). R2 storage (frugal-hub-storage). hub-push.js sends anonymised deltas (24h cooldown). hub-pull.js fetches community tuning (4h cooldown). Hub never receives raw prompts — only tier distribution, hw_tier, saved_usd, profile_hash.",
       "skills": [
         "api-tester: test GET /health, GET /api/stats, GET /api/version, POST /api/delta with valid and invalid payloads",
         "privacy-auditor: verify hub-push.js payload contains ONLY: profile_hash, tier_distribution, saved_usd, hw_tier — no prompt text, no email, no paths",

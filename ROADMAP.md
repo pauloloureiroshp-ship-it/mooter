@@ -108,11 +108,11 @@ delta-export pipeline that sets up frugal's federated learning story.
 
 frugal-hub deployed, full skill system, URL consolidation.
 
-- ✅ **frugal-hub** — Cloudflare Worker deployed at `frugal-hub.frugal-hub.workers.dev` (D1 + R2)
+- ✅ **frugal-hub** — Cloudflare Worker deployed at `mooter-hub.frugal-hub.workers.dev` (D1 + R2)
 - ✅ **Community intelligence loop** — `hub-push.js`, `hub-pull.js`, `hub-status.js` with privacy-preserving deltas
 - ✅ **8 slash commands** — `/frugal-status`, `/frugal-savings`, `/frugal-route`, `/frugal-summary`, `/frugal-update`, `/frugal-beast`, `/frugal-zen`, `/frugal-auto`
 - ✅ **install.sh v2** — idempotent install of all skills, router files, and doctor check
-- ✅ **URL fix** — all hub references consolidated to `frugal-hub.frugal-hub.workers.dev`
+- ✅ **URL fix** — all hub references consolidated to `mooter-hub.frugal-hub.workers.dev`
 
 **Commits:** `aecb9cd`, `ec474ee` on `origin/main`.
 
@@ -188,7 +188,7 @@ Enable small teams to share a single tuning profile via Git.
 
 Not committed. Subject to change based on beta feedback.
 
-- ~~🔵 **frugal-hub (v1.1)**~~ → ✅ **Shipped in v0.9.2** — live at `frugal-hub.frugal-hub.workers.dev` (Workers + D1 + R2)
+- ~~🔵 **frugal-hub (v1.1)**~~ → ✅ **Shipped in v0.9.2** — live at `mooter-hub.frugal-hub.workers.dev` (Workers + D1 + R2)
 - 🔵 **Public launch (v1.0)** — `install.sh --one-command` + published `REQUEST_ACCESS.md` replaced by open onboarding
 - 🔵 **Cross-machine validation** — replay.js against 5+ contributor corpora, not just Paulo's
 - 🔵 **Plugin marketplace** — third-party patterns, doctrine supplements, provider adapters

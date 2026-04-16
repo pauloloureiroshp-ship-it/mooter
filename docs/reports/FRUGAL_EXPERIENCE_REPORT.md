@@ -31,7 +31,7 @@
 
 | Componente | URL/ID | Estado |
 |---|---|---|
-| Worker | frugal-hub.frugal-hub.workers.dev | ✅ live |
+| Worker | mooter-hub.frugal-hub.workers.dev | ✅ live |
 | D1 database | 320b55f6-9444-4deb-bcd5-e8227739546e | ✅ live |
 | R2 bucket | frugal-hub-storage | ✅ live |
 | POST /api/delta | Recebe deltas (trust_score 0.8) | ✅ ok |
@@ -186,7 +186,7 @@ wc -l ~/.claude/tools/router/decisions.log
 # → deve aumentar a cada prompt
 
 # 4. Hub-push funcionou?
-curl https://frugal-hub.frugal-hub.workers.dev/api/stats
+curl https://mooter-hub.frugal-hub.workers.dev/api/stats
 # → deve mostrar contagens
 
 # 5. Auto-learning ativo?

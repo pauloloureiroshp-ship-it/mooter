@@ -313,10 +313,10 @@ Lê `landing/app/page.tsx` e confirma que estas secções existem e têm conteú
 
 ### 3.3 — Verifica os live counters
 
-Os counters no hero apontam para `frugal-hub.frugal-hub.workers.dev/api/stats`.
+Os counters no hero apontam para `mooter-hub.frugal-hub.workers.dev/api/stats`.
 
 ```bash
-curl -s https://frugal-hub.frugal-hub.workers.dev/api/stats | head -5
+curl -s https://mooter-hub.frugal-hub.workers.dev/api/stats | head -5
 ```
 
 Documenta: responde com dados reais? Qual é o fallback se o hub estiver offline?
@@ -348,7 +348,7 @@ find . -name "*.png" -o -name "*.jpg" 2>/dev/null | grep -v node_modules | grep 
 
 ```bash
 # Testa todos os endpoints
-BASE="https://frugal-hub.frugal-hub.workers.dev"
+BASE="https://mooter-hub.frugal-hub.workers.dev"
 
 curl -s "$BASE/health" | head -3
 echo ""

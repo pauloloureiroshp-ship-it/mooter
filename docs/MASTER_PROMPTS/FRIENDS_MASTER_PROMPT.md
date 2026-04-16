@@ -18,7 +18,7 @@ Instalação: uma linha. Zero mudanças ao projecto. Zero proxies. Totalmente lo
 ### Estado actual (v0.9.3 — 2026-04-10)
 - classify.js: 102 patterns, 100% accuracy (170 curated prompts)
 - Savings validados: 89.9% em produção real
-- Hub live: https://frugal-hub.frugal-hub.workers.dev
+- Hub live: https://mooter-hub.frugal-hub.workers.dev
 - install.sh funciona em Mac/Linux. Windows tem particularidades (ver abaixo).
 - O MAIOR problema actual: paths com espaços no Windows (`C:/Users/Paulo Loureiro/`)
   quebram comandos bash nos scheduled tasks e health checks.
@@ -164,7 +164,7 @@ Exemplo de output final desejado:
   ✓ Skills: /frugal-status /frugal-savings /frugal-beast /frugal-zen /frugal-auto
   ✓ Self-test: T0 OK · T2 OK · T3 OK
   ✓ Ollama: qwen2.5:3b ready (optional)
-  ✓ Hub: connected (frugal-hub.frugal-hub.workers.dev)
+  ✓ Hub: connected (mooter-hub.frugal-hub.workers.dev)
 
   Next step: open Claude Code and type /frugal-status
 
@@ -761,7 +761,7 @@ decisions.log (local, na máquina do amigo)
     ↓
 hub-push.js (envia delta anónimo a cada 24h ou no /frugal-update)
     ↓
-frugal-hub.frugal-hub.workers.dev/api/delta
+mooter-hub.frugal-hub.workers.dev/api/delta
     ↓
 D1 SQLite (Cloudflare) — só tiers, confiança, comprimento, hw_tier
     ↓

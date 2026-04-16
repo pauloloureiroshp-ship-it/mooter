@@ -13,7 +13,7 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 **Repositório:** `C:\Users\Paulo Loureiro\frugal\` (alias CLI: `~/frugal/`)
 **GitHub:** https://github.com/pauloloureiroshp-ship-it/frugal (privado, MIT)
-**Hub live:** https://frugal-hub.frugal-hub.workers.dev
+**Hub live:** https://mooter-hub.frugal-hub.workers.dev
 
 ---
 
@@ -369,9 +369,9 @@ Safety gate T0 obrigatório antes de avançar para T1.
 | `savings-tracker.js` | ✅ em prod | HTTP :7821, statusline v3 |
 | `gpu-probe.js` | ✅ em prod | NVIDIA/Apple/AMD/CPU fallback |
 | `onboarding.js` | ✅ em prod | chamado automaticamente pelo inject_context.js |
-| `hub-push.js` | ✅ URL corrigida | frugal-hub.frugal-hub.workers.dev |
-| `hub-pull.js` | ✅ URL corrigida | frugal-hub.frugal-hub.workers.dev |
-| `hub-status.js` | ✅ URL corrigida | frugal-hub.frugal-hub.workers.dev |
+| `hub-push.js` | ✅ URL corrigida | mooter-hub.frugal-hub.workers.dev |
+| `hub-pull.js` | ✅ URL corrigida | mooter-hub.frugal-hub.workers.dev |
+| `hub-status.js` | ✅ URL corrigida | mooter-hub.frugal-hub.workers.dev |
 | `frugal-mode.js` | ✅ NOVO | Beast/Zen/Auto mode system |
 | **frugal-hub** (Cloudflare) | ✅ LIVE | D1 + R2 + Worker deployed |
 | **Landing v9** | ✅ DEPLOYED | live counters, Install Now CTA, slash commands grid, ComparisonSection |
@@ -439,7 +439,7 @@ Safety gate T0 obrigatório antes de avançar para T1.
 
 | Campo | Valor |
 |---|---|
-| Worker URL | `https://frugal-hub.frugal-hub.workers.dev` |
+| Worker URL | `https://mooter-hub.frugal-hub.workers.dev` |
 | D1 database_id | `320b55f6-9444-4deb-bcd5-e8227739546e` |
 | R2 bucket | `frugal-hub-storage` |
 | Account ID | `b1093c8a6e663afd02f98a1e87d0fa34` |
@@ -463,7 +463,7 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 
 | ID | Descrição | Estado |
 |---|---|---|
-| L1 | Hub não estava deployed | ✅ FECHADO — live em frugal-hub.frugal-hub.workers.dev |
+| L1 | Hub não estava deployed | ✅ FECHADO — live em mooter-hub.frugal-hub.workers.dev |
 | L2 | install.sh não instalava onboarding/hub-push/hub-pull | ✅ FECHADO — glob *.js inclui, doctor check adicionado |
 | L3 | inject_context.js não chamava onboarding automaticamente | ✅ FECHADO — fix aplicado pelo Claude Code |
 | L4 | backtest.js não chamava hub-push automaticamente | ✅ FECHADO — fix aplicado pelo Claude Code |
@@ -480,7 +480,7 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 
 | Campo | Valor |
 |---|---|
-| Worker | `frugal-hub` em `frugal-hub.frugal-hub.workers.dev` |
+| Worker | `frugal-hub` em `mooter-hub.frugal-hub.workers.dev` |
 | D1 | `frugal-hub` (320b55f6-9444-4deb-bcd5-e8227739546e) |
 | R2 | `frugal-hub-storage` (10GB free tier) |
 | Secrets | PAULO_WEBHOOK_URL, PAULO_EMAIL |
@@ -561,7 +561,7 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 - **frugal-mode.js** cria `.frugal-mode.json` em `~/.claude/tools/router/`. Beast força T3, Zen cap T1, Auto apaga o ficheiro.
 - **Zen Mode excepção de segurança**: tarefas T3-gate (push/merge/deploy) nunca são afectadas pelo Zen Mode.
 - **MODES_MASTER_PROMPT.md** contém o patch exacto para `inject_context.js` — função `applyActiveMode()` após `applyBudgetCap()`. **Ainda não aplicado no runtime** — Claude Code tem de implementar.
-- **Landing v8** tem live counters que fazem fetch a `frugal-hub.frugal-hub.workers.dev/api/stats`. Quando o hub tiver dados reais, os contadores actualizam automaticamente sem code change.
+- **Landing v8** tem live counters que fazem fetch a `mooter-hub.frugal-hub.workers.dev/api/stats`. Quando o hub tiver dados reais, os contadores actualizam automaticamente sem code change.
 - **Webhook Paulo**: o secret `PAULO_WEBHOOK_URL` está como placeholder. Quando Paulo tiver um webhook real (ex: webhook.site ou Zapier), deve correr: `echo "URL_REAL" | npx wrangler secret put PAULO_WEBHOOK_URL`
 - O Task Scheduler Windows tem `FrugalRouterBacktest` às 02:00 diárias.
 - Ollama corre localmente com `qwen3:30b` para tiers T0/T1.

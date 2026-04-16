@@ -35,7 +35,7 @@ npx wrangler deploy
 
 ## Environment
 
-- **Worker URL:** https://frugal-hub.frugal-hub.workers.dev
+- **Worker URL:** https://mooter-hub.frugal-hub.workers.dev
 - **D1 database:** `frugal-hub-db`
 - **R2 bucket:** `frugal-hub-storage`
 - **Account:** (see INFRA.md)

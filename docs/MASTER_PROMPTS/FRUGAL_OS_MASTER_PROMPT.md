@@ -434,7 +434,7 @@ Dashboard após onboarding completo:
 ```tsx
 // "Contribuíste com X decisões de routing para a comunidade"
 // "O algoritmo melhorou X% desde que instalaste"
-// Link para o hub público: frugal-hub.frugal-hub.workers.dev/api/stats
+// Link para o hub público: mooter-hub.frugal-hub.workers.dev/api/stats
 ```
 
 #### Commits:

@@ -218,7 +218,7 @@ Substituir na secção 6 (hub check):
   timeout 3000ms → 6000ms
   Adicionar 1 retry com 1s de espera entre tentativas
   Melhorar mensagem de erro: mostrar "unreachable after 2 attempts (timeout 6s)"
-  Adicionar sugestão: "Test manually: curl https://frugal-hub.frugal-hub.workers.dev/health"
+  Adicionar sugestão: "Test manually: curl https://mooter-hub.frugal-hub.workers.dev/health"
 ```
 
 **Validação T0-B:**
@@ -474,7 +474,7 @@ node tools/router/frugal-doctor.js --sync
 # Esperado: Dashboard sync ✅ profile updated
 
 # Verificar que hub recebeu dados
-curl https://frugal-hub.frugal-hub.workers.dev/api/stats
+curl https://mooter-hub.frugal-hub.workers.dev/api/stats
 # Esperado: JSON com decisions_count > 0, savings_usd > 0
 
 # Verificar statusline
@@ -648,7 +648,7 @@ node tools/router/replay.js --gold-labels 2>&1 | grep -i "accuracy\|total\|pass"
 3. Dashboard (se acessível): adicionar tooltip em cada savings widget explicando ~
 
 4. landing/app/page.tsx: substituir contador fallback por dados reais do hub
-   Usar GET https://frugal-hub.frugal-hub.workers.dev/api/stats
+   Usar GET https://mooter-hub.frugal-hub.workers.dev/api/stats
 ```
 
 **Validação T1-E:**
@@ -790,7 +790,7 @@ node tools/router/gsd-statusline.js
 
 ```bash
 # Gate 1: Métricas coerentes (hub tem dados)
-curl -s https://frugal-hub.frugal-hub.workers.dev/api/stats | node -e "
+curl -s https://mooter-hub.frugal-hub.workers.dev/api/stats | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
 const ok = d.decisions_count > 0 && d.savings_usd > 0;
 console.log('Gate 1 (hub data):', ok ? 'PASS' : 'FAIL', JSON.stringify(d));
@@ -853,7 +853,7 @@ ollama run --verbose <model> "test" 2>&1 | grep "eval rate"
 // 1. Ler hw-capability.json → obter GPU VRAM disponível
 // 2. Ler model-profile.json → filtrar modelos por VRAM requirement
 // 3. ollama list → obter modelos instalados
-// 4. GET https://frugal-hub.frugal-hub.workers.dev/api/models → catálogo actualizado
+// 4. GET https://mooter-hub.frugal-hub.workers.dev/api/models → catálogo actualizado
 // 5. Comparar: hub tem modelos mais novos/melhores que não estão instalados?
 // 6. Para os instalados: correr mini-benchmark (5 tokens de teste → medir tokens/s)
 // 7. Output:
@@ -1241,7 +1241,7 @@ node tools/frugal-mcp-server.js --test
 node tools/router/hub-push.js --dry-run
 node tools/router/hub-pull.js --dry-run
 # Verificar que hub tem router-tuning-latest.json em R2
-curl https://frugal-hub.frugal-hub.workers.dev/api/models
+curl https://mooter-hub.frugal-hub.workers.dev/api/models
 ```
 
 ---
@@ -1310,7 +1310,7 @@ curl -X POST http://localhost:8766/route \
 
 ```bash
 # Gate 1: Pelo menos 3 utilizadores com dados no hub
-curl -s https://frugal-hub.frugal-hub.workers.dev/api/stats | node -e "
+curl -s https://mooter-hub.frugal-hub.workers.dev/api/stats | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
 console.log('Gate 1 (users):', d.unique_users >= 3 ? 'PASS' : 'WAIT - need 3 users first');
 "
@@ -1435,7 +1435,7 @@ Ao iniciar uma nova sessão Claude Code com este documento, verifica:
 grep -r "Gate.*PASS\|Gate.*FAIL" ~/.claude/tools/router/frugal-gate-log.json 2>/dev/null || echo "Usar gates manuais acima"
 
 # 2. Estado do hub
-curl -s https://frugal-hub.frugal-hub.workers.dev/health
+curl -s https://mooter-hub.frugal-hub.workers.dev/health
 
 # 3. Versão actual
 cat ~/frugal/tools/router/version.json

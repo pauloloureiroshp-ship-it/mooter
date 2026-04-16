@@ -21,11 +21,11 @@
 ### Contexto obrigatório antes de começar
 Lê `INFRA.md` e `docs/MASTER_PROMPTS/MOOTER_REBRAND_RADAR.md` (se existir) ou `/auto-memory/project_mooter_rebrand_radar.md`.
 
-O hub real está em `mooter-hub.frugal-hub.workers.dev`. O worker antigo `frugal-hub.frugal-hub.workers.dev` ainda está alive como fallback, mas o código novo deve apontar para o mooter-hub. O domínio `hub.mooter.ai` foi adiado (problema de cert HTTPS com Workers custom domain — precisa migração NS para Cloudflare).
+O hub real está em `mooter-hub.frugal-hub.workers.dev`. O worker antigo `mooter-hub.frugal-hub.workers.dev` ainda está alive como fallback, mas o código novo deve apontar para o mooter-hub. O domínio `hub.mooter.ai` foi adiado (problema de cert HTTPS com Workers custom domain — precisa migração NS para Cloudflare).
 
 ### P0-A — Hub URLs hardcoded em `tools/router/`
 
-Os seguintes ficheiros têm `frugal-hub.frugal-hub.workers.dev` hardcoded. Substituir por `mooter-hub.frugal-hub.workers.dev`. **Não usar find/replace cego** — verificar cada linha antes de editar:
+Os seguintes ficheiros têm `mooter-hub.frugal-hub.workers.dev` hardcoded. Substituir por `mooter-hub.frugal-hub.workers.dev`. **Não usar find/replace cego** — verificar cada linha antes de editar:
 
 ```
 tools/router/hub-submit-events.js     linha ~22
@@ -43,7 +43,7 @@ grep -rn "frugal-hub\.frugal-hub\.workers\.dev" tools/router/
 ```
 
 Substituição pretendida:
-- `frugal-hub.frugal-hub.workers.dev` → `mooter-hub.frugal-hub.workers.dev`
+- `mooter-hub.frugal-hub.workers.dev` → `mooter-hub.frugal-hub.workers.dev`
 
 **Backward compat obrigatório:** se os ficheiros já têm fallback chain (`MOOTER_HUB_URL || FRUGAL_HUB_URL || hardcoded`), mantém a chain mas muda o hardcoded default. Se não têm, adiciona:
 ```js

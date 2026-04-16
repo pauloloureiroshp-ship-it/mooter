@@ -212,7 +212,7 @@ node tools/router/hub-status.js
 | Statusline não mostra poupanças reais | gsd-turn-end.js não está em settings.json | `node frugal-doctor.js --fix` |
 | Router sempre T3 | CLAUDE.md não foi copiado para ~/.claude/ | `bash install.sh` |
 | exec-logger não regista | PostToolUse hook em falta | Verificar settings.json + `node frugal-doctor.js` |
-| Hub push falha | URL errada ou Worker down | `node hub-status.js` → verifica frugal-hub.frugal-hub.workers.dev |
+| Hub push falha | URL errada ou Worker down | `node hub-status.js` → verifica mooter-hub.frugal-hub.workers.dev |
 | Ollama não responde | Ollama não está a correr | `ollama serve` |
 | `decisions.log` vazio | Hook nunca disparou | Fecha e reabre o Claude Code |
 

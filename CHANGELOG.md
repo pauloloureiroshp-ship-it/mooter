@@ -107,7 +107,7 @@ test pipeline, and a statusline that proves frugal's value at a glance.
 
 ### Community hub + 8 slash commands
 
-- **frugal-hub** deployed at `frugal-hub.frugal-hub.workers.dev` (Workers + D1 + R2)
+- **frugal-hub** deployed at `mooter-hub.frugal-hub.workers.dev` (Workers + D1 + R2)
 - **Community intelligence loop** — hub-push, hub-pull, hub-status
 - **8 slash commands** — /frugal-status, -savings, -route, -summary, -update, -beast, -zen, -auto
 - **install.sh v2** — idempotent install of all skills and router files

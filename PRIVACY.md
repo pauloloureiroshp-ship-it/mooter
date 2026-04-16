@@ -55,7 +55,7 @@ Com `FRUGAL_TELEMETRY=off`, o frugal não escreve para `decisions.log` e nunca e
 
 ## O frugal-hub
 
-O hub em `frugal-hub.frugal-hub.workers.dev` (Cloudflare Workers) recebe deltas anónimos e devolve padrões de routing melhorados. Garantias:
+O hub em `mooter-hub.frugal-hub.workers.dev` (Cloudflare Workers) recebe deltas anónimos e devolve padrões de routing melhorados. Garantias:
 
 - **TTL 7 dias** — dados eliminados automaticamente
 - **Validação de schema** — payload mal-formado é rejeitado (não truncado)

@@ -47,7 +47,7 @@ try{
 " 2>/dev/null
 
 # 5. Hub connectivity
-curl -s --max-time 3 https://frugal-hub.frugal-hub.workers.dev/health 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log('HUB='+d.ok)}catch{console.log('HUB=offline')}"
+curl -s --max-time 3 https://mooter-hub.frugal-hub.workers.dev/health 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log('HUB='+d.ok)}catch{console.log('HUB=offline')}"
 
 # 6. Hardware tier
 cat ~/.claude/tools/router/hw-capability.json 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log('HW='+d.hw_tier+' GPU='+d.name+' T0='+d.recommended_t0)}catch{console.log('HW=unknown')}"
@@ -80,7 +80,7 @@ frugal status — tudo verde
   Router       active · last prompt 3s ago · T0 (free)
   Savings      $0.84 saved this session (89% efficiency)
   Ollama       qwen2.5:3b online · 312ms avg
-  Hub          connected · frugal-hub.frugal-hub.workers.dev
+  Hub          connected · mooter-hub.frugal-hub.workers.dev
   Hardware     RTX 4090 · gpu_high
   Mode         Auto (intelligent routing)
   Feedback     3 ratings (2 good, 1 bad) · use /mooter-good or /mooter-bad
