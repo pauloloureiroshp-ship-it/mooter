@@ -25,28 +25,30 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | Métrica | Valor |
 |---|---|
 | Classifier accuracy (validation-set) | **88.3%** GATE PASS (60 prompts, era 75%) |
-| Classifier accuracy (canonical) | **100%** (10 prompts, era 80%) |
+| Classifier accuracy (canonical) | **100%** (15 prompts, era 10) |
 | Classifier accuracy (adversarial) | **96%** (25 prompts, era 80%) |
-| Gold labels | 84 (era 77, +7 do tester) |
+| Gold labels | 89 (era 84, +5 do review #1) |
 | Savings validados | 89.9% (1,437+ prompts reais) |
 | Patterns | 114+ (era 102, +12 MED_RISK, +2 LOW_RISK) |
+| Tuned patterns (auto) | 48 promote-to-T0 + 3 demote-from-T3 (backtest 5019 prompts) |
 | Módulos tools/router/ | 66 JS files |
 | Skills | 15 (11 frugal-* + 3 mooter-* + model-router) |
 | Sprint B | ✅ Completo (shadow mode, closed loop, signals, ground-truth) |
-| Tester (24/7) | 240 prompts testados, 17 A/B tests, 6 modelos, 4 reviews |
-| Delta review model | ✅ Watermark funcional — 5 reviews, 2955 eventos processados |
+| Tester (24/7) | 2511 classifications, 297 misroutings, 553 executions, 6 modelos |
+| Delta review model | ✅ Review #1 aplicado — 4 context-aware overrides commitados |
 | Optimizer win rate | 47.4% (era 16.7%, +30.7pp) — tropicalization comprovada |
-| A/B tests | 120 testes, gemma3:12b surpreende (domina deepseek-r1 e qwen3:30b) |
+| A/B tests | 120+ testes, gemma3:12b surpreende (domina deepseek-r1 e qwen3:30b) |
 | Evolution tracking | .evolution/2026-04-16.json — snapshot completo com métricas |
 
-### Melhorias classifier sessão 2026-04-16
+### Review #1 — Aplicado (sessão 2026-04-16, commit `4b6e454`)
 
-- **Demotion logic** — simple task intent (regex/explain/translate/show) com risk keywords no conteúdo demota para tier correcto
-- **package.json** — HIGH_RISK só com verbo de modificação (read-only = T0)
-- **GraphQL+REST** — requer contexto de decisão (explain ≠ architecture)
-- **arquitec?tur** — ambas grafias PT reconhecidas
-- **MED_RISK novos** — "how should we handle", "review this approach", "qual a melhor", "não está a funcionar", "avaliação técnica", "not working"
-- **LOW_RISK novos** — "diferença/difference"
+4 context-aware overrides no classify.js (fast-paths ANTES do HIGH_RISK):
+- **Regex tasks** → T1 mesmo com keywords de arquitectura (CQRS, hexagonal, etc.)
+- **Explain difference** → T1 para explicações curtas (REST vs GraphQL)
+- **Package.json read** → T0 quando read-only intent (show/read/lê)
+- **Translate** → T0 independente do conteúdo a traduzir
+
+Também: `setCache()` agora retorna resultado, 48 auto-tuned promote patterns, 5 gold labels.
 
 ### Loopholes abertos
 
@@ -56,6 +58,26 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | L8 | Time-based routing não implementado |
 | L9 | 5 drift items T1→T0: degradação sem ANTHROPIC_API_KEY (infra, não classifier) |
 | L10 | mooter-review ainda não consulta contexto completo do projecto (ver visão self-healing) |
+
+### 🖥️ Multi-device setup — MacBook via Claude AI Dispatch
+
+O projecto está pronto para trabalhar em qualquer device:
+
+1. **Repo no GitHub** — `git pull origin main` traz tudo (commit `4b6e454`)
+2. **Runtime files** — os ficheiros em `tools/router/` são o source of truth; copiar para `~/.claude/tools/router/` no MacBook
+3. **Ficheiros runtime-only** (NÃO no repo, gerar localmente):
+   - `mooter-review-state.json` — watermark do review (gera-se no primeiro `--report`)
+   - `decisions.log` — log de decisões (acumula localmente)
+   - `.classify-cache.json` — cache efémero
+   - `hw-capability.json` — detectado automaticamente pelo hardware probe
+4. **Ollama** — instalar modelos: `qwen2.5:3b`, `qwen3:30b`, `gemma4:e4b`, `qwen2.5-coder:14b`
+5. **ANTHROPIC_API_KEY** — definir no ambiente se quiser Haiku directo (sem key, degrada para Ollama)
+
+**No Claude AI (Dispatch/Cowork):**
+- Ler `SYNC.md` no início de cada sessão
+- Usar MCPs (Notion, Vercel, Supabase, Cloudflare) para operações
+- Não precisa de Ollama — as classificações correm no classify.js (regex puro)
+- Pode fazer edits no repo via GitHub MCP ou localmente
 
 ---
 
