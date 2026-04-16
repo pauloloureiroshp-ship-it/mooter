@@ -166,6 +166,13 @@ const MED_RISK = [
   /\bn[aã]o\s+(?:est[aá]|t[aá])\s+a\s+funcionar/i,          // "não está a funcionar" — PT debug
   /\b(?:not|isn'?t|doesn'?t|won'?t)\s+work(?:ing)?\b/i,      // "not working" — EN debug
   /\bavalia[çc][aã]o\s+(?:muito\s+)?t[eé]cnic/i,             // "avaliação técnica" — technical evaluation
+  // mooter-tester 2026-04-16 — T2 design questions falling to T0
+  /\bcomo\s+(?:devo|devemos|posso)\s+(?:lidar|tratar|gerir)/i, // "como devo lidar com X" — PT design
+  /\bwhat\s+(?:approach|strategy|pattern)\s+(?:for|should|to)\b/i, // "what approach for X" — EN design
+  /\bbest\s+(?:practice|approach|strategy|way)\s+(?:for|to)\b/i,   // "best practice for X" — EN design
+  /\bconcurren(?:t|cy)\s+(?:write|read|access|update)/i,     // "concurrent writes" — systems design
+  /\bgraceful\s+(?:shutdown|degradation|failover)/i,          // "graceful shutdown" — systems design
+  /\bnetwork\s+partition/i,                                    // "network partition" — distributed systems
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────

@@ -598,17 +598,36 @@ function runCycle() {
   stats.prompts_generated += allPrompts.length;
   log(`  Generated ${allPrompts.length} prompts`);
 
-  // 2. Classify each prompt
+  // 2. Filter meta-prompts (tester's own LLM instructions that leak as test prompts)
+  const META_PROMPT_FILTER = /^(?:Thinking|We are generating|Mix languages|One prompt per line|Realistic for a developer|- (?:Mix|Realistic|One prompt))/i;
+  const filteredPrompts = allPrompts.filter(p => {
+    if (p.prompt.length < 15) return false; // too short to be real
+    if (META_PROMPT_FILTER.test(p.prompt)) return false; // tester meta-instruction
+    return true;
+  });
+  if (filteredPrompts.length < allPrompts.length) {
+    log(`  Filtered ${allPrompts.length - filteredPrompts.length} meta-prompts`);
+  }
+
+  // 3. Classify each prompt (using pre-degradation tier for accuracy measurement)
   const classified = [];
-  for (const item of allPrompts) {
+  for (const item of filteredPrompts) {
     const result = classify(item.prompt);
     if (result) {
-      classified.push({ ...item, classified_tier: result.tier, confidence: result.confidence, category: result.task_category });
-      // Track tier accuracy
+      // Use pre-degradation tier: if escalation_rule contains 'haiku_unavailable'
+      // or 'budget_cap_downgrade', the original tier was one higher
+      let preDegradationTier = result.tier;
+      if (result.escalation_rule && result.escalation_rule.includes('haiku_unavailable')) {
+        const ladder = ['T0', 'T1', 'T2', 'T3'];
+        const idx = ladder.indexOf(result.tier);
+        if (idx >= 0 && idx < 3) preDegradationTier = ladder[idx + 1];
+      }
+      classified.push({ ...item, classified_tier: preDegradationTier, final_tier: result.tier, confidence: result.confidence, category: result.task_category });
+      // Track tier accuracy using pre-degradation tier (classifier quality, not infra)
       const key = item.expected_tier;
       if (!stats.tier_accuracy[key]) stats.tier_accuracy[key] = { correct: 0, total: 0 };
       stats.tier_accuracy[key].total++;
-      if (result.tier === item.expected_tier) stats.tier_accuracy[key].correct++;
+      if (preDegradationTier === item.expected_tier) stats.tier_accuracy[key].correct++;
     }
   }
   log(`  Classified ${classified.length}/${allPrompts.length}`);
@@ -696,10 +715,10 @@ function runCycle() {
     }
   }
 
-  // 7. Log all classifications
+  // 7. Log all classifications (pre-degradation tier for accuracy, final tier for routing)
   for (const c of classified) {
     logEvent({ event: 'tester_classification', prompt_preview: c.prompt.slice(0, 200),
-      decided_tier: c.classified_tier, expected_tier: c.expected_tier,
+      decided_tier: c.classified_tier, final_tier: c.final_tier, expected_tier: c.expected_tier,
       confidence: c.confidence, category: c.category, prompt_source: c.source });
   }
 
