@@ -327,7 +327,13 @@ function classify(prompt) {
   // Early-exit fast paths discovered from real-corpus replay (v3 tuning).
   // These patterns dominate real history and were previously misclassified
   // as ambiguous_default → escalated to T3 unnecessarily.
-  if (BASH_PASTE.test(p) || PS_PASTE.test(p)) {
+  //
+  // SAFETY: early-returns are GATED by HIGH_RISK pre-check (added Sprint B.0).
+  // Before this fix, `git reset --hard` hit BASH_PASTE and returned T0 conf=0.9,
+  // bypassing the HIGH_RISK guardrail entirely. Same for `abre um PR ... merge`
+  // hitting READ_INTENT. Now: if ANY HIGH_RISK signal fires, early-returns are
+  // skipped and the full classification pipeline runs.
+  if (high === 0 && (BASH_PASTE.test(p) || PS_PASTE.test(p))) {
     return {
       task_category: 'bash_command_paste',
       risk_level: 'minimal',
@@ -343,7 +349,7 @@ function classify(prompt) {
       file_hint_count: fileMatches,
     };
   }
-  if (READ_INTENT.test(p) && len < 200) {
+  if (high === 0 && READ_INTENT.test(p) && len < 200) {
     return {
       task_category: 'file_read_intent',
       risk_level: 'minimal',
@@ -501,6 +507,28 @@ function classify(prompt) {
     } else {
       reasoning = `${reasoning}; quality_intent detected but already at ${tier}`;
     }
+  }
+
+  // Beast-mode intent — user signals cost is irrelevant, wants maximum quality.
+  // Unlike quality_intent (promote +1), this PINS to T3 directly.
+  const BEAST_INTENT = [
+    /\bn[aã]o\s+(?:me\s+)?import[ao]\s+(?:com\s+)?(?:dinheiro|cu[s]to|preço|price|money)/i,
+    /\b(?:beast|gsd)\s+mode\b/i,
+    /\bvelocidade\s+m[aá]xima\b/i,
+    /\bfor[çc]a\s+opus\b/i,
+    /\bquero\s+opus\b/i,
+    /\buse\s+(?:the\s+)?best\s+(?:model|llm)\b/i,
+    /\bfull\s+power\b/i,
+    /\bdon'?t\s+(?:care|worry)\s+about\s+(?:cost|money|price|budget)/i,
+  ];
+  if (!qualityIntent && BEAST_INTENT.some((rx) => rx.test(p))) {
+    tier = 'T3';
+    escalation_rule =
+      escalation_rule === 'none'
+        ? 'beast_intent_force_t3'
+        : `${escalation_rule}+beast_intent_force_t3`;
+    reasoning = `${reasoning}; beast-mode intent detected → forced T3`;
+    confidence = Math.max(confidence, 0.85);
   }
 
   // TUNED demote pass — auto-learning backtest discovers patterns that are

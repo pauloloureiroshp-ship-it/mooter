@@ -77,6 +77,13 @@ const HIGH_RISK = [
   /\breview\b.*\bpush/i,               // "review before pushing to main" — pre-push gate
   /\bbypass/i,                          // "auth bypass" — security signal
   /\bpatch(ed)?\b/i,                   // "needs to be patched" — security fix
+  // Sprint B.0 safety fix — PT verb conjugations + PR/merge patterns
+  /\bmerg(ea|ear|eia)\b/i,             // "mergea na main" — PT conjugations of merge
+  /\bPR\b.*\b(main|master|prod)/i,     // "abre um PR ... main" — release gate
+  /\babre\s+(um\s+)?PR\b/i,            // "abre um PR" — PT release gate
+  /\bcria(r)?\s+(um\s+)?PR\b/i,        // "criar um PR" — PT release gate
+  /\bcreate\s+(a\s+)?PR\b/i,           // "create a PR" — EN release gate
+  /\bopen\s+(a\s+)?PR\b/i,             // "open a PR" — EN release gate
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────
