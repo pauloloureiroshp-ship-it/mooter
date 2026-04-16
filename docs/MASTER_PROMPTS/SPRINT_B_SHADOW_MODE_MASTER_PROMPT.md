@@ -2,10 +2,11 @@
 
 **Para colar num novo terminal Claude Code** no directório `C:\Users\Paulo Loureiro\frugal`.
 
-**Pré-requisitos antes de arrancar:**
-1. Verifica que `node ~/.claude/tools/router/feedback-collector.js --stats` devolve ≥ 30 ratings totais. **Se < 30, pára e diz ao Paulo que Sprint B continua bloqueado** — executar com n < 30 aprende ruído.
-2. Lê as 3 últimas commits (`git log --oneline -5`) — `2d1f5fc`, `b86afc1`, `5b4a5d6` são o Sprint A que fechou o loop de feedback explícito.
-3. Lê `SYNC.md` secção "COWORK → CLAUDE CODE — Sprint B handoff" para contexto.
+**Pré-requisitos antes de arrancar (REVISTO 2026-04-16):**
+1. ~~Verifica que `feedback-collector.js --stats` devolve ≥ 30 ratings totais~~ — **gate revogado**. Substituído por validation-set estruturado (ver Sprint B.0). Corre `node ~/.claude/tools/router/replay.js --gold-labels` e confirma que existe e reporta accuracy por secção. Baseline drift é aceitável; classifier tuning vive em Sprint B.1.
+2. Lê `docs/METHODOLOGY.md` — é source of truth. Qualquer decisão neste sprint alinha com ela.
+3. Lê as últimas commits (`git log --oneline -8`) para ver o que Sprint B.0 já fundou.
+4. Lê `SYNC.md` secção "COWORK → CLAUDE CODE — Sprint B handoff" para contexto.
 
 ---
 

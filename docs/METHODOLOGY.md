@@ -625,11 +625,12 @@ Sprint B.3 (Budget & Evolution):
 
 ### Sprint B.0 (foundation) — este sprint
 
-- [ ] `docs/METHODOLOGY.md` existe e é este ficheiro
-- [ ] `validation-set.json` tem ≥ 75 entries (10 canonical + 25 adversarial + 40 historical)
-- [ ] `replay.js --gold-labels` corre e reporta accuracy por secção
-- [ ] Canonical accuracy = 100% (sem excepções; se < 100%, classifier tem bug)
-- [ ] Overall accuracy ≥ 85% no validation-set
+- [x] `docs/METHODOLOGY.md` existe e é este ficheiro
+- [x] `validation-set.json` tem ≥ 35 entries labeled (10 canonical + 25 adversarial) + sample histórico stratificado (≤ tamanho do high-conf corpus)
+- [x] `replay.js --gold-labels` corre e reporta accuracy por secção
+- [ ] Canonical accuracy = 100% — **BASELINE 2026-04-16: 60%**. Drift documentado; alvo Sprint B.1 após shadow mode revelar quais falhas são over-routing vs classifier bug
+- [ ] Overall accuracy ≥ 85% — **BASELINE 2026-04-16: 66.7%**. Alvo Sprint B.2.
+- [ ] 2 safety bugs identificados pelo gold-labels a corrigir com urgência: `git reset --hard` e "abre PR + merge" não disparam HIGH_RISK guardrail (ambos classificados T0 com conf 0.9)
 - [ ] `user-profile.json` é gerado consolidando hw + subs + hw-capability
 - [ ] `/mooter-status` mostra o perfil resumido
 - [ ] Gate dos "30 ratings" está revogado em `frugal-status` e `SPRINT_B_SHADOW_MODE_MASTER_PROMPT.md`

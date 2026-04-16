@@ -1,0 +1,536 @@
+{
+  "_version": 1,
+  "_updated": "2026-04-16",
+  "_reference_model": "claude-opus-4-6",
+  "_description": "Gold-labels validation set for the mooter/frugal classifier. Canonical entries are ground truth (must pass 100%). Adversarial entries stress edge cases (target 85%+). Historical entries are sampled from decisions.log when confidence >= 0.9 (assumed-correct baseline for drift detection).",
+  "_schema": {
+    "prompt": "string (1-500 chars)",
+    "expected_tier": "T0 | T1 | T2 | T3",
+    "expected_category": "string (classify.js task_category)",
+    "expected_backend": "ollama | anthropic_api | claude_subagent (optional)",
+    "expected_subagent": "string (optional)",
+    "confidence_source": "canonical | adversarial | historical_high_conf | manual",
+    "trust": "ground_truth | assumed_correct | low",
+    "notes": "string"
+  },
+  "canonical": [
+    {
+      "prompt": "muda a cor do botão login para azul",
+      "expected_tier": "T0",
+      "expected_category": "trivial_local",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "CLAUDE.md canonical case: single-file color change, inline T0"
+    },
+    {
+      "prompt": "rename variable userId to accountId in auth.ts",
+      "expected_tier": "T0",
+      "expected_category": "trivial_local",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Single-file rename, deterministic"
+    },
+    {
+      "prompt": "resume hub/src/llm.ts em 3 bullets",
+      "expected_tier": "T0",
+      "expected_category": "trivial_local",
+      "expected_backend": "ollama",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Summarization — Ollama territory"
+    },
+    {
+      "prompt": "gera commit message para estas mudanças",
+      "expected_tier": "T1",
+      "expected_category": "commit_msg",
+      "expected_subagent": "cheap-triage",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Classic T1 Haiku task"
+    },
+    {
+      "prompt": "build a regex to validate e-mail addresses",
+      "expected_tier": "T1",
+      "expected_category": "regex_task",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Regex generation — T1"
+    },
+    {
+      "prompt": "explica este erro: TypeError: x is not a function",
+      "expected_tier": "T1",
+      "expected_category": "explain_error",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Error explanation — T1"
+    },
+    {
+      "prompt": "porque é que o websocket reconnect falha às vezes depois de idle longo",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "expected_subagent": "model-reasoner",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Bug investigation — T2 Sonnet"
+    },
+    {
+      "prompt": "compara as 3 abordagens para implementar rate limiting no edge gateway e escolhe uma",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Comparison + decision — T2"
+    },
+    {
+      "prompt": "redesenha o vault para suportar multi-user com isolamento criptográfico",
+      "expected_tier": "T3",
+      "expected_category": "cross_file_change",
+      "expected_subagent": "model-architect",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Architecture — T3 Opus mandatory"
+    },
+    {
+      "prompt": "vou fazer push para production — faz review final",
+      "expected_tier": "T3",
+      "expected_category": "release_gate",
+      "expected_subagent": "final-reviewer",
+      "trust": "ground_truth",
+      "confidence_source": "canonical",
+      "notes": "Pre-push gate — T3 final-reviewer"
+    }
+  ],
+  "adversarial": [
+    {
+      "prompt": "arranja o bug",
+      "expected_tier": "T2",
+      "expected_category": "ambiguous_debug",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Underspecified debug — arbiter should escalate to T2 not assume T0/T1"
+    },
+    {
+      "prompt": "isto não está a funcionar",
+      "expected_tier": "T2",
+      "expected_category": "ambiguous_debug",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Maximally vague — arbiter territory, default T2"
+    },
+    {
+      "prompt": "muda package.json para subir a versão para 0.9.5",
+      "expected_tier": "T3",
+      "expected_category": "config_file",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "HIGH_RISK guardrail: package.json triggers T3 even though change is trivial"
+    },
+    {
+      "prompt": "actualiza a .env com a nova DATABASE_URL",
+      "expected_tier": "T3",
+      "expected_category": "config_file",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "HIGH_RISK: .env always T3"
+    },
+    {
+      "prompt": "corre a migration 003_shadow_events.sql em prod",
+      "expected_tier": "T3",
+      "expected_category": "migration",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "HIGH_RISK: migrations always T3"
+    },
+    {
+      "prompt": "usa o opus para escrever uma função que soma dois números",
+      "expected_tier": "T3",
+      "expected_category": "trivial_local",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "User override honored — explicit Opus pin beats classifier"
+    },
+    {
+      "prompt": "@haiku resume este parágrafo",
+      "expected_tier": "T1",
+      "expected_category": "trivial_local",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Explicit @haiku tag — honored"
+    },
+    {
+      "prompt": "não uses opus, usa algo mais barato para isto: refactor this entire module to use async/await",
+      "expected_tier": "T2",
+      "expected_category": "cross_file_change",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Negative override (no opus) — downgrade to T2, but guardrail may refuse if multi-file risk"
+    },
+    {
+      "prompt": "pensa bem nisto: qual a melhor estrutura de dados para um cache LRU thread-safe",
+      "expected_tier": "T3",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Quality intent (pensa bem) — escalate one tier from T2 to T3"
+    },
+    {
+      "prompt": "think hard about this: is this race condition exploitable?",
+      "expected_tier": "T3",
+      "expected_category": "security_review",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Quality intent (think hard) + security — T3"
+    },
+    {
+      "prompt": "converte este JSON para CSV: {\"a\":1,\"b\":2}",
+      "expected_tier": "T0",
+      "expected_category": "format_transform",
+      "expected_backend": "ollama",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Format transform — Ollama local"
+    },
+    {
+      "prompt": "formata este código",
+      "expected_tier": "T0",
+      "expected_category": "trivial_local",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Trivial formatting — Ollama"
+    },
+    {
+      "prompt": "qual a diferença entre mutex e semaphore",
+      "expected_tier": "T1",
+      "expected_category": "explain_concept",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "General concept explanation — Haiku sufficient"
+    },
+    {
+      "prompt": "/mooter-good",
+      "expected_tier": "T0",
+      "expected_category": "slash_command",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Slash command — short-circuit, no LLM needed"
+    },
+    {
+      "prompt": "cd ..",
+      "expected_tier": "T0",
+      "expected_category": "shell_trivial",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Shell navigation — inline trivial"
+    },
+    {
+      "prompt": "ok",
+      "expected_tier": "T0",
+      "expected_category": "ack",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Trivial acknowledgement"
+    },
+    {
+      "prompt": "abre um PR no github com a branch feat/auth e mergea na main depois do review",
+      "expected_tier": "T3",
+      "expected_category": "release_gate",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Merge/PR — final-reviewer territory"
+    },
+    {
+      "prompt": "drop table users",
+      "expected_tier": "T3",
+      "expected_category": "destructive",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Destructive operation — T3 + confirmation gate"
+    },
+    {
+      "prompt": "git reset --hard origin/main",
+      "expected_tier": "T3",
+      "expected_category": "destructive",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Destructive git — T3"
+    },
+    {
+      "prompt": "lê estes 6 ficheiros e diz-me o que cada um faz",
+      "expected_tier": "T0",
+      "expected_category": "summarize_multi",
+      "expected_backend": "ollama",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Summarize multi — parallel Ollama spawn"
+    },
+    {
+      "prompt": "traduz este parágrafo de EN para PT-PT",
+      "expected_tier": "T0",
+      "expected_category": "translate",
+      "expected_backend": "ollama",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Translation — Ollama"
+    },
+    {
+      "prompt": "preciso do teu melhor nisto: desenha a arquitectura do novo pricing engine",
+      "expected_tier": "T3",
+      "expected_category": "cross_file_change",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Quality intent + architecture — T3"
+    },
+    {
+      "prompt": "não me importo com dinheiro: resolve isto da melhor maneira possível",
+      "expected_tier": "T3",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Beast mode intent — T3"
+    },
+    {
+      "prompt": "estou sem créditos, usa só Ollama para isto",
+      "expected_tier": "T0",
+      "expected_category": "reasoning_intermediate",
+      "expected_backend": "ollama",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Zen mode intent — cap at T0"
+    },
+    {
+      "prompt": "refactor the entire auth system to support SSO across 5 providers",
+      "expected_tier": "T3",
+      "expected_category": "cross_file_change",
+      "trust": "ground_truth",
+      "confidence_source": "adversarial",
+      "notes": "Large multi-file refactor — T3 architect"
+    }
+  ],
+  "historical": [
+    {
+      "prompt": "cd ~/frugal && gh repo create frugal --private --source=. --remote=origin --push",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-07T12:13:08.533Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "cd C:\\Users\\Paulo Loureiro\\frugal\\dashboard npm install npm run dev",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-09T12:47:12.854Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "cd C:\\Users\\Paulo Loureiro\\frugal\\landing npx vercel login npx vercel link #",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-09T13:48:51.795Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "cd ~/frugal cat LANDING_MASTER_PROMPT_V2.md | clip claude",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-09T23:12:49.759Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "cd landing && vercel --prod",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-10T13:46:16.259Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "cd \"C:\\Users\\Paulo Loureiro\\frugal\\landing\" && vercel --prod",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-10T13:47:18.462Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "echo \"test-after-restart",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-11T20:42:33.281Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "echo \"test-after-restart\"",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-11T20:43:59.120Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "essa sessão mostra que opus foi utilizado 60% e já vejo depois dos bash commands",
+      "expected_tier": "T0",
+      "expected_category": "reasoning_intermediate",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-11T22:23:53.891Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "cd ~/frugal cat prompts/master-prompt-sprint3-hub-ci.md | claude",
+      "expected_tier": "T0",
+      "expected_category": "bash_command_paste",
+      "expected_backend": "ollama",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-12T00:09:16.831Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "<task-notification> <task-id>a3c3328248f61c2de</task-id> <tool-use-id>toolu_01KD",
+      "expected_tier": "T1",
+      "expected_category": "simple_transform_or_explain",
+      "expected_backend": "anthropic_api",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-10T13:40:53.064Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "vamos fazer tudo agora dessa fundação da methodology pois é o coração da solução",
+      "expected_tier": "T1",
+      "expected_category": "reasoning_intermediate",
+      "expected_backend": "anthropic_api",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-16T01:12:11.981Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "@sonnet diagnostica este bug intermitente",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-08T20:13:18.900Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "é assim que eu vejo...● Agora o hook lê o modelo real que está a executar cada t",
+      "expected_tier": "T2",
+      "expected_category": "simple_transform_or_explain",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-11T20:06:17.164Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "estou achando que é melhor colocar ao final de toda interação Bash, o emoji e fa",
+      "expected_tier": "T2",
+      "expected_category": "ambiguous_medium",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-11T20:13:51.610Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "refator a arquitetura do hub para suportar multi-tenant",
+      "expected_tier": "T3",
+      "expected_category": "architecture_or_critical",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-06T15:32:19.277Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "audita o sistema de auth antes do deploy de produção",
+      "expected_tier": "T3",
+      "expected_category": "architecture_or_critical",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-06T15:32:19.277Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "usa o opus para revisar arquitetura",
+      "expected_tier": "T3",
+      "expected_category": "architecture_or_critical",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-07T14:54:10.666Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "usa ollama para deploy producao",
+      "expected_tier": "T3",
+      "expected_category": "architecture_or_critical",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-07T14:54:10.980Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "usa o opus para uma análise rapida",
+      "expected_tier": "T3",
+      "expected_category": "trivial_local",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-07T14:54:11.146Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "refactora a arquitetura para multi-tenant",
+      "expected_tier": "T3",
+      "expected_category": "architecture_or_critical",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-08T20:13:18.434Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "antes disso, preicso da sua ajuda pra mostar na barra inferior do vs code com o",
+      "expected_tier": "T3",
+      "expected_category": "ambiguous_short",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-08T21:27:57.786Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "antes disso, preciso que faça uma avaliação muito técnica de como seria a melhor",
+      "expected_tier": "T3",
+      "expected_category": "architecture_or_critical",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-08T21:43:14.497Z conf=0.99 (classifier v=unknown)"
+    },
+    {
+      "prompt": "# frugal · Master Prompt para Claude Code — v0.9.0-final > Gerado 2026-04-09 (Se",
+      "expected_tier": "T3",
+      "expected_category": "cross_file_change",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-09T10:25:46.003Z conf=0.9 (classifier v=unknown)"
+    },
+    {
+      "prompt": "Projecto: frugal — Vibe Coder Intelligence Platform Repo: C:\\Users\\Paulo Loureir",
+      "expected_tier": "T3",
+      "expected_category": "cross_file_change",
+      "expected_backend": "claude_subagent",
+      "trust": "assumed_correct",
+      "confidence_source": "historical_high_conf",
+      "notes": "Sampled from decisions.log ts=2026-04-09T12:34:11.572Z conf=0.9 (classifier v=unknown)"
+    }
+  ]
+}
