@@ -24,8 +24,9 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 
 | Métrica | Valor |
 |---|---|
-| Classifier accuracy (validation-set) | 80.0% (60 prompts, era 75%) |
-| Classifier accuracy (adversarial) | 92% (25 prompts, era 80%) |
+| Classifier accuracy (validation-set) | **88.3%** GATE PASS (60 prompts, era 75%) |
+| Classifier accuracy (canonical) | **100%** (10 prompts, era 80%) |
+| Classifier accuracy (adversarial) | **96%** (25 prompts, era 80%) |
 | Gold labels | 84 (era 77, +7 do tester) |
 | Savings validados | 89.9% (1,437+ prompts reais) |
 | Patterns | 114+ (era 102, +12 MED_RISK, +2 LOW_RISK) |
