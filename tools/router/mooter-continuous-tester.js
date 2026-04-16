@@ -63,10 +63,14 @@ function loadFocusConfig() {
     // Normalise weights
     const totalWeight = areas.reduce((s, a) => s + (a.weight || 0), 0);
     if (totalWeight <= 0) return null;
+    // Check if any area is PRIMARY (>50% of total weight)
+    const hasPrimary = areas.some(a => (a.weight || 0) / totalWeight > 0.5);
     return {
       areas: areas.map(a => ({ ...a, weight: (a.weight || 0) / totalWeight })),
+      autopilot: cfg.autopilot || { enabled: false },
       chains: cfg.progressive_chains || { enabled: false },
       tracking: cfg.quality_tracking || {},
+      hasPrimary,
     };
   } catch { return null; }
 }
@@ -88,10 +92,16 @@ function generateFocusedPrompts(area, count, chainMode) {
     ? `\nIMPORTANT: Generate a PROGRESSIVE CHAIN — each prompt builds on the previous one. Example: prompt 1 analyses, prompt 2 suggests improvements, prompt 3 implements the best, prompt 4 tests it.`
     : '';
 
+  // v2.0: inject skills into the prompt for more targeted generation
+  const skills = area.skills || [];
+  const skillInstruction = skills.length > 0
+    ? `\nUse ONE of these specialist skills for each prompt:\n${skills.map(s => `- ${s}`).join('\n')}`
+    : '';
+
   const raw = callOllama(
     `You are generating realistic prompts that a developer would type in a CLI AI assistant (Claude Code).
 Focus area: ${area.name} — ${area.description}
-Guidance: ${guidance}${chainInstruction}
+Guidance: ${guidance}${skillInstruction}${chainInstruction}
 
 Generate exactly ${count} prompts. Rules:
 - Each must be a realistic developer command or question
@@ -670,6 +680,7 @@ function runCycle() {
 
   // Directed focus: every cycle, pick a focus area and generate themed prompts
   const focusCfg = loadFocusConfig();
+  let autopilotPrompts = [];
   if (focusCfg) {
     const area = pickFocusArea(focusCfg);
     if (area) {
@@ -677,6 +688,37 @@ function runCycle() {
       focusedPrompts = generateFocusedPrompts(area, useChain ? 4 : 3, useChain);
       if (focusedPrompts.length > 0) {
         log(`  🎯 Focus: ${area.name} (${focusedPrompts.length} prompts${useChain ? ', chain' : ''})`);
+      }
+    }
+
+    // Autopilot: when no PRIMARY focus, run broad improvement on alternating cycles
+    const ap = focusCfg.autopilot;
+    if (ap?.enabled && !focusCfg.hasPrimary && cycleCount % 2 === 0) {
+      const apSkills = ap.skills || [];
+      const skill = apSkills.length > 0 ? pick(apSkills) : 'general improvement';
+      const apRaw = callOllama(
+        `You are an autonomous QA agent for the "mooter" project (an intelligent LLM router for Claude Code).
+Your current skill: ${skill}
+
+Generate exactly 3 realistic prompts a developer would type to improve the project using this skill.
+Guardrails — NEVER generate prompts that:
+${(ap.guardrails || []).map(g => `- ${g}`).join('\n')}
+
+Rules: mix English + Portuguese (Portugal), 10-50 words each, specific and actionable.
+One prompt per line, no numbering, no quotes.
+
+/no_think`, 'qwen3:30b', 2000
+      );
+      if (apRaw.output) {
+        autopilotPrompts = apRaw.output.split('\n')
+          .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())
+          .filter(l => l.length > 10 && l.length < 500)
+          .filter(l => !/^(?:Thinking|You are|Your current|Generate|Guardrails|Rules|\/no_think)/i.test(l))
+          .slice(0, 3)
+          .map(p => ({ prompt: p, expected_tier: null, source: 'autopilot', focus_area: 'autopilot', chain_position: null }));
+        if (autopilotPrompts.length > 0) {
+          log(`  🤖 Autopilot: ${autopilotPrompts.length} prompts (skill: ${skill.split(':')[0]})`);
+        }
       }
     }
   }
@@ -687,7 +729,7 @@ function runCycle() {
     ollamaPrompts = generateOllamaPrompts(4, tier);
     log(`  Ollama generated ${ollamaPrompts.length} ${tier} prompts`);
   }
-  const allPrompts = [...templatePrompts, ...focusedPrompts, ...ollamaPrompts];
+  const allPrompts = [...templatePrompts, ...focusedPrompts, ...autopilotPrompts, ...ollamaPrompts];
   stats.prompts_generated += allPrompts.length;
   log(`  Generated ${allPrompts.length} prompts`);
 
