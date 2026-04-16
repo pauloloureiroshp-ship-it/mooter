@@ -42,6 +42,15 @@ const profile  = safeRead(path.join(ROUTER_DIR, 'user-profile.json')) || {};
 const verJson  = safeRead(path.join(ROUTER_DIR, 'version.json')) || {};
 const modeFile = safeRead(path.join(ROUTER_DIR, '.mooter-mode.json')) || {};
 const snapshot = safeRead(path.join(ROUTER_DIR, 'metrics-snapshot.json')) || {};
+const creds    = safeRead(path.join(os.homedir(), '.claude', '.credentials.json')) || {};
+const subProfile = safeRead(path.join(ROUTER_DIR, 'subscription-profile.json')) || {};
+
+// ── OAuth plan detection ──────────────────────────────────────────────────
+const oauthData = creds.claudeAiOauth || {};
+const planRaw = oauthData.subscriptionType || subProfile.profiles?.anthropic || 'unknown';
+const planLabel = planRaw === 'max' ? 'Claude Max' : planRaw === 'pro' ? 'Claude Pro' : planRaw === 'free' ? 'Free' : planRaw;
+const rateLimitTier = oauthData.rateLimitTier || 'n/a';
+const userEmail = oauthData.user?.email || 'n/a';
 
 // ── decisions.log parsing ─────────────────────────────────────────────────
 const logPath = path.join(ROUTER_DIR, 'decisions.log');
@@ -183,31 +192,27 @@ const acc30 = recent30d.length > 0 ? (recent30d.filter(o=>o.outcome_score>=0.5).
 // ── Hardware ──────────────────────────────────────────────────────────────
 const machineName  = os.hostname() || 'n/a';
 const osRelease    = os.release()  || 'n/a';
-const gpuName      = hw.gpu_name   || hw.gpu || 'n/a';
-const vramGb       = hw.vram_gb    || hw.vram || 'n/a';
-const hwTier       = hw.tier       || hw.hardware_tier || 'n/a';
+// hw-capability.json uses 'name' not 'gpu_name'
+const gpuName      = hw.name || hw.gpu_name || hw.gpu || 'n/a';
+const vramMb       = hw.vram_mb || 0;
+const vramGb       = vramMb > 0 ? (vramMb / 1024).toFixed(0) + 'GB' : (hw.vram_gb || hw.vram || 'n/a');
+const hwTier       = (hw.hw_tier || hw.tier || hw.hardware_tier || 'n/a').toUpperCase();
 
-// Ollama models from hw-capability or user-profile
-const ollamaModels = hw.ollama_models || profile.ollama_models || [];
-const ollamaStatus = (hw.ollama_ok !== undefined) ? (hw.ollama_ok ? '✅ online' : '❌ offline') :
-                     (ollamaModels.length > 0 ? '✅ online' : '⚠ desconhecido');
+// Ollama models from hw-capability (available_ollama_models array)
+const ollamaRaw = hw.available_ollama_models || [];
+const ollamaModels = ollamaRaw.map(m => m.name || m);
+const ollamaStatus = ollamaModels.length > 0 ? '✅ online' : '⚠ desconhecido';
 const ollamaModelStr = ollamaModels.length > 0 ? '(' + ollamaModels.join(', ') + ')' : '';
 
-// ── Provider status (heuristic from known paths) ───────────────────────────
-function checkCreds() {
-  try {
-    const creds = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', '.credentials.json'), 'utf8'));
-    return creds && creds.claudeAiOauth && creds.claudeAiOauth.accessToken ? '✅ activo' : '❌ sem token';
-  } catch { return '❌ sem credenciais'; }
-}
-const claudeOAuth = checkCreds();
+// ── Provider status ───────────────────────────────────────────────────────
+const claudeOAuth  = oauthData.accessToken ? '✅ activo' : '❌ sem token';
 const anthropicKey = process.env.ANTHROPIC_API_KEY ? '✅ activo' : '❌ sem key';
 const geminiKey    = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? '✅ activo' : '❌ sem key';
 const openaiKey    = process.env.OPENAI_API_KEY ? '✅ activo' : '❌ sem key';
 
-// ── Budget ────────────────────────────────────────────────────────────────
-const plan = profile.plan || snapshot.plan || 'n/a';
-const monthlyCap = profile.monthly_cap || profile.budget_cap || 0;
+// ── Budget / Plan ─────────────────────────────────────────────────────────
+const isMaxPlan = planRaw === 'max';
+const monthlyCap = profile.budget?.monthly_usd_cap || profile.monthly_cap || profile.budget_cap || 0;
 const spentPct   = monthlyCap > 0 ? Math.min(100, monthActualCost / monthlyCap * 100) : 0;
 
 // ── Router version ────────────────────────────────────────────────────────
@@ -261,27 +266,33 @@ const dash = [
   '  Shadow A/B tests: ' + (shadowAB || 'n/a'),
   '  Tendência de accuracy: ↑ ' + acc7 + ' (7d) vs ' + acc30 + ' (30d)',
   '',
+  '👤 UTILIZADOR',
+  '  Email: ' + userEmail,
+  '  Plano: ' + planLabel + (rateLimitTier !== 'n/a' ? ' (' + rateLimitTier + ')' : ''),
+  isMaxPlan ? '  Tipo: Flat rate — sem custo por token. Savings = prompts deflectados de Opus.' : '',
+  '',
   '🖥️  AMBIENTE',
-  '  Máquina: ' + machineName + ' (Windows)',
-  '  GPU: ' + gpuName + (vramGb !== 'n/a' ? ' (' + vramGb + 'GB VRAM)' : ''),
-  '  Hardware tier: ' + hwTier.toString().toUpperCase(),
+  '  Máquina: ' + machineName,
+  '  OS: ' + (process.platform === 'win32' ? 'Windows' : process.platform) + ' ' + osRelease,
+  '  GPU: ' + gpuName + (vramGb !== 'n/a' ? ' (' + vramGb + ' VRAM)' : ''),
+  '  Hardware tier: ' + hwTier,
   '  Ollama: ' + ollamaStatus + ' ' + ollamaModelStr,
   '',
   '🔑 PROVIDERS',
-  '  Claude (OAuth): ' + claudeOAuth,
+  '  Claude OAuth:   ' + claudeOAuth + (planLabel !== 'unknown' ? ' [' + planLabel + ']' : ''),
   '  Anthropic API:  ' + anthropicKey,
   '  Gemini:         ' + geminiKey,
   '  OpenAI:         ' + openaiKey,
   '',
   '💳 BUDGET',
-  '  Plano: ' + plan,
-  monthlyCap > 0 ? '  Tecto mensal: ' + fmt\$\$(monthlyCap) : '  Tecto mensal: não definido',
-  monthlyCap > 0 ? '  Gasto este mês: ' + fmt\$\$(monthActualCost) + ' (' + spentPct.toFixed(1) + '%)' : '  Gasto este mês: ' + fmt\$\$(monthActualCost),
-  monthlyCap > 0 ? '  ' + bar(spentPct, 20) + ' ' + spentPct.toFixed(0) + '%' : '',
+  isMaxPlan ? '  Plano Max — sem limite de custo (rate-limited por uso)' : '',
+  !isMaxPlan && monthlyCap > 0 ? '  Tecto mensal: ' + fmt\$\$(monthlyCap) : '',
+  !isMaxPlan && monthlyCap > 0 ? '  Gasto este mês: ' + fmt\$\$(monthActualCost) + ' (' + spentPct.toFixed(1) + '%)' : '',
+  !isMaxPlan && monthlyCap > 0 ? '  ' + bar(spentPct, 20) + ' ' + spentPct.toFixed(0) + '%' : '',
+  !isMaxPlan && monthlyCap <= 0 ? '  Gasto estimado este mês: ' + fmt\$\$(monthActualCost) + ' (sem tecto configurado)' : '',
   '',
   '🔧 ROUTER',
-  '  Versão: ' + routerVersion,
-  '  Algoritmo: ' + routerAlgo,
+  '  Versão: v' + routerVersion,
   '  Modo: ' + activeMode.charAt(0).toUpperCase() + activeMode.slice(1),
   '',
   '💡 RESUMO DE VALOR',
