@@ -549,6 +549,7 @@ bd9e67a  fix(router): Option A now fires for hw-recommended Ollama models
 | 🔬 Sessão 2026-04-14 — Gemma 4 E2E validation + ollama_call.sh think-strip | `3426f6e4-2bc4-815e-8c22-d051c19411e4` | https://www.notion.so/3426f6e42bc4815e8c22d051c19411e4 |
 | 🔁 Sessão 2026-04-15 — Feedback loop UX + Sprint B handoff | `3446f6e4-2bc4-8126-9744-cc7780b095fe` | https://www.notion.so/3446f6e42bc481269744cc7780b095fe |
 | 🧪 Sessão 2026-04-16 — Mooter A/B Test (10 prompts) | `3446f6e4-2bc4-81cf-b172-d1e662c80727` | https://www.notion.so/3446f6e42bc481cfb172d1e662c80727 |
+| 🧠 Sessão 2026-04-16 — Intelligence Platform: A/B, pipeline, 7-provider LLM map | `3446f6e4-2bc4-811d-8eac-f21663c6ee38` | https://www.notion.so/3446f6e42bc4811d8eacf21663c6ee38 |
 
 > **Protocolo Notion:** No final de cada sessão Claude Code, actualizar o HQ e criar uma página de log da sessão.
 > ID do HQ para referência rápida: `33d6f6e4-2bc4-816b-977a-fe84bbe912c9`
