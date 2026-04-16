@@ -1047,6 +1047,16 @@ try {
 
 process.stdout.write(lines.join('\n') + '\n');
 
+// Sprint B.1: shadow-mode spawn (fire-and-forget, after hint emitted).
+// If shadow is enabled AND this prompt samples in, spawn the tier-below
+// model in background. Response captured in decisions.log as shadow_pair.
+try {
+  const shadow = require('./shadow-mode');
+  if (shadow.isEnabled() && shadow.shouldSample(prompt, decision.tier, decision)) {
+    shadow.spawnShadow(prompt, decision.tier, logId || 'unknown', sessionId);
+  }
+} catch { /* shadow is best-effort, never blocks the hook */ }
+
 // v0.9: POST the decision to the tracker so statusline segment ③ can render
 // [tier] model category latency cascade. Fire-and-forget.
 try {
