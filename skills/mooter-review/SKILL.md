@@ -1,12 +1,11 @@
 ---
 name: mooter-review
 description: >
-  Review findings from the 24/7 Mooter Continuous Tester. Shows misroutings,
-  optimizer insights, model recommendations, and counters compiled by the
-  autonomous tester agent. Use when the user types "/mooter-review", "review
-  tester findings", "o que o tester encontrou", "review backlog", "aceitar
-  melhorias", "tester report", or wants to review and apply improvements
-  discovered by the continuous tester running locally.
+  Live snapshot of the 24/7 Mooter Continuous Tester findings. Reads directly
+  from history — works instantly, no need to wait for hourly cycles.
+  Use when the user types "/mooter-review", "review tester", "o que o tester
+  encontrou", "review backlog", "aceitar melhorias", "tester report",
+  "mooter review now", or wants to see and apply improvements from the tester.
 ---
 
 # /mooter-review — Review Tester Findings

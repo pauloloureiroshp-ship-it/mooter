@@ -1,23 +1,18 @@
 #!/usr/bin/env node
 /**
- * mooter-review.js — Human-in-the-loop review of tester findings.
+ * mooter-review.js — Real-time review of tester findings.
  *
- * Reads mooter-tester-backlog.json (written hourly by the continuous tester)
- * and presents findings for review. Accepted findings are applied to:
- *   - gold-labels.json (misroutings → new gold labels)
- *   - model-profile.json (model recommendations)
- *   - router-tuning.json (classifier fixes via backtest)
- *   - mooter-tester-stats.json (counters for dashboard/landing)
+ * Reads DIRECTLY from mooter-tester-history.jsonl (live data) — no need to
+ * wait for the hourly backlog. Works the moment the tester has generated
+ * even 1 cycle of data.
  *
- * Usage (in a Claude Code terminal):
- *   node mooter-review.js                # show summary
- *   node mooter-review.js --report       # detailed report for Claude to read
- *   node mooter-review.js --apply-all    # accept all pending findings
- *   node mooter-review.js --counters     # just show counters (for landing page)
- *   node mooter-review.js --export-gold  # export accepted misroutings to gold-labels
+ * Usage:
+ *   node mooter-review.js                # snapshot summary (always fresh)
+ *   node mooter-review.js --report       # detailed markdown for Claude to read
+ *   node mooter-review.js --export-gold  # accept misroutings → gold-labels.json
+ *   node mooter-review.js --counters     # JSON counters for landing/dashboard
  *
- * Designed to be called by the /mooter-review skill in Claude Code.
- * Claude reads --report output, suggests which to accept, Paulo confirms.
+ * Designed to be called by /mooter-review skill in Claude Code.
  */
 
 'use strict';
@@ -26,204 +21,355 @@ const fs = require('fs');
 const path = require('path');
 
 const SCRIPT_DIR = __dirname;
-const BACKLOG_PATH = path.join(SCRIPT_DIR, 'mooter-tester-backlog.json');
+const HISTORY_PATH = path.join(SCRIPT_DIR, 'mooter-tester-history.jsonl');
 const GOLD_LABELS_PATH = path.join(SCRIPT_DIR, 'gold-labels.json');
-const MODEL_PROFILE_PATH = path.join(SCRIPT_DIR, 'model-profile.json');
 const STATS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-stats.json');
+const QUALITY_MATRIX_PATH = path.join(SCRIPT_DIR, 'mooter-quality-matrix.json');
 
 const args = process.argv.slice(2);
 const reportMode = args.includes('--report');
-const applyAll = args.includes('--apply-all');
 const countersOnly = args.includes('--counters');
 const exportGold = args.includes('--export-gold');
 
-function loadBacklog() {
-  if (!fs.existsSync(BACKLOG_PATH)) {
-    console.error('No backlog found. Is the mooter-tester running?');
-    console.error(`Expected: ${BACKLOG_PATH}`);
+// ── Load all events from history ────────────────────────────────────
+function loadHistory() {
+  if (!fs.existsSync(HISTORY_PATH)) {
+    console.error('No tester history found. Is the mooter-tester running?');
+    console.error(`Expected: ${HISTORY_PATH}`);
+    console.error('\nStart it with:');
+    console.error('  Set-Location "C:\\Users\\Paulo Loureiro\\frugal\\tools\\router"');
+    console.error('  node .\\mooter-continuous-tester.js');
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(BACKLOG_PATH, 'utf8'));
+  const lines = fs.readFileSync(HISTORY_PATH, 'utf8').split('\n').filter(Boolean);
+  const events = [];
+  for (const line of lines) {
+    try { events.push(JSON.parse(line)); } catch { /* skip */ }
+  }
+  return events;
 }
 
-// ── Summary Mode (default) ──────────────────────────────────────────
-function showSummary(backlog) {
-  const c = backlog.counters || {};
-  const f = backlog.findings || {};
+// ── Build snapshot from live data ───────────────────────────────────
+function buildSnapshot(events) {
+  const snapshot = {
+    total_events: events.length,
+    first_event: events[0]?.ts || null,
+    last_event: events[events.length - 1]?.ts || null,
+
+    // Classifications
+    classifications: events.filter(e => e.event === 'tester_classification').length,
+
+    // Misroutings
+    misroutings: [],
+
+    // Executions
+    executions: { total: 0, by_model: {} },
+
+    // A/B model tests
+    ab_tests: [],
+
+    // Optimizer A/B
+    optimizer_tests: [],
+
+    // Embeddings
+    embeddings: events.filter(e => e.event === 'tester_embedding').length,
+
+    // Tier accuracy
+    tier_accuracy: {},
+  };
+
+  // Existing gold labels (to avoid duplicates)
+  let existingGold = new Set();
+  try {
+    const gl = JSON.parse(fs.readFileSync(GOLD_LABELS_PATH, 'utf8'));
+    existingGold = new Set(gl.map(g => g.prompt));
+  } catch { /* no gold labels yet */ }
+
+  for (const e of events) {
+    switch (e.event) {
+      case 'tester_misrouting':
+        if (!existingGold.has(e.prompt_preview)) {
+          snapshot.misroutings.push({
+            prompt: e.prompt_preview,
+            expected: e.expected,
+            classified: e.classified,
+            category: e.category,
+            detected_at: e.ts,
+          });
+        }
+        break;
+
+      case 'tester_execution':
+        snapshot.executions.total++;
+        if (!snapshot.executions.by_model[e.model]) {
+          snapshot.executions.by_model[e.model] = { runs: 0, total_latency: 0, errors: 0 };
+        }
+        snapshot.executions.by_model[e.model].runs++;
+        snapshot.executions.by_model[e.model].total_latency += e.latency_ms || 0;
+        if (!e.success) snapshot.executions.by_model[e.model].errors++;
+        break;
+
+      case 'tester_ab_test':
+        snapshot.ab_tests.push({
+          model_a: e.model_a, model_b: e.model_b,
+          winner: e.winner, category: e.category,
+          latency_a: e.latency_a_ms, latency_b: e.latency_b_ms,
+        });
+        break;
+
+      case 'tester_optimizer_ab':
+        snapshot.optimizer_tests.push({
+          model: e.model, strategy: e.strategy,
+          winner: e.winner, category: e.category,
+          latency_raw: e.latency_raw_ms, latency_opt: e.latency_opt_ms,
+        });
+        break;
+
+      case 'tester_classification':
+        if (e.expected_tier) {
+          const t = e.expected_tier;
+          if (!snapshot.tier_accuracy[t]) snapshot.tier_accuracy[t] = { correct: 0, total: 0 };
+          snapshot.tier_accuracy[t].total++;
+          if (e.decided_tier === e.expected_tier) snapshot.tier_accuracy[t].correct++;
+        }
+        break;
+    }
+  }
+
+  // Deduplicate misroutings by prompt
+  const seen = new Set();
+  snapshot.misroutings = snapshot.misroutings.filter(m => {
+    if (seen.has(m.prompt)) return false;
+    seen.add(m.prompt);
+    return true;
+  });
+
+  return snapshot;
+}
+
+// ── Summary ─────────────────────────────────────────────────────────
+function showSummary(snap) {
+  const uptime = snap.first_event && snap.last_event
+    ? Math.round((new Date(snap.last_event) - new Date(snap.first_event)) / 60000)
+    : 0;
+
+  // Model A/B winners
+  const modelWins = {};
+  for (const ab of snap.ab_tests) {
+    const winner = ab.winner === 'A' ? ab.model_a : ab.winner === 'B' ? ab.model_b : null;
+    if (winner) { modelWins[winner] = (modelWins[winner] || 0) + 1; }
+  }
+
+  // Optimizer stats
+  const optWins = snap.optimizer_tests.filter(t => t.winner === 'optimized').length;
+  const optTotal = snap.optimizer_tests.length;
 
   console.log(`
 ╔══════════════════════════════════════════════════════════════════╗
-║              🐮 MOOTER REVIEW — Tester Findings                 ║
+║           🐮 MOOTER REVIEW — Live Snapshot                      ║
 ╚══════════════════════════════════════════════════════════════════╝
 
-  Last updated: ${backlog.updated_at || 'unknown'}
+  Data: ${snap.first_event?.slice(0, 19) || '?'} → ${snap.last_event?.slice(0, 19) || '?'} (${uptime} min)
+  Events: ${snap.total_events}
 
-  📊 Counters:
-    Prompts generated:  ${c.total_prompts_generated || 0}
-    Prompts executed:   ${c.total_prompts_executed || 0}
-    A/B model tests:    ${c.total_ab_tests || 0}
-    Optimizer A/B:      ${c.total_optimizer_tests || 0} (win rate: ${c.optimizer_win_rate || 'n/a'})
-    Embeddings built:   ${c.total_embeddings || 0}
-    Models benchmarked: ${c.models_benchmarked || 0}
-    Uptime:             ${c.uptime || 'n/a'}
-    Cost:               $${c.cost_usd || 0}
+  📊 Activity:
+    Classifications:    ${snap.classifications}
+    Model executions:   ${snap.executions.total}
+    A/B model tests:    ${snap.ab_tests.length}
+    Optimizer A/B:      ${optTotal}${optTotal > 0 ? ` (optimizer wins: ${optWins}/${optTotal} = ${Math.round(optWins / optTotal * 100)}%)` : ''}
+    Embeddings:         ${snap.embeddings}
 
-  🔍 Pending Findings:
-    Misroutings:           ${(f.misroutings || []).filter(m => m.status === 'pending').length} (gold-label candidates)
-    Optimizer insights:    ${(f.optimizer_insights || []).filter(m => m.status === 'pending').length} (dialect tuning)
-    Model recommendations: ${(f.model_recommendations || []).length} (quality matrix)
-
-  Next steps:
-    node mooter-review.js --report        # detailed report for review
-    node mooter-review.js --export-gold   # apply misroutings to gold-labels.json
-    node mooter-review.js --counters      # counters for landing page
+  🔍 Findings:
+    Misroutings:        ${snap.misroutings.length} (new gold-label candidates)
+    ${snap.misroutings.length > 0 ? 'Run: node mooter-review.js --report    for details' : ''}
+    ${snap.misroutings.length > 0 ? '     node mooter-review.js --export-gold  to apply' : ''}
 `);
+
+  // Model performance
+  const models = Object.entries(snap.executions.by_model);
+  if (models.length > 0) {
+    console.log('  🏎️ Model Performance:');
+    for (const [model, data] of models.sort((a, b) => b[1].runs - a[1].runs)) {
+      const avg = data.runs > 0 ? Math.round(data.total_latency / data.runs) : 0;
+      const wins = modelWins[model] || 0;
+      console.log(`    ${model.padEnd(22)} ${String(data.runs).padStart(3)} runs  ${String(avg).padStart(5)}ms avg  ${wins} A/B wins  ${data.errors} err`);
+    }
+    console.log('');
+  }
+
+  // Tier accuracy
+  const tiers = Object.entries(snap.tier_accuracy);
+  if (tiers.length > 0) {
+    console.log('  🎯 Classifier Accuracy:');
+    for (const [tier, data] of tiers.sort()) {
+      const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
+      console.log(`    ${tier}: ${pct}% (${data.correct}/${data.total})`);
+    }
+    console.log('');
+  }
 }
 
-// ── Report Mode (for Claude to read and suggest) ────────────────────
-function showReport(backlog) {
-  const f = backlog.findings || {};
-
-  console.log('# MOOTER TESTER — Review Report');
-  console.log(`# Generated: ${new Date().toISOString()}`);
-  console.log(`# Backlog updated: ${backlog.updated_at}\n`);
+// ── Report (detailed, for Claude) ───────────────────────────────────
+function showReport(snap) {
+  console.log('# MOOTER TESTER — Live Review Report');
+  console.log(`# Snapshot: ${new Date().toISOString()}`);
+  console.log(`# Data range: ${snap.first_event?.slice(0, 19)} → ${snap.last_event?.slice(0, 19)}\n`);
 
   // Misroutings
-  const pending = (f.misroutings || []).filter(m => m.status === 'pending');
-  console.log(`## Misroutings (${pending.length} pending — gold-label candidates)\n`);
-  if (pending.length === 0) {
-    console.log('No pending misroutings.\n');
+  console.log(`## Misroutings (${snap.misroutings.length} — gold-label candidates)\n`);
+  if (snap.misroutings.length === 0) {
+    console.log('No misroutings found — classifier is accurate on generated prompts.\n');
   } else {
-    console.log('| # | Prompt | Expected | Classified | Category | Detected |');
-    console.log('|---|--------|----------|------------|----------|----------|');
-    pending.forEach((m, i) => {
-      console.log(`| ${i + 1} | ${m.prompt_preview.slice(0, 50)}... | ${m.expected} | ${m.classified} | ${m.category || ''} | ${(m.detected_at || '').slice(0, 10)} |`);
+    console.log('| # | Prompt | Expected | Got | Category |');
+    console.log('|---|--------|----------|-----|----------|');
+    snap.misroutings.forEach((m, i) => {
+      console.log(`| ${i + 1} | ${m.prompt.slice(0, 60).replace(/\|/g, '\\|')} | ${m.expected} | ${m.classified} | ${m.category || ''} |`);
     });
+    console.log('\nTo add these as gold labels: `node tools/router/mooter-review.js --export-gold`\n');
+  }
+
+  // A/B Model Tests
+  console.log(`## A/B Model Tests (${snap.ab_tests.length})\n`);
+  if (snap.ab_tests.length > 0) {
+    // Aggregate by model pair
+    const pairStats = {};
+    for (const ab of snap.ab_tests) {
+      const key = [ab.model_a, ab.model_b].sort().join(' vs ');
+      if (!pairStats[key]) pairStats[key] = { wins: {}, ties: 0, total: 0 };
+      pairStats[key].total++;
+      if (ab.winner === 'A') pairStats[key].wins[ab.model_a] = (pairStats[key].wins[ab.model_a] || 0) + 1;
+      else if (ab.winner === 'B') pairStats[key].wins[ab.model_b] = (pairStats[key].wins[ab.model_b] || 0) + 1;
+      else pairStats[key].ties++;
+    }
+    console.log('| Matchup | Results | Tests |');
+    console.log('|---------|---------|-------|');
+    for (const [pair, data] of Object.entries(pairStats)) {
+      const results = Object.entries(data.wins).map(([m, w]) => `${m}: ${w}`).join(', ');
+      console.log(`| ${pair} | ${results}${data.ties > 0 ? `, TIE: ${data.ties}` : ''} | ${data.total} |`);
+    }
     console.log('');
   }
 
-  // Optimizer insights
-  const optInsights = (f.optimizer_insights || []).filter(o => o.status === 'pending');
-  console.log(`## Optimizer Insights (${optInsights.length} — tropicalization effectiveness)\n`);
-  if (optInsights.length === 0) {
-    console.log('No optimizer insights yet (need more A/B data).\n');
-  } else {
-    for (const o of optInsights) {
-      console.log(`### ${o.model}`);
-      console.log(`  Win rate: ${o.optimizer_win_rate} (${o.total_tests} tests) — ${o.verdict}`);
-      if (o.best_strategies && o.best_strategies.length > 0) {
-        console.log('  Best strategies:');
-        for (const s of o.best_strategies) {
-          console.log(`    ${s.strategy}: +${s.wins} -${s.losses}`);
-        }
+  // Optimizer effectiveness
+  console.log(`## Optimizer (Tropicalization) Tests (${snap.optimizer_tests.length})\n`);
+  if (snap.optimizer_tests.length > 0) {
+    const optWins = snap.optimizer_tests.filter(t => t.winner === 'optimized').length;
+    const rawWins = snap.optimizer_tests.filter(t => t.winner === 'raw').length;
+    const ties = snap.optimizer_tests.filter(t => t.winner === 'tie').length;
+    console.log(`Overall: optimizer wins ${optWins}, raw wins ${rawWins}, ties ${ties}`);
+    console.log(`Win rate: ${(optWins / snap.optimizer_tests.length * 100).toFixed(0)}%\n`);
+
+    // Per model
+    const byModel = {};
+    for (const t of snap.optimizer_tests) {
+      if (!byModel[t.model]) byModel[t.model] = { opt: 0, raw: 0, tie: 0, strategies: {} };
+      if (t.winner === 'optimized') byModel[t.model].opt++;
+      else if (t.winner === 'raw') byModel[t.model].raw++;
+      else byModel[t.model].tie++;
+      if (t.strategy) {
+        byModel[t.model].strategies[t.strategy] = (byModel[t.model].strategies[t.strategy] || 0) + 1;
       }
-      console.log('');
     }
-  }
-
-  // Model recommendations
-  const recs = f.model_recommendations || [];
-  console.log(`## Model Recommendations (${recs.length} categories)\n`);
-  if (recs.length === 0) {
-    console.log('No recommendations yet (need more A/B data).\n');
-  } else {
-    console.log('| Category | Best Model | Win Rate | W/L/T | Avg Latency |');
-    console.log('|----------|-----------|----------|-------|-------------|');
-    for (const r of recs) {
-      console.log(`| ${r.category} | ${r.recommended_model} | ${r.win_rate} | ${r.wins}/${r.losses}/${r.ties} | ${r.avg_latency_ms}ms |`);
+    console.log('| Model | Optimizer Wins | Raw Wins | Ties | Best Strategies |');
+    console.log('|-------|---------------|----------|------|-----------------|');
+    for (const [model, data] of Object.entries(byModel)) {
+      const strats = Object.entries(data.strategies).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', ');
+      console.log(`| ${model} | ${data.opt} | ${data.raw} | ${data.tie} | ${strats} |`);
     }
     console.log('');
   }
+
+  // Tier accuracy
+  console.log('## Classifier Accuracy by Tier\n');
+  console.log('| Tier | Accuracy | Correct/Total |');
+  console.log('|------|----------|---------------|');
+  for (const [tier, data] of Object.entries(snap.tier_accuracy).sort()) {
+    const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
+    console.log(`| ${tier} | ${pct}% | ${data.correct}/${data.total} |`);
+  }
+  console.log('');
 
   // Counters
-  const c = backlog.counters || {};
-  console.log('## Counters (for landing page / dashboard)\n');
+  console.log('## Counters (for landing page)\n');
   console.log('```json');
-  console.log(JSON.stringify(c, null, 2));
+  console.log(JSON.stringify({
+    prompts_tested: snap.classifications,
+    models_benchmarked: Object.keys(snap.executions.by_model).length,
+    ab_tests_run: snap.ab_tests.length,
+    optimizer_tests: snap.optimizer_tests.length,
+    misroutings_found: snap.misroutings.length,
+    embeddings_built: snap.embeddings,
+    cost_usd: 0,
+  }, null, 2));
   console.log('```\n');
 }
 
 // ── Export gold labels ──────────────────────────────────────────────
-function doExportGold(backlog) {
-  const pending = (backlog.findings.misroutings || []).filter(m => m.status === 'pending');
-  if (pending.length === 0) {
-    console.log('No pending misroutings to export.');
+function doExportGold(snap) {
+  if (snap.misroutings.length === 0) {
+    console.log('No misroutings to export. Classifier is accurate on all tested prompts.');
     return;
   }
 
-  // Load existing gold labels
   let goldLabels = [];
-  try {
-    goldLabels = JSON.parse(fs.readFileSync(GOLD_LABELS_PATH, 'utf8'));
-  } catch { /* empty */ }
-
-  const existingPrompts = new Set(goldLabels.map(g => g.prompt));
+  try { goldLabels = JSON.parse(fs.readFileSync(GOLD_LABELS_PATH, 'utf8')); } catch {}
+  const existing = new Set(goldLabels.map(g => g.prompt));
   let added = 0;
 
-  for (const m of pending) {
-    if (existingPrompts.has(m.prompt_preview)) continue;
-
+  for (const m of snap.misroutings) {
+    if (existing.has(m.prompt)) continue;
     goldLabels.push({
       id: `gl-tester-${goldLabels.length + 1}`,
-      prompt: m.prompt_preview,
+      prompt: m.prompt,
       expected_tier: m.expected,
       source: 'mooter-tester',
       added: new Date().toISOString().slice(0, 10),
-      notes: `was ${m.classified}, detected ${m.detected_at?.slice(0, 10) || 'unknown'}`,
+      notes: `was ${m.classified}, category: ${m.category || 'unknown'}`,
     });
-    existingPrompts.add(m.prompt_preview);
-    m.status = 'accepted';
+    existing.add(m.prompt);
     added++;
   }
 
   if (added > 0) {
     fs.writeFileSync(GOLD_LABELS_PATH, JSON.stringify(goldLabels, null, 2));
-    fs.writeFileSync(BACKLOG_PATH, JSON.stringify(backlog, null, 2));
     console.log(`✅ Added ${added} gold labels (total: ${goldLabels.length})`);
-    console.log(`   Run: node validate-set.js --strict  to verify accuracy`);
+    console.log('Next steps:');
+    console.log('  node tools/router/validate-set.js --strict   # verify accuracy');
+    console.log('  node tools/router/backtest.js                # generate tuning');
+    console.log('  node tools/router/update-router.js           # apply fixes');
   } else {
-    console.log('No new labels to add (all already in gold-labels.json).');
+    console.log('All misroutings already in gold-labels.json.');
   }
 }
 
-// ── Counters only ───────────────────────────────────────────────────
-function showCounters(backlog) {
-  const c = backlog.counters || {};
-  // Also merge with stats file if available
-  let liveStats = {};
-  try {
-    liveStats = JSON.parse(fs.readFileSync(STATS_PATH, 'utf8'));
-  } catch { /* no stats yet */ }
+// ── Counters (JSON for landing/dashboard) ───────────────────────────
+function showCounters(snap) {
+  // Also merge with live stats if available
+  let live = {};
+  try { live = JSON.parse(fs.readFileSync(STATS_PATH, 'utf8')); } catch {}
 
-  const merged = {
-    ...c,
-    // Live stats override
-    prompts_generated: liveStats.prompts_generated || c.total_prompts_generated || 0,
-    prompts_executed: liveStats.prompts_executed || c.total_prompts_executed || 0,
-    ab_tests: liveStats.ab_tests_run || c.total_ab_tests || 0,
-    models_available: (liveStats.models_available || []).length || c.models_benchmarked || 0,
-    cycles: liveStats.cycles || 0,
-    uptime: liveStats.uptime_human || c.uptime || 'offline',
-    cost: 0,
-  };
-
-  console.log(JSON.stringify(merged, null, 2));
+  console.log(JSON.stringify({
+    prompts_tested: snap.classifications,
+    prompts_executed: snap.executions.total,
+    models_benchmarked: Object.keys(snap.executions.by_model).length,
+    ab_tests: snap.ab_tests.length,
+    optimizer_tests: snap.optimizer_tests.length,
+    optimizer_win_rate: snap.optimizer_tests.length > 0
+      ? (snap.optimizer_tests.filter(t => t.winner === 'optimized').length / snap.optimizer_tests.length * 100).toFixed(1) + '%' : 'n/a',
+    misroutings: snap.misroutings.length,
+    embeddings: snap.embeddings,
+    uptime: live.uptime_human || null,
+    cycles: live.cycles || null,
+    cost_usd: 0,
+    last_updated: new Date().toISOString(),
+  }, null, 2));
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
-const backlog = loadBacklog();
+const events = loadHistory();
+const snap = buildSnapshot(events);
 
-if (countersOnly) {
-  showCounters(backlog);
-} else if (reportMode) {
-  showReport(backlog);
-} else if (exportGold) {
-  doExportGold(backlog);
-} else if (applyAll) {
-  doExportGold(backlog);
-  // Future: apply optimizer insights to prompt-optimizer.js
-  // Future: apply model recs to model-profile.json
-  console.log('\n✅ All applicable findings applied.');
-} else {
-  showSummary(backlog);
-}
+if (countersOnly) showCounters(snap);
+else if (reportMode) showReport(snap);
+else if (exportGold) doExportGold(snap);
+else showSummary(snap);
