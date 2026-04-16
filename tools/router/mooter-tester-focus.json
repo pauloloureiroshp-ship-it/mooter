@@ -1,26 +1,26 @@
 {
-  "_doc": "Project pillars with skill sets for the directed autonomous tester. Each pillar has skills (specific analysis techniques), deep guidance, and guardrails. The 'autopilot' pillar runs when no specific focus is set — continuous broad improvement.",
+  "_doc": "v3.0 — Deeply scoped project pillars. Each pillar maps current_state + verify + improve + guardrails so the autonomous tester knows exactly what to check and what NOT to touch.",
   "_updated": "2026-04-16",
-  "_version": "2.0",
+  "_version": "3.0",
 
   "autopilot": {
     "enabled": true,
     "weight_when_no_focus": 0.5,
-    "_doc": "Autopilot runs at 50% weight when no pillar is PRIMARY. It rotates through all pillars randomly, focusing on non-structural improvements: bug hunting, consistency, minor quality fixes, documentation gaps. Safe by design — never touches architecture, never makes breaking changes.",
     "skills": [
-      "bug-hunter: scan for common JS bugs (null refs, async/await mistakes, unhandled promises, off-by-one, type coercion traps)",
-      "consistency-checker: find inconsistencies across files (naming conventions, error message format, log format, import style)",
-      "dead-code-finder: identify unused functions, unreachable branches, stale TODO comments, orphaned files",
-      "edge-case-explorer: generate edge case inputs the classifier/optimizer might not handle (empty strings, unicode, very long prompts, special chars)",
-      "quality-polish: improve error messages, add missing input validation at system boundaries, standardize return types",
-      "metric-generator: generate diverse realistic prompts to build datalake volume and improve statistical significance of A/B tests"
+      "bug-hunter: scan for null refs, unhandled promises, async/await mistakes, off-by-one errors in tools/router/*.js",
+      "consistency-checker: verify naming conventions (camelCase in JS, kebab-case in files), error message format, log format across all 87 modules",
+      "dead-code-finder: identify unused exports, unreachable branches, stale TODO/FIXME comments, orphaned files in tools/router/",
+      "edge-case-explorer: test classifier with empty strings, unicode, 2000+ char prompts, special chars, null bytes",
+      "quality-polish: improve error messages to be actionable (what happened + why + what to do), standardize return types",
+      "metric-generator: generate diverse realistic prompts across all tiers to grow datalake volume and improve A/B statistical significance"
     ],
     "guardrails": [
       "NEVER suggest changes to architecture or file structure",
-      "NEVER suggest removing HIGH_RISK patterns",
+      "NEVER suggest removing HIGH_RISK patterns from patterns.js",
       "NEVER suggest changes to CLAUDE.md doctrine",
-      "NEVER suggest changes to .env or credentials",
-      "ONLY suggest improvements that are safe to apply without human review for structural decisions",
+      "NEVER suggest changes to .env, credentials, or API keys",
+      "NEVER suggest changes that would break the 11-pass classification pipeline",
+      "ONLY suggest improvements that are safe to apply incrementally",
       "ALL suggestions must be tagged with pillar, severity (low/medium), and estimated effort"
     ]
   },
@@ -32,16 +32,31 @@
       "weight": 0.08,
       "icon": "🔒",
       "description": "Auth, XSS/CSRF, secrets handling, RLS policies, privacy audit, input validation",
+      "current_state": "privacy.js has 12 PII regex rules. Auth via Supabase Magic Link + GitHub OAuth (read-only: public repos). Supabase anon key intentionally public (RLS enforces access). hub-push.js anonymises with SHA-256 profile_hash. No prompts ever sent to hub.",
       "skills": [
-        "vuln-scanner: test for OWASP top 10 (XSS, CSRF, injection, broken auth, sensitive data exposure)",
-        "secrets-auditor: scan for hardcoded secrets, exposed API keys, .env files in git, credential rotation",
-        "rls-tester: generate queries that should be blocked by Supabase RLS policies, verify they are",
-        "privacy-validator: verify PII scrubbing in logs, telemetry events, hub submissions",
-        "input-fuzzer: generate malformed inputs for all API endpoints and CLI commands"
+        "vuln-scanner: test OWASP top 10 against landing page endpoints (POST /api/analyse, POST /api/waitlist) and dashboard endpoints (POST /api/retrain)",
+        "secrets-auditor: verify no sk-ant-*, ghp_*, Bearer tokens, connection strings in decisions.log or hub delta payloads",
+        "rls-tester: generate Supabase REST queries as anon/authenticated roles against waitlist, profiles, devices tables — verify RLS blocks unauthorized access",
+        "privacy-validator: run privacy.js --scan-log on current decisions.log — verify 0 PII leaks. Test all 12 scrubbing rules with crafted inputs",
+        "input-fuzzer: send malformed JSON to savings-tracker :7821/metrics, landing /api/analyse, dashboard /api/retrain — verify graceful failure"
       ],
-      "prompt_guidance": "Generate prompts that test and improve security: review auth flows for vulnerabilities, test XSS/CSRF protection in landing page forms, audit .env and secrets handling, validate Supabase RLS policies, check privacy.js PII scrubbing, test JWT token handling, review OAuth flow security, check for SQL injection in D1 queries, audit API endpoint input validation, test rate limiting, review CORS configuration",
-      "key_files": ["tools/router/privacy.js", "tools/router/budget-engine.js", "SECURITY.md", "tools/router/frugal-login.js"],
-      "known_issues": ["Supabase RLS policy needs 1 SQL fix", "OAuth flow partially implemented"],
+      "verify": [
+        "privacy.js 12 regex rules catch: API keys (sk-ant, sk-), GitHub tokens (ghp_, ghs_), emails, IPs, UUIDs, connection strings, base64 blobs, card numbers",
+        "hub-push.js sends only: profile_hash, tier_distribution, saved_usd, hw_tier — never raw prompts",
+        "Supabase RLS: anon can INSERT to waitlist and url_analyses, but NOT read profiles or devices",
+        "savings-tracker binds to 127.0.0.1:7821 only (never 0.0.0.0)",
+        "dashboard binds to 127.0.0.1:7820 only"
+      ],
+      "improve": [
+        "Add rate limiting to landing API endpoints (currently none)",
+        "Complete GitHub OAuth flow (partially implemented)",
+        "Fix Supabase RLS policy for waitlist anonymous writes",
+        "Add CSRF token to landing page forms",
+        "Add Content-Security-Policy headers to dashboard"
+      ],
+      "guardrails_pillar": ["NEVER expose Supabase service key", "NEVER change RLS to permissive", "NEVER log raw prompts to any external service"],
+      "key_files": ["tools/router/privacy.js", "landing/app/lib/supabase.ts", "tools/router/hub-push.js", "tools/router/savings-tracker.js"],
+      "known_issues": ["Supabase RLS policy needs 1 SQL fix for waitlist anon INSERT", "GitHub OAuth active but callback flow incomplete"],
       "enabled": true
     },
     {
@@ -50,16 +65,31 @@
       "weight": 0.08,
       "icon": "🚀",
       "description": "Landing page copy, hero section, CTAs, conversion funnel, waitlist, mobile responsiveness",
+      "current_state": "Next.js 15 on port 7819 (dev) / Vercel (prod). 5 sections: Hero+CTA, URL Analyser (POST /api/analyse with 24h cache), How It Works (3 cards), Waitlist (POST /api/waitlist with live counter), Footer. Uses Supabase REST directly (no SDK, saves 300KB). landing/app/page.tsx is the main file. globals.css uses CSS variables (no Tailwind).",
       "skills": [
-        "copy-writer: rewrite headlines, CTAs, and value propositions for clarity and conversion",
-        "ux-auditor: evaluate user flow from landing to waitlist signup, identify friction points",
-        "mobile-tester: check responsive layout across breakpoints (320/768/1024/1440px)",
-        "seo-analyzer: audit meta tags, heading hierarchy, image alt text, page load metrics",
-        "a11y-checker: test keyboard navigation, screen reader compatibility, colour contrast"
+        "copy-writer: evaluate hero headline clarity — does it explain what mooter does in <10 words? Is the CTA 'Join Waitlist' or 'Get Started' compelling?",
+        "ux-auditor: trace user flow: land → understand value → enter URL → see savings estimate → join waitlist. Where does the user hesitate?",
+        "mobile-tester: check if all 5 sections render correctly at 320px, 768px, 1024px, 1440px. Check tap targets >= 44px",
+        "seo-analyzer: verify page has: title tag, meta description, og:image, canonical URL, heading hierarchy (h1→h2→h3), alt text on images",
+        "perf-auditor: check if /api/analyse response <2s, waitlist counter loads <500ms, page LCP <2.5s"
       ],
-      "prompt_guidance": "Generate prompts to improve the landing page: rewrite hero headline for impact, optimize CTA buttons, improve How It Works section, test mobile responsiveness of all 7 sections, improve waitlist form UX, add social proof, optimize page load, improve SEO, improve comparison table, make savings calculator interactive",
-      "key_files": ["landing/", "docs/MASTER_PROMPTS/LANDING_V10_MASTER_PROMPT.md"],
-      "known_issues": ["Live counters poll hub every 30s", "Mobile layout needs testing"],
+      "verify": [
+        "POST /api/analyse accepts {url} and returns {platform, framework, llm_detected, analysis} with 24h Supabase cache",
+        "POST /api/waitlist accepts {email, url?, savings_estimate?} and returns new count",
+        "HEAD /api/waitlist returns total count for live counter",
+        "Fail-open: any Supabase error returns null, UI shows fallback gracefully",
+        "Vercel deployment at landing-five-azure-16.vercel.app resolves correctly"
+      ],
+      "improve": [
+        "Add social proof section (testimonials, user count, savings total)",
+        "Make savings calculator interactive (not fixed 89%)",
+        "Add comparison table: mooter vs manual tier selection vs proxy routers",
+        "Improve URL analyser: show which models would handle which tasks",
+        "Add loading skeleton while waitlist counter fetches"
+      ],
+      "guardrails_pillar": ["NEVER change Supabase anon key", "NEVER remove fail-open pattern", "NEVER add external analytics without consent"],
+      "key_files": ["landing/app/page.tsx", "landing/app/lib/supabase.ts", "landing/app/globals.css", "landing/README.md"],
+      "known_issues": ["Live counters poll hub every 30s — could use SSE", "Mobile layout untested", "No loading skeletons"],
       "enabled": true
     },
     {
@@ -68,16 +98,31 @@
       "weight": 0.08,
       "icon": "🎨",
       "description": "Dashboard usability, onboarding flow, settings page, navigation, accessibility, empty states",
+      "current_state": "Next.js 15 on localhost:7820 (never public). 3 pages: Overview (KPIs + tier distribution + decisions table + cost trend + tuning preview + retrain button), Misroutes (low-confidence debugger), Community (hub aggregate stats). Reads from decisions.log and router-tuning.json. Proxies metrics from savings-tracker :7821.",
       "skills": [
-        "flow-analyzer: map user journeys and identify dead ends or confusion points",
-        "empty-state-designer: design helpful empty states for new users (no data, no config, no Ollama)",
-        "error-ux-improver: rewrite error messages to be actionable (what happened, why, what to do)",
-        "visual-hierarchy: improve information architecture, spacing, grouping, visual weight",
-        "wizard-designer: design step-by-step flows for complex setup tasks"
+        "flow-analyzer: trace new user journey: install → first prompt → see savings → understand tiers. What's confusing?",
+        "empty-state-designer: what happens when: no decisions.log yet, savings-tracker not running, Ollama offline, no API key? Design helpful guidance for each",
+        "error-ux-improver: find all error messages in dashboard API routes — rewrite as: what happened + why + what the user should do",
+        "data-viz: evaluate KPI tiles, tier distribution bar, cost trend SVG chart — are they readable? Do numbers make sense? Are labels clear?",
+        "wizard-designer: design a first-run overlay that explains: what each KPI means, what the tier bars represent, how to read the cost trend"
       ],
-      "prompt_guidance": "Generate prompts to improve UX/UI: redesign dashboard overview, improve misroutes page, enhance community stats, design empty states, improve error messages, add loading skeletons, improve navigation, test accessibility, improve settings page, design first-run wizard",
-      "key_files": ["dashboard/", "tools/router/onboarding.js", "tools/router/setup-profile.js"],
-      "known_issues": ["Dashboard has 3 pages only", "Settings page basic"],
+      "verify": [
+        "GET /api/metrics proxies savings-tracker correctly and returns full JSON",
+        "GET /api/decisions supports window, tier, category, min_conf filters",
+        "GET /api/tuning returns router-tuning.json with pattern explainers",
+        "POST /api/retrain with dry_run=true runs backtest without modifying classify.js",
+        "Retrain button shows diff preview before applying"
+      ],
+      "improve": [
+        "Add settings page (profile, subscriptions, devices, budget cap)",
+        "Add loading skeletons for async data fetches",
+        "Add sidebar navigation (currently top-nav only?)",
+        "Add empty state for new install (no data yet)",
+        "Add visual tier cascade explanation (L0→L1→T2 decision path)"
+      ],
+      "guardrails_pillar": ["NEVER expose dashboard on 0.0.0.0", "NEVER allow retrain without dry_run preview first", "NEVER read files outside ~/.claude/tools/router/"],
+      "key_files": ["dashboard/app/page.tsx", "dashboard/app/misroutes/page.tsx", "dashboard/app/community/page.tsx", "dashboard/README.md"],
+      "known_issues": ["Dashboard needs savings-tracker running on :7821", "No settings page", "No empty states for new users"],
       "enabled": true
     },
     {
@@ -85,16 +130,35 @@
       "name": "Statusline & Real-time Display",
       "weight": 0.08,
       "icon": "📊",
-      "description": "VS Code status bar, segments, truncation fix, responsive layout, provider dots",
+      "description": "VS Code status bar segments, layout, provider dots, savings display, context bar",
+      "current_state": "gsd-statusline.js (792 lines). Reads JSON from stdin (Claude Code passes model, workspace, context_window, session_id). Fetches metrics from savings-tracker :7821/metrics. Renders 3 lines: Line1=model+dir+context_bar, Line2=🐮+savings_hero, Line3=provider_dots. Supports FRUGAL_CURRENCY for BRL/EUR/GBP. Mode badges: 🦁 beast, 🧘 zen. Context bar normalises for 16.5% autocompact buffer.",
       "skills": [
-        "layout-optimizer: design segment layout that adapts to terminal width without truncation",
-        "data-viz: create effective sparklines, progress bars, and indicators for constrained space",
-        "responsive-tester: test rendering at different terminal widths (80/120/200 cols)",
-        "segment-designer: design new segments that convey maximum info in minimum space"
+        "number-validator: verify savings numbers match reality — does saved_pct from /metrics match what statusline shows? Does spent match? Cross-check advisory vs guaranteed savings",
+        "layout-tester: test rendering with different data: 0 prompts (new install), 1000 prompts, $0 saved, $100 saved, 99% savings, 1% savings. Do all cases look correct?",
+        "model-identifier: verify the model display_name shows correctly for each tier — does it say 'Opus 4.6' for T3, 'Sonnet' for T2, 'Haiku' for T1, 'qwen3:30b' for T0?",
+        "provider-dot-checker: verify provider dots: Cld●=Claude(ANTHROPIC_API_KEY), Oll●=Ollama(localhost:11434), GPT●=OpenAI(OPENAI_API_KEY). Are offline providers shown as ○?",
+        "responsive-tester: test with narrow context (80 cols) vs wide (200 cols) — does truncation happen? Is the 3-line layout readable?"
       ],
-      "prompt_guidance": "Generate prompts to fix and improve the statusline: fix truncation bug at line 712, implement responsive layout, improve 7-segment display, add per-model indicators, fix provider dots, improve savings display, add budget bar, test terminal widths, improve sparkline",
-      "key_files": ["tools/router/gsd-statusline.js", "docs/MASTER_PROMPTS/STATUSLINE_REDESIGN_MASTER_PROMPT.md"],
-      "known_issues": ["CRITICAL: file ends abruptly at line 712", "Truncation on narrow terminals"],
+      "verify": [
+        "fetchFrugalMetrics() calls savings-tracker :7821/metrics with optional session_id parameter",
+        "Context bar: remaining_percentage normalised by subtracting 16.5% autocompact buffer, scaled to 0-100%",
+        "Savings hero shows: ↓NN% saved ~$X.XX · spent ~$Y.YY (advisory)",
+        "Provider dots: Claude, Ollama, DeepSeek, Gemma, Gemini, GPT, Grok, Mistral — green● if key present, grey○ if not",
+        "Mode badge: reads .frugal-mode.json — beast=🦁, zen=🧘, auto=none",
+        "GSD update check: reads gsd-update-check.json cache file for ⬆ indicator",
+        "Context bridge: writes claude-ctx-{session}.json to temp dir for context-monitor hook"
+      ],
+      "improve": [
+        "Add per-turn LLM indicator (show which model was used for the last response)",
+        "Add tier cascade path (e.g. 'T0→T1→T2' showing how the decision escalated)",
+        "Improve number formatting (use locale-aware formatting, add thousand separators)",
+        "Add budget burn-down bar (how much of monthly budget is spent)",
+        "Add visual distinction between guaranteed savings (Option-A) and advisory savings",
+        "Test edge case: savings-tracker offline — statusline should degrade gracefully (no hang)"
+      ],
+      "guardrails_pillar": ["NEVER let statusline hang >3s (stdinTimeout already set)", "NEVER remove the silent catch — statusline must never crash", "NEVER make HTTP calls to external services from statusline"],
+      "key_files": ["tools/router/gsd-statusline.js", "tools/router/savings-tracker.js", "tools/router/frugal-turn-header.js"],
+      "known_issues": ["Previous truncation bug at line 712 now fixed (792 lines)", "Narrow terminal truncation not tested", "No per-turn LLM indicator"],
       "enabled": true
     },
     {
@@ -102,17 +166,32 @@
       "name": "Classifier Accuracy",
       "weight": 0.08,
       "icon": "🎯",
-      "description": "Pattern accuracy, tier boundaries, edge cases, misrouting detection",
+      "description": "11-pass classification pipeline, 114+ patterns, tier boundaries, demotion logic",
+      "current_state": "classify.js runs 11 passes in <50ms: cache→context→override→fast_paths→main_scoring→demotion→quality_intent→beast_intent→tuned_demote→budget_cap→provider_degradation. 114+ patterns in patterns.js (HIGH_RISK, MED_RISK, LOW_RISK, TRIVIAL). SHA-256 cache with 30min TTL. validation-set.json: 60 prompts, 88.3% accuracy (GATE PASS). 84 gold labels.",
       "skills": [
-        "boundary-prober: generate prompts at exact tier boundaries to find classification gaps",
-        "adversarial-gen: create prompts designed to fool the classifier (content vs intent confusion)",
-        "pattern-discoverer: identify common prompt patterns not covered by existing regex",
-        "regression-hunter: re-test previously fixed misroutings to ensure no regression",
-        "multilang-tester: test classification accuracy across PT-PT, PT-BR, EN, mixed-language"
+        "boundary-prober: generate prompts at exact tier boundaries — e.g. prompts that have 1 LOW_RISK + 1 MED_RISK signal (which wins?), prompts at exactly shortCutoff length",
+        "adversarial-gen: create prompts designed to fool the classifier — e.g. 'deploy this CSS change' (deploy keyword but trivial task), 'explain how to refactor' (refactor keyword but explanation)",
+        "pattern-discoverer: generate common developer prompts not covered by existing 114 patterns — test if they classify correctly",
+        "regression-hunter: re-test all 84 gold labels to ensure no regression after pattern changes",
+        "multilang-tester: test classification with PT-PT ('muda a cor'), PT-BR ('preciso que faça'), EN ('change the color'), mixed ('change a cor do botão')"
       ],
-      "prompt_guidance": "Generate prompts that test classification boundaries: risk keywords as content not intent, mixed-language, simple tasks with complex keywords, ambiguous tier boundaries, very short/long prompts, error traces, code blocks, quality_intent triggers, negative overrides, beast mode triggers",
-      "key_files": ["tools/router/classify.js", "tools/router/patterns.js", "tools/router/gold-labels.json", "tools/router/validation-set.json"],
-      "known_issues": ["7 drift items at 88.3% accuracy", "T1 cumulative accuracy low (historical)"],
+      "verify": [
+        "HIGH_RISK (deploy/migrate/push/secrets/architect/refactor) always → T3",
+        "Demotion logic: 'write a regex that matches deploy' → T1 not T3 (simple task intent overrides content keyword)",
+        "Quality intent: 'pensa bem nisto' promotes +1 tier",
+        "User override: '@opus' pins to T3, 'sem opus' demotes -1, HIGH_RISK refuses demotion",
+        "Fast paths: bash paste → T0, read intent → T0, commit message → T1",
+        "Ambiguous: short (<300 chars, no signals) → T0, medium → T1, long → T1",
+        "validate-set.js --strict measures pre-degradation tier (not penalised by missing API key)"
+      ],
+      "improve": [
+        "Fix remaining 7 drift items (2× T3→T0 long prompts, 2× T2→T0 PT-BR conversational, 1× T1→T2 over-classification, 1× T3→T2 quality_intent insufficient, 1× T2→T3 correct per doctrine)",
+        "Add gold labels for every new pattern added",
+        "Improve historical accuracy from 76% toward 85%"
+      ],
+      "guardrails_pillar": ["NEVER remove HIGH_RISK patterns", "NEVER lower ACCURACY_FLOOR below 0.85", "NEVER modify the 11-pass order without full regression test", "ALWAYS run validate-set.js --strict after any change"],
+      "key_files": ["tools/router/classify.js", "tools/router/patterns.js", "tools/router/gold-labels.json", "tools/router/validation-set.json", "tools/router/validate-set.js"],
+      "known_issues": ["7 drift items at 88.3%", "T1 cumulative accuracy polluted by old data", "2 historical T3 prompts unreachable by regex (master prompts)"],
       "enabled": true
     },
     {
@@ -120,16 +199,31 @@
       "name": "Prompt Optimizer & Tropicalization",
       "weight": 0.08,
       "icon": "⚡",
-      "description": "Token reduction strategies, model-aware optimization, A/B effectiveness",
+      "description": "5 strategies (S1-S5), model-aware ordering, token savings measurement",
+      "current_state": "prompt-optimizer.js applies 5 strategies sequentially: S1 padding removal, S2 tier-aware reformat (T0=dense, T3=Context/Task), S3 category framing (Debug:/Solve:/Translate:), S4 error trace structuring, S5 language normalization. v0.10.2: model-aware order (s1+s3 first for gemma/deepseek, s1+s2 first for qwen2.5:3b). Guardrails: never touches HIGH_RISK, <30 chars, architecture_or_critical. Win rate: 47.4% (57 tests).",
       "skills": [
-        "strategy-evaluator: A/B test each strategy (S1-S5) in isolation to measure individual impact",
-        "model-matcher: find optimal strategy combination per model family (qwen/gemma/deepseek)",
-        "token-counter: measure actual token savings vs quality retention per strategy",
-        "guardrail-tester: verify optimizer never touches HIGH_RISK or architecture prompts"
+        "strategy-isolator: A/B test each strategy (S1-S5) individually — which one contributes most to quality?",
+        "model-matcher: test s1+s2 vs s1+s3 ordering on each available Ollama model — verify the model-aware logic is correct",
+        "token-counter: measure actual chars saved per strategy, estimate tokens saved, verify savings-tracker reflects this",
+        "guardrail-tester: verify optimizer returns null for: HIGH_RISK prompts, <30 chars, architecture_or_critical category, already-optimized prompts"
       ],
-      "prompt_guidance": "Generate diverse prompts to test all 5 optimizer strategies: S1 padding removal, S2 tier reformat, S3 category framing, S4 error structuring, S5 language normalization. Test model-aware order: s1+s2 for small vs s1+s3 for large. Measure savings and quality",
+      "verify": [
+        "S1 removes: 'please', 'could you', 'I need you to', 'por favor', politeness tokens",
+        "S2 T0 reformat: multi-sentence → bullet list. S2 T3: long text → Context/Task structure",
+        "S3 category framing: bug_hunt → 'Debug:', math → 'Solve step-by-step:', summarize → 'Summarize:'",
+        "S4 error trace: restructures stack traces into structured format",
+        "S5 language: adds lang hint for mixed PT-EN prompts",
+        "Model-aware: preferCategoryFrame=true for gemma/deepseek/qwen3, false for qwen2.5:3b",
+        "Guardrails: returns null for HIGH_RISK, bash_command_paste, file_read_intent, already optimised"
+      ],
+      "improve": [
+        "Push win rate from 47% to 60%+ with better strategy combinations",
+        "Add S6: context window optimization (trim redundant context for T0 models with small context)",
+        "Measure quality retention per strategy (not just token savings)"
+      ],
+      "guardrails_pillar": ["NEVER let optimizer touch HIGH_RISK or architecture prompts", "NEVER change guardrail list in optimize()", "ALWAYS verify quality retention before changing strategy order"],
       "key_files": ["tools/router/prompt-optimizer.js", "tools/router/prompt-optimizer.test.js"],
-      "known_issues": ["Win rate 47.4% — target 60%+", "Model-aware strategy needs validation"],
+      "known_issues": ["Win rate 47.4% — model-aware strategy just implemented, needs more A/B data"],
       "enabled": true
     },
     {
@@ -137,16 +231,28 @@
       "name": "Community Hub & Federation",
       "weight": 0.08,
       "icon": "🌐",
-      "description": "Cloudflare Worker, D1 schema, R2 storage, delta sync, community stats",
+      "description": "Cloudflare Worker, D1, R2, delta sync, community stats, federated learning",
+      "current_state": "frugal-hub.frugal-hub.workers.dev (Cloudflare Worker). D1 database (320b55f6). R2 storage (frugal-hub-storage). hub-push.js sends anonymised deltas (24h cooldown). hub-pull.js fetches community tuning (4h cooldown). Hub never receives raw prompts — only tier distribution, hw_tier, saved_usd, profile_hash.",
       "skills": [
-        "api-tester: test all endpoints with valid and invalid payloads",
-        "perf-profiler: measure response times under load simulation",
-        "schema-validator: verify D1 schema matches expected structure",
-        "federation-auditor: verify anonymization of deltas, no PII leakage"
+        "api-tester: test GET /health, GET /api/stats, GET /api/version, POST /api/delta with valid and invalid payloads",
+        "privacy-auditor: verify hub-push.js payload contains ONLY: profile_hash, tier_distribution, saved_usd, hw_tier — no prompt text, no email, no paths",
+        "resilience-tester: verify hub-pull.js handles: hub offline (timeout), malformed JSON response, empty tuning data",
+        "sync-validator: verify .last-hub-push and .last-hub-pull cooldown files work correctly (24h and 4h respectively)"
       ],
-      "prompt_guidance": "Generate prompts to improve the hub: test API endpoints, improve aggregation logic, add rate limiting, improve stats dashboard, test D1 performance, optimize R2 storage, add error handling, test concurrent submissions",
-      "key_files": ["tools/router/hub-push.js", "tools/router/hub-pull.js", "tools/router/hub-status.js"],
-      "known_issues": ["mooter-hub D1 empty", "DNS blocked on Cloudflare zone transfer"],
+      "verify": [
+        "hub-push.js enriches delta with: subscription_profile, hw-capability, local metrics, routing audit, profile_hash (SHA256 16-char)",
+        "hub-pull.js downloads: community-tuning.json and model-catalog.json, with 4h cooldown",
+        "hub-status.js reports: local vs remote version, last sync timestamps, connectivity",
+        "All hub operations are non-blocking: if hub offline, local routing continues normally"
+      ],
+      "improve": [
+        "Populate mooter-hub D1 (currently empty — migration from frugal-hub pending)",
+        "Add retry logic to hub-push.js for transient failures",
+        "Complete DNS migration for hub.mooter.ai custom domain"
+      ],
+      "guardrails_pillar": ["NEVER send raw prompts to hub", "NEVER remove the 24h push cooldown", "NEVER make hub a dependency for local routing"],
+      "key_files": ["tools/router/hub-push.js", "tools/router/hub-pull.js", "tools/router/hub-status.js", "tools/router/hub-submit-events.js"],
+      "known_issues": ["mooter-hub D1 empty", "DNS blocked on Cloudflare zone transfer", "hub-submit-events requires FRUGAL_SUBMIT_TOKEN"],
       "enabled": true
     },
     {
@@ -154,16 +260,30 @@
       "name": "Supabase & Data Layer",
       "weight": 0.08,
       "icon": "🗄️",
-      "description": "Supabase tables, RLS policies, auth flow, profiles, devices",
+      "description": "8 Supabase tables, RLS policies, auth flows, profiles, devices, usage sessions",
+      "current_state": "Supabase project eymtobwinevywmmlmxqa (sa-east-1, ACTIVE_HEALTHY). 8 tables: waitlist(3 rows), url_analyses(10), profiles(1), devices(1), decisions_log(1), router_deltas(0), sessions(0), usage_sessions(0). Auth: Magic Link OTP + GitHub OAuth (read-only: public repos). No @supabase/supabase-js — uses raw fetch + REST (saves 300KB). Fail-open everywhere.",
       "skills": [
-        "schema-reviewer: audit table structure, indexes, constraints",
-        "rls-auditor: test row-level security for all roles (anon, authenticated, service)",
-        "query-optimizer: identify slow queries and suggest indexes",
-        "migration-planner: plan safe schema changes with rollback strategy"
+        "rls-auditor: verify RLS policies — anon can INSERT waitlist but NOT read profiles; authenticated can CRUD own profile but NOT others",
+        "query-tester: test all CRUD operations in supabase.ts: insertWaitlist, upsertAnalysis, getProfile, upsertProfile, upsertDevice",
+        "rate-limit-checker: verify decisions_log skips insert if last row < 5min old",
+        "migration-planner: check if all tables have proper indexes, constraints, and created_at defaults"
       ],
-      "prompt_guidance": "Generate prompts to improve data layer: audit 8 Supabase tables, fix RLS policies, improve auth flow, complete GitHub OAuth, design usage queries, improve profile structure, add device sync, create backup strategy",
-      "key_files": ["tools/router/user-profile.js", "INFRA.md"],
-      "known_issues": ["RLS policy fix needed for waitlist", "GitHub OAuth incomplete"],
+      "verify": [
+        "waitlist: anon INSERT-only, count-readable via HEAD",
+        "url_analyses: anon UPSERT with url as conflict key, 24h cache TTL",
+        "profiles: RLS user-owns-row, linked to auth.users.id",
+        "devices: RLS user-owns-rows, conflict on device_id",
+        "decisions_log: rate-limited 1 per 5min per device"
+      ],
+      "improve": [
+        "Fix RLS policy for waitlist anonymous INSERT",
+        "Complete GitHub OAuth callback flow",
+        "Add data retention policy (auto-purge old url_analyses after 90 days)",
+        "Populate sessions and usage_sessions tables from local data"
+      ],
+      "guardrails_pillar": ["NEVER change RLS to permissive", "NEVER expose service_role key", "NEVER remove fail-open pattern in supabase.ts"],
+      "key_files": ["landing/app/lib/supabase.ts", "tools/router/user-profile.js", "INFRA.md"],
+      "known_issues": ["RLS fix needed for waitlist", "GitHub OAuth callback incomplete", "3 tables have 0 rows"],
       "enabled": true
     },
     {
@@ -171,16 +291,29 @@
       "name": "Testing & Quality Gates",
       "weight": 0.08,
       "icon": "🧪",
-      "description": "A/B tests, gold labels, validation set, CI/CD, smoke tests",
+      "description": "89 tests, gold labels, validation set, CI/CD, backtest, shadow mode",
+      "current_state": "CI: .github/workflows/test.yml runs on push to tools/router/**. Tests: syntax check (6 files), smoke test, backtest.test.js (62 tests), event-builder self-test, gold labels replay, latency benchmark (<200ms avg), idempotency check. validate-set.js: 60 prompts, 88.3% (GATE PASS at 85%). Shadow mode: 5% sample, non-blocking.",
       "skills": [
-        "gold-label-curator: identify prompts that should be added to gold labels",
-        "ci-improver: suggest CI/CD pipeline improvements and new gates",
-        "stress-tester: generate high-volume test scenarios",
-        "regression-guard: create tests that prevent reintroduction of fixed bugs"
+        "gold-label-curator: identify prompts from tester findings that should become gold labels — must have clear expected tier",
+        "ci-improver: suggest new CI gates — e.g. performance regression gate, pattern count gate, prompt-optimizer test",
+        "regression-tester: after any classify.js change, verify all 84 gold labels still pass and accuracy >= 88.3%",
+        "stress-generator: generate 100+ prompts in rapid succession to test classifier under load"
       ],
-      "prompt_guidance": "Generate prompts to improve testing: add edge case gold labels, create adversarial prompts, improve CI/CD pipeline, add regression tests for demotion logic, create stress tests, improve shadow mode, add quality gate automation",
-      "key_files": ["tools/router/gold-labels.json", "tools/router/validation-set.json", "tools/router/backtest.test.js", ".github/workflows/test.yml"],
-      "known_issues": ["88.3% accuracy (gate at 85%)", "Shadow mode at 5% sample"],
+      "verify": [
+        "CI pipeline: syntax → staging → backtest → gold labels → latency → idempotency",
+        "validate-set.js --strict: canonical 100%, overall >= 85%",
+        "backtest.js: analyses decisions.log, generates router-tuning.json, respects TUNING_EXCLUDE",
+        "update-router.js: idempotent (2 runs = identical output), creates .bak backup"
+      ],
+      "improve": [
+        "Add performance regression CI gate (classify.js avg <50ms)",
+        "Add prompt-optimizer.test.js to CI pipeline",
+        "Increase gold labels from 84 to 100+ for better coverage",
+        "Add shadow mode verdict integration into backtest"
+      ],
+      "guardrails_pillar": ["NEVER lower gate thresholds", "NEVER skip backtest.test.js", "NEVER deploy without validate-set.js passing"],
+      "key_files": ["tools/router/gold-labels.json", "tools/router/validation-set.json", "tools/router/validate-set.js", "tools/router/backtest.test.js", ".github/workflows/test.yml"],
+      "known_issues": ["Shadow mode at 5% sample rate", "No performance regression gate in CI"],
       "enabled": true
     },
     {
@@ -188,16 +321,29 @@
       "name": "Documentation & Guides",
       "weight": 0.08,
       "icon": "📝",
-      "description": "README, architecture docs, user guides, installation guides",
+      "description": "README, architecture, methodology, user guides, 34 docs, 8 prompts",
+      "current_state": "Root: README.md(324L), CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, LICENSE. docs/: 34 files including HOW_IT_WORKS, ROUTING_POLICY, MODEL_MAPPING, LIMITATIONS, METHODOLOGY(19 sections), MASTER_ARCHITECTURE(48KB). 25+ master prompts in docs/MASTER_PROMPTS/. 8 prompt templates in prompts/. Scattered naming: MP-N, PRD-*, docs vs prompts vs output dirs.",
       "skills": [
-        "reader-advocate: rewrite docs from a first-time reader perspective",
-        "example-generator: create practical examples for every slash command",
-        "diagram-creator: suggest architecture diagrams and flowcharts",
-        "changelog-writer: summarize changes clearly for non-technical stakeholders"
+        "reader-advocate: read README.md as a first-time visitor — can they understand what mooter does, how to install, how to use in <2 minutes?",
+        "example-generator: create practical examples for each of the 12 slash commands with expected output",
+        "freshness-checker: find docs that reference 'frugal' (pre-rebrand), outdated version numbers, or dead links",
+        "structure-auditor: map all .md files and identify: duplicates, orphans, conflicting information between docs"
       ],
-      "prompt_guidance": "Generate prompts to improve documentation: rewrite README for visitors, create quick-start guide, document all slash commands, improve architecture diagrams, write FAQ, create migration guide, improve methodology readability",
-      "key_files": ["README.md", "ARCHITECTURE.md", "docs/METHODOLOGY.md", "CONTRIBUTING.md"],
-      "known_issues": ["README still has 'frugal' references", "No quick-start guide"],
+      "verify": [
+        "README.md explains: what mooter is, how to install, how to use, tier system, savings claim",
+        "METHODOLOGY.md 19 sections cover: formula, tier system, quality gates, feedback loop",
+        "All slash commands documented somewhere (may be scattered across files)",
+        "Installation steps in README match actual install.sh behavior"
+      ],
+      "improve": [
+        "Create a 5-minute quick-start guide (doesn't exist)",
+        "Replace 'frugal' references with 'mooter' in README and key docs",
+        "Consolidate scattered docs (MP-N naming, prompts/ vs docs/)",
+        "Add architecture diagram (ASCII or mermaid) to README"
+      ],
+      "guardrails_pillar": ["NEVER delete existing docs without backup", "NEVER change METHODOLOGY.md formulas without verification", "NEVER remove security disclosure instructions from SECURITY.md"],
+      "key_files": ["README.md", "ARCHITECTURE.md", "docs/METHODOLOGY.md", "docs/HOW_IT_WORKS.md", "CONTRIBUTING.md"],
+      "known_issues": ["README still has 'frugal' references", "No quick-start guide", "34 docs scattered across 3 directories"],
       "enabled": true
     },
     {
@@ -205,16 +351,31 @@
       "name": "Installation & Onboarding",
       "weight": 0.08,
       "icon": "📦",
-      "description": "Cross-platform installer, first-run, hardware detection, model setup",
+      "description": "install.sh (469L), install-windows.ps1, first-run, smoke test, hardware detection",
+      "current_state": "install.sh: backup→ollama_check→copy_files→hook_merge(non-destructive)→exec_logger→stop_hook→subscription_wizard→launchagent→savings_tracker→smoke_test. install-windows.ps1: same flow, PowerShell 5.1+, supports --DryRun/--Doctor/--Uninstall/--Force. frugal-doctor.js for diagnostics. gpu-probe.js detects NVIDIA/Apple/AMD/CPU.",
       "skills": [
-        "cross-platform-tester: verify install works on Linux/macOS/Windows",
-        "first-run-designer: design the ideal first 5 minutes experience",
-        "error-recovery: design graceful handling for install failures",
-        "dependency-checker: verify all prerequisites before installation"
+        "cross-platform-validator: verify install.sh handles: no Ollama installed, no ANTHROPIC_API_KEY, existing CLAUDE.md (--force vs refuse), fresh vs upgrade install",
+        "first-run-tester: after fresh install, what happens on first prompt? Does the hook fire? Does classify.js work? Does savings-tracker start?",
+        "error-recovery: what happens if: install.sh interrupted mid-copy, settings.json corrupted, Ollama model not downloaded?",
+        "smoke-test-validator: verify smoke-test.js tests: classify('rename variable') → T0, classify('deploy to production') → T3"
       ],
-      "prompt_guidance": "Generate prompts to improve installation: test install.sh, test Windows installer, improve first-run wizard, add auto Ollama model pull, improve hardware detection, add subscription detection, improve error messages, create uninstall script",
-      "key_files": ["install.sh", "install-windows.ps1", "tools/router/frugal-doctor.js", "tools/router/gpu-probe.js"],
-      "known_issues": ["VSCode extension pending PAT", "LaunchAgent macOS not tested"],
+      "verify": [
+        "install.sh creates ~/.claude/tools/router/ with all 87 JS files",
+        "install.sh merges UserPromptSubmit hook into settings.json (never overwrites)",
+        "install.sh creates backup in ~/.claude/backups/install-TIMESTAMP/",
+        "install.sh starts savings-tracker.js in background on :7821",
+        "smoke-test.js validates classifier works before install completes",
+        "gpu-probe.js correctly detects GPU type and VRAM"
+      ],
+      "improve": [
+        "Add automatic Ollama model pulling (ollama pull qwen2.5:3b) in install.sh",
+        "Add Windows Task Scheduler registration for daily backtest",
+        "Improve error messages: 'Ollama not found' → 'Install Ollama from ollama.ai, then run this again'",
+        "Add post-install walkthrough: what to try first"
+      ],
+      "guardrails_pillar": ["NEVER destructively overwrite settings.json", "NEVER skip backup step", "NEVER run without smoke test at the end"],
+      "key_files": ["install.sh", "install-windows.ps1", "tools/router/frugal-doctor.js", "tools/router/gpu-probe.js", "tools/router/smoke-test.js"],
+      "known_issues": ["VSCode extension pending Azure DevOps PAT", "macOS LaunchAgent not fully tested", "Windows Task Scheduler not wired"],
       "enabled": true
     },
     {
@@ -222,16 +383,30 @@
       "name": "Performance & Latency",
       "weight": 0.08,
       "icon": "🏎️",
-      "description": "Classification latency, cache hit rate, startup time, memory usage",
+      "description": "classify.js <50ms, inject_context 113ms p50, cache hit rate, memory, startup",
+      "current_state": "classify.js: 11 passes, cold ~45ms, cached ~1ms (SHA-256, 30min TTL). inject_context.js: p50 dropped from 3s to 113ms via budget cache + classify cache + Ollama warmup + PID-file check. savings-tracker: single-instance, 4s cache, 400ms hard timeout. Privacy scrubbing: 12 regex passes ~5-10ms. Latency telemetry: p50=64s, p95=428s (measured wall clock, includes model execution time).",
       "skills": [
-        "latency-profiler: benchmark each pass of the 11-pass classifier pipeline",
-        "cache-optimizer: improve SHA-256 cache hit rate and TTL tuning",
-        "memory-profiler: track memory usage during long sessions",
-        "startup-optimizer: reduce cold-start time for classify.js and inject_context.js"
+        "latency-profiler: measure each of the 11 classification passes individually — which pass is slowest?",
+        "cache-analyzer: measure SHA-256 cache hit rate over a session — is the 30min TTL too short or too long?",
+        "startup-profiler: measure time from node process start to first classification result — where's the bottleneck?",
+        "memory-tracker: check if decisions.log reader leaks memory over long sessions (1000+ prompts)"
       ],
-      "prompt_guidance": "Generate prompts to improve performance: benchmark classify.js, optimize regex order, improve cache hit rate, reduce inject_context overhead, optimize savings-tracker, add Ollama preloading, reduce memory footprint, add performance regression tests",
-      "key_files": ["tools/router/classify.js", "tools/router/inject_context.js", "tools/router/savings-tracker.js"],
-      "known_issues": ["Cold start ~45ms (target <30ms)", "No performance regression gate"],
+      "verify": [
+        "classify.js cold start <50ms on 100-run average (CI gate: <200ms)",
+        "classify.js cached response <5ms",
+        "inject_context.js total overhead <500ms (Claude Code timeout)",
+        "savings-tracker /metrics response <400ms (hard timeout)",
+        "Ollama warmup keeps model in RAM (keep_alive=-1)"
+      ],
+      "improve": [
+        "Reduce cold start from 45ms to <30ms by optimizing regex order (most common patterns first)",
+        "Add performance regression gate to CI pipeline",
+        "Optimize decisions.log reading for large files (>10K entries)",
+        "Add memory profiling to long-running tester sessions"
+      ],
+      "guardrails_pillar": ["NEVER add synchronous HTTP calls to classify.js", "NEVER increase inject_context overhead above 500ms", "NEVER remove the stdinTimeout safety in statusline"],
+      "key_files": ["tools/router/classify.js", "tools/router/inject_context.js", "tools/router/savings-tracker.js", "tools/router/ollama-warmup.js"],
+      "known_issues": ["Cold start ~45ms (target <30ms)", "No performance regression gate in CI", "decisions.log reader not optimised for >10K entries"],
       "enabled": true
     }
   ],
@@ -239,7 +414,7 @@
   "progressive_chains": {
     "enabled": true,
     "max_chain_length": 4,
-    "_doc": "Every 4th cycle: analyse → suggest improvements → implement best → write tests"
+    "_doc": "Every 4th cycle: analyse current state → suggest improvements → implement best → write verification tests"
   },
 
   "quality_tracking": {
