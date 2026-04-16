@@ -31,6 +31,22 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+// ── ALGORITHM VERSION (for retraining provenance) ──────────────────────
+// Format: "v{semver}-{git_short_hash}" — computed once at load time.
+const ALGORITHM_VERSION = (() => {
+  try {
+    const vPath = path.join(__dirname, 'version.json');
+    const v = JSON.parse(fs.readFileSync(vPath, 'utf8')).version || '0.0.0';
+    // Try git hash from __dirname first, then from CWD (covers both repo and runtime copies)
+    const { execSync } = require('child_process');
+    let hash = '';
+    for (const cwd of [__dirname, process.cwd()]) {
+      try { hash = execSync('git rev-parse --short HEAD', { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim(); if (hash) break; } catch {}
+    }
+    return `v${v}-${hash || 'local'}`;
+  } catch { return 'v0.0.0-unknown'; }
+})();
+
 // SHA-256 cache — skip regex for identical prompts within 30min
 const classifyCache = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -301,6 +317,27 @@ function extractPromptFeatures(text) {
     is_question: /[?？]\s*$/.test(t.trim()),
     has_url: /https?:\/\//.test(t),
   };
+}
+
+// ── COMPLEXITY SCORE (0.0-1.0) ─────────────────────────────────────────
+// Composite score for retraining: groups "easy T0" vs "hard T0".
+// Inputs: prompt length, file refs, risk signal counts, prompt features.
+// NOT a quality metric — just how "complex" the prompt appears structurally.
+function computeComplexity(len, fileMatches, high, med, low, features) {
+  let score = 0;
+  // Length contribution (0-0.3): longer prompts are structurally more complex
+  score += Math.min(0.3, (len / 2000) * 0.3);
+  // File reference contribution (0-0.15): more files = more scope
+  score += Math.min(0.15, fileMatches * 0.05);
+  // Risk signal contribution (0-0.3): high/med signals indicate complexity
+  score += Math.min(0.3, high * 0.15 + med * 0.08 + low * 0.02);
+  // Code block contribution (0-0.1)
+  if (features && features.has_code_block) score += 0.1;
+  // Error trace contribution (0-0.1)
+  if (features && features.has_error_trace) score += 0.1;
+  // Question mark (0-0.05): questions are slightly more complex than commands
+  if (features && features.is_question) score += 0.05;
+  return Math.round(Math.min(1.0, score) * 1000) / 1000;
 }
 
 function classify(prompt) {
@@ -662,6 +699,9 @@ function classify(prompt) {
     t0_subtier: tier === 'T0' ? t0Subtier : null,
     // v0.9.1: prompt features (derived booleans, never raw text)
     ...promptFeatures,
+    // v0.10: retraining foundation — provenance + complexity
+    algorithm_version: ALGORITHM_VERSION,
+    prompt_complexity_score: computeComplexity(len, fileMatches, high, med, low, promptFeatures),
   };
 
   // ── USER OVERRIDE (highest priority short of HIGH_RISK guardrail) ────────
