@@ -177,12 +177,103 @@ function addArea(cfg, id, description) {
   console.log(`  Use: node mooter-focus.js ${id} to make it primary.\n`);
 }
 
+// ── Live Status (reads tester history to show per-pillar progress) ──
+function showStatus(cfg) {
+  // Read tester history for focus area stats
+  const historyPath = path.join(__dirname, 'mooter-tester-history.jsonl');
+  let events = [];
+  try {
+    events = require('fs').readFileSync(historyPath, 'utf8')
+      .split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  } catch { /* no history yet */ }
+
+  // Count per-focus-area from classification events
+  const areaStats = {};
+  const areaLast = {};
+  for (const e of events) {
+    if (e.event === 'tester_classification' && e.focus_area) {
+      if (!areaStats[e.focus_area]) areaStats[e.focus_area] = { prompts: 0, chains: 0, misroutings: 0 };
+      areaStats[e.focus_area].prompts++;
+      if (e.chain_position) areaStats[e.focus_area].chains++;
+      areaLast[e.focus_area] = e.ts;
+    }
+    if (e.event === 'tester_misrouting' && e.focus_area) {
+      if (!areaStats[e.focus_area]) areaStats[e.focus_area] = { prompts: 0, chains: 0, misroutings: 0 };
+      areaStats[e.focus_area].misroutings++;
+    }
+  }
+
+  // Also count autopilot
+  for (const e of events) {
+    if (e.event === 'tester_classification' && e.prompt_source === 'autopilot') {
+      if (!areaStats['autopilot']) areaStats['autopilot'] = { prompts: 0, chains: 0, misroutings: 0 };
+      areaStats['autopilot'].prompts++;
+    }
+  }
+
+  // Total events and time range
+  const totalClassifications = events.filter(e => e.event === 'tester_classification').length;
+  const first = events[0]?.ts?.slice(0, 16) || 'n/a';
+  const last = events[events.length - 1]?.ts?.slice(0, 16) || 'n/a';
+
+  const areas = (cfg.focus_areas || []).filter(a => a.enabled !== false);
+  const totalWeight = areas.reduce((s, a) => s + (a.weight || 0), 0);
+  const primary = areas.reduce((best, a) => (a.weight || 0) > (best.weight || 0) ? a : best, areas[0]);
+  const isPrimary = primary && primary.weight / totalWeight > 0.5;
+
+  console.log(`
+╔══════════════════════════════════════════════════════════════════╗
+║  🐮 MOOTER PILLAR STATUS — All Dimensions Live                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  ${isPrimary ? '🎯 PRIMARY: ' + primary.name : '🔄 Mode: Balanced (autopilot active)'}
+  Data range: ${first} → ${last}
+  Total classifications: ${totalClassifications}
+`);
+
+  // Show each pillar with real data
+  for (const a of areas) {
+    const icon = a.icon || '●';
+    const pct = totalWeight > 0 ? Math.round((a.weight || 0) / totalWeight * 100) : 0;
+    const stats = areaStats[a.id] || { prompts: 0, chains: 0, misroutings: 0 };
+    const lastSeen = areaLast[a.id] ? areaLast[a.id].slice(11, 16) : '—';
+    const issues = (a.known_issues || []).length;
+    const skills = (a.skills || []).length;
+    const verifyCount = (a.verify || []).length;
+    const improveCount = (a.improve || []).length;
+
+    const bar = '█'.repeat(Math.min(20, Math.round(stats.prompts / 5))) + '░'.repeat(Math.max(0, 20 - Math.round(stats.prompts / 5)));
+    const marker = isPrimary && a === primary ? ' ◀' : '';
+
+    console.log(`  ${icon} ${a.id.padEnd(14)} ${bar} ${String(stats.prompts).padStart(4)}p ${String(stats.chains).padStart(2)}ch ${String(stats.misroutings).padStart(2)}mis │ ${skills}sk ${verifyCount}vf ${improveCount}im │ ${lastSeen}${marker}`);
+  }
+
+  // Autopilot line
+  const apStats = areaStats['autopilot'] || { prompts: 0, chains: 0, misroutings: 0 };
+  if (apStats.prompts > 0) {
+    const apBar = '█'.repeat(Math.min(20, Math.round(apStats.prompts / 5))) + '░'.repeat(Math.max(0, 20 - Math.round(apStats.prompts / 5)));
+    console.log(`  🤖 autopilot      ${apBar} ${String(apStats.prompts).padStart(4)}p                │ 6sk         │`);
+  }
+
+  console.log(`
+  Legend: p=prompts ch=chains mis=misroutings sk=skills vf=verify im=improve
+
+  Commands:
+    /mooter-focus <pillar>    Set primary focus (70/30 split)
+    /mooter-focus reset       Balanced + autopilot
+    /mooter-focus list        Full pillar catalog
+    /mooter-review            See delta findings + recommendations
+`);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 const cfg = loadConfig();
 const cmd = process.argv[2];
 
 if (!cmd) {
   showCurrent(cfg);
+} else if (cmd === 'status' || cmd === 'dashboard') {
+  showStatus(cfg);
 } else if (cmd === 'reset') {
   resetFocus(cfg);
 } else if (cmd === 'list') {
