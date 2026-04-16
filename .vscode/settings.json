@@ -40,7 +40,7 @@
   },
 
   // ── Frugal — ficheiros importantes em destaque ──────────────────────────
-  "workbench.colorTheme": "Default Dark+",
+  "workbench.colorTheme": "Dark+",
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
     "classify.js": "classify.js.bak, router-tuning.json",

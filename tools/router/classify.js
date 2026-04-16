@@ -27,6 +27,23 @@ const TUNED_PROMOTE_T0 = [/\bthinking\b/i, /\bwe\s+are\s+generating\b/i, /\bmix\
 const TUNED_DEMOTE_T3 = [/\bthinking\b/i, /\bhow\s+should\s+we\b/i, /\bformat\s+this\s+as\b/i];
 // ── TUNED-BLOCK-END ──
 
+// ── ARCH_SIGNALS (mooter-review #2, 2026-04-16) ───────────────────────
+// Architecture keywords that force T3 even when len<100 && triv==0
+// would otherwise demote to T0 via line ~526 or TUNED_PROMOTE_T0.
+// Requires 2+ matches to avoid single-keyword false positives like
+// "design a logo" or "buy a system". The canonical failing prompt was
+// "design a distributed payment system with stripe webhooks and fraud
+// detection" (78 chars, no file hints) — previously routed to T0.
+const ARCH_SIGNALS = [
+  /\bdesign(?:ing|ed)?\b/i,
+  /\bdistributed\b/i,
+  /\bpayment(?:s)?\b/i,
+  /\bsystem(?:s)?\b/i,
+  /\bfraud\b/i,
+  /\bscalab(?:le|ility)\b/i,
+  /\bmulti[-\s]?tenant\b/i,
+];
+
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -602,6 +619,23 @@ function classify(prompt) {
         ? 'tuned_promote_from_backtest'
         : `${escalation_rule}+tuned_promote`;
     reasoning = `${reasoning}; tuned_promote → T0 (pattern match from backtest)`;
+  }
+
+  // ── ARCH_SIGNALS guard (mooter-review #2) ──────────────────────────────
+  // Architecture prompts force T3 even when trivial signals / short length
+  // would otherwise demote them (including via TUNED_PROMOTE_T0 above).
+  // Runs AFTER TUNED_PROMOTE_T0 so it overrides any stray demotion.
+  const archHits = ARCH_SIGNALS.reduce((n, rx) => n + (rx.test(p) ? 1 : 0), 0);
+  if (archHits >= 2 && tier !== 'T3') {
+    tier = 'T3';
+    category = 'architecture_or_critical';
+    risk = 'high';
+    confidence = Math.max(confidence, 0.85);
+    escalation_rule =
+      escalation_rule === 'none'
+        ? 'arch_signals_force_t3'
+        : `${escalation_rule}+arch_signals_force_t3`;
+    reasoning = `${reasoning}; arch_signals (${archHits} matches) → forced T3`;
   }
 
   // ── QUALITY INTENT PROMOTION (v0.7) ────────────────────────────────────
