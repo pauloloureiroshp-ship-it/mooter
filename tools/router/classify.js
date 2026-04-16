@@ -423,12 +423,35 @@ function classify(prompt) {
     };
   }
 
-  if (high > 0 || multiFile || /\barchitect|arquitetur/i.test(p)) {
+  // v0.10.2: LOW_RISK demotion — when a prompt has HIGH_RISK keywords as content
+  // (not action intent) but is clearly a simple task (regex/explain/translate),
+  // the LOW_RISK signal should win. E.g. "write a regex that matches hexagonal
+  // architecture" is T1 not T3; "explain the difference between REST and GraphQL"
+  // is T1 not T3; "show me the package.json dependencies" is T0 not T3.
+  const SIMPLE_TASK_INTENT = /^\s*(?:write|genera?t?e?|cria|build|make)\s+(?:a\s+|um\s+)?regex\b/i.test(p)
+    || /^\s*(?:explain|explica|what\s+is|o\s+que\s+[eé])\b/i.test(p)
+    || /^\s*(?:translate?|traduz\w*|convert\w*)\b/i.test(p)
+    || /^\s*(?:show|mostra|list|lista|read|lê|view|cat)\s/i.test(p);
+  const lowRiskDemote = SIMPLE_TASK_INTENT && !multiFile && (
+    (high > 0 && low > 0) ||        // HIGH_RISK keyword is content, not intent
+    (med > 0 && low > 0 && high === 0) // MED_RISK keyword is content (e.g. "translate ... bug")
+  );
+
+  if ((high > 0 || multiFile || /\barchitect|arquitec?tur/i.test(p)) && !lowRiskDemote) {
     tier = 'T3';
     category = multiFile ? 'cross_file_change' : 'architecture_or_critical';
     risk = 'high';
     confidence = high >= 2 ? 0.9 : 0.75;
     reasoning = `high-risk signals: ${high}, multiFile: ${multiFile}`;
+  } else if (lowRiskDemote) {
+    // Risk keyword is content, not intent — demote to appropriate tier
+    // translate/show → T0 (trivial), regex/explain → T1 (low)
+    const isTrivialIntent = /^\s*(?:translate?|traduz\w*|show|mostra|list|lista|read|lê|view|cat)\b/i.test(p);
+    tier = isTrivialIntent ? 'T0' : 'T1';
+    category = isTrivialIntent ? 'trivial_local' : 'simple_transform_or_explain';
+    risk = isTrivialIntent ? 'minimal' : 'low';
+    confidence = 0.8;
+    reasoning = `risk keyword in content but simple task intent — demoted to ${tier}`;
   } else if (med > 0 && med >= low) {
     tier = 'T2';
     category = 'reasoning_intermediate';

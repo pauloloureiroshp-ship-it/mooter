@@ -537,5 +537,61 @@
     "expected_tier": "T0",
     "expected_category": "format-transform",
     "notes": "no LOW_RISK signal for 'convert'; consistent with gl-032 (same prompt, T0); fixed 2026-04-16"
+  },
+  {
+    "id": "gl-078",
+    "prompt": "show me the package.json dependencies",
+    "expected_tier": "T0",
+    "expected_category": "file-read",
+    "source": "mooter-tester",
+    "notes": "read-only intent on package.json — should not trigger HIGH_RISK guardrail"
+  },
+  {
+    "id": "gl-079",
+    "prompt": "write a regex that matches hexagonal architecture",
+    "expected_tier": "T1",
+    "expected_category": "simple_transform_or_explain",
+    "source": "mooter-tester",
+    "notes": "regex writing task — 'architecture' is content, not decision intent"
+  },
+  {
+    "id": "gl-080",
+    "prompt": "translate this comment to English: // temporal fix para o bug",
+    "expected_tier": "T0",
+    "expected_category": "trivial_local",
+    "source": "mooter-tester",
+    "notes": "simple translation, no reasoning needed"
+  },
+  {
+    "id": "gl-081",
+    "prompt": "how should we handle token expiry in our analytics?",
+    "expected_tier": "T2",
+    "expected_category": "reasoning_intermediate",
+    "source": "mooter-tester",
+    "notes": "design question requiring reasoning about tradeoffs"
+  },
+  {
+    "id": "gl-082",
+    "prompt": "explain the difference between REST and GraphQL",
+    "expected_tier": "T1",
+    "expected_category": "simple_transform_or_explain",
+    "source": "mooter-tester",
+    "notes": "conceptual explanation — not an architecture decision"
+  },
+  {
+    "id": "gl-083",
+    "prompt": "review this approach: using Redis instead of GraphQL for IoT",
+    "expected_tier": "T2",
+    "expected_category": "reasoning_intermediate",
+    "source": "mooter-tester",
+    "notes": "approach comparison requiring analysis, not production review"
+  },
+  {
+    "id": "gl-084",
+    "prompt": "how should we handle graceful shutdown in our billing?",
+    "expected_tier": "T2",
+    "expected_category": "reasoning_intermediate",
+    "source": "mooter-tester",
+    "notes": "design question about error handling strategy"
   }
 ]
