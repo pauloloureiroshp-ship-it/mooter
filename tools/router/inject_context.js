@@ -1031,16 +1031,28 @@ try {
 } catch { /* directive is best-effort */ }
 
 // MP-20: methodology context line when session is heavy (< 5% savings)
+// Fix: replaced top-level await (breaks CJS in Node 24) with spawnSync fetch.
 try {
-  const mRes = await httpGet('http://127.0.0.1:7821/metrics', 400);
-  if (mRes && mRes.ok && mRes.json && (mRes.json.prompts || 0) > 10) {
-    const sessionPct = mRes.json.session_saved_pct || mRes.json.saved_pct || 0;
-    if (sessionPct < 5) {
-      const totalSaved = (mRes.json.saved || 0).toFixed(2);
-      const guaranteed = mRes.json.guaranteed_saved || 0;
-      const gLabel = guaranteed > 0 ? ` · $${guaranteed.toFixed(2)} guaranteed` : '';
-      lines.push('');
-      lines.push(`ℹ  Total savings: ~$${totalSaved} advisory${gLabel} · methodology: token-estimated vs Opus baseline`);
+  const mRaw = spawnSync('node', ['-e', `
+    const http = require('http');
+    const req = http.get('http://127.0.0.1:7821/metrics', r => {
+      let d = ''; r.on('data', c => d += c);
+      r.on('end', () => process.stdout.write(d));
+    });
+    req.on('error', () => process.exit(1));
+    req.setTimeout(400, () => { req.destroy(); process.exit(2); });
+  `], { encoding: 'utf8', timeout: 600, stdio: ['pipe', 'pipe', 'pipe'] });
+  if (mRaw.status === 0 && mRaw.stdout) {
+    const mJson = JSON.parse(mRaw.stdout);
+    if ((mJson.prompts || 0) > 10) {
+      const sessionPct = mJson.session_saved_pct || mJson.saved_pct || 0;
+      if (sessionPct < 5) {
+        const totalSaved = (mJson.saved || 0).toFixed(2);
+        const guaranteed = mJson.guaranteed_saved || 0;
+        const gLabel = guaranteed > 0 ? ` · $${guaranteed.toFixed(2)} guaranteed` : '';
+        lines.push('');
+        lines.push(`ℹ  Total savings: ~$${totalSaved} advisory${gLabel} · methodology: token-estimated vs Opus baseline`);
+      }
     }
   }
 } catch { /* best-effort */ }
