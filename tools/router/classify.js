@@ -512,7 +512,7 @@ function classify(prompt) {
   // Beast-mode intent — user signals cost is irrelevant, wants maximum quality.
   // Unlike quality_intent (promote +1), this PINS to T3 directly.
   const BEAST_INTENT = [
-    /\bn[aã]o\s+(?:me\s+)?import[ao]\s+(?:com\s+)?(?:dinheiro|cu[s]to|preço|price|money)/i,
+    /\bn[aã]o\s+(?:me\s+)?import[ao]\s+(?:com\s+)?(?:o\s+)?(?:dinheiro|cu[s]to|preço|price|money)/i,
     /\b(?:beast|gsd)\s+mode\b/i,
     /\bvelocidade\s+m[aá]xima\b/i,
     /\bfor[çc]a\s+opus\b/i,
@@ -520,6 +520,12 @@ function classify(prompt) {
     /\buse\s+(?:the\s+)?best\s+(?:model|llm)\b/i,
     /\bfull\s+power\b/i,
     /\bdon'?t\s+(?:care|worry)\s+about\s+(?:cost|money|price|budget)/i,
+    // A/B test 2026-04-16 — P10: "Não me importo com o custo" not detected
+    /\bcusto\s+n[aã]o\s+(?:me\s+)?interessa/i,  // "custo não interessa"
+    /\bn[aã]o\s+poupes\b/i,                       // "não poupes" — don't save
+    /\bpreciso\s+d[ao]\s+melhor/i,                 // "preciso da melhor análise"
+    /\bgive\s+me\s+(?:your\s+)?best/i,            // "give me your best"
+    /\bmelhor\s+an[aá]lise\s+poss[ií]vel/i,       // "melhor análise possível"
   ];
   if (!qualityIntent && BEAST_INTENT.some((rx) => rx.test(p))) {
     tier = 'T3';

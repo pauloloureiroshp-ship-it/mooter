@@ -177,9 +177,9 @@
   {
     "id": "gl-026",
     "prompt": "generate a commit message for these changes",
-    "expected_tier": "T0",
+    "expected_tier": "T1",
     "expected_category": "commit-message",
-    "notes": "classifier routes short generation tasks to T0"
+    "notes": "commit fast-path routes to T1 (cheap-triage); fixed 2026-04-16 — was T0, contradicted gl-076"
   },
   {
     "id": "gl-027",
@@ -534,8 +534,8 @@
   {
     "id": "gl-077",
     "prompt": "convert this JSON to a markdown table",
-    "expected_tier": "T1",
+    "expected_tier": "T0",
     "expected_category": "format-transform",
-    "notes": "format transformation task, T1 tier"
+    "notes": "no LOW_RISK signal for 'convert'; consistent with gl-032 (same prompt, T0); fixed 2026-04-16"
   }
 ]

@@ -41,7 +41,7 @@ const HIGH_RISK = [
   /\bmulti[- ]?tenant/i,               // added v0.9.3 — architecture pattern, was T0
   // v0.9.3 stress-test batch — 16 failures found in 47-prompt suite
   /\bpush\s+(para|to)\s+(main|master|prod)/i, // "push para main" was T0
-  /\bmerge\s+(a\s+)?branch/i,          // "merge a branch" was T0
+  /\bmerg(e|ing)\s+(a\s+|the\s+)?branch/i, // "merge/merging a branch" was T0
   /\bmigrate\b/i,                      // "migrate the database" — verb form missing (only had "migration")
   /\bmicroservic/i,                    // "create a new microservice" — architecture signal
   /\bmove\b.*\bupdate\s+(all\s+)?imports/i, // "move folder and update all imports" — multi-file
@@ -49,8 +49,8 @@ const HIGH_RISK = [
   /\bpush\s+(to|para)\s+stag/i,         // "push to staging" — deploy signal
   /\bdelete\b.*\btable\b/i,             // "delete the user table" — destructive
   /\bOAuth/i,                           // "set up OAuth2" — auth architecture
-  /\bauthenticat\b/i,                   // "authentication with JWT" — auth design
-  /\breview\b.*\bmerge\b/i,             // "review before merge" — pre-merge gate
+  /\bauthenticat/i,                      // "authentication/authenticate/authenticated" — auth design (v0.9 fix: trailing \b broke match)
+  /\breview\b.*\bmerg/i,                // "review before merge/merging" — pre-merge gate (v0.9 fix: trailing \b broke "merging")
   /\bPR\s*#?\d+\b.*\breview/i,          // "PR #42 needs review" — code review
   // v0.9.3 mega-test batch — security (9 fails), arch (5), devops (3)
   /\bXSS\b/,                            // "vulnerable to XSS" — security
@@ -75,6 +75,8 @@ const HIGH_RISK = [
   /\bmonolith/i,                        // "split the monolith" — architecture
   // v0.9.3 adversarial-gen batch — template mismatches
   /\breview\b.*\bpush/i,               // "review before pushing to main" — pre-push gate
+  /\bPR\b.*\bbefore\s+merg/i,          // "PR before merging" — pre-merge gate (stress test 2026-04-16)
+  /\bbefore\s+merg/i,                  // "before merging" — pre-merge gate
   /\bbypass/i,                          // "auth bypass" — security signal
   /\bpatch(ed)?\b/i,                   // "needs to be patched" — security fix
   // Sprint B.0 safety fix — PT verb conjugations + PR/merge patterns
@@ -84,6 +86,11 @@ const HIGH_RISK = [
   /\bcria(r)?\s+(um\s+)?PR\b/i,        // "criar um PR" — PT release gate
   /\bcreate\s+(a\s+)?PR\b/i,           // "create a PR" — EN release gate
   /\bopen\s+(a\s+)?PR\b/i,             // "open a PR" — EN release gate
+  // A/B test 2026-04-16 — P8 misclassified: "review ... security issues" → T0
+  /\bsecurity\b/i,                     // "security review", "security issues" — always HIGH_RISK
+  /\bseguran[çc]a\b/i,                // "revisão de segurança" — PT security signal
+  // Gold-labels audit 2026-04-16 — gl-075: "review the database schema" → T0 (should be T3)
+  /\breview\b.*\bschema\b/i,          // "review the database schema" — architecture review
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────
@@ -133,6 +140,18 @@ const MED_RISK = [
   /\b\w+\s+vs\.?\s+\w+/i,            // "React vs Vue", "Redis vs Memcached" — comparison
   /\bpros\s+(and|e)\s+cons\b/i,      // "pros and cons" — decision analysis
   /\bwhich\s+(is\s+)?better\b/i,     // "which is better for X" — comparison reasoning
+  // A/B test 2026-04-16 — P5 misclassified: WebSocket disconnect diagnosis → T0
+  /\bdesconect/i,                    // "desconecta clientes" — PT disconnect signal
+  /\bdisconnect/i,                   // "disconnects after 60s" — EN disconnect signal
+  /\bcausa\s+mais\s+prov[aá]vel/i,  // "causa mais provável" — PT diagnosis signal
+  /\bmost\s+likely\s+cause/i,       // "most likely cause" — EN diagnosis signal
+  /\bdiagnos/i,                      // "diagnose/diagnosis/diagnostic" — reasoning signal
+  /\bcomo\s+resolv/i,               // "como resolvo" — PT problem-solving signal
+  // Gold-labels audit 2026-04-16 — gl-063, gl-064, gl-067 misclassified
+  /\bsyntax\s+error/i,              // "syntax error near unexpected token" — debug signal
+  /\bhook\s+error/i,                // "hook error when running" — debug signal
+  /\bbuild\s+fail/i,                // "the build fails with this output" — CI debug signal
+  /\bENOENT\b/,                     // "ENOENT no such file or directory" — error investigation
   // overnight-tuning 2026-04-12: compound "implement" → T2 (fixes gl-046, gl-051)
   /\bimplement\w*\b.{30,}/i,          // "implement X with Y, Z and W" — multi-concern feature
 ];

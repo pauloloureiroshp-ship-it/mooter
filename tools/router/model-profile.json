@@ -5,6 +5,7 @@
 
   "models": {
     "claude-opus-4-6": {
+      "emoji": "🔴",
       "tier": "T3",
       "provider": "anthropic",
       "cost_input_per_mtok": 15.0,
@@ -28,6 +29,7 @@
     },
 
     "claude-sonnet-4-6": {
+      "emoji": "🟡",
       "tier": "T2",
       "provider": "anthropic",
       "cost_input_per_mtok": 3.0,
@@ -51,6 +53,7 @@
     },
 
     "claude-haiku-4-5": {
+      "emoji": "⚡",
       "tier": "T1",
       "provider": "anthropic",
       "cost_input_per_mtok": 0.80,
@@ -74,6 +77,7 @@
     },
 
     "qwen3:30b": {
+      "emoji": "🦙",
       "tier": "T0",
       "provider": "ollama",
       "cost_input_per_mtok": 0,
@@ -99,6 +103,7 @@
     },
 
     "qwen2.5:3b": {
+      "emoji": "🐑",
       "tier": "T0",
       "provider": "ollama",
       "cost_input_per_mtok": 0,
@@ -124,6 +129,7 @@
     },
 
     "gemma3:12b": {
+      "emoji": "🌺",
       "tier": "T0",
       "provider": "ollama",
       "cost_input_per_mtok": 0,
@@ -147,7 +153,8 @@
       "notes": "Google Gemma 3 12B — excelente para T0/T1. Melhor que qwen2.5:3b em qualidade, similar em velocidade."
     },
 
-    "deepseek-v3:7b": {
+    "deepseek-r1:7b": {
+      "emoji": "🐉",
       "tier": "T1",
       "provider": "ollama",
       "cost_input_per_mtok": 0,
@@ -156,19 +163,69 @@
       "latency_p95_ms": 4000,
       "context_window": 128000,
       "quality": {
-        "trivial_edit": 9,
+        "trivial_edit": 8,
         "debug": 9,
         "architecture": 8,
         "summarize": 8,
-        "transform": 9,
+        "transform": 8,
         "explain": 9,
         "test_gen": 9,
         "math": 9
       },
-      "strengths": ["coding", "reasoning", "math", "multilingual"],
-      "weaknesses": ["latency-on-small-gpu"],
-      "ollama_id": "deepseek-v3:7b",
-      "notes": "DeepSeek V3 — performance rival GPT-4 para coding. Usar como T1 alternativo ao Haiku quando offline."
+      "strengths": ["reasoning", "math", "coding", "chain-of-thought"],
+      "weaknesses": ["think-mode-verbose"],
+      "ollama_id": "deepseek-r1:7b",
+      "notes": "DeepSeek R1 7B — strong reasoning via CoT. Usar como T1 alternativo ao Haiku quando offline."
+    },
+
+    "qwen2.5-coder:14b-q4": {
+      "emoji": "🟢",
+      "tier": "T0",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 3500,
+      "latency_p95_ms": 8000,
+      "context_window": 32768,
+      "quality": {
+        "trivial_edit": 8,
+        "debug": 6,
+        "architecture": 4,
+        "summarize": 6,
+        "transform": 8,
+        "explain": 6,
+        "test_gen": 6,
+        "math": 5
+      },
+      "strengths": ["code-generation", "code-transform", "code-completion"],
+      "weaknesses": ["reasoning", "architecture"],
+      "ollama_id": "qwen2.5-coder:14b-q4",
+      "notes": "Qwen 2.5 Coder 14B Q4 — classify.js T0 code subtier. Adicionado 2026-04-16 (pipeline coherence audit)."
+    },
+
+    "deepseek-r1-distill-qwen:14b": {
+      "emoji": "🟢",
+      "tier": "T0",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 4000,
+      "latency_p95_ms": 10000,
+      "context_window": 32768,
+      "quality": {
+        "trivial_edit": 5,
+        "debug": 7,
+        "architecture": 5,
+        "summarize": 6,
+        "transform": 5,
+        "explain": 6,
+        "test_gen": 5,
+        "math": 8
+      },
+      "strengths": ["math", "reasoning", "chain-of-thought"],
+      "weaknesses": ["latency", "verbose-output"],
+      "ollama_id": "deepseek-r1-distill-qwen:14b",
+      "notes": "DeepSeek R1 Distill Qwen 14B — classify.js T0 math subtier. Adicionado 2026-04-16 (pipeline coherence audit)."
     }
   }
 }
