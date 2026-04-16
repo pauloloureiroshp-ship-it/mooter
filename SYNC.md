@@ -99,8 +99,49 @@ Commits: `c330b3d` (mooter-mode.js + frugal-mode.js alias) · `6dbad9a` (.env.lo
 
 ---
 
-#### 📥 COWORK → CLAUDE CODE — Sprint B handoff (novo, 2026-04-15)
-> Actualizado em 2026-04-15 (Claude Code · Sprint A entregue). Estado: 🟡 Aguarda dados de rating antes de Sprint B.
+#### 📥 Sprint B.0–B.3 — METHODOLOGY FOUNDATION + SHADOW + CLOSED LOOP (2026-04-16)
+> Actualizado em 2026-04-16 (Claude Code · 15 commits atómicos). Estado: ✅ **Completo.**
+
+**Sessão 2026-04-16** · [Notion](https://www.notion.so/3446f6e42bc48100afdbf228fec08974) · [Fluxograma](https://www.notion.so/3446f6e42bc48120ba57d430785a9452)
+
+✅ **Sprint B.0 — Foundation (4 commits):**
+- `1b81d17` — `docs/METHODOLOGY.md` source of truth (19 secções, savings formula, per-user)
+- `caf8a67` — `validation-set.json` (60 gold labels) + `validate-set.js` drift detector
+- `16c2f14` — `user-profile.js` consolidador (hw+subs+pattern+learned)
+- `5630e46` — Audit harmony: 3 SSOT roles, naming align, migration 005
+
+✅ **Safety fix (1 commit):**
+- `5e50cbb` — HIGH_RISK guard em early-returns + beast-mode intent + PT merge patterns (+5pp accuracy: 70→75%)
+
+✅ **Sprint B.1 — Shadow Mode (4 commits):**
+- `c273d91` — Schema + flag + sampling module (20 tests, default OFF)
+- `c87b1d7` — Background spawn em inject_context.js (fire-and-forget, Windows-safe)
+- `781a14d` — Judge nightly Ollama (qwen3:30b) + Task Scheduler .cmd
+- `2576620` — Backtest consome shadow verdicts (shadow_better → force demote)
+
+✅ **Sprint B.2 — Closed Loop (3 commits):**
+- `bc94084` — `signals.js` — 187 implicit signals (91% positive, 9% negative)
+- `4eb7f8c` — `ground-truth.js` — oracle determinístico (v1 foundation)
+- `88ea3fb` — `classify.js` lê budget cap do user-profile (per-user adaptation live)
+
+✅ **Sprint B.3 — Infra (3 commits):**
+- `aa99b79` — `privacy.js` (12 regex rules, 45 PII found) + `similarity.js` (KNN + nomic-embed-text)
+- `61c68db` — `sync-to-runtime.sh` + frugal→mooter skill deprecation (10 skills)
+
+**Números:** 89 testes pass · 18 ficheiros criados · validation 75% · 2 safety bugs eliminados · nomic-embed-text instalado
+
+**Para activar:** `bash tools/router/sync-to-runtime.sh` → editar `.mooter-mode.json` shadow_mode:true → `schtasks /create /tn FrugalShadowJudge ...`
+
+🎯 **Próxima missão (Sprint B.4+):**
+- Thompson Sampling bandit (zona confidence 0.5–0.75)
+- Semantic layer L1.5 (centróides por categoria)
+- Correr teste A/B via `docs/MASTER_PROMPTS/MOOTER_AB_TEST.md`
+- Acumular ≥100 shadow pairs para validar loop
+
+---
+
+#### 📥 COWORK → CLAUDE CODE — Sprint B handoff (arquivo, 2026-04-15)
+> Actualizado em 2026-04-15 (Claude Code · Sprint A entregue). Estado: ✅ Executado em Sprint B.0–B.3 acima.
 
 **Sessão 2026-04-15 — Feedback loop UX + Sprint B handoff (Claude Code)** · [Notion](https://www.notion.so/3446f6e42bc481269744cc7780b095fe)
 
