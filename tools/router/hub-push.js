@@ -51,7 +51,13 @@ function enrichDelta(delta) {
   // Read subscription profile if available
   try {
     const sp = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, 'subscription-profile.json'), 'utf8'));
-    delta.sub_profile = sp.profiles ? sp.profiles.anthropic : 'unknown';
+    // MOOTER_SUB_PROFILE_NORMALIZE (Cowork Mac 2026-04-16):
+    // hub server validates sub_profile against enum without "claude_" prefix.
+    // Strip "claude_" and fall back to "unknown" if invalid.
+    const _rawSub = sp.profiles ? sp.profiles.anthropic : null;
+    const _norm = (_rawSub || '').replace(/^claude[_-]?/i, '').toLowerCase();
+    const VALID_SUB = new Set(['free', 'pro', 'max', 'team', 'api', 'max_plan', 'unknown']);
+    delta.sub_profile = VALID_SUB.has(_norm) ? _norm : 'unknown';
   } catch {
     if (!delta.sub_profile) delta.sub_profile = 'unknown';
   }
