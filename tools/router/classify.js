@@ -23,7 +23,30 @@
 // generated_at: 2026-04-16T14:16:30.734Z
 // sample_size: 5019
 const TUNED_COMPLEXITY_THRESHOLD = 0.25;
-const TUNED_PROMOTE_T0 = [/\bthinking\b/i, /\bwe\s+are\s+generating\b/i, /\bmix\s+languages\s+english\b/i, /\bplan\s+the\s+implementation\b/i, /\badd\s+jsdoc\s+to\b/i, /\bhow\s+should\s+we\b/i, /\bwhy\s+does\s+queue\b/i, /\bthe\s+cpu\s+utilization\b/i, /\btranslate\s+this\s+comment\b/i, /\brealistic\s+for\s+a\b/i, /\bcompare\s+express\s+vs\b/i, /\brequire\s+reasoning\s+debug\b/i, /\bdebug\s+oom\s+killed\b/i, /\bwhy\s+does\s+websocket\b/i, /\bcompare\s+postgresql\s+vs\b/i, /\bone\s+prompt\s+per\b/i, /\bdebug\s+econnrefused\s+at\b/i, /\bthe\s+queue\s+depth\b/i, /\binvestigate\s+the\s+slow\b/i, /\bmix\s+lengths\s+5\b/i, /\bthe\s+memory\s+usage\b/i, /\bwhy\s+does\s+rate\b/i, /\bwhy\s+does\s+auth\b/i, /\binvestigate\s+the\s+race\b/i, /\bthe\s+p95\s+latency\b/i, /\bdebug\s+typeerror\s+x\b/i, /\bgenerate\s+a\s+commit\b/i, /\bdebug\s+deadlock\s+at\b/i, /\brequirements\b/i, /\binvestigate\s+the\s+memory\b/i, /\binvestigate\s+the\s+flaky\b/i, /\bwhy\s+does\s+cache\b/i, /\bthe\s+error\s+rate\b/i, /\bdebug\s+403\s+forbidden\b/i, /\bwhy\s+does\s+useeffect\b/i, /\binvestigate\s+the\s+deadlock\b/i, /\bformat\s+this\s+as\b/i, /\beach\s+prompt\s+must\b/i, /\bcompare\s+redis\s+vs\b/i, /\binvestigate\s+the\s+n\b/i, /\bmix\s+of\s+english\b/i, /\bexplain\s+the\s+difference\b/i, /\brename\s+validateinput\s+to\b/i, /\bresume\s+este\s+ficheiro\b/i, /\bwrite\s+a\s+regex\b/i, /\bone\s+per\s+line\b/i, /\bcompare\s+rest\s+vs\b/i, /\bwe\s+are\s+focusing\b/i];
+const 
+  // ═══ MOOTER_ARCH_SIGNALS_GUARD_COWORK (2026-04-16) ═══
+  // Prevents TUNED_PROMOTE_T0 patterns from misrouting short architecture prompts.
+  // Bug: len<100 && trivial_signals==0 → T0 (wrong for "design a distributed
+  // payment system…" at len=89). Fix: detect architecture keywords first.
+  const _MOOTER_ARCH = /\b(design|architect|distributed|system|scalable|multi[- ]?tenant|microservice|migration|schema|database|fraud|payment|webhook|saga|eventual(ly)?[- ]?consistent|queue|pub[- ]?sub|sharding|replication|consensus|gRPC|federat(ion|ed))\b/i;
+  if (typeof prompt === 'string' && _MOOTER_ARCH.test(prompt) && prompt.length < 200) {
+    return setCache({
+      task_category: 'architecture',
+      risk_level: 'high',
+      tier: 'T3',
+      recommended_backend: 'claude_api',
+      recommended_model: 'claude-opus-4-6',
+      suggested_subagent: 'model-architect',
+      confidence: 0.85,
+      escalation_rule: 'arch-guard',
+      reasoning: 'ARCH_SIGNALS matched — routing to Opus T3 (cowork guard against TUNED_PROMOTE_T0 false positive).',
+      matched: ['arch_signals'],
+      prompt_length: prompt.length
+    });
+  }
+  // ═══ END MOOTER_ARCH_SIGNALS_GUARD_COWORK ═══
+
+TUNED_PROMOTE_T0 = [/\bthinking\b/i, /\bwe\s+are\s+generating\b/i, /\bmix\s+languages\s+english\b/i, /\bplan\s+the\s+implementation\b/i, /\badd\s+jsdoc\s+to\b/i, /\bhow\s+should\s+we\b/i, /\bwhy\s+does\s+queue\b/i, /\bthe\s+cpu\s+utilization\b/i, /\btranslate\s+this\s+comment\b/i, /\brealistic\s+for\s+a\b/i, /\bcompare\s+express\s+vs\b/i, /\brequire\s+reasoning\s+debug\b/i, /\bdebug\s+oom\s+killed\b/i, /\bwhy\s+does\s+websocket\b/i, /\bcompare\s+postgresql\s+vs\b/i, /\bone\s+prompt\s+per\b/i, /\bdebug\s+econnrefused\s+at\b/i, /\bthe\s+queue\s+depth\b/i, /\binvestigate\s+the\s+slow\b/i, /\bmix\s+lengths\s+5\b/i, /\bthe\s+memory\s+usage\b/i, /\bwhy\s+does\s+rate\b/i, /\bwhy\s+does\s+auth\b/i, /\binvestigate\s+the\s+race\b/i, /\bthe\s+p95\s+latency\b/i, /\bdebug\s+typeerror\s+x\b/i, /\bgenerate\s+a\s+commit\b/i, /\bdebug\s+deadlock\s+at\b/i, /\brequirements\b/i, /\binvestigate\s+the\s+memory\b/i, /\binvestigate\s+the\s+flaky\b/i, /\bwhy\s+does\s+cache\b/i, /\bthe\s+error\s+rate\b/i, /\bdebug\s+403\s+forbidden\b/i, /\bwhy\s+does\s+useeffect\b/i, /\binvestigate\s+the\s+deadlock\b/i, /\bformat\s+this\s+as\b/i, /\beach\s+prompt\s+must\b/i, /\bcompare\s+redis\s+vs\b/i, /\binvestigate\s+the\s+n\b/i, /\bmix\s+of\s+english\b/i, /\bexplain\s+the\s+difference\b/i, /\brename\s+validateinput\s+to\b/i, /\bresume\s+este\s+ficheiro\b/i, /\bwrite\s+a\s+regex\b/i, /\bone\s+per\s+line\b/i, /\bcompare\s+rest\s+vs\b/i, /\bwe\s+are\s+focusing\b/i];
 const TUNED_DEMOTE_T3 = [/\bthinking\b/i, /\bhow\s+should\s+we\b/i, /\bformat\s+this\s+as\b/i];
 // ── TUNED-BLOCK-END ──
 
