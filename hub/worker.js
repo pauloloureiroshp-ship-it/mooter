@@ -22,6 +22,7 @@ import { handleSubmitEvents, handleAggregateStats } from './routes/events';
 import { runAggregate } from './jobs/aggregate';
 import { runGenerate } from './jobs/generate';
 import { runNotify } from './jobs/notify';
+import { runUpdateProfiles } from './jobs/update-profiles';
 
 export default {
   async fetch(request, env, ctx) {
@@ -93,8 +94,9 @@ export default {
       // Hourly: aggregate deltas
       ctx.waitUntil(runAggregate(env));
     } else if (cron === '0 6 * * *') {
-      // Daily: generate router-tuning
+      // Daily: generate router-tuning + update user profiles
       ctx.waitUntil(runGenerate(env));
+      ctx.waitUntil(runUpdateProfiles(env));
     } else if (cron === '0 6 * * 1') {
       // Weekly: notify + prune
       ctx.waitUntil(runNotify(env));

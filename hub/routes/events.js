@@ -100,7 +100,8 @@ export async function handleSubmitEvents(request, env) {
       actual_model_used, subagent_spawned, wall_clock_ms, inter_prompt_gap_ms,
       response_len_bucket, cascade_upgrade, retry_detected, ollama_warm, gpu_util_pct,
       explicit_rating, explicit_feedback_type,
-      session_hour, event_date, created_at
+      session_hour, event_date, created_at,
+      algorithm_version, prompt_complexity_score, outcome_score, outcome_source, per_decision_savings_usd
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
@@ -108,7 +109,8 @@ export async function handleSubmitEvents(request, env) {
       ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?,
-      ?, ?, ?
+      ?, ?, ?,
+      ?, ?, ?, ?, ?
     )
   `);
 
@@ -130,7 +132,10 @@ export async function handleSubmitEvents(request, env) {
       evt.response_len_bucket || null, evt.cascade_upgrade || 0,
       evt.retry_detected || 0, evt.ollama_warm || null, evt.gpu_util_pct || null,
       evt.explicit_rating || null, evt.explicit_feedback_type || null,
-      evt.session_hour, evt.event_date, evt.created_at
+      evt.session_hour, evt.event_date, evt.created_at,
+      evt.algorithm_version || null, evt.prompt_complexity_score || null,
+      evt.outcome_score || null, evt.outcome_source || null,
+      evt.per_decision_savings_usd || null
     ));
     accepted++;
   }
@@ -160,13 +165,25 @@ export async function handleAggregateStats(request, env) {
 
   try {
     // Live aggregation from frugal_events (fine for < 50k rows)
-    const [totalRow, instancesRow, tierRows, avgConfRow, categoryRows, hwRows] = await Promise.all([
+    const [totalRow, instancesRow, tierRows, avgConfRow, categoryRows, hwRows, qualityRow, savingsRow] = await Promise.all([
       env.DB.prepare('SELECT COUNT(*) as cnt FROM frugal_events').first(),
       env.DB.prepare('SELECT COUNT(DISTINCT instance_id) as cnt FROM frugal_events').first(),
       env.DB.prepare('SELECT decided_tier, COUNT(*) as cnt FROM frugal_events GROUP BY decided_tier').all(),
       env.DB.prepare('SELECT AVG(confidence) as avg_conf FROM frugal_events').first(),
       env.DB.prepare('SELECT task_category, COUNT(*) as cnt FROM frugal_events GROUP BY task_category ORDER BY cnt DESC LIMIT 10').all(),
       env.DB.prepare('SELECT hardware_tier, COUNT(*) as cnt FROM frugal_events GROUP BY hardware_tier').all(),
+      // Retraining foundation: quality + outcome stats
+      env.DB.prepare(`SELECT
+        COUNT(CASE WHEN outcome_score IS NOT NULL THEN 1 END) as labeled,
+        COUNT(CASE WHEN outcome_score >= 0.3 THEN 1 END) as positive,
+        COUNT(CASE WHEN outcome_score <= -0.3 THEN 1 END) as negative,
+        AVG(outcome_score) as avg_outcome,
+        AVG(prompt_complexity_score) as avg_complexity
+      FROM frugal_events`).first(),
+      env.DB.prepare(`SELECT
+        SUM(per_decision_savings_usd) as total_savings,
+        AVG(per_decision_savings_usd) as avg_savings
+      FROM frugal_events WHERE per_decision_savings_usd IS NOT NULL`).first(),
     ]);
 
     const total = totalRow?.cnt || 0;
@@ -189,6 +206,18 @@ export async function handleAggregateStats(request, env) {
         count: r.cnt,
       })),
       hardware_distribution: hwDist,
+      // Retraining foundation: quality signals
+      quality: {
+        labeled_decisions: qualityRow?.labeled || 0,
+        positive_outcomes: qualityRow?.positive || 0,
+        negative_outcomes: qualityRow?.negative || 0,
+        avg_outcome_score: qualityRow?.avg_outcome ? +qualityRow.avg_outcome.toFixed(3) : null,
+        avg_complexity: qualityRow?.avg_complexity ? +qualityRow.avg_complexity.toFixed(3) : null,
+      },
+      savings: {
+        total_usd: savingsRow?.total_savings ? +savingsRow.total_savings.toFixed(2) : 0,
+        avg_per_decision_usd: savingsRow?.avg_savings ? +savingsRow.avg_savings.toFixed(4) : 0,
+      },
       last_updated: new Date().toISOString(),
       data_window_days: 7,
     };
