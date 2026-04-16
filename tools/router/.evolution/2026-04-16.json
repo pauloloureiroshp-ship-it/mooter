@@ -1,0 +1,109 @@
+{
+  "date": "2026-04-16",
+  "version": "v0.9.9",
+  "session_summary": "Classifier accuracy 75%→80%, delta watermark review, tester improvements",
+
+  "accuracy": {
+    "validation_set_overall": 80.0,
+    "validation_set_canonical": 80.0,
+    "validation_set_adversarial": 92.0,
+    "validation_set_historical": 68.0,
+    "gold_labels_count": 84,
+    "validation_set_size": 60,
+    "drift_items": 12,
+    "previous_overall": 75.0,
+    "delta_pp": 5.0
+  },
+
+  "tester": {
+    "uptime": "7h 6m",
+    "cycles": 195,
+    "prompts_tested": 1920,
+    "prompts_executed": 412,
+    "models_benchmarked": 6,
+    "ab_tests_run": 120,
+    "optimizer_tests": 57,
+    "optimizer_win_rate_pct": 47.4,
+    "misroutings_found": 59,
+    "misroutings_real_after_filter": 0,
+    "embeddings_built": 205,
+    "cost_usd": 0
+  },
+
+  "ab_test_highlights": {
+    "gemma4_vs_qwen3_30b": { "tests": 31, "gemma4_wins": 13, "qwen3_wins": 11, "ties": 7, "verdict": "equivalent" },
+    "gemma4_vs_qwen25_coder": { "tests": 30, "gemma4_wins": 0, "qwen25c_wins": 0, "ties": 30, "verdict": "identical_quality" },
+    "gemma3_vs_qwen3_30b": { "tests": 7, "gemma3_wins": 6, "qwen3_wins": 0, "ties": 1, "verdict": "gemma3_dominant" },
+    "gemma3_vs_deepseek_r1": { "tests": 6, "gemma3_wins": 5, "deepseek_wins": 1, "ties": 0, "verdict": "gemma3_dominant" }
+  },
+
+  "optimizer_highlights": {
+    "overall_win_rate_pct": 47.4,
+    "previous_win_rate_pct": 16.7,
+    "delta_pp": 30.7,
+    "best_model_for_optimization": "gemma3:12b (3-0)",
+    "dominant_strategy": "s1+s2 for qwen2.5:3b, s1+s3 for larger models"
+  },
+
+  "classifier_changes": {
+    "patterns_added": 12,
+    "patterns_total": "114+",
+    "new_med_risk": [
+      "how should we handle",
+      "review this approach",
+      "qual a melhor",
+      "não está a funcionar",
+      "avaliação técnica",
+      "not working",
+      "como devo lidar",
+      "best practice for",
+      "what approach for",
+      "concurrent writes",
+      "graceful shutdown",
+      "network partition"
+    ],
+    "new_low_risk": ["diferença", "difference"],
+    "refined_high_risk": [
+      "package.json (now requires modification verb)",
+      "GraphQL+REST (now requires decision context)",
+      "arquitec?tur (both PT spellings)"
+    ],
+    "new_logic": "LOW_RISK demotion: simple task intent (regex/explain/translate/show) overrides risk keywords in content"
+  },
+
+  "infrastructure_changes": [
+    "mooter-review.js v2: delta watermark model",
+    "mooter-review-state.json: review history tracking",
+    "tester: pre-degradation accuracy measurement",
+    "tester: meta-prompt filter (Thinking, We are generating, etc.)",
+    "SKILL.md updated for delta review workflow"
+  ],
+
+  "reviews_completed": [
+    { "num": 1, "at": "2026-04-16T05:48", "delta_events": 352, "misroutings": 13, "notes": "first review, all data" },
+    { "num": 2, "at": "2026-04-16T05:48", "delta_events": 0, "misroutings": 0, "notes": "verified empty delta" },
+    { "num": 3, "at": "2026-04-16T05:48", "delta_events": 352, "misroutings": 13, "notes": "--full mode test" },
+    { "num": 4, "at": "2026-04-16T05:50", "delta_events": 27, "misroutings": 1, "notes": "confirmed fix: handle concurrent writes → T2" },
+    { "num": 5, "at": "2026-04-16T12:18", "delta_events": 2576, "misroutings": 56, "notes": "6.5h overnight delta, all misroutings from old classifier" }
+  ],
+
+  "commits": [
+    { "hash": "9530efa", "msg": "fix(classifier): accuracy 75%→80% — 7 gold labels + demotion logic + pattern fixes" },
+    { "hash": "fd7cdbb", "msg": "feat(review): delta watermark model — each review shows only new data" },
+    { "hash": "967c278", "msg": "fix(tester): pre-degradation accuracy + meta-prompt filter + 6 MED_RISK patterns" }
+  ],
+
+  "savings": {
+    "validated_pct": 89.9,
+    "total_prompts_validated": 1437,
+    "tier_distribution": { "T0": 83.9, "T1": 0.2, "T2": 13.9, "T3": 3.6 }
+  },
+
+  "next_priorities": [
+    "Restart tester with updated classifier to get clean accuracy data",
+    "Self-healing mooter-review: full project context analysis",
+    "Generate prioritised improvement backlogs automatically",
+    "Accuracy trend tracking across evolution snapshots",
+    "Thompson Sampling bandit for confidence 0.5-0.75 zone"
+  ]
+}

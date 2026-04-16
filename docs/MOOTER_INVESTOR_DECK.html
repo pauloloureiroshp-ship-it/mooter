@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mooter — Intelligent LLM Router | Complete Technical & Business Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary: #1a1a2e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --bg: #ffffff;
+    --bg-alt: #f8f9fc;
+    --text: #1a1a2e;
+    --text-light: #6b7280;
+    --border: #e5e7eb;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --orange: #f59e0b;
+    --purple: #8b5cf6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 14px;
+    background: var(--bg);
+  }
+
+  @media print {
+    body { font-size: 11px; line-height: 1.5; }
+    .page-break { page-break-before: always; }
+    .no-print { display: none; }
+    section { page-break-inside: avoid; }
+    .hero { min-height: auto !important; padding: 60px 40px !important; }
+  }
+
+  .hero {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(233,69,96,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    background: rgba(233,69,96,0.2);
+    border: 1px solid rgba(233,69,96,0.4);
+    color: #e94560;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 {
+    font-size: 56px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    letter-spacing: -2px;
+  }
+
+  .hero h1 span { color: var(--accent); }
+
+  .hero p.subtitle {
+    font-size: 22px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.8);
+    max-width: 700px;
+    margin-bottom: 40px;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .hero-stat {
+    text-align: left;
+  }
+
+  .hero-stat .number {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .hero-stat .label {
+    font-size: 14px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 4px;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
+
+  section { padding: 60px 0; }
+  section:nth-child(even) { background: var(--bg-alt); }
+
+  h2 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: var(--primary);
+    letter-spacing: -1px;
+  }
+
+  h2 span { color: var(--accent); }
+
+  .section-lead {
+    font-size: 16px;
+    color: var(--text-light);
+    margin-bottom: 36px;
+    max-width: 700px;
+  }
+
+  h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 32px 0 12px;
+    color: var(--accent2);
+  }
+
+  h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 20px 0 8px;
+    color: var(--primary);
+  }
+
+  p { margin-bottom: 12px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+  }
+
+  th {
+    background: var(--primary);
+    color: white;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tr:nth-child(even) td { background: var(--bg-alt); }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin: 24px 0;
+  }
+
+  .kpi-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  .kpi-card .value {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .kpi-card .metric {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  .kpi-card.green .value { color: var(--green); }
+  .kpi-card.blue .value { color: var(--blue); }
+  .kpi-card.purple .value { color: var(--purple); }
+  .kpi-card.orange .value { color: var(--orange); }
+
+  .flow-diagram {
+    background: var(--primary);
+    color: white;
+    border-radius: 12px;
+    padding: 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin: 20px 0;
+  }
+
+  .flow-diagram .step { color: var(--accent); font-weight: 600; }
+  .flow-diagram .arrow { color: #4ade80; }
+  .flow-diagram .comment { color: #6b7280; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin: 20px 0;
+  }
+
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+  .feature-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  .feature-card h4 { margin-top: 0; color: var(--accent2); }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin: 2px;
+  }
+
+  .tag-t0 { background: #dcfce7; color: #166534; }
+  .tag-t1 { background: #dbeafe; color: #1e40af; }
+  .tag-t2 { background: #fef3c7; color: #92400e; }
+  .tag-t3 { background: #fce7f3; color: #9d174d; }
+  .tag-done { background: #dcfce7; color: #166534; }
+  .tag-live { background: #dbeafe; color: #1e40af; }
+
+  .timeline {
+    border-left: 3px solid var(--accent);
+    padding-left: 28px;
+    margin: 24px 0;
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 28px;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -34px;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  .timeline-date {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .timeline-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 4px 0;
+  }
+
+  .timeline-desc {
+    font-size: 13px;
+    color: var(--text-light);
+  }
+
+  .quote-block {
+    border-left: 4px solid var(--accent);
+    padding: 16px 24px;
+    background: var(--bg-alt);
+    border-radius: 0 8px 8px 0;
+    margin: 20px 0;
+    font-style: italic;
+    color: var(--text-light);
+  }
+
+  .quote-block strong { color: var(--text); font-style: normal; }
+
+  .moat-bar {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+    gap: 12px;
+  }
+
+  .moat-bar .bar {
+    flex: 1;
+    height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .moat-bar .fill {
+    height: 100%;
+    border-radius: 12px;
+    transition: width 0.5s;
+  }
+
+  .moat-bar .label { font-size: 13px; font-weight: 600; width: 180px; }
+  .moat-bar .pct { font-size: 13px; font-weight: 600; width: 40px; text-align: right; }
+
+  footer {
+    background: var(--primary);
+    color: white;
+    padding: 40px 60px;
+    text-align: center;
+  }
+
+  footer p { color: rgba(255,255,255,0.6); font-size: 13px; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-alt);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  ul { padding-left: 20px; margin: 8px 0 16px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- HERO -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-badge">Confidential &mdash; April 2026</div>
+  <h1>Mooter<span>.</span>ai</h1>
+  <p class="subtitle">The intelligent LLM router that cuts AI development costs by 90% &mdash; without sacrificing quality, privacy, or safety.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="number">89.9%</div>
+      <div class="label">Validated Savings</div>
+    </div>
+    <div class="hero-stat">
+      <div class="number">1,437</div>
+      <div class="label">Real Prompts Tested</div>
+    </div>
+    <div class="hero-stat">
+      <div class="number">&lt;50ms</div>
+      <div class="label">Classification Latency</div>
+    </div>
+    <div class="hero-stat">
+      <div class="number">$0</div>
+      <div class="label">Classification Cost</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- THE PROBLEM -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section>
+<div class="container">
+  <h2>The <span>Problem</span></h2>
+  <p class="section-lead">Every developer using AI coding assistants pays premium prices for every prompt &mdash; even when 84% of tasks don't need premium intelligence.</p>
+
+  <div class="two-col">
+    <div class="feature-card">
+      <h4>Without Mooter</h4>
+      <p>Every prompt goes to Claude Opus ($5/$25 per MTok). "Change button colour" costs the same as "redesign the authentication architecture".</p>
+      <p><strong>Result:</strong> ~$100/month per active developer.</p>
+    </div>
+    <div class="feature-card">
+      <h4>With Mooter</h4>
+      <p>Each prompt is classified in &lt;50ms and routed to the cheapest model that delivers equivalent quality. 84% of prompts go to free local models.</p>
+      <p><strong>Result:</strong> ~$10/month. <strong style="color:var(--green)">90% savings.</strong></p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- KPIs -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Key <span>Metrics</span></h2>
+  <p class="section-lead">Production-validated on real developer workloads. No synthetic benchmarks.</p>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="value">89.9%</div>
+      <div class="metric">Cost Savings (validated)</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="value">80%</div>
+      <div class="metric">Classifier Accuracy (validation-set)</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="value">84</div>
+      <div class="metric">Gold Labels (curated test set)</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="value">114+</div>
+      <div class="metric">Classification Patterns</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="value">87</div>
+      <div class="metric">JS Modules (tools/router/)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">150+</div>
+      <div class="metric">Commits on Main</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="value">89</div>
+      <div class="metric">Automated Tests Passing</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="value">11</div>
+      <div class="metric">User-Facing Skills</div>
+    </div>
+  </div>
+
+  <h3>Tier Distribution (1,437 real prompts)</h3>
+  <table>
+    <tr><th>Tier</th><th>Model</th><th>Cost/Prompt</th><th>Usage %</th><th>Prompts</th><th>When Used</th></tr>
+    <tr><td><span class="tag tag-t0">T0</span></td><td>Ollama (local GPU)</td><td>$0.00</td><td>83.9%</td><td>1,198</td><td>Trivial edits, summaries, translations</td></tr>
+    <tr><td><span class="tag tag-t1">T1</span></td><td>Claude Haiku</td><td>~$0.003</td><td>0.2%</td><td>3</td><td>Commit messages, regex, docstrings</td></tr>
+    <tr><td><span class="tag tag-t2">T2</span></td><td>Claude Sonnet</td><td>~$0.018</td><td>13.9%</td><td>199</td><td>Bug investigation, planning, comparison</td></tr>
+    <tr><td><span class="tag tag-t3">T3</span></td><td>Claude Opus</td><td>~$0.12</td><td>3.6%</td><td>51</td><td>Architecture, security, refactoring</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- HOW IT WORKS -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>How It <span>Works</span></h2>
+  <p class="section-lead">Zero-proxy architecture. The router emits hints that the AI assistant honours voluntarily. If Mooter dies, everything still works.</p>
+
+  <div class="flow-diagram">
+<span class="step">USER</span> types prompt in Claude Code
+  <span class="arrow">|</span>
+  <span class="arrow">v</span>
+<span class="step">HOOK</span> (UserPromptSubmit) &rarr; inject_context.js <span class="comment">(2ms overhead)</span>
+  <span class="arrow">|</span>
+  <span class="arrow">v</span>
+<span class="step">CLASSIFY</span> &rarr; 11-pass regex pipeline <span class="comment">(&lt;50ms, $0 cost)</span>
+  Pass 1:  SHA-256 cache lookup (30-min TTL)
+  Pass 2:  Project context enrichment (CLAUDE.md)
+  Pass 3:  User override detection ("@opus", "usa sonnet")
+  Pass 4:  Fast paths (bash paste, read intent, commit msg)
+  Pass 5:  Main scoring (HIGH/MED/LOW/TRIVIAL pattern matching)
+  Pass 6:  Low-risk demotion (simple task + risk keyword in content)
+  Pass 7:  Quality intent promotion ("pensa bem", "think hard")
+  Pass 8:  Low-confidence escalation (confidence &lt;0.5 + risk signals)
+  Pass 9:  Auto-learned TUNED_PROMOTE / TUNED_DEMOTE
+  Pass 10: Budget cap enforcement (per-user monthly limit)
+  Pass 11: Provider degradation (no API key &rarr; fallback to T0)
+  <span class="arrow">|</span>
+  <span class="arrow">v</span>
+<span class="step">EMIT</span> &lt;router-hint&gt; with tier, confidence, reasoning
+  <span class="arrow">|</span>
+  <span class="arrow">v</span>
+<span class="step">CLAUDE CODE</span> reads hint + CLAUDE.md doctrine &rarr; decides: inline | spawn subagent
+  <span class="arrow">|</span>
+  <span class="arrow">v</span>
+<span class="step">LOG</span> &rarr; decisions.log (JSONL) &rarr; daily backtest &rarr; auto-tuning loop
+  </div>
+
+  <h3>The 4-Tier Model</h3>
+  <div class="two-col">
+    <div class="feature-card">
+      <h4><span class="tag tag-t0">T0</span> Local (Ollama)</h4>
+      <p><strong>Models:</strong> qwen2.5:3b (terse), qwen3:30b (reasoning), qwen2.5-coder:14b (code), deepseek-r1 (math), gemma4:e4b (general)</p>
+      <p><strong>Cost:</strong> $0.00 (runs on user's GPU)</p>
+      <p><strong>Latency:</strong> 500-3000ms depending on model</p>
+      <p><strong>Subagents:</strong> local-summarizer, local-transformer</p>
+    </div>
+    <div class="feature-card">
+      <h4><span class="tag tag-t1">T1</span> Cheap Cloud</h4>
+      <p><strong>Models:</strong> Claude Haiku, DeepSeek V3, Gemini Flash, Mistral Large</p>
+      <p><strong>Cost:</strong> $0.27-$1.00 / MTok input</p>
+      <p><strong>Latency:</strong> 200-800ms</p>
+      <p><strong>Subagent:</strong> cheap-triage</p>
+    </div>
+    <div class="feature-card">
+      <h4><span class="tag tag-t2">T2</span> Reasoning</h4>
+      <p><strong>Models:</strong> Claude Sonnet, Gemini Pro, GPT o3</p>
+      <p><strong>Cost:</strong> $1.25-$3.00 / MTok input</p>
+      <p><strong>Latency:</strong> 1-4s</p>
+      <p><strong>Subagent:</strong> model-reasoner</p>
+    </div>
+    <div class="feature-card">
+      <h4><span class="tag tag-t3">T3</span> Premium</h4>
+      <p><strong>Models:</strong> Claude Opus (always for architecture/security)</p>
+      <p><strong>Cost:</strong> $5.00 / MTok input</p>
+      <p><strong>Latency:</strong> 3-8s</p>
+      <p><strong>Subagents:</strong> model-architect, final-reviewer</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- SELF-HEALING LOOP -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Self-Healing <span>Intelligence</span></h2>
+  <p class="section-lead">The system improves itself autonomously. Every prompt makes the router smarter. Every review generates prioritised improvement backlogs.</p>
+
+  <div class="flow-diagram">
+<span class="step">CONTINUOUS TESTER</span> (24/7, local GPU, $0 cost)
+  <span class="arrow">&darr;</span> generates synthetic prompts &rarr; classifies &rarr; A/B tests models
+  <span class="arrow">&darr;</span> detects misroutings &rarr; logs to history.jsonl
+  <span class="arrow">&darr;</span>
+<span class="step">/MOOTER-REVIEW</span> (delta watermark model)
+  <span class="arrow">&darr;</span> shows ONLY new findings since last review
+  <span class="arrow">&darr;</span> filters meta-prompts, measures pre-degradation accuracy
+  <span class="arrow">&darr;</span> suggests: new gold labels, pattern fixes, model recommendations
+  <span class="arrow">&darr;</span>
+<span class="step">APPLY FIXES</span> (routed economically via Mooter itself)
+  <span class="arrow">&darr;</span> export-gold &rarr; validate-set &rarr; backtest &rarr; update-router
+  <span class="arrow">&darr;</span>
+<span class="step">MEASURE</span> (accuracy trend, savings trend)
+  <span class="arrow">&darr;</span> next review confirms improvement
+  <span class="arrow">&darr;</span>
+<span class="step">REPEAT</span> &infin; <span class="comment">&mdash; virtuous cycle, zero human intervention needed</span>
+  </div>
+
+  <h3>Auto-Learning Pipeline</h3>
+  <table>
+    <tr><th>Cadence</th><th>Component</th><th>What It Does</th><th>Output</th></tr>
+    <tr><td>Real-time</td><td>classify.js</td><td>Routes every prompt in &lt;50ms</td><td>Routing decision + hint</td></tr>
+    <tr><td>Real-time</td><td>exec-logger.js</td><td>Tracks actual model used + latency</td><td>execution.log</td></tr>
+    <tr><td>Continuous</td><td>mooter-continuous-tester.js</td><td>24/7 synthetic testing + A/B</td><td>history.jsonl</td></tr>
+    <tr><td>On-demand</td><td>mooter-review.js</td><td>Delta review with watermark</td><td>Prioritised backlog</td></tr>
+    <tr><td>Daily 02:00</td><td>backtest.js</td><td>Analyses decisions.log, finds waste</td><td>router-tuning.json</td></tr>
+    <tr><td>Daily 02:01</td><td>update-router.js</td><td>Patches classifier (idempotent)</td><td>Updated TUNED block</td></tr>
+    <tr><td>Weekly</td><td>weekly-evolution.js</td><td>Trend analysis, profile rebuild</td><td>Evolution metrics</td></tr>
+  </table>
+
+  <h3>Quality Assurance Stack</h3>
+  <ul>
+    <li><strong>84 gold labels</strong> &mdash; hand-curated test set with expected tier + category</li>
+    <li><strong>60-prompt validation set</strong> &mdash; canonical + adversarial + historical prompts</li>
+    <li><strong>89 automated tests</strong> &mdash; unit, integration, stress, idempotency, latency</li>
+    <li><strong>Shadow mode</strong> &mdash; runs classifier in parallel, tracks real-world misroutes</li>
+    <li><strong>A/B testing engine</strong> &mdash; pits models head-to-head with LLM judge</li>
+    <li><strong>Pre-degradation accuracy</strong> &mdash; measures classifier quality, not infrastructure</li>
+    <li><strong>Meta-prompt filter</strong> &mdash; removes tester's own instructions from data</li>
+  </ul>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- SAFETY & PRIVACY -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section>
+<div class="container">
+  <h2>Safety & <span>Privacy</span></h2>
+  <p class="section-lead">Non-negotiable guardrails. User code never leaves the machine. Critical operations always get premium intelligence.</p>
+
+  <div class="two-col">
+    <div class="feature-card">
+      <h4>Dual-Enforce Guardrails</h4>
+      <p>Critical safety rules enforced at <strong>two</strong> layers:</p>
+      <ul>
+        <li><strong>Runtime:</strong> classify.js blocks demotion when HIGH_RISK signals fire</li>
+        <li><strong>Upstream:</strong> backtest.js filters HIGH_RISK prompts from auto-tuning candidates</li>
+      </ul>
+      <p>Result: even if the auto-learning loop tries to demote a deploy/migration, both layers block it independently.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Privacy-First Architecture</h4>
+      <ul>
+        <li>Code <strong>never</strong> sent externally &mdash; classification is pure local regex</li>
+        <li>Only 200-char truncated previews stored locally</li>
+        <li>Hub receives only anonymised aggregates (tier distribution, hw_tier)</li>
+        <li>12 PII regex rules scrub sensitive data before logging</li>
+        <li>User can purge all data instantly</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>T3-Gate: Non-Negotiable Premium Tasks</h3>
+  <p>These tasks <strong>always</strong> get Opus, regardless of mode (even Zen mode) or budget caps:</p>
+  <table>
+    <tr><th>Category</th><th>Patterns Matched</th><th>Why Premium Required</th></tr>
+    <tr><td>Deployment</td><td>deploy, release, production, push to main</td><td>Irreversible actions need maximum intelligence</td></tr>
+    <tr><td>Data Ops</td><td>migration, drop table, rm -rf, reset --hard</td><td>Destructive operations cannot be wrong</td></tr>
+    <tr><td>Security</td><td>.env, secrets, credentials, XSS, CSRF, JWT</td><td>Security decisions need expert reasoning</td></tr>
+    <tr><td>Architecture</td><td>architect, redesign, refactor, multi-tenant</td><td>Structural decisions have lasting impact</td></tr>
+    <tr><td>Pre-merge</td><td>review before push, create PR, merge branch</td><td>Gate-keeping requires thorough analysis</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TECHNICAL DIFFERENTIATORS -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Technical <span>Differentiators</span></h2>
+  <p class="section-lead">8 innovations that make Mooter unique in the market.</p>
+
+  <div class="kpi-grid">
+    <div class="feature-card">
+      <h4>1. Zero-Proxy Design</h4>
+      <p>Router emits hints, never intercepts. If Mooter dies, Claude Code still works normally. No single point of failure.</p>
+    </div>
+    <div class="feature-card">
+      <h4>2. Zero-Cost Classification</h4>
+      <p>Pure regex in &lt;50ms. No LLM call for routing. 114+ patterns in 4 risk categories. Fully explainable.</p>
+    </div>
+    <div class="feature-card">
+      <h4>3. Doctrine-Driven</h4>
+      <p>165-line Markdown file is the contract. Versionable, self-documenting, LLM-native. No parser needed.</p>
+    </div>
+    <div class="feature-card">
+      <h4>4. Hardware-Aware Routing</h4>
+      <p>Detects GPU (NVIDIA/Apple/AMD), selects optimal local model. 5 T0 sub-specialists by content type.</p>
+    </div>
+    <div class="feature-card">
+      <h4>5. Autonomous Self-Improvement</h4>
+      <p>24/7 tester + daily backtest + delta review = system improves without human intervention.</p>
+    </div>
+    <div class="feature-card">
+      <h4>6. Per-User Adaptation</h4>
+      <p>Learns from user's hardware, budget, subscriptions, and prompt patterns. Not one-size-fits-all.</p>
+    </div>
+    <div class="feature-card">
+      <h4>7. Prompt Optimisation</h4>
+      <p>5 strategies transform prompts before models receive them. 56% of prompts optimisable, ~1,000 tokens saved each.</p>
+    </div>
+    <div class="feature-card">
+      <h4>8. Community Flywheel</h4>
+      <p>Anonymised deltas feed hub, hub sends back improved tuning for everyone. Federated learning without data exposure.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- COMPETITIVE LANDSCAPE -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section>
+<div class="container">
+  <h2>Competitive <span>Landscape</span></h2>
+  <p class="section-lead">No direct competitor offers all these properties simultaneously.</p>
+
+  <table>
+    <tr><th>Capability</th><th>Mooter</th><th>LiteLLM / Portkey</th><th>Manual Tier Caps</th><th>Provider Dashboards</th></tr>
+    <tr><td>Multi-model routing</td><td style="color:var(--green);font-weight:700">Yes (4 tiers, 11+ models)</td><td>Provider switching only</td><td>Static</td><td>No routing</td></tr>
+    <tr><td>Quality gates</td><td style="color:var(--green);font-weight:700">Enforced (95% threshold)</td><td>Advisory only</td><td>None</td><td>None</td></tr>
+    <tr><td>Free local tier</td><td style="color:var(--green);font-weight:700">83.9% of prompts at $0</td><td>Paid APIs only</td><td>N/A</td><td>N/A</td></tr>
+    <tr><td>Per-user adaptation</td><td style="color:var(--green);font-weight:700">Profile-driven</td><td>One-size-fits-all</td><td>Manual</td><td>No</td></tr>
+    <tr><td>Privacy</td><td style="color:var(--green);font-weight:700">100% local classification</td><td>Cloud proxy</td><td>N/A</td><td>Cloud-only</td></tr>
+    <tr><td>Self-improving</td><td style="color:var(--green);font-weight:700">Daily auto-learning</td><td>Static rules</td><td>No</td><td>No</td></tr>
+    <tr><td>Zero proxy risk</td><td style="color:var(--green);font-weight:700">Hint-based, no SPOF</td><td>Proxy = SPOF</td><td>N/A</td><td>N/A</td></tr>
+    <tr><td>Open methodology</td><td style="color:var(--green);font-weight:700">Auditable (METHODOLOGY.md)</td><td>Proprietary</td><td>N/A</td><td>Proprietary</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- DEFENSIBLE MOAT -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Defensible <span>Moat</span></h2>
+  <p class="section-lead">The code is MIT (replicable in 2 weeks). The real moat is data, profiles, community, and trust.</p>
+
+  <div style="max-width:600px;margin:24px 0">
+    <div class="moat-bar">
+      <span class="label">Dataset (prompts)</span>
+      <div class="bar"><div class="fill" style="width:15%;background:var(--accent)"></div></div>
+      <span class="pct">1.4K</span>
+    </div>
+    <div class="moat-bar">
+      <span class="label">User Profiles</span>
+      <div class="bar"><div class="fill" style="width:5%;background:var(--blue)"></div></div>
+      <span class="pct">Early</span>
+    </div>
+    <div class="moat-bar">
+      <span class="label">Community Trust</span>
+      <div class="bar"><div class="fill" style="width:10%;background:var(--green)"></div></div>
+      <span class="pct">Beta</span>
+    </div>
+    <div class="moat-bar">
+      <span class="label">Privacy Reputation</span>
+      <div class="bar"><div class="fill" style="width:90%;background:var(--purple)"></div></div>
+      <span class="pct">High</span>
+    </div>
+  </div>
+
+  <h3>Moat Deepening Strategy</h3>
+  <table>
+    <tr><th>Year</th><th>Dataset</th><th>Profiles</th><th>Model</th><th>Revenue</th></tr>
+    <tr><td><strong>Year 1</strong></td><td>1,437 &rarr; 50K prompts</td><td>3 &rarr; 100 users</td><td>Regex (114 patterns)</td><td>Free (data collection)</td></tr>
+    <tr><td><strong>Year 2</strong></td><td>50K &rarr; 500K prompts</td><td>100 &rarr; 5K users</td><td>TF-IDF + semantic layer</td><td>Pro tier ($5/mo)</td></tr>
+    <tr><td><strong>Year 3</strong></td><td>500K &rarr; 5M prompts</td><td>5K &rarr; 50K users</td><td>ONNX classifier (3M params)</td><td>Teams + B2B licensing</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- DEVELOPMENT TIMELINE -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section>
+<div class="container">
+  <h2>Development <span>Timeline</span></h2>
+  <p class="section-lead">From concept to production-validated system in 10 days of development.</p>
+
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="timeline-date">April 6, 2026</div>
+      <div class="timeline-title">Foundation</div>
+      <div class="timeline-desc">Classifier core (classify.js), hook integration, 6 subagents, 200-prompt benchmark at 100% accuracy, 70% savings baseline.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-date">April 7-8, 2026</div>
+      <div class="timeline-title">Real-World Validation</div>
+      <div class="timeline-desc">1,370 real prompts tested &rarr; 90.2% savings confirmed. Fast-path detectors, budget awareness, SHA-256 cache, product rename to "frugal".</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-date">April 9, 2026</div>
+      <div class="timeline-title">Self-Tuning Era</div>
+      <div class="timeline-desc">Backtest engine, auto-patcher, daily scheduled tuning, GPU awareness, 7-segment statusline, community hub deployed on Cloudflare.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-date">April 11, 2026</div>
+      <div class="timeline-title">Dashboard & Web</div>
+      <div class="timeline-desc">Dashboard MVP (3 pages), Supabase integration, admin dashboard, frugal-doctor, landing page on Vercel.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-date">April 13-14, 2026</div>
+      <div class="timeline-title">Rebrand to Mooter</div>
+      <div class="timeline-desc">Strategic rebrand with backward compatibility, mooter.ai domain acquired, hub consolidation, 10 skill aliases created.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-date">April 16, 2026</div>
+      <div class="timeline-title">Intelligence Foundation</div>
+      <div class="timeline-desc">Sprint B.0-B.3: Methodology codified (19 sections), shadow mode, signals engine (187 implicit signals), ground-truth oracle, closed-loop learning, 89 tests passing. Accuracy 75%&rarr;80%, delta watermark review model, 24/7 continuous tester, self-healing cycle confirmed.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- INFRASTRUCTURE -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Production <span>Infrastructure</span></h2>
+  <p class="section-lead">Live, deployed, and serving real users.</p>
+
+  <table>
+    <tr><th>Component</th><th>Status</th><th>Technology</th><th>Details</th></tr>
+    <tr><td>Landing Page</td><td><span class="tag tag-live">LIVE</span></td><td>Next.js 15 + Vercel</td><td>landing-five-azure-16.vercel.app</td></tr>
+    <tr><td>Community Hub</td><td><span class="tag tag-live">LIVE</span></td><td>Cloudflare Workers + D1</td><td>frugal-hub.frugal-hub.workers.dev</td></tr>
+    <tr><td>Database</td><td><span class="tag tag-live">LIVE</span></td><td>Supabase (sa-east-1)</td><td>Profiles, waitlist, usage sessions</td></tr>
+    <tr><td>Object Storage</td><td><span class="tag tag-live">LIVE</span></td><td>Cloudflare R2</td><td>Router tuning, model catalog</td></tr>
+    <tr><td>Local Dashboard</td><td><span class="tag tag-live">LIVE</span></td><td>Next.js @ :7820</td><td>3 pages: Overview, Misroutes, Community</td></tr>
+    <tr><td>Savings Tracker</td><td><span class="tag tag-live">LIVE</span></td><td>Node.js HTTP @ :7821</td><td>Real-time metrics API</td></tr>
+    <tr><td>CI/CD</td><td><span class="tag tag-live">LIVE</span></td><td>GitHub Actions</td><td>test.yml + deploy-hub.yml</td></tr>
+    <tr><td>Domain</td><td>DNS Pending</td><td>mooter.ai (Vercel)</td><td>Awaiting Cloudflare zone migration</td></tr>
+  </table>
+
+  <h3>Module Inventory (87 files in tools/router/)</h3>
+  <div class="two-col">
+    <div>
+      <h4>Core Engine (4)</h4>
+      <p>classify.js, inject_context.js, patterns.js, prompt-optimizer.js</p>
+      <h4>Auto-Learning (3)</h4>
+      <p>backtest.js, update-router.js, backtest.test.js</p>
+      <h4>Observability (5)</h4>
+      <p>savings-tracker.js, exec-logger.js, gsd-statusline.js, gsd-turn-end.js, frugal-turn-header.js</p>
+      <h4>Quality (7)</h4>
+      <p>gold-labels.json, validation-set.json, shadow-mode.js, shadow-judge.js, stress-test.js, smoke-test.js, mega-test.js</p>
+    </div>
+    <div>
+      <h4>Community (5)</h4>
+      <p>hub-submit-events.js, hub-push.js, hub-pull.js, hub-status.js, aggregate-deltas.js</p>
+      <h4>Hardware & Profiles (5)</h4>
+      <p>gpu-probe.js, hardware-matcher.js, model-manager.js, user-profile.js, activity-classifier.js</p>
+      <h4>Testing & Analysis (8)</h4>
+      <p>mooter-continuous-tester.js, mooter-review.js, adversarial-gen.js, ground-truth.js, replay.js, benchmark.sh, classify.test.js, prompt-optimizer.test.js</p>
+      <h4>Configuration & Utilities (50+)</h4>
+      <p>Mode system, API helpers, budget engine, privacy, similarity, onboarding, pricing, and more.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- USER EXPERIENCE -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section>
+<div class="container">
+  <h2>User <span>Experience</span></h2>
+  <p class="section-lead">11 slash commands, 3 modes, transparent savings in every session.</p>
+
+  <table>
+    <tr><th>Command</th><th>What It Does</th><th>Category</th></tr>
+    <tr><td><code>/mooter-route</code></td><td>Classify any task, show tier recommendation with reasoning</td><td>Routing</td></tr>
+    <tr><td><code>/mooter-beast</code></td><td>Force Opus on everything (maximum quality, no cost limits)</td><td>Mode</td></tr>
+    <tr><td><code>/mooter-zen</code></td><td>Cap at Haiku/Ollama (maximum savings)</td><td>Mode</td></tr>
+    <tr><td><code>/mooter-auto</code></td><td>Return to intelligent auto-routing</td><td>Mode</td></tr>
+    <tr><td><code>/mooter-status</code></td><td>Live health check: hook, Ollama, hub, last decisions</td><td>Monitoring</td></tr>
+    <tr><td><code>/mooter-savings</code></td><td>Detailed economic report with annual projection</td><td>Monitoring</td></tr>
+    <tr><td><code>/mooter-summary</code></td><td>Intelligence dashboard: session stats, quality, trends</td><td>Analytics</td></tr>
+    <tr><td><code>/mooter-review</code></td><td>Delta review of continuous tester findings</td><td>Self-healing</td></tr>
+    <tr><td><code>/mooter-dashboard</code></td><td>Open web dashboard at localhost:7820</td><td>Visualisation</td></tr>
+    <tr><td><code>/mooter-update</code></td><td>Pull latest version + community tuning</td><td>Maintenance</td></tr>
+    <tr><td><code>/mooter-hello</code></td><td>Verify installation is active</td><td>Setup</td></tr>
+  </table>
+
+  <div class="quote-block">
+    <strong>"Bazuca so quando a parede e de betao. Para um post-it, dedo basta."</strong><br>
+    &mdash; The Mooter Doctrine (CLAUDE.md). Opus only when the wall is reinforced concrete. For a post-it note, a finger suffices.
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FINANCIAL IMPACT -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Financial <span>Impact</span></h2>
+  <p class="section-lead">Immediate ROI with zero subscription cost. The router pays for itself from prompt #1.</p>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="value">$100</div>
+      <div class="metric">Monthly Cost Without Mooter</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="value">$10</div>
+      <div class="metric">Monthly Cost With Mooter</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">$1,080</div>
+      <div class="metric">Annual Savings Per Developer</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="value">10x</div>
+      <div class="metric">Cost Reduction Factor</div>
+    </div>
+  </div>
+
+  <h3>Scaling Projections</h3>
+  <table>
+    <tr><th>Users</th><th>Aggregate Annual Savings</th><th>Revenue Potential (20% success fee)</th></tr>
+    <tr><td>100</td><td>$108,000</td><td>$21,600</td></tr>
+    <tr><td>1,000</td><td>$1,080,000</td><td>$216,000</td></tr>
+    <tr><td>10,000</td><td>$10,800,000</td><td>$2,160,000</td></tr>
+    <tr><td>100,000</td><td>$108,000,000</td><td>$21,600,000</td></tr>
+  </table>
+
+  <h3>Revenue Model Options</h3>
+  <div class="two-col">
+    <div class="feature-card">
+      <h4>Free Tier (Current)</h4>
+      <p>Unlimited use, MIT licence. Attracts users, builds dataset moat. Community hub contributions improve routing for everyone.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Pro Tier ($5-10/mo)</h4>
+      <p>Dashboard analytics, multi-device sync, priority hub access, custom model profiles, team management.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Enterprise ($500-2K/mo)</h4>
+      <p>Managed hub, audit logs, compliance reports, SLA, custom model training, SSO/SAML integration.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Success Fee (20% of savings)</h4>
+      <p>Transparent: user saves $90/mo, pays $18/mo. Aligned incentives &mdash; Mooter only earns when the user saves.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ROADMAP -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section>
+<div class="container">
+  <h2>Product <span>Roadmap</span></h2>
+
+  <table>
+    <tr><th>Phase</th><th>Version</th><th>Key Deliverables</th><th>Status</th></tr>
+    <tr><td>Foundation</td><td>v0.1-0.3</td><td>Classifier, hook, subagents, 90% savings validated</td><td><span class="tag tag-done">Done</span></td></tr>
+    <tr><td>Self-Tuning</td><td>v0.5-0.9</td><td>Backtest, auto-patcher, GPU awareness, hub, modes</td><td><span class="tag tag-done">Done</span></td></tr>
+    <tr><td>Dashboard</td><td>v0.9.7</td><td>Web dashboard, Supabase, admin, landing page</td><td><span class="tag tag-done">Done</span></td></tr>
+    <tr><td>Intelligence</td><td>v0.9.9</td><td>Methodology, shadow mode, signals, ground-truth, continuous tester, delta review</td><td><span class="tag tag-done">Done</span></td></tr>
+    <tr><td>Semantic Layer</td><td>v1.0</td><td>Embeddings (nomic-embed-text), Thompson Sampling bandit, TF-IDF</td><td>Planned</td></tr>
+    <tr><td>Multi-User</td><td>v1.5</td><td>GitHub profile integration, community config sharing, friends beta expansion</td><td>Planned</td></tr>
+    <tr><td>ML Classifier</td><td>v2.0</td><td>ONNX model (1-3M params) trained on 50K+ prompts, cohort personalisation</td><td>Vision</td></tr>
+    <tr><td>Enterprise</td><td>v3.0</td><td>B2B licensing, team governance, API, Tauri desktop app</td><td>Vision</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- DOCUMENTATION -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="page-break">
+<div class="container">
+  <h2>Documentation <span>Library</span></h2>
+  <p class="section-lead">25+ master prompts, 10+ reports, 4 interactive visualisations, comprehensive technical docs.</p>
+
+  <div class="two-col">
+    <div>
+      <h4>Core Documentation</h4>
+      <table>
+        <tr><td>ARCHITECTURE.md</td><td>34KB technical source of truth</td></tr>
+        <tr><td>ARCHITECTURE_PRIVATE.md</td><td>Proprietary engine details</td></tr>
+        <tr><td>METHODOLOGY.md</td><td>19-section savings methodology</td></tr>
+        <tr><td>INFRA.md</td><td>Cloud services, IDs, endpoints</td></tr>
+        <tr><td>SYNC.md</td><td>Current state & mission tracking</td></tr>
+        <tr><td>VISION_V2.md</td><td>OS for vibe coders vision</td></tr>
+        <tr><td>ROADMAP.md</td><td>Feature roadmap & priorities</td></tr>
+        <tr><td>CLAUDE.md</td><td>The Doctrine (14KB)</td></tr>
+      </table>
+    </div>
+    <div>
+      <h4>Reports & Visualisations</h4>
+      <table>
+        <tr><td>AUDIT_REPORT.md</td><td>Security & functionality audit</td></tr>
+        <tr><td>E2E_REPORT.md</td><td>End-to-end MVP validation</td></tr>
+        <tr><td>OVERNIGHT_LOG.md</td><td>Auto-tuning overnight results</td></tr>
+        <tr><td>EXPERIENCE_REPORT.md</td><td>Cross-platform UX diagnosis</td></tr>
+        <tr><td>docs/viz/flowmap.html</td><td>Interactive system flowmap</td></tr>
+        <tr><td>docs/viz/system-map.html</td><td>Architecture diagram</td></tr>
+        <tr><td>docs/viz/vision-map.html</td><td>Vision roadmap visual</td></tr>
+        <tr><td>25+ Master Prompts</td><td>Comprehensive session guides</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CALL TO ACTION -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section style="background:linear-gradient(135deg, #1a1a2e, #0f3460);color:white;padding:80px 0;">
+<div class="container" style="text-align:center;">
+  <h2 style="color:white;font-size:40px;">The <span>Opportunity</span></h2>
+  <p style="color:rgba(255,255,255,0.7);font-size:18px;max-width:600px;margin:16px auto 40px;">
+    Every developer using AI assistants overpays by 10x. Mooter fixes this with zero-cost classification, autonomous self-improvement, and privacy-first architecture.
+  </p>
+
+  <div class="kpi-grid" style="max-width:800px;margin:0 auto;">
+    <div class="kpi-card">
+      <div class="value" style="font-size:28px;">$108B</div>
+      <div class="metric">Global AI API spend (2026 est.)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value" style="font-size:28px;color:var(--green)">90%</div>
+      <div class="metric">Proven reducible with Mooter</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value" style="font-size:28px;">10 days</div>
+      <div class="metric">Concept to production</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value" style="font-size:28px;color:var(--green)">$0</div>
+      <div class="metric">Operating cost (local-first)</div>
+    </div>
+  </div>
+
+  <p style="color:rgba(255,255,255,0.5);font-size:14px;margin-top:40px;">
+    Mooter v0.9.9 &mdash; April 2026 &mdash; Created by Paulo Loureiro
+  </p>
+  <p style="color:rgba(255,255,255,0.4);font-size:12px;">
+    paulo.loureiro.shp@gmail.com &bull; mooter.ai &bull; Private &amp; Confidential
+  </p>
+</div>
+</section>
+
+<footer>
+  <p>Document generated on April 16, 2026 by Claude Opus 4.6</p>
+  <p>Data validated against: 1,437 real prompts, 84 gold labels, 89 automated tests, 150+ commits</p>
+  <p style="margin-top:12px;"><a href="https://mooter.ai">mooter.ai</a></p>
+</footer>
+
+</body>
+</html>

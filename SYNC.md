@@ -28,11 +28,15 @@ Classifica cada prompt em < 50 ms (regex puro, sem LLM) e emite um `<router-hint
 | Classifier accuracy (adversarial) | 92% (25 prompts, era 80%) |
 | Gold labels | 84 (era 77, +7 do tester) |
 | Savings validados | 89.9% (1,437+ prompts reais) |
-| Patterns | 108+ (era 102, +6 MED_RISK, +2 LOW_RISK) |
+| Patterns | 114+ (era 102, +12 MED_RISK, +2 LOW_RISK) |
 | Módulos tools/router/ | 66 JS files |
 | Skills | 15 (11 frugal-* + 3 mooter-* + model-router) |
 | Sprint B | ✅ Completo (shadow mode, closed loop, signals, ground-truth) |
-| Tester (24/7) | 176 prompts testados, 13 A/B tests, 6 modelos benchmarked |
+| Tester (24/7) | 240 prompts testados, 17 A/B tests, 6 modelos, 4 reviews |
+| Delta review model | ✅ Watermark funcional — 5 reviews, 2955 eventos processados |
+| Optimizer win rate | 47.4% (era 16.7%, +30.7pp) — tropicalization comprovada |
+| A/B tests | 120 testes, gemma3:12b surpreende (domina deepseek-r1 e qwen3:30b) |
+| Evolution tracking | .evolution/2026-04-16.json — snapshot completo com métricas |
 
 ### Melhorias classifier sessão 2026-04-16
 
