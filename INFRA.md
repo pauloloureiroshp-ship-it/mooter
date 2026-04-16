@@ -466,7 +466,7 @@ schtasks /query /tn "FrugalRouterBacktest" /fo list
 | `SELF_FIX_MASTER_PROMPT.md` | classify.js T1 fix + scheduled task | 🟡 Pendente |
 | `FRIENDS_MASTER_PROMPT.md` | Friends Beta — 10 prioridades | ✅ Executado — v0.9.4 |
 | `master-prompt-sprint4-browser-dashboard.md` | Sprint 4 — Dashboard MVP | ✅ Executado — v0.9.7 |
-| `ROADMAP_MASTER_V2.md` | T0+T1+T2 — 7 módulos | ✅ Executado — v0.9.9 |
+| `docs/MASTER_PROMPTS/ROADMAP_MASTER_V2.md` | T0+T1+T2 — 7 módulos | ✅ Executado — v0.9.9 |
 
 ---
 

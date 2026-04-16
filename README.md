@@ -313,7 +313,7 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 | [docs/COST_MODEL.md](docs/COST_MODEL.md) | How v0.6 measures savings (token-estimated) |
 | [AUDIT.md](AUDIT.md) | The 13-gap audit that drove v0.6 |
 | [PRIVACY.md](PRIVACY.md) | What data is collected and what stays local |
-| [ONBOARDING_GUIDE.md](ONBOARDING_GUIDE.md) | 5-minute install guide for Mac and Windows |
+| [ONBOARDING_GUIDE.md](docs/ONBOARDING_GUIDE.md) | 5-minute install guide for Mac and Windows |
 
 **Landing page:** [landing-five-azure-16.vercel.app](https://landing-five-azure-16.vercel.app)
 
