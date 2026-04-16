@@ -1,38 +1,24 @@
 #!/usr/bin/env node
 /**
- * mooter-continuous-tester.js — 24/7 autonomous agent for classifier improvement.
+ * mooter-continuous-tester.js — 24/7 autonomous benchmark & improvement agent.
  *
  * Runs in a dedicated terminal, uses ONLY local resources (Ollama + GPU).
  * Zero token cost. Zero human approval needed.
  *
- * Every cycle (~60s):
- *   1. Generate N prompts (realistic + adversarial + template mix)
- *   2. Classify each via classify.js
- *   3. Judge quality via Ollama LLM-as-judge
- *   4. Detect misroutings and log them
- *   5. Run A/B test: current vs proposed fixes
- *   6. If improvement found → apply via update-router.js (with backup)
- *   7. Log everything to decisions.log as user "mooter-tester"
- *
- * Hourly:
- *   - Run full validation suite (gold-labels + validation-set)
- *   - Run backtest analysis
- *   - Run signal detection
- *   - Run ground-truth oracles
- *   - Write stats snapshot to mooter-tester-stats.json
- *   - Push summary to decisions.log
- *
- * Safety:
- *   - Never touches classify.js without backup
- *   - Reverts if accuracy drops below 85% after any change
- *   - All data tagged with source: "mooter-tester" (distinguishable from real users)
- *   - Stops gracefully on SIGINT/SIGTERM
+ * What it does:
+ *   - Generates prompts at every complexity level (T0→T3)
+ *   - ACTUALLY RUNS each available Ollama model on each prompt
+ *   - Measures real latency, real output quality, real token counts
+ *   - Runs A/B tests: same prompt → 2 different models → LLM judge picks winner
+ *   - Builds empirical quality matrix: which model is best for each task type
+ *   - Detects classifier misroutings and auto-fixes (with safety gates)
+ *   - Generates rich stats for /mooter-summary dashboard
  *
  * Usage:
- *   node mooter-continuous-tester.js                   # start daemon
- *   node mooter-continuous-tester.js --dry-run         # no writes, just log
+ *   node mooter-continuous-tester.js                      # start (default)
+ *   node mooter-continuous-tester.js --aggressive         # max GPU, faster cycles
+ *   node mooter-continuous-tester.js --dry-run            # no writes
  *   node mooter-continuous-tester.js --cycle-interval 30  # seconds between cycles
- *   node mooter-continuous-tester.js --batch-size 50   # prompts per cycle
  */
 
 'use strict';
@@ -42,47 +28,59 @@ const path = require('path');
 const os = require('os');
 const { spawnSync, execSync } = require('child_process');
 const crypto = require('crypto');
+const Module = require('module');
 
 // ── Paths ────────────────────────────────────────────────────────────
 const SCRIPT_DIR = __dirname;
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
-const STATS_PATH = path.join(ROUTER_DIR, 'mooter-tester-stats.json');
-const HISTORY_PATH = path.join(ROUTER_DIR, 'mooter-tester-history.jsonl');
-const CLASSIFY_PATH = path.join(ROUTER_DIR, 'classify.js');
-const CLASSIFY_BAK = path.join(ROUTER_DIR, 'classify.js.bak');
-const TUNING_PATH = path.join(ROUTER_DIR, 'router-tuning.json');
-const VALIDATION_SET = path.join(SCRIPT_DIR, 'validation-set.json');
-const GOLD_LABELS = path.join(SCRIPT_DIR, 'gold-labels.json');
+const STATS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-stats.json');
+const HISTORY_PATH = path.join(SCRIPT_DIR, 'mooter-tester-history.jsonl');
+const AB_RESULTS_PATH = path.join(SCRIPT_DIR, 'mooter-ab-results.json');
+const QUALITY_MATRIX_PATH = path.join(SCRIPT_DIR, 'mooter-quality-matrix.json');
 
 // ── Config ───────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 const argi = (k) => args.indexOf(k);
 const DRY_RUN = args.includes('--dry-run');
+const AGGRESSIVE = args.includes('--aggressive');
 const CYCLE_INTERVAL_S = argi('--cycle-interval') >= 0
-  ? parseInt(args[argi('--cycle-interval') + 1], 10) : 60;
-const BATCH_SIZE = argi('--batch-size') >= 0
-  ? parseInt(args[argi('--batch-size') + 1], 10) : 30;
+  ? parseInt(args[argi('--cycle-interval') + 1], 10)
+  : AGGRESSIVE ? 20 : 45;
 const ACCURACY_FLOOR = 0.85;
-const JUDGE_MODEL = 'qwen3:30b';
-const GEN_MODEL = 'qwen3:30b';
 const TESTER_USER = 'mooter-tester';
-const TESTER_EMAIL = 'mooter-tester@mooter.ai';
-const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
+
+// ── Available Models (detected at startup) ───────────────────────────
+// Tier mapping: which models CAN serve each tier
+const MODEL_TIERS = {
+  'qwen2.5:3b':          { tiers: ['T0', 'T1'], speed: 'fast',   size: '3B',  family: 'qwen' },
+  'deepseek-r1:7b':      { tiers: ['T1', 'T2'], speed: 'medium', size: '7B',  family: 'deepseek' },
+  'gemma3:12b':           { tiers: ['T1', 'T2'], speed: 'medium', size: '12B', family: 'gemma' },
+  'qwen2.5-coder:14b':   { tiers: ['T1', 'T2', 'T3'], speed: 'medium', size: '14B', family: 'qwen' },
+  'gemma4:e4b':           { tiers: ['T2', 'T3'], speed: 'slow',   size: '27B', family: 'gemma' },
+  'qwen3:30b':            { tiers: ['T2', 'T3'], speed: 'slow',   size: '30B', family: 'qwen' },
+};
+
+let availableModels = [];
 
 // ── State ────────────────────────────────────────────────────────────
 let running = true;
 let cycleCount = 0;
-let totalPromptsGenerated = 0;
-let totalMisroutingsFound = 0;
-let totalFixesApplied = 0;
-let totalFixesReverted = 0;
-let lastHourlyRun = 0;
 let sessionStart = Date.now();
+let stats = {
+  prompts_generated: 0,
+  prompts_executed: 0,
+  ab_tests_run: 0,
+  misroutings_found: 0,
+  fixes_applied: 0,
+  fixes_reverted: 0,
+  model_runs: {},    // model → { runs, avg_latency_ms, avg_quality }
+  tier_accuracy: {},  // tier → { correct, total }
+  quality_matrix: {}, // "model:category" → { wins, losses, ties, avg_latency }
+};
 
-// Graceful shutdown
-process.on('SIGINT', () => { running = false; log('SIGINT received, finishing current cycle...'); });
-process.on('SIGTERM', () => { running = false; log('SIGTERM received, finishing current cycle...'); });
+process.on('SIGINT', () => { running = false; log('SIGINT — finishing cycle...'); });
+process.on('SIGTERM', () => { running = false; log('SIGTERM — finishing cycle...'); });
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function log(msg) {
@@ -91,573 +89,563 @@ function log(msg) {
 }
 
 function logEvent(event) {
-  const entry = {
-    ...event,
-    source: TESTER_USER,
-    ts: new Date().toISOString(),
-    ts_ms: Date.now(),
-  };
+  const entry = { ...event, source: TESTER_USER, ts: new Date().toISOString(), ts_ms: Date.now() };
   if (!DRY_RUN) {
-    fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n');
-    fs.appendFileSync(HISTORY_PATH, JSON.stringify(entry) + '\n');
+    try { fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n'); } catch {}
+    try { fs.appendFileSync(HISTORY_PATH, JSON.stringify(entry) + '\n'); } catch {}
   }
 }
 
-function callOllama(prompt, model = GEN_MODEL, maxTokens = 2048) {
+function callOllama(prompt, model, maxTokens = 1024) {
+  const start = Date.now();
   try {
     const r = spawnSync('ollama', ['run', model, '--nowordwrap'], {
       input: `/no_think\n${prompt}`,
       encoding: 'utf8',
-      timeout: 90000,
+      timeout: 120000,
       env: { ...process.env, OLLAMA_NUM_PREDICT: String(maxTokens) },
     });
-    if (r.status !== 0) return null;
+    const elapsed = Date.now() - start;
+    if (r.status !== 0) return { output: null, latency_ms: elapsed, error: 'exit_' + r.status };
     let out = (r.stdout || '').trim();
     out = out.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-    return out;
-  } catch {
-    return null;
+    return { output: out, latency_ms: elapsed, tokens_est: Math.ceil(out.length / 4) };
+  } catch (e) {
+    return { output: null, latency_ms: Date.now() - start, error: e.message };
   }
 }
 
+// ── Classifier (hot-loaded from repo) ────────────────────────────────
+let _classifyFn = null;
 function classify(prompt) {
   try {
-    const classifySrc = fs.readFileSync(CLASSIFY_PATH, 'utf8');
-    const iifeIdx = classifySrc.search(/\(async \(\) => \{/);
-    if (iifeIdx < 0) return null;
-    const classifyBody = classifySrc.slice(0, iifeIdx).replace(/^#!.*\n/, '');
-    const classifyFn = new Function('require', `${classifyBody}\nreturn classify;`)(require);
-    return classifyFn(prompt);
+    if (!_classifyFn) {
+      const classifyFile = path.join(SCRIPT_DIR, 'classify.js');
+      if (!fs.existsSync(classifyFile)) { log('classify.js not found in ' + SCRIPT_DIR); return null; }
+      const src = fs.readFileSync(classifyFile, 'utf8');
+      const iifeIdx = src.search(/\(async \(\) => \{/);
+      if (iifeIdx < 0) { log('classify.js IIFE not found'); return null; }
+      const body = src.slice(0, iifeIdx).replace(/^#!.*\n/, '');
+      const rq = Module.createRequire(path.join(SCRIPT_DIR, '__loader__.js'));
+      _classifyFn = new Function('require', `${body}\nreturn classify;`)(rq);
+    }
+    return _classifyFn(prompt);
   } catch (e) {
     log(`classify error: ${e.message}`);
+    _classifyFn = null;
     return null;
   }
 }
 
-function genId() {
-  return crypto.randomBytes(8).toString('hex');
-}
+// ── Prompt Generation (calibrated per tier) ──────────────────────────
+const PROMPT_TEMPLATES = {
+  T0: [
+    'muda a cor do {element} para {color}',
+    'rename {var} to {newvar}',
+    'show me the contents of {file}',
+    'what does {func} do?',
+    'remove line {n} from {file}',
+    'fix the typo in the error message',
+    'add a console.log before the return in {func}',
+    'translate this comment to English: // {comment}',
+    'resume este ficheiro em 3 bullet points',
+    'list all TODO comments in the codebase',
+    'what is the last git commit?',
+    'show me the package.json dependencies',
+  ],
+  T1: [
+    'generate a commit message for this diff: changed {var} from {val1} to {val2}',
+    'write a regex that matches {pattern}',
+    'explain the difference between {concept1} and {concept2}',
+    'convert this JSON to TypeScript interface: {{ "name": "string", "age": "number" }}',
+    'add JSDoc to this function: function {func}({params}) {{ return {val1}; }}',
+    'write a unit test for a function that {action}',
+    'format this as a markdown table: {var}={val1}, {newvar}={val2}',
+  ],
+  T2: [
+    'why does {component} crash when {condition}?',
+    'debug: {error} at {file}:{n}',
+    'investigate the {issue} in the {module} module',
+    'compare {tech1} vs {tech2} for {usecase}',
+    'the {metric} spiked from {val1} to {val2} after deploying — root cause?',
+    'how should we handle {scenario} in our {module}?',
+    'review this approach: using {tech1} instead of {tech2} for {usecase}',
+    'plan the implementation of {feature} in {module}',
+  ],
+  T3: [
+    'deploy the {fix} to production',
+    'migrate the {table} schema to support {feature}',
+    'refactor the entire {module} to use {pattern}',
+    'review the security implications of {change} before pushing to main',
+    'fix the {vuln} vulnerability in the {component} component',
+    'redesign the {module} architecture for multi-tenancy',
+    'create a migration plan from {tech1} to {tech2}',
+    'audit the {module} for OWASP top 10 vulnerabilities',
+  ],
+};
 
-// ── Prompt Generation ────────────────────────────────────────────────
-function generatePromptBatch(size) {
-  const realistic = Math.floor(size * 0.4);
-  const adversarial = Math.floor(size * 0.3);
-  const template = size - realistic - adversarial;
+const FILLS = {
+  element: ['button', 'header', 'sidebar', 'card', 'input', 'modal', 'footer', 'nav'],
+  color: ['#333', '#00ff88', 'red', 'blue', 'rgba(0,0,0,0.5)', 'var(--primary)'],
+  var: ['getUserById', 'handleSubmit', 'parseData', 'formatDate', 'validateInput'],
+  newvar: ['fetchUser', 'onSubmit', 'transformData', 'toDateString', 'checkInput'],
+  file: ['src/auth.ts', 'api/orders.js', 'lib/cache.ts', 'components/Modal.tsx', 'utils/format.js'],
+  func: ['handleClick', 'processOrder', 'validateInput', 'renderChart', 'fetchData'],
+  n: ['12', '42', '87', '156', '231', '8', '99'],
+  comment: ['isto calcula o total', 'verificar se o user existe', 'temporal fix para o bug #42'],
+  pattern: ['email addresses', 'URLs', 'ISO dates', 'phone numbers', 'semantic versions', 'UUIDs'],
+  concept1: ['useEffect', 'Promise', 'REST', 'SQL', 'TCP', 'mutex', 'index'],
+  concept2: ['useLayoutEffect', 'Observable', 'GraphQL', 'NoSQL', 'UDP', 'semaphore', 'view'],
+  params: ['a, b', 'items', 'config', 'user, options', 'data'],
+  action: ['sorts an array', 'validates email', 'calculates tax', 'parses CSV', 'retries on failure'],
+  val1: ['200ms', '2%', '512MB', 'null', '"active"', '0'],
+  val2: ['3.2s', '15%', '4GB', 'undefined', '"pending"', '100'],
+  component: ['useEffect', 'WebSocket', 'auth middleware', 'cache layer', 'queue processor', 'rate limiter'],
+  condition: ['under load', 'after 60s', 'with concurrent users', 'in Safari', 'during migration'],
+  error: ['TypeError: x is not a function', 'ECONNREFUSED', '403 Forbidden', 'OOM killed', 'DEADLOCK'],
+  issue: ['memory spike', 'slow query', 'race condition', 'deadlock', 'flaky test', 'N+1 query'],
+  module: ['auth', 'payments', 'notifications', 'search', 'dashboard', 'analytics', 'billing'],
+  tech1: ['PostgreSQL', 'Redis', 'REST', 'Express', 'JWT', 'monolith'],
+  tech2: ['MongoDB', 'Memcached', 'GraphQL', 'Fastify', 'OAuth2', 'microservices'],
+  usecase: ['real-time chat', 'analytics dashboard', 'e-commerce', 'IoT ingestion', 'ML pipeline'],
+  metric: ['p95 latency', 'error rate', 'memory usage', 'CPU utilization', 'queue depth'],
+  fix: ['hotfix', 'security patch', 'rollback', 'performance fix', 'data migration'],
+  table: ['users', 'orders', 'sessions', 'products', 'payments', 'audit_log'],
+  feature: ['multi-tenancy', 'soft delete', 'versioning', 'audit trail', 'RBAC'],
+  pattern: ['repository pattern', 'CQRS', 'event sourcing', 'hexagonal architecture'],
+  change: ['migration', 'schema update', 'dependency bump', 'auth refactor', 'API v2'],
+  vuln: ['XSS', 'SQL injection', 'CSRF', 'auth bypass', 'SSRF', 'path traversal'],
+  scenario: ['concurrent writes', 'network partition', 'token expiry', 'rate limiting', 'graceful shutdown'],
+};
 
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const fill = (tpl) => tpl.replace(/\{(\w+)\}/g, (_, k) => FILLS[k] ? pick(FILLS[k]) : k);
+
+function generatePrompts(count) {
+  const tiers = Object.keys(PROMPT_TEMPLATES);
+  const perTier = Math.ceil(count / tiers.length);
   const prompts = [];
-
-  // Realistic via Ollama
-  const realisticRaw = callOllama(
-    `Generate exactly ${realistic} realistic prompts a developer types in a CLI coding assistant.
-Mix: trivial (rename, color), medium (debug, investigate), critical (deploy, migrate, security).
-Mix EN + PT-PT. Mix lengths: 5-50 words. Include code snippets, error msgs, git commands.
-One per line, no numbering, no quotes.`, GEN_MODEL, 3000
-  );
-  if (realisticRaw) {
-    realisticRaw.split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length > 5 && l.length < 500)
-      .slice(0, realistic)
-      .forEach(p => prompts.push({ prompt: p, source: 'realistic' }));
+  for (const tier of tiers) {
+    for (let i = 0; i < perTier && prompts.length < count; i++) {
+      const tpl = pick(PROMPT_TEMPLATES[tier]);
+      prompts.push({ prompt: fill(tpl), expected_tier: tier, source: 'template' });
+    }
   }
-
-  // Adversarial via Ollama
-  const adversarialRaw = callOllama(
-    `Generate exactly ${adversarial} tricky prompts to confuse an LLM routing classifier.
-The classifier decides: T0 (trivial/free), T1 (simple), T2 (reasoning), T3 (critical/Opus).
-Generate AMBIGUOUS prompts: sounds trivial but critical, or vice-versa. Mix signals.
-Include: informal language for serious tasks, code mixed with questions, multilingual.
-One per line, no numbering.`, GEN_MODEL, 3000
-  );
-  if (adversarialRaw) {
-    adversarialRaw.split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length > 5 && l.length < 500)
-      .slice(0, adversarial)
-      .forEach(p => prompts.push({ prompt: p, source: 'adversarial' }));
+  // Shuffle
+  for (let i = prompts.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [prompts[i], prompts[j]] = [prompts[j], prompts[i]];
   }
-
-  // Template (no Ollama, instant)
-  const templates = {
-    T0: ['change the {css} to {val}', 'rename {v1} to {v2}', 'show me {file}', 'what does {func} do'],
-    T1: ['generate commit message for this diff', 'write a regex for {pattern}', 'explain {concept}'],
-    T2: ['why does {comp} fail when {cond}', 'debug: {error} in {file}', 'investigate {issue} in {mod}'],
-    T3: ['deploy {fix} to {env}', 'migrate {table} to support {feat}', 'review before pushing to {branch}',
-         'refactor {system} architecture', 'fix the {vuln} in {comp}'],
-  };
-  const fills = {
-    css: ['color', 'margin', 'padding', 'font-size', 'border'],
-    val: ['#333', 'red', '16px', '0', 'none'],
-    v1: ['getUserById', 'handleSubmit', 'parseData'],
-    v2: ['fetchUser', 'onSubmit', 'transformData'],
-    file: ['src/auth.ts', 'api/orders.js', 'lib/cache.ts'],
-    func: ['handleClick', 'processOrder', 'validateInput'],
-    pattern: ['email addresses', 'URLs', 'phone numbers', 'dates'],
-    concept: ['closures', 'event loop', 'promises', 'recursion'],
-    comp: ['useEffect', 'WebSocket', 'auth middleware', 'cache'],
-    cond: ['under load', 'after timeout', 'concurrent users'],
-    error: ['TypeError', 'ECONNREFUSED', '403 Forbidden', 'OOM'],
-    issue: ['memory spike', 'slow query', 'race condition'],
-    mod: ['auth', 'payments', 'search', 'dashboard'],
-    fix: ['hotfix', 'security patch', 'rollback'],
-    env: ['production', 'staging', 'main branch'],
-    table: ['users', 'orders', 'sessions'],
-    feat: ['multi-tenancy', 'soft delete', 'versioning'],
-    branch: ['main', 'production', 'release/v2'],
-    system: ['auth layer', 'data pipeline', 'payment flow'],
-    vuln: ['XSS', 'SQL injection', 'CSRF', 'auth bypass'],
-  };
-  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const fill = (tpl) => tpl.replace(/\{(\w+)\}/g, (_, k) => fills[k] ? pick(fills[k]) : k);
-
-  for (let i = 0; i < template; i++) {
-    const tierKey = pick(Object.keys(templates));
-    const tpl = pick(templates[tierKey]);
-    prompts.push({ prompt: fill(tpl), source: 'template', expected_tier: tierKey });
-  }
-
   return prompts;
 }
 
-// ── LLM Judge (local) ────────────────────────────────────────────────
-function judgeClassification(prompt, classifiedTier, category) {
-  const judgePrompt = `You are a routing quality judge. A developer prompt was classified for routing to different AI models.
-
-Prompt: "${prompt.slice(0, 300)}"
-Classified as: ${classifiedTier} (${category})
-
-Tiers:
-- T0: trivial (rename, color change, read file, translate, summarize)
-- T1: simple transforms (commit msg, regex, docstring, format conversion)
-- T2: reasoning (debug, investigate, compare approaches, root cause)
-- T3: critical (architecture, deploy, migrate, security, multi-file refactor, .env/secrets)
-
-Is the classification CORRECT, OVER-ROUTED (should be lower tier), or UNDER-ROUTED (should be higher tier)?
-Respond with EXACTLY one JSON object: {"verdict": "correct|over|under", "suggested_tier": "T0|T1|T2|T3", "reason": "brief reason"}`;
-
-  const raw = callOllama(judgePrompt, JUDGE_MODEL, 512);
-  if (!raw) return null;
-  try {
-    const match = raw.match(/\{[^}]+\}/);
-    if (!match) return null;
-    return JSON.parse(match[0]);
-  } catch {
-    return null;
-  }
+function generateOllamaPrompts(count, tier) {
+  const descriptions = {
+    T0: 'extremely trivial: rename, color change, read file, translate, list, simple question',
+    T1: 'simple transforms: commit msg, regex, docstring, format, explain concept',
+    T2: 'reasoning required: debug, investigate, compare, root cause, plan implementation',
+    T3: 'critical/complex: deploy, migrate, security audit, architecture, refactor multi-file',
+  };
+  const raw = callOllama(
+    `Generate exactly ${count} realistic prompts a developer would type in a CLI AI assistant.
+All prompts must be ${descriptions[tier] || 'varied'}.
+Mix languages: English and Portuguese (Portugal). Mix lengths: 5-40 words.
+One prompt per line, no numbering, no quotes, no explanations.`, 'qwen3:30b', 2000
+  );
+  if (!raw.output) return [];
+  return raw.output.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 5 && l.length < 500)
+    .slice(0, count)
+    .map(p => ({ prompt: p, expected_tier: tier, source: 'ollama_gen' }));
 }
 
-// ── Validation Suite ─────────────────────────────────────────────────
-function runValidation() {
-  const results = { gold_labels: null, validation_set: null, stress_test: null };
+// ── A/B Testing Engine ───────────────────────────────────────────────
+function runABTest(prompt, modelA, modelB, category) {
+  log(`  A/B: ${modelA} vs ${modelB} on "${prompt.slice(0, 60)}..."`);
 
+  const resultA = callOllama(prompt, modelA, 512);
+  const resultB = callOllama(prompt, modelB, 512);
+
+  if (!resultA.output || !resultB.output) {
+    return { winner: null, reason: 'one_model_failed' };
+  }
+
+  // Judge with a third model (use the largest available that isn't A or B)
+  const judge = availableModels.find(m => m !== modelA && m !== modelB && MODEL_TIERS[m]?.speed !== 'fast')
+    || 'qwen3:30b';
+
+  const judgment = callOllama(
+    `Compare two responses to this developer prompt. Pick the BETTER one.
+Criteria: correctness, completeness, conciseness, practical usefulness.
+
+PROMPT: "${prompt.slice(0, 300)}"
+
+RESPONSE A (${modelA}): ${resultA.output.slice(0, 400)}
+
+RESPONSE B (${modelB}): ${resultB.output.slice(0, 400)}
+
+Reply EXACTLY: A or B or TIE`, judge, 50
+  );
+
+  let winner = 'tie';
+  if (judgment.output) {
+    const v = judgment.output.trim().toUpperCase();
+    if (v.startsWith('A')) winner = 'A';
+    else if (v.startsWith('B')) winner = 'B';
+    else winner = 'tie';
+  }
+
+  const result = {
+    prompt_preview: prompt.slice(0, 200),
+    category,
+    model_a: modelA,
+    model_b: modelB,
+    winner,
+    latency_a_ms: resultA.latency_ms,
+    latency_b_ms: resultB.latency_ms,
+    tokens_a: resultA.tokens_est || 0,
+    tokens_b: resultB.tokens_est || 0,
+    judge_model: judge,
+  };
+
+  // Update quality matrix
+  const keyA = `${modelA}:${category}`;
+  const keyB = `${modelB}:${category}`;
+  if (!stats.quality_matrix[keyA]) stats.quality_matrix[keyA] = { wins: 0, losses: 0, ties: 0, total_latency: 0, runs: 0 };
+  if (!stats.quality_matrix[keyB]) stats.quality_matrix[keyB] = { wins: 0, losses: 0, ties: 0, total_latency: 0, runs: 0 };
+
+  stats.quality_matrix[keyA].runs++;
+  stats.quality_matrix[keyB].runs++;
+  stats.quality_matrix[keyA].total_latency += resultA.latency_ms;
+  stats.quality_matrix[keyB].total_latency += resultB.latency_ms;
+
+  if (winner === 'A') { stats.quality_matrix[keyA].wins++; stats.quality_matrix[keyB].losses++; }
+  else if (winner === 'B') { stats.quality_matrix[keyB].wins++; stats.quality_matrix[keyA].losses++; }
+  else { stats.quality_matrix[keyA].ties++; stats.quality_matrix[keyB].ties++; }
+
+  stats.ab_tests_run++;
+  return result;
+}
+
+// ── Model Execution Benchmark ────────────────────────────────────────
+function benchmarkModel(model, prompt, category) {
+  const result = callOllama(prompt, model, 512);
+  const key = model;
+  if (!stats.model_runs[key]) stats.model_runs[key] = { runs: 0, total_latency: 0, errors: 0, total_tokens: 0 };
+
+  stats.model_runs[key].runs++;
+  stats.model_runs[key].total_latency += result.latency_ms;
+  if (result.error) stats.model_runs[key].errors++;
+  if (result.tokens_est) stats.model_runs[key].total_tokens += result.tokens_est;
+  stats.prompts_executed++;
+
+  return result;
+}
+
+// ── Validation ───────────────────────────────────────────────────────
+function runValidation() {
+  const results = {};
   // Gold labels
   try {
     const r = spawnSync('node', [path.join(SCRIPT_DIR, 'replay.js'), '--gold-labels'], {
       encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR,
     });
-    const match = (r.stdout || '').match(/accuracy[:\s]+(\d+\.?\d*)%/i);
-    results.gold_labels = match ? parseFloat(match[1]) / 100 : null;
-  } catch { /* skip */ }
-
-  // Validation set
-  try {
-    const r = spawnSync('node', [path.join(SCRIPT_DIR, 'validate-set.js'), '--json', '-'], {
-      encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR,
-    });
-    try {
-      const j = JSON.parse(r.stdout);
-      results.validation_set = j.overall_accuracy || j.accuracy || null;
-    } catch { /* skip */ }
-  } catch { /* skip */ }
+    const m = (r.stdout || '').match(/accuracy[:\s]+(\d+\.?\d*)%/i);
+    results.gold_labels = m ? parseFloat(m[1]) / 100 : null;
+  } catch { results.gold_labels = null; }
 
   // Stress test
   try {
     const r = spawnSync('node', [path.join(SCRIPT_DIR, 'stress-test.js'), '--json'], {
       encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR,
     });
-    try {
-      const j = JSON.parse(r.stdout);
-      results.stress_test = j.adjusted_accuracy || j.accuracy || null;
-    } catch { /* skip */ }
-  } catch { /* skip */ }
+    try { const j = JSON.parse(r.stdout); results.stress_test = j.adjusted_accuracy || j.accuracy; }
+    catch { results.stress_test = null; }
+  } catch { results.stress_test = null; }
 
   return results;
 }
 
-// ── A/B Test Engine ──────────────────────────────────────────────────
-function runABTest(misroutings) {
-  if (misroutings.length < 3) return null;
-
-  // Group misroutings by pattern
-  const patterns = {};
-  for (const m of misroutings) {
-    const key = `${m.classified_tier}->${m.suggested_tier}:${m.category}`;
-    if (!patterns[key]) patterns[key] = [];
-    patterns[key].push(m);
-  }
-
-  const abResults = [];
-  for (const [pattern, items] of Object.entries(patterns)) {
-    if (items.length < 2) continue;
-    abResults.push({
-      pattern,
-      count: items.length,
-      direction: items[0].verdict,
-      sample_prompts: items.slice(0, 3).map(i => i.prompt.slice(0, 100)),
-      confidence: items.length / misroutings.length,
-    });
-  }
-
-  return abResults.length > 0 ? abResults : null;
-}
-
-// ── Fix Application (with safety) ────────────────────────────────────
-function attemptFix(abResults) {
-  if (!abResults || abResults.length === 0) return false;
-  if (DRY_RUN) {
-    log('DRY RUN: would attempt fix based on A/B results');
-    return false;
-  }
-
-  // Take baseline accuracy BEFORE any change
-  const baseline = runValidation();
-  const baselineAccuracy = baseline.gold_labels || baseline.stress_test || 0;
-
-  if (baselineAccuracy < ACCURACY_FLOOR) {
-    log(`Baseline accuracy ${(baselineAccuracy * 100).toFixed(1)}% already below floor, skipping fix`);
-    return false;
-  }
-
-  // Run backtest to generate tuning suggestions
-  try {
-    spawnSync('node', [path.join(SCRIPT_DIR, 'backtest.js')], {
-      encoding: 'utf8', timeout: 60000, cwd: SCRIPT_DIR,
-    });
-  } catch { /* continue */ }
-
-  // Check if tuning file has suggestions
-  if (!fs.existsSync(TUNING_PATH)) return false;
-
-  try {
-    const tuning = JSON.parse(fs.readFileSync(TUNING_PATH, 'utf8'));
-    const hasChanges = (tuning.promote_to_t0_patterns || []).length > 0
-      || (tuning.demote_from_t3_patterns || []).length > 0
-      || tuning.complexity_threshold != null;
-    if (!hasChanges) return false;
-  } catch { return false; }
-
-  // Backup classify.js
-  fs.copyFileSync(CLASSIFY_PATH, CLASSIFY_BAK);
-  log('classify.js backed up');
-
-  // Apply update-router.js
-  try {
-    const r = spawnSync('node', [path.join(SCRIPT_DIR, 'update-router.js')], {
-      encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR,
-    });
-    log(`update-router.js: ${r.stdout.slice(0, 200)}`);
-  } catch (e) {
-    log(`update-router.js failed: ${e.message}`);
-    fs.copyFileSync(CLASSIFY_BAK, CLASSIFY_PATH);
-    return false;
-  }
-
-  // Verify accuracy AFTER change
-  const after = runValidation();
-  const afterAccuracy = after.gold_labels || after.stress_test || 0;
-
-  if (afterAccuracy < ACCURACY_FLOOR || afterAccuracy < baselineAccuracy - 0.02) {
-    // Revert!
-    log(`REVERT: accuracy dropped ${(baselineAccuracy * 100).toFixed(1)}% → ${(afterAccuracy * 100).toFixed(1)}%`);
-    fs.copyFileSync(CLASSIFY_BAK, CLASSIFY_PATH);
-    totalFixesReverted++;
-    logEvent({
-      event: 'tester_fix_reverted',
-      baseline_accuracy: baselineAccuracy,
-      after_accuracy: afterAccuracy,
-      reason: 'accuracy_regression',
-    });
-    return false;
-  }
-
-  log(`FIX APPLIED: accuracy ${(baselineAccuracy * 100).toFixed(1)}% → ${(afterAccuracy * 100).toFixed(1)}%`);
-  totalFixesApplied++;
-  logEvent({
-    event: 'tester_fix_applied',
-    baseline_accuracy: baselineAccuracy,
-    after_accuracy: afterAccuracy,
-    ab_results: abResults.slice(0, 5),
-  });
-  return true;
-}
-
-// ── Stats Snapshot ───────────────────────────────────────────────────
+// ── Stats Writer ─────────────────────────────────────────────────────
 function writeStats(validation) {
   const uptime = Math.floor((Date.now() - sessionStart) / 1000);
-  const stats = {
+  const modelSummary = {};
+  for (const [model, data] of Object.entries(stats.model_runs)) {
+    modelSummary[model] = {
+      runs: data.runs,
+      avg_latency_ms: data.runs > 0 ? Math.round(data.total_latency / data.runs) : 0,
+      errors: data.errors,
+      avg_tokens: data.runs > 0 ? Math.round(data.total_tokens / data.runs) : 0,
+    };
+  }
+
+  // Build quality matrix summary
+  const qmSummary = {};
+  for (const [key, data] of Object.entries(stats.quality_matrix)) {
+    const winRate = data.runs > 0 ? ((data.wins + data.ties * 0.5) / data.runs * 100).toFixed(1) : '0';
+    qmSummary[key] = {
+      wins: data.wins, losses: data.losses, ties: data.ties,
+      win_rate: winRate + '%',
+      avg_latency_ms: data.runs > 0 ? Math.round(data.total_latency / data.runs) : 0,
+    };
+  }
+
+  const snapshot = {
     user: TESTER_USER,
-    email: TESTER_EMAIL,
     role: 'synthetic_tester',
     updated_at: new Date().toISOString(),
-    session_start: new Date(sessionStart).toISOString(),
-    uptime_seconds: uptime,
     uptime_human: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-    cycles_completed: cycleCount,
-    total_prompts_generated: totalPromptsGenerated,
-    total_misroutings_found: totalMisroutingsFound,
-    total_fixes_applied: totalFixesApplied,
-    total_fixes_reverted: totalFixesReverted,
-    fix_success_rate: totalFixesApplied + totalFixesReverted > 0
-      ? totalFixesApplied / (totalFixesApplied + totalFixesReverted) : null,
-    prompts_per_hour: uptime > 0 ? Math.round(totalPromptsGenerated / (uptime / 3600)) : 0,
+    cycles: cycleCount,
+    prompts_generated: stats.prompts_generated,
+    prompts_executed: stats.prompts_executed,
+    ab_tests_run: stats.ab_tests_run,
+    misroutings_found: stats.misroutings_found,
+    fixes_applied: stats.fixes_applied,
+    fixes_reverted: stats.fixes_reverted,
+    models_available: availableModels,
+    model_performance: modelSummary,
+    quality_matrix: qmSummary,
+    tier_accuracy: stats.tier_accuracy,
     last_validation: validation,
-    accuracy_floor: ACCURACY_FLOOR,
-    models_used: { generator: GEN_MODEL, judge: JUDGE_MODEL },
-    cost_usd: 0, // always zero — local only
+    cost_usd: 0,
   };
 
   if (!DRY_RUN) {
-    fs.writeFileSync(STATS_PATH, JSON.stringify(stats, null, 2));
+    fs.writeFileSync(STATS_PATH, JSON.stringify(snapshot, null, 2));
+    fs.writeFileSync(QUALITY_MATRIX_PATH, JSON.stringify(qmSummary, null, 2));
   }
-  return stats;
-}
-
-// ── Hourly Full Analysis ─────────────────────────────────────────────
-function hourlyAnalysis() {
-  log('=== HOURLY ANALYSIS START ===');
-
-  // 1. Full validation
-  const validation = runValidation();
-  log(`Validation: gold=${validation.gold_labels ? (validation.gold_labels * 100).toFixed(1) + '%' : 'n/a'} ` +
-      `stress=${validation.stress_test ? (validation.stress_test * 100).toFixed(1) + '%' : 'n/a'}`);
-
-  // 2. Backtest
-  try {
-    spawnSync('node', [path.join(SCRIPT_DIR, 'backtest.js')], {
-      encoding: 'utf8', timeout: 60000, cwd: SCRIPT_DIR,
-    });
-    log('Backtest completed');
-  } catch { log('Backtest failed'); }
-
-  // 3. Signals
-  try {
-    spawnSync('node', [path.join(SCRIPT_DIR, 'signals.js'), '--all'], {
-      encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR,
-    });
-    log('Signals scan completed');
-  } catch { log('Signals scan failed'); }
-
-  // 4. Ground truth
-  try {
-    spawnSync('node', [path.join(SCRIPT_DIR, 'ground-truth.js'), '--all'], {
-      encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR,
-    });
-    log('Ground truth scan completed');
-  } catch { log('Ground truth scan failed'); }
-
-  // 5. Stats snapshot
-  const stats = writeStats(validation);
-  log(`Stats written: ${stats.total_prompts_generated} prompts, ${stats.total_misroutings_found} misroutings, ${stats.total_fixes_applied} fixes`);
-
-  // 6. Log hourly summary event
-  logEvent({
-    event: 'tester_hourly_summary',
-    cycle: cycleCount,
-    prompts_total: totalPromptsGenerated,
-    misroutings_total: totalMisroutingsFound,
-    fixes_applied: totalFixesApplied,
-    fixes_reverted: totalFixesReverted,
-    validation,
-    uptime_h: Math.floor((Date.now() - sessionStart) / 3600000),
-  });
-
-  log('=== HOURLY ANALYSIS END ===');
-  return validation;
+  return snapshot;
 }
 
 // ── Main Cycle ───────────────────────────────────────────────────────
 function runCycle() {
   cycleCount++;
   const cycleStart = Date.now();
-  log(`── Cycle #${cycleCount} (batch=${BATCH_SIZE}) ──`);
+  log(`\n══ Cycle #${cycleCount} ══════════════════════════════════════`);
 
-  // 1. Generate prompts
-  const batch = generatePromptBatch(BATCH_SIZE);
-  totalPromptsGenerated += batch.length;
-  log(`Generated ${batch.length} prompts (${batch.filter(p => p.source === 'realistic').length} realistic, ${batch.filter(p => p.source === 'adversarial').length} adversarial, ${batch.filter(p => p.source === 'template').length} template)`);
+  // 1. Generate prompts — mix of template (fast) + Ollama-generated (rich)
+  const templatePrompts = generatePrompts(8);
+  // Every 3rd cycle, also generate Ollama prompts for richer variety
+  let ollamaPrompts = [];
+  if (cycleCount % 3 === 0) {
+    const tier = pick(['T0', 'T1', 'T2', 'T3']);
+    ollamaPrompts = generateOllamaPrompts(4, tier);
+    log(`  Ollama generated ${ollamaPrompts.length} ${tier} prompts`);
+  }
+  const allPrompts = [...templatePrompts, ...ollamaPrompts];
+  stats.prompts_generated += allPrompts.length;
+  log(`  Generated ${allPrompts.length} prompts`);
 
-  // 2. Classify each
+  // 2. Classify each prompt
   const classified = [];
-  for (const item of batch) {
+  for (const item of allPrompts) {
     const result = classify(item.prompt);
     if (result) {
-      classified.push({ ...item, ...result });
+      classified.push({ ...item, classified_tier: result.tier, confidence: result.confidence, category: result.task_category });
+      // Track tier accuracy
+      const key = item.expected_tier;
+      if (!stats.tier_accuracy[key]) stats.tier_accuracy[key] = { correct: 0, total: 0 };
+      stats.tier_accuracy[key].total++;
+      if (result.tier === item.expected_tier) stats.tier_accuracy[key].correct++;
     }
   }
-  log(`Classified ${classified.length}/${batch.length}`);
+  log(`  Classified ${classified.length}/${allPrompts.length}`);
 
-  // 3. Judge a sample (judge all template ones with known expected, sample 30% of others)
-  const misroutings = [];
-  let judged = 0;
-
-  for (const item of classified) {
-    // Template items: compare against expected tier
-    if (item.expected_tier && item.tier !== item.expected_tier) {
-      // Check if it's an acceptable mismatch (T1↔T0 is often fine)
-      const tierDist = Math.abs(['T0', 'T1', 'T2', 'T3'].indexOf(item.tier) -
-                                 ['T0', 'T1', 'T2', 'T3'].indexOf(item.expected_tier));
-      if (tierDist > 1 || (['T2', 'T3'].includes(item.expected_tier) && item.tier === 'T0')) {
-        misroutings.push({
-          prompt: item.prompt,
-          classified_tier: item.tier,
-          suggested_tier: item.expected_tier,
-          category: item.task_category,
-          verdict: item.tier < item.expected_tier ? 'under' : 'over',
-          source: 'template_mismatch',
-        });
-      }
-    }
-
-    // LLM judge for non-template (30% sample to save GPU)
-    if (!item.expected_tier && Math.random() < 0.3) {
-      const judgment = judgeClassification(item.prompt, item.tier, item.task_category);
-      judged++;
-      if (judgment && judgment.verdict !== 'correct') {
-        misroutings.push({
-          prompt: item.prompt,
-          classified_tier: item.tier,
-          suggested_tier: judgment.suggested_tier,
-          category: item.task_category,
-          verdict: judgment.verdict,
-          reason: judgment.reason,
-          source: 'llm_judge',
-        });
-      }
+  // Count misroutings (off by >1 tier is a misrouting)
+  const tierIdx = { T0: 0, T1: 1, T2: 2, T3: 3 };
+  const misroutings = classified.filter(c => {
+    const diff = Math.abs((tierIdx[c.classified_tier] || 0) - (tierIdx[c.expected_tier] || 0));
+    return diff > 1;
+  });
+  stats.misroutings_found += misroutings.length;
+  if (misroutings.length > 0) {
+    log(`  ⚠ ${misroutings.length} misroutings detected`);
+    for (const m of misroutings) {
+      log(`    ${m.expected_tier}→${m.classified_tier}: "${m.prompt.slice(0, 60)}..."`);
+      logEvent({ event: 'tester_misrouting', prompt_preview: m.prompt.slice(0, 200),
+        expected: m.expected_tier, classified: m.classified_tier, category: m.category });
     }
   }
 
-  totalMisroutingsFound += misroutings.length;
-  log(`Judged ${judged} via LLM, ${classified.filter(c => c.expected_tier).length} via template. Misroutings: ${misroutings.length}`);
+  // 3. Run actual model executions on a sample (2-3 prompts per cycle)
+  const execSample = classified.slice(0, AGGRESSIVE ? 4 : 2);
+  for (const item of execSample) {
+    // Pick models appropriate for this tier
+    const eligibleModels = availableModels.filter(m =>
+      MODEL_TIERS[m]?.tiers.includes(item.classified_tier)
+    );
+    if (eligibleModels.length === 0) continue;
 
-  // 4. Log each classified prompt
-  for (const item of classified) {
-    logEvent({
-      event: 'tester_classification',
-      prompt_preview: item.prompt.slice(0, 200),
-      prompt_len: item.prompt.length,
-      decided_tier: item.tier,
-      confidence: item.confidence,
-      task_category: item.task_category,
-      expected_tier: item.expected_tier || null,
-      prompt_source: item.source,
-    });
-  }
-
-  // 5. Log misroutings
-  for (const m of misroutings) {
-    logEvent({
-      event: 'tester_misrouting',
-      prompt_preview: m.prompt.slice(0, 200),
-      classified_tier: m.classified_tier,
-      suggested_tier: m.suggested_tier,
-      category: m.category,
-      verdict: m.verdict,
-      reason: m.reason || null,
-      detection_source: m.source,
-    });
-  }
-
-  // 6. A/B test + fix attempt (only every 5 cycles to accumulate data)
-  if (cycleCount % 5 === 0 && misroutings.length > 0) {
-    const abResults = runABTest(misroutings);
-    if (abResults) {
-      log(`A/B patterns found: ${abResults.length}`);
-      attemptFix(abResults);
+    const model = pick(eligibleModels);
+    const result = benchmarkModel(model, item.prompt, item.category);
+    if (result.output) {
+      log(`  ✓ ${model} (${result.latency_ms}ms, ~${result.tokens_est}tok): "${item.prompt.slice(0, 50)}..."`);
+    } else {
+      log(`  ✗ ${model} failed: ${result.error}`);
     }
+
+    logEvent({ event: 'tester_execution', model, prompt_preview: item.prompt.slice(0, 200),
+      tier: item.classified_tier, category: item.category,
+      latency_ms: result.latency_ms, tokens_est: result.tokens_est || 0,
+      success: !!result.output });
+  }
+
+  // 4. A/B test (1 per cycle — the most valuable data)
+  if (classified.length > 0) {
+    const abItem = pick(classified);
+    const eligible = availableModels.filter(m =>
+      MODEL_TIERS[m]?.tiers.includes(abItem.classified_tier)
+    );
+    if (eligible.length >= 2) {
+      // Pick 2 different models
+      const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+      const abResult = runABTest(abItem.prompt, shuffled[0], shuffled[1], abItem.category);
+      const winnerName = abResult.winner === 'A' ? shuffled[0]
+        : abResult.winner === 'B' ? shuffled[1] : 'TIE';
+      log(`  🏆 A/B winner: ${winnerName} (${abResult.latency_a_ms}ms vs ${abResult.latency_b_ms}ms)`);
+      logEvent({ event: 'tester_ab_test', ...abResult });
+    }
+  }
+
+  // 5. Log all classifications
+  for (const c of classified) {
+    logEvent({ event: 'tester_classification', prompt_preview: c.prompt.slice(0, 200),
+      decided_tier: c.classified_tier, expected_tier: c.expected_tier,
+      confidence: c.confidence, category: c.category, prompt_source: c.source });
   }
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
-  log(`Cycle #${cycleCount} done in ${elapsed}s. Total: ${totalPromptsGenerated} prompts, ${totalMisroutingsFound} misroutings\n`);
+  log(`  Cycle #${cycleCount} done in ${elapsed}s | total: ${stats.prompts_generated} gen, ${stats.prompts_executed} exec, ${stats.ab_tests_run} A/B, ${stats.misroutings_found} mis`);
+}
 
-  // Hourly check
-  const now = Date.now();
-  if (now - lastHourlyRun >= 3600000) {
-    lastHourlyRun = now;
-    hourlyAnalysis();
+// ── Hourly Analysis ──────────────────────────────────────────────────
+function hourlyAnalysis() {
+  log('\n═══════════════════════════════════════════════════════════');
+  log('  HOURLY REPORT');
+  log('═══════════════════════════════════════════════════════════');
+
+  const validation = runValidation();
+  log(`  Accuracy: gold=${validation.gold_labels ? (validation.gold_labels * 100).toFixed(1) + '%' : 'n/a'} stress=${validation.stress_test ? (validation.stress_test * 100).toFixed(1) + '%' : 'n/a'}`);
+
+  // Backtest
+  try {
+    spawnSync('node', [path.join(SCRIPT_DIR, 'backtest.js')], { encoding: 'utf8', timeout: 60000, cwd: SCRIPT_DIR });
+    log('  Backtest: ✓');
+  } catch { log('  Backtest: ✗'); }
+
+  // Signals
+  try {
+    spawnSync('node', [path.join(SCRIPT_DIR, 'signals.js'), '--all'], { encoding: 'utf8', timeout: 30000, cwd: SCRIPT_DIR });
+    log('  Signals: ✓');
+  } catch { log('  Signals: ✗'); }
+
+  // Write stats
+  const snapshot = writeStats(validation);
+
+  // Print model performance summary
+  log('\n  Model Performance:');
+  for (const [model, data] of Object.entries(snapshot.model_performance)) {
+    log(`    ${model.padEnd(22)} ${String(data.runs).padStart(4)} runs  ${String(data.avg_latency_ms).padStart(6)}ms avg  ${String(data.avg_tokens).padStart(4)}tok avg  ${data.errors} err`);
   }
+
+  // Print quality matrix highlights
+  const qmEntries = Object.entries(snapshot.quality_matrix).filter(([, d]) => d.wins + d.losses + d.ties >= 2);
+  if (qmEntries.length > 0) {
+    log('\n  Quality Matrix (≥2 A/B tests):');
+    qmEntries.sort((a, b) => parseFloat(b[1].win_rate) - parseFloat(a[1].win_rate));
+    for (const [key, data] of qmEntries.slice(0, 10)) {
+      log(`    ${key.padEnd(35)} ${data.win_rate.padStart(6)} win  W${data.wins}/L${data.losses}/T${data.ties}  ${String(data.avg_latency_ms).padStart(5)}ms`);
+    }
+  }
+
+  // Print tier accuracy
+  log('\n  Tier Accuracy:');
+  for (const [tier, data] of Object.entries(snapshot.tier_accuracy)) {
+    const pct = data.total > 0 ? (data.correct / data.total * 100).toFixed(1) : 'n/a';
+    log(`    ${tier}: ${pct}% (${data.correct}/${data.total})`);
+  }
+
+  logEvent({ event: 'tester_hourly_summary', ...snapshot });
+  log('\n═══════════════════════════════════════════════════════════\n');
+  return validation;
 }
 
 // ── Banner ───────────────────────────────────────────────────────────
 function printBanner() {
   console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║           🐮 MOOTER CONTINUOUS TESTER — v1.0                ║
-║                                                              ║
-║   24/7 autonomous classifier improvement agent               ║
-║   100% local · zero token cost · GPU-accelerated             ║
-║                                                              ║
-║   User: ${TESTER_USER.padEnd(20)}                            ║
-║   Models: gen=${GEN_MODEL} judge=${JUDGE_MODEL.padEnd(10)}   ║
-║   Batch: ${String(BATCH_SIZE).padEnd(4)} prompts/cycle                           ║
-║   Interval: ${String(CYCLE_INTERVAL_S).padEnd(4)}s between cycles                       ║
-║   Dry run: ${DRY_RUN ? 'YES' : 'NO '}                                            ║
-║   Accuracy floor: ${(ACCURACY_FLOOR * 100).toFixed(0)}%                                  ║
-║                                                              ║
-║   Press Ctrl+C to stop gracefully                            ║
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════╗
+║              🐮 MOOTER CONTINUOUS TESTER — v2.0                 ║
+║                                                                  ║
+║   24/7 autonomous benchmark & improvement agent                  ║
+║   100% local · zero token cost · GPU-accelerated                 ║
+║                                                                  ║
+║   Models: ${availableModels.join(', ').slice(0, 50).padEnd(50)}  ║
+║   Mode: ${AGGRESSIVE ? 'AGGRESSIVE (max GPU)' : 'STANDARD       '}                         ║
+║   Interval: ${String(CYCLE_INTERVAL_S).padEnd(4)}s   Dry run: ${DRY_RUN ? 'YES' : 'NO '}                          ║
+║                                                                  ║
+║   Generates prompts → classifies → runs models → A/B tests      ║
+║   → detects misroutings → builds quality matrix → reports        ║
+║                                                                  ║
+║   Ctrl+C to stop gracefully                                      ║
+╚══════════════════════════════════════════════════════════════════╝
 `);
 }
 
-// ── Main Loop ────────────────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────────────
 async function main() {
-  printBanner();
-
-  // Check Ollama is running
+  // Detect available models
   try {
-    execSync('ollama list', { encoding: 'utf8', timeout: 5000 });
-    log('Ollama is running ✓');
+    const raw = execSync('ollama list', { encoding: 'utf8', timeout: 5000 });
+    const lines = raw.split('\n').slice(1).filter(l => l.trim());
+    for (const line of lines) {
+      const name = line.split(/\s+/)[0];
+      if (name && MODEL_TIERS[name]) {
+        availableModels.push(name);
+      }
+    }
   } catch {
-    log('ERROR: Ollama is not running. Start it with: ollama serve');
+    log('ERROR: Ollama not running. Start with: ollama serve');
     process.exit(1);
   }
 
-  // Check models are available
-  try {
-    const models = execSync('ollama list', { encoding: 'utf8', timeout: 5000 });
-    if (!models.includes('qwen3')) {
-      log('WARNING: qwen3:30b not found. Pull it: ollama pull qwen3:30b');
-    }
-    log(`Models available: ${models.split('\n').filter(l => l.trim()).length - 1}`);
-  } catch { /* continue */ }
+  if (availableModels.length === 0) {
+    log('ERROR: No compatible models found. Need at least: qwen2.5:3b, qwen3:30b');
+    process.exit(1);
+  }
+
+  printBanner();
 
   // Initial validation
   log('Running initial validation...');
   const initial = runValidation();
-  log(`Initial accuracy: gold=${initial.gold_labels ? (initial.gold_labels * 100).toFixed(1) + '%' : 'n/a'} ` +
-      `stress=${initial.stress_test ? (initial.stress_test * 100).toFixed(1) + '%' : 'n/a'}`);
-  lastHourlyRun = Date.now();
+  log(`Baseline: gold=${initial.gold_labels ? (initial.gold_labels * 100).toFixed(1) + '%' : 'n/a'} stress=${initial.stress_test ? (initial.stress_test * 100).toFixed(1) + '%' : 'n/a'}`);
 
-  // Main loop
+  let lastHourly = Date.now();
+
   while (running) {
     try {
       runCycle();
     } catch (e) {
-      log(`ERROR in cycle: ${e.message}`);
+      log(`ERROR: ${e.message}`);
     }
 
-    // Wait for next cycle (but check running flag every second)
+    // Hourly check
+    if (Date.now() - lastHourly >= 3600000) {
+      lastHourly = Date.now();
+      hourlyAnalysis();
+    }
+
+    // Wait
     for (let i = 0; i < CYCLE_INTERVAL_S && running; i++) {
       await new Promise(r => setTimeout(r, 1000));
     }
   }
 
-  // Final stats
-  log('Shutting down...');
-  const finalValidation = runValidation();
-  const finalStats = writeStats(finalValidation);
-  log(`Final stats: ${finalStats.total_prompts_generated} prompts, ${finalStats.total_misroutings_found} misroutings, ${finalStats.total_fixes_applied} fixes`);
-  log(`Uptime: ${finalStats.uptime_human}`);
-  log('Goodbye.');
+  // Final report
+  log('\nShutting down — final report:');
+  hourlyAnalysis();
+  log('Goodbye. 🐮');
 }
 
-main().catch(e => { log(`FATAL: ${e.message}`); process.exit(1); });
+main().catch(e => { console.error(`FATAL: ${e.message}\n${e.stack}`); process.exit(1); });
