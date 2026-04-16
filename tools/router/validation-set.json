@@ -98,6 +98,46 @@
       "trust": "ground_truth",
       "confidence_source": "canonical",
       "notes": "Pre-push gate — T3 final-reviewer"
+    },
+    {
+      "prompt": "show me the package.json dependencies",
+      "expected_tier": "T0",
+      "expected_category": "file_read_intent",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_1",
+      "notes": "Read-only intent on package.json — T0 override (review #1)"
+    },
+    {
+      "prompt": "write a regex that matches hexagonal architecture",
+      "expected_tier": "T1",
+      "expected_category": "cheap_task",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_1",
+      "notes": "Regex task despite architecture keyword (review #1)"
+    },
+    {
+      "prompt": "write a regex that matches CQRS",
+      "expected_tier": "T1",
+      "expected_category": "cheap_task",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_1",
+      "notes": "Regex task despite CQRS keyword (review #1)"
+    },
+    {
+      "prompt": "explain the difference between REST and GraphQL",
+      "expected_tier": "T1",
+      "expected_category": "simple_transform_or_explain",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_1",
+      "notes": "Explanation not architecture decision (review #1)"
+    },
+    {
+      "prompt": "translate this comment to English: // temporal fix para o bug #42",
+      "expected_tier": "T0",
+      "expected_category": "trivial_local",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_1",
+      "notes": "Translation task — T0 regardless of content (review #1)"
     }
   ],
   "adversarial": [
