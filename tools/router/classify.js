@@ -626,11 +626,22 @@ function classify(prompt) {
   } catch { /* profile read is best-effort */ }
 
   const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
-  // T1 needs API key; degrade to T0 if absent.
-  // EXCEPT when quality_intent is set — the user asked for something more
-  // capable, so degrading past T1 into local defeats the whole purpose of
-  // the promotion. Jump UP to T2 instead (Sonnet via subagent, no key needed).
-  if (tier === 'T1' && !anthropicKey) {
+  // v0.10: T1 provider check — degrade to T0 ONLY if NO cheap provider is available.
+  // Before v0.10: T1 degraded whenever ANTHROPIC_API_KEY was absent.
+  // Now: any alternative T1 provider (DeepSeek, Gemini, Mistral, OpenAI) keeps T1 alive.
+  // Claude subagent (Haiku via cheap-triage) also works without ANTHROPIC_API_KEY.
+  const hasAnyT1Provider = anthropicKey
+    || !!process.env.DEEPSEEK_API_KEY
+    || !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)
+    || !!process.env.MISTRAL_API_KEY
+    || !!process.env.OPENAI_API_KEY;
+
+  // v0.10.1: Only degrade T1→T0 when NO provider is available AND Ollama is the fallback.
+  // When alternative T1 providers exist, keep T1 — UNLESS the task is trivial (LOW_RISK only,
+  // no MED_RISK). Trivial tasks stay on Ollama (free) even when cloud keys are available.
+  const trivialOnlyT1 = low > 0 && med === 0 && high === 0;
+  const ollamaAvailable = true; // assume Ollama is available if hw-capability exists
+  if (tier === 'T1' && !anthropicKey && (!hasAnyT1Provider || (trivialOnlyT1 && ollamaAvailable))) {
     if (qualityIntent) {
       tier = 'T2';
       escalation_rule =
@@ -639,7 +650,7 @@ function classify(prompt) {
           : `${escalation_rule}+quality_intent_jump_t2`;
     } else {
       tier = 'T0';
-      escalation_rule = 'haiku_unavailable_no_api_key_degraded_to_local';
+      escalation_rule = 'haiku_unavailable_no_provider_degraded_to_local';
     }
   }
 
@@ -679,11 +690,45 @@ function classify(prompt) {
     t0Model = process.env.FRUGAL_HW_RECOMMENDED_T0;
   }
 
+  // ── MULTI-PROVIDER SMART ROUTING (v0.10) ────────────────────────────
+  // For each tier, pick the cheapest model from available providers.
+  // Provider availability: check env vars (keys) or known plan type.
+  // Claude subagents (Sonnet/Opus) always available via Claude Code.
+  // Direct API calls need their own keys.
+  const HAS_DEEPSEEK = !!process.env.DEEPSEEK_API_KEY;
+  const HAS_GEMINI = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  const HAS_OPENAI = !!process.env.OPENAI_API_KEY;
+  const HAS_XAI = !!process.env.XAI_API_KEY;
+  const HAS_MISTRAL = !!process.env.MISTRAL_API_KEY;
+
+  // T1 alternatives: pick cheapest available
+  // DeepSeek V3 ($0.27/$1.10) < Gemini Flash ($0.30/$2.50) < Mistral ($0.50/$1.50) < Haiku ($1/$5)
+  let t1Model = MODELS.haiku;
+  let t1Backend = 'claude_subagent'; // Haiku via subagent always works
+  let t1Subagent = 'cheap-triage';
+  if (HAS_DEEPSEEK) { t1Model = 'deepseek-v3'; t1Backend = 'deepseek_api'; }
+  else if (HAS_GEMINI) { t1Model = 'gemini-2.5-flash'; t1Backend = 'gemini_api'; }
+  else if (HAS_MISTRAL) { t1Model = 'mistral-large-3'; t1Backend = 'mistral_api'; }
+
+  // T2 alternatives: pick cheapest available
+  // Gemini Pro ($1.25/$10) < o3 ($2/$8) < Sonnet ($3/$15)
+  let t2Model = MODELS.sonnet;
+  let t2Backend = 'claude_subagent';
+  let t2Subagent = 'model-reasoner';
+  if (HAS_GEMINI) { t2Model = 'gemini-2.5-pro'; t2Backend = 'gemini_api'; }
+  else if (HAS_OPENAI) { t2Model = 'o3'; t2Backend = 'openai_api'; }
+
+  // T3: Opus via Claude Code (always available). Alternative: Grok 4 if xAI key present
+  // But T3 = architecture/security — quality matters more than cost. Keep Opus unless user overrides.
+  let t3Model = MODELS.opus;
+  let t3Backend = 'claude_subagent';
+  let t3Subagent = 'model-architect';
+
   const backend = {
     T0: { recommended_backend: 'ollama', recommended_model: t0Model, suggested_subagent: 'local-summarizer' },
-    T1: { recommended_backend: 'anthropic_api', recommended_model: MODELS.haiku, suggested_subagent: 'cheap-triage' },
-    T2: { recommended_backend: 'claude_subagent', recommended_model: MODELS.sonnet, suggested_subagent: 'model-reasoner' },
-    T3: { recommended_backend: 'claude_subagent', recommended_model: MODELS.opus, suggested_subagent: 'model-architect' },
+    T1: { recommended_backend: t1Backend, recommended_model: t1Model, suggested_subagent: t1Subagent },
+    T2: { recommended_backend: t2Backend, recommended_model: t2Model, suggested_subagent: t2Subagent },
+    T3: { recommended_backend: t3Backend, recommended_model: t3Model, suggested_subagent: t3Subagent },
   }[tier];
 
   const promptFeatures = extractPromptFeatures(p);

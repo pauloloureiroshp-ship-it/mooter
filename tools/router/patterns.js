@@ -42,7 +42,8 @@ const HIGH_RISK = [
   // v0.9.3 stress-test batch — 16 failures found in 47-prompt suite
   /\bpush\s+(para|to)\s+(main|master|prod)/i, // "push para main" was T0
   /\bmerg(e|ing)\s+(a\s+|the\s+)?branch/i, // "merge/merging a branch" was T0
-  /\bmigrate\b/i,                      // "migrate the database" — verb form missing (only had "migration")
+  /\bmigrat/i,                          // "migrate/migrating the database" — all verb forms
+  /\bmigrar\b/i,                        // "migrar a base de dados" — PT verb form
   /\bmicroservic/i,                    // "create a new microservice" — architecture signal
   /\bmove\b.*\bupdate\s+(all\s+)?imports/i, // "move folder and update all imports" — multi-file
   // v0.9.3 creative-test batch — compound prompts, deceptive patterns
