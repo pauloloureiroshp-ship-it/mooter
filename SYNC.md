@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-16 19:30 UTC (Cowork Mac — Session #3)
-**Versão:** v0.9.9+ Sprint B + hotfixes Cowork (P0, P3, P4)
-**Último commit main:** `b901c3d` (P3 hub-push sub_profile normalize)
-**Sessão Claude Code:** #22 (repo Windows) + Cowork Mac sessions #1, #2, #3 (este log)
+**Última sync:** 2026-04-16 20:30 UTC (Claude Code Mac — Mirror Session #4)
+**Versão:** v0.9.9+ Sprint B + hotfixes Cowork (P0, P3, P4) + Mirror Win→Mac MVP test
+**Último commit main:** `75d4f59` (docs: mirror resolve VS Code gap + OPT-OUT GITHUB_PAT)
+**Sessão Claude Code:** #22 (repo Windows) + Cowork Mac sessions #1–#3 + **Mac Mirror #4** (este log)
 
 ---
 
@@ -26,7 +26,20 @@
 
 ## 🖥️ Multi-device — Mac ↔ Windows PC
 
-### Mac (Session #3 completo)
+### Mac (Session #4 — Mirror Win→Mac completo 2026-04-16 20:30 UTC)
+- ✅ Repo `~/frugal` @ `75d4f59`, doctor "All systems operational" (9/9 verde)
+- ✅ **SSH GitHub**: chave ed25519 gerada + Keychain + remote migrado HTTPS→SSH (`git@github.com:pauloloureiroshp-ship-it/frugal.git`)
+- ✅ **MCPs locais**: filesystem + context7 via `claude mcp add` (`.mcp.json` commitado); 14 HTTPS MCPs claude.ai conectados (Supabase, Linear, Notion, Figma, Sentry, Cloudflare, Canva, Gcal, Gmail, Context7, Vercel, Drive)
+- ✅ **Feature flags (Sprint B)**: shadow_mode, per_user_adaptation, implicit_signals, ground_truth_oracle ON via `.mooter-mode.json`
+- ✅ **Ollama +1 model**: `nomic-embed-text` (KNN similarity); qwen3:30b **skipped permanentemente** (RAM 8GB < 16GB)
+- ✅ **VS Code**: `code` CLI via symlink em `~/.local/bin/code` (sem sudo); 9/9 mooter extensions instaladas
+- ✅ **Workspace apartado**: `~/mooter.code-workspace` (3 folders, 9 tasks, 3 launches)
+- ✅ **Validation**: canonical 100% · adversarial 96% · historical 72% · overall **87.7%** (GATE PASS)
+- ✅ **Smoke tests**: tiers [T0, T2, T3, T3, T2] coincidem com expectativa; HIGH_RISK detectado
+- ✅ **Hub push**: delta enviado (trust 0.288), `3578ada0-3177-4052-852e-ea0ecff23fde`
+- ✅ **Relatório**: `~/frugal/reports/mirror-2026-04-16T20-25-48.md` (inclui secção "Delta install.sh público vs mirror pessoal")
+
+### Mac (Session #3 completo — Cowork pré-mirror)
 - ✅ Repo `~/frugal` @ `b901c3d`, doctor "All systems operational"
 - ✅ `device.id: 41c9d48c-f40a-4a80-a764-c76a784fc9e0` (distinto Windows)
 - ✅ `identity.json` com email + OS + hub URL correcto
@@ -39,7 +52,34 @@
 - ✅ Hub push funcional (P3 normalize applied)
 
 ### Windows (no próximo pull)
-- `git pull origin main` traz os commits Cowork: `999f376`, `3ee442c`, `b901c3d`
+- `git pull origin main` traz os commits Cowork + Mirror: `999f376`, `3ee442c`, `b901c3d`, `d32a866`, `75d4f59`
+- Novo ficheiro: `.mcp.json` (MCPs locais filesystem + context7)
+- Novo ficheiro: `reports/mirror-2026-04-16T20-25-48.md`
+
+---
+
+## 🎯 BIG PICTURE — MVP Onboarding end-to-end (validado 2026-04-16)
+
+> Esta é a visão estratégica que o mirror valida. Detalhe completo em memory: `project_onboarding_vision.md` + `project_mvp_strategy.md`.
+
+### Rollout do mooter.ai — ordem cronológica
+1. ✅ **Paulo solo** (Windows PC, primary) — runtime + classifier funcionando em uso diário
+2. ✅ **Paulo multi-device** (Win + MacBook M3, MVP test) — **Mirror Win→Mac validou pipeline em 2026-04-16**
+3. 🔜 **Friends beta** (~5-10 amigos) — valida escala, edge cases, variedade de hardware/subs
+4. 🔜 **Landing pública** (https://landing-five-azure-16.vercel.app) — signup self-serve em poucos clicks
+
+### Pipeline end-to-end alvo
+```
+Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
+  gera install.sh customizado → runtime instalado →
+  decisões anonimizadas → hub → backtest diário → classifier melhora → beneficia todos
+```
+
+### Gaps identificados para friends beta
+- **`setup-profile.js` captura 1/4 dimensões** (só subscriptions). Hardware derivado pelo doctor mas não persistido; software stack não mapeado; budget é "auto" sem ceiling. → refator pré-friends-beta (memory: `project_setup_profile_gap.md`)
+- **OAuth da landing partido** (P1 pendente) — bloqueia signup → bloqueia tudo
+- **Endpoint `/api/device-heartbeat` em falta no hub** (P2 pendente)
+- **`install.sh` público** ainda não existe — o `MOOTER_MIRROR_WIN_TO_MAC.md` serve de template; delta documentado em `reports/mirror-2026-04-16T20-25-48.md` secção "passos genéricos vs específicos do Paulo"
 
 ---
 
@@ -180,6 +220,7 @@ Side effects: upsert em D1 `devices` table
 | Recurso | URL |
 |---------|-----|
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
