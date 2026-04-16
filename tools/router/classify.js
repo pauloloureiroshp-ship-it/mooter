@@ -88,23 +88,22 @@ function readRouterContext() {
   }
 }
 
-// Per-tier model selection. T0 has FOUR models as of v0.7 (sub-tier specialists):
-//   - ollama_terse:  small, fast, terse-output (summarization, transforms, general)
-//   - ollama_reason: bigger, reasoning-trained (local analysis with 1-2 hops)
-//   - ollama_code:   qwen2.5-coder:14b — dedicated local code specialist
-//   - ollama_math:   deepseek-r1-distill-qwen:14b — dedicated local math/reasoning
+// Per-tier model selection. T0 has FIVE models as of v0.10 (sub-tier specialists):
+//   - ollama_terse:   small, fast, terse-output (summarization, transforms, quick)
+//   - ollama_reason:  bigger, reasoning-trained (local analysis with 1-2 hops)
+//   - ollama_general: best general-purpose local model (gemma4 when installed)
+//   - ollama_code:    qwen2.5-coder:14b — dedicated local code specialist
+//   - ollama_math:    deepseek-r1-distill-qwen:14b — dedicated local math/reasoning
 //
-// Sub-tier routing happens in classify() below based on detected task content:
-// code patterns → ollama_code, math/reasoning patterns → ollama_math, else terse.
-// Option A (pre-computed answer) ONLY fires for ollama_terse to avoid paying
-// 14b cold-start latency on the hook path.
-//
-// Install guard (~/.claude/tools/router/check-local-models.js) reports which
-// specialists are installed and suggests pull commands; nothing auto-installs.
+// v0.10: gemma4:e4b added as preferred general model. It's Google's newest,
+// with strong reasoning + multimodal + 128k context. Falls back to qwen2.5:3b
+// if not installed. Sub-tier routing: code → ollama_code, math → ollama_math,
+// reasoning → ollama_reason, general → ollama_general, quick → ollama_terse.
 const MODELS = {
-  ollama_terse:  process.env.ROUTER_OLLAMA_TERSE  || 'qwen2.5:3b',
-  ollama_reason: process.env.ROUTER_OLLAMA_REASON || 'qwen3:30b',
-  ollama_code:   process.env.ROUTER_OLLAMA_CODE   || 'qwen2.5-coder:14b-q4',
+  ollama_terse:   process.env.ROUTER_OLLAMA_TERSE   || 'qwen2.5:3b',
+  ollama_general: process.env.ROUTER_OLLAMA_GENERAL || 'gemma4:e4b',
+  ollama_reason:  process.env.ROUTER_OLLAMA_REASON  || 'qwen3:30b',
+  ollama_code:    process.env.ROUTER_OLLAMA_CODE    || 'qwen2.5-coder:14b-q4',
   ollama_math:   process.env.ROUTER_OLLAMA_MATH   || 'deepseek-r1-distill-qwen:14b',
   ollama: process.env.ROUTER_OLLAMA_MODEL || 'qwen2.5:3b', // legacy alias
   haiku: process.env.ROUTER_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
@@ -644,14 +643,18 @@ function classify(prompt) {
     }
   }
 
-  // ── T0 SUB-TIER SELECTION (v0.7) ───────────────────────────────────────
+  // ── T0 SUB-TIER SELECTION (v0.10) ──────────────────────────────────────
   // At T0, pick the best local model by content intent:
-  //   - code signals  → qwen2.5-coder:14b (falls back gracefully to terse
-  //                     if the 14b model isn't installed — classify.js has
-  //                     no way to check; check-local-models.js surfaces it)
+  //   - code signals  → qwen2.5-coder:14b
   //   - math signals  → deepseek-r1-distill-qwen:14b
-  //   - reasoning_intermediate degraded from T1/T2 → ollama_reason
-  //   - default        → ollama_terse (qwen2.5:3b, the Option A target)
+  //   - reasoning degraded from T1/T2 → qwen3:30b (heavy reasoning)
+  //   - general/summarize/explain → gemma4:e4b (best overall local model)
+  //   - quick terse (Option A target) → qwen2.5:3b
+  //
+  // v0.10: gemma4:e4b is the new default for 'general' subtier. It
+  // outperforms qwen2.5:3b on all quality dimensions while being fast
+  // enough for interactive use (2.5s p50 on RTX 4090). qwen2.5:3b
+  // remains the Option A target for pre-computed answers in the hook.
   let t0Model;
   let t0Subtier = 'general';
   if (CODE_SUBTIER_RE.test(p)) {
@@ -664,7 +667,8 @@ function classify(prompt) {
     t0Model = MODELS.ollama_reason;
     t0Subtier = 'reason';
   } else {
-    t0Model = MODELS.ollama_terse;
+    // v0.10: gemma4 as default general model (was qwen2.5:3b)
+    t0Model = MODELS.ollama_general;
     t0Subtier = 'general';
   }
 

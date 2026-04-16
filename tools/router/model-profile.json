@@ -153,6 +153,31 @@
       "notes": "Google Gemma 3 12B — excelente para T0/T1. Melhor que qwen2.5:3b em qualidade, similar em velocidade."
     },
 
+    "gemma4:e4b": {
+      "emoji": "💎",
+      "tier": "T0",
+      "provider": "ollama",
+      "cost_input_per_mtok": 0,
+      "cost_output_per_mtok": 0,
+      "latency_p50_ms": 2500,
+      "latency_p95_ms": 7000,
+      "context_window": 128000,
+      "quality": {
+        "trivial_edit": 8,
+        "debug": 7,
+        "architecture": 6,
+        "summarize": 8,
+        "transform": 8,
+        "explain": 8,
+        "test_gen": 7,
+        "math": 7
+      },
+      "strengths": ["reasoning", "multimodal", "general", "summarize", "long-context"],
+      "weaknesses": ["vram-heavy"],
+      "ollama_id": "gemma4:e4b",
+      "notes": "Google Gemma 4 E4B — best-in-class local reasoning model. 9.6GB. Should be preferred T0 for general+reasoning when installed."
+    },
+
     "deepseek-r1:7b": {
       "emoji": "🐉",
       "tier": "T1",

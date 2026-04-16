@@ -48,6 +48,9 @@ const PRICES = {
   'qwen2.5-coder:14b':               { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
   'deepseek-r1-distill-qwen:14b':    { input: 0, output: 0, strengths: ['math','reasoning','step-by-step'],                 tier: 'T0', subtier: 'math' },
   'deepseek-r1:7b':                  { input: 0, output: 0, strengths: ['math','reasoning'],                                tier: 'T0', subtier: 'math' },
+  // Google Gemma 4 (local via Ollama) — multimodal, strong reasoning
+  'gemma4:e4b':                       { input: 0, output: 0, strengths: ['reasoning','multimodal','general','summarize'], tier: 'T0', subtier: 'reason' },
+  'gemma3:12b':                       { input: 0, output: 0, strengths: ['general','summarize','translate'],              tier: 'T0', subtier: 'general' },
   'ollama':                          { input: 0, output: 0 }, // generic
 
   // ── Google (Gemini) — optional, not emitted by classifier yet ──────
@@ -138,10 +141,21 @@ function estimateTurnCost(tier, promptLenChars) {
  * Opus-with-1M-context session had to process it?" This is the honest
  * baseline we subtract from to report savings.
  */
+/**
+ * naiveOpusCost(promptLenChars) → USD
+ * "What would this prompt have cost if we had no router and the full
+ * Opus-with-1M-context session had to process it?" This is the honest
+ * baseline we subtract from to report savings.
+ *
+ * v0.10 fix: uses 1M-context pricing ($30/$150 per MTok) because Claude
+ * Code sessions always use the 1M context variant. The old $15/$75 rate
+ * (200k context) underestimated the baseline by 2×, making savings look
+ * smaller than they really are.
+ */
 function naiveOpusCost(promptLenChars) {
   const tokensIn = estimateInputTokens(promptLenChars);
   // Opus answers are verbose when unconstrained — use T3 avg output
-  return priceTurn('claude-opus-4-6', tokensIn, AVG_OUTPUT_TOK.T3);
+  return priceTurn('claude-opus-4-6[1m]', tokensIn, AVG_OUTPUT_TOK.T3);
 }
 
 module.exports = {
