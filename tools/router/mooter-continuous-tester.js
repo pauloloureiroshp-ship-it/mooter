@@ -71,12 +71,19 @@ let stats = {
   prompts_generated: 0,
   prompts_executed: 0,
   ab_tests_run: 0,
+  optimizer_ab_tests: 0,
+  embedding_builds: 0,
   misroutings_found: 0,
   fixes_applied: 0,
   fixes_reverted: 0,
-  model_runs: {},    // model → { runs, avg_latency_ms, avg_quality }
-  tier_accuracy: {},  // tier → { correct, total }
-  quality_matrix: {}, // "model:category" → { wins, losses, ties, avg_latency }
+  optimizer_wins: 0,        // times optimized prompt beat raw
+  optimizer_losses: 0,      // times raw prompt beat optimized
+  optimizer_ties: 0,
+  model_runs: {},           // model → { runs, total_latency, errors, total_tokens }
+  tier_accuracy: {},        // tier → { correct, total }
+  quality_matrix: {},       // "model:category" → { wins, losses, ties, total_latency, runs }
+  optimizer_matrix: {},     // "model:category" → { raw_wins, opt_wins, ties }
+  model_dialect_scores: {}, // model → { lang_hint_helped, structured_helped, padding_helped }
 };
 
 process.on('SIGINT', () => { running = false; log('SIGINT — finishing cycle...'); });
@@ -343,6 +350,144 @@ function benchmarkModel(model, prompt, category) {
   return result;
 }
 
+// ── Prompt Optimizer (tropicalization) ────────────────────────────
+// Hot-load prompt-optimizer.js from repo
+let _optimizeFn = null;
+function loadOptimizer() {
+  if (_optimizeFn) return _optimizeFn;
+  try {
+    const optPath = path.join(SCRIPT_DIR, 'prompt-optimizer.js');
+    if (!fs.existsSync(optPath)) return null;
+    // prompt-optimizer.js exports optimize via module.exports
+    delete require.cache[require.resolve(optPath)];
+    const mod = require(optPath);
+    _optimizeFn = mod.optimize || mod;
+    return _optimizeFn;
+  } catch (e) {
+    log(`optimizer load error: ${e.message}`);
+    return null;
+  }
+}
+
+// A/B test: raw prompt vs Mooter-optimized prompt on same model
+function runOptimizerAB(rawPrompt, classification, model, category) {
+  const optimize = loadOptimizer();
+  if (!optimize || typeof optimize !== 'function') return null;
+
+  const optResult = optimize(rawPrompt, classification);
+  if (!optResult || !optResult.optimized_task) return null;
+
+  const optimized = optResult.optimized_task;
+  if (optimized === rawPrompt) return null; // no change
+
+  log(`  🧪 Optimizer A/B on ${model}: raw vs tropicalized (${optResult.strategy})`);
+
+  const rawResult = callOllama(rawPrompt, model, 512);
+  const optModelResult = callOllama(optimized, model, 512);
+
+  if (!rawResult.output || !optModelResult.output) return null;
+
+  // Judge
+  const judge = availableModels.find(m => m !== model && MODEL_TIERS[m]?.speed !== 'fast') || 'qwen3:30b';
+  const judgment = callOllama(
+    `A developer asked this question to an AI assistant:
+"${rawPrompt.slice(0, 300)}"
+
+Two responses were generated. Which is BETTER?
+Criteria: correctness, completeness, conciseness, directly answers the question.
+
+RESPONSE A (raw prompt): ${rawResult.output.slice(0, 400)}
+
+RESPONSE B (optimized prompt): ${optModelResult.output.slice(0, 400)}
+
+Reply EXACTLY: A or B or TIE`, judge, 50
+  );
+
+  let winner = 'tie';
+  if (judgment.output) {
+    const v = judgment.output.trim().toUpperCase();
+    if (v.startsWith('A')) winner = 'raw';
+    else if (v.startsWith('B')) winner = 'optimized';
+  }
+
+  // Track stats
+  if (winner === 'optimized') stats.optimizer_wins++;
+  else if (winner === 'raw') stats.optimizer_losses++;
+  else stats.optimizer_ties++;
+  stats.optimizer_ab_tests++;
+
+  // Track per-model dialect effectiveness
+  const dKey = model;
+  if (!stats.model_dialect_scores[dKey]) stats.model_dialect_scores[dKey] = { opt_wins: 0, raw_wins: 0, ties: 0, strategies: {} };
+  if (winner === 'optimized') stats.model_dialect_scores[dKey].opt_wins++;
+  else if (winner === 'raw') stats.model_dialect_scores[dKey].raw_wins++;
+  else stats.model_dialect_scores[dKey].ties++;
+
+  // Track which strategies help which models
+  for (const s of (optResult.strategy || '').split('+')) {
+    if (!s) continue;
+    if (!stats.model_dialect_scores[dKey].strategies[s]) stats.model_dialect_scores[dKey].strategies[s] = { wins: 0, losses: 0 };
+    if (winner === 'optimized') stats.model_dialect_scores[dKey].strategies[s].wins++;
+    else if (winner === 'raw') stats.model_dialect_scores[dKey].strategies[s].losses++;
+  }
+
+  // Per-model:category optimizer matrix
+  const omKey = `${model}:${category}`;
+  if (!stats.optimizer_matrix[omKey]) stats.optimizer_matrix[omKey] = { raw_wins: 0, opt_wins: 0, ties: 0 };
+  if (winner === 'raw') stats.optimizer_matrix[omKey].raw_wins++;
+  else if (winner === 'optimized') stats.optimizer_matrix[omKey].opt_wins++;
+  else stats.optimizer_matrix[omKey].ties++;
+
+  const result = {
+    raw_prompt: rawPrompt.slice(0, 200),
+    optimized_prompt: optimized.slice(0, 200),
+    strategy: optResult.strategy,
+    tokens_saved_est: optResult.tokens_saved_est || 0,
+    model, category, winner,
+    latency_raw_ms: rawResult.latency_ms,
+    latency_opt_ms: optModelResult.latency_ms,
+    judge_model: judge,
+  };
+
+  log(`  ${winner === 'optimized' ? '✅' : winner === 'raw' ? '❌' : '➖'} Optimizer ${winner} (strategy: ${optResult.strategy}, ${rawResult.latency_ms}ms vs ${optModelResult.latency_ms}ms)`);
+  return result;
+}
+
+// ── Embedding/Vectorization Engine ───────────────────────────────
+// Uses nomic-embed-text via Ollama API to build semantic clusters
+function embedPrompt(text) {
+  try {
+    const http = require('http');
+    const payload = JSON.stringify({ model: 'nomic-embed-text', prompt: text.slice(0, 500) });
+    // Synchronous HTTP via spawnSync wrapper
+    const r = spawnSync('node', ['-e', `
+      const http = require('http');
+      const payload = ${JSON.stringify(payload)};
+      const req = http.request({ hostname: '127.0.0.1', port: 11434, path: '/api/embeddings',
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 10000
+      }, (res) => { let d=''; res.on('data',c=>d+=c); res.on('end',()=>{ try { process.stdout.write(JSON.stringify(JSON.parse(d).embedding.slice(0,10))); } catch { process.stdout.write('null'); } }); });
+      req.on('error', () => process.stdout.write('null'));
+      req.write(payload); req.end();
+    `], { encoding: 'utf8', timeout: 15000 });
+    if (r.stdout && r.stdout !== 'null') {
+      return JSON.parse(r.stdout); // first 10 dims for clustering
+    }
+    return null;
+  } catch { return null; }
+}
+
+function buildEmbeddingBatch(prompts) {
+  const embedded = [];
+  for (const p of prompts.slice(0, 5)) { // limit to 5 per cycle
+    const vec = embedPrompt(p.prompt);
+    if (vec) {
+      embedded.push({ prompt_preview: p.prompt.slice(0, 100), tier: p.expected_tier, category: p.category || 'unknown', embedding_sample: vec });
+    }
+  }
+  stats.embedding_builds += embedded.length;
+  return embedded;
+}
+
 // ── Validation ───────────────────────────────────────────────────────
 function runValidation() {
   const results = {};
@@ -391,6 +536,18 @@ function writeStats(validation) {
     };
   }
 
+  // Optimizer effectiveness
+  const optTotal = stats.optimizer_ab_tests;
+  const optimizerSummary = {
+    tests_run: optTotal,
+    optimizer_win_rate: optTotal > 0 ? ((stats.optimizer_wins / optTotal) * 100).toFixed(1) + '%' : 'n/a',
+    wins: stats.optimizer_wins,
+    losses: stats.optimizer_losses,
+    ties: stats.optimizer_ties,
+    per_model_dialect: stats.model_dialect_scores,
+    per_model_category: stats.optimizer_matrix,
+  };
+
   const snapshot = {
     user: TESTER_USER,
     role: 'synthetic_tester',
@@ -400,12 +557,15 @@ function writeStats(validation) {
     prompts_generated: stats.prompts_generated,
     prompts_executed: stats.prompts_executed,
     ab_tests_run: stats.ab_tests_run,
+    optimizer_ab_tests: stats.optimizer_ab_tests,
+    embeddings_built: stats.embedding_builds,
     misroutings_found: stats.misroutings_found,
     fixes_applied: stats.fixes_applied,
     fixes_reverted: stats.fixes_reverted,
     models_available: availableModels,
     model_performance: modelSummary,
     quality_matrix: qmSummary,
+    optimizer_effectiveness: optimizerSummary,
     tier_accuracy: stats.tier_accuracy,
     last_validation: validation,
     cost_usd: 0,
@@ -508,7 +668,34 @@ function runCycle() {
     }
   }
 
-  // 5. Log all classifications
+  // 5. Optimizer A/B — test tropicalization effectiveness (every 2nd cycle)
+  if (cycleCount % 2 === 0 && classified.length > 0) {
+    const optItem = classified.find(c => c.prompt.length >= 30) || classified[0];
+    const eligible = availableModels.filter(m => MODEL_TIERS[m]?.tiers.includes(optItem.classified_tier));
+    if (eligible.length > 0) {
+      const model = pick(eligible);
+      const classificationObj = classify(optItem.prompt);
+      if (classificationObj) {
+        const optAB = runOptimizerAB(optItem.prompt, classificationObj, model, optItem.category);
+        if (optAB) {
+          logEvent({ event: 'tester_optimizer_ab', ...optAB });
+        }
+      }
+    }
+  }
+
+  // 6. Embedding vectorization — build semantic clusters (every 5th cycle)
+  if (cycleCount % 5 === 0 && classified.length > 0) {
+    const embedded = buildEmbeddingBatch(classified);
+    if (embedded.length > 0) {
+      log(`  📐 Embedded ${embedded.length} prompts (nomic-embed-text)`);
+      for (const e of embedded) {
+        logEvent({ event: 'tester_embedding', ...e });
+      }
+    }
+  }
+
+  // 7. Log all classifications
   for (const c of classified) {
     logEvent({ event: 'tester_classification', prompt_preview: c.prompt.slice(0, 200),
       decided_tier: c.classified_tier, expected_tier: c.expected_tier,
@@ -516,7 +703,8 @@ function runCycle() {
   }
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
-  log(`  Cycle #${cycleCount} done in ${elapsed}s | total: ${stats.prompts_generated} gen, ${stats.prompts_executed} exec, ${stats.ab_tests_run} A/B, ${stats.misroutings_found} mis`);
+  const optRate = stats.optimizer_ab_tests > 0 ? `${Math.round(stats.optimizer_wins / stats.optimizer_ab_tests * 100)}%` : 'n/a';
+  log(`  Cycle #${cycleCount} done in ${elapsed}s | gen:${stats.prompts_generated} exec:${stats.prompts_executed} A/B:${stats.ab_tests_run} opt:${stats.optimizer_ab_tests}(${optRate}win) embed:${stats.embedding_builds} mis:${stats.misroutings_found}`);
 }
 
 // ── Hourly Analysis ──────────────────────────────────────────────────
@@ -566,6 +754,30 @@ function hourlyAnalysis() {
     log(`    ${tier}: ${pct}% (${data.correct}/${data.total})`);
   }
 
+  // Print optimizer (tropicalization) effectiveness
+  const oe = snapshot.optimizer_effectiveness;
+  if (oe && oe.tests_run > 0) {
+    log('\n  Prompt Optimizer (Tropicalization):');
+    log(`    Tests: ${oe.tests_run}  Win rate: ${oe.win_rate}  (W${oe.wins}/L${oe.losses}/T${oe.ties})`);
+    // Per-model dialect scores
+    for (const [model, scores] of Object.entries(oe.per_model_dialect || {})) {
+      const total = scores.opt_wins + scores.raw_wins + scores.ties;
+      if (total === 0) continue;
+      const rate = ((scores.opt_wins / total) * 100).toFixed(0);
+      log(`    ${model.padEnd(22)} opt wins ${rate}%  (${scores.opt_wins}/${total})`);
+      // Strategy breakdown
+      for (const [strat, sd] of Object.entries(scores.strategies || {})) {
+        if (sd.wins + sd.losses === 0) continue;
+        log(`      ${strat}: +${sd.wins} -${sd.losses}`);
+      }
+    }
+  }
+
+  // Print embeddings stats
+  if (stats.embedding_builds > 0) {
+    log(`\n  Embeddings: ${stats.embedding_builds} prompts vectorized (nomic-embed-text)`);
+  }
+
   logEvent({ event: 'tester_hourly_summary', ...snapshot });
   log('\n═══════════════════════════════════════════════════════════\n');
   return validation;
@@ -575,7 +787,7 @@ function hourlyAnalysis() {
 function printBanner() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════════╗
-║              🐮 MOOTER CONTINUOUS TESTER — v2.0                 ║
+║              🐮 MOOTER CONTINUOUS TESTER — v3.0                 ║
 ║                                                                  ║
 ║   24/7 autonomous benchmark & improvement agent                  ║
 ║   100% local · zero token cost · GPU-accelerated                 ║
@@ -584,8 +796,9 @@ function printBanner() {
 ║   Mode: ${AGGRESSIVE ? 'AGGRESSIVE (max GPU)' : 'STANDARD       '}                         ║
 ║   Interval: ${String(CYCLE_INTERVAL_S).padEnd(4)}s   Dry run: ${DRY_RUN ? 'YES' : 'NO '}                          ║
 ║                                                                  ║
-║   Generates prompts → classifies → runs models → A/B tests      ║
-║   → detects misroutings → builds quality matrix → reports        ║
+║   Pipeline: generate → classify → tropicalize → execute          ║
+║   → A/B model vs model → A/B raw vs optimized → embed           ║
+║   → quality matrix → dialect map → hourly report                 ║
 ║                                                                  ║
 ║   Ctrl+C to stop gracefully                                      ║
 ╚══════════════════════════════════════════════════════════════════╝
