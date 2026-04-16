@@ -104,16 +104,18 @@ Commits: `c330b3d` (mooter-mode.js + frugal-mode.js alias) · `6dbad9a` (.env.lo
 
 **Sessão 2026-04-15 — Feedback loop UX + Sprint B handoff (Claude Code)** · [Notion](https://www.notion.so/3446f6e42bc481269744cc7780b095fe)
 
-✅ **Sprint A concluído atomicamente:**
-- `skills/mooter-good/SKILL.md` — `/mooter-good` + `/frugal-good` + "foi bom" → `feedback-collector.js --rate good`
-- `skills/mooter-bad/SKILL.md` — `/mooter-bad` + "rota errada" + "overkill" → `--rate bad`, captura razão opcional
-- `skills/mooter-feedback/SKILL.md` — `/mooter-feedback` → `--stats`, tabela por tier × categoria
-- Mirror de `feedback-collector.js` para runtime `~/.claude/tools/router/` (faltava)
+✅ **Sprint A concluído (3 commits atómicos):**
+- `2d1f5fc` — Slash commands `/mooter-good`, `/mooter-bad`, `/mooter-feedback` + mirror `feedback-collector.js` para runtime
+- `b86afc1` — `backtest.js` consome `quality_feedback` events: bad→demote (length-agnostic), good→veto de demote. 66/66 tests passam, schema inalterado
+- `5b4a5d6` — `/frugal-status` mostra feedback count (nudge de adopção) com tail "Sprint B unlocks at ≥30"
+
+🔁 **Loop feedback fechado end-to-end**: `/mooter-good` → `feedback-collector.js` → `decisions.log` → `backtest.js resolveExplicitFeedback()` → `router-tuning.json` → `update-router.js` → `classify.js` patch.
 
 **Descobertas que pouparam trabalho:**
-- `feedback-collector.js` já estava 100% implementado no repo — faltavam só entry points para o user
-- `replay.js --gold-labels` já falha com exit 1 se accuracy < 85% e CI já o invoca em `test.yml` linha 71 → **gate #4 da recomendação já existia**
-- Zero edits em `classify.js`, `inject_context.js`, `patterns.js`, migrations ou workflows CI
+- `feedback-collector.js` já estava 100% implementado — faltavam só entry points
+- `replay.js --gold-labels` já falha CI com accuracy < 85% → gate #4 já existia
+- Sentry sem destino válido (landing legacy, hub sem bundler, mooter-landing estático, savings-tracker dev-local) → pivot para backtest wiring
+- Zero edits em `classify.js`, `inject_context.js`, migrations, workflows CI
 
 ⚠️ **Pré-requisito para Sprint B (bloqueia tudo):**
 Paulo acumular ≥ 30 ratings reais via slash commands ao longo de 1–3 dias de uso. Sem sinal suficiente, shadow mode e bandit aprendem ruído. Alvo mínimo: 10 T0/T1/T2 + 5 T3.
@@ -122,7 +124,9 @@ Paulo acumular ≥ 30 ratings reais via slash commands ao longo de 1–3 dias de
 1. **Shadow Mode Lite 5%** — spawn tier-1 em background, Ollama LLM-as-judge nightly. Schema D1 tem colunas prontas (`ab_variant`, `shadow_output`). Feature flag obrigatório default OFF.
 2. **Thompson Sampling bandit** na zona confidence 0.5–0.75 — Beta distribution per `(task_category × arm)`, reward = `3×rating + no_followup + no_override`. Substitui ~50% das chamadas Haiku arbiter. Ref: [BaRP arXiv 2510.07429](https://arxiv.org/abs/2510.07429).
 3. **L1.5 Semantic layer** — `nomic-embed-text` via Ollama, centróides por categoria, cosine similarity entre regex e Haiku arbiter. Latency budget <50ms. Ref: [vLLM Semantic Router](https://blog.vllm.ai/2025/09/11/semantic-router.html).
-4. **Sentry** (10min, qualquer altura) — `savings-tracker.js` :7821 + landing Next.js.
+4. **Sentry** — adiada até `mooter.ai` live com Next.js próprio (não é a legacy `landing/`).
+
+**Master prompt pronto para outro terminal:** `docs/MASTER_PROMPTS/SPRINT_B_SHADOW_MODE_MASTER_PROMPT.md` — cola num novo terminal Claude Code quando tiveres ≥30 ratings. 4 fases, 4 commits atómicos, invariantes não-negociáveis, plano B de rollback.
 
 **Critério de sucesso Sprint B**: overall ≥ 85% good após 100+ ratings; shadow apanha ≥5 over-routings em 100 amostras; bandit reduz custo arbiter ≥40% sem regressão; semantic apanha ≥20% dos casos que hoje vão ao Haiku.
 
