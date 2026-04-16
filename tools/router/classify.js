@@ -552,6 +552,37 @@ function classify(prompt) {
     reasoning = `${reasoning}; tuned_demote → T1 (pattern match from backtest)`;
   }
 
+  // Sprint B.2: per-user budget cap from user-profile.json.
+  // If monthly spend exceeds the cap, downgrade tier (never below T0).
+  // HIGH_RISK and quality_intent are exempt — safety and explicit user
+  // intent always win over budget.
+  try {
+    const profilePath = path.join(
+      process.env.HOME || process.env.USERPROFILE || '.',
+      '.claude', 'tools', 'router', 'user-profile.json'
+    );
+    if (fs.existsSync(profilePath)) {
+      const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+      const cap = profile.budget && profile.budget.monthly_budget_usd;
+      const spent = profile.budget && profile.budget.monthly_spent_usd;
+      if (typeof cap === 'number' && cap > 0 && typeof spent === 'number') {
+        const pct = spent / cap;
+        const capBehavior = (profile.budget && profile.budget.hard_cap_behavior) || 'downgrade_one_tier';
+        if (pct >= 0.95 && high === 0 && !qualityIntent && capBehavior === 'downgrade_one_tier') {
+          const TIER_LADDER = ['T0', 'T1', 'T2', 'T3'];
+          const idx = TIER_LADDER.indexOf(tier);
+          if (idx > 0) {
+            tier = TIER_LADDER[idx - 1];
+            escalation_rule = escalation_rule === 'none'
+              ? 'budget_cap_downgrade'
+              : `${escalation_rule}+budget_cap_downgrade`;
+            reasoning = `${reasoning}; budget ${(pct * 100).toFixed(0)}% spent → downgraded to ${tier}`;
+          }
+        }
+      }
+    }
+  } catch { /* profile read is best-effort */ }
+
   const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
   // T1 needs API key; degrade to T0 if absent.
   // EXCEPT when quality_intent is set — the user asked for something more
