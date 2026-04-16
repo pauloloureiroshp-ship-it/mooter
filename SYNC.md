@@ -140,6 +140,7 @@ O projecto está pronto para trabalhar em qualquer device:
 | 🌍 frugal v2.0 — OS Vision | `33e6f6e4-2bc4-8128-9155-d79fbc14a6e5` |
 | 📊 Evolução + Status | `33f6f6e4-2bc4-81fe-a8e1-e065f53ee73b` |
 | 🔧 Sessão 2026-04-16 — Classifier 75%→80% | `3446f6e4-2bc4-8186-8164-c3c654755a81` |
+| 🔬 Sessão 2026-04-16 — Review #1 + Multi-device Setup | `3446f6e4-2bc4-819e-b313-fa21cf15765d` |
 
 > Lista completa de 25+ sessões Notion em `docs/CHANGELOG_SESSIONS.md` secção "Notion HQ — Páginas de Referência".
 
