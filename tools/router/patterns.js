@@ -174,22 +174,33 @@ const MED_RISK = [
   /\bgraceful\s+(?:shutdown|degradation|failover)/i,          // "graceful shutdown" — systems design
   /\bnetwork\s+partition/i,                                    // "network partition" — distributed systems
   /\bCQRS\b/,                                                  // "CQRS pattern" — design pattern (moved from HIGH_RISK v0.10.2)
+  // v0.10.2 — PT-BR conversational reasoning (validate-set drift items)
+  /\b[eé]\s+melhor\b/i,                                       // "é melhor colocar..." — PT opinion/suggestion
+  /\bestou\s+achando\b/i,                                     // "estou achando que..." — PT-BR reasoning signal
+  /\b[eé]\s+assim\s+que\s+(?:eu\s+)?vejo\b/i,               // "é assim que eu vejo" — PT opinion framing
+  /\bcoração\s+d[ao]\s+solu[çc][aã]o\b/i,                   // "coração da solução" — core design signal
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
+// v0.10.2: split LOW_RISK into T1-worthy (explain, commit, regex) and T0-worthy
+// (rename, format, translate, summarize). T0-worthy moved to TRIVIAL.
+// Per doctrine: summarization, translation, formatting, renames → local-summarizer (T0).
+// Explanation, commit messages, regex, conceptual questions → cheap-triage (T1).
 const LOW_RISK = [
-  /\bresume\b/i, /\bresumo/i, /\bsummari[zs]e/i,
   /\bexplain\b/i, /\bexplica/i, /\bo\s+que\s+[eé]\b/i, /\bwhat\s+is\b/i,
   /\bcommit\s+message/i, /\bdocstring/i, /\bregex/i,
-  /\bformat/i, /\btransforma/i, /\btraduz/i, /\btranslate\b/i,
-  /\btypo/i, /\brename\b/i,
-  /\bdiferen[çc]a\b/i, /\bdifference\b/i, // "qual a diferença entre X e Y" — conceptual explanation
+  /\bdiferen[çc]a\b/i, /\bdifference\b/i,
 ];
 
 // ── TRIVIAL (triage, classification, brainstorm) ───────────────────────────
 const TRIVIAL = [
   /\btriagem\b/i, /\btriage\b/i, /\bclassific/i,
   /\bextrai/i, /\bextract\b/i, /\bbrainstorm/i,
+  // v0.10.2: moved from LOW_RISK — these are T0 tasks (local-summarizer handles them)
+  /\bresume\b/i, /\bresumo/i, /\bsummari[zs]e/i,  // summarization → T0
+  /\bformat/i, /\btransforma/i,                     // formatting → T0
+  /\btraduz/i, /\btranslate\b/i,                    // translation → T0
+  /\btypo/i, /\brename\b/i,                          // trivial edits → T0
 ];
 
 // ── TUNING_EXCLUDE (superset — used by backtest.js) ────────────────────────

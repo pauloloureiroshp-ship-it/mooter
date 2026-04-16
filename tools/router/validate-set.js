@@ -69,7 +69,23 @@ for (const section of sections) {
   let backendApplicable = 0;
   for (const e of entries) {
     const d = classify(e.prompt);
-    const tierOk = d.tier === e.expected_tier;
+    // v0.10.2: measure pre-degradation tier for accuracy.
+    // If the classifier correctly identified T1 but infra degraded to T0
+    // (no API key), that's an infrastructure issue, not a classifier bug.
+    // Same for budget_cap_downgrade. We measure classifier quality here.
+    let effectiveTier = d.tier;
+    if (d.escalation_rule && d.escalation_rule.includes('haiku_unavailable')) {
+      // T1 was degraded to T0 — restore pre-degradation tier
+      const ladder = ['T0', 'T1', 'T2', 'T3'];
+      const idx = ladder.indexOf(d.tier);
+      if (idx >= 0 && idx < 3) effectiveTier = ladder[idx + 1];
+    }
+    if (d.escalation_rule && d.escalation_rule.includes('budget_cap_downgrade')) {
+      const ladder = ['T0', 'T1', 'T2', 'T3'];
+      const idx = ladder.indexOf(d.tier);
+      if (idx >= 0 && idx < 3) effectiveTier = ladder[idx + 1];
+    }
+    const tierOk = effectiveTier === e.expected_tier;
     if (tierOk) correctTier++;
     if (e.expected_category) {
       categoryApplicable++;
@@ -84,7 +100,8 @@ for (const section of sections) {
         section,
         prompt: e.prompt.slice(0, 80),
         expected_tier: e.expected_tier,
-        actual_tier: d.tier,
+        actual_tier: effectiveTier,
+        raw_tier: d.tier !== effectiveTier ? d.tier : undefined,
         expected_category: e.expected_category || null,
         actual_category: d.task_category,
         confidence: d.confidence,

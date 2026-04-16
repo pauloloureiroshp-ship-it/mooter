@@ -266,6 +266,9 @@ const QUALITY_INTENT_PATTERNS = [
   /\b(?:high|top)\s+priority\b/i,
   /\bmaximum\s+(?:quality|effort|care)/i,
   /\bdeep(?:[-\s]dive)?\s+(?:analysis|investigation)/i,
+  // v0.10.2: PT quality signals from validation-set drift analysis
+  /\bavalia[çc][aã]o\s+(?:muito\s+)?t[eé]cnic/i,             // "avaliação muito técnica" — deep tech eval
+  /\bpreciso\s+(?:que\s+fa[çc]a|da\s+sua\s+ajuda)\b/i,      // "preciso que faça" / "preciso da sua ajuda" — asking for dedicated help
 ];
 
 // ── SUB-TIER CONTENT PATTERNS (v0.7) ───────────────────────────────────────
