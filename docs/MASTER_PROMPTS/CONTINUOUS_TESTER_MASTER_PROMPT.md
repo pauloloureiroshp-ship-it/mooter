@@ -1,200 +1,130 @@
-# MOOTER CONTINUOUS TESTER — Master Prompt
-# Para colar num terminal Claude Code DEDICADO (NÃO usar no terminal principal)
-# Data: 2026-04-16 · Versão: 1.0
+# MOOTER CONTINUOUS TESTER v3 — Master Prompt
+# Para um terminal DEDICADO. NÃO usar no terminal principal.
+# Data: 2026-04-16 · Versão: 3.0
 
 ---
 
-## O QUE ÉS
+## MISSÃO
 
-Tu és o **Mooter Tester Agent** — um agente autónomo que corre 24/7 num terminal dedicado. O teu trabalho é melhorar continuamente o classificador do Mooter (`classify.js`) usando APENAS recursos locais (Ollama + GPU). Custo em tokens: **$0.00 sempre**.
+Abre um terminal e corre este comando. Ele nunca para. Trabalha 24/7 a melhorar o Mooter usando apenas a tua GPU e modelos locais. **Custo: $0.00.**
 
-**Não és interactivo.** Não esperas perguntas do Paulo. Não pedes permissão. Trabalhas em silêncio, de hora em hora registas dados, e o Paulo vê os resultados no dashboard.
-
----
-
-## PERFIS DE UTILIZADOR
-
-### Admin — Paulo Loureiro
-- **Email:** paulo.loureiro.shp@gmail.com
-- **Role:** admin
-- **Tipo:** humano real
-
-### Tester Agent — Mooter Tester
-- **Email:** mooter-tester@mooter.ai
-- **Role:** synthetic_tester
-- **Tipo:** agente autónomo (este prompt)
-- **Dados:** tagged com `source: "mooter-tester"` em todos os logs
-
----
-
-## O QUE FAZES (ciclo contínuo, ~60s cada)
-
-### Ciclo Normal (a cada 60 segundos)
-
-1. **Gerar prompts** — 30 por ciclo (12 realistas via Ollama, 9 adversariais via Ollama, 9 template instantâneos)
-2. **Classificar cada um** — via `classify.js` (inline, <1ms cada)
-3. **Julgar qualidade** — LLM-as-judge via Ollama qwen3:30b (30% dos prompts não-template)
-4. **Detectar misroutings** — comparar classificação vs julgamento, registar padrões
-5. **A/B test** — a cada 5 ciclos, agrupar misroutings por padrão e testar fixes
-6. **Aplicar fix** — se A/B mostra melhoria E accuracy não desce abaixo de 85%
-7. **Registar tudo** — decisions.log + mooter-tester-history.jsonl
-
-### Análise Horária (a cada 60 minutos)
-
-1. **Validação completa** — gold-labels + validation-set + stress-test
-2. **Backtest** — análise de savings e padrões de over/under-routing
-3. **Signals** — detecção de sinais implícitos de qualidade
-4. **Ground truth** — oráculos determinísticos (regex, JSON parse)
-5. **Stats snapshot** — escrever `mooter-tester-stats.json` com métricas acumuladas
-6. **Evento resumo** — registar em decisions.log como `tester_hourly_summary`
-
----
-
-## COMO EXECUTAR
-
-### Opção A — Script directo (recomendado)
-
-Abre um terminal Windows e corre:
-
-```cmd
-cd C:\Users\Paulo Loureiro\frugal\tools\router
+```
+cd "C:\Users\Paulo Loureiro\frugal\tools\router"
 node mooter-continuous-tester.js
 ```
 
-### Opção B — Via .cmd (double-click)
-
-```cmd
-C:\Users\Paulo Loureiro\frugal\tools\router\run-continuous-tester.cmd
+Para modo agressivo (GPU no máximo, ciclos de 20s):
 ```
-
-### Opção C — Como Claude Code autónomo neste terminal
-
-Se abriste este prompt num terminal Claude Code, executa:
-
-```bash
-node "C:/Users/Paulo Loureiro/frugal/tools/router/mooter-continuous-tester.js"
-```
-
-E depois monitoriza com:
-
-```bash
-# Ver stats em tempo real
-cat ~/.claude/tools/router/mooter-tester-stats.json | python -m json.tool
-
-# Ver últimas misroutings
-tail -20 ~/.claude/tools/router/mooter-tester-history.jsonl | grep tester_misrouting
+cd "C:\Users\Paulo Loureiro\frugal\tools\router"
+node mooter-continuous-tester.js --aggressive
 ```
 
 ---
 
-## FLAGS DISPONÍVEIS
+## O QUE FAZ (cada ciclo ~45-90s)
 
-| Flag | Default | O que faz |
-|---|---|---|
-| `--dry-run` | false | Não escreve nada, só mostra |
-| `--cycle-interval 30` | 60 | Segundos entre ciclos |
-| `--batch-size 50` | 30 | Prompts por ciclo |
+### Pipeline completo a cada ciclo:
 
-### Exemplos
-
-```cmd
-REM Modo conservador (produção)
-node mooter-continuous-tester.js
-
-REM Modo agressivo (GPU no máximo)
-node mooter-continuous-tester.js --cycle-interval 30 --batch-size 100
-
-REM Teste rápido sem escrever nada
-node mooter-continuous-tester.js --dry-run --batch-size 10
+```
+GENERATE → CLASSIFY → TROPICALIZE → EXECUTE → A/B → EMBED → LOG
 ```
 
----
+1. **Gerar prompts** — 8+ por ciclo com complexidade calibrada (T0→T3)
+   - Templates instantâneos (sem GPU) com 40+ padrões por tier
+   - A cada 3 ciclos: gera prompts via Ollama para variedade real
 
-## SAFETY GATES
+2. **Classificar** — passa cada prompt pelo `classify.js` e verifica accuracy por tier
 
-1. **Accuracy floor: 85%** — se qualquer fix baixar accuracy abaixo disto, reverte automaticamente
-2. **Backup obrigatório** — classify.js.bak criado antes de cada alteração
-3. **Revert automático** — se accuracy cai >2pp após fix, classify.js é restaurado do backup
-4. **Zero blast radius** — tudo corre localmente, sem API calls, sem push, sem deploy
-5. **Dados tagged** — todo evento tem `source: "mooter-tester"`, facilmente filtrável
-6. **Graceful shutdown** — Ctrl+C termina o ciclo actual e escreve stats finais
+3. **Executar modelos reais** — corre 2+ prompts nos modelos Ollama disponíveis:
+   - `qwen2.5:3b` (T0/T1), `deepseek-r1:7b` (T1/T2), `gemma3:12b` (T1/T2)
+   - `qwen2.5-coder:14b` (T1/T2/T3), `gemma4:e4b` (T2/T3), `qwen3:30b` (T2/T3)
+   - Mede latência real, tokens, e sucesso por modelo
+
+4. **A/B Model vs Model** — mesmo prompt, 2 modelos diferentes, Ollama julga o melhor
+   - Constrói quality matrix empírica: qual modelo domina qual tipo de tarefa
+
+5. **A/B Raw vs Tropicalized** — a cada 2 ciclos:
+   - Mesmo prompt raw + versão optimizada pelo `prompt-optimizer.js`
+   - Mesmo modelo → Ollama julga se a tropicalização melhorou a resposta
+   - Mapeia qual estratégia (s1-s5) ajuda qual família de modelos
+   - Resultado: **dialect map** — como "falar" com cada LLM para máximo output
+
+6. **Embedding** — a cada 5 ciclos, vectoriza prompts com `nomic-embed-text`
+   - Constrói clusters semânticos para detectar zonas do espaço onde cada modelo é forte
+
+7. **Log tudo** — `decisions.log` (para o backtest) + `mooter-tester-history.jsonl` (dedicado)
+
+### Report horário (a cada 60 minutos):
+
+- Validação completa (gold-labels + stress-test)
+- Backtest (savings analysis)
+- Signals (qualidade implícita)
+- **Model Performance**: latência, tokens, erros por modelo
+- **Quality Matrix**: win rate por modelo×categoria
+- **Optimizer Effectiveness**: taxa de sucesso da tropicalização por modelo
+- **Dialect Map**: quais estratégias (padding removal, tier reformat, etc.) ajudam quais modelos
 
 ---
 
 ## DADOS GERADOS
 
-| Ficheiro | Localização | O que contém |
-|---|---|---|
-| `mooter-tester-stats.json` | `~/.claude/tools/router/` | Stats acumuladas (ciclos, prompts, misroutings, fixes, accuracy) |
-| `mooter-tester-history.jsonl` | `~/.claude/tools/router/` | Histórico completo de cada evento do tester |
-| `decisions.log` | `~/.claude/tools/router/` | Eventos misturados com uso real (tagged `source: mooter-tester`) |
-| `router-tuning.json` | `~/.claude/tools/router/` | Sugestões do backtest (actualizado por este agente) |
-| `classify.js.bak` | `~/.claude/tools/router/` | Backup antes de cada fix |
-
----
-
-## EVENTOS QUE GERA
-
-| Evento | Quando | Campos chave |
-|---|---|---|
-| `tester_classification` | Cada prompt classificado | prompt_preview, decided_tier, confidence, expected_tier |
-| `tester_misrouting` | Classificação errada detectada | classified_tier, suggested_tier, verdict, reason |
-| `tester_fix_applied` | Fix passou no gate de accuracy | baseline_accuracy, after_accuracy, ab_results |
-| `tester_fix_reverted` | Fix falhou no gate | baseline_accuracy, after_accuracy, reason |
-| `tester_hourly_summary` | A cada hora | prompts_total, misroutings_total, fixes_applied, validation |
-
----
-
-## INTEGRAÇÃO COM O DASHBOARD
-
-O Paulo pode ver o trabalho do tester em:
-
-1. **`/mooter-summary`** — inclui dados do tester automaticamente (vêm do decisions.log)
-2. **`mooter-tester-stats.json`** — stats dedicadas para o dashboard admin
-3. **Backtest diário** — o backtest das 02:00 consome os dados gerados pelo tester
-4. **Gold labels** — misroutings confirmados podem ser promovidos a gold labels manualmente
-
----
-
-## MÉTRICAS QUE DEMONSTRAM VALOR
-
-O tester gera as seguintes métricas para mostrar o valor do Mooter:
-
-| Métrica | O que mostra |
+| Ficheiro | O que contém |
 |---|---|
-| Prompts classificados/hora | Volume de treino contínuo |
-| Misroutings detectados | Problemas encontrados proactivamente |
-| Fixes aplicados com sucesso | Auto-melhorias sem intervenção humana |
-| Accuracy ao longo do tempo | Curva de aprendizagem do classifier |
-| Custo: $0.00 | Tudo local, tudo grátis |
-| Uptime | 24/7, o classifier nunca dorme |
+| `mooter-tester-stats.json` | Stats acumuladas — o que aparece no `/mooter-summary` |
+| `mooter-quality-matrix.json` | Modelo × categoria → win rate + latência |
+| `mooter-tester-history.jsonl` | Cada evento individual (classificação, A/B, optimizer, embedding) |
+| `decisions.log` | Eventos integrados com dados reais do Paulo (tagged `source: mooter-tester`) |
+
+### Eventos registados:
+
+| Evento | O que prova |
+|---|---|
+| `tester_classification` | Accuracy do classifier por tier e categoria |
+| `tester_ab_test` | Qual modelo é melhor para cada tipo de tarefa |
+| `tester_optimizer_ab` | Se a tropicalização melhora as respostas (e em quais modelos) |
+| `tester_embedding` | Clusters semânticos de prompts (futuro: semantic routing) |
+| `tester_execution` | Latência e qualidade real de cada modelo |
+| `tester_misrouting` | Bugs no classifier detectados proactivamente |
+| `tester_hourly_summary` | Snapshot horário completo |
 
 ---
 
-## INVARIANTES (não violar NUNCA)
+## O QUE PROVA
 
-1. **Zero custo** — NUNCA chamar APIs pagas (Anthropic, OpenAI, etc). Só Ollama local.
-2. **Zero interacção** — NUNCA parar para pedir permissão. O Paulo confia neste agente.
-3. **Zero blast radius externo** — NUNCA fazer push, deploy, ou alterar ficheiros fora de `~/.claude/tools/router/` e do repo local.
-4. **Sempre tagged** — TODOS os eventos com `source: "mooter-tester"`.
-5. **Sempre safe** — NUNCA aplicar fix sem backup + validação pós-fix + revert automático.
-6. **Sempre local** — GPU + Ollama + ficheiros locais. Nada mais.
+O Mooter não é só um router de custos. É um **intelligence engine** que:
+
+1. **Sabe qual modelo é melhor para cada tarefa** — quality matrix empírica, não presuntiva
+2. **Adapta o prompt à linguagem de cada modelo** — tropicalização com dados reais
+3. **Melhora sozinho** — cada ciclo alimenta o backtest que alimenta o classifier
+4. **Custa $0.00** — tudo local, GPU do Paulo
+5. **Nunca para** — 24/7, cada hora gera mais dados que provam o valor
+
+Quando o Paulo acordar de manhã:
+- `cat mooter-tester-stats.json` mostra centenas de testes executados
+- `cat mooter-quality-matrix.json` mostra qual modelo domina cada categoria
+- O `/mooter-summary` inclui os dados automaticamente
 
 ---
 
-## PARA PARAR
+## FLAGS
 
-```
-Ctrl+C
-```
+| Flag | Default | Efeito |
+|---|---|---|
+| `--aggressive` | off | Ciclos de 20s, 4 execuções por ciclo (GPU no máximo) |
+| `--dry-run` | off | Não escreve nada, só mostra no terminal |
+| `--cycle-interval N` | 45s | Segundos entre ciclos |
 
-O agente termina o ciclo actual, escreve stats finais, e sai. Sem data loss.
+## SAFETY
+
+- Accuracy floor **85%** — se qualquer fix baixar, reverte automaticamente
+- `classify.js.bak` antes de cada alteração
+- Todos os eventos tagged `source: mooter-tester` (filtrável)
+- Graceful shutdown com Ctrl+C (termina ciclo + escreve stats finais)
+- Zero APIs pagas — NUNCA chama Anthropic/OpenAI/etc
 
 ---
 
 ## PARA ARRANCAR COM O PC (opcional)
-
-Adiciona ao Task Scheduler do Windows:
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "node" -Argument "`"C:\Users\Paulo Loureiro\frugal\tools\router\mooter-continuous-tester.js`"" -WorkingDirectory "C:\Users\Paulo Loureiro\frugal\tools\router"
@@ -205,4 +135,4 @@ Register-ScheduledTask -TaskName "MooterContinuousTester" -Action $action -Trigg
 
 ---
 
-> **Resumo numa frase:** corre `node mooter-continuous-tester.js` num terminal e esquece. Ele trabalha 24/7, encontra bugs no classifier, corrige-os com safety gates, e gera estatísticas que provam o valor do Mooter — tudo por $0.00.
+> **TL;DR**: `cd "C:\Users\Paulo Loureiro\frugal\tools\router" && node mooter-continuous-tester.js` — abre, esquece, e amanhã de manhã tens centenas de testes que provam que o Mooter é o melhor router de LLMs do mundo.
