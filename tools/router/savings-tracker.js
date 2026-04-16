@@ -53,6 +53,7 @@ const PORT = 7821;
 const HOST = '127.0.0.1';
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
+const SNAPSHOT_PATH = path.join(ROUTER_DIR, 'metrics-snapshot.json');
 const BUDGET_CACHE_PATH = path.join(ROUTER_DIR, '.budget-cache.json');
 const PROVIDERS_CACHE_PATH = path.join(ROUTER_DIR, '.providers-cache.json');
 const PROVIDERS_CACHE_MS = 60 * 1000; // 60s — providers rarely flip
@@ -350,6 +351,14 @@ function safeParse(line) {
 // kept. For these users we surface "prompts deflected to free tiers" instead.
 const SUB_PROFILE_PATH = path.join(ROUTER_DIR, 'subscription-profile.json');
 function readPlan() {
+  // v0.10: try OAuth credentials first (most reliable source)
+  try {
+    const credsPath = path.join(os.homedir(), '.claude', '.credentials.json');
+    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+    const st = creds.claudeAiOauth && creds.claudeAiOauth.subscriptionType;
+    if (st) return st; // 'max', 'pro', 'free'
+  } catch { /* missing or malformed */ }
+  // Fallback: subscription-profile.json
   try {
     const sp = JSON.parse(fs.readFileSync(SUB_PROFILE_PATH, 'utf8'));
     if (sp && sp.profiles && sp.profiles.anthropic) return sp.profiles.anthropic;
@@ -917,14 +926,103 @@ function handleSummary(_req, res) {
   send(res, 200, txt, 'text/plain; charset=utf-8');
 }
 
+// ── /corpus — live corpus count from metrics-snapshot.json ──────────────────
+// Written by update-metrics.js after each backtest run. Returns the real
+// corpus_size from decisions.log (not the stale 1,437 manual snapshot).
+// Falls back to counting decisions.log directly if snapshot is absent/stale.
+function handleCorpus(_req, res) {
+  // Try metrics-snapshot.json first (fast, cached by backtest)
+  try {
+    const snap = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8'));
+    const ageMs = snap.generated_at ? Date.now() - Date.parse(snap.generated_at) : Infinity;
+    if (ageMs < 24 * 60 * 60 * 1000) { // fresh if < 24h old
+      return send(res, 200, JSON.stringify({
+        corpus_size: snap.corpus_size,
+        by_tier: snap.by_tier,
+        by_tier_pct: snap.by_tier_pct,
+        cost: snap.cost,
+        avg_confidence: snap.avg_confidence,
+        date_range: snap.date_range,
+        generated_at: snap.generated_at,
+        source: 'snapshot',
+      }));
+    }
+  } catch { /* fall through to live count */ }
+
+  // Fallback: count directly from decisions.log (slower but always accurate)
+  let count = 0;
+  try {
+    const lines = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(Boolean);
+    for (const l of lines) {
+      const e = safeParse(l);
+      if (e && (e.event === 'classified' || (!e.event && e.tier))) count++;
+    }
+  } catch { /* log absent */ }
+  send(res, 200, JSON.stringify({ corpus_size: count, source: 'live_count' }));
+}
+
+// ── /optimizer-stats (Sprint 5-A) ──────────────────────────────────────
+// Reads prompt_optimized events from decisions.log and returns aggregate
+// stats: total optimized, optimization rate, tokens saved, top strategies,
+// breakdown by tier. Bounded tail read (256 KB), silent on error.
+function handleOptimizerStats(_req, res) {
+  try {
+    const stat = fs.statSync(LOG_PATH);
+    const start = Math.max(0, stat.size - 256 * 1024);
+    const fd = fs.openSync(LOG_PATH, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+
+    let totalClassified = 0;
+    let totalOptimized = 0;
+    let tokensSavedTotal = 0;
+    const strategyCounts = {};
+    const byTier = {};
+
+    for (const line of lines) {
+      const e = safeParse(line);
+      if (!e) continue;
+      if (e.event === 'classified') totalClassified++;
+      if (e.event === 'prompt_optimized') {
+        totalOptimized++;
+        tokensSavedTotal += (e.tokens_saved_est || 0);
+        const s = e.strategy || 'unknown';
+        strategyCounts[s] = (strategyCounts[s] || 0) + 1;
+        const t = e.tier || 'unknown';
+        byTier[t] = (byTier[t] || 0) + 1;
+      }
+    }
+
+    const topStrategies = Object.entries(strategyCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([s]) => s);
+
+    send(res, 200, JSON.stringify({
+      total_optimized: totalOptimized,
+      total_classified: totalClassified,
+      optimization_rate: totalClassified > 0 ? +(totalOptimized / totalClassified).toFixed(3) : 0,
+      tokens_saved_est_total: tokensSavedTotal,
+      top_strategies: topStrategies,
+      by_tier: byTier,
+    }));
+  } catch {
+    send(res, 200, JSON.stringify({ total_optimized: 0, error: 'log_read_failed' }));
+  }
+}
+
 const ROUTES = {
   '/health': handleHealth,
   '/metrics': handleMetrics,
   '/summary': handleSummary,
   '/last': handleLast,
   '/real': handleReal,
+  '/corpus': handleCorpus,
   '/providers': handleProviders,
   '/gpu': handleGpu,
+  '/optimizer-stats': handleOptimizerStats,
 };
 
 // POST-only routes (body-consuming)
