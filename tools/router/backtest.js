@@ -70,6 +70,51 @@ function signature(preview) {
     .join(' ');
 }
 
+// ── Sprint A (2026-04-15): Explicit feedback resolution ───────────────────
+// Matches quality_feedback events (written by /mooter-good and /mooter-bad
+// slash commands via feedback-collector.js) to the classified event they
+// rated, tagging it with `explicit_rating` (1=good, 0=bad). Analyzer then
+// uses these tags to bias demote candidates (bad-rated → promote to demote
+// bucket even if prompt_len >= 50) and to VETO demotes of patterns the user
+// explicitly rated as good.
+//
+// Matching rule: prefer same session_id; fall back to most recent classified
+// event before the feedback event's timestamp.
+function resolveExplicitFeedback(allEvents) {
+  const counts = { good: 0, bad: 0, orphan: 0 };
+  const feedbacks = allEvents.filter(e => e.event === 'quality_feedback');
+  if (feedbacks.length === 0) return counts;
+
+  const classified = allEvents.filter(e => e.event === 'classified');
+
+  for (const fb of feedbacks) {
+    const quality = fb.followup_quality; // 1=good, 0=bad
+    if (quality !== 0 && quality !== 1) continue;
+    const fbTs = Date.parse(fb.ts || '') || 0;
+
+    let target = null;
+    if (fb.session_id) {
+      // Prefer last classified with same session_id
+      for (let i = classified.length - 1; i >= 0; i--) {
+        if (classified[i].session_id === fb.session_id) { target = classified[i]; break; }
+      }
+    }
+    if (!target) {
+      // Fallback: last classified before this feedback's timestamp
+      for (let i = classified.length - 1; i >= 0; i--) {
+        const cTs = Date.parse(classified[i].ts || '') || 0;
+        if (cTs <= fbTs && cTs > 0) { target = classified[i]; break; }
+      }
+    }
+
+    if (!target) { counts.orphan++; continue; }
+    target.explicit_rating = quality;
+    if (quality === 1) counts.good++; else counts.bad++;
+  }
+
+  return counts;
+}
+
 // ── v0.9.1: Implicit feedback resolution ──────────────────────────────────
 // Resolves turn_end events with followup_pending: true by looking ahead in
 // the log for the next classified event with the same session_id.
@@ -121,6 +166,11 @@ function analyze(decisions) {
   let optimizerHits = 0;       // Sprint 5-A: prompt_optimized event count
   let optimizerTokensSaved = 0;
   const optimizerStrategyCounts = {};
+  // Sprint A (2026-04-15): explicit rating signals
+  const goodSignatures = new Set();       // user-rated good → veto demote
+  const explicitBadOnHighTier = [];        // user-rated bad on T2/T3 → force demote
+  let explicitGood = 0;
+  let explicitBad = 0;
 
   for (const d of decisions) {
     // Sprint 5-A: count prompt_optimized events (separate event type)
@@ -147,6 +197,15 @@ function analyze(decisions) {
     // the daily backtest from relearning the same bad patterns every 24h.
     const risky = hasHighRisk(d.prompt_preview);
     if (risky) continue;
+    // Sprint A: explicit rating overrides length heuristic for T2/T3
+    if (d.explicit_rating === 0 && (tier === 'T2' || tier === 'T3')) {
+      explicitBadOnHighTier.push(d);
+      shortHighTier.push(d); // force into demote candidate pool
+      explicitBad++;
+    } else if (d.explicit_rating === 1) {
+      explicitGood++;
+      if (sig) goodSignatures.add(sig); // protect this signature from demote
+    }
     if ((d.prompt_len || 0) < 50 && (tier === 'T2' || tier === 'T3')) {
       shortHighTier.push(d);
     }
@@ -172,6 +231,7 @@ function analyze(decisions) {
     demoteCandidates.set(sig, (demoteCandidates.get(sig) || 0) + 1);
   }
   const topDemote = [...demoteCandidates.entries()]
+    .filter(([sig]) => !goodSignatures.has(sig)) // Sprint A: veto patterns user rated good
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([sig, count]) => ({ pattern: sig, count }));
@@ -222,6 +282,10 @@ function analyze(decisions) {
     optimizerTokensSaved,
     optimizerTopStrategies: Object.entries(optimizerStrategyCounts)
       .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([s, n]) => `${s} ×${n}`),
+    // Sprint A: explicit rating signals
+    explicitRatings: { good: explicitGood, bad: explicitBad },
+    explicitBadOnHighTier: explicitBadOnHighTier.length,
+    goodSignaturesProtected: goodSignatures.size,
   };
 }
 
@@ -298,6 +362,16 @@ function report(stats, tuning) {
     lines.push('Feedback signals (implicit):');
     lines.push(`  accepted:            ${stats.feedbackSignals.accepted}`);
     lines.push(`  followup_immediate:  ${stats.feedbackSignals.followup_immediate}`);
+    lines.push('');
+  }
+  // Sprint A: explicit ratings from /mooter-good & /mooter-bad
+  const er = stats.explicitRatings || { good: 0, bad: 0 };
+  if (er.good + er.bad > 0) {
+    lines.push('Feedback signals (explicit, user-rated):');
+    lines.push(`  good:                ${er.good}`);
+    lines.push(`  bad:                 ${er.bad}`);
+    lines.push(`  bad on T2/T3 → forced into demote pool: ${stats.explicitBadOnHighTier || 0}`);
+    lines.push(`  good signatures protected from demote:  ${stats.goodSignaturesProtected || 0}`);
     lines.push('');
   }
   lines.push(`Tuning written: ${TUNING_PATH}`);
@@ -580,6 +654,8 @@ function main() {
 
   // v0.9.1: resolve feedback signals from turn_end events
   const { feedbackSignals } = resolveFeedback(decisions);
+  // Sprint A: resolve explicit ratings from quality_feedback events
+  const explicitRatings = resolveExplicitFeedback(decisions);
 
   if (explain) {
     console.log(explainCandidates(decisions));
@@ -594,6 +670,7 @@ function main() {
     const delta = exportDelta(decisions);
     // v0.9.1: include feedback signals in delta
     delta.feedback_signals = feedbackSignals;
+    delta.explicit_ratings = explicitRatings; // Sprint A
     fs.writeFileSync(outputPath, JSON.stringify(delta, null, 2));
     console.log(`frugal backtest: delta written to ${outputPath}`);
     console.log(`  deltas:          ${delta.deltas.length}`);
@@ -655,6 +732,8 @@ module.exports = {
   hasHighRisk,
   // v0.9.1 exports
   resolveFeedback,
+  // Sprint A (2026-04-15) exports
+  resolveExplicitFeedback,
   // v0.9.5 exports
   exportEvents,
 };
