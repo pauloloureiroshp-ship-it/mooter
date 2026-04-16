@@ -82,6 +82,7 @@ function buildSnapshot(events) {
     optimizer_tests: [],
     embeddings: events.filter(e => e.event === 'tester_embedding').length,
     tier_accuracy: {},
+    focus_areas: {},  // v0.10.2: per-focus-area stats
   };
 
   // Existing gold labels (to avoid duplicates)
@@ -137,6 +138,14 @@ function buildSnapshot(events) {
           if (!snapshot.tier_accuracy[t]) snapshot.tier_accuracy[t] = { correct: 0, total: 0 };
           snapshot.tier_accuracy[t].total++;
           if (e.decided_tier === e.expected_tier) snapshot.tier_accuracy[t].correct++;
+        }
+        // v0.10.2: track focus area stats
+        if (e.focus_area) {
+          if (!snapshot.focus_areas[e.focus_area]) {
+            snapshot.focus_areas[e.focus_area] = { prompts: 0, chains: 0, executions: 0 };
+          }
+          snapshot.focus_areas[e.focus_area].prompts++;
+          if (e.chain_position) snapshot.focus_areas[e.focus_area].chains++;
         }
         break;
     }
@@ -338,6 +347,30 @@ function showReport(deltaSnap, allSnap, state, totalEvents) {
     }
   }
   console.log('');
+
+  // Focus area stats (delta)
+  const focusAreas = Object.entries(deltaSnap.focus_areas);
+  if (focusAreas.length > 0) {
+    console.log('## Focus Areas (directed testing)\n');
+    console.log('| Area | Prompts | Chains | Source |');
+    console.log('|------|---------|--------|--------|');
+    for (const [area, data] of focusAreas.sort((a, b) => b[1].prompts - a[1].prompts)) {
+      console.log(`| ${area} | ${data.prompts} | ${data.chains} | focused_gen |`);
+    }
+    console.log('');
+  }
+
+  // Cumulative focus areas
+  const allFocus = Object.entries(allSnap.focus_areas);
+  if (allFocus.length > 0) {
+    console.log('## Focus Areas (cumulative — all-time)\n');
+    console.log('| Area | Prompts | Chains |');
+    console.log('|------|---------|--------|');
+    for (const [area, data] of allFocus.sort((a, b) => b[1].prompts - a[1].prompts)) {
+      console.log(`| ${area} | ${data.prompts} | ${data.chains} |`);
+    }
+    console.log('');
+  }
 
   // Cumulative counters
   console.log('## Counters (cumulative — for landing page)\n');

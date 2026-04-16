@@ -1,0 +1,60 @@
+{
+  "_doc": "Directed focus areas for the mooter continuous tester. Set weights to control what percentage of cycles focus on each area. Prompts are generated themed around these areas and executed on local Ollama models ($0 cost). Results feed into /mooter-review.",
+  "_updated": "2026-04-16",
+
+  "focus_areas": [
+    {
+      "id": "classifier",
+      "name": "Classifier Accuracy",
+      "weight": 0.3,
+      "description": "Test classifier edge cases, discover misroutings, validate patterns",
+      "prompt_guidance": "Generate prompts that test classification boundaries: ambiguous tier prompts, prompts with risk keywords in content (not intent), mixed-language prompts, prompts that combine simple tasks with complex keywords",
+      "enabled": true
+    },
+    {
+      "id": "onboarding-ux",
+      "name": "Onboarding & UX/UI",
+      "weight": 0.3,
+      "description": "Improve the user onboarding flow, landing page, dashboard UX, installation experience",
+      "prompt_guidance": "Generate prompts about: first-time user experience, installation friction, dashboard usability, landing page copy, onboarding wizard steps, settings page layout, error messages for new users, accessibility, mobile responsiveness, loading states, empty states",
+      "enabled": true
+    },
+    {
+      "id": "documentation",
+      "name": "Documentation Quality",
+      "weight": 0.1,
+      "description": "Improve README, ARCHITECTURE.md, inline docs, user-facing help text",
+      "prompt_guidance": "Generate prompts about: explaining mooter to newcomers, writing clear installation steps, documenting slash commands, creating quick-start guides, improving error messages, writing migration guides",
+      "enabled": true
+    },
+    {
+      "id": "optimizer",
+      "name": "Prompt Optimizer Tuning",
+      "weight": 0.2,
+      "description": "Test and improve tropicalization strategies per model",
+      "prompt_guidance": "Generate diverse prompts to test optimizer strategies: code tasks, debugging, summarization, translation, design questions — test with and without optimization to measure quality delta",
+      "enabled": true
+    },
+    {
+      "id": "general",
+      "name": "General Coverage",
+      "weight": 0.1,
+      "description": "Random prompts across all categories for broad coverage",
+      "prompt_guidance": "Generate realistic developer prompts across all tiers: trivial edits, explanations, debugging, architecture decisions, security reviews, deployment tasks",
+      "enabled": true
+    }
+  ],
+
+  "progressive_chains": {
+    "enabled": true,
+    "max_chain_length": 4,
+    "_doc": "When enabled, the tester generates prompt sequences where each builds on the previous (e.g., 'analyze the onboarding flow' → 'suggest 3 improvements' → 'implement the best one' → 'write tests')"
+  },
+
+  "quality_tracking": {
+    "track_per_theme": true,
+    "track_per_model": true,
+    "track_best_strategies": true,
+    "_doc": "Tracks which models and optimizer strategies work best for each focus area"
+  }
+}

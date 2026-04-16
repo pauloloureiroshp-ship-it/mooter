@@ -50,6 +50,84 @@ const CYCLE_INTERVAL_S = argi('--cycle-interval') >= 0
   : AGGRESSIVE ? 20 : 45;
 const ACCURACY_FLOOR = 0.85;
 const TESTER_USER = 'mooter-tester';
+const FOCUS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-focus.json');
+
+// ── Directed Focus Areas ────────────────────────────────────────────
+// Reads focus config to direct prompt generation toward project priorities.
+// If no config or disabled areas, falls back to pure classifier testing.
+function loadFocusConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(FOCUS_PATH, 'utf8'));
+    const areas = (cfg.focus_areas || []).filter(a => a.enabled !== false);
+    if (areas.length === 0) return null;
+    // Normalise weights
+    const totalWeight = areas.reduce((s, a) => s + (a.weight || 0), 0);
+    if (totalWeight <= 0) return null;
+    return {
+      areas: areas.map(a => ({ ...a, weight: (a.weight || 0) / totalWeight })),
+      chains: cfg.progressive_chains || { enabled: false },
+      tracking: cfg.quality_tracking || {},
+    };
+  } catch { return null; }
+}
+
+function pickFocusArea(cfg) {
+  if (!cfg) return null;
+  const r = Math.random();
+  let cumulative = 0;
+  for (const area of cfg.areas) {
+    cumulative += area.weight;
+    if (r <= cumulative) return area;
+  }
+  return cfg.areas[cfg.areas.length - 1];
+}
+
+function generateFocusedPrompts(area, count, chainMode) {
+  const guidance = area.prompt_guidance || area.description || 'varied developer tasks';
+  const chainInstruction = chainMode
+    ? `\nIMPORTANT: Generate a PROGRESSIVE CHAIN — each prompt builds on the previous one. Example: prompt 1 analyses, prompt 2 suggests improvements, prompt 3 implements the best, prompt 4 tests it.`
+    : '';
+
+  const raw = callOllama(
+    `You are generating realistic prompts that a developer would type in a CLI AI assistant (Claude Code).
+Focus area: ${area.name} — ${area.description}
+Guidance: ${guidance}${chainInstruction}
+
+Generate exactly ${count} prompts. Rules:
+- Each must be a realistic developer command or question
+- Mix languages: English and Portuguese (Portugal)
+- Mix lengths: 8-50 words per prompt
+- Be specific and actionable (not vague)
+- NO meta-instructions, NO numbering, NO quotes
+- One prompt per line
+
+/no_think`, 'qwen3:30b', 3000
+  );
+  if (!raw.output) return [];
+
+  // Determine expected tier based on focus area
+  const tierMap = {
+    'classifier': null,  // mixed tiers
+    'onboarding-ux': 'T2',
+    'documentation': 'T1',
+    'optimizer': null,    // mixed
+    'general': null,      // mixed
+  };
+  const defaultTier = tierMap[area.id] || null;
+
+  return raw.output.split('\n')
+    .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())  // strip numbering
+    .filter(l => l.length > 10 && l.length < 500)
+    .filter(l => !/^(?:Thinking|We are generating|Mix |One prompt|IMPORTANT|Focus area|Guidance|Generate exactly|\/?no_think)/i.test(l))
+    .slice(0, count)
+    .map((p, i) => ({
+      prompt: p,
+      expected_tier: defaultTier,  // null = classify will determine
+      source: 'focused_gen',
+      focus_area: area.id,
+      chain_position: chainMode ? i + 1 : null,
+    }));
+}
 
 // ── Available Models (detected at startup) ───────────────────────────
 // Tier mapping: which models CAN serve each tier
@@ -585,16 +663,31 @@ function runCycle() {
   const cycleStart = Date.now();
   log(`\n══ Cycle #${cycleCount} ══════════════════════════════════════`);
 
-  // 1. Generate prompts — mix of template (fast) + Ollama-generated (rich)
-  const templatePrompts = generatePrompts(8);
-  // Every 3rd cycle, also generate Ollama prompts for richer variety
+  // 1. Generate prompts — mix of template + Ollama + FOCUSED (directed by config)
+  const templatePrompts = generatePrompts(4);  // reduced from 8 to make room for focused
   let ollamaPrompts = [];
-  if (cycleCount % 3 === 0) {
+  let focusedPrompts = [];
+
+  // Directed focus: every cycle, pick a focus area and generate themed prompts
+  const focusCfg = loadFocusConfig();
+  if (focusCfg) {
+    const area = pickFocusArea(focusCfg);
+    if (area) {
+      const useChain = focusCfg.chains?.enabled && cycleCount % 4 === 0;
+      focusedPrompts = generateFocusedPrompts(area, useChain ? 4 : 3, useChain);
+      if (focusedPrompts.length > 0) {
+        log(`  🎯 Focus: ${area.name} (${focusedPrompts.length} prompts${useChain ? ', chain' : ''})`);
+      }
+    }
+  }
+
+  // Every 3rd cycle, also generate Ollama prompts for variety
+  if (cycleCount % 3 === 0 && focusedPrompts.length === 0) {
     const tier = pick(['T0', 'T1', 'T2', 'T3']);
     ollamaPrompts = generateOllamaPrompts(4, tier);
     log(`  Ollama generated ${ollamaPrompts.length} ${tier} prompts`);
   }
-  const allPrompts = [...templatePrompts, ...ollamaPrompts];
+  const allPrompts = [...templatePrompts, ...focusedPrompts, ...ollamaPrompts];
   stats.prompts_generated += allPrompts.length;
   log(`  Generated ${allPrompts.length} prompts`);
 
@@ -719,7 +812,8 @@ function runCycle() {
   for (const c of classified) {
     logEvent({ event: 'tester_classification', prompt_preview: c.prompt.slice(0, 200),
       decided_tier: c.classified_tier, final_tier: c.final_tier, expected_tier: c.expected_tier,
-      confidence: c.confidence, category: c.category, prompt_source: c.source });
+      confidence: c.confidence, category: c.category, prompt_source: c.source,
+      focus_area: c.focus_area || null, chain_position: c.chain_position || null });
   }
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
