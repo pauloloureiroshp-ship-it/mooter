@@ -47,15 +47,31 @@ function showCurrent(cfg) {
   const primary = areas.reduce((best, a) => (a.weight || 0) > (best.weight || 0) ? a : best, areas[0]);
   const isPrimary = primary.weight / totalWeight > 0.5;
 
-  console.log(`\n  🎯 Current Focus: ${isPrimary ? primary.name : 'Balanced'}\n`);
-  console.log('  | Area | Weight | Status |');
-  console.log('  |------|--------|--------|');
+  console.log(`
+╔══════════════════════════════════════════════════════════════════╗
+║  🎯 MOOTER FOCUS — ${isPrimary ? primary.name.padEnd(43) : 'Balanced'.padEnd(43)} ║
+╚══════════════════════════════════════════════════════════════════╝
+`);
+
   for (const a of areas) {
     const pct = totalWeight > 0 ? Math.round(a.weight / totalWeight * 100) : 0;
+    const icon = a.icon || '●';
+    const bar = '█'.repeat(Math.round(pct / 5)) + '░'.repeat(20 - Math.round(pct / 5));
     const marker = a === primary && isPrimary ? ' ◀ PRIMARY' : '';
-    console.log(`  | ${a.name.padEnd(25)} | ${String(pct + '%').padStart(5)} | ${a.enabled !== false ? 'active' : 'off'}${marker} |`);
+    const issues = a.known_issues ? ` (${a.known_issues.length} known issues)` : '';
+    console.log(`  ${icon} ${a.id.padEnd(14)} ${bar} ${String(pct + '%').padStart(4)}${marker}`);
+    if (isPrimary && a === primary) {
+      console.log(`    ${a.description}`);
+      if (a.known_issues) {
+        for (const issue of a.known_issues) {
+          console.log(`    ⚠ ${issue}`);
+        }
+      }
+    }
   }
-  console.log(`\n  Chains: ${cfg.progressive_chains?.enabled ? 'ON' : 'OFF'} (every 4th cycle)\n`);
+
+  console.log(`\n  Chains: ${cfg.progressive_chains?.enabled ? 'ON' : 'OFF'} (every 4th cycle)`);
+  console.log(`\n  Commands: /mooter-focus <pillar>  |  /mooter-focus reset  |  /mooter-focus list\n`);
 }
 
 function setFocus(cfg, targetId) {
@@ -121,11 +137,24 @@ function listAreas(cfg) {
     console.log('No focus areas defined.');
     return;
   }
-  console.log('\n  Available focus areas:\n');
+  console.log(`
+╔══════════════════════════════════════════════════════════════════╗
+║  🐮 MOOTER PILLARS — Project Focus Areas                        ║
+╚══════════════════════════════════════════════════════════════════╝
+`);
   for (const a of areas) {
-    console.log(`  ${a.enabled !== false ? '●' : '○'} ${a.id.padEnd(20)} — ${a.description || a.name}`);
+    const icon = a.icon || '●';
+    const status = a.enabled !== false ? 'active' : 'OFF';
+    const issues = (a.known_issues || []).length;
+    console.log(`  ${icon} ${a.id.padEnd(14)} ${a.name}`);
+    console.log(`    ${a.description}`);
+    if (issues > 0) console.log(`    ⚠ ${issues} known issue${issues > 1 ? 's' : ''}`);
+    console.log('');
   }
-  console.log(`\n  Use: node mooter-focus.js <id> to set focus.\n`);
+  console.log(`  Usage: /mooter-focus <pillar-id>`);
+  console.log(`  Example: /mooter-focus security`);
+  console.log(`           /mooter-focus landing`);
+  console.log(`           /mooter-focus statusline\n`);
 }
 
 function addArea(cfg, id, description) {
