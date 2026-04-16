@@ -22,10 +22,24 @@ const http = require('http');
 const https = require('https');
 
 const HOST_URL = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const MODELS = (process.env.FRUGAL_WARMUP_MODELS || 'qwen2.5:3b')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+function getModelsToWarm() {
+  // 1. Env override — honour always
+  if (process.env.FRUGAL_WARMUP_MODELS) {
+    return process.env.FRUGAL_WARMUP_MODELS.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  // 2. Read hw-capability.json for available models — warm top-2
+  try {
+    const hwPath = require('path').join(require('os').homedir(), '.claude', 'tools', 'router', 'hw-capability.json');
+    const hw = JSON.parse(require('fs').readFileSync(hwPath, 'utf8'));
+    if (hw.available_ollama_models && hw.available_ollama_models.length > 0) {
+      return hw.available_ollama_models.slice(0, 2).map(m => m.name || m);
+    }
+  } catch { /* silent */ }
+  // 3. Fallback: safe default
+  return ['qwen2.5:3b'];
+}
+
+const MODELS = getModelsToWarm();
 
 function warmupOne(model) {
   return new Promise((resolve) => {

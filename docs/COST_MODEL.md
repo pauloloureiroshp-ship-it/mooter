@@ -178,5 +178,37 @@ and the next prompt will refresh `.budget-cache.json`.
 - `backtest.test.js` — tests 12-17 cover the v0.6 cost model
 - `AUDIT.md` — the audit that motivated this rewrite
 
-_Last reviewed: 2026-04-07. Prices change — cross-check against the
+_Last reviewed: 2026-04-12. Prices change — cross-check against the
 provider docs quarterly._
+
+---
+
+## Success-fee model (v0.9+)
+
+A frugal success-fee charges a percentage of **verified savings** —
+i.e., `guaranteed_saved`, not `advisory_saved`.
+
+### Why guaranteed only?
+Advisory savings are estimates. Charging on estimates creates disputes.
+`guaranteed_saved` is auditable: every `option_a_hit` in `decisions.log`
+has a timestamp, a prompt hash, and the Ollama model that generated the
+answer. A client can independently verify every entry.
+
+### Current fee structure (reference)
+| Tier | Verified savings/month | Fee |
+|---|---|---|
+| Starter | < $50 | 0% |
+| Growth | $50 – $500 | 15% of verified savings |
+| Scale | > $500 | 10% of verified savings |
+
+### How to audit
+```bash
+# Export all option_a_hit events for a given month
+node ~/.claude/tools/router/backtest.js --export-delta --since 2026-04-01
+# The output includes prompt_count, guaranteed_saved, and audit trail
+```
+
+### What increases guaranteed savings
+1. **Ollama installed + qwen3:30b** — better Option-A quality → more hits
+2. **Low-complexity project** — more T0-eligible prompts
+3. **High prompt volume** — law of large numbers → more Option-A hits

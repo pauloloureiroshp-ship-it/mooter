@@ -1,0 +1,40 @@
+{
+  "name": "@mooter/cli",
+  "version": "0.0.1",
+  "description": "Reserved for the Mooter LLM router (https://mooter.ai). Public release coming soon.",
+  "keywords": [
+    "llm",
+    "router",
+    "claude",
+    "claude-code",
+    "anthropic",
+    "ollama",
+    "cost-optimization",
+    "mooter"
+  ],
+  "homepage": "https://mooter.ai",
+  "bugs": {
+    "url": "https://github.com/mooter-ai/mooter/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mooter-ai/mooter.git"
+  },
+  "license": "MIT",
+  "author": "Paulo Loureiro <paulo@mooter.ai>",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@mooter/cli": "^0.0.1"
+  }
+}

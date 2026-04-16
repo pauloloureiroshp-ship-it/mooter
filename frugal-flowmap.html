@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>frugal — Operational Flow Map</title>
+<style>
+:root {
+  --bg: #060608;
+  --surface: #0d0d12;
+  --surface2: #13131a;
+  --surface3: #1a1a24;
+  --border: #1e1e2e;
+  --border2: #2a2a3e;
+  --accent: #00ff88;
+  --accent-dim: rgba(0,255,136,0.08);
+  --accent-glow: rgba(0,255,136,0.25);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.08);
+  --purple: #a855f7;
+  --purple-dim: rgba(168,85,247,0.08);
+  --orange: #f97316;
+  --orange-dim: rgba(249,115,22,0.08);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.08);
+  --yellow: #eab308;
+  --yellow-dim: rgba(234,179,8,0.08);
+  --cyan: #06b6d4;
+  --cyan-dim: rgba(6,182,212,0.08);
+  --t0: #00c853;
+  --t1: #fbbf24;
+  --t2: #3b82f6;
+  --t3: #a855f7;
+  --gate: #ef4444;
+  --text: #e2e8f0;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --mono: 'SF Mono','Fira Code','Cascadia Code',monospace;
+  --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ── TOP NAV ── */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 52px;
+  background: rgba(6,6,8,0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 32px;
+  z-index: 1000;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.logo-icon { font-size: 18px; }
+
+.nav-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  font-family: var(--sans);
+  transition: all 0.15s;
+}
+
+.tab:hover { color: var(--text-dim); background: var(--surface2); }
+.tab.active { color: var(--accent); background: var(--accent-dim); }
+
+.version {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+
+/* ── MAIN ── */
+.canvas {
+  margin-top: 52px;
+  min-height: calc(100vh - 52px);
+}
+
+.view { display: none; padding: 32px; }
+.view.active { display: block; }
+
+/* ── SECTION HEADER ── */
+.view-header {
+  margin-bottom: 32px;
+}
+
+.view-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+}
+
+.view-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ══════════════════════════════════════════════════════════
+   VIEW 1 — PROMPT JOURNEY (flow diagram)
+══════════════════════════════════════════════════════════ */
+
+.journey-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Node types */
+.node {
+  border-radius: 10px;
+  padding: 16px 20px;
+  position: relative;
+  border: 1px solid;
+}
+
+.node-user {
+  background: var(--surface2);
+  border-color: var(--border2);
+  text-align: center;
+  border-radius: 50px;
+  padding: 14px 32px;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.node-process {
+  background: var(--surface2);
+  border-color: var(--border2);
+}
+
+.node-decision {
+  background: var(--yellow-dim);
+  border-color: rgba(234,179,8,0.3);
+  transform: rotate(0deg);
+}
+
+.node-output {
+  background: var(--accent-dim);
+  border-color: var(--accent-glow);
+}
+
+.node-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-family: var(--mono);
+}
+
+.node-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.node-body {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Arrows */
+.arrow-down {
+  width: 2px;
+  background: linear-gradient(to bottom, var(--border2), transparent);
+  height: 28px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.arrow-down::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border2);
+}
+
+.arrow-label {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  margin: -8px 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Pass pipeline */
+.passes-pipeline {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.pass-pill {
+  font-size: 10px;
+  font-family: var(--mono);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+/* Branch */
+.branch-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 0 auto;
+  max-width: 900px;
+}
+
+.branch-node {
+  border-radius: 8px;
+  padding: 14px 10px;
+  text-align: center;
+  border: 1px solid;
+  position: relative;
+}
+
+.branch-node::before {
+  content: '';
+  display: block;
+  width: 2px;
+  height: 20px;
+  background: linear-gradient(to bottom, var(--border2), transparent);
+  margin: -34px auto 14px;
+}
+
+.branch-t0 { background: rgba(0,200,83,0.06); border-color: rgba(0,200,83,0.25); }
+.branch-t1 { background: rgba(251,191,36,0.06); border-color: rgba(251,191,36,0.25); }
+.branch-t2 { background: rgba(59,130,246,0.06); border-color: rgba(59,130,246,0.25); }
+.branch-t3 { background: rgba(168,85,247,0.06); border-color: rgba(168,85,247,0.25); }
+.branch-gate { background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.25); }
+
+.branch-tier { font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+.branch-name { font-size: 10px; color: var(--text-muted); margin-bottom: 8px; }
+.branch-model { font-size: 10px; font-family: var(--mono); margin-bottom: 6px; }
+.branch-cost { font-size: 11px; font-weight: 700; }
+
+/* hooks row */
+.hooks-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.hook-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.hook-type { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px; }
+.hook-name { font-size: 12px; font-weight: 700; color: var(--cyan); font-family: var(--mono); margin-bottom: 4px; }
+.hook-file { font-size: 10px; color: var(--text-muted); font-family: var(--mono); margin-bottom: 6px; }
+.hook-desc { font-size: 11px; color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════════
+   VIEW 2 — SYSTEM ARCHITECTURE
+══════════════════════════════════════════════════════════ */
+
+.arch-canvas {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.arch-zone {
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.arch-zone-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zone-icon { font-size: 16px; }
+
+.arch-component {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.arch-comp-name {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--mono);
+  margin-bottom: 4px;
+}
+
+.arch-comp-role {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.arch-comp-detail {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  line-height: 1.8;
+}
+
+.status-tag {
+  display: inline-block;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  margin-bottom: 6px;
+}
+
+.status-live { background: rgba(0,200,83,0.15); color: var(--t0); }
+.status-build { background: rgba(251,191,36,0.15); color: var(--t1); }
+.status-pending { background: rgba(239,68,68,0.15); color: var(--red); }
+
+/* ══════════════════════════════════════════════════════════
+   VIEW 3 — AUTO-LEARNING LOOP
+══════════════════════════════════════════════════════════ */
+
+.loop-outer {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.loop-timeline {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+
+.loop-timeline::before {
+  content: '';
+  position: absolute;
+  top: 40px;
+  left: 60px;
+  right: 60px;
+  height: 2px;
+  background: linear-gradient(to right, var(--t0), var(--t2), var(--t3), var(--orange));
+}
+
+.loop-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.loop-icon-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.loop-step-num {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.loop-step-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.loop-step-body {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 160px;
+  line-height: 1.6;
+}
+
+.loop-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.loop-detail-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.loop-detail-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ldc-icon { font-size: 16px; }
+
+.code-mini {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--text-dim);
+  background: var(--surface3);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.cm { color: #475569; }
+.kw { color: #818cf8; }
+.str { color: #86efac; }
+.fn { color: #60a5fa; }
+.nt0 { color: var(--t0); }
+.nt2 { color: var(--t2); }
+.nt3 { color: var(--t3); }
+
+/* ══════════════════════════════════════════════════════════
+   VIEW 4 — DATA PIPELINE
+══════════════════════════════════════════════════════════ */
+
+.pipeline-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.pipeline-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 16px;
+}
+
+.pipeline-stage {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 20px;
+  position: relative;
+}
+
+.pipeline-stage:first-child { border-radius: 10px 0 0 10px; }
+.pipeline-stage:last-child { border-radius: 0 10px 10px 0; }
+
+.pipeline-arrow {
+  width: 32px;
+  background: var(--surface3);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ps-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.ps-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.ps-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.ps-mono {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--surface3);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-top: 8px;
+  line-height: 1.8;
+}
+
+/* ══════════════════════════════════════════════════════════
+   VIEW 5 — COMMUNITY FLYWHEEL
+══════════════════════════════════════════════════════════ */
+
+.flywheel-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.flywheel-center {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.flywheel-title-main {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+
+.flywheel-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.flywheel-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.fs-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  gap: 16px;
+}
+
+.fs-num {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--border2);
+  line-height: 1;
+  min-width: 48px;
+}
+
+.fs-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.fs-body { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+.flywheel-arrow-row {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 24px;
+  color: var(--text-muted);
+}
+
+.moat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.moat-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.moat-icon { font-size: 24px; margin-bottom: 8px; }
+.moat-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.moat-body { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+
+/* ══════════════════════════════════════════════════════════
+   VIEW 6 — USER JOURNEY (onboarding → ativação → retenção)
+══════════════════════════════════════════════════════════ */
+
+.uj-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto 32px;
+}
+
+.uj-stage {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.uj-stage-header {
+  padding: 14px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uj-stage-body {
+  padding: 16px 18px;
+  background: var(--surface);
+}
+
+.uj-step {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: flex-start;
+}
+
+.uj-step-icon {
+  font-size: 14px;
+  min-width: 22px;
+  margin-top: 1px;
+}
+
+.uj-step-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.uj-step-text b { color: var(--text); }
+
+.uj-metric {
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.uj-metric-label { color: var(--text-muted); }
+.uj-metric-value { font-weight: 700; font-family: var(--mono); font-size: 14px; }
+
+/* persona row */
+.persona-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.persona-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.persona-avatar { font-size: 32px; margin-bottom: 10px; }
+.persona-type { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.persona-name { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+.persona-pain { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+.persona-value { font-size: 12px; color: var(--accent); font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════
+   SHARED UTILITIES
+══════════════════════════════════════════════════════════ */
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+.tag-t0 { background: rgba(0,200,83,0.12); color: var(--t0); }
+.tag-t1 { background: rgba(251,191,36,0.12); color: var(--t1); }
+.tag-t2 { background: rgba(59,130,246,0.12); color: var(--t2); }
+.tag-t3 { background: rgba(168,85,247,0.12); color: var(--t3); }
+.tag-gate { background: rgba(239,68,68,0.12); color: var(--red); }
+.tag-ok { background: rgba(0,200,83,0.12); color: var(--t0); }
+.tag-warn { background: rgba(234,179,8,0.12); color: var(--yellow); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+/* connector lines between sections */
+.step-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.connector-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  max-width: 200px;
+}
+
+.connector-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+
+/* guardrail highlight */
+.guardrail {
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 12px 0;
+}
+
+.guardrail-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--red);
+  margin-bottom: 6px;
+  font-family: var(--mono);
+}
+
+.guardrail-body {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .branch-row { grid-template-columns: repeat(3, 1fr); }
+  .arch-canvas { grid-template-columns: 1fr; }
+  .loop-timeline { flex-direction: column; gap: 20px; }
+  .loop-detail-grid { grid-template-columns: 1fr; }
+  .flywheel-steps { grid-template-columns: 1fr; }
+  .moat-grid { grid-template-columns: 1fr 1fr; }
+  .uj-grid { grid-template-columns: 1fr; }
+  .persona-grid { grid-template-columns: 1fr; }
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  .view { padding: 16px; }
+  .loop-timeline::before { display: none; }
+}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="logo">
+    <span class="logo-icon">🐕</span>
+    <span>frugal</span>
+    <span style="color:var(--text-muted);font-weight:400;font-size:12px;font-family:var(--mono)">/ operational flowmap</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="show('prompt')">Jornada do Prompt</button>
+    <button class="tab" onclick="show('system')">Arquitectura do Sistema</button>
+    <button class="tab" onclick="show('loop')">Auto-learning Loop</button>
+    <button class="tab" onclick="show('pipeline')">Pipeline de Dados</button>
+    <button class="tab" onclick="show('flywheel')">Flywheel Comunitário</button>
+    <button class="tab" onclick="show('user')">Jornada do Utilizador</button>
+  </div>
+  <div class="version">v0.9.6 · 2026-04-11</div>
+</nav>
+
+<div class="canvas">
+
+<!-- ══════════════════════════════════════════════════════
+     VIEW 1 — PROMPT JOURNEY
+══════════════════════════════════════════════════════ -->
+<div class="view active" id="v-prompt">
+  <div class="view-header">
+    <div class="view-title">Jornada do Prompt</div>
+    <div class="view-subtitle">O que acontece em cada milissegundo — do Enter à resposta do Claude Code</div>
+  </div>
+
+  <div class="journey-wrap">
+
+    <!-- STEP 0: User -->
+    <div style="text-align:center;margin-bottom:6px;">
+      <div style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:40px;padding:12px 28px;">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;font-family:var(--mono)">USER</div>
+        <div style="font-size:15px;font-weight:700;">User prime <kbd style="font-family:var(--mono);background:var(--surface3);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-size:12px;">Enter</kbd></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">O prompt existe apenas na sessão Claude Code local</div>
+      </div>
+    </div>
+
+    <div style="width:2px;height:24px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- HOOK 1 -->
+    <div class="node node-process" style="border-left:3px solid var(--cyan);">
+      <div class="node-label" style="color:var(--cyan);">⚡ Hook #1 · UserPromptSubmit · ~2ms</div>
+      <div class="node-title">inject_context.js dispara</div>
+      <div class="node-body">Lê <code style="font-family:var(--mono);background:var(--surface3);padding:1px 4px;border-radius:3px;">FRUGAL_PREV_TIER</code> do env (sessão anterior) · verifica modo activo (.frugal-mode.json) · timeout de segurança de 500ms</div>
+    </div>
+
+    <div style="width:2px;height:18px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- CLASSIFIER -->
+    <div class="node" style="background:rgba(0,255,136,0.04);border-color:rgba(0,255,136,0.2);border-left:3px solid var(--accent);">
+      <div class="node-label" style="color:var(--accent);">🧠 Classifier · classify.js v0.10 · 20–45ms (cold) · 2ms (cached)</div>
+      <div class="node-title" style="margin-bottom:10px;">11 Passes de Classificação</div>
+      <div class="passes-pipeline">
+        <span class="pass-pill" style="color:var(--accent)">1 · Cache SHA256</span>
+        <span class="pass-pill">2 · MD Enrichment</span>
+        <span class="pass-pill">3 · User Override</span>
+        <span class="pass-pill">4 · Subagent Spawn</span>
+        <span class="pass-pill">5 · Prev Tier</span>
+        <span class="pass-pill">6 · Fast Paths</span>
+        <span class="pass-pill" style="color:var(--yellow)">7 · Score Principal</span>
+        <span class="pass-pill">8 · Low Conf Escalation</span>
+        <span class="pass-pill" style="color:var(--orange)">9 · TUNED_DEMOTE</span>
+        <span class="pass-pill" style="color:var(--orange)">10 · TUNED_PROMOTE</span>
+        <span class="pass-pill">11 · Degradações</span>
+      </div>
+      <div class="guardrail" style="margin-top:12px;margin-bottom:0;">
+        <div class="guardrail-label">🛡️ Dual-Enforce Guardrail — sempre activo</div>
+        <div class="guardrail-body">HIGH_RISK signals (push / deploy / migrate / .env / secrets / architect) → forçam T3 mesmo com TUNED_DEMOTE activo. Verificado no runtime (classify.js) <b>e</b> upstream (backtest.js). Bug de produção de 2026-04-07 que justificou esta arquitectura.</div>
+      </div>
+    </div>
+
+    <div style="width:2px;height:18px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- PROMPT OPTIMIZER — Sprint 5-A NOVO -->
+    <div class="node" style="background:linear-gradient(135deg,rgba(251,191,36,0.12),rgba(251,191,36,0.04));border:1px solid rgba(251,191,36,0.4);position:relative;">
+      <div style="position:absolute;top:-10px;right:12px;background:#fbbf24;color:#000;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;font-family:var(--mono);">SPRINT 5-A · NOVO</div>
+      <div class="node-label" style="color:#fbbf24;">🧠 Prompt Optimizer · prompt-optimizer.js · &lt;5ms · zero LLM</div>
+      <div class="node-title">Reformata o prompt para o tier destino</div>
+      <div class="node-body" style="margin-top:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <span style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:#fbbf24;">S1 padding removal</span>
+          <span style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:#fbbf24;">S2 tier-aware reformat</span>
+          <span style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:#fbbf24;">S3 category framing</span>
+          <span style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:#fbbf24;">S4 error structuring</span>
+          <span style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:#fbbf24;">S5 lang normalization</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);line-height:1.6;">
+          <strong style="color:#fbbf24;">56% dos prompts optimizados</strong> no corpus histórico (202/363).
+          Estratégia dominante: <code style="color:#fbbf24;">s1+s2</code> — padding + tier reformat (58% dos hits).
+          Guardrails: nunca toca em <code>architecture_or_critical</code> nem HIGH_RISK.
+        </div>
+        <div style="margin-top:8px;background:rgba(0,0,0,0.3);border-radius:4px;padding:8px;font-family:var(--mono);font-size:10px;color:var(--text-dim);">
+          <span style="color:#fbbf24;">→ decisions.log:</span> event: 'prompt_optimized' · strategy · tokens_saved_est · tier
+        </div>
+      </div>
+    </div>
+
+    <div style="width:2px;height:18px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- HINT EMISSION -->
+    <div class="node" style="background:var(--accent-dim);border-color:rgba(0,255,136,0.3);">
+      <div class="node-label" style="color:var(--accent);">📤 Output do Classifier + Optimizer</div>
+      <div class="node-title">inject_context.js emite &lt;router-hint&gt; + &lt;optimized-task&gt; + turn header</div>
+      <div class="node-body" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);">tier: T2</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);">model: claude-sonnet-4-6</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);">confidence: 0.82</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);">reasoning: "med-risk: 2"</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);">subagent: model-reasoner</span>
+        <span style="font-family:var(--mono);font-size:10px;color:#fbbf24;">optimized-task: "Debug: auth.js timeout..."</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);">→ decisions.log appended</span>
+      </div>
+    </div>
+
+    <div style="width:2px;height:18px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- DOCTRINE -->
+    <div class="node" style="background:var(--purple-dim);border-color:rgba(168,85,247,0.3);">
+      <div class="node-label" style="color:var(--purple);">📜 A Doutrina · ~/.claude/CLAUDE.md · lida a cada sessão</div>
+      <div class="node-title">Claude Code lê hint + honra doutrina</div>
+      <div class="node-body">A doutrina define quando obedecer ao hint e quando overridar. Guardrails forçam T3 para push/deploy/migrate. A regra-mãe: <em>"Bazuca só quando a parede é de betão."</em></div>
+    </div>
+
+    <div style="width:2px;height:28px;background:linear-gradient(to bottom, var(--border2), transparent);margin:0 auto;"></div>
+
+    <!-- BRANCH -->
+    <div style="text-align:center;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;font-family:var(--mono);">Claude Code decide qual modelo spawnar</div>
+
+    <div class="branch-row">
+      <div class="branch-node branch-t0">
+        <div class="branch-tier" style="color:var(--t0)">T0</div>
+        <div class="branch-name">local-summarizer</div>
+        <div class="branch-model" style="color:var(--t0)">qwen3:30b</div>
+        <div class="branch-cost" style="color:var(--t0)">$0.00</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Resumo, comparação, extracção</div>
+      </div>
+      <div class="branch-node branch-t0">
+        <div class="branch-tier" style="color:var(--t0)">T0</div>
+        <div class="branch-name">local-transformer</div>
+        <div class="branch-model" style="color:var(--t0)">qwen2.5-coder:14b</div>
+        <div class="branch-cost" style="color:var(--t0)">$0.00</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Format, regex, código local</div>
+      </div>
+      <div class="branch-node branch-t1">
+        <div class="branch-tier" style="color:var(--t1)">T1</div>
+        <div class="branch-name">cheap-triage</div>
+        <div class="branch-model" style="color:var(--t1)">haiku-4-5</div>
+        <div class="branch-cost" style="color:var(--t1)">~$0.001</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Commit msgs, docstrings</div>
+      </div>
+      <div class="branch-node branch-t2">
+        <div class="branch-tier" style="color:var(--t2)">T2</div>
+        <div class="branch-name">model-reasoner</div>
+        <div class="branch-model" style="color:var(--t2)">sonnet-4-6</div>
+        <div class="branch-cost" style="color:var(--t2)">~$0.01</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Bug hunt, root cause</div>
+      </div>
+      <div class="branch-node branch-t3">
+        <div class="branch-tier" style="color:var(--t3)">T3</div>
+        <div class="branch-name">model-architect</div>
+        <div class="branch-model" style="color:var(--t3)">opus-4-6</div>
+        <div class="branch-cost" style="color:var(--t3)">~$0.05+</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Arquitectura, prod, CI</div>
+      </div>
+    </div>
+
+    <div style="width:2px;height:28px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- HOOKS AFTER -->
+    <div class="hooks-row">
+      <div class="hook-box">
+        <div class="hook-type">Hook #2 · PostToolUse</div>
+        <div class="hook-name">exec-logger.js</div>
+        <div class="hook-file">~/.claude/hooks/exec-logger.js</div>
+        <div class="hook-desc">Regista cada Bash/Agent call com modelo efectivo, role, latência → execution.log (TSV)</div>
+      </div>
+      <div class="hook-box" style="border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.04);">
+        <div class="hook-type">⚠️ Gate obrigatório · pré-merge/push</div>
+        <div class="hook-name" style="color:var(--red);">final-reviewer</div>
+        <div class="hook-file">~/.claude/agents/final-reviewer.md</div>
+        <div class="hook-desc">Opus. Não-skipável. Se o user tenta push sem este, a doutrina força spawn. Sempre.</div>
+      </div>
+      <div class="hook-box">
+        <div class="hook-type">Hook #3 · Stop</div>
+        <div class="hook-name">gsd-turn-end.js</div>
+        <div class="hook-file">~/.claude/hooks/gsd-turn-end.js</div>
+        <div class="hook-desc">Augmenta decisions.log com turn_end, response_len_bucket, turn_end_ts. Base do feedback loop.</div>
+      </div>
+    </div>
+
+    <div style="width:2px;height:18px;background:var(--border2);margin:0 auto;"></div>
+
+    <!-- STATUSLINE -->
+    <div class="node" style="background:var(--surface2);border-color:var(--border2);font-family:var(--mono);">
+      <div class="node-label" style="color:var(--cyan);">📊 Statusline · gsd-statusline.js · actualiza após cada resposta</div>
+      <div style="background:var(--surface3);border-radius:6px;padding:10px 14px;font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.8;">
+        <span style="color:var(--accent)">⬆ /gsd-update</span> │ <span style="color:var(--text)">Opus 4.6</span> │ <span style="color:var(--text)">cloude-home</span> <span style="color:var(--t0)">████████░░</span> <span style="color:var(--text)">78%</span> │ <span style="color:var(--accent)">💰 $1.73 saved (77%)</span> │ <span style="color:var(--text-muted)">Ollama:62% Sonnet:18% Opus:20%</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Fetch ao savings-tracker.js :7821 (timeout 400ms) · nunca bloqueia · falha silenciosa</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     VIEW 2 — SYSTEM ARCHITECTURE
+══════════════════════════════════════════════════════ -->
+<div class="view" id="v-system">
+  <div class="view-header">
+    <div class="view-title">Arquitectura do Sistema</div>
+    <div class="view-subtitle">Todos os componentes, onde vivem, o que fazem e como comunicam</div>
+  </div>
+
+  <div class="arch-canvas">
+
+    <!-- ZONA 1: Runtime Local -->
+    <div class="arch-zone" style="border-color:rgba(0,255,136,0.2);">
+      <div class="arch-zone-header" style="color:var(--accent);">
+        <span class="zone-icon">🖥️</span> Runtime Local · ~/.claude/
+      </div>
+
+      <div class="arch-component" style="border-color:rgba(0,255,136,0.2);">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--accent);">inject_context.js</div>
+        <div class="arch-comp-role">Hook UserPromptSubmit — orquestrador principal</div>
+        <div class="arch-comp-detail">spawn classify.js · timeout 500ms · <span style="color:#fbbf24;">prompt-optimizer.js (S1-S5, &lt;5ms)</span> · emite &lt;router-hint&gt; + &lt;optimized-task&gt; · applyActiveMode() · readLastSessionTier() · frugal-turn-header.js</div>
+      </div>
+
+      <div class="arch-component" style="border-color:rgba(0,255,136,0.2);">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--accent);">classify.js v0.10</div>
+        <div class="arch-comp-role">O classificador — 11 passes, zero LLM, &lt;50ms</div>
+        <div class="arch-comp-detail">102 patterns · 4 sub-tiers T0 · SHA256 cache · TUNED block (auto-generated) · dual-enforce guardrail · variant_hint · user_override · previous_tier</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--cyan);">patterns.js v0.7.0</div>
+        <div class="arch-comp-role">SSOT das regexes — HIGH/MED/LOW/TRIVIAL/TUNING_EXCLUDE</div>
+        <div class="arch-comp-detail">shared por classify.js e backtest.js · TUNING_EXCLUDE ⊇ HIGH_RISK</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--cyan);">savings-tracker.js</div>
+        <div class="arch-comp-role">HTTP server 127.0.0.1:7821 — métricas em tempo real</div>
+        <div class="arch-comp-detail">/health · /metrics · /summary · /last · /gpu · single-instance · best-effort · cache 4s</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--cyan);">exec-logger.js + gsd-turn-end.js</div>
+        <div class="arch-comp-role">PostToolUse + Stop hooks — registo de execução real</div>
+        <div class="arch-comp-detail">execution.log (TSV) · modelo efectivo por Bash/Agent call · turn_end events</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--orange);">backtest.js + update-router.js</div>
+        <div class="arch-comp-role">Auto-learning diário — Windows Task Scheduler 02:00</div>
+        <div class="arch-comp-detail">analisa decisions.log · filtra HIGH_RISK · deriva TUNED_DEMOTE/PROMOTE · actualiza classify.js · idempotente · backup .bak</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">frugal-mode.js · frugal-doctor.js · gpu-probe.js</div>
+        <div class="arch-comp-role">Utilitários de controlo</div>
+        <div class="arch-comp-detail">Beast/Zen/Auto modes · diagnóstico cross-platform --fix · NVIDIA/Apple/AMD/CPU probe</div>
+      </div>
+
+      <div class="arch-component" style="border-color:rgba(251,191,36,0.3);">
+        <span class="status-tag status-build">⚠ Sprint 4</span>
+        <div class="arch-comp-name" style="color:var(--yellow);">Dashboard Next.js :7820</div>
+        <div class="arch-comp-role">UI local de debugging de routing</div>
+        <div class="arch-comp-detail">Overview · Misroutes · Tuning · Community · "Retrain now" button · &lt;30s para debugar qualquer misroute</div>
+      </div>
+    </div>
+
+    <!-- ZONA 2: Cloudflare -->
+    <div class="arch-zone" style="border-color:rgba(249,115,22,0.2);">
+      <div class="arch-zone-header" style="color:var(--orange);">
+        <span class="zone-icon">☁️</span> Cloudflare · frugal-hub
+      </div>
+
+      <div class="arch-component" style="border-color:rgba(249,115,22,0.2);">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--orange);">Worker frugal-hub</div>
+        <div class="arch-comp-role">frugal-hub.frugal-hub.workers.dev</div>
+        <div class="arch-comp-detail">
+          POST /api/delta — deltas anónimos da comunidade<br>
+          GET /api/stats — agregados públicos<br>
+          POST /submit-events — auth bearer token<br>
+          GET /aggregate-stats — stats de eventos<br>
+          GET /health — liveness check
+        </div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">D1 SQLite · 320b55f6-9444</div>
+        <div class="arch-comp-role">Base de dados serverless</div>
+        <div class="arch-comp-detail">routing_deltas — deltas anónimos comunidade<br>frugal_events — telemetria estruturada (Sprint 3)</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">R2 Object Storage · frugal-hub-storage</div>
+        <div class="arch-comp-role">Artefactos gerados pelos crons</div>
+        <div class="arch-comp-detail">router-tuning-latest.json<br>model-catalog-latest.json<br>10GB free tier</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">Cron Jobs</div>
+        <div class="arch-comp-role">Processamento periódico</div>
+        <div class="arch-comp-detail">0 * * * * — hourly aggregate<br>0 6 * * * — daily generate tuning<br>0 6 * * 1 — weekly notify + prune</div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">Secrets configurados</div>
+        <div class="arch-comp-detail">FRUGAL_SUBMIT_TOKEN ✅<br>PAULO_EMAIL ✅<br>PAULO_WEBHOOK_URL ⚠️ placeholder</div>
+      </div>
+
+      <div class="arch-component" style="margin-top:16px;background:var(--surface3);">
+        <div class="arch-comp-name" style="color:var(--cyan);">GitHub Actions CI/CD</div>
+        <div class="arch-comp-detail">
+          test.yml — gold-labels + event-builder + latency<br>
+          deploy-hub.yml — auto-deploy Worker (hub/ changes)<br>
+          CF_API_TOKEN ✅ "Edit Cloudflare Workers" template
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-family:var(--mono);">Clientes locais que comunicam com o hub</div>
+        <div class="arch-component" style="margin-bottom:8px;">
+          <div class="arch-comp-name" style="font-size:11px;">hub-push.js</div>
+          <div class="arch-comp-detail">Envia delta anonimizado após backtest</div>
+        </div>
+        <div class="arch-component" style="margin-bottom:8px;">
+          <div class="arch-comp-name" style="font-size:11px;">hub-pull.js</div>
+          <div class="arch-comp-detail">Recebe router-tuning comunidade</div>
+        </div>
+        <div class="arch-component">
+          <div class="arch-comp-name" style="font-size:11px;">hub-submit-events.js</div>
+          <div class="arch-comp-detail">Batching + dry-run + bearer auth</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA 3: Web / Auth / Landing -->
+    <div class="arch-zone" style="border-color:rgba(59,130,246,0.2);">
+      <div class="arch-zone-header" style="color:var(--blue);">
+        <span class="zone-icon">🌐</span> Web · Supabase · Vercel
+      </div>
+
+      <div class="arch-component" style="border-color:rgba(59,130,246,0.2);">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--blue);">Landing · Next.js 15 · Vercel</div>
+        <div class="arch-comp-role">landing-five-azure-16.vercel.app</div>
+        <div class="arch-comp-detail">
+          HeroSection — live counters (/api/stats) + install CTA<br>
+          DemoSection — routing animado (3 prompts universais)<br>
+          FlywheelSection — privacy proof + 5-step flywheel<br>
+          HowItWorksSection — diagrama técnico 3 camadas<br>
+          ComparisonSection — frugal vs concorrentes<br>
+          PricingSection — Free / Pro / Team<br>
+          AccessSection — waitlist form → Supabase
+        </div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name" style="color:var(--blue);">Supabase · eymtobwinevywmmlmxqa · sa-east-1</div>
+        <div class="arch-comp-role">Auth + DB · São Paulo</div>
+        <div class="arch-comp-detail">
+          Magic Link auth ✅<br>
+          GitHub OAuth ⏳ Sprint 4 B2<br>
+          waitlist (id, email, url, savings_est, created_at)<br>
+          profiles (+ github_username, github_primary_language, frugal_config)<br>
+          usage_sessions (prompts_total, t0-t3_count, savings_usd)
+        </div>
+      </div>
+
+      <div class="arch-component" style="border-color:rgba(239,68,68,0.25);">
+        <span class="status-tag status-pending">⏳ Sprint 4</span>
+        <div class="arch-comp-name" style="color:var(--red);">Pendentes Críticos</div>
+        <div class="arch-comp-detail">
+          B1 — Supabase RLS anon INSERT na waitlist<br>
+          → desbloqueia form de waitlist da landing<br><br>
+          B2 — GitHub OAuth App creation<br>
+          → github.com/settings/applications/new<br>
+          → client_id + secret → Supabase Auth Providers<br><br>
+          B3 — Testar landing form com RLS activo
+        </div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">6 Subagents · ~/.claude/agents/</div>
+        <div class="arch-comp-role">Ficheiros Markdown — Claude Code spawna via Agent tool</div>
+        <div class="arch-comp-detail">
+          <span class="tag tag-t0">T0</span> local-summarizer · local-transformer (Ollama)<br>
+          <span class="tag tag-t1">T1</span> cheap-triage (Haiku API)<br>
+          <span class="tag tag-t2">T2</span> model-reasoner (Sonnet)<br>
+          <span class="tag tag-t3">T3</span> model-architect (Opus)<br>
+          <span class="tag tag-gate">GATE</span> final-reviewer (Opus, não-skipável)
+        </div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">11 Skills · ~/.claude/skills/</div>
+        <div class="arch-comp-detail">
+          /frugal-status · /frugal-savings · /frugal-route<br>
+          /frugal-summary · /frugal-update · /frugal-beast<br>
+          /frugal-zen · /frugal-auto · /frugal-hello<br>
+          /frugal-doctor · /frugal-dashboard (Sprint 4)
+        </div>
+      </div>
+
+      <div class="arch-component">
+        <span class="status-tag status-live">✓ LIVE</span>
+        <div class="arch-comp-name">Logs de Estado Local</div>
+        <div class="arch-comp-detail">
+          decisions.log — JSONL, classificações (RUNTIME)<br>
+          execution.log — TSV, modelo real por call<br>
+          router-tuning.json — output backtest diário<br>
+          backtest-latest.log — relatório human-readable<br>
+          gold-labels.json — 62 prompts, 95.2% accuracy
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     VIEW 3 — AUTO-LEARNING LOOP
+══════════════════════════════════════════════════════ -->
+<div class="view" id="v-loop">
+  <div class="view-header">
+    <div class="view-title">Auto-learning Loop</div>
+    <div class="view-subtitle">O que transforma o frugal de classifier hand-tuned em sistema que se melhora sozinho</div>
+  </div>
+
+  <div class="loop-outer">
+
+    <div class="loop-timeline" style="margin-bottom:48px;">
+      <div class="loop-step">
+        <div class="loop-icon-wrap" style="border-color:rgba(0,200,83,0.4);background:rgba(0,200,83,0.05);">
+          📝<div class="loop-step-num">1</div>
+        </div>
+        <div class="loop-step-title">Prompt classificado</div>
+        <div class="loop-step-body">classify.js corre · emite tier + confidence · appenda a decisions.log</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon-wrap" style="border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.05);">
+          📋<div class="loop-step-num">2</div>
+        </div>
+        <div class="loop-step-title">Dados acumulados</div>
+        <div class="loop-step-body">decisions.log cresce a cada sessão · execution.log regista modelo real</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon-wrap" style="border-color:rgba(249,115,22,0.4);background:rgba(249,115,22,0.05);">
+          🔬<div class="loop-step-num">3</div>
+        </div>
+        <div class="loop-step-title">Análise 02:00</div>
+        <div class="loop-step-body">backtest.js corre · filtra HIGH_RISK · agrupa por signature · identifica candidatos</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon-wrap" style="border-color:rgba(234,179,8,0.4);background:rgba(234,179,8,0.05);">
+          ⚡<div class="loop-step-num">4</div>
+        </div>
+        <div class="loop-step-title">Tuning gerado</div>
+        <div class="loop-step-body">router-tuning.json emitido com TUNED_DEMOTE + TUNED_PROMOTE patterns</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon-wrap" style="border-color:rgba(168,85,247,0.4);background:rgba(168,85,247,0.05);">
+          🔧<div class="loop-step-num">5</div>
+        </div>
+        <div class="loop-step-title">Classifier actualizado</div>
+        <div class="loop-step-body">update-router.js injeta TUNED block em classify.js · backup .bak criado · idempotente</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-icon-wrap" style="border-color:rgba(0,200,83,0.4);background:rgba(0,200,83,0.05);">
+          🔁<div class="loop-step-num">6</div>
+        </div>
+        <div class="loop-step-title">Loop fecha</div>
+        <div class="loop-step-body">próximo prompt usa classify.js actualizado · savings aumentam · loop recomeça</div>
+      </div>
+    </div>
+
+    <div class="loop-detail-grid">
+
+      <div class="loop-detail-card">
+        <div class="loop-detail-title"><span class="ldc-icon">🔬</span> O que backtest.js analisa</div>
+        <div class="code-mini"><span class="cm">// 3 buckets de candidatos:</span>
+<span class="nt2">shortHighTier</span>   <span class="cm">→</span> <span class="nt3">len &lt; 50</span> em T2/T3
+<span class="nt2">lowConfHighTier</span> <span class="cm">→</span> conf &lt; 0.6 em T2/T3
+<span class="nt2">repeated</span>        <span class="cm">→</span> sig ≥3x, sempre T2/T3
+
+<span class="cm">// Signature = primeiras 3 palavras</span>
+<span class="fn">signature</span>(<span class="str">"gera commit message"</span>)
+→ <span class="str">"gera_commit_message"</span>
+
+<span class="cm">// Guardrail upstream (crítico):</span>
+<span class="kw">if</span> (<span class="fn">hasHighRisk</span>(preview)) <span class="kw">continue</span>;</div>
+      </div>
+
+      <div class="loop-detail-card">
+        <div class="loop-detail-title"><span class="ldc-icon">📄</span> O TUNED block injectado</div>
+        <div class="code-mini"><span class="cm">// ── TUNED-BLOCK-START ──</span>
+<span class="cm">// generated_at: 2026-04-09</span>
+<span class="cm">// sample_size: 230</span>
+<span class="kw">const</span> TUNED_COMPLEXITY_THRESHOLD = 0.25;
+<span class="kw">const</span> TUNED_PROMOTE_T0 = [];
+<span class="kw">const</span> TUNED_DEMOTE_T3 = [
+  /\bpensa\s+bem\s+antes\b/i,
+  /\bultrathink\s+this\b/i,
+  /\bsonnet\s+diagnostica\b/i
+];
+<span class="cm">// ── TUNED-BLOCK-END ──</span></div>
+      </div>
+
+      <div class="loop-detail-card">
+        <div class="loop-detail-title"><span class="ldc-icon">🛡️</span> Dual-Enforce Guardrail</div>
+        <div class="code-mini"><span class="cm">// classify.js (runtime):</span>
+<span class="kw">if</span> (TUNED_DEMOTE_T3.length > 0
+  && (tier === <span class="str">'T2'</span> || tier === <span class="str">'T3'</span>)
+  && <span class="nt3">high === 0</span>  <span class="cm">// ← guardrail</span>
+  && TUNED_DEMOTE_T3.some(rx => rx.test(p))
+) { tier = <span class="str">'T1'</span>; }
+
+<span class="cm">// backtest.js (upstream):</span>
+<span class="kw">for</span> (const d of decisions) {
+  <span class="kw">if</span> (<span class="fn">hasHighRisk</span>(d.prompt_preview))
+    <span class="kw">continue</span>; <span class="cm">// ← upstream filter</span>
+}</div>
+      </div>
+
+      <div class="loop-detail-card">
+        <div class="loop-detail-title"><span class="ldc-icon">📊</span> Métricas automáticas</div>
+        <div style="font-size:11px;color:var(--text-muted);line-height:2;">
+          <div>Corpus decisions.log <span style="float:right;color:var(--text);">cresce a cada sessão</span></div>
+          <div>Gold labels (curados) <span style="float:right;color:var(--text);">62 · accuracy 95.2%</span></div>
+          <div>TUNED_DEMOTE patterns <span style="float:right;color:var(--text);">aprendidos do corpus</span></div>
+          <div>Backtest run diário <span style="float:right;color:var(--t0);">02:00 Windows Scheduler</span></div>
+          <div>classify.js.bak <span style="float:right;color:var(--text);">backup antes de cada update</span></div>
+          <div>Idempotência <span style="float:right;color:var(--t0);">testada em backtest.test.js</span></div>
+        </div>
+      </div>
+
+      <div class="loop-detail-card" style="grid-column: span 2;">
+        <div class="loop-detail-title"><span class="ldc-icon">🔗</span> Problema Actual — Corpus Count desactualizado</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.8;margin-bottom:12px;">
+          O valor <b style="color:var(--yellow);">1,437 prompts</b> no README e docs é uma snapshot manual de 2026-04-09. Desde então correram muitas mais sessões e o <code style="font-family:var(--mono);">decisions.log</code> cresceu — mas os MDs não actualizam automaticamente.<br><br>
+          <b style="color:var(--text);">Solução:</b> <code style="font-family:var(--mono);">update-metrics.js</code> — script que corre após cada backtest, conta as linhas reais do decisions.log, calcula accuracy actual, e escreve <code style="font-family:var(--mono);">metrics-snapshot.json</code>. Um segundo passo actualiza os badges no README.
+        </div>
+        <div class="code-mini"><span class="cm">// update-metrics.js (a criar)</span>
+<span class="kw">const</span> lines = <span class="fn">loadDecisions</span>();           <span class="cm">// lê decisions.log real</span>
+<span class="kw">const</span> classified = <span class="fn">loadDecisions</span>()
+  .filter(d => d.event === <span class="str">'classified'</span>); <span class="cm">// exclui turn_end events</span>
+<span class="kw">const</span> snap = {
+  corpus_size: classified.length,        <span class="cm">// ← número real, não 1,437</span>
+  by_tier: <span class="fn">countByTier</span>(classified),
+  avg_confidence: <span class="fn">avgConf</span>(classified),
+  generated_at: <span class="kw">new</span> Date().toISOString()
+};
+fs.writeFileSync(<span class="str">'metrics-snapshot.json'</span>, JSON.stringify(snap, null, 2));</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     VIEW 4 — DATA PIPELINE
+══════════════════════════════════════════════════════ -->
+<div class="view" id="v-pipeline">
+  <div class="view-header">
+    <div class="view-title">Pipeline de Dados</div>
+    <div class="view-subtitle">Como os dados fluem da máquina local até ao hub, respeitando privacidade em cada passo</div>
+  </div>
+
+  <div class="pipeline-wrap">
+
+    <!-- Row 1: Prompt → log -->
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;">CAMADA 1 — Captura local (privacy-safe)</div>
+    <div class="pipeline-row">
+      <div class="pipeline-stage" style="background:rgba(0,200,83,0.04);border-color:rgba(0,200,83,0.2);">
+        <div class="ps-label">Origem</div>
+        <div class="ps-title">Prompt do utilizador</div>
+        <div class="ps-detail">Texto completo. Fica <b>APENAS na sessão local</b>. Nunca sai da máquina.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage">
+        <div class="ps-label">inject_context.js</div>
+        <div class="ps-title">Classificação + hint</div>
+        <div class="ps-detail">classify.js processa o prompt em memória. Emite tier, confidence, reasoning.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage">
+        <div class="ps-label">decisions.log</div>
+        <div class="ps-title">JSONL local (~/.claude/)</div>
+        <div class="ps-detail">Guarda apenas <b>prompt_preview</b> (80 chars). Nunca o prompt completo.</div>
+        <div class="ps-mono">{ ts, tier, confidence,<br>  prompt_preview: "primeiros 80 chars",<br>  prompt_len, escalation_rule }</div>
+      </div>
+    </div>
+
+    <div style="height:16px;"></div>
+
+    <!-- Row 2: log → backtest → tuning -->
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;">CAMADA 2 — Análise local (02:00 diário)</div>
+    <div class="pipeline-row">
+      <div class="pipeline-stage">
+        <div class="ps-label">Input</div>
+        <div class="ps-title">decisions.log completo</div>
+        <div class="ps-detail">Todas as classificações da sessão. Corpus real — cresce a cada sessão Claude Code.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="background:rgba(249,115,22,0.04);border-color:rgba(249,115,22,0.2);">
+        <div class="ps-label">backtest.js</div>
+        <div class="ps-title">Análise de padrões</div>
+        <div class="ps-detail">Filtra HIGH_RISK (upstream guardrail) · agrupa por signature · identifica shortHighTier, lowConf, repeated</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage">
+        <div class="ps-label">Output</div>
+        <div class="ps-title">router-tuning.json</div>
+        <div class="ps-detail">TUNED_DEMOTE_T3 + TUNED_PROMOTE_T0 + complexity_threshold</div>
+        <div class="ps-mono">{ demote_from_t3_patterns: [...],<br>  promote_to_t0_patterns: [...],<br>  complexity_threshold: 0.25 }</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="background:rgba(0,200,83,0.04);border-color:rgba(0,200,83,0.2);">
+        <div class="ps-label">update-router.js</div>
+        <div class="ps-title">Patch em classify.js</div>
+        <div class="ps-detail">Injeta TUNED block · backup .bak · idempotente · próximo prompt usa patterns actualizados</div>
+      </div>
+    </div>
+
+    <div style="height:16px;"></div>
+
+    <!-- Row 3: delta → hub -->
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;">CAMADA 3 — Export para hub (anonimizado, sem prompt)</div>
+    <div class="pipeline-row">
+      <div class="pipeline-stage">
+        <div class="ps-label">event-builder.js</div>
+        <div class="ps-title">Privacy contract enforcer</div>
+        <div class="ps-detail"><b>Remove</b>: prompt_preview, prompt texto, qualquer PII. <b>Mantém</b>: tier, confidence, prompt_len, hw_tier, cascade_path, frugal_version.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage">
+        <div class="ps-label">hub-submit-events.js</div>
+        <div class="ps-title">Cliente com batching</div>
+        <div class="ps-detail">Bearer auth (FRUGAL_SUBMIT_TOKEN) · dry-run mode · batch de até 100 eventos · retry com backoff</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="background:rgba(249,115,22,0.04);border-color:rgba(249,115,22,0.2);">
+        <div class="ps-label">POST /submit-events</div>
+        <div class="ps-title">frugal-hub Worker</div>
+        <div class="ps-detail">Schema validation · rate limiting · trust score · appenda a D1 (frugal_events table)</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage">
+        <div class="ps-label">GET /aggregate-stats</div>
+        <div class="ps-title">Stats públicos</div>
+        <div class="ps-detail">tier_distribution, avg_confidence, total_events, savings_estimate — sem dados individuais</div>
+      </div>
+    </div>
+
+    <div style="height:16px;"></div>
+
+    <!-- Row 4: hub → community → improve -->
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;">CAMADA 4 — Melhoria comunitária (crons diários)</div>
+    <div class="pipeline-row">
+      <div class="pipeline-stage">
+        <div class="ps-label">D1 · frugal_events + routing_deltas</div>
+        <div class="ps-title">Dados anonimizados de N utilizadores</div>
+        <div class="ps-detail">Sem prompts. Sem PII. Apenas sinais de routing: tier, confidence, hw_tier, cascade.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="background:rgba(249,115,22,0.04);border-color:rgba(249,115,22,0.2);">
+        <div class="ps-label">Cron diário jobs/generate.js</div>
+        <div class="ps-title">Nova router-tuning da comunidade</div>
+        <div class="ps-detail">Agrega padrões de todos os utilizadores · pondera por hw_tier · trust score filtra spam</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage">
+        <div class="ps-label">R2 · router-tuning-latest.json</div>
+        <div class="ps-title">Artefacto comunitário</div>
+        <div class="ps-detail">Disponível via GET /api/version. hub-pull.js faz download. classify.js melhora para todos.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="background:rgba(0,200,83,0.04);border-color:rgba(0,200,83,0.2);">
+        <div class="ps-label">hub-pull.js</div>
+        <div class="ps-title">Cada utilizador recebe melhoria</div>
+        <div class="ps-detail">O router de cada instância melhora com os dados de toda a comunidade. Federated learning.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:32px;" class="guardrail">
+      <div class="guardrail-label">🔐 Garantias de Privacidade — o que NUNCA sai da máquina</div>
+      <div class="guardrail-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;">
+        <div>
+          <b style="color:var(--red)">Nunca enviado:</b><br>
+          O texto dos prompts · código-fonte de qualquer ficheiro · nomes de ficheiros · paths locais · API keys ou secrets · prompt_preview (80 chars) · qualquer PII
+        </div>
+        <div>
+          <b style="color:var(--t0)">Enviado anonimizado:</b><br>
+          tier (T0/T1/T2/T3) · confidence (0-1) · prompt_len (número) · hw_tier (gpu_high/mid/cpu) · cascade_path (sequência de tiers) · frugal_version · session_hash (anónimo)
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     VIEW 5 — COMMUNITY FLYWHEEL
+══════════════════════════════════════════════════════ -->
+<div class="view" id="v-flywheel">
+  <div class="view-header">
+    <div class="view-title">Flywheel Comunitário</div>
+    <div class="view-subtitle">O efeito de rede que torna o frugal progressivamente melhor com mais utilizadores</div>
+  </div>
+
+  <div class="flywheel-wrap">
+
+    <div class="flywheel-center">
+      <div class="flywheel-title-main">Mais utilizadores → melhor algoritmo → mais savings → mais utilizadores</div>
+      <div class="flywheel-subtitle">O código é MIT. Qualquer um replica em 2 semanas. O que não replica: os dados acumulados.</div>
+    </div>
+
+    <div class="flywheel-steps">
+      <div class="fs-card" style="border-color:rgba(0,200,83,0.2);">
+        <div class="fs-num" style="color:rgba(0,200,83,0.2)">01</div>
+        <div>
+          <div class="fs-title" style="color:var(--t0)">Utilizador instala frugal</div>
+          <div class="fs-body">1 linha bash/ps1. Vê savings em 30 segundos. /frugal-status confirma que funciona. Primeira impressão: "isto funciona mesmo."</div>
+        </div>
+      </div>
+      <div class="fs-card" style="border-color:rgba(59,130,246,0.2);">
+        <div class="fs-num" style="color:rgba(59,130,246,0.2)">02</div>
+        <div>
+          <div class="fs-title" style="color:var(--t2)">Router aprende os padrões locais</div>
+          <div class="fs-body">decisions.log cresce. Backtest diário às 02:00. TUNED block ajusta-se ao estilo de prompting do utilizador. Savings aumentam ao longo do tempo.</div>
+        </div>
+      </div>
+      <div class="fs-card" style="border-color:rgba(249,115,22,0.2);">
+        <div class="fs-num" style="color:rgba(249,115,22,0.2)">03</div>
+        <div>
+          <div class="fs-title" style="color:var(--orange)">Delta anonimizado vai para o hub</div>
+          <div class="fs-body">event-builder.js remove tudo que identifica. Só sinais de routing. hub-submit-events.js envia. O utilizador contribui sem saber que está a contribuir.</div>
+        </div>
+      </div>
+      <div class="fs-card" style="border-color:rgba(168,85,247,0.2);">
+        <div class="fs-num" style="color:rgba(168,85,247,0.2)">04</div>
+        <div>
+          <div class="fs-title" style="color:var(--t3)">Hub agrega e gera tuning comunitário</div>
+          <div class="fs-body">Cron diário analisa deltas de N utilizadores. Produz router-tuning-latest.json melhor que qualquer tuning individual. Sobe para R2.</div>
+        </div>
+      </div>
+      <div class="fs-card" style="border-color:rgba(0,200,83,0.2);">
+        <div class="fs-num" style="color:rgba(0,200,83,0.2)">05</div>
+        <div>
+          <div class="fs-title" style="color:var(--t0)">Cada utilizador recebe a melhoria</div>
+          <div class="fs-body">hub-pull.js descarrega router-tuning comunitário. classify.js de cada instância fica mais preciso. Savings da comunidade sobem.</div>
+        </div>
+      </div>
+      <div class="fs-card" style="border-color:rgba(251,191,36,0.2);">
+        <div class="fs-num" style="color:rgba(251,191,36,0.2)">06</div>
+        <div>
+          <div class="fs-title" style="color:var(--t1)">Savings visíveis → boca-a-boca</div>
+          <div class="fs-body">Landing mostra savings reais da comunidade (live counter). Utilizador recomenda. Novo utilizador instala. Flywheel accelera.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text);">O Fosso Competitivo — evolução em 4 fases</div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px;">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:10px;color:var(--t0);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:var(--mono);">Hoje · v0.x</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Regex puro</div>
+        <div style="font-size:11px;color:var(--text-muted);">102 patterns · &lt;50ms · 1,437 prompts validados · qualquer dev replica em 2h. O que não replica: os dados.</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:var(--mono);">v1.5 · 5k+ prompts</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Regex + TF-IDF</div>
+        <div style="font-size:11px;color:var(--text-muted);">Tabela estatística da comunidade · lookup local &lt;1ms · sem necessidade de treino pesado</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:var(--mono);">v2.0 · 50k+ prompts</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Modelo ONNX tiny</div>
+        <div style="font-size:11px;color:var(--text-muted);">1-3M parâmetros · &lt;10ms CPU · &lt;5MB embebido no installer · treinado no corpus da comunidade</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:16px;">
+        <div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:var(--mono);">v3.0 · 1M+ prompts</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Perfil por cohort</div>
+        <div style="font-size:11px;color:var(--text-muted);">Fine-tuning por stack (Mac M3+Next.js ≠ Win+Python). Server-side. Pull silencioso. O segredo da Coca-Cola.</div>
+      </div>
+    </div>
+
+    <div class="moat-grid">
+      <div class="moat-card">
+        <div class="moat-icon">📊</div>
+        <div class="moat-title">O Dataset</div>
+        <div class="moat-body">1,437 prompts hoje. 1M amanhã. Cada utilizador contribui anonimamente. Não replicável sem utilizadores.</div>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon">👤</div>
+        <div class="moat-title">Os Perfis</div>
+        <div class="moat-body">Hardware + stack + padrões de prompting + histórico de savings. Acumula ao longo do tempo. Personalizado por cohort.</div>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon">🤝</div>
+        <div class="moat-title">A Comunidade</div>
+        <div class="moat-body">Utilizadores que confiam, partilham dados, recomendam. Confiança demora anos a construir. Não se compra.</div>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon">🔐</div>
+        <div class="moat-title">Privacy by Default</div>
+        <div class="moat-body">"Nunca vimos o teu código." Desde o dia 1. Promessa que define a reputação. Impossível retroactivamente fingir.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     VIEW 6 — USER JOURNEY
+══════════════════════════════════════════════════════ -->
+<div class="view" id="v-user">
+  <div class="view-header">
+    <div class="view-title">Jornada do Utilizador</div>
+    <div class="view-subtitle">Onboarding → Activação → Engagement → Retenção · 3 perfis de utilizador</div>
+  </div>
+
+  <div class="uj-grid">
+
+    <div class="uj-stage" style="border-color:rgba(0,200,83,0.2);">
+      <div class="uj-stage-header" style="background:rgba(0,200,83,0.08);color:var(--t0);">
+        <span>🚀</span> Onboarding (Dia 0)
+      </div>
+      <div class="uj-stage-body">
+        <div class="uj-step">
+          <div class="uj-step-icon">🌐</div>
+          <div class="uj-step-text">Encontra frugal (boca-a-boca, Reddit, GitHub). Vai à landing.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">📋</div>
+          <div class="uj-step-text">Vê <b>live counter</b> de savings da comunidade. Vê demo animado de routing. Quer instalar.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">⬇️</div>
+          <div class="uj-step-text">Copia 1 linha bash/PowerShell. Corre em 30 segundos. install.sh configura hooks + subagents + skills + backtest schedule.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">✅</div>
+          <div class="uj-step-text">Corre <b>/frugal-status</b>. Vê hook instalado, Ollama detectado, hub live. <b>Primeiro "isto funciona".</b></div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">📧</div>
+          <div class="uj-step-text">Opcionalmente entra na waitlist na landing (Magic Link). Perfil criado no Supabase.</div>
+        </div>
+        <div class="uj-metric">
+          <span class="uj-metric-label">Tempo até primeiro valor</span>
+          <span class="uj-metric-value" style="color:var(--t0);">&lt; 5 min</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="uj-stage" style="border-color:rgba(59,130,246,0.2);">
+      <div class="uj-stage-header" style="background:rgba(59,130,246,0.08);color:var(--t2);">
+        <span>⚡</span> Activação (Semana 1)
+      </div>
+      <div class="uj-stage-body">
+        <div class="uj-step">
+          <div class="uj-step-icon">🎯</div>
+          <div class="uj-step-text">Usa Claude Code normalmente. Frugal corre invisível em background. Cada prompt classificado em &lt;50ms.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">📊</div>
+          <div class="uj-step-text">Vê statusline: <b>T0: 62%, Sonnet: 18%, Opus: 20%</b>. Vê "💰 saved $3.47 (77%)". Momento Aha.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">🔍</div>
+          <div class="uj-step-text">Experimenta <b>/frugal-route</b> numa tarefa antes de executar. Vê porque vai para T2 e não T3.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">🐻</div>
+          <div class="uj-step-text">Experimenta <b>/frugal-beast</b> quando quer garantir Opus. Experimenta <b>/frugal-zen</b> para economizar.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">🌙</div>
+          <div class="uj-step-text">Às 02:00 o backtest corre. Classifier aprende os padrões do utilizador. Savings aumentam.</div>
+        </div>
+        <div class="uj-metric">
+          <span class="uj-metric-label">Savings típicos semana 1</span>
+          <span class="uj-metric-value" style="color:var(--t2);">$5–$15</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="uj-stage" style="border-color:rgba(168,85,247,0.2);">
+      <div class="uj-stage-header" style="background:rgba(168,85,247,0.08);color:var(--t3);">
+        <span>🔁</span> Retenção (Mês 1+)
+      </div>
+      <div class="uj-stage-body">
+        <div class="uj-step">
+          <div class="uj-step-icon">📈</div>
+          <div class="uj-step-text">Corpus do utilizador cresce para 500+ prompts. TUNED block é altamente personalizado. Accuracy &gt;95%.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">🤝</div>
+          <div class="uj-step-text">Deltas anonimizados enviados ao hub. Recebe router-tuning comunitário de volta. Rede de valor.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">🎛️</div>
+          <div class="uj-step-text">Acede ao <b>Dashboard :7820</b> (Sprint 4). Vê misroutes, confidence trends, "Retrain now".</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">🔑</div>
+          <div class="uj-step-text">Liga GitHub OAuth (v1.5). Frugal analisa stack dos repos. Config personalizada gerada automaticamente.</div>
+        </div>
+        <div class="uj-step">
+          <div class="uj-step-icon">📣</div>
+          <div class="uj-step-text">Recomenda a amigos. Traz novos utilizadores. Flywheel accelera. Dados comunitários melhoram.</div>
+        </div>
+        <div class="uj-metric">
+          <span class="uj-metric-label">Savings típicos mês 1</span>
+          <span class="uj-metric-value" style="color:var(--t3);">$20–$60</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="divider"></div>
+
+  <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text);">3 Perfis de Utilizador</div>
+
+  <div class="persona-grid">
+    <div class="persona-card" style="border-color:rgba(0,200,83,0.2);">
+      <div class="persona-avatar">🌱</div>
+      <div class="persona-type">Tipo 1 · Maior Mercado</div>
+      <div class="persona-name" style="color:var(--t0);">O Iniciante</div>
+      <div class="persona-pain">Começou no Lovable, achou caro e limitado. Ouviu falar do Claude Code mas tem medo do terminal. Quer construir o projecto mas não sabe o setup ideal.</div>
+      <div class="persona-value">✓ Onboarding guiado · config automática · "for dummies" · sem precisar de entender o algoritmo</div>
+    </div>
+    <div class="persona-card" style="border-color:rgba(59,130,246,0.2);">
+      <div class="persona-avatar">⚡</div>
+      <div class="persona-type">Tipo 2 · Mais Valioso para Dados</div>
+      <div class="persona-name" style="color:var(--t2);">O Intermediate</div>
+      <div class="persona-pain">Já usa Claude Code, já paga $20-100/mês. Sabe que está a desperdiçar mas não sabe onde. Tem projectos no GitHub, usa Next.js ou Python.</div>
+      <div class="persona-value">✓ Savings imediatos · perfil via GitHub (v1.5) · config optimizada · dashboard de debugging</div>
+    </div>
+    <div class="persona-card" style="border-color:rgba(168,85,247,0.2);">
+      <div class="persona-avatar">🦅</div>
+      <div class="persona-type">Tipo 3 · Evangelista</div>
+      <div class="persona-name" style="color:var(--t3);">O Power User</div>
+      <div class="persona-pain">Developer experiente, usa múltiplos modelos, tem opinião forte sobre routing. Quer controlo total. Vai partilhar se o produto for bom.</div>
+      <div class="persona-value">✓ Beast/Zen/Auto mode · acesso ao hub de dados · customização de patterns · API pública (v3.0)</div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /canvas -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('v-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

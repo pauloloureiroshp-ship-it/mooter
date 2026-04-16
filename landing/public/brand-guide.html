@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>mooter — Brand Guide v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  background: #0A0A0A;
+  color: #ededed;
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: #FF6B35; text-decoration: none; }
+code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
+
+/* ── Sidebar nav ── */
+.layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 220px;
+  flex-shrink: 0;
+  background: #080808;
+  border-right: 1px solid #1e1e24;
+  padding: 2rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #1e1e24;
+}
+.sidebar-logo-name {
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: #FF6B35;
+  font-size: 1.1rem;
+}
+.sidebar-version {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  color: #333;
+  display: block;
+  margin-top: 1px;
+}
+
+.nav-section {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 1rem 0 0.5rem;
+  padding: 0 0.25rem;
+}
+.nav-link {
+  display: block;
+  padding: 0.35rem 0.625rem;
+  border-radius: 6px;
+  font-size: 0.813rem;
+  color: #5c5c6e;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+.nav-link:hover { background: #111; color: #ededed; }
+
+/* ── Main content ── */
+.main {
+  flex: 1;
+  max-width: 820px;
+  padding: 4rem 3rem 8rem;
+  overflow-x: hidden;
+}
+
+/* ── Sections ── */
+.section { margin-bottom: 6rem; scroll-margin-top: 2rem; }
+.divider { border: none; border-top: 1px solid #1e1e24; margin: 4rem 0; }
+
+/* ── Typography ── */
+.page-title {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.0;
+  margin-bottom: 0.375rem;
+}
+.page-sub {
+  font-size: 0.875rem;
+  color: #5c5c6e;
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 3rem;
+  padding-bottom: 3rem;
+  border-bottom: 1px solid #1e1e24;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #ededed;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: #FF6B35;
+  background: rgba(255,107,53,0.1);
+  border: 1px solid rgba(255,107,53,0.2);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+.status-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.status-current { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+.status-proposed { background: rgba(255,107,53,0.1); color: #FF6B35; border: 1px solid rgba(255,107,53,0.2); }
+.status-direction { background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); }
+
+h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #3a3a44;
+  margin-bottom: 0.875rem;
+  margin-top: 2rem;
+}
+h3:first-of-type { margin-top: 0; }
+
+p { color: #5c5c6e; line-height: 1.8; margin-bottom: 1rem; font-size: 0.938rem; }
+p strong { color: #aaa; font-weight: 600; }
+
+/* ── Cards & grids ── */
+.card {
+  background: #0e0e12;
+  border: 1px solid #1e1e24;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.card-pad { padding: 1.5rem; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 700px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .main { padding: 2rem 1.25rem 4rem; }
+}
+
+/* ── Logo section ── */
+.logo-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  padding: 2.5rem 1.5rem;
+}
+.logo-bg-dark   { background: #0A0A0A; }
+.logo-bg-mid    { background: #1a1a20; }
+.logo-bg-light  { background: #F5EDD4; }
+.logo-bg-orange { background: #FF6B35; }
+.logo-bg-white  { background: #fff; }
+
+.logo-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  color: #3a3a44;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.logo-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.compare-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: #5c5c6e;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* ── Do / Don't ── */
+.do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+.do-box, .dont-box { padding: 1.25rem; border-radius: 10px; font-size: 0.875rem; line-height: 1.7; }
+.do-box   { background: rgba(34,197,94,0.04); border: 1px solid rgba(34,197,94,0.15); color: #22c55e; }
+.dont-box { background: rgba(248,113,113,0.04); border: 1px solid rgba(248,113,113,0.15); color: #f87171; }
+.do-box strong, .dont-box strong { display: block; margin-bottom: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ── Color swatches ── */
+.swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1rem; }
+.swatch-card { border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); }
+.swatch-block { height: 72px; }
+.swatch-info { padding: 0.75rem; background: #111114; }
+.swatch-name { font-size: 0.813rem; font-weight: 600; color: #ededed; display: block; margin-bottom: 2px; }
+.swatch-hex { font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: #5c5c6e; }
+.swatch-role { font-size: 0.62rem; color: #3a3a44; display: block; margin-top: 3px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ── Typography scale ── */
+.type-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #1e1e24;
+  background: #0e0e12;
+}
+.type-row:first-child { border-radius: 10px 10px 0 0; }
+.type-row:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
+.type-meta { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: #3a3a44; min-width: 100px; flex-shrink: 0; line-height: 1; padding-top: 4px; }
+.type-sample { color: #ededed; }
+
+/* ── Tier system ── */
+.tier-card { padding: 1.5rem; border-radius: 12px; border: 1px solid; }
+.tier-name { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem; }
+.tier-model { font-size: 0.875rem; opacity: 0.6; margin-bottom: 0.75rem; }
+.tier-cost { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #3a3a44; margin-bottom: 0.5rem; }
+.tier-pct { font-family: 'JetBrains Mono', monospace; font-size: 2rem; font-weight: 700; line-height: 1; }
+.tier-desc { font-size: 0.72rem; color: #3a3a44; margin-top: 0.5rem; font-family: 'JetBrains Mono', monospace; }
+
+/* ── Components ── */
+.component-surface {
+  background: #0e0e12;
+  border: 1px solid #1e1e24;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.625rem 1.25rem; border-radius: 8px;
+  font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 0.875rem;
+  cursor: pointer; border: none; transition: all 0.15s ease; white-space: nowrap;
+}
+.btn-primary { background: #FF6B35; color: #000; }
+.btn-ghost { background: transparent; color: #ededed; border: 1px solid #2a2a32; }
+.btn-sm { padding: 0.4rem 0.875rem; font-size: 0.75rem; }
+
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 17px; border: 1px solid; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 800;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px; font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem; border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04); color: #5c5c6e;
+}
+
+.terminal {
+  background: #080808;
+  border: 1px solid #252525;
+  border-radius: 10px;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8125rem;
+}
+.terminal-header {
+  display: flex; gap: 5px; align-items: center; padding: 8px 12px;
+  background: #0e0e0e; border-bottom: 1px solid #1a1a1a;
+}
+.dot { width: 9px; height: 9px; border-radius: 50%; }
+.dot-r { background: #ff5f57; }
+.dot-y { background: #febc2e; }
+.dot-g { background: #28c840; }
+.terminal-body { padding: 1rem 1.25rem; }
+.ps1 { color: #FF6B35; }
+
+/* ── Hero blueprint ── */
+.hero-blueprint {
+  background: #0A0A0A;
+  border: 1px solid #252525;
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero-blueprint::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,107,53,0.06) 0%, transparent 65%);
+  pointer-events: none;
+}
+.blueprint-annotation {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  color: rgba(255,107,53,0.5);
+  border: 1px dashed rgba(255,107,53,0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: -0.75rem;
+}
+
+.hero-install-demo {
+  background: #111;
+  border: 1px solid #252525;
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.813rem;
+  color: #dcdcaa;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 380px;
+  width: 100%;
+}
+.hero-install-demo .ps1 { flex-shrink: 0; }
+.hero-copy-btn {
+  margin-left: auto;
+  background: #FF6B35;
+  color: #000;
+  border: none;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.hero-providers-demo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: #3a3a44;
+}
+.provider-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #5c5c6e;
+}
+
+/* ── Voice examples ── */
+.voice-pair { margin-bottom: 1.25rem; }
+.voice-before {
+  background: rgba(248,113,113,0.04);
+  border: 1px solid rgba(248,113,113,0.12);
+  border-radius: 8px 8px 0 0;
+  padding: 0.875rem 1.125rem;
+  font-size: 0.875rem;
+  color: #5c5c6e;
+}
+.voice-after {
+  background: rgba(34,197,94,0.04);
+  border: 1px solid rgba(34,197,94,0.12);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 0.875rem 1.125rem;
+  font-size: 0.875rem;
+  color: #ededed;
+  font-weight: 500;
+}
+.voice-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.375rem;
+  display: block;
+}
+.voice-tag-before { color: #f87171; }
+.voice-tag-after  { color: #22c55e; }
+
+/* ── Page structure ── */
+.structure-list { display: flex; flex-direction: column; gap: 0; }
+.structure-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #0e0e12;
+  border-bottom: 1px solid #1e1e24;
+}
+.structure-item:first-child { border-radius: 10px 10px 0 0; }
+.structure-item:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
+.structure-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: #FF6B35;
+  min-width: 24px;
+  margin-top: 3px;
+}
+.structure-name { font-weight: 600; font-size: 0.875rem; color: #ededed; margin-bottom: 0.25rem; }
+.structure-desc { font-size: 0.813rem; color: #5c5c6e; line-height: 1.6; }
+.structure-cut {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  color: #f87171;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.15);
+  padding: 1px 7px;
+  border-radius: 4px;
+  margin-top: 0.375rem;
+  display: inline-block;
+}
+.structure-keep {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  color: #22c55e;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.15);
+  padding: 1px 7px;
+  border-radius: 4px;
+  margin-top: 0.375rem;
+  display: inline-block;
+}
+
+/* ── Spacing ── */
+.space-list { display: flex; flex-direction: column; gap: 0; }
+.space-row {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.875rem 1.25rem; background: #0e0e12;
+  border-bottom: 1px solid #1e1e24;
+}
+.space-row:first-child { border-radius: 10px 10px 0 0; }
+.space-row:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
+.space-token { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #FF6B35; min-width: 110px; }
+.space-bar-wrap { flex: 1; background: rgba(255,255,255,0.04); border-radius: 4px; height: 18px; overflow: hidden; }
+.space-bar { height: 100%; background: rgba(255,107,53,0.35); border-radius: 4px; }
+.space-val { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #5c5c6e; min-width: 40px; text-align: right; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ── Sidebar ── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
+      <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+      <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+      <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+      <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+      <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+      <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+      <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+      <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+      <circle cx="38" cy="44" r="2" fill="white"/>
+      <circle cx="66" cy="44" r="2" fill="white"/>
+      <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
+      <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+      <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+    </svg>
+    <div>
+      <div class="sidebar-logo-name">mooter</div>
+      <span class="sidebar-version">Brand Guide v2 · 2026</span>
+    </div>
+  </div>
+
+  <div class="nav-section">Foundation</div>
+  <a class="nav-link" href="#logo">01 · Logo</a>
+  <a class="nav-link" href="#color">02 · Color</a>
+  <a class="nav-link" href="#type">03 · Typography</a>
+  <a class="nav-link" href="#tiers">04 · Tier System</a>
+
+  <div class="nav-section">Application</div>
+  <a class="nav-link" href="#hero">05 · Hero Blueprint</a>
+  <a class="nav-link" href="#voice">06 · Copy Voice</a>
+  <a class="nav-link" href="#structure">07 · Page Structure</a>
+
+  <div class="nav-section">Components</div>
+  <a class="nav-link" href="#components">08 · UI Components</a>
+  <a class="nav-link" href="#spacing">09 · Spacing</a>
+</nav>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <div class="page-title">mooter — Brand Guide</div>
+  <div class="page-sub">v2.0 · Route smarter. Ship faster. · mooter.ai</div>
+
+  <!-- ── 01 LOGO ── -->
+  <section class="section" id="logo">
+    <h2><span class="num">01</span> Logo</h2>
+
+    <p>A vaquinha de frente — blocky, friendly, expressiva. Cores derivadas directamente do emoji 🐮: corpo cream, focinho laranja, olhos quase-pretos. O logo escala de 16px (favicon) até 200px (hero). A versão v2 adiciona um outline escuro nas orelhas e cabeça para dar peso visual no estilo Ollama.</p>
+
+    <h3>v1 — Current (sem outline)</h3>
+    <div class="grid-4" style="margin-bottom: 2rem;">
+      <div class="card">
+        <div class="logo-display logo-bg-dark">
+          <!-- v1 — original -->
+          <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
+            <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
+            <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
+            <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+            <circle cx="36" cy="46" r="5" fill="#1C1209"/>
+            <circle cx="64" cy="46" r="5" fill="#1C1209"/>
+            <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
+            <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
+            <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
+            <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+            <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+          </svg>
+          <div class="logo-label">Dark · v1</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logo-display logo-bg-dark" style="padding: 1.5rem;">
+          <svg width="32" height="32" viewBox="0 0 100 100" fill="none">
+            <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
+            <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
+            <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+            <circle cx="36" cy="46" r="5" fill="#1C1209"/>
+            <circle cx="64" cy="46" r="5" fill="#1C1209"/>
+            <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
+            <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
+            <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
+            <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+            <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+          </svg>
+          <div class="logo-label">32px · perde definição</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logo-display logo-bg-light">
+          <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
+            <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#1C1209"/>
+            <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#1C1209"/>
+            <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#1C1209"/>
+            <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#1C1209"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="#1C1209"/>
+            <circle cx="36" cy="46" r="5" fill="#F5EDD4"/>
+            <circle cx="64" cy="46" r="5" fill="#F5EDD4"/>
+            <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
+            <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+            <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+          </svg>
+          <div class="logo-label" style="color:#888;">Light · v1</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logo-display" style="background: #111; padding: 1.25rem;">
+          <div class="logo-lockup" style="font-size:1.1rem; color:#ededed;">
+            <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
+              <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
+              <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
+              <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+              <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+              <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+              <circle cx="36" cy="46" r="5" fill="#1C1209"/>
+              <circle cx="64" cy="46" r="5" fill="#1C1209"/>
+              <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
+              <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
+              <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
+              <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+              <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+            </svg>
+            <span style="color:#FF6B35;">mooter</span>
+          </div>
+          <div class="logo-label">Lockup · v1</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>v2 — Proposed (com outline escuro · mais peso · Ollama-style)</h3>
+    <p>Adicionado um layer escuro (#1C1209) atrás das orelhas e cabeça. Olhos ligeiramente maiores (r=6). Muzzle maior (52px wide). Resultado: lê-se claramente a 24px, tem peso visual on dark bg, e o mascote destaca-se como o Ollama faz.</p>
+
+    <div class="grid-4" style="margin-bottom: 1rem;">
+      <!-- v2 logo definition (shared) -->
+      <div class="card">
+        <div class="logo-display logo-bg-dark">
+          <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
+            <!-- Outline layer -->
+            <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+            <!-- Cream fills -->
+            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+            <!-- Eyes (bigger) -->
+            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="38" cy="44" r="2" fill="white"/>
+            <circle cx="66" cy="44" r="2" fill="white"/>
+            <!-- Muzzle (wider) -->
+            <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
+            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+          </svg>
+          <div class="logo-label">Dark · v2 ✦</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logo-display logo-bg-dark" style="padding: 1.5rem;">
+          <svg width="32" height="32" viewBox="0 0 100 100" fill="none">
+            <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="38" cy="44" r="2" fill="white"/>
+            <circle cx="66" cy="44" r="2" fill="white"/>
+            <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
+            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+          </svg>
+          <div class="logo-label">32px · lê-se melhor ✦</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logo-display" style="background:#FF6B35;">
+          <svg width="56" height="56" viewBox="0 0 100 100" fill="none">
+            <rect x="14" y="22" width="72" height="64" rx="17" fill="rgba(0,0,0,0.35)"/>
+            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="rgba(0,0,0,0.35)"/>
+            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="rgba(0,0,0,0.35)"/>
+            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="white"/>
+            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="white"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="white"/>
+            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="38" cy="44" r="2" fill="rgba(255,255,255,0.6)"/>
+            <circle cx="66" cy="44" r="2" fill="rgba(255,255,255,0.6)"/>
+            <rect x="24" y="58" width="52" height="26" rx="13" fill="#C04A0C"/>
+            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#8a3009"/>
+            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#8a3009"/>
+          </svg>
+          <div class="logo-label" style="color:rgba(0,0,0,0.4);">On Accent</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logo-display logo-bg-dark">
+          <!-- Hero size — 136px equivalent -->
+          <svg width="136" height="136" viewBox="0 0 100 100" fill="none">
+            <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+            <circle cx="38" cy="44" r="2" fill="white"/>
+            <circle cx="66" cy="44" r="2" fill="white"/>
+            <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
+            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+          </svg>
+          <div class="logo-label">136px · hero size ✦</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="do-dont">
+      <div class="do-box">
+        <strong>✓ Usar</strong>
+        v2 (com outline) em fundos escuros — mais presença<br/>
+        Mínimo 96px no hero, 28px na nav, 20px no footer<br/>
+        "mooter" (lowercase, Space Grotesk 700) no lockup<br/>
+        Float animation lento (5s ease-in-out) no hero
+      </div>
+      <div class="dont-box">
+        <strong>✗ Não usar</strong>
+        Rodar, distorcer, ou recolorir fora das variantes<br/>
+        Usar o logo v1 sem outline em fundos muito escuros<br/>
+        "Mooter" com maiúscula — sempre lowercase<br/>
+        Adicionar drop shadows no ficheiro SVG
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 02 COLORS ── -->
+  <section class="section" id="color">
+    <h2><span class="num">02</span> Color</h2>
+    <p>Preto profundo como base — não cinzento. O laranja vem directamente do focinho do emoji 🐮. O verde é reservado para savings/positive outcomes. O sistema de tiers segue uma lógica de custo: verde gratuito → vermelho caro.</p>
+
+    <h3>Brand Core</h3>
+    <div class="swatch-grid" style="margin-bottom: 2rem;">
+      <div class="swatch-card"><div class="swatch-block" style="background:#0A0A0A; border-bottom:1px solid #1e1e24;"></div><div class="swatch-info"><span class="swatch-name">Void</span><span class="swatch-hex">#0A0A0A</span><span class="swatch-role">--bg · base</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#FF6B35;"></div><div class="swatch-info"><span class="swatch-name" style="color:#FF6B35;">Mooter Orange</span><span class="swatch-hex">#FF6B35</span><span class="swatch-role">--accent · primary</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#F5EDD4;"></div><div class="swatch-info"><span class="swatch-name">Cow Cream</span><span class="swatch-hex">#F5EDD4</span><span class="swatch-role">--cream · logo body</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#C04A0C;"></div><div class="swatch-info"><span class="swatch-name">Dark Muzzle</span><span class="swatch-hex">#C04A0C</span><span class="swatch-role">Logo nostrils</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#1C1209;"></div><div class="swatch-info"><span class="swatch-name">Eye Dark</span><span class="swatch-hex">#1C1209</span><span class="swatch-role">Logo outline/eyes</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#23d18b;"></div><div class="swatch-info"><span class="swatch-name" style="color:#23d18b;">Savings Green</span><span class="swatch-hex">#23d18b</span><span class="swatch-role">--green · positive</span></div></div>
+    </div>
+
+    <h3>Tier Palette</h3>
+    <div class="swatch-grid">
+      <div class="swatch-card"><div class="swatch-block" style="background:#22c55e;"></div><div class="swatch-info"><span class="swatch-name" style="color:#22c55e;">T0 Free</span><span class="swatch-hex">#22c55e</span><span class="swatch-role">Ollama · 84%</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#3b82f6;"></div><div class="swatch-info"><span class="swatch-name" style="color:#3b82f6;">T1 Cheap</span><span class="swatch-hex">#3b82f6</span><span class="swatch-role">Haiku · 5%</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#a78bfa;"></div><div class="swatch-info"><span class="swatch-name" style="color:#a78bfa;">T2 Smart</span><span class="swatch-hex">#a78bfa</span><span class="swatch-role">Sonnet · 8%</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#f87171;"></div><div class="swatch-info"><span class="swatch-name" style="color:#f87171;">T3 Expensive</span><span class="swatch-hex">#f87171</span><span class="swatch-role">Opus · 3%</span></div></div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 03 TYPOGRAPHY ── -->
+  <section class="section" id="type">
+    <h2><span class="num">03</span> Typography</h2>
+    <p><strong>Space Grotesk</strong> — geométrico com carácter. Não é o Inter genérico. Não é o system font stack. O tracking apertado nos headlines (-0.04em) cria densidade e confiança. <strong>JetBrains Mono</strong> — para tudo que é código, terminal, números, badges. Nunca misturar: sans para UI, mono para dados.</p>
+
+    <h3>Scale — Space Grotesk (UI)</h3>
+    <div style="margin-bottom: 2rem;">
+      <div class="type-row"><div class="type-meta">Hero<br/>700 · -0.04em</div><div class="type-sample" style="font-size:clamp(2rem,4vw,3.5rem); font-weight:700; letter-spacing:-0.04em; line-height:1.0;">Stop paying Opus rates.</div></div>
+      <div class="type-row"><div class="type-meta">H1<br/>700 · -0.04em</div><div class="type-sample" style="font-size:2rem; font-weight:700; letter-spacing:-0.04em;">Route smarter. Ship faster.</div></div>
+      <div class="type-row"><div class="type-meta">H2<br/>700 · -0.03em</div><div class="type-sample" style="font-size:1.5rem; font-weight:700; letter-spacing:-0.03em;">Same prompts. Different bill.</div></div>
+      <div class="type-row"><div class="type-meta">H3<br/>600 · -0.02em</div><div class="type-sample" style="font-size:1.1rem; font-weight:600; letter-spacing:-0.02em;">One command. 60 seconds. Done.</div></div>
+      <div class="type-row"><div class="type-meta">Body<br/>400 · 0em</div><div class="type-sample" style="font-size:1rem; color:#5c5c6e;">Mooter routes to the cheapest model that handles it. Ollama when free. Opus only when nothing else will do.</div></div>
+      <div class="type-row"><div class="type-meta">Small<br/>400 · 0em</div><div class="type-sample" style="font-size:0.813rem; color:#5c5c6e;">Requires Node.js ≥18 · Claude Code · Ollama (recommended)</div></div>
+    </div>
+
+    <h3>Scale — JetBrains Mono (Data & Code)</h3>
+    <div>
+      <div class="type-row"><div class="type-meta">Terminal<br/>400</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.875rem; color:#dcdcaa;"><span style="color:#FF6B35;">›</span> npm install -g @mooter/cli</div></div>
+      <div class="type-row"><div class="type-meta">Output<br/>400</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.8125rem; color:#888;">tier: <span style="color:#22c55e; border:1px solid #22c55e; padding:1px 5px; border-radius:3px; font-size:0.65rem; font-weight:800;">T0</span> &nbsp; Ollama · free &nbsp; 9ms &nbsp; $0.000 &nbsp; 98% ✓</div></div>
+      <div class="type-row"><div class="type-meta">Stat<br/>700</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:1.5rem; font-weight:700; color:#23d18b;">$6.29 saved</div></div>
+      <div class="type-row"><div class="type-meta">Label<br/>600 · caps</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; color:#5c5c6e;">Community · live savings</div></div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 04 TIERS ── -->
+  <section class="section" id="tiers">
+    <h2><span class="num">04</span> Tier System</h2>
+    <p>Os tiers são a linguagem visual central do mooter. Cada tier tem uma cor, um badge, um modelo e uma assinatura de custo. Usar sempre as mesmas cores em todos os contextos — landing, statusline, docs.</p>
+
+    <div class="grid-4">
+      <div class="tier-card" style="border-color:rgba(34,197,94,0.2); background:rgba(34,197,94,0.03);">
+        <div class="tier-name" style="color:#22c55e;">T0</div>
+        <div class="tier-model" style="color:#22c55e;">Ollama · Local</div>
+        <div class="tier-cost">$0.000 / prompt</div>
+        <div class="tier-pct" style="color:#22c55e;">84%</div>
+        <div class="tier-desc">rename, css, typos, commits</div>
+      </div>
+      <div class="tier-card" style="border-color:rgba(59,130,246,0.2); background:rgba(59,130,246,0.03);">
+        <div class="tier-name" style="color:#3b82f6;">T1</div>
+        <div class="tier-model" style="color:#3b82f6;">Claude Haiku</div>
+        <div class="tier-cost">~$0.001 / prompt</div>
+        <div class="tier-pct" style="color:#3b82f6;">5%</div>
+        <div class="tier-desc">tests, docstrings, light tasks</div>
+      </div>
+      <div class="tier-card" style="border-color:rgba(167,139,250,0.2); background:rgba(167,139,250,0.03);">
+        <div class="tier-name" style="color:#a78bfa;">T2</div>
+        <div class="tier-model" style="color:#a78bfa;">Claude Sonnet</div>
+        <div class="tier-cost">~$0.010 / prompt</div>
+        <div class="tier-pct" style="color:#a78bfa;">8%</div>
+        <div class="tier-desc">bugs, reasoning, medium tasks</div>
+      </div>
+      <div class="tier-card" style="border-color:rgba(248,113,113,0.2); background:rgba(248,113,113,0.03);">
+        <div class="tier-name" style="color:#f87171;">T3</div>
+        <div class="tier-model" style="color:#f87171;">Claude Opus</div>
+        <div class="tier-cost">~$0.050 / prompt</div>
+        <div class="tier-pct" style="color:#f87171;">3%</div>
+        <div class="tier-desc">architecture, security, prod</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 05 HERO BLUEPRINT ── -->
+  <section class="section" id="hero">
+    <h2><span class="num">05</span> Hero Blueprint <span class="status-chip status-direction">direction</span></h2>
+    <p>Inspiração: Ollama. O mascote é o herói. A headline é uma frase. O install é o único CTA. <strong>Nada mais acima do fold.</strong> Confiança mostra-se no que se remove. Abaixo do fold: imediatamente o Before/After terminal — sem secções intermédias de explicação.</p>
+
+    <div class="hero-blueprint">
+      <!-- Logo grande a flutuar -->
+      <svg width="136" height="136" viewBox="0 0 100 100" fill="none" style="filter: drop-shadow(0 12px 40px rgba(255,107,53,0.22));">
+        <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+        <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+        <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+        <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+        <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+        <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+        <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+        <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+        <circle cx="38" cy="44" r="2" fill="white"/>
+        <circle cx="66" cy="44" r="2" fill="white"/>
+        <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
+        <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+        <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+      </svg>
+      <div class="blueprint-annotation">136px · float animation · drop-shadow orange</div>
+
+      <div style="font-size:clamp(2rem,4vw,3rem); font-weight:700; letter-spacing:-0.04em; line-height:1.05; text-align:center;">
+        Stop paying Opus rates<br/><span style="color:#FF6B35;">for git commits.</span>
+      </div>
+      <div class="blueprint-annotation">1 headline · max 8 words · sem subtítulo</div>
+
+      <div class="hero-install-demo">
+        <span class="ps1">$</span>
+        <span style="color:#dcdcaa;">npm install -g @mooter/cli</span>
+        <button class="hero-copy-btn">Copy</button>
+      </div>
+      <div class="blueprint-annotation">install block · sem parágrafo antes</div>
+
+      <div class="hero-providers-demo">
+        <span>routes to:</span>
+        <span class="provider-dot" style="color:#22c55e;">● Ollama</span>
+        <span class="provider-dot" style="color:#ededed;">● Haiku</span>
+        <span class="provider-dot" style="color:#a78bfa;">● Sonnet</span>
+        <span class="provider-dot" style="color:#f87171;">● Opus</span>
+      </div>
+      <div class="blueprint-annotation">providers · tiny · bottom of hero</div>
+    </div>
+
+    <div class="do-dont" style="margin-top:1.5rem;">
+      <div class="do-box">
+        <strong>✓ Hero contém</strong>
+        Logo v2 a 136px com float animation<br/>
+        1 headline em 2 linhas máximo<br/>
+        Install block com copy button<br/>
+        Linha de providers (tiny, muted)<br/>
+        <br/>
+        Total: 4 elementos
+      </div>
+      <div class="dont-box">
+        <strong>✗ Hero NÃO contém</strong>
+        Subtítulo explicativo (parágrafo)<br/>
+        Counters / stats above fold<br/>
+        RouterAnimation no hero<br/>
+        "84% savings" banner<br/>
+        "Sign in" no hero (só na nav)
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 06 COPY VOICE ── -->
+  <section class="section" id="voice">
+    <h2><span class="num">06</span> Copy Voice <span class="status-chip status-direction">direction</span></h2>
+    <p>O sinal mais forte de "feito por IA" é copy que <em>explica</em> em vez de <em>mostrar</em>. Cada secção na landing actual tem um H2 + parágrafo de intro + conteúdo. Esse padrão repetido 6× é o tell. A regra: se o conteúdo se explica a si mesmo, o parágrafo de intro não existe.</p>
+
+    <h3>Princípios</h3>
+    <div class="card card-pad" style="margin-bottom:1.5rem;">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.5rem;">
+        <div>
+          <div style="font-size:0.813rem; font-weight:600; color:#ededed; margin-bottom:0.5rem;">Declaração, não explicação</div>
+          <div style="font-size:0.813rem; color:#5c5c6e; line-height:1.7;">Headlines são afirmações confiantes. Não terminam em "?" e não começam com "How".</div>
+        </div>
+        <div>
+          <div style="font-size:0.813rem; font-weight:600; color:#ededed; margin-bottom:0.5rem;">O produto fala por si</div>
+          <div style="font-size:0.813rem; color:#5c5c6e; line-height:1.7;">Os terminais Before/After são o argumento. Não precisam de setup paragraph.</div>
+        </div>
+        <div>
+          <div style="font-size:0.813rem; font-weight:600; color:#ededed; margin-bottom:0.5rem;">Números > adjetivos</div>
+          <div style="font-size:0.813rem; color:#5c5c6e; line-height:1.7;">"$0.053 vs $0.190" é mais forte que "dramatically cheaper".</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Before / After — Headlines</h3>
+    <div class="voice-pair">
+      <div class="voice-before"><span class="voice-tag voice-tag-before">× antes (AI-feel)</span>Three signals. One decision. &lt;50ms.</div>
+      <div class="voice-after"><span class="voice-tag voice-tag-after">✓ depois</span>Same prompts. Different bill.</div>
+    </div>
+    <div class="voice-pair">
+      <div class="voice-before"><span class="voice-tag voice-tag-before">× antes</span>Not a proxy. Not a wrapper. Something new.</div>
+      <div class="voice-after"><span class="voice-tag voice-tag-after">✓ depois</span>Not a proxy. A hook.</div>
+    </div>
+    <div class="voice-pair">
+      <div class="voice-before"><span class="voice-tag voice-tag-before">× antes</span>One command. 60 seconds. Done.</div>
+      <div class="voice-after"><span class="voice-tag voice-tag-after">✓ depois (mais direto)</span>One command. Zero config after.</div>
+    </div>
+
+    <h3>Before / After — Intro paragraphs</h3>
+    <div class="voice-pair">
+      <div class="voice-before"><span class="voice-tag voice-tag-before">× cortar</span>"Mooter classifies every Claude Code prompt in &lt;50ms and routes it to the cheapest model that handles it. Ollama when it's trivial. Haiku when it's medium. Opus only when nothing else will do."</div>
+      <div class="voice-after"><span class="voice-tag voice-tag-after">✓ substituir por — o terminal que segue imediatamente</span>Sem parágrafo. O Before/After faz o argumento.</div>
+    </div>
+    <div class="voice-pair">
+      <div class="voice-before"><span class="voice-tag voice-tag-before">× cortar</span>"Every other routing solution sits between you and your models. Mooter is a hook, not a proxy. It runs in your process, on your machine, with no network dependency."</div>
+      <div class="voice-after"><span class="voice-tag voice-tag-after">✓ substituir pela tabela de comparação directamente</span>A tabela é o argumento. Não precisas de o explicar antes.</div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 07 PAGE STRUCTURE ── -->
+  <section class="section" id="structure">
+    <h2><span class="num">07</span> Page Structure <span class="status-chip status-direction">direction</span></h2>
+    <p>De 9 secções para 6. O critério de corte: se a secção repete informação que já aparece noutro sítio, ou se é apenas "padding de confiança" — corta. O produto é bom o suficiente para não precisar de se justificar 9 vezes.</p>
+
+    <div class="structure-list">
+      <div class="structure-item">
+        <div class="structure-num">01</div>
+        <div>
+          <div class="structure-name">Hero</div>
+          <div class="structure-desc">Logo 136px · headline · install block · providers row. Sem mais nada. Fold termina aqui.</div>
+          <span class="structure-keep">KEEP · simplify</span>
+        </div>
+      </div>
+      <div class="structure-item">
+        <div class="structure-num">02</div>
+        <div>
+          <div class="structure-name">Before / After</div>
+          <div class="structure-desc">Imediatamente a seguir ao fold. Dois terminais lado a lado. Sem intro paragraph. O headline é a única copy: "Same prompts. Different bill."</div>
+          <span class="structure-keep">KEEP · move up · cut intro para</span>
+        </div>
+      </div>
+      <div class="structure-item">
+        <div class="structure-num">03</div>
+        <div>
+          <div class="structure-name">Stats + Tier bars</div>
+          <div class="structure-desc">Counter de savings + 4 barras animadas. Headline: "84% of prompts don't need Opus." Sem intro paragraph.</div>
+          <span class="structure-keep">KEEP · merge TruthSection + HowItWorks</span>
+        </div>
+      </div>
+      <div class="structure-item">
+        <div class="structure-num">04</div>
+        <div>
+          <div class="structure-name">Demo</div>
+          <div class="structure-desc">classify.js output ao vivo com os 3 prompts. RouterAnimation aqui, não no hero. Secção mais técnica — para devs que querem ver por dentro.</div>
+          <span class="structure-keep">KEEP · move RouterAnim aqui</span>
+        </div>
+      </div>
+      <div class="structure-item">
+        <div class="structure-num">05</div>
+        <div>
+          <div class="structure-name">Compare</div>
+          <div class="structure-desc">Tabela sem intro paragraph. 5 linhas máximo (foi 8). Cortar "Free to use" e "Community-improved" — óbvias ou pouco diferenciadas.</div>
+          <span class="structure-keep">KEEP · trim to 5 rows · cut intro para</span>
+        </div>
+      </div>
+      <div class="structure-item">
+        <div class="structure-num">06</div>
+        <div>
+          <div class="structure-name">Install</div>
+          <div class="structure-desc">Install block + headline. Sem os 4 pillar cards — já estão implícitos no Before/After e no Demo.</div>
+          <span class="structure-keep">KEEP · cut pillars</span>
+        </div>
+      </div>
+      <div class="structure-item" style="opacity:0.45;">
+        <div class="structure-num" style="color:#f87171;">—</div>
+        <div>
+          <div class="structure-name" style="color:#f87171; text-decoration:line-through;">HowItWorks (3 step cards)</div>
+          <div class="structure-desc">Redundante com o Demo e o Tier bars. Eliminar.</div>
+          <span class="structure-cut">CUT</span>
+        </div>
+      </div>
+      <div class="structure-item" style="opacity:0.45; border-radius: 0 0 10px 10px;">
+        <div class="structure-num" style="color:#f87171;">—</div>
+        <div>
+          <div class="structure-name" style="color:#f87171; text-decoration:line-through;">Intro paragraphs em cada secção</div>
+          <div class="structure-desc">Cada H2 tem um parágrafo de setup que não adiciona informação nova. Eliminar todos.</div>
+          <span class="structure-cut">CUT</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 08 COMPONENTS ── -->
+  <section class="section" id="components">
+    <h2><span class="num">08</span> UI Components</h2>
+
+    <h3>Buttons</h3>
+    <div class="component-surface">
+      <button class="btn btn-primary">Install free</button>
+      <button class="btn btn-ghost">Sign in</button>
+      <button class="btn btn-sm btn-primary">Copy</button>
+      <button class="btn btn-sm btn-ghost">Learn more</button>
+    </div>
+
+    <h3>Tier Badges</h3>
+    <div class="component-surface">
+      <span class="badge" style="color:#22c55e; border-color:#22c55e;">T0</span>
+      <span class="badge" style="color:#3b82f6; border-color:#3b82f6;">T1</span>
+      <span class="badge" style="color:#a78bfa; border-color:#a78bfa;">T2</span>
+      <span class="badge" style="color:#f87171; border-color:#f87171;">T3</span>
+      <span class="pill"><span style="width:6px;height:6px;border-radius:50%;background:#23d18b;display:inline-block;"></span> live</span>
+      <span class="pill">MIT</span>
+      <span class="pill">⚡ &lt;50ms</span>
+      <span class="pill">no proxy</span>
+    </div>
+
+    <h3>Terminal</h3>
+    <div class="component-surface">
+      <div class="terminal" style="max-width:400px; width:100%;">
+        <div class="terminal-header"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+        <div class="terminal-body" style="color:#dcdcaa;"><span class="ps1">$</span> npm install -g @mooter/cli</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── 09 SPACING ── -->
+  <section class="section" id="spacing">
+    <h2><span class="num">09</span> Spacing</h2>
+    <p>Base 4px grid. Todos os tokens são múltiplos de 4. Preferir <code>clamp()</code> para secções — nunca saltos abruptos entre breakpoints.</p>
+
+    <div class="space-list">
+      <div class="space-row"><div class="space-token">--space-xs</div><div class="space-bar-wrap"><div class="space-bar" style="width:4%;"></div></div><div class="space-val">4px</div></div>
+      <div class="space-row"><div class="space-token">--space-sm</div><div class="space-bar-wrap"><div class="space-bar" style="width:8%;"></div></div><div class="space-val">8px</div></div>
+      <div class="space-row"><div class="space-token">--space-md</div><div class="space-bar-wrap"><div class="space-bar" style="width:16%;"></div></div><div class="space-val">16px</div></div>
+      <div class="space-row"><div class="space-token">--space-lg</div><div class="space-bar-wrap"><div class="space-bar" style="width:24%;"></div></div><div class="space-val">24px</div></div>
+      <div class="space-row"><div class="space-token">--space-xl</div><div class="space-bar-wrap"><div class="space-bar" style="width:40%;"></div></div><div class="space-val">40px</div></div>
+      <div class="space-row"><div class="space-token">--space-2xl</div><div class="space-bar-wrap"><div class="space-bar" style="width:64%;"></div></div><div class="space-val">64px</div></div>
+      <div class="space-row"><div class="space-token">section padding</div><div class="space-bar-wrap"><div class="space-bar" style="width:90%;"></div></div><div class="space-val">clamp(4rem, 10vw, 9rem)</div></div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <div style="text-align:center; padding-top:3rem; border-top:1px solid #1e1e24;">
+    <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:0.5rem;">
+      <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+        <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+        <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+        <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+        <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+        <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+        <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+        <circle cx="36" cy="46" r="6" fill="#1C1209"/>
+        <circle cx="64" cy="46" r="6" fill="#1C1209"/>
+        <circle cx="38" cy="44" r="2" fill="white"/>
+        <circle cx="66" cy="44" r="2" fill="white"/>
+        <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
+        <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+        <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+      </svg>
+      <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1rem; letter-spacing:-0.04em; color:#FF6B35;">mooter</span>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace; font-size:0.65rem; color:#3a3a44;">
+      Brand Guide v2 · MIT · 2026 · mooter.ai
+    </div>
+  </div>
+
+</main>
+</div>
+</body>
+</html>

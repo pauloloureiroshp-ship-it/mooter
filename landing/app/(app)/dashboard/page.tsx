@@ -262,32 +262,56 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ── PEÇA 2a: Savings Hero Card ───────────────────────────────────────────
+// ── PEÇA 2a: Savings Hero Card (MP-20: advisory vs guaranteed) ──────────
 function SavingsHeroCard({ profile }: { profile: Profile }) {
   const { decisionsCount, savingsUsd } = aggregateDevices(profile);
+  const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+  const guaranteedUsd = Number(cfg.guaranteed_saved_usd || 0);
 
   if (decisionsCount === 0) return null;
 
   const allOpusCost = decisionsCount * 0.015;
   const savingsPct = allOpusCost > 0 ? Math.min(100, Math.round((savingsUsd / allOpusCost) * 100)) : 0;
-  const timeSavedHrs = (decisionsCount * 0.025).toFixed(1); // ~1.5min saved per routed prompt
+  const isAdvisory = guaranteedUsd < savingsUsd * 0.1;
+  const advisoryPct = savingsUsd > 0 ? Math.round(((savingsUsd - guaranteedUsd) / savingsUsd) * 100) : 100;
 
   return (
     <div className="dashboard-card" style={{ background: 'linear-gradient(135deg, rgba(78,201,176,0.08) 0%, rgba(78,201,176,0.02) 100%)', border: '1px solid rgba(78,201,176,0.25)' }}>
       <h2 style={{ color: 'var(--t0, #4ec9b0)' }}>Your savings</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', margin: '1rem 0' }}>
+
+      {/* Hero number */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0.75rem 0 4px' }}>
+        <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--t0, #4ec9b0)', fontFamily: 'var(--mono)' }}>
+          {isAdvisory ? '~' : ''}${savingsUsd.toFixed(2)}
+        </span>
+        <span className="dashboard-muted">saved ({isAdvisory ? 'advisory' : 'verified'})</span>
+      </div>
+
+      {/* Guaranteed pill */}
+      {guaranteedUsd > 0 && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(78,201,176,0.15)', borderRadius: 20, padding: '2px 10px', marginBottom: 12 }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--t0, #4ec9b0)' }}>&#x2713; ${guaranteedUsd.toFixed(2)} guaranteed</span>
+        </div>
+      )}
+
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', margin: '0.75rem 0' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--t0, #4ec9b0)' }}>${savingsUsd.toFixed(2)}</div>
-          <div className="dashboard-label">SAVED</div>
+          <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{decisionsCount.toLocaleString()}</div>
+          <div className="dashboard-label">ROUTED</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{decisionsCount}</div>
-          <div className="dashboard-label">PROMPTS</div>
+          <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{advisoryPct}%</div>
+          <div className="dashboard-label">ADVISORY</div>
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--t0, #4ec9b0)' }}>{savingsPct}%</div>
-          <div className="dashboard-label">AVG SAVINGS</div>
-        </div>
+        {guaranteedUsd > 0 && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--t0, #4ec9b0)' }}>
+              {Math.round((guaranteedUsd / savingsUsd) * 100)}%
+            </div>
+            <div className="dashboard-label">VERIFIED</div>
+          </div>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -295,9 +319,27 @@ function SavingsHeroCard({ profile }: { profile: Profile }) {
         <div style={{ width: `${savingsPct}%`, height: '100%', background: 'var(--t0, #4ec9b0)', borderRadius: 8, transition: 'width 0.6s ease' }} />
       </div>
 
-      <div className="dashboard-muted" style={{ fontSize: '0.85em' }}>
-        vs all-Opus: would have spent ~${allOpusCost.toFixed(2)} &middot; Time saved: ~{timeSavedHrs}h
-      </div>
+      {/* Methodology explanation */}
+      <details style={{ marginTop: 8 }}>
+        <summary style={{ cursor: 'pointer', fontSize: '0.78rem', color: 'var(--muted)', userSelect: 'none' }}>
+          How is this calculated?
+        </summary>
+        <div className="dashboard-muted" style={{ marginTop: 10, fontSize: '0.78rem', lineHeight: 1.6, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
+          <p style={{ margin: '0 0 6px' }}>
+            <strong style={{ color: 'var(--fg)' }}>Advisory (~)</strong> &mdash; token-estimated.
+            Compares what each prompt would cost if processed by Claude Opus 4.6
+            vs the actual tier used. Assumes routing hints were honoured.
+          </p>
+          <p style={{ margin: '0 0 6px' }}>
+            <strong style={{ color: 'var(--t0, #4ec9b0)' }}>Guaranteed</strong> &mdash; verifiable.
+            Only counts Option-A hits: prompts where Ollama answered inside the hook
+            and Opus processed zero tokens for the response.
+          </p>
+          <p style={{ margin: 0 }}>
+            Baseline: Opus 4.6 @ $15/MTok input &middot; $75/MTok output.
+          </p>
+        </div>
+      </details>
     </div>
   );
 }

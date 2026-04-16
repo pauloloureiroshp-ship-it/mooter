@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mooter — The LLM router that keeps your wallet happy</title>
+  <meta name="description" content="Mooter routes every Claude Code turn to the cheapest model that can do the job. Stop paying Opus prices for Haiku work.">
+  <meta property="og:title" content="Mooter — smart LLM routing for Claude Code">
+  <meta property="og:description" content="Route every turn to the cheapest model that can do the job. Opus only when the parede is de betão.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mooter.ai">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%AE%3C/text%3E%3C/svg%3E">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0a0a0a;
+      --fg:#f5f5f0;
+      --dim:#8a8a80;
+      --accent:#c9f76f;
+      --card:#141414;
+      --border:#262626;
+    }
+    html,body{height:100%}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter",system-ui,sans-serif;
+      background:var(--bg);
+      color:var(--fg);
+      line-height:1.5;
+      -webkit-font-smoothing:antialiased;
+      display:flex;
+      flex-direction:column;
+      min-height:100vh;
+    }
+    .wrap{
+      max-width:720px;
+      margin:0 auto;
+      padding:48px 24px;
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+    header{
+      display:flex;
+      align-items:baseline;
+      gap:10px;
+      margin-bottom:48px;
+    }
+    .logo{font-size:32px;line-height:1}
+    .brand{font-size:20px;font-weight:600;letter-spacing:-0.02em}
+    .status{
+      font-size:12px;
+      color:var(--dim);
+      padding:3px 8px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      margin-left:auto;
+    }
+    h1{
+      font-size:clamp(32px,5.5vw,52px);
+      font-weight:700;
+      letter-spacing:-0.03em;
+      line-height:1.05;
+      margin-bottom:20px;
+    }
+    h1 em{font-style:normal;color:var(--accent)}
+    .lede{
+      font-size:clamp(16px,2.2vw,19px);
+      color:var(--dim);
+      margin-bottom:40px;
+      max-width:560px;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:24px;
+      margin-bottom:20px;
+    }
+    .card h2{
+      font-size:14px;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      color:var(--accent);
+      margin-bottom:12px;
+    }
+    .card p{color:var(--dim);font-size:15px}
+    .card p + p{margin-top:8px}
+    .tiers{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+      gap:12px;
+      margin-top:16px;
+    }
+    .tier{
+      background:#0a0a0a;
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px;
+      font-size:13px;
+    }
+    .tier code{
+      font-family:"SF Mono",ui-monospace,monospace;
+      color:var(--accent);
+      font-size:12px;
+    }
+    .tier .lbl{display:block;color:var(--dim);margin-top:4px;font-size:12px}
+    form{
+      display:flex;
+      gap:8px;
+      margin-top:16px;
+      flex-wrap:wrap;
+    }
+    input[type="email"]{
+      flex:1;
+      min-width:220px;
+      background:#0a0a0a;
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px 14px;
+      color:var(--fg);
+      font-size:15px;
+      font-family:inherit;
+    }
+    input[type="email"]:focus{outline:none;border-color:var(--accent)}
+    button{
+      background:var(--accent);
+      color:#0a0a0a;
+      border:none;
+      border-radius:8px;
+      padding:12px 20px;
+      font-size:15px;
+      font-weight:600;
+      font-family:inherit;
+      cursor:pointer;
+      transition:opacity .15s;
+    }
+    button:hover{opacity:.85}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .note{font-size:12px;color:var(--dim);margin-top:10px}
+    footer{
+      padding:24px;
+      text-align:center;
+      font-size:12px;
+      color:var(--dim);
+      border-top:1px solid var(--border);
+    }
+    footer a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--border)}
+    footer a:hover{color:var(--fg)}
+    .msg{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius:8px;
+      font-size:13px;
+      display:none;
+    }
+    .msg.ok{background:#0f2a0f;color:#a8e6a8;display:block}
+    .msg.err{background:#2a0f0f;color:#ff9090;display:block}
+    @media (prefers-reduced-motion:no-preference){
+      .logo{transition:transform .2s}
+      .logo:hover{transform:rotate(-8deg) scale(1.08)}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="logo" aria-label="Mooter cow logo">🐮</span>
+      <span class="brand">Mooter</span>
+      <span class="status">private beta · coming soon</span>
+    </header>
+
+    <h1>The LLM router that keeps your <em>wallet happy</em>.</h1>
+
+    <p class="lede">
+      Every Claude Code turn gets classified and routed to the cheapest model that can actually do the job.
+      Opus only when the wall is concrete. A finger for a post-it.
+    </p>
+
+    <div class="card">
+      <h2>How it routes</h2>
+      <div class="tiers">
+        <div class="tier"><code>T0</code><span class="lbl">Ollama (local) — summaries, transforms</span></div>
+        <div class="tier"><code>T1</code><span class="lbl">Haiku — commits, regex, triage</span></div>
+        <div class="tier"><code>T2</code><span class="lbl">Sonnet — bug hunts, plans</span></div>
+        <div class="tier"><code>T3</code><span class="lbl">Opus — architecture, refactor</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Waitlist</h2>
+      <p>One email when the public beta opens. Zero marketing.</p>
+      <form id="f" action="#" method="post">
+        <input type="email" name="email" id="email" placeholder="you@example.com" required autocomplete="email">
+        <button type="submit" id="btn">Join waitlist</button>
+      </form>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+      <p class="note">We'll wire this up to a real endpoint before launch. For now it stores locally.</p>
+    </div>
+  </div>
+
+  <footer>
+    Built with 🐮 by <a href="https://x.com/pauloloureiro" target="_blank" rel="noopener">Paulo Loureiro</a>
+    · <a href="mailto:paulo@mooter.ai">paulo@mooter.ai</a>
+  </footer>
+
+  <script>
+    // Waitlist stub — logs to console until backend is wired.
+    // TODO: POST to /api/waitlist (Vercel Function) once deployed.
+    const form = document.getElementById('f');
+    const msg = document.getElementById('msg');
+    const btn = document.getElementById('btn');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      if (!email) return;
+      btn.disabled = true;
+      // Placeholder — just show confirmation. Replace with fetch('/api/waitlist', ...).
+      console.log('[mooter waitlist]', { email, ts: new Date().toISOString() });
+      msg.className = 'msg ok';
+      msg.textContent = "You're in. We'll email when Mooter opens.";
+      form.reset();
+      setTimeout(() => { btn.disabled = false; }, 1500);
+    });
+  </script>
+</body>
+</html>

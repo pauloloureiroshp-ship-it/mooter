@@ -1,97 +1,106 @@
-# Privacy Policy for frugal
+# frugal — Privacy at a Glance
 
-**Short version**: your prompts never leave your machine. The only thing frugal ever sends anywhere is anonymous, aggregated statistics — and you can turn that off with one step.
+> **Versão curta:** frugal nunca envia os teus prompts para lado nenhum. O texto que escreves fica sempre na tua máquina.
 
 ---
 
-## 1. What stays on your machine (never leaves)
+## O que fica NA TUA MÁQUINA (sempre)
 
-| File / Data | What it contains | Leaves your machine? |
+| Ficheiro | Conteúdo | Sai alguma vez? |
 |---|---|---|
-| `decisions.log` | First 80 chars of each prompt + classification metadata | Never |
-| Your prompts | The actual text you type to Claude | Never |
-| Your API keys | Anthropic key, Ollama config, etc. | Never |
-| `hw-capability.json` | Your hardware profile (CPU, GPU, VRAM) | Never |
-| `subscription-profile.json` | Your Anthropic plan tier | Never |
-| Absolute file paths | Any paths that appear in router hints | Never |
-
-`decisions.log` is read locally by `backtest.js` to tune the classifier. It is never uploaded anywhere.
+| `decisions.log` | Cada decisão do router: tier, categoria, confiança, ms | Só fragmentos anónimos via delta opt-in |
+| `execution.log` | Modelo real usado por Bash call, tempo, subagent spawn | Nunca — uso local para statusline |
+| `.last-classified.json` | Classificação do último turn: tier, signals, flags | Nunca — sobrescrito no próximo turn |
+| `router-tuning.json` | Padrões aprendidos localmente pelo backtest | Nunca — só o delta agregado sai |
+| Chaves de API | `ANTHROPIC_API_KEY`, etc. | Nunca — variáveis de ambiente |
+| **Texto dos teus prompts** | Cada palavra que escreves | **NUNCA** |
 
 ---
 
-## 2. What is sent to frugal-hub (anonymous)
+## O que PODE sair (delta anónimo, opt-in)
 
-When `hub-push.js` runs (only during a backtest), it sends a small delta to `POST /api/delta`. Here is the **complete list** of what that delta contains:
+Quando corres `node backtest.js --export-delta && node hub-push.js`, um fragmento agregado é enviado para o frugal-hub. Esse fragmento contém:
 
-- `frugal_version` — which version of frugal you are running
-- `classifier_version` — which classifier version is active
-- `generated_at` — timestamp of when the delta was generated
-- `instance_id` — a one-way crypto hash; not linked to you, your machine name, or your account
-- `hardware_tier` — one of: `gpu_high`, `gpu_mid`, `cpu_only`
-- `vram_mb` — how much VRAM your GPU has (e.g., `8192`)
-- `tier_distribution` — aggregated counts of how often each routing tier was used (T0/T1/T2/T3)
-- `keyword_signals` — generic keywords extracted from prompts (e.g., `"bug"`, `"debug"`, `"trace"`) — **not** the prompts themselves
-- `has_file_refs` — boolean: did any prompt reference a file?
-- `has_code_block` — boolean: did any prompt contain a code block?
-- `session_hour` — the hour of day (0–23) when sessions happened, not a full timestamp
-- `sub_profile` — your Anthropic plan type (e.g., `pro`, `team`)
+| Campo | Exemplo | Inclui texto do prompt? |
+|---|---|---|
+| Distribuição de tiers | `{T0: 0.62, T1: 0.18, T2: 0.15, T3: 0.05}` | ❌ |
+| Hardware tier | `"gpu-mid"` | ❌ |
+| Sinais de keywords (allow-list) | `["refactor", "test", "bug"]` | ❌ — só palavras pré-aprovadas |
+| Versão do frugal | `"0.9.4"` | ❌ |
+| Instance ID | `"a3f9b2c1"` (SHA-256 do machine-id, primeiros 8 chars) | ❌ — não reversível |
+| Nº de eventos (bucket) | `"50-100"` | ❌ |
 
-All buckets require a minimum of **3 occurrences** before they are included. Single-use patterns are dropped entirely.
+**O delta NUNCA contém:**
+- ❌ Texto de prompts ou substrings
+- ❌ Caminhos de ficheiro
+- ❌ Nomes de variáveis, funções ou classes
+- ❌ Stack traces
+- ❌ PII (nome, email, IP, hostname)
+- ❌ Timestamps exactos (só hora arredondada)
 
-This data helps improve frugal's routing classifier for everyone. It tells us things like "users with 8 GB GPUs send 40% of tasks to T1" — never *what* those tasks were.
-
----
-
-## 3. What is NOT sent
-
-To be explicit about what is excluded:
-
-- Your prompt text, even partially
-- `prompt_preview` from `decisions.log`
-- Your name, username, hostname, or email
-- Absolute file paths
-- API keys or tokens
-- Your git history, project names, or repository contents
-- Any output from Claude
+Este comportamento é aplicado em código no `event-builder.js` através do **Privacy Contract** — uma lista explícita de campos proibidos que é validada antes de qualquer envio.
 
 ---
 
-## 4. How to disable telemetry
+## Como desactivar completamente
 
-You have full control. Any of these options works:
-
-**Option A — delete the push script**
 ```bash
-rm ~/.claude/tools/router/hub-push.js
+# Adiciona ao ~/.bashrc / ~/.zshrc / PowerShell profile:
+export FRUGAL_TELEMETRY=off
 ```
 
-**Option B — point it at nowhere**
-```bash
-export FRUGAL_HUB_URL=http://localhost:0
+Com `FRUGAL_TELEMETRY=off`, o frugal não escreve para `decisions.log` e nunca executa hub-push. O routing continua a funcionar normalmente — só perdes o statusline de poupanças e o auto-learning.
+
+---
+
+## O frugal-hub
+
+O hub em `frugal-hub.frugal-hub.workers.dev` (Cloudflare Workers) recebe deltas anónimos e devolve padrões de routing melhorados. Garantias:
+
+- **TTL 7 dias** — dados eliminados automaticamente
+- **Validação de schema** — payload mal-formado é rejeitado (não truncado)
+- **Threshold de privacidade** — padrão só entra no modelo se vier de ≥ 5 instâncias diferentes
+- **Sem logs de IP** — o Worker não guarda o IP da ligação
+
+---
+
+## execution.log — uso exclusivamente local
+
+O `execution.log` regista o modelo real que o Claude Code usou em cada Bash call:
+
 ```
-Add that line to your shell profile to make it permanent.
+[2026-04-11T14:23:01Z] sess-abc123 claude-haiku-4-5 assistant bash:npm_install 340ms inline
+```
 
-**Option C — just never run it**
-`hub-push.js` only runs during `backtest.js`. If you never run a backtest, nothing is ever sent. The classifier still works locally — the hub push is purely for contributing back to the shared model.
-
-After disabling, frugal continues to work exactly the same. The local classifier, routing, and all cost savings are entirely independent of the hub.
+Este ficheiro **nunca sai da tua máquina**. É lido pelo `savings-tracker.js` para mostrar o painel real no statusline. Podes apagá-lo a qualquer momento sem consequências para o routing.
 
 ---
 
-## 5. Who controls this
+## Quality signals (v0.9.5+, opt-in separado)
 
-frugal is a personal open-source project by Paulo Loureiro. There is no company, no VC, no ad model.
-
-- The hub endpoint is `https://frugal-hub.frugal-hub.workers.dev/api/delta` (or self-hosted if you configure `FRUGAL_HUB_URL`)
-- The code that builds the delta is in `tools/router/backtest.js` — you can read every line of what gets sent before it leaves
-- The code that sends it is in `tools/router/hub-push.js` — equally readable
-
-Questions, concerns, or requests to delete your instance's historical data:
-
-**paulo.loureiro.shp@gmail.com**
-
-Since `instance_id` is a hash with no link to your identity, deletion requires you to provide the hash from your local `backtest-delta.json`. I will delete it promptly.
+Uma funcionalidade futura permitirá enviar ratings explícitos (1-3 estrelas) para o hub. Isto será **opt-in separado** com `FRUGAL_QUALITY_FEEDBACK=on`, seguindo as mesmas garantias de privacidade do delta.
 
 ---
 
-*Last updated: April 2026*
+## FAQ
+
+**"O frugal vê o meu código?"**
+Não. O `classify.js` analisa o texto do prompt apenas em memória RAM para escolher o tier. Não guarda, não loga, não envia.
+
+**"A Anthropic vê mais alguma coisa por causa do frugal?"**
+Não. O frugal emite um `<router-hint>` no contexto do Claude Code — um bloco de texto que ajuda o Claude a escolher o modelo. A Anthropic vê exactamente o mesmo que veria sem o frugal.
+
+**"E se apagar o decisions.log?"**
+O router continua a funcionar. Perdes o histórico de poupanças e o auto-learning volta ao zero. Podes apagá-lo a qualquer momento.
+
+**"Posso ver o que um delta contém antes de ser enviado?"**
+Sim. Corre `node backtest.js --export-delta --dry-run` para ver o JSON que seria enviado, sem enviar nada.
+
+**"Como sei que o Privacy Contract está a ser cumprido?"**
+O código de `event-builder.js` tem o contrato declarado no topo do ficheiro e é open source. Podes auditar cada campo que é construído antes de qualquer envio.
+
+---
+
+*frugal é open source (MIT). Código em https://github.com/pauloloureiroshp-ship-it/frugal*
+
+*Última actualização: Abril 2026*

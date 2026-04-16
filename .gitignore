@@ -3,6 +3,7 @@ node_modules/
 decisions.log
 .env
 .env.*
+.claude/
 *.env
 .env.local
 .next/

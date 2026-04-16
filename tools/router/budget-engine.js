@@ -32,13 +32,38 @@ const AVG_INPUT_KTOK = 4;   // ~4k input tokens per prompt
 const AVG_OUTPUT_KTOK = 0.8; // ~800 output tokens per prompt
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-// Tier → model key in model-profile.json
-const TIER_MODEL_MAP = {
-  T0: 'qwen3:30b',          // free local (GPU) or qwen2.5:3b (CPU)
-  T1: 'claude-haiku-4-5',
-  T2: 'claude-sonnet-4-6',
-  T3: 'claude-opus-4-6',
-};
+// Tier → model key in model-profile.json (dynamic based on installed Ollama models)
+function buildTierModelMap(hwCapability) {
+  const available = new Set(
+    ((hwCapability && hwCapability.available_ollama_models) || [])
+      .map(m => (m.name || m).toLowerCase())
+  );
+
+  const pick = (candidates, fallback) =>
+    candidates.find(c => available.has(c.toLowerCase())) || fallback;
+
+  const t0Local = pick(
+    ['qwen3:30b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5:3b'],
+    'qwen3:30b'
+  );
+
+  const t1Local = pick(
+    ['deepseek-r1:7b', 'gemma3:12b', 'qwen3:30b'],
+    t0Local
+  );
+
+  return {
+    T0: t0Local,
+    T0_ALT: 'qwen2.5:3b',           // Option-A pre-compute — always fast
+    T1: 'claude-haiku-4-5',          // API first
+    T1_LOCAL: t1Local,               // fallback when no ANTHROPIC_API_KEY
+    T2: 'claude-sonnet-4-6',
+    T3: 'claude-opus-4-6',
+  };
+}
+
+// Static fallback for callers that don't pass hwCapability
+const TIER_MODEL_MAP = buildTierModelMap({});
 
 // ─── Loaders ──────────────────────────────────────────────────────────────────
 
@@ -161,9 +186,13 @@ function calculateOptimalConfig(profile, hwCapability, distribution, modelProfil
   const hasGpu = hwCapability.vendor !== 'cpu' &&
     (hwCapability.ollama_available !== false);
 
+  // Build dynamic tier map using hw info
+  const dynamicMap = buildTierModelMap(hwCapability);
+
   // Effective cost per tier, per prompt
   const tierCosts = {};
-  for (const [tier, modelKey] of Object.entries(TIER_MODEL_MAP)) {
+  for (const [tier, modelKey] of Object.entries(dynamicMap)) {
+    if (tier.includes('_')) continue; // skip T0_ALT, T1_LOCAL etc
     tierCosts[tier] = costPerPrompt(modelKey, modelProfile, hasGpu);
   }
 
@@ -243,8 +272,9 @@ function renderProfile(profile, hw, config, modelProfile) {
     ? `${hw.name_short}${hw.vramMB ? ` (${Math.round(hw.vramMB / 1024)}GB VRAM)` : ''}`
     : 'CPU-only (sem GPU)';
 
-  // Build tier rows
-  const tierRows = Object.entries(TIER_MODEL_MAP).map(([tier, modelKey]) => {
+  // Build tier rows (use dynamic map based on installed models)
+  const dynamicMapForRender = buildTierModelMap(hw);
+  const tierRows = Object.entries(dynamicMapForRender).map(([tier, modelKey]) => {
     const fraction = config.distribution[tier] ?? 0;
     const pct = (fraction * 100).toFixed(0);
     const costPerPrompt = config.tier_costs_per_prompt[tier] ?? 0;

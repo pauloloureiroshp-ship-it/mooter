@@ -17,10 +17,14 @@ MODEL="${ROUTER_OLLAMA_MODEL:-qwen3:30b}"
 HOST="${OLLAMA_HOST:-http://localhost:11434}"
 TEXT_ONLY=0
 
-if [ "${1:-}" = "--text" ]; then
-  TEXT_ONLY=1
-  shift
-fi
+# Parse flags
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --text)   TEXT_ONLY=1; shift ;;
+    --model)  MODEL="$2"; shift 2 ;;
+    *)        break ;;
+  esac
+done
 
 PROMPT="${*:-}"
 if [ -z "$PROMPT" ] && [ ! -t 0 ]; then

@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>frugal — Mapa do Sistema Completo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080808; color: #e5e5e5; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; }
+
+  .header { padding: 32px 40px 20px; border-bottom: 1px solid #1a1a1a; }
+  .header h1 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .header p { color: #666; margin-top: 6px; font-size: 12px; }
+
+  .tabs { display: flex; gap: 2px; padding: 16px 40px 0; border-bottom: 1px solid #1a1a1a; }
+  .tab { padding: 8px 18px; cursor: pointer; color: #555; border-bottom: 2px solid transparent; font-size: 12px; transition: all 0.15s; white-space: nowrap; }
+  .tab:hover { color: #aaa; }
+  .tab.active { color: #fff; border-bottom-color: #4ade80; }
+
+  .view { display: none; padding: 32px 40px; }
+  .view.active { display: block; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-row { display: flex; align-items: stretch; gap: 0; }
+  .flow-arrow-down { display: flex; justify-content: center; padding: 4px 0; color: #333; font-size: 18px; }
+
+  .actor { flex: 1; min-width: 0; }
+  .actor-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; padding: 0 0 6px 0; text-align: center; }
+
+  .box { border: 1px solid #222; border-radius: 6px; padding: 10px 12px; margin: 3px; font-size: 11px; line-height: 1.6; }
+  .box-title { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+  .box-sub { color: #888; font-size: 10px; }
+  .box-items { margin-top: 6px; }
+  .box-item { display: flex; align-items: flex-start; gap: 6px; padding: 2px 0; }
+  .box-item-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .box-item-text { color: #ccc; font-size: 10.5px; }
+
+  .arrow-h { display: flex; align-items: center; padding: 0 4px; color: #333; font-size: 14px; flex-shrink: 0; }
+
+  /* colours */
+  .c-user   { border-color: #2d4a2d; background: #0d1a0d; }
+  .c-user .box-title { color: #4ade80; }
+  .c-user .box-item-dot { background: #4ade80; }
+
+  .c-local  { border-color: #1a2d4a; background: #0d1320; }
+  .c-local .box-title { color: #60a5fa; }
+  .c-local .box-item-dot { background: #60a5fa; }
+
+  .c-claude { border-color: #3d2b1a; background: #1a1208; }
+  .c-claude .box-title { color: #fb923c; }
+  .c-claude .box-item-dot { background: #fb923c; }
+
+  .c-cloud  { border-color: #2d1a4a; background: #130d20; }
+  .c-cloud .box-title { color: #a78bfa; }
+  .c-cloud .box-item-dot { background: #a78bfa; }
+
+  .c-data   { border-color: #4a2d1a; background: #201308; }
+  .c-data .box-title { color: #f59e0b; }
+  .c-data .box-item-dot { background: #f59e0b; }
+
+  .c-loop   { border-color: #1a4a2d; background: #081a10; }
+  .c-loop .box-title { color: #34d399; }
+  .c-loop .box-item-dot { background: #34d399; }
+
+  /* ── STATUS TABLE ── */
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .status-card { border: 1px solid #1a1a1a; border-radius: 8px; padding: 16px; }
+  .status-card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 10px; }
+  .status-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #111; font-size: 11px; }
+  .status-row:last-child { border-bottom: none; }
+  .status-name { color: #aaa; }
+  .status-val { font-weight: 600; }
+  .ok   { color: #4ade80; }
+  .warn { color: #fbbf24; }
+  .err  { color: #f87171; }
+
+  /* ── DATA MAP ── */
+  .data-section { margin-bottom: 28px; }
+  .data-section-title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #1a1a1a; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .data-table th { text-align: left; padding: 7px 12px; background: #111; color: #666; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; }
+  .data-table td { padding: 7px 12px; border-bottom: 1px solid #111; color: #ccc; vertical-align: top; }
+  .data-table tr:hover td { background: #0d0d0d; }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+  .tag-ok   { background: #0d2d0d; color: #4ade80; border: 1px solid #1a4a1a; }
+  .tag-warn { background: #2d2000; color: #fbbf24; border: 1px solid #4a3300; }
+  .tag-no   { background: #1a0d0d; color: #f87171; border: 1px solid #3d1a1a; }
+  .tag-info { background: #0d1a2d; color: #60a5fa; border: 1px solid #1a2d4a; }
+
+  /* ── FLYWHEEL ── */
+  .flywheel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .fw-step { border: 1px solid #1a1a1a; border-radius: 8px; padding: 16px; position: relative; }
+  .fw-num { position: absolute; top: -10px; left: 14px; background: #080808; padding: 0 6px; font-size: 11px; font-weight: 700; color: #4ade80; }
+  .fw-title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .fw-body { color: #888; font-size: 11px; line-height: 1.7; }
+  .fw-status { margin-top: 8px; font-size: 10px; }
+
+  /* ── GAPS ── */
+  .gap-list { display: flex; flex-direction: column; gap: 10px; }
+  .gap-item { border: 1px solid; border-radius: 6px; padding: 12px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .gap-item.p0 { border-color: #4a1a1a; background: #1a0808; }
+  .gap-item.p1 { border-color: #4a3300; background: #1a1000; }
+  .gap-item.p2 { border-color: #1a2d4a; background: #080d1a; }
+  .gap-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; flex-shrink: 0; margin-top: 1px; }
+  .gap-item.p0 .gap-badge { background: #4a1a1a; color: #f87171; }
+  .gap-item.p1 .gap-badge { background: #4a3300; color: #fbbf24; }
+  .gap-item.p2 .gap-badge { background: #1a2d4a; color: #60a5fa; }
+  .gap-content { flex: 1; }
+  .gap-title { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  .gap-desc { font-size: 11px; color: #888; line-height: 1.6; }
+  .gap-fix { font-size: 10px; color: #555; margin-top: 4px; font-style: italic; }
+
+  .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #444; margin-bottom: 14px; }
+  .divider { height: 1px; background: #111; margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>frugal — Mapa do Sistema Completo</h1>
+  <p>Gerado em 2026-04-12 · v0.9.8 · Sessão #19</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="show('flow')">① Fluxo do Utilizador</div>
+  <div class="tab" onclick="show('data')">② Dados Recolhidos</div>
+  <div class="tab" onclick="show('flywheel')">③ Flywheel</div>
+  <div class="tab" onclick="show('status')">④ Estado dos Componentes</div>
+  <div class="tab" onclick="show('gaps')">⑤ Gaps & Próximos Passos</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     VIEW 1 — FLUXO DO UTILIZADOR
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-flow" class="view active">
+  <div class="section-label">Do primeiro contacto até os benefícios no terminal — cada passo, cada sistema</div>
+
+  <div class="flow">
+
+    <!-- FASE 1: DESCOBERTA -->
+    <div class="section-label" style="margin-top:0">FASE 1 — DESCOBERTA</div>
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-user">
+          <div class="box-title">👤 Utilizador</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Encontra o frugal (boca-a-boca, GitHub, redes)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Acede a <strong>landing-five-azure-16.vercel.app</strong></div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Lê hero, demo, proof, comparison</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Clica <strong>"Sign in with GitHub"</strong> → OAuth flow</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-cloud">
+          <div class="box-title">🌐 Supabase Auth</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Redirect: <code>/auth/v1/authorize?provider=github</code></div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">GitHub OAuth App (Client ID + Secret)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Callback: <code>/auth/v1/callback</code></div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Troca code → access_token + refresh_token</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Redirect para <code>/auth/callback</code> da landing</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-data">
+          <div class="box-title">🗄️ Supabase DB</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">User criado em <code>auth.users</code></div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Cookie <code>sb-access-token</code> gravado (httpOnly)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Redirect para <code>/onboarding</code></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <!-- FASE 2: ONBOARDING -->
+    <div class="section-label">FASE 2 — ONBOARDING</div>
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-user">
+          <div class="box-title">👤 Utilizador em /onboarding</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Step 1: selecciona hardware (Mac M / Win NVIDIA / etc.)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Step 1: selecciona subs (Claude Max, GPT API, etc.)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Step 2: copia o install command</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Step 3: vê config personalizada gerada</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">⚡ generate-frugal-config.ts</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">hw_tier + subscriptions → FrugalConfig</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">default_mode (auto/zen/beast)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">ollama_model por hardware (qwen2.5:3b/7b)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">t0_threshold por linguagem + experiência</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-data">
+          <div class="box-title">🗄️ profiles (Supabase)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">hardware_tier, subscriptions, email</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">frugal_config (JSON gerado)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">onboarding_completed: true</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">github_username, github_primary_language</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <!-- FASE 3: INSTALAÇÃO -->
+    <div class="section-label">FASE 3 — INSTALAÇÃO (terminal do utilizador)</div>
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-user">
+          <div class="box-title">💻 Terminal (Mac/Win)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text"><code>bash &lt;(curl install.sh)</code> ou <code>irm ... | iex</code></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">📦 install.sh / install-windows.ps1</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Clone do repo para <code>~/.claude/tools/router/</code></div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Hooks em <code>~/.claude/settings.json</code>: UserPromptSubmit, PostToolUse, Stop</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">gpu-probe.js → detecta hardware real</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Smoke test: classifica 3 prompts de exemplo</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">LaunchAgent (macOS) para savings-tracker</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Call <code>POST /api/install-complete</code> (best-effort) <span style="color:#f87171">← pendente</span></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-data">
+          <div class="box-title">🗄️ profiles.install_completed</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">install_completed: true</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">install_completed_at: timestamp</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">install_platform: mac / windows</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">frugal_version: vX.X.X</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <!-- FASE 4: USO -->
+    <div class="section-label">FASE 4 — USO DIÁRIO (cada prompt no Claude Code)</div>
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-user">
+          <div class="box-title">⌨️ Utilizador escreve prompt</div>
+          <div class="box-sub">Ex: "investiga porque o websocket falha"</div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">🔀 inject_context.js</div>
+          <div class="box-sub">UserPromptSubmit hook — &lt;50ms</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">classify.js → tier (T0/T1/T2/T3)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Emite <code>&lt;router-hint&gt;</code> no contexto</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">logDecision → decisions.log</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Escreve last-subagent.json (TTL 30s)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">savings-tracker.js auto-start</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-claude">
+          <div class="box-title">🤖 Claude Code lê hint</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">T0 → spawna local-summarizer (Ollama)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">T1 → spawna cheap-triage (Haiku)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">T2 → spawna model-reasoner (Sonnet)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">T3 → inline Opus (ou model-architect)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow-down">↓</div>
+
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">📊 gsd-turn-end.js (Stop hook)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Regista turn_end em decisions.log</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Calcula wall-clock latência (p50/p95)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Detecta modelo externo (codex/gemini/aider)</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">💰 savings-tracker.js</div>
+          <div class="box-sub">HTTP :7821 — statusline v3</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Lê decisions.log → calcula savings</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Serve statusline: tier emoji + % saved + $</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">GET /corpus → métricas live</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-user">
+          <div class="box-title">📺 Statusline no terminal</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">⚡T0 | 🔵T1 | 🟡T2 | 🔴T3</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">% saved · $X.XX total poupado</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text"><strong>O utilizador vê os benefícios em tempo real</strong></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <!-- FASE 5: DADOS → CLOUD -->
+    <div class="section-label">FASE 5 — DADOS PARA A CLOUD (retroalimentação)</div>
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">🌙 backtest.js (nightly cron)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Lê decisions.log (corpus real)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Detecta misroutes</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Exporta eventos anonimizados → events-export.json</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Patcha TUNED_DEMOTE_T3 em classify.js</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">📡 hub-submit-events.js</div>
+          <div class="box-sub" style="color:#f87171">← inject_context não chama ainda (MP-6)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Lê events-export.json</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Batch de 50 eventos por request</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Bearer auth (FRUGAL_SUBMIT_TOKEN)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">POST /submit-events no hub</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-cloud">
+          <div class="box-title">☁️ Cloudflare D1 (frugal_events)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">28 campos por evento</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">decided_tier, confidence, task_category</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">hardware_tier, keyword_signals</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Privacy: sem prompt_text, sem file_path</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Rate limit: 500 eventos/hora/instância</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow-down">↓</div>
+
+    <div class="flow-row">
+      <div class="actor">
+        <div class="box c-loop">
+          <div class="box-title">🔄 Cloudflare Crons (hub)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Hourly: runAggregate() → tier stats comunitários</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Daily: runGenerate() → novo router-tuning</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Weekly: runNotify() → anomaly report para Paulo</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-local">
+          <div class="box-title">⬇️ hub-pull.js (session start)</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">GET /api/version → verifica se há update</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">GET /api/delta → novo router-tuning</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Actualiza TUNED_DEMOTE_T3 local</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Classifier fica mais preciso sem update manual</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow-h">→</div>
+      <div class="actor">
+        <div class="box c-user">
+          <div class="box-title">📈 Utilizador beneficia</div>
+          <div class="box-items">
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Router cada vez mais preciso</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Menos over-routing (menos Opus desnecessário)</div></div>
+            <div class="box-item"><div class="box-item-dot"></div><div class="box-item-text">Savings crescem com a comunidade</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     VIEW 2 — DADOS RECOLHIDOS
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-data" class="view">
+
+  <div class="data-section">
+    <div class="data-section-title">🗄️ Supabase — profiles (dados identificados, por utilizador)</div>
+    <table class="data-table">
+      <tr><th>Campo</th><th>Tipo</th><th>Origem</th><th>Estado</th><th>Para quê serve</th></tr>
+      <tr><td>id (user_id)</td><td>uuid</td><td>Supabase Auth</td><td><span class="tag tag-ok">✓ activo</span></td><td>Identificador único, PK</td></tr>
+      <tr><td>email</td><td>text</td><td>GitHub OAuth</td><td><span class="tag tag-warn">⚠ não gravado</span></td><td>Contacto, admin, notificações</td></tr>
+      <tr><td>hardware_tier</td><td>text</td><td>Onboarding step 1</td><td><span class="tag tag-ok">✓ activo</span></td><td>Personalizar ollama_model, config</td></tr>
+      <tr><td>subscriptions</td><td>text[]</td><td>Onboarding step 1</td><td><span class="tag tag-ok">✓ activo</span></td><td>Saber quais modelos pagar</td></tr>
+      <tr><td>github_username</td><td>text</td><td>GitHub OAuth scope</td><td><span class="tag tag-ok">✓ activo</span></td><td>Personalização, comunidade</td></tr>
+      <tr><td>github_primary_language</td><td>text</td><td>GitHub API</td><td><span class="tag tag-ok">✓ activo</span></td><td>Ajustar t0_threshold por linguagem</td></tr>
+      <tr><td>github_public_repos_count</td><td>int</td><td>GitHub API</td><td><span class="tag tag-ok">✓ activo</span></td><td>Inferir experience_level</td></tr>
+      <tr><td>experience_level</td><td>text</td><td>Derivado / onboarding</td><td><span class="tag tag-ok">✓ activo</span></td><td>Mensagem personalizada, threshold</td></tr>
+      <tr><td>frugal_config</td><td>jsonb</td><td>generate-frugal-config.ts</td><td><span class="tag tag-warn">⚠ não gravado</span></td><td>Config óptima por perfil</td></tr>
+      <tr><td>onboarding_completed</td><td>bool</td><td>Onboarding step final</td><td><span class="tag tag-ok">✓ activo</span></td><td>Saber se setup está completo</td></tr>
+      <tr><td>install_completed</td><td>bool</td><td>/api/install-complete</td><td><span class="tag tag-no">✗ pendente</span></td><td>Saber quem instalou de facto</td></tr>
+      <tr><td>install_completed_at</td><td>timestamp</td><td>/api/install-complete</td><td><span class="tag tag-no">✗ pendente</span></td><td>Time-to-install, funil</td></tr>
+      <tr><td>install_platform</td><td>text</td><td>install.sh</td><td><span class="tag tag-no">✗ pendente</span></td><td>Mac vs Windows breakdown</td></tr>
+      <tr><td>frugal_version</td><td>text</td><td>install.sh</td><td><span class="tag tag-no">✗ pendente</span></td><td>Versão instalada, upgrade targeting</td></tr>
+      <tr><td>prompts_per_day_estimate</td><td>int</td><td>Onboarding (futuro)</td><td><span class="tag tag-info">planeado</span></td><td>Estimar savings esperados</td></tr>
+    </table>
+  </div>
+
+  <div class="data-section">
+    <div class="data-section-title">☁️ Cloudflare D1 — frugal_events (dados anonimizados, por decisão)</div>
+    <table class="data-table">
+      <tr><th>Campo</th><th>Tipo</th><th>Origem</th><th>Estado</th><th>Para quê serve</th></tr>
+      <tr><td>instance_id</td><td>text (8hex)</td><td>inject_context.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Agrupar por instância (sem PII)</td></tr>
+      <tr><td>decided_tier</td><td>text</td><td>classify.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Distribuição de tiers na comunidade</td></tr>
+      <tr><td>confidence</td><td>float</td><td>classify.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Qualidade das decisões do router</td></tr>
+      <tr><td>task_category</td><td>text</td><td>classify.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Que tipo de tarefas os users fazem</td></tr>
+      <tr><td>hardware_tier</td><td>text</td><td>gpu-probe.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Hardware distribution na comunidade</td></tr>
+      <tr><td>keyword_signals</td><td>text</td><td>classify.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Padrões de linguagem → melhorar regex</td></tr>
+      <tr><td>escalation_rule</td><td>text</td><td>classify.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Qual regra escalou → optimização</td></tr>
+      <tr><td>actual_model_used</td><td>text</td><td>PostToolUse.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Tier recomendado vs modelo real</td></tr>
+      <tr><td>wall_clock_ms</td><td>int</td><td>gsd-turn-end.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Latência real por tier</td></tr>
+      <tr><td>explicit_rating</td><td>int</td><td>feedback-collector.js</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>Satisfação com a decisão de routing</td></tr>
+      <tr><td>+ 18 campos</td><td>—</td><td>—</td><td><span class="tag tag-warn">⚠ não flui</span></td><td>ollama_warm, gpu_util, retry, cascade...</td></tr>
+    </table>
+  </div>
+
+  <div class="data-section">
+    <div class="data-section-title">💾 Local (máquina do utilizador) — ficheiros de estado</div>
+    <table class="data-table">
+      <tr><th>Ficheiro</th><th>Onde</th><th>Conteúdo</th><th>Lido por</th></tr>
+      <tr><td>decisions.log</td><td>~/.claude/tools/router/</td><td>Cada decisão: tier, confidence, ts, session_id</td><td>savings-tracker, backtest, replay, stats</td></tr>
+      <tr><td>settings.json</td><td>~/.claude/</td><td>Hooks registados + frugal settings</td><td>Claude Code, install.sh</td></tr>
+      <tr><td>last-subagent.json</td><td>~/.claude/tools/router/</td><td>Último modelo spawned (TTL 30s)</td><td>PostToolUse.js (statusline)</td></tr>
+      <tr><td>events-export.json</td><td>~/.claude/tools/router/</td><td>Eventos anonimizados para o hub</td><td>hub-submit-events.js</td></tr>
+      <tr><td>metrics-snapshot.json</td><td>~/.claude/tools/router/</td><td>Snapshot de métricas do corpus</td><td>README badge, dashboard</td></tr>
+      <tr><td>version.json</td><td>~/.claude/tools/router/</td><td>Versão actual do router</td><td>hub-push, hub-pull, onboarding</td></tr>
+      <tr><td>.last-hub-pull</td><td>~/.claude/tools/router/</td><td>Timestamp do último pull do hub</td><td>inject_context (rate limit do pull)</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     VIEW 3 — FLYWHEEL
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-flywheel" class="view">
+  <div class="section-label">Como o frugal melhora sozinho — o ciclo virtuoso</div>
+
+  <div class="flywheel">
+    <div class="fw-step">
+      <div class="fw-num">① USAR</div>
+      <div class="fw-title">Utilizador faz prompts no Claude Code</div>
+      <div class="fw-body">Cada prompt passa pelo <code>inject_context.js</code>. A decisão (tier, confidence, categoria, hardware) fica gravada em <code>decisions.log</code> na máquina do utilizador.</div>
+      <div class="fw-status"><span class="tag tag-ok">✓ funcional</span></div>
+    </div>
+    <div class="fw-step">
+      <div class="fw-num">② VER</div>
+      <div class="fw-title">Utilizador vê savings em tempo real</div>
+      <div class="fw-body">O <code>savings-tracker.js</code> serve o statusline: <em>"⚡T0 | 87% saved | $4.20 poupado"</em>. Feedback imediato. Motivação para continuar a usar.</div>
+      <div class="fw-status"><span class="tag tag-ok">✓ funcional</span></div>
+    </div>
+    <div class="fw-step">
+      <div class="fw-num">③ APRENDER</div>
+      <div class="fw-title">backtest.js corre à noite</div>
+      <div class="fw-body">Detecta misroutes no corpus local. Gera/actualiza <code>TUNED_DEMOTE_T3</code> para corrigir over-routing. Exporta eventos anonimizados. Sem LLM — pura regex + heurística.</div>
+      <div class="fw-status"><span class="tag tag-ok">✓ funcional (cron pendente no installer)</span></div>
+    </div>
+    <div class="fw-step">
+      <div class="fw-num">④ PARTILHAR</div>
+      <div class="fw-title">Eventos anonimizados vão para o hub</div>
+      <div class="fw-body">O <code>hub-submit-events.js</code> envia os eventos para o Cloudflare D1. Privacy contract enforced: sem texto de prompt, sem paths, sem PII. Só padrões de classificação.</div>
+      <div class="fw-status"><span class="tag tag-no">✗ inject_context não chama ainda (MP-6)</span></div>
+    </div>
+    <div class="fw-step">
+      <div class="fw-num">⑤ AGREGAR</div>
+      <div class="fw-title">Hub processa dados da comunidade</div>
+      <div class="fw-body">Crons hourly/daily/weekly: agrega tier distributions, detecta anomalias, gera novo router-tuning a partir dos padrões de toda a comunidade. Mais utilizadores = modelo melhor.</div>
+      <div class="fw-status"><span class="tag tag-warn">⚠ crons activos, D1 vazio (depende de ④)</span></div>
+    </div>
+    <div class="fw-step">
+      <div class="fw-num">⑥ ACTUALIZAR</div>
+      <div class="fw-title">hub-pull.js distribui melhorias</div>
+      <div class="fw-body">No início de cada sessão, <code>inject_context.js</code> chama <code>hub-pull.js</code> que verifica se há novo router-tuning no hub. Se sim, actualiza o <code>TUNED_DEMOTE_T3</code> local silenciosamente.</div>
+      <div class="fw-status"><span class="tag tag-ok">✓ funcional</span></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <div class="section-label">O que falta para o flywheel girar a 100%</div>
+  <div style="border: 1px solid #2d1a4a; background: #130d20; border-radius: 8px; padding: 16px; font-size: 12px; color: #a78bfa; line-height: 1.8;">
+    Passo ④ está incompleto: o <code>inject_context.js</code> não chama o <code>hub-submit-events.js</code>. Todos os outros passos estão prontos. Uma vez resolvido o <strong>MP-6</strong> (hub connect), o flywheel completo fica activo.
+    <br><br>
+    O backtest corre via <code>run-backtest.cmd</code> em Windows, mas o LaunchAgent macOS para agendamento ainda não está no installer. Isso é o <strong>P3-C</strong> (não bloqueia beta).
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     VIEW 4 — ESTADO DOS COMPONENTES
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-status" class="view">
+  <div class="status-grid">
+
+    <div class="status-card">
+      <div class="status-card-title">🔀 Router Core</div>
+      <div class="status-row"><span class="status-name">classify.js</span><span class="status-val ok">v0.10 ✓</span></div>
+      <div class="status-row"><span class="status-name">inject_context.js</span><span class="status-val ok">v0.10+ ✓</span></div>
+      <div class="status-row"><span class="status-name">patterns.js</span><span class="status-val ok">v0.7.0 ✓</span></div>
+      <div class="status-row"><span class="status-name">prompt-optimizer.js</span><span class="status-val ok">5 estratégias ✓</span></div>
+      <div class="status-row"><span class="status-name">quality_intent fix</span><span class="status-val ok">v0.9.8 ✓</span></div>
+      <div class="status-row"><span class="status-name">classify.test.js</span><span class="status-val ok">3/3 pass ✓</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">🤖 Subagents</div>
+      <div class="status-row"><span class="status-name">model-architect (Opus)</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">model-reasoner (Sonnet)</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">cheap-triage (Haiku)</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">local-summarizer (Ollama)</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">local-transformer (Ollama)</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">final-reviewer (Opus)</span><span class="status-val ok">✓</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">📊 Telemetria Local</div>
+      <div class="status-row"><span class="status-name">decisions.log</span><span class="status-val ok">a escrever ✓</span></div>
+      <div class="status-row"><span class="status-name">savings-tracker :7821</span><span class="status-val ok">live ✓</span></div>
+      <div class="status-row"><span class="status-name">gsd-turn-end.js (Stop)</span><span class="status-val ok">settings.json ✓</span></div>
+      <div class="status-row"><span class="status-name">PostToolUse statusline</span><span class="status-val ok">fix v0.9.8 ✓</span></div>
+      <div class="status-row"><span class="status-name">backtest.js nightly</span><span class="status-val warn">manual (cron pendente)</span></div>
+      <div class="status-row"><span class="status-name">hub-submit-events</span><span class="status-val err">não conectado ✗</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">☁️ Hub Cloudflare</div>
+      <div class="status-row"><span class="status-name">Worker deployed</span><span class="status-val ok">live ✓</span></div>
+      <div class="status-row"><span class="status-name">D1 frugal_events</span><span class="status-val warn">vazio (nada enviado)</span></div>
+      <div class="status-row"><span class="status-name">POST /submit-events</span><span class="status-val ok">funcional ✓</span></div>
+      <div class="status-row"><span class="status-name">GET /api/stats</span><span class="status-val ok">live ✓</span></div>
+      <div class="status-row"><span class="status-name">Crons hourly/daily</span><span class="status-val warn">activos mas sem dados</span></div>
+      <div class="status-row"><span class="status-name">hub-pull (session start)</span><span class="status-val ok">funcional ✓</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">🌐 Landing + Auth</div>
+      <div class="status-row"><span class="status-name">Vercel deploy</span><span class="status-val ok">live ✓</span></div>
+      <div class="status-row"><span class="status-name">GitHub OAuth App</span><span class="status-val ok">criado ✓ (hoje)</span></div>
+      <div class="status-row"><span class="status-name">Supabase GitHub provider</span><span class="status-val ok">activado ✓ (hoje)</span></div>
+      <div class="status-row"><span class="status-name">Botão "Sign in" na landing</span><span class="status-val warn">Claude Code a fazer</span></div>
+      <div class="status-row"><span class="status-name">Onboarding fix</span><span class="status-val warn">Claude Code a fazer</span></div>
+      <div class="status-row"><span class="status-name">supabase.ts completo</span><span class="status-val ok">já verificado ✓</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">🗄️ Supabase DB</div>
+      <div class="status-row"><span class="status-name">auth.users</span><span class="status-val ok">activo ✓</span></div>
+      <div class="status-row"><span class="status-name">profiles (RLS)</span><span class="status-val ok">configurado ✓</span></div>
+      <div class="status-row"><span class="status-name">usage_sessions</span><span class="status-val warn">existe, vazia</span></div>
+      <div class="status-row"><span class="status-name">waitlist</span><span class="status-val ok">RLS anon insert ✓</span></div>
+      <div class="status-row"><span class="status-name">/admin page</span><span class="status-val err">não existe ✗</span></div>
+      <div class="status-row"><span class="status-name">/api/install-complete</span><span class="status-val err">não existe ✗</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">🛠️ Skills (11)</div>
+      <div class="status-row"><span class="status-name">frugal-zen/beast/auto</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">frugal-hello</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">frugal-doctor</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">frugal-dashboard</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">sync-project</span><span class="status-val ok">✓</span></div>
+      <div class="status-row"><span class="status-name">schedule</span><span class="status-val ok">✓</span></div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-card-title">🔒 Segurança</div>
+      <div class="status-row"><span class="status-name">RLS profiles</span><span class="status-val ok">apenas próprio user ✓</span></div>
+      <div class="status-row"><span class="status-name">Hub bearer auth</span><span class="status-val ok">FRUGAL_SUBMIT_TOKEN ✓</span></div>
+      <div class="status-row"><span class="status-name">Privacy contract hub</span><span class="status-val ok">sem prompt_text ✓</span></div>
+      <div class="status-row"><span class="status-name">/api/me expõe token</span><span class="status-val err">MP-5 pendente ✗</span></div>
+      <div class="status-row"><span class="status-name">userId sem verify</span><span class="status-val err">MP-5 pendente ✗</span></div>
+      <div class="status-row"><span class="status-name">Middleware /dashboard</span><span class="status-val ok">protegido ✓</span></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     VIEW 5 — GAPS & PRÓXIMOS PASSOS
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-gaps" class="view">
+  <div class="section-label">O que falta para a versão sem vergonha — por prioridade</div>
+  <div class="gap-list">
+
+    <div class="gap-item p0">
+      <div class="gap-badge">P0</div>
+      <div class="gap-content">
+        <div class="gap-title">Botão "Sign in with GitHub" na landing</div>
+        <div class="gap-desc">A landing termina em ComparisonSection sem nenhum CTA de acesso. O utilizador não tem como entrar. OAuth App + Supabase provider já estão configurados (feito hoje). Falta só o botão.</div>
+        <div class="gap-fix">→ MP-2: LANDING-LOGIN — Claude Code a executar agora</div>
+      </div>
+    </div>
+
+    <div class="gap-item p0">
+      <div class="gap-badge">P0</div>
+      <div class="gap-content">
+        <div class="gap-title">Bug de sequência no onboarding + frugal_config não gravado</div>
+        <div class="gap-desc">O Step 2 do onboarding faz OAuth redirect que limpa o state React (hw, subs). O utilizador perde as selecções. Além disso, saveProfile() não grava frugal_config nem email — os dados mais valiosos.</div>
+        <div class="gap-fix">→ MP-3: ONBOARDING-FIX — Claude Code a executar agora</div>
+      </div>
+    </div>
+
+    <div class="gap-item p0">
+      <div class="gap-badge">P0</div>
+      <div class="gap-content">
+        <div class="gap-title">Sem visibilidade dos utilizadores (sem /admin)</div>
+        <div class="gap-desc">Não há forma de ver quem se registou, que hardware têm, se instalaram. Vais partilhar com friends sem saber quem são nem o que está a acontecer.</div>
+        <div class="gap-fix">→ MP-4: ADMIN-PAGE — Claude Code a executar agora</div>
+      </div>
+    </div>
+
+    <div class="gap-item p1">
+      <div class="gap-badge">P1</div>
+      <div class="gap-content">
+        <div class="gap-title">/api/install-complete não existe</div>
+        <div class="gap-desc">Não há como saber se um utilizador que se registou efectivamente instalou o frugal. O funil fica cego: onboarding_completed ≠ install_completed.</div>
+        <div class="gap-fix">→ MP-1 (do FRIENDS_BETA_ROADMAP.md) — criar endpoint + call nos installers</div>
+      </div>
+    </div>
+
+    <div class="gap-item p1">
+      <div class="gap-badge">P1</div>
+      <div class="gap-content">
+        <div class="gap-title">Hub Cloudflare não recebe dados</div>
+        <div class="gap-desc">O D1 está vazio. inject_context.js não chama hub-submit-events.js. O flywheel comunitário não gira. GET /api/stats devolve zeros. A landing mostra contadores live mas o hub está sem dados reais.</div>
+        <div class="gap-fix">→ MP-6: HUB-CONNECT — após os P0 estarem resolvidos</div>
+      </div>
+    </div>
+
+    <div class="gap-item p1">
+      <div class="gap-badge">P1</div>
+      <div class="gap-content">
+        <div class="gap-title">2 gaps de segurança na API</div>
+        <div class="gap-desc">/api/me devolve accessToken ao browser (não devia — aumenta superfície de ataque). /api/profile não verifica se userId do query param corresponde ao user do token (qualquer user autenticado pode ler perfil alheio).</div>
+        <div class="gap-fix">→ MP-5: SECURITY-FIX — Claude Code a executar agora</div>
+      </div>
+    </div>
+
+    <div class="gap-item p2">
+      <div class="gap-badge">P2</div>
+      <div class="gap-content">
+        <div class="gap-title">email não é gravado no profiles</div>
+        <div class="gap-desc">O email do utilizador (vem do GitHub OAuth) não é incluído no upsertProfile() do onboarding. A tabela profiles fica sem email → admin page mostra "—" para todos.</div>
+        <div class="gap-fix">→ Incluído no MP-3: ONBOARDING-FIX</div>
+      </div>
+    </div>
+
+    <div class="gap-item p2">
+      <div class="gap-badge">P2</div>
+      <div class="gap-content">
+        <div class="gap-title">FRIEND_KIT.md usa git clone (requer colaborador)</div>
+        <div class="gap-desc">As instruções actuais para friends pedem git clone com SSH — o que requer que Paulo adicione cada pessoa como colaborador. Com o novo flow de login + onboarding, isto é desnecessário.</div>
+        <div class="gap-fix">→ Actualizar para: "vai à landing → Sign in with GitHub → segue o onboarding"</div>
+      </div>
+    </div>
+
+    <div class="gap-item p2">
+      <div class="gap-badge">P2</div>
+      <div class="gap-content">
+        <div class="gap-title">backtest.js não corre automaticamente (macOS)</div>
+        <div class="gap-desc">O install.sh v2 instala um LaunchAgent mas não regista o backtest como scheduled task. Em Windows existe run-backtest.cmd mas não está no scheduler. O auto-learning só corre se o utilizador o fizer manualmente.</div>
+        <div class="gap-fix">→ P3-C no roadmap — não bloqueia beta</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

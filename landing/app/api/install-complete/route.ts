@@ -19,6 +19,7 @@ interface InstallPayload {
   arch: string;
   decisions_count: number;
   savings_usd: number;
+  guaranteed_saved_usd?: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
         arch: payload.arch,
         decisions_count: payload.decisions_count,
         savings_usd: payload.savings_usd,
+        guaranteed_saved_usd: payload.guaranteed_saved_usd ?? existingConfig.guaranteed_saved_usd ?? 0,
         synced_at: now,
       },
     };
