@@ -38,6 +38,7 @@ const STATS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-stats.json');
 const HISTORY_PATH = path.join(SCRIPT_DIR, 'mooter-tester-history.jsonl');
 const AB_RESULTS_PATH = path.join(SCRIPT_DIR, 'mooter-ab-results.json');
 const QUALITY_MATRIX_PATH = path.join(SCRIPT_DIR, 'mooter-quality-matrix.json');
+const BACKLOG_PATH = path.join(SCRIPT_DIR, 'mooter-tester-backlog.json');
 
 // ── Config ───────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -779,8 +780,109 @@ function hourlyAnalysis() {
   }
 
   logEvent({ event: 'tester_hourly_summary', ...snapshot });
+
+  // ── Write structured backlog for /mooter-review ────────────────
+  writeBacklog(snapshot);
+
   log('\n═══════════════════════════════════════════════════════════\n');
   return validation;
+}
+
+// ── Backlog Writer ──────────────────────────────────────────────────
+// Compiles all findings into a structured file that /mooter-review reads.
+// Paulo opens a Claude terminal, runs /mooter-review, accepts/rejects.
+function writeBacklog(snapshot) {
+  if (DRY_RUN) return;
+
+  // Load existing backlog or start fresh
+  let backlog = { version: 3, updated_at: null, findings: { misroutings: [], optimizer_insights: [], model_recommendations: [], classifier_fixes: [] }, counters: {} };
+  try {
+    if (fs.existsSync(BACKLOG_PATH)) backlog = JSON.parse(fs.readFileSync(BACKLOG_PATH, 'utf8'));
+  } catch { /* start fresh */ }
+
+  backlog.updated_at = new Date().toISOString();
+
+  // 1. Misroutings → gold-label candidates
+  // Read history for unprocessed misroutings
+  try {
+    const history = fs.readFileSync(HISTORY_PATH, 'utf8').split('\n').filter(Boolean);
+    const existingPrompts = new Set(backlog.findings.misroutings.map(m => m.prompt_preview));
+    for (const line of history) {
+      try {
+        const e = JSON.parse(line);
+        if (e.event !== 'tester_misrouting') continue;
+        if (existingPrompts.has(e.prompt_preview)) continue;
+        backlog.findings.misroutings.push({
+          prompt_preview: e.prompt_preview,
+          expected: e.expected,
+          classified: e.classified,
+          category: e.category,
+          status: 'pending', // pending | accepted | rejected
+          detected_at: e.ts,
+        });
+        existingPrompts.add(e.prompt_preview);
+      } catch { /* skip */ }
+    }
+  } catch { /* no history yet */ }
+
+  // Cap at 100 pending
+  backlog.findings.misroutings = backlog.findings.misroutings
+    .filter(m => m.status === 'pending')
+    .slice(-100);
+
+  // 2. Optimizer insights — strategies that consistently win per model
+  const dialectData = stats.model_dialect_scores;
+  backlog.findings.optimizer_insights = [];
+  for (const [model, scores] of Object.entries(dialectData)) {
+    const total = scores.opt_wins + scores.raw_wins + scores.ties;
+    if (total < 3) continue;
+    const winRate = scores.opt_wins / total;
+    const bestStrats = Object.entries(scores.strategies || {})
+      .filter(([, s]) => s.wins > s.losses)
+      .map(([name, s]) => ({ strategy: name, wins: s.wins, losses: s.losses }))
+      .sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses));
+
+    backlog.findings.optimizer_insights.push({
+      model, total_tests: total,
+      optimizer_win_rate: (winRate * 100).toFixed(1) + '%',
+      verdict: winRate > 0.6 ? 'optimizer_helps' : winRate < 0.4 ? 'optimizer_hurts' : 'neutral',
+      best_strategies: bestStrats.slice(0, 3),
+      status: 'pending',
+    });
+  }
+
+  // 3. Model recommendations — which model is best per category
+  const qm = stats.quality_matrix;
+  const categoryBest = {};
+  for (const [key, data] of Object.entries(qm)) {
+    const [model, category] = key.split(':');
+    if (!category || data.runs < 2) continue;
+    const score = (data.wins + data.ties * 0.5) / data.runs;
+    const avgLatency = data.runs > 0 ? Math.round(data.total_latency / data.runs) : 0;
+    if (!categoryBest[category] || score > categoryBest[category].score) {
+      categoryBest[category] = { model, score, wins: data.wins, losses: data.losses, ties: data.ties, avg_latency_ms: avgLatency };
+    }
+  }
+  backlog.findings.model_recommendations = Object.entries(categoryBest)
+    .map(([category, data]) => ({ category, recommended_model: data.model, win_rate: (data.score * 100).toFixed(1) + '%', ...data, status: 'pending' }));
+
+  // 4. Counters — for landing page and dashboard
+  backlog.counters = {
+    total_prompts_generated: stats.prompts_generated,
+    total_prompts_executed: stats.prompts_executed,
+    total_ab_tests: stats.ab_tests_run,
+    total_optimizer_tests: stats.optimizer_ab_tests,
+    total_embeddings: stats.embedding_builds,
+    total_misroutings: stats.misroutings_found,
+    optimizer_win_rate: stats.optimizer_ab_tests > 0 ? (stats.optimizer_wins / stats.optimizer_ab_tests * 100).toFixed(1) + '%' : 'n/a',
+    models_benchmarked: Object.keys(stats.model_runs).length,
+    uptime: snapshot.uptime_human,
+    cost_usd: 0,
+    last_updated: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(BACKLOG_PATH, JSON.stringify(backlog, null, 2));
+  log(`  Backlog: ${backlog.findings.misroutings.length} misroutings, ${backlog.findings.optimizer_insights.length} optimizer insights, ${backlog.findings.model_recommendations.length} model recs`);
 }
 
 // ── Banner ───────────────────────────────────────────────────────────
