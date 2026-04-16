@@ -54,6 +54,18 @@ cat ~/.claude/tools/router/hw-capability.json 2>/dev/null | node -e "try{const d
 
 # 7. Active mode
 cat ~/.claude/tools/router/.frugal-mode.json 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log('MODE='+d.mode)}catch{console.log('MODE=auto')}"
+
+# 8. Explicit feedback counts (/mooter-good · /mooter-bad)
+node -e "
+const fs=require('fs'),path=require('path'),os=require('os');
+const log=path.join(os.homedir(),'.claude','tools','router','decisions.log');
+try{
+  const lines=fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean);
+  let good=0,bad=0;
+  for(const l of lines){try{const d=JSON.parse(l);if(d.event==='quality_feedback'){if(d.followup_quality===1)good++;else bad++}}catch{}}
+  console.log(JSON.stringify({good,bad,total:good+bad}));
+}catch{console.log('{\"good\":0,\"bad\":0,\"total\":0}')}
+" 2>/dev/null
 ```
 
 ---
@@ -71,6 +83,7 @@ frugal status — tudo verde
   Hub          connected · frugal-hub.frugal-hub.workers.dev
   Hardware     RTX 4090 · gpu_high
   Mode         Auto (intelligent routing)
+  Feedback     3 ratings (2 good, 1 bad) · use /mooter-good or /mooter-bad
 
   Today: 12 prompts · T0=10 · T1=1 · T2=1 · T3=0
   Today you'd pay ~$0.03 instead of ~$0.54. Saved: $0.51.
@@ -87,6 +100,8 @@ If any component is missing or offline, show it clearly but don't alarm:
 - Ollama offline → "Ollama: offline (T0 unavailable — install from ollama.com)"
 - Hub offline → "Hub: offline (local-only mode, telemetry queued)"
 - No decisions → "No decisions yet — type any prompt to start"
+- Feedback total=0 → "Feedback: 0 ratings yet · use /mooter-good or /mooter-bad to start teaching the router"
+- Feedback total < 30 → append " (Sprint B unlocks at ≥30)" after the count to nudge adoption
 
 If the user just installed, be encouraging:
 "Everything looks good! Type any prompt and frugal will classify it automatically."
