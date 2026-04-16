@@ -155,6 +155,37 @@ function resolveFeedback(allEvents) {
   return { feedbackSignals, turnEnds };
 }
 
+// Sprint B.1: resolve shadow judgments — shadow_better verdicts become
+// demotion signals (same weight as explicit_rating=0). This amplifies
+// the feedback signal ~10× without requiring human ratings.
+function resolveShadowJudgments(allEvents) {
+  const counts = { total: 0, primary_better: 0, shadow_better: 0, tie: 0, demoted: 0 };
+  const judgments = allEvents.filter(e => e.event === 'shadow_judgment' && e.judge_verdict);
+  if (judgments.length === 0) return counts;
+
+  const classified = allEvents.filter(e => e.event === 'classified');
+  const classifiedById = new Map();
+  for (const c of classified) {
+    if (c.session_id) classifiedById.set(c.session_id, c);
+  }
+
+  for (const j of judgments) {
+    counts.total++;
+    counts[j.judge_verdict] = (counts[j.judge_verdict] || 0) + 1;
+
+    if (j.judge_verdict === 'shadow_better') {
+      // Find the classified event for this decision and mark for demotion
+      const target = j.session_id ? classifiedById.get(j.session_id) : null;
+      if (target && (target.tier === 'T2' || target.tier === 'T3')) {
+        target.shadow_demote = true;
+        target.explicit_rating = 0; // treat as bad — same pipeline as /mooter-bad
+        counts.demoted++;
+      }
+    }
+  }
+  return counts;
+}
+
 function analyze(decisions) {
   const total = decisions.length;
   const byTier = { T0: 0, T1: 0, T2: 0, T3: 0 };
@@ -656,6 +687,8 @@ function main() {
   const { feedbackSignals } = resolveFeedback(decisions);
   // Sprint A: resolve explicit ratings from quality_feedback events
   const explicitRatings = resolveExplicitFeedback(decisions);
+  // Sprint B.1: resolve shadow judgments — shadow_better → force demote
+  const shadowCounts = resolveShadowJudgments(decisions);
 
   if (explain) {
     console.log(explainCandidates(decisions));
@@ -663,6 +696,7 @@ function main() {
     console.log('Feedback signals:');
     console.log(`  accepted:            ${feedbackSignals.accepted}`);
     console.log(`  followup_immediate:  ${feedbackSignals.followup_immediate}`);
+    console.log(`Shadow judgments: ${shadowCounts.total} (primary=${shadowCounts.primary_better} shadow=${shadowCounts.shadow_better} tie=${shadowCounts.tie} demoted=${shadowCounts.demoted})`);
     return;
   }
 
@@ -671,6 +705,7 @@ function main() {
     // v0.9.1: include feedback signals in delta
     delta.feedback_signals = feedbackSignals;
     delta.explicit_ratings = explicitRatings; // Sprint A
+    delta.shadow_judgments = shadowCounts; // Sprint B.1
     fs.writeFileSync(outputPath, JSON.stringify(delta, null, 2));
     console.log(`frugal backtest: delta written to ${outputPath}`);
     console.log(`  deltas:          ${delta.deltas.length}`);
@@ -734,6 +769,7 @@ module.exports = {
   resolveFeedback,
   // Sprint A (2026-04-15) exports
   resolveExplicitFeedback,
+  resolveShadowJudgments,
   // v0.9.5 exports
   exportEvents,
 };
