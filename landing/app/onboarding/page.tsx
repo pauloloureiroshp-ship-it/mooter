@@ -44,46 +44,82 @@ function estimateMonthlySavings({ hw, subs, budget }: { hw: string; subs: string
   return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only (cloud-only routing)`;
 }
 
-// Ollama model recommendation based on detected / selected hardware
-type OllamaRec = { model: string; size: string; note: string } | null;
+// Ollama recommendations — aligned with the real mooter router.
+//
+// Router (classify.js) uses these models per task type:
+//   ollama_terse   → qwen2.5:3b              (Option A / baseline, ~1.9 GB)
+//   ollama_code    → qwen2.5-coder:14b       (code tasks, ~9 GB)
+//   ollama_math    → deepseek-r1-distill-qwen:14b  (math/reasoning, ~9 GB)
+//   ollama_reason  → qwen3:30b               (heavy reasoning, ~18 GB)
+//
+// The installer pulls the baseline. The router auto-uses the others
+// if the user adds them via `ollama pull` later.
+type OllamaModel = { name: string; size: string; role: string };
+type OllamaRec = {
+  baseline: OllamaModel;        // what the installer pulls
+  optional: OllamaModel[];      // what mooter will auto-use if present
+  note?: string;                 // hw-specific caveat
+} | null;
+
 function recommendOllamaModel(hwValue: string, gpuName: string | null): OllamaRec {
   const gpuLower = (gpuName || '').toLowerCase();
 
-  // Cloud/other have no local Ollama use case
-  if (hwValue === 'cloud' || hwValue === 'other' || !hwValue) return null;
+  // Cloud / other → no local Ollama
+  if (!hwValue || hwValue === 'cloud' || hwValue === 'other') return null;
 
-  // Mac M-series: unified memory, coder variant
+  const baseline: OllamaModel = {
+    name: 'qwen2.5:3b',
+    size: '~1.9 GB',
+    role: 'baseline · T0 tasks',
+  };
+  const coder: OllamaModel = {
+    name: 'qwen2.5-coder:14b',
+    size: '~9 GB',
+    role: 'code tasks',
+  };
+  const math: OllamaModel = {
+    name: 'deepseek-r1-distill-qwen:14b',
+    size: '~9 GB',
+    role: 'math / reasoning',
+  };
+  const heavy: OllamaModel = {
+    name: 'qwen3:30b',
+    size: '~18 GB',
+    role: 'heavy reasoning',
+  };
+
+  // Mac M-series — unified memory, typical 16-32 GB shared
   if (hwValue === 'mac_m_series') {
     return {
-      model: 'qwen2.5-coder:7b',
-      size: '4.7 GB',
-      note: 'Coder variant — best for Claude Code T0 tasks on Apple Silicon.',
+      baseline,
+      optional: [coder, math],
+      note: 'Mac unified memory handles 14B comfortably on M2/M3 with 16 GB+.',
     };
   }
 
-  // High-VRAM NVIDIA (3090/4090/5090/A-series): larger model
+  // NVIDIA — VRAM-dependent
   if (hwValue === 'linux_nvidia' || hwValue === 'windows_nvidia') {
-    const isHighEnd = /rtx\s?(30[789]0|40[789]0|50[789]0)|a(40|100)|h100/.test(gpuLower);
+    const isHighEnd = /rtx\s?(30[789]0|40[789]0|50[789]0)|a(40|100|6000)|h100/.test(gpuLower);
     if (isHighEnd) {
       return {
-        model: 'qwen2.5-coder:14b',
-        size: '8.8 GB',
-        note: 'Your GPU has headroom — 14B gives noticeably better reasoning than 7B.',
+        baseline,
+        optional: [coder, math, heavy],
+        note: 'High-end NVIDIA — all router models fit, including qwen3:30b for reasoning.',
       };
     }
     return {
-      model: 'qwen2.5-coder:7b',
-      size: '4.7 GB',
-      note: 'Good balance for mid-tier NVIDIA GPUs. Upgrade to 14B later if you have VRAM.',
+      baseline,
+      optional: [coder, math],
+      note: 'For 12 GB+ VRAM, add coder:14b and deepseek-r1 via `ollama pull` later.',
     };
   }
 
-  // AMD: drivers are trickier — smaller model
+  // AMD — ROCm can be fragile with large models
   if (hwValue === 'linux_amd' || hwValue === 'windows_amd') {
     return {
-      model: 'qwen2.5:3b',
-      size: '1.9 GB',
-      note: '3B model is reliable on AMD via ROCm. Coder variants can be finicky here.',
+      baseline,
+      optional: [coder],
+      note: 'AMD via ROCm is stable with 3B; the 14B coder works on most recent cards.',
     };
   }
 
@@ -408,21 +444,21 @@ export default function OnboardingPage() {
               ))}
             </ChipGroup>
 
-            {/* Ollama recommendation — only when hardware is local */}
+            {/* Ollama baseline + optional stack — aligned with real mooter router */}
             {(() => {
               const rec = recommendOllamaModel(hw, detected.gpuName);
               if (!rec) return null;
               return (
                 <div style={{
                   marginTop: 20,
-                  padding: '16px 18px',
+                  padding: '18px 20px',
                   background: 'var(--surface-2)',
                   border: '1px dashed color-mix(in srgb, var(--tier-0) 40%, var(--border))',
                   borderRadius: 'var(--r-md)',
                 }}>
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    marginBottom: 10,
+                    marginBottom: 14, flexWrap: 'wrap',
                   }}>
                     <span style={{
                       fontSize: '0.68rem',
@@ -437,38 +473,53 @@ export default function OnboardingPage() {
                       Free · Local
                     </span>
                     <span style={{
-                      fontSize: '0.82rem', color: 'var(--text)',
-                      fontWeight: 600,
+                      fontSize: '0.85rem', color: 'var(--text)', fontWeight: 600,
                     }}>
-                      Ollama recommended for your hardware
+                      Local stack for your hardware
                     </span>
                   </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'baseline', gap: 10,
-                    marginBottom: 8, flexWrap: 'wrap',
-                  }}>
-                    <code style={{
-                      fontSize: '0.95rem',
-                      fontFamily: 'var(--mono)',
-                      color: 'var(--accent)',
-                      fontWeight: 600,
+
+                  {/* Baseline row (installer auto-pulls this) */}
+                  <OllamaModelRow
+                    name={rec.baseline.name}
+                    size={rec.baseline.size}
+                    role={rec.baseline.role}
+                    tag="installer pulls"
+                    tagColor="var(--accent)"
+                  />
+
+                  {/* Optional rows (mooter auto-uses if present) */}
+                  {rec.optional.length > 0 && (
+                    <>
+                      <div style={{
+                        marginTop: 12, marginBottom: 6,
+                        fontSize: '0.7rem', color: 'var(--muted)',
+                        textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
+                      }}>
+                        Optional — mooter auto-uses if installed
+                      </div>
+                      {rec.optional.map(m => (
+                        <OllamaModelRow
+                          key={m.name}
+                          name={m.name}
+                          size={m.size}
+                          role={m.role}
+                          tag="ollama pull"
+                          tagColor="var(--muted)"
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {rec.note && (
+                    <p style={{
+                      margin: '12px 0 0', fontSize: '0.78rem',
+                      color: 'var(--muted)', lineHeight: 1.55,
+                      paddingTop: 12, borderTop: '1px solid var(--border)',
                     }}>
-                      {rec.model}
-                    </code>
-                    <span style={{
-                      fontSize: '0.72rem',
-                      color: 'var(--muted)',
-                      fontFamily: 'var(--mono)',
-                    }}>
-                      {rec.size}
-                    </span>
-                  </div>
-                  <p style={{
-                    margin: 0, fontSize: '0.78rem',
-                    color: 'var(--muted)', lineHeight: 1.55,
-                  }}>
-                    {rec.note} The installer auto-pulls this on step 2 — nothing to do here.
-                  </p>
+                      {rec.note} The router picks per task — no config needed.
+                    </p>
+                  )}
                 </div>
               );
             })()}
@@ -778,6 +829,53 @@ export default function OnboardingPage() {
 }
 
 // ── Local UI primitives ────────────────────────────────────────────────
+function OllamaModelRow({ name, size, role, tag, tagColor }: {
+  name: string; size: string; role: string; tag: string; tagColor: string;
+}) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto',
+      alignItems: 'baseline',
+      gap: 12,
+      padding: '6px 0',
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          display: 'flex', alignItems: 'baseline', gap: 8,
+          marginBottom: 2, flexWrap: 'wrap',
+        }}>
+          <code style={{
+            fontSize: '0.9rem',
+            fontFamily: 'var(--mono)',
+            color: 'var(--accent)',
+            fontWeight: 600,
+          }}>
+            {name}
+          </code>
+          <span style={{
+            fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'var(--mono)',
+          }}>
+            {size}
+          </span>
+        </div>
+        <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>{role}</div>
+      </div>
+      <span style={{
+        fontSize: '0.65rem',
+        color: tagColor,
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        fontWeight: 700,
+        fontFamily: 'var(--mono)',
+        whiteSpace: 'nowrap',
+      }}>
+        {tag}
+      </span>
+    </div>
+  );
+}
+
 function DetectRow({ label, value, truncate }: { label: string; value: string; truncate?: boolean }) {
   return (
     <div style={{ minWidth: 0 }}>
