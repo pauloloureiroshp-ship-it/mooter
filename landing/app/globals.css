@@ -1,7 +1,7 @@
 /* ============================================================
    mooter landing v2 — globals.css
    Brand identity: Space Grotesk + JetBrains Mono
-   Palette: #0A0A0A bg · #FF6B35 accent · #F5EDD4 cream · tier colors
+   Palette: #0A0A0A bg · #E8888A accent (warm rose) · #F5F5F5 cream · tier colors
    2026-04-15
    ============================================================ */
 
@@ -20,9 +20,9 @@
   --faint: #2A2622;
 
   /* ── Brand — mooter orange (cow muzzle) palette ─── */
-  --accent:  #FF6B35;
-  --accent-2: #FF8B5C;
-  --cream:   #F5EDD4;
+  --accent:  #E8888A;
+  --accent-2: #F2A5A5;
+  --cream:   #F5F5F5;
   --green:   #4CAF6A;
   --yellow:  #D4C090;
   --brown:   #2A2A2A;
