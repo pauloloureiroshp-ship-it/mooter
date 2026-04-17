@@ -638,7 +638,7 @@ function Hero() {
 }
 
 /* -----------------------------------------------------------------
- * PROBLEM — You don't know what you already have
+ * THE PROBLEM — You don't know what you already have + scenarios
  * ----------------------------------------------------------------- */
 
 function ProblemSection() {
@@ -647,27 +647,27 @@ function ProblemSection() {
       <div className="container">
         <Reveal>
           <h2 className="section-h2">
-            You don&apos;t know what you already have.
+            You&apos;re already paying.{' '}
+            <span style={{ color: 'var(--accent)' }}>You&apos;re just not optimizing.</span>
           </h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            Most vibe coders look at new tools every week. Nobody stops to look at what they&apos;re
-            already paying for — and how much of it goes to waste.
+            Your GPU can run models locally at $0. Your subscription includes tokens you never fully use.
+            Claude Code defaults to Opus for everything — even renaming a variable. Mooter fixes this.
           </p>
         </Reveal>
 
-        <div className="steps-grid stagger" style={{ marginTop: '2.5rem' }}>
+        <div className="steps-grid stagger" style={{ marginTop: '2rem' }}>
           <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
             <div className="step-num" style={{ fontSize: '1.5rem' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
-            <div className="step-title">Your hardware is underused</div>
+            <div className="step-title">Hardware underused</div>
             <div className="step-desc">
-              You might have a GPU that runs 14B-parameter models locally at $0. But Claude Code
-              doesn&apos;t know that. It sends every prompt to a cloud API — and charges you for it.
+              Your GPU can run 14B-parameter models at $0. Claude Code ignores it and sends every prompt to a paid API.
             </div>
           </Reveal>
 
@@ -677,11 +677,9 @@ function ProblemSection() {
                 <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
               </svg>
             </div>
-            <div className="step-title">Your subscription is leaking</div>
+            <div className="step-title">Subscription leaking</div>
             <div className="step-desc">
-              You pay $20–200/month for Claude. Like Netflix, the bill comes whether you use it wisely
-              or not. 84% of prompts don&apos;t need Opus — but Opus is the default. Your tokens drain
-              on tasks a free model handles equally well.
+              You pay $20–200/month. Like Netflix, the bill comes whether you optimize or not. 84% of prompts don&apos;t need Opus.
             </div>
           </Reveal>
 
@@ -691,110 +689,52 @@ function ProblemSection() {
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
             </div>
-            <div className="step-title">Your budget has no guardrails</div>
+            <div className="step-title">No budget control</div>
             <div className="step-desc">
-              Without mooter, there&apos;s no budget control. No daily ceiling. No awareness of how
-              many tokens you&apos;ve used vs how many remain. You find out you overspent when
-              it&apos;s already too late.
+              No daily ceiling. No token tracking. You find out you overspent when it&apos;s already too late.
             </div>
           </Reveal>
         </div>
-      </div>
-    </section>
-  );
-}
 
-/* -----------------------------------------------------------------
- * SCENARIOS — Smart routing adapts to YOUR month
- * ----------------------------------------------------------------- */
-
-function ScenariosSection() {
-  return (
-    <section className="section">
-      <div className="container">
+        {/* Scenarios — merged inline */}
         <Reveal>
-          <h2 className="section-h2">Smart routing adapts to YOUR month.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Mooter doesn&apos;t just route cheaper. It routes smarter — based on where you are in your billing cycle.
-          </p>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)', marginTop: '3rem', marginBottom: '0.5rem' }}>
+            Mooter adapts to where you are in your billing cycle.
+          </h3>
         </Reveal>
 
-        <div className="ba-wrapper" style={{ marginTop: '2rem' }}>
+        <div className="ba-wrapper" style={{ marginTop: '1rem' }}>
           <Reveal>
             <div className="ba-panel" style={{ borderColor: 'var(--green)' }}>
               <div className="ba-title-bar" style={{ background: 'rgba(34,197,94,0.1)', borderBottom: '1px solid rgba(34,197,94,0.15)' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-                  <path d="M9 16l2 2 4-4" />
-                </svg>
-                <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--green)' }}>End of month · Tokens expiring</span>
+                <span style={{ fontWeight: 700, color: 'var(--green)', fontSize: '0.85rem' }}>End of month · Tokens expiring</span>
               </div>
-              <div className="ba-body" style={{ padding: '1.25rem' }}>
-                <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.7, margin: 0 }}>
-                  You have 80% of your Opus quota unused with 3 days left. Tokens expire.
-                  Mooter switches to aggressive mode — uses Opus for everything, even trivial tasks.
-                  Because wasting expiring tokens IS the waste. Use the best model. You already paid for it.
+              <div className="ba-body" style={{ padding: '1rem' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '0.85rem', lineHeight: 1.6, margin: 0 }}>
+                  80% of Opus quota unused, 3 days left. Mooter uses Opus for everything — because wasting expiring tokens IS the waste.
                 </p>
               </div>
-              <div style={{
-                padding: '0.5rem 1.25rem',
-                borderTop: '1px solid rgba(34,197,94,0.1)',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                color: 'var(--green)',
-                fontFamily: 'var(--mono)',
-              }}>
-                Mode: Full power · $0 extra cost
+              <div style={{ padding: '0.4rem 1rem', borderTop: '1px solid rgba(34,197,94,0.1)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
+                Full power · $0 extra
               </div>
             </div>
           </Reveal>
-
           <Reveal>
-            <div className="ba-panel" style={{ borderColor: 'var(--tier-3, #f87171)' }}>
+            <div className="ba-panel" style={{ borderColor: 'var(--tier-3)' }}>
               <div className="ba-title-bar" style={{ background: 'rgba(248,113,113,0.08)', borderBottom: '1px solid rgba(248,113,113,0.12)' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tier-3, #f87171)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--tier-3, #f87171)' }}>Start of month · Budget tight</span>
+                <span style={{ fontWeight: 700, color: 'var(--tier-3)', fontSize: '0.85rem' }}>Start of month · Budget tight</span>
               </div>
-              <div className="ba-body" style={{ padding: '1.25rem' }}>
-                <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.7, margin: 0 }}>
-                  You burned through your tokens in the first 10 days on an ambitious project.
-                  Without mooter, you stop. With mooter, you continue: local models for trivial work,
-                  Haiku for quick answers, Opus only for critical decisions. Your project never stops.
+              <div className="ba-body" style={{ padding: '1rem' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '0.85rem', lineHeight: 1.6, margin: 0 }}>
+                  Burned through tokens in 10 days. Without mooter, you stop. With mooter: local models for trivial, Opus only for critical. Project never stops.
                 </p>
               </div>
-              <div style={{
-                padding: '0.5rem 1.25rem',
-                borderTop: '1px solid rgba(248,113,113,0.08)',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                color: 'var(--tier-3, #f87171)',
-                fontFamily: 'var(--mono)',
-              }}>
-                Mode: Economy · Project continues
+              <div style={{ padding: '0.4rem 1rem', borderTop: '1px solid rgba(248,113,113,0.08)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--tier-3)', fontFamily: 'var(--mono)' }}>
+                Economy · Project continues
               </div>
             </div>
           </Reveal>
         </div>
-
-        <Reveal>
-          <p style={{
-            textAlign: 'center',
-            color: 'var(--muted)',
-            fontSize: '0.85rem',
-            marginTop: '1.5rem',
-            maxWidth: 620,
-            marginLeft: 'auto',
-            marginRight: 'auto',
-          }}>
-            This is dynamic. Mooter checks your token usage and adjusts routing automatically.
-            No manual config. No surprises.
-          </p>
-        </Reveal>
       </div>
     </section>
   );
@@ -1021,96 +961,7 @@ function ModelsSection() {
 }
 
 /* -----------------------------------------------------------------
- * TERMINAL DEMO — Before / After side by side — KEEP AS-IS
- * ----------------------------------------------------------------- */
-
-function TerminalDemoSection() {
-  return (
-    <section className="section section-alt">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">See the difference in your terminal.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            With mooter installed, every prompt shows exactly which model was used, why, and how much you saved.
-          </p>
-        </Reveal>
-
-        <div className="ba-wrapper" style={{ marginTop: '2rem' }}>
-          <Reveal>
-            <div className="ba-panel ba-panel-before">
-              <div className="ba-title-bar ba-title-bar-before">
-                <span className="ba-dot ba-dot-red" />
-                <span className="ba-dot ba-dot-yellow" />
-                <span className="ba-dot ba-dot-green" />
-                <span style={{ marginLeft: 8 }}>Without mooter</span>
-              </div>
-              <div className="ba-body">
-                <div>$ claude &quot;rename userId to accountId&quot;</div>
-                <div className="ba-dim">  → claude-opus-4-6 (default)</div>
-                <div className="ba-cost-bad">  → $0.048 · 6.2s</div>
-                <hr className="ba-divider" />
-                <div>$ claude &quot;fix the button color&quot;</div>
-                <div className="ba-dim">  → claude-opus-4-6 (default)</div>
-                <div className="ba-cost-bad">  → $0.039 · 5.4s</div>
-                <hr className="ba-divider" />
-                <div className="ba-cost-bad" style={{ fontWeight: 700, marginTop: 8 }}>
-                  Session: $0.087 · all Opus · 11.6s
-                </div>
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal>
-            <div className="ba-panel ba-panel-after">
-              <div className="ba-title-bar ba-title-bar-after">
-                <span className="ba-dot ba-dot-orange" />
-                <span className="ba-dot ba-dot-green" />
-                <span className="ba-dot ba-dot-green" />
-                <span style={{ marginLeft: 8 }}>With mooter</span>
-              </div>
-              <div className="ba-body">
-                <div>$ claude &quot;rename userId to accountId&quot;</div>
-                <div className="ba-tier0">  T0 · qwen2.5:3b (local) · 0.3s · $0.000</div>
-                <div className="ba-cost-good">  saved $0.048</div>
-                <hr className="ba-divider" />
-                <div>$ claude &quot;fix the button color&quot;</div>
-                <div className="ba-tier0">  T0 · qwen2.5-coder:14b (local) · 0.5s · $0.000</div>
-                <div className="ba-cost-good">  saved $0.039</div>
-                <hr className="ba-divider" />
-                <div className="ba-cost-good" style={{ fontWeight: 700, marginTop: 8 }}>
-                  Session: $0.000 · 72% faster · $0.087 saved
-                </div>
-              </div>
-              <div className="ba-statusline">
-                T0·qwen2.5:3b · 0.3s · $0.087 saved
-              </div>
-            </div>
-          </Reveal>
-        </div>
-
-        <Reveal>
-          <p style={{
-            textAlign: 'center',
-            color: 'var(--muted)',
-            fontSize: '0.85rem',
-            marginTop: '1.5rem',
-            maxWidth: 600,
-            marginLeft: 'auto',
-            marginRight: 'auto',
-          }}>
-            Mooter adds a statusline to your terminal showing real-time routing decisions,
-            cumulative savings, and model selection — all without changing how you work.
-          </p>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* -----------------------------------------------------------------
- * DEMO — KEEP EXACTLY AS-IS
+ * DEMO — Interactive classify.js
  * ----------------------------------------------------------------- */
 
 type PromptDemo = {
@@ -1670,89 +1521,24 @@ function ComparisonSection() {
 }
 
 /* -----------------------------------------------------------------
- * ALGORITHM — The algorithm that gets smarter every day
- * ----------------------------------------------------------------- */
-
-function AlgorithmSection() {
-  return (
-    <section className="section">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">The algorithm that gets smarter every day.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Every routing decision — from every user — feeds anonymous data back to the community model.
-            More users means better routing for everyone.
-          </p>
-        </Reveal>
-
-        <div className="steps-grid stagger" style={{ marginTop: '2.5rem' }}>
-          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            </div>
-            <div className="step-title">Community-fed</div>
-            <div className="step-desc">
-              Every mooter install sends anonymous routing deltas (tier + latency + prompt length — never
-              prompt content). The classifier learns patterns across thousands of real prompts.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-            </div>
-            <div className="step-title">Validated savings</div>
-            <div className="step-desc">
-              Savings aren&apos;t guesses. Every number is calculated against a transparent methodology:
-              what Opus would have cost vs what the routed model cost, adjusted for response quality and time.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.5 2v6h-6" /><path d="M2.5 22v-6h6" />
-                <path d="M2 11.5a10 10 0 0 1 18.8-4.3" /><path d="M22 12.5a10 10 0 0 1-18.8 4.2" />
-              </svg>
-            </div>
-            <div className="step-title">Self-improving</div>
-            <div className="step-desc">
-              Daily backtests analyze routing accuracy. Weekly pattern updates push to all users.
-              The algorithm you install today is better than yesterday&apos;s — automatically.
-            </div>
-          </Reveal>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* -----------------------------------------------------------------
- * PERSONALIZATION — Configured for you
+ * PERSONALIZATION + ALGORITHM — Configured for you, gets smarter
  * ----------------------------------------------------------------- */
 
 function PersonalizationSection() {
   return (
-    <section className="section section-alt">
+    <section className="section">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Configured for you. Not a generic setup.</h2>
+          <h2 className="section-h2">Built for your setup. Gets smarter every day.</h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            At install, mooter runs a full scan of your environment. The result is a routing profile
-            that&apos;s unique to your machine, your subscription, and your budget.
+            At install, mooter scans your hardware, software, and subscription. The result is a routing
+            profile unique to you — that improves automatically as the community grows.
           </p>
         </Reveal>
 
-        <div className="pillars stagger" style={{ marginTop: '2.5rem' }}>
+        <div className="pillars stagger" style={{ marginTop: '2rem' }}>
           <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1763,52 +1549,39 @@ function PersonalizationSection() {
                 <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
               </svg>
             </div>
-            <h3>Hardware scan</h3>
-            <p>
-              GPU model, VRAM, RAM, CPU. Determines which local models your machine can run.
-              An RTX 4090 gets qwen3:30b. A MacBook Air gets qwen2.5:3b.
-              Both save money — at different scales.
-            </p>
+            <h3>Hardware + Software scan</h3>
+            <p>GPU, VRAM, RAM, installed models, APIs. RTX 4090 gets qwen3:30b. MacBook Air gets qwen2.5:3b. Both save — at different scales.</p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
               </svg>
             </div>
-            <h3>Software map</h3>
-            <p>
-              Which models are installed locally? Which APIs are configured? VS Code or terminal?
-              Mooter detects everything and configures the optimal model for each tier automatically.
-            </p>
+            <h3>Subscription + Budget</h3>
+            <p>Max, Pro, or API? Each has different economics. Set a daily ceiling. Mooter adjusts in real time — more local near limits, full power when tokens expire.</p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+                <path d="M21.5 2v6h-6" /><path d="M2.5 22v-6h6" />
+                <path d="M2 11.5a10 10 0 0 1 18.8-4.3" /><path d="M22 12.5a10 10 0 0 1-18.8 4.2" />
               </svg>
             </div>
-            <h3>Subscription aware</h3>
-            <p>
-              Claude Max ($200/mo, flat rate)? Pro ($20/mo)? API pay-per-use?
-              Each has completely different economics and rate limits.
-              Mooter optimizes for YOUR specific plan.
-            </p>
+            <h3>Community-fed algorithm</h3>
+            <p>Anonymous routing deltas from every user improve the classifier. Daily backtests. Weekly pattern updates. The algorithm you install today is better than yesterday&apos;s.</p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
               </svg>
             </div>
-            <h3>Budget control</h3>
-            <p>
-              Set a daily or monthly ceiling. Mooter tracks your token usage in real time and adjusts
-              routing aggressiveness. Near the limit? More local routing. Tokens expiring? Use the best model.
-            </p>
+            <h3>Validated savings</h3>
+            <p>Every number is calculated against a transparent methodology: Opus cost vs routed cost, adjusted for quality and time. No guesses.</p>
           </Reveal>
         </div>
       </div>
@@ -1930,14 +1703,11 @@ export default function Page() {
         <Nav />
         <Hero />
         <ProblemSection />
-        <ScenariosSection />
         <HowItWorks />
         <ModelsSection />
-        <TerminalDemoSection />
         <DemoSection />
         <BeforeAfterSection />
         <ComparisonSection />
-        <AlgorithmSection />
         <PersonalizationSection />
         <InstallSection />
         <Footer />
