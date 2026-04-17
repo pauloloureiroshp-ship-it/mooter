@@ -39,6 +39,42 @@ async function handleStats(request, env) {
       ORDER BY count DESC
     `).all();
 
+    // Installed-fleet distribution from device_heartbeats (last 30d, event=install_ok or alive).
+    // Surfaces hw/sub distribution IMMEDIATELY on install — no 24h wait for deltas.
+    let installedFleet = { by_hw: [], by_sub: [], total_devices: 0 };
+    try {
+      const hwByFleet = await env.DB.prepare(`
+        SELECT hw_tier, COUNT(DISTINCT device_id) as count
+        FROM device_heartbeats
+        WHERE received_at > datetime('now', '-30 days')
+          AND event IN ('install_ok', 'alive')
+        GROUP BY hw_tier
+        ORDER BY count DESC
+      `).all();
+      const subByFleet = await env.DB.prepare(`
+        SELECT sub_profile, COUNT(DISTINCT device_id) as count
+        FROM device_heartbeats
+        WHERE received_at > datetime('now', '-30 days')
+          AND event IN ('install_ok', 'alive')
+        GROUP BY sub_profile
+        ORDER BY count DESC
+      `).all();
+      const totalDevices = await env.DB.prepare(`
+        SELECT COUNT(DISTINCT device_id) as count
+        FROM device_heartbeats
+        WHERE received_at > datetime('now', '-30 days')
+          AND event IN ('install_ok', 'alive')
+      `).first();
+      installedFleet = {
+        by_hw:  (hwByFleet.results  || []).map(r => ({ hw_tier: r.hw_tier, count: r.count })),
+        by_sub: (subByFleet.results || []).map(r => ({ sub_profile: r.sub_profile, count: r.count })),
+        total_devices: Number(totalDevices?.count || 0),
+      };
+    } catch (e) {
+      // device_heartbeats table may not exist yet if migration 007 hasn't run
+      console.error('stats: installed_fleet query failed (migration 007 applied?):', e && e.message);
+    }
+
     // Average tier distribution (weighted by trust)
     const tierAvg = await env.DB.prepare(`
       SELECT
@@ -90,6 +126,7 @@ async function handleStats(request, env) {
         count: r.count,
         avg_trust: Math.round((r.avg_trust || 0) * 1000) / 1000,
       })),
+      installed_fleet: installedFleet,
       sub_distribution: (subDist.results || []).map(r => ({
         sub_profile: r.sub_profile,
         count: r.count,

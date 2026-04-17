@@ -126,9 +126,10 @@ Generate exactly ${count} prompts. Rules:
   const defaultTier = tierMap[area.id] || null;
 
   return raw.output.split('\n')
-    .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())  // strip numbering
+    .map(l => l.replace(/^[-*•]\s+/, '').replace(/^\d+[\.\)]\s*/, '').trim())  // strip bullets + numbering
     .filter(l => l.length > 10 && l.length < 500)
-    .filter(l => !/^(?:Thinking|We are generating|Mix |One prompt|IMPORTANT|Focus area|Guidance|Generate exactly|\/?no_think)/i.test(l))
+    .filter(l => !/^(?:Thinking|We are|Mix (?:lengths|English)|One prompt|One per line|IMPORTANT|Focus (?:area|:)|Guidance|Generate|Each prompt|The skills|Use one|Analyze the current state|Prompt \d+:|\/?no_think)/i.test(l))
+    .filter(l => !/specialist skills?|skills? we have|per prompt|one of the|\/no_think/i.test(l))
     .slice(0, count)
     .map((p, i) => ({
       prompt: p,
@@ -195,19 +196,29 @@ function logEvent(event) {
 function callOllama(prompt, model, maxTokens = 1024) {
   const start = Date.now();
   try {
-    const r = spawnSync('ollama', ['run', model, '--nowordwrap'], {
+    const r = spawnSync('ollama', ['run', model, '--nowordwrap', '--keepalive', '15m'], {
       input: `/no_think\n${prompt}`,
       encoding: 'utf8',
-      timeout: 120000,
+      timeout: 180000,
+      maxBuffer: 10 * 1024 * 1024,
       env: { ...process.env, OLLAMA_NUM_PREDICT: String(maxTokens) },
     });
     const elapsed = Date.now() - start;
-    if (r.status !== 0) return { output: null, latency_ms: elapsed, error: 'exit_' + r.status };
-    let out = (r.stdout || '').trim();
+    const stripAnsi = (s) => (s || '').replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '');
+    if (r.status !== 0 || r.signal) {
+      const stderrSnippet = stripAnsi(r.stderr).trim().slice(0, 200);
+      return {
+        output: null,
+        latency_ms: elapsed,
+        error: `exit=${r.status}${r.signal ? ' signal=' + r.signal : ''}${stderrSnippet ? ' stderr=' + stderrSnippet : ''}`,
+      };
+    }
+    let out = stripAnsi(r.stdout).trim();
     out = out.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    if (!out) return { output: null, latency_ms: elapsed, error: 'empty_output_after_think_strip' };
     return { output: out, latency_ms: elapsed, tokens_est: Math.ceil(out.length / 4) };
   } catch (e) {
-    return { output: null, latency_ms: Date.now() - start, error: e.message };
+    return { output: null, latency_ms: Date.now() - start, error: 'spawn_exception: ' + e.message };
   }
 }
 
@@ -349,11 +360,24 @@ Mix languages: English and Portuguese (Portugal). Mix lengths: 5-40 words.
 One prompt per line, no numbering, no quotes, no explanations.`, 'qwen3:30b', 2000
   );
   if (!raw.output) return [];
-  return raw.output.split('\n')
+  const candidates = raw.output.split('\n')
     .map(l => l.trim())
     .filter(l => l.length > 5 && l.length < 500)
-    .slice(0, count)
-    .map(p => ({ prompt: p, expected_tier: tier, source: 'ollama_gen' }));
+    .slice(0, count);
+
+  // Self-consistency: only trust the Ollama-assigned expected_tier when
+  // classify.js agrees. Otherwise the label is unreliable (Ollama's
+  // interpretation of e.g. "T1 = simple transforms" is noisy) and we
+  // downgrade expected_tier to null so misrouting detection skips it.
+  return candidates.map(p => {
+    let expected = tier;
+    try {
+      const c = classify(p);
+      const classifiedTier = c && c.tier;
+      if (classifiedTier && classifiedTier !== tier) expected = null;
+    } catch { /* classifier unavailable — trust the label */ }
+    return { prompt: p, expected_tier: expected, source: 'ollama_gen' };
+  });
 }
 
 // ── A/B Testing Engine ───────────────────────────────────────────────
@@ -767,10 +791,13 @@ One prompt per line, no numbering, no quotes.
   }
   log(`  Classified ${classified.length}/${allPrompts.length}`);
 
-  // Count misroutings (off by >1 tier is a misrouting)
+  // Count misroutings (off by >1 tier is a misrouting).
+  // Skip entries with no ground truth (expected_tier null) — can't be misrouted without expected.
   const tierIdx = { T0: 0, T1: 1, T2: 2, T3: 3 };
   const misroutings = classified.filter(c => {
-    const diff = Math.abs((tierIdx[c.classified_tier] || 0) - (tierIdx[c.expected_tier] || 0));
+    if (c.expected_tier == null || !(c.expected_tier in tierIdx)) return false;
+    if (c.classified_tier == null || !(c.classified_tier in tierIdx)) return false;
+    const diff = Math.abs(tierIdx[c.classified_tier] - tierIdx[c.expected_tier]);
     return diff > 1;
   });
   stats.misroutings_found += misroutings.length;
@@ -1085,6 +1112,17 @@ async function main() {
   }
 
   printBanner();
+
+  // Warmup: pre-load each model into VRAM so first cycle doesn't pay cold-start cost
+  log(`Warming up ${availableModels.length} models (keepalive 15min)...`);
+  for (const model of availableModels) {
+    const w = callOllama('hi', model, 8);
+    if (w.error) {
+      log(`  ${model}: ⚠ ${w.error.slice(0, 80)}`);
+    } else {
+      log(`  ${model}: ✓ ready (${(w.latency_ms/1000).toFixed(1)}s)`);
+    }
+  }
 
   // Initial validation
   log('Running initial validation...');
