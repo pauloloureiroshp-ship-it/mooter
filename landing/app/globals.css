@@ -6,37 +6,39 @@
    ============================================================ */
 
 :root {
-  /* ── Background & surface ─── */
-  --bg:       #0A0A0A;
-  --bg-2:     #0e0e10;
-  --surface:  #111114;
-  --surface-2:#191920;
-  --border:   #1e1e24;
-  --border-light: #2a2a32;
+  /* ── Background & surface — warm dark, not cold black ─── */
+  --bg:       #0C0A08;
+  --bg-2:     #110E0B;
+  --surface:  #16120E;
+  --surface-2:#1E1914;
+  --border:   #2A231C;
+  --border-light: #362D24;
 
-  /* ── Typography ─── */
-  --text:  #ededed;
-  --muted: #5c5c6e;
-  --faint: #282830;
+  /* ── Typography — warm whites ─── */
+  --text:  #F0EBE3;
+  --muted: #8C7E6E;
+  --faint: #2E271F;
 
-  /* ── Brand ─── */
-  --accent:  #FF6B35;
-  --accent-2: #ff8d5c;
+  /* ── Brand — cow emoji palette ─── */
+  --accent:  #D4A574;
+  --accent-2: #E8C4A0;
   --cream:   #F5EDD4;
-  --green:   #23d18b;
-  --yellow:  #dcdcaa;
+  --green:   #5CB878;
+  --yellow:  #E8D5A0;
+  --brown:   #8B6914;
+  --brown-light: #C49070;
 
   /* ── Tier system ─── */
-  --tier-0: #22c55e;
-  --tier-1: #3b82f6;
-  --tier-2: #a78bfa;
-  --tier-3: #f87171;
+  --tier-0: #5CB878;
+  --tier-1: #6BA3D6;
+  --tier-2: #B89AE8;
+  --tier-3: #E87A6A;
 
   /* VSCode palette (terminal) */
-  --t0: #4ec9b0;
-  --t1: #569cd6;
-  --t2: #dcdcaa;
-  --t3: #f47373;
+  --t0: #5CB878;
+  --t1: #6BA3D6;
+  --t2: #E8D5A0;
+  --t3: #E87A6A;
 
   /* ── Fonts (loaded via next/font/google) ─── */
   --font: var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, sans-serif;
@@ -57,11 +59,11 @@
   --r-xl:  24px;
   --r-full: 9999px;
 
-  /* ── Shadow ─── */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-md: 0 8px 32px -8px rgba(0,0,0,0.6);
-  --shadow-lg: 0 24px 64px -16px rgba(0,0,0,0.8);
-  --shadow-glow: 0 0 40px -16px rgba(255,107,53,0.3);
+  /* ── Shadow — warm tones ─── */
+  --shadow-sm: 0 1px 3px rgba(10,8,5,0.5);
+  --shadow-md: 0 8px 32px -8px rgba(10,8,5,0.7);
+  --shadow-lg: 0 24px 64px -16px rgba(10,8,5,0.85);
+  --shadow-glow: 0 0 40px -16px rgba(212,165,116,0.25);
 }
 
 /* ── Reset ───────────────────────────────────────────────── */

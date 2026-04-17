@@ -303,35 +303,47 @@ function MooterLogo({ size = 32, className = '' }: { size?: number; className?: 
     <svg
       width={size}
       height={size}
-      viewBox="0 0 100 100"
+      viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-label="Mooter logo"
     >
-      {/* Left horn — curved outward, swept back like real cow */}
-      <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4" />
-      {/* Right horn — mirror */}
-      <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4" />
-      {/* Left ear — rounded pill */}
-      <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4" />
-      {/* Right ear — mirror */}
-      <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4" />
-      {/* Head — wide blocky rect, cow-proportioned, cream fill (emoji-matched) */}
-      <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4" />
-      {/* Left eye */}
-      <circle cx="36" cy="46" r="5" fill="#1C1209" />
+      {/* Left horn */}
+      <path d="M32 32 C28 22 23 12 27 8 C31 5 36 14 37 26Z" fill="#D4A574" />
+      {/* Right horn */}
+      <path d="M88 32 C92 22 97 12 93 8 C89 5 84 14 83 26Z" fill="#D4A574" />
+      {/* Left ear */}
+      <ellipse cx="16" cy="48" rx="10" ry="14" fill="#F5EDD4" />
+      <ellipse cx="16" cy="48" rx="6" ry="10" fill="#F0C4A8" />
+      {/* Right ear */}
+      <ellipse cx="104" cy="48" rx="10" ry="14" fill="#F5EDD4" />
+      <ellipse cx="104" cy="48" rx="6" ry="10" fill="#F0C4A8" />
+      {/* Head — round, emoji-style */}
+      <ellipse cx="60" cy="58" rx="40" ry="42" fill="#F5EDD4" />
+      {/* Brown spot — top left, organic shape */}
+      <ellipse cx="42" cy="38" rx="12" ry="10" transform="rotate(-15 42 38)" fill="#8B6914" opacity="0.6" />
+      {/* Brown spot — top right, smaller */}
+      <ellipse cx="78" cy="42" rx="8" ry="7" transform="rotate(10 78 42)" fill="#8B6914" opacity="0.5" />
+      {/* Brown spot — forehead center */}
+      <ellipse cx="58" cy="30" rx="6" ry="5" fill="#8B6914" opacity="0.4" />
+      {/* Left eye — big, expressive */}
+      <circle cx="42" cy="54" r="7" fill="#2C1810" />
+      <circle cx="42" cy="54" r="5.5" fill="#1A0E08" />
+      <circle cx="44" cy="51.5" r="2.5" fill="white" />
+      <circle cx="40" cy="55.5" r="1" fill="white" opacity="0.5" />
       {/* Right eye */}
-      <circle cx="64" cy="46" r="5" fill="#1C1209" />
-      {/* Eye gleams — catch-light */}
-      <circle cx="37.8" cy="44.2" r="1.8" fill="white" />
-      <circle cx="65.8" cy="44.2" r="1.8" fill="white" />
-      {/* Muzzle — brand orange, emoji-inspired */}
-      <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35" />
-      {/* Nostril left */}
-      <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C" />
-      {/* Nostril right */}
-      <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C" />
+      <circle cx="78" cy="54" r="7" fill="#2C1810" />
+      <circle cx="78" cy="54" r="5.5" fill="#1A0E08" />
+      <circle cx="80" cy="51.5" r="2.5" fill="white" />
+      <circle cx="76" cy="55.5" r="1" fill="white" opacity="0.5" />
+      {/* Muzzle — warm cream, rounder */}
+      <ellipse cx="60" cy="78" rx="22" ry="16" fill="#F0D5B8" />
+      {/* Nostrils */}
+      <ellipse cx="52" cy="79" rx="4" ry="3.5" fill="#C49070" />
+      <ellipse cx="68" cy="79" rx="4" ry="3.5" fill="#C49070" />
+      {/* Subtle smile */}
+      <path d="M52 86 Q60 92 68 86" stroke="#C49070" strokeWidth="1.5" fill="none" strokeLinecap="round" />
     </svg>
   );
 }
@@ -432,7 +444,7 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
       </div>
 
       <button className={`btn btn-primary ${compact ? '' : 'hero-cta'}`} onClick={copy}
-        style={{ background: '#FF6B35', color: '#000' }}>
+        style={{ background: 'var(--accent)', color: '#000' }}>
         {copied ? '✓ Copied!' : 'Copy install command'}
       </button>
 
@@ -471,7 +483,7 @@ function Nav() {
     >
       <div className="container nav-row">
         <a href="#top" onClick={scrollTo('top')} className="brand">
-          <MooterLogo size={28} />
+          <MooterLogo size={36} />
           <span className="nav-brand-name">mooter</span>
         </a>
         <div className="nav-links">
@@ -498,7 +510,7 @@ function Nav() {
             Sign in
           </button>
           <a href="#install" onClick={scrollTo('install')} className="btn btn-sm btn-primary"
-            style={{ background: '#FF6B35', color: '#000', fontWeight: 700 }}>
+            style={{ background: 'var(--accent)', color: '#000', fontWeight: 700 }}>
             Get started
           </a>
         </div>
@@ -520,14 +532,19 @@ function Hero() {
         <div className="hero-grid">
           {/* Left column — copy */}
           <div className="hero-copy" style={{ maxWidth: 620 }}>
+            {/* Big cow logo — hero mark */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <MooterLogo size={120} />
+            </div>
+
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
               padding: '0.35rem 0.9rem',
               borderRadius: 999,
-              border: '1px solid rgba(255,107,53,0.25)',
-              background: 'rgba(255,107,53,0.06)',
+              border: '1px solid rgba(212,165,116,0.25)',
+              background: 'rgba(212,165,116,0.06)',
               fontSize: '0.78rem',
               color: 'var(--accent)',
               marginBottom: '1.5rem',
@@ -553,7 +570,7 @@ function Hero() {
                 href="#install"
                 onClick={scrollTo('install')}
                 className="btn btn-primary"
-                style={{ background: '#FF6B35', color: '#000', fontWeight: 700, padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
+                style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
               >
                 Get started
               </a>
