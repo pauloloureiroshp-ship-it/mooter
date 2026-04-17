@@ -309,14 +309,14 @@ function MooterLogo({ size = 32, className = '' }: { size?: number; className?: 
       className={className}
       aria-label="Mooter logo"
     >
-      {/* Ears — gray with pink blush */}
-      <path fill="#99AAB5" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z" />
-      <path fill="#99AAB5" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z" />
-      {/* Horns — warm cream */}
-      <path fill="#FFE8B6" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z" />
-      <path fill="#FFE8B6" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z" />
-      {/* Face — light gray, slightly warm */}
-      <path fill="#D0D5DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z" />
+      {/* Horns — subtle warm gray, not yellow */}
+      <path fill="#C8BDA8" d="M7 5C6.2 2.5 7.5 0.5 9.5 1.5c1.5 0.8 1 4 0 6C9 8.5 7.6 7 7 5z" />
+      <path fill="#C8BDA8" d="M29 5c0.8-2.5-0.5-4.5-2.5-3.5-1.5 0.8-1 4 0 6C27 8.5 28.4 7 29 5z" />
+      {/* Ears — match face color, tucked behind head */}
+      <ellipse fill="#B8BFC6" cx="5" cy="12" rx="3.5" ry="5" transform="rotate(-15 5 12)" />
+      <ellipse fill="#B8BFC6" cx="31" cy="12" rx="3.5" ry="5" transform="rotate(15 31 12)" />
+      {/* Face — light cool gray */}
+      <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z" />
       {/* Muzzle — soft pink, signature feature */}
       <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z" />
       {/* Nostrils */}
