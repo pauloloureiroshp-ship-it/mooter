@@ -20,9 +20,9 @@ function loginWithGitHub() {
   window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(redirectTo)}`;
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * ErrorBoundary
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 class ErrorBoundary extends Component<
   { children: ReactNode; fallback?: ReactNode },
@@ -37,9 +37,9 @@ class ErrorBoundary extends Component<
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Hooks
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function useInView(ref: RefObject<HTMLDivElement | null>, threshold = 0.15) {
   const [visible, setVisible] = useState(false);
@@ -158,9 +158,9 @@ function AnimatedNumber({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Router Animation — live classification terminal
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 const ROUTER_DEMOS = [
   { prompt: 'make this button blue', tier: 'T0', model: 'qwen2.5:3b · free', ms: 9, cost: '$0.000', conf: 98, color: '#22c55e' },
@@ -254,9 +254,9 @@ function RouterAnimation() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Animated Tier Bar
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function AnimatedTierBar({
   pct, color, label, cost, delay = 0,
@@ -294,12 +294,11 @@ function AnimatedTierBar({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Mooter Logo (improved cow head SVG)
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function MooterLogo({ size = 32, className = '' }: { size?: number; className?: string }) {
-  /* Based on Twemoji 1f42e (MIT license) with subtle mooter touches */
   return (
     <svg
       width={size}
@@ -309,29 +308,23 @@ function MooterLogo({ size = 32, className = '' }: { size?: number; className?: 
       className={className}
       aria-label="Mooter logo"
     >
-      {/* Horns — original Twemoji shape, warm bege instead of yellow */}
       <path fill="#E8DCC8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z" />
       <path fill="#E8DCC8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z" />
-      {/* Ears — original Twemoji shape, slightly lighter than face */}
       <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z" />
       <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z" />
-      {/* Face — light cool gray */}
       <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z" />
-      {/* Muzzle — soft pink, signature feature */}
       <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z" />
-      {/* Nostrils */}
       <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3" />
       <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3" />
-      {/* Eyes — rounded rectangles, expressive */}
       <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
       <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
     </svg>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Provider icons
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function AnthropicIcon({ size = 20 }: { size?: number }) {
   return (
@@ -365,9 +358,9 @@ function GeminiIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * GitHub Icon
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function GitHubIcon({ size = 20 }: { size?: number }) {
   return (
@@ -377,9 +370,9 @@ function GitHubIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * VS Code Icon
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function VSCodeIcon({ size = 16 }: { size?: number }) {
   return (
@@ -389,9 +382,9 @@ function VSCodeIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Install Block
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 const INSTALL_BASH =
   'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
@@ -451,9 +444,9 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * NAV — scroll-aware, cleaner
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -513,9 +506,9 @@ function Nav() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
- * HERO — Two-column, no big cow logo
- * ───────────────────────────────────────────────────────────── */
+/* -----------------------------------------------------------------
+ * HERO — Two-column, new headline
+ * ----------------------------------------------------------------- */
 
 function Hero() {
   const { stats, live } = useCommunityStats();
@@ -539,35 +532,19 @@ function Hero() {
               marginBottom: '1.5rem',
               fontWeight: 500,
             }}>
-              Open Source · MIT License · Free forever
+              Open Source · Free forever · MIT License
             </div>
 
             <h1 className="hero-title" style={{ textAlign: 'left', maxWidth: 580 }}>
-              Stop wasting tokens on{' '}
-              <span style={{ color: 'var(--accent)' }}>simple tasks.</span>
+              You have the setup.{' '}
+              <span style={{ color: 'var(--accent)' }}>You just don&apos;t know it yet.</span>
             </h1>
 
             <p className="hero-subtitle" style={{ textAlign: 'left', maxWidth: 560, marginLeft: 0 }}>
-              Vibe coders are giving up on their projects because AI is too expensive.
-              Anthropic defaults to Opus — the most powerful and expensive model — for everything.
-              Even renaming a variable. Mooter routes each prompt to the right model automatically.{' '}
-              <strong style={{ color: 'var(--text)' }}>Same quality. Up to 90% less cost.</strong>
-            </p>
-
-            <p style={{
-              textAlign: 'left',
-              fontSize: '0.82rem',
-              color: 'var(--muted)',
-              marginTop: '0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              flexWrap: 'wrap',
-            }}>
-              Works with Claude Code on Windows &amp; macOS terminals.{' '}
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                <VSCodeIcon size={14} /> VS Code extension available.
-              </span>
+              Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI setup.
+              But Claude Code defaults to Opus for everything. Even renaming a variable.
+              Mooter maps your entire environment and routes every prompt to the optimal model.{' '}
+              <strong style={{ color: 'var(--text)' }}>Same results. Up to 90% less cost. Your project never stops.</strong>
             </p>
 
             <div className="hero-cta-row" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
@@ -618,6 +595,22 @@ function Hero() {
               </div>
             </div>
 
+            <p style={{
+              textAlign: 'left',
+              fontSize: '0.82rem',
+              color: 'var(--muted)',
+              marginTop: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              flexWrap: 'wrap',
+            }}>
+              Windows &amp; macOS · Terminal + {' '}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <VSCodeIcon size={14} /> VS Code extension
+              </span>
+            </p>
+
             {live && (
               <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--muted)' }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
@@ -644,9 +637,9 @@ function Hero() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
- * PROBLEM — You're already paying
- * ───────────────────────────────────────────────────────────── */
+/* -----------------------------------------------------------------
+ * PROBLEM — You don't know what you already have
+ * ----------------------------------------------------------------- */
 
 function ProblemSection() {
   return (
@@ -654,48 +647,55 @@ function ProblemSection() {
       <div className="container">
         <Reveal>
           <h2 className="section-h2">
-            You&apos;re already paying.{' '}
-            <span style={{ color: 'var(--accent)' }}>You&apos;re just not optimizing.</span>
+            You don&apos;t know what you already have.
           </h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Most vibe coders look at new tools every week. Nobody stops to look at what they&apos;re
+            already paying for — and how much of it goes to waste.
+          </p>
         </Reveal>
 
         <div className="steps-grid stagger" style={{ marginTop: '2.5rem' }}>
           <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
             <div className="step-num" style={{ fontSize: '1.5rem' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
-            <div className="step-title">The subscription trap</div>
+            <div className="step-title">Your hardware is underused</div>
             <div className="step-desc">
-              You pay $20-200/month for Claude Pro or Max. Like Netflix, you pay whether you use it wisely or not.
-              Opus consumes your rate limit on tasks a $0 local model handles equally well.
+              You might have a GPU that runs 14B-parameter models locally at $0. But Claude Code
+              doesn&apos;t know that. It sends every prompt to a cloud API — and charges you for it.
             </div>
           </Reveal>
 
           <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
             <div className="step-num" style={{ fontSize: '1.5rem' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
               </svg>
             </div>
-            <div className="step-title">The default model lie</div>
+            <div className="step-title">Your subscription is leaking</div>
             <div className="step-desc">
-              Claude Code defaults to Opus 4.6 for everything — renaming variables, fixing typos,
-              generating commit messages. That&apos;s like hiring a brain surgeon to put on a band-aid.
+              You pay $20–200/month for Claude. Like Netflix, the bill comes whether you use it wisely
+              or not. 84% of prompts don&apos;t need Opus — but Opus is the default. Your tokens drain
+              on tasks a free model handles equally well.
             </div>
           </Reveal>
 
           <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
             <div className="step-num" style={{ fontSize: '1.5rem' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
             </div>
-            <div className="step-title">Tokens are the new oil</div>
+            <div className="step-title">Your budget has no guardrails</div>
             <div className="step-desc">
-              Every token wasted on a trivial prompt is a token you can&apos;t use for the complex
-              architecture decisions that actually need Opus. Mooter maximizes your creative capacity.
+              Without mooter, there&apos;s no budget control. No daily ceiling. No awareness of how
+              many tokens you&apos;ve used vs how many remain. You find out you overspent when
+              it&apos;s already too late.
             </div>
           </Reveal>
         </div>
@@ -704,21 +704,117 @@ function ProblemSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
- * HOW IT WORKS — Visual pipeline, 4 steps
- * ───────────────────────────────────────────────────────────── */
+/* -----------------------------------------------------------------
+ * SCENARIOS — Smart routing adapts to YOUR month
+ * ----------------------------------------------------------------- */
 
-function HowItWorks() {
+function ScenariosSection() {
   return (
-    <section id="how" className="section">
+    <section className="section">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Intelligent routing in &lt;50ms. Zero LLM cost.</h2>
+          <h2 className="section-h2">Smart routing adapts to YOUR month.</h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            Every prompt goes through a 4-stage pipeline before reaching any model.
-            Pure regex — no API calls, no network, no cost to classify.
+            Mooter doesn&apos;t just route cheaper. It routes smarter — based on where you are in your billing cycle.
+          </p>
+        </Reveal>
+
+        <div className="ba-wrapper" style={{ marginTop: '2rem' }}>
+          <Reveal>
+            <div className="ba-panel" style={{ borderColor: 'var(--green)' }}>
+              <div className="ba-title-bar" style={{ background: 'rgba(34,197,94,0.1)', borderBottom: '1px solid rgba(34,197,94,0.15)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                  <path d="M9 16l2 2 4-4" />
+                </svg>
+                <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--green)' }}>End of month · Tokens expiring</span>
+              </div>
+              <div className="ba-body" style={{ padding: '1.25rem' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.7, margin: 0 }}>
+                  You have 80% of your Opus quota unused with 3 days left. Tokens expire.
+                  Mooter switches to aggressive mode — uses Opus for everything, even trivial tasks.
+                  Because wasting expiring tokens IS the waste. Use the best model. You already paid for it.
+                </p>
+              </div>
+              <div style={{
+                padding: '0.5rem 1.25rem',
+                borderTop: '1px solid rgba(34,197,94,0.1)',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: 'var(--green)',
+                fontFamily: 'var(--mono)',
+              }}>
+                Mode: Full power · $0 extra cost
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal>
+            <div className="ba-panel" style={{ borderColor: 'var(--tier-3, #f87171)' }}>
+              <div className="ba-title-bar" style={{ background: 'rgba(248,113,113,0.08)', borderBottom: '1px solid rgba(248,113,113,0.12)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tier-3, #f87171)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--tier-3, #f87171)' }}>Start of month · Budget tight</span>
+              </div>
+              <div className="ba-body" style={{ padding: '1.25rem' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.7, margin: 0 }}>
+                  You burned through your tokens in the first 10 days on an ambitious project.
+                  Without mooter, you stop. With mooter, you continue: local models for trivial work,
+                  Haiku for quick answers, Opus only for critical decisions. Your project never stops.
+                </p>
+              </div>
+              <div style={{
+                padding: '0.5rem 1.25rem',
+                borderTop: '1px solid rgba(248,113,113,0.08)',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: 'var(--tier-3, #f87171)',
+                fontFamily: 'var(--mono)',
+              }}>
+                Mode: Economy · Project continues
+              </div>
+            </div>
+          </Reveal>
+        </div>
+
+        <Reveal>
+          <p style={{
+            textAlign: 'center',
+            color: 'var(--muted)',
+            fontSize: '0.85rem',
+            marginTop: '1.5rem',
+            maxWidth: 620,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}>
+            This is dynamic. Mooter checks your token usage and adjusts routing automatically.
+            No manual config. No surprises.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
+ * HOW IT WORKS — The routing engine
+ * ----------------------------------------------------------------- */
+
+function HowItWorks() {
+  return (
+    <section id="how" className="section section-alt">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">The routing engine. 167 patterns. &lt;50ms. $0 to classify.</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Every prompt passes through a 4-stage pipeline before reaching any model.
+            Pure regex — no API calls, no network round-trips, no cost to route.
           </p>
         </Reveal>
 
@@ -731,8 +827,8 @@ function HowItWorks() {
             </div>
             <div className="step-title">1. Classify</div>
             <div className="step-desc">
-              167 regex patterns analyze your prompt in &lt;50ms. Complexity, risk signals,
-              keywords — all evaluated locally on your machine.
+              167 regex patterns analyze complexity, risk signals, and intent in &lt;50ms.
+              Locally. On your machine. No LLM needed to decide which LLM to use.
             </div>
           </Reveal>
 
@@ -742,10 +838,10 @@ function HowItWorks() {
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
               </svg>
             </div>
-            <div className="step-title">2. Profile Match</div>
+            <div className="step-title">2. Profile</div>
             <div className="step-desc">
-              Your hardware (GPU, RAM), software (installed models), subscription (Pro, Max, API),
-              and budget ceiling are factored into the routing decision. Every config is unique to you.
+              Your GPU, RAM, installed models, subscription tier, and budget ceiling are all factored in.
+              The routing decision is unique to YOUR setup — not a generic config.
             </div>
           </Reveal>
 
@@ -759,9 +855,9 @@ function HowItWorks() {
             </div>
             <div className="step-title">3. Route</div>
             <div className="step-desc">
-              The prompt goes to the optimal model. Local models for trivial tasks ($0).
-              Haiku for quick explanations. Sonnet for debugging.
-              Opus only when architecture, security, or production code demands it.
+              Prompt goes to the optimal model. Local models when free is enough.
+              Haiku for quick tasks. Sonnet for reasoning.
+              Opus only when architecture, security, or production demands it.
             </div>
           </Reveal>
 
@@ -771,11 +867,11 @@ function HowItWorks() {
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <div className="step-title">4. Verify</div>
+            <div className="step-title">4. Validate</div>
             <div className="step-desc">
-              Response quality is guaranteed: if the cheaper model can&apos;t handle it,
-              mooter&apos;s guardrails escalate automatically. Critical prompts (deploy, migrations, secrets)
-              are ALWAYS routed to Opus. No compromise.
+              Every routing decision is logged with time, cost, and quality metrics.
+              The savings algorithm is validated transparently.
+              If a cheaper model can&apos;t handle it, guardrails escalate automatically.
             </div>
           </Reveal>
         </div>
@@ -784,9 +880,9 @@ function HowItWorks() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * MODELS — Every model has a specialty
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function ModelsSection() {
   const tiers = [
@@ -830,14 +926,15 @@ function ModelsSection() {
   ];
 
   return (
-    <section id="models" className="section section-alt">
+    <section id="models" className="section">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Every model has a specialty. Mooter knows which one.</h2>
+          <h2 className="section-h2">Every model has a specialty. Opus isn&apos;t always the answer.</h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            Opus isn&apos;t always the best choice. Each model excels at different complexity levels.
+            A brain surgeon shouldn&apos;t put on band-aids. Each model excels at different complexity
+            levels — and mooter knows which one fits each prompt.
           </p>
         </Reveal>
 
@@ -923,13 +1020,13 @@ function ModelsSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
- * TERMINAL DEMO — Before / After side by side
- * ───────────────────────────────────────────────────────────── */
+/* -----------------------------------------------------------------
+ * TERMINAL DEMO — Before / After side by side — KEEP AS-IS
+ * ----------------------------------------------------------------- */
 
 function TerminalDemoSection() {
   return (
-    <section className="section">
+    <section className="section section-alt">
       <div className="container">
         <Reveal>
           <h2 className="section-h2">See the difference in your terminal.</h2>
@@ -1012,9 +1109,9 @@ function TerminalDemoSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * DEMO — KEEP EXACTLY AS-IS
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 type PromptDemo = {
   prompt: string;
@@ -1315,9 +1412,9 @@ function DemoSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * BEFORE / AFTER — KEEP AS-IS
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function BeforeAfterSection() {
   return (
@@ -1414,9 +1511,9 @@ function BeforeAfterSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
- * COMPARE TABLE — updated header copy
- * ───────────────────────────────────────────────────────────── */
+/* -----------------------------------------------------------------
+ * COMPARE TABLE — KEEP AS-IS
+ * ----------------------------------------------------------------- */
 
 function ComparisonSection() {
   type Row = {
@@ -1572,20 +1669,86 @@ function ComparisonSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
+ * ALGORITHM — The algorithm that gets smarter every day
+ * ----------------------------------------------------------------- */
+
+function AlgorithmSection() {
+  return (
+    <section className="section">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">The algorithm that gets smarter every day.</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Every routing decision — from every user — feeds anonymous data back to the community model.
+            More users means better routing for everyone.
+          </p>
+        </Reveal>
+
+        <div className="steps-grid stagger" style={{ marginTop: '2.5rem' }}>
+          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div className="step-title">Community-fed</div>
+            <div className="step-desc">
+              Every mooter install sends anonymous routing deltas (tier + latency + prompt length — never
+              prompt content). The classifier learns patterns across thousands of real prompts.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </div>
+            <div className="step-title">Validated savings</div>
+            <div className="step-desc">
+              Savings aren&apos;t guesses. Every number is calculated against a transparent methodology:
+              what Opus would have cost vs what the routed model cost, adjusted for response quality and time.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.5 2v6h-6" /><path d="M2.5 22v-6h6" />
+                <path d="M2 11.5a10 10 0 0 1 18.8-4.3" /><path d="M22 12.5a10 10 0 0 1-18.8 4.2" />
+              </svg>
+            </div>
+            <div className="step-title">Self-improving</div>
+            <div className="step-desc">
+              Daily backtests analyze routing accuracy. Weekly pattern updates push to all users.
+              The algorithm you install today is better than yesterday&apos;s — automatically.
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
  * PERSONALIZATION — Configured for you
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function PersonalizationSection() {
   return (
-    <section className="section">
+    <section className="section section-alt">
       <div className="container">
         <Reveal>
           <h2 className="section-h2">Configured for you. Not a generic setup.</h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            At install time, mooter scans your entire environment and generates a routing profile unique to your machine.
+            At install, mooter runs a full scan of your environment. The result is a routing profile
+            that&apos;s unique to your machine, your subscription, and your budget.
           </p>
         </Reveal>
 
@@ -1601,7 +1764,11 @@ function PersonalizationSection() {
               </svg>
             </div>
             <h3>Hardware scan</h3>
-            <p>GPU model, VRAM, RAM, CPU cores. Determines which local models your machine can run efficiently.</p>
+            <p>
+              GPU model, VRAM, RAM, CPU. Determines which local models your machine can run.
+              An RTX 4090 gets qwen3:30b. A MacBook Air gets qwen2.5:3b.
+              Both save money — at different scales.
+            </p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
@@ -1610,8 +1777,11 @@ function PersonalizationSection() {
                 <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
               </svg>
             </div>
-            <h3>Software detection</h3>
-            <p>Installed local models, available APIs, IDE setup. Automatically configures the best model for each tier.</p>
+            <h3>Software map</h3>
+            <p>
+              Which models are installed locally? Which APIs are configured? VS Code or terminal?
+              Mooter detects everything and configures the optimal model for each tier automatically.
+            </p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
@@ -1620,8 +1790,12 @@ function PersonalizationSection() {
                 <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
               </svg>
             </div>
-            <h3>Subscription mapping</h3>
-            <p>Claude Max, Pro, or API? Each has different rate limits and economics. Mooter optimizes for YOUR plan.</p>
+            <h3>Subscription aware</h3>
+            <p>
+              Claude Max ($200/mo, flat rate)? Pro ($20/mo)? API pay-per-use?
+              Each has completely different economics and rate limits.
+              Mooter optimizes for YOUR specific plan.
+            </p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
@@ -1630,8 +1804,11 @@ function PersonalizationSection() {
                 <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             </div>
-            <h3>Budget ceiling</h3>
-            <p>Set a daily/monthly budget. Mooter respects it — more aggressive local routing when you&apos;re near the limit.</p>
+            <h3>Budget control</h3>
+            <p>
+              Set a daily or monthly ceiling. Mooter tracks your token usage in real time and adjusts
+              routing aggressiveness. Near the limit? More local routing. Tokens expiring? Use the best model.
+            </p>
           </Reveal>
         </div>
       </div>
@@ -1639,13 +1816,13 @@ function PersonalizationSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * INSTALL — Terminal + VS Code. One install.
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function InstallSection() {
   return (
-    <section id="install" className="section section-alt">
+    <section id="install" className="section">
       <div className="container">
         <Reveal>
           <h2 className="section-h2">Terminal + VS Code. One install.</h2>
@@ -1713,9 +1890,9 @@ function InstallSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * FOOTER — Expanded three-column
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 function Footer() {
   return (
@@ -1742,9 +1919,9 @@ function Footer() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -----------------------------------------------------------------
  * Main export
- * ───────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------- */
 
 export default function Page() {
   return (
@@ -1753,12 +1930,14 @@ export default function Page() {
         <Nav />
         <Hero />
         <ProblemSection />
+        <ScenariosSection />
         <HowItWorks />
         <ModelsSection />
         <TerminalDemoSection />
         <DemoSection />
         <BeforeAfterSection />
         <ComparisonSection />
+        <AlgorithmSection />
         <PersonalizationSection />
         <InstallSection />
         <Footer />
