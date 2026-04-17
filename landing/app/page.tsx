@@ -409,7 +409,7 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
           onClick={() => setMode('npm')}
           style={{
             padding: '4px 14px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            background: mode === 'npm' ? '#FF6B35' : 'none',
+            background: mode === 'npm' ? 'var(--accent)' : 'none',
             color: mode === 'npm' ? '#000' : 'var(--muted)',
             border: 'none',
           }}
@@ -420,7 +420,7 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
           onClick={() => setMode('bash')}
           style={{
             padding: '4px 14px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            background: mode === 'bash' ? '#FF6B35' : 'none',
+            background: mode === 'bash' ? 'var(--accent)' : 'none',
             color: mode === 'bash' ? '#000' : 'var(--muted)',
             border: 'none',
           }}
@@ -566,6 +566,21 @@ function Hero() {
               </a>
             </div>
 
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginTop: '1rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M22 17.607c-.786 2.28-3.139 6.317-5.563 6.361-1.608.031-2.125-.953-3.963-.953-1.837 0-2.412.923-3.932.983-2.572.099-6.542-5.827-6.542-10.995 0-4.747 3.308-7.1 6.198-7.143 1.55-.028 3.014 1.045 3.959 1.045.949 0 2.727-1.29 4.596-1.101.782.033 2.979.315 4.389 2.377-3.741 2.442-3.158 7.549.858 9.426zm-5.222-17.607c-2.826.114-5.132 3.079-4.81 5.531 2.612.203 5.118-2.725 4.81-5.531z"/></svg>
+                macOS
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+                Windows
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <VSCodeIcon size={14} />
+                VS Code
+              </span>
+            </div>
+
             {/* Metrics row */}
             <div className="hero-metrics" style={{
               display: 'flex',
@@ -595,21 +610,6 @@ function Hero() {
               </div>
             </div>
 
-            <p style={{
-              textAlign: 'left',
-              fontSize: '0.82rem',
-              color: 'var(--muted)',
-              marginTop: '0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              flexWrap: 'wrap',
-            }}>
-              Windows &amp; macOS · Terminal + {' '}
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                <VSCodeIcon size={14} /> VS Code extension
-              </span>
-            </p>
 
             {live && (
               <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--muted)' }}>
@@ -696,45 +696,18 @@ function ProblemSection() {
           </Reveal>
         </div>
 
-        {/* Scenarios — merged inline */}
         <Reveal>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)', marginTop: '3rem', marginBottom: '0.5rem' }}>
-            Mooter adapts to where you are in your billing cycle.
-          </h3>
+          <div className="scenarios-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '2.5rem' }}>
+            <div style={{ padding: '1rem 1.25rem', borderRadius: 10, border: '1px solid rgba(76,175,106,0.2)', background: 'rgba(76,175,106,0.04)' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--green)', marginBottom: '0.5rem' }}>Tokens expiring? Full power.</div>
+              <p style={{ color: 'var(--muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>End of month, 80% unused. Mooter uses Opus for everything — you already paid for it.</p>
+            </div>
+            <div style={{ padding: '1rem 1.25rem', borderRadius: 10, border: '1px solid rgba(212,106,90,0.2)', background: 'rgba(212,106,90,0.04)' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--tier-3)', marginBottom: '0.5rem' }}>Budget tight? Economy mode.</div>
+              <p style={{ color: 'var(--muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>Burned through tokens early. Local models for trivial, Opus only for critical. Project never stops.</p>
+            </div>
+          </div>
         </Reveal>
-
-        <div className="ba-wrapper" style={{ marginTop: '1rem' }}>
-          <Reveal>
-            <div className="ba-panel" style={{ borderColor: 'var(--green)' }}>
-              <div className="ba-title-bar" style={{ background: 'rgba(34,197,94,0.1)', borderBottom: '1px solid rgba(34,197,94,0.15)' }}>
-                <span style={{ fontWeight: 700, color: 'var(--green)', fontSize: '0.85rem' }}>End of month · Tokens expiring</span>
-              </div>
-              <div className="ba-body" style={{ padding: '1rem' }}>
-                <p style={{ color: 'var(--muted)', fontSize: '0.85rem', lineHeight: 1.6, margin: 0 }}>
-                  80% of Opus quota unused, 3 days left. Mooter uses Opus for everything — because wasting expiring tokens IS the waste.
-                </p>
-              </div>
-              <div style={{ padding: '0.4rem 1rem', borderTop: '1px solid rgba(34,197,94,0.1)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
-                Full power · $0 extra
-              </div>
-            </div>
-          </Reveal>
-          <Reveal>
-            <div className="ba-panel" style={{ borderColor: 'var(--tier-3)' }}>
-              <div className="ba-title-bar" style={{ background: 'rgba(248,113,113,0.08)', borderBottom: '1px solid rgba(248,113,113,0.12)' }}>
-                <span style={{ fontWeight: 700, color: 'var(--tier-3)', fontSize: '0.85rem' }}>Start of month · Budget tight</span>
-              </div>
-              <div className="ba-body" style={{ padding: '1rem' }}>
-                <p style={{ color: 'var(--muted)', fontSize: '0.85rem', lineHeight: 1.6, margin: 0 }}>
-                  Burned through tokens in 10 days. Without mooter, you stop. With mooter: local models for trivial, Opus only for critical. Project never stops.
-                </p>
-              </div>
-              <div style={{ padding: '0.4rem 1rem', borderTop: '1px solid rgba(248,113,113,0.08)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--tier-3)', fontFamily: 'var(--mono)' }}>
-                Economy · Project continues
-              </div>
-            </div>
-          </Reveal>
-        </div>
       </div>
     </section>
   );
@@ -1601,7 +1574,7 @@ function InstallSection() {
           <h2 className="section-h2">Terminal + VS Code. One install.</h2>
         </Reveal>
 
-        <div style={{
+        <div className="install-grid" style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: '2rem',
@@ -1642,7 +1615,7 @@ function InstallSection() {
                 fontSize: '0.78rem',
                 fontWeight: 600,
               }}>
-                Available on VS Code Marketplace
+                Coming soon
               </span>
             </div>
           </Reveal>

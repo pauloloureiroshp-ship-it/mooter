@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   } else {
     window.location.replace('/onboarding');
   }
-</script><p>A autenticar…</p></body></html>`;
+</script><p>Signing in…</p></body></html>`;
 
       const res = new NextResponse(bridgeHtml, {
         status: 200,
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     window.location.replace('/?auth=error');
   }
 </script>
-<p>A autenticar…</p>
+<p>Signing in…</p>
 </body>
 </html>`,
       {

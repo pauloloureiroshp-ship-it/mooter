@@ -338,6 +338,14 @@ main       { display: flex; flex-direction: column; }
   .hero-grid .hero-cta-row { justify-content: center; }
 }
 
+@media (max-width: 600px) {
+  .scenarios-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 768px) {
+  .install-grid { grid-template-columns: 1fr !important; }
+}
+
 .hero-logo-mark {
   display: flex;
   justify-content: center;
