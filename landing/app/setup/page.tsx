@@ -564,7 +564,7 @@ export default function SetupPage() {
                 padding: 28,
                 border: '1px solid var(--accent)',
                 borderRadius: 'var(--r-md)',
-                background: 'rgba(255,107,53,0.06)',
+                background: 'rgba(232,136,138,0.06)',
                 marginTop: 12,
               }}>
                 <div style={{ fontSize: '2rem', marginBottom: 8 }}>🐮</div>

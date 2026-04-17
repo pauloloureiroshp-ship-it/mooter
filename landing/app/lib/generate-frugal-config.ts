@@ -46,7 +46,7 @@ export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
     t0_threshold: 0.85,
     t1_enabled: budgetTier !== 'free',
     ollama_enabled: hasGPU,
-    ollama_model: isMac ? 'qwen2.5:3b' : 'qwen2.5:7b',
+    ollama_model: 'qwen2.5:3b',
     hub_push_enabled: true,
     suggested_install_command: isMac
       ? 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)'
