@@ -2,7 +2,7 @@ export default function MethodologyPage() {
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '3rem 1.5rem', fontFamily: 'var(--sans)' }}>
       <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-        How frugal measures savings
+        How mooter measures savings
       </h1>
       <p style={{ color: 'var(--muted)', marginBottom: '2rem' }}>
         Last updated: April 2026
@@ -11,12 +11,12 @@ export default function MethodologyPage() {
       <section style={{ marginBottom: '2.5rem' }}>
         <h2>The short version</h2>
         <p>
-          frugal compares what you <em>actually spent</em> (with routing) against
+          mooter compares what you <em>actually spent</em> (with routing) against
           what you <em>would have spent</em> if every prompt had been processed by
           Claude Opus 4.6. The difference is your saving.
         </p>
         <p>
-          Because frugal cannot intercept real API billing, it estimates costs from
+          Because mooter cannot intercept real API billing, it estimates costs from
           the number of tokens in each prompt. Numbers marked with <strong>~</strong>
           are estimates. Numbers without ~ are verified.
         </p>
@@ -34,7 +34,7 @@ export default function MethodologyPage() {
             <code>advisory_saved = naive_opus_cost - estimated_real_cost</code>
           </p>
           <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
-            Assumes frugal&apos;s routing recommendation was followed. If Claude Code
+            Assumes mooter&apos;s routing recommendation was followed. If Claude Code
             processed a T0 prompt in Opus anyway, this number is still counted &mdash;
             making it optimistic.
           </p>
@@ -82,7 +82,7 @@ export default function MethodologyPage() {
           </tbody>
         </table>
         <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 8 }}>
-          Prices from Anthropic&apos;s API pricing page. frugal uses token-estimated
+          Prices from Anthropic&apos;s API pricing page. mooter uses token-estimated
           costs, not real API billing. Session context base: 8,000 tokens per turn.
         </p>
       </section>
@@ -90,10 +90,10 @@ export default function MethodologyPage() {
       <section style={{ marginBottom: '2.5rem' }}>
         <h2>Known limitations</h2>
         <ul style={{ fontSize: '0.9rem', lineHeight: 1.7 }}>
-          <li><strong>Routing compliance:</strong> frugal emits hints; it cannot enforce them. Advisory savings assume 100% compliance.</li>
+          <li><strong>Routing compliance:</strong> mooter emits hints; it cannot enforce them. Advisory savings assume 100% compliance.</li>
           <li><strong>Sub-agent overhead:</strong> When Opus spawns a Sonnet sub-agent, Opus still pays tokens to delegate and integrate. This round-trip is not measured.</li>
           <li><strong>Context variability:</strong> Real sessions with many MCP servers can have 12,000&ndash;18,000 base tokens, not 8,000. Savings may be understated.</li>
-          <li><strong>No real billing access:</strong> frugal does not connect to Anthropic&apos;s billing API. A future version will use the OAuth usage endpoint to cross-reference estimates with real spend.</li>
+          <li><strong>No real billing access:</strong> mooter does not connect to Anthropic&apos;s billing API. A future version will use the OAuth usage endpoint to cross-reference estimates with real spend.</li>
         </ul>
       </section>
 

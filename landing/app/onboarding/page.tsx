@@ -91,8 +91,8 @@ export default function OnboardingPage() {
     <div className="onboarding-page">
       <div className="onboarding-container">
         <div className="onboarding-header">
-          <img src="/frugal-logo.svg" alt="frugal" width={32} height={32} />
-          <span className="onboarding-brand">frugal</span>
+          <span style={{ fontSize: '1.5rem' }}>🐮</span>
+          <span className="onboarding-brand">mooter</span>
         </div>
 
         <div className="onboarding-progress">
@@ -160,7 +160,7 @@ export default function OnboardingPage() {
         {/* Step 2: Install */}
         {step === 2 && (
           <div className="onboarding-step">
-            <h2>Install frugal</h2>
+            <h2>Install mooter</h2>
             <p className="onboarding-sub">
               Copy and paste this command in your terminal.
               The installer detects your system automatically.
@@ -187,7 +187,7 @@ export default function OnboardingPage() {
           <div className="onboarding-step">
             <h2>Your personalized config</h2>
             <p className="onboarding-sub">
-              frugal has been configured specifically for your setup.
+              mooter has been configured specifically for your setup.
             </p>
 
             {(() => {
@@ -253,7 +253,7 @@ export default function OnboardingPage() {
                   </button>
                 </div>
                 <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#666' }}>
-                  This token connects your CLI to your dashboard. <a href="/setup" style={{ color: '#4ec9b0' }}>{'\u2192'} Open frugal setup guide</a>
+                  This token connects your CLI to your dashboard. <a href="/setup" style={{ color: '#4ec9b0' }}>{'\u2192'} Open mooter setup guide</a>
                 </p>
               </div>
             )}

@@ -30,7 +30,7 @@ function saveProgress(p: SetupProgress) {
 function getPrompt0(os: OS): string {
   const osName = os === 'windows' ? 'Windows' : 'Mac';
   const installMethod = os === 'windows' ? 'winget (Windows)' : 'brew (Mac)';
-  return `I need to prepare my computer to install frugal.
+  return `I need to prepare my computer to install mooter.
 Operating system: ${osName}
 
 Please:
@@ -43,15 +43,15 @@ Do one thing at a time and wait for my confirmation before moving on.`;
 }
 
 function getPrompt1(): string {
-  return `I'm going to log in to frugal to connect my computer to the dashboard.
+  return `I'm going to log in to mooter to connect my computer to the dashboard.
 
-1. Open https://landing-five-azure-16.vercel.app in my browser
+1. Open https://mooter.ai in my browser
 2. Click "Sign in with GitHub"
-3. Authorize frugal
+3. Authorize mooter
 4. When the browser shows the token, copy it
-5. Save it with: mkdir -p ~/.frugal && echo -n "TOKEN_HERE" > ~/.frugal/auth.token
+5. Save it with: mkdir -p ~/.mooter && echo -n "TOKEN_HERE" > ~/.mooter/auth.token
 
-Guide me step by step. When done, confirm that the file ~/.frugal/auth.token exists.`;
+Guide me step by step. When done, confirm that the file ~/.mooter/auth.token exists.`;
 }
 
 function getPrompt2(os: OS): string {
@@ -59,7 +59,7 @@ function getPrompt2(os: OS): string {
   const cmd = os === 'windows'
     ? 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex'
     : 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
-  return `Install frugal on my computer.
+  return `Install mooter on my computer.
 System: ${osName}
 
 Run the appropriate install command:
@@ -70,13 +70,13 @@ During installation:
 - If it asks about models, choose qwen2.5:3b (fast, free)
 - If there's any error, show it to me and resolve it
 
-At the end, confirm that frugal is installed.`;
+At the end, confirm that mooter is installed.`;
 }
 
 function getPrompt3(): string {
-  return `Validate my frugal installation and sync with the dashboard.
+  return `Validate my mooter installation and sync with the dashboard.
 
-1. Run: node ~/.claude/tools/router/frugal-doctor.js --sync
+1. Run: node ~/.claude/tools/router/mooter-doctor.js --sync
 2. Interpret the results in simple language:
    - What's working well
    - What's missing and whether it's critical or optional
@@ -127,7 +127,7 @@ function buildSteps(os: OS, hasVscode: boolean, hasGithub: boolean): StepDef[] {
 
   steps.push({
     id: 'login',
-    title: 'Log in to frugal',
+    title: 'Log in to mooter',
     time: '~2 min',
     prompt: getPrompt1(),
     pasteTarget: 'Claude Cowork (desktop app)',
@@ -136,7 +136,7 @@ function buildSteps(os: OS, hasVscode: boolean, hasGithub: boolean): StepDef[] {
 
   steps.push({
     id: 'install',
-    title: 'Install frugal',
+    title: 'Install mooter',
     time: '~5 min',
     prompt: getPrompt2(os),
     pasteTarget: 'Claude Cowork (desktop app)',
@@ -252,8 +252,8 @@ export default function SetupPage() {
         {/* Header */}
         <div className="dashboard-header">
           <a href="/" className="dashboard-brand">
-            <img src="/frugal-logo.svg" alt="frugal" width={28} height={28} />
-            <span>frugal</span>
+            <span style={{ fontSize: '1.5rem' }}>🐮</span>
+            <span>mooter</span>
           </a>
         </div>
 
@@ -457,7 +457,7 @@ export default function SetupPage() {
             {completedCount === steps.length && steps.length > 0 && (
               <div className="dashboard-card" style={{ textAlign: 'center', border: '1px solid var(--t0, #4ec9b0)', background: 'rgba(78,201,176,0.06)' }}>
                 <h2 style={{ color: 'var(--t0, #4ec9b0)', marginBottom: '0.5rem' }}>Setup complete!</h2>
-                <p className="dashboard-muted" style={{ marginBottom: '1rem' }}>Your frugal installation is ready. Check your dashboard for live savings data.</p>
+                <p className="dashboard-muted" style={{ marginBottom: '1rem' }}>Your mooter installation is ready. Check your dashboard for live savings data.</p>
                 <a href="/dashboard" style={{
                   display: 'inline-block',
                   background: 'var(--t0, #4ec9b0)',
