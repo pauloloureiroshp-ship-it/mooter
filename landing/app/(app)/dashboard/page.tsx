@@ -143,7 +143,7 @@ function osIcon(os: string): string {
 // ── MP-14: DevicesTab content ───────────────────────────────────────────
 function DevicesTab({ profile }: { profile: Profile }) {
   const devices = profile.devices || [];
-  if (devices.length === 0) return <p className="dashboard-muted">No devices synced yet. Run <code>frugal-doctor --sync</code> to register this device.</p>;
+  if (devices.length === 0) return <p className="dashboard-muted">No devices synced yet. Run <code>mooter-doctor --sync</code> to register this device.</p>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -202,11 +202,11 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
 
   const steps = [
     {
-      label: 'Install frugal',
+      label: 'Install mooter',
       done: profile.install_completed || decisionsCount > 0,
       terminal: [
         '\u276F bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)',
-        '  Downloading frugal...',
+        '  Downloading mooter...',
         '  \u2713 Installed to ~/.claude/tools/router/',
         '  \u2713 Hook configured',
       ],
@@ -215,8 +215,8 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
       label: 'First sync',
       done: decisionsCount > 0,
       terminal: [
-        '\u276F frugal-doctor --sync',
-        '  frugal doctor \u2014 health check',
+        '\u276F mooter-doctor --sync',
+        '  mooter doctor \u2014 health check',
         '  win32 \u00b7 x64 \u00b7 Node v24',
         '  \u2713 Core Files         10/10',
         '  \u2713 Hook               active',
@@ -557,7 +557,7 @@ function SetupStepperCard({ profile }: { profile: Profile }) {
       label: 'First sync',
       ok: decisionsCount > 0,
       detail: decisionsCount > 0 ? `${decisionsCount} prompts · $${savingsUsd.toFixed(2)}` : 'not synced',
-      fix: decisionsCount > 0 ? null : 'frugal-doctor --sync',
+      fix: decisionsCount > 0 ? null : 'mooter-doctor --sync',
     },
   ];
 
@@ -657,11 +657,11 @@ function SavingsCalculatorCard() {
       </div>
       <div style={{ background: 'var(--surface-2, #1a1a1a)', borderRadius: 8, padding: '0.75rem 1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>Without frugal</span>
+          <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>Without mooter</span>
           <span style={{ fontSize: '0.9rem' }}>~${withoutFrugal.toFixed(2)}/day</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>With frugal</span>
+          <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>With mooter</span>
           <span style={{ fontSize: '0.9rem', color: 'var(--t0, #4ec9b0)' }}>~${withFrugal.toFixed(2)}/day</span>
         </div>
         <div style={{ borderTop: '1px solid var(--border, #333)', paddingTop: 6, display: 'flex', justifyContent: 'space-between' }}>
@@ -742,7 +742,7 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
     return (
       <div className="dashboard-card">
         <h2>Recommended for you</h2>
-        <p className="dashboard-muted">Run frugal-doctor --sync to populate</p>
+        <p className="dashboard-muted">Run mooter-doctor --sync to populate</p>
       </div>
     );
   }
@@ -768,7 +768,7 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
       </div>
       {showApply && (
         <div className="dashboard-muted" style={{ fontSize: '0.85em', marginBottom: '0.5rem', padding: '6px 10px', border: '1px solid var(--border, #333)', borderRadius: 6 }}>
-          Run in terminal: <code>node ~/.claude/tools/router/frugal-mode.js {rec.mode}</code>
+          Run in terminal: <code>node ~/.claude/tools/router/mooter-mode.js {rec.mode}</code>
         </div>
       )}
       <p style={{ fontSize: '1.15em', margin: '0.25rem 0 0.5rem' }}>{rec.emoji} {rec.title}</p>
@@ -1090,7 +1090,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               {latestDevice.gpu_name && <span>{latestDevice.gpu_name}</span>}
               {latestDevice.os_type && <span>{latestDevice.os_type === 'win32' ? 'Windows' : latestDevice.os_type === 'darwin' ? 'macOS' : 'Linux'}</span>}
               {latestDevice.hw_tier && <span>{latestDevice.hw_tier}</span>}
-              {latestDevice.frugal_version && <span>frugal v{latestDevice.frugal_version}</span>}
+              {latestDevice.frugal_version && <span>mooter v{latestDevice.frugal_version}</span>}
             </div>
           )}
         </div>
@@ -1153,9 +1153,9 @@ function MetricsTab({ profile }: { profile: Profile }) {
 
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: 6 }}>How frugal measures savings</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: 6 }}>How mooter measures savings</h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.875rem', lineHeight: 1.6 }}>
-          frugal tracks routing decisions, not tokens. Here&apos;s what each number means and why
+          mooter tracks routing decisions, not tokens. Here&apos;s what each number means and why
           they may differ from what you see in VSCode or the Claude interface.
         </p>
       </div>
@@ -1168,12 +1168,12 @@ function MetricsTab({ profile }: { profile: Profile }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {[
             {
-              source: 'frugal dashboard',
+              source: 'mooter dashboard',
               badge: '~est',
               badgeColor: 'var(--yellow)',
               what: `${decisionsCount} decisions · $${savingsUsd.toFixed(2)} saved`,
-              how: 'Counts user prompts routed. Savings = (what Opus would cost) \u2212 (what frugal paid). Uses estimated token counts from prompt length.',
-              why: 'Honest estimate. Not real tokens \u2014 real token counts require API access frugal doesn\u2019t have.',
+              how: 'Counts user prompts routed. Savings = (what Opus would cost) \u2212 (what mooter paid). Uses estimated token counts from prompt length.',
+              why: 'Honest estimate. Not real tokens \u2014 real token counts require API access mooter doesn\u2019t have.',
             },
             {
               source: 'VSCode Claude plugin',
@@ -1181,7 +1181,7 @@ function MetricsTab({ profile }: { profile: Profile }) {
               badgeColor: 'var(--t0)',
               what: 'Real token count \u00b7 real USD cost',
               how: 'Reads directly from Anthropic OAuth session. Counts every token sent and received, including system prompts and tool calls.',
-              why: 'This is the ground truth for token usage. Higher than frugal\u2019s prompt count because it includes all context.',
+              why: 'This is the ground truth for token usage. Higher than mooter\u2019s prompt count because it includes all context.',
             },
             {
               source: 'decisions.log (local)',
@@ -1189,7 +1189,7 @@ function MetricsTab({ profile }: { profile: Profile }) {
               badgeColor: 'var(--muted)',
               what: 'All classify() calls (includes hooks + system prompts)',
               how: 'Raw log of every classify() call. Includes UserPromptSubmit hooks, PostToolUse hooks, and system messages.',
-              why: 'More lines than \u201cdecisions\u201d because frugal filters system prompts out before counting.',
+              why: 'More lines than \u201cdecisions\u201d because mooter filters system prompts out before counting.',
             },
             {
               source: 'statusline (terminal)',
@@ -1255,9 +1255,9 @@ function MetricsTab({ profile }: { profile: Profile }) {
           The number that matters
         </div>
         <p style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
-          frugal&apos;s <strong style={{ color: 'var(--text)' }}>decisions count</strong> tells you how many times
+          mooter&apos;s <strong style={{ color: 'var(--text)' }}>decisions count</strong> tells you how many times
           the router intervened. The <strong style={{ color: 'var(--text)' }}>savings estimate</strong> is a
-          lower bound &mdash; real savings are higher because frugal also reduces latency and context window usage.
+          lower bound &mdash; real savings are higher because mooter also reduces latency and context window usage.
           The VSCode token count is the ground truth for what Anthropic actually processed.
         </p>
       </div>
@@ -1274,7 +1274,7 @@ function MetricsTab({ profile }: { profile: Profile }) {
             { term: 'real cost (est.)', def: 'Estimated actual cost based on the tier it was routed to \u00d7 avg token estimate.' },
             { term: 'saved (est.)', def: 'naive cost \u2212 real cost (est.). This is the savings number shown in the dashboard.' },
             { term: 'guaranteed saved', def: 'Only Option A hits where Ollama answered directly instead of Opus. Conservative floor.' },
-            { term: 'savings %', def: 'saved / naive \u00d7 100. 68% means frugal spent 32% of what pure-Opus would cost.' },
+            { term: 'savings %', def: 'saved / naive \u00d7 100. 68% means mooter spent 32% of what pure-Opus would cost.' },
           ].map(({ term, def }) => (
             <div key={term} style={{ display: 'flex', gap: 12, fontSize: '0.8rem' }}>
               <code style={{ color: 'var(--accent)', fontFamily: 'var(--mono)', minWidth: 140, flexShrink: 0 }}>{term}</code>
@@ -1452,10 +1452,10 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
     <div style={{ maxWidth: 680 }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: 6 }}>How frugal works</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: 6 }}>How mooter works</h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.875rem', lineHeight: 1.6 }}>
           Every prompt you write is classified in under 50ms &mdash; before any model sees it.
-          frugal reads 40+ signals, extracts 7 features, and routes to the cheapest model
+          mooter reads 40+ signals, extracts 7 features, and routes to the cheapest model
           that can do the job. No guessing. No waste.
         </p>
       </div>
@@ -1464,13 +1464,13 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
         {/* Node 1 — Your prompt */}
-        <FlowNode index={0} icon={<PromptIcon />} label="Your prompt" tooltip="Every message you send in Claude Code passes through frugal before reaching any model. Nothing is sent to any LLM until frugal decides which one.">
+        <FlowNode index={0} icon={<PromptIcon />} label="Your prompt" tooltip="Every message you send in Claude Code passes through mooter before reaching any model. Nothing is sent to any LLM until mooter decides which one.">
           <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>The question you typed</div>
         </FlowNode>
         <FlowArrow />
 
         {/* Node 2 — Pre-processing */}
-        <FlowNode index={1} icon={<ChipIcon />} label="Pre-processing" badge="LOCAL · ~1ms" tooltip="frugal normalizes your prompt locally — strips noise, detects language (PT/EN), identifies code blocks, file references, error traces, and URLs. Zero data leaves your machine at this step.">
+        <FlowNode index={1} icon={<ChipIcon />} label="Pre-processing" badge="LOCAL · ~1ms" tooltip="mooter normalizes your prompt locally — strips noise, detects language (PT/EN), identifies code blocks, file references, error traces, and URLs. Zero data leaves your machine at this step.">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {['language detection', 'code block?', 'file refs', 'error trace?'].map(f => (
               <span key={f} style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{f}</span>
@@ -1490,7 +1490,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         <FlowArrow />
 
         {/* Node 4 — Signal extraction */}
-        <FlowNode index={3} icon={<ScanIcon />} label="Signal extraction" badge="7 features" tooltip="Before routing, frugal extracts boolean/numeric features from the prompt: has_code_block, has_file_refs, has_error_trace, is_question, has_url, lang_detected, file_ref_count. These feed the complexity score and future auto-learning.">
+        <FlowNode index={3} icon={<ScanIcon />} label="Signal extraction" badge="7 features" tooltip="Before routing, mooter extracts boolean/numeric features from the prompt: has_code_block, has_file_refs, has_error_trace, is_question, has_url, lang_detected, file_ref_count. These feed the complexity score and future auto-learning.">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {featurePills.map((f, i) => (
               <span key={f} className="flow-pill" style={{ animationDelay: `${0.3 + i * 0.07}s`, fontSize: '0.7rem', padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{f}</span>
@@ -1500,7 +1500,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         <FlowArrow />
 
         {/* Node 5 — Tier decision (diamond) */}
-        <FlowNode index={4} icon={<DiamondIcon />} label="Tier decision" tooltip="Based on signal weights, frugal assigns a tier. HIGH_RISK signals (prod, deploy, migrations, secrets) always force T3. TRIVIAL signals (rename, color change, single file) go T0. The complexity threshold (0.25) was tuned from your real history.">
+        <FlowNode index={4} icon={<DiamondIcon />} label="Tier decision" tooltip="Based on signal weights, mooter assigns a tier. HIGH_RISK signals (prod, deploy, migrations, secrets) always force T3. TRIVIAL signals (rename, color change, single file) go T0. The complexity threshold (0.25) was tuned from your real history.">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
             {tiers.map(t => (
               <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1518,10 +1518,10 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         {/* Node 6 — Model cards */}
         <div className="flow-node" style={{ animationDelay: '0.5s', padding: 0, border: 'none', background: 'transparent' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            <ModelCard label="Ollama" badge="FREE · LOCAL" color="#4ec9b0" cost="$0.00" tooltip={`Runs entirely on your ${gpuName}. No API calls. No data sent anywhere. frugal warms the model in RAM before you need it so there's no cold-start penalty.`} />
+            <ModelCard label="Ollama" badge="FREE · LOCAL" color="#4ec9b0" cost="$0.00" tooltip={`Runs entirely on your ${gpuName}. No API calls. No data sent anywhere. mooter warms the model in RAM before you need it so there's no cold-start penalty.`} />
             <ModelCard label="Claude Haiku" badge="API · FAST" color="#569cd6" cost="~$0.001" tooltip="Anthropic's fastest Claude. Used for light code tasks, commit messages, explanations, regex. 40× cheaper than Opus." />
             <ModelCard label="Claude Sonnet" badge="API · BALANCED" color="#dcdcaa" cost="~$0.01" tooltip="Used for debugging, root cause analysis, comparing approaches. 5× cheaper than Opus with 90% of the capability for most tasks." />
-            <ModelCard label="Claude Opus" badge="API · MAXIMUM" color="#f47373" cost="~$0.15" tooltip={`Reserved for architecture decisions, multi-file refactors, production-critical tasks. frugal only sends here when it has to — your ${t3Pct}% T3 rate means ${routedAwayPct}% of prompts were handled cheaper.`} />
+            <ModelCard label="Claude Opus" badge="API · MAXIMUM" color="#f47373" cost="~$0.15" tooltip={`Reserved for architecture decisions, multi-file refactors, production-critical tasks. mooter only sends here when it has to — your ${t3Pct}% T3 rate means ${routedAwayPct}% of prompts were handled cheaper.`} />
           </div>
         </div>
       </div>
@@ -1557,10 +1557,10 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.7 }}>
             If every prompt went to Opus: ~${naiveCost.toFixed(2)}<br />
-            frugal actually spent: ~${Math.max(0, naiveCost - savingsUsd).toFixed(2)}
+            mooter actually spent: ~${Math.max(0, naiveCost - savingsUsd).toFixed(2)}
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--faint)', textAlign: 'center', marginTop: 10, fontFamily: 'var(--mono)' }}>
-            {gpuName} · {osType} · frugal v{frugalVersion}
+            {gpuName} · {osType} · mooter v{frugalVersion}
           </div>
         </div>
       )}

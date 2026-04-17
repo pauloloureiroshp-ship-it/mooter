@@ -128,7 +128,7 @@ function csvExport(users: UserRow[]): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `frugal-admin-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `mooter-admin-export-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -597,7 +597,7 @@ function computeAlerts(stats: AdminStats): Alert[] {
   const versions = stats.users.map(u => u.frugal_version).filter(Boolean);
   const latest = versions.sort().pop();
   const allLatest = latest ? stats.users.every(u => !u.frugal_version || u.frugal_version === latest) : true;
-  if (allLatest) alerts.push({ severity: 'ok', message: 'All users on latest frugal version' });
+  if (allLatest) alerts.push({ severity: 'ok', message: 'All users on latest mooter version' });
   else {
     const outdated = stats.users.filter(u => u.frugal_version && u.frugal_version !== latest);
     for (const u of outdated) {

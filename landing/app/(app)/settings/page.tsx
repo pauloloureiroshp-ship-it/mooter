@@ -143,7 +143,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <p className="dashboard-muted" style={{ fontSize: '0.9rem' }}>
-            No subscriptions detected — run <code>frugal-doctor</code> to auto-detect
+            No subscriptions detected — run <code>mooter-doctor</code> to auto-detect
           </p>
         )}
       </div>

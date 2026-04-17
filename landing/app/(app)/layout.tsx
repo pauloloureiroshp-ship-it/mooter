@@ -117,8 +117,8 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)' }}>
         <div style={{ textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 8, fontFamily: 'var(--mono)' }}>f</div>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: 8, color: 'var(--text)' }}>frugal</h1>
+          <div style={{ fontSize: '2rem', marginBottom: 8 }}>🐮</div>
+          <h1 style={{ fontSize: '1.5rem', marginBottom: 8, color: 'var(--text)' }}>mooter</h1>
           <p style={{ color: 'var(--muted)', marginBottom: 24, fontSize: '0.9rem' }}>Sign in to access your dashboard</p>
           <button
             onClick={() => {
@@ -158,8 +158,8 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
         {/* Logo */}
         <div style={{ padding: '20px 16px 24px', borderBottom: '1px solid var(--border)' }}>
           <a href="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>f</span>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text)', fontWeight: 600 }}>frugal</span>
+            <span style={{ fontSize: '1.25rem' }}>🐮</span>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text)', fontWeight: 600 }}>mooter</span>
           </a>
         </div>
 
