@@ -127,26 +127,34 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 3. Misrouting counter contava `expected=null` como T0 → falsos positivos
 4. `generateOllamaPrompts` gerava labels não-fiáveis → T1 accuracy artificialmente baixa
 
-### 🔴 PENDENTES para Paulo executar manualmente (Claude Code não tem acesso)
+### ✅ Sessão #25-continued — 2026-04-17 (Cowork Mac)
 
-1. **Restart do tester** (janela cmd preta, Ctrl+C → repeta último comando) para activar patches #2/#3/#4
-2. **Vercel OAuth** (P1 — 2 min):
-   - https://vercel.com → projecto mooter → Settings → Environment Variables → adicionar:
-     - `NEXT_PUBLIC_SUPABASE_URL` = `https://eymtobwinevywmmlmxqa.supabase.co`
-     - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = (copiar de `landing/.env.local`)
-   - Deployments → último → Redeploy
-3. **Cloudflare hub deploy** (P2):
-   ```bash
-   cd hub
-   wrangler d1 execute mooter-d1 --file migrations/007_device_heartbeats.sql --env production
-   wrangler deploy
-   ```
+OAuth deployed · Migration 007 applied · Worker deploy pendente manual
 
-### Após os 3 passos acima, rodar:
+| Passo | Status | Hora UTC |
+|---|---|---|
+| P1 Vercel OAuth — env vars + redeploy | ✅ feito em 2026-04-17 ~14:00 | Bundle verificado: `eymtobwinevywmmlmxqa` presente em `app/page-*.js` |
+| P2a CF D1 — migration 007 (`device_heartbeats`) | ✅ feito em 2026-04-17 ~14:00 | Via CF MCP D1 query; tabela + 3 índices criados |
+| P2b CF Worker — wrangler deploy | ⚠️ Manual pendente | Sandbox sem acesso CF API; Paulo corre: `cd hub && wrangler deploy -c wrangler.mooter.toml` |
+| P3 Validação endpoints | ⏳ após P2b | `installed_fleet` disponível após deploy |
+
+**Notion session page:** https://www.notion.so/3456f6e42bc481f991f0c9538438417e
+
+### 🔴 ÚNICO PENDENTE MANUAL
+
+**Cloudflare Worker deploy** — correr no Mac terminal:
+```bash
+cd hub
+wrangler deploy -c wrangler.mooter.toml
+# Validar:
+curl -sS https://mooter-hub.frugal-hub.workers.dev/api/stats | python3 -c 'import json,sys; d=json.load(sys.stdin); print("installed_fleet:", d.get("installed_fleet"))'
+```
+
+### Após o deploy, rodar:
 ```
 /mooter-summary
 ```
-Esperado: Health Alerts de 10 → 0-2. Se model error rates ainda altos, stderr real é agora capturado nos logs.
+Esperado: Health Alerts de 10 → 0-2.
 
 ---
 
@@ -288,6 +296,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-04-17 — Review #2 + Classifier Detox | https://www.notion.so/3456f6e42bc4812e81e3dac67cb73b3f |
 | Sessão 2026-04-17 — Landing Redesign + Reviews | https://www.notion.so/3456f6e42bc481d3b8fccacf8ed8a56b |
 | Sessão 2026-04-17 — Post-crash Recovery + Router Deep Fixes (#25) | https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e |
+| Sessão 2026-04-17 — Cowork Ship (#25-continued) | https://www.notion.so/3456f6e42bc481f991f0c9538438417e |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
