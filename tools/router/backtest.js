@@ -204,6 +204,12 @@ function analyze(decisions) {
   let explicitBad = 0;
 
   for (const d of decisions) {
+    // Review #2 fix (2026-04-17): skip tester-generated events entirely.
+    // Tester prompts include Ollama meta-instructions ("Thinking...",
+    // "We are generating...") that pollute promote/demote candidates.
+    // Only real user prompts should inform tuning decisions.
+    if (d.source === 'mooter-tester' || d.event?.startsWith('tester_')) continue;
+
     // Sprint 5-A: count prompt_optimized events (separate event type)
     if (d.event === 'prompt_optimized') {
       optimizerHits++;

@@ -1,6 +1,6 @@
 {
   "_version": 1,
-  "_updated": "2026-04-16",
+  "_updated": "2026-04-17",
   "_reference_model": "claude-opus-4-6",
   "_description": "Gold-labels validation set for the mooter/frugal classifier. Canonical entries are ground truth (must pass 100%). Adversarial entries stress edge cases (target 85%+). Historical entries are sampled from decisions.log when confidence >= 0.9 (assumed-correct baseline for drift detection).",
   "_schema": {
@@ -138,6 +138,46 @@
       "trust": "ground_truth",
       "confidence_source": "mooter_review_1",
       "notes": "Translation task — T0 regardless of content (review #1)"
+    },
+    {
+      "prompt": "how should we handle token expiry in our auth?",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_2",
+      "notes": "Design question — T2 reasoning (review #2)"
+    },
+    {
+      "prompt": "review this approach: using Redis instead of GraphQL for IoT",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_2",
+      "notes": "Approach review — T2 reasoning (review #2)"
+    },
+    {
+      "prompt": "debug OOM killed at utils/format.js:87",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_2",
+      "notes": "Debug investigation — T2 (review #2)"
+    },
+    {
+      "prompt": "investigate the race condition in websocket reconnect",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_2",
+      "notes": "Investigation — T2 (review #2)"
+    },
+    {
+      "prompt": "compare Express vs Fastify for real-time",
+      "expected_tier": "T2",
+      "expected_category": "reasoning_intermediate",
+      "trust": "ground_truth",
+      "confidence_source": "mooter_review_2",
+      "notes": "Comparison reasoning — T2 (review #2)"
     }
   ],
   "adversarial": [

@@ -34,10 +34,9 @@ const HIGH_RISK = [
   /\bmigration\b/i, /\bmigra(c|ç)[aã]o\b/i, /\bdrop\s+table\b/i,
   /\brm\s+-rf\b/i, /\bgit\s+push\s+--force\b/i, /\breset\s+--hard\b/i,
   /\.env\b/, /\bsecret/i, /\bcredential/i, /\bAPI[_ ]?KEY\b/,
-  /\barquitec?tur/i, /\barchitect/i, /\brefator(a|ar|amento)?\b/i, /\brefactor/i,
+  /\barquitetur/i, /\barchitect/i, /\brefator(a|ar|amento)?\b/i, /\brefactor/i,
   /\bcr[ií]tic/i, /\bcritical\b/i, /\baudit/i, /\breview\s+final\b/i,
-  /\b(?:edit|updat|modif|add\s+to|remov|chang|delet|install|uninstall|muda|mudar|altera|alterar|subir|bump)\w*\b.*\bpackage\.json\b|\bpackage\.json\b.*\b(?:edit|updat|modif|add|remov|chang|delet|install|uninstall|muda|mudar|altera|alterar|subir|bump)\w*/i,
-  /\bci\b.*\bpipeline/i, /\.github\/workflows/i,
+  /\bpackage\.json\b/, /\bci\b.*\bpipeline/i, /\.github\/workflows/i,
   /\bredesenha/i, /\bredesign/i,       // added v0.9.3 — "redesenha o auth" misrouted to T0
   /\bmulti[- ]?tenant/i,               // added v0.9.3 — architecture pattern, was T0
   // v0.9.3 stress-test batch — 16 failures found in 47-prompt suite
@@ -68,10 +67,10 @@ const HIGH_RISK = [
   /\bSSL\b.*\b(expir|certific)/i,       // "SSL certificate expired" — infra critical
   /\bblue[- ]green/i,                   // "blue-green deployment" — deploy architecture
   /\bTerraform\b/i,                     // "set up Terraform" — infra as code
-  // CQRS moved to MED_RISK (v0.10.2) — design pattern, not destructive operation
+  /\bCQRS\b/i,                          // "CQRS pattern" — architecture pattern
   /\bAPI\s*(versioning|gateway)\b/i,    // "API versioning/gateway" — architecture
   /\bmulti[- ]?region/i,               // "multi-region failover" — architecture
-  /\b(?:use|choose|pick|adopt|switch\s+to|migrate\s+to|should\s+we)\b.*\b(?:GraphQL\b.*\bREST|REST\b.*\bGraphQL)\b/i, // "should we use GraphQL vs REST" — arch decision (refined: explain/compare without decision intent → T1)
+  /\bGraphQL\b.*\bREST\b|\bREST\b.*\bGraphQL\b/i, // "GraphQL vs REST" — arch decision
   /\bconvert\s+all\b/i,                // "convert all class components" — multi-file refactor
   /\breplica/i,                         // "read replicas" — database architecture
   /\bmonolith/i,                        // "split the monolith" — architecture
@@ -156,51 +155,27 @@ const MED_RISK = [
   /\bENOENT\b/,                     // "ENOENT no such file or directory" — error investigation
   // overnight-tuning 2026-04-12: compound "implement" → T2 (fixes gl-046, gl-051)
   /\bimplement\w*\b.{30,}/i,          // "implement X with Y, Z and W" — multi-concern feature
-  // mooter-tester 2026-04-16 — design questions misrouted to T0
+  // review #2, 2026-04-17 — T1 accuracy at 33.9%, these were being routed to T0
   /\bhow\s+should\s+(?:we|I|you)\s+handle\b/i, // "how should we handle X" — design question
-  /\breview\s+(?:this|the|my|our)\s+approach\b/i, // "review this approach" — comparison reasoning
-  /\bwhat'?s?\s+the\s+best\s+(?:way|approach|strategy)\b/i, // "what's the best way to" — design
-  /\bqual\s+(?:a|o)\s+melhor\b/i,                           // "qual a melhor estrutura" — PT design question
-  /\bshould\s+(?:we|I)\s+(?:use|go\s+with|pick|choose)\b/i, // "should we use X" — decision
-  // mooter-tester 2026-04-16 — "not working" signals debugging
-  /\bn[aã]o\s+(?:est[aá]|t[aá])\s+a\s+funcionar/i,          // "não está a funcionar" — PT debug
-  /\b(?:not|isn'?t|doesn'?t|won'?t)\s+work(?:ing)?\b/i,      // "not working" — EN debug
-  /\bavalia[çc][aã]o\s+(?:muito\s+)?t[eé]cnic/i,             // "avaliação técnica" — technical evaluation
-  // mooter-tester 2026-04-16 — T2 design questions falling to T0
-  /\bcomo\s+(?:devo|devemos|posso)\s+(?:lidar|tratar|gerir)/i, // "como devo lidar com X" — PT design
-  /\bwhat\s+(?:approach|strategy|pattern)\s+(?:for|should|to)\b/i, // "what approach for X" — EN design
-  /\bbest\s+(?:practice|approach|strategy|way)\s+(?:for|to)\b/i,   // "best practice for X" — EN design
-  /\bconcurren(?:t|cy)\s+(?:write|read|access|update)/i,     // "concurrent writes" — systems design
-  /\bgraceful\s+(?:shutdown|degradation|failover)/i,          // "graceful shutdown" — systems design
-  /\bnetwork\s+partition/i,                                    // "network partition" — distributed systems
-  /\bCQRS\b/,                                                  // "CQRS pattern" — design pattern (moved from HIGH_RISK v0.10.2)
-  // v0.10.2 — PT-BR conversational reasoning (validate-set drift items)
-  /\b[eé]\s+melhor\b/i,                                       // "é melhor colocar..." — PT opinion/suggestion
-  /\bestou\s+achando\b/i,                                     // "estou achando que..." — PT-BR reasoning signal
-  /\b[eé]\s+assim\s+que\s+(?:eu\s+)?vejo\b/i,               // "é assim que eu vejo" — PT opinion framing
-  /\bcoração\s+d[ao]\s+solu[çc][aã]o\b/i,                   // "coração da solução" — core design signal
+  /\breview\s+this\s+approach\b/i,     // "review this approach: using X instead of Y" — design review
+  /\bqual\s+(?:a\s+)?melhor\b/i,      // "qual a melhor abordagem" — PT design question
+  /\bn[aã]o\s+(?:est[aá]\s+a\s+)?funcionar\b/i, // "não está a funcionar" — PT debug signal
+  /\bnot\s+working\b/i,               // "not working" — EN debug signal
 ];
 
 // ── LOW_RISK (light tasks — commit msg, docstring, regex, etc.) ────────────
-// v0.10.2: split LOW_RISK into T1-worthy (explain, commit, regex) and T0-worthy
-// (rename, format, translate, summarize). T0-worthy moved to TRIVIAL.
-// Per doctrine: summarization, translation, formatting, renames → local-summarizer (T0).
-// Explanation, commit messages, regex, conceptual questions → cheap-triage (T1).
 const LOW_RISK = [
+  /\bresume\b/i, /\bresumo/i, /\bsummari[zs]e/i,
   /\bexplain\b/i, /\bexplica/i, /\bo\s+que\s+[eé]\b/i, /\bwhat\s+is\b/i,
   /\bcommit\s+message/i, /\bdocstring/i, /\bregex/i,
-  /\bdiferen[çc]a\b/i, /\bdifference\b/i,
+  /\bformat/i, /\btransforma/i, /\btraduz/i, /\btranslate\b/i,
+  /\btypo/i, /\brename\b/i,
 ];
 
 // ── TRIVIAL (triage, classification, brainstorm) ───────────────────────────
 const TRIVIAL = [
   /\btriagem\b/i, /\btriage\b/i, /\bclassific/i,
   /\bextrai/i, /\bextract\b/i, /\bbrainstorm/i,
-  // v0.10.2: moved from LOW_RISK — these are T0 tasks (local-summarizer handles them)
-  /\bresume\b/i, /\bresumo/i, /\bsummari[zs]e/i,  // summarization → T0
-  /\bformat/i, /\btransforma/i,                     // formatting → T0
-  /\btraduz/i, /\btranslate\b/i,                    // translation → T0
-  /\btypo/i, /\brename\b/i,                          // trivial edits → T0
 ];
 
 // ── TUNING_EXCLUDE (superset — used by backtest.js) ────────────────────────
