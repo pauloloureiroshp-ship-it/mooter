@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
 
 const HW_OPTIONS = [
@@ -57,9 +57,83 @@ function estimateExplanation({ hw, subs, budget }: { hw: string; subs: string[];
   return parts.join(' · ');
 }
 
+// ── Browser-side hardware detection ───────────────────────────────────
+// Graceful: any probe may fail silently; card just renders less info.
+type DetectedHw = {
+  os: 'mac' | 'windows' | 'linux' | 'other';
+  cpuCores: number | null;
+  gpuName: string | null;
+  ramGb: number | null;
+  suggestedHw: string | null;  // matches HW_OPTIONS.value
+  probed: boolean;
+};
+
+function probeHardware(): DetectedHw {
+  const empty: DetectedHw = {
+    os: 'other', cpuCores: null, gpuName: null, ramGb: null,
+    suggestedHw: null, probed: true,
+  };
+  if (typeof window === 'undefined') return { ...empty, probed: false };
+
+  // OS
+  const ua = navigator.userAgent.toLowerCase();
+  let os: DetectedHw['os'] = 'other';
+  if (ua.includes('mac')) os = 'mac';
+  else if (ua.includes('win')) os = 'windows';
+  else if (ua.includes('linux')) os = 'linux';
+
+  // CPU cores
+  const cpuCores = navigator.hardwareConcurrency || null;
+
+  // RAM (Chrome only, may be undefined elsewhere)
+  const ramGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? null;
+
+  // GPU via WebGL
+  let gpuName: string | null = null;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = (canvas.getContext('webgl') ||
+                canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    if (gl) {
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) {
+        gpuName = (gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) as string) || null;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Suggest hw chip value from os + gpu
+  const gpuLower = (gpuName || '').toLowerCase();
+  let suggestedHw: string | null = null;
+  if (os === 'mac') suggestedHw = 'mac_m_series';
+  else if (os === 'windows' && gpuLower.includes('nvidia')) suggestedHw = 'windows_nvidia';
+  else if (os === 'windows' && (gpuLower.includes('amd') || gpuLower.includes('radeon'))) suggestedHw = 'windows_amd';
+  else if (os === 'windows') suggestedHw = 'windows_nvidia';  // best guess
+  else if (os === 'linux' && gpuLower.includes('nvidia')) suggestedHw = 'linux_nvidia';
+  else if (os === 'linux' && (gpuLower.includes('amd') || gpuLower.includes('radeon'))) suggestedHw = 'linux_amd';
+  else if (os === 'linux') suggestedHw = 'linux_nvidia';
+
+  return { os, cpuCores, gpuName, ramGb, suggestedHw, probed: true };
+}
+
+function useDetectedHardware(): DetectedHw {
+  const [hw, setHw] = useState<DetectedHw>({
+    os: 'other', cpuCores: null, gpuName: null, ramGb: null,
+    suggestedHw: null, probed: false,
+  });
+  useEffect(() => { setHw(probeHardware()); }, []);
+  return hw;
+}
+
+function formatOsLabel(os: DetectedHw['os']): string {
+  return os === 'mac' ? 'macOS' : os === 'windows' ? 'Windows' : os === 'linux' ? 'Linux' : 'Unknown OS';
+}
+
 export default function OnboardingPage() {
+  const detected = useDetectedHardware();
   const [step, setStep] = useState(1);
   const [hw, setHw] = useState('');
+  const [hwConfirmed, setHwConfirmed] = useState(false);
   const [subs, setSubs] = useState<string[]>([]);
   const [budget, setBudget] = useState(30);
   const [saving, setSaving] = useState(false);
@@ -67,6 +141,13 @@ export default function OnboardingPage() {
   const [tokenCopied, setTokenCopied] = useState(false);
   const [tokenRevealed, setTokenRevealed] = useState(false);
   const [cmdCopied, setCmdCopied] = useState(false);
+
+  // Auto-seed hardware chip from browser detection, once.
+  useEffect(() => {
+    if (detected.probed && detected.suggestedHw && !hw) {
+      setHw(detected.suggestedHw);
+    }
+  }, [detected.probed, detected.suggestedHw, hw]);
 
   const toggleSub = (s: string) => {
     setSubs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -174,6 +255,88 @@ export default function OnboardingPage() {
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: '0 0 24px' }}>
               Tell mooter about your machine so it can route smart.
             </p>
+
+            {/* Auto-detect card */}
+            {detected.probed && (detected.os !== 'other' || detected.gpuName) && (
+              <div style={{
+                marginBottom: 24,
+                padding: '16px 20px',
+                background: hwConfirmed
+                  ? 'color-mix(in srgb, var(--tier-0) 8%, var(--surface))'
+                  : 'color-mix(in srgb, var(--accent) 6%, var(--surface))',
+                border: `1px solid ${hwConfirmed
+                  ? 'color-mix(in srgb, var(--tier-0) 32%, var(--border))'
+                  : 'color-mix(in srgb, var(--accent) 24%, var(--border))'}`,
+                borderRadius: 'var(--r-md)',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: '0.72rem', color: 'var(--muted)',
+                  textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
+                  marginBottom: 10,
+                }}>
+                  <span>{hwConfirmed ? '✓ ' : ''}We detected your machine</span>
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: 12,
+                  marginBottom: 14,
+                }}>
+                  <DetectRow label="OS" value={formatOsLabel(detected.os)} />
+                  {detected.cpuCores && (
+                    <DetectRow label="CPU" value={`${detected.cpuCores}-core`} />
+                  )}
+                  {detected.gpuName && (
+                    <DetectRow label="GPU" value={detected.gpuName} truncate />
+                  )}
+                  {detected.ramGb && (
+                    <DetectRow label="RAM" value={`~${detected.ramGb} GB`} />
+                  )}
+                </div>
+                <div style={{
+                  fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.5,
+                  paddingTop: 12, borderTop: '1px solid var(--border)',
+                }}>
+                  {hwConfirmed
+                    ? <>Using <span style={{ color: 'var(--tier-0)', fontWeight: 600 }}>{HW_OPTIONS.find(h => h.value === hw)?.label ?? hw}</span> — change below if wrong.</>
+                    : <>Looks like <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{HW_OPTIONS.find(h => h.value === detected.suggestedHw)?.label ?? 'this machine'}</span>. Confirm or pick manually.</>}
+                </div>
+                {!hwConfirmed && detected.suggestedHw && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button
+                      onClick={() => { setHw(detected.suggestedHw!); setHwConfirmed(true); }}
+                      onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+                      onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                      style={{
+                        flex: 1,
+                        background: 'var(--accent)', color: 'var(--bg)',
+                        border: 'none', borderRadius: 'var(--r-sm)',
+                        padding: '8px 14px', fontSize: '0.82rem',
+                        fontWeight: 700, fontFamily: 'var(--font)',
+                        cursor: 'pointer', transition: 'filter 0.15s ease',
+                      }}
+                    >
+                      ✓ This looks right
+                    </button>
+                    <button
+                      onClick={() => { setHw(''); setHwConfirmed(false); }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                      style={{
+                        background: 'var(--surface-2)', color: 'var(--text)',
+                        border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                        padding: '8px 14px', fontSize: '0.82rem',
+                        fontWeight: 500, fontFamily: 'var(--font)',
+                        cursor: 'pointer', transition: 'border-color 0.15s ease',
+                      }}
+                    >
+                      Pick manually
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <FieldLabel required>What hardware are you running on?</FieldLabel>
             <ChipGroup>
@@ -498,6 +661,32 @@ export default function OnboardingPage() {
 }
 
 // ── Local UI primitives ────────────────────────────────────────────────
+function DetectRow({ label, value, truncate }: { label: string; value: string; truncate?: boolean }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{
+        fontSize: '0.66rem', color: 'var(--muted)',
+        textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
+        marginBottom: 4,
+      }}>
+        {label}
+      </div>
+      <div
+        title={truncate ? value : undefined}
+        style={{
+          fontSize: '0.88rem', color: 'var(--text)',
+          fontWeight: 600, fontFamily: 'var(--mono)',
+          overflow: truncate ? 'hidden' : 'visible',
+          textOverflow: truncate ? 'ellipsis' : 'clip',
+          whiteSpace: truncate ? 'nowrap' : 'normal',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <p style={{
