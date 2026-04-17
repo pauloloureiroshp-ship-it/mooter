@@ -31,6 +31,12 @@ const GOLD_LABELS_PATH = path.join(SCRIPT_DIR, 'gold-labels.json');
 const STATS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-stats.json');
 const REVIEW_STATE_PATH = path.join(SCRIPT_DIR, 'mooter-review-state.json');
 
+// ── Meta-prompt filters (kept in sync with mooter-continuous-tester.js) ──
+// Defensively discard stale log entries where generator instructions leaked
+// as test prompts. Tester-side fix prevents new leaks; this catches historical data.
+const META_PROMPT_START = /^(?:Thinking|We are (?:generating|focusing|to use|going)|We have to|Mix (?:languages|lengths|English|of)|One prompt per line|One per line|Realistic for a developer|Each prompt (?:must|should|uses|focuses|is)|Focus(?: area)?\s*:|Focus on |Guidance\s*:|Generate (?:exactly )?\d|The skills|Use one of|Prompt \d+\s*[:\-]|They must|- (?:Mix|Realistic|One prompt|Use one|Focus|Each prompt)|- (?:model-[a-z]+|[a-z]+-[a-z]+):|\d+\.\s*[a-z-]+(?:-auditor|-writer|-advocate|-matcher|-generator|-checker|-scanner|-reviewer)\s*:|IMPORTANT\s*:|Rules?\s*:|Requirements?\s*:|\/no_think|We mix (?:languages|lengths))/i;
+const META_PROMPT_CONTAINS = /specialist skills?|skills? we have|skills? per prompt|one of the specialist|must use one of|\/no_think/i;
+
 const args = process.argv.slice(2);
 const reportMode = args.includes('--report');
 const countersOnly = args.includes('--counters');
@@ -95,6 +101,11 @@ function buildSnapshot(events) {
   for (const e of events) {
     switch (e.event) {
       case 'tester_misrouting':
+        // Defensive: skip misroutings with no ground truth (expected == null).
+        // These are stale log entries from before the tester-side filter was added.
+        if (e.expected == null) break;
+        // Defensive: skip stale meta-prompts (generator instructions leaked into logs).
+        if (META_PROMPT_START.test(e.prompt_preview) || META_PROMPT_CONTAINS.test(e.prompt_preview)) break;
         if (!existingGold.has(e.prompt_preview)) {
           snapshot.misroutings.push({
             prompt: e.prompt_preview,
@@ -117,6 +128,10 @@ function buildSnapshot(events) {
         break;
 
       case 'tester_ab_test':
+        // Skip malformed events (missing model names) — stale from pre-fix tester.
+        // Skip failed tests (winner == null) — not real comparisons, they inflate TIE counts.
+        if (!e.model_a || !e.model_b) break;
+        if (e.winner == null) break;
         snapshot.ab_tests.push({
           model_a: e.model_a, model_b: e.model_b,
           winner: e.winner, category: e.category,

@@ -1,0 +1,125 @@
+{
+  "date": "2026-04-17",
+  "session": "#24",
+  "version": "v0.9.9+review4",
+  "commit_before": "9480347a5e0259249c316aff8d42d62e709c8a29",
+  "milestone": "Harness Hygiene — Review #4 Delta",
+  "summary": "Fixed 2 structural bugs in the mooter-continuous-tester feedback loop: meta-prompt leakage into classification data, and empty A/B matchup names when a model errored. Added defensive filters on the review side so stale/malformed historical events don't pollute gold-label exports. Verified with full-report regression (stale meta-prompt count 70+ → 0 after filters).",
+
+  "bugs_fixed": [
+    {
+      "id": "BUG-1",
+      "location": "tools/router/mooter-continuous-tester.js:761",
+      "title": "Meta-prompt leak",
+      "symptom": "Generator instructions (\"Each prompt must...\", \"Focus:\", \"We are focusing on...\", \"- Use one of...\") were logged as test prompts and flagged as misroutings with expected_tier=null, producing ~90 stale entries in decisions.log.",
+      "root_cause": "META_PROMPT_FILTER regex only caught 6 narrow prefixes (Thinking, We are generating, Mix languages, One prompt per line, Realistic for a developer, - Mix/Realistic/One prompt). Did not match common generator lingo like 'Each prompt must', 'Focus:', 'Prompt N:', bullet-skill patterns.",
+      "fix": "Expanded META_PROMPT_START regex to ~25 prefixes including 'Each prompt must', 'Focus:', 'Prompt N:', 'Use one of', 'They must', 'Rules:', 'Requirements:', '- model-X:' skill-name patterns. Added META_PROMPT_CONTAINS for in-body phrases ('specialist skills', 'per prompt', 'one of the specialist')."
+    },
+    {
+      "id": "BUG-2",
+      "location": "tools/router/mooter-continuous-tester.js:390 / mooter-review.js:119",
+      "title": "A/B matchup empty names",
+      "symptom": "44 A/B tests in the previous delta window showed matchup \" vs \" (empty model names), all TIE:44. Masquerading as real ties, polluting win-rate statistics.",
+      "root_cause": "runABTest returns {winner:null, reason:'one_model_failed'} on model error WITHOUT model_a/model_b fields. logEvent spreads this incomplete object, producing events with undefined model_a/model_b. mooter-review then joins undefined values to produce empty matchup names, and the winner:null path falls through to TIE in the pairStats counter.",
+      "fix": "(a) runABTest now returns model_a, model_b, category, prompt_preview, latencies, and error snippets even on failure. (b) mooter-review skips events where model_a or model_b is falsy, AND treats winner==null as a failed test (not a TIE), excluding from matchup stats entirely."
+    }
+  ],
+
+  "defensive_filters_added": [
+    "mooter-review.js: skip misroutings where expected_tier is null (stale pre-fix log entries).",
+    "mooter-review.js: apply same META_PROMPT regex when reading tester_misrouting events, so historical stale data cannot leak into gold-label exports."
+  ],
+
+  "verification": {
+    "filter_unit_test": {
+      "meta_prompts_blocked": "10/10",
+      "real_prompts_passing": "3/3"
+    },
+    "full_report_regression": {
+      "misroutings_before_defensive_filter": 74,
+      "misroutings_after_colon_grammar_fix": 53,
+      "misroutings_after_bullet_pattern_split": 47,
+      "remaining_are_legitimate": true,
+      "note": "The remaining 47 are real classifier misroutings from PROMPT_TEMPLATES (e.g., 'how should we handle X in our Y?' expected T2 got T0). These are classifier improvement targets, not harness bugs."
+    },
+    "ab_matchup_names_populated": true,
+    "node_syntax_check": "both files pass"
+  },
+
+  "best_practice_audit": {
+    "verdict": "top-decile, not yet world's best",
+    "strengths": [
+      "Autonomous 24/7 $0 operation on local Ollama.",
+      "Delta-watermark review avoids stale repeat suggestions.",
+      "Quality matrix (model × category) empirical.",
+      "Regression gate (validate-set.js --strict) prevents destructive relearning.",
+      "Veto mechanism for user-rated-good patterns prevents backwards overfits."
+    ],
+    "gaps_to_close": [
+      {
+        "id": "GAP-1",
+        "title": "No positional swap in judge calls",
+        "reference": "Zheng et al. 2023, 'Judging LLM-as-a-Judge', NeurIPS",
+        "impact": "~30% of judge verdicts flip when A/B positions are swapped. Current single-pass judgment has unmitigated positional bias."
+      },
+      {
+        "id": "GAP-2",
+        "title": "Template-based prompt generation has coverage blind spots",
+        "fix_idea": "Bootstrap 10% of each batch from decisions.log real-traffic samples."
+      },
+      {
+        "id": "GAP-3",
+        "title": "Pattern-weight adjustments not calibrated",
+        "fix_idea": "Add exponential decay over time and minimum-sample threshold (n ≥ 20) before demotion."
+      },
+      {
+        "id": "GAP-4",
+        "title": "No confidence intervals on win-rate",
+        "fix_idea": "Wilson score interval would surface whether 55% win rate is meaningfully different from 50%."
+      },
+      {
+        "id": "GAP-5",
+        "title": "Human review gate is synchronous",
+        "fix_idea": "Automated staleness alert when >72h since last review with >N new misroutings."
+      }
+    ],
+    "literature_aligned": [
+      "Zheng et al. 2023 (LLM-as-a-judge)",
+      "RouteLLM (Ong et al. 2024)",
+      "FrugalGPT (Chen et al. 2023)",
+      "Settles 2012 (active learning survey)",
+      "Sculley et al. (Hidden Technical Debt in ML Systems)"
+    ]
+  },
+
+  "hashes_after": {
+    "classify.js": "1ae077ec4174c72018b217dfb6b74d3a2f775d6e5cb381491bc00007fb219781",
+    "patterns.js": "c5ef9077d4873390fc9c42b604d044213e1b24ec58de588c8af5ef1045a63526",
+    "inject_context.js": "0d4e103c3a1ff0e996de235d0f67c0a47da64b89deaa41d8a64030903c542d31",
+    "mooter-continuous-tester.js": "9cbaf28ac01a210906ff0ee2d9ae1aabeb0e4b1a8a7568556355ea40709ebe01",
+    "mooter-review.js": "b77f26087b9d2d01e283ee6ee8e52164e74354f40e6537691f8b30cb29c67626"
+  },
+
+  "classifier_unchanged": {
+    "note": "This session touches ONLY the harness (tester + review). classify.js and patterns.js are byte-for-byte identical to v0.9.9+review2. validate-set.js --strict currently fails at 80% overall / 90% canonical — this is a pre-existing state, not caused by this session. Tuning from backtest was NOT applied (would require accuracy recovery first)."
+  },
+
+  "tester_cumulative_stats": {
+    "prompts_tested": 8188,
+    "models_benchmarked": 6,
+    "ab_tests_run": 648,
+    "optimizer_tests": 83,
+    "misroutings_found": 146,
+    "embeddings_built": 260,
+    "reviews_completed": 4,
+    "cost_usd": 0
+  },
+
+  "next_session_candidates": [
+    "Implement judge positional-swap (GAP-1) — highest-impact best-practice fix.",
+    "Bootstrap real-traffic samples into prompt generation (GAP-2).",
+    "Add pattern-weight decay + min-sample threshold (GAP-3).",
+    "Investigate 47 real classifier misroutings remaining in full review.",
+    "Fix validate-set.js --strict failures so future tuning can be applied."
+  ]
+}

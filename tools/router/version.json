@@ -1,6 +1,6 @@
 {
-  "version": "0.9.9",
-  "released": "2026-04-13",
+  "version": "0.9.9+review4",
+  "released": "2026-04-17",
   "channel": "friends-beta",
   "minNodeVersion": "18.0.0",
   "homepage": "https://landing-five-azure-16.vercel.app"

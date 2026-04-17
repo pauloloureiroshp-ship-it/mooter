@@ -388,7 +388,18 @@ function runABTest(prompt, modelA, modelB, category) {
   const resultB = callOllama(prompt, modelB, 512);
 
   if (!resultA.output || !resultB.output) {
-    return { winner: null, reason: 'one_model_failed' };
+    return {
+      winner: null,
+      reason: 'one_model_failed',
+      model_a: modelA,
+      model_b: modelB,
+      category,
+      prompt_preview: prompt.slice(0, 200),
+      latency_a_ms: resultA.latency_ms,
+      latency_b_ms: resultB.latency_ms,
+      error_a: resultA.error || null,
+      error_b: resultB.error || null,
+    };
   }
 
   // Judge with a third model (use the largest available that isn't A or B)
@@ -758,10 +769,12 @@ One prompt per line, no numbering, no quotes.
   log(`  Generated ${allPrompts.length} prompts`);
 
   // 2. Filter meta-prompts (tester's own LLM instructions that leak as test prompts)
-  const META_PROMPT_FILTER = /^(?:Thinking|We are generating|Mix languages|One prompt per line|Realistic for a developer|- (?:Mix|Realistic|One prompt))/i;
+  const META_PROMPT_START = /^(?:Thinking|We are (?:generating|focusing|to use|going)|We have to|We mix (?:languages|lengths)|Mix (?:languages|lengths|English|of)|One prompt per line|One per line|Realistic for a developer|Each prompt (?:must|should|uses|focuses|is)|Focus(?: area)?\s*:|Focus on |Guidance\s*:|Generate (?:exactly )?\d|The skills|Use one of|Prompt \d+\s*[:\-]|They must|- (?:Mix|Realistic|One prompt|Use one|Focus|Each prompt)|- (?:model-[a-z]+|[a-z]+-[a-z]+):|\d+\.\s*[a-z-]+(?:-auditor|-writer|-advocate|-matcher|-generator|-checker|-scanner|-reviewer)\s*:|IMPORTANT\s*:|Rules?\s*:|Requirements?\s*:|\/no_think)/i;
+  const META_PROMPT_CONTAINS = /specialist skills?|skills? we have|skills? per prompt|one of the specialist|must use one of|\/no_think/i;
   const filteredPrompts = allPrompts.filter(p => {
     if (p.prompt.length < 15) return false; // too short to be real
-    if (META_PROMPT_FILTER.test(p.prompt)) return false; // tester meta-instruction
+    if (META_PROMPT_START.test(p.prompt)) return false; // tester meta-instruction
+    if (META_PROMPT_CONTAINS.test(p.prompt)) return false; // contains generator lingo
     return true;
   });
   if (filteredPrompts.length < allPrompts.length) {
