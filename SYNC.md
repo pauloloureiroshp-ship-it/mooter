@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-17 08:00 UTC (Claude Code Windows — Landing redesign + Reviews)
-**Versão:** v0.9.9+ Sprint B + Landing redesign + Reviews #1-2
-**Último commit main:** `d2754a5` (fix: comprehensive polish — platform icons, scenarios, auth)
-**Sessão Claude Code:** #23 (repo Windows) — reviews #1-2, classifier detox, landing page redesign, 12 commits
+**Última sync:** 2026-04-17 06:40 UTC (Claude Code Windows — Full rebrand + OAuth verification)
+**Versão:** v0.9.9+ Sprint B + Landing redesign + Reviews #1-2 + Full Rebrand
+**Último commit main:** `e0d945d` (rebrand: frugal → mooter in OG image and analyse API)
+**Sessão Claude Code:** #24 (repo Windows) — full rebrand app shell, OAuth verification, waitlist RLS fix, 3 commits
 
 ---
 
@@ -191,7 +191,8 @@ Side effects: upsert em D1 `devices` table
 | Review #1 | Context-aware overrides + 48 TUNED | ✅ Shipped (2026-04-16, #22) |
 | MacBook bootstrap | 3 Cowork sessions — install + 3 bugs fixed | ✅ Shipped (2026-04-16) |
 | Sprint C | Statusline redesign + Multi-Model V2 | ⏳ Pendente |
-| OAuth resurrection | Fix Supabase env em Vercel + device-heartbeat endpoint | 🟡 Em curso (Claude Code) |
+| Full Rebrand | frugal → mooter em toda a app shell (dashboard, onboarding, setup, admin, settings, OG, APIs) | ✅ Shipped (2026-04-17, #24) |
+| OAuth verification | Env vars OK, OAuth 302 OK, waitlist RLS fix, mooter.ai domain verified | ✅ Shipped (2026-04-17, #24) |
 | v1.0 | Public OSS launch | 🔵 Roadmap |
 
 ## 📊 Stats actuais
