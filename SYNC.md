@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-17 (Claude Code Windows — Login hero + onboarding auto-detect)
-**Versão:** v0.9.9+ Sprint B + Landing redesign + Full Rebrand + Auth area v2
-**Último commit main:** `ec6e36e` (feat(onboarding): Ollama recommendation + privacy microcopy)
-**Sessão Claude Code:** #26 (repo Windows) — login hero redesign, hardware auto-detect, Ollama recommendation; 3 commits, production deploy `dpl_3ZhAJmcGHa3RRLyC5i5iTZDaRccJ`
+**Última sync:** 2026-04-17 (Claude Code Windows — Login v2 with MooterLogo + Ollama factual fix)
+**Versão:** v0.9.9+ Sprint B + Landing redesign + Full Rebrand + Auth area v2.1
+**Último commit main:** `6958c5c` (fix(onboarding): Ollama recs now cite real router models)
+**Sessão Claude Code:** #26 (repo Windows) — auth area v2 first pass + v2.1 polish iteration after Paulo visual review; 6 commits, 2 production deploys
 
 ---
 
@@ -145,6 +145,7 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 **Notion session pages:**
 - Sessão #25: https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e
 - Sessão #25-continued (ship session): atualizar no próximo wrap
+- Sessão #26 v2.1 (auth polish + Ollama factual fix): https://www.notion.so/3456f6e42bc48199b3dadda0023576e3
 
 ### ✅ Sessão #26 — 2026-04-17 (auth area polish — login hero + onboarding intelligence)
 
@@ -164,6 +165,29 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 - Nenhuma mudança em `/api/me`, `/api/profile`, `generate-frugal-config.ts`, Supabase schema
 
 **Pendente teste browser:** Paulo abrir `mooter.ai` em incognito, sign in → verificar novo hero + confirmar que auto-detect acerta hardware real (Windows PC → deve detectar GPU NVIDIA e suggerir `windows_nvidia`).
+
+### ✅ Sessão #26 v2.1 — 2026-04-17 (polish pós review)
+
+**Feedback Paulo:** "ainda não está no padrão da landing, não tem o logo que montamos, cores não estão corretas, informações de modelo local não convencem".
+
+**Diagnóstico:** login v2 ainda usava 🐮 emoji em vez do `MooterLogo` SVG da landing; título não batia com canonical "Route smarter. Ship faster."; provider icons estavam ausentes; recomendação Ollama inventava `qwen2.5-coder:7b` com sizes fabricados — **não alinha com os modelos que o router real (`classify.js`) usa**.
+
+| Commit | Mudança |
+|---|---|
+| `9e5cd22` | `layout.tsx` — inline `MooterLogo` 104px (SVG idêntico ao `page.tsx:300` e `public/mooter-logo.svg`: cream head+ears `#F5EDD4`, orange muzzle `#FF6B35`, dark eyes `#1C1209`, eye gleams). Wrapper com float animation + 40px orange drop-shadow mirror de `.hero-logo-mark`. Título canónico landing "Route smarter. Ship faster." com accent phrase. CTA laranja sólido com `boxShadow: 0 10px 30px rgba(255,107,53,0.28)` + color `#000` matching `.hero-cta`. Provider icons row "routes to: Ollama/Anthropic/OpenAI/Gemini/Qwen/DeepSeek" duplicados inline (boundary client-component preservada, zero blast na landing). +125/-63 |
+| `6958c5c` | `onboarding/page.tsx` — reescreve `recommendOllamaModel` para devolver `{ baseline, optional[], note }` alinhado com classify.js real: `qwen2.5:3b` baseline (~1.9 GB), `qwen2.5-coder:14b` (~9 GB) code, `deepseek-r1-distill-qwen:14b` (~9 GB) math, `qwen3:30b` (~18 GB) heavy reasoning. Card UI passa a mostrar baseline row ("installer pulls") + optional rows ("ollama pull"). Mac M-series e NVIDIA high-end recebem stack completa; AMD só baseline+coder (ROCm caveat); cloud/other não mostra card. +149/-51 |
+
+**Deploy:** `dpl_Huz2UMPZYhqjZspZPsmejnaASDrA` Ready, aliased a `mooter.ai`.
+
+**Validação factual router models (ground truth):**
+```
+classify.js:107-112:
+  ollama_terse:   qwen2.5:3b                    (legacy alias + default)
+  ollama_reason:  qwen3:30b
+  ollama_code:    qwen2.5-coder:14b
+  ollama_math:    deepseek-r1-distill-qwen:14b
+```
+Nota: `generate-frugal-config.ts:49` ainda usa `isMac ? 'qwen2.5:3b' : 'qwen2.5:7b'` — `qwen2.5:7b` não existe no router. **Loophole pequeno para próxima iteração** (não afecta onboarding UI directamente, só o `frugal_config` JSON guardado em DB).
 
 ### 🔴 ÚNICO PENDENTE MANUAL (Paulo)
 
