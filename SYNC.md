@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-17 03:30 UTC (Claude Code Windows — Review #2 session)
-**Versão:** v0.9.9+ Sprint B + Review #1/#2 classifier detox
-**Último commit main:** `bc4f84f` (fix: review #2 — purge toxic TUNED patterns, filter tester noise)
-**Sessão Claude Code:** #23 (repo Windows) — mooter-review #1 + #2, classifier detox, multi-device docs
+**Última sync:** 2026-04-17 08:00 UTC (Claude Code Windows — Landing redesign + Reviews)
+**Versão:** v0.9.9+ Sprint B + Landing redesign + Reviews #1-2
+**Último commit main:** `d2754a5` (fix: comprehensive polish — platform icons, scenarios, auth)
+**Sessão Claude Code:** #23 (repo Windows) — reviews #1-2, classifier detox, landing page redesign, 12 commits
 
 ---
 
@@ -224,6 +224,7 @@ Side effects: upsert em D1 `devices` table
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
 | Sessão 2026-04-17 — Review #2 + Classifier Detox | https://www.notion.so/3456f6e42bc4812e81e3dac67cb73b3f |
+| Sessão 2026-04-17 — Landing Redesign + Reviews | https://www.notion.so/3456f6e42bc481d3b8fccacf8ed8a56b |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
