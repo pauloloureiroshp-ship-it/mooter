@@ -358,6 +358,22 @@ function GeminiIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+function QwenIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#7C5CFC">
+      <text x="3" y="18" fontFamily="Arial" fontWeight="800" fontSize="16">Q</text>
+    </svg>
+  );
+}
+
+function DeepSeekIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#4D8EFF">
+      <text x="2" y="18" fontFamily="Arial" fontWeight="800" fontSize="16">D</text>
+    </svg>
+  );
+}
+
 /* -----------------------------------------------------------------
  * GitHub Icon
  * ----------------------------------------------------------------- */
@@ -628,7 +644,9 @@ function Hero() {
               <AnthropicIcon size={16} />
               <OpenAIIcon size={16} />
               <GeminiIcon size={16} />
-              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginLeft: 6 }}>+ any local model</span>
+              <QwenIcon size={16} />
+              <DeepSeekIcon size={16} />
+              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginLeft: 6 }}>+ more</span>
             </div>
           </div>
         </div>
@@ -788,6 +806,54 @@ function HowItWorks() {
             </div>
           </Reveal>
         </div>
+
+        <Reveal>
+          <div style={{
+            marginTop: '3rem',
+            padding: '2rem',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 16,
+            overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1.5rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              How a prompt flows through mooter
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+            }}>
+              {[
+                { label: 'Your prompt', color: 'var(--text)', bg: 'rgba(255,255,255,0.06)' },
+                null,
+                { label: 'classify.js', sub: '167 patterns · <50ms', color: 'var(--accent)', bg: 'rgba(232,136,138,0.08)' },
+                null,
+                { label: 'Profile match', sub: 'HW + SW + Sub + Budget', color: 'var(--tier-1)', bg: 'rgba(90,155,212,0.08)' },
+                null,
+                { label: 'Route', sub: 'T0/T1/T2/T3', color: 'var(--tier-2)', bg: 'rgba(168,139,212,0.08)' },
+                null,
+                { label: 'Best model responds', color: 'var(--green)', bg: 'rgba(76,175,106,0.08)' },
+              ].map((item, i) => item === null ? (
+                <svg key={i} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="14 7 19 12 14 17" /></svg>
+              ) : (
+                <div key={i} style={{
+                  padding: '0.6rem 1rem',
+                  borderRadius: 10,
+                  border: `1px solid ${item.color}33`,
+                  background: item.bg,
+                  textAlign: 'center',
+                  minWidth: 100,
+                }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: item.color }}>{item.label}</div>
+                  {item.sub && <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>{item.sub}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -1073,6 +1139,123 @@ function PromptCard({ p, index, active, onClick }: {
         <div className="pc-cost" style={{ color: p.tierColor }}>{p.thisCost}</div>
       </div>
     </div>
+  );
+}
+
+function SavingsCalculator() {
+  const [prompts, setPrompts] = useState(200);
+
+  const promptOptions = [50, 100, 200, 500];
+
+  // Cost per prompt at Opus rate (rough estimate)
+  const opusCostPerPrompt = 0.045;
+  const monthlyOpusCost = prompts * 30 * opusCostPerPrompt;
+
+  // With mooter: weighted average
+  const mooterCostPerPrompt = (0.84 * 0) + (0.05 * 0.001) + (0.08 * 0.003) + (0.03 * 0.015);
+  const monthlyMooterCost = prompts * 30 * mooterCostPerPrompt;
+
+  const savings = monthlyOpusCost - monthlyMooterCost;
+  const savingsPct = monthlyOpusCost > 0 ? Math.round((savings / monthlyOpusCost) * 100) : 0;
+
+  return (
+    <section className="section section-alt">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">How much could you save?</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">Adjust your usage below. No signup required.</p>
+        </Reveal>
+
+        <Reveal>
+          <div style={{
+            maxWidth: 700,
+            margin: '2rem auto 0',
+            padding: '2rem',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 16,
+          }}>
+            {/* Prompts per day */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+                Prompts per day: <strong style={{ color: 'var(--text)' }}>{prompts}</strong>
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {promptOptions.map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setPrompts(v)}
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      borderRadius: 8,
+                      border: prompts === v ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      background: prompts === v ? 'rgba(232,136,138,0.1)' : 'var(--surface-2)',
+                      color: prompts === v ? 'var(--accent)' : 'var(--muted)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--mono)',
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Results */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
+              gap: '1rem',
+              alignItems: 'center',
+              marginTop: '1.5rem',
+              padding: '1.5rem',
+              background: 'var(--bg)',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Without mooter</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--tier-3)', textDecoration: 'line-through', opacity: 0.7 }}>
+                  ${monthlyOpusCost.toFixed(0)}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>per month</div>
+              </div>
+
+              <div style={{ fontSize: '1.5rem', color: 'var(--accent)' }}>&rarr;</div>
+
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>With mooter</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
+                  ${monthlyMooterCost.toFixed(0)}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>per month</div>
+              </div>
+            </div>
+
+            <div style={{
+              textAlign: 'center',
+              marginTop: '1rem',
+              padding: '0.75rem',
+              borderRadius: 8,
+              background: 'rgba(76,175,106,0.08)',
+              border: '1px solid rgba(76,175,106,0.15)',
+            }}>
+              <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
+                ${savings.toFixed(0)} saved/month
+              </span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--muted)', marginLeft: '0.75rem' }}>
+                ({savingsPct}% reduction)
+              </span>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
   );
 }
 
@@ -1678,6 +1861,7 @@ export default function Page() {
         <ProblemSection />
         <HowItWorks />
         <ModelsSection />
+        <SavingsCalculator />
         <DemoSection />
         <BeforeAfterSection />
         <ComparisonSection />
