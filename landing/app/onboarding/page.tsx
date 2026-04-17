@@ -44,6 +44,52 @@ function estimateMonthlySavings({ hw, subs, budget }: { hw: string; subs: string
   return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only (cloud-only routing)`;
 }
 
+// Ollama model recommendation based on detected / selected hardware
+type OllamaRec = { model: string; size: string; note: string } | null;
+function recommendOllamaModel(hwValue: string, gpuName: string | null): OllamaRec {
+  const gpuLower = (gpuName || '').toLowerCase();
+
+  // Cloud/other have no local Ollama use case
+  if (hwValue === 'cloud' || hwValue === 'other' || !hwValue) return null;
+
+  // Mac M-series: unified memory, coder variant
+  if (hwValue === 'mac_m_series') {
+    return {
+      model: 'qwen2.5-coder:7b',
+      size: '4.7 GB',
+      note: 'Coder variant — best for Claude Code T0 tasks on Apple Silicon.',
+    };
+  }
+
+  // High-VRAM NVIDIA (3090/4090/5090/A-series): larger model
+  if (hwValue === 'linux_nvidia' || hwValue === 'windows_nvidia') {
+    const isHighEnd = /rtx\s?(30[789]0|40[789]0|50[789]0)|a(40|100)|h100/.test(gpuLower);
+    if (isHighEnd) {
+      return {
+        model: 'qwen2.5-coder:14b',
+        size: '8.8 GB',
+        note: 'Your GPU has headroom — 14B gives noticeably better reasoning than 7B.',
+      };
+    }
+    return {
+      model: 'qwen2.5-coder:7b',
+      size: '4.7 GB',
+      note: 'Good balance for mid-tier NVIDIA GPUs. Upgrade to 14B later if you have VRAM.',
+    };
+  }
+
+  // AMD: drivers are trickier — smaller model
+  if (hwValue === 'linux_amd' || hwValue === 'windows_amd') {
+    return {
+      model: 'qwen2.5:3b',
+      size: '1.9 GB',
+      note: '3B model is reliable on AMD via ROCm. Coder variants can be finicky here.',
+    };
+  }
+
+  return null;
+}
+
 function estimateExplanation({ hw, subs, budget }: { hw: string; subs: string[]; budget: number }): string {
   const hasLocal = LOCAL_HW.has(hw);
   const hasMax = subs.includes('Claude Max');
@@ -347,7 +393,13 @@ export default function OnboardingPage() {
               ))}
             </ChipGroup>
 
-            <FieldLabel>Which AI subscriptions do you have?</FieldLabel>
+            <FieldLabel>Which AI providers do you already use?</FieldLabel>
+            <p style={{
+              fontSize: '0.78rem', color: 'var(--muted)',
+              margin: '-6px 0 10px', lineHeight: 1.5,
+            }}>
+              Your API keys stay on your machine after install — this just tells mooter which tiers to route to.
+            </p>
             <ChipGroup>
               {SUB_OPTIONS.map(s => (
                 <Chip key={s} active={subs.includes(s)} onClick={() => toggleSub(s)}>
@@ -355,6 +407,71 @@ export default function OnboardingPage() {
                 </Chip>
               ))}
             </ChipGroup>
+
+            {/* Ollama recommendation — only when hardware is local */}
+            {(() => {
+              const rec = recommendOllamaModel(hw, detected.gpuName);
+              if (!rec) return null;
+              return (
+                <div style={{
+                  marginTop: 20,
+                  padding: '16px 18px',
+                  background: 'var(--surface-2)',
+                  border: '1px dashed color-mix(in srgb, var(--tier-0) 40%, var(--border))',
+                  borderRadius: 'var(--r-md)',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    marginBottom: 10,
+                  }}>
+                    <span style={{
+                      fontSize: '0.68rem',
+                      color: 'var(--tier-0)',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      background: 'color-mix(in srgb, var(--tier-0) 14%, transparent)',
+                      padding: '3px 8px',
+                      borderRadius: 'var(--r-sm)',
+                    }}>
+                      Free · Local
+                    </span>
+                    <span style={{
+                      fontSize: '0.82rem', color: 'var(--text)',
+                      fontWeight: 600,
+                    }}>
+                      Ollama recommended for your hardware
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'flex', alignItems: 'baseline', gap: 10,
+                    marginBottom: 8, flexWrap: 'wrap',
+                  }}>
+                    <code style={{
+                      fontSize: '0.95rem',
+                      fontFamily: 'var(--mono)',
+                      color: 'var(--accent)',
+                      fontWeight: 600,
+                    }}>
+                      {rec.model}
+                    </code>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--muted)',
+                      fontFamily: 'var(--mono)',
+                    }}>
+                      {rec.size}
+                    </span>
+                  </div>
+                  <p style={{
+                    margin: 0, fontSize: '0.78rem',
+                    color: 'var(--muted)', lineHeight: 1.55,
+                  }}>
+                    {rec.note} The installer auto-pulls this on step 2 — nothing to do here.
+                  </p>
+                </div>
+              );
+            })()}
 
             <FieldLabel>Monthly token budget (beyond existing subs)?</FieldLabel>
             <ChipGroup>
