@@ -42,6 +42,31 @@ function osIcon(os: string): string {
   return '\uD83D\uDC27';
 }
 
+function osLabel(os: string): string {
+  if (os === 'win32') return 'Windows';
+  if (os === 'darwin') return 'macOS';
+  if (os === 'linux') return 'Linux';
+  return os || 'unknown';
+}
+
+// ── Shared card style ────────────────────────────────────────────────────
+const card: React.CSSProperties = {
+  background: 'var(--surface-2)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r-md)',
+  padding: 24,
+  marginBottom: 16,
+};
+
+const sectionHeading: React.CSSProperties = {
+  fontSize: '0.75rem',
+  color: 'var(--muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  margin: '0 0 12px',
+  fontWeight: 600,
+};
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,8 +97,12 @@ export default function SettingsPage() {
 
   if (!profile) {
     return (
-      <div className="dashboard-card">
-        <p>No profile found. <a href="/onboarding">Complete onboarding</a> to set up your profile.</p>
+      <div style={card}>
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
+          No profile found.{' '}
+          <a href="/onboarding" style={{ color: 'var(--accent)' }}>Complete onboarding</a>{' '}
+          to set up your profile.
+        </p>
       </div>
     );
   }
@@ -82,59 +111,93 @@ export default function SettingsPage() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-      {/* Profile section */}
-      <div className="dashboard-card" style={{ marginBottom: 16 }}>
-        <h2>Profile</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+      {/* ── Profile ─────────────────────────────────────────────── */}
+      <div style={card}>
+        <h2 style={sectionHeading}>🐮 Profile</h2>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
           <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            background: 'var(--accent)', color: '#000',
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'var(--accent)', color: 'var(--bg)',
             display: 'grid', placeItems: 'center',
-            fontSize: '1.25rem', fontWeight: 700,
+            fontSize: '1.4rem', fontWeight: 700,
+            fontFamily: 'var(--font)',
+            flexShrink: 0,
           }}>
             {profile.email[0].toUpperCase()}
           </div>
-          <div>
-            <div style={{ fontSize: '1rem', fontWeight: 500 }}>{profile.email}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: '1rem', fontWeight: 600,
+              color: 'var(--text)', fontFamily: 'var(--font)',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {profile.email}
+            </div>
             {profile.experience_level && (
-              <div className="dashboard-muted" style={{ fontSize: '0.85rem' }}>{profile.experience_level}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 2 }}>
+                {profile.experience_level}
+              </div>
             )}
           </div>
         </div>
+
         {profile.github_username && (
-          <div className="dashboard-field" style={{ marginBottom: 8 }}>
-            <span className="dashboard-label">GitHub</span>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 0', borderTop: '1px solid var(--border)',
+            fontSize: '0.85rem',
+          }}>
+            <span style={{ color: 'var(--muted)' }}>GitHub</span>
             <a
               href={`https://github.com/${profile.github_username}`}
               target="_blank"
               rel="noopener"
-              style={{ color: 'var(--accent)', fontSize: '0.9rem', textDecoration: 'none' }}
+              style={{ color: 'var(--accent)', fontFamily: 'var(--mono)' }}
             >
               @{profile.github_username}
             </a>
           </div>
         )}
+
+        {profile.hardware_tier && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 0', borderTop: '1px solid var(--border)',
+            fontSize: '0.85rem',
+          }}>
+            <span style={{ color: 'var(--muted)' }}>Hardware</span>
+            <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>
+              {profile.hardware_tier.replace(/_/g, ' ')}
+            </span>
+          </div>
+        )}
+
         <button
           onClick={handleLogout}
+          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.15)')}
+          onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
           style={{
-            marginTop: 12,
+            marginTop: 16,
             padding: '8px 20px',
-            background: 'rgba(244,71,71,0.1)',
-            border: '1px solid rgba(244,71,71,0.3)',
-            borderRadius: 6,
-            color: '#f47373',
+            background: 'rgba(212,106,90,0.08)',
+            border: '1px solid rgba(212,106,90,0.25)',
+            borderRadius: 'var(--r-sm)',
+            color: 'var(--tier-3)',
             cursor: 'pointer',
             fontSize: '0.85rem',
             fontWeight: 500,
+            fontFamily: 'var(--font)',
+            transition: 'filter 0.15s ease',
           }}
         >
           Logout
         </button>
       </div>
 
-      {/* Subscriptions section */}
-      <div className="dashboard-card" style={{ marginBottom: 16 }}>
-        <h2>Subscriptions</h2>
+      {/* ── Subscriptions ───────────────────────────────────────── */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Subscriptions</h2>
         {profile.subscriptions && profile.subscriptions.length > 0 ? (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {profile.subscriptions.map((sub, i) => (
@@ -142,38 +205,78 @@ export default function SettingsPage() {
             ))}
           </div>
         ) : (
-          <p className="dashboard-muted" style={{ fontSize: '0.9rem' }}>
-            No subscriptions detected — run <code>mooter-doctor</code> to auto-detect
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
+            No subscriptions detected — run{' '}
+            <code style={{
+              fontFamily: 'var(--mono)',
+              color: 'var(--accent)',
+              background: 'var(--bg)',
+              padding: '2px 6px',
+              borderRadius: 'var(--r-sm)',
+              fontSize: '0.8rem',
+            }}>
+              mooter-doctor
+            </code>{' '}
+            to auto-detect
           </p>
         )}
       </div>
 
-      {/* Devices section */}
-      <div className="dashboard-card">
-        <h2>Devices</h2>
+      {/* ── Devices ─────────────────────────────────────────────── */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Devices</h2>
         {devices.length === 0 ? (
-          <p className="dashboard-muted">No devices registered yet.</p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
+            No devices registered yet.
+          </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {devices.map((d, i) => (
               <div key={d.device_id} style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                padding: '0.75rem', background: 'var(--surface-2)', borderRadius: 8,
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: 12,
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-sm)',
                 border: '1px solid var(--border)',
               }}>
-                <span style={{ fontSize: '1.2rem' }}>{osIcon(d.os_type)}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>
-                    {d.device_name || 'Unknown device'}
-                    {i === 0 && <span className="status-pill ok" style={{ marginLeft: 8 }}>Latest</span>}
+                <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>{osIcon(d.os_type)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: '0.9rem', fontWeight: 500,
+                    color: 'var(--text)',
+                    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                  }}>
+                    <span style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: 200,
+                    }}>
+                      {d.device_name || 'Unknown device'}
+                    </span>
+                    {i === 0 && <span className="status-pill ok">Latest</span>}
                   </div>
-                  <div className="dashboard-muted" style={{ fontSize: '0.8rem' }}>
-                    {d.hw_tier?.replace(/_/g, ' ')} {d.frugal_version && `· v${d.frugal_version}`}
+                  <div style={{
+                    fontSize: '0.75rem', color: 'var(--muted)',
+                    fontFamily: 'var(--mono)', marginTop: 2,
+                  }}>
+                    {osLabel(d.os_type)} · {d.hw_tier?.replace(/_/g, ' ')}
+                    {d.frugal_version && ` · v${d.frugal_version}`}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.85rem' }}>{d.decisions_count || 0} prompts</div>
-                  <div className="dashboard-muted" style={{ fontSize: '0.75rem' }}>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text)',
+                    fontFamily: 'var(--mono)',
+                  }}>
+                    {(d.decisions_count || 0).toLocaleString()}
+                  </div>
+                  <div style={{
+                    fontSize: '0.7rem',
+                    color: 'var(--muted)',
+                    marginTop: 2,
+                  }}>
                     {d.last_sync_at ? timeAgo(d.last_sync_at) : 'never'}
                   </div>
                 </div>
