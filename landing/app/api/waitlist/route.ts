@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Send magic link for auth — best effort, don't block on failure
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://frugal.dev';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://mooter.ai';
   const redirectTo = `${siteUrl}/auth/callback`;
   await signInWithEmail(email, redirectTo).catch(() => {});
 

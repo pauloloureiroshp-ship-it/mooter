@@ -388,12 +388,12 @@ function GitHubIcon({ size = 20 }: { size?: number }) {
  * Install Block
  * ───────────────────────────────────────────────────────────── */
 
-const INSTALL_NPM = 'npm install -g @mooter/cli';
 const INSTALL_BASH =
   'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
+const INSTALL_NPM = 'npx @mooter/cli install';
 
 function InstallBlock({ compact = false }: { compact?: boolean }) {
-  const [mode, setMode] = useState<'npm' | 'bash'>('npm');
+  const [mode, setMode] = useState<'npm' | 'bash'>('bash');
   const [copied, setCopied] = useState(false);
   const cmd = mode === 'npm' ? INSTALL_NPM : INSTALL_BASH;
 
@@ -478,13 +478,13 @@ function Nav() {
           <a href="#how" onClick={scrollTo('how')}>How it works</a>
           <a href="#demo" onClick={scrollTo('demo')}>Demo</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
-          <a href="#install" onClick={scrollTo('install')}>Pricing</a>
+          <a href="#install" onClick={scrollTo('install')}>Install</a>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <a
             href="https://github.com/pauloloureiroshp-ship-it/frugal"
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
             aria-label="GitHub"
           >
@@ -517,16 +517,9 @@ function Hero() {
   return (
     <section id="top" className="hero">
       <div className="container" style={{ maxWidth: 1100 }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr',
-          gap: '3rem',
-          alignItems: 'center',
-          paddingTop: '6rem',
-          paddingBottom: '3rem',
-        }}>
+        <div className="hero-grid">
           {/* Left column — copy */}
-          <div style={{ maxWidth: 620 }}>
+          <div className="hero-copy" style={{ maxWidth: 620 }}>
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -555,7 +548,7 @@ function Hero() {
               <strong style={{ color: 'var(--text)' }}>90% savings. One install.</strong>
             </p>
 
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
+            <div className="hero-cta-row" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
               <a
                 href="#install"
                 onClick={scrollTo('install')}
@@ -575,7 +568,7 @@ function Hero() {
             </div>
 
             {/* Metrics row */}
-            <div style={{
+            <div className="hero-metrics" style={{
               display: 'flex',
               gap: '2rem',
               marginTop: '2.5rem',
@@ -856,7 +849,10 @@ function PromptCard({ p, index, active, onClick }: {
     <div
       className={`prompt-card ${active ? 'prompt-card-active' : ''}`}
       style={{ '--pc-color': p.tierColor, '--pc-bg': p.tierBg } as React.CSSProperties}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
     >
       <div className="pc-left">
         <div className="pc-num" style={{ color: p.tierColor }}>{String(index + 1).padStart(2, '0')}</div>
@@ -1341,7 +1337,7 @@ function TrustSection() {
               </svg>
             </div>
             <h3>Community-driven</h3>
-            <p>5,030+ routing decisions improve the algorithm for everyone. Weekly pattern updates. Collective intelligence.</p>
+            <p>Thousands of routing decisions improve the algorithm for everyone. Weekly pattern updates. Collective intelligence.</p>
           </Reveal>
         </div>
       </div>
@@ -1401,8 +1397,8 @@ function Footer() {
           </span>
         </div>
         <div className="footer-links">
-          <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://mooter.ai" target="_blank" rel="noopener">Docs</a>
+          <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/pauloloureiroshp-ship-it/frugal#readme" target="_blank" rel="noopener noreferrer">Docs</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
           <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
         </div>

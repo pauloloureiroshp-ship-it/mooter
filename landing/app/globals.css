@@ -314,6 +314,28 @@ main       { display: flex; flex-direction: column; }
   align-items: center;
 }
 
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+  padding-top: 6rem;
+  padding-bottom: 3rem;
+}
+
+@media (max-width: 900px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    padding-top: 4rem;
+    text-align: center;
+  }
+  .hero-grid .hero-copy { max-width: 100%; }
+  .hero-grid .hero-copy h1,
+  .hero-grid .hero-copy p { text-align: center; margin-left: auto; margin-right: auto; }
+  .hero-grid .hero-metrics { justify-content: center; }
+  .hero-grid .hero-cta-row { justify-content: center; }
+}
+
 .hero-logo-mark {
   display: flex;
   justify-content: center;
