@@ -373,6 +373,18 @@ function GeminiIcon({ size = 20 }: { size?: number }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+ * GitHub Icon
+ * ───────────────────────────────────────────────────────────── */
+
+function GitHubIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+    </svg>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
  * Install Block
  * ───────────────────────────────────────────────────────────── */
 
@@ -435,12 +447,28 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * NAV
+ * NAV — scroll-aware, cleaner
  * ───────────────────────────────────────────────────────────── */
 
 function Nav() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
-    <nav className="nav">
+    <nav
+      className="nav"
+      style={{
+        background: scrolled ? 'rgba(10,10,10,0.92)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(12px)' : 'none',
+        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
+        transition: 'background 0.3s, backdrop-filter 0.3s, border-bottom 0.3s',
+      }}
+    >
       <div className="container nav-row">
         <a href="#top" onClick={scrollTo('top')} className="brand">
           <MooterLogo size={28} />
@@ -450,19 +478,28 @@ function Nav() {
           <a href="#how" onClick={scrollTo('how')}>How it works</a>
           <a href="#demo" onClick={scrollTo('demo')}>Demo</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
-          <a href="#install" onClick={scrollTo('install')}>Install</a>
+          <a href="#install" onClick={scrollTo('install')}>Pricing</a>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <a
+            href="https://github.com/pauloloureiroshp-ship-it/frugal"
+            target="_blank"
+            rel="noopener"
+            style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
+            aria-label="GitHub"
+          >
+            <GitHubIcon size={18} />
+          </a>
           <button
             onClick={loginWithGitHub}
-            className="btn btn-sm"
-            style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'inherit', cursor: 'pointer' }}
+            className="btn btn-sm btn-ghost"
+            style={{ cursor: 'pointer' }}
           >
             Sign in
           </button>
           <a href="#install" onClick={scrollTo('install')} className="btn btn-sm btn-primary"
             style={{ background: '#FF6B35', color: '#000', fontWeight: 700 }}>
-            Install free
+            Get started
           </a>
         </div>
       </div>
@@ -471,7 +508,7 @@ function Nav() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * HERO — Brutal, enorme, minimalista
+ * HERO — Two-column, aspirational
  * ───────────────────────────────────────────────────────────── */
 
 function Hero() {
@@ -479,119 +516,161 @@ function Hero() {
 
   return (
     <section id="top" className="hero">
-      <div className="container narrow hero-inner">
+      <div className="container" style={{ maxWidth: 1100 }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: '3rem',
+          alignItems: 'center',
+          paddingTop: '6rem',
+          paddingBottom: '3rem',
+        }}>
+          {/* Left column — copy */}
+          <div style={{ maxWidth: 620 }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.35rem 0.9rem',
+              borderRadius: 999,
+              border: '1px solid rgba(255,107,53,0.25)',
+              background: 'rgba(255,107,53,0.06)',
+              fontSize: '0.78rem',
+              color: 'var(--accent)',
+              marginBottom: '1.5rem',
+              fontWeight: 500,
+            }}>
+              Open Source · MIT License · Free forever
+            </div>
 
-        {/* Big cow mark — like Ollama shows their llama in the hero */}
-        <div className="hero-logo-mark" aria-hidden="true">
-          <MooterLogo size={96} />
+            <h1 className="hero-title" style={{ textAlign: 'left', maxWidth: 580 }}>
+              Your AI bills are{' '}
+              <span style={{ color: 'var(--accent)' }}>10x what they should be.</span>
+            </h1>
+
+            <p className="hero-subtitle" style={{ textAlign: 'left', maxWidth: 540, marginLeft: 0 }}>
+              Mooter classifies every Claude Code prompt in &lt;50ms and routes it to the right model.
+              Ollama when it&apos;s free. Haiku when it&apos;s cheap.
+              Opus only when it matters.{' '}
+              <strong style={{ color: 'var(--text)' }}>90% savings. One install.</strong>
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
+              <a
+                href="#install"
+                onClick={scrollTo('install')}
+                className="btn btn-primary"
+                style={{ background: '#FF6B35', color: '#000', fontWeight: 700, padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
+              >
+                Get started
+              </a>
+              <a
+                href="#demo"
+                onClick={scrollTo('demo')}
+                className="btn btn-ghost"
+                style={{ padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
+              >
+                See it in action
+              </a>
+            </div>
+
+            {/* Metrics row */}
+            <div style={{
+              display: 'flex',
+              gap: '2rem',
+              marginTop: '2.5rem',
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                  <AnimatedNumber value={stats.prompt_count} suffix="+" />
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>prompts routed</div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
+                  ~<AnimatedNumber value={stats.savings_pct} decimals={0} suffix="%" />
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>avg savings</div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>6</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>models supported</div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--accent)' }}>&lt;50ms</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>classification</div>
+              </div>
+            </div>
+
+            {live && (
+              <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--muted)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
+                live stats from community hub
+              </div>
+            )}
+          </div>
+
+          {/* Right column — Router Animation */}
+          <div>
+            <RouterAnimation />
+            <div className="hero-providers" style={{ marginTop: '1rem' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginRight: 8 }}>routes to:</span>
+              <OllamaIcon size={16} />
+              <AnthropicIcon size={16} />
+              <OpenAIIcon size={16} />
+              <GeminiIcon size={16} />
+              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginLeft: 6 }}>+ any local model</span>
+            </div>
+          </div>
         </div>
-
-        <h1 className="hero-title">
-          Stop paying Opus rates<br />
-          <span style={{ color: 'var(--accent)' }}>for git commits.</span>
-        </h1>
-
-        <p className="hero-subtitle">
-          Mooter classifies every Claude Code prompt in &lt;50ms and routes it to the cheapest model that handles it.
-          Ollama when it&apos;s trivial. Haiku when it&apos;s medium. Opus only when nothing else will do.{' '}
-          <strong style={{ color: 'var(--text)' }}>89.9% savings. One install. Zero config changes.</strong>
-        </p>
-
-        <InstallBlock />
-
-        {/* Live router animation — the "show" */}
-        <RouterAnimation />
-
-        <div className="hero-counters">
-          <div className="counter-item">
-            <span className="counter-num">
-              <AnimatedNumber value={stats.prompt_count} />
-            </span>
-            <span className="counter-label">prompts routed</span>
-          </div>
-          <div className="counter-item">
-            <span className="counter-num">
-              <AnimatedNumber value={stats.savings_pct} decimals={1} suffix="%" />
-            </span>
-            <span className="counter-label">avg savings</span>
-          </div>
-          <div className="counter-item">
-            <span className="counter-num">
-              ${stats.savings_usd.toFixed(2)}
-            </span>
-            <span className="counter-label">saved by community</span>
-          </div>
-        </div>
-
-        <div className="hero-providers">
-          <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginRight: 8 }}>routes to:</span>
-          <OllamaIcon size={16} />
-          <AnthropicIcon size={16} />
-          <OpenAIIcon size={16} />
-          <GeminiIcon size={16} />
-          <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginLeft: 6 }}>+ any local model</span>
-        </div>
-
-        {live && (
-          <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--muted)' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
-            live stats from community hub
-          </div>
-        )}
       </div>
     </section>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────
- * THE TRUTH — Simples, honesto
+ * SOCIAL PROOF — Trusted by developers
  * ───────────────────────────────────────────────────────────── */
 
-function TruthSection() {
-  const { stats } = useCommunityStats();
-
+function SocialProofSection() {
   return (
     <section className="section truth-section">
       <div className="container">
-
-        {/* Dramatic savings counter */}
         <Reveal>
-          <div className="truth-counter-area">
-            <div className="truth-counter-eyebrow">community · live savings</div>
-            <div className="truth-counter-big">
-              $<AnimatedNumber value={stats.savings_usd} decimals={2} />
-            </div>
-            <div className="truth-counter-sub">
-              <div><span><AnimatedNumber value={stats.prompt_count} /></span> prompts routed</div>
-              <div><span><AnimatedNumber value={stats.savings_pct} decimals={1} suffix="%" /></span> avg saved</div>
-              <div><span><AnimatedNumber value={stats.user_count} /></span> devs</div>
-            </div>
-          </div>
+          <h2 className="section-h2" style={{ fontSize: '1.6rem' }}>
+            84% of your prompts are trivial.{' '}
+            <span style={{ color: 'var(--accent)' }}>You&apos;re paying Opus rates for all of them.</span>
+          </h2>
         </Reveal>
 
-        {/* The headline stat */}
-        <Reveal>
-          <div className="truth-headline">
-            <div>84% of Claude prompts don&apos;t need Opus.</div>
-            <div style={{ color: 'var(--accent)' }}>They&apos;re getting it anyway.</div>
-          </div>
-        </Reveal>
-
-        {/* Animated tier distribution */}
-        <div className="tier-bars">
+        <div className="tier-bars" style={{ marginTop: '2.5rem' }}>
           <AnimatedTierBar pct={84} color="var(--tier-0)" label="T0 · Ollama" cost="0¢ / free" delay={0} />
           <AnimatedTierBar pct={5}  color="var(--tier-1)" label="T1 · Haiku"  cost="~$0.001" delay={160} />
           <AnimatedTierBar pct={8}  color="var(--tier-2)" label="T2 · Sonnet" cost="~$0.003" delay={320} />
           <AnimatedTierBar pct={3}  color="var(--tier-3)" label="T3 · Opus"   cost="~$0.015" delay={480} />
         </div>
 
+        <Reveal>
+          <p style={{
+            textAlign: 'center',
+            color: 'var(--muted)',
+            fontSize: '0.85rem',
+            marginTop: '1.5rem',
+            maxWidth: 500,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}>
+            Distribution based on community data. Every bar is a prompt tier that mooter routes automatically.
+          </p>
+        </Reveal>
       </div>
     </section>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────
- * HOW IT ROUTES — 3 passos clean
+ * HOW IT WORKS — Visual pipeline, 3 cards
  * ───────────────────────────────────────────────────────────── */
 
 function HowItWorks() {
@@ -603,37 +682,50 @@ function HowItWorks() {
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            Mooter reads your environment once at install time, then uses three signals to make the right routing decision for every prompt — without ever sending your prompt to a classifier LLM. Pure regex. Pure speed.
+            Pure regex classification. No LLM cost to route. No network call. Every prompt is classified locally before it ever leaves your machine.
           </p>
         </Reveal>
 
         <div className="steps-grid stagger">
           <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
-            <div className="step-num">1</div>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
             <div className="step-title">Classify</div>
             <div className="step-desc">
-              102 regex patterns read your prompt in &lt;50ms. No LLM cost to route.
-              Trivial UI tweaks, renames, commit messages → T0. Architecture, security → T3.
+              165+ regex patterns read your prompt. No LLM cost. No network call.
+              UI tweaks, renames, commit messages get T0. Architecture, security get T3. No ambiguity.
             </div>
           </Reveal>
 
           <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
-            <div className="step-num">2</div>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" />
+                <polyline points="21 16 21 21 16 21" /><line x1="15" y1="15" x2="21" y2="21" />
+                <line x1="4" y1="4" x2="9" y2="9" />
+              </svg>
+            </div>
             <div className="step-title">Route</div>
             <div className="step-desc">
-              T0 (free Ollama) first. T3 (Opus) only when genuinely complex.
-              Hardware-aware, subscription-aware, budget-aware.
-              One install. Config auto-updates forever.
+              T0 goes to Ollama (free). T1 to Haiku. T2 to Sonnet. T3 to Opus.
+              Hardware-aware and subscription-aware. Knows your GPU, your plan, your budget.
             </div>
           </Reveal>
 
           <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
-            <div className="step-num">3</div>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a8 8 0 0 1 8 8c0 3.5-2 6-4 7.5V20H8v-2.5C6 16 4 13.5 4 10a8 8 0 0 1 8-8z" />
+                <line x1="9" y1="22" x2="15" y2="22" />
+              </svg>
+            </div>
             <div className="step-title">Learn</div>
             <div className="step-desc">
-              Every routing decision feeds anonymous deltas to the community hub.
-              Weekly pattern updates push to all users.
-              Your router learns. It improves. It stays current.
+              Every decision improves the community model. Anonymous deltas only.
+              Weekly pattern updates push to all users. Gets smarter while you sleep.
             </div>
           </Reveal>
         </div>
@@ -643,7 +735,7 @@ function HowItWorks() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * DEMO — Manter EXACTAMENTE como estava
+ * DEMO — KEEP EXACTLY AS-IS
  * ───────────────────────────────────────────────────────────── */
 
 type PromptDemo = {
@@ -943,7 +1035,7 @@ function DemoSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * BEFORE / AFTER
+ * BEFORE / AFTER — KEEP AS-IS
  * ───────────────────────────────────────────────────────────── */
 
 function BeforeAfterSection() {
@@ -964,7 +1056,7 @@ function BeforeAfterSection() {
                 <span style={{ marginLeft: 8 }}>Without Mooter</span>
               </div>
               <div className="ba-body">
-                <div>$ git commit -m "fix login button color"</div>
+                <div>$ git commit -m &quot;fix login button color&quot;</div>
                 <div className="ba-dim">  claude-3-opus-20240229</div>
                 <div className="ba-cost-bad">  → $0.048 · 6.2s</div>
                 <hr className="ba-divider" />
@@ -997,7 +1089,7 @@ function BeforeAfterSection() {
                 <span style={{ marginLeft: 8 }}>With Mooter 🐮</span>
               </div>
               <div className="ba-body">
-                <div>$ git commit -m "fix login button color"</div>
+                <div>$ git commit -m &quot;fix login button color&quot;</div>
                 <div className="ba-tier0">  T0 → Ollama qwen2.5:3b (local)</div>
                 <div className="ba-cost-good">  → $0.000 · 0.4s · saved $0.048</div>
                 <hr className="ba-divider" />
@@ -1042,7 +1134,7 @@ function BeforeAfterSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * COMPARE TABLE
+ * COMPARE TABLE — updated header copy
  * ───────────────────────────────────────────────────────────── */
 
 function ComparisonSection() {
@@ -1126,7 +1218,7 @@ function ComparisonSection() {
     <section id="compare" className="section section-alt">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Not a proxy. Not a wrapper.<br />Something new.</h2>
+          <h2 className="section-h2">Not a proxy. Not a wrapper. A new paradigm.</h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
@@ -1200,19 +1292,77 @@ function ComparisonSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * INSTALL
+ * TRUST — Open source, privacy-first
+ * ───────────────────────────────────────────────────────────── */
+
+function TrustSection() {
+  return (
+    <section className="section">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">Open source. Privacy-first. No lock-in.</h2>
+        </Reveal>
+
+        <div className="pillars stagger" style={{ marginTop: '2.5rem' }}>
+          <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <h3>MIT Licensed</h3>
+            <p>Full source on GitHub. Fork it. Modify it. Ship it. No strings attached.</p>
+          </Reveal>
+
+          <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <h3>Zero telemetry</h3>
+            <p>Your prompts never leave your machine. Anonymous routing deltas only. Opt-out anytime.</p>
+          </Reveal>
+
+          <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+            </div>
+            <h3>No proxy</h3>
+            <p>If mooter crashes, Claude Code still works. Zero blast radius. Zero interception. No man-in-the-middle.</p>
+          </Reveal>
+
+          <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <h3>Community-driven</h3>
+            <p>5,030+ routing decisions improve the algorithm for everyone. Weekly pattern updates. Collective intelligence.</p>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * INSTALL — Streamlined
  * ───────────────────────────────────────────────────────────── */
 
 function InstallSection() {
   return (
-    <section id="install" className="section">
+    <section id="install" className="section section-alt">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">One command. 60 seconds. Done.</h2>
+          <h2 className="section-h2">Start saving in 60 seconds.</h2>
         </Reveal>
         <Reveal>
           <p className="section-sub">
-            Mooter auto-scans your hardware, detects Ollama, generates your routing config, and installs the hook. Zero config files. Zero environment variables. Just run it.
+            One command installs everything. Auto-detects your hardware, configures Ollama, sets up the hook. No config files. No environment variables. Just run it.
           </p>
         </Reveal>
 
@@ -1221,28 +1371,14 @@ function InstallSection() {
         </Reveal>
 
         <Reveal>
-          <div className="pillars stagger" style={{ marginTop: '3rem' }}>
-            <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
-              <div className="pillar-icon">🔍</div>
-              <h3>Auto-scans your setup</h3>
-              <p>GPU, RAM, Ollama models, API keys — Mooter reads your environment and generates the optimal config for your machine.</p>
-            </Reveal>
-            <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
-              <div className="pillar-icon">🔌</div>
-              <h3>Hooks into Claude Code</h3>
-              <p>Official UserPromptSubmit hook. No interception. No API keys exposed. Runs locally before any request leaves your machine.</p>
-            </Reveal>
-            <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
-              <div className="pillar-icon">✅</div>
-              <h3>Self-tests on install</h3>
-              <p>Smoke test verifies classification works, Ollama responds, and the statusline updates. Tells you exactly what to fix if anything fails.</p>
-            </Reveal>
-            <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
-              <div className="pillar-icon">🔒</div>
-              <h3>Zero config after</h3>
-              <p>Your routing profile is generated once and updated automatically. You never edit a config file. Never decide again.</p>
-            </Reveal>
-          </div>
+          <p style={{
+            textAlign: 'center',
+            color: 'var(--muted)',
+            fontSize: '0.8rem',
+            marginTop: '1.5rem',
+          }}>
+            Requires: Node.js ≥18 · Claude Code · Ollama (recommended for free local routing)
+          </p>
         </Reveal>
       </div>
     </section>
@@ -1250,7 +1386,7 @@ function InstallSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * FOOTER
+ * FOOTER — Expanded three-column
  * ───────────────────────────────────────────────────────────── */
 
 function Footer() {
@@ -1266,12 +1402,12 @@ function Footer() {
         </div>
         <div className="footer-links">
           <a href="https://github.com/pauloloureiroshp-ship-it/frugal" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://mooter.ai" target="_blank" rel="noopener">mooter.ai</a>
+          <a href="https://mooter.ai" target="_blank" rel="noopener">Docs</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
           <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
         </div>
         <div className="footer-hint">
-          Built in São Paulo 🐮 · MIT License · 2026
+          Built with 🐮 in São Paulo · MIT License · 2026
         </div>
       </div>
     </footer>
@@ -1288,11 +1424,12 @@ export default function Page() {
       <main>
         <Nav />
         <Hero />
-        <TruthSection />
+        <SocialProofSection />
         <HowItWorks />
         <DemoSection />
         <BeforeAfterSection />
         <ComparisonSection />
+        <TrustSection />
         <InstallSection />
         <Footer />
       </main>
