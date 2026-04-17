@@ -163,8 +163,8 @@ function AnimatedNumber({
  * ───────────────────────────────────────────────────────────── */
 
 const ROUTER_DEMOS = [
-  { prompt: 'make this button blue', tier: 'T0', model: 'Ollama · free', ms: 9, cost: '$0.000', conf: 98, color: '#22c55e' },
-  { prompt: 'rename userInfo to currentUser', tier: 'T0', model: 'Ollama · free', ms: 7, cost: '$0.000', conf: 99, color: '#22c55e' },
+  { prompt: 'make this button blue', tier: 'T0', model: 'qwen2.5:3b · free', ms: 9, cost: '$0.000', conf: 98, color: '#22c55e' },
+  { prompt: 'rename userInfo to currentUser', tier: 'T0', model: 'qwen2.5:3b · free', ms: 7, cost: '$0.000', conf: 99, color: '#22c55e' },
   { prompt: 'app crashes only on mobile', tier: 'T2', model: 'Sonnet', ms: 21, cost: '$0.010', conf: 87, color: '#a78bfa' },
   { prompt: 'write unit tests for auth', tier: 'T1', model: 'Haiku', ms: 14, cost: '$0.001', conf: 91, color: '#3b82f6' },
   { prompt: 'redesign DB for multi-tenant', tier: 'T3', model: 'Opus · guardrail', ms: 28, cost: '$0.050', conf: 97, color: '#f87171' },
@@ -378,6 +378,18 @@ function GitHubIcon({ size = 20 }: { size?: number }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+ * VS Code Icon
+ * ───────────────────────────────────────────────────────────── */
+
+function VSCodeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#007ACC">
+      <path d="M17.583.063a1.5 1.5 0 0 0-.875.375L8.29 7.689 3.375 3.95a1 1 0 0 0-1.293.082L.32 5.752a1 1 0 0 0 0 1.415L4.167 12 .32 16.833a1 1 0 0 0 0 1.415l1.762 1.72a1 1 0 0 0 1.293.082L8.29 16.31l8.418 7.252a1.5 1.5 0 0 0 .875.375A1.5 1.5 0 0 0 19.083 22.5V1.5A1.5 1.5 0 0 0 17.583.063zM17.5 18.27l-6.82-6.27 6.82-6.27z" />
+    </svg>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
  * Install Block
  * ───────────────────────────────────────────────────────────── */
 
@@ -432,7 +444,7 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
       <div className="install-cmd" onClick={copy} style={{ maxWidth: 580 }}>{cmd}</div>
       <div className="install-note">
         {mode === 'npm'
-          ? 'Requires: Node.js ≥18 · Claude Code · Ollama (recommended)'
+          ? 'Requires: Node.js ≥18 · Claude Code · local models recommended'
           : 'Requires: Node.js ≥18 · Claude Code · curl'}
       </div>
     </div>
@@ -464,11 +476,12 @@ function Nav() {
     >
       <div className="container nav-row">
         <a href="#top" onClick={scrollTo('top')} className="brand">
-          <MooterLogo size={36} />
+          <MooterLogo size={42} />
           <span className="nav-brand-name">mooter</span>
         </a>
         <div className="nav-links">
           <a href="#how" onClick={scrollTo('how')}>How it works</a>
+          <a href="#models" onClick={scrollTo('models')}>Models</a>
           <a href="#demo" onClick={scrollTo('demo')}>Demo</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
           <a href="#install" onClick={scrollTo('install')}>Install</a>
@@ -501,7 +514,7 @@ function Nav() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * HERO — Two-column, aspirational
+ * HERO — Two-column, no big cow logo
  * ───────────────────────────────────────────────────────────── */
 
 function Hero() {
@@ -513,11 +526,6 @@ function Hero() {
         <div className="hero-grid">
           {/* Left column — copy */}
           <div className="hero-copy" style={{ maxWidth: 620 }}>
-            {/* Big cow logo — hero mark */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <MooterLogo size={120} />
-            </div>
-
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -535,15 +543,31 @@ function Hero() {
             </div>
 
             <h1 className="hero-title" style={{ textAlign: 'left', maxWidth: 580 }}>
-              Your AI bills are{' '}
-              <span style={{ color: 'var(--accent)' }}>10x what they should be.</span>
+              Stop wasting tokens on{' '}
+              <span style={{ color: 'var(--accent)' }}>simple tasks.</span>
             </h1>
 
-            <p className="hero-subtitle" style={{ textAlign: 'left', maxWidth: 540, marginLeft: 0 }}>
-              Mooter classifies every Claude Code prompt in &lt;50ms and routes it to the right model.
-              Ollama when it&apos;s free. Haiku when it&apos;s cheap.
-              Opus only when it matters.{' '}
-              <strong style={{ color: 'var(--text)' }}>90% savings. One install.</strong>
+            <p className="hero-subtitle" style={{ textAlign: 'left', maxWidth: 560, marginLeft: 0 }}>
+              Vibe coders are giving up on their projects because AI is too expensive.
+              Anthropic defaults to Opus — the most powerful and expensive model — for everything.
+              Even renaming a variable. Mooter routes each prompt to the right model automatically.{' '}
+              <strong style={{ color: 'var(--text)' }}>Same quality. Up to 90% less cost.</strong>
+            </p>
+
+            <p style={{
+              textAlign: 'left',
+              fontSize: '0.82rem',
+              color: 'var(--muted)',
+              marginTop: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              flexWrap: 'wrap',
+            }}>
+              Works with Claude Code on Windows &amp; macOS terminals.{' '}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <VSCodeIcon size={14} /> VS Code extension available.
+              </span>
             </p>
 
             <div className="hero-cta-row" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
@@ -585,7 +609,7 @@ function Hero() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>avg savings</div>
               </div>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>6</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>10+</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>models supported</div>
               </div>
               <div style={{ textAlign: 'left' }}>
@@ -621,25 +645,352 @@ function Hero() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * SOCIAL PROOF — Trusted by developers
+ * PROBLEM — You're already paying
  * ───────────────────────────────────────────────────────────── */
 
-function SocialProofSection() {
+function ProblemSection() {
   return (
-    <section className="section truth-section">
+    <section className="section section-alt">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2" style={{ fontSize: '1.6rem' }}>
-            84% of your prompts are trivial.{' '}
-            <span style={{ color: 'var(--accent)' }}>You&apos;re paying Opus rates for all of them.</span>
+          <h2 className="section-h2">
+            You&apos;re already paying.{' '}
+            <span style={{ color: 'var(--accent)' }}>You&apos;re just not optimizing.</span>
           </h2>
         </Reveal>
 
-        <div className="tier-bars" style={{ marginTop: '2.5rem' }}>
-          <AnimatedTierBar pct={84} color="var(--tier-0)" label="T0 · Ollama" cost="0¢ / free" delay={0} />
-          <AnimatedTierBar pct={5}  color="var(--tier-1)" label="T1 · Haiku"  cost="~$0.001" delay={160} />
-          <AnimatedTierBar pct={8}  color="var(--tier-2)" label="T2 · Sonnet" cost="~$0.003" delay={320} />
-          <AnimatedTierBar pct={3}  color="var(--tier-3)" label="T3 · Opus"   cost="~$0.015" delay={480} />
+        <div className="steps-grid stagger" style={{ marginTop: '2.5rem' }}>
+          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+            </div>
+            <div className="step-title">The subscription trap</div>
+            <div className="step-desc">
+              You pay $20-200/month for Claude Pro or Max. Like Netflix, you pay whether you use it wisely or not.
+              Opus consumes your rate limit on tasks a $0 local model handles equally well.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            </div>
+            <div className="step-title">The default model lie</div>
+            <div className="step-desc">
+              Claude Code defaults to Opus 4.6 for everything — renaming variables, fixing typos,
+              generating commit messages. That&apos;s like hiring a brain surgeon to put on a band-aid.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </div>
+            <div className="step-title">Tokens are the new oil</div>
+            <div className="step-desc">
+              Every token wasted on a trivial prompt is a token you can&apos;t use for the complex
+              architecture decisions that actually need Opus. Mooter maximizes your creative capacity.
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * HOW IT WORKS — Visual pipeline, 4 steps
+ * ───────────────────────────────────────────────────────────── */
+
+function HowItWorks() {
+  return (
+    <section id="how" className="section">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">Intelligent routing in &lt;50ms. Zero LLM cost.</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Every prompt goes through a 4-stage pipeline before reaching any model.
+            Pure regex — no API calls, no network, no cost to classify.
+          </p>
+        </Reveal>
+
+        <div className="steps-grid stagger" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: '2.5rem' }}>
+          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
+            <div className="step-title">1. Classify</div>
+            <div className="step-desc">
+              167 regex patterns analyze your prompt in &lt;50ms. Complexity, risk signals,
+              keywords — all evaluated locally on your machine.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <div className="step-title">2. Profile Match</div>
+            <div className="step-desc">
+              Your hardware (GPU, RAM), software (installed models), subscription (Pro, Max, API),
+              and budget ceiling are factored into the routing decision. Every config is unique to you.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" />
+                <polyline points="21 16 21 21 16 21" /><line x1="15" y1="15" x2="21" y2="21" />
+                <line x1="4" y1="4" x2="9" y2="9" />
+              </svg>
+            </div>
+            <div className="step-title">3. Route</div>
+            <div className="step-desc">
+              The prompt goes to the optimal model. Local models for trivial tasks ($0).
+              Haiku for quick explanations. Sonnet for debugging.
+              Opus only when architecture, security, or production code demands it.
+            </div>
+          </Reveal>
+
+          <Reveal className="step-card" style={{ '--i': 3 } as React.CSSProperties}>
+            <div className="step-num" style={{ fontSize: '1.5rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <div className="step-title">4. Verify</div>
+            <div className="step-desc">
+              Response quality is guaranteed: if the cheaper model can&apos;t handle it,
+              mooter&apos;s guardrails escalate automatically. Critical prompts (deploy, migrations, secrets)
+              are ALWAYS routed to Opus. No compromise.
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * MODELS — Every model has a specialty
+ * ───────────────────────────────────────────────────────────── */
+
+function ModelsSection() {
+  const tiers = [
+    {
+      tier: 'T0',
+      name: 'Local (Free, your hardware)',
+      color: 'var(--tier-0, #4ec9b0)',
+      models: [
+        { name: 'qwen2.5:3b', desc: 'Fast triage, renames, commit messages', req: '2GB VRAM' },
+        { name: 'qwen2.5-coder:14b', desc: 'Code-specialized local model', req: '9GB VRAM' },
+        { name: 'qwen3:30b', desc: 'Advanced local reasoning', req: '20GB VRAM' },
+        { name: 'gemma4:e4b', desc: 'Google\'s latest, multimodal', req: '8GB VRAM' },
+        { name: 'deepseek-r1:7b', desc: 'Math and logic specialist', req: '4GB VRAM' },
+      ],
+    },
+    {
+      tier: 'T1',
+      name: 'Claude Haiku',
+      color: 'var(--tier-1, #3b82f6)',
+      costLabel: '~$0.001/prompt',
+      desc: 'Quick explanations, docstrings, simple transforms',
+      models: [],
+    },
+    {
+      tier: 'T2',
+      name: 'Claude Sonnet',
+      color: 'var(--tier-2, #a78bfa)',
+      costLabel: '~$0.003/prompt',
+      desc: 'Bug investigation, root cause analysis, technical planning',
+      models: [],
+    },
+    {
+      tier: 'T3',
+      name: 'Claude Opus',
+      color: 'var(--tier-3, #f87171)',
+      costLabel: '~$0.015/prompt',
+      desc: 'Architecture decisions, security reviews, production deploys',
+      guardrail: 'Guardrail-protected: migrations, secrets, and deploys are ALWAYS routed here',
+      models: [],
+    },
+  ];
+
+  return (
+    <section id="models" className="section section-alt">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">Every model has a specialty. Mooter knows which one.</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            Opus isn&apos;t always the best choice. Each model excels at different complexity levels.
+          </p>
+        </Reveal>
+
+        <div style={{ display: 'grid', gap: '1.25rem', marginTop: '2.5rem' }}>
+          {tiers.map((t) => (
+            <Reveal key={t.tier}>
+              <div style={{
+                background: 'var(--surface, rgba(255,255,255,0.03))',
+                border: `1px solid ${t.color}22`,
+                borderRadius: 12,
+                padding: '1.25rem 1.5rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: t.models.length > 0 ? '1rem' : 0 }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: 6,
+                    border: `1px solid ${t.color}`,
+                    color: t.color,
+                    fontFamily: 'var(--mono)',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                  }}>
+                    {t.tier}
+                  </span>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>{t.name}</span>
+                  {t.costLabel && (
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '0.78rem', color: t.color }}>{t.costLabel}</span>
+                  )}
+                </div>
+
+                {t.desc && (
+                  <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: t.models.length > 0 ? '0 0 0.75rem' : 0 }}>
+                    {t.desc}
+                  </p>
+                )}
+
+                {t.guardrail && (
+                  <p style={{
+                    color: t.color,
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    marginTop: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    {t.guardrail}
+                  </p>
+                )}
+
+                {t.models.length > 0 && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '0.6rem',
+                  }}>
+                    {t.models.map((m) => (
+                      <div key={m.name} style={{
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: 8,
+                        padding: '0.6rem 0.8rem',
+                      }}>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: '0.82rem', fontWeight: 600, color: t.color }}>
+                          {m.name}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>{m.desc}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--faint, #555)', marginTop: 3 }}>{m.req}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * TERMINAL DEMO — Before / After side by side
+ * ───────────────────────────────────────────────────────────── */
+
+function TerminalDemoSection() {
+  return (
+    <section className="section">
+      <div className="container">
+        <Reveal>
+          <h2 className="section-h2">See the difference in your terminal.</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            With mooter installed, every prompt shows exactly which model was used, why, and how much you saved.
+          </p>
+        </Reveal>
+
+        <div className="ba-wrapper" style={{ marginTop: '2rem' }}>
+          <Reveal>
+            <div className="ba-panel ba-panel-before">
+              <div className="ba-title-bar ba-title-bar-before">
+                <span className="ba-dot ba-dot-red" />
+                <span className="ba-dot ba-dot-yellow" />
+                <span className="ba-dot ba-dot-green" />
+                <span style={{ marginLeft: 8 }}>Without mooter</span>
+              </div>
+              <div className="ba-body">
+                <div>$ claude &quot;rename userId to accountId&quot;</div>
+                <div className="ba-dim">  → claude-opus-4-6 (default)</div>
+                <div className="ba-cost-bad">  → $0.048 · 6.2s</div>
+                <hr className="ba-divider" />
+                <div>$ claude &quot;fix the button color&quot;</div>
+                <div className="ba-dim">  → claude-opus-4-6 (default)</div>
+                <div className="ba-cost-bad">  → $0.039 · 5.4s</div>
+                <hr className="ba-divider" />
+                <div className="ba-cost-bad" style={{ fontWeight: 700, marginTop: 8 }}>
+                  Session: $0.087 · all Opus · 11.6s
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal>
+            <div className="ba-panel ba-panel-after">
+              <div className="ba-title-bar ba-title-bar-after">
+                <span className="ba-dot ba-dot-orange" />
+                <span className="ba-dot ba-dot-green" />
+                <span className="ba-dot ba-dot-green" />
+                <span style={{ marginLeft: 8 }}>With mooter</span>
+              </div>
+              <div className="ba-body">
+                <div>$ claude &quot;rename userId to accountId&quot;</div>
+                <div className="ba-tier0">  T0 · qwen2.5:3b (local) · 0.3s · $0.000</div>
+                <div className="ba-cost-good">  saved $0.048</div>
+                <hr className="ba-divider" />
+                <div>$ claude &quot;fix the button color&quot;</div>
+                <div className="ba-tier0">  T0 · qwen2.5-coder:14b (local) · 0.5s · $0.000</div>
+                <div className="ba-cost-good">  saved $0.039</div>
+                <hr className="ba-divider" />
+                <div className="ba-cost-good" style={{ fontWeight: 700, marginTop: 8 }}>
+                  Session: $0.000 · 72% faster · $0.087 saved
+                </div>
+              </div>
+              <div className="ba-statusline">
+                T0·qwen2.5:3b · 0.3s · $0.087 saved
+              </div>
+            </div>
+          </Reveal>
         </div>
 
         <Reveal>
@@ -648,78 +999,14 @@ function SocialProofSection() {
             color: 'var(--muted)',
             fontSize: '0.85rem',
             marginTop: '1.5rem',
-            maxWidth: 500,
+            maxWidth: 600,
             marginLeft: 'auto',
             marginRight: 'auto',
           }}>
-            Distribution based on community data. Every bar is a prompt tier that mooter routes automatically.
+            Mooter adds a statusline to your terminal showing real-time routing decisions,
+            cumulative savings, and model selection — all without changing how you work.
           </p>
         </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────
- * HOW IT WORKS — Visual pipeline, 3 cards
- * ───────────────────────────────────────────────────────────── */
-
-function HowItWorks() {
-  return (
-    <section id="how" className="section">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">Three signals. One decision. &lt;50ms.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Pure regex classification. No LLM cost to route. No network call. Every prompt is classified locally before it ever leaves your machine.
-          </p>
-        </Reveal>
-
-        <div className="steps-grid stagger">
-          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </div>
-            <div className="step-title">Classify</div>
-            <div className="step-desc">
-              165+ regex patterns read your prompt. No LLM cost. No network call.
-              UI tweaks, renames, commit messages get T0. Architecture, security get T3. No ambiguity.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" />
-                <polyline points="21 16 21 21 16 21" /><line x1="15" y1="15" x2="21" y2="21" />
-                <line x1="4" y1="4" x2="9" y2="9" />
-              </svg>
-            </div>
-            <div className="step-title">Route</div>
-            <div className="step-desc">
-              T0 goes to Ollama (free). T1 to Haiku. T2 to Sonnet. T3 to Opus.
-              Hardware-aware and subscription-aware. Knows your GPU, your plan, your budget.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2a8 8 0 0 1 8 8c0 3.5-2 6-4 7.5V20H8v-2.5C6 16 4 13.5 4 10a8 8 0 0 1 8-8z" />
-                <line x1="9" y1="22" x2="15" y2="22" />
-              </svg>
-            </div>
-            <div className="step-title">Learn</div>
-            <div className="step-desc">
-              Every decision improves the community model. Anonymous deltas only.
-              Weekly pattern updates push to all users. Gets smarter while you sleep.
-            </div>
-          </Reveal>
-        </div>
       </div>
     </section>
   );
@@ -765,8 +1052,8 @@ const PROMPTS: PromptDemo[] = [
       matchedPatterns: ['TRIVIAL: colour/style change', 'TRIVIAL: CSS animation', 'short_prompt (<50 chars)', 'no_risk_signals'],
       latencyMs: 9,
     },
-    model: 'Ollama · qwen2.5:3b',
-    modelShort: 'Ollama',
+    model: 'qwen2.5:3b · local',
+    modelShort: 'Local',
     costPer1k: '$0.000',
     thisCost: '$0.000',
     opusCost: '$0.050',
@@ -1080,11 +1367,11 @@ function BeforeAfterSection() {
                 <span className="ba-dot ba-dot-orange" />
                 <span className="ba-dot ba-dot-green" />
                 <span className="ba-dot ba-dot-green" />
-                <span style={{ marginLeft: 8 }}>With Mooter 🐮</span>
+                <span style={{ marginLeft: 8 }}>With Mooter</span>
               </div>
               <div className="ba-body">
                 <div>$ git commit -m &quot;fix login button color&quot;</div>
-                <div className="ba-tier0">  T0 → Ollama qwen2.5:3b (local)</div>
+                <div className="ba-tier0">  T0 → qwen2.5:3b (local)</div>
                 <div className="ba-cost-good">  → $0.000 · 0.4s · saved $0.048</div>
                 <hr className="ba-divider" />
                 <div>$ explain this TypeError in console</div>
@@ -1092,17 +1379,17 @@ function BeforeAfterSection() {
                 <div className="ba-cost-good">  → $0.001 · 1.1s · saved $0.050</div>
                 <hr className="ba-divider" />
                 <div>$ rename var userInfo to currentUser</div>
-                <div className="ba-tier0">  T0 → Ollama qwen2.5:3b (local)</div>
+                <div className="ba-tier0">  T0 → qwen2.5:3b (local)</div>
                 <div className="ba-cost-good">  → $0.000 · 0.3s · saved $0.039</div>
                 <hr className="ba-divider" />
                 <div>$ refactor auth module for multi-tenant</div>
                 <div className="ba-tier3">  T3 → Claude Opus (guardrail: architecture)</div>
-                <div className="ba-accent">  → $0.052 · 8.1s · correct model ✓</div>
+                <div className="ba-accent">  → $0.052 · 8.1s · correct model</div>
                 <hr className="ba-divider" />
                 <div className="ba-cost-good" style={{ fontWeight: 700 }}>Session total: $0.053 · saved $0.137 (72%)</div>
               </div>
               <div className="ba-statusline">
-                🐮 T0·Oll·qwen · 0.3s · 📍 $0.137 saved
+                T0·qwen2.5:3b · 0.3s · $0.137 saved
               </div>
             </div>
           </Reveal>
@@ -1112,14 +1399,14 @@ function BeforeAfterSection() {
           <div className="ba-total ba-total-before">
             <div style={{ color: 'var(--muted)', marginBottom: 4, fontSize: '0.78rem' }}>WITHOUT MOOTER</div>
             <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f47373' }}>$0.190</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · 4× Opus · avg 6.7s</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · 4x Opus · avg 6.7s</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent)', fontSize: '1.5rem' }}>→</div>
           <div className="ba-total ba-total-after">
             <div style={{ color: 'var(--muted)', marginBottom: 4, fontSize: '0.78rem' }}>WITH MOOTER</div>
             <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--green)' }}>$0.053</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · right model each · avg 2.5s</div>
-            <div className="ba-savings-pill">✓ 72% saved · faster on 3 of 4</div>
+            <div className="ba-savings-pill">72% saved · faster on 3 of 4</div>
           </div>
         </Reveal>
       </div>
@@ -1159,7 +1446,7 @@ function ComparisonSection() {
       plain: { val: '✅ Yes', note: 'Direct to Anthropic' },
     },
     {
-      feature: 'Local model (Ollama) support',
+      feature: 'Local model support',
       mooter: { val: '✅ Yes', win: true, note: 'Hardware-aware, auto-configured' },
       litelLm: { val: '✅ Yes', note: 'Manual config required' },
       openRouter: { val: '❌ No', note: 'Cloud only' },
@@ -1203,7 +1490,7 @@ function ComparisonSection() {
       mooter: { val: '✅ Free', win: true, note: 'MIT open source' },
       litelLm: { val: '✅ Free', note: 'OSS, self-host' },
       openRouter: { val: '⚠️ Markup', note: 'Adds 5–10% to API cost' },
-      cursor: { val: '💳 $20/mo', note: 'Subscription required' },
+      cursor: { val: '$20/mo', note: 'Subscription required' },
       plain: { val: '✅ Free', note: 'API costs still apply' },
     },
   ];
@@ -1228,7 +1515,7 @@ function ComparisonSection() {
                 <tr>
                   <th className="comp-th-feat">Feature</th>
                   <th className="comp-th comp-th-frugal">
-                    <span className="comp-th-name">🐮 Mooter</span>
+                    <span className="comp-th-name">Mooter</span>
                     <span className="comp-th-sub">mooter.ai</span>
                   </th>
                   <th className="comp-th">
@@ -1286,56 +1573,65 @@ function ComparisonSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * TRUST — Open source, privacy-first
+ * PERSONALIZATION — Configured for you
  * ───────────────────────────────────────────────────────────── */
 
-function TrustSection() {
+function PersonalizationSection() {
   return (
     <section className="section">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Open source. Privacy-first. No lock-in.</h2>
+          <h2 className="section-h2">Configured for you. Not a generic setup.</h2>
+        </Reveal>
+        <Reveal>
+          <p className="section-sub">
+            At install time, mooter scans your entire environment and generates a routing profile unique to your machine.
+          </p>
         </Reveal>
 
         <div className="pillars stagger" style={{ marginTop: '2.5rem' }}>
           <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" />
+                <line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" />
+                <line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" />
+                <line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" />
+                <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
               </svg>
             </div>
-            <h3>MIT Licensed</h3>
-            <p>Full source on GitHub. Fork it. Modify it. Ship it. No strings attached.</p>
+            <h3>Hardware scan</h3>
+            <p>GPU model, VRAM, RAM, CPU cores. Determines which local models your machine can run efficiently.</p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
               </svg>
             </div>
-            <h3>Zero telemetry</h3>
-            <p>Your prompts never leave your machine. Anonymous routing deltas only. Opt-out anytime.</p>
+            <h3>Software detection</h3>
+            <p>Installed local models, available APIs, IDE setup. Automatically configures the best model for each tier.</p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
               </svg>
             </div>
-            <h3>No proxy</h3>
-            <p>If mooter crashes, Claude Code still works. Zero blast radius. Zero interception. No man-in-the-middle.</p>
+            <h3>Subscription mapping</h3>
+            <p>Claude Max, Pro, or API? Each has different rate limits and economics. Mooter optimizes for YOUR plan.</p>
           </Reveal>
 
           <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             </div>
-            <h3>Community-driven</h3>
-            <p>Thousands of routing decisions improve the algorithm for everyone. Weekly pattern updates. Collective intelligence.</p>
+            <h3>Budget ceiling</h3>
+            <p>Set a daily/monthly budget. Mooter respects it — more aggressive local routing when you&apos;re near the limit.</p>
           </Reveal>
         </div>
       </div>
@@ -1344,7 +1640,7 @@ function TrustSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * INSTALL — Streamlined
+ * INSTALL — Terminal + VS Code. One install.
  * ───────────────────────────────────────────────────────────── */
 
 function InstallSection() {
@@ -1352,17 +1648,55 @@ function InstallSection() {
     <section id="install" className="section section-alt">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Start saving in 60 seconds.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            One command installs everything. Auto-detects your hardware, configures Ollama, sets up the hook. No config files. No environment variables. Just run it.
-          </p>
+          <h2 className="section-h2">Terminal + VS Code. One install.</h2>
         </Reveal>
 
-        <Reveal>
-          <InstallBlock />
-        </Reveal>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '2rem',
+          marginTop: '2rem',
+          alignItems: 'start',
+        }}>
+          <Reveal>
+            <InstallBlock />
+          </Reveal>
+
+          <Reveal>
+            <div style={{
+              background: 'var(--surface, rgba(255,255,255,0.03))',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 12,
+              padding: '2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem',
+              textAlign: 'center',
+            }}>
+              <VSCodeIcon size={48} />
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+                VS Code Extension
+              </h3>
+              <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0, maxWidth: 320 }}>
+                Real-time statusline showing model, tier, cost, and savings for every prompt.
+                See routing decisions without leaving your editor.
+              </p>
+              <span style={{
+                display: 'inline-block',
+                padding: '0.3rem 0.8rem',
+                borderRadius: 6,
+                background: 'rgba(0,122,204,0.1)',
+                border: '1px solid rgba(0,122,204,0.25)',
+                color: '#007ACC',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+              }}>
+                Available on VS Code Marketplace
+              </span>
+            </div>
+          </Reveal>
+        </div>
 
         <Reveal>
           <p style={{
@@ -1371,7 +1705,7 @@ function InstallSection() {
             fontSize: '0.8rem',
             marginTop: '1.5rem',
           }}>
-            Requires: Node.js ≥18 · Claude Code · Ollama (recommended for free local routing)
+            Works on Windows &amp; macOS · Node.js ≥18 · Claude Code required
           </p>
         </Reveal>
       </div>
@@ -1401,7 +1735,7 @@ function Footer() {
           <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
         </div>
         <div className="footer-hint">
-          Built with 🐮 in São Paulo · MIT License · 2026
+          Built with care in Portugal · MIT License · 2026
         </div>
       </div>
     </footer>
@@ -1418,12 +1752,14 @@ export default function Page() {
       <main>
         <Nav />
         <Hero />
-        <SocialProofSection />
+        <ProblemSection />
         <HowItWorks />
+        <ModelsSection />
+        <TerminalDemoSection />
         <DemoSection />
         <BeforeAfterSection />
         <ComparisonSection />
-        <TrustSection />
+        <PersonalizationSection />
         <InstallSection />
         <Footer />
       </main>
