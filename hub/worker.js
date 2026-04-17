@@ -2,11 +2,12 @@
  * worker.js — mooter-hub Cloudflare Worker entry point.
  *
  * Routes:
- *   POST /api/delta    — receive anonymized delta from mooter instances
- *   GET  /api/stats    — public aggregate statistics
- *   GET  /api/models   — model catalog + community-detected models
- *   GET  /api/version  — current versions of router-tuning and catalog
- *   GET  /health       — simple health check
+ *   POST /api/delta             — receive anonymized delta from mooter instances
+ *   POST /api/device-heartbeat  — receive install/lifecycle heartbeat from devices
+ *   GET  /api/stats             — public aggregate statistics
+ *   GET  /api/models            — model catalog + community-detected models
+ *   GET  /api/version           — current versions of router-tuning and catalog
+ *   GET  /health                — simple health check
  *
  * Cron triggers:
  *   hourly  → aggregate deltas into stats
@@ -19,6 +20,7 @@ import { handleStats } from './routes/stats';
 import { handleModels } from './routes/models';
 import { handleVersion } from './routes/version';
 import { handleSubmitEvents, handleAggregateStats } from './routes/events';
+import { handleHeartbeat } from './routes/heartbeat';
 import { runAggregate } from './jobs/aggregate';
 import { runGenerate } from './jobs/generate';
 import { runNotify } from './jobs/notify';
@@ -45,6 +47,9 @@ export default {
       switch (path) {
         case '/api/delta':
           response = await handleDelta(request, env);
+          break;
+        case '/api/device-heartbeat':
+          response = await handleHeartbeat(request, env);
           break;
         case '/api/stats':
           response = await handleStats(request, env);

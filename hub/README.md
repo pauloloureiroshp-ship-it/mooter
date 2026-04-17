@@ -46,4 +46,19 @@ npx wrangler deploy
 npx wrangler d1 migrations apply frugal-hub-db
 ```
 
+**Deploy order — ALWAYS apply migrations BEFORE deploying the worker.**
+Running `wrangler deploy` without applying pending migrations first will leave
+routes returning 500 errors when they hit tables that don't yet exist.
+
+Recommended sequence when adding a migration:
+```bash
+# 1. Apply migration to remote D1 (production)
+npx wrangler d1 migrations apply frugal-hub-db --remote
+# 2. Verify applied
+npx wrangler d1 migrations list frugal-hub-db --remote
+# 3. Deploy worker
+npx wrangler deploy
+```
+
 Note: `002_frugal_events.sql` is created but not yet applied (scheduled for Sprint 3).
+`007_device_heartbeats.sql` powers `POST /api/device-heartbeat` (install telemetry).

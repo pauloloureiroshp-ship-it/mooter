@@ -348,6 +348,149 @@ else
   ok "subscription profile already configured — skipping wizard"
 fi
 
+# 7A. Device ID — ensure ~/.frugal/device.id exists (required for heartbeat + telemetry)
+DEVICE_DIR="$HOME/.frugal"
+DEVICE_ID_FILE="$DEVICE_DIR/device.id"
+if [ ! -f "$DEVICE_ID_FILE" ]; then
+  do_run "mkdir -p '$DEVICE_DIR'"
+  if command -v uuidgen >/dev/null 2>&1; then
+    do_run "uuidgen | tr '[:upper:]' '[:lower:]' > '$DEVICE_ID_FILE'"
+  elif command -v node >/dev/null 2>&1; then
+    do_run "node -e \"console.log(require('crypto').randomUUID())\" > '$DEVICE_ID_FILE'"
+  elif [ -r /proc/sys/kernel/random/uuid ]; then
+    do_run "cat /proc/sys/kernel/random/uuid > '$DEVICE_ID_FILE'"
+  else
+    warn "cannot generate device.id — no uuidgen/node/random source"
+  fi
+  [ -f "$DEVICE_ID_FILE" ] && ok "device.id generated: $(cat "$DEVICE_ID_FILE" 2>/dev/null | head -c 8)…"
+else
+  ok "device.id already exists"
+fi
+
+# 7B. Device profile — hardware + software auto-detect (non-interactive, idempotent)
+if [ -f "$ROUTER_DIR/setup-profile.js" ]; then
+  say "capturing device profile (hardware + software)…"
+  do_run "node '$ROUTER_DIR/setup-profile.js' --non-interactive" 2>&1 | tail -3 || true
+  ok "device-profile.json written"
+fi
+
+# 7C. Sprint B feature flags — shadow mode, per-user adaptation, implicit signals, ground-truth oracle
+MOOTER_MODE_PATH="$ROUTER_DIR/.mooter-mode.json"
+if [ ! -f "$MOOTER_MODE_PATH" ]; then
+  say "enabling Sprint B feature flags…"
+  if [ "$DRY_RUN" = "0" ]; then
+    cat > "$MOOTER_MODE_PATH" <<FLAGS_EOF
+{
+  "shadow_mode": true,
+  "shadow_sample_rate": 0.05,
+  "per_user_adaptation": true,
+  "implicit_signals": true,
+  "ground_truth_oracle": true,
+  "_enabled_at": "install.sh",
+  "_enabled_on": "$(date +%Y-%m-%d)"
+}
+FLAGS_EOF
+  fi
+  ok "feature flags enabled (.mooter-mode.json)"
+else
+  ok "feature flags already configured"
+fi
+
+# 7D. Ollama enrichment — pull nomic-embed-text for KNN similarity (small, always safe)
+if command -v ollama >/dev/null 2>&1; then
+  if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
+    say "pulling nomic-embed-text (~274MB, required for KNN similarity)…"
+    do_run "ollama pull nomic-embed-text" 2>&1 | tail -2 || warn "nomic pull failed — KNN will fall back"
+  else
+    ok "nomic-embed-text already installed"
+  fi
+  # qwen3:30b is 20GB — only pull if enough RAM (>=16GB) and user wants smart T0
+  MEM_GB=0
+  if [ "$(uname)" = "Darwin" ]; then
+    MEM_GB=$(sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024/1024/1024)}')
+  elif [ "$(uname)" = "Linux" ]; then
+    MEM_GB=$(awk '/MemTotal/ {print int($2/1024/1024)}' /proc/meminfo 2>/dev/null || echo 0)
+  fi
+  if [ "$MEM_GB" -ge 16 ] && ! ollama list 2>/dev/null | grep -q "qwen3:30b"; then
+    say "RAM=${MEM_GB}GB supports qwen3:30b (T0-smart, 20GB download). Skipping by default — run manually if wanted:"
+    echo "  ollama pull qwen3:30b &"
+  fi
+fi
+
+# 7E. MCPs — filesystem + context7 via `claude mcp add` (project scope)
+if command -v claude >/dev/null 2>&1; then
+  # Only add MCPs when install.sh was invoked from inside a frugal/mooter repo
+  if [ -f "$SRC_DIR/tools/router/classify.js" ] && [ "$SRC_DIR" != "$HOME" ]; then
+    if ! (cd "$SRC_DIR" && claude mcp list 2>/dev/null | grep -q "filesystem"); then
+      say "registering MCPs (filesystem + context7) at project scope $SRC_DIR…"
+      do_run "cd '$SRC_DIR' && claude mcp add filesystem --scope project -- npx -y @modelcontextprotocol/server-filesystem '$SRC_DIR' >/dev/null 2>&1" || warn "filesystem MCP add failed"
+      do_run "cd '$SRC_DIR' && claude mcp add context7 --scope project -- npx -y @upstash/context7-mcp >/dev/null 2>&1" || warn "context7 MCP add failed"
+      ok "MCPs registered (filesystem + context7)"
+    else
+      ok "MCPs already registered in project"
+    fi
+  fi
+fi
+
+# 7F. VS Code `code` CLI symlink (macOS) — avoids requiring Cmd+Shift+P install step
+if [ "$(uname)" = "Darwin" ] && [ -d "/Applications/Visual Studio Code.app" ] && ! command -v code >/dev/null 2>&1; then
+  USER_BIN="$HOME/.local/bin"
+  if [ -d "$USER_BIN" ] && case ":$PATH:" in *":$USER_BIN:"*) true;; *) false;; esac; then
+    do_run "ln -sf '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code' '$USER_BIN/code'"
+    ok "VS Code 'code' CLI linked at $USER_BIN/code"
+  else
+    warn "VS Code installed but ~/.local/bin not in PATH — skipping symlink"
+  fi
+fi
+
+# 7G. VS Code extensions (recommended mooter set) — only if `code` exists
+if command -v code >/dev/null 2>&1; then
+  MOOTER_EXTS="anthropic.claude-code usernamehw.errorlens eamodio.gitlens aaron-bond.better-comments bradlc.vscode-tailwindcss esbenp.prettier-vscode dbaeumer.vscode-eslint davidanson.vscode-markdownlint yzhang.markdown-all-in-one"
+  INSTALLED_LIST=$(code --list-extensions 2>/dev/null || true)
+  TO_INSTALL=""
+  for ext in $MOOTER_EXTS; do
+    if ! echo "$INSTALLED_LIST" | grep -qx "$ext"; then
+      TO_INSTALL="$TO_INSTALL --install-extension $ext"
+    fi
+  done
+  if [ -n "$TO_INSTALL" ]; then
+    say "installing missing VS Code extensions…"
+    do_run "code $TO_INSTALL >/dev/null 2>&1" || warn "some VS Code extensions may have failed"
+    ok "VS Code extensions aligned with mooter set"
+  else
+    ok "VS Code mooter extensions already installed"
+  fi
+fi
+
+# 7H. Workspace file — ~/mooter.code-workspace (idempotent)
+WORKSPACE_FILE="$HOME/mooter.code-workspace"
+if [ ! -f "$WORKSPACE_FILE" ] && [ -d "$SRC_DIR/.git" ]; then
+  say "generating $WORKSPACE_FILE…"
+  if [ "$DRY_RUN" = "0" ]; then
+    cat > "$WORKSPACE_FILE" <<WS_EOF
+{
+  "folders": [
+    { "name": "mooter (repo)", "path": "$SRC_DIR" },
+    { "name": "runtime (~/.claude)", "path": "$CLAUDE_DIR" },
+    { "name": "reports", "path": "$SRC_DIR/reports" }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "git.autofetch": true
+  },
+  "extensions": {
+    "recommendations": [
+      "anthropic.claude-code", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode",
+      "eamodio.gitlens", "usernamehw.errorlens"
+    ]
+  }
+}
+WS_EOF
+  fi
+  ok "workspace generated at $WORKSPACE_FILE"
+fi
+
 # 8. macOS LaunchAgent for auto-learning backtest at 02:00 daily
 if [ "$(uname)" = "Darwin" ]; then
   LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
@@ -438,9 +581,42 @@ if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/smoke-test.js" ]; then
   SMOKE_EXIT=$?
   if [ "$SMOKE_EXIT" = "0" ]; then
     ok "smoke test passed — classifier is working"
+    SMOKE_RESULT="install_ok"
   else
     warn "smoke test had failures:"
     echo "$SMOKE_OUT" | grep "✗" | sed 's/^/    /'
+    SMOKE_RESULT="install_fail"
+  fi
+else
+  SMOKE_RESULT="install_ok"
+fi
+
+# 11. Device heartbeat — fire-and-forget ping to hub so we can see install success rate
+# Uses values written by setup-profile.js in step 7B (single source of truth).
+HUB_URL="${MOOTER_HUB_URL:-https://mooter-hub.frugal-hub.workers.dev}"
+DEVICE_PROFILE_FILE="$ROUTER_DIR/device-profile.json"
+if [ -f "$DEVICE_ID_FILE" ] && [ -f "$DEVICE_PROFILE_FILE" ] && command -v curl >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+  HEARTBEAT_BODY=$(node -e "
+    const fs=require('fs');
+    const id=fs.readFileSync('$DEVICE_ID_FILE','utf8').trim();
+    const p=JSON.parse(fs.readFileSync('$DEVICE_PROFILE_FILE','utf8'));
+    const sub=(p.subscriptions && p.subscriptions.anthropic) || 'unknown';
+    const body={
+      device_id:id,
+      event:'$SMOKE_RESULT',
+      setup_version:'install.sh@v0.9.4',
+      hw_tier:(p.hardware && p.hardware.hw_tier) || 'unknown',
+      sub_profile:sub,
+      platform:(p.hardware && p.hardware.platform) || null,
+      node_version:(p.software && p.software.node_version) || null,
+      claude_code_version:(p.software && p.software.claude_code_version) || null,
+      ts:new Date().toISOString()
+    };
+    console.log(JSON.stringify(body));
+  " 2>/dev/null)
+  if [ -n "$HEARTBEAT_BODY" ]; then
+    # Pipe body via stdin to avoid eval-injection through quoted args
+    do_run "printf '%s' '$HEARTBEAT_BODY' | curl -s -X POST -H 'Content-Type: application/json' --max-time 3 --data-binary @- '$HUB_URL/api/device-heartbeat' >/dev/null 2>&1 || true"
   fi
 fi
 
