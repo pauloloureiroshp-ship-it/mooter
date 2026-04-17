@@ -89,7 +89,68 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
 **Última actualização Cowork:** 2026-04-16 19:30 UTC
-**Estado:** 🟡 Por ler
+**Estado:** 🟢 Lido e parcialmente aplicado em sessão #25 (2026-04-17) — ver estado abaixo
+
+---
+
+### ✅ Sessão #25 — 2026-04-17 (post-crash recovery + router deep fixes)
+
+**Contexto da sessão:** PC crashou; tester offline há 3h. Paulo pediu restauro + ataque a todos os problemas acumulados.
+
+**Commits desta sessão:**
+- `0184bee` fix(router+hub): tester reliability pass + installed_fleet telemetry
+
+**Entregas:**
+
+| # | Task | Status | Nota |
+|---|---|---|---|
+| 1 | Token telemetry pipeline partido | ✅ | `update-metrics.js` criado em `~/.claude/tools/router/`; 5.04M tokens agora visíveis; saved real $33.96 (69.8%) — bem menos que os $1360 inflacionados do dashboard antigo |
+| 2 | Misrouting backlog (100 pending) | ✅ | 20/28 falsos positivos eliminados (null expected_tier skip + meta-prompt filter reforçado) |
+| 3 | Tester 5/6 Ollama models a 98-100% errors | ✅ (código) | `callOllama` patch: +keepalive 15m, timeout 120→180s, ANSI strip, stderr capture. Warmup pass adicionado. Activa a próximo restart |
+| 4 | T1 accuracy 41% | ✅ | Root cause: `generateOllamaPrompts` confiava em labels Ollama não-fiáveis. Fix: self-consistency check com classify.js |
+| 5 | P1 OAuth landing | ⏳ aguarda Paulo | Código verificado OK; falta adicionar env vars em Vercel + redeploy (ver secção abaixo) |
+| 6 | P2 device-heartbeat | ✅ (código) | Endpoint + migration 007 já existiam. Adicionado `installed_fleet` a `/api/stats` (queries `device_heartbeats` directo). Aguarda deploy |
+| 7 | Dashboard v2 | ✅ | `/mooter-summary` reescrito: separa uso real de synthetic tester, mostra 6 novas secções (tester lab, tier accuracy, model performance, A/B wins, optimizer, backlog) + Health Alerts automáticos |
+
+**Ficheiros tocados:**
+```
+~/.claude/tools/router/update-metrics.js              (novo)
+~/.claude/tools/router/mooter-summary-full.js         (novo)
+~/.claude/skills/mooter-summary/SKILL.md              (reescrito)
+~/frugal/tools/router/mooter-continuous-tester.js     (5 patches, commit 0184bee)
+~/frugal/hub/routes/stats.js                          (+installed_fleet, commit 0184bee)
+```
+
+**Problemas revelados pelo dashboard v2 (estavam escondidos):**
+1. Token telemetry pipeline simplesmente não existia (`update-metrics.js` em falta)
+2. 89.6% dos "prompts all-time" eram synthetic tester, inflacionando savings reais 10×
+3. Misrouting counter contava `expected=null` como T0 → falsos positivos
+4. `generateOllamaPrompts` gerava labels não-fiáveis → T1 accuracy artificialmente baixa
+
+### 🔴 PENDENTES para Paulo executar manualmente (Claude Code não tem acesso)
+
+1. **Restart do tester** (janela cmd preta, Ctrl+C → repeta último comando) para activar patches #2/#3/#4
+2. **Vercel OAuth** (P1 — 2 min):
+   - https://vercel.com → projecto mooter → Settings → Environment Variables → adicionar:
+     - `NEXT_PUBLIC_SUPABASE_URL` = `https://eymtobwinevywmmlmxqa.supabase.co`
+     - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = (copiar de `landing/.env.local`)
+   - Deployments → último → Redeploy
+3. **Cloudflare hub deploy** (P2):
+   ```bash
+   cd hub
+   wrangler d1 execute mooter-d1 --file migrations/007_device_heartbeats.sql --env production
+   wrangler deploy
+   ```
+
+### Após os 3 passos acima, rodar:
+```
+/mooter-summary
+```
+Esperado: Health Alerts de 10 → 0-2. Se model error rates ainda altos, stderr real é agora capturado nos logs.
+
+---
+
+### Instruções originais (referência histórica)
 
 ---
 
@@ -226,6 +287,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
 | Sessão 2026-04-17 — Review #2 + Classifier Detox | https://www.notion.so/3456f6e42bc4812e81e3dac67cb73b3f |
 | Sessão 2026-04-17 — Landing Redesign + Reviews | https://www.notion.so/3456f6e42bc481d3b8fccacf8ed8a56b |
+| Sessão 2026-04-17 — Post-crash Recovery + Router Deep Fixes (#25) | https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
