@@ -37,6 +37,26 @@ const REVIEW_STATE_PATH = path.join(SCRIPT_DIR, 'mooter-review-state.json');
 const META_PROMPT_START = /^(?:Thinking|We are (?:generating|focusing|to use|going)|We have to|Mix (?:languages|lengths|English|of)|One prompt per line|One per line|Realistic for a developer|Each prompt (?:must|should|uses|focuses|is)|Focus(?: area)?\s*:|Focus on |Guidance\s*:|Generate (?:exactly )?\d|The skills|Use one of|Prompt \d+\s*[:\-]|They must|- (?:Mix|Realistic|One prompt|Use one|Focus|Each prompt)|- (?:model-[a-z]+|[a-z]+-[a-z]+):|\d+\.\s*[a-z-]+(?:-auditor|-writer|-advocate|-matcher|-generator|-checker|-scanner|-reviewer)\s*:|IMPORTANT\s*:|Rules?\s*:|Requirements?\s*:|\/no_think|We mix (?:languages|lengths))/i;
 const META_PROMPT_CONTAINS = /specialist skills?|skills? we have|skills? per prompt|one of the specialist|must use one of|\/no_think/i;
 
+// Wilson score interval — calibrated confidence interval for a proportion.
+// Returns [low, high] at 95% confidence (z = 1.96). More accurate than normal
+// approximation at small n or extreme p. Reference: Wilson 1927;
+// recommended in Agresti-Coull (1998). Returns null when n < 1.
+function wilsonInterval(k, n, z = 1.96) {
+  if (n < 1) return null;
+  const p = k / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (p + z2 / (2 * n)) / denom;
+  const half = (z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / denom;
+  return [Math.max(0, center - half), Math.min(1, center + half)];
+}
+function fmtCI(k, n) {
+  const ci = wilsonInterval(k, n);
+  if (!ci) return 'n/a';
+  const pct = (x) => (x * 100).toFixed(0);
+  return `${pct(k / n)}% [${pct(ci[0])}-${pct(ci[1])}]`;
+}
+
 const args = process.argv.slice(2);
 const reportMode = args.includes('--report');
 const countersOnly = args.includes('--counters');
@@ -177,6 +197,29 @@ function buildSnapshot(events) {
   return snapshot;
 }
 
+// ── Staleness alert ─────────────────────────────────────────────────
+// Warns when human review has lagged behind tester data. Closes the open
+// loop identified in the best-practice audit: if reviews are skipped,
+// misrouting backlog can drift away from ground truth.
+const STALENESS_HOURS = 72;
+const STALENESS_MISROUTING_FLOOR = 10;
+function checkStaleness(state, deltaSnap) {
+  if (!state.last_review_at) return null; // first run
+  const hoursSince = (Date.now() - new Date(state.last_review_at).getTime()) / 3_600_000;
+  const misroutingCount = deltaSnap.misroutings.length;
+  if (hoursSince >= STALENESS_HOURS && misroutingCount >= STALENESS_MISROUTING_FLOOR) {
+    return { hoursSince: Math.round(hoursSince), misroutingCount };
+  }
+  return null;
+}
+function printStalenessAlert(alert) {
+  if (!alert) return;
+  console.log('');
+  console.log(`⚠️  STALENESS ALERT: ${alert.hoursSince}h since last review, ${alert.misroutingCount} new misroutings queued.`);
+  console.log(`   Threshold: >${STALENESS_HOURS}h + ≥${STALENESS_MISROUTING_FLOOR} misroutings. Review sooner to prevent label drift.`);
+  console.log('');
+}
+
 // ── Summary ─────────────────────────────────────────────────────────
 function showSummary(deltaSnap, allSnap, state, totalEvents) {
   const isFirstReview = state.review_count === 0;
@@ -200,6 +243,8 @@ function showSummary(deltaSnap, allSnap, state, totalEvents) {
     console.log('  Use --full to see all-time data.\n');
     return;
   }
+
+  printStalenessAlert(checkStaleness(state, deltaSnap));
 
   // Delta findings
   console.log('  📊 New Activity (delta):');
@@ -258,6 +303,7 @@ function showReport(deltaSnap, allSnap, state, totalEvents) {
   console.log(`# Snapshot: ${new Date().toISOString()}`);
   console.log(`# Delta: ${deltaSnap.first_event?.slice(0, 19) || 'n/a'} → ${deltaSnap.last_event?.slice(0, 19) || 'n/a'}`);
   console.log(`# Events: ${deltaSnap.total_events} new (${totalEvents} total)`);
+  printStalenessAlert(checkStaleness(state, deltaSnap));
   if (!isFirstReview) {
     console.log(`# Last review: ${state.last_review_at} (review #${state.review_count})`);
   }
@@ -294,13 +340,16 @@ function showReport(deltaSnap, allSnap, state, totalEvents) {
       else if (ab.winner === 'B') pairStats[key].wins[ab.model_b] = (pairStats[key].wins[ab.model_b] || 0) + 1;
       else pairStats[key].ties++;
     }
-    console.log('| Matchup | Results | Tests |');
-    console.log('|---------|---------|-------|');
+    console.log('| Matchup | Win rates (95% CI, Wilson) | TIE | Tests |');
+    console.log('|---------|----------------------------|-----|-------|');
     for (const [pair, data] of Object.entries(pairStats)) {
-      const results = Object.entries(data.wins).map(([m, w]) => `${m}: ${w}`).join(', ');
-      console.log(`| ${pair} | ${results}${data.ties > 0 ? `, TIE: ${data.ties}` : ''} | ${data.total} |`);
+      const winRates = Object.entries(data.wins)
+        .map(([m, w]) => `${m}: ${fmtCI(w, data.total)}`)
+        .join(', ');
+      console.log(`| ${pair} | ${winRates || '—'} | ${data.ties} | ${data.total} |`);
     }
     console.log('');
+    console.log('_CIs at 95% (z=1.96). If two models\' intervals overlap, the difference is not statistically significant._\n');
   } else {
     console.log('No new A/B tests.\n');
   }

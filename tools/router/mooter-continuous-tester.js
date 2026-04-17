@@ -161,6 +161,9 @@ let stats = {
   prompts_generated: 0,
   prompts_executed: 0,
   ab_tests_run: 0,
+  ab_judge_agree: 0,        // both swap-passes agree → strong signal
+  ab_judge_partial: 0,      // one pass is TIE → weak signal
+  ab_judge_disagree: 0,     // passes disagree → positional bias detected
   optimizer_ab_tests: 0,
   embedding_builds: 0,
   misroutings_found: 0,
@@ -406,26 +409,44 @@ function runABTest(prompt, modelA, modelB, category) {
   const judge = availableModels.find(m => m !== modelA && m !== modelB && MODEL_TIERS[m]?.speed !== 'fast')
     || 'qwen3:30b';
 
-  const judgment = callOllama(
+  // Positional-swap judge (Zheng et al. 2023, "Judging LLM-as-a-Judge", NeurIPS):
+  // Single-pass judgment has ~30% positional bias. Run twice with A/B swapped;
+  // only count a winner when both passes agree. Disagreement → TIE.
+  const judgePrompt = (respA, respB, labelA, labelB) =>
     `Compare two responses to this developer prompt. Pick the BETTER one.
 Criteria: correctness, completeness, conciseness, practical usefulness.
 
 PROMPT: "${prompt.slice(0, 300)}"
 
-RESPONSE A (${modelA}): ${resultA.output.slice(0, 400)}
+RESPONSE ${labelA}: ${respA.slice(0, 400)}
 
-RESPONSE B (${modelB}): ${resultB.output.slice(0, 400)}
+RESPONSE ${labelB}: ${respB.slice(0, 400)}
 
-Reply EXACTLY: A or B or TIE`, judge, 50
-  );
+Reply EXACTLY: ${labelA} or ${labelB} or TIE`;
 
-  let winner = 'tie';
-  if (judgment.output) {
-    const v = judgment.output.trim().toUpperCase();
-    if (v.startsWith('A')) winner = 'A';
-    else if (v.startsWith('B')) winner = 'B';
-    else winner = 'tie';
-  }
+  const parseJudgment = (out, labelA, labelB) => {
+    if (!out) return 'tie';
+    const v = out.trim().toUpperCase();
+    if (v.startsWith(labelA)) return labelA;
+    if (v.startsWith(labelB)) return labelB;
+    return 'tie';
+  };
+
+  // Pass 1: A first
+  const j1 = callOllama(judgePrompt(resultA.output, resultB.output, 'A', 'B'), judge, 50);
+  const v1 = parseJudgment(j1.output, 'A', 'B');  // 'A' | 'B' | 'tie'
+
+  // Pass 2: B first (positions swapped). Map back to original labels.
+  const j2 = callOllama(judgePrompt(resultB.output, resultA.output, 'A', 'B'), judge, 50);
+  const v2Raw = parseJudgment(j2.output, 'A', 'B');
+  const v2 = v2Raw === 'A' ? 'B' : v2Raw === 'B' ? 'A' : 'tie';  // un-swap
+
+  // Agreement rule: both passes must vote the same model. Otherwise → tie.
+  let winner;
+  let judge_agreement;
+  if (v1 === v2) { winner = v1; judge_agreement = 'agree'; }
+  else if (v1 === 'tie' || v2 === 'tie') { winner = 'tie'; judge_agreement = 'partial'; }
+  else { winner = 'tie'; judge_agreement = 'disagree_positional_bias'; }
 
   const result = {
     prompt_preview: prompt.slice(0, 200),
@@ -438,6 +459,9 @@ Reply EXACTLY: A or B or TIE`, judge, 50
     tokens_a: resultA.tokens_est || 0,
     tokens_b: resultB.tokens_est || 0,
     judge_model: judge,
+    judge_pass1: v1,
+    judge_pass2: v2,
+    judge_agreement,
   };
 
   // Update quality matrix
@@ -456,6 +480,9 @@ Reply EXACTLY: A or B or TIE`, judge, 50
   else { stats.quality_matrix[keyA].ties++; stats.quality_matrix[keyB].ties++; }
 
   stats.ab_tests_run++;
+  if (judge_agreement === 'agree') stats.ab_judge_agree++;
+  else if (judge_agreement === 'partial') stats.ab_judge_partial++;
+  else if (judge_agreement === 'disagree_positional_bias') stats.ab_judge_disagree++;
   return result;
 }
 

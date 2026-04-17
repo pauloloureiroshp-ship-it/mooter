@@ -1,0 +1,71 @@
+{
+  "date": "2026-04-17",
+  "session": "#25",
+  "version": "v0.10.0",
+  "commit_before": "ccd3b55",
+  "milestone": "Best-practice alignment — judge swap, Wilson CI, staleness alert",
+  "summary": "Closed three of the five best-practice gaps identified in the Review #4 audit (GAP-1, GAP-4, GAP-5). The A/B testing pipeline now implements positional-swap judging (Zheng et al. 2023), win-rate matchups are reported with Wilson score confidence intervals at 95%, and human review is guarded by a staleness alert when lag exceeds 72h with ≥10 queued misroutings. No classifier changes.",
+
+  "gaps_closed": [
+    {
+      "id": "GAP-1",
+      "title": "Judge positional-swap",
+      "reference": "Zheng et al. 2023, 'Judging LLM-as-a-Judge', NeurIPS",
+      "problem": "Single-pass LLM-as-a-judge verdicts flip ~30% of the time when A/B positions are swapped, producing biased win-rate statistics.",
+      "fix_location": "tools/router/mooter-continuous-tester.js:runABTest",
+      "fix": "Every A/B now runs the judge twice: pass 1 with original order, pass 2 with B/A swapped (labels re-mapped back). Only counts a winner when both passes agree. Disagreement → TIE with agreement='disagree_positional_bias' telemetry. New stats counters ab_judge_agree, ab_judge_partial, ab_judge_disagree surface bias rate over time.",
+      "cost": "+1 judge call per A/B test. All local Ollama, $0 external.",
+      "unit_tests_passed": "7/7 decision paths correct (agree-A, agree-B, agree-tie, disagree A↔B, disagree B↔A, partial A/tie, partial tie/B)."
+    },
+    {
+      "id": "GAP-4",
+      "title": "Wilson confidence intervals on win-rates",
+      "reference": "Wilson 1927; Agresti-Coull 1998",
+      "problem": "Raw win percentages hide sample-size uncertainty. 71% win rate at n=14 is not meaningfully different from 50% win rate at n=6.",
+      "fix_location": "tools/router/mooter-review.js:wilsonInterval + matchup table",
+      "fix": "Added wilsonInterval(k,n,z=1.96) helper returning 95% CI. Matchup table now shows 'model: 71% [45-88]' format. Reviewer can see overlap at a glance: two overlapping CIs means difference is not statistically significant.",
+      "verification": "Math unit-tested against 6 boundary cases (k=0, k=n, n=1, small-n, mid-range). All intervals consistent with standard Wilson calculations."
+    },
+    {
+      "id": "GAP-5",
+      "title": "Staleness alert on review",
+      "problem": "Human review gate was synchronous and silent. If Paulo skipped reviews for multiple days, misrouting backlog grew unbounded with no prompt.",
+      "fix_location": "tools/router/mooter-review.js:checkStaleness",
+      "fix": "checkStaleness() emits a warning when >72h since last review AND ≥10 new misroutings queued. Called from both --report and summary modes. Thresholds configurable via STALENESS_HOURS and STALENESS_MISROUTING_FLOOR module constants."
+    }
+  ],
+
+  "gaps_still_open": [
+    {
+      "id": "GAP-2",
+      "title": "Template-based prompt generation has coverage blind spots",
+      "next_step": "Bootstrap 10% of each batch from decisions.log real-traffic samples. Needs policy decision on anonymization before implementation."
+    },
+    {
+      "id": "GAP-3",
+      "title": "Pattern-weight adjustments not calibrated (no decay, no min-sample)",
+      "next_step": "Add exponential decay + minimum-sample threshold (n ≥ 20) before demotion. Needs calibration of decay constant with Paulo."
+    }
+  ],
+
+  "verification": {
+    "syntax_check": "both files pass node -c",
+    "judge_swap_decision_logic": "7/7 unit tests pass",
+    "wilson_interval_math": "6/6 boundary cases match standard formula",
+    "end_to_end_review": "node mooter-review.js --full --report produces CI-decorated matchup table, correctly flags TIE 49/49 for gemma4:e4b vs qwen2.5-coder:14b (no winner rows rendered) and significant win for gemma3:12b vs deepseek-r1:7b (71% [45-88] vs 14% [4-40], non-overlapping CIs)"
+  },
+
+  "hashes_after": {
+    "mooter-continuous-tester.js": "52ba98f2cde4d4d8a9cab4b7245f06f9ad81a158eb9e855d570f7eed9ab7b708",
+    "mooter-review.js": "04ed4beffc65eecdb99a2915d3242e495e282f6856d88cf46d9caae74e53b978"
+  },
+
+  "version_bump_rationale": "Jumping from v0.9.9+review4 to v0.10.0 because this session closes three best-practice gaps backed by named academic literature, not just bug fixes. The harness goes from 'top-decile' to 'publishable-quality' on the three closed dimensions. Remaining GAP-2/GAP-3 keep us below a v1.0.0 claim.",
+
+  "next_session_candidates": [
+    "Close GAP-2 (real-traffic bootstrap) with explicit anonymization policy.",
+    "Close GAP-3 (pattern-weight decay) with calibrated constants.",
+    "Investigate 47 legitimate classifier misroutings currently surfaced in --full report.",
+    "Fix validate-set.js --strict 80%/90% failure (prerequisite for applying any future tuning)."
+  ]
+}
