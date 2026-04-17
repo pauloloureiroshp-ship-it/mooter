@@ -2649,11 +2649,13 @@ main       { display: flex; flex-direction: column; }
   flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .prompt-card {
   display: grid;
-  grid-template-columns: 80px 1fr auto;
+  grid-template-columns: 80px minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
   background: var(--surface-2);
@@ -2663,6 +2665,8 @@ main       { display: flex; flex-direction: column; }
   padding: 0.85rem 1.1rem;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .prompt-card:hover {
@@ -2705,6 +2709,9 @@ main       { display: flex; flex-direction: column; }
   color: var(--text);
   font-style: italic;
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .pc-right {
