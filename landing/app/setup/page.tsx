@@ -82,7 +82,7 @@ function getPrompt3(): string {
    - What's missing and whether it's critical or optional
    - What's my setup completion percentage
 3. If the sync failed, diagnose and fix it
-4. At the end, open https://landing-five-azure-16.vercel.app/dashboard and confirm my data appears
+4. At the end, open https://mooter.ai/dashboard and confirm my data appears
 
 Explain everything in simple language, no technical jargon.`;
 }
@@ -167,15 +167,17 @@ function CopyPromptBtn({ text }: { text: string }) {
     <button
       onClick={handleCopy}
       style={{
-        background: copied ? 'var(--t0, #4ec9b0)' : 'none',
-        color: copied ? '#000' : 'var(--t0, #4ec9b0)',
-        border: '1px solid var(--border, #333)',
-        borderRadius: 6,
-        padding: '4px 14px',
+        background: copied ? 'var(--tier-0)' : 'var(--surface-2)',
+        color: copied ? 'var(--bg)' : 'var(--accent)',
+        border: `1px solid ${copied ? 'var(--tier-0)' : 'var(--border)'}`,
+        borderRadius: 'var(--r-sm)',
+        padding: '6px 14px',
         cursor: 'pointer',
-        fontSize: '0.85rem',
+        fontSize: '0.8rem',
         fontWeight: 600,
         whiteSpace: 'nowrap',
+        fontFamily: 'var(--font)',
+        transition: 'background 0.15s ease',
       }}
     >
       {copied ? '\u2713 Copied' : 'Copy prompt'}
@@ -234,45 +236,79 @@ export default function SetupPage() {
 
   const completedCount = steps.filter(s => progress.completedSteps.includes(s.id)).length;
 
-  const toggleBtnStyle = (active: boolean) => ({
-    background: active ? 'var(--t0, #4ec9b0)' : 'transparent',
-    color: active ? '#000' : 'var(--text, #ededed)',
-    border: '1px solid ' + (active ? 'var(--t0, #4ec9b0)' : 'var(--border, #333)'),
-    borderRadius: 8,
-    padding: '8px 20px',
-    cursor: 'pointer' as const,
+  const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
+    background: active ? 'var(--accent)' : 'var(--surface-2)',
+    color: active ? 'var(--bg)' : 'var(--text)',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+    borderRadius: 'var(--r-md)',
+    padding: '10px 20px',
+    cursor: 'pointer',
     fontSize: '0.9rem',
-    fontWeight: active ? 700 : 400,
+    fontWeight: active ? 700 : 500,
+    fontFamily: 'var(--font)',
     transition: 'all 0.15s ease',
   });
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-container">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 20px' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto' }}>
         {/* Header */}
-        <div className="dashboard-header">
-          <a href="/" className="dashboard-brand">
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 40,
+        }}>
+          <a
+            href="/"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontFamily: 'var(--font)', fontWeight: 700,
+              color: 'var(--text)', textDecoration: 'none',
+            }}
+          >
             <span style={{ fontSize: '1.5rem' }}>🐮</span>
             <span>mooter</span>
           </a>
         </div>
 
-        <h1 className="dashboard-h1">
+        <h1 style={{
+          fontSize: '1.75rem', fontWeight: 700, margin: '0 0 8px',
+          letterSpacing: '-0.02em', color: 'var(--text)',
+          fontFamily: 'var(--font)',
+        }}>
           {phase === 'questions' ? "Let's get you set up" : `Your plan \u2014 ${steps.length} steps, ~${totalTime} min`}
         </h1>
         {phase === 'questions' && (
-          <p className="dashboard-muted" style={{ marginTop: '-1.5rem', marginBottom: '2rem' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: '0 0 32px' }}>
             ~12 minutes \u00b7 No coding required
+          </p>
+        )}
+        {phase === 'plan' && (
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: '0 0 24px' }}>
+            Paste each prompt into Claude Cowork. Mark as done when complete.
           </p>
         )}
 
         {/* Phase 1: Questions */}
         {phase === 'questions' && (
-          <div className="dashboard-card">
-            <h2>First, tell us about your setup</h2>
+          <div style={{
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+            padding: 24,
+          }}>
+            <h2 style={{
+              fontSize: '0.75rem',
+              color: 'var(--muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              margin: '0 0 20px',
+              fontWeight: 600,
+            }}>
+              First, tell us about your setup
+            </h2>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <span className="dashboard-label" style={{ display: 'block', marginBottom: 8 }}>Your computer</span>
+            <div style={{ marginBottom: 20 }}>
+              <span style={fieldLabel}>Your computer</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button style={toggleBtnStyle(progress.os === 'windows')} onClick={() => update({ os: 'windows' })}>
                   Windows
@@ -283,8 +319,8 @@ export default function SetupPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <span className="dashboard-label" style={{ display: 'block', marginBottom: 8 }}>VS Code installed?</span>
+            <div style={{ marginBottom: 20 }}>
+              <span style={fieldLabel}>VS Code installed?</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button style={toggleBtnStyle(progress.hasVscode === true)} onClick={() => update({ hasVscode: true })}>
                   Yes
@@ -295,8 +331,8 @@ export default function SetupPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <span className="dashboard-label" style={{ display: 'block', marginBottom: 8 }}>GitHub account?</span>
+            <div style={{ marginBottom: 24 }}>
+              <span style={fieldLabel}>GitHub account?</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button style={toggleBtnStyle(progress.hasGithub === true)} onClick={() => update({ hasGithub: true })}>
                   Yes
@@ -310,17 +346,20 @@ export default function SetupPage() {
             <button
               disabled={!canGenerate}
               onClick={() => setPhase('plan')}
+              onMouseEnter={e => { if (canGenerate) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+              onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
               style={{
                 width: '100%',
-                padding: '12px',
-                background: canGenerate ? 'var(--t0, #4ec9b0)' : 'var(--border, #333)',
-                color: canGenerate ? '#000' : 'var(--muted, #666)',
+                padding: 14,
+                background: canGenerate ? 'var(--accent)' : 'var(--border)',
+                color: canGenerate ? 'var(--bg)' : 'var(--muted)',
                 border: 'none',
-                borderRadius: 8,
-                fontSize: '1rem',
+                borderRadius: 'var(--r-md)',
+                fontSize: '0.95rem',
                 fontWeight: 700,
-                cursor: canGenerate ? 'pointer' : 'default',
-                marginTop: '0.5rem',
+                fontFamily: 'var(--font)',
+                cursor: canGenerate ? 'pointer' : 'not-allowed',
+                transition: 'filter 0.15s ease',
               }}
             >
               Generate my plan \u2192
@@ -332,21 +371,42 @@ export default function SetupPage() {
         {phase === 'plan' && (
           <>
             {/* Progress bar */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>Progress</span>
-                <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>{completedCount}/{steps.length} done</span>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>Progress</span>
+                <span style={{
+                  color: 'var(--text)', fontSize: '0.8rem',
+                  fontFamily: 'var(--mono)',
+                }}>
+                  {completedCount}/{steps.length}
+                </span>
               </div>
-              <div style={{ background: 'var(--border, #333)', borderRadius: 8, height: 6, overflow: 'hidden' }}>
-                <div style={{ width: steps.length > 0 ? `${(completedCount / steps.length) * 100}%` : '0%', height: '100%', background: 'var(--t0, #4ec9b0)', borderRadius: 8, transition: 'width 0.4s ease' }} />
+              <div style={{
+                background: 'var(--border)',
+                borderRadius: 'var(--r-full)',
+                height: 6,
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: steps.length > 0 ? `${(completedCount / steps.length) * 100}%` : '0%',
+                  height: '100%',
+                  background: 'var(--tier-0)',
+                  borderRadius: 'var(--r-full)',
+                  transition: 'width 0.4s ease',
+                }} />
               </div>
             </div>
 
             {/* Reset link */}
-            <div style={{ marginBottom: '1rem', textAlign: 'right' }}>
+            <div style={{ marginBottom: 16, textAlign: 'right' }}>
               <button
                 onClick={() => { setPhase('questions'); update({ completedSteps: [] }); }}
-                style={{ background: 'none', border: 'none', color: 'var(--muted, #666)', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}
+                style={{
+                  background: 'none', border: 'none',
+                  color: 'var(--muted)', cursor: 'pointer',
+                  fontSize: '0.8rem', textDecoration: 'underline',
+                  fontFamily: 'var(--font)',
+                }}
               >
                 Change answers
               </button>
@@ -361,88 +421,132 @@ export default function SetupPage() {
               return (
                 <div
                   key={step.id}
-                  className="dashboard-card"
                   style={{
-                    borderColor: isCurrent ? 'var(--t0, #4ec9b0)' : isDone ? 'rgba(78,201,176,0.2)' : undefined,
-                    opacity: isDone ? 0.7 : 1,
+                    background: 'var(--surface-2)',
+                    border: `1px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 'var(--r-md)',
+                    padding: 20,
+                    marginBottom: 12,
+                    opacity: isDone ? 0.65 : 1,
+                    transition: 'opacity 0.2s ease, border-color 0.2s ease',
                   }}
                 >
                   <div
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
                     onClick={() => setExpandedStep(isExpanded ? null : step.id)}
                   >
-                    <span style={{ flexShrink: 0, fontSize: '1.1rem', width: 24, textAlign: 'center', color: isDone ? 'var(--t0, #4ec9b0)' : isCurrent ? 'var(--t0, #4ec9b0)' : 'var(--muted, #666)' }}>
+                    <span style={{
+                      flexShrink: 0, fontSize: '1.1rem', width: 24, textAlign: 'center',
+                      color: isDone ? 'var(--tier-0)' : isCurrent ? 'var(--accent)' : 'var(--muted)',
+                    }}>
                       {isDone ? '\u2713' : isCurrent ? '\u25CF' : '\u25CB'}
                     </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
                         {step.conditional ? '' : `Step ${idx + 1 - steps.filter((s, j) => j < idx && s.conditional).length}  `}
                         {step.title}
                       </div>
                     </div>
-                    <span className="dashboard-muted" style={{ fontSize: '0.8rem', flexShrink: 0 }}>{step.time}</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--muted, #666)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>{'\u25BC'}</span>
+                    <span style={{
+                      color: 'var(--muted)', fontSize: '0.8rem',
+                      flexShrink: 0, fontFamily: 'var(--mono)',
+                    }}>
+                      {step.time}
+                    </span>
+                    <span style={{
+                      fontSize: '0.7rem', color: 'var(--muted)',
+                      transform: isExpanded ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.2s',
+                    }}>
+                      {'\u25BC'}
+                    </span>
                   </div>
 
                   {isExpanded && (
-                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border, #333)' }}>
-                      {/* Link-only step (GitHub signup) */}
+                    <div style={{
+                      marginTop: 16, paddingTop: 16,
+                      borderTop: '1px solid var(--border)',
+                    }}>
                       {!step.prompt && step.link && (
                         <div>
-                          <a href={step.link.url} target="_blank" rel="noopener" style={{ color: 'var(--t0, #4ec9b0)', fontSize: '0.9rem' }}>
+                          <a href={step.link.url} target="_blank" rel="noopener" style={{
+                            color: 'var(--accent)', fontSize: '0.9rem', fontWeight: 500,
+                          }}>
                             {step.link.label} \u2192
                           </a>
-                          <p className="dashboard-muted" style={{ fontSize: '0.8rem', marginTop: 8 }}>
+                          <p style={{
+                            color: 'var(--muted)', fontSize: '0.8rem', marginTop: 10, margin: '10px 0 0',
+                          }}>
                             Create your free account, then come back and mark this step as done.
                           </p>
                         </div>
                       )}
 
-                      {/* Prompt step */}
                       {step.prompt && (
                         <>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span className="dashboard-muted" style={{ fontSize: '0.85rem' }}>
-                              Where to paste: <strong>{step.pasteTarget}</strong>
+                          <div style={{
+                            display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap',
+                          }}>
+                            <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>
+                              Paste in:{' '}
+                              <strong style={{ color: 'var(--text)', fontWeight: 500 }}>
+                                {step.pasteTarget}
+                              </strong>
                             </span>
                             <CopyPromptBtn text={step.prompt} />
                           </div>
                           <pre style={{
-                            background: 'var(--bg, #080808)',
-                            border: '1px solid var(--border, #333)',
-                            borderRadius: 8,
-                            padding: '0.75rem 1rem',
-                            fontSize: '0.8rem',
+                            background: 'var(--bg)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--r-sm)',
+                            padding: 14,
+                            fontSize: '0.78rem',
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-word',
-                            maxHeight: 200,
+                            maxHeight: 220,
                             overflow: 'auto',
                             margin: 0,
-                            color: 'var(--text, #ededed)',
+                            color: 'var(--cream)',
+                            fontFamily: 'var(--mono)',
+                            lineHeight: 1.6,
                           }}>
                             {step.prompt}
                           </pre>
                           {step.link && (
-                            <a href={step.link.url} target="_blank" rel="noopener" className="dashboard-muted" style={{ fontSize: '0.8rem', display: 'block', marginTop: 8, color: 'var(--t0, #4ec9b0)' }}>
+                            <a
+                              href={step.link.url}
+                              target="_blank"
+                              rel="noopener"
+                              style={{
+                                fontSize: '0.8rem',
+                                display: 'inline-block',
+                                marginTop: 10,
+                                color: 'var(--accent)',
+                              }}
+                            >
                               {step.link.label} \u2192
                             </a>
                           )}
                         </>
                       )}
 
-                      {/* Mark as done */}
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleComplete(step.id); }}
+                        onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+                        onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
                         style={{
-                          marginTop: '0.75rem',
-                          background: isDone ? 'transparent' : 'var(--t0, #4ec9b0)',
-                          color: isDone ? 'var(--muted, #666)' : '#000',
-                          border: isDone ? '1px solid var(--border, #333)' : 'none',
-                          borderRadius: 6,
-                          padding: '6px 16px',
+                          marginTop: 14,
+                          background: isDone ? 'var(--surface)' : 'var(--accent)',
+                          color: isDone ? 'var(--muted)' : 'var(--bg)',
+                          border: isDone ? '1px solid var(--border)' : 'none',
+                          borderRadius: 'var(--r-sm)',
+                          padding: '7px 18px',
                           cursor: 'pointer',
                           fontSize: '0.85rem',
                           fontWeight: 600,
+                          fontFamily: 'var(--font)',
+                          transition: 'filter 0.15s ease',
                         }}
                       >
                         {isDone ? 'Undo' : 'Mark as done \u2713'}
@@ -455,19 +559,45 @@ export default function SetupPage() {
 
             {/* All done */}
             {completedCount === steps.length && steps.length > 0 && (
-              <div className="dashboard-card" style={{ textAlign: 'center', border: '1px solid var(--t0, #4ec9b0)', background: 'rgba(78,201,176,0.06)' }}>
-                <h2 style={{ color: 'var(--t0, #4ec9b0)', marginBottom: '0.5rem' }}>Setup complete!</h2>
-                <p className="dashboard-muted" style={{ marginBottom: '1rem' }}>Your mooter installation is ready. Check your dashboard for live savings data.</p>
-                <a href="/dashboard" style={{
-                  display: 'inline-block',
-                  background: 'var(--t0, #4ec9b0)',
-                  color: '#000',
-                  padding: '10px 24px',
-                  borderRadius: 8,
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  fontSize: '0.95rem',
+              <div style={{
+                textAlign: 'center',
+                padding: 28,
+                border: '1px solid var(--accent)',
+                borderRadius: 'var(--r-md)',
+                background: 'rgba(255,107,53,0.06)',
+                marginTop: 12,
+              }}>
+                <div style={{ fontSize: '2rem', marginBottom: 8 }}>🐮</div>
+                <h2 style={{
+                  color: 'var(--accent)', margin: '0 0 8px',
+                  fontSize: '1.25rem', fontWeight: 700,
+                  fontFamily: 'var(--font)',
                 }}>
+                  Setup complete!
+                </h2>
+                <p style={{
+                  color: 'var(--muted)', margin: '0 0 20px',
+                  fontSize: '0.9rem', lineHeight: 1.6,
+                }}>
+                  Your mooter installation is ready. Check your dashboard for live savings data.
+                </p>
+                <a
+                  href="/dashboard"
+                  onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+                  onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                  style={{
+                    display: 'inline-block',
+                    background: 'var(--accent)',
+                    color: 'var(--bg)',
+                    padding: '12px 28px',
+                    borderRadius: 'var(--r-md)',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    fontFamily: 'var(--font)',
+                    transition: 'filter 0.15s ease',
+                  }}
+                >
                   Go to dashboard \u2192
                 </a>
               </div>
@@ -478,3 +608,13 @@ export default function SetupPage() {
     </div>
   );
 }
+
+const fieldLabel: React.CSSProperties = {
+  display: 'block',
+  marginBottom: 10,
+  fontSize: '0.75rem',
+  color: 'var(--muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  fontWeight: 600,
+};
