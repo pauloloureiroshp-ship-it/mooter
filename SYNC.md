@@ -127,34 +127,37 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 3. Misrouting counter contava `expected=null` como T0 → falsos positivos
 4. `generateOllamaPrompts` gerava labels não-fiáveis → T1 accuracy artificialmente baixa
 
-### ✅ Sessão #25-continued — 2026-04-17 (Cowork Mac)
+### ✅ Sessão #25-continued — 2026-04-17 (Claude Code Windows, CLI via Vercel + Wrangler)
 
-OAuth deployed · Migration 007 applied · Worker deploy pendente manual
+**Recap:** CLI Vercel + Wrangler foram instaladas nesta sessão (login OAuth já existia). Todos os pendentes manuais foram executados daqui.
 
-| Passo | Status | Hora UTC |
+| Passo | Status | Evidência |
 |---|---|---|
-| P1 Vercel OAuth — env vars + redeploy | ✅ feito em 2026-04-17 ~14:00 | Bundle verificado: `eymtobwinevywmmlmxqa` presente em `app/page-*.js` |
-| P2a CF D1 — migration 007 (`device_heartbeats`) | ✅ feito em 2026-04-17 ~14:00 | Via CF MCP D1 query; tabela + 3 índices criados |
-| P2b CF Worker — wrangler deploy | ⚠️ Manual pendente | Sandbox sem acesso CF API; Paulo corre: `cd hub && wrangler deploy -c wrangler.mooter.toml` |
-| P3 Validação endpoints | ⏳ após P2b | `installed_fleet` disponível após deploy |
+| P1 Vercel env vars | ✅ feito | `vercel env ls production` mostra NEXT_PUBLIC_SUPABASE_URL + ANON_KEY correctas (valores iguais ao `.env.local`) |
+| P1 Vercel redeploy | ✅ feito | Deploy `landing-chng0plr1` Ready, aliased a mooter.ai, 16:05 UTC-3 |
+| P1 OAuth validação browser | ✅ confirmado | Paulo chegou a `/onboarding` via GitHub OAuth |
+| P2a CF D1 migration 007 | ✅ feito | `wrangler d1 execute mooter-hub --file migrations/007_device_heartbeats.sql --remote` aplicou tabela `device_heartbeats` |
+| P2b CF Worker deploy | ✅ feito | `wrangler deploy -c wrangler.mooter.toml` → https://mooter-hub.frugal-hub.workers.dev · Version 1083105c-ac10-4f00-af56-88eea2e5ae37 |
+| P2c Validação end-to-end | ✅ feito | POST `/api/device-heartbeat` → `{ok:true}` · GET `/api/stats` → `installed_fleet.total_devices: 1` |
+| Onboarding fix | ✅ feito | Botão Next estava silenciosamente disabled; adicionado `• required` marker no hardware + dynamic button label + estimated impact card. Commit `8592d73`, deploy `landing-chng0plr1` |
+| Tester restart | ⏳ pendente Paulo | Janela cmd aberta: Ctrl+C → seta-cima → Enter para activar patches (callOllama, warmup, misrouting skip, self-consistency) |
 
-**Notion session page:** https://www.notion.so/3456f6e42bc481f991f0c9538438417e
+**Notion session pages:**
+- Sessão #25: https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e
+- Sessão #25-continued (ship session): atualizar no próximo wrap
 
-### 🔴 ÚNICO PENDENTE MANUAL
+### 🔴 ÚNICO PENDENTE MANUAL (Paulo)
 
-**Cloudflare Worker deploy** — correr no Mac terminal:
-```bash
-cd hub
-wrangler deploy -c wrangler.mooter.toml
-# Validar:
-curl -sS https://mooter-hub.frugal-hub.workers.dev/api/stats | python3 -c 'import json,sys; d=json.load(sys.stdin); print("installed_fleet:", d.get("installed_fleet"))'
-```
+**Restart do tester** para activar patches já commitados:
+- Vai à janela cmd preta onde o `mooter-continuous-tester` está a correr
+- `Ctrl+C` (pára limpo) → seta-para-cima → Enter (repete o comando)
+- Activa: callOllama keepalive/timeout fix, warmup pass, misrouting null-skip, ollama-gen self-consistency
 
-### Após o deploy, rodar:
+### Após restart, deixa correr 10-15 min e depois:
 ```
 /mooter-summary
 ```
-Esperado: Health Alerts de 10 → 0-2.
+Esperado: Health Alerts de 10 → 0-2. Se algum modelo Ollama ainda falhar, stderr real é agora capturado e diagnosticável.
 
 ---
 
