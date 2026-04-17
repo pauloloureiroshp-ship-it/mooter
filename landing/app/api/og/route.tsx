@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         }}
       >
         <div style={{ color: '#4ec9b0', fontSize: '80px', fontWeight: 800 }}>
-          frugal
+          mooter
         </div>
         <div style={{ color: '#ededed', fontSize: '32px', marginTop: '20px' }}>
           {savings} less. Same results.

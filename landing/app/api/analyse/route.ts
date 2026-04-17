@@ -2,7 +2,7 @@
  * POST /api/analyse — deep stack detection for a URL.
  *
  * Returns rich analysis: platform, framework, language, LLM signals,
- * recommended frugal tiers, connector suggestions, CLI tools, and
+ * recommended mooter tiers, connector suggestions, CLI tools, and
  * projected savings with backtest confidence.
  */
 
@@ -180,7 +180,7 @@ function buildSuggestions(platform: string, framework: string, llm_signals: stri
     suggestions.push({ type: 'connector', name: 'Vercel MCP', reason: 'Deploy, logs, env vars via Claude Code', savings: undefined });
   }
   if (platform === 'Railway') {
-    suggestions.push({ type: 'connector', name: 'Railway CLI', reason: 'railway run / deploy integrated with frugal routing', savings: undefined });
+    suggestions.push({ type: 'connector', name: 'Railway CLI', reason: 'railway run / deploy integrated with mooter routing', savings: undefined });
   }
   if (platform === 'Netlify') {
     suggestions.push({ type: 'connector', name: 'Netlify MCP', reason: 'Site deploys and functions via Claude Code', savings: undefined });
@@ -188,18 +188,18 @@ function buildSuggestions(platform: string, framework: string, llm_signals: stri
 
   // Framework-specific
   if (['Next.js','Remix','Nuxt'].includes(framework)) {
-    suggestions.push({ type: 'skill', name: 'frugal/prd-to-spec', reason: 'Convert PRDs to Next.js API routes — routed to Sonnet, not Opus', savings: '~T2 instead of T3' });
+    suggestions.push({ type: 'skill', name: 'mooter/prd-to-spec', reason: 'Convert PRDs to Next.js API routes — routed to Sonnet, not Opus', savings: '~T2 instead of T3' });
     suggestions.push({ type: 'cli', name: 'Biome', reason: 'Replace ESLint+Prettier — linting prompts drop to T0/T1', savings: 'Fewer Opus lint calls' });
   }
 
   // LLM-specific
   if (llm_signals.length > 0) {
-    suggestions.push({ type: 'tool', name: 'frugal backtest', reason: `Your LLM calls (${llm_signals.slice(0,2).join(', ')}) can be replayed to measure real savings`, savings: 'Validates your specific usage' });
-    suggestions.push({ type: 'skill', name: 'frugal/prompt-classifier', reason: 'Auto-classify your prompts before they hit your LLM', savings: 'Route 40%+ to local models' });
+    suggestions.push({ type: 'tool', name: 'mooter backtest', reason: `Your LLM calls (${llm_signals.slice(0,2).join(', ')}) can be replayed to measure real savings`, savings: 'Validates your specific usage' });
+    suggestions.push({ type: 'skill', name: 'mooter/prompt-classifier', reason: 'Auto-classify your prompts before they hit your LLM', savings: 'Route 40%+ to local models' });
   }
 
   // Universal
-  suggestions.push({ type: 'cli', name: 'frugal CLI', reason: 'Drop-in for any terminal — works with VS Code, iTerm2, Windows Terminal', savings: undefined });
+  suggestions.push({ type: 'cli', name: 'mooter CLI', reason: 'Drop-in for any terminal — works with VS Code, iTerm2, Windows Terminal', savings: undefined });
   suggestions.push({ type: 'connector', name: 'GitHub MCP', reason: 'PRs, issues, code review — classified to cheapest viable model', savings: undefined });
 
   return suggestions.slice(0, 6); // cap at 6
@@ -214,7 +214,7 @@ async function fetchLimited(startUrl: string, maxBytes: number, timeoutMs: numbe
     if (!isPublicUrlString(currentUrl)) throw new Error('redirect_to_private_host');
     const res = await fetch(currentUrl, {
       signal,
-      headers: { 'User-Agent': 'frugal-landing/1.0' },
+      headers: { 'User-Agent': 'mooter-landing/1.0' },
       redirect: 'manual',
     });
     if (res.status >= 300 && res.status < 400) {
