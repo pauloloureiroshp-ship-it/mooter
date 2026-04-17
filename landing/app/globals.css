@@ -6,39 +6,39 @@
    ============================================================ */
 
 :root {
-  /* ── Background & surface — warm dark, not cold black ─── */
-  --bg:       #0C0A08;
-  --bg-2:     #110E0B;
-  --surface:  #16120E;
-  --surface-2:#1E1914;
-  --border:   #2A231C;
-  --border-light: #362D24;
+  /* ── Background & surface — warm dark ─── */
+  --bg:       #0B0A09;
+  --bg-2:     #0F0E0C;
+  --surface:  #141311;
+  --surface-2:#1C1A17;
+  --border:   #252220;
+  --border-light: #302C28;
 
   /* ── Typography — warm whites ─── */
-  --text:  #F0EBE3;
-  --muted: #8C7E6E;
-  --faint: #2E271F;
+  --text:  #F2EDE6;
+  --muted: #7A7168;
+  --faint: #2A2622;
 
-  /* ── Brand — cow emoji palette ─── */
-  --accent:  #D4A574;
-  --accent-2: #E8C4A0;
-  --cream:   #F5EDD4;
-  --green:   #5CB878;
-  --yellow:  #E8D5A0;
-  --brown:   #8B6914;
-  --brown-light: #C49070;
+  /* ── Brand — cow emoji inspired ─── */
+  --accent:  #C08040;
+  --accent-2: #D4975A;
+  --cream:   #F5E6D0;
+  --green:   #4CAF6A;
+  --yellow:  #D4C090;
+  --brown:   #8B6442;
+  --brown-light: #B07E52;
 
   /* ── Tier system ─── */
-  --tier-0: #5CB878;
-  --tier-1: #6BA3D6;
-  --tier-2: #B89AE8;
-  --tier-3: #E87A6A;
+  --tier-0: #4CAF6A;
+  --tier-1: #5A9BD4;
+  --tier-2: #A88BD4;
+  --tier-3: #D46A5A;
 
   /* VSCode palette (terminal) */
-  --t0: #5CB878;
-  --t1: #6BA3D6;
-  --t2: #E8D5A0;
-  --t3: #E87A6A;
+  --t0: #4CAF6A;
+  --t1: #5A9BD4;
+  --t2: #D4C090;
+  --t3: #D46A5A;
 
   /* ── Fonts (loaded via next/font/google) ─── */
   --font: var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, sans-serif;

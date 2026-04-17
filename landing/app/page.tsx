@@ -303,47 +303,44 @@ function MooterLogo({ size = 32, className = '' }: { size?: number; className?: 
     <svg
       width={size}
       height={size}
-      viewBox="0 0 120 120"
+      viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-label="Mooter logo"
     >
-      {/* Left horn */}
-      <path d="M32 32 C28 22 23 12 27 8 C31 5 36 14 37 26Z" fill="#D4A574" />
+      {/* Left horn — short, amber, slightly curved */}
+      <path d="M28 28 C25 18 22 10 26 7 C30 5 33 15 33 24Z" fill="#D4A44C" />
+      <path d="M28 28 C25 18 22 10 26 7 C30 5 33 15 33 24Z" fill="#C49030" opacity="0.3" />
       {/* Right horn */}
-      <path d="M88 32 C92 22 97 12 93 8 C89 5 84 14 83 26Z" fill="#D4A574" />
-      {/* Left ear */}
-      <ellipse cx="16" cy="48" rx="10" ry="14" fill="#F5EDD4" />
-      <ellipse cx="16" cy="48" rx="6" ry="10" fill="#F0C4A8" />
+      <path d="M72 28 C75 18 78 10 74 7 C70 5 67 15 67 24Z" fill="#D4A44C" />
+      <path d="M72 28 C75 18 78 10 74 7 C70 5 67 15 67 24Z" fill="#C49030" opacity="0.3" />
+      {/* Left ear — brown outer, pink inner */}
+      <ellipse cx="12" cy="42" rx="9" ry="12" fill="#8B6442" />
+      <ellipse cx="13" cy="42" rx="5" ry="8" fill="#D4927A" />
       {/* Right ear */}
-      <ellipse cx="104" cy="48" rx="10" ry="14" fill="#F5EDD4" />
-      <ellipse cx="104" cy="48" rx="6" ry="10" fill="#F0C4A8" />
-      {/* Head — round, emoji-style */}
-      <ellipse cx="60" cy="58" rx="40" ry="42" fill="#F5EDD4" />
-      {/* Brown spot — top left, organic shape */}
-      <ellipse cx="42" cy="38" rx="12" ry="10" transform="rotate(-15 42 38)" fill="#8B6914" opacity="0.6" />
-      {/* Brown spot — top right, smaller */}
-      <ellipse cx="78" cy="42" rx="8" ry="7" transform="rotate(10 78 42)" fill="#8B6914" opacity="0.5" />
-      {/* Brown spot — forehead center */}
-      <ellipse cx="58" cy="30" rx="6" ry="5" fill="#8B6914" opacity="0.4" />
-      {/* Left eye — big, expressive */}
-      <circle cx="42" cy="54" r="7" fill="#2C1810" />
-      <circle cx="42" cy="54" r="5.5" fill="#1A0E08" />
-      <circle cx="44" cy="51.5" r="2.5" fill="white" />
-      <circle cx="40" cy="55.5" r="1" fill="white" opacity="0.5" />
+      <ellipse cx="88" cy="42" rx="9" ry="12" fill="#8B6442" />
+      <ellipse cx="87" cy="42" rx="5" ry="8" fill="#D4927A" />
+      {/* Head — perfectly round, rich brown like emoji */}
+      <circle cx="50" cy="50" r="34" fill="#A0714A" />
+      {/* Head gradient overlay for depth */}
+      <circle cx="50" cy="48" r="32" fill="#B07E52" opacity="0.4" />
+      {/* Muzzle — large cream oval, emoji-signature proportions */}
+      <ellipse cx="50" cy="66" rx="20" ry="15" fill="#F5E6D0" />
+      {/* Muzzle highlight */}
+      <ellipse cx="50" cy="63" rx="16" ry="10" fill="#FFF3E4" opacity="0.3" />
+      {/* Left eye — simple, big, friendly */}
+      <circle cx="36" cy="46" r="5.5" fill="#1A0E06" />
+      <circle cx="37.5" cy="44" r="2.2" fill="white" />
       {/* Right eye */}
-      <circle cx="78" cy="54" r="7" fill="#2C1810" />
-      <circle cx="78" cy="54" r="5.5" fill="#1A0E08" />
-      <circle cx="80" cy="51.5" r="2.5" fill="white" />
-      <circle cx="76" cy="55.5" r="1" fill="white" opacity="0.5" />
-      {/* Muzzle — warm cream, rounder */}
-      <ellipse cx="60" cy="78" rx="22" ry="16" fill="#F0D5B8" />
-      {/* Nostrils */}
-      <ellipse cx="52" cy="79" rx="4" ry="3.5" fill="#C49070" />
-      <ellipse cx="68" cy="79" rx="4" ry="3.5" fill="#C49070" />
-      {/* Subtle smile */}
-      <path d="M52 86 Q60 92 68 86" stroke="#C49070" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <circle cx="64" cy="46" r="5.5" fill="#1A0E06" />
+      <circle cx="65.5" cy="44" r="2.2" fill="white" />
+      {/* Left nostril — dark, oval */}
+      <ellipse cx="42" cy="68" rx="4.5" ry="3.8" fill="#6B4A30" />
+      {/* Right nostril */}
+      <ellipse cx="58" cy="68" rx="4.5" ry="3.8" fill="#6B4A30" />
+      {/* Mouth — very subtle, friendly */}
+      <path d="M44 75 Q50 79 56 75" stroke="#C4A080" strokeWidth="1.2" fill="none" strokeLinecap="round" />
     </svg>
   );
 }
