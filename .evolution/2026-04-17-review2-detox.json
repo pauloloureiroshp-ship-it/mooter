@@ -1,0 +1,63 @@
+{
+  "date": "2026-04-17",
+  "session": "#23",
+  "version": "v0.9.9+review2",
+  "commit": "bc4f84f",
+  "milestone": "Classifier Detox — Review #2",
+  "summary": "Discovered and fixed systematic poisoning of auto-tuner by tester Ollama noise. T1 accuracy recovered from 33.9% to correct routing.",
+
+  "classifier": {
+    "gold_labels_canonical": 20,
+    "gold_labels_total": 89,
+    "context_aware_overrides": 4,
+    "tuned_promote_t0": 0,
+    "tuned_demote_t3": 3,
+    "tuned_complexity_threshold": 0.3,
+    "med_risk_patterns": "63+",
+    "high_risk_patterns": "95+",
+    "backtest_sample_size": 8503,
+    "backtest_tester_filtered": true
+  },
+
+  "tester": {
+    "prompts_tested": 5030,
+    "executions": 1240,
+    "models_benchmarked": 6,
+    "ab_tests": 362,
+    "optimizer_tests": 72,
+    "optimizer_win_rate": "43.1%",
+    "misroutings_found": 111,
+    "embeddings": 255,
+    "reviews_completed": 2,
+    "uptime_hours": 12.7,
+    "cost_usd": 0
+  },
+
+  "ab_highlights": [
+    {"matchup": "gemma3:12b vs deepseek-r1:7b", "winner": "gemma3:12b", "score": "10-2", "tests": 14},
+    {"matchup": "gemma4:e4b vs qwen3:30b", "winner": "tie", "score": "17-15", "tests": 41},
+    {"matchup": "gemma3:12b vs qwen3:30b", "winner": "gemma3:12b", "score": "6-0", "tests": 7}
+  ],
+
+  "fixes_applied": [
+    "backtest.js: filter source=mooter-tester events from tuning pipeline",
+    "classify.js: purge 48 toxic TUNED_PROMOTE_T0 patterns",
+    "classify.js: 4 context-aware overrides (regex, explain, pkg.json read, translate)",
+    "classify.js: setCache() returns result (was void)",
+    "patterns.js: +5 MED_RISK (how should we handle, review this approach, qual a melhor, não funcionar, not working)",
+    "validation-set.json: +10 gold labels (review #1: 5 T0/T1, review #2: 5 T2)"
+  ],
+
+  "root_cause": "backtest.js ingested 3839 tester events including Ollama meta-prompts as real user prompts, learning 48 toxic promote-to-T0 patterns that pulled T2 debug/investigate/compare prompts down to T0",
+
+  "verification": {
+    "test_prompts": 13,
+    "correct": 13,
+    "accuracy": "100%"
+  },
+
+  "notion_pages": [
+    {"title": "Review #1 + Multi-device Setup", "id": "3446f6e4-2bc4-819e-b313-fa21cf15765d"},
+    {"title": "Review #2 + Classifier Detox", "id": "3456f6e4-2bc4-812e-81e3-dac67cb73b3f"}
+  ]
+}

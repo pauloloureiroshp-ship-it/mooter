@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-16 20:30 UTC (Claude Code Mac — Mirror Session #4)
-**Versão:** v0.9.9+ Sprint B + hotfixes Cowork (P0, P3, P4) + Mirror Win→Mac MVP test
-**Último commit main:** `75d4f59` (docs: mirror resolve VS Code gap + OPT-OUT GITHUB_PAT)
-**Sessão Claude Code:** #22 (repo Windows) + Cowork Mac sessions #1–#3 + **Mac Mirror #4** (este log)
+**Última sync:** 2026-04-17 03:30 UTC (Claude Code Windows — Review #2 session)
+**Versão:** v0.9.9+ Sprint B + Review #1/#2 classifier detox
+**Último commit main:** `bc4f84f` (fix: review #2 — purge toxic TUNED patterns, filter tester noise)
+**Sessão Claude Code:** #23 (repo Windows) — mooter-review #1 + #2, classifier detox, multi-device docs
 
 ---
 
@@ -222,6 +222,8 @@ Side effects: upsert em D1 `devices` table
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
 | Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
+| Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
+| Sessão 2026-04-17 — Review #2 + Classifier Detox | https://www.notion.so/3456f6e42bc4812e81e3dac67cb73b3f |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
