@@ -83,6 +83,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
   const [user, setUser] = useState<ShellUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/me')
@@ -116,10 +117,16 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   if (!user) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)' }}>
-        <div style={{ textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>🐮</div>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: 8, color: 'var(--text)' }}>mooter</h1>
-          <p style={{ color: 'var(--muted)', marginBottom: 24, fontSize: '0.9rem' }}>Sign in to access your dashboard</p>
+        <div style={{ textAlign: 'center', maxWidth: 420, padding: '0 24px' }}>
+          <div style={{ fontSize: '3.5rem', marginBottom: 16, lineHeight: 1 }}>🐮</div>
+          <h1 style={{
+            fontSize: '2rem', marginBottom: 8, color: 'var(--text)',
+            fontFamily: 'var(--font)', fontWeight: 700, letterSpacing: '-0.02em',
+          }}>mooter</h1>
+          <p style={{
+            color: 'var(--muted)', marginBottom: 40, fontSize: '0.95rem',
+            lineHeight: 1.5,
+          }}>Your AI routing dashboard</p>
           <button
             onClick={() => {
               const redirectTo = `${window.location.origin}/auth/callback`;
@@ -129,16 +136,25 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
                 `&redirect_to=${encodeURIComponent(redirectTo)}` +
                 `&scopes=read:user,public_repo`;
             }}
+            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.15)')}
+            onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 10,
-              background: 'var(--surface-2)', border: '1px solid var(--border)',
-              padding: '10px 20px', borderRadius: 8, fontSize: '0.9rem',
-              color: 'var(--text)', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 12,
+              background: 'var(--surface-2)', border: '1px solid var(--border-light)',
+              padding: '14px 28px', borderRadius: 'var(--r-md)', fontSize: '0.95rem',
+              color: 'var(--text)', cursor: 'pointer', fontWeight: 500,
+              transition: 'filter 0.2s ease',
             }}
           >
             <GitHubIcon />
             Continue with GitHub
           </button>
+          <p style={{
+            color: 'var(--faint)', fontSize: '0.75rem', marginTop: 48,
+            fontFamily: 'var(--mono)',
+          }}>
+            Smart model routing for Claude Code
+          </p>
         </div>
       </div>
     );
@@ -154,13 +170,26 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
-      <aside className="app-sidebar">
+      <aside className={`app-sidebar${sidebarOpen ? ' open' : ''}`}>
         {/* Logo */}
-        <div style={{ padding: '20px 16px 24px', borderBottom: '1px solid var(--border)' }}>
+        <div className="app-sidebar-logo" style={{ padding: '20px 16px 24px', borderBottom: '1px solid var(--border)' }}>
           <a href="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: '1.25rem' }}>🐮</span>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text)', fontWeight: 600 }}>mooter</span>
+            <span style={{ fontSize: '0.95rem', color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--font)' }}>mooter</span>
           </a>
+          <button
+            className="app-sidebar-toggle"
+            onClick={() => setSidebarOpen(v => !v)}
+            aria-label="Toggle menu"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              {sidebarOpen ? (
+                <path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/>
+              ) : (
+                <path d="M2 4.5h12a.5.5 0 010 1H2a.5.5 0 010-1zm0 3h12a.5.5 0 010 1H2a.5.5 0 010-1zm0 3h12a.5.5 0 010 1H2a.5.5 0 010-1z"/>
+              )}
+            </svg>
+          </button>
         </div>
 
         {/* Navigation */}
@@ -173,6 +202,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
                 key={item.href}
                 href={item.href}
                 className={`app-nav-link${active ? ' active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
               >
                 <Icon />
                 {item.label}
@@ -182,11 +212,11 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
         </nav>
 
         {/* User footer */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+        <div className="app-sidebar-user" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%',
-              background: 'var(--accent)', color: '#000',
+              background: 'var(--accent)', color: 'var(--bg)',
               display: 'grid', placeItems: 'center',
               fontSize: '0.75rem', fontWeight: 700,
             }}>

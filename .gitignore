@@ -76,3 +76,5 @@ tools/router/.frugal-auth.json
 training-*.json
 model-weights/
 *.onnx
+
+.vercel

@@ -63,7 +63,6 @@ function useCommunityStats() {
     savings_usd: 6.29,
     user_count: 1,
   });
-  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const fetchStats = () =>
@@ -82,7 +81,6 @@ function useCommunityStats() {
               savings_usd: data.total_savings_usd ?? 6.29,
               user_count: data.user_count ?? 1,
             });
-            setLive(true);
           }
         })
         .catch(() => {});
@@ -92,7 +90,7 @@ function useCommunityStats() {
     return () => clearInterval(id);
   }, []);
 
-  return { stats, live };
+  return { stats };
 }
 
 function Reveal({
@@ -141,7 +139,7 @@ function AnimatedNumber({
     started.current = true;
     let start = 0;
     const end = value;
-    const duration = 1200;
+    const duration = 1400;
     const step = (end / duration) * 16;
     const timer = setInterval(() => {
       start += step;
@@ -295,7 +293,8 @@ function AnimatedTierBar({
 }
 
 /* -----------------------------------------------------------------
- * Mooter Logo (improved cow head SVG)
+ * Mooter Logo — v2 (cow mark, Ollama-inspired, dark outline)
+ * ViewBox 0 0 100 100 — scales cleanly 16px → 512px
  * ----------------------------------------------------------------- */
 
 function MooterLogo({ size = 32, className = '' }: { size?: number; className?: string }) {
@@ -303,21 +302,44 @@ function MooterLogo({ size = 32, className = '' }: { size?: number; className?: 
     <svg
       width={size}
       height={size}
-      viewBox="0 0 36 36"
+      viewBox="0 0 100 100"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      fill="none"
       aria-label="Mooter logo"
     >
-      <path fill="#E8DCC8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z" />
-      <path fill="#E8DCC8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z" />
-      <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z" />
-      <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z" />
-      <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z" />
-      <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z" />
-      <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3" />
-      <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3" />
-      <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
-      <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
+      {/* OUTLINE LAYER — dark shadow behind ears + head */}
+      <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209" />
+      <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209" />
+      <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209" />
+
+      {/* LEFT EAR */}
+      <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4" />
+
+      {/* RIGHT EAR */}
+      <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4" />
+
+      {/* HEAD */}
+      <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4" />
+
+      {/* LEFT EYE */}
+      <circle cx="36" cy="46" r="6" fill="#1C1209" />
+
+      {/* RIGHT EYE */}
+      <circle cx="64" cy="46" r="6" fill="#1C1209" />
+
+      {/* EYE GLEAMS */}
+      <circle cx="38" cy="44" r="2" fill="white" />
+      <circle cx="66" cy="44" r="2" fill="white" />
+
+      {/* MUZZLE */}
+      <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35" />
+
+      {/* NOSTRIL LEFT */}
+      <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C" />
+
+      {/* NOSTRIL RIGHT */}
+      <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C" />
     </svg>
   );
 }
@@ -374,10 +396,6 @@ function DeepSeekIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-/* -----------------------------------------------------------------
- * GitHub Icon
- * ----------------------------------------------------------------- */
-
 function GitHubIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -385,10 +403,6 @@ function GitHubIcon({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
-
-/* -----------------------------------------------------------------
- * VS Code Icon
- * ----------------------------------------------------------------- */
 
 function VSCodeIcon({ size = 16 }: { size?: number }) {
   return (
@@ -461,7 +475,7 @@ function InstallBlock({ compact = false }: { compact?: boolean }) {
 }
 
 /* -----------------------------------------------------------------
- * NAV — scroll-aware, cleaner
+ * NAV
  * ----------------------------------------------------------------- */
 
 function Nav() {
@@ -485,12 +499,10 @@ function Nav() {
     >
       <div className="container nav-row">
         <a href="#top" onClick={scrollTo('top')} className="brand">
-          <MooterLogo size={42} />
+          <MooterLogo size={36} />
           <span className="nav-brand-name">mooter</span>
         </a>
         <div className="nav-links">
-          <a href="#how" onClick={scrollTo('how')}>How it works</a>
-          <a href="#models" onClick={scrollTo('models')}>Models</a>
           <a href="#demo" onClick={scrollTo('demo')}>Demo</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
           <a href="#install" onClick={scrollTo('install')}>Install</a>
@@ -523,484 +535,195 @@ function Nav() {
 }
 
 /* -----------------------------------------------------------------
- * HERO — Two-column, new headline
+ * HERO — Minimal. Logo 136px · headline · install · providers.
  * ----------------------------------------------------------------- */
 
 function Hero() {
-  const { stats, live } = useCommunityStats();
-
   return (
     <section id="top" className="hero">
-      <div className="container" style={{ maxWidth: 1100 }}>
-        <div className="hero-grid">
-          {/* Left column — copy */}
-          <div className="hero-copy" style={{ maxWidth: 620 }}>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.35rem 0.9rem',
-              borderRadius: 999,
-              border: '1px solid rgba(232,136,138,0.25)',
-              background: 'rgba(232,136,138,0.06)',
-              fontSize: '0.78rem',
-              color: 'var(--accent)',
-              marginBottom: '1.5rem',
-              fontWeight: 500,
-            }}>
-              Open Source · Free forever · MIT License
-            </div>
+      <div className="container" style={{ maxWidth: 640, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-            <h1 className="hero-title" style={{ textAlign: 'left', maxWidth: 580 }}>
-              You have the setup.{' '}
-              <span style={{ color: 'var(--accent)' }}>You just don&apos;t know it yet.</span>
-            </h1>
-
-            <p className="hero-subtitle" style={{ textAlign: 'left', maxWidth: 560, marginLeft: 0 }}>
-              Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI setup.
-              But Claude Code defaults to Opus for everything. Even renaming a variable.
-              Mooter maps your entire environment and routes every prompt to the optimal model.{' '}
-              <strong style={{ color: 'var(--text)' }}>Same results. Up to 90% less cost. Your project never stops.</strong>
-            </p>
-
-            <div className="hero-cta-row" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
-              <a
-                href="#install"
-                onClick={scrollTo('install')}
-                className="btn btn-primary"
-                style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
-              >
-                Get started
-              </a>
-              <a
-                href="#demo"
-                onClick={scrollTo('demo')}
-                className="btn btn-ghost"
-                style={{ padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
-              >
-                See it in action
-              </a>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginTop: '1rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M22 17.607c-.786 2.28-3.139 6.317-5.563 6.361-1.608.031-2.125-.953-3.963-.953-1.837 0-2.412.923-3.932.983-2.572.099-6.542-5.827-6.542-10.995 0-4.747 3.308-7.1 6.198-7.143 1.55-.028 3.014 1.045 3.959 1.045.949 0 2.727-1.29 4.596-1.101.782.033 2.979.315 4.389 2.377-3.741 2.442-3.158 7.549.858 9.426zm-5.222-17.607c-2.826.114-5.132 3.079-4.81 5.531 2.612.203 5.118-2.725 4.81-5.531z"/></svg>
-                macOS
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
-                Windows
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
-                <VSCodeIcon size={14} />
-                VS Code
-              </span>
-            </div>
-
-            {/* Metrics row */}
-            <div className="hero-metrics" style={{
-              display: 'flex',
-              gap: '2rem',
-              marginTop: '2.5rem',
-              flexWrap: 'wrap',
-            }}>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>
-                  <AnimatedNumber value={stats.prompt_count} suffix="+" />
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>prompts routed</div>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
-                  ~<AnimatedNumber value={stats.savings_pct} decimals={0} suffix="%" />
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>avg savings</div>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>10+</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>models supported</div>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--accent)' }}>&lt;50ms</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>classification</div>
-              </div>
-            </div>
-
-
-            {live && (
-              <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--muted)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
-                live stats from community hub
-              </div>
-            )}
-          </div>
-
-          {/* Right column — Router Animation */}
-          <div>
-            <RouterAnimation />
-            <div className="hero-providers" style={{ marginTop: '1rem' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginRight: 8 }}>routes to:</span>
-              <OllamaIcon size={16} />
-              <AnthropicIcon size={16} />
-              <OpenAIIcon size={16} />
-              <GeminiIcon size={16} />
-              <QwenIcon size={16} />
-              <DeepSeekIcon size={16} />
-              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginLeft: 6 }}>+ more</span>
-            </div>
-          </div>
+        {/* Logo 136px */}
+        <div className="hero-logo-mark">
+          <MooterLogo size={136} />
         </div>
+
+        <h1 className="hero-title">
+          Route smarter.{' '}
+          <span style={{ color: 'var(--accent)' }}>Ship faster.</span>
+        </h1>
+
+        <InstallBlock />
+
+        <div className="hero-providers" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: '1.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>routes to:</span>
+          <OllamaIcon size={18} />
+          <AnthropicIcon size={18} />
+          <OpenAIIcon size={18} />
+          <GeminiIcon size={18} />
+          <QwenIcon size={18} />
+          <DeepSeekIcon size={18} />
+          <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>+ more</span>
+        </div>
+
       </div>
     </section>
   );
 }
 
 /* -----------------------------------------------------------------
- * THE PROBLEM — You don't know what you already have + scenarios
+ * BEFORE / AFTER — Strongest proof. Second section.
  * ----------------------------------------------------------------- */
 
-function ProblemSection() {
+function BeforeAfterSection() {
   return (
     <section className="section section-alt">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">
-            You&apos;re already paying.{' '}
-            <span style={{ color: 'var(--accent)' }}>You&apos;re just not optimizing.</span>
-          </h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Your GPU can run models locally at $0. Your subscription includes tokens you never fully use.
-            Claude Code defaults to Opus for everything — even renaming a variable. Mooter fixes this.
-          </p>
+          <h2 className="section-h2">Same prompts. Different bill.</h2>
         </Reveal>
 
-        <div className="steps-grid stagger" style={{ marginTop: '2rem' }}>
-          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </div>
-            <div className="step-title">Hardware underused</div>
-            <div className="step-desc">
-              Your GPU can run 14B-parameter models at $0. Claude Code ignores it and sends every prompt to a paid API.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
-              </svg>
-            </div>
-            <div className="step-title">Subscription leaking</div>
-            <div className="step-desc">
-              You pay $20–200/month. Like Netflix, the bill comes whether you optimize or not. 84% of prompts don&apos;t need Opus.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            </div>
-            <div className="step-title">No budget control</div>
-            <div className="step-desc">
-              No daily ceiling. No token tracking. You find out you overspent when it&apos;s already too late.
-            </div>
-          </Reveal>
-        </div>
-
-        <Reveal>
-          <div className="scenarios-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '2.5rem' }}>
-            <div style={{ padding: '1rem 1.25rem', borderRadius: 10, border: '1px solid rgba(76,175,106,0.2)', background: 'rgba(76,175,106,0.04)' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--green)', marginBottom: '0.5rem' }}>Tokens expiring? Full power.</div>
-              <p style={{ color: 'var(--muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>End of month, 80% unused. Mooter uses Opus for everything — you already paid for it.</p>
-            </div>
-            <div style={{ padding: '1rem 1.25rem', borderRadius: 10, border: '1px solid rgba(212,106,90,0.2)', background: 'rgba(212,106,90,0.04)' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--tier-3)', marginBottom: '0.5rem' }}>Budget tight? Economy mode.</div>
-              <p style={{ color: 'var(--muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>Burned through tokens early. Local models for trivial, Opus only for critical. Project never stops.</p>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* -----------------------------------------------------------------
- * HOW IT WORKS — The routing engine
- * ----------------------------------------------------------------- */
-
-function HowItWorks() {
-  return (
-    <section id="how" className="section section-alt">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">The routing engine. 167 patterns. &lt;50ms. $0 to classify.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Every prompt passes through a 4-stage pipeline before reaching any model.
-            Pure regex — no API calls, no network round-trips, no cost to route.
-          </p>
-        </Reveal>
-
-        <div className="steps-grid stagger" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: '2.5rem' }}>
-          <Reveal className="step-card" style={{ '--i': 0 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </div>
-            <div className="step-title">1. Classify</div>
-            <div className="step-desc">
-              167 regex patterns analyze complexity, risk signals, and intent in &lt;50ms.
-              Locally. On your machine. No LLM needed to decide which LLM to use.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 1 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-            <div className="step-title">2. Profile</div>
-            <div className="step-desc">
-              Your GPU, RAM, installed models, subscription tier, and budget ceiling are all factored in.
-              The routing decision is unique to YOUR setup — not a generic config.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 2 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" />
-                <polyline points="21 16 21 21 16 21" /><line x1="15" y1="15" x2="21" y2="21" />
-                <line x1="4" y1="4" x2="9" y2="9" />
-              </svg>
-            </div>
-            <div className="step-title">3. Route</div>
-            <div className="step-desc">
-              Prompt goes to the optimal model. Local models when free is enough.
-              Haiku for quick tasks. Sonnet for reasoning.
-              Opus only when architecture, security, or production demands it.
-            </div>
-          </Reveal>
-
-          <Reveal className="step-card" style={{ '--i': 3 } as React.CSSProperties}>
-            <div className="step-num" style={{ fontSize: '1.5rem' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            </div>
-            <div className="step-title">4. Validate</div>
-            <div className="step-desc">
-              Every routing decision is logged with time, cost, and quality metrics.
-              The savings algorithm is validated transparently.
-              If a cheaper model can&apos;t handle it, guardrails escalate automatically.
-            </div>
-          </Reveal>
-        </div>
-
-        <Reveal>
-          <div style={{
-            marginTop: '3rem',
-            padding: '2rem',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 16,
-            overflow: 'hidden',
-          }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1.5rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              How a prompt flows through mooter
-            </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              flexWrap: 'wrap',
-            }}>
-              {[
-                { label: 'Your prompt', color: 'var(--text)', bg: 'rgba(255,255,255,0.06)' },
-                null,
-                { label: 'classify.js', sub: '167 patterns · <50ms', color: 'var(--accent)', bg: 'rgba(232,136,138,0.08)' },
-                null,
-                { label: 'Profile match', sub: 'HW + SW + Sub + Budget', color: 'var(--tier-1)', bg: 'rgba(90,155,212,0.08)' },
-                null,
-                { label: 'Route', sub: 'T0/T1/T2/T3', color: 'var(--tier-2)', bg: 'rgba(168,139,212,0.08)' },
-                null,
-                { label: 'Best model responds', color: 'var(--green)', bg: 'rgba(76,175,106,0.08)' },
-              ].map((item, i) => item === null ? (
-                <svg key={i} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="14 7 19 12 14 17" /></svg>
-              ) : (
-                <div key={i} style={{
-                  padding: '0.6rem 1rem',
-                  borderRadius: 10,
-                  border: `1px solid ${item.color}33`,
-                  background: item.bg,
-                  textAlign: 'center',
-                  minWidth: 100,
-                }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: item.color }}>{item.label}</div>
-                  {item.sub && <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>{item.sub}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* -----------------------------------------------------------------
- * MODELS — Every model has a specialty
- * ----------------------------------------------------------------- */
-
-function ModelsSection() {
-  const tiers = [
-    {
-      tier: 'T0',
-      name: 'Local (Free, your hardware)',
-      color: 'var(--tier-0, #4ec9b0)',
-      models: [
-        { name: 'qwen2.5:3b', desc: 'Fast triage, renames, commit messages', req: '2GB VRAM' },
-        { name: 'qwen2.5-coder:14b', desc: 'Code-specialized local model', req: '9GB VRAM' },
-        { name: 'qwen3:30b', desc: 'Advanced local reasoning', req: '20GB VRAM' },
-        { name: 'gemma4:e4b', desc: 'Google\'s latest, multimodal', req: '8GB VRAM' },
-        { name: 'deepseek-r1:7b', desc: 'Math and logic specialist', req: '4GB VRAM' },
-      ],
-    },
-    {
-      tier: 'T1',
-      name: 'Claude Haiku',
-      color: 'var(--tier-1, #3b82f6)',
-      costLabel: '~$0.001/prompt',
-      desc: 'Quick explanations, docstrings, simple transforms',
-      models: [],
-    },
-    {
-      tier: 'T2',
-      name: 'Claude Sonnet',
-      color: 'var(--tier-2, #a78bfa)',
-      costLabel: '~$0.003/prompt',
-      desc: 'Bug investigation, root cause analysis, technical planning',
-      models: [],
-    },
-    {
-      tier: 'T3',
-      name: 'Claude Opus',
-      color: 'var(--tier-3, #f87171)',
-      costLabel: '~$0.015/prompt',
-      desc: 'Architecture decisions, security reviews, production deploys',
-      guardrail: 'Guardrail-protected: migrations, secrets, and deploys are ALWAYS routed here',
-      models: [],
-    },
-  ];
-
-  return (
-    <section id="models" className="section">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">Every model has a specialty. Opus isn&apos;t always the answer.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            A brain surgeon shouldn&apos;t put on band-aids. Each model excels at different complexity
-            levels — and mooter knows which one fits each prompt.
-          </p>
-        </Reveal>
-
-        <div style={{ display: 'grid', gap: '1.25rem', marginTop: '2.5rem' }}>
-          {tiers.map((t) => (
-            <Reveal key={t.tier}>
-              <div style={{
-                background: 'var(--surface, rgba(255,255,255,0.03))',
-                border: `1px solid ${t.color}22`,
-                borderRadius: 12,
-                padding: '1.25rem 1.5rem',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: t.models.length > 0 ? '1rem' : 0 }}>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '0.2rem 0.6rem',
-                    borderRadius: 6,
-                    border: `1px solid ${t.color}`,
-                    color: t.color,
-                    fontFamily: 'var(--mono)',
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                  }}>
-                    {t.tier}
-                  </span>
-                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>{t.name}</span>
-                  {t.costLabel && (
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: '0.78rem', color: t.color }}>{t.costLabel}</span>
-                  )}
-                </div>
-
-                {t.desc && (
-                  <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: t.models.length > 0 ? '0 0 0.75rem' : 0 }}>
-                    {t.desc}
-                  </p>
-                )}
-
-                {t.guardrail && (
-                  <p style={{
-                    color: t.color,
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    marginTop: '0.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                    {t.guardrail}
-                  </p>
-                )}
-
-                {t.models.length > 0 && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '0.6rem',
-                  }}>
-                    {t.models.map((m) => (
-                      <div key={m.name} style={{
-                        background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
-                        padding: '0.6rem 0.8rem',
-                      }}>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: '0.82rem', fontWeight: 600, color: t.color }}>
-                          {m.name}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>{m.desc}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--faint, #555)', marginTop: 3 }}>{m.req}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+        <div className="ba-wrapper">
+          <Reveal>
+            <div className="ba-panel ba-panel-before">
+              <div className="ba-title-bar ba-title-bar-before">
+                <span className="ba-dot ba-dot-red" />
+                <span className="ba-dot ba-dot-yellow" />
+                <span className="ba-dot ba-dot-green" />
+                <span style={{ marginLeft: 8 }}>Without Mooter</span>
               </div>
-            </Reveal>
-          ))}
+              <div className="ba-body">
+                <div>$ git commit -m &quot;fix login button color&quot;</div>
+                <div className="ba-dim">  claude-3-opus-20240229</div>
+                <div className="ba-cost-bad">  → $0.048 · 6.2s</div>
+                <hr className="ba-divider" />
+                <div>$ explain this TypeError in console</div>
+                <div className="ba-dim">  claude-3-opus-20240229</div>
+                <div className="ba-cost-bad">  → $0.051 · 7.1s</div>
+                <hr className="ba-divider" />
+                <div>$ rename var userInfo to currentUser</div>
+                <div className="ba-dim">  claude-3-opus-20240229</div>
+                <div className="ba-cost-bad">  → $0.039 · 5.4s</div>
+                <hr className="ba-divider" />
+                <div>$ refactor auth module for multi-tenant</div>
+                <div className="ba-dim">  claude-3-opus-20240229</div>
+                <div className="ba-cost-bad">  → $0.052 · 8.1s</div>
+                <hr className="ba-divider" />
+                <div className="ba-cost-bad" style={{ fontWeight: 700 }}>Session total: $0.190</div>
+              </div>
+              <div className="ba-statusline ba-statusline-before">
+                claude-3-opus · API · billing active
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal>
+            <div className="ba-panel ba-panel-after">
+              <div className="ba-title-bar ba-title-bar-after">
+                <span className="ba-dot ba-dot-orange" />
+                <span className="ba-dot ba-dot-green" />
+                <span className="ba-dot ba-dot-green" />
+                <span style={{ marginLeft: 8 }}>With Mooter</span>
+              </div>
+              <div className="ba-body">
+                <div>$ git commit -m &quot;fix login button color&quot;</div>
+                <div className="ba-tier0">  T0 → qwen2.5:3b (local)</div>
+                <div className="ba-cost-good">  → $0.000 · 0.4s · saved $0.048</div>
+                <hr className="ba-divider" />
+                <div>$ explain this TypeError in console</div>
+                <div className="ba-tier1">  T1 → Claude Haiku</div>
+                <div className="ba-cost-good">  → $0.001 · 1.1s · saved $0.050</div>
+                <hr className="ba-divider" />
+                <div>$ rename var userInfo to currentUser</div>
+                <div className="ba-tier0">  T0 → qwen2.5:3b (local)</div>
+                <div className="ba-cost-good">  → $0.000 · 0.3s · saved $0.039</div>
+                <hr className="ba-divider" />
+                <div>$ refactor auth module for multi-tenant</div>
+                <div className="ba-tier3">  T3 → Claude Opus (guardrail: architecture)</div>
+                <div className="ba-accent">  → $0.052 · 8.1s · correct model</div>
+                <hr className="ba-divider" />
+                <div className="ba-cost-good" style={{ fontWeight: 700 }}>Session total: $0.053 · saved $0.137 (72%)</div>
+              </div>
+              <div className="ba-statusline">
+                T0·qwen2.5:3b · 0.3s · $0.137 saved
+              </div>
+            </div>
+          </Reveal>
         </div>
+
+        <Reveal style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap', marginTop: '2rem' }}>
+          <div className="ba-total ba-total-before">
+            <div style={{ color: 'var(--muted)', marginBottom: 4, fontSize: '0.78rem' }}>WITHOUT MOOTER</div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f47373' }}>$0.190</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · 4× Opus · avg 6.7s</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent)', fontSize: '1.5rem' }}>→</div>
+          <div className="ba-total ba-total-after">
+            <div style={{ color: 'var(--muted)', marginBottom: 4, fontSize: '0.78rem' }}>WITH MOOTER</div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--green)' }}>$0.053</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · right model each · avg 2.5s</div>
+            <div className="ba-savings-pill">72% saved · faster on 3 of 4</div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
 /* -----------------------------------------------------------------
- * DEMO — Interactive classify.js
+ * TRUTH SECTION — Savings counter + tier distribution bars
+ * ----------------------------------------------------------------- */
+
+function TruthSection() {
+  const { stats } = useCommunityStats();
+
+  return (
+    <section className="section">
+      <div className="container" style={{ maxWidth: 720 }}>
+        <Reveal>
+          <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+            <div style={{
+              fontSize: 'clamp(4rem, 10vw, 7rem)',
+              fontWeight: 800,
+              fontFamily: 'var(--mono)',
+              color: 'var(--green)',
+              letterSpacing: '-0.04em',
+              lineHeight: 1,
+              marginBottom: '0.5rem',
+            }}>
+              ~<AnimatedNumber value={stats.savings_pct} decimals={0} suffix="%" />
+            </div>
+            <div style={{ fontSize: '1rem', color: 'var(--muted)' }}>
+              avg cost reduction · validated across{' '}
+              <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>
+                <AnimatedNumber value={stats.prompt_count} suffix="+" />
+              </span>{' '}
+              real prompts
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <div className="tier-bars">
+            <AnimatedTierBar label="T0 · Local" pct={84} color="var(--t0)" cost="$0.000/prompt" delay={0} />
+            <AnimatedTierBar label="T1 · Haiku" pct={8}  color="var(--t1)" cost="~$0.001/prompt" delay={150} />
+            <AnimatedTierBar label="T2 · Sonnet" pct={5} color="var(--t2)" cost="~$0.010/prompt" delay={300} />
+            <AnimatedTierBar label="T3 · Opus" pct={3}   color="var(--t3)" cost="~$0.050/prompt" delay={450} />
+          </div>
+        </Reveal>
+
+        <Reveal style={{ marginTop: '2rem', textAlign: 'center' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
+            84% of Claude Code prompts are trivial. You&apos;ve been paying Opus rates for all of them.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
+ * DEMO — Interactive classify.js + RouterAnimation
  * ----------------------------------------------------------------- */
 
 type PromptDemo = {
@@ -1053,7 +776,7 @@ const PROMPTS: PromptDemo[] = [
   },
   {
     prompt: 'my app crashes when I click submit but only on mobile, help',
-    category: 'Bug hunt · Happens 10x a day',
+    category: 'Bug hunt · Happens 10× a day',
     classifyOutput: {
       tier: 'T2',
       tierLabel: 'Sonnet · Smart enough',
@@ -1142,123 +865,6 @@ function PromptCard({ p, index, active, onClick }: {
   );
 }
 
-function SavingsCalculator() {
-  const [prompts, setPrompts] = useState(200);
-
-  const promptOptions = [50, 100, 200, 500];
-
-  // Cost per prompt at Opus rate (rough estimate)
-  const opusCostPerPrompt = 0.045;
-  const monthlyOpusCost = prompts * 30 * opusCostPerPrompt;
-
-  // With mooter: weighted average
-  const mooterCostPerPrompt = (0.84 * 0) + (0.05 * 0.001) + (0.08 * 0.003) + (0.03 * 0.015);
-  const monthlyMooterCost = prompts * 30 * mooterCostPerPrompt;
-
-  const savings = monthlyOpusCost - monthlyMooterCost;
-  const savingsPct = monthlyOpusCost > 0 ? Math.round((savings / monthlyOpusCost) * 100) : 0;
-
-  return (
-    <section className="section section-alt">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">How much could you save?</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">Adjust your usage below. No signup required.</p>
-        </Reveal>
-
-        <Reveal>
-          <div style={{
-            maxWidth: 700,
-            margin: '2rem auto 0',
-            padding: '2rem',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 16,
-          }}>
-            {/* Prompts per day */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-                Prompts per day: <strong style={{ color: 'var(--text)' }}>{prompts}</strong>
-              </label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {promptOptions.map(v => (
-                  <button
-                    key={v}
-                    onClick={() => setPrompts(v)}
-                    style={{
-                      flex: 1,
-                      padding: '0.5rem',
-                      borderRadius: 8,
-                      border: prompts === v ? '1px solid var(--accent)' : '1px solid var(--border)',
-                      background: prompts === v ? 'rgba(232,136,138,0.1)' : 'var(--surface-2)',
-                      color: prompts === v ? 'var(--accent)' : 'var(--muted)',
-                      fontWeight: 600,
-                      fontSize: '0.85rem',
-                      cursor: 'pointer',
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Results */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr auto 1fr',
-              gap: '1rem',
-              alignItems: 'center',
-              marginTop: '1.5rem',
-              padding: '1.5rem',
-              background: 'var(--bg)',
-              borderRadius: 12,
-              border: '1px solid var(--border)',
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Without mooter</div>
-                <div style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--tier-3)', textDecoration: 'line-through', opacity: 0.7 }}>
-                  ${monthlyOpusCost.toFixed(0)}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>per month</div>
-              </div>
-
-              <div style={{ fontSize: '1.5rem', color: 'var(--accent)' }}>&rarr;</div>
-
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>With mooter</div>
-                <div style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
-                  ${monthlyMooterCost.toFixed(0)}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>per month</div>
-              </div>
-            </div>
-
-            <div style={{
-              textAlign: 'center',
-              marginTop: '1rem',
-              padding: '0.75rem',
-              borderRadius: 8,
-              background: 'rgba(76,175,106,0.08)',
-              border: '1px solid rgba(76,175,106,0.15)',
-            }}>
-              <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
-                ${savings.toFixed(0)} saved/month
-              </span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--muted)', marginLeft: '0.75rem' }}>
-                ({savingsPct}% reduction)
-              </span>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
 function DemoSection() {
   const ref = useRef<HTMLDivElement>(null);
   const visible = useInView(ref, 0.1);
@@ -1304,15 +910,14 @@ function DemoSection() {
   return (
     <section id="demo" className="section section-alt">
       <div ref={ref} className="container">
+
+        {/* Router animation at top of demo */}
+        <Reveal style={{ marginBottom: '3rem' }}>
+          <RouterAnimation />
+        </Reveal>
+
         <Reveal>
           <h2 className="section-h2">The routing decision, made visible.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Three real prompts. Click each one to see what mooter classifies, how confident
-            it is, and why it picked that model. This is the decision that happens in 9–28ms
-            before every single prompt you send.
-          </p>
         </Reveal>
 
         <Reveal>
@@ -1420,106 +1025,7 @@ function DemoSection() {
 }
 
 /* -----------------------------------------------------------------
- * BEFORE / AFTER — KEEP AS-IS
- * ----------------------------------------------------------------- */
-
-function BeforeAfterSection() {
-  return (
-    <section className="section">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">Same prompts. Different bill.</h2>
-        </Reveal>
-
-        <div className="ba-wrapper">
-          <Reveal>
-            <div className="ba-panel ba-panel-before">
-              <div className="ba-title-bar ba-title-bar-before">
-                <span className="ba-dot ba-dot-red" />
-                <span className="ba-dot ba-dot-yellow" />
-                <span className="ba-dot ba-dot-green" />
-                <span style={{ marginLeft: 8 }}>Without Mooter</span>
-              </div>
-              <div className="ba-body">
-                <div>$ git commit -m &quot;fix login button color&quot;</div>
-                <div className="ba-dim">  claude-3-opus-20240229</div>
-                <div className="ba-cost-bad">  → $0.048 · 6.2s</div>
-                <hr className="ba-divider" />
-                <div>$ explain this TypeError in console</div>
-                <div className="ba-dim">  claude-3-opus-20240229</div>
-                <div className="ba-cost-bad">  → $0.051 · 7.1s</div>
-                <hr className="ba-divider" />
-                <div>$ rename var userInfo to currentUser</div>
-                <div className="ba-dim">  claude-3-opus-20240229</div>
-                <div className="ba-cost-bad">  → $0.039 · 5.4s</div>
-                <hr className="ba-divider" />
-                <div>$ refactor auth module for multi-tenant</div>
-                <div className="ba-dim">  claude-3-opus-20240229</div>
-                <div className="ba-cost-bad">  → $0.052 · 8.1s</div>
-                <hr className="ba-divider" />
-                <div className="ba-cost-bad" style={{ fontWeight: 700 }}>Session total: $0.190</div>
-              </div>
-              <div className="ba-statusline ba-statusline-before">
-                claude-3-opus · API · billing active
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal>
-            <div className="ba-panel ba-panel-after">
-              <div className="ba-title-bar ba-title-bar-after">
-                <span className="ba-dot ba-dot-orange" />
-                <span className="ba-dot ba-dot-green" />
-                <span className="ba-dot ba-dot-green" />
-                <span style={{ marginLeft: 8 }}>With Mooter</span>
-              </div>
-              <div className="ba-body">
-                <div>$ git commit -m &quot;fix login button color&quot;</div>
-                <div className="ba-tier0">  T0 → qwen2.5:3b (local)</div>
-                <div className="ba-cost-good">  → $0.000 · 0.4s · saved $0.048</div>
-                <hr className="ba-divider" />
-                <div>$ explain this TypeError in console</div>
-                <div className="ba-tier1">  T1 → Claude Haiku</div>
-                <div className="ba-cost-good">  → $0.001 · 1.1s · saved $0.050</div>
-                <hr className="ba-divider" />
-                <div>$ rename var userInfo to currentUser</div>
-                <div className="ba-tier0">  T0 → qwen2.5:3b (local)</div>
-                <div className="ba-cost-good">  → $0.000 · 0.3s · saved $0.039</div>
-                <hr className="ba-divider" />
-                <div>$ refactor auth module for multi-tenant</div>
-                <div className="ba-tier3">  T3 → Claude Opus (guardrail: architecture)</div>
-                <div className="ba-accent">  → $0.052 · 8.1s · correct model</div>
-                <hr className="ba-divider" />
-                <div className="ba-cost-good" style={{ fontWeight: 700 }}>Session total: $0.053 · saved $0.137 (72%)</div>
-              </div>
-              <div className="ba-statusline">
-                T0·qwen2.5:3b · 0.3s · $0.137 saved
-              </div>
-            </div>
-          </Reveal>
-        </div>
-
-        <Reveal style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap', marginTop: '2rem' }}>
-          <div className="ba-total ba-total-before">
-            <div style={{ color: 'var(--muted)', marginBottom: 4, fontSize: '0.78rem' }}>WITHOUT MOOTER</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f47373' }}>$0.190</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · 4x Opus · avg 6.7s</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent)', fontSize: '1.5rem' }}>→</div>
-          <div className="ba-total ba-total-after">
-            <div style={{ color: 'var(--muted)', marginBottom: 4, fontSize: '0.78rem' }}>WITH MOOTER</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--green)' }}>$0.053</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>4 prompts · right model each · avg 2.5s</div>
-            <div className="ba-savings-pill">72% saved · faster on 3 of 4</div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* -----------------------------------------------------------------
- * COMPARE TABLE — KEEP AS-IS
+ * COMPARE TABLE — 5 decisive rows
  * ----------------------------------------------------------------- */
 
 function ComparisonSection() {
@@ -1566,14 +1072,6 @@ function ComparisonSection() {
       plain: { val: '❌ No' },
     },
     {
-      feature: 'Subscription-aware routing',
-      mooter: { val: '✅ Yes', win: true, note: 'Claude Max, API, free tiers' },
-      litelLm: { val: '❌ No' },
-      openRouter: { val: '❌ No' },
-      cursor: { val: '❌ No' },
-      plain: { val: '❌ No' },
-    },
-    {
       feature: 'Classification latency',
       mooter: { val: '⚡ &lt;50ms', win: true, note: 'Pure regex, no API call' },
       litelLm: { val: '~200ms', note: 'LLM-based routing' },
@@ -1581,35 +1079,13 @@ function ComparisonSection() {
       cursor: { val: 'N/A', note: 'No routing layer' },
       plain: { val: 'N/A' },
     },
-    {
-      feature: 'Community-improved patterns',
-      mooter: { val: '✅ Yes', win: true, note: 'Weekly from anon deltas' },
-      litelLm: { val: '❌ No' },
-      openRouter: { val: '❌ No' },
-      cursor: { val: '❌ No' },
-      plain: { val: '❌ No' },
-    },
-    {
-      feature: 'Free to use',
-      mooter: { val: '✅ Free', win: true, note: 'MIT open source' },
-      litelLm: { val: '✅ Free', note: 'OSS, self-host' },
-      openRouter: { val: '⚠️ Markup', note: 'Adds 5–10% to API cost' },
-      cursor: { val: '$20/mo', note: 'Subscription required' },
-      plain: { val: '✅ Free', note: 'API costs still apply' },
-    },
   ];
 
   return (
-    <section id="compare" className="section section-alt">
+    <section id="compare" className="section">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Not a proxy. Not a wrapper. A new paradigm.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            Every other routing solution sits between you and your models. Mooter is a hook, not a proxy.
-            It runs in your process, on your machine, with no network dependency.
-          </p>
+          <h2 className="section-h2">Not a proxy. Not a wrapper. A hook.</h2>
         </Reveal>
 
         <Reveal>
@@ -1677,84 +1153,15 @@ function ComparisonSection() {
 }
 
 /* -----------------------------------------------------------------
- * PERSONALIZATION + ALGORITHM — Configured for you, gets smarter
- * ----------------------------------------------------------------- */
-
-function PersonalizationSection() {
-  return (
-    <section className="section">
-      <div className="container">
-        <Reveal>
-          <h2 className="section-h2">Built for your setup. Gets smarter every day.</h2>
-        </Reveal>
-        <Reveal>
-          <p className="section-sub">
-            At install, mooter scans your hardware, software, and subscription. The result is a routing
-            profile unique to you — that improves automatically as the community grows.
-          </p>
-        </Reveal>
-
-        <div className="pillars stagger" style={{ marginTop: '2rem' }}>
-          <Reveal className="pillar" style={{ '--i': 0 } as React.CSSProperties}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" />
-                <line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" />
-                <line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" />
-                <line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" />
-                <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
-              </svg>
-            </div>
-            <h3>Hardware + Software scan</h3>
-            <p>GPU, VRAM, RAM, installed models, APIs. RTX 4090 gets qwen3:30b. MacBook Air gets qwen2.5:3b. Both save — at different scales.</p>
-          </Reveal>
-
-          <Reveal className="pillar" style={{ '--i': 1 } as React.CSSProperties}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
-              </svg>
-            </div>
-            <h3>Subscription + Budget</h3>
-            <p>Max, Pro, or API? Each has different economics. Set a daily ceiling. Mooter adjusts in real time — more local near limits, full power when tokens expire.</p>
-          </Reveal>
-
-          <Reveal className="pillar" style={{ '--i': 2 } as React.CSSProperties}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.5 2v6h-6" /><path d="M2.5 22v-6h6" />
-                <path d="M2 11.5a10 10 0 0 1 18.8-4.3" /><path d="M22 12.5a10 10 0 0 1-18.8 4.2" />
-              </svg>
-            </div>
-            <h3>Community-fed algorithm</h3>
-            <p>Anonymous routing deltas from every user improve the classifier. Daily backtests. Weekly pattern updates. The algorithm you install today is better than yesterday&apos;s.</p>
-          </Reveal>
-
-          <Reveal className="pillar" style={{ '--i': 3 } as React.CSSProperties}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.9 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-            </div>
-            <h3>Validated savings</h3>
-            <p>Every number is calculated against a transparent methodology: Opus cost vs routed cost, adjusted for quality and time. No guesses.</p>
-          </Reveal>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* -----------------------------------------------------------------
  * INSTALL — Terminal + VS Code. One install.
  * ----------------------------------------------------------------- */
 
 function InstallSection() {
   return (
-    <section id="install" className="section">
+    <section id="install" className="section section-alt">
       <div className="container">
         <Reveal>
-          <h2 className="section-h2">Terminal + VS Code. One install.</h2>
+          <h2 className="section-h2">One install. Zero config.</h2>
         </Reveal>
 
         <div className="install-grid" style={{
@@ -1786,7 +1193,6 @@ function InstallSection() {
               </h3>
               <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0, maxWidth: 320 }}>
                 Real-time statusline showing model, tier, cost, and savings for every prompt.
-                See routing decisions without leaving your editor.
               </p>
               <span style={{
                 display: 'inline-block',
@@ -1811,7 +1217,7 @@ function InstallSection() {
             fontSize: '0.8rem',
             marginTop: '1.5rem',
           }}>
-            Works on Windows &amp; macOS · Node.js ≥18 · Claude Code required
+            Windows &amp; macOS · Node.js ≥18 · Claude Code required · MIT License
           </p>
         </Reveal>
       </div>
@@ -1820,7 +1226,7 @@ function InstallSection() {
 }
 
 /* -----------------------------------------------------------------
- * FOOTER — Expanded three-column
+ * FOOTER
  * ----------------------------------------------------------------- */
 
 function Footer() {
@@ -1849,7 +1255,8 @@ function Footer() {
 }
 
 /* -----------------------------------------------------------------
- * Main export
+ * Main export — new section order per brand guide v2
+ * Hero → BeforeAfter → Truth → Demo → Compare → Install
  * ----------------------------------------------------------------- */
 
 export default function Page() {
@@ -1858,14 +1265,10 @@ export default function Page() {
       <main>
         <Nav />
         <Hero />
-        <ProblemSection />
-        <HowItWorks />
-        <ModelsSection />
-        <SavingsCalculator />
-        <DemoSection />
         <BeforeAfterSection />
+        <TruthSection />
+        <DemoSection />
         <ComparisonSection />
-        <PersonalizationSection />
         <InstallSection />
         <Footer />
       </main>

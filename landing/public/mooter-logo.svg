@@ -1,43 +1,43 @@
 <!--
-  Mooter Logo — Cow Mark
-  Style: Ollama-inspired geometric mascot
-  Colors: Cream #F5EDD4 (emoji-matched) + Orange #FF6B35 (brand)
+  Mooter Logo v2 — Cow Mark
+  Style: Ollama-inspired geometric mascot, with dark outline for weight on dark backgrounds
+  Colors: Cream #F5EDD4 (emoji-matched) + Orange #FF6B35 (brand) + Dark #1C1209 (outline/eyes)
+  Changes v2: outline layer behind ears/head, bigger eyes r=6, wider muzzle 52px
   ViewBox: 0 0 100 100 — scales cleanly from 16px to 512px
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
 
-  <!-- LEFT HORN — curved outward, small, swept back like real cow -->
-  <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
+  <!-- OUTLINE LAYER — dark shadow behind ears + head gives Ollama-style weight on dark bg -->
+  <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
+  <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
+  <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
 
-  <!-- RIGHT HORN — mirror -->
-  <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
+  <!-- LEFT EAR -->
+  <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
 
-  <!-- LEFT EAR — small rounded pill on side -->
-  <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+  <!-- RIGHT EAR -->
+  <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
 
-  <!-- RIGHT EAR — mirror -->
-  <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-
-  <!-- HEAD — wide blocky rect, cow-proportioned (wider than tall), cream fill -->
+  <!-- HEAD — cream fill, sits on top of outline layer -->
   <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
 
-  <!-- LEFT EYE — solid dark circle -->
-  <circle cx="36" cy="46" r="5" fill="#1C1209"/>
+  <!-- LEFT EYE — r=6, more expressive -->
+  <circle cx="36" cy="46" r="6" fill="#1C1209"/>
 
-  <!-- RIGHT EYE — mirror -->
-  <circle cx="64" cy="46" r="5" fill="#1C1209"/>
+  <!-- RIGHT EYE -->
+  <circle cx="64" cy="46" r="6" fill="#1C1209"/>
 
-  <!-- EYE GLEAMS — tiny white catch-light, top-right of each eye -->
-  <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
-  <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
+  <!-- EYE GLEAMS -->
+  <circle cx="38" cy="44" r="2" fill="white"/>
+  <circle cx="66" cy="44" r="2" fill="white"/>
 
-  <!-- MUZZLE — orange rounded rectangle, emoji-inspired -->
-  <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
+  <!-- MUZZLE — 52px wide, bolder presence -->
+  <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
 
-  <!-- NOSTRIL LEFT — darker inset oval -->
-  <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+  <!-- NOSTRIL LEFT -->
+  <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
 
-  <!-- NOSTRIL RIGHT — mirror -->
-  <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+  <!-- NOSTRIL RIGHT -->
+  <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
 
 </svg>
