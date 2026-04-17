@@ -309,38 +309,34 @@ function MooterLogo({ size = 32, className = '' }: { size?: number; className?: 
       className={className}
       aria-label="Mooter logo"
     >
-      {/* Left horn — short, amber, slightly curved */}
-      <path d="M28 28 C25 18 22 10 26 7 C30 5 33 15 33 24Z" fill="#D4A44C" />
-      <path d="M28 28 C25 18 22 10 26 7 C30 5 33 15 33 24Z" fill="#C49030" opacity="0.3" />
+      {/* Left horn — short, gray */}
+      <path d="M27 30 C24 20 21 11 25 8 C29 6 32 16 32 26Z" fill="#888" />
       {/* Right horn */}
-      <path d="M72 28 C75 18 78 10 74 7 C70 5 67 15 67 24Z" fill="#D4A44C" />
-      <path d="M72 28 C75 18 78 10 74 7 C70 5 67 15 67 24Z" fill="#C49030" opacity="0.3" />
-      {/* Left ear — brown outer, pink inner */}
-      <ellipse cx="12" cy="42" rx="9" ry="12" fill="#8B6442" />
-      <ellipse cx="13" cy="42" rx="5" ry="8" fill="#D4927A" />
+      <path d="M73 30 C76 20 79 11 75 8 C71 6 68 16 68 26Z" fill="#888" />
+      {/* Left ear — white outer, pink inner */}
+      <ellipse cx="13" cy="42" rx="8" ry="11" fill="#F0F0F0" />
+      <ellipse cx="14" cy="42" rx="4.5" ry="7" fill="#F2A5A5" />
       {/* Right ear */}
-      <ellipse cx="88" cy="42" rx="9" ry="12" fill="#8B6442" />
-      <ellipse cx="87" cy="42" rx="5" ry="8" fill="#D4927A" />
-      {/* Head — perfectly round, rich brown like emoji */}
-      <circle cx="50" cy="50" r="34" fill="#A0714A" />
-      {/* Head gradient overlay for depth */}
-      <circle cx="50" cy="48" r="32" fill="#B07E52" opacity="0.4" />
-      {/* Muzzle — large cream oval, emoji-signature proportions */}
-      <ellipse cx="50" cy="66" rx="20" ry="15" fill="#F5E6D0" />
-      {/* Muzzle highlight */}
-      <ellipse cx="50" cy="63" rx="16" ry="10" fill="#FFF3E4" opacity="0.3" />
-      {/* Left eye — simple, big, friendly */}
-      <circle cx="36" cy="46" r="5.5" fill="#1A0E06" />
-      <circle cx="37.5" cy="44" r="2.2" fill="white" />
+      <ellipse cx="87" cy="42" rx="8" ry="11" fill="#F0F0F0" />
+      <ellipse cx="86" cy="42" rx="4.5" ry="7" fill="#F2A5A5" />
+      {/* Head — round, white */}
+      <circle cx="50" cy="52" r="34" fill="#F5F5F5" />
+      {/* Black patch — top left */}
+      <ellipse cx="35" cy="34" rx="14" ry="11" transform="rotate(-10 35 34)" fill="#2A2A2A" />
+      {/* Black patch — top right, smaller */}
+      <ellipse cx="68" cy="36" rx="10" ry="9" transform="rotate(8 68 36)" fill="#2A2A2A" />
+      {/* Muzzle — big pink oval, signature cow feature */}
+      <ellipse cx="50" cy="68" rx="20" ry="16" fill="#FFBDBD" />
+      {/* Left eye — simple black dot, white gleam */}
+      <circle cx="36" cy="48" r="4.5" fill="#1A1A1A" />
+      <circle cx="37.5" cy="46.5" r="1.6" fill="white" />
       {/* Right eye */}
-      <circle cx="64" cy="46" r="5.5" fill="#1A0E06" />
-      <circle cx="65.5" cy="44" r="2.2" fill="white" />
-      {/* Left nostril — dark, oval */}
-      <ellipse cx="42" cy="68" rx="4.5" ry="3.8" fill="#6B4A30" />
+      <circle cx="64" cy="48" r="4.5" fill="#1A1A1A" />
+      <circle cx="65.5" cy="46.5" r="1.6" fill="white" />
+      {/* Left nostril */}
+      <ellipse cx="43" cy="69" rx="4" ry="3.2" fill="#D48A8A" />
       {/* Right nostril */}
-      <ellipse cx="58" cy="68" rx="4.5" ry="3.8" fill="#6B4A30" />
-      {/* Mouth — very subtle, friendly */}
-      <path d="M44 75 Q50 79 56 75" stroke="#C4A080" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+      <ellipse cx="57" cy="69" rx="4" ry="3.2" fill="#D48A8A" />
     </svg>
   );
 }
@@ -540,8 +536,8 @@ function Hero() {
               gap: '0.5rem',
               padding: '0.35rem 0.9rem',
               borderRadius: 999,
-              border: '1px solid rgba(212,165,116,0.25)',
-              background: 'rgba(212,165,116,0.06)',
+              border: '1px solid rgba(232,136,138,0.25)',
+              background: 'rgba(232,136,138,0.06)',
               fontSize: '0.78rem',
               color: 'var(--accent)',
               marginBottom: '1.5rem',

@@ -19,14 +19,14 @@
   --muted: #7A7168;
   --faint: #2A2622;
 
-  /* ── Brand — cow emoji inspired ─── */
-  --accent:  #C08040;
-  --accent-2: #D4975A;
-  --cream:   #F5E6D0;
+  /* ── Brand — cow emoji palette (white, black, pink) ─── */
+  --accent:  #E8888A;
+  --accent-2: #F2A5A5;
+  --cream:   #F5F5F5;
   --green:   #4CAF6A;
   --yellow:  #D4C090;
-  --brown:   #8B6442;
-  --brown-light: #B07E52;
+  --brown:   #2A2A2A;
+  --brown-light: #888;
 
   /* ── Tier system ─── */
   --tier-0: #4CAF6A;
@@ -63,7 +63,7 @@
   --shadow-sm: 0 1px 3px rgba(10,8,5,0.5);
   --shadow-md: 0 8px 32px -8px rgba(10,8,5,0.7);
   --shadow-lg: 0 24px 64px -16px rgba(10,8,5,0.85);
-  --shadow-glow: 0 0 40px -16px rgba(212,165,116,0.25);
+  --shadow-glow: 0 0 40px -16px rgba(232,136,138,0.25);
 }
 
 /* ── Reset ───────────────────────────────────────────────── */
