@@ -26,6 +26,37 @@ const BUDGET_OPTIONS = [
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
 const INSTALL_CMD_WIN = 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex';
 
+// ── Live preview helpers — gives the user a tangible "what you'll get" as
+//    they fill out step 1. Numbers are directional, anchored on real router
+//    accuracy (~88%) and tier cost ratios used in the landing page calculator.
+const LOCAL_HW = new Set(['mac_m_series', 'windows_nvidia', 'windows_amd', 'linux_nvidia', 'linux_amd']);
+
+function estimateMonthlySavings({ hw, subs, budget }: { hw: string; subs: string[]; budget: number }): string {
+  const hasLocal = LOCAL_HW.has(hw);
+  const hasMax = subs.includes('Claude Max');
+  const effectiveBudget = budget === 999 ? 300 : budget; // "no limit" anchor
+  // Rough mental model: without mooter, users burn ~$120/mo in Opus-only at moderate usage.
+  // With mooter, local deflection + tier routing typically brings that down 70–90%.
+  const floor = hasLocal ? 0.10 : 0.25;
+  const baseline = hasMax ? 120 : Math.max(40, effectiveBudget * 4);
+  const saved = Math.round(baseline * (1 - floor));
+  if (hasLocal) return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only`;
+  return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only (cloud-only routing)`;
+}
+
+function estimateExplanation({ hw, subs, budget }: { hw: string; subs: string[]; budget: number }): string {
+  const hasLocal = LOCAL_HW.has(hw);
+  const hasMax = subs.includes('Claude Max');
+  const parts: string[] = [];
+  if (hasLocal) parts.push('Trivial tasks (T0) run locally via Ollama — $0');
+  else parts.push('No GPU detected — T0 tasks go to Haiku (~$0.003/prompt)');
+  if (hasMax) parts.push('Claude Max subscription covers Opus for T3 work at flat rate');
+  else if (subs.length > 0) parts.push(`Routed across your ${subs.length} provider${subs.length > 1 ? 's' : ''} for best cost/quality`);
+  if (budget === 0) parts.push('Free-only mode — never hits paid APIs');
+  else if (budget >= 100) parts.push('Budget headroom for occasional Opus (critical architecture decisions)');
+  return parts.join(' · ');
+}
+
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [hw, setHw] = useState('');
@@ -144,7 +175,7 @@ export default function OnboardingPage() {
               Tell mooter about your machine so it can route smart.
             </p>
 
-            <FieldLabel>What hardware are you running on?</FieldLabel>
+            <FieldLabel required>What hardware are you running on?</FieldLabel>
             <ChipGroup>
               {HW_OPTIONS.map(o => (
                 <Chip key={o.value} active={hw === o.value} onClick={() => setHw(o.value)}>
@@ -171,8 +202,32 @@ export default function OnboardingPage() {
               ))}
             </ChipGroup>
 
+            {/* Savings preview — lights up as user makes selections */}
+            {hw && (
+              <div style={{
+                marginTop: 32,
+                padding: '20px 24px',
+                background: 'color-mix(in srgb, var(--accent) 6%, var(--surface))',
+                border: '1px solid color-mix(in srgb, var(--accent) 24%, var(--border))',
+                borderRadius: 'var(--r-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                  Estimated impact
+                </div>
+                <div style={{ fontSize: '1.35rem', color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--font)', letterSpacing: '-0.01em' }}>
+                  {estimateMonthlySavings({ hw, subs, budget })}
+                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                  {estimateExplanation({ hw, subs, budget })}
+                </div>
+              </div>
+            )}
+
             <PrimaryButton disabled={!hw} onClick={() => setStep(2)}>
-              Next &rarr;
+              {hw ? 'Next \u2192' : 'Pick your hardware to continue'}
             </PrimaryButton>
           </div>
         )}
@@ -443,7 +498,7 @@ export default function OnboardingPage() {
 }
 
 // ── Local UI primitives ────────────────────────────────────────────────
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <p style={{
       fontSize: '0.75rem',
@@ -452,8 +507,16 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
       letterSpacing: '0.08em',
       fontWeight: 600,
       margin: '24px 0 10px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
     }}>
       {children}
+      {required && (
+        <span style={{ color: 'var(--accent)', fontSize: '0.85em', letterSpacing: 0, textTransform: 'none' }}>
+          • required
+        </span>
+      )}
     </p>
   );
 }
