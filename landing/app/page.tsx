@@ -299,44 +299,32 @@ function AnimatedTierBar({
  * ───────────────────────────────────────────────────────────── */
 
 function MooterLogo({ size = 32, className = '' }: { size?: number; className?: string }) {
+  /* Based on Twemoji 1f42e (MIT license) with subtle mooter touches */
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 100 100"
-      fill="none"
+      viewBox="0 0 36 36"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-label="Mooter logo"
     >
-      {/* Left horn — short, gray */}
-      <path d="M27 30 C24 20 21 11 25 8 C29 6 32 16 32 26Z" fill="#888" />
-      {/* Right horn */}
-      <path d="M73 30 C76 20 79 11 75 8 C71 6 68 16 68 26Z" fill="#888" />
-      {/* Left ear — white outer, pink inner */}
-      <ellipse cx="13" cy="42" rx="8" ry="11" fill="#F0F0F0" />
-      <ellipse cx="14" cy="42" rx="4.5" ry="7" fill="#F2A5A5" />
-      {/* Right ear */}
-      <ellipse cx="87" cy="42" rx="8" ry="11" fill="#F0F0F0" />
-      <ellipse cx="86" cy="42" rx="4.5" ry="7" fill="#F2A5A5" />
-      {/* Head — round, white */}
-      <circle cx="50" cy="52" r="34" fill="#F5F5F5" />
-      {/* Black patch — top left */}
-      <ellipse cx="35" cy="34" rx="14" ry="11" transform="rotate(-10 35 34)" fill="#2A2A2A" />
-      {/* Black patch — top right, smaller */}
-      <ellipse cx="68" cy="36" rx="10" ry="9" transform="rotate(8 68 36)" fill="#2A2A2A" />
-      {/* Muzzle — big pink oval, signature cow feature */}
-      <ellipse cx="50" cy="68" rx="20" ry="16" fill="#FFBDBD" />
-      {/* Left eye — simple black dot, white gleam */}
-      <circle cx="36" cy="48" r="4.5" fill="#1A1A1A" />
-      <circle cx="37.5" cy="46.5" r="1.6" fill="white" />
-      {/* Right eye */}
-      <circle cx="64" cy="48" r="4.5" fill="#1A1A1A" />
-      <circle cx="65.5" cy="46.5" r="1.6" fill="white" />
-      {/* Left nostril */}
-      <ellipse cx="43" cy="69" rx="4" ry="3.2" fill="#D48A8A" />
-      {/* Right nostril */}
-      <ellipse cx="57" cy="69" rx="4" ry="3.2" fill="#D48A8A" />
+      {/* Ears — gray with pink blush */}
+      <path fill="#99AAB5" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z" />
+      <path fill="#99AAB5" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z" />
+      {/* Horns — warm cream */}
+      <path fill="#FFE8B6" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z" />
+      <path fill="#FFE8B6" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z" />
+      {/* Face — light gray, slightly warm */}
+      <path fill="#D0D5DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z" />
+      {/* Muzzle — soft pink, signature feature */}
+      <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z" />
+      {/* Nostrils */}
+      <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3" />
+      <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3" />
+      {/* Eyes — rounded rectangles, expressive */}
+      <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
+      <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
     </svg>
   );
 }
