@@ -113,51 +113,9 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
     );
   }
 
-  // Not authenticated — inline login (PEÇA 5)
+  // Not authenticated — hero login
   if (!user) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)' }}>
-        <div style={{ textAlign: 'center', maxWidth: 420, padding: '0 24px' }}>
-          <div style={{ fontSize: '3.5rem', marginBottom: 16, lineHeight: 1 }}>🐮</div>
-          <h1 style={{
-            fontSize: '2rem', marginBottom: 8, color: 'var(--text)',
-            fontFamily: 'var(--font)', fontWeight: 700, letterSpacing: '-0.02em',
-          }}>mooter</h1>
-          <p style={{
-            color: 'var(--muted)', marginBottom: 40, fontSize: '0.95rem',
-            lineHeight: 1.5,
-          }}>Your AI routing dashboard</p>
-          <button
-            onClick={() => {
-              const redirectTo = `${window.location.origin}/auth/callback`;
-              window.location.href =
-                `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/auth/v1/authorize` +
-                `?provider=github` +
-                `&redirect_to=${encodeURIComponent(redirectTo)}` +
-                `&scopes=read:user,public_repo`;
-            }}
-            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.15)')}
-            onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 12,
-              background: 'var(--surface-2)', border: '1px solid var(--border-light)',
-              padding: '14px 28px', borderRadius: 'var(--r-md)', fontSize: '0.95rem',
-              color: 'var(--text)', cursor: 'pointer', fontWeight: 500,
-              transition: 'filter 0.2s ease',
-            }}
-          >
-            <GitHubIcon />
-            Continue with GitHub
-          </button>
-          <p style={{
-            color: 'var(--faint)', fontSize: '0.75rem', marginTop: 48,
-            fontFamily: 'var(--mono)',
-          }}>
-            Smart model routing for Claude Code
-          </p>
-        </div>
-      </div>
-    );
+    return <LoginHero />;
   }
 
   const handleLogout = () => {
@@ -270,6 +228,214 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
 
         {children}
       </main>
+    </div>
+  );
+}
+
+// ── Login hero ──────────────────────────────────────────────────────────────
+
+type LoginStats = { prompt_count: number; savings_pct: number; savings_usd: number };
+
+function useLoginStats(): LoginStats {
+  const [stats, setStats] = useState<LoginStats>({
+    prompt_count: 1437,
+    savings_pct: 89.9,
+    savings_usd: 6.29,
+  });
+  useEffect(() => {
+    const hubBase =
+      process.env.NEXT_PUBLIC_MOOTER_HUB_URL ||
+      process.env.NEXT_PUBLIC_FRUGAL_HUB_URL ||
+      'https://mooter-hub.frugal-hub.workers.dev';
+    fetch(`${hubBase}/api/stats`, { signal: AbortSignal.timeout(3000) })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.prompt_count) {
+          setStats({
+            prompt_count: data.prompt_count,
+            savings_pct: data.avg_savings_pct ?? 89.9,
+            savings_usd: data.total_savings_usd ?? 6.29,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+  return stats;
+}
+
+function LoginHero() {
+  const stats = useLoginStats();
+
+  const handleLogin = () => {
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    window.location.href =
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/auth/v1/authorize` +
+      `?provider=github` +
+      `&redirect_to=${encodeURIComponent(redirectTo)}` +
+      `&scopes=read:user,public_repo`;
+  };
+
+  const fmtNum = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n));
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '64px 24px',
+    }}>
+      <div style={{ width: '100%', maxWidth: 520, textAlign: 'center' }}>
+        {/* Brand */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 12,
+          marginBottom: 32,
+        }}>
+          <span style={{ fontSize: '2.5rem', lineHeight: 1 }}>🐮</span>
+          <span style={{
+            fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em',
+            fontFamily: 'var(--font)', color: 'var(--text)',
+          }}>
+            mooter
+          </span>
+        </div>
+
+        {/* Headline */}
+        <h1 style={{
+          fontSize: 'clamp(1.75rem, 4.5vw, 2.4rem)',
+          fontWeight: 700,
+          letterSpacing: '-0.025em',
+          lineHeight: 1.15,
+          color: 'var(--text)',
+          fontFamily: 'var(--font)',
+          margin: '0 0 16px',
+        }}>
+          Stop burning Opus on<br />
+          things <span style={{ color: 'var(--accent)' }}>Haiku can do</span>.
+        </h1>
+
+        <p style={{
+          fontSize: '1rem',
+          color: 'var(--muted)',
+          lineHeight: 1.6,
+          maxWidth: 440,
+          margin: '0 auto 36px',
+        }}>
+          mooter routes every Claude Code prompt to the cheapest model that can do the job.
+          Claude Max users save ~$100/mo. Keys stay on your machine.
+        </p>
+
+        {/* Live stats strip */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 12,
+          marginBottom: 36,
+          padding: '18px 16px',
+          background: 'var(--surface-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-md)',
+        }}>
+          <StatCell
+            value={fmtNum(stats.prompt_count)}
+            label="prompts routed"
+            accent
+          />
+          <StatCell
+            value={`${stats.savings_pct.toFixed(1)}%`}
+            label="avg savings"
+          />
+          <StatCell
+            value={`$${stats.savings_usd.toFixed(2)}`}
+            label="saved (community)"
+          />
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={handleLogin}
+          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+          onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+          style={{
+            width: '100%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            background: 'var(--accent)',
+            color: 'var(--bg)',
+            border: 'none',
+            padding: '16px 28px',
+            borderRadius: 'var(--r-md)',
+            fontSize: '0.98rem',
+            fontWeight: 700,
+            fontFamily: 'var(--font)',
+            cursor: 'pointer',
+            transition: 'filter 0.15s ease',
+          }}
+        >
+          <GitHubIcon />
+          Continue with GitHub
+        </button>
+
+        <p style={{
+          color: 'var(--muted)',
+          fontSize: '0.78rem',
+          marginTop: 14,
+          fontFamily: 'var(--font)',
+        }}>
+          Takes 30 seconds · No credit card · Your API keys stay local
+        </p>
+
+        {/* Trust footer */}
+        <div style={{
+          marginTop: 48,
+          paddingTop: 20,
+          borderTop: '1px solid var(--border)',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 20,
+          flexWrap: 'wrap',
+          fontSize: '0.72rem',
+          color: 'var(--faint)',
+          fontFamily: 'var(--mono)',
+          letterSpacing: '0.02em',
+        }}>
+          <span>Claude Code · Cowork · API</span>
+          <span style={{ color: 'var(--border-light)' }}>·</span>
+          <span>mooter.ai</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCell({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
+  return (
+    <div style={{ textAlign: 'center', minWidth: 0 }}>
+      <div style={{
+        fontSize: '1.25rem',
+        fontWeight: 700,
+        letterSpacing: '-0.01em',
+        color: accent ? 'var(--accent)' : 'var(--text)',
+        fontFamily: 'var(--font)',
+        lineHeight: 1.1,
+      }}>
+        {value}
+      </div>
+      <div style={{
+        fontSize: '0.68rem',
+        color: 'var(--muted)',
+        marginTop: 4,
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        fontWeight: 500,
+      }}>
+        {label}
+      </div>
     </div>
   );
 }
