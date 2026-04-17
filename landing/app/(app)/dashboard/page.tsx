@@ -645,7 +645,7 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
             {modeCompare.map(m => (
               <tr
                 key={m.mode}
-                style={{ background: m.mode === rec.mode ? 'rgba(255,107,53,0.06)' : 'transparent' }}
+                style={{ background: m.mode === rec.mode ? 'rgba(232,136,138,0.06)' : 'transparent' }}
               >
                 <td style={{ padding: '6px 10px', fontWeight: m.mode === rec.mode ? 700 : 400, color: 'var(--text)' }}>
                   {m.mode === rec.mode ? '\u2192 ' : ''}{m.label}
@@ -988,8 +988,8 @@ function OverviewTab({ profile }: { profile: Profile }) {
       {/* Savings Hero */}
       {decisionsCount > 0 && (
         <div style={{
-          background: 'linear-gradient(135deg, rgba(255,107,53,0.08) 0%, rgba(255,107,53,0.02) 60%)',
-          border: '1px solid rgba(255,107,53,0.2)',
+          background: 'linear-gradient(135deg, rgba(232,136,138,0.08) 0%, rgba(232,136,138,0.02) 60%)',
+          border: '1px solid rgba(232,136,138,0.2)',
           borderRadius: 'var(--r-lg)',
           padding: '28px 32px',
           marginBottom: 20,
@@ -1250,8 +1250,8 @@ function MetricsTab({ profile }: { profile: Profile }) {
 
       {/* Key insight callout */}
       <div style={{
-        background: 'rgba(255,107,53,0.06)',
-        border: '1px solid rgba(255,107,53,0.2)',
+        background: 'rgba(232,136,138,0.06)',
+        border: '1px solid rgba(232,136,138,0.2)',
         borderRadius: 'var(--r-md)',
         padding: 16,
         marginBottom: 24,
@@ -1380,7 +1380,7 @@ function FlowNode({ index, icon, label, badge, tooltip, highlight, children }: {
       style={{
         animationDelay: `${index * 0.1}s`,
         border: highlight ? '2px solid var(--accent)' : '1px solid var(--border)',
-        background: highlight ? 'rgba(255,107,53,0.06)' : 'var(--surface-2)',
+        background: highlight ? 'rgba(232,136,138,0.06)' : 'var(--surface-2)',
         borderRadius: 'var(--r-md)',
         padding: '16px 20px',
         position: 'relative',
@@ -1394,7 +1394,7 @@ function FlowNode({ index, icon, label, badge, tooltip, highlight, children }: {
             fontSize: '0.7rem',
             padding: '2px 8px',
             borderRadius: 'var(--r-full)',
-            background: highlight ? 'rgba(255,107,53,0.12)' : 'var(--faint)',
+            background: highlight ? 'rgba(232,136,138,0.12)' : 'var(--faint)',
             color: highlight ? 'var(--accent)' : 'var(--muted)',
             fontFamily: 'var(--mono)',
           }}>
@@ -1529,7 +1529,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
               <span key={f} style={{
                 fontSize: '0.7rem', padding: '2px 8px',
                 borderRadius: 'var(--r-full)',
-                background: 'rgba(255,107,53,0.12)',
+                background: 'rgba(232,136,138,0.12)',
                 color: 'var(--accent)', fontFamily: 'var(--mono)',
               }}>
                 {f}
@@ -1612,8 +1612,8 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
           marginTop: 32,
           padding: '24px 28px',
           borderRadius: 'var(--r-lg)',
-          background: 'linear-gradient(135deg, rgba(255,107,53,0.08) 0%, rgba(255,107,53,0.02) 100%)',
-          border: '1px solid rgba(255,107,53,0.2)',
+          background: 'linear-gradient(135deg, rgba(232,136,138,0.08) 0%, rgba(232,136,138,0.02) 100%)',
+          border: '1px solid rgba(232,136,138,0.2)',
         }}>
           <div style={{
             display: 'flex', flexWrap: 'wrap',

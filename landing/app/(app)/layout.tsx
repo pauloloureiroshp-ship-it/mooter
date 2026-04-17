@@ -301,7 +301,7 @@ function LoginHero() {
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
           <div style={{
             animation: 'mooter-logo-float 5s ease-in-out infinite',
-            filter: 'drop-shadow(0 16px 40px rgba(255, 107, 53, 0.32))',
+            filter: 'drop-shadow(0 16px 40px rgba(232, 136, 138, 0.32))',
             willChange: 'transform',
           }}>
             <MooterLogo size={104} />
@@ -370,7 +370,7 @@ function LoginHero() {
             fontFamily: 'var(--font)',
             cursor: 'pointer',
             transition: 'filter 0.15s ease',
-            boxShadow: '0 10px 30px rgba(255, 107, 53, 0.28)',
+            boxShadow: '0 10px 30px rgba(232, 136, 138, 0.28)',
           }}
         >
           <GitHubIcon />
@@ -435,21 +435,20 @@ function StatCell({ value, label, accent }: { value: string; label: string; acce
 // ── Brand logo + provider icons (mirror landing page.tsx:300-397) ──────────
 
 function MooterLogo({ size = 32 }: { size?: number }) {
+  // Twemoji v7 — matches landing page.tsx MooterLogo at commit 4d18352.
+  // Horns cream + cool-gray ears/head + pink muzzle + darker pink nostrils.
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none" aria-label="Mooter logo">
-      <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209" />
-      <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209" />
-      <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209" />
-      <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4" />
-      <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4" />
-      <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4" />
-      <circle cx="36" cy="46" r="6" fill="#1C1209" />
-      <circle cx="64" cy="46" r="6" fill="#1C1209" />
-      <circle cx="38" cy="44" r="2" fill="white" />
-      <circle cx="66" cy="44" r="2" fill="white" />
-      <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35" />
-      <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C" />
-      <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C" />
+    <svg width={size} height={size} viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-label="Mooter logo">
+      <path fill="#E8DCC8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z" />
+      <path fill="#E8DCC8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z" />
+      <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z" />
+      <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z" />
+      <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z" />
+      <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z" />
+      <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3" />
+      <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3" />
+      <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
+      <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z" />
     </svg>
   );
 }
