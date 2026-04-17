@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-17 06:40 UTC (Claude Code Windows — Full rebrand + OAuth verification)
-**Versão:** v0.9.9+ Sprint B + Landing redesign + Reviews #1-2 + Full Rebrand
-**Último commit main:** `e0d945d` (rebrand: frugal → mooter in OG image and analyse API)
-**Sessão Claude Code:** #24 (repo Windows) — full rebrand app shell, OAuth verification, waitlist RLS fix, 3 commits
+**Última sync:** 2026-04-17 (Claude Code Windows — Login hero + onboarding auto-detect)
+**Versão:** v0.9.9+ Sprint B + Landing redesign + Full Rebrand + Auth area v2
+**Último commit main:** `ec6e36e` (feat(onboarding): Ollama recommendation + privacy microcopy)
+**Sessão Claude Code:** #26 (repo Windows) — login hero redesign, hardware auto-detect, Ollama recommendation; 3 commits, production deploy `dpl_3ZhAJmcGHa3RRLyC5i5iTZDaRccJ`
 
 ---
 
@@ -145,6 +145,25 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 **Notion session pages:**
 - Sessão #25: https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e
 - Sessão #25-continued (ship session): atualizar no próximo wrap
+
+### ✅ Sessão #26 — 2026-04-17 (auth area polish — login hero + onboarding intelligence)
+
+**Recap:** Paulo feedback pós-#25 — "a página após sign in ficou muito simples e pouco profissional; falta análise do setup e integração com providers; look&feel tem de bater com landing". Resposta: 3 commits atómicos, deploy imediato.
+
+| Fase | Ficheiro | Commit | Mudança |
+|---|---|---|---|
+| A — Login hero | `app/(app)/layout.tsx` | `1a4c4e4` | Substituiu bloco `!user` (60 palavras) por `<LoginHero/>`: headline com accent `Haiku can do`, strip de live stats (prompts routed · avg savings · community USD) puxado do hub `/api/stats`, CTA GitHub proeminente em `--accent`, trust microcopy ("keys stay local"). Sem links repo públicos (doutrina). +210/-44 |
+| B — HW auto-detect | `app/onboarding/page.tsx` | `26a86e5` | Probe browser: `navigator.userAgent` + `hardwareConcurrency` + `deviceMemory` + WebGL `UNMASKED_RENDERER_WEBGL`. Card "We detected your machine" com OS / CPU / GPU / RAM + botões "This looks right" / "Pick manually". Pré-selecciona chip hw automaticamente. Fallback silencioso se WebGL bloqueado. +190/-1 |
+| C — Providers + Ollama | `app/onboarding/page.tsx` | `ec6e36e` | Relabel "subscriptions" → "providers" + microcopy privacy ("keys stay local after install"). Card recomendação Ollama condicional ao hw: `qwen2.5-coder:14b` para NVIDIA high-end (RTX 30/40/50/A/H100), `qwen2.5-coder:7b` para M-series + NVIDIA médio, `qwen2.5:3b` para AMD. Cloud/other não mostra card. +118/-1 |
+
+**Deploy:** `vercel --prod` → `dpl_3ZhAJmcGHa3RRLyC5i5iTZDaRccJ` Ready, aliased a `mooter.ai` em 2 min.
+
+**Risco mitigado:**
+- WebGL pode retornar genérico em Firefox/Safari strict → fallback para chip manual
+- `deviceMemory` só Chrome → render condicional
+- Nenhuma mudança em `/api/me`, `/api/profile`, `generate-frugal-config.ts`, Supabase schema
+
+**Pendente teste browser:** Paulo abrir `mooter.ai` em incognito, sign in → verificar novo hero + confirmar que auto-detect acerta hardware real (Windows PC → deve detectar GPU NVIDIA e suggerir `windows_nvidia`).
 
 ### 🔴 ÚNICO PENDENTE MANUAL (Paulo)
 
