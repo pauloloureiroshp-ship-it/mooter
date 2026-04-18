@@ -1,5 +1,5 @@
 # INFRA.md — frugal Infrastructure Reference
-# Última actualização: 2026-04-13 (v0.9.9)
+# Última actualização: 2026-04-18 (v0.10.0 · post-landing-redesign)
 # ⚠️ NUNCA commitar passwords reais aqui. Usar placeholders e referências a secrets managers.
 
 > Ficheiro de referência operacional **auto-populado via MCP**.
@@ -80,7 +80,9 @@ workers_get_worker → workerName: "frugal-hub"
 workers_get_worker_code → workerName: "frugal-hub"
 
 # Query D1
-d1_database_query → databaseId: "320b55f6-9444-4deb-bcd5-e8227739546e", sql: "SELECT ..."
+d1_database_query → databaseId: "3659b56e-6f9c-4da8-bc28-e9f79b8576f7", sql: "SELECT ..."
+# NOTE: 3659b56e is the ACTIVE mooter-hub D1 (device_heartbeats etc.).
+# 320b55f6-9444-4deb-bcd5-e8227739546e is the legacy frugal-hub D1 (empty, kept for history).
 
 # Listar D1 databases
 d1_databases_list  (sem parâmetros após set_active_account)
@@ -169,7 +171,8 @@ git tag -a v0.9.X -m "v0.9.X — descrição" && git push origin v0.9.X
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://eymtobwinevywmmlmxqa.supabase.co` | Vercel → Settings → Env Vars |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `[Supabase → Settings → API]` | Vercel → Settings → Env Vars |
-| `NEXT_PUBLIC_SITE_URL` | `https://landing-five-azure-16.vercel.app` | Vercel → Settings → Env Vars |
+| `NEXT_PUBLIC_SITE_URL` | `https://mooter.ai` | Vercel → Settings → Env Vars |
+| `NEXT_PUBLIC_MOOTER_HUB_URL` | `https://mooter-hub.frugal-hub.workers.dev` | Added 2026-04-18 |
 
 ### Deploy da landing
 
@@ -267,9 +270,10 @@ savings_usd, created_at
 
 ### D1 Databases
 
-| Nome | **UUID** | Versão | Tamanho |
-|---|---|---|---|
-| `frugal-hub` | `320b55f6-9444-4deb-bcd5-e8227739546e` | production | 92 KB |
+| Nome | **UUID** | Versão | Tamanho | Notas |
+|---|---|---|---|---|
+| `mooter-hub` | `3659b56e-6f9c-4da8-bc28-e9f79b8576f7` | production | 112 KB | ✅ ACTIVE — bound to worker frugal-hub. Owns device_heartbeats, aggregated_stats, deltas, anomalies, mooter_events, model_signals |
+| `frugal-hub` | `320b55f6-9444-4deb-bcd5-e8227739546e` | production | 92 KB | Legacy (2026-04-10 → 2026-04-13). No writes since migration to mooter-hub. Keep for history. |
 
 ### Secrets do Worker
 
@@ -290,8 +294,9 @@ savings_usd, created_at
 | Endpoint | Método | O que faz |
 |---|---|---|
 | `/health` | GET | Health check |
-| `/api/stats` | GET | Agregados (últimos 7 dias) |
+| `/api/stats` | GET | Agregados (últimos 7 dias). Inclui `installed_fleet` desde 2026-04-13. |
 | `/api/delta` | POST | Recebe routing delta anónimo |
+| `/api/device-heartbeat` | POST | Instalação/alive heartbeat (install_start / install_ok / install_fail / alive) — persiste em D1 `device_heartbeats` |
 
 ### Crons do hub
 

@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-18 (Claude Code Windows — Review #11 + Counters data layer)
-**Versão:** v0.9.9+ Sprint B + Landing redesign + Full Rebrand + Auth area v2.1 + Counters data layer
-**Último commit main:** `418776a` (feat(counters): surface tokens_used + savings + write-counters flag)
-**Sessão Claude Code:** #27 (repo Windows) — review #11 delta analysis + T0 drop diagnosed as artifact + counters pipeline (tokens + savings) live; 1 commit
+**Última sync:** 2026-04-18 (Claude Code Windows — Platform Audit v3 + CI green)
+**Versão:** v0.10.0 · Landing warm beige · Auth+App warm dark · CI 66/66 green · mooter.ai live
+**Último commit main:** `710eb54` (polish(settings): drop 🐮 emoji from Profile heading)
+**Sessão Claude Code:** #28 (repo Windows) — platform audit v3: CI router tests fixed (66/66), D1 mapping corrected (mooter-hub hosts device_heartbeats), MOOTER_HUB_URL added to Vercel, INFRA.md refreshed. Notion log pending.
 
 ---
 

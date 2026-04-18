@@ -150,12 +150,14 @@ test('classify.js: high-risk prompts ignore TUNED demote/promote', () => {
 const pricing = require('./pricing.js');
 const tracker = require('./savings-tracker.js');
 
-test('pricing: Opus turn costs 30-60× a Haiku turn of same size', () => {
+test('pricing: Opus turn costs 4-60× a Haiku turn of same size', () => {
   const opus = pricing.priceTurn('claude-opus-4-6', 10000, 1000);
   const haiku = pricing.priceTurn('claude-haiku-4-5', 10000, 1000);
   const ratio = opus / haiku;
-  assert.ok(ratio >= 18 && ratio <= 60,
-    `Opus/Haiku ratio was ${ratio.toFixed(1)}, expected 18-60 (input-heavy vs output-heavy windows).`);
+  // 2026-04-16 Opus 4.6 dropped to $5/$25 — ratio vs Haiku $1/$5 is now ~5×,
+  // not the 18-60× it was at the old $15/$75 rate.
+  assert.ok(ratio >= 4 && ratio <= 60,
+    `Opus/Haiku ratio was ${ratio.toFixed(1)}, expected 4-60 (post-2026-04 Opus 4.6 pricing).`);
 });
 
 test('pricing: Ollama is strictly free and unknown models fall back', () => {
@@ -339,7 +341,7 @@ test('sub-tier: code prompt at T0 → qwen2.5-coder specialist', () => {
   const r = classifyPrompt('explica o que faz esta função async await');
   assert.equal(r.tier, 'T0');
   assert.equal(r.t0_subtier, 'code');
-  assert.equal(r.recommended_model, 'qwen2.5-coder:14b-q4');
+  assert.equal(r.recommended_model, 'qwen2.5-coder:14b');
 });
 
 test('sub-tier: math prompt at T0 → deepseek-r1 specialist', () => {
@@ -349,11 +351,13 @@ test('sub-tier: math prompt at T0 → deepseek-r1 specialist', () => {
   assert.equal(r.recommended_model, 'deepseek-r1-distill-qwen:14b');
 });
 
-test('sub-tier: general prompt at T0 → qwen2.5:3b (default)', () => {
+test('sub-tier: general prompt at T0 → gemma4:e4b (v0.10 default)', () => {
   const r = classifyPrompt('lista os ficheiros modificados hoje');
   assert.equal(r.tier, 'T0');
   assert.equal(r.t0_subtier, 'general');
-  assert.equal(r.recommended_model, 'qwen2.5:3b');
+  // v0.10 promoted gemma4:e4b as the new general-purpose local default.
+  // qwen2.5:3b remains available as the terse/Option-A model.
+  assert.equal(r.recommended_model, 'gemma4:e4b');
 });
 
 test('sub-tier: non-T0 decision has t0_subtier=null', () => {
