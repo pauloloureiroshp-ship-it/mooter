@@ -79,6 +79,13 @@ jobs:
         run: |
           mkdir -p "$HOME/.claude/tools/router"
           cp tools/router/*.js "$HOME/.claude/tools/router/"
+          # Link node_modules so transitive requires (zod via env.js) resolve
+          # when backtest.js runs from $HOME/.claude. Symlink is cheaper than
+          # cp -r and the deps are already installed by the earlier npm ci step.
+          ln -sfn "$GITHUB_WORKSPACE/tools/router/node_modules" "$HOME/.claude/tools/router/node_modules"
+          # Also link the tsconfig + package.json so c8 + tsc (if invoked from
+          # the staged dir) find their config; non-fatal if absent.
+          cp tools/router/package.json "$HOME/.claude/tools/router/" 2>/dev/null || true
           # Seed an empty decisions.log so backtest has a corpus to analyse
           echo '{"event":"classified","prompt_len":14,"prompt_preview":"que horas são","tier":"T0","confidence":0.8}' > "$HOME/.claude/tools/router/decisions.log"
           # Seed a minimal router-tuning.json so update-router.js has input
