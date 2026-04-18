@@ -1078,6 +1078,10 @@ function classify(prompt) {
 // This also satisfies the exam's "validation-retry loop" criterion:
 // a low-confidence result is never returned silently — it is either
 // corrected by retry or the rationale explicitly states 'low_confidence_persisted'.
+/**
+ * @param {string | null | undefined} s
+ * @returns {string}
+ */
 function normalisePrompt(s) {
   if (!s) return '';
   return String(s)
@@ -1088,8 +1092,16 @@ function normalisePrompt(s) {
     .trim();
 }
 
+/**
+ * @param {string} prompt
+ * @returns {ReturnType<typeof classify> & {
+ *   retry_attempted?: boolean,
+ *   retry_primary_confidence?: number,
+ *   retry_secondary_confidence?: number,
+ * }}
+ */
 function classifyWithRetry(prompt) {
-  const primary = classify(prompt);
+  const primary = /** @type {any} */ (classify(prompt));
   // HIGH_RISK verdict is immutable — never retry-downgrade.
   if (primary.tier === 'T3') return primary;
   if (typeof primary.confidence !== 'number' || primary.confidence >= 0.4) {
@@ -1100,8 +1112,10 @@ function classifyWithRetry(prompt) {
   if (!norm || norm === (prompt || '').toLowerCase().trim()) {
     return { ...primary, escalation_rule: 'low_confidence_persisted', retry_attempted: false };
   }
-  const retry = classify(norm);
-  const pick = (retry.confidence || 0) > (primary.confidence || 0) ? retry : primary;
+  const retry = /** @type {any} */ (classify(norm));
+  const primaryConf = /** @type {number} */ (primary.confidence) || 0;
+  const retryConf = /** @type {number} */ (retry.confidence) || 0;
+  const pick = retryConf > primaryConf ? retry : primary;
   return {
     ...pick,
     retry_attempted: true,
