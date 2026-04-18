@@ -92,6 +92,14 @@ const HIGH_RISK = [
   /\bseguran[çc]a\b/i,                // "revisão de segurança" — PT security signal
   // Gold-labels audit 2026-04-16 — gl-075: "review the database schema" → T0 (should be T3)
   /\breview\b.*\bschema\b/i,          // "review the database schema" — architecture review
+  // Adversarial probe 2026-04-18 — naked push/merge/ship verbs weren't gating T3.
+  // Before these patterns: "vou fazer push" → T0 gemma4, "git push origin main" → T0.
+  /\bgit\s+push\b/i,                   // "git push <anything>" — any git push is production-touching
+  /\bvou\s+(fazer|dar)\s+push/i,       // PT "vou fazer push"
+  /\bpronto\s+(para|pra)\s+(push|merg|deploy|release|ship)/i, // PT "estou pronto para merge/ship"
+  /\bready\s+(to|for)\s+(push|merg|deploy|ship|release)/i,    // EN "ready to ship/merge/deploy"
+  /\b(precis(o|a|ei)|need)\s+(de\s+|to\s+)?(push|merg|deploy)/i, // "preciso de push", "need to merge"
+  /\bship\s+it\b/i,                    // "ship it" — deploy signal
 ];
 
 // ── MED_RISK (bug hunt / reasoning signals) ────────────────────────────────

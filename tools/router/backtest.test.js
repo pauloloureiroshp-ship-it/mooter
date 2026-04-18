@@ -223,6 +223,39 @@ function classifyPrompt(prompt) {
   return JSON.parse(r.stdout);
 }
 
+// ── v0.10.1 guardrail regression: adversarial probe 2026-04-18 caught these ──
+//    all of the following were leaking to T0 gemma4 before patterns.js fix
+
+test('HIGH_RISK regression: "vou fazer push" → T3 (PT naked push)', () => {
+  const r = classifyPrompt('vou fazer push');
+  assert.equal(r.tier, 'T3', 'naked push is production-touching');
+});
+
+test('HIGH_RISK regression: "git push origin main" → T3', () => {
+  const r = classifyPrompt('git push origin main');
+  assert.equal(r.tier, 'T3', 'any `git push` is production-touching');
+});
+
+test('HIGH_RISK regression: "estou pronto para merge" → T3', () => {
+  const r = classifyPrompt('estou pronto para merge');
+  assert.equal(r.tier, 'T3', 'PT "pronto para merge" is a release gate');
+});
+
+test('HIGH_RISK regression: "ready to ship" → T3', () => {
+  const r = classifyPrompt('ready to ship this feature');
+  assert.equal(r.tier, 'T3', 'EN "ready to ship" is a release gate');
+});
+
+test('HIGH_RISK regression: "ship it" → T3', () => {
+  const r = classifyPrompt('all looks good, ship it');
+  assert.equal(r.tier, 'T3', '"ship it" is a release signal');
+});
+
+test('HIGH_RISK regression: "preciso de push" → T3', () => {
+  const r = classifyPrompt('preciso de push agora');
+  assert.equal(r.tier, 'T3', 'PT "preciso de push" is a release gate');
+});
+
 test('user override: positive "usa o opus" pins T3 + Opus', () => {
   const r = classifyPrompt('usa o opus para revisar isto rapidamente');
   assert.equal(r.tier, 'T3');

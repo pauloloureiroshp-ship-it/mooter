@@ -46,7 +46,13 @@ function assertEntry(entry, section, idx) {
   }
   assert(['ground_truth', 'assumed_correct', 'low'].includes(entry.trust),
     `${loc}.trust must be ground_truth|assumed_correct|low (got ${entry.trust})`);
-  assert(['canonical', 'adversarial', 'historical_high_conf', 'manual'].includes(entry.confidence_source),
+  // Valid sources: the original 4 + any `mooter_review_N` entry added by the
+  // mooter-review pipeline (which appends canonical labels with an incremental
+  // review-cycle suffix — e.g. mooter_review_1, mooter_review_2).
+  const validSource =
+    ['canonical', 'adversarial', 'historical_high_conf', 'manual'].includes(entry.confidence_source) ||
+    /^mooter_review_\d+$/.test(entry.confidence_source);
+  assert(validSource,
     `${loc}.confidence_source is invalid (got ${entry.confidence_source})`);
   assert(typeof entry.notes === 'string',
     `${loc}.notes must be a string (docs why this label is correct)`);
