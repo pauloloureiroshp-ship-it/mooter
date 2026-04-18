@@ -52,13 +52,6 @@ jobs:
         working-directory: tools/router
         run: npm run lint
 
-      # CCA Criterion #3 (Testing) gate — runs node:test suites
-      # (sanitize, env, backtest, classify) with c8 coverage and fails
-      # CI when thresholds drop below the c8 block in package.json.
-      - name: Test router with coverage
-        working-directory: tools/router
-        run: npm run test:coverage
-
       - name: Syntax check classify.js
         run: node -c tools/router/classify.js
 
@@ -80,6 +73,8 @@ jobs:
       # The test suite expects classify.js/update-router.js to live under
       # ~/.claude/tools/router/ because the integration tests spawn the
       # real runtime paths. We mirror the repo into $HOME for the test run.
+      # Must run BEFORE the coverage step because backtest.test.js spawns
+      # $HOME/.claude/tools/router/classify.js as a subprocess.
       - name: Stage runtime into $HOME/.claude
         run: |
           mkdir -p "$HOME/.claude/tools/router"
@@ -88,6 +83,15 @@ jobs:
           echo '{"event":"classified","prompt_len":14,"prompt_preview":"que horas são","tier":"T0","confidence":0.8}' > "$HOME/.claude/tools/router/decisions.log"
           # Seed a minimal router-tuning.json so update-router.js has input
           echo '{"generated_at":"2026-04-07T00:00:00Z","sample_size":1,"complexity_threshold":0.3,"promote_to_t0_patterns":[],"demote_from_t3_patterns":[],"notes":[]}' > "$HOME/.claude/tools/router/router-tuning.json"
+
+      # CCA Criterion #3 (Testing) gate — runs node:test suites
+      # (sanitize, env, backtest, classify, classify-branches) with c8
+      # coverage and fails CI when thresholds drop below the c8 block
+      # in package.json. Runs AFTER the stage step because backtest.test.js
+      # spawns $HOME/.claude/tools/router/classify.js (integration path).
+      - name: Test router with coverage
+        working-directory: tools/router
+        run: npm run test:coverage
 
       - name: Run backtest (smoke)
         run: node "$HOME/.claude/tools/router/backtest.js"
