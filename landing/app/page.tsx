@@ -1275,9 +1275,6 @@ function InstallSection() {
                 <button onClick={loginWithGitHub} className="btn btn-rose">
                   <GitHubIcon /> Sign in to sync
                 </button>
-                <a href="https://github.com/pauloloureiroshp-ship-it/frugal" className="btn btn-secondary">
-                  GitHub
-                </a>
               </div>
               <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted-ink)', letterSpacing: '0.04em' }}>
                 v0.9.4 · MIT · cross-platform
@@ -1313,14 +1310,13 @@ function Footer() {
           </div>
           <div className="footer-col">
             <h5>Community</h5>
-            <a href="https://github.com/pauloloureiroshp-ship-it/frugal">GitHub</a>
-            <a href="https://github.com/pauloloureiroshp-ship-it/frugal/issues">Issues</a>
+            <a href="mailto:paulo.loureiro.shp@gmail.com?subject=Mooter%20beta%20access">Request beta access</a>
             <a href="mailto:paulo.loureiro.shp@gmail.com">Contact</a>
           </div>
           <div className="footer-col">
             <h5>Legal</h5>
             <a href="/methodology">Methodology</a>
-            <a href="https://github.com/pauloloureiroshp-ship-it/frugal/blob/main/LICENSE">MIT License</a>
+            <a href="/LICENSE">MIT License</a>
           </div>
         </div>
         <div className="footer-bottom">

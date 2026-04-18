@@ -1,0 +1,15 @@
+# mooter.ai — robots.txt
+# Friends-beta: allow indexing of public pages, block auth/API routes.
+
+User-agent: *
+Allow: /
+Allow: /methodology
+Allow: /install.sh
+Allow: /install-windows.ps1
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /settings
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://mooter.ai/sitemap.xml
