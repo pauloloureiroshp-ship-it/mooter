@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:watch": "tsc --noEmit -w -p tsconfig.json",
-    "test": "node --test sanitize.test.js env.test.js backtest.test.js classify.test.js",
+    "test": "node --test sanitize.test.js env.test.js backtest.test.js classify.test.js classify-branches.test.js",
     "test:coverage": "c8 --reporter=text --reporter=lcov --check-coverage npm test",
     "lint": "eslint pricing.js fx.js env.js sanitize.js arbiter.js classify.js inject_context.js backtest.js patterns.js shadow-mode.js gpu-probe.js event-builder.js prompt-optimizer.js",
     "format": "prettier --write pricing.js fx.js env.js sanitize.js patterns.js",
@@ -28,10 +28,10 @@
       "**/*.test.js",
       "node_modules/**"
     ],
-    "lines": 40,
-    "functions": 40,
-    "branches": 30,
-    "statements": 40
+    "lines": 55,
+    "functions": 50,
+    "branches": 55,
+    "statements": 55
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
