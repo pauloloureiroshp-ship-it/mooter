@@ -31,7 +31,13 @@
  * Tested in: backtest.test.js (mock-based unit tests)
  */
 
+// @ts-check
 'use strict';
+
+/** @typedef {import('./types').ArbiterDecision} ArbiterDecision */
+/** @typedef {import('./types').ArbiterCache} ArbiterCache */
+/** @typedef {import('./types').ArbiterCacheEntry} ArbiterCacheEntry */
+/** @typedef {import('./types').ArbitrateOptions} ArbitrateOptions */
 
 const fs = require('fs');
 const path = require('path');
@@ -96,6 +102,10 @@ const VALID_SUBAGENTS = new Set([
   'model-architect',
 ]);
 
+/**
+ * @param {string} prompt
+ * @returns {string}
+ */
 function hashKey(prompt) {
   return crypto
     .createHash('sha256')
@@ -103,6 +113,9 @@ function hashKey(prompt) {
     .digest('hex');
 }
 
+/**
+ * @returns {ArbiterCache}
+ */
 function loadCache() {
   try {
     const raw = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
@@ -116,23 +129,33 @@ function loadCache() {
   }
 }
 
+/**
+ * @param {ArbiterCache} cache
+ */
 function saveCache(cache) {
   try {
     // LRU eviction
     const keys = Object.keys(cache.entries);
     if (keys.length > CACHE_MAX) {
       const sorted = keys
-        .map((k) => ({ k, ts: cache.entries[k].ts || 0 }))
+        .map((k) => ({ k, ts: (cache.entries[k] && cache.entries[k].ts) || 0 }))
         .sort((a, b) => b.ts - a.ts)
         .slice(0, CACHE_MAX);
+      /** @type {Record<string, ArbiterCacheEntry>} */
       const kept = {};
-      for (const { k } of sorted) kept[k] = cache.entries[k];
+      for (const { k } of sorted) {
+        const entry = cache.entries[k];
+        if (entry) kept[k] = entry;
+      }
       cache.entries = kept;
     }
     fs.writeFileSync(CACHE_PATH, JSON.stringify(cache));
   } catch { /* non-fatal */ }
 }
 
+/**
+ * @param {Record<string, unknown>} entry
+ */
 function logArbiterEvent(entry) {
   try {
     fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n', 'utf8');
@@ -146,6 +169,11 @@ function logArbiterEvent(entry) {
  * Uses the same spawnSync+inline-node pattern that inject_context.js uses for
  * the budget fetch — lets us stay in a sync hook context without block-ing
  * on node's async-only HTTPS module.
+ */
+/**
+ * @param {string} apiKey
+ * @param {string} prompt
+ * @returns {string | null}
  */
 function callHaikuSync(apiKey, prompt) {
   const body = JSON.stringify({
@@ -193,6 +221,10 @@ function callHaikuSync(apiKey, prompt) {
  * Extract the JSON decision from a full Anthropic /v1/messages response.
  * Tolerates markdown fences, leading text, and trailing whitespace.
  */
+/**
+ * @param {string} apiResponseText
+ * @returns {ArbiterDecision | null}
+ */
 function extractDecision(apiResponseText) {
   try {
     const parsed = JSON.parse(apiResponseText);
@@ -202,6 +234,7 @@ function extractDecision(apiResponseText) {
     // Find the first {...} block in the text.
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
+    /** @type {ArbiterDecision} */
     const decision = JSON.parse(match[0]);
     // Sanity-check the shape.
     if (!['T0', 'T1', 'T2', 'T3'].includes(decision.tier)) return null;
@@ -233,6 +266,11 @@ function extractDecision(apiResponseText) {
  *   - _mockResponse: inject a fake API response (for tests, no real HTTP call)
  *   - _skipCache:   bypass cache read (for tests)
  */
+/**
+ * @param {string} prompt
+ * @param {ArbitrateOptions} [options]
+ * @returns {ArbiterDecision | null}
+ */
 function arbitrate(prompt, options = {}) {
   if (!prompt || typeof prompt !== 'string') return null;
 
@@ -257,7 +295,7 @@ function arbitrate(prompt, options = {}) {
   const startMs = Date.now();
   const raw = options._mockResponse !== undefined
     ? options._mockResponse
-    : callHaikuSync(apiKey, prompt);
+    : callHaikuSync(/** @type {string} */ (apiKey), prompt);
   const durationMs = Date.now() - startMs;
 
   if (!raw) {
