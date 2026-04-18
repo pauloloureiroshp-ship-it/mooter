@@ -50,6 +50,10 @@ const pricing = require('./pricing');
 const fx = require('./fx');
 const { sanitizeJson } = require('./sanitize');
 const { requireEnv } = require('./env');
+// Sprint 8.4 — Sentry. No-op unless MOOTER_SENTRY_DSN is set; never breaks
+// the standalone router.
+const sentry = require('./sentry-helper');
+sentry.init();
 
 const PORT = 7821;
 const HOST = '127.0.0.1';
@@ -1083,12 +1087,17 @@ if (require.main === module) {
       }
       handler(req, res);
     } catch (err) {
+      // Sprint 8.4: forward unexpected route errors to Sentry. No-op when
+      // MOOTER_SENTRY_DSN is unset — see sentry-helper.js.
+      sentry.captureException(err, { tags: { route: url, method } });
       send(res, 500, JSON.stringify({ error: String(err && err.message || err) }));
     }
   });
 
   server.on('error', (err) => {
     if (err && err.code === 'EADDRINUSE') process.exit(0);
+    // Sprint 8.4: capture server-level errors (non-EADDRINUSE) before exit.
+    sentry.captureException(err, { tags: { scope: 'http_server' } });
     process.exit(0);
   });
 
