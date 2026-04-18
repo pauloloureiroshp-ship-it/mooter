@@ -44,6 +44,14 @@ jobs:
         working-directory: tools/router
         run: npm run typecheck
 
+      # CCA Criterion #5 (Code Quality Gates) — ESLint 9 flat config +
+      # typescript-eslint recommended. Warnings-first: tolerates the
+      # 10 known warnings in the codebase so ship isn't blocked while
+      # the team ratchets them down. Zero-error gate enforced.
+      - name: Lint router (eslint)
+        working-directory: tools/router
+        run: npm run lint
+
       # CCA Criterion #3 (Testing) gate — runs node:test suites
       # (sanitize, env, backtest, classify) with c8 coverage and fails
       # CI when thresholds drop below the c8 block in package.json.
