@@ -10,7 +10,12 @@
  * Pure stdlib. Run daily via scheduled task or `node backtest.js`.
  */
 
+// @ts-check
 'use strict';
+
+/** @typedef {import('./types').DecisionLogEntry} DecisionLogEntry */
+/** @typedef {import('./types').Tier} Tier */
+/** @typedef {import('./types').TuningSuggestion} TuningSuggestion */
 
 const fs = require('fs');
 const path = require('path');
@@ -26,9 +31,16 @@ const TUNING_PATH = path.join(ROUTER_DIR, 'router-tuning.json');
 // drifted from real Anthropic pricing and produced savings numbers that
 // didn't match the statusline or /frugal-savings command.
 const pricing = require('./pricing');
+/**
+ * @param {string} tier
+ * @param {number} promptLen
+ */
 function tierCostFor(tier, promptLen) {
   return pricing.estimateTurnCost(tier, promptLen || 200);
 }
+/**
+ * @param {number} promptLen
+ */
 function naiveCostFor(promptLen) {
   return pricing.naiveOpusCost(promptLen || 200);
 }
@@ -44,9 +56,12 @@ function naiveCostFor(promptLen) {
 // backwards compatibility with existing module exports.
 const { TUNING_EXCLUDE: HIGH_RISK_MARKERS } = require('./patterns');
 
+/**
+ * @param {string | undefined | null} text
+ */
 function hasHighRisk(text) {
   if (!text) return false;
-  return HIGH_RISK_MARKERS.some(rx => rx.test(text));
+  return HIGH_RISK_MARKERS.some(/** @param {RegExp} rx */ (rx) => rx.test(text));
 }
 
 function loadDecisions() {
@@ -60,6 +75,10 @@ function loadDecisions() {
 }
 
 // Pattern signature: lowercased first 3 meaningful words
+/**
+ * @param {string | undefined | null} preview
+ * @returns {string}
+ */
 function signature(preview) {
   return (preview || '')
     .toLowerCase()
@@ -80,12 +99,15 @@ function signature(preview) {
 //
 // Matching rule: prefer same session_id; fall back to most recent classified
 // event before the feedback event's timestamp.
+/**
+ * @param {DecisionLogEntry[]} allEvents
+ */
 function resolveExplicitFeedback(allEvents) {
   const counts = { good: 0, bad: 0, orphan: 0 };
-  const feedbacks = allEvents.filter(e => e.event === 'quality_feedback');
+  const feedbacks = allEvents.filter(/** @param {DecisionLogEntry} e */ (e) => e.event === 'quality_feedback');
   if (feedbacks.length === 0) return counts;
 
-  const classified = allEvents.filter(e => e.event === 'classified');
+  const classified = allEvents.filter(/** @param {DecisionLogEntry} e */ (e) => e.event === 'classified');
 
   for (const fb of feedbacks) {
     const quality = fb.followup_quality; // 1=good, 0=bad
@@ -118,23 +140,26 @@ function resolveExplicitFeedback(allEvents) {
 // ── v0.9.1: Implicit feedback resolution ──────────────────────────────────
 // Resolves turn_end events with followup_pending: true by looking ahead in
 // the log for the next classified event with the same session_id.
+/**
+ * @param {DecisionLogEntry[]} allEvents
+ */
 function resolveFeedback(allEvents) {
   const feedbackSignals = { accepted: 0, followup_immediate: 0 };
-  const turnEnds = allEvents.filter(e => e.event === 'turn_end');
-  const classified = allEvents.filter(e => e.event === 'classified');
+  const turnEnds = allEvents.filter(/** @param {DecisionLogEntry} e */ (e) => e.event === 'turn_end');
+  const classified = allEvents.filter(/** @param {DecisionLogEntry} e */ (e) => e.event === 'classified');
 
   for (const te of turnEnds) {
     if (!te.followup_pending) continue;
-    const teMs = te.ts_ms || 0;
+    const teMs = Number(te.ts_ms || 0);
     const sid = te.session_id;
 
     // Find next classified event with same session_id after this turn_end
-    const next = classified.find(c =>
-      c.session_id === sid && (c.ts_ms || 0) > teMs
+    const next = classified.find(/** @param {DecisionLogEntry} c */ (c) =>
+      c.session_id === sid && Number(c.ts_ms || 0) > teMs
     );
 
     if (next) {
-      const delta = (next.ts_ms || 0) - teMs;
+      const delta = Number(next.ts_ms || 0) - teMs;
       if (delta < 30000) {
         te.followup_within_30s = true;
         te.feedback_signal = 'followup_immediate';
@@ -158,24 +183,30 @@ function resolveFeedback(allEvents) {
 // Sprint B.1: resolve shadow judgments — shadow_better verdicts become
 // demotion signals (same weight as explicit_rating=0). This amplifies
 // the feedback signal ~10× without requiring human ratings.
+/**
+ * @param {DecisionLogEntry[]} allEvents
+ */
 function resolveShadowJudgments(allEvents) {
+  /** @type {Record<string, number>} */
   const counts = { total: 0, primary_better: 0, shadow_better: 0, tie: 0, demoted: 0 };
-  const judgments = allEvents.filter(e => e.event === 'shadow_judgment' && e.judge_verdict);
+  const judgments = allEvents.filter(/** @param {DecisionLogEntry} e */ (e) => e.event === 'shadow_judgment' && !!e.judge_verdict);
   if (judgments.length === 0) return counts;
 
-  const classified = allEvents.filter(e => e.event === 'classified');
+  const classified = allEvents.filter(/** @param {DecisionLogEntry} e */ (e) => e.event === 'classified');
+  /** @type {Map<string, DecisionLogEntry>} */
   const classifiedById = new Map();
   for (const c of classified) {
-    if (c.session_id) classifiedById.set(c.session_id, c);
+    if (c.session_id) classifiedById.set(String(c.session_id), c);
   }
 
   for (const j of judgments) {
     counts.total++;
-    counts[j.judge_verdict] = (counts[j.judge_verdict] || 0) + 1;
+    const verdict = String(j.judge_verdict);
+    counts[verdict] = (counts[verdict] || 0) + 1;
 
     if (j.judge_verdict === 'shadow_better') {
       // Find the classified event for this decision and mark for demotion
-      const target = j.session_id ? classifiedById.get(j.session_id) : null;
+      const target = j.session_id ? classifiedById.get(String(j.session_id)) : null;
       if (target && (target.tier === 'T2' || target.tier === 'T3')) {
         target.shadow_demote = true;
         target.explicit_rating = 0; // treat as bad — same pipeline as /mooter-bad
@@ -186,19 +217,29 @@ function resolveShadowJudgments(allEvents) {
   return counts;
 }
 
+/**
+ * @param {DecisionLogEntry[]} decisions
+ */
 function analyze(decisions) {
   const total = decisions.length;
+  /** @type {Record<string, number>} */
   const byTier = { T0: 0, T1: 0, T2: 0, T3: 0 };
+  /** @type {Map<string, Array<{tier: string, conf?: number, len?: number}>>} */
   const sigToTiers = new Map(); // signature -> [tier...]
+  /** @type {DecisionLogEntry[]} */
   const shortHighTier = []; // <50 chars on T2/T3
+  /** @type {DecisionLogEntry[]} */
   const lowConfHighTier = []; // confidence < 0.6 on T2/T3 (escalation noise)
   let qualityIntentHits = 0;   // v0.7: natural-language quality promotion count
   let cacheHits = 0;           // v0.7: classify-cache hit count
   let optimizerHits = 0;       // Sprint 5-A: prompt_optimized event count
   let optimizerTokensSaved = 0;
+  /** @type {Record<string, number>} */
   const optimizerStrategyCounts = {};
   // Sprint A (2026-04-15): explicit rating signals
+  /** @type {Set<string>} */
   const goodSignatures = new Set();       // user-rated good → veto demote
+  /** @type {DecisionLogEntry[]} */
   const explicitBadOnHighTier = [];        // user-rated bad on T2/T3 → force demote
   let explicitGood = 0;
   let explicitBad = 0;
@@ -213,26 +254,27 @@ function analyze(decisions) {
     // Sprint 5-A: count prompt_optimized events (separate event type)
     if (d.event === 'prompt_optimized') {
       optimizerHits++;
-      optimizerTokensSaved += (d.tokens_saved_est || 0);
-      const s = d.strategy || 'unknown';
+      optimizerTokensSaved += Number(d.tokens_saved_est || 0);
+      const s = String(d.strategy || 'unknown');
       optimizerStrategyCounts[s] = (optimizerStrategyCounts[s] || 0) + 1;
       continue;
     }
-    const tier = d.tier || 'T3';
+    const tier = String(d.tier || 'T3');
     byTier[tier] = (byTier[tier] || 0) + 1;
     if (d.quality_intent === true) qualityIntentHits += 1;
     if (d.cache_hit === true) cacheHits += 1;
-    const sig = signature(d.prompt_preview);
+    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
     if (sig) {
       if (!sigToTiers.has(sig)) sigToTiers.set(sig, []);
-      sigToTiers.get(sig).push({ tier, conf: d.confidence, len: d.prompt_len });
+      const list = sigToTiers.get(sig);
+      if (list) list.push({ tier, conf: /** @type {number | undefined} */ (d.confidence), len: /** @type {number | undefined} */ (d.prompt_len) });
     }
     // Guardrail: a prompt preview that carries HIGH_RISK markers is never
     // eligible as a demote/promote candidate, regardless of length/confidence.
     // The runtime guardrail in classify.js already blocks demote on HIGH_RISK
     // prompts, but filtering upstream keeps router-tuning.json clean and stops
     // the daily backtest from relearning the same bad patterns every 24h.
-    const risky = hasHighRisk(d.prompt_preview);
+    const risky = hasHighRisk(/** @type {string | undefined} */ (d.prompt_preview));
     if (risky) continue;
     // Sprint A: explicit rating overrides length heuristic for T2/T3
     if (d.explicit_rating === 0 && (tier === 'T2' || tier === 'T3')) {
@@ -243,27 +285,29 @@ function analyze(decisions) {
       explicitGood++;
       if (sig) goodSignatures.add(sig); // protect this signature from demote
     }
-    if ((d.prompt_len || 0) < 50 && (tier === 'T2' || tier === 'T3')) {
+    if (Number(d.prompt_len || 0) < 50 && (tier === 'T2' || tier === 'T3')) {
       shortHighTier.push(d);
     }
-    if ((d.confidence || 0) < 0.6 && (tier === 'T2' || tier === 'T3')) {
+    if (Number(d.confidence || 0) < 0.6 && (tier === 'T2' || tier === 'T3')) {
       lowConfHighTier.push(d);
     }
   }
 
   // Repeated signatures: same first words seen ≥3 times always at T2/T3
+  /** @type {Array<{sig: string, count: number, tiers: string[]}>} */
   const repeated = [];
   for (const [sig, hits] of sigToTiers.entries()) {
     if (hits.length < 3) continue;
-    const allHigh = hits.every(h => h.tier === 'T2' || h.tier === 'T3');
-    if (allHigh) repeated.push({ sig, count: hits.length, tiers: hits.map(h => h.tier) });
+    const allHigh = hits.every(/** @param {{tier: string}} h */ (h) => h.tier === 'T2' || h.tier === 'T3');
+    if (allHigh) repeated.push({ sig, count: hits.length, tiers: hits.map(/** @param {{tier: string}} h */ (h) => h.tier) });
   }
   repeated.sort((a, b) => b.count - a.count);
 
   // Top 3 demote candidates: signatures that appear in shortHighTier
+  /** @type {Map<string, number>} */
   const demoteCandidates = new Map();
   for (const d of shortHighTier) {
-    const sig = signature(d.prompt_preview);
+    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
     if (!sig) continue;
     demoteCandidates.set(sig, (demoteCandidates.get(sig) || 0) + 1);
   }
@@ -275,10 +319,11 @@ function analyze(decisions) {
 
   // Promote-to-T0 patterns: short prompts (<30 chars) repeatedly classified
   // T2/T3 with low confidence — almost certainly noise (status pastes, "ok", etc.)
+  /** @type {Set<string>} */
   const promoteCandidates = new Set();
   for (const d of lowConfHighTier) {
     if ((d.prompt_len || 0) < 30) {
-      const sig = signature(d.prompt_preview);
+      const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
       if (sig) promoteCandidates.add(sig);
     }
   }
@@ -288,12 +333,12 @@ function analyze(decisions) {
   let idealCost = 0;
   let naiveCost = 0;
   for (const d of decisions) {
-    const t = d.tier || 'T3';
-    const pl = d.prompt_length || d.prompt_len || 200;
+    const t = String(d.tier || 'T3');
+    const pl = Number(d.prompt_length || d.prompt_len || 200);
     actualCost += tierCostFor(t, pl);
     naiveCost += naiveCostFor(pl);
     // ideal: if it was a demote candidate, drop one tier
-    const sig = signature(d.prompt_preview);
+    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
     const isDemote = demoteCandidates.has(sig);
     if (isDemote && t === 'T3') idealCost += tierCostFor('T2', pl);
     else if (isDemote && t === 'T2') idealCost += tierCostFor('T1', pl);
@@ -326,6 +371,9 @@ function analyze(decisions) {
   };
 }
 
+/**
+ * @param {ReturnType<typeof analyze>} stats
+ */
 function buildTuning(stats) {
   // Heuristic: if >5% of prompts are short+high-tier, tighten the threshold
   const noiseRatio = stats.total ? stats.shortHighTier / stats.total : 0;
@@ -335,7 +383,7 @@ function buildTuning(stats) {
     sample_size: stats.total,
     complexity_threshold,
     promote_to_t0_patterns: stats.promoteToT0,
-    demote_from_t3_patterns: stats.topDemote.map(d => d.pattern),
+    demote_from_t3_patterns: stats.topDemote.map(/** @param {{pattern: string}} d */ (d) => d.pattern),
     notes: [
       `Analysed ${stats.total} prompts.`,
       `Short prompts on high tier: ${stats.shortHighTier} (${(noiseRatio * 100).toFixed(1)}%).`,
@@ -344,6 +392,10 @@ function buildTuning(stats) {
   };
 }
 
+/**
+ * @param {ReturnType<typeof analyze> & { feedbackSignals?: { accepted: number, followup_immediate: number } }} stats
+ * @param {ReturnType<typeof buildTuning>} tuning
+ */
 function report(stats, tuning) {
   const lines = [];
   lines.push('frugal — router backtest');
@@ -422,6 +474,9 @@ function report(stats, tuning) {
 // For each demote/promote candidate, print the anonymized prompt fingerprints
 // that triggered it (length + keyword signals only — never raw text). Used by
 // the Paulo when inspecting tuning suggestions before applying them.
+/**
+ * @param {DecisionLogEntry[]} decisions
+ */
 function explainCandidates(decisions) {
   const lines = [];
   lines.push('frugal — backtest --explain');
@@ -470,19 +525,28 @@ const KEYWORD_ALLOW_LIST = new Set([
   'math', 'proof', 'equation', 'step by step', 'reasoning',
 ]);
 
+/**
+ * @param {number | null | undefined} n
+ */
 function lenBucket(n) {
   if (!n) return '0-50';
   const lo = Math.floor(n / 50) * 50;
   return `${lo}-${lo + 50}`;
 }
 
+/**
+ * @param {string | null | undefined} tsIso
+ */
 function hourOf(tsIso) {
   try {
-    const d = new Date(tsIso);
+    const d = new Date(tsIso || '');
     return d.getUTCHours();
   } catch { return null; }
 }
 
+/**
+ * @param {string | null | undefined} preview
+ */
 function extractKeywordSignals(preview) {
   if (!preview) return [];
   const low = preview.toLowerCase();
@@ -517,35 +581,40 @@ function hardwareTier() {
   } catch { return 'cpu-only'; }
 }
 
+/**
+ * @param {DecisionLogEntry[]} decisions
+ */
 function exportDelta(decisions) {
   // Bucket decisions by (decided_tier, prompt_len_bucket, keyword signals).
+  /** @type {Map<string, Record<string, any>>} */
   const deltaBuckets = new Map();
+  /** @type {Map<string, Record<string, any>>} */
   const promoteBuckets = new Map();
 
   for (const d of decisions) {
     if (!d || !d.tier || !d.prompt_preview) continue;
-    if (hasHighRisk(d.prompt_preview)) continue; // never export HIGH_RISK
+    if (hasHighRisk(/** @type {string} */ (d.prompt_preview))) continue; // never export HIGH_RISK
     const bucket = lenBucket(d.prompt_len || 0);
-    const signals = extractKeywordSignals(d.prompt_preview);
+    const signals = extractKeywordSignals(/** @type {string} */ (d.prompt_preview));
     const key = `${d.tier}|${bucket}|${signals.join(',')}`;
     // Misroute heuristic: low confidence + high tier = candidate for T0.
-    if ((d.confidence || 0) < 0.6 && (d.tier === 'T2' || d.tier === 'T3')) {
+    if (Number(d.confidence || 0) < 0.6 && (d.tier === 'T2' || d.tier === 'T3')) {
       const existing = deltaBuckets.get(key) || {
         delta_type: 'misroute',
         decided_tier: d.tier,
         correct_tier: 'T0',
         prompt_len_bucket: bucket,
-        has_file_refs: /\.(js|ts|py|go|md|json)\b/.test(d.prompt_preview),
-        has_code_block: /```/.test(d.prompt_preview),
+        has_file_refs: /\.(js|ts|py|go|md|json)\b/.test(/** @type {string} */ (d.prompt_preview)),
+        has_code_block: /```/.test(/** @type {string} */ (d.prompt_preview)),
         keyword_signals: signals,
-        session_hour: hourOf(d.ts),
+        session_hour: hourOf(/** @type {string | undefined} */ (d.ts)),
         n: 0,
       };
       existing.n += 1;
       deltaBuckets.set(key, existing);
     }
     // Underpowered: quality_intent promoted + bug/debug keywords at T1
-    if (d.tier === 'T1' && signals.some((s) => ['bug', 'debug', 'trace', 'root cause'].includes(s))) {
+    if (d.tier === 'T1' && signals.some(/** @param {string} s */ (s) => ['bug', 'debug', 'trace', 'root cause'].includes(s))) {
       const existing = promoteBuckets.get(key) || {
         delta_type: 'underpowered',
         decided_tier: 'T1',
@@ -559,10 +628,13 @@ function exportDelta(decisions) {
   }
 
   // Filter: only keep buckets with n >= 3.
+  /** @type {any[]} */
   const deltas = [...deltaBuckets.values()].filter((d) => d.n >= 3);
+  /** @type {any[]} */
   const promote_signals = [...promoteBuckets.values()].filter((p) => p.n >= 3);
 
-  return {
+  /** @type {TuningSuggestion} */
+  const delta = {
     frugal_version: '0.9.0',
     classifier_version: '1.0.0',
     generated_at: new Date().toISOString(),
@@ -571,8 +643,13 @@ function exportDelta(decisions) {
     deltas,
     promote_signals,
   };
+  return delta;
 }
 
+/**
+ * @param {DecisionLogEntry[]} decisions
+ * @param {string} outputPath
+ */
 function exportEvents(decisions, outputPath) {
   const eventBuilder = require('./event-builder.js');
   const events = [];
@@ -596,6 +673,9 @@ function exportEvents(decisions, outputPath) {
 // Simulates the prompt optimizer against the full historical corpus.
 // For each classified event, runs optimizer.optimize() and aggregates
 // results: total optimized, est tokens saved, strategies by tier.
+/**
+ * @param {DecisionLogEntry[]} decisions
+ */
 function optimizerDryrun(decisions) {
   const optimizer = require('./prompt-optimizer');
   const classifySrc = fs.readFileSync(path.join(__dirname, 'classify.js'), 'utf8');
@@ -603,19 +683,21 @@ function optimizerDryrun(decisions) {
   const classifyBody = classifySrc.slice(0, iifeIdx).replace(/^#!.*\n/, '');
   const classifyFn = new Function('require', `${classifyBody}\nreturn classify;`)(require);
 
-  const classified = decisions.filter(d => d.event === 'classified');
+  const classified = decisions.filter(/** @param {DecisionLogEntry} d */ (d) => d.event === 'classified');
   let totalOptimized = 0;
   let totalTokensSaved = 0;
+  /** @type {Record<string, {n: number, optimized: number, tokens: number}>} */
   const byTier = { T0: { n: 0, optimized: 0, tokens: 0 }, T1: { n: 0, optimized: 0, tokens: 0 }, T2: { n: 0, optimized: 0, tokens: 0 }, T3: { n: 0, optimized: 0, tokens: 0 } };
+  /** @type {Record<string, number>} */
   const strategyCounts = {};
 
   for (const d of classified) {
-    const preview = d.prompt_preview || '';
+    const preview = String(d.prompt_preview || '');
     if (!preview || preview.length < 30) continue;
 
     // Re-classify to get full decision object
     const decision = classifyFn(preview);
-    const tier = decision.tier || 'T3';
+    const tier = String(decision.tier || 'T3');
     if (!byTier[tier]) byTier[tier] = { n: 0, optimized: 0, tokens: 0 };
     byTier[tier].n++;
 
@@ -625,7 +707,7 @@ function optimizerDryrun(decisions) {
       totalTokensSaved += result.tokens_saved_est;
       byTier[tier].optimized++;
       byTier[tier].tokens += result.tokens_saved_est;
-      const s = result.strategy || 'unknown';
+      const s = String(result.strategy || 'unknown');
       strategyCounts[s] = (strategyCounts[s] || 0) + 1;
     }
   }
@@ -634,14 +716,14 @@ function optimizerDryrun(decisions) {
   lines.push('frugal — optimizer dryrun (retrospective simulation)');
   lines.push('');
   lines.push(`Corpus:             ${classified.length} classified events`);
-  lines.push(`Eligible (≥30ch):   ${Object.values(byTier).reduce((s, t) => s + t.n, 0)}`);
+  lines.push(`Eligible (≥30ch):   ${Object.values(byTier).reduce(/** @param {number} s @param {{n: number}} t */ (s, t) => s + t.n, 0)}`);
   lines.push(`Optimized:          ${totalOptimized} (${classified.length ? ((totalOptimized / classified.length) * 100).toFixed(1) : 0}%)`);
   lines.push(`Tokens saved (est): ${totalTokensSaved}`);
   lines.push('');
   lines.push('By tier:');
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     const b = byTier[t];
-    if (b.n === 0) { lines.push(`  ${t}: 0 eligible`); continue; }
+    if (!b || b.n === 0) { lines.push(`  ${t}: 0 eligible`); continue; }
     const pct = ((b.optimized / b.n) * 100).toFixed(1);
     lines.push(`  ${t}: ${b.optimized}/${b.n} optimized (${pct}%), ~${b.tokens} tokens saved`);
   }
@@ -736,6 +818,7 @@ function main() {
     return;
   }
 
+  /** @type {ReturnType<typeof analyze> & { feedbackSignals?: { accepted: number, followup_immediate: number } }} */
   const stats = analyze(decisions);
   stats.feedbackSignals = feedbackSignals;
   const tuning = buildTuning(stats);

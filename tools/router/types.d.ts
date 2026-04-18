@@ -138,9 +138,9 @@ export interface TuningSuggestion {
   hardware_tier: string;
   deltas: unknown[];
   promote_signals: unknown[];
-  feedback_signals?: unknown[];
-  explicit_ratings?: unknown[];
-  shadow_judgments?: unknown[];
+  feedback_signals?: unknown;
+  explicit_ratings?: unknown;
+  shadow_judgments?: unknown;
   [k: string]: unknown;
 }
 
