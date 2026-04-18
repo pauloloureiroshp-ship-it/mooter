@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -19,4 +20,29 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sprint 8.1 — Sentry wrapping.
+//
+// withSentryConfig injects source-map upload, tunnelling and server-side
+// release detection. It is a NO-OP at build time when SENTRY_AUTH_TOKEN +
+// NEXT_PUBLIC_SENTRY_DSN are both absent, so local builds without Sentry
+// credentials still succeed. In CI/Vercel, set both to enable upload.
+//
+// Options are intentionally conservative:
+//   - silent=true in CI to avoid log spam
+//   - widenClientFileUpload=true so source maps cover the whole client bundle
+//   - disableLogger=true strips Sentry's console.logger calls from the bundle
+const SENTRY_ENABLED =
+  !!process.env.NEXT_PUBLIC_SENTRY_DSN && !!process.env.SENTRY_AUTH_TOKEN;
+
+export default SENTRY_ENABLED
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.CI,
+      widenClientFileUpload: true,
+      disableLogger: true,
+      // Automatically tree-shake Sentry logger statements to reduce bundle size
+      reactComponentAnnotation: { enabled: false },
+    })
+  : nextConfig;

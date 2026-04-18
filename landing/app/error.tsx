@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import * as Sentry from '@sentry/nextjs';
 
 // Next.js App Router error boundary — catches render-time errors in any
 // Server or Client component under /app. Previously the site fell through
@@ -22,6 +23,9 @@ export default function Error({
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error('[mooter] client error boundary:', error);
+    // Sprint 8.1: forward to Sentry. Safe when DSN is unset — captureException
+    // is a no-op until Sentry.init() runs successfully.
+    Sentry.captureException(error);
   }, [error]);
 
   return (

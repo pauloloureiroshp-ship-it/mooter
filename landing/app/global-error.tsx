@@ -1,11 +1,16 @@
 'use client';
 
+import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
+
 // Next.js App Router global error — only rendered when the root layout itself
 // explodes (error.tsx runs under /app, but not for layout failures). Must
 // include <html> and <body> because no parent layout survives.
 //
 // Minimal, zero-deps, no env access — this file must work even if env.ts
-// itself threw on load.
+// itself threw on load. Sentry import is safe: @sentry/nextjs captureException
+// is a no-op until init completes, so this boundary still renders if Sentry
+// itself failed to initialize.
 export default function GlobalError({
   error,
   reset,
@@ -13,6 +18,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    // Sprint 8.1: forward the fatal to Sentry. This is the last-chance hook
+    // before the user sees a reload button.
+    Sentry.captureException(error);
+  }, [error]);
   return (
     <html lang="en">
       <body

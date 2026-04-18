@@ -44,6 +44,12 @@ const clientSchema = z.object({
   // Legacy alias — some older callers still read this. Accept either, but
   // downstream code should prefer NEXT_PUBLIC_MOOTER_HUB_URL.
   NEXT_PUBLIC_FRUGAL_HUB_URL: z.string().url().optional(),
+  // Sentry (Sprint 8.1). Optional — when absent the SDK init is a no-op
+  // and the landing runs exactly as before. When present, must be a DSN
+  // URL. Client-safe (NEXT_PUBLIC_) so the browser bundle can report.
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+  // Release tracking — defaults to 'mooter-landing@unknown' when absent.
+  NEXT_PUBLIC_APP_VERSION: z.string().optional(),
 });
 
 const raw = {
@@ -52,6 +58,8 @@ const raw = {
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   NEXT_PUBLIC_MOOTER_HUB_URL: process.env.NEXT_PUBLIC_MOOTER_HUB_URL,
   NEXT_PUBLIC_FRUGAL_HUB_URL: process.env.NEXT_PUBLIC_FRUGAL_HUB_URL,
+  NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
 };
 
 const parsed = clientSchema.safeParse(raw);

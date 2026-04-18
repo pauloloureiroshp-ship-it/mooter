@@ -1,8 +1,12 @@
 import Link from 'next/link';
+import NotFoundBreadcrumb from './not-found-breadcrumb';
 
 // Next.js App Router 404 handler — rendered whenever notFound() is called
 // OR a route simply doesn't match. Keeps the warm-beige brand voice instead
 // of Next's generic "This page could not be found" white-on-black screen.
+//
+// Sprint 8.1: leaves a Sentry breadcrumb (info level, not exception) so we
+// can track 404-heavy URLs without drowning the issue feed in non-errors.
 export default function NotFound() {
   return (
     <main
@@ -16,6 +20,7 @@ export default function NotFound() {
         fontFamily: 'var(--font-sans), system-ui, sans-serif',
       }}
     >
+      <NotFoundBreadcrumb />
       <div style={{ maxWidth: 520, textAlign: 'center' }}>
         <div
           style={{
