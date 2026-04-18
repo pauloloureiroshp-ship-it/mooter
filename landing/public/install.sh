@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 #
-# mooter.ai — Public installer (v1)
-# Route smarter. Ship faster.
+# mooter.ai — PUBLIC installer (v1). Served at https://mooter.ai/install.sh
+# (via Vercel, from landing/public/install.sh). Route smarter. Ship faster.
+#
+# ⚠️  NOT the same file as /install.sh at the repo root — that one is Paulo's
+#     private development bootstrap and MUST NOT be synced to this file.
+#     If you want to change what users see, edit THIS file.
 #
 # Usage:
 #   bash <(curl -fsSL https://mooter.ai/install.sh)

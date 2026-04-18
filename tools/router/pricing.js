@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * pricing.js — single source of truth for model pricing (USD per MTok).
  *
@@ -21,11 +22,22 @@
 
 'use strict';
 
+/**
+ * @typedef {'T0'|'T1'|'T2'|'T3'} Tier
+ * @typedef {Object} ModelPrice
+ * @property {number} input  - USD per 1M input tokens
+ * @property {number} output - USD per 1M output tokens
+ * @property {string[]} [strengths] - optional classifier hints
+ * @property {Tier} [tier]
+ * @property {string} [subtier]
+ */
+
 // USD per 1M tokens. {input, output, strengths?, tier?}.
 // The optional `strengths` and `tier` fields are consumed by classify.js
 // (sub-tier selection) and by check-local-models.js (install guide). They
 // don't affect cost math, but keeping everything in one registry avoids
 // drift between pricing and routing.
+/** @type {Record<string, ModelPrice>} */
 const PRICES = {
   // ── Anthropic (Claude) — verified 2026-04-16 from platform.claude.com ──
   // NOTE: Opus 4.6 dropped from $15/$75 to $5/$25. 1M context is now
@@ -88,10 +100,12 @@ const PRICES = {
 
 // Unknown model fallback — Sonnet-tier so the estimate is neither
 // free nor Opus. Forces the operator to notice when a new model appears.
+/** @type {ModelPrice} */
 const FALLBACK_PRICE = { input: 3.0, output: 15.0 };
 
 // Tier → canonical model used when we only have the tier (from classify.js).
 // Matches TIER_TO_MODEL in savings-tracker.js but resolved to the pricing key.
+/** @type {Record<Tier, string>} */
 const TIER_TO_PRICING_KEY = {
   T0: 'qwen2.5:3b',
   T1: 'claude-haiku-4-5',
@@ -101,6 +115,7 @@ const TIER_TO_PRICING_KEY = {
 
 // Average output tokens per turn by tier. Calibrated against real
 // session data — update when stats.js backtest shows drift.
+/** @type {Record<Tier, number>} */
 const AVG_OUTPUT_TOK = {
   T0: 200,   // local models are asked for short structured answers
   T1: 350,   // commit msg, docstring, regex
@@ -120,6 +135,10 @@ const CHARS_PER_TOKEN = 3.5;
  */
 const SESSION_CONTEXT_BASE_TOKENS = 8000; // system + tools + short hx
 
+/**
+ * @param {number} promptLenChars
+ * @returns {number}
+ */
 function estimateInputTokens(promptLenChars) {
   if (!Number.isFinite(promptLenChars) || promptLenChars <= 0) {
     return SESSION_CONTEXT_BASE_TOKENS;
@@ -127,6 +146,10 @@ function estimateInputTokens(promptLenChars) {
   return SESSION_CONTEXT_BASE_TOKENS + Math.ceil(promptLenChars / CHARS_PER_TOKEN);
 }
 
+/**
+ * @param {string | null | undefined} modelKey
+ * @returns {ModelPrice}
+ */
 function getPrice(modelKey) {
   if (!modelKey) return FALLBACK_PRICE;
   if (PRICES[modelKey]) return PRICES[modelKey];
@@ -138,6 +161,10 @@ function getPrice(modelKey) {
 /**
  * priceTurn(model, tokensIn, tokensOut) → USD
  * Central cost function. Use for everything. Returns 0 for local models.
+ * @param {string | null | undefined} modelKey
+ * @param {number} tokensIn
+ * @param {number} tokensOut
+ * @returns {number} USD
  */
 function priceTurn(modelKey, tokensIn, tokensOut) {
   const p = getPrice(modelKey);
@@ -150,12 +177,15 @@ function priceTurn(modelKey, tokensIn, tokensOut) {
  * estimateTurnCost(tier, promptLenChars) → USD
  * The main entry point for savings-tracker: given only a classifier
  * decision (tier + prompt_len), produce the best cost estimate we can.
+ * @param {Tier | string} tier
+ * @param {number} promptLenChars
+ * @returns {number} USD
  */
 function estimateTurnCost(tier, promptLenChars) {
-  const modelKey = TIER_TO_PRICING_KEY[tier];
+  const modelKey = TIER_TO_PRICING_KEY[/** @type {Tier} */ (tier)];
   if (!modelKey) return 0;
   const tokensIn = estimateInputTokens(promptLenChars);
-  const tokensOut = AVG_OUTPUT_TOK[tier] || 500;
+  const tokensOut = AVG_OUTPUT_TOK[/** @type {Tier} */ (tier)] || 500;
   return priceTurn(modelKey, tokensIn, tokensOut);
 }
 
@@ -175,6 +205,10 @@ function estimateTurnCost(tier, promptLenChars) {
  * Code sessions always use the 1M context variant. The old $15/$75 rate
  * (200k context) underestimated the baseline by 2×, making savings look
  * smaller than they really are.
+ */
+/**
+ * @param {number} promptLenChars
+ * @returns {number} USD
  */
 function naiveOpusCost(promptLenChars) {
   const tokensIn = estimateInputTokens(promptLenChars);
