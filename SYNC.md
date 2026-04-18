@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-17 (Claude Code Windows — Login v2 with MooterLogo + Ollama factual fix)
-**Versão:** v0.9.9+ Sprint B + Landing redesign + Full Rebrand + Auth area v2.1
-**Último commit main:** `6958c5c` (fix(onboarding): Ollama recs now cite real router models)
-**Sessão Claude Code:** #26 (repo Windows) — auth area v2 first pass + v2.1 polish iteration after Paulo visual review; 6 commits, 2 production deploys
+**Última sync:** 2026-04-18 (Claude Code Windows — Review #11 + Counters data layer)
+**Versão:** v0.9.9+ Sprint B + Landing redesign + Full Rebrand + Auth area v2.1 + Counters data layer
+**Último commit main:** `418776a` (feat(counters): surface tokens_used + savings + write-counters flag)
+**Sessão Claude Code:** #27 (repo Windows) — review #11 delta analysis + T0 drop diagnosed as artifact + counters pipeline (tokens + savings) live; 1 commit
 
 ---
 
@@ -202,6 +202,43 @@ Nota: `generate-frugal-config.ts:49` ainda usa `isMac ? 'qwen2.5:3b' : 'qwen2.5:
 ```
 Esperado: Health Alerts de 10 → 0-2. Se algum modelo Ollama ainda falhar, stderr real é agora capturado e diagnosticável.
 
+### ✅ Sessão #27 — 2026-04-18 (review #11 + counters data layer)
+
+**Recap:** `/mooter-review` review #11 (6277 eventos novos desde 2026-04-17 20:25). 0 misroutings. T0 delta caiu para 61% vs 69.8% all-time — diagnosticado via `model-reasoner` como **artefacto histórico**, não regressão (264 events do mesmo cluster pré-fix `bc4f84f` a re-aparecer no replay; classificador *actual* devolve T0 correctamente). Paulo decidiu: investigar + garantir counters live (prompts, tokens, savings) para alimentar landing v11 que Claude Design vai construir a seguir.
+
+**Commits desta sessão:**
+
+| Commit | Ficheiro | Mudança |
+|---|---|---|
+| `418776a` | `tools/router/mooter-review.js` + `tools/router/mooter-continuous-tester.js` | Counters data layer completo: `tokens_used` (sum `runs × avg_tokens` em `model_performance`), `savings_usd_cumulative` (de `savings-tracker.computeMetrics`), `cost_usd` real (via `pricing.PRICES × tokens`, deixa de ser hardcoded 0). Nova flag `--write-counters <path>` que escreve JSON sem avançar watermark. `total_tokens_cumulative` exposto em `mooter-tester-stats.json`. **Zero blast em UI** — só data layer. |
+
+**Output live (counters block):**
+```json
+{
+  "prompts_tested": 12556,
+  "tokens_used": 281602,
+  "savings_usd_cumulative": 37.3377,
+  "cost_usd": 0,
+  "ab_tests_run": 158,
+  "optimizer_tests": 95,
+  "misroutings_found": 47,
+  "embeddings_built": 260,
+  "reviews_completed": 11
+}
+```
+
+**Pendente Claude Design (próxima sessão):**
+- Wirear consumer da landing para `counters.json`. Para alimentar o ficheiro basta agendar (cron 5min ou dentro do tester loop):
+  ```bash
+  node tools/router/mooter-review.js --write-counters mooter-landing/counters.json
+  ```
+- Decidir: static file (cron writes) ou Vercel API route (chama `mooter-review.js --counters` on-demand)?
+
+**Pendentes secundários:**
+- T1 cumulativa em 45.4% (baixa) — próxima review analisar se misroutings T1 são tuning-friendly.
+- Focus rebalance: `statusline` está em 18.5% do tester volume. Considerar `/mooter-focus` para distribuir.
+- `generate-frugal-config.ts:49` ainda usa `qwen2.5:7b` (não existe no router) — herdado de #26 v2.1, não bloqueante.
+
 ---
 
 ### Instruções originais (referência histórica)
@@ -343,6 +380,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-04-17 — Landing Redesign + Reviews | https://www.notion.so/3456f6e42bc481d3b8fccacf8ed8a56b |
 | Sessão 2026-04-17 — Post-crash Recovery + Router Deep Fixes (#25) | https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e |
 | Sessão 2026-04-17 — Cowork Ship (#25-continued) | https://www.notion.so/3456f6e42bc481f991f0c9538438417e |
+| Sessão 2026-04-18 — Review #11 + Counters data layer (#27) | https://www.notion.so/3466f6e42bc481c99569cb216e748c5f |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
