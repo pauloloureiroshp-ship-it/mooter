@@ -1,0 +1,19 @@
+{
+  "name": "mooter-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker serving mooter community hub (delta ingest, stats, models, events).",
+  "main": "worker.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "deploy": "wrangler deploy",
+    "deploy:mooter": "wrangler deploy -c wrangler.mooter.toml"
+  },
+  "dependencies": {
+    "@sentry/cloudflare": "^10.49.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.83.0"
+  }
+}

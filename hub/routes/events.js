@@ -3,8 +3,12 @@
  *
  * Sprint 3: event ingestion with schema validation, rate limiting,
  * bearer auth, and aggregated stats endpoint.
+ *
+ * Sprint 8.3: Sentry captureException added to catch blocks that would
+ * otherwise return a 500 without leaving a trace.
  */
 
+import * as Sentry from '@sentry/cloudflare';
 import { sanitizeJson } from '../lib/sanitize.js';
 
 const VALID_TIERS = new Set(['T0', 'T0-code', 'T0-math', 'T1', 'T2', 'T3']);
@@ -146,6 +150,12 @@ export async function handleSubmitEvents(request, env) {
     try {
       await env.DB.batch(batch);
     } catch (e) {
+      try {
+        Sentry.captureException(e, {
+          tags: { route: '/submit-events', kind: 'db_batch_failed' },
+          extra: { batch_size: batch.length, accepted_before_fail: accepted },
+        });
+      } catch { /* non-fatal */ }
       return new Response(JSON.stringify({
         error: 'db_error', detail: e.message,
         accepted: 0, rejected: events.length
@@ -229,6 +239,11 @@ export async function handleAggregateStats(request, env) {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
     });
   } catch (e) {
+    try {
+      Sentry.captureException(e, {
+        tags: { route: '/aggregate-stats', kind: 'aggregation_failed' },
+      });
+    } catch { /* non-fatal */ }
     return new Response(JSON.stringify({ error: 'aggregation_failed', detail: e.message }), {
       status: 500,
     });

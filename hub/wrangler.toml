@@ -1,6 +1,9 @@
 name = "frugal-hub"
 main = "worker.js"
 compatibility_date = "2026-04-01"
+# Sprint 8.3: @sentry/cloudflare imports node:async_hooks. Without this flag
+# the worker throws on cold start even when SENTRY_DSN is empty.
+compatibility_flags = ["nodejs_compat"]
 
 # ⚠️  BINDING ALIGNMENT (2026-04-18):
 #   The worker NAME stays `frugal-hub` because the *.workers.dev URL routes

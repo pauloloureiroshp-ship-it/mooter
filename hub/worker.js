@@ -13,20 +13,28 @@
  *   hourly  → aggregate deltas into stats
  *   daily   → generate new router-tuning from community data
  *   weekly  → notify Paulo of anomalies + prune expired deltas
+ *
+ * Sprint 8.3 — Sentry: the export default is wrapped by Sentry.withSentry,
+ * which instruments both `fetch` and `scheduled`. Init is conditional on
+ * env.SENTRY_DSN — when absent the wrapper passes through with zero overhead.
+ * Per-route failures are still caught here and reported via Sentry.captureException
+ * inside routes/delta.js and routes/events.js for richer context.
  */
 
-import { handleDelta } from './routes/delta';
-import { handleStats } from './routes/stats';
-import { handleModels } from './routes/models';
-import { handleVersion } from './routes/version';
-import { handleSubmitEvents, handleAggregateStats } from './routes/events';
-import { handleHeartbeat } from './routes/heartbeat';
-import { runAggregate } from './jobs/aggregate';
-import { runGenerate } from './jobs/generate';
-import { runNotify } from './jobs/notify';
-import { runUpdateProfiles } from './jobs/update-profiles';
+import * as Sentry from '@sentry/cloudflare';
 
-export default {
+import { handleDelta } from './routes/delta.js';
+import { handleStats } from './routes/stats.js';
+import { handleModels } from './routes/models.js';
+import { handleVersion } from './routes/version.js';
+import { handleSubmitEvents, handleAggregateStats } from './routes/events.js';
+import { handleHeartbeat } from './routes/heartbeat.js';
+import { runAggregate } from './jobs/aggregate.js';
+import { runGenerate } from './jobs/generate.js';
+import { runNotify } from './jobs/notify.js';
+import { runUpdateProfiles } from './jobs/update-profiles.js';
+
+const handler = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -76,6 +84,9 @@ export default {
           response = new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
       }
     } catch (e) {
+      // Forward to Sentry with request context. Safe when DSN is unset —
+      // withSentry passes through and Sentry.captureException becomes a no-op.
+      try { Sentry.captureException(e); } catch { /* non-fatal */ }
       response = new Response(JSON.stringify({ error: 'internal error', detail: e.message }), {
         status: 500,
       });
@@ -108,3 +119,25 @@ export default {
     }
   },
 };
+
+// Sprint 8.3 — Sentry wrapper.
+//
+// Sentry.withSentry(optionsFn, handler) takes a function that receives the
+// Worker's env binding (including SENTRY_DSN from wrangler.toml [vars]) and
+// returns the init options. When env.SENTRY_DSN is absent/empty, we return
+// `{ enabled: false }` so the SDK fully disables itself — no network calls,
+// no instrumentation overhead. This lets local `wrangler dev` runs work
+// without Sentry credentials.
+export default Sentry.withSentry(
+  (env) => {
+    const dsn = env && env.SENTRY_DSN;
+    if (!dsn) return { enabled: false, dsn: '' };
+    return {
+      dsn,
+      environment: (env && env.SENTRY_ENVIRONMENT) || 'production',
+      release: (env && env.SENTRY_RELEASE) || 'mooter-hub@unknown',
+      tracesSampleRate: 0.1,
+    };
+  },
+  handler
+);

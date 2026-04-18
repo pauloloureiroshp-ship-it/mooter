@@ -5,6 +5,7 @@
  * computes trust_score, stores in D1, and triggers model detection.
  */
 
+import * as Sentry from '@sentry/cloudflare';
 import { computeTrustScore } from '../lib/trust.js';
 import { processUnknownModels } from '../lib/model-detect.js';
 import { uuid } from '../lib/anomaly.js';
@@ -95,6 +96,15 @@ async function handleDelta(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (e) {
+    // Sprint 8.3: forward D1 storage failures to Sentry with the delta
+    // envelope (no PII — only counts + hash) for debugging trust_score
+    // drift and schema regressions. No-op when DSN unset.
+    try {
+      Sentry.captureException(e, {
+        tags: { route: '/api/delta', hw_tier: delta.hw_tier, sub_profile: delta.sub_profile },
+        extra: { prompt_count: delta.prompt_count, trust_score: delta.trust_score },
+      });
+    } catch { /* non-fatal */ }
     return new Response(JSON.stringify({ error: 'storage error', detail: e.message }), { status: 500 });
   }
 }
