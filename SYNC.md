@@ -3,10 +3,39 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-18 (Claude Code Windows — Platform Audit v3 CLOSED)
-**Versão:** v0.10.0 · mooter.ai live · CI 72/72 green · Supabase auth config applied via Mgmt API
-**Último commit main:** `6c50cf3` (fix(hub): close D1/R2 binding drift — deploy now idempotent)
-**Sessão Claude Code:** #28 — 15 commits shipped + Supabase runtime config applied via Management API. Platform audit fully closed except for 2 paulo-only actions (see below).
+**Última sync:** 2026-04-18 late (Claude Code Windows — **CCA CERTIFICATION 87/100**)
+**Versão:** v0.10.1 · mooter.ai live · CI 130/130 green · Claude Certified Architect ✅
+**Último commit main:** `0754de8` (test(cca): Sprint 12 — branch coverage classify.js promote/demote)
+**Sessão Claude Code:** #29 — **22 commits CCA shipped em ~6h**. Score de 19/100 CRÍTICO → 87/100 CERTIFICADO. Final-reviewer Opus 4.7 verdict PASS. Página Notion canónica: [🏆 Mooter CCA (2026-04-18)](https://www.notion.so/3466f6e42bc481dfbe28fad9a9e71d33). Log de sessão: [Sessão #29](https://www.notion.so/3466f6e42bc481e49038fb619d0f2ad5).
+
+### 🏆 Claude Certified Architect — 10/10 critérios COVERED
+
+| # | Critério | Score |
+|---|---|---:|
+| 1 | Type Safety | 9/10 |
+| 2 | Runtime Validation | 9/10 |
+| 3 | Testing (130 tests, coverage 70/66/58/70) | 8/10 |
+| 4 | CI/CD (typecheck+lint+test gates) | 9/10 |
+| 5 | Code Quality (0 lint warnings) | 9/10 |
+| 6 | Service Layer (hub write paths) | 9/10 |
+| 7 | Error Handling (4 surfaces) | 9/10 |
+| 8 | Error Monitoring (Sentry 4x DSN-conditional) | 8/10 |
+| 9 | Input Sanitization | 9/10 |
+| 10 | Environment Safety | 9/10 |
+
+### ⚠️ Acções PENDENTES para Paulo (runtime config)
+
+**De Sessão #29 (novo):**
+
+1. **Criar 4 projectos Sentry** em sentry.io: `mooter-landing`, `mooter-dashboard`, `mooter-hub`, `mooter-router`
+2. **Configurar DSN em 3 stores:**
+   - Vercel (landing + dashboard): `NEXT_PUBLIC_SENTRY_DSN` + `SENTRY_{ORG,PROJECT,AUTH_TOKEN}`
+   - Cloudflare (hub): `wrangler secret put SENTRY_DSN`
+   - Shell profile (router): `export MOOTER_SENTRY_DSN=...`
+
+Sem DSN, os 4 Sentry SDKs estão no-op silencioso. Producao continua cega até configurar.
+
+**De Sessão #28 (ainda pendentes):**
 
 ### ⚠️ Acções URGENTES pendentes para Paulo (security)
 
@@ -23,6 +52,33 @@ Após aplicar Supabase auth config via Management API (PATCH 200 ok), 2 acções
 ### HIBP blocker (decisão estratégica)
 
 Leaked Password Protection bloqueado pela API com `HTTP 402 — Pro Plan only` ($25/mo). Recomendação: deixar off enquanto GitHub OAuth é caminho principal (email/password = fallback). Revisitar se >50 email-auth users.
+
+### Sessão #29 commits (2026-04-18 late — CCA Certification)
+
+```
+0754de8  test(cca): Sprint 12 — branch coverage classify.js (+22.8 pp)
+01f4146  fix(cca):  Sprint 11 — logId bug fix + lint 0 warnings
+ea73252  docs(cca): Sprint 7  — rewrite AUDIT_CCA.md with cert state
+9565dbf  feat(cca): Sprint 6  — service layer (hub D1 abstraction)
+ee94aae  feat(cca): Sprint 3.2 — ESLint 9 + Prettier + CI lint gate
+49c16b3  feat(cca): Sprint 5.1+10.2 — Zod schemas + env validation (hub)
+14e1d04  feat(cca): Sprint 2  — testing foundation + c8 coverage
+ff1f0d7  feat(cca): Sprint 8.4 — Sentry integration router
+5d4745e  feat(cca): Sprint 8.3 — Sentry integration hub worker
+e4d1e07  feat(cca): Sprint 8.2 — Sentry integration dashboard
+71b68d4  feat(cca): Sprint 8.1 — Sentry integration landing
+784488a  feat(cca): Sprint 8.2b — dashboard not-found.tsx
+b0c7854  feat(cca): Sprint 10.1 — Zod env validation + fail-fast (router)
+299ce75  feat(cca): Sprint 9  — input sanitization (router + hub)
+e41912d  feat(cca): Sprint 3.1 — tsc --strict CI gate
+0f82b7b  feat(cca): Sprint 1.7 — type-safety dependency chain
+8b2ec86  feat(cca): Sprint 1.6 — type-safety backtest.js
+c346a87  feat(cca): Sprint 1.5 — type-safety inject_context.js
+ae21c59  feat(cca): Sprint 1.4 — type-safety classify.js
+c116a68  feat(cca): Sprint 1.3 — type-safety arbiter.js
+11c2c91  feat(cca): Sprint 1.2 — type-safety fx.js
+6d0e7b7  feat(cca): Sprint 1.1 — Type Safety foundation (pricing.js)
+```
 
 ### Sessão #28 commits (ordem cronológica)
 
@@ -157,6 +213,24 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 **Última actualização Cowork:** 2026-04-16 19:30 UTC
 **Estado:** 🟢 Lido e parcialmente aplicado em sessão #25 (2026-04-17) — ver estado abaixo
+
+---
+
+### ✅ Sessão #29 — 2026-04-18 late (Claude Certified Architect)
+
+**22 commits CCA shipped em ~6h.** Score 19/100 → **87/100 CERTIFICADO** (PASS em final-reviewer Opus 4.7). Página Notion da certificação: [🏆 Mooter CCA (2026-04-18)](https://www.notion.so/3466f6e42bc481dfbe28fad9a9e71d33). Log de sessão: [Sessão #29](https://www.notion.so/3466f6e42bc481e49038fb619d0f2ad5).
+
+**Missão próxima sessão (se Paulo pedir continuar CCA):**
+1. Configurar Sentry DSN em Vercel/Cloudflare/shell — observability cega enquanto DSN ausente
+2. Coverage ratchet 55 → 70 → 80 (alvo: fx.js, backtest.js)
+3. ESLint zero-tolerance (promover warn → error)
+4. Service layer read-only routes (stats, models, version)
+5. Husky + lint-staged pre-commit
+6. Audit 1-a-1 dos 3 commits landing out-of-scope
+
+**Missão alternativa:** v1.0 Friends Beta próximas features (conforme ROADMAP.md).
+
+---
 
 ---
 
