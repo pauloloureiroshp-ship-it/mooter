@@ -451,14 +451,14 @@ function LoginStatuslinePreview() {
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '10px 14px',
-        background: 'var(--surface)',
-        borderBottom: '1px solid var(--border)',
+        background: '#181410',
+        borderBottom: '1px solid #2A2218',
       }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3a332b' }} />
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3a332b' }} />
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3a332b' }} />
         <span style={{
-          fontSize: 11, color: 'var(--muted)', letterSpacing: '0.04em',
+          fontSize: 11, color: '#8A7A6A', letterSpacing: '0.04em',
           marginLeft: 6,
         }}>
           ~/app · claude-code · mooter active

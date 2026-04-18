@@ -631,15 +631,15 @@ export default function OnboardingPage() {
               <div style={{
                 display: 'flex', justifyContent: 'flex-end',
                 padding: '10px 14px',
-                borderTop: '1px solid var(--border)',
-                background: 'var(--surface)',
+                borderTop: '1px solid #2A2218',
+                background: '#181410',
               }}>
                 <button
                   onClick={copyCmd}
                   style={{
-                    background: cmdCopied ? 'var(--tier-0)' : 'var(--surface-2)',
-                    color: cmdCopied ? 'var(--bg)' : 'var(--text)',
-                    border: '1px solid var(--border-light)',
+                    background: cmdCopied ? 'var(--tier-0)' : 'rgba(255,255,255,0.06)',
+                    color: cmdCopied ? 'var(--cream)' : '#F2ECDF',
+                    border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 'var(--r-sm)',
                     padding: '6px 14px',
                     cursor: 'pointer',
