@@ -1,0 +1,146 @@
+name: claude-review
+
+# CCA D3: Claude Code CI integration using `claude -p --output-format json`.
+# Runs on PRs touching critical paths — router classifier, hub Workers,
+# migrations, and CI itself. Output is parsed by the workflow and surfaced
+# as a PR comment + fails the check on BLOCK verdicts.
+#
+# Required secrets:
+#   ANTHROPIC_API_KEY — used by `claude -p` in non-interactive mode.
+#
+# Non-blocking by default: if ANTHROPIC_API_KEY is absent (e.g. fork PRs)
+# the job logs a notice and exits 0.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/router/**'
+      - 'hub/**'
+      - '**/migrations/**'
+      - '.github/workflows/**'
+      - 'CLAUDE.md'
+      - '.claude/rules/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: claude-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check for API key
+        id: check_key
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY not set — skipping Claude review (likely fork PR)"
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.check_key.outputs.has_key == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        if: steps.check_key.outputs.has_key == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code CLI
+        if: steps.check_key.outputs.has_key == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Generate diff context
+        if: steps.check_key.outputs.has_key == 'true'
+        run: |
+          git diff origin/main...HEAD --stat > diff.stat
+          git diff origin/main...HEAD -- \
+            'tools/router/**' 'hub/**' '**/migrations/**' \
+            > diff.patch || true
+          wc -l diff.patch
+
+      - name: Claude review (structured output)
+        if: steps.check_key.outputs.has_key == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PROMPT=$(cat <<'EOF'
+          You are the final-reviewer agent gate for this PR.
+
+          Run the multi-pass review protocol from ~/.claude/agents/final-reviewer.md:
+            Pass 1 — file-by-file local correctness
+            Pass 2 — cross-file integration (if diff > 3 files)
+            Pass 3 — synthesis + coverage annotation
+
+          Focus areas for this repo:
+            - tools/router/classify.js — never weaken HIGH_RISK guardrail
+            - hub/routes/*.js — structured error envelopes (isError, errorCategory, isRetryable)
+            - migrations/*.sql — NEVER add NOT NULL without DEFAULT on non-empty tables
+            - .github/workflows/*.yml — no secret exfiltration via echo/cat
+
+          Output JSON matching this schema:
+          {
+            "verdict": "PASS" | "PASS-WITH-NOTES" | "BLOCK",
+            "findings": [
+              { "severity": "BLOCK"|"NOTE"|"INFO", "file": "path:line", "message": "..." }
+            ],
+            "coverage": {
+              "reviewed": ["<file list>"],
+              "not_reviewed": ["<file + reason>"],
+              "deferred_checks": ["<what + why>"]
+            }
+          }
+
+          Input diff follows:
+          EOF
+          )
+          DIFF=$(cat diff.patch | head -2000)
+          FULL_PROMPT="${PROMPT}"$'\n\n'"${DIFF}"
+          echo "$FULL_PROMPT" | claude -p --output-format json > review.json || true
+          cat review.json
+
+      - name: Parse verdict
+        if: steps.check_key.outputs.has_key == 'true'
+        id: parse
+        run: |
+          if [ ! -s review.json ]; then
+            echo "::warning::Claude produced no review output — treating as PASS-WITH-NOTES"
+            echo "verdict=PASS-WITH-NOTES" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # `claude -p --output-format json` wraps the assistant message in an envelope.
+          # Extract the inner JSON block if the model returned fenced JSON.
+          INNER=$(jq -r '.result // .content // ""' review.json 2>/dev/null || echo "")
+          if [ -z "$INNER" ]; then INNER=$(cat review.json); fi
+          echo "$INNER" > review.inner.json
+          # Try to locate the JSON object in the response body.
+          VERDICT=$(echo "$INNER" | grep -oE '"verdict"\s*:\s*"[A-Z-]+"' | head -1 | sed 's/.*"\([A-Z-]*\)"$/\1/')
+          echo "verdict=${VERDICT:-PASS-WITH-NOTES}" >> "$GITHUB_OUTPUT"
+          echo "Claude verdict: $VERDICT"
+
+      - name: Post PR comment
+        if: steps.check_key.outputs.has_key == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERDICT="${{ steps.parse.outputs.verdict }}"
+          BODY=$(printf '### Claude Review — %s\n\n<details><summary>Structured review</summary>\n\n```json\n' "$VERDICT")
+          BODY="${BODY}$(cat review.inner.json 2>/dev/null | head -200)"
+          BODY="${BODY}$(printf '\n```\n</details>\n')"
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY" || true
+
+      - name: Fail on BLOCK
+        if: steps.check_key.outputs.has_key == 'true' && steps.parse.outputs.verdict == 'BLOCK'
+        run: |
+          echo "::error::Claude review verdict is BLOCK — PR cannot be merged"
+          exit 1

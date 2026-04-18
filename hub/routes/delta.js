@@ -12,17 +12,18 @@ import { uuid } from '../lib/anomaly.js';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { deltaBodySchema } from '../lib/schemas.js';
 import { insertDelta } from '../lib/db.js';
+import { errorResponse, classifyException } from '../lib/errors.js';
 
 async function handleDelta(request, env) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'method not allowed' }), { status: 405 });
+    return errorResponse('method_not_allowed', 'method_not_allowed');
   }
 
   let body;
   try {
     body = sanitizeJson(await request.json());
   } catch {
-    return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400 });
+    return errorResponse('invalid_json', 'bad_request', { message: 'Request body is not valid JSON' });
   }
 
   // Sprint 5.1 — Zod validation. Replaces the ad-hoc validate() function
@@ -34,7 +35,7 @@ async function handleDelta(request, env) {
       path: i.path.join('.') || '<root>',
       message: i.message,
     }));
-    return new Response(JSON.stringify({ error: 'validation_failed', issues }), { status: 422 });
+    return errorResponse('validation_failed', 'validation', { issues });
   }
   body = parsed.data;
 
@@ -91,7 +92,7 @@ async function handleDelta(request, env) {
         extra: { prompt_count: delta.prompt_count, trust_score: delta.trust_score },
       });
     } catch { /* non-fatal */ }
-    return new Response(JSON.stringify({ error: 'storage error', detail: e.message }), { status: 500 });
+    return errorResponse('storage_error', classifyException(e), { message: e.message });
   }
 }
 

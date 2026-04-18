@@ -12,6 +12,7 @@ import * as Sentry from '@sentry/cloudflare';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { eventSchema } from '../lib/schemas.js';
 import { bindEventInsert, batchInsertEvents, countRecentEventsByInstance } from '../lib/db.js';
+import { errorResponse, classifyException } from '../lib/errors.js';
 
 // Max events per instance per hour (5 batches of 100). Exposed for tests.
 export const RATE_LIMIT_PER_HOUR = 500;
@@ -49,30 +50,30 @@ async function checkRateLimit(env, instanceId) {
 
 export async function handleSubmitEvents(request, env) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'method not allowed' }), { status: 405 });
+    return errorResponse('method_not_allowed', 'method_not_allowed');
   }
 
   // Auth check
   const auth = request.headers.get('Authorization');
   if (!auth || !auth.startsWith('Bearer ') || auth.slice(7) !== env.FRUGAL_SUBMIT_TOKEN) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    return errorResponse('unauthorized', 'unauthorized');
   }
 
   let events;
   try {
     events = sanitizeJson(await request.json());
   } catch {
-    return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400 });
+    return errorResponse('invalid_json', 'bad_request', { message: 'Request body is not valid JSON' });
   }
 
   if (!Array.isArray(events) || events.length === 0) {
-    return new Response(JSON.stringify({ error: 'empty array or not array' }), { status: 400 });
+    return errorResponse('empty_batch', 'bad_request', { message: 'Request body must be a non-empty array of events' });
   }
   if (events.length > 100) {
-    return new Response(JSON.stringify({
-      accepted: 0, rejected: events.length,
-      rejection_reasons: ['batch_too_large']
-    }), { status: 400 });
+    return errorResponse('batch_too_large', 'bad_request', {
+      message: `Max 100 events per batch; got ${events.length}`,
+      issues: [{ field: 'batch_size', limit: 100, actual: events.length }],
+    });
   }
 
   // Rate limit by first event's instance_id
@@ -80,7 +81,9 @@ export async function handleSubmitEvents(request, env) {
   if (instanceId) {
     const allowed = await checkRateLimit(env, instanceId);
     if (!allowed) {
-      return new Response(JSON.stringify({ error: 'rate_limited', retry_after_seconds: 3600 }), { status: 429 });
+      return errorResponse('rate_limited', 'rate_limited', {
+        message: 'Per-instance hourly rate limit exceeded; retry after 1h',
+      });
     }
   }
 
@@ -111,10 +114,7 @@ export async function handleSubmitEvents(request, env) {
           extra: { batch_size: batch.length, accepted_before_fail: accepted },
         });
       } catch { /* non-fatal */ }
-      return new Response(JSON.stringify({
-        error: 'db_error', detail: e.message,
-        accepted: 0, rejected: events.length
-      }), { status: 500 });
+      return errorResponse('db_error', classifyException(e), { message: e.message });
     }
   }
 
@@ -127,7 +127,7 @@ export async function handleSubmitEvents(request, env) {
 
 export async function handleAggregateStats(request, env) {
   if (request.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'method not allowed' }), { status: 405 });
+    return errorResponse('method_not_allowed', 'method_not_allowed');
   }
 
   try {
@@ -199,8 +199,6 @@ export async function handleAggregateStats(request, env) {
         tags: { route: '/aggregate-stats', kind: 'aggregation_failed' },
       });
     } catch { /* non-fatal */ }
-    return new Response(JSON.stringify({ error: 'aggregation_failed', detail: e.message }), {
-      status: 500,
-    });
+    return errorResponse('aggregation_failed', classifyException(e), { message: e.message });
   }
 }
