@@ -1,0 +1,35 @@
+# Supabase config — mooter.ai (project ref: eymtobwinevywmmlmxqa)
+#
+# This file codifies the Auth config for the production project. To push:
+#   1. supabase login          (interactive — opens browser once)
+#   2. supabase link --project-ref eymtobwinevywmmlmxqa
+#   3. supabase config push
+#
+# The Dashboard remains the source of truth (since it can be edited from the
+# web UI), but having this file committed means: a) humans can see the
+# canonical list without opening a browser, b) operators can `config push`
+# to restore state after accidental Dashboard edits.
+
+project_id = "eymtobwinevywmmlmxqa"
+
+[auth]
+site_url = "https://mooter.ai"
+
+# Allowed redirect URLs after OAuth / magic-link callbacks. Every entry must
+# match Supabase's pattern rules (https://supabase.com/docs/guides/auth/concepts/redirect-urls).
+additional_redirect_urls = [
+  "https://mooter.ai/**",
+  "https://mooter.ai/auth/callback",
+  "https://www.mooter.ai/auth/callback",
+]
+
+# Email auth remains on (keep existing default). GitHub OAuth configured
+# via Dashboard — client_id Ov23liKacZ4JUyjV0GLo, verified live 2026-04-18.
+#
+# Recommended toggles (NOT enabled as of 2026-04-18):
+#   - Leaked password protection (HaveIBeenPwned check): Auth → Policies
+#     → Password Strength → "Check password against HaveIBeenPwned".
+#     One-click enable. Flagged by Supabase Security Advisor.
+
+[auth.email]
+enable_signup = true
