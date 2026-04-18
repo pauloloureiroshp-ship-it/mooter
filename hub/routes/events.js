@@ -11,6 +11,10 @@
 import * as Sentry from '@sentry/cloudflare';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { eventSchema } from '../lib/schemas.js';
+import { bindEventInsert, batchInsertEvents, countRecentEventsByInstance } from '../lib/db.js';
+
+// Max events per instance per hour (5 batches of 100). Exposed for tests.
+export const RATE_LIMIT_PER_HOUR = 500;
 
 /**
  * Validate a single event against the Zod schema.
@@ -30,16 +34,13 @@ function validateEvent(evt) {
   return `${path}: ${first.message}`;
 }
 
+// Sprint 6 — rate limiter now delegates to the service layer (lib/db.js)
+// for the count query; this function retains the fail-open policy so a
+// transient D1 hiccup never locks out legitimate submitters.
 async function checkRateLimit(env, instanceId) {
-  const hourBucket = Math.floor(Date.now() / 3600000);
   try {
-    // Count recent events from this instance in the last hour
-    const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
-    const row = await env.DB.prepare(
-      'SELECT COUNT(*) as cnt FROM frugal_events WHERE instance_id = ? AND created_at > ?'
-    ).bind(instanceId, oneHourAgo).first();
-    // Allow up to 500 events per instance per hour (5 batches of 100)
-    return !row || row.cnt < 500;
+    const cnt = await countRecentEventsByInstance(env.DB, instanceId);
+    return cnt < RATE_LIMIT_PER_HOUR;
   } catch {
     // If rate limit check fails, allow (fail open)
     return true;
@@ -86,28 +87,9 @@ export async function handleSubmitEvents(request, env) {
   let accepted = 0;
   const rejectionReasons = [];
 
-  const insertStmt = env.DB.prepare(`
-    INSERT OR IGNORE INTO frugal_events (
-      id, instance_id, frugal_version, classifier_version, hardware_tier, ab_variant,
-      decided_tier, confidence, task_category, escalation_rule,
-      prompt_len_bucket, has_file_refs, has_code_block, keyword_signals,
-      actual_model_used, subagent_spawned, wall_clock_ms, inter_prompt_gap_ms,
-      response_len_bucket, cascade_upgrade, retry_detected, ollama_warm, gpu_util_pct,
-      explicit_rating, explicit_feedback_type,
-      session_hour, event_date, created_at,
-      algorithm_version, prompt_complexity_score, outcome_score, outcome_source, per_decision_savings_usd
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?,
-      ?, ?, ?,
-      ?, ?, ?, ?, ?
-    )
-  `);
-
+  // Sprint 6 — service layer. Prepared-statement + bind moved to
+  // hub/lib/db.js (bindEventInsert). Route keeps only the per-event
+  // validation + rejection accounting.
   const batch = [];
   for (const evt of events) {
     const err = validateEvent(evt);
@@ -115,28 +97,13 @@ export async function handleSubmitEvents(request, env) {
       rejectionReasons.push(err);
       continue;
     }
-    batch.push(insertStmt.bind(
-      evt.id, evt.instance_id, evt.frugal_version, evt.classifier_version,
-      evt.hardware_tier, evt.ab_variant || null,
-      evt.decided_tier, evt.confidence, evt.task_category, evt.escalation_rule || null,
-      evt.prompt_len_bucket, evt.has_file_refs ? 1 : 0, evt.has_code_block ? 1 : 0,
-      evt.keyword_signals,
-      evt.actual_model_used || null, evt.subagent_spawned || 0,
-      evt.wall_clock_ms || null, evt.inter_prompt_gap_ms || null,
-      evt.response_len_bucket || null, evt.cascade_upgrade || 0,
-      evt.retry_detected || 0, evt.ollama_warm || null, evt.gpu_util_pct || null,
-      evt.explicit_rating || null, evt.explicit_feedback_type || null,
-      evt.session_hour, evt.event_date, evt.created_at,
-      evt.algorithm_version || null, evt.prompt_complexity_score || null,
-      evt.outcome_score || null, evt.outcome_source || null,
-      evt.per_decision_savings_usd || null
-    ));
+    batch.push(bindEventInsert(env.DB, evt));
     accepted++;
   }
 
   if (batch.length > 0) {
     try {
-      await env.DB.batch(batch);
+      await batchInsertEvents(env.DB, batch);
     } catch (e) {
       try {
         Sentry.captureException(e, {

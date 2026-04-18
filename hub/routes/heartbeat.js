@@ -23,6 +23,7 @@
 import { uuid } from '../lib/anomaly.js';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { heartbeatBodySchema } from '../lib/schemas.js';
+import { insertHeartbeat } from '../lib/db.js';
 
 const MAX_FIELD_LEN = 256;
 
@@ -61,26 +62,21 @@ export async function handleHeartbeat(request, env) {
   const clientTs = typeof body.ts === 'string' ? body.ts : null;
 
   try {
-    await env.DB.prepare(`
-      INSERT INTO device_heartbeats (
-        id, device_id, event, setup_version, hw_tier, sub_profile,
-        platform, node_version, claude_code_version, error,
-        client_ts, received_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
+    // Sprint 6 — service layer. SQL + binding live in hub/lib/db.js.
+    await insertHeartbeat(env.DB, {
       id,
-      capped(body.device_id),
-      body.event,
-      capped(body.setup_version),
-      body.hw_tier || 'unknown',
-      body.sub_profile || 'unknown',
-      capped(body.platform),
-      capped(body.node_version),
-      capped(body.claude_code_version),
-      capped(body.error),
-      capped(clientTs),
-      receivedAt
-    ).run();
+      device_id: capped(body.device_id),
+      event: body.event,
+      setup_version: capped(body.setup_version),
+      hw_tier: body.hw_tier || 'unknown',
+      sub_profile: body.sub_profile || 'unknown',
+      platform: capped(body.platform),
+      node_version: capped(body.node_version),
+      claude_code_version: capped(body.claude_code_version),
+      error: capped(body.error),
+      client_ts: capped(clientTs),
+      received_at: receivedAt,
+    });
   } catch (e) {
     console.error('device-heartbeat db error:', e && e.message);
     return new Response(JSON.stringify({ error: 'internal error' }), { status: 500 });
