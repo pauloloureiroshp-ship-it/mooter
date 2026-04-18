@@ -141,6 +141,46 @@ Ficheiros no disco **não são estado de sessão**. "Já li este ficheiro antes 
 
 ---
 
+## CONTEXT MANAGEMENT — anti-degradação em sessões longas
+
+### Scratchpad protocol (sessões > 20 turns)
+Mantém `/frugal/.claude/scratch/session_YYYYMMDD.md` (cria o dir se não existir) com:
+- Key findings da sessão (ficheiros descobertos, decisões tomadas)
+- Estado actual da tarefa principal (TODO / IN_PROGRESS / DONE)
+- Próximas 3 acções concretas
+- Referências: commits feitos, PRs abertos, páginas Notion
+Releia o scratchpad no início de cada turn longo para contrariar "lost in the middle".
+
+### Context budget + /compact
+- Se o contexto aproximar 150k tokens, usa `/compact` **antes** de continuar. Não esperes o limite bater — /compact no momento certo preserva melhor a informação útil.
+- **Lost-in-the-middle mitigation**: coloca findings críticos **no início** de qualquer agregado (output de subagent, summary, handoff). Nunca sepultes o key insight no parágrafo 4.
+- Subagents devem produzir um "Key findings" TL;DR de 3 linhas **antes** dos detalhes.
+
+### Tool output trimming
+Quando tool calls devolvem outputs verbosos (DB rows com 40 campos, listas com 200 entries, dumps JSON grandes):
+- Extrai só os campos relevantes antes de continuar.
+- Se leres > 500 linhas de um ficheiro para responder a pergunta pontual, o pipeline é errado — restringe com `offset`/`limit` ou `Grep` focado.
+- `inject_context.js` faz trimming automático de tool outputs > 5 campos quando aplicável.
+
+### Information provenance (formato obrigatório em outputs de synthesis)
+Quando um subagent agrega findings, cada claim deve ter:
+```
+- claim: <o que descobri>
+  source: <ficheiro:linha | URL | commit hash>
+  confidence: high | medium | low
+  observed_at: <YYYY-MM-DD>
+```
+Nunca consolides findings conflituantes sem annotares o conflito explicitamente.
+
+### Structured error propagation (subagents → coordinator)
+Quando um subagent falha, deve reportar:
+- `failure_type`: "access_denied" | "timeout" | "validation_error" | "not_found" | "rate_limited"
+- `attempted`: o que tentou exactamente (comando, path, prompt)
+- `partial_results`: o que conseguiu antes de falhar (mesmo que vazio)
+- `alternatives`: 1-2 abordagens que o coordinator pode tentar em vez
+
+---
+
 ## PROTOCOLO NOTION — obrigatório no fim de cada sessão
 
 > O Paulo quer que NUNCA se perca o histórico do projecto. Isto não é opcional.

@@ -3,7 +3,13 @@ node_modules/
 decisions.log
 .env
 .env.*
-.claude/
+.claude/*
+!.claude/rules/
+!.claude/rules/**
+!.claude/commands/
+!.claude/commands/**
+!.claude/skills/
+!.claude/skills/**
 *.env
 .env.local
 .next/

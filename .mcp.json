@@ -6,7 +6,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/paulomirandaloureiro/frugal"
+        "${HOME}/frugal"
       ],
       "env": {}
     },
