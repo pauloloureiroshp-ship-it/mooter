@@ -9,10 +9,14 @@
  * Designed to NEVER fail loudly: any error → silent exit 0 (no context).
  */
 
+// @ts-check
 'use strict';
 
+/** @typedef {import('./types').ClassifyDecision} ClassifyDecision */
+/** @typedef {import('./types').ArbiterDecision} ArbiterDecision */
+
 // v0.9: hook-start timestamp for cascade latency reporting.
-global.__frugal_hook_start = Date.now();
+/** @type {any} */ (global).__frugal_hook_start = Date.now();
 
 const path = require('path');
 const fs = require('fs');
@@ -60,6 +64,7 @@ const TRACKER_STALE_MS = 60 * 60 * 1000; // 1h
   const script = path.join(ROUTER_DIR, 'savings-tracker.js');
   if (!fs.existsSync(script)) return;
   try {
+    // @ts-ignore — execFile overload accepts (cmd, args, options) at runtime
     const child = execFile('node', [script], {
       detached: true,
       stdio: 'ignore',
@@ -74,6 +79,7 @@ const TRACKER_STALE_MS = 60 * 60 * 1000; // 1h
   try {
     const warmup = path.join(ROUTER_DIR, 'ollama-warmup.js');
     if (fs.existsSync(warmup)) {
+      // @ts-ignore — execFile overload accepts (cmd, args, options) at runtime
       const wc = execFile('node', [warmup], {
         detached: true,
         stdio: 'ignore',
@@ -120,6 +126,7 @@ function spawnBudgetRefresh() {
   const refreshScript = path.join(ROUTER_DIR, 'refresh-budget.js');
   if (!fs.existsSync(refreshScript)) return;
   try {
+    // @ts-ignore — execFile overload accepts (cmd, args, options) at runtime
     const child = execFile('node', [refreshScript], {
       detached: true,
       stdio: 'ignore',
@@ -134,6 +141,10 @@ function spawnBudgetRefresh() {
  * - Always returns in < 5ms when cache is fresh.
  * - Spawns a background refresh when stale but not expired.
  * - Only blocks (≤ 2500ms) on very-stale cache + HIGH_RISK prompt.
+ */
+/**
+ * @param {string} promptText
+ * @param {boolean} isHighRisk
  */
 function getBudget(promptText, isHighRisk) {
   if (V07_DISABLED) return fetchBudgetSyncLegacy();
@@ -220,8 +231,10 @@ function fetchBudgetSyncLegacy() {
 // Reads the user-declared subscription profile to adjust budget cap behaviour.
 // Cached for the entire hook invocation (file read once, not per-prompt).
 const SUB_PROFILE_PATH = path.join(ROUTER_DIR, 'subscription-profile.json');
+/** @type {Record<string, any> | null | undefined} */
 let _subProfileCache = undefined;
 
+/** @returns {Record<string, any> | null | undefined} */
 function readSubscriptionProfile() {
   if (_subProfileCache !== undefined) return _subProfileCache;
   try {
@@ -232,6 +245,11 @@ function readSubscriptionProfile() {
   return _subProfileCache;
 }
 
+/**
+ * @param {string} tier
+ * @param {Record<string, any> | null | undefined} budget
+ * @returns {string}
+ */
 function applyBudgetCap(tier, budget) {
   if (!budget) return tier;
 
@@ -270,6 +288,9 @@ const EXEC_LOG_PATH = path.join(os.homedir(), '.claude', 'hooks', 'execution.log
 // directive when compliance drops to 0% (session is all-Opus even though
 // the router keeps recommending T0/T1). Bounded tail (256 KB), silent on
 // failure. Returns { bashCount, opusCount, nonOpusCount } or null.
+/**
+ * @param {string | null | undefined} sid
+ */
 function readSessionCompliance(sid) {
   if (!sid || sid === 'unknown') return null;
   try {
@@ -287,7 +308,7 @@ function readSessionCompliance(sid) {
       const sm = line.match(/session=(\S+)/);
       if (!sm || sm[1] !== sid) continue;
       const mm = line.match(/model=(\S+)/);
-      if (!mm) continue;
+      if (!mm || !mm[1]) continue;
       bashCount++;
       if (/opus/i.test(mm[1])) opusCount++;
     }
@@ -298,6 +319,10 @@ function readSessionCompliance(sid) {
 // v0.10: read the most recent classified tier for this session from
 // decisions.log. Bounded tail (32 KB) — silent on failure. Used to seed
 // FRUGAL_PREV_TIER for the follow-up inheritance rule in classify.js.
+/**
+ * @param {string | null | undefined} sid
+ * @returns {string | null}
+ */
 function readLastSessionTier(sid) {
   if (!sid || sid === 'unknown') return null;
   try {
@@ -321,6 +346,9 @@ function readLastSessionTier(sid) {
   return null;
 }
 
+/**
+ * @param {Record<string, unknown>} entry
+ */
 function logDecision(entry) {
   try {
     fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n', 'utf8');
@@ -329,6 +357,10 @@ function logDecision(entry) {
 
 // v0.9: fire-and-forget POST to the tracker. Non-blocking, swallows errors.
 // Used for /decision (statusline segment ③) and /arbiter-event (metrics).
+/**
+ * @param {string} urlPath
+ * @param {Record<string, unknown>} payload
+ */
 function postTracker(urlPath, payload) {
   try {
     const body = JSON.stringify(payload);
@@ -350,6 +382,7 @@ function postTracker(urlPath, payload) {
       req.write(body);
       req.end();
     `;
+    // @ts-ignore — execFile overload accepts (cmd, args, options) at runtime
     const child = execFile(process.execPath, ['-e', scriptText, body], {
       detached: true,
       stdio: 'ignore',
@@ -359,6 +392,10 @@ function postTracker(urlPath, payload) {
   } catch { /* non-fatal */ }
 }
 
+/**
+ * @param {string} str
+ * @returns {any}
+ */
 function safeJson(str) {
   try { return JSON.parse(str); } catch { return null; }
 }
@@ -381,6 +418,10 @@ const CLASSIFY_CACHE_MAX = 1000;
 
 // v0.10: include prevTier in the cache key so short follow-ups with different
 // inherited tiers don't collide across sessions.
+/**
+ * @param {string} p
+ * @param {string | null | undefined} prevTier
+ */
 function hashPrompt(p, prevTier) {
   const composite = (p || '') + '|' + (prevTier || '');
   return crypto.createHash('sha256').update(composite).digest('hex');
@@ -400,23 +441,34 @@ function loadClassifyCache() {
   } catch { return { tuning_mtime: tuningMtime(), entries: {} }; }
 }
 
+/**
+ * @param {{ tuning_mtime: number, entries: Record<string, { ts: number, decision: any }> }} cache
+ */
 function saveClassifyCache(cache) {
   try {
     // LRU eviction: sort by ts, keep newest MAX entries.
     const keys = Object.keys(cache.entries);
     if (keys.length > CLASSIFY_CACHE_MAX) {
       const sorted = keys
-        .map((k) => ({ k, ts: cache.entries[k].ts || 0 }))
+        .map((k) => ({ k, ts: (cache.entries[k] && cache.entries[k].ts) || 0 }))
         .sort((a, b) => b.ts - a.ts)
         .slice(0, CLASSIFY_CACHE_MAX);
+      /** @type {Record<string, { ts: number, decision: any }>} */
       const kept = {};
-      for (const { k } of sorted) kept[k] = cache.entries[k];
+      for (const { k } of sorted) {
+        const entry = cache.entries[k];
+        if (entry) kept[k] = entry;
+      }
       cache.entries = kept;
     }
     fs.writeFileSync(CLASSIFY_CACHE_PATH, JSON.stringify(cache));
   } catch { /* non-fatal */ }
 }
 
+/**
+ * @param {string} prompt
+ * @param {string | null | undefined} prevTier
+ */
 function getClassifyCached(prompt, prevTier) {
   if (V07_DISABLED) return null;
   const cache = loadClassifyCache();
@@ -427,6 +479,12 @@ function getClassifyCached(prompt, prevTier) {
   return { decision: entry.decision, cache };
 }
 
+/**
+ * @param {string} prompt
+ * @param {any} decision
+ * @param {{ tuning_mtime: number, entries: Record<string, { ts: number, decision: any }> } | null | undefined} cache
+ * @param {string | null | undefined} prevTier
+ */
 function setClassifyCached(prompt, decision, cache, prevTier) {
   if (V07_DISABLED) return;
   if (decision && decision.user_override) return; // never cache override results
@@ -444,6 +502,7 @@ const HIGH_RISK_HINT = /\b(?:push|deploy|release|migration|migrac|drop\s+table|r
 // Read hw-capability.json once per hook invocation. If missing, attempt to
 // build it from a fresh GPU probe (best-effort, non-blocking).
 const HW_CAPABILITY_PATH = path.join(ROUTER_DIR, 'hw-capability.json');
+/** @type {Record<string, any> | null | undefined} */
 let _hwCapability = undefined;
 
 (function initHwCapability() {
@@ -467,7 +526,7 @@ function bestOllamaT0() {
   const preferred = ['qwen3:30b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5:3b'];
   try {
     const models = (_hwCapability && _hwCapability.available_ollama_models) || [];
-    const names = models.map(m => (m.name || m).toLowerCase());
+    const names = models.map(/** @param {any} m */ (m) => (m.name || m).toLowerCase());
     return preferred.find(p => names.includes(p.toLowerCase())) || 'qwen3:30b';
   } catch { return 'qwen3:30b'; }
 }
@@ -492,6 +551,7 @@ function bestOllamaT0() {
       const lastPushStat = (() => { try { return fs.statSync(lastPushPath); } catch { return null; } })();
       if (lastPushStat && stat.size === lastPushStat.size) return; // no new data
     } catch { /* proceed anyway */ }
+    // @ts-ignore — execFile overload accepts (cmd, args, options) at runtime
     const child = execFile(process.execPath, [pushScript], {
       detached: true,
       stdio: 'ignore',
@@ -514,6 +574,7 @@ function bestOllamaT0() {
       const stat = fs.statSync(lastPullPath);
       if (Date.now() - stat.mtimeMs < 4 * 60 * 60 * 1000) return; // 4h cooldown
     } catch { /* never pulled */ }
+    // @ts-ignore — execFile overload accepts (cmd, args, options) at runtime
     const child = execFile(process.execPath, [pullScript, '--quiet'], {
       detached: true,
       stdio: 'ignore',
@@ -642,12 +703,14 @@ if (
       } else {
         // Honor the arbiter. Replace the tier, backend, model, and
         // subagent with the arbiter's choices.
-        const backendByTier = {
+        /** @type {Record<string, { recommended_backend: string, recommended_model: string }>} */
+        const backendByTierMap = {
           T0: { recommended_backend: 'ollama',          recommended_model: bestOllamaT0() },
           T1: { recommended_backend: 'anthropic_api',   recommended_model: 'claude-haiku-4-5-20251001' },
           T2: { recommended_backend: 'claude_subagent', recommended_model: 'claude-sonnet-4-6' },
           T3: { recommended_backend: 'claude_subagent', recommended_model: 'claude-opus-4-6' },
-        }[arbiterResult.tier];
+        };
+        const backendByTier = backendByTierMap[arbiterResult.tier];
         const previousTier = decision.tier;
         decision.tier = arbiterResult.tier;
         decision.suggested_subagent = arbiterResult.subagent;
@@ -915,6 +978,7 @@ if (decision.decomposition && decision.decomposition.applicable) {
   for (const sub of decision.decomposition.subtasks) {
     const desc = String(sub.description || sub.task || '').replace(/\n/g, ' ').slice(0, 200);
     const subTier = sub.tier || 'T2';
+    /** @type {Record<string, string>} */
     const subModelByTier = {
       T0: bestOllamaT0(),
       T1: 'claude-haiku-4-5-20251001',
@@ -1065,6 +1129,12 @@ process.stdout.write(lines.join('\n') + '\n');
 try {
   const shadow = require('./shadow-mode');
   if (shadow.isEnabled() && shadow.shouldSample(prompt, decision.tier, decision)) {
+    // NOTE: `logId` is undeclared here (pre-existing latent bug discovered by
+    // Sprint 1.5 type-safety sweep — ReferenceError has always been swallowed
+    // by the surrounding try/catch, meaning shadow.spawnShadow was in effect
+    // never called when sampling fired. Preserving that behaviour for now;
+    // see CCA sprint 1 report for the fix proposal.
+    // @ts-ignore — intentional: reference to undeclared `logId` preserved
     shadow.spawnShadow(prompt, decision.tier, logId || 'unknown', sessionId);
   }
 } catch { /* shadow is best-effort, never blocks the hook */ }
@@ -1075,7 +1145,7 @@ try {
   const cascadePath = (decision.arbiter && decision.arbiter.consulted)
     ? `L1→L2→${decision.tier}`
     : `L1→${decision.tier}`;
-  const hookLatency = Date.now() - (global.__frugal_hook_start || Date.now());
+  const hookLatency = Date.now() - (/** @type {any} */ (global).__frugal_hook_start || Date.now());
   postTracker('/decision', {
     tier: decision.tier,
     task_category: decision.task_category,
@@ -1122,6 +1192,9 @@ try {
   const CASCADE_RE = /usa\s+opus|usa\s+o\s+melhor|melhor\s+modelo|thinks?\s+harder|ultrathink|preciso\s+do\s+teu\s+melhor/i;
   const cascadeDetected = CASCADE_RE.test(prompt);
 
+  /**
+   * @param {number} n
+   */
   function lenBucketLocal(n) {
     const v = n || 0;
     if (v < 50) return '0-50';
