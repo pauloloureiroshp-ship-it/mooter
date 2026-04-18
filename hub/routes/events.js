@@ -10,36 +10,24 @@
 
 import * as Sentry from '@sentry/cloudflare';
 import { sanitizeJson } from '../lib/sanitize.js';
+import { eventSchema } from '../lib/schemas.js';
 
-const VALID_TIERS = new Set(['T0', 'T0-code', 'T0-math', 'T1', 'T2', 'T3']);
-const VALID_BUCKETS = new Set(['0-50', '50-100', '100-200', '200-500', '500+']);
-const ID_RE = /^[a-z0-9\-]{1,50}$/;
-const INSTANCE_RE = /^[a-f0-9]{8}$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const PRIVACY_FIELDS = new Set(['prompt_text', 'prompt_raw', 'file_path', 'stack_trace']);
-
+/**
+ * Validate a single event against the Zod schema.
+ * Returns null on success, or a compact reason string on failure —
+ * format preserved for backwards compat with the handler's
+ * rejection_reasons array that clients already parse.
+ *
+ * Sprint 5.1 — replaces the hand-rolled validateEvent() with a Zod
+ * schema in hub/lib/schemas.js that's the single source of truth.
+ * Privacy-field check is now a Zod `.refine()` on the schema itself.
+ */
 function validateEvent(evt) {
-  if (!evt || typeof evt !== 'object') return 'not_object';
-  // Privacy: reject if any banned field is present
-  for (const f of PRIVACY_FIELDS) {
-    if (f in evt) return `privacy_violation: ${f}`;
-  }
-  if (!evt.id || typeof evt.id !== 'string' || !ID_RE.test(evt.id)) return 'invalid_id';
-  if (!evt.instance_id || !INSTANCE_RE.test(evt.instance_id)) return 'invalid_instance_id';
-  if (!evt.decided_tier || !VALID_TIERS.has(evt.decided_tier)) return `invalid_tier: ${evt.decided_tier}`;
-  if (typeof evt.confidence !== 'number' || evt.confidence < 0 || evt.confidence > 1) return 'invalid_confidence';
-  if (!evt.prompt_len_bucket || !VALID_BUCKETS.has(evt.prompt_len_bucket)) return 'invalid_prompt_len_bucket';
-  if (typeof evt.session_hour !== 'number' || evt.session_hour < 0 || evt.session_hour > 23) return 'invalid_session_hour';
-  if (!evt.event_date || !DATE_RE.test(evt.event_date)) return 'missing_field: event_date';
-  if (!evt.frugal_version) return 'missing_field: frugal_version';
-  if (!evt.classifier_version) return 'missing_field: classifier_version';
-  if (!evt.hardware_tier) return 'missing_field: hardware_tier';
-  if (!evt.task_category) return 'missing_field: task_category';
-  if (!evt.created_at) return 'missing_field: created_at';
-  if (!evt.keyword_signals) return 'missing_field: keyword_signals';
-  if (evt.has_file_refs === undefined || evt.has_file_refs === null) return 'missing_field: has_file_refs';
-  if (evt.has_code_block === undefined || evt.has_code_block === null) return 'missing_field: has_code_block';
-  return null;
+  const r = eventSchema.safeParse(evt);
+  if (r.success) return null;
+  const first = r.error.issues[0];
+  const path = first.path.join('.') || '<root>';
+  return `${path}: ${first.message}`;
 }
 
 async function checkRateLimit(env, instanceId) {

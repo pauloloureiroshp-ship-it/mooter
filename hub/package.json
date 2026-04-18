@@ -11,7 +11,8 @@
     "deploy:mooter": "wrangler deploy -c wrangler.mooter.toml"
   },
   "dependencies": {
-    "@sentry/cloudflare": "^10.49.0"
+    "@sentry/cloudflare": "^10.49.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "wrangler": "^4.83.0"

@@ -10,19 +10,7 @@ import { computeTrustScore } from '../lib/trust.js';
 import { processUnknownModels } from '../lib/model-detect.js';
 import { uuid } from '../lib/anomaly.js';
 import { sanitizeJson } from '../lib/sanitize.js';
-
-const VALID_HW_TIERS = new Set(['gpu-high', 'gpu-mid', 'gpu-low', 'apple-silicon', 'cpu-only']);
-const VALID_SUB_PROFILES = new Set(['max', 'api-paid', 'api-free', 'none', 'unknown']);
-const VALID_LANGS = new Set(['pt', 'en', 'other']);
-
-function validate(body) {
-  if (!body || typeof body !== 'object') return 'invalid body';
-  if (!body.hw_tier || !VALID_HW_TIERS.has(body.hw_tier)) return 'invalid hw_tier';
-  if (!body.sub_profile || !VALID_SUB_PROFILES.has(body.sub_profile)) return 'invalid sub_profile';
-  if (!body.tier_distribution || typeof body.tier_distribution !== 'object') return 'missing tier_distribution';
-  if (typeof body.prompt_count !== 'number' || body.prompt_count < 1) return 'invalid prompt_count';
-  return null;
-}
+import { deltaBodySchema } from '../lib/schemas.js';
 
 async function handleDelta(request, env) {
   if (request.method !== 'POST') {
@@ -36,10 +24,18 @@ async function handleDelta(request, env) {
     return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400 });
   }
 
-  const err = validate(body);
-  if (err) {
-    return new Response(JSON.stringify({ error: err }), { status: 422 });
+  // Sprint 5.1 — Zod validation. Replaces the ad-hoc validate() function
+  // with a single source of truth (hub/lib/schemas.js). Error responses
+  // now include per-field issues so the caller knows exactly what failed.
+  const parsed = deltaBodySchema.safeParse(body);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => ({
+      path: i.path.join('.') || '<root>',
+      message: i.message,
+    }));
+    return new Response(JSON.stringify({ error: 'validation_failed', issues }), { status: 422 });
   }
+  body = parsed.data;
 
   const id = uuid();
   const now = new Date();
@@ -54,7 +50,7 @@ async function handleDelta(request, env) {
     expires_at: expiresAt,
     hw_tier: body.hw_tier,
     sub_profile: body.sub_profile,
-    lang: VALID_LANGS.has(body.lang) ? body.lang : 'en',
+    lang: body.lang || 'en',
     session_count: body.session_count || null,
     prompt_count: body.prompt_count,
     tier_distribution: JSON.stringify(body.tier_distribution),

@@ -33,6 +33,7 @@ import { runAggregate } from './jobs/aggregate.js';
 import { runGenerate } from './jobs/generate.js';
 import { runNotify } from './jobs/notify.js';
 import { runUpdateProfiles } from './jobs/update-profiles.js';
+import { tryValidateEnv } from './lib/env.js';
 
 const handler = {
   async fetch(request, env, ctx) {
@@ -48,6 +49,17 @@ const handler = {
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // Sprint 10.2 — env binding validation. tryValidateEnv never throws;
+    // returns issues[] when a typed binding is malformed so we can forward
+    // them to Sentry without 500'ing legit requests. Defaults fill in any
+    // missing optional binding so downstream routes get a typed cfg.
+    const envCheck = tryValidateEnv(env);
+    if (!envCheck.ok) {
+      try {
+        Sentry.captureMessage(`hub_env_invalid: ${envCheck.issues.join('; ')}`, 'warning');
+      } catch { /* non-fatal — DSN may be unset */ }
     }
 
     let response;
