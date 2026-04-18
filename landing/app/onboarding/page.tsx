@@ -23,8 +23,8 @@ const BUDGET_OPTIONS = [
   { value: 999, label: 'No limit' },
 ];
 
-const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
-const INSTALL_CMD_WIN = 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex';
+const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://mooter.ai/install.sh)';
+const INSTALL_CMD_WIN = 'irm https://mooter.ai/install-windows.ps1 | iex';
 
 // ── Live preview helpers — gives the user a tangible "what you'll get" as
 //    they fill out step 1. Numbers are directional, anchored on real router

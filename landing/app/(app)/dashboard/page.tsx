@@ -283,7 +283,7 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
       label: 'Install mooter',
       done: profile.install_completed || decisionsCount > 0,
       terminal: [
-        '\u276F bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)',
+        '\u276F bash <(curl -fsSL https://mooter.ai/install.sh)',
         '  Downloading mooter...',
         '  \u2713 Installed to ~/.claude/tools/router/',
         '  \u2713 Hook configured',

@@ -49,8 +49,8 @@ export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
     ollama_model: 'qwen2.5:3b',
     hub_push_enabled: true,
     suggested_install_command: isMac
-      ? 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)'
-      : 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex',
+      ? 'bash <(curl -fsSL https://mooter.ai/install.sh)'
+      : 'irm https://mooter.ai/install-windows.ps1 | iex',
     personalized_message: '',
     monthly_budget_usd: budget,
     budget_tier: budgetTier,

@@ -57,8 +57,8 @@ Guide me step by step. When done, confirm that the file ~/.mooter/auth.token exi
 function getPrompt2(os: OS): string {
   const osName = os === 'windows' ? 'Windows' : 'Mac';
   const cmd = os === 'windows'
-    ? 'irm https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install-windows.ps1 | iex'
-    : 'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
+    ? 'irm https://mooter.ai/install-windows.ps1 | iex'
+    : 'bash <(curl -fsSL https://mooter.ai/install.sh)';
   return `Install mooter on my computer.
 System: ${osName}
 

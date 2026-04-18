@@ -1186,7 +1186,7 @@ function CompareSection() {
  * ----------------------------------------------------------------- */
 
 const INSTALL_BASH =
-  'bash <(curl -fsSL https://raw.githubusercontent.com/pauloloureiroshp-ship-it/frugal/main/install.sh)';
+  'bash <(curl -fsSL https://mooter.ai/install.sh)';
 const INSTALL_NPM = 'npx @mooter/cli install';
 
 function InstallSection() {
