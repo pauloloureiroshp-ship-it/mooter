@@ -337,12 +337,12 @@ function readLastSessionTier(sid) {
     const lines = buf.toString('utf8').split('\n').filter(Boolean);
     for (let i = lines.length - 1; i >= 0; i--) {
       let obj;
-      try { obj = JSON.parse(lines[i]); } catch (e) { continue; }
+      try { obj = JSON.parse(lines[i]); } catch (_e) { continue; }
       if (obj.event !== 'classified') continue;
       if (obj.session_id !== sid) continue;
       if (obj.tier) return obj.tier;
     }
-  } catch (e) {}
+  } catch (_e) {}
   return null;
 }
 
@@ -608,7 +608,7 @@ let _prevTier = null;
 try {
   const _sid = payload.session_id || (payload.session && payload.session.id) || null;
   _prevTier = readLastSessionTier(_sid);
-} catch (e) {}
+} catch (_e) {}
 
 // Hook cache lookup before spawning classify.js
 let decision = null;
@@ -1129,13 +1129,17 @@ process.stdout.write(lines.join('\n') + '\n');
 try {
   const shadow = require('./shadow-mode');
   if (shadow.isEnabled() && shadow.shouldSample(prompt, decision.tier, decision)) {
-    // NOTE: `logId` is undeclared here (pre-existing latent bug discovered by
-    // Sprint 1.5 type-safety sweep — ReferenceError has always been swallowed
-    // by the surrounding try/catch, meaning shadow.spawnShadow was in effect
-    // never called when sampling fired. Preserving that behaviour for now;
-    // see CCA sprint 1 report for the fix proposal.
-    // @ts-ignore — intentional: reference to undeclared `logId` preserved
-    shadow.spawnShadow(prompt, decision.tier, logId || 'unknown', sessionId);
+    // CCA Sprint 11 fix — `logId` was undeclared here (discovered by the
+    // Sprint 1.5 type-safety sweep). ReferenceError was swallowed by the
+    // surrounding try/catch, so shadow.spawnShadow never actually fired
+    // when sampling hit. Fix: generate a fresh UUID locally for the
+    // shadow_pair log entry. Falls back to a deterministic ts+session
+    // string on Node versions without crypto.randomUUID.
+    const cryptoMod = require('crypto');
+    const decisionId = (typeof cryptoMod.randomUUID === 'function')
+      ? cryptoMod.randomUUID()
+      : `dec-${Date.now()}-${sessionId || 'nosess'}`;
+    shadow.spawnShadow(prompt, decision.tier, decisionId, sessionId);
   }
 } catch { /* shadow is best-effort, never blocks the hook */ }
 

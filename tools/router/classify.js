@@ -861,14 +861,14 @@ function classify(prompt) {
   const HAS_DEEPSEEK = !!process.env.DEEPSEEK_API_KEY;
   const HAS_GEMINI = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
   const HAS_OPENAI = !!process.env.OPENAI_API_KEY;
-  const HAS_XAI = !!process.env.XAI_API_KEY;
+  const _HAS_XAI = !!process.env.XAI_API_KEY;
   const HAS_MISTRAL = !!process.env.MISTRAL_API_KEY;
 
   // T1 alternatives: pick cheapest available
   // DeepSeek V3 ($0.27/$1.10) < Gemini Flash ($0.30/$2.50) < Mistral ($0.50/$1.50) < Haiku ($1/$5)
   let t1Model = MODELS.haiku;
   let t1Backend = 'claude_subagent'; // Haiku via subagent always works
-  let t1Subagent = 'cheap-triage';
+  const t1Subagent = 'cheap-triage';
   if (HAS_DEEPSEEK) { t1Model = 'deepseek-v3'; t1Backend = 'deepseek_api'; }
   else if (HAS_GEMINI) { t1Model = 'gemini-2.5-flash'; t1Backend = 'gemini_api'; }
   else if (HAS_MISTRAL) { t1Model = 'mistral-large-3'; t1Backend = 'mistral_api'; }
@@ -877,15 +877,15 @@ function classify(prompt) {
   // Gemini Pro ($1.25/$10) < o3 ($2/$8) < Sonnet ($3/$15)
   let t2Model = MODELS.sonnet;
   let t2Backend = 'claude_subagent';
-  let t2Subagent = 'model-reasoner';
+  const t2Subagent = 'model-reasoner';
   if (HAS_GEMINI) { t2Model = 'gemini-2.5-pro'; t2Backend = 'gemini_api'; }
   else if (HAS_OPENAI) { t2Model = 'o3'; t2Backend = 'openai_api'; }
 
   // T3: Opus via Claude Code (always available). Alternative: Grok 4 if xAI key present
   // But T3 = architecture/security — quality matters more than cost. Keep Opus unless user overrides.
-  let t3Model = MODELS.opus;
-  let t3Backend = 'claude_subagent';
-  let t3Subagent = 'model-architect';
+  const t3Model = MODELS.opus;
+  const t3Backend = 'claude_subagent';
+  const t3Subagent = 'model-architect';
 
   const backend = {
     T0: { recommended_backend: 'ollama', recommended_model: t0Model, suggested_subagent: 'local-summarizer' },
