@@ -720,6 +720,9 @@ function writeStats(validation) {
     tier_accuracy: stats.tier_accuracy,
     last_validation: validation,
     cost_usd: 0,
+    total_tokens_cumulative: Object.values(modelSummary).reduce(
+      (sum, d) => sum + (d.runs || 0) * (d.avg_tokens || 0), 0
+    ),
   };
 
   if (!DRY_RUN) {

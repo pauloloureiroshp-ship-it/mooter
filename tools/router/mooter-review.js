@@ -31,6 +31,14 @@ const GOLD_LABELS_PATH = path.join(SCRIPT_DIR, 'gold-labels.json');
 const STATS_PATH = path.join(SCRIPT_DIR, 'mooter-tester-stats.json');
 const REVIEW_STATE_PATH = path.join(SCRIPT_DIR, 'mooter-review-state.json');
 
+// ── Pricing for real cost_usd computation ────────────────────────
+let pricing = null;
+try { pricing = require('./pricing'); } catch { /* optional */ }
+
+// ── Savings tracker for savings_usd_cumulative ──────────────────
+let savingsTracker = null;
+try { savingsTracker = require('./savings-tracker'); } catch { /* optional */ }
+
 // ── Meta-prompt filters (kept in sync with mooter-continuous-tester.js) ──
 // Defensively discard stale log entries where generator instructions leaked
 // as test prompts. Tester-side fix prevents new leaks; this catches historical data.
@@ -63,6 +71,8 @@ const countersOnly = args.includes('--counters');
 const exportGold = args.includes('--export-gold');
 const fullMode = args.includes('--full');
 const historyMode = args.includes('--history');
+const writeCountersIdx = args.indexOf('--write-counters');
+const writeCountersPath = writeCountersIdx !== -1 ? args[writeCountersIdx + 1] : null;
 
 // ── Watermark state ────────────────────────────────────────────────
 function loadState() {
@@ -491,11 +501,43 @@ function doExportGold(deltaSnap) {
 }
 
 // ── Counters (JSON for landing/dashboard — always cumulative) ───────
-function showCounters(allSnap, state) {
+function buildCounters(allSnap, state) {
   let live = {};
   try { live = JSON.parse(fs.readFileSync(STATS_PATH, 'utf8')); } catch {}
 
-  console.log(JSON.stringify({
+  // tokens_used: sum across model_performance of (runs * avg_tokens)
+  let tokens_used = 0;
+  const mp = live.model_performance || {};
+  for (const data of Object.values(mp)) {
+    tokens_used += (data.runs || 0) * (data.avg_tokens || 0);
+  }
+
+  // savings_usd_cumulative: read from decisions.log via savings-tracker.computeMetrics
+  let savings_usd_cumulative = 0;
+  // TODO: wire to model-catalog pricing once available for local-only sessions
+  if (savingsTracker) {
+    try {
+      const os = require('os');
+      const logPath = require('path').join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+      const raw = fs.readFileSync(logPath, 'utf8');
+      const lines = raw.split('\n').filter(Boolean);
+      const m = savingsTracker.computeMetrics(lines);
+      savings_usd_cumulative = m.saved || 0;
+    } catch { /* log missing or tracker unavailable */ }
+  }
+
+  // cost_usd: computed from model_performance × per-token pricing
+  let cost_usd = 0;
+  if (pricing) {
+    for (const [model, data] of Object.entries(mp)) {
+      const price = pricing.PRICES[model] || pricing.FALLBACK_PRICE;
+      const tokensIn = (data.runs || 0) * (data.avg_tokens || 0);
+      cost_usd += (tokensIn * (price.input || 0)) / 1e6;
+    }
+  }
+  // TODO: wire to model-catalog pricing once available
+
+  return {
     prompts_tested: allSnap.classifications,
     prompts_executed: allSnap.executions.total,
     models_benchmarked: Object.keys(allSnap.executions.by_model).length,
@@ -508,9 +550,15 @@ function showCounters(allSnap, state) {
     reviews_completed: state.review_count,
     uptime: live.uptime_human || null,
     cycles: live.cycles || null,
-    cost_usd: 0,
+    tokens_used,
+    savings_usd_cumulative: +savings_usd_cumulative.toFixed(4),
+    cost_usd: +cost_usd.toFixed(4),
     last_updated: new Date().toISOString(),
-  }, null, 2));
+  };
+}
+
+function showCounters(allSnap, state) {
+  console.log(JSON.stringify(buildCounters(allSnap, state), null, 2));
 }
 
 // ── Review history ──────────────────────────────────────────────────
@@ -542,6 +590,11 @@ const deltaSnap = buildSnapshot(deltaEvents);
 
 if (historyMode) {
   showHistory(state);
+} else if (writeCountersPath) {
+  // --write-counters <path>: write JSON to file (does NOT advance watermark)
+  const countersJson = JSON.stringify(buildCounters(allSnap, state), null, 2);
+  fs.writeFileSync(writeCountersPath, countersJson);
+  console.log(`counters written to ${writeCountersPath}`);
 } else if (countersOnly) {
   // Counters are always cumulative, don't advance watermark
   showCounters(allSnap, state);
