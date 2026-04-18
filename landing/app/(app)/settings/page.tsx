@@ -113,7 +113,7 @@ export default function SettingsPage() {
     <div style={{ maxWidth: 640 }}>
       {/* ── Profile ─────────────────────────────────────────────── */}
       <div style={card}>
-        <h2 style={sectionHeading}>🐮 Profile</h2>
+        <h2 style={sectionHeading}>Profile</h2>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
           <div style={{
