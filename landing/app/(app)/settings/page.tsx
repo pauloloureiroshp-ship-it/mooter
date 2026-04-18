@@ -118,7 +118,7 @@ export default function SettingsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
           <div style={{
             width: 56, height: 56, borderRadius: '50%',
-            background: 'var(--accent)', color: 'var(--bg)',
+            background: 'var(--accent)', color: 'var(--cream)',
             display: 'grid', placeItems: 'center',
             fontSize: '1.4rem', fontWeight: 700,
             fontFamily: 'var(--font)',

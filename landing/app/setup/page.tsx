@@ -239,7 +239,7 @@ export default function SetupPage() {
 
   const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
     background: active ? 'var(--accent)' : 'var(--surface-2)',
-    color: active ? 'var(--bg)' : 'var(--text)',
+    color: active ? 'var(--cream)' : 'var(--text)',
     border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
     borderRadius: 'var(--r-md)',
     padding: '10px 20px',
@@ -251,7 +251,7 @@ export default function SetupPage() {
   });
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 20px' }}>
+    <div className="app-shell-root" style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 20px' }}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         {/* Header */}
         <div style={{
@@ -589,7 +589,7 @@ export default function SetupPage() {
                   style={{
                     display: 'inline-block',
                     background: 'var(--accent)',
-                    color: 'var(--bg)',
+                    color: 'var(--cream)',
                     padding: '12px 28px',
                     borderRadius: 'var(--r-md)',
                     fontWeight: 700,

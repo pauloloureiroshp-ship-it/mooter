@@ -406,7 +406,7 @@ export default function OnboardingPage() {
                       onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
                       style={{
                         flex: 1,
-                        background: 'var(--accent)', color: 'var(--bg)',
+                        background: 'var(--accent)', color: 'var(--cream)',
                         border: 'none', borderRadius: 'var(--r-sm)',
                         padding: '8px 14px', fontSize: '0.82rem',
                         fontWeight: 700, fontFamily: 'var(--font)',
@@ -593,7 +593,7 @@ export default function OnboardingPage() {
 
             {/* Terminal mock */}
             <div style={{
-              background: '#0D0D0D',
+              background: '#0D0B08',
               border: '1px solid var(--border)',
               borderRadius: 'var(--r-md)',
               overflow: 'hidden',
@@ -789,7 +789,7 @@ export default function OnboardingPage() {
                     }}
                     style={{
                       background: tokenCopied ? 'var(--tier-0)' : 'var(--accent)',
-                      color: 'var(--bg)',
+                      color: 'var(--cream)',
                       border: 'none',
                       borderRadius: 'var(--r-sm)',
                       padding: '7px 16px',
@@ -824,7 +824,7 @@ export default function OnboardingPage() {
                 textAlign: 'center',
                 textDecoration: 'none',
                 background: 'var(--accent)',
-                color: 'var(--bg)',
+                color: 'var(--cream)',
                 padding: '14px 24px',
                 borderRadius: 'var(--r-md)',
                 fontSize: '0.95rem',

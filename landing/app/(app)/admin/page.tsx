@@ -939,7 +939,7 @@ const primaryBtnStyle: React.CSSProperties = {
   background: 'var(--accent)',
   border: '1px solid var(--accent)',
   borderRadius: 'var(--r-sm)',
-  color: 'var(--bg)',
+  color: 'var(--cream)',
   fontSize: '0.8rem',
   cursor: 'pointer',
   fontWeight: 700,

@@ -242,7 +242,7 @@ function DevicesTab({ profile }: { profile: Profile }) {
 function TerminalBlock({ lines }: { lines: string[] }) {
   return (
     <div style={{
-      background: '#0D0D0D',
+      background: '#0D0B08',
       border: '1px solid var(--border)',
       borderRadius: 'var(--r-md)',
       padding: '12px 16px',
