@@ -3,10 +3,77 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-18 (Claude Code Windows — Platform Audit v3 + CCA criteria batch)
-**Versão:** v0.10.0 · mooter.ai live · CI 72/72 green · CCA 4 criteria advanced
-**Último commit main:** `5e690a9` (feat(landing): quality foundation — ESLint 9 flat config + Vitest + tests)
-**Sessão Claude Code:** #28 (repo Windows) — full adversarial audit + CCA follow-through. 11 commits shipped: CI fix, /dashboard→LoginHero, mooter.ai homepage, Supabase config.toml, HIGH_RISK guardrail patch (72/72), install URL fix, landing hygiene (robots/sitemap/headers), Supabase remediation script, Zod env validation, error boundaries, ESLint+Vitest foundation. 4 CCA criteria advanced (7+10 COVERED, 3+5 PARTIAL).
+**Última sync:** 2026-04-18 (Claude Code Windows — Platform Audit v3 CLOSED)
+**Versão:** v0.10.0 · mooter.ai live · CI 72/72 green · Supabase auth config applied via Mgmt API
+**Último commit main:** `6c50cf3` (fix(hub): close D1/R2 binding drift — deploy now idempotent)
+**Sessão Claude Code:** #28 — 15 commits shipped + Supabase runtime config applied via Management API. Platform audit fully closed except for 2 paulo-only actions (see below).
+
+### ⚠️ Acções URGENTES pendentes para Paulo (security)
+
+Após aplicar Supabase auth config via Management API (PATCH 200 ok), 2 acções humanas só tuas:
+
+1. **Revogar o PAT que colaste em 2026-04-18 18:30** — https://supabase.com/dashboard/account/tokens → apaga `mooter-audit`. Expira em 1h de qualquer forma, mas revoga por higiene.
+
+2. **Rotar GitHub OAuth client secret** — a Supabase Management API devolveu `external_github_secret` em plaintext na resposta do PATCH. Secret passou pelo contexto Claude.
+   - https://github.com/settings/developers → Frugal OAuth App → Generate new client secret
+   - Cola o novo em Supabase Dashboard → Auth → Providers → GitHub
+   - Revoga o antigo no GitHub OAuth App page
+   - 5 min total
+
+### HIBP blocker (decisão estratégica)
+
+Leaked Password Protection bloqueado pela API com `HTTP 402 — Pro Plan only` ($25/mo). Recomendação: deixar off enquanto GitHub OAuth é caminho principal (email/password = fallback). Revisitar se >50 email-auth users.
+
+### Sessão #28 commits (ordem cronológica)
+
+```
+6c50cf3  fix(hub): close D1/R2 binding drift (deploy-safety critical)
+0f82b7b  feat(cca) [bundled] + fix(tuning): exclude quality/override from demote pool
+89ef449  docs(sync): session closeout
+5e690a9  feat(landing): ESLint 9 + Vitest foundation
+6c74a93  feat(landing): error boundaries
+61121fb  feat(landing): Zod env validation
+bf056ab  chore(supabase): remediation script (used — applied cleanly)
+9490c8f  fix(landing): hygiene (robots/sitemap/headers/private-repo links)
+0c05a32  fix(install): install URL via mooter.ai (era 404)
+b57efa9  fix(router): HIGH_RISK guardrail + validation-set drift (72/72)
+d12a59b  chore(supabase): config.toml codified
+35f3172  chore(version): homepage → mooter.ai
+6bcb6b5  feat(auth): /dashboard → LoginHero
+a3d0d59  fix(ci): 66/66 → 72/72 green
+```
+
+### Bugs reais eliminados (11)
+
+1. CI 3/66 red → 72/72 green
+2. 6 HIGH_RISK phrases iam para T0 gemma (guardrail gap)
+3. `mooter.ai/install.sh` → repo privado 404 (acquisition broken)
+4. P1-OAuth silent fail pattern (Zod throws em missing env)
+5. `/dashboard` anon → waitlist em vez de LoginHero
+6. 4 landing footer links → repo privado 404
+7. Tuning pipeline propunha demotar quality/override (feedback loop)
+8. `validation-set.test.js` rejeitava `mooter_review_*` sources
+9. Missing robots/sitemap + security headers
+10. `hub/wrangler.toml` binding drift (iam reverter D1 para DB vazia no próximo deploy)
+11. `mooter.ai/install-windows.ps1` 404 (não estava em landing/public/)
+
+### CCA scoreboard (landing column — delta desta sessão)
+
+| Criterion | Antes | Depois desta sessão |
+|---|---|---|
+| 3. Testing | MISSING | PARTIAL (5 Vitest tests) |
+| 5. Code Quality Gates | MISSING | PARTIAL (ESLint 9 baseline) |
+| 7. Error Handling | PARTIAL | COVERED (error.tsx + not-found + global-error) |
+| 10. Environment Safety | MISSING | COVERED (Zod schema, fail-fast) |
+| 8. Error Monitoring | MISSING | COVERED (Sentry via parallel session Sprint 8.1/8.3) |
+
+### Parallel sessions awareness
+
+Paulo correu 2 Claude Code sessions em paralelo em 2026-04-18:
+- **Esta sessão** (platform audit + CCA Crit 3,5,7,10 + deploy safety)
+- **Parallel session**: CCA Sprint 1.x (Type Safety, pricing.js → 4 core files + deps) + Sprint 8.x (Sentry)
+
+Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando ambas sessões staged files overlapping.
 
 ---
 
