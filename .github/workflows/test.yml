@@ -27,6 +27,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: tools/router/package-lock.json
+
+      - name: Install router dependencies
+        working-directory: tools/router
+        run: npm ci --no-audit --no-fund
+
+      # CCA Criterion #1 (Type Safety) gate — enforces strict TS + JSDoc
+      # across classify.js, arbiter.js, pricing.js, inject_context.js,
+      # backtest.js, fx.js, env.js, patterns.js and transitive requires.
+      # Fails CI on any implicit any, unsound indexing, or missing return
+      # null branches. See tools/router/tsconfig.json for the enforcement
+      # scope and AUDIT_CCA.md for the criterion spec.
+      - name: Type-check router (tsc --strict)
+        working-directory: tools/router
+        run: npm run typecheck
 
       - name: Syntax check classify.js
         run: node -c tools/router/classify.js
