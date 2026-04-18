@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 // Next.js App Router error boundary — catches render-time errors in any
 // Server or Client component under /app. Previously the site fell through
@@ -60,9 +61,9 @@ export default function Error({
           <button onClick={reset} className="btn btn-rose">
             Try again
           </button>
-          <a href="/" className="btn btn-secondary">
+          <Link href="/" className="btn btn-secondary">
             Back to home
-          </a>
+          </Link>
         </div>
       </div>
     </main>

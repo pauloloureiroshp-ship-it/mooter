@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 // Next.js App Router 404 handler — rendered whenever notFound() is called
 // OR a route simply doesn't match. Keeps the warm-beige brand voice instead
 // of Next's generic "This page could not be found" white-on-black screen.
@@ -33,12 +35,12 @@ export default function NotFound() {
           landing or jump to your dashboard.
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href="/" className="btn btn-rose">
+          <Link href="/" className="btn btn-rose">
             Back to home
-          </a>
-          <a href="/dashboard" className="btn btn-secondary">
+          </Link>
+          <Link href="/dashboard" className="btn btn-secondary">
             Sign in
-          </a>
+          </Link>
         </div>
       </div>
     </main>

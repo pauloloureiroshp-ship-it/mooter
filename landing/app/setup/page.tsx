@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 // ── Types ────────────────────────────────────────────────────────────────
 type OS = 'windows' | 'mac' | '';
@@ -257,7 +258,7 @@ export default function SetupPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           marginBottom: 40,
         }}>
-          <a
+          <Link
             href="/"
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
@@ -267,7 +268,7 @@ export default function SetupPage() {
           >
             <span style={{ fontSize: '1.5rem' }}>🐮</span>
             <span>mooter</span>
-          </a>
+          </Link>
         </div>
 
         <h1 style={{
