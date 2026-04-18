@@ -3,12 +3,20 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const protectedPaths = ['/dashboard', '/onboarding', '/admin', '/settings'];
+
+  // /dashboard is handled in-component — layout.tsx renders <LoginHero /> when
+  // /api/me returns no email. We want brand-new visitors to land on LoginHero
+  // (sign-in first), not /#access (waitlist). Waitlist is still linked from the
+  // landing page itself for users who don't want to sign in.
+  //
+  // /onboarding, /admin, /settings stay hard-gated: they expect an authenticated
+  // user and have no anon fallback UI.
+  const protectedPaths = ['/onboarding', '/admin', '/settings'];
 
   if (protectedPaths.some(p => pathname.startsWith(p))) {
     const session = request.cookies.get('sb-access-token');
     if (!session) {
-      return NextResponse.redirect(new URL('/#access', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 
@@ -16,5 +24,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/onboarding/:path*', '/admin/:path*', '/settings/:path*'],
+  matcher: ['/onboarding/:path*', '/admin/:path*', '/settings/:path*'],
 };
