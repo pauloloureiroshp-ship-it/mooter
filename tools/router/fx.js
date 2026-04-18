@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * fx.js — USD foreign exchange cache for frugal.
  *
@@ -15,6 +16,16 @@
  */
 
 'use strict';
+
+/**
+ * @typedef {'USD' | 'BRL' | 'EUR' | 'GBP'} Currency
+ * @typedef {Object} FxCache
+ * @property {string} base
+ * @property {Record<string, number>} rates
+ * @property {boolean} stale
+ * @property {string} source
+ * @property {number} ts
+ */
 
 const fs = require('fs');
 const os = require('os');
@@ -45,6 +56,9 @@ const FALLBACK_RATES = {
   ts: 0,
 };
 
+/**
+ * @returns {FxCache | null}
+ */
 function readCache() {
   try {
     const raw = fs.readFileSync(CACHE_PATH, 'utf8');
@@ -56,6 +70,10 @@ function readCache() {
   return null;
 }
 
+/**
+ * @param {FxCache} data
+ * @returns {void}
+ */
 function writeCache(data) {
   try {
     fs.writeFileSync(CACHE_PATH, JSON.stringify(data), 'utf8');
@@ -124,6 +142,9 @@ function getRates() {
 /**
  * convert(usdAmount, targetCurrency) → number
  * Returns the same USD amount if the target is USD or unknown.
+ * @param {number | string} usdAmount
+ * @param {string} targetCurrency
+ * @returns {number}
  */
 function convert(usdAmount, targetCurrency) {
   const n = Number(usdAmount) || 0;
@@ -138,10 +159,15 @@ function convert(usdAmount, targetCurrency) {
 /**
  * format(amount, currency) → "R$5.42" | "$1.00" | "€0.93"
  * Opinionated, matches statusline expectations.
+ * @param {number | string} amount
+ * @param {string} currency
+ * @returns {string}
  */
 function format(amount, currency) {
   const n = Number(amount) || 0;
-  const sym = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' }[currency] || '$';
+  /** @type {Record<string, string>} */
+  const symbols = { USD: '$', BRL: 'R$', EUR: '€', GBP: '£' };
+  const sym = symbols[currency] || '$';
   return `${sym}${n.toFixed(2)}`;
 }
 
