@@ -5,6 +5,8 @@
  * bearer auth, and aggregated stats endpoint.
  */
 
+import { sanitizeJson } from '../lib/sanitize.js';
+
 const VALID_TIERS = new Set(['T0', 'T0-code', 'T0-math', 'T1', 'T2', 'T3']);
 const VALID_BUCKETS = new Set(['0-50', '50-100', '100-200', '200-500', '500+']);
 const ID_RE = /^[a-z0-9\-]{1,50}$/;
@@ -65,7 +67,7 @@ export async function handleSubmitEvents(request, env) {
 
   let events;
   try {
-    events = await request.json();
+    events = sanitizeJson(await request.json());
   } catch {
     return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400 });
   }

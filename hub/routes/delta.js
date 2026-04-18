@@ -8,6 +8,7 @@
 import { computeTrustScore } from '../lib/trust.js';
 import { processUnknownModels } from '../lib/model-detect.js';
 import { uuid } from '../lib/anomaly.js';
+import { sanitizeJson } from '../lib/sanitize.js';
 
 const VALID_HW_TIERS = new Set(['gpu-high', 'gpu-mid', 'gpu-low', 'apple-silicon', 'cpu-only']);
 const VALID_SUB_PROFILES = new Set(['max', 'api-paid', 'api-free', 'none', 'unknown']);
@@ -29,7 +30,7 @@ async function handleDelta(request, env) {
 
   let body;
   try {
-    body = await request.json();
+    body = sanitizeJson(await request.json());
   } catch {
     return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400 });
   }

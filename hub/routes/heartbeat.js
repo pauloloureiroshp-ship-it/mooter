@@ -21,6 +21,7 @@
  */
 
 import { uuid } from '../lib/anomaly.js';
+import { sanitizeJson } from '../lib/sanitize.js';
 
 const VALID_EVENTS = new Set(['install_start', 'install_ok', 'install_fail', 'alive']);
 const VALID_HW_TIERS = new Set(['gpu-high', 'gpu-mid', 'gpu-low', 'apple-silicon', 'cpu-only', 'unknown']);
@@ -51,7 +52,7 @@ export async function handleHeartbeat(request, env) {
 
   let body;
   try {
-    body = await request.json();
+    body = sanitizeJson(await request.json());
   } catch {
     return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400 });
   }

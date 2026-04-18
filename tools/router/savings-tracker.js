@@ -48,6 +48,7 @@ const path = require('path');
 
 const pricing = require('./pricing');
 const fx = require('./fx');
+const { sanitizeJson } = require('./sanitize');
 
 const PORT = 7821;
 const HOST = '127.0.0.1';
@@ -442,6 +443,11 @@ function computeMetrics(lines) {
     m.total_output_tokens += pricing.AVG_OUTPUT_TOK[e.tier] || 0;
   }
   m.total_tokens = m.total_input_tokens + m.total_output_tokens;
+  // Dual-emit: canonical names for cross-surface vocabulary alignment.
+  // savings_usd_cumulative mirrors m.saved; tokens_used mirrors m.total_tokens.
+  // Old field names are preserved — statusline still reads them.
+  // These aliases are written here (before m.saved is rounded) so they stay
+  // in sync automatically as computeMetrics evolves.
 
   // Backwards-compat alias
   m.real_cost = m.real_cost_estimated;
@@ -516,6 +522,13 @@ function computeMetrics(lines) {
   for (const label of ['Ollama', 'Haiku', 'Sonnet', 'Opus']) {
     m.pct_by_model[label] = round(m.pct_by_model[label], 1);
   }
+
+  // Dual-emit canonical aliases for cross-surface vocabulary alignment.
+  // savings_usd_cumulative = m.saved (statusline reads m.saved; --counters reads savings_usd_cumulative)
+  // tokens_used = m.total_tokens (--counters emits tokens_used; /metrics consumers read total_tokens)
+  // Old field names are preserved — do NOT remove until all consumers migrated.
+  m.savings_usd_cumulative = m.saved;
+  m.tokens_used = m.total_tokens;
 
   // v0.7.1: provider availability snapshot (sync cheap checks + Ollama from cache)
   m.providers = getProvidersSync();
@@ -766,7 +779,10 @@ function handleDecision(req, res) {
     try {
       const json = safeParse(body);
       if (json && typeof json === 'object') {
-        LAST_DECISION = json;
+        // Sanitize every string leaf before persisting — handleDecision
+        // receives arbitrary payloads from the hook and this value is
+        // later reflected back over HTTP on /last and /metrics.
+        LAST_DECISION = sanitizeJson(json);
       }
     } catch { /* non-fatal */ }
     send(res, 200, '{"ok":true}');
