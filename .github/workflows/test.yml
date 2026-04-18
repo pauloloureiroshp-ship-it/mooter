@@ -44,6 +44,13 @@ jobs:
         working-directory: tools/router
         run: npm run typecheck
 
+      # CCA Criterion #3 (Testing) gate — runs node:test suites
+      # (sanitize, env, backtest, classify) with c8 coverage and fails
+      # CI when thresholds drop below the c8 block in package.json.
+      - name: Test router with coverage
+        working-directory: tools/router
+        run: npm run test:coverage
+
       - name: Syntax check classify.js
         run: node -c tools/router/classify.js
 

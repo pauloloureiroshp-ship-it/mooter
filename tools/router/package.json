@@ -6,10 +6,33 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:watch": "tsc --noEmit -w -p tsconfig.json",
-    "test": "node backtest.test.js && node classify.test.js"
+    "test": "node --test sanitize.test.js env.test.js backtest.test.js classify.test.js",
+    "test:coverage": "c8 --reporter=text --reporter=lcov --check-coverage npm test"
+  },
+  "c8": {
+    "include": [
+      "pricing.js",
+      "fx.js",
+      "env.js",
+      "sanitize.js",
+      "arbiter.js",
+      "classify.js",
+      "inject_context.js",
+      "backtest.js",
+      "patterns.js"
+    ],
+    "exclude": [
+      "**/*.test.js",
+      "node_modules/**"
+    ],
+    "lines": 40,
+    "functions": 40,
+    "branches": 30,
+    "statements": 40
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "c8": "^11.0.0",
     "typescript": "^5.5.0"
   },
   "dependencies": {
