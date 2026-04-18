@@ -49,6 +49,7 @@ const path = require('path');
 const pricing = require('./pricing');
 const fx = require('./fx');
 const { sanitizeJson } = require('./sanitize');
+const { requireEnv } = require('./env');
 
 const PORT = 7821;
 const HOST = '127.0.0.1';
@@ -1052,6 +1053,21 @@ const POST_ROUTES = {
 // guard, the unit test suite EADDRINUSE-exits mid-run because the
 // already-running daemon on 7821 conflicts with the spawned listener.
 if (require.main === module) {
+  // CCA Criterion #10 (Environment Safety) — fail-fast on malformed env.
+  // requireEnv() throws a ZodError naming the offending variable if any
+  // MOOTER_* / FRUGAL_* value is present but invalid (e.g. non-URL hub
+  // url, non-integer port). Defaults kick in when vars are absent, so
+  // a fresh install with no env still starts cleanly.
+  let _env;
+  try {
+    _env = requireEnv();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[mooter] env validation failed:\n${msg}\n`);
+    process.stderr.write(`[mooter] Fix the offending MOOTER_* / FRUGAL_* env var and restart.\n`);
+    process.exit(2);
+  }
+
   const server = http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];
     const method = (req.method || 'GET').toUpperCase();
