@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * prompt-optimizer.js — heuristic prompt reformatter for the frugal router.
  *
@@ -27,6 +28,20 @@
 
 'use strict';
 
+/**
+ * @typedef {Object} OptimizerDecision
+ * @property {string} [tier]
+ * @property {string} [task_category]
+ * @property {string} [recommended_model]
+ * @property {boolean} [has_error_trace]
+ * @property {string} [lang_detected]
+ *
+ * @typedef {Object} OptimizeResult
+ * @property {string} optimized_task
+ * @property {number} tokens_saved_est
+ * @property {string} strategy
+ */
+
 // ── S1: Verbal padding removal ─────────────────────────────────────────
 // Remove conversational noise that adds zero information for the model.
 // Two passes: PT-PT patterns first, then EN patterns.
@@ -50,6 +65,7 @@ const PADDING_EN = [
   /\b(?:do you think you can|is it possible to|would it be possible to)\s+/gi,
 ];
 
+/** @param {string} text @returns {string} */
 function removePadding(text) {
   let result = text;
   for (const rx of PADDING_PT) result = result.replace(rx, '');
@@ -65,11 +81,12 @@ function removePadding(text) {
 
 // ── S2: Tier-aware reformatting ─────────────────────────────────────────
 
+/** @param {string} text @returns {string} */
 function reformatForT0(text) {
   // Compress: remove articles, redundant prepositions, collapse to imperative.
   let t = text;
   // Remove common PT articles and prepositions (only mid-sentence, not start).
-  t = t.replace(/\b(?:o|a|os|as|um|uma|uns|umas|do|da|dos|das|no|na|nos|nas|ao|à|aos|às|de|em|com|para|pelo|pela)\s+/gi, (m, offset) => {
+  t = t.replace(/\b(?:o|a|os|as|um|uma|uns|umas|do|da|dos|das|no|na|nos|nas|ao|à|aos|às|de|em|com|para|pelo|pela)\s+/gi, (/** @type {string} */ m, /** @type {number} */ offset) => {
     // Keep if at start of sentence or after period/colon.
     if (offset === 0) return m;
     const prev = t[offset - 1];
@@ -83,6 +100,7 @@ function reformatForT0(text) {
   return t;
 }
 
+/** @param {string} text @returns {string} */
 function reformatForT1(text) {
   // Direct instruction, strip "because" clauses that are obvious.
   let t = text;
@@ -93,16 +111,18 @@ function reformatForT1(text) {
   return t;
 }
 
+/** @param {string} text @returns {string} */
 function reformatForT2(text) {
   // Structure multi-step prompts as bullet points.
   // Detect sentence boundaries and reformat if ≥ 3 sentences.
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 5);
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((/** @type {string} */ s) => s.trim().length > 5);
   if (sentences.length >= 3) {
-    return sentences.map(s => `- ${s.trim()}`).join('\n');
+    return sentences.map((/** @type {string} */ s) => `- ${s.trim()}`).join('\n');
   }
   return text;
 }
 
+/** @param {string} text @returns {string} */
 function reformatForT3(text) {
   // For Opus: enrich with explicit structure if the prompt mixes context+task.
   // Detect if there's a question or imperative at the end.
@@ -116,7 +136,7 @@ function reformatForT3(text) {
     return text;
   }
   // Multi-line — check if already has structure (headers, bullets).
-  const hasStructure = lines.some(l => /^[-*•]|^#+\s|^(?:Context|Task|Constraint|Step)/i.test(l.trim()));
+  const hasStructure = lines.some((/** @type {string} */ l) => /^[-*•]|^#+\s|^(?:Context|Task|Constraint|Step)/i.test(l.trim()));
   if (hasStructure) return text; // Already structured, don't touch.
   // Heuristic: last line is the task, rest is context.
   const context = lines.slice(0, -1).join('\n').trim();
@@ -124,6 +144,11 @@ function reformatForT3(text) {
   return `Context:\n${context}\n\nTask: ${task}`;
 }
 
+/**
+ * @param {string} text
+ * @param {string | undefined} tier
+ * @returns {string}
+ */
 function tierReformat(text, tier) {
   switch (tier) {
     case 'T0': return reformatForT0(text);
@@ -136,6 +161,11 @@ function tierReformat(text, tier) {
 
 // ── S3: Category-aware task framing ────────────────────────────────────
 
+/**
+ * @param {string} text
+ * @param {string} category
+ * @returns {string}
+ */
 function categoryFrame(text, category) {
   switch (category) {
     case 'bug_hunt_or_debug':
@@ -191,6 +221,7 @@ function categoryFrame(text, category) {
 const ERROR_LINE_RE = /(?:^|\n)\s*((?:[A-Z]\w*)?Error|TypeError|ReferenceError|SyntaxError|RangeError):\s*(.+)/;
 const STACK_LINE_RE = /^\s+at\s+.+/gm;
 
+/** @param {string} text @returns {string | null} */
 function structureErrorTrace(text) {
   const errorMatch = text.match(ERROR_LINE_RE);
   if (!errorMatch) return null;
@@ -219,6 +250,12 @@ function structureErrorTrace(text) {
 
 // ── S5: Multi-language normalization ───────────────────────────────────
 
+/**
+ * @param {string} text
+ * @param {string} langDetected
+ * @param {string | undefined} tier
+ * @returns {string}
+ */
 function langHint(text, langDetected, tier) {
   // Only add hint for T1/T2 where models respond better with explicit lang signal.
   if (tier !== 'T1' && tier !== 'T2') return text;
@@ -236,8 +273,8 @@ const HIGH_RISK_HINT = /\b(?:push|deploy|release|migration|migrac|drop\s+table|r
  * optimize(prompt, decision) → result | null
  *
  * @param {string} prompt   — raw user prompt
- * @param {object} decision — classify.js output (task_category, tier, etc.)
- * @returns {{ optimized_task: string, tokens_saved_est: number, strategy: string }} | null
+ * @param {OptimizerDecision | null | undefined} decision — classify.js output (task_category, tier, etc.)
+ * @returns {OptimizeResult | null}
  */
 function optimize(prompt, decision) {
   if (!prompt || typeof prompt !== 'string') return null;

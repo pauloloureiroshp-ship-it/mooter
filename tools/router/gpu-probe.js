@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * gpu-probe.js — GPU detection for the frugal savings-tracker (v0.9).
  *
@@ -17,6 +18,15 @@
  */
 
 'use strict';
+
+/**
+ * @typedef {Object} GpuProbe
+ * @property {string} vendor  - 'nvidia' | 'apple' | 'amd' | 'cpu'
+ * @property {string} name_short
+ * @property {number|null} vramMB
+ * @property {number|null} utilPct
+ * @property {string} platform
+ */
 
 const { spawnSync } = require('child_process');
 const fs = require('fs');
@@ -142,6 +152,10 @@ const MODEL_VRAM_REQ = {
   'qwen3:30b':                    20480,
 };
 
+/**
+ * @param {GpuProbe | null | undefined} probe
+ * @returns {string}
+ */
 function classifyHwTier(probe) {
   if (!probe) return 'cpu-only';
   if (probe.vendor === 'apple') return 'apple-silicon';
@@ -153,6 +167,10 @@ function classifyHwTier(probe) {
   return 'cpu-only';
 }
 
+/**
+ * @param {GpuProbe | null | undefined} probe
+ * @returns {Object | null}
+ */
 function buildHwCapability(probe) {
   if (!probe || (probe.vendor === 'cpu')) return null;
 

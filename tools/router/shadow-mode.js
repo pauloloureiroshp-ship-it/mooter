@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * shadow-mode.js — sampling + flag module for Shadow Mode Lite.
  *
@@ -28,6 +29,12 @@
  */
 
 'use strict';
+
+/**
+ * @typedef {'T0'|'T1'|'T2'|'T3'} Tier
+ * @typedef {Object} Classification
+ * @property {string} [risk_level]
+ */
 
 const fs = require('fs');
 const path = require('path');
@@ -61,6 +68,12 @@ function isEnabled() {
 // ────────────────────────────────────────────────────────────────────────
 // Sampling decision
 // ────────────────────────────────────────────────────────────────────────
+/**
+ * @param {string} prompt
+ * @param {string} tier
+ * @param {Classification | null | undefined} classification
+ * @returns {boolean}
+ */
 function shouldSample(prompt, tier, classification) {
   if (!prompt || !tier) return false;
   const tierIdx = TIER_ORDER.indexOf(tier);
@@ -74,6 +87,10 @@ function shouldSample(prompt, tier, classification) {
 // ────────────────────────────────────────────────────────────────────────
 // Tier mapping
 // ────────────────────────────────────────────────────────────────────────
+/**
+ * @param {string} tier
+ * @returns {string | null}
+ */
 function shadowTierFor(tier) {
   const idx = TIER_ORDER.indexOf(tier);
   if (idx <= 0) return null;
@@ -83,6 +100,15 @@ function shadowTierFor(tier) {
 // ────────────────────────────────────────────────────────────────────────
 // Log shadow_pair event
 // ────────────────────────────────────────────────────────────────────────
+/**
+ * @param {string} decisionId
+ * @param {string | null | undefined} sessionId
+ * @param {string} primaryTier
+ * @param {string} shadowTier
+ * @param {string | null | undefined} primaryPreview
+ * @param {string | null | undefined} shadowPreview
+ * @returns {object}
+ */
 function logShadowPair(decisionId, sessionId, primaryTier, shadowTier, primaryPreview, shadowPreview) {
   const event = {
     ts: new Date().toISOString(),
@@ -105,6 +131,13 @@ function logShadowPair(decisionId, sessionId, primaryTier, shadowTier, primaryPr
 // ────────────────────────────────────────────────────────────────────────
 // Background spawn — fire-and-forget
 // ────────────────────────────────────────────────────────────────────────
+/**
+ * @param {string} prompt
+ * @param {string} primaryTier
+ * @param {string} decisionId
+ * @param {string | null | undefined} sessionId
+ * @returns {object | null}
+ */
 function spawnShadow(prompt, primaryTier, decisionId, sessionId) {
   const shadowTier = shadowTierFor(primaryTier);
   if (!shadowTier) return null;
@@ -141,7 +174,8 @@ function spawnShadow(prompt, primaryTier, decisionId, sessionId) {
     logShadowPair(decisionId, sessionId, primaryTier, shadowTier, truncPrompt, null);
     return { decisionId, primaryTier, shadowTier, spawned: true };
   } catch (err) {
-    return { decisionId, primaryTier, shadowTier, spawned: false, error: err.message };
+    const msg = err instanceof Error ? err.message : String(err);
+    return { decisionId, primaryTier, shadowTier, spawned: false, error: msg };
   }
 }
 

@@ -64,6 +64,34 @@ function hasHighRisk(text) {
   return HIGH_RISK_MARKERS.some(/** @param {RegExp} rx */ (rx) => rx.test(text));
 }
 
+// Mirror of classify.js QUALITY_INTENT_PATTERNS + USER_OVERRIDE detection.
+// These phrases are DELIBERATE high-tier signals. Filtering them out of the
+// tuning pool prevents the daily backtest from proposing the same demotions
+// every cycle. (2026-04-18 audit — classify.js doesn't export these.)
+const QUALITY_INTENT_LOCAL = [
+  /\bpensa\s+bem\b/i, /\bpensa\s+(bem\s+)?antes\b/i, /\bultrathink\b/i,
+  /\bthink\s+(hard|deeply|carefully|step[-\s]by[-\s]step)\b/i,
+  /\bmega\s*think\b/i, /\bpreciso\s+do\s+teu\s+melhor\b/i,
+  /\bgive\s+me\s+your\s+best\b/i, /\bdon'?t\s+(mess|screw)\s+this\s+up\b/i,
+  /\bn[aã]o\s+podes\s+falhar\b/i, /\bmission\s+critical\b/i,
+  /\bdeep\s+dive\s+(analysis)?\b/i,
+];
+const USER_OVERRIDE_LOCAL = [
+  /@(opus|sonnet|haiku|gemini|gpt-?4o?|ollama|qwen)\b/i,
+  /\b(usa|use|usar|com|with|via|por)\s+(o\s+)?(opus|sonnet|haiku|gemini|gpt-?4o?|ollama|qwen)\b/i,
+  /\bforce\s+(opus|sonnet|haiku|gemini|gpt-?4o?|ollama|qwen)\b/i,
+  /\b(sonnet|opus|haiku|gemini|ollama)\s+diagnostica\b/i,
+  /\bmodel\s*:\s*(opus|sonnet|haiku|gemini|ollama)\b/i,
+];
+/**
+ * @param {string | undefined | null} text
+ */
+function hasDeliberateHighTierSignal(text) {
+  if (!text) return false;
+  return QUALITY_INTENT_LOCAL.some((rx) => rx.test(text)) ||
+         USER_OVERRIDE_LOCAL.some((rx) => rx.test(text));
+}
+
 function loadDecisions() {
   if (!fs.existsSync(LOG_PATH)) return [];
   const lines = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(Boolean);
@@ -276,6 +304,16 @@ function analyze(decisions) {
     // the daily backtest from relearning the same bad patterns every 24h.
     const risky = hasHighRisk(/** @type {string | undefined} */ (d.prompt_preview));
     if (risky) continue;
+    // Quality intent / honored user override are DELIBERATE high-tier signals.
+    // The classifier promoted them intentionally (e.g. "pensa bem antes",
+    // "ultrathink", "@sonnet"). If these leak into the demote pool, the
+    // tuning cycle proposes regressing the doctrine — a loop where tests keep
+    // hitting the same patterns. Filter them out upstream. (2026-04-18 audit.)
+    if (d.quality_intent === true) continue;
+    if (d.user_override && /** @type {any} */ (d.user_override).honored === true) continue;
+    // Fallback: detect deliberate signals via preview text (older decision logs
+    // don't persist the boolean flags, so we pattern-match as a safety net).
+    if (hasDeliberateHighTierSignal(/** @type {string | undefined} */ (d.prompt_preview))) continue;
     // Sprint A: explicit rating overrides length heuristic for T2/T3
     if (d.explicit_rating === 0 && (tier === 'T2' || tier === 'T3')) {
       explicitBadOnHighTier.push(d);

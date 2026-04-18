@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * event-builder.js — constructs frugal_event objects from existing
  * local sources (decisions.log + execution.log + .last-classified.json).
@@ -79,6 +80,7 @@ const EXEMPT_FIELDS = new Set([
 
 // ─── Utilities ──────────────────────────────────────────────────────────
 
+/** @param {number | null | undefined} n @returns {string} */
 function lenBucket(n) {
   const v = n || 0;
   if (v < 50) return '0-50';
@@ -88,6 +90,7 @@ function lenBucket(n) {
   return '500+';
 }
 
+/** @param {number | null | undefined} n @returns {string} */
 function responseBucketFromLen(n) {
   const v = n || 0;
   if (v < 500) return '0-500';
@@ -117,6 +120,7 @@ function readClassifierVersion() {
   } catch { return 'unknown0'; }
 }
 
+/** @param {string | null | undefined} preview @returns {string[]} */
 function extractKeywordSignals(preview) {
   if (!preview || typeof preview !== 'string') return [];
   const low = preview.toLowerCase();
@@ -136,6 +140,10 @@ function makeId() {
 
 // ─── Privacy validation ─────────────────────────────────────────────────
 
+/**
+ * @param {Record<string, any> | null | undefined} event
+ * @returns {{ ok: boolean, reason?: string }}
+ */
 function validateEventPrivacy(event) {
   if (!event || typeof event !== 'object') {
     return { ok: false, reason: 'not_object' };
@@ -225,6 +233,13 @@ function validateEventPrivacy(event) {
  *                       cascade_upgrade, inter_prompt_gap_ms when set
  *   opts             — { explicit_rating, explicit_feedback_type,
  *                       ab_variant, frugal_version, classifier_version }
+ */
+/**
+ * @param {Record<string, any> | null | undefined} classified
+ * @param {Array<Record<string, any>> | null | undefined} execEntries
+ * @param {Record<string, any> | null | undefined} lastClassified
+ * @param {Record<string, any> | null | undefined} opts
+ * @returns {Record<string, any> | null}
  */
 function buildEvent(classified, execEntries, lastClassified, opts) {
   opts = opts || {};
@@ -346,10 +361,17 @@ function buildEvent(classified, execEntries, lastClassified, opts) {
 
 // ─── Self-test ──────────────────────────────────────────────────────────
 
+/** @returns {number} */
 function runSelfTest() {
+  /** @type {Array<{ name: string, pass: boolean, detail: string }>} */
   const results = [];
   let failed = 0;
 
+  /**
+   * @param {string} name
+   * @param {boolean} pass
+   * @param {string} detail
+   */
   function record(name, pass, detail) {
     results.push({ name, pass, detail });
     if (!pass) failed++;
@@ -500,7 +522,7 @@ function runSelfTest() {
       prompt_raw: 'src/hub/worker.ts',
     };
     const val = validateEventPrivacy(tainted);
-    record('case_5_extra_field_rejected', val.ok === false && /extra_field/.test(val.reason), val.reason || 'ok');
+    record('case_5_extra_field_rejected', val.ok === false && /extra_field/.test(val.reason || ''), val.reason || 'ok');
   }
 
   // Case 6 (bonus) — banned pattern inside a legitimate field
@@ -537,7 +559,7 @@ function runSelfTest() {
       created_at: '2026-04-11T10:00:00.000Z',
     };
     const val = validateEventPrivacy(tainted);
-    record('case_6_banned_pattern_rejected', val.ok === false && /banned_pattern/.test(val.reason), val.reason || 'ok');
+    record('case_6_banned_pattern_rejected', val.ok === false && /banned_pattern/.test(val.reason || ''), val.reason || 'ok');
   }
 
   // Case 7 — scan every produced event's keys from case 1/3/4 and
