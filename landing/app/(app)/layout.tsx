@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { env, HUB_URL } from '../lib/env';
 
 const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 
@@ -283,11 +284,7 @@ function useLoginStats(): LoginStats {
     savings_usd: 6.29,
   });
   useEffect(() => {
-    const hubBase =
-      process.env.NEXT_PUBLIC_MOOTER_HUB_URL ||
-      process.env.NEXT_PUBLIC_FRUGAL_HUB_URL ||
-      'https://mooter-hub.frugal-hub.workers.dev';
-    fetch(`${hubBase}/api/stats`, { signal: AbortSignal.timeout(3000) })
+    fetch(`${HUB_URL}/api/stats`, { signal: AbortSignal.timeout(3000) })
       .then(r => r.json())
       .then(data => {
         if (data?.prompt_count) {
@@ -309,7 +306,7 @@ function LoginHero() {
   const handleLogin = () => {
     const redirectTo = `${window.location.origin}/auth/callback`;
     window.location.href =
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/auth/v1/authorize` +
+      `${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/authorize` +
       `?provider=github` +
       `&redirect_to=${encodeURIComponent(redirectTo)}` +
       `&scopes=read:user,public_repo`;

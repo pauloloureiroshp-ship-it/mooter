@@ -11,8 +11,10 @@
  * reads/writes happen from server code, not the browser.
  */
 
-export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+import { env } from './env';
+
+export const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
+export const SUPABASE_ANON_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const URL = SUPABASE_URL;
 const KEY = SUPABASE_ANON_KEY;

@@ -9,14 +9,16 @@ import {
   type RefObject,
   type CSSProperties,
 } from 'react';
+import { env, HUB_URL } from './lib/env';
 
 /* -----------------------------------------------------------------
  * Auth (preserved)
  * ----------------------------------------------------------------- */
 
 function loginWithGitHub() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return;
+  // env.ts will have thrown at module-load if this is missing, so no defensive
+  // bail-with-no-error here (that was the 2026-04-13 P1 OAuth bug).
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const params = new URLSearchParams(window.location.search);
   if (params.get('cli') === '1') {
     sessionStorage.setItem('cli_login', '1');
@@ -73,9 +75,7 @@ function useCommunityStats() {
   useEffect(() => {
     const fetchStats = () =>
       fetch(
-        (process.env.NEXT_PUBLIC_MOOTER_HUB_URL ||
-          process.env.NEXT_PUBLIC_FRUGAL_HUB_URL ||
-          'https://mooter-hub.frugal-hub.workers.dev') + '/api/stats',
+        HUB_URL + '/api/stats',
         { signal: AbortSignal.timeout(3000) },
       )
         .then(r => r.json())
