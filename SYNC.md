@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-18 (Claude Code Windows — Platform Audit v3 + CI green)
-**Versão:** v0.10.0 · Landing warm beige · Auth+App warm dark · CI 66/66 green · mooter.ai live
-**Último commit main:** `710eb54` (polish(settings): drop 🐮 emoji from Profile heading)
-**Sessão Claude Code:** #28 (repo Windows) — platform audit v3: CI router tests fixed (66/66), D1 mapping corrected (mooter-hub hosts device_heartbeats), MOOTER_HUB_URL added to Vercel, INFRA.md refreshed. Notion log pending.
+**Última sync:** 2026-04-18 (Claude Code Windows — Platform Audit v3 + CCA criteria batch)
+**Versão:** v0.10.0 · mooter.ai live · CI 72/72 green · CCA 4 criteria advanced
+**Último commit main:** `5e690a9` (feat(landing): quality foundation — ESLint 9 flat config + Vitest + tests)
+**Sessão Claude Code:** #28 (repo Windows) — full adversarial audit + CCA follow-through. 11 commits shipped: CI fix, /dashboard→LoginHero, mooter.ai homepage, Supabase config.toml, HIGH_RISK guardrail patch (72/72), install URL fix, landing hygiene (robots/sitemap/headers), Supabase remediation script, Zod env validation, error boundaries, ESLint+Vitest foundation. 4 CCA criteria advanced (7+10 COVERED, 3+5 PARTIAL).
 
 ---
 
