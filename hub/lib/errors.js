@@ -37,6 +37,25 @@ const CATEGORIES = Object.freeze({
  * @param {Array}  [opts.issues]  Zod issues or validation detail array
  * @param {number} [opts.statusOverride]  rare cases (e.g. 422 for bad payload shape)
  */
+// Categories where the caller's `message` is safe to forward verbatim
+// (after truncation). For other categories the raw message may carry PII
+// from DB layer errors (column names, constraint values, payload fragments),
+// so we surface only a fixed sentinel string.
+const SAFE_MESSAGE_CATEGORIES = new Set([
+  'validation',
+  'bad_request',
+  'not_found',
+  'method_not_allowed',
+  'rate_limited',
+  'unauthorized',
+  'forbidden',
+]);
+
+const SANITISED_MESSAGE = {
+  internal: 'An internal error occurred. The incident has been logged.',
+  transient: 'A transient backend error occurred. Retry with exponential backoff.',
+};
+
 export function errorResponse(code, category, opts = {}) {
   const meta = CATEGORIES[category] || CATEGORIES.internal;
   const body = {
@@ -45,7 +64,13 @@ export function errorResponse(code, category, opts = {}) {
     errorCategory: category,
     isRetryable: meta.isRetryable,
   };
-  if (opts.message) body.message = String(opts.message).slice(0, 500);
+  if (opts.message) {
+    body.message = SAFE_MESSAGE_CATEGORIES.has(category)
+      ? String(opts.message).slice(0, 500)
+      : (SANITISED_MESSAGE[category] || 'Error');
+  } else if (SANITISED_MESSAGE[category]) {
+    body.message = SANITISED_MESSAGE[category];
+  }
   if (opts.issues) body.issues = opts.issues;
   const status = typeof opts.statusOverride === 'number' ? opts.statusOverride : meta.status;
   return new Response(JSON.stringify(body), {

@@ -50,7 +50,14 @@ if (iifeIdx < 0) {
   process.exit(2);
 }
 // Strip shebang line — `new Function()` does not accept it.
-const classifyBody = classifySrc.slice(0, iifeIdx).replace(/^#!.*\n/, '');
+// Also strip any top-level `module.exports = ...;` — when the retry wrapper
+// was added, an export line landed in classify.js. Inside `new Function` the
+// `module` identifier resolves to replay.js's own module, so evaluating the
+// export would overwrite replay.js's exports.
+const classifyBody = classifySrc
+  .slice(0, iifeIdx)
+  .replace(/^#!.*\n/, '')
+  .replace(/^module\.exports\s*=[^;]*;\s*$/m, '');
 // eslint-disable-next-line no-new-func
 // classify.js declares its own `const fs = require('fs')` etc. at the top,
 // so we only need to inject `require` itself (new Function has no closure

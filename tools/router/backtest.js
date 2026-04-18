@@ -718,7 +718,14 @@ function optimizerDryrun(decisions) {
   const optimizer = require('./prompt-optimizer');
   const classifySrc = fs.readFileSync(path.join(__dirname, 'classify.js'), 'utf8');
   const iifeIdx = classifySrc.search(/\(async \(\) => \{/);
-  const classifyBody = classifySrc.slice(0, iifeIdx).replace(/^#!.*\n/, '');
+  // Strip shebang AND any top-level `module.exports = ...;` line — the latter
+  // was added for the retry wrapper export path, but inside `new Function`
+  // `module` is the caller's (backtest.js's) so evaluating it here would
+  // overwrite backtest.js's own exports. (Finding: final-reviewer PASS-WITH-NOTES)
+  const classifyBody = classifySrc
+    .slice(0, iifeIdx)
+    .replace(/^#!.*\n/, '')
+    .replace(/^module\.exports\s*=[^;]*;\s*$/m, '');
   const classifyFn = new Function('require', `${classifyBody}\nreturn classify;`)(require);
 
   const classified = decisions.filter(/** @param {DecisionLogEntry} d */ (d) => d.event === 'classified');
