@@ -274,15 +274,30 @@ Depois da entrega inicial fez-se audit completo da landing + simulação end-to-
 
 **PowerShell DryRun** validou parsing + detecção do ambiente real do Paulo.
 
-### 🚨 ACÇÕES URGENTES para Paulo (bloqueiam marketing público)
+### ✅ DEPLOY CONFIRMADO (2026-04-19 sessão addendum)
 
-1. **`mooter.ai/install.ps1` devolve 404 em produção.** O hero da landing promete `irm https://mooter.ai/install.ps1 | iex` mas o ficheiro não está deployed — só o legacy `install-windows.ps1` está. **Fix**: `git push` + redeploy do `landing/` (Vercel) OU `mooter-landing/` estático, conforme qual está a servir mooter.ai. Verificar em Vercel dashboard.
+Push para origin/main (commit `acbb022`) → Vercel auto-deploy em ~12s → produção verde em todos os endpoints:
 
-2. **Verificar qual landing está deployed** em mooter.ai: `landing/` (Next.js) ou `mooter-landing/` (HTML estático). Ambos têm os ficheiros novos, mas só um está live. Alinhar os dois ou desativar o que não é canónico para evitar deploys contraditórios.
+| URL | Antes | Depois |
+|---|---|---|
+| `mooter.ai` | 200 (Next.js `landing/`) | **200** ✓ |
+| `mooter.ai/install.sh` | 200 (legacy) | **200** (nova versão) ✓ |
+| `mooter.ai/install.ps1` | **404** ❌ | **200** ✓ |
+| `mooter.ai/install-windows.ps1` | 200 (legacy) | **200** (alias mantido) ✓ |
 
-3. **`npm publish` do novo `@mooter/cli@0.0.2`** quando pronto — `cd mooter-package && npm publish`. Até lá, `npx @mooter/cli` ainda puxa o v0.0.1 antigo com URLs quebradas.
+**Pipe behavior verificado live**: `curl -fsSL https://mooter.ai/install.sh | bash` num Mac/Linux imprime friends-beta message com zero disk writes. `irm https://mooter.ai/install.ps1 | iex` em Windows idem.
 
-4. **Pendente da sessão original**: testar em VM Mac limpa + Windows 11 limpa. Docker proxia Linux mas Mac tem `launchctl` + `sysctl hw.memsize` (paths Darwin não exercitados).
+**Descoberta durante deploy**: `landing/` (Next.js) **é o canónico** servido em mooter.ai (projectId `prj_2aZMQagzjYOtLyvofeWPnEA0mM1b`), apesar do seu `package.json` description dizer "Legacy... will be deprecated". O `mooter-landing/` (estático, projectId `prj_GLyS0L3q0Fc8Yd842o92addKZAGu`) é um **segundo projecto Vercel orphan** — ambos auto-deploy em push mas só o Next.js responde em mooter.ai. **Acção para Paulo**: decidir se delete `mooter-landing/` ou re-aponta a `mooter-landing` Vercel project para um preview/staging domain.
+
+### ⏭ ACÇÕES PENDENTES (estratégicas, já não bloqueantes)
+
+1. **Decidir o destino de `mooter-landing/`**: apagar do repo + deletar o Vercel project `mooter-landing`, ou reatribuir a um preview domain (ex: `preview.mooter.ai`). Hoje é morto-vivo.
+
+2. **`cd mooter-package && npm publish`** para publicar o `@mooter/cli@0.0.2`. Até lá, `npx @mooter/cli` continua a puxar v0.0.1 com URLs quebradas.
+
+3. **Testar em VM Mac limpa + Windows 11 limpa**. Docker proxia Linux mas Mac tem `launchctl` + `sysctl hw.memsize` não exercitados; Windows só testámos via DryRun.
+
+4. **Distribuição v1.0**: tarball assinado em CDN (R2/S3) + `paulo-loureiro/mooter` público stub com install scripts — permite `curl | bash` real para general public.
 
 ---
 
