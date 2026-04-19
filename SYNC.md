@@ -247,7 +247,7 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 - [x] `ctx XX%` sempre visível quando Claude Code fornece `remaining_percentage`
 - [x] `mooter.ps1` doc reflecte v6.7 reality
 
-**Página Notion:** _(a criar no fim desta sessão)_
+**Página Notion:** [🐮 Sessão 2026-04-19 v6.8](https://www.notion.so/3476f6e42bc4810888e3e64204721c85)
 
 **Pendentes próxima sessão (#33) — candidatos a v6.9:**
 1. **Probes 13-14 — combinar U+25xx elementos nunca testados juntos:**
