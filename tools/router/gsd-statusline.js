@@ -1595,19 +1595,39 @@ function buildStatusline(data) {
   // portion = tier share of routing (T0=rose=mooter win). At a glance
   // the user sees both HOW FULL and HOW MUCH was local.
   const tierCountsEarly = realExecutionCounts(session) || { total: 0 };
+
+  // v6.3 — tier legend: coloured dots naming WHICH tiers ran in this terminal
+  // session, with % share. Renders only tiers with >0 counts (compact). This
+  // is the "colour key" that decodes the ctx bar's segments immediately to
+  // the right. Format: "●T0 58% · ●T1 22% · ●T3 6%"
+  const tierLegendPill = (() => {
+    if (!tierCountsEarly || tierCountsEarly.total === 0) return null;
+    const tiers = [
+      { key: 'T0', color: TIER_COLOR.T0, n: tierCountsEarly.local  || 0 },
+      { key: 'T1', color: TIER_COLOR.T1, n: tierCountsEarly.haiku  || 0 },
+      { key: 'T2', color: TIER_COLOR.T2, n: tierCountsEarly.sonnet || 0 },
+      { key: 'T3', color: TIER_COLOR.T3, n: tierCountsEarly.opus   || 0 },
+    ].filter(t => t.n > 0);
+    if (tiers.length === 0) return null;
+    return tiers.map(t => {
+      const pct = Math.round((t.n / tierCountsEarly.total) * 100);
+      return `${t.color}●${RESET}${DIM}${t.key}${RESET} ${BOLD}${pct}%${RESET}`;
+    }).join(` ${DIM}·${RESET} `);
+  })();
+
   const ctxPill = (ctxPct !== null && ctxPct !== undefined) ? (() => {
     const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
     const bar = renderCtxBarTier(ctxPct, tierCountsEarly, 14);
     return `${DIM}ctx${RESET} ${bar} ${ctxColor}${BOLD}${ctxPct}%${RESET}`;
   })() : null;
 
-  // v6.2 — tierBadge dropped from L1 (it was the last-prompt tier, which
-  // duplicates / contradicts the session model name). The tier-segmented
-  // ctx bar now carries the routing information.
+  // v6.3 — tierBadge dropped (last-prompt tier was misleading). Tier legend
+  // now sits directly before the ctx bar as its visual key.
   const A_mandatory = [
     `🐮 ${BRAND}${BOLD}mooter${RESET}`,
     modeBadge,
     `${BOLD}${modelShort}${RESET}`,
+    tierLegendPill,
     ctxPill,
   ].filter(Boolean);
   // Drop the 'saved' word — the ↓ arrow + green $ already imply it.
