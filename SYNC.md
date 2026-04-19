@@ -216,6 +216,49 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### ✅ Sessão #32 — 2026-04-19 (Statusline v6.8 — ═ filler + coherence audit)
+
+**Âmbito:** executar a probe agenda 8-12 deixada pela sessão #31, fazer coherence audit backend↔statusline, e shipping v6.8 quando todos os acceptance criteria passassem. Os 5 probes foram corridos em terminais VS Code frescos — **todos** renderaram 4 linhas. Descoberta chave: `═` (U+2550) está no mesmo bloco Unicode que o banido `─` (U+2500) mas NÃO partilha a East Asian Width pathology — render limpo, density muito mais próxima do v6.4 reference que o `-` ASCII do v6.7.
+
+**Commits:**
+1. `76eca09` — `feat(statusline): v6.8 prep — probes 8-12, 0% local always-show, coherence audit`
+2. `e779895` — `docs(mooter-launcher): update doc comment to v6.7 flat multi-line reality`
+3. `7e3ed57` — `feat(statusline): v6.8 — ═ filler chosen (probe 9), probes 1-12 cleaned`
+
+**Probe resultados (todos ✅ 4 linhas):**
+- Probe 8 — ASCII pseudo-corners `+---`
+- **Probe 9 — `═` U+2550 DOUBLE HORIZONTAL** ← **escolhido para flatLine**
+- Probe 10 — `▁` U+2581 lower-one-eighth block
+- Probe 11 — `-` + single close-corners `╮┤╯`
+- Probe 12 — no filler + trailing `\n`
+
+**Entregas:**
+- `flatLine()` agora usa `═` (com `MOOTER_FILLER` env override para debug)
+- `tierCounts` fallback cumulativo na dispatch de `renderMultiLine` → `0% local` sempre renderiza em terminais frescos
+- Coherence audit: 8 pills com source-of-truth comments citando variável + ficheiro (modeBadge, tierLegendPill, ctxPill, savedHero, effPart, sparkline, recBadge, localRow)
+- `MOOTER_PROBE` switch mantido como escape hatch (corpo vazio + doc comment explica como adicionar probes novos); probes 1-12 payloads removidos (-121 linhas)
+- `mooter.ps1` header comment actualizado para v6.7 flat multi-line reality
+
+**Acceptance criteria (todos cumpridos):**
+- [x] Pelo menos um probe 8-12 landed closer-to-`─` filler survived multi-line (probe 9 `═`)
+- [x] Probes 1-7 removidas de produção; `MOOTER_PROBE` machinery preservada (probes 8-12 também removidas — serviram o propósito da sessão)
+- [x] Coherence audit: cada pill com source-of-truth comment
+- [x] `0% local` sempre visível quando `tierCounts.total > 0`
+- [x] `ctx XX%` sempre visível quando Claude Code fornece `remaining_percentage`
+- [x] `mooter.ps1` doc reflecte v6.7 reality
+
+**Página Notion:** _(a criar no fim desta sessão)_
+
+**Pendentes próxima sessão (#33) — candidatos a v6.9:**
+1. **Probes 13-14 — combinar U+25xx elementos nunca testados juntos:**
+   - Probe 13: `═` filler + single close-corners `╮┤╯` (probe 9 + 11 combo)
+   - Probe 14: `═` + full box corners `╭╮├┤╰╯` (full v6.4 recovery attempt)
+2. Se probe 14 render 4 linhas, recuperamos o look boxed v6.4 completo dentro do prompt do Claude Code — golden outcome.
+3. Detectar terminal width real via input JSON do Claude Code (substitui o cap hardcoded de 90 cols).
+4. Stretch: `MOOTER_LITE` env var (collapse para v6.5 single-line em terminais ~70 cols); `MOOTER_ASCII_ONLY=1` theme (swap emojis para `[mooter]`, `[T3]`).
+
+---
+
 ### ✅ Sessão #31 — 2026-04-19 (Statusline v6.7 multi-line resurrected)
 
 **Âmbito:** ressuscitar a statusline multi-linha v6.4 (que v6.5 tinha colapsado a 1 linha por suposta limitação do Claude Code). Confirmou-se via 7 probes que multi-linha É suportado — só `─` (U+2500) e cantos `╭├╰` partem o parser (wide-char width-overflow). Filler `-` ASCII rose viabiliza 3-row layered dashboard dentro do prompt do Claude Code, sem janelas externas.
