@@ -247,6 +247,32 @@ function stripAnsi(str) {
   return String(str).replace(/\x1B\[[0-9;]*[mGKHF]/g, '');
 }
 
+// v6.0 — box-drawing line builder for 2L/3L adaptive layout.
+// Produces a bordered row with left content, automatic ─ fill, and right
+// content anchored at the far edge. Corner chars picked by `pos`:
+//   'top'    → ╭─ ... ─╮
+//   'mid'    → ├─ ... ─┤
+//   'bottom' → ╰─ ... ─╯
+// Width is the target terminal width. 6 chars are reserved for the frame
+// (`╭─ ` + ` ─╮`). Fill is rose brand to echo the 🐮 mooter identity.
+function boxLine(pos, leftContent, rightContent, width) {
+  const corners = {
+    top:    { open: '╭', close: '╮' },
+    mid:    { open: '├', close: '┤' },
+    bottom: { open: '╰', close: '╯' },
+  };
+  const c = corners[pos] || corners.mid;
+  const leftLen  = stripAnsi(leftContent || '').length;
+  const rightLen = stripAnsi(rightContent || '').length;
+  const frameLen = 6; // "╭─ " + " ─╮"
+  const gap      = (leftLen && rightLen) ? 1 : 0; // space between left and fill
+  const fillLen  = Math.max(2, width - leftLen - rightLen - frameLen - gap);
+  const fill     = '─'.repeat(fillLen);
+  const left     = leftContent ? `${leftContent} ` : '';
+  const right    = rightContent ? ` ${rightContent}` : '';
+  return `${BRAND}${c.open}─${RESET} ${left}${BRAND}${fill}${RESET}${right} ${BRAND}─${c.close}${RESET}`;
+}
+
 // ── v5.0 multi-subscription awareness helpers ──────────────────────────
 // Mooter's real value prop: orchestrate ALL paid LLM subscriptions.
 // The statusline should surface which ones are active, what mode the
@@ -1489,33 +1515,140 @@ function buildStatusline(data) {
   }
   if (version && version.version) extras.push({ prio: 14, str: `${DIM}v${version.version}${RESET}` });
 
-  // Measure budget and add extras while we have room.
+  // v6.0 — dispatch by terminal width:
+  //   ≥ 160 col → 3 lines with HERO bar (distribution bar fills L2 width)
+  //   120-159   → 3 lines COMPACT (10-char bar, pills inline)
+  //   < 120     → 1 line adaptive (v5.4 preserved for narrow terminals)
+  //
+  // Pill-to-line mapping (by prio, for multi-line):
+  //   L1 identity  → mandatory + cycle (prio 6)
+  //   L2 savings   → compactBar(1) + eff(4) + spent(9) + prompts(10) + savingsCore + health
+  //   L3 context   → rec(2) + subs(3) + 5h(7) + sparkline(8) + latency(11) + providers(12) + autoroute(13) + version(14)
+  const LINE_OF = { 1: 2, 2: 3, 3: 3, 4: 2, 6: 1, 7: 3, 8: 3, 9: 2, 10: 2, 11: 3, 12: 3, 13: 3, 14: 3 };
+
+  if (termW >= 120) {
+    return renderMultiLine({
+      width: termW,
+      hero: termW >= 160,
+      mandatory: A_mandatory,
+      savingsCore,
+      healthCore,
+      extras,
+      lineOf: LINE_OF,
+      sep: SEP,
+      metrics,
+      session,
+    });
+  }
+
+  // v5.4 fallback — single-line adaptive (preserved verbatim for narrow widths).
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
   let visible = stripAnsi(mandatory.join(SEP)).length;
-  // Claude Code reserves some right-edge space for keyboard hints/token
-  // counter. 22 chars headroom is empirically safe (measured against actual
-  // render at 120-col typical terminal) — tighter than -30 so ctx+latency
-  // pills survive more often.
   const budget = Math.max(40, termW - 22);
 
   const sorted = extras.sort((a, b) => a.prio - b.prio);
   const addedExtras = [];
   for (const e of sorted) {
     const needed = sepLen + stripAnsi(e.str).length;
-    // v5.4 — use `continue` (not `break`): if a bigger pill doesn't
-    // fit, keep trying smaller-sized pills further down the list. This
-    // rescues important small pills (ctx, efficiency) when a large
-    // pill (plan pill with %) blocks them.
     if (visible + needed > budget) continue;
     addedExtras.push(e.str);
     visible += needed;
   }
-
-  // Final assembly: mandatory fields first, then extras (priority order), health last.
-  // We reinsert healthCore at the end for visual anchor.
   const withoutHealth = mandatory.slice(0, -1);
   const all = [...withoutHealth, ...addedExtras, healthCore];
   return all.join(SEP);
+}
+
+// v6.0 — multi-line renderer. Distributes pre-built pills across 3 box-drawn
+// rows. Each row gets a left content cluster + an optional right anchor; the
+// ─ fill between them adapts to terminal width. In hero mode (≥160 col), the
+// distribution bar on L2 is rendered at fill-size so it stretches as the
+// value-prop "spine" of the row. In compact mode, the 10-char compactBar
+// already in extras (prio 1) stays inline with its sibling pills.
+function renderMultiLine({ width, hero, mandatory, savingsCore, healthCore, extras, lineOf, sep, metrics, session }) {
+  const sepLen = stripAnsi(sep).length;
+  const byLine = { 1: [], 2: [], 3: [] };
+  const sorted = [...extras].sort((a, b) => a.prio - b.prio);
+  for (const e of sorted) {
+    const line = lineOf[e.prio] || 3;
+    // Skip compactBar on L2 when hero mode is on — hero bar replaces it.
+    if (hero && e.prio === 1) continue;
+    byLine[line].push(e);
+  }
+
+  // Per-line budget fitter. Adds pills one-by-one in priority order, dropping
+  // those that would push the row past `budget`. Uses `continue` (not break)
+  // so a small pill later in the list can slip in when a big one doesn't fit.
+  const fitPills = (pills, budget, seedLen = 0) => {
+    let used = seedLen;
+    const kept = [];
+    for (const p of pills) {
+      const str = p.str || p;
+      const needed = (kept.length > 0 || seedLen > 0 ? sepLen : 0) + stripAnsi(str).length;
+      if (used + needed > budget) continue;
+      kept.push(str);
+      used += needed;
+    }
+    return { strs: kept, used };
+  };
+
+  const FRAME = 6; // "╭─ " + " ─╮"
+
+  // --- L1 Identity ------------------------------------------------------
+  // Right anchor: cycle pill (prio 6). Left: mandatory + any remainder.
+  const l1MandLen = stripAnsi(mandatory.join(sep)).length;
+  const l1RightPill = byLine[1][0] ? byLine[1][0].str : '';
+  const l1RightLen = stripAnsi(l1RightPill).length;
+  const l1Budget = width - FRAME - l1MandLen - l1RightLen - 4;
+  const l1Extras = fitPills(byLine[1].slice(1), Math.max(0, l1Budget));
+  const l1Left = [mandatory.join(sep), ...l1Extras.strs].filter(Boolean).join(sep);
+  const line1 = boxLine('top', l1Left, l1RightPill, width);
+
+  // --- L2 Savings Hero --------------------------------------------------
+  // Right anchor: healthCore (flip/warning/health). Middle: bar + savings +
+  // mid pills (eff/spent/prompts). In hero mode, bar fills remaining space.
+  const l2Right = healthCore || '';
+  const l2RightLen = stripAnsi(l2Right).length;
+  const savingsLen = savingsCore ? stripAnsi(savingsCore).length : 0;
+  let l2Left;
+  if (hero) {
+    // Fit mid pills first, then size bar to fill what's left.
+    const midBudget = Math.max(0, width - FRAME - l2RightLen - savingsLen - 6);
+    const midFit = fitPills(byLine[2], midBudget);
+    const midStr = midFit.strs.join(sep);
+    const midLen = midFit.used;
+    const barW = Math.max(20, width - FRAME - savingsLen - midLen - l2RightLen - 10);
+    let heroBar = '';
+    try {
+      heroBar = renderDistributionBar(metrics, session, barW) || '';
+    } catch {}
+    const rightCluster = [savingsCore, midStr].filter(Boolean).join(sep);
+    l2Left = heroBar ? `${heroBar}  ${rightCluster}` : rightCluster;
+  } else {
+    // Compact: savings + all mid pills budget-fit. compactBar is in byLine[2] (prio 1).
+    const l2Budget = Math.max(0, width - FRAME - l2RightLen - savingsLen - 4);
+    const midFit = fitPills(byLine[2], l2Budget);
+    l2Left = [savingsCore, ...midFit.strs].filter(Boolean).join(sep);
+  }
+  const line2 = boxLine('mid', l2Left, l2Right, width);
+
+  // --- L3 Context -------------------------------------------------------
+  // Right anchor: rec badge (prio 2) or version (prio 14). Left: remaining
+  // L3 pills fit to budget.
+  const l3All = [...byLine[3]];
+  let l3RightPill = '';
+  let anchorIdx = l3All.findIndex(p => p.prio === 2);
+  if (anchorIdx === -1) anchorIdx = l3All.findIndex(p => p.prio === 14);
+  if (anchorIdx !== -1) {
+    l3RightPill = l3All.splice(anchorIdx, 1)[0].str;
+  }
+  const l3RightLen = stripAnsi(l3RightPill).length;
+  const l3Budget = Math.max(0, width - FRAME - l3RightLen - 4);
+  const l3Fit = fitPills(l3All, l3Budget);
+  const l3Left = l3Fit.strs.join(sep);
+  const line3 = boxLine('bottom', l3Left, l3RightPill, width);
+
+  return [line1, line2, line3].join('\n');
 }
 
 // Mock entry point — bypass stdin so `MOOTER_MOCK=1 node gsd-statusline.js`
