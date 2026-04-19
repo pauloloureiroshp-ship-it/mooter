@@ -13,7 +13,14 @@ const path = require('path');
 const os = require('os');
 const { spawnSync } = require('child_process');
 
-const { analyze, buildTuning, signature } = require('./backtest.js');
+const {
+  analyze,
+  buildTuning,
+  signature,
+  sampleWeight,
+  isHonoredUpgrade,
+  computeCorrectionRepeats,
+} = require('./backtest.js');
 const patterns = require('./patterns.js');
 
 // ── signature() ────────────────────────────────────────────────────────────
@@ -734,4 +741,166 @@ test('patterns v0.7: TUNING_EXCLUDE catches v0.9 hardening additions', () => {
     const hit = patterns.TUNING_EXCLUDE.some((r) => r.test(text));
     assert.ok(hit, `TUNING_EXCLUDE should match: "${text}"`);
   }
+});
+
+// ── B4 (2026-04-19): Implicit signal weight boost ──────────────────────────
+
+test('B4 sampleWeight: returns 1 when boost disabled (pre-B4 behaviour preserved)', () => {
+  const d = { prompt_preview: 'foo', explicit_rating: 0, shadow_demote: true };
+  assert.equal(sampleWeight(d, { boost: false }), 1);
+});
+
+test('B4 sampleWeight: explicit_rating=0 weighs 10 when boost enabled', () => {
+  const d = { prompt_preview: 'foo', explicit_rating: 0 };
+  assert.equal(sampleWeight(d, { boost: true }), 10);
+});
+
+test('B4 sampleWeight: shadow_demote weighs 5 when boost enabled', () => {
+  const d = { prompt_preview: 'foo', shadow_demote: true };
+  assert.equal(sampleWeight(d, { boost: true }), 5);
+});
+
+test('B4 sampleWeight: honored user_override upgrade weighs 10', () => {
+  const d = {
+    prompt_preview: 'decompõe o sprint 11',
+    tier: 'T3',
+    user_override: { honored: true, kind: 'short', original_tier: 'T1' },
+  };
+  assert.equal(sampleWeight(d, { boost: true }), 10);
+});
+
+test('B4 sampleWeight: honored downgrade override does NOT count as upgrade', () => {
+  const d = {
+    prompt_preview: 'foo',
+    tier: 'T1',
+    user_override: { honored: true, kind: 'negative', original_tier: 'T3' },
+  };
+  assert.equal(sampleWeight(d, { boost: true }), 1);
+});
+
+test('B4 sampleWeight: refused (honored=false) override does NOT count', () => {
+  const d = {
+    prompt_preview: 'foo',
+    tier: 'T3',
+    user_override: { honored: false, kind: 'short', original_tier: 'T3' },
+  };
+  assert.equal(sampleWeight(d, { boost: true }), 1);
+});
+
+test('B4 sampleWeight: accepted feedback weighs 0.5 (weaker than default)', () => {
+  const d = { prompt_preview: 'foo', feedback_signal: 'accepted' };
+  assert.equal(sampleWeight(d, { boost: true }), 0.5);
+});
+
+test('B4 sampleWeight: repeat ≥2 in 7d multiplies weight ×5 (capped ×50)', () => {
+  const repeats = new Map([['decompõe o sprint', 3]]);
+  const d = {
+    prompt_preview: 'decompõe o sprint 11',
+    explicit_rating: 0, // base weight 10
+  };
+  // 10 * 5 = 50 (capped)
+  assert.equal(sampleWeight(d, { boost: true, repeats }), 50);
+});
+
+test('B4 isHonoredUpgrade: returns true only for honored tier upgrades', () => {
+  assert.equal(isHonoredUpgrade({ tier: 'T3', user_override: { honored: true, original_tier: 'T1' } }), true);
+  assert.equal(isHonoredUpgrade({ tier: 'T1', user_override: { honored: true, original_tier: 'T1' } }), false);
+  assert.equal(isHonoredUpgrade({ tier: 'T1', user_override: { honored: true, kind: 'negative', original_tier: 'T3' } }), false);
+  assert.equal(isHonoredUpgrade({ tier: 'T3', user_override: { honored: false, original_tier: 'T1' } }), false);
+  assert.equal(isHonoredUpgrade({ tier: 'T3' }), false);
+});
+
+test('B4 analyze: boost=false produces byte-identical topDemote to pre-B4', () => {
+  const FIX = [
+    { prompt_preview: 'decompõe o sprint 9', prompt_len: 20, tier: 'T2', confidence: 0.7 },
+    { prompt_preview: 'decompõe o sprint 10', prompt_len: 21, tier: 'T2', confidence: 0.7 },
+    { prompt_preview: 'decompõe o sprint 11', prompt_len: 21, tier: 'T2', confidence: 0.7 },
+  ];
+  const noOpt = analyze(FIX); // env-driven (off by default in tests)
+  const explicitOff = analyze(FIX, { boost: false });
+  assert.deepEqual(noOpt.topDemote, explicitOff.topDemote);
+  // Every event counts as ×1 → weight equals count.
+  assert.equal(explicitOff.topDemote[0].count, 3);
+});
+
+test('B4 analyze: boost=true reshuffles topDemote — correction signals dominate', () => {
+  // signature() takes the first 3 lowercased words, so repeated prompts must
+  // share the first 3 tokens to collapse into a single signature.
+  const FIX = [
+    // three low-signal "noisy" prompts on same signature → count 3, weight 3
+    { prompt_preview: 'noise pattern one extra', prompt_len: 20, tier: 'T2', confidence: 0.7 },
+    { prompt_preview: 'noise pattern one extra', prompt_len: 20, tier: 'T2', confidence: 0.7 },
+    { prompt_preview: 'noise pattern one extra', prompt_len: 20, tier: 'T2', confidence: 0.7 },
+    // one explicit /mooter-bad rating on a different signature → count 1, weight 10.
+    // prompt_len is set >50 so the length-based heuristic does NOT double-push
+    // this event into shortHighTier; only the explicit_rating=0 path should fire.
+    {
+      prompt_preview: 'gold signal rated', prompt_len: 120, tier: 'T3',
+      explicit_rating: 0,
+    },
+  ];
+  const unweighted = analyze(FIX, { boost: false });
+  const weighted = analyze(FIX, { boost: true });
+
+  // Unweighted: "noise pattern one" wins by frequency (count 3 > 1)
+  assert.equal(unweighted.topDemote[0].pattern, 'noise pattern one');
+  // Weighted: "gold signal rated" wins by weight (10 > 3)
+  assert.equal(weighted.topDemote[0].pattern, 'gold signal rated');
+  assert.equal(weighted.topDemote[0].count, 10);
+});
+
+test('B4 analyze: under-route candidates surface honored upgrade overrides', () => {
+  // Same first 3 words → both events collapse into one signature.
+  const FIX = [
+    {
+      prompt_preview: 'reescreve este parser agora',
+      prompt_len: 30, tier: 'T3', confidence: 0.99,
+      user_override: { honored: true, kind: 'short', original_tier: 'T1' },
+    },
+    {
+      prompt_preview: 'reescreve este parser já',
+      prompt_len: 30, tier: 'T3', confidence: 0.99,
+      user_override: { honored: true, kind: 'positive', original_tier: 'T2' },
+    },
+  ];
+  const weighted = analyze(FIX, { boost: true });
+  assert.ok(weighted.weightBoost.enabled);
+  assert.equal(weighted.weightBoost.topUnderRoute.length, 1);
+  assert.equal(weighted.weightBoost.topUnderRoute[0].pattern, 'reescreve este parser');
+
+  const off = analyze(FIX, { boost: false });
+  // When boost is off, under-route bucket stays empty — zero behavioural drift.
+  assert.equal(off.weightBoost.enabled, false);
+  assert.equal(off.weightBoost.topUnderRoute.length, 0);
+});
+
+test('B4 computeCorrectionRepeats: counts corrections per signature within 7d', () => {
+  const now = Date.now();
+  const dayMs = 86400000;
+  const decisions = [
+    // 3 corrections on same sig within 7d
+    { ts: new Date(now - 1 * dayMs).toISOString(), prompt_preview: 'decompõe o sprint a', explicit_rating: 0 },
+    { ts: new Date(now - 2 * dayMs).toISOString(), prompt_preview: 'decompõe o sprint b', explicit_rating: 0 },
+    { ts: new Date(now - 3 * dayMs).toISOString(), prompt_preview: 'decompõe o sprint c', shadow_demote: true },
+    // 1 correction outside 7d (should be excluded)
+    { ts: new Date(now - 30 * dayMs).toISOString(), prompt_preview: 'decompõe o sprint d', explicit_rating: 0 },
+    // non-correction event (should be excluded)
+    { ts: new Date(now - 1 * dayMs).toISOString(), prompt_preview: 'other pattern', tier: 'T2' },
+  ];
+  const repeats = computeCorrectionRepeats(decisions);
+  assert.equal(repeats.get('decompõe o sprint'), 3);
+  assert.equal(repeats.get('other pattern'), undefined);
+});
+
+test('B4 analyze: tester-generated events still skipped under boost', () => {
+  const FIX = [
+    {
+      prompt_preview: 'tester synthetic prompt',
+      prompt_len: 20, tier: 'T3',
+      source: 'mooter-tester',
+      user_override: { honored: true, kind: 'short', original_tier: 'T1' },
+    },
+  ];
+  const weighted = analyze(FIX, { boost: true });
+  assert.equal(weighted.weightBoost.topUnderRoute.length, 0);
 });

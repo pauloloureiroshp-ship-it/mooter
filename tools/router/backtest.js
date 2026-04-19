@@ -245,10 +245,117 @@ function resolveShadowJudgments(allEvents) {
   return counts;
 }
 
+// ── B4 (2026-04-19): Implicit signal weight boost ──────────────────────────
+// When IMPLICIT_SIGNAL_WEIGHT_BOOST is enabled, high-signal events (honored
+// user_override upgrades, /mooter-bad ratings, shadow_better verdicts, and
+// repeated corrections of the same signature within 7d) are weighted above
+// the default ×1. Feature flag default OFF — when off, behaviour is byte-
+// identical to pre-B4 (every event contributes ×1 to the demote pool).
+//
+// Weights (documented in commit perf(mooter): B4):
+//   correction  → 10   (honored user_override upgrade, or explicit_rating=0)
+//   repeat 7d   → 5    (same signature seen corrected ≥2 times in a 7-day
+//                        window — separately multiplicative, capped at ×50)
+//   shadow      → 5    (shadow_better verdict, already feeds demote pool)
+//   accepted    → 0.5  (feedback_signal === 'accepted' — positive ack, weaker
+//                        than bad signals, prevents bad-only amplification)
+//   default     → 1    (regular short+high-tier event — unchanged)
+//
+// Reason a stale weekly window is tolerable: the backtest pass reads the
+// whole decisions.log, and time-aware correction weighting is a relative
+// ordering signal, not an absolute number. 7d is a hand-tuned window that
+// matches the existing implicit feedback cadence.
+const BOOST_ENV_KEYS = new Set(['1', 'true', 'on', 'yes']);
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function envBoostEnabled() {
+  const v = String(process.env.IMPLICIT_SIGNAL_WEIGHT_BOOST || '').toLowerCase();
+  return BOOST_ENV_KEYS.has(v);
+}
+
+/**
+ * @param {DecisionLogEntry} d
+ */
+function isHonoredUpgrade(d) {
+  const ov = /** @type {any} */ (d.user_override);
+  if (!ov || ov.honored !== true || ov.kind === 'negative') return false;
+  const order = ['T0', 'T1', 'T2', 'T3'];
+  const from = order.indexOf(String(ov.original_tier || ''));
+  const to = order.indexOf(String(d.tier || ''));
+  return from >= 0 && to > from;
+}
+
+/**
+ * Pre-compute a map of signature → count-of-correction-events-within-7d,
+ * using the most recent event in each decision series as the anchor. Events
+ * older than 7d from the latest sample are discarded. Result is used by
+ * sampleWeight() to apply a ×5 multiplier on signatures hit repeatedly.
+ *
+ * @param {DecisionLogEntry[]} decisions
+ * @returns {Map<string, number>}
+ */
+function computeCorrectionRepeats(decisions) {
+  /** @type {Map<string, number>} */
+  const out = new Map();
+  let latestMs = 0;
+  for (const d of decisions) {
+    const ms = Date.parse(String(d.ts || '')) || Number(d.ts_ms || 0);
+    if (ms > latestMs) latestMs = ms;
+  }
+  if (!latestMs) return out;
+  const cutoff = latestMs - WEEK_MS;
+
+  for (const d of decisions) {
+    if (d.source === 'mooter-tester') continue;
+    const ms = Date.parse(String(d.ts || '')) || Number(d.ts_ms || 0);
+    if (!ms || ms < cutoff) continue;
+    const isCorrection =
+      d.explicit_rating === 0 ||
+      d.shadow_demote === true ||
+      isHonoredUpgrade(d);
+    if (!isCorrection) continue;
+    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+    if (!sig) continue;
+    out.set(sig, (out.get(sig) || 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * Weight for a single decision in the demote-candidate aggregation.
+ * When boost is false, always returns 1 (pre-B4 behaviour).
+ *
+ * @param {DecisionLogEntry} d
+ * @param {{ boost: boolean, repeats?: Map<string, number> }} opts
+ * @returns {number}
+ */
+function sampleWeight(d, opts) {
+  if (!opts.boost) return 1;
+  let w = 1;
+  if (d.explicit_rating === 0) w = Math.max(w, 10);
+  if (isHonoredUpgrade(d)) w = Math.max(w, 10);
+  if (d.shadow_demote === true) w = Math.max(w, 5);
+  if (d.feedback_signal === 'accepted') w = Math.min(w, 0.5);
+
+  // Multiplicative repeat bonus — capped so a single runaway signature can't
+  // dominate the whole demote pool.
+  if (opts.repeats) {
+    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+    if (sig) {
+      const repeats = opts.repeats.get(sig) || 0;
+      if (repeats >= 2) w = Math.min(w * 5, 50);
+    }
+  }
+  return w;
+}
+
 /**
  * @param {DecisionLogEntry[]} decisions
+ * @param {{ boost?: boolean }} [opts]
  */
-function analyze(decisions) {
+function analyze(decisions, opts = {}) {
+  const boost = opts.boost === undefined ? envBoostEnabled() : !!opts.boost;
+  const repeats = boost ? computeCorrectionRepeats(decisions) : undefined;
   const total = decisions.length;
   /** @type {Record<string, number>} */
   const byTier = { T0: 0, T1: 0, T2: 0, T3: 0 };
@@ -341,19 +448,53 @@ function analyze(decisions) {
   }
   repeated.sort((a, b) => b.count - a.count);
 
-  // Top 3 demote candidates: signatures that appear in shortHighTier
+  // Top 3 demote candidates: signatures that appear in shortHighTier.
+  // B4: when boost enabled, accumulate sampleWeight(d) instead of +1 so
+  // user corrections (×10) and repeated-pattern corrections (×5, capped ×50)
+  // dominate over mere length heuristics.
   /** @type {Map<string, number>} */
   const demoteCandidates = new Map();
   for (const d of shortHighTier) {
     const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
     if (!sig) continue;
-    demoteCandidates.set(sig, (demoteCandidates.get(sig) || 0) + 1);
+    const w = sampleWeight(d, { boost, repeats });
+    demoteCandidates.set(sig, (demoteCandidates.get(sig) || 0) + w);
   }
   const topDemote = [...demoteCandidates.entries()]
     .filter(([sig]) => !goodSignatures.has(sig)) // Sprint A: veto patterns user rated good
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([sig, count]) => ({ pattern: sig, count }));
+    .map(([sig, weight]) => ({ pattern: sig, count: weight }));
+
+  // B4: under-route candidates — signatures where users overrode the router
+  // UPWARDS (e.g. @opus when router said T1/T2). Strong signal that those
+  // patterns are systematically under-classified. Aggregated only when boost
+  // is enabled; otherwise this bucket is empty and nothing downstream changes.
+  /** @type {Map<string, { count: number, from_tier: string, to_tier: string }>} */
+  const underRouteMap = new Map();
+  if (boost) {
+    for (const d of decisions) {
+      if (d.source === 'mooter-tester') continue;
+      if (!isHonoredUpgrade(d)) continue;
+      const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+      if (!sig) continue;
+      const ov = /** @type {any} */ (d.user_override);
+      const existing = underRouteMap.get(sig);
+      if (existing) {
+        existing.count += sampleWeight(d, { boost: true, repeats });
+      } else {
+        underRouteMap.set(sig, {
+          count: sampleWeight(d, { boost: true, repeats }),
+          from_tier: String(ov.original_tier || ''),
+          to_tier: String(d.tier || ''),
+        });
+      }
+    }
+  }
+  const topUnderRoute = [...underRouteMap.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+    .map(([sig, info]) => ({ pattern: sig, weight: info.count, from_tier: info.from_tier, to_tier: info.to_tier }));
 
   // Promote-to-T0 patterns: short prompts (<30 chars) repeatedly classified
   // T2/T3 with low confidence — almost certainly noise (status pastes, "ok", etc.)
@@ -406,6 +547,12 @@ function analyze(decisions) {
     explicitRatings: { good: explicitGood, bad: explicitBad },
     explicitBadOnHighTier: explicitBadOnHighTier.length,
     goodSignaturesProtected: goodSignatures.size,
+    // B4 (2026-04-19): implicit signal weight boost
+    weightBoost: {
+      enabled: boost,
+      topUnderRoute,
+      repeatedSignatures: repeats ? repeats.size : 0,
+    },
   };
 }
 
@@ -499,6 +646,21 @@ function report(stats, tuning) {
     lines.push(`  bad:                 ${er.bad}`);
     lines.push(`  bad on T2/T3 → forced into demote pool: ${stats.explicitBadOnHighTier || 0}`);
     lines.push(`  good signatures protected from demote:  ${stats.goodSignaturesProtected || 0}`);
+    lines.push('');
+  }
+  // B4 (2026-04-19): implicit signal weight boost
+  const wb = /** @type {any} */ (stats).weightBoost;
+  if (wb && wb.enabled) {
+    lines.push('High-signal corrections (weighted, B4):');
+    lines.push(`  repeated signatures in 7d: ${wb.repeatedSignatures}`);
+    if (wb.topUnderRoute.length === 0) {
+      lines.push('  under-route candidates:    (none)');
+    } else {
+      lines.push('  router under-routing candidates (user overrode up):');
+      for (const ur of wb.topUnderRoute) {
+        lines.push(`    "${ur.pattern}"  ${ur.from_tier}→${ur.to_tier}  weight ${ur.weight}`);
+      }
+    }
     lines.push('');
   }
   lines.push(`Tuning written: ${TUNING_PATH}`);
@@ -783,12 +945,56 @@ function optimizerDryrun(decisions) {
   console.log(lines.join('\n'));
 }
 
+// ── B4 (2026-04-19): --weighted --dry-run ──────────────────────────────────
+// Prints a side-by-side comparison of demote candidates with and without
+// the IMPLICIT_SIGNAL_WEIGHT_BOOST applied, so Paulo can eyeball which
+// patterns would rise under weighting before enabling the flag in prod.
+// Never writes router-tuning.json — read-only diagnostic.
+/**
+ * @param {DecisionLogEntry[]} decisions
+ */
+function weightedDryrun(decisions) {
+  resolveExplicitFeedback(decisions);
+  resolveShadowJudgments(decisions);
+
+  const unweighted = analyze(decisions, { boost: false });
+  const weighted = analyze(decisions, { boost: true });
+
+  const lines = [];
+  lines.push('frugal — B4 weighted vs unweighted (dry-run)');
+  lines.push('');
+  lines.push(`Sample size:  ${unweighted.total} prompts`);
+  lines.push(`Boost active: ${weighted.weightBoost.enabled}  (repeated signatures 7d: ${weighted.weightBoost.repeatedSignatures})`);
+  lines.push('');
+  lines.push('Top demote candidates:');
+  lines.push('  unweighted (count):                 weighted (weight):');
+  const rowsU = unweighted.topDemote;
+  const rowsW = weighted.topDemote;
+  const max = Math.max(rowsU.length, rowsW.length);
+  for (let i = 0; i < max; i++) {
+    const l = rowsU[i] ? `"${rowsU[i].pattern}" ×${rowsU[i].count}` : '(none)';
+    const r = rowsW[i] ? `"${rowsW[i].pattern}" ×${rowsW[i].count}` : '(none)';
+    lines.push(`  ${l.padEnd(36)}  ${r}`);
+  }
+  lines.push('');
+  lines.push('Router under-routing (honored upgrade overrides):');
+  if (weighted.weightBoost.topUnderRoute.length === 0) {
+    lines.push('  (none in current decisions.log)');
+  } else {
+    for (const ur of weighted.weightBoost.topUnderRoute) {
+      lines.push(`  "${ur.pattern}"  ${ur.from_tier}→${ur.to_tier}  weight ${ur.weight}`);
+    }
+  }
+  console.log(lines.join('\n'));
+}
+
 function main() {
   const args = process.argv.slice(2);
   const explain = args.includes('--explain');
   const optimizerDryrunMode = args.includes('--optimizer-dryrun');
   const exportMode = args.includes('--export-delta');
   const exportEventsMode = args.includes('--export-events');
+  const weightedDryrunMode = args.includes('--weighted') && args.includes('--dry-run');
   const outputIdx = args.indexOf('--output');
   const exportEventsIdx = args.indexOf('--export-events');
   const exportEventsPath =
@@ -813,6 +1019,11 @@ function main() {
 
   if (optimizerDryrunMode) {
     optimizerDryrun(decisions);
+    return;
+  }
+
+  if (weightedDryrunMode) {
+    weightedDryrun(decisions);
     return;
   }
 
@@ -906,6 +1117,11 @@ module.exports = {
   resolveShadowJudgments,
   // v0.9.5 exports
   exportEvents,
+  // B4 (2026-04-19) exports
+  sampleWeight,
+  isHonoredUpgrade,
+  computeCorrectionRepeats,
+  envBoostEnabled,
 };
 
 if (require.main === module) main();
