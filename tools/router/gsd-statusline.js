@@ -312,6 +312,35 @@ function getCycleDay() {
   return { day, lastDay, progressPct };
 }
 
+// v5.1 — per-subscription usage & beast/zen recommendation
+function getUsageData() {
+  if (process.env.MOOTER_MOCK === '1') {
+    // Mock a realistic under-using scenario for beast recommendation demo
+    return {
+      usage: {
+        anthropic: {
+          plan: 'max',
+          budget_usd: 200,
+          cost_usd: 42.50,
+          call_count: 216,
+          used_pct: 21.25,
+          projected_pct: 34,
+          pace_ratio: 0.34,
+          cycle: { progress_pct: 62, elapsed_days: 18.5, length_days: 30 },
+        },
+      },
+      recommendation: { mode: 'beast', reason: 'projection 34% — under-using plan at 62% cycle' },
+    };
+  }
+  try {
+    const est = require('./usage-estimator');
+    const usage = est.computeSubscriptionUsage();
+    if (!usage) return null;
+    const recommendation = est.getRecommendation(usage);
+    return { usage, recommendation };
+  } catch { return null; }
+}
+
 // ── v0.12: statusline — full transparency with model names + tokens ────────
 // The statusline is frugal's business card. It must prove at a glance:
 //   "frugal saves you real money — here's the proof."
@@ -1262,6 +1291,7 @@ function buildStatusline(data) {
   const subscriptions = getSubscriptions();
   const routerMode = getRouterMode();
   const cycle = getCycleDay();
+  const usageData = getUsageData();
   const version = getVersionInfo();
   const termW = termWidthCols();
 
@@ -1315,12 +1345,55 @@ function buildStatusline(data) {
 
   // mode is in mandatory (see above) — never drops out of budget.
 
+  // v5.1 — subscription pill ENRICHED with real usage % when available.
+  // Color semantics:
+  //   green (healthy): pace_ratio < 0.8  (under-using — room to beast)
+  //   dim            : 0.8 ≤ ratio ≤ 1.2 (on pace)
+  //   gold           : 1.2 < ratio ≤ 1.5 (overpacing — watch it)
+  //   red            : ratio > 1.5       (on track to blow budget)
+  // Arrow: ↑ overpacing, ↓ underpacing, · on pace.
   if (subscriptions && subscriptions.length > 0) {
-    // Compact multi-sub: "Claude Max +2" when more than 1, else full label.
-    const shown = subscriptions.length === 1
-      ? subscriptions[0]
-      : `${subscriptions[0]}${DIM}+${subscriptions.length - 1}${RESET}`;
-    extras.push({ prio: 3, str: `${DIM}plan${RESET} ${BOLD}${shown}${RESET}` });
+    const firstSub = subscriptions[0];
+    const firstProvider = (function detectFirstProviderKey() {
+      try {
+        const profile = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'tools', 'router', 'subscription-profile.json'), 'utf8'));
+        return Object.keys(profile.profiles || {})[0] || 'anthropic';
+      } catch { return 'anthropic'; }
+    })();
+    let pill;
+    if (usageData && usageData.usage && usageData.usage[firstProvider]) {
+      const u = usageData.usage[firstProvider];
+      const pctNum = Math.round(u.used_pct);
+      const ratio = u.pace_ratio || 0;
+      let color = DIM;
+      let arrow = '·';
+      if (ratio < 0.8)       { color = GREEN;   arrow = '↓'; }
+      else if (ratio <= 1.2) { color = DIM;     arrow = '·'; }
+      else if (ratio <= 1.5) { color = WARN;    arrow = '↑'; }
+      else                   { color = DANGER;  arrow = '↑'; }
+      // Compact: "Claude Max 21%↓"  (plan label already implies "plan")
+      const multiSuffix = subscriptions.length > 1 ? `${DIM}+${subscriptions.length - 1}${RESET}` : '';
+      pill = `${BOLD}${firstSub}${RESET} ${color}${BOLD}${pctNum}%${arrow}${RESET}${multiSuffix}`;
+    } else {
+      const shown = subscriptions.length === 1
+        ? firstSub
+        : `${firstSub}${DIM}+${subscriptions.length - 1}${RESET}`;
+      pill = `${DIM}plan${RESET} ${BOLD}${shown}${RESET}`;
+    }
+    extras.push({ prio: 3, str: pill });
+  }
+
+  // Recommendation badge — surfaces when the user SHOULD flip mode.
+  // Only shown when recommendation differs from current runtime mode
+  // AND the recommendation is actionable (beast or zen).
+  if (usageData && usageData.recommendation) {
+    const rec = usageData.recommendation.mode;
+    const active = routerMode.mode;
+    if (rec !== 'auto' && rec !== active) {
+      const icon = rec === 'beast' ? '🦁' : '🧘';
+      const color = rec === 'beast' ? WARN : HEALTHY;
+      extras.push({ prio: 2, str: `${color}${BOLD}→ ${icon} ${rec}?${RESET}` });
+    }
   }
 
   // Cycle pill with color semantics: late-month gets WARN tint so the user
