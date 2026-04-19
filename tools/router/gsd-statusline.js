@@ -1939,7 +1939,9 @@ if (process.env.MOOTER_MOCK === '1') {
     context_window: { remaining_percentage: 45 },
   };
   try {
-    process.stdout.write(buildStatusline(mockData));
+    // v6.5 — every line including the last must be \n-terminated for
+    // Claude Code to render multi-line statusline correctly.
+    process.stdout.write(buildStatusline(mockData) + '\n');
   } catch (e) {
     process.stderr.write(`mock error: ${e && e.message}\n`);
   }
@@ -1957,7 +1959,10 @@ process.stdin.on('end', () => {
   clearTimeout(stdinTimeout);
   try {
     const data = JSON.parse(input);
-    process.stdout.write(buildStatusline(data));
+    // v6.5 — trailing \n required: Claude Code parses statusline stdout
+    // line-by-line, and without a trailing newline the last row is
+    // sometimes dropped or treated as a continuation of the previous one.
+    process.stdout.write(buildStatusline(data) + '\n');
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
   }
