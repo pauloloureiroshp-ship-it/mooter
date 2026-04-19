@@ -836,8 +836,11 @@ function renderCtxBarTier(ctxPct, counts, width) {
     const solid = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
     return `${solid}${'█'.repeat(filled)}${RESET}${DIM}${'░'.repeat(empty)}${RESET}`;
   }
+  // T0 uses BRAND (not TIER_COLOR.T0) so the segment is guaranteed to
+  // render in the exact same rose as the frame lines — visual coherence
+  // between "mooter win" (T0) and the mooter mark (brand).
   const shares = [
-    { color: TIER_COLOR.T0, n: counts.local  || 0 },
+    { color: BRAND,         n: counts.local  || 0 },
     { color: TIER_COLOR.T1, n: counts.haiku  || 0 },
     { color: TIER_COLOR.T2, n: counts.sonnet || 0 },
     { color: TIER_COLOR.T3, n: counts.opus   || 0 },
@@ -862,7 +865,23 @@ function renderCtxBarTier(ctxPct, counts, width) {
 function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineStr, sepStr) {
   const u = usageData && usageData.usage && usageData.usage[sub.providerKey];
   const sep = sepStr || ` ${DIM}·${RESET} `;
-  const nameSeg = `${DIM}📦${RESET} ${BOLD}${sub.label}${RESET}`;
+  // v6.4 — per-provider emoji so each row has a visual anchor that reflects
+  // the brand/metaphor of the provider:
+  //   anthropic (Claude) → 🧠  reasoning/intellect (Claude's positioning)
+  //   openai (GPT)       → 💬  chat heritage (ChatGPT origin)
+  //   google (Gemini)    → ♊   the Gemini astrological twin glyph
+  //   xai (Grok)         → ⚡  X/speed branding
+  //   mistral            → 🌬️  the French mistral wind
+  //   unknown            → 📦  generic fallback
+  const PROVIDER_ICON = {
+    anthropic: '🧠',
+    openai:    '💬',
+    google:    '♊',
+    xai:       '⚡',
+    mistral:   '🌬️',
+  };
+  const icon = PROVIDER_ICON[sub.providerKey] || '📦';
+  const nameSeg = `${icon} ${BOLD}${sub.label}${RESET}`;
   if (!u) {
     const left = `${nameSeg} ${DIM}— no usage data${RESET}`;
     return boxLine(pos, left, '', width);
@@ -1602,8 +1621,10 @@ function buildStatusline(data) {
   // the right. Format: "●T0 58% · ●T1 22% · ●T3 6%"
   const tierLegendPill = (() => {
     if (!tierCountsEarly || tierCountsEarly.total === 0) return null;
+    // T0 dot uses BRAND (not TIER_COLOR.T0) to match the frame's rose
+    // exactly — see renderCtxBarTier for the matching decision.
     const tiers = [
-      { key: 'T0', color: TIER_COLOR.T0, n: tierCountsEarly.local  || 0 },
+      { key: 'T0', color: BRAND,         n: tierCountsEarly.local  || 0 },
       { key: 'T1', color: TIER_COLOR.T1, n: tierCountsEarly.haiku  || 0 },
       { key: 'T2', color: TIER_COLOR.T2, n: tierCountsEarly.sonnet || 0 },
       { key: 'T3', color: TIER_COLOR.T3, n: tierCountsEarly.opus   || 0 },
@@ -1621,12 +1642,13 @@ function buildStatusline(data) {
     return `${DIM}ctx${RESET} ${bar} ${ctxColor}${BOLD}${ctxPct}%${RESET}`;
   })() : null;
 
-  // v6.3 — tierBadge dropped (last-prompt tier was misleading). Tier legend
-  // now sits directly before the ctx bar as its visual key.
+  // v6.4 — modelShort dropped. Mooter is a ROUTER, not a model: showing
+  // the session's Claude Code model ("Opus 4.7") here conflicts with the
+  // tier legend which is what actually matters. Model info is a Claude
+  // Code concern, not a mooter concern.
   const A_mandatory = [
     `🐮 ${BRAND}${BOLD}mooter${RESET}`,
     modeBadge,
-    `${BOLD}${modelShort}${RESET}`,
     tierLegendPill,
     ctxPill,
   ].filter(Boolean);
