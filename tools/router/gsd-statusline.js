@@ -90,32 +90,35 @@ function fetchTrackerJson(urlPath, timeoutMs) {
   }
 }
 
-// ── v0.9: tier color + abbreviated name helpers ─────────────────────────
-// Canonical tier palette (ANSI 24-bit where supported). Used by all v0.9
-// segments (last-turn, distribution, GPU util).
+// ── v4.1 tier palette — brand at T0 (the mooter WIN), danger at T3 ──────
+// Rationale: rose is the mooter brand. It should signal mooter's success
+// (local routing = winning), not the failure state (Opus = expensive).
+// Previously T3=rose caused cognitive dissonance: the brand color
+// appeared when things were going worst. This release decouples BRAND
+// (rose, always mooter) from DANGER (pure red, distinct semantic).
 const TIER_COLOR = {
-  T0: '\x1b[38;2;78;201;176m',   // teal  #4ec9b0
-  T1: '\x1b[38;2;86;156;214m',   // blue  #569cd6
-  T2: '\x1b[38;2;220;220;170m',  // yellow #dcdcaa
-  T3: '\x1b[38;2;194;95;101m',   // rose  #C25F65 (mooter brand — was #f44747)
+  T0: '\x1b[38;2;194;95;101m',   // rose  #C25F65  — local (mooter brand = the win)
+  T1: '\x1b[38;2;78;201;176m',   // teal  #4ec9b0  — haiku (cheaper paid, healthy)
+  T2: '\x1b[38;2;220;220;170m',  // gold  #dcdcaa  — sonnet (caution, pricier)
+  T3: '\x1b[38;2;227;70;70m',    // red   #E34646  — opus (danger, top price)
 };
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
 const BOLD = '\x1b[1m';
 
-// v2.0 palette — warm mooter.ai brand
-const BRAND   = '\x1b[38;2;194;95;101m';  // rose #C25F65
+// Semantic colors — now distinct from tier colors so they don't overload.
+const BRAND   = '\x1b[38;2;194;95;101m';  // rose #C25F65 — mooter mark
 const HEALTHY = '\x1b[38;2;78;201;176m';  // teal #4ec9b0
 const WARN    = '\x1b[38;2;220;220;170m'; // gold #dcdcaa
-const DANGER  = '\x1b[38;2;194;95;101m';  // rose #C25F65
+const DANGER  = '\x1b[38;2;227;70;70m';   // red  #E34646 — true alerts (separate from brand rose)
 const GREEN   = '\x1b[38;2;50;220;120m';
 const BLACK   = '\x1b[30m';
 
 const TIER_BG = {
-  T0: '\x1b[48;2;78;201;176m',
-  T1: '\x1b[48;2;86;156;214m',
-  T2: '\x1b[48;2;220;220;170m',
-  T3: '\x1b[48;2;194;95;101m',
+  T0: '\x1b[48;2;194;95;101m',  // rose
+  T1: '\x1b[48;2;78;201;176m',  // teal
+  T2: '\x1b[48;2;220;220;170m', // gold
+  T3: '\x1b[48;2;227;70;70m',   // red
 };
 
 // v2.0 helpers
@@ -221,8 +224,20 @@ function getGitSha() {
 }
 
 function getPlanLabel(metrics) {
-  if (!metrics || !metrics.plan) return null;
-  const p = String(metrics.plan).toLowerCase();
+  // Primary: tracker /metrics (live).
+  let raw = metrics && metrics.plan;
+  // Fallback: ~/.claude/tools/router/subscription-profile.json (set by /setup).
+  if (!raw) {
+    try {
+      const subPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'subscription-profile.json');
+      if (fs.existsSync(subPath)) {
+        const j = JSON.parse(fs.readFileSync(subPath, 'utf8'));
+        raw = j && j.profiles && j.profiles.anthropic;
+      }
+    } catch {}
+  }
+  if (!raw) return null;
+  const p = String(raw).toLowerCase();
   const MAP = { max: 'Claude Max', team: 'Claude Team', pro: 'Claude Pro', free: 'Free' };
   return MAP[p] || (p.charAt(0).toUpperCase() + p.slice(1));
 }
@@ -625,7 +640,10 @@ function calcSavings(mOpt, sessionId) {
   }
 }
 
-// v2.0 — renderDistributionBar: just the colored bar, width parametric.
+// v4.1 — renderDistributionBar: colored bar, width parametric.
+// Guarantees every non-zero tier gets at least 1 char so small shares
+// (e.g. 6% opus in a 10-char bar) remain visible. Overflow is absorbed
+// by the largest tier so total width is always exact.
 function renderDistributionBar(metrics, sessionId, width = 30) {
   const counts = realExecutionCounts(sessionId);
   if (!counts || !counts.total) return `${DIM}${'░'.repeat(width)}${RESET}`;
@@ -636,19 +654,25 @@ function renderDistributionBar(metrics, sessionId, width = 30) {
     { key: 'sonnet', color: TIER_COLOR.T2 },
     { key: 'opus',   color: TIER_COLOR.T3 },
   ];
-  let bar = '';
-  let filled = 0;
-  for (const t of tiers) {
-    if (filled >= width) break;
+  // Compute targets; ensure any non-zero tier gets ≥1 char.
+  const targets = tiers.map(t => {
     const n = counts[t.key] || 0;
-    let chars = Math.round((n / total) * width);
-    if (filled + chars > width) chars = width - filled;
-    if (chars > 0) {
-      bar += `${t.color}${'█'.repeat(chars)}${RESET}`;
-      filled += chars;
-    }
+    if (n === 0) return 0;
+    return Math.max(1, Math.round((n / total) * width));
+  });
+  // Reconcile to exact width by adjusting the largest non-zero tier.
+  let sum = targets.reduce((a, b) => a + b, 0);
+  const argmax = () => {
+    let idx = 0, best = -1;
+    for (let i = 0; i < targets.length; i++) if (targets[i] > best) { best = targets[i]; idx = i; }
+    return idx;
+  };
+  while (sum > width) { targets[argmax()]--; sum--; }
+  while (sum < width) { targets[argmax()]++; sum++; }
+  let bar = '';
+  for (let i = 0; i < tiers.length; i++) {
+    if (targets[i] > 0) bar += `${tiers[i].color}${'█'.repeat(targets[i])}${RESET}`;
   }
-  if (filled < width) bar += `${DIM}${'░'.repeat(width - filled)}${RESET}`;
   return bar;
 }
 
@@ -1174,10 +1198,11 @@ function buildStatusline(data) {
   const version = getVersionInfo();
   const termW = termWidthCols();
 
-  // Compact bar (8 chars) — visual spine of the distribution.
+  // Compact bar (10 chars) — visual spine of the distribution.
+  // With T0=rose palette swap, lots of rose here = mooter is winning.
   let compactBar = '';
   try {
-    const b = renderDistributionBar(metrics, session, 8);
+    const b = renderDistributionBar(metrics, session, 10);
     if (b) compactBar = b;
   } catch {}
 
@@ -1196,18 +1221,27 @@ function buildStatusline(data) {
     : (savings?.promptCount ? `${DIM}${pct}% no savings yet${RESET}` : null);
   const healthCore = renderRightAnchor(pct, !!metrics);
 
-  // Priority-ordered extras. Each is [priority, render] — higher priority added first.
+  // Priority-ordered extras. User-facing priorities (lower = shown earlier):
+  //   1 bar          — visual hero (what's the distribution?)
+  //   2 plan         — what plan am I on? (promoted from 7)
+  //   3 spent $      — how much did this session cost? (promoted from 4)
+  //   4 prompts N    — how many prompts in session? (promoted from 5)
+  //   5 ctx %        — context utilization
+  //   6 latency Ns   — perf feedback
+  //   7 providers    — infra health dots
+  //   8 auto-routed  — option-A deflection count
+  //   9 version      — meta
   const extras = [];
   if (compactBar) extras.push({ prio: 1, str: compactBar });
+  if (plan) extras.push({ prio: 2, str: `${DIM}plan${RESET} ${BOLD}${plan}${RESET}` });
+  if (spentStr) extras.push({ prio: 3, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
+  if (savings?.promptCount) extras.push({ prio: 4, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
   if (ctxPct !== null) {
     const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
-    extras.push({ prio: 2, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
+    extras.push({ prio: 5, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
   }
-  if (latency) extras.push({ prio: 3, str: latency });
-  if (spentStr) extras.push({ prio: 4, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
-  if (savings?.promptCount) extras.push({ prio: 5, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
-  if (providers) extras.push({ prio: 6, str: providers });
-  if (plan) extras.push({ prio: 7, str: `${DIM}plan${RESET} ${BOLD}${plan}${RESET}` });
+  if (latency) extras.push({ prio: 6, str: latency });
+  if (providers) extras.push({ prio: 7, str: providers });
   if (metrics && metrics.option_a_hits != null && metrics.option_a_hits > 0) {
     extras.push({ prio: 8, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
   }
