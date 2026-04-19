@@ -929,6 +929,13 @@ function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineSt
   else                   { paceColor = DANGER; paceWord = 'critical'; }
   const pacePill = `${paceColor}${BOLD}${paceWord}${RESET} ${DIM}pace${RESET}`;
   // 5h rolling window (Anthropic cares most, others optional)
+  // v6.8 storytelling — adds a sentiment word after the percentage so the
+  // user reads "5h 27% cold" instead of a naked number. Bucketed on used_pct
+  // so it aligns with visual expectation:
+  //   <30% → 'cold'       (green, lots of room)
+  //   <60% → 'warm'       (dim, normal)
+  //   <85% → 'hot'        (warn, watch out)
+  //   ≥85% → 'throttling' (danger, close to limit)
   let fivePill = '';
   if (u.rolling_5h && u.rolling_5h.budget_usd > 0) {
     const p5 = Math.round(u.rolling_5h.used_pct);
@@ -938,7 +945,12 @@ function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineSt
     else if (r5 > 1.3) c5 = WARN;
     else if (r5 > 0.8) c5 = DIM;
     else               c5 = HEALTHY;
-    fivePill = `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET}`;
+    let fiveWord = 'warm';
+    if      (p5 < 30) fiveWord = 'cold';
+    else if (p5 < 60) fiveWord = 'warm';
+    else if (p5 < 85) fiveWord = 'hot';
+    else              fiveWord = 'throttling';
+    fivePill = `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET} ${c5}${fiveWord}${RESET}`;
   }
   // v6.8 — monthly budget. Label changed from "quota $X/Y" to "$X/$Y month"
   // so the period ("month") is explicit. Reads as: "used $X of $Y this month".
@@ -1934,11 +1946,19 @@ function renderMultiLine({
   //   local tracker. Fallback path (line ~1416) recomputes from decisions.log
   //   via pricing.js so the number matches /mooter-savings exactly.
   const pct = savings?.savingsPct || 0;
-  const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
-  const savedStr = savings?.savedUsd ? `$${savings.savedUsd}` : null;
+  const arrow = pct >= 30 ? '↓' : '';
+  const savedUsdNum = parseFloat(savings?.savedUsd) || 0;
+  const savedStr = savedUsdNum > 0.01 ? `$${savings.savedUsd}` : null;
+  // v6.8 storytelling — three states, each a clean sentence start:
+  //   real savings → "🐮 saved $X (N%↓ vs all-Opus)"
+  //   pct=0 with   → "🐮 all-Opus session"  (honest, no '∅' math glyph,
+  //   activity        no phantom "$0 saved")
+  //   no prompts   → "🐮 no data yet"
   const savedHero = savedStr
     ? `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`
-    : (savings?.promptCount ? `${BRAND}${BOLD}🐮${RESET} ${DIM}${pct}% · no savings yet${RESET}` : `${BRAND}${BOLD}🐮${RESET} ${DIM}no data yet${RESET}`);
+    : (savings?.promptCount
+        ? `${BRAND}${BOLD}🐮${RESET} ${DIM}all-Opus session${RESET}`
+        : `${BRAND}${BOLD}🐮${RESET} ${DIM}no data yet${RESET}`);
   const spentPart = spentStr ? `${DIM}spent${RESET} ${BOLD}${spentStr}${RESET}` : null;
   const promptsPart = savings?.promptCount ? `${BOLD}${savings.promptCount}${RESET}${DIM} prompts${RESET}` : null;
   // Efficiency pill — % of routing that went local (the mooter win).
