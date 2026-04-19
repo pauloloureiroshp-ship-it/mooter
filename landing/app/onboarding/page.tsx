@@ -723,10 +723,10 @@ export default function OnboardingPage() {
                       margin: 0,
                       padding: '14px 16px',
                       borderTop: '1px solid var(--border)',
-                      color: 'var(--cream)',
+                      color: 'var(--text)',
                       fontSize: '0.8rem',
                       lineHeight: 1.6,
-                      background: 'rgba(255,107,53,0.04)',
+                      background: 'rgba(194,95,101,0.06)',
                     }}>
                       {config.personalized_message}
                     </p>

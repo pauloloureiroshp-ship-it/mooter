@@ -498,8 +498,8 @@ export default function SetupPage() {
                             <CopyPromptBtn text={step.prompt} />
                           </div>
                           <pre style={{
-                            background: 'var(--bg)',
-                            border: '1px solid var(--border)',
+                            background: '#0D0B08',
+                            border: '1px solid #2A2218',
                             borderRadius: 'var(--r-sm)',
                             padding: 14,
                             fontSize: '0.78rem',
@@ -508,7 +508,7 @@ export default function SetupPage() {
                             maxHeight: 220,
                             overflow: 'auto',
                             margin: 0,
-                            color: 'var(--cream)',
+                            color: '#F2ECDF',
                             fontFamily: 'var(--mono)',
                             lineHeight: 1.6,
                           }}>

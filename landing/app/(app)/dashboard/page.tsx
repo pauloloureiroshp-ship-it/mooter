@@ -681,7 +681,11 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
           whiteSpace: 'pre-wrap',
           fontSize: '0.82rem',
           fontFamily: 'var(--mono)',
-          color: 'var(--cream)',
+          color: '#F2ECDF',
+          background: '#0D0B08',
+          border: '1px solid #2A2218',
+          borderRadius: 'var(--r-sm)',
+          padding: 14,
         }}>
           {rec.config_block}
         </pre>
@@ -804,7 +808,11 @@ function ProjectContextCard({ profile }: { profile: Profile }) {
         <pre style={{
           margin: 0, whiteSpace: 'pre-wrap',
           fontSize: '0.82rem', fontFamily: 'var(--mono)',
-          color: 'var(--cream)',
+          color: '#F2ECDF',
+          background: '#0D0B08',
+          border: '1px solid #2A2218',
+          borderRadius: 'var(--r-sm)',
+          padding: 14,
         }}>
           {context}
         </pre>
