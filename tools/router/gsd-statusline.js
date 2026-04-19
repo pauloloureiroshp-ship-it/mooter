@@ -24,6 +24,20 @@ const { spawnSync } = require('child_process');
 // each Claude Code terminal then shows ITS own savings, not the all-time
 // total (which lives in the VS Code extension statusbar instead).
 function fetchFrugalMetrics(sessionId) {
+  if (process.env.MOOTER_MOCK === '1') {
+    return {
+      prompts: 42,
+      saved: 1.68,
+      saved_pct: 90,
+      actual_cost: 0.18,
+      guaranteed_saved: 0,
+      currency: 'USD',
+      plan: 'max',
+      option_a_hits: 15,
+      providers: { claude: 'ok', ollama: 'ok', gemini: 'off', gpt: 'ok' },
+      latency: { sample_size: 42, p50_ms: 9500, delta_vs_opus_ms: -3200 },
+    };
+  }
   try {
     const path = sessionId
       ? `/metrics?session_id=${encodeURIComponent(sessionId)}`
@@ -83,10 +97,140 @@ const TIER_COLOR = {
   T0: '\x1b[38;2;78;201;176m',   // teal  #4ec9b0
   T1: '\x1b[38;2;86;156;214m',   // blue  #569cd6
   T2: '\x1b[38;2;220;220;170m',  // yellow #dcdcaa
-  T3: '\x1b[38;2;244;71;71m',    // red   #f44747
+  T3: '\x1b[38;2;194;95;101m',   // rose  #C25F65 (mooter brand — was #f44747)
 };
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
+const BOLD = '\x1b[1m';
+
+// v2.0 palette — warm mooter.ai brand
+const BRAND   = '\x1b[38;2;194;95;101m';  // rose #C25F65
+const HEALTHY = '\x1b[38;2;78;201;176m';  // teal #4ec9b0
+const WARN    = '\x1b[38;2;220;220;170m'; // gold #dcdcaa
+const DANGER  = '\x1b[38;2;194;95;101m';  // rose #C25F65
+const GREEN   = '\x1b[38;2;50;220;120m';
+const BLACK   = '\x1b[30m';
+
+const TIER_BG = {
+  T0: '\x1b[48;2;78;201;176m',
+  T1: '\x1b[48;2;86;156;214m',
+  T2: '\x1b[48;2;220;220;170m',
+  T3: '\x1b[48;2;194;95;101m',
+};
+
+// v2.0 helpers
+function tierToModelShort(tier) {
+  const map = { T0: 'qwen3:30b', T1: 'haiku-4-5', T2: 'sonnet-4-6', T3: 'opus-4-6' };
+  return map[tier] || 'sonnet-4-6';
+}
+
+// Read the last *classified* tier from decisions.log — used as a fallback
+// when MOOTER_LAST_TIER isn't in the process env (statusline runs in a
+// sibling process, so hook-exported env vars don't propagate). Tester and
+// arbiter events are skipped — we only want real user turns.
+function readLastTierFromLog() {
+  try {
+    const logPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+    if (!fs.existsSync(logPath)) return null;
+    const stat = fs.statSync(logPath);
+    const MAX = 128 * 1024;
+    const start = Math.max(0, stat.size - MAX);
+    const fd = fs.openSync(logPath, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const d = JSON.parse(lines[i]);
+        if (d.event !== 'classified') continue;
+        if (d.source === 'mooter-tester') continue;
+        if (!d.tier) continue;
+        return { tier: d.tier, classifyMs: d.classify_ms || d.duration_ms || null };
+      } catch {}
+    }
+  } catch {}
+  return null;
+}
+
+function readRouterEnv() {
+  if (process.env.MOOTER_MOCK === '1') {
+    return {
+      lastTier: process.env.MOOTER_LAST_TIER || 'T2',
+      classifyMs: process.env.MOOTER_CLASSIFY_MS ? parseInt(process.env.MOOTER_CLASSIFY_MS) : 14,
+    };
+  }
+  if (process.env.MOOTER_LAST_TIER) {
+    return {
+      lastTier: process.env.MOOTER_LAST_TIER,
+      classifyMs: process.env.MOOTER_CLASSIFY_MS ? parseInt(process.env.MOOTER_CLASSIFY_MS) : null,
+    };
+  }
+  const fromLog = readLastTierFromLog();
+  if (fromLog) return { lastTier: fromLog.tier, classifyMs: fromLog.classifyMs };
+  return { lastTier: null, classifyMs: null };
+}
+
+function healthDot(savingsPct) {
+  if (savingsPct >= 30) return `${HEALTHY}●${RESET}`;
+  if (savingsPct >= 10) return `${WARN}●${RESET}`;
+  return `${DANGER}●${RESET}`;
+}
+
+function healthLabel(savingsPct) {
+  if (savingsPct >= 30) return 'healthy';
+  if (savingsPct >= 10) return 'ok';
+  return 'all-Opus';
+}
+
+function getVersionInfo() {
+  const candidates = [
+    path.join(os.homedir(), '.claude', 'tools', 'router', 'version.json'),
+    path.join(__dirname, 'version.json'),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {}
+  }
+  return null;
+}
+
+// Avoid forking `git` (too slow for statusline). Parse .git/HEAD directly.
+function getGitSha() {
+  try {
+    const candidates = [
+      path.join(process.cwd(), '.git', 'HEAD'),
+      path.join(os.homedir(), 'frugal', '.git', 'HEAD'),
+    ];
+    for (const headPath of candidates) {
+      if (!fs.existsSync(headPath)) continue;
+      const head = fs.readFileSync(headPath, 'utf8').trim();
+      if (head.startsWith('ref:')) {
+        const ref = head.slice(4).trim();
+        const refPath = path.join(path.dirname(headPath), ref);
+        if (fs.existsSync(refPath)) {
+          return fs.readFileSync(refPath, 'utf8').trim().slice(0, 7);
+        }
+      } else if (/^[0-9a-f]+$/i.test(head)) {
+        return head.slice(0, 7);
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function getPlanLabel(metrics) {
+  if (!metrics || !metrics.plan) return null;
+  const p = String(metrics.plan).toLowerCase();
+  const MAP = { max: 'Claude Max', team: 'Claude Team', pro: 'Claude Pro', free: 'Free' };
+  return MAP[p] || (p.charAt(0).toUpperCase() + p.slice(1));
+}
+
+function stripAnsi(str) {
+  // eslint-disable-next-line no-control-regex
+  return String(str).replace(/\x1B\[[0-9;]*[mGKHF]/g, '');
+}
 
 // ── v0.12: statusline — full transparency with model names + tokens ────────
 // The statusline is frugal's business card. It must prove at a glance:
@@ -127,6 +271,9 @@ function bucketFor(model) {
 // the PostToolUse emoji that the user sees after every Bash call.
 // Returns { opus, sonnet, haiku, local, gpt, gemini, total } or null on error.
 function realExecutionCounts(sessionId) {
+  if (process.env.MOOTER_MOCK === '1') {
+    return { opus: 1, sonnet: 3, haiku: 4, local: 8, gpt: 0, gemini: 0, deepseek: 0, gemma: 0, grok: 0, mistral: 0, total: 16 };
+  }
   try {
     const execPath = path.join(os.homedir(), '.claude', 'hooks', 'execution.log');
     if (!fs.existsSync(execPath)) return null;
@@ -384,6 +531,334 @@ function renderGpu() {
   }
 }
 
+// v2.0 — calcSavings: extracts the raw data from the same 3 sources
+// renderSavingsHero uses, without formatting. Returns:
+//   { savingsPct, savedUsd, spentUsd, promptCount } — never throws.
+function calcSavings(mOpt, sessionId) {
+  if (process.env.MOOTER_MOCK === '1') {
+    return { savingsPct: 90, savedUsd: '1.68', spentUsd: '0.18', promptCount: 42 };
+  }
+  const empty = { savingsPct: 0, savedUsd: null, spentUsd: null, promptCount: 0 };
+  try {
+    const m = mOpt || fetchFrugalMetrics(sessionId);
+
+    // PRIMARY: real execution data
+    try {
+      const real = realExecutionCounts(sessionId);
+      if (real && real.total > 0) {
+        let pricing;
+        try { pricing = require('./pricing'); }
+        catch {
+          try { pricing = require(path.join(os.homedir(), '.claude', 'tools', 'router', 'pricing.js')); }
+          catch { pricing = null; }
+        }
+        if (pricing) {
+          const CHAR_UNIT = 400;
+          const costAt = (tier) => pricing.estimateTurnCost(tier, CHAR_UNIT);
+          const opusUnit = pricing.naiveOpusCost(CHAR_UNIT);
+          const realSpent =
+            real.opus    * costAt('T3') +
+            real.sonnet  * costAt('T2') +
+            real.haiku   * costAt('T1') +
+            real.local   * costAt('T0') +
+            real.gpt     * costAt('T2') +
+            real.gemini  * costAt('T2') +
+            real.grok    * costAt('T2') +
+            real.mistral * costAt('T1');
+          const baseline = real.total * opusUnit;
+          const saved = Math.max(0, baseline - realSpent);
+          const pct = baseline > 0 ? Math.round((saved / baseline) * 100) : 0;
+          return {
+            savingsPct: pct,
+            savedUsd: saved.toFixed(2),
+            spentUsd: realSpent.toFixed(2),
+            promptCount: real.total,
+          };
+        }
+      }
+    } catch { /* fall through */ }
+
+    // FALLBACK 1: tracker metrics
+    if (m && m.prompts) {
+      const advisoryUsd = m.saved || 0;
+      const guaranteedUsd = m.guaranteed_saved || 0;
+      const savedUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
+      return {
+        savingsPct: Math.round(m.saved_pct || 0),
+        savedUsd: savedUsd.toFixed(2),
+        spentUsd: (m.actual_cost || 0).toFixed(2),
+        promptCount: m.prompts,
+      };
+    }
+
+    // FALLBACK 2: decisions.log
+    try {
+      const logPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+      if (!fs.existsSync(logPath)) return empty;
+      let pricing;
+      try { pricing = require('./pricing'); } catch { return empty; }
+      const lines = fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean);
+      let total = 0, actual = 0, naive = 0;
+      lines.forEach(l => {
+        try {
+          const d = JSON.parse(l);
+          if (!d.tier || (d.event && d.event !== 'classified')) return;
+          const promptLen = d.prompt_length || d.prompt_len || 200;
+          actual += pricing.estimateTurnCost(d.tier, promptLen);
+          naive  += pricing.naiveOpusCost(promptLen);
+          total++;
+        } catch {}
+      });
+      if (total === 0 || naive === 0) return empty;
+      const saved = naive - actual;
+      return {
+        savingsPct: Math.round((1 - actual / naive) * 100),
+        savedUsd: saved.toFixed(2),
+        spentUsd: actual.toFixed(2),
+        promptCount: total,
+      };
+    } catch {
+      return empty;
+    }
+  } catch {
+    return empty;
+  }
+}
+
+// v2.0 — renderDistributionBar: just the colored bar, width parametric.
+function renderDistributionBar(metrics, sessionId, width = 30) {
+  const counts = realExecutionCounts(sessionId);
+  if (!counts || !counts.total) return `${DIM}${'░'.repeat(width)}${RESET}`;
+  const total = counts.total;
+  const tiers = [
+    { key: 'local',  color: TIER_COLOR.T0 },
+    { key: 'haiku',  color: TIER_COLOR.T1 },
+    { key: 'sonnet', color: TIER_COLOR.T2 },
+    { key: 'opus',   color: TIER_COLOR.T3 },
+  ];
+  let bar = '';
+  let filled = 0;
+  for (const t of tiers) {
+    if (filled >= width) break;
+    const n = counts[t.key] || 0;
+    let chars = Math.round((n / total) * width);
+    if (filled + chars > width) chars = width - filled;
+    if (chars > 0) {
+      bar += `${t.color}${'█'.repeat(chars)}${RESET}`;
+      filled += chars;
+    }
+  }
+  if (filled < width) bar += `${DIM}${'░'.repeat(width - filled)}${RESET}`;
+  return bar;
+}
+
+// ── Rich layout renderers (5-row dashboard) ──────────────────────────────
+function termWidthCols() {
+  return process.stdout.columns || parseInt(process.env.COLUMNS) || 120;
+}
+
+// Health indicator — mascot-coloured dot + matching text (no bg pill: we want
+// the shape of the row to stay calm, the *colour* carries the signal).
+function renderHealthPill(savingsPct) {
+  let color, label;
+  if (savingsPct >= 30) { color = HEALTHY; label = 'healthy'; }
+  else if (savingsPct >= 10) { color = WARN; label = 'ok'; }
+  else { color = DANGER; label = 'all-Opus'; }
+  return `${color}●${RESET} ${color}${label}${RESET}`;
+}
+
+// Active Claude Code task (from todos) — tells the user what Claude is DOING
+// right now, independent of tier/routing. Highest operational-awareness signal.
+function getActiveTask(sessionId) {
+  if (!sessionId) return null;
+  try {
+    const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+    const todosDir = path.join(claudeDir, 'todos');
+    if (!fs.existsSync(todosDir)) return null;
+    const files = fs.readdirSync(todosDir)
+      .filter(f => f.startsWith(sessionId) && f.includes('-agent-') && f.endsWith('.json'))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(todosDir, f)).mtime }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (!files.length) return null;
+    const todos = JSON.parse(fs.readFileSync(path.join(todosDir, files[0].name), 'utf8'));
+    const inProgress = todos.find(t => t && t.status === 'in_progress');
+    return inProgress ? (inProgress.activeForm || inProgress.content || null) : null;
+  } catch {}
+  return null;
+}
+
+// Latency pill — only when tracker has enough samples.
+function getLatencyPill(metrics) {
+  if (!metrics || !metrics.latency || !metrics.latency.sample_size) return null;
+  const p50s = Math.round(metrics.latency.p50_ms / 1000);
+  if (!Number.isFinite(p50s) || p50s < 1) return null;
+  let color = HEALTHY;
+  if (p50s > 30) color = DANGER;
+  else if (p50s > 10) color = WARN;
+  return `${DIM}latency${RESET} ${color}${BOLD}${p50s}s${RESET}`;
+}
+
+// Warning row — stale hooks, update available, tracker offline. Dim red banner.
+function renderWarningRow(metricsAvailable) {
+  const warnings = [];
+  try {
+    const sharedCacheFile = path.join(os.homedir(), '.cache', 'gsd', 'gsd-update-check.json');
+    const legacyCacheFile = path.join(os.homedir(), '.claude', 'cache', 'gsd-update-check.json');
+    const cacheFile = fs.existsSync(sharedCacheFile) ? sharedCacheFile : legacyCacheFile;
+    if (fs.existsSync(cacheFile)) {
+      const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (cache.update_available) warnings.push('update available — /gsd-update');
+      if (cache.stale_hooks && cache.stale_hooks.length > 0) warnings.push('stale hooks — /gsd-update');
+    }
+  } catch {}
+  if (!metricsAvailable) warnings.push('tracker offline (127.0.0.1:7821)');
+  if (!warnings.length) return null;
+  return `${DANGER}⚠${RESET}        ${DANGER}${warnings.join(`  ${DIM}·${RESET}  ${DANGER}`)}${RESET}`;
+}
+
+// Task row — rendered between header and session when a todo is in_progress.
+function renderTaskRow(sessionId) {
+  const task = getActiveTask(sessionId);
+  if (!task) return null;
+  // Truncate extremely long titles to ~80 chars so the row stays on one line.
+  const max = Math.max(40, termWidthCols() - 18);
+  const shown = task.length > max ? task.slice(0, max - 1) + '…' : task;
+  return `${DIM}task${RESET}     ${BRAND}▸${RESET} ${BOLD}${shown}${RESET}`;
+}
+
+// Row 1: 🐮 mooter · model · [ T2 ] · classify · latency · ctx          ● healthy
+function renderHeaderRow(metrics, sessionId, displayModel, ctxPct, savingsPct) {
+  const env = readRouterEnv();
+  const tier = env.lastTier || 'T?';
+  const tierBg = TIER_BG[tier] || '\x1b[48;2;100;100;100m';
+  const tierBadge = `${tierBg}${BLACK}${BOLD} ${tier} ${RESET}`;  // anchor: background pill
+  const modelRaw = displayModel || (metrics && metrics.model_used) || tierToModelShort(tier);
+  const modelShort = String(modelRaw).replace(/^claude-/, '').replace(/-202510\w*/, '');
+
+  const parts = [
+    `🐮 ${BRAND}${BOLD}mooter${RESET}`,
+    `${DIM}model${RESET} ${BOLD}${modelShort}${RESET}`,
+    tierBadge,
+  ];
+  if (env.classifyMs) parts.push(`${DIM}classify${RESET} ${BOLD}${env.classifyMs}ms${RESET}`);
+  const latency = getLatencyPill(metrics);
+  if (latency) parts.push(latency);
+  if (ctxPct !== null && ctxPct !== undefined) {
+    const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
+    parts.push(`${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}`);
+  }
+  const left = parts.join(`  ${DIM}│${RESET}  `);
+  const right = renderHealthPill(savingsPct);
+
+  const termW = termWidthCols();
+  const padLen = Math.max(2, termW - stripAnsi(left).length - stripAnsi(right).length);
+  return `${left}${' '.repeat(padLen)}${right}`;
+}
+
+// Row 2: session N prompts · $X spent · $Y saved · N% vs all-Opus
+function renderSessionRow(savings) {
+  if (!savings || !savings.promptCount) {
+    return `${DIM}session${RESET}  ${DIM}awaiting first Bash tool call${RESET}`;
+  }
+  const spent = savings.spentUsd ? `$${savings.spentUsd}` : '$0.00';
+  const saved = savings.savedUsd ? `$${savings.savedUsd}` : '$0.00';
+  const pct = savings.savingsPct || 0;
+  return [
+    `${DIM}session${RESET} ${BOLD}${savings.promptCount}${RESET} ${DIM}prompts${RESET}`,
+    `${BOLD}${spent}${RESET} ${DIM}spent${RESET}`,
+    `${GREEN}${BOLD}${saved}${RESET} ${DIM}saved${RESET}`,
+    `${BOLD}${pct}%${RESET} ${DIM}vs all-Opus${RESET}`,
+  ].join(`  ${DIM}·${RESET}  `);
+}
+
+// Row 3: routing  [full-width colored distribution bar]
+function renderRoutingRow(metrics, sessionId) {
+  const termW = termWidthCols();
+  const prefix = `${DIM}routing${RESET}  `;  // 2 spaces — tighter rhythm
+  const prefixLen = stripAnsi(prefix).length;
+  const barWidth = Math.max(20, termW - prefixLen);
+  const bar = renderDistributionBar(metrics, sessionId, barWidth);
+  return `${prefix}${bar}`;
+}
+
+// Row 4: ■ T0 58% local  ·  ■ T1 22% haiku  ·  ■ T2 14% sonnet  ·  ■ T3 6% opus
+function renderLegendRow(sessionId) {
+  const counts = realExecutionCounts(sessionId);
+  if (!counts || !counts.total) {
+    return `${DIM}legend${RESET}   ${DIM}populates after first Bash tool call${RESET}`;
+  }
+  const total = counts.total;
+  const pctFor = (n) => Math.round((n / total) * 100);
+  const tiers = [
+    { key: 'local',  name: 'local',  color: TIER_COLOR.T0, label: 'T0' },
+    { key: 'haiku',  name: 'haiku',  color: TIER_COLOR.T1, label: 'T1' },
+    { key: 'sonnet', name: 'sonnet', color: TIER_COLOR.T2, label: 'T2' },
+    { key: 'opus',   name: 'opus',   color: TIER_COLOR.T3, label: 'T3' },
+  ];
+  const parts = tiers.map(t => {
+    const p = pctFor(counts[t.key] || 0);
+    return `${t.color}■ ${t.label}${RESET} ${BOLD}${p}%${RESET} ${DIM}${t.name}${RESET}`;
+  });
+
+  // GPU tag — only when local tier > 10% (otherwise it's dead weight).
+  let gpuTag = '';
+  const localShare = (counts.local || 0) / counts.total;
+  if (localShare >= 0.10) {
+    try {
+      const hwPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'hw-capability.json');
+      if (fs.existsSync(hwPath)) {
+        const hw = JSON.parse(fs.readFileSync(hwPath, 'utf8'));
+        if (hw && hw.name) gpuTag = `     ${TIER_COLOR.T0}⚡${hw.name}${RESET}`;
+      }
+    } catch {}
+  }
+
+  return `${DIM}legend${RESET}   ${parts.join(`  ${DIM}·${RESET}  `)}${gpuTag}`;
+}
+
+// Provider health dots — compact infra status (Cld/Oll/Gmi/GPT).
+function renderProviderDots(metrics) {
+  if (!metrics || !metrics.providers) return null;
+  const p = metrics.providers;
+  const order = [['claude','Cld'], ['ollama','Oll'], ['gemini','Gmi'], ['gpt','GPT']];
+  const dots = order.map(([key, short]) => {
+    const state = p[key];
+    if (state === 'ok')       return `${HEALTHY}●${RESET}${DIM}${short}${RESET}`;
+    if (state === 'degraded') return `${WARN}◐${RESET}${DIM}${short}${RESET}`;
+    return `${DIM}○${short}${RESET}`;
+  }).join(' ');
+  return dots;
+}
+
+// Row 5: plan X · auto-routed N · providers           v0.10.0 · sha 1a2b3c4
+function renderPlanRow(metrics) {
+  const plan = getPlanLabel(metrics);
+  const version = getVersionInfo();
+  const sha = getGitSha();
+  const providers = renderProviderDots(metrics);
+
+  const leftParts = [];
+  if (plan) leftParts.push(`${DIM}plan${RESET} ${BOLD}${plan}${RESET}`);
+  if (metrics && metrics.option_a_hits != null) {
+    leftParts.push(`${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET} ${DIM}prompts${RESET}`);
+  }
+  if (providers) leftParts.push(providers);
+  const left = leftParts.join(`  ${DIM}│${RESET}  `);
+
+  const rightParts = [];
+  if (version && version.version) rightParts.push(`${DIM}v${version.version}${RESET}`);
+  if (sha) rightParts.push(`${DIM}sha ${sha}${RESET}`);
+  const right = rightParts.join(`${DIM} · ${RESET}`);
+
+  if (!left && !right) return null;
+  if (!left) return right;
+  if (!right) return left;
+
+  const termW = termWidthCols();
+  const padLen = Math.max(2, termW - stripAnsi(left).length - stripAnsi(right).length);
+  return `${left}${' '.repeat(padLen)}${right}`;
+}
+
 // ── Savings hero renderer ──────────────────────────────────────────────────
 // Format: 💰 ↓89% saved ~$3.84 · spent ~$0.47
 // Green ≥75%, yellow ≥40%, dim otherwise.
@@ -629,6 +1104,72 @@ function renderProviders(m) {
   }
 }
 
+// v3.0 — buildStatusline: rich 5-row dashboard layout.
+// Row 1: brand · model · tier · classify · ctx                    ● health
+// Row 2: session N prompts · $spent · $saved · % vs all-Opus
+// Row 3: routing [full-width colored bar]
+// Row 4:    ■ T0 % local · ■ T1 % haiku · ■ T2 % sonnet · ■ T3 % opus
+// Row 5: plan X · deflected N                            vX.Y.Z · sha abc1234
+function buildStatusline(data) {
+  const model = data?.model?.display_name || null;
+  const session = data?.session_id || '';
+  const remaining = data?.context_window?.remaining_percentage;
+
+  const AUTO_COMPACT_BUFFER_PCT = 16.5;
+  let ctxPct = null;
+  if (remaining != null) {
+    const usableRemaining = Math.max(0, ((remaining - AUTO_COMPACT_BUFFER_PCT) / (100 - AUTO_COMPACT_BUFFER_PCT)) * 100);
+    const used = Math.max(0, Math.min(100, Math.round(100 - usableRemaining)));
+    ctxPct = used;
+
+    const sessionSafe = session && !/[/\\]|\.\./.test(session);
+    if (sessionSafe) {
+      try {
+        const bridgePath = path.join(os.tmpdir(), `claude-ctx-${session}.json`);
+        fs.writeFileSync(bridgePath, JSON.stringify({
+          session_id: session,
+          remaining_percentage: remaining,
+          used_pct: used,
+          timestamp: Math.floor(Date.now() / 1000),
+        }));
+      } catch { /* bridge is best-effort */ }
+    }
+  }
+
+  const metrics = fetchFrugalMetrics(session);
+  const savings = calcSavings(metrics, session);
+  const savingsPct = savings?.savingsPct || 0;
+
+  const rows = [
+    renderWarningRow(!!metrics),              // conditional — only on alerts
+    renderHeaderRow(metrics, session, model, ctxPct, savingsPct),
+    renderTaskRow(session),                   // conditional — only when a todo is in_progress
+    renderSessionRow(savings),
+    renderRoutingRow(metrics, session),
+    renderLegendRow(session),
+    renderPlanRow(metrics),
+  ].filter(Boolean);
+
+  return rows.join('\n');
+}
+
+// Mock entry point — bypass stdin so `MOOTER_MOCK=1 node gsd-statusline.js`
+// produces a full statusline without needing a JSON pipe.
+if (process.env.MOOTER_MOCK === '1') {
+  const mockData = {
+    model: { display_name: null },
+    workspace: { current_dir: process.cwd() },
+    session_id: 'mock',
+    context_window: { remaining_percentage: 45 },
+  };
+  try {
+    process.stdout.write(buildStatusline(mockData));
+  } catch (e) {
+    process.stderr.write(`mock error: ${e && e.message}\n`);
+  }
+  process.exit(0);
+}
+
 // Read JSON from stdin
 let input = '';
 // Timeout guard: if stdin doesn't close within 3s (e.g. pipe issues on
@@ -640,152 +1181,7 @@ process.stdin.on('end', () => {
   clearTimeout(stdinTimeout);
   try {
     const data = JSON.parse(input);
-    const model = data.model?.display_name || 'Claude';
-    const dir = data.workspace?.current_dir || process.cwd();
-    const session = data.session_id || '';
-    const remaining = data.context_window?.remaining_percentage;
-
-    // Context window display (shows USED percentage scaled to usable context)
-    // Claude Code reserves ~16.5% for autocompact buffer, so usable context
-    // is 83.5% of the total window. We normalize to show 100% at that point.
-    const AUTO_COMPACT_BUFFER_PCT = 16.5;
-    let ctx = '';
-    if (remaining != null) {
-      // Normalize: subtract buffer from remaining, scale to usable range
-      const usableRemaining = Math.max(0, ((remaining - AUTO_COMPACT_BUFFER_PCT) / (100 - AUTO_COMPACT_BUFFER_PCT)) * 100);
-      const used = Math.max(0, Math.min(100, Math.round(100 - usableRemaining)));
-
-      // Write context metrics to bridge file for the context-monitor PostToolUse hook.
-      // The monitor reads this file to inject agent-facing warnings when context is low.
-      // Reject session IDs with path separators or traversal sequences to prevent
-      // a malicious session_id from writing files outside the temp directory.
-      const sessionSafe = session && !/[/\\]|\.\./.test(session);
-      if (sessionSafe) {
-        try {
-          const bridgePath = path.join(os.tmpdir(), `claude-ctx-${session}.json`);
-          const bridgeData = JSON.stringify({
-            session_id: session,
-            remaining_percentage: remaining,
-            used_pct: used,
-            timestamp: Math.floor(Date.now() / 1000)
-          });
-          fs.writeFileSync(bridgePath, bridgeData);
-        } catch (e) {
-          // Silent fail -- bridge is best-effort, don't break statusline
-        }
-      }
-
-      // Build progress bar (10 segments)
-      const filled = Math.floor(used / 10);
-      const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-
-      // Color based on usable context thresholds
-      if (used < 50) {
-        ctx = ` \x1b[32m${bar} ${used}%\x1b[0m`;
-      } else if (used < 65) {
-        ctx = ` \x1b[33m${bar} ${used}%\x1b[0m`;
-      } else if (used < 80) {
-        ctx = ` \x1b[38;5;208m${bar} ${used}%\x1b[0m`;
-      } else {
-        ctx = ` \x1b[5;31m💀 ${bar} ${used}%\x1b[0m`;
-      }
-    }
-
-    // Current task from todos
-    let task = '';
-    const homeDir = os.homedir();
-    // Respect CLAUDE_CONFIG_DIR for custom config directory setups (#870)
-    const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(homeDir, '.claude');
-    const todosDir = path.join(claudeDir, 'todos');
-    if (session && fs.existsSync(todosDir)) {
-      try {
-        const files = fs.readdirSync(todosDir)
-          .filter(f => f.startsWith(session) && f.includes('-agent-') && f.endsWith('.json'))
-          .map(f => ({ name: f, mtime: fs.statSync(path.join(todosDir, f)).mtime }))
-          .sort((a, b) => b.mtime - a.mtime);
-
-        if (files.length > 0) {
-          try {
-            const todos = JSON.parse(fs.readFileSync(path.join(todosDir, files[0].name), 'utf8'));
-            const inProgress = todos.find(t => t.status === 'in_progress');
-            if (inProgress) task = inProgress.activeForm || '';
-          } catch (e) {}
-        }
-      } catch (e) {
-        // Silently fail on file system errors - don't break statusline
-      }
-    }
-
-    // GSD update available?
-    // Check shared cache first (#1421), fall back to runtime-specific cache for
-    // backward compatibility with older gsd-check-update.js versions.
-    let gsdUpdate = '';
-    const sharedCacheFile = path.join(homeDir, '.cache', 'gsd', 'gsd-update-check.json');
-    const legacyCacheFile = path.join(claudeDir, 'cache', 'gsd-update-check.json');
-    const cacheFile = fs.existsSync(sharedCacheFile) ? sharedCacheFile : legacyCacheFile;
-    if (fs.existsSync(cacheFile)) {
-      try {
-        const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-        if (cache.update_available) {
-          gsdUpdate = '\x1b[33m⬆ /gsd-update\x1b[0m │ ';
-        }
-        if (cache.stale_hooks && cache.stale_hooks.length > 0) {
-          gsdUpdate += '\x1b[31m⚠ stale hooks — run /gsd-update\x1b[0m │ ';
-        }
-      } catch (e) {}
-    }
-
-    // ── frugal statusline (redesign v1.0) ─────────────────────────────
-    // Layout (standard, 2 lines):
-    //   ◈ Opus 4.6 │ dir │ ████░░ 14% │ 📍 $13.35 spent · $0 saved │ 🌍 69% · 431p
-    //     ██████████ exec │ 🔴Opus 100% · 🟡Sonnet 0% · ⚡Haiku 0% · 🦙Qwen3 0% · ⚡RTX 4090
-    //
-    // Per-session: each Claude Code terminal shows ITS own savings.
-    // The VS Code extension statusbar shows all-time (lifetime) totals.
-    const metrics = fetchFrugalMetrics(session);
-
-    // Mode badge (beast/zen)
-    let modeBadge = '';
-    try {
-      const modeFile = path.join(os.homedir(), '.claude', 'tools', 'router', '.frugal-mode.json');
-      if (fs.existsSync(modeFile)) {
-        const md = JSON.parse(fs.readFileSync(modeFile, 'utf8'));
-        if (md.mode === 'beast') modeBadge = '\x1b[38;2;255;140;0m🦁\x1b[0m';
-        else if (md.mode === 'zen') modeBadge = '\x1b[38;2;120;200;120m🧘\x1b[0m';
-      }
-    } catch { /* silent */ }
-
-    // Assemble all render segments
-    const savingsHero = renderSavingsHero(metrics, session);
-    const dist = renderDistribution(metrics, session);
-    const providers = renderProviders(metrics);
-    const latency = renderLatency(metrics);
-
-    // ── Responsive layout ──────────────────────────────────────────
-    // The statusline runs via pipe so process.stdout.columns is
-    // unavailable. Always break the savings hero onto its own line
-    // so it's fully visible regardless of window width.
-    const dirname = path.basename(dir);
-    const taskSegment = task ? ` │ \x1b[1m${task}\x1b[0m` : '';
-    const line1 = `${gsdUpdate}\x1b[2m${model}\x1b[0m${taskSegment} │ \x1b[2m${dirname}\x1b[0m${ctx}`;
-    const heroLine = savingsHero ? `\n 🐮${modeBadge} ${savingsHero}` : '';
-
-    // Distribution bar + labels + gpu
-    let line2 = '';
-    if (dist) {
-      line2 = `\n ${dist}`;
-    }
-
-    // Providers + latency + mode badge
-    let line3 = '';
-    const line3Parts = [providers, latency].filter(Boolean).join('');
-    if (line3Parts || modeBadge) {
-      const modeTag = modeBadge ? ` │ ${modeBadge}` : '';
-      line3 = `\n ${line3Parts}${modeTag}`;
-    }
-
-    // Output (multi-line, responsive)
-    process.stdout.write(`${line1}${heroLine}${line2}${line3}`);
+    process.stdout.write(buildStatusline(data));
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
   }
