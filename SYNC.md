@@ -211,8 +211,59 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-16 19:30 UTC
+**Última actualização Cowork:** 2026-04-19 (Sessão #31 — Statusline v6.7 multi-line resurrected)
 **Estado:** 🟢 Lido e parcialmente aplicado em sessão #25 (2026-04-17) — ver estado abaixo
+
+---
+
+### ✅ Sessão #31 — 2026-04-19 (Statusline v6.7 multi-line resurrected)
+
+**Âmbito:** ressuscitar a statusline multi-linha v6.4 (que v6.5 tinha colapsado a 1 linha por suposta limitação do Claude Code). Confirmou-se via 7 probes que multi-linha É suportado — só `─` (U+2500) e cantos `╭├╰` partem o parser (wide-char width-overflow). Filler `-` ASCII rose viabiliza 3-row layered dashboard dentro do prompt do Claude Code, sem janelas externas.
+
+**Commit:** `d8b596f` — `feat(statusline): v6.7 — multi-line resurrected inside Claude Code prompt`
+
+**Entregas:**
+- `tools/router/gsd-statusline.js` (+114 LOC): `flatLine()`, opt `flat` em `renderSubscriptionRow`/`renderLocalRow`/`renderMultiLine`, dispatch `MOOTER_MODE` vs `MOOTER_FORCE_MULTILINE`, fallback cumulativo de tier counts, `MOOTER_PROBE` switch (probes 1-7).
+- `tools/router/mooter.ps1` (73 → 37 LOC): zero janelas externas. Set `$env:MOOTER_MODE='1'` + `& claude`. Mesma terminal.
+- `tools/router/mooter-dashboard.js` (+5 LOC): `\x1B[3J` clear-scrollback fix (dashboard pane externo já não appenda).
+- `docs/MASTER_PROMPTS/MOOTER_STATUSLINE_V6_7_MASTER_PROMPT.md` (NEW): handoff doc para sessão #32.
+
+**A/B vivo:**
+- `claude` → single-line v6.5 (conservador)
+- `mooter` → 3-row layered (identity / savings / Claude Max + sparkline)
+
+**Página Notion:** [Sessão 2026-04-19 v6.7](https://www.notion.so/3476f6e42bc48132814cd4fbdbafa7af)
+
+**Pendentes próxima sessão (#32):**
+1. Probes 8-12 (cantos ASCII `+|+`, filler `═`, anchors solo, trailing `\n` per line) — tentar chegar mais perto da `─` rose original.
+2. Coherence audit — cada pill ganha source-of-truth comment.
+3. Cleanup probes 1-7 — manter `MOOTER_PROBE` machinery como escape hatch.
+4. Always-show `0% local` + `ctx 0%` quando data existe.
+5. Detectar terminal width real via input JSON do Claude Code.
+
+---
+
+### ✅ Sessão #30 — 2026-04-19 (Mooter Performance — B4 shipped)
+
+**Âmbito:** primeira entrega do `MOOTER_PERFORMANCE_MASTER_PROMPT.md`. B1 abandonado após inspecção (threshold Haiku 2048 tok > arbiter system prompt 320 tok — zero caching gain). B11 documentado condicional. Sessão arranca em B4.
+
+**Commit:** `9929ccc` — `perf(mooter): B4 — implicit signal weight boost`
+
+**B4 · Implicit signal weight boost**
+
+- `tools/router/backtest.js` (+224 LOC): `analyze(decisions, opts)` aceita `{ boost }`. `sampleWeight(d, {boost, repeats})` retorna `1` quando boost=off (byte-identical pré-B4), `10` em correcção (/mooter-bad, honored upgrade override), `5` em shadow_demote, `0.5` em accepted feedback. Repeat 7d ×5 (capped ×50). Novo flag CLI `--weighted --dry-run`.
+- `tools/router/backtest.test.js` (+171 LOC): 14 testes novos. 86/86 passa. Full suite 130+ tests green.
+- `tools/router/classify.js`: INTACTO (git diff --stat vazio).
+- Feature flag: `IMPLICIT_SIGNAL_WEIGHT_BOOST=1|true|on|yes`. Default OFF.
+- Gold-labels replay: 96.4% (baseline preservado).
+- Dry-run output: 26245 prompts no corpus actual, 0 corrections activas (esperado — flag OFF por default; ROI valida após 48h de feedback real com /mooter-bad e @opus overrides).
+
+**Próxima sessão (Sessão #31, após 48h observação):**
+
+1. B2 · Conectar Sprint B signals ao classifier (3 flags toggláveis: PROFILE_ADJUST_LOCAL, _RIGOR, _BUDGET)
+2. B3 · Confidence thresholds por categoria
+3. Correr `analyze-arbiter-accuracy.js` (a criar) para decidir se B11 activa
+4. NÃO avançar antes de confirmar que router-tuning.json não regride accuracy
 
 ---
 
@@ -522,6 +573,8 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-04-17 — Post-crash Recovery + Router Deep Fixes (#25) | https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e |
 | Sessão 2026-04-17 — Cowork Ship (#25-continued) | https://www.notion.so/3456f6e42bc481f991f0c9538438417e |
 | Sessão 2026-04-18 — Review #11 + Counters data layer (#27) | https://www.notion.so/3466f6e42bc481c99569cb216e748c5f |
+| Sessão 2026-04-18 — Mooter Review #16 (classifier limpo) | https://www.notion.so/3476f6e42bc4810b9ad6e7c605acccad |
+| Sessão 2026-04-19 — /doctor fix (MCP Windows + HOME env) | https://www.notion.so/3476f6e42bc481a1a3ffc682d7fcdc1f |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
