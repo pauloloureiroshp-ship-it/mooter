@@ -291,7 +291,7 @@ Push para origin/main (commit `acbb022`) → Vercel auto-deploy em ~12s → prod
 
 ### ⏭ ACÇÕES PENDENTES (estratégicas, já não bloqueantes)
 
-1. **Decidir o destino de `mooter-landing/`**: apagar do repo + deletar o Vercel project `mooter-landing`, ou reatribuir a um preview domain (ex: `preview.mooter.ai`). Hoje é morto-vivo.
+1. **Vercel dashboard cleanup** — `mooter-landing/` já foi removido do repo (commit abaixo). O **Vercel project `mooter-landing` (`prj_GLyS0L3q0Fc8Yd842o92addKZAGu`)** ainda existe no dashboard e vai falhar o próximo deploy (rootDirectory não encontrado). Acção: https://vercel.com/dashboard → project `mooter-landing` → Settings → Delete Project. 2 cliques. Se quiseres preservar como preview domain em vez de deletar, aponta-o para um novo repo stub.
 
 2. **`cd mooter-package && npm publish`** para publicar o `@mooter/cli@0.0.2`. Até lá, `npx @mooter/cli` continua a puxar v0.0.1 com URLs quebradas.
 
