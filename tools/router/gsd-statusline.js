@@ -1672,48 +1672,20 @@ function buildStatusline(data) {
   //  10 auto-routed   — option-A deflection count
   //  11 version       — meta
   const extras = [];
-  if (compactBar) extras.push({ prio: 1, str: compactBar });
+  // v6.5 — compactBar (old 10-char distribution spine) REMOVED. Its role
+  // is now served by the tier-segmented ctx bar in mandatory (which uses
+  // the SAME colours and the SAME source data, so it was just noise).
+  // Set MOOTER_SHOW_LEGACY_BAR=1 to bring it back for debugging.
+  if (compactBar && process.env.MOOTER_SHOW_LEGACY_BAR === '1') {
+    extras.push({ prio: 1, str: compactBar });
+  }
 
   // mode is in mandatory (see above) — never drops out of budget.
 
-  // v6.0 — multi-subscription pill. Renders EVERY declared provider so
-  // mooter's value prop (orchestrator across paid LLMs) is visible at a glance.
-  //   single sub: "Claude Max 21%↓"     (full label, room to breathe)
-  //   multi sub : "Claude 21%↓ · GPT 18%↑ · Gmi 42%·"  (short labels to fit)
-  // Color semantics per provider:
-  //   green (healthy): pace_ratio < 0.8  (under-using — room to beast)
-  //   dim            : 0.8 ≤ ratio ≤ 1.2 (on pace)
-  //   gold           : 1.2 < ratio ≤ 1.5 (overpacing — watch it)
-  //   red            : ratio > 1.5       (on track to blow budget)
-  // Arrow: ↑ overpacing, ↓ underpacing, · on pace.
-  if (subscriptions && subscriptions.length > 0) {
-    const multi = subscriptions.length > 1;
-    const paceBadge = (u) => {
-      const pctNum = Math.round(u.used_pct);
-      const ratio = u.pace_ratio || 0;
-      let color = DIM;
-      let arrow = '·';
-      if (ratio < 0.8)       { color = GREEN;   arrow = '↓'; }
-      else if (ratio <= 1.2) { color = DIM;     arrow = '·'; }
-      else if (ratio <= 1.5) { color = WARN;    arrow = '↑'; }
-      else                   { color = DANGER;  arrow = '↑'; }
-      return `${color}${BOLD}${pctNum}%${arrow}${RESET}`;
-    };
-    const segments = subscriptions.map((sub) => {
-      const name = multi ? sub.short : sub.label;
-      const u = usageData && usageData.usage && usageData.usage[sub.providerKey];
-      if (u) return `${BOLD}${name}${RESET} ${paceBadge(u)}`;
-      // No usage data: plain name in multi mode (avoid "plan X · plan Y · plan Z"
-      // repetition). Single-sub keeps the `plan` prefix for clarity.
-      return multi
-        ? `${BOLD}${name}${RESET}`
-        : `${DIM}plan${RESET} ${BOLD}${name}${RESET}`;
-    });
-    // Separate multi-sub segments with a soft dot, not the heavier SEP (`·`),
-    // so the cluster reads as one grouped entity within L3.
-    const pill = segments.join(`${DIM} · ${RESET}`);
-    extras.push({ prio: 3, str: pill });
-  }
+  // v6.5 — multi-subscription pill (old single-cluster form) REMOVED.
+  // Replaced by one individual pill per provider below in the v6.5 block,
+  // which uses per-provider emoji (🧠 💬 ♊ ⚡ 🌬️) and fits better via
+  // priority-fit budgeting (each sub can drop independently on narrow widths).
 
   // Recommendation badge — actionable advice, matches the CrazyMoo /
   // LazyMoo nomenclature from the mode badge.
@@ -1781,36 +1753,46 @@ function buildStatusline(data) {
   }
   if (version && version.version) extras.push({ prio: 14, str: `${DIM}v${version.version}${RESET}` });
 
-  // v6.2 — dispatch by terminal width:
-  //   ≥ 120 col → layered dashboard (one line per layer/subscription)
-  //   < 120     → 1 line adaptive (v5.4 preserved for narrow terminals)
-  //
-  // Layer composition (each = one box-drawn row):
-  //   L1        → Identity (mooter · mode · model · ctx-tier-bar · cycle)
-  //   L2        → Savings ($saved · $spent · prompts · eff% · health)
-  //   L3..Ln    → One per paid subscription (pace · 5h · spark · quota · rec)
-  //   Ln+1      → Ollama local layer (share · model · latency · $0) [optional]
-  if (termW >= 120) {
-    const tierCounts = realExecutionCounts(session) || { total: 0 };
-    return renderMultiLine({
-      width: termW,
-      mandatory: A_mandatory,
-      savingsCore,
-      healthCore,
-      sep: SEP,
-      metrics,
-      session,
-      subscriptions,
-      usageData,
-      routerMode,
-      cycle,
-      tierCounts,
-      savings,
-      spentStr,
-    });
+  // v6.5 — per-subscription pill (compact, paid plan) and local-layer pill.
+  // These port the layered-dashboard L3/Ln insights into the single line.
+  const PROVIDER_ICON_INLINE = {
+    anthropic: '🧠', openai: '💬', google: '♊', xai: '⚡', mistral: '🌬️',
+  };
+  (subscriptions || []).forEach((sub, idx) => {
+    const u = usageData && usageData.usage && usageData.usage[sub.providerKey];
+    const icon = PROVIDER_ICON_INLINE[sub.providerKey] || '📦';
+    let pill;
+    if (u) {
+      const pctNum = Math.round(u.used_pct || 0);
+      const ratio  = u.pace_ratio || 0;
+      let c = DIM, a = '·';
+      if      (ratio < 0.8)  { c = GREEN;  a = '↓'; }
+      else if (ratio <= 1.2) { c = DIM;    a = '·'; }
+      else if (ratio <= 1.5) { c = WARN;   a = '↑'; }
+      else                   { c = DANGER; a = '↑'; }
+      pill = `${icon} ${c}${BOLD}${pctNum}%${a}${RESET}`;
+    } else {
+      pill = `${icon} ${DIM}${sub.short || sub.label}${RESET}`;
+    }
+    // Each subscription competes for visibility — first one wins the low prio.
+    extras.push({ prio: 3 + idx * 0.1, str: pill });
+  });
+  // Local layer pill — compact 🦙 N% (only when there's T0 activity to show).
+  if (tierCountsEarly && (tierCountsEarly.local || 0) > 0 && tierCountsEarly.total > 0) {
+    const share = Math.round(((tierCountsEarly.local || 0) / tierCountsEarly.total) * 100);
+    let sc = DANGER;
+    if (share >= 60)      sc = BRAND;
+    else if (share >= 30) sc = WARN;
+    extras.push({ prio: 5, str: `🦙 ${sc}${BOLD}${share}%${RESET}` });
   }
 
-  // v5.4 fallback — single-line adaptive (preserved verbatim for narrow widths).
+  // v6.5 — multi-line dispatch REMOVED. Research confirmed Claude Code
+  // v2.1.x clips statusline stdout to the first line in practice (despite
+  // docs), so the layered dashboard would never render. All v6.x
+  // innovations (tier legend, tier-bar in ctx, per-sub pills, local
+  // layer, rec slash hint, per-provider emoji) now ride in this single
+  // row via the priority-fit extras pipeline. renderMultiLine is kept
+  // dead for a future Claude Code version that honours multi-line.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
   let visible = stripAnsi(mandatory.join(SEP)).length;
   const budget = Math.max(40, termW - 22);
