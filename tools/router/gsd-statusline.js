@@ -273,6 +273,22 @@ function boxLine(pos, leftContent, rightContent, width) {
   return `${BRAND}${c.open}─${RESET} ${left}${BRAND}${fill}${RESET}${right} ${BRAND}─${c.close}${RESET}`;
 }
 
+// v6.7 — flat row for in-prompt statusline. left ----- right with ASCII
+// hyphen filler in BRAND rose. Probe 6 confirmed '-' renders multi-line
+// reliably; probe 7 confirmed '·' too. The '─' (U+2500) box-drawing char
+// kills multi-line in Claude Code's parser (wide-char width-calc overflow).
+// Width capped to 90 cols to survive narrow VS Code terminals (~100 cols).
+function flatLine(leftContent, rightContent, width) {
+  if (!rightContent) return leftContent || '';
+  if (!leftContent)  return rightContent;
+  const leftLen   = stripAnsi(leftContent).length;
+  const rightLen  = stripAnsi(rightContent).length;
+  const safeWidth = Math.min(width || 100, 90);
+  const fillLen   = Math.max(2, safeWidth - leftLen - rightLen - 2);
+  const fill      = `${BRAND}${'-'.repeat(fillLen)}${RESET}`;
+  return `${leftContent} ${fill} ${rightContent}`;
+}
+
 // ── v5.0 multi-subscription awareness helpers ──────────────────────────
 // Mooter's real value prop: orchestrate ALL paid LLM subscriptions.
 // The statusline should surface which ones are active, what mode the
@@ -862,7 +878,7 @@ function renderCtxBarTier(ctxPct, counts, width) {
 // v6.2 — subscription row. One paid plan per row, showing pace · 5h · spark ·
 // quota. Rec badge right-anchors when THIS provider triggered the mode
 // recommendation.
-function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineStr, sepStr) {
+function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineStr, sepStr, flat) {
   const u = usageData && usageData.usage && usageData.usage[sub.providerKey];
   const sep = sepStr || ` ${DIM}·${RESET} `;
   // v6.4 — per-provider emoji so each row has a visual anchor that reflects
@@ -884,7 +900,7 @@ function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineSt
   const nameSeg = `${icon} ${BOLD}${sub.label}${RESET}`;
   if (!u) {
     const left = `${nameSeg} ${DIM}— no usage data${RESET}`;
-    return boxLine(pos, left, '', width);
+    return flat ? flatLine(left, '', width) : boxLine(pos, left, '', width);
   }
   // Pace pill (uses same colour semantics as v5.4 subscription pill)
   const pctNum = Math.round(u.used_pct || 0);
@@ -919,12 +935,12 @@ function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineSt
   const left = leftParts.join(sep);
   // Right anchor: rec badge if this sub triggered it, else a pace dot
   const right = recBadge || `${paceColor}●${RESET}`;
-  return boxLine(pos, left, right, width);
+  return flat ? flatLine(left, right, width) : boxLine(pos, left, right, width);
 }
 
 // v6.2 — local layer row. Shows Ollama/T0 routing share, latency, and $0
 // cost. Right anchors a "mooter win" badge when local share > 50%.
-function renderLocalRow(counts, metrics, width, pos, sepStr) {
+function renderLocalRow(counts, metrics, width, pos, sepStr, flat) {
   const sep = sepStr || ` ${DIM}·${RESET} `;
   const total = counts && counts.total ? counts.total : 0;
   const share = total > 0 ? Math.round(((counts.local || 0) / total) * 100) : 0;
@@ -945,7 +961,7 @@ function renderLocalRow(counts, metrics, width, pos, sepStr) {
   const leftParts = [nameSeg, sharePill, modelPill, latPill, costPill].filter(Boolean);
   const left = leftParts.join(sep);
   const right = share >= 50 ? `${BRAND}${BOLD}🐮 mooter win${RESET}` : '';
-  return boxLine(pos, left, right, width);
+  return flat ? flatLine(left, right, width) : boxLine(pos, left, right, width);
 }
 
 // Health indicator — mascot-coloured dot + matching text (no bg pill: we want
@@ -1613,7 +1629,10 @@ function buildStatusline(data) {
   // last-prompt tierBadge. Filled width = ctxPct; colours within filled
   // portion = tier share of routing (T0=rose=mooter win). At a glance
   // the user sees both HOW FULL and HOW MUCH was local.
-  const tierCountsEarly = realExecutionCounts(session) || { total: 0 };
+  // v6.7 — fall back to cumulative execution.log counts when the current
+  // session has 0 calls (fresh terminal). Otherwise L1 stays empty of tier
+  // badges and ctx-tier-bar until the user runs a prompt — feels broken.
+  const tierCountsEarly = realExecutionCounts(session) || realExecutionCounts(null) || { total: 0 };
 
   // v6.3 — tier legend: coloured dots naming WHICH tiers ran in this terminal
   // session, with % share. Renders only tiers with >0 counts (compact). This
@@ -1786,12 +1805,63 @@ function buildStatusline(data) {
     extras.push({ prio: 5, str: `🦙 ${sc}${BOLD}${share}%${RESET}` });
   }
 
-  // v6.6 — MOOTER_FORCE_MULTILINE opt-in for the mooter-dashboard.js
-  // companion process. Claude Code itself still clips to 1 line, but the
-  // separate dashboard window CAN render multi-line. When the dashboard
-  // calls this script with MOOTER_FORCE_MULTILINE=1, bypass the single-
-  // line pack and return the full layered dashboard.
-  if (process.env.MOOTER_FORCE_MULTILINE === '1') {
+  // PROBE — discriminative tests for Claude Code's in-prompt multi-line
+  // statusline limits. Each probe isolates one variable:
+  //   MOOTER_PROBE=1 → 4 lines, ASCII only, no ANSI, no padding (control)
+  //   MOOTER_PROBE=2 → 4 lines, 1-colour ANSI (cyan), ASCII text
+  //   MOOTER_PROBE=3 → 4 lines, ANSI + block chars (█ ▓ ░ ●)
+  //   MOOTER_PROBE=4 → 4 lines, dense RGB ANSI + BOLD + DIM (v6.7-grade)
+  //   MOOTER_PROBE=5 → 4 lines, ASCII only, with right-side padding (~80 cols)
+  // First failing probe tells us which variable kills multi-line rendering.
+  if (process.env.MOOTER_PROBE) {
+    const C = '\x1B[36m', R = '\x1B[0m', B = '\x1B[1m', D = '\x1B[2m';
+    const RGB = '\x1B[38;2;194;95;101m', GR = '\x1B[38;2;50;220;120m';
+    const probe = process.env.MOOTER_PROBE;
+    if (probe === '1') return ['probe1 line A', 'probe1 line B', 'probe1 line C', 'probe1 line D'].join('\n');
+    if (probe === '2') return [`${C}probe2${R} line A`, `${C}probe2${R} line B`, `${C}probe2${R} line C`, `${C}probe2${R} line D`].join('\n');
+    if (probe === '3') return [`${C}probe3${R} ████ ●●●`, `▓▓▓▓ ░░░░ ●●●`, `▁▂▃▄▅▆▇ test`, `${C}line D${R}`].join('\n');
+    if (probe === '4') return [
+      `${RGB}${B}probe4${R} ${D}·${R} ${GR}${B}$1.68${R} ${D}·${R} ${B}T3 100%${R} ${D}·${R} ${RGB}cycle d19/30${R}`,
+      `${RGB}${B}🐮${R} ${D}saved${R} ${GR}${B}$1.68${R} ${D}·${R} ${D}spent${R} ${B}$0.18${R}`,
+      `🧠 ${B}Claude Max${R} ${D}·${R} ${GR}${B}21%↓${R} ${D}·${R} ${D}5h${R} ${B}49%${R}`,
+      `🦙 ${B}Ollama${R} ${D}·${R} ${GR}${B}50%${R} ${D}routing${R}`,
+    ].join('\n');
+    if (probe === '5') {
+      const pad = ' '.repeat(40);
+      return [
+        `probe5 line A${pad}right A`,
+        `probe5 line B${pad}right B`,
+        `probe5 line C${pad}right C`,
+        `probe5 line D${pad}right D`,
+      ].join('\n');
+    }
+    if (probe === '6') {
+      const fill = '-'.repeat(20); // ASCII hyphen filler (width 1 guaranteed)
+      return [
+        `probe6 line A ${fill} right A`,
+        `probe6 line B ${fill} right B`,
+        `probe6 line C ${fill} right C`,
+        `probe6 line D ${fill} right D`,
+      ].join('\n');
+    }
+    if (probe === '7') {
+      const fill = '·'.repeat(20); // U+00B7 middle dot (Latin-1, width 1)
+      return [
+        `probe7 line A ${fill} right A`,
+        `probe7 line B ${fill} right B`,
+        `probe7 line C ${fill} right C`,
+        `probe7 line D ${fill} right D`,
+      ].join('\n');
+    }
+  }
+
+  // v6.7 dispatch:
+  //   MOOTER_FORCE_MULTILINE=1 → boxed multi-line (mooter-dashboard.js
+  //     external pane — owns its terminal, can render full ╭╮├┤╰╯ frame).
+  //   MOOTER_MODE=1            → flat multi-line (in-prompt statusline,
+  //     same content/alignment but no corner glyphs that broke Claude
+  //     Code's parser; '─' fillers proven safe).
+  if (process.env.MOOTER_FORCE_MULTILINE === '1' || process.env.MOOTER_MODE === '1') {
     const tierCounts = realExecutionCounts(session) || { total: 0 };
     return renderMultiLine({
       width: termW,
@@ -1808,6 +1878,7 @@ function buildStatusline(data) {
       tierCounts,
       savings,
       spentStr,
+      flat: process.env.MOOTER_MODE === '1' && process.env.MOOTER_FORCE_MULTILINE !== '1',
     });
   }
 
@@ -1835,8 +1906,13 @@ function buildStatusline(data) {
 // count scales with the user's profile — 1 sub = 4 rows, 3 subs = 6 rows.
 function renderMultiLine({
   width, mandatory, savingsCore, healthCore, sep, metrics, session,
-  subscriptions, usageData, routerMode, cycle, tierCounts, savings, spentStr
+  subscriptions, usageData, routerMode, cycle, tierCounts, savings, spentStr,
+  flat
 }) {
+  // v6.7 — when flat=true, swap boxLine() for flatLine(): same content,
+  // same alignment, same '─' filler — but no corner glyphs (╭╮├┤╰╯) that
+  // confuse Claude Code's in-prompt statusline parser.
+  const _row = (pos, l, r) => flat ? flatLine(l, r, width) : boxLine(pos, l, r, width);
   const FRAME = 6;
 
   // --- L1 Identity -----------------------------------------------------
@@ -1845,7 +1921,7 @@ function renderMultiLine({
   const cycleColor = cycle.progressPct >= 90 ? DANGER : cycle.progressPct >= 75 ? WARN : DIM;
   const cyclePill = `${DIM}cycle${RESET} ${cycleColor}${BOLD}d${cycle.day}/${cycle.lastDay}${RESET}`;
   const l1Left = mandatory.join(sep);
-  const l1 = boxLine('top', l1Left, cyclePill, width);
+  const l1 = _row('top', l1Left, cyclePill);
 
   // --- L2 Savings ------------------------------------------------------
   // Clarified copy — explicitly says what was saved vs spent. Reads left
@@ -1869,7 +1945,7 @@ function renderMultiLine({
     effPart = `${ec}${BOLD}${t0share}%${RESET} ${DIM}local${RESET}`;
   }
   const l2Left = [savedHero, spentPart, promptsPart, effPart].filter(Boolean).join(sep);
-  const l2 = boxLine('mid', l2Left, healthCore || '', width);
+  const l2 = _row('mid', l2Left, healthCore || '');
 
   // --- L3..Ln One row per paid subscription ----------------------------
   // Sparkline belongs to Anthropic in the current tracker; passed through
@@ -1897,7 +1973,7 @@ function renderMultiLine({
     const hasUsage = usageData && usageData.usage && usageData.usage[sub.providerKey];
     const rec = hasUsage && idx === 0 ? recBadge : '';   // attach rec to first provider w/ usage
     const spark = sub.providerKey === 'anthropic' ? sparkline : '';
-    return renderSubscriptionRow(sub, usageData, width, 'mid', rec, spark, sep);
+    return renderSubscriptionRow(sub, usageData, width, 'mid', rec, spark, sep, flat);
   });
 
   // --- Final row: Ollama local layer -----------------------------------
@@ -1905,7 +1981,7 @@ function renderMultiLine({
   // on a fresh session with zero T0 calls).
   let localRow = null;
   if (tierCounts && (tierCounts.local || 0) > 0) {
-    localRow = renderLocalRow(tierCounts, metrics, width, 'bottom', sep);
+    localRow = renderLocalRow(tierCounts, metrics, width, 'bottom', sep, flat);
   }
 
   // Assemble — last row uses 'bottom' corner, rest of mid rows stay 'mid'.
@@ -1921,10 +1997,10 @@ function renderMultiLine({
       const hasUsage = usageData && usageData.usage && usageData.usage[lastSub.providerKey];
       const rec = hasUsage && subscriptions.length === 1 ? recBadge : '';
       const spark = lastSub.providerKey === 'anthropic' ? sparkline : '';
-      rows[lastIdx] = renderSubscriptionRow(lastSub, usageData, width, 'bottom', rec, spark, sep);
+      rows[lastIdx] = renderSubscriptionRow(lastSub, usageData, width, 'bottom', rec, spark, sep, flat);
     } else {
       // No subs at all — L2 becomes the bottom.
-      rows[lastIdx] = boxLine('bottom', l2Left, healthCore || '', width);
+      rows[lastIdx] = _row('bottom', l2Left, healthCore || '');
     }
   }
 

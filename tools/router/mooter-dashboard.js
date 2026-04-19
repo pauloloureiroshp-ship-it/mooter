@@ -83,8 +83,9 @@ function renderOnce() {
   const hint  = `${DIM}refresh every ${(REFRESH_MS / 1000).toFixed(0)}s · Ctrl+C to close${RESET}`;
   const stamp = `${DIM}updated ${ts}${RESET}`;
 
-  // Clear screen + move cursor home.
-  process.stdout.write('\x1B[2J\x1B[H');
+  // Clear screen + scrollback + move cursor home.
+  // [3J wipes scrollback (Windows Terminal keeps history otherwise → append effect).
+  process.stdout.write('\x1B[3J\x1B[2J\x1B[H');
   process.stdout.write(`${title}   ${hint}   ${stamp}\n\n`);
 
   if (!dashboard) {
