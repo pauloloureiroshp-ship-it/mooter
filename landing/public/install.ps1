@@ -62,16 +62,21 @@ if ($MyInvocation.MyCommand.Path) {
     $SrcDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 if (-not $SrcDir -or -not (Test-Path (Join-Path $SrcDir "tools\router\classify.js"))) {
-    Say "Running from irm pipe - downloading mooter source..."
-    $tmp = Join-Path $env:TEMP ("mooter-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Fail "git not found - install git first (winget install Git.Git) or download the tarball from mooter.ai"
-        exit 3
-    }
-    DoRun "git clone mooter" {
-        & git clone --depth 1 --quiet https://github.com/paulo-loureiro/mooter.git $tmp
-    }
-    $SrcDir = $tmp
+    Write-Host ""
+    Write-Host "  mooter is currently in private friends-beta." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  To install:"
+    Write-Host "    1. Request access: " -NoNewline
+    Write-Host "https://mooter.ai" -ForegroundColor White -NoNewline
+    Write-Host " (or email paulo@mooter.ai)"
+    Write-Host "    2. Once invited, clone the repo and run this script locally:"
+    Write-Host "       git clone <your-invite-url> mooter" -ForegroundColor White
+    Write-Host "       cd mooter; .\install.ps1" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  The public one-liner (irm | iex) will light up when v1.0 ships" -ForegroundColor DarkGray
+    Write-Host "  with signed tarballs. Follow along at mooter.ai." -ForegroundColor DarkGray
+    Write-Host ""
+    exit 0
 }
 
 # -- Version --------------------------------------------------------------

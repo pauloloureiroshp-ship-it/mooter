@@ -67,15 +67,21 @@ else
 fi
 
 if [ ! -f "$SRC_DIR/tools/router/classify.js" ]; then
-  say "Running from curl pipe — downloading mooter source..."
-  TMP_DIR="$(mktemp -d)"
-  if command -v git >/dev/null 2>&1; then
-    do_run "git clone --depth 1 --quiet https://github.com/paulo-loureiro/mooter.git '$TMP_DIR'"
-  else
-    fail "git not found — install git first or download the tarball manually from mooter.ai"
-    exit 3
-  fi
-  SRC_DIR="$TMP_DIR"
+  cat <<MSG
+
+  ${C3}mooter is currently in private friends-beta.${CR}
+
+  To install:
+    1. Request access: ${CB}https://mooter.ai${CR} (or email paulo@mooter.ai)
+    2. Once invited, clone the repo and run this script locally:
+       ${CB}git clone <your-invite-url> mooter${CR}
+       ${CB}cd mooter && bash install.sh${CR}
+
+  The public one-liner (${CD}curl | bash${CR}) will light up when
+  v1.0 ships with signed tarballs. Follow along at mooter.ai.
+
+MSG
+  exit 0
 fi
 
 VERSION="$(node -e "console.log(require('$SRC_DIR/tools/router/version.json').version)" 2>/dev/null || echo "0.10.0")"

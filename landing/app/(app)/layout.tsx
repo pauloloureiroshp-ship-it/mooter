@@ -469,7 +469,7 @@ function LoginStatuslinePreview() {
         padding: '18px 16px',
         fontSize: 12, lineHeight: 1.7, color: 'var(--text-2)',
       }}>
-        <div style={{ color: 'var(--muted)' }}>$ claude &quot;fix the login button&quot;</div>
+        <div style={{ color: 'var(--muted)' }}>$ mooter &quot;fix the login button&quot;</div>
         <div>
           <span style={{ color: 'var(--muted)' }}>  ├─ classify</span>{' '}
           <span style={{ color: 'var(--green)' }}>8ms</span>{' '}

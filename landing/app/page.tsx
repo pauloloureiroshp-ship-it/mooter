@@ -801,7 +801,7 @@ function StatuslineSection() {
             </div>
 
             <div className="sl-convo">
-              <div className="sl-convo-line muted">$ claude &quot;refactor the auth middleware for session tokens&quot;</div>
+              <div className="sl-convo-line muted">$ mooter &quot;refactor the auth middleware for session tokens&quot;</div>
               <div className="sl-convo-line">
                 <span className="sl-convo-prompt">▸</span> working in <span style={{ color: '#F2ECDF' }}>lib/auth/middleware.ts</span>…
               </div>
@@ -1186,13 +1186,13 @@ function CompareSection() {
  * ----------------------------------------------------------------- */
 
 const INSTALL_BASH =
-  'bash <(curl -fsSL https://mooter.ai/install.sh)';
-const INSTALL_NPM = 'npx @mooter/cli install';
+  'curl -fsSL https://mooter.ai/install.sh | bash';
+const INSTALL_PS = 'irm https://mooter.ai/install.ps1 | iex';
 
 function InstallSection() {
-  const [tab, setTab] = useState<'bash' | 'npm'>('bash');
+  const [tab, setTab] = useState<'bash' | 'ps'>('bash');
   const [copied, setCopied] = useState(false);
-  const cmd = tab === 'bash' ? INSTALL_BASH : INSTALL_NPM;
+  const cmd = tab === 'bash' ? INSTALL_BASH : INSTALL_PS;
 
   const copy = () => {
     navigator.clipboard?.writeText(cmd);
@@ -1225,16 +1225,18 @@ function InstallSection() {
                     <polyline points="4 17 10 11 4 5" />
                     <line x1="12" y1="19" x2="20" y2="19" />
                   </svg>
-                  bash
+                  macOS / Linux
                 </button>
                 <button
-                  className={`tab ${tab === 'npm' ? 'active' : ''}`}
-                  onClick={() => setTab('npm')}
+                  className={`tab ${tab === 'ps' ? 'active' : ''}`}
+                  onClick={() => setTab('ps')}
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M0 10V0h24v10H12v2H7v-2zM1 9h3V2H2v6h1v1zm6-7v9h2V3h2v6h1V2zm7 0v7h3V3h1v6h1V2z" />
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <polyline points="7 10 11 14 7 18" />
+                    <line x1="13" y1="18" x2="17" y2="18" />
                   </svg>
-                  npm
+                  Windows
                 </button>
               </div>
               <div className="install-code">
@@ -1242,7 +1244,7 @@ function InstallSection() {
                 <span style={{ color: '#6FB28C' }}>$</span> {cmd}
               </div>
               <div className="install-req">
-                Requires Node.js ≥18 · Claude Code · {tab === 'bash' ? 'curl' : 'npm'}
+                Requires Node.js ≥18 · Claude Code · {tab === 'bash' ? 'curl' : 'PowerShell 5.1+'}
               </div>
               <div className="install-chips">
                 <span className="install-chip label">Works on</span>

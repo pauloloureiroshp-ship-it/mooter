@@ -20,7 +20,7 @@ function run() {
   console.log('  Claude Code is invoked with MOOTER_MODE=1 — routing runs in the background.');
   console.log('');
   console.log(`  ${color.dim('Docs:  https://mooter.ai')}`);
-  console.log(`  ${color.dim('Issues: https://github.com/paulo-loureiro/mooter/issues')}`);
+  console.log(`  ${color.dim('Issues: paulo@mooter.ai (private friends-beta)')}`);
   console.log('');
 }
 
