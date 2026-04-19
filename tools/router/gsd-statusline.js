@@ -273,11 +273,21 @@ function boxLine(pos, leftContent, rightContent, width) {
   return `${BRAND}${c.open}─${RESET} ${left}${BRAND}${fill}${RESET}${right} ${BRAND}─${c.close}${RESET}`;
 }
 
-// v6.7 — flat row for in-prompt statusline. left ----- right with ASCII
-// hyphen filler in BRAND rose. Probe 6 confirmed '-' renders multi-line
-// reliably; probe 7 confirmed '·' too. The '─' (U+2500) box-drawing char
-// kills multi-line in Claude Code's parser (wide-char width-calc overflow).
+// v6.8 — flat row for in-prompt statusline. left ═════ right with
+// U+2550 DOUBLE HORIZONTAL filler in BRAND rose. Probe results (session
+// #32, commit 76eca09):
+//   ✅ probe 6  — '-' ASCII hyphen (baseline, kept as fallback)
+//   ✅ probe 7  — '·' middle dot (U+00B7)
+//   ✅ probe 8  — ASCII pseudo-corners +---
+//   ✅ probe 9  — '═' (U+2550) — CHOSEN: dense look, same block as '─'
+//   ✅ probe 10 — '▁' lower one eighth block
+//   ✅ probe 11 — '-' + single close-corners ╮┤╯
+//   ✅ probe 12 — no filler, trailing \n
+//   ❌ '─' (U+2500 LIGHT HORIZONTAL) — kills multi-line; East Asian
+//      Width ambiguous. U+2550 ('═') does NOT share this pathology.
 // Width capped to 90 cols to survive narrow VS Code terminals (~100 cols).
+// Override with MOOTER_FILLER env (any single char) to experiment without
+// redeploying — e.g. MOOTER_FILLER='-' to restore v6.7 look.
 function flatLine(leftContent, rightContent, width) {
   if (!rightContent) return leftContent || '';
   if (!leftContent)  return rightContent;
@@ -285,7 +295,8 @@ function flatLine(leftContent, rightContent, width) {
   const rightLen  = stripAnsi(rightContent).length;
   const safeWidth = Math.min(width || 100, 90);
   const fillLen   = Math.max(2, safeWidth - leftLen - rightLen - 2);
-  const fill      = `${BRAND}${'-'.repeat(fillLen)}${RESET}`;
+  const fillChar  = process.env.MOOTER_FILLER || '═';
+  const fill      = `${BRAND}${fillChar.repeat(fillLen)}${RESET}`;
   return `${leftContent} ${fill} ${rightContent}`;
 }
 
@@ -1813,127 +1824,28 @@ function buildStatusline(data) {
     extras.push({ prio: 5, str: `🦙 ${sc}${BOLD}${share}%${RESET}` });
   }
 
-  // PROBE — discriminative tests for Claude Code's in-prompt multi-line
-  // statusline limits. Each probe isolates one variable:
-  //   MOOTER_PROBE=1 → 4 lines, ASCII only, no ANSI, no padding (control)
-  //   MOOTER_PROBE=2 → 4 lines, 1-colour ANSI (cyan), ASCII text
-  //   MOOTER_PROBE=3 → 4 lines, ANSI + block chars (█ ▓ ░ ●)
-  //   MOOTER_PROBE=4 → 4 lines, dense RGB ANSI + BOLD + DIM (v6.7-grade)
-  //   MOOTER_PROBE=5 → 4 lines, ASCII only, with right-side padding (~80 cols)
-  //   MOOTER_PROBE=6 → 4 lines, ASCII '-' filler (confirmed ✅ renders)
-  //   MOOTER_PROBE=7 → 4 lines, U+00B7 middle-dot '·' filler (confirmed ✅)
-  //   MOOTER_PROBE=8 → 4 lines, ASCII pseudo-corners '+--- … ---+' (v6.8 agenda)
-  //   MOOTER_PROBE=9 → 4 lines, U+2550 '═' DOUBLE HORIZONTAL filler
-  //   MOOTER_PROBE=10 → 4 lines, U+2581 '▁' LOWER ONE EIGHTH BLOCK filler
-  //   MOOTER_PROBE=11 → 4 lines, ASCII '-' filler + U+256E/2524/256F close-corners only
-  //   MOOTER_PROBE=12 → 4 lines, NO filler but explicit trailing '\n' per row
-  // First failing probe tells us which variable kills multi-line rendering.
+  // PROBE escape hatch — kept as machinery for future in-prompt parser
+  // experiments. Probes 1-12 landed the v6.7/v6.8 findings (see the
+  // flatLine header for the full ✅/❌ table) and have been removed from
+  // production code. If a future Claude Code release breaks rendering or
+  // you want to test a new glyph, wire a fresh probe here by adding a
+  // branch that returns a 4-line payload joined with '\n'. Invocation:
+  //   $env:MOOTER_PROBE='NAME'; claude   # in a fresh VS Code terminal
+  //
+  // Reminder — NEVER re-introduce '─' (U+2500) here or in flatLine
+  // without re-running a fresh probe first. It killed multi-line every
+  // time before v6.7 and is the reason this machinery exists.
   if (process.env.MOOTER_PROBE) {
-    const C = '\x1B[36m', R = '\x1B[0m', B = '\x1B[1m', D = '\x1B[2m';
-    const RGB = '\x1B[38;2;194;95;101m', GR = '\x1B[38;2;50;220;120m';
-    const probe = process.env.MOOTER_PROBE;
-    if (probe === '1') return ['probe1 line A', 'probe1 line B', 'probe1 line C', 'probe1 line D'].join('\n');
-    if (probe === '2') return [`${C}probe2${R} line A`, `${C}probe2${R} line B`, `${C}probe2${R} line C`, `${C}probe2${R} line D`].join('\n');
-    if (probe === '3') return [`${C}probe3${R} ████ ●●●`, `▓▓▓▓ ░░░░ ●●●`, `▁▂▃▄▅▆▇ test`, `${C}line D${R}`].join('\n');
-    if (probe === '4') return [
-      `${RGB}${B}probe4${R} ${D}·${R} ${GR}${B}$1.68${R} ${D}·${R} ${B}T3 100%${R} ${D}·${R} ${RGB}cycle d19/30${R}`,
-      `${RGB}${B}🐮${R} ${D}saved${R} ${GR}${B}$1.68${R} ${D}·${R} ${D}spent${R} ${B}$0.18${R}`,
-      `🧠 ${B}Claude Max${R} ${D}·${R} ${GR}${B}21%↓${R} ${D}·${R} ${D}5h${R} ${B}49%${R}`,
-      `🦙 ${B}Ollama${R} ${D}·${R} ${GR}${B}50%${R} ${D}routing${R}`,
-    ].join('\n');
-    if (probe === '5') {
-      const pad = ' '.repeat(40);
-      return [
-        `probe5 line A${pad}right A`,
-        `probe5 line B${pad}right B`,
-        `probe5 line C${pad}right C`,
-        `probe5 line D${pad}right D`,
-      ].join('\n');
-    }
-    if (probe === '6') {
-      const fill = '-'.repeat(20); // ASCII hyphen filler (width 1 guaranteed)
-      return [
-        `probe6 line A ${fill} right A`,
-        `probe6 line B ${fill} right B`,
-        `probe6 line C ${fill} right C`,
-        `probe6 line D ${fill} right D`,
-      ].join('\n');
-    }
-    if (probe === '7') {
-      const fill = '·'.repeat(20); // U+00B7 middle dot (Latin-1, width 1)
-      return [
-        `probe7 line A ${fill} right A`,
-        `probe7 line B ${fill} right B`,
-        `probe7 line C ${fill} right C`,
-        `probe7 line D ${fill} right D`,
-      ].join('\n');
-    }
-    // v6.8 probe 8 — ASCII pseudo-corners. If Claude Code's parser is
-    // width-agnostic but Unicode-block-hostile, this is the cheapest box-look.
-    if (probe === '8') {
-      const f = '-'.repeat(16);
-      return [
-        `+--- probe8 line A ${f} right A ---+`,
-        `|--- probe8 line B ${f} right B ---|`,
-        `|--- probe8 line C ${f} right C ---|`,
-        `+--- probe8 line D ${f} right D ---+`,
-      ].join('\n');
-    }
-    // v6.8 probe 9 — U+2550 DOUBLE HORIZONTAL. Same Unicode block as '─';
-    // expected to fail if the parser's issue is with U+25xx wide-char width,
-    // but worth confirming vs a different codepoint.
-    if (probe === '9') {
-      const fill = '═'.repeat(20);
-      return [
-        `probe9 line A ${fill} right A`,
-        `probe9 line B ${fill} right B`,
-        `probe9 line C ${fill} right C`,
-        `probe9 line D ${fill} right D`,
-      ].join('\n');
-    }
-    // v6.8 probe 10 — U+2581 LOWER ONE EIGHTH BLOCK. Probe 3 already showed
-    // the full ▁▂▃▄▅▆▇ sparkline rendering inline; this isolates whether
-    // '▁' alone as filler survives repetition at length 20.
-    if (probe === '10') {
-      const fill = '▁'.repeat(20);
-      return [
-        `probe10 line A ${fill} right A`,
-        `probe10 line B ${fill} right B`,
-        `probe10 line C ${fill} right C`,
-        `probe10 line D ${fill} right D`,
-      ].join('\n');
-    }
-    // v6.8 probe 11 — asymmetric mix: ASCII '-' filler (safe) + single
-    // Unicode close-corner on the right. Tests whether a lone U+25xx glyph
-    // (not a repeated fill) survives the parser.
-    if (probe === '11') {
-      const f = '-'.repeat(20);
-      return [
-        `probe11 line A ${f} right A ╮`,
-        `probe11 line B ${f} right B ┤`,
-        `probe11 line C ${f} right C ┤`,
-        `probe11 line D ${f} right D ╯`,
-      ].join('\n');
-    }
-    // v6.8 probe 12 — no filler, but every row ends with explicit '\n'
-    // INCLUDING the last. Claims from commit b7f0ec3 said trailing \n was
-    // tested; re-verify under v6.7 dispatch conditions.
-    if (probe === '12') {
-      return [
-        'probe12 line A           right A\n',
-        'probe12 line B           right B\n',
-        'probe12 line C           right C\n',
-        'probe12 line D           right D\n',
-      ].join('');
-    }
+    // Intentionally empty — add experimental branches above this comment
+    // when needed. Leaving the `if` in place keeps the env-var contract.
   }
 
-  // v6.7 dispatch:
+  // v6.8 dispatch:
   //   MOOTER_FORCE_MULTILINE=1 → boxed multi-line (mooter-dashboard.js
-  //     external pane — owns its terminal, can render full ╭╮├┤╰╯ frame).
+  //     external pane — owns its terminal, can render full ╭╮├┤╰╯ frame
+  //     with '─' because the external pane is not Claude Code's parser).
   //   MOOTER_MODE=1            → flat multi-line (in-prompt statusline,
-  //     same content/alignment but no corner glyphs that broke Claude
-  //     Code's parser; '─' fillers proven safe).
+  //     '═' U+2550 filler — probe 9 proven. '─' U+2500 stays banned here.
   if (process.env.MOOTER_FORCE_MULTILINE === '1' || process.env.MOOTER_MODE === '1') {
     // v6.8 — same cumulative fallback as tierCountsEarly (line 1635). Without
     // this, a fresh terminal's renderMultiLine sees total=0 and the "0% local"
