@@ -211,8 +211,52 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-19 (Sessão #31 — Statusline v6.7 multi-line resurrected)
+**Última actualização Cowork:** 2026-04-19 (Sessão #33 — One-command install + mooter as native CLI)
 **Estado:** 🟢 Lido e parcialmente aplicado em sessão #25 (2026-04-17) — ver estado abaixo
+
+---
+
+### ✅ Sessão #33 — 2026-04-19 (One-command install + mooter como CLI nativo)
+
+**Âmbito:** transformar a instalação do mooter em "for dummies": um `curl | bash` ou `irm | iex` e 60 segundos depois `mooter` funciona em qualquer terminal. Motivação directa: Paulo teve install dolorosa no Mac e precisamos zero-friction antes de marketing público.
+
+**Análise prévia (4 research agents em paralelo):**
+1. Mapa do projecto — 114 scripts em `tools/router/`, deps reais, background services
+2. Claude Code install deep-dive — `~/.local/bin/claude` + zero admin + auto-update
+3. Benchmarks best-in-class — **uv venceu** como template (XDG-compliant, PowerShell simétrico)
+4. Landing audit — "not ready for public traffic": install enterrado na secção 5, sem OS toggle, 403 em mooter.ai
+
+**Commits (3 atómicos):**
+1. `b835128` — `feat(cli): new cross-platform mooter CLI binary` (683 linhas, 11 ficheiros em `tools/cli/`)
+2. `fe0e992` — `feat(install): streamlined one-liner installers (uv-style)` (install.sh -56%, install.ps1 -41%)
+3. `05d8192` — `feat(landing): hero install command block + refreshed install section`
+
+**Entregas:**
+- `mooter` como comando de shell nativo com 7 subcomandos: default (spawn claude), doctor (10 checks com fix), init (wizard), update, uninstall, dashboard, --version/--help
+- Install em `~/.local/bin/mooter` (XDG, zero admin em Mac/Win/Linux)
+- Windows PATH via .NET API (NUNCA `setx` — trunca a 1024 chars)
+- Mac/Linux env-file pattern (rustup-style, idempotente)
+- Ollama + API key opcionais (graceful degradation, nunca hard-fail)
+- Legacy preserved em `install-legacy.{sh,ps1}`
+- Landing: hero com install command + OS tabs (auto-detect via userAgent) + prereq explícito
+
+**Gotchas resolvidos:**
+- PowerShell 5.1 lê UTF-8 sem BOM como ANSI → install.ps1 é ASCII-only
+- `setx` Windows corrompe PATH → .NET API `SetEnvironmentVariable('Path', ..., [User])`
+- Pipe install (`curl | sh`) precisa de fonte → installer detecta e git-clone para temp dir
+- Hook registration duplicada nos 2 installers → factored out para `tools/cli/lib/register-hooks.js`
+
+**Smoke test local passou:** `node tools/cli/mooter.js doctor` → 9/10 ✓ + 1 ⚠ (ANTHROPIC_API_KEY opcional).
+
+**Pendentes (próxima sessão):**
+- Testar em VM Mac limpa + VM Windows 11 limpa (o gate real antes de marketing público)
+- Resolver 403 em mooter.ai (audit detectou o fetch falhar)
+- Fase 2 landing: statusline GIF no hero + GitHub stars badge + MIT badge + v0.10 badge
+- Distribuição tarball privada (R2) vs repo público stub — decisão pendente
+- Homebrew tap + WinGet manifest (Fase 3)
+- .exe signing para evitar SmartScreen
+
+**Página Notion:** [🚀 Sessão 2026-04-19 — One-command install](https://www.notion.so/3476f6e42bc48124a4dee39b75c514cb)
 
 ---
 
