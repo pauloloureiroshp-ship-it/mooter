@@ -866,7 +866,8 @@ function getRecentFlip() {
 function renderRightAnchor(savingsPct, metricsAvailable) {
   const flip = getRecentFlip();
   if (flip && flip.from && flip.to) {
-    return `${HEALTHY}${BOLD}🔄 → ${flip.to}${RESET}`;
+    const label = flip.to === 'beast' ? 'CrazyMoo' : flip.to === 'zen' ? 'LazyMoo' : flip.to;
+    return `${HEALTHY}${BOLD}🔄 → ${label}${RESET}`;
   }
   const warnings = collectWarnings(metricsAvailable);
   if (warnings.length) {
@@ -1339,23 +1340,34 @@ function buildStatusline(data) {
   const SEP = ` ${DIM}·${RESET} `;
   const sepLen = stripAnsi(SEP).length;
 
-  // Mandatory pills — always visible, budget-insensitive. Mode pill goes
-  // here (not in extras) because when beast/zen is active the user MUST
-  // see it, no matter how narrow the terminal is.
+  // v5.4 — mode badge rebrand to the mooter cow family.
+  //   beast → 🐂 CrazyMoo (bull = aggressive cow, all power)
+  //   zen   → 🐄 LazyMoo  (grazing cow = conserve, easy pace)
+  // Internal keys 'beast' / 'zen' stay unchanged for backwards compat
+  // with /mooter-beast, /mooter-zen, autopilot, etc.
   const modeBadge = routerMode.mode === 'beast'
-    ? `${DANGER}${BOLD}🦁 BEAST${RESET}`
+    ? `${DANGER}${BOLD}🐂 CrazyMoo${RESET}`
     : routerMode.mode === 'zen'
-      ? `${HEALTHY}${BOLD}🧘 ZEN${RESET}`
+      ? `${HEALTHY}${BOLD}🐄 LazyMoo${RESET}`
       : null;
+  // v5.4 — ctx % moved to mandatory. The user needs to see it ALL THE TIME
+  // to judge when to /compact or /clear — it can't drop out on narrow widths.
+  const ctxPill = (ctxPct !== null && ctxPct !== undefined) ? (() => {
+    const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
+    return `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}`;
+  })() : null;
+
   const A_mandatory = [
     `🐮 ${BRAND}${BOLD}mooter${RESET}`,
     modeBadge,
     tierBadge,
     `${BOLD}${modelShort}${RESET}`,
+    ctxPill,
   ].filter(Boolean);
+  // Drop the 'saved' word — the ↓ arrow + green $ already imply it.
   const savingsCore = savedStr
-    ? `${BOLD}${pct}%${arrow}${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}saved${RESET}`
-    : (savings?.promptCount ? `${DIM}${pct}% no savings yet${RESET}` : null);
+    ? `${BOLD}${pct}%${arrow}${RESET} ${GREEN}${BOLD}${savedStr}${RESET}`
+    : (savings?.promptCount ? `${DIM}${pct}% no savings${RESET}` : null);
   const healthCore = renderRightAnchor(pct, !!metrics);
 
   // Priority-ordered extras. v5.0 reorder emphasizes mooter as a
@@ -1414,27 +1426,41 @@ function buildStatusline(data) {
     extras.push({ prio: 3, str: pill });
   }
 
-  // Recommendation badge — actionable advice, stays prio 2 so it shows
-  // even when warnings occupy the right anchor. They're complementary:
-  // warnings flag problems, recommendations propose action.
+  // Recommendation badge — actionable advice, matches the CrazyMoo /
+  // LazyMoo nomenclature from the mode badge.
   if (usageData && usageData.recommendation) {
     const rec = usageData.recommendation.mode;
     const active = routerMode.mode;
     if (rec !== 'auto' && rec !== active) {
-      const icon = rec === 'beast' ? '🦁' : '🧘';
+      const icon  = rec === 'beast' ? '🐂' : '🐄';
+      const label = rec === 'beast' ? 'CrazyMoo' : 'LazyMoo';
       const color = rec === 'beast' ? WARN : HEALTHY;
-      extras.push({ prio: 2, str: `${color}${BOLD}→ ${icon} ${rec}?${RESET}` });
+      extras.push({ prio: 2, str: `${color}${BOLD}→ ${icon} ${label}?${RESET}` });
     }
   }
 
-  // Cycle pill with color semantics: late-month gets WARN tint so the user
-  // notices when they should be in beast mode (spend-down before reset).
-  const cycleColor = cycle.progressPct >= 75 ? WARN : cycle.progressPct >= 90 ? DANGER : DIM;
-  extras.push({ prio: 4, str: `${DIM}cycle${RESET} ${cycleColor}${BOLD}d${cycle.day}/${cycle.lastDay}${RESET}` });
+  // v5.4 — Mooter efficiency pill: T0 share (local routing = the win).
+  // The pill tells the user at a glance how much mooter saved vs paying
+  // for every prompt. rose=winning, gold=mixed, red=all-paid.
+  if (savings && savings.promptCount) {
+    const counts = realExecutionCounts(session);
+    if (counts && counts.total > 0) {
+      const t0share = Math.round(((counts.local || 0) / counts.total) * 100);
+      let effColor = DANGER;
+      if (t0share >= 60)      effColor = BRAND;
+      else if (t0share >= 30) effColor = WARN;
+      else                     effColor = DANGER;
+      extras.push({ prio: 4, str: `🐮 ${effColor}${BOLD}${t0share}%${RESET}` });
+    }
+  }
 
-  // v5.2 — 5h rolling window pill (crucial for Claude Max which enforces
-  // per-5h limits, not monthly ones). Shown when any provider has rolling
-  // data. Color-coded by pace_ratio (how hot is this window vs linear pace).
+  // ctx moved to mandatory pills (always visible) — no extras entry.
+
+  // Cycle pill — late-month tint flags when to consider CrazyMoo.
+  const cycleColor = cycle.progressPct >= 75 ? WARN : cycle.progressPct >= 90 ? DANGER : DIM;
+  extras.push({ prio: 6, str: `${DIM}cycle${RESET} ${cycleColor}${BOLD}d${cycle.day}/${cycle.lastDay}${RESET}` });
+
+  // 5h rolling window pill (crucial for Claude Max enforcement).
   if (usageData && usageData.usage) {
     const firstProvider = Object.keys(usageData.usage)[0];
     const r5h = firstProvider && usageData.usage[firstProvider].rolling_5h;
@@ -1445,28 +1471,23 @@ function buildStatusline(data) {
       else if (r5h.pace_ratio > 1.3) c5 = WARN;
       else if (r5h.pace_ratio > 0.8) c5 = DIM;
       else                            c5 = HEALTHY;
-      extras.push({ prio: 5, str: `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET}` });
+      extras.push({ prio: 7, str: `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET}` });
     }
   }
 
-  // v5.2 — 7-day burn sparkline (visual trend). Only when sparkline data
-  // is available AND has non-zero activity. Very compact (7 chars).
+  // 7-day burn sparkline (visual trend).
   if (usageData && usageData.sparkline && usageData.sparkline.peak > 0) {
-    extras.push({ prio: 6, str: `${BRAND}${usageData.sparkline.spark}${RESET}` });
+    extras.push({ prio: 8, str: `${BRAND}${usageData.sparkline.spark}${RESET}` });
   }
 
-  if (spentStr) extras.push({ prio: 7, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
-  if (savings?.promptCount) extras.push({ prio: 8, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
-  if (ctxPct !== null) {
-    const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
-    extras.push({ prio: 9, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
-  }
-  if (latency) extras.push({ prio: 10, str: latency });
-  if (providers) extras.push({ prio: 11, str: providers });
+  if (spentStr) extras.push({ prio: 9, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
+  if (savings?.promptCount) extras.push({ prio: 10, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
+  if (latency) extras.push({ prio: 11, str: latency });
+  if (providers) extras.push({ prio: 12, str: providers });
   if (metrics && metrics.option_a_hits != null && metrics.option_a_hits > 0) {
-    extras.push({ prio: 12, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
+    extras.push({ prio: 13, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
   }
-  if (version && version.version) extras.push({ prio: 13, str: `${DIM}v${version.version}${RESET}` });
+  if (version && version.version) extras.push({ prio: 14, str: `${DIM}v${version.version}${RESET}` });
 
   // Measure budget and add extras while we have room.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
@@ -1481,7 +1502,11 @@ function buildStatusline(data) {
   const addedExtras = [];
   for (const e of sorted) {
     const needed = sepLen + stripAnsi(e.str).length;
-    if (visible + needed > budget) break;
+    // v5.4 — use `continue` (not `break`): if a bigger pill doesn't
+    // fit, keep trying smaller-sized pills further down the list. This
+    // rescues important small pills (ctx, efficiency) when a large
+    // pill (plan pill with %) blocks them.
+    if (visible + needed > budget) continue;
     addedExtras.push(e.str);
     visible += needed;
   }
