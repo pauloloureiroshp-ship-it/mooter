@@ -1177,13 +1177,13 @@ function buildStatusline(data) {
   // Compact bar (8 chars) — visual spine of the distribution.
   let compactBar = '';
   try {
-    const b = renderDistributionBar(metrics, session, 10);
+    const b = renderDistributionBar(metrics, session, 8);
     if (b) compactBar = b;
   } catch {}
 
-  // Build priority buckets. We'll assemble left-to-right, dropping lower-priority
-  // fragments if the total visible width would exceed termW.
-  const SEP = `  ${DIM}·${RESET}  `;
+  // Tight separator — every char counts in a single-line statusline.
+  // ` · ` (3 chars) vs the old `  ·  ` (5) frees ~14 chars across 7 pills.
+  const SEP = ` ${DIM}·${RESET} `;
   const sepLen = stripAnsi(SEP).length;
 
   const A_mandatory = [
@@ -1216,10 +1216,11 @@ function buildStatusline(data) {
   // Measure budget and add extras while we have room.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
   let visible = stripAnsi(mandatory.join(SEP)).length;
-  // Claude Code reserves space on the right for its own footer decorations
-  // (keyboard hints, token counter). Leaving ~30 chars headroom prevents the
-  // "…" truncation we saw on real renders.
-  const budget = Math.max(40, termW - 30);
+  // Claude Code reserves some right-edge space for keyboard hints/token
+  // counter. 22 chars headroom is empirically safe (measured against actual
+  // render at 120-col typical terminal) — tighter than -30 so ctx+latency
+  // pills survive more often.
+  const budget = Math.max(40, termW - 22);
 
   const sorted = extras.sort((a, b) => a.prio - b.prio);
   const addedExtras = [];
