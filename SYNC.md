@@ -258,6 +258,32 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 **Página Notion:** [🚀 Sessão 2026-04-19 — One-command install](https://www.notion.so/3476f6e42bc48124a4dee39b75c514cb)
 
+**Addendum — audit + simulação + npm rewire (+5 commits):**
+
+Depois da entrega inicial fez-se audit completo da landing + simulação end-to-end + ship dos loose ends:
+
+- `995e9b1` — `fix(install): audit findings` (fix crítico do `git clone` de repo inexistente → agora imprime friends-beta message; fix do footer github URL; `< 5 min setup` → `60-second install`; demos `$ claude` → `$ mooter`)
+- `8e523e2` — `chore(npm): rewire @mooter/cli stub for friends-beta reality` (`@mooter/cli@0.0.1` está publicado no npm; package bumped para 0.0.2 com URLs correctas + index.js imprime access message = paridade com install.sh pipe)
+- `feba86f` — `test(install): regression smoke test + fix PS1 DryRun honesty` (tests/install-smoke.sh + README; fix do `[OK] PATH updated` false message em dry-run)
+
+**Simulação Docker passou 100%** em fresh Linux container:
+- Prereq gate (sem Claude Code → exit 3 friendly)
+- Happy path (91 scripts router + 5 hooks + settings.json merge + device.id + shell profile injection)
+- Friends-beta pipe path (zero disk writes)
+- `mooter` commands (version/help/doctor/default/uninstall)
+
+**PowerShell DryRun** validou parsing + detecção do ambiente real do Paulo.
+
+### 🚨 ACÇÕES URGENTES para Paulo (bloqueiam marketing público)
+
+1. **`mooter.ai/install.ps1` devolve 404 em produção.** O hero da landing promete `irm https://mooter.ai/install.ps1 | iex` mas o ficheiro não está deployed — só o legacy `install-windows.ps1` está. **Fix**: `git push` + redeploy do `landing/` (Vercel) OU `mooter-landing/` estático, conforme qual está a servir mooter.ai. Verificar em Vercel dashboard.
+
+2. **Verificar qual landing está deployed** em mooter.ai: `landing/` (Next.js) ou `mooter-landing/` (HTML estático). Ambos têm os ficheiros novos, mas só um está live. Alinhar os dois ou desativar o que não é canónico para evitar deploys contraditórios.
+
+3. **`npm publish` do novo `@mooter/cli@0.0.2`** quando pronto — `cd mooter-package && npm publish`. Até lá, `npx @mooter/cli` ainda puxa o v0.0.1 antigo com URLs quebradas.
+
+4. **Pendente da sessão original**: testar em VM Mac limpa + Windows 11 limpa. Docker proxia Linux mas Mac tem `launchctl` + `sysctl hw.memsize` (paths Darwin não exercitados).
+
 ---
 
 ### ✅ Sessão #32 — 2026-04-19 (Statusline v6.8 — ═ filler + coherence audit)
