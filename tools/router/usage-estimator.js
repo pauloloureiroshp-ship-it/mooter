@@ -154,6 +154,9 @@ function computeSubscriptionUsage(nowOverride) {
       cost_usd:     0,
       call_count:   0,
       cycle,
+      // Rolling 5h window — critical for Claude Max which enforces ~225
+      // Opus prompts / 5h. Monthly budget alone doesn't reflect this.
+      rolling_5h: { cost_usd: 0, call_count: 0, window_start_ms: now.getTime() - (5 * 3600 * 1000) },
     };
   }
 
@@ -182,11 +185,18 @@ function computeSubscriptionUsage(nowOverride) {
       if (!ts) continue;
       const provider = inferProvider(d.recommended_backend, d.tier);
       if (!usage[provider]) continue; // local has no budget entry
-      if (ts < usage[provider].cycle.start_ms) continue;
-      if (ts > usage[provider].cycle.end_ms)   continue;
       const promptLen = d.prompt_len || d.prompt_length || 200;
-      usage[provider].cost_usd += pricing.estimateTurnCost(d.tier, promptLen);
-      usage[provider].call_count++;
+      const turnCost = pricing.estimateTurnCost(d.tier, promptLen);
+      // Monthly cycle window
+      if (ts >= usage[provider].cycle.start_ms && ts <= usage[provider].cycle.end_ms) {
+        usage[provider].cost_usd += turnCost;
+        usage[provider].call_count++;
+      }
+      // Rolling 5h window (critical for Claude Max limits)
+      if (ts >= usage[provider].rolling_5h.window_start_ms) {
+        usage[provider].rolling_5h.cost_usd += turnCost;
+        usage[provider].rolling_5h.call_count++;
+      }
     }
   } catch { /* non-fatal */ }
 
@@ -197,14 +207,26 @@ function finalize(usage) {
   for (const p in usage) {
     const u = usage[p];
     u.used_pct = u.budget_usd > 0 ? (u.cost_usd / u.budget_usd) * 100 : 0;
-    // Projection: if we keep current pace for the rest of the cycle,
-    // where will we land? > 100% means on pace to exceed budget.
     u.projected_pct = u.cycle.progress_pct > 0
       ? u.used_pct / (u.cycle.progress_pct / 100)
       : 0;
-    // Ratio relative to cycle: >1 = spending faster than the cycle progresses
     u.pace_ratio = u.cycle.progress_pct > 0
       ? u.used_pct / u.cycle.progress_pct
+      : 0;
+
+    // 5h rolling: Anthropic Max soft-caps ~$8 USD-equiv of Opus-tier
+    // work per 5h window (~225 Opus prompts × ~$0.035). For a monthly
+    // budget of $200, that's 200/30/24*5 ≈ $1.39 as the "linear pace"
+    // budget for any 5h window. If the user is burning through that
+    // faster, the rolling window flags it before monthly projection does.
+    const linearPace5hBudget = u.budget_usd * (5 / (24 * u.cycle.length_days));
+    u.rolling_5h.budget_usd = linearPace5hBudget;
+    u.rolling_5h.used_pct = linearPace5hBudget > 0
+      ? (u.rolling_5h.cost_usd / linearPace5hBudget) * 100
+      : 0;
+    // Pace arrow for 5h: is this window running hot vs the user's average pace?
+    u.rolling_5h.pace_ratio = linearPace5hBudget > 0
+      ? u.rolling_5h.cost_usd / linearPace5hBudget
       : 0;
   }
   return usage;
@@ -213,15 +235,28 @@ function finalize(usage) {
 // Recommendation: given aggregated usage, should the user flip to
 // beast (burn unused budget before reset) or zen (conserve)?
 //
-// Heuristic:
-//   projected > 130%           → zen   (on pace to blow budget)
-//   projected <  70% & day>60% → beast (under-using, cycle ending)
-//   else                        → auto
+// Hierarchy (first match wins):
+//   1. ANY provider rolling_5h > 200%  → zen (burst spike, throttle now)
+//   2. Monthly projection > 130%       → zen (on pace to exceed)
+//   3. Monthly projection < 70% & cycle > 60% → beast (under-using)
+//   4. Otherwise                        → auto
 function getRecommendation(usage) {
   if (!usage) return null;
   const entries = Object.values(usage).filter(u => u.budget_usd > 0);
   if (!entries.length) return null;
-  // Average weighted by budget share
+
+  // 1. Short-term burst check — if any provider is running 2x its linear
+  //    pace in the last 5h, throttle immediately. Catches cases where
+  //    monthly projection is fine but we're spiking right now.
+  const burst = entries.find(u => u.rolling_5h.pace_ratio > 2.0);
+  if (burst) {
+    return {
+      mode: 'zen',
+      reason: `5h burst ${Math.round(burst.rolling_5h.pace_ratio * 100)}% of pace — throttle`,
+    };
+  }
+
+  // 2. Monthly budget projection
   const totalBudget = entries.reduce((s, u) => s + u.budget_usd, 0);
   if (totalBudget === 0) return null;
   const weightedProj = entries.reduce(
@@ -236,6 +271,65 @@ function getRecommendation(usage) {
     return { mode: 'beast', reason: `projection ${Math.round(weightedProj)}% — under-using plan at ${Math.round(avgProgress)}% cycle` };
   }
   return { mode: 'auto', reason: `projection ${Math.round(weightedProj)}% — on pace` };
+}
+
+// 7-day burn rate sparkline — returns Unicode block chars representing
+// daily spend across the last N days (default 7). Latest day on the right.
+// Characters: ▁▂▃▄▅▆▇█ (8 levels). Each level = 1/7 of peak day.
+const SPARK_CHARS = '▁▂▃▄▅▆▇█';
+
+function computeBurnRateSparkline(nDays) {
+  const days = nDays || 7;
+  const now = Date.now();
+  const DAY_MS = 24 * 3600 * 1000;
+
+  let pricing;
+  try { pricing = require('./pricing'); }
+  catch { return null; }
+
+  const logPath = path.join(getRouterRoot(), 'decisions.log');
+  if (!fs.existsSync(logPath)) return null;
+
+  // Initialize N day buckets, anchored to end-of-today
+  const buckets = new Array(days).fill(0);
+  const bucketStart = (idx) => now - ((days - idx) * DAY_MS);
+
+  try {
+    const stat = fs.statSync(logPath);
+    const MAX = 4 * 1024 * 1024;
+    const start = Math.max(0, stat.size - MAX);
+    const fd = fs.openSync(logPath, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n');
+
+    for (const line of lines) {
+      if (!line) continue;
+      let d;
+      try { d = JSON.parse(line); } catch { continue; }
+      if (d.event !== 'classified') continue;
+      if (d.source === 'mooter-tester') continue;
+      const ts = d.ts_ms || (d.ts ? new Date(d.ts).getTime() : 0);
+      if (!ts) continue;
+      const cutoff = now - (days * DAY_MS);
+      if (ts < cutoff) continue;
+      const daysBack = Math.floor((now - ts) / DAY_MS);
+      const bucketIdx = days - 1 - daysBack;
+      if (bucketIdx < 0 || bucketIdx >= days) continue;
+      const cost = pricing.estimateTurnCost(d.tier, d.prompt_len || d.prompt_length || 200);
+      buckets[bucketIdx] += cost;
+    }
+  } catch { return null; }
+
+  const peak = Math.max(...buckets);
+  if (peak <= 0) return { spark: '▁'.repeat(days), buckets, peak: 0 };
+
+  const spark = buckets.map(v => {
+    const lvl = Math.min(7, Math.floor((v / peak) * 7));
+    return SPARK_CHARS[lvl];
+  }).join('');
+  return { spark, buckets, peak };
 }
 
 // CLI — `node usage-estimator.js` prints a human-readable report.
@@ -258,6 +352,18 @@ if (require.main === module) {
   if (rec) {
     console.log(`recommendation: ${rec.mode.toUpperCase()} — ${rec.reason}`);
   }
+  const spark = computeBurnRateSparkline(7);
+  if (spark) {
+    console.log(`\n7-day burn rate: ${spark.spark}   (peak $${spark.peak.toFixed(2)}/day)`);
+    console.log(`  daily: ${spark.buckets.map(v => '$' + v.toFixed(2)).join(' ')}`);
+  }
+  // 5h rolling window per provider
+  console.log('');
+  for (const [provider, u] of Object.entries(usage)) {
+    const r5h = u.rolling_5h;
+    const arrow = r5h.pace_ratio > 1.5 ? '↑↑' : r5h.pace_ratio > 1.0 ? '↑' : '↓';
+    console.log(`  ${provider.padEnd(10)} 5h rolling: $${r5h.cost_usd.toFixed(2)} / $${r5h.budget_usd.toFixed(2)}  (${Math.round(r5h.used_pct)}% ${arrow})`);
+  }
 }
 
-module.exports = { computeSubscriptionUsage, getRecommendation, getCurrentCycle, inferProvider };
+module.exports = { computeSubscriptionUsage, getRecommendation, getCurrentCycle, inferProvider, computeBurnRateSparkline };

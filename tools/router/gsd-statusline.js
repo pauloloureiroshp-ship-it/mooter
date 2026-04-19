@@ -315,7 +315,6 @@ function getCycleDay() {
 // v5.1 — per-subscription usage & beast/zen recommendation
 function getUsageData() {
   if (process.env.MOOTER_MOCK === '1') {
-    // Mock a realistic under-using scenario for beast recommendation demo
     return {
       usage: {
         anthropic: {
@@ -327,9 +326,11 @@ function getUsageData() {
           projected_pct: 34,
           pace_ratio: 0.34,
           cycle: { progress_pct: 62, elapsed_days: 18.5, length_days: 30 },
+          rolling_5h: { cost_usd: 0.68, budget_usd: 1.39, used_pct: 48.9, pace_ratio: 0.489, call_count: 12 },
         },
       },
       recommendation: { mode: 'beast', reason: 'projection 34% — under-using plan at 62% cycle' },
+      sparkline: { spark: '▁▂▃▄▅▆▇', buckets: [0.1, 0.5, 1.2, 2.1, 3.4, 4.5, 5.8], peak: 5.8 },
     };
   }
   try {
@@ -337,7 +338,8 @@ function getUsageData() {
     const usage = est.computeSubscriptionUsage();
     if (!usage) return null;
     const recommendation = est.getRecommendation(usage);
-    return { usage, recommendation };
+    const sparkline = est.computeBurnRateSparkline(7);
+    return { usage, recommendation, sparkline };
   } catch { return null; }
 }
 
@@ -1401,18 +1403,41 @@ function buildStatusline(data) {
   const cycleColor = cycle.progressPct >= 75 ? WARN : cycle.progressPct >= 90 ? DANGER : DIM;
   extras.push({ prio: 4, str: `${DIM}cycle${RESET} ${cycleColor}${BOLD}d${cycle.day}/${cycle.lastDay}${RESET}` });
 
-  if (spentStr) extras.push({ prio: 5, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
-  if (savings?.promptCount) extras.push({ prio: 6, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
+  // v5.2 — 5h rolling window pill (crucial for Claude Max which enforces
+  // per-5h limits, not monthly ones). Shown when any provider has rolling
+  // data. Color-coded by pace_ratio (how hot is this window vs linear pace).
+  if (usageData && usageData.usage) {
+    const firstProvider = Object.keys(usageData.usage)[0];
+    const r5h = firstProvider && usageData.usage[firstProvider].rolling_5h;
+    if (r5h && r5h.budget_usd > 0) {
+      const p5 = Math.round(r5h.used_pct);
+      let c5 = DIM;
+      if (r5h.pace_ratio > 2)        c5 = DANGER;
+      else if (r5h.pace_ratio > 1.3) c5 = WARN;
+      else if (r5h.pace_ratio > 0.8) c5 = DIM;
+      else                            c5 = HEALTHY;
+      extras.push({ prio: 5, str: `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET}` });
+    }
+  }
+
+  // v5.2 — 7-day burn sparkline (visual trend). Only when sparkline data
+  // is available AND has non-zero activity. Very compact (7 chars).
+  if (usageData && usageData.sparkline && usageData.sparkline.peak > 0) {
+    extras.push({ prio: 6, str: `${BRAND}${usageData.sparkline.spark}${RESET}` });
+  }
+
+  if (spentStr) extras.push({ prio: 7, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
+  if (savings?.promptCount) extras.push({ prio: 8, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
   if (ctxPct !== null) {
     const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
-    extras.push({ prio: 7, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
+    extras.push({ prio: 9, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
   }
-  if (latency) extras.push({ prio: 8, str: latency });
-  if (providers) extras.push({ prio: 9, str: providers });
+  if (latency) extras.push({ prio: 10, str: latency });
+  if (providers) extras.push({ prio: 11, str: providers });
   if (metrics && metrics.option_a_hits != null && metrics.option_a_hits > 0) {
-    extras.push({ prio: 10, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
+    extras.push({ prio: 12, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
   }
-  if (version && version.version) extras.push({ prio: 11, str: `${DIM}v${version.version}${RESET}` });
+  if (version && version.version) extras.push({ prio: 13, str: `${DIM}v${version.version}${RESET}` });
 
   // Measure budget and add extras while we have room.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
