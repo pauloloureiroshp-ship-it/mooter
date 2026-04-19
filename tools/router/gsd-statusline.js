@@ -836,13 +836,42 @@ function collectWarnings(metricsAvailable) {
   return warnings;
 }
 
-// Right-anchor pill — warning takes priority over health signal.
+// v5.3 — recent autopilot flip (last 5min) for toast notification
+function getRecentFlip() {
+  try {
+    const flipLog = path.join(os.homedir(), '.claude', 'tools', 'router', '.autopilot-flips.log');
+    if (!fs.existsSync(flipLog)) return null;
+    const stat = fs.statSync(flipLog);
+    const MAX = 32 * 1024;
+    const start = Math.max(0, stat.size - MAX);
+    const fd = fs.openSync(flipLog, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+    if (!lines.length) return null;
+    const last = JSON.parse(lines[lines.length - 1]);
+    const ageMs = Date.now() - (last.ts || 0);
+    if (ageMs > 5 * 60 * 1000) return null; // older than 5 min = stale
+    return last;
+  } catch { return null; }
+}
+
+// Right-anchor pill — ONE always-visible pill, priority:
+//   1. Recent autopilot flip toast (5 min after action)
+//   2. System warnings (stale hooks / tracker offline)
+//   3. Health pill (baseline)
+// Recommendation badge stays as a separate extra (prio 2) so it can
+// coexist with warnings — both are actionable at the same time.
 function renderRightAnchor(savingsPct, metricsAvailable) {
+  const flip = getRecentFlip();
+  if (flip && flip.from && flip.to) {
+    return `${HEALTHY}${BOLD}🔄 → ${flip.to}${RESET}`;
+  }
   const warnings = collectWarnings(metricsAvailable);
   if (warnings.length) {
-    // Short join for single-line constraint
     const msg = warnings.slice(0, 2).join(' · ');
-    return `${DANGER}⚠${RESET} ${DANGER}${msg}${RESET}`;
+    return `${DANGER}⚠ ${msg}${RESET}`;
   }
   return renderHealthPill(savingsPct);
 }
@@ -1385,9 +1414,9 @@ function buildStatusline(data) {
     extras.push({ prio: 3, str: pill });
   }
 
-  // Recommendation badge — surfaces when the user SHOULD flip mode.
-  // Only shown when recommendation differs from current runtime mode
-  // AND the recommendation is actionable (beast or zen).
+  // Recommendation badge — actionable advice, stays prio 2 so it shows
+  // even when warnings occupy the right anchor. They're complementary:
+  // warnings flag problems, recommendations propose action.
   if (usageData && usageData.recommendation) {
     const rec = usageData.recommendation.mode;
     const active = routerMode.mode;
