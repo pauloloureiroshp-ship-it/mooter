@@ -1,465 +1,264 @@
 #!/usr/bin/env bash
+# install.sh — mooter installer (Mac + Linux)
 #
-# mooter.ai — PUBLIC installer (v1). Served at https://mooter.ai/install.sh
-# (via Vercel, from landing/public/install.sh). Route smarter. Ship faster.
+# One-liner:
+#   curl -fsSL https://mooter.ai/install.sh | bash
 #
-# ⚠️  NOT the same file as /install.sh at the repo root — that one is Paulo's
-#     private development bootstrap and MUST NOT be synced to this file.
-#     If you want to change what users see, edit THIS file.
+# What it does (zero-admin, zero-sudo):
+#   1. Verifies Claude Code + Node 18 (degrades gracefully on Ollama / API key)
+#   2. Copies runtime to ~/.claude/tools/router/  (the existing routing engine)
+#   3. Copies CLI to   ~/.mooter/cli/             (the new `mooter` binary)
+#   4. Drops shim at   ~/.local/bin/mooter        (shell PATH entry)
+#   5. Writes env file ~/.mooter/env              (sourced by shell profiles)
+#   6. Registers hooks in ~/.claude/settings.json (non-destructive merge)
+#   7. Prints the 3 commands the user should run next
 #
-# Usage:
-#   bash <(curl -fsSL https://mooter.ai/install.sh)
-#
-# Flags:
-#   --dry-run      Preview every action without writing a single byte
-#   --force        Overwrite existing runtime without prompting
-#   --uninstall    Remove mooter runtime (preserves decisions.log)
-#   --doctor       Run diagnostics only (no install)
-#   --no-ollama    Skip Ollama probe + model pulls
-#   --no-telemetry Skip anonymous heartbeat to mooter-hub
-#   --runtime-url  Override runtime bundle URL (default: https://mooter.ai/runtime)
-#   -h, --help     Show this help
-#
-# Exit codes:
-#   0 success · 1 unrecoverable · 2 user-aborted · 3 prereq missing · 4 network
+# Safe to re-run. Flags: --dry-run, --no-path, --force, --channel=<name>
 
-set -Eeuo pipefail
+set -eu
 
-readonly MOOTER_VERSION="1.0.0-install"
-readonly RUNTIME_URL_DEFAULT="https://mooter.ai/runtime"
-readonly HUB_URL="https://mooter-hub.frugal-hub.workers.dev"
-readonly MIN_NODE_MAJOR=18
-readonly CLAUDE_DIR="${HOME}/.claude"
-readonly MOOTER_DIR="${HOME}/.frugal"
-readonly BACKUP_ROOT="${CLAUDE_DIR}/backups"
-ISO_NOW="$(date -u +%Y-%m-%dT%H-%M-%SZ 2>/dev/null || date +%s)"
-readonly ISO_NOW
-readonly BACKUP_DIR="${BACKUP_ROOT}/mooter-install-${ISO_NOW}"
-readonly LOG_FILE="/tmp/mooter-install-${ISO_NOW}.log"
+DRY_RUN=0
+NO_PATH=0
+FORCE=0
+CHANNEL="${MOOTER_CHANNEL:-stable}"
 
-DRY_RUN=0; FORCE=0; UNINSTALL=0; DOCTOR_ONLY=0
-NO_OLLAMA=0; NO_TELEMETRY=0
-RUNTIME_URL="${RUNTIME_URL_DEFAULT}"
-
-if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
-  BOLD=$(tput bold); DIM=$(tput dim); RED=$(tput setaf 1); GREEN=$(tput setaf 2)
-  YELLOW=$(tput setaf 3); BLUE=$(tput setaf 4); CYAN=$(tput setaf 6); RESET=$(tput sgr0)
-else
-  BOLD=""; DIM=""; RED=""; GREEN=""; YELLOW=""; BLUE=""; CYAN=""; RESET=""
-fi
-
-say()  { printf '%s\n' "$*"; }
-info() { printf '%s[info]%s %s\n' "${CYAN}" "${RESET}" "$*"; }
-ok()   { printf '%s[ ok ]%s %s\n' "${GREEN}" "${RESET}" "$*"; }
-warn() { printf '%s[warn]%s %s\n' "${YELLOW}" "${RESET}" "$*" >&2; }
-err()  { printf '%s[fail]%s %s\n' "${RED}" "${RESET}" "$*" >&2; }
-step() { printf '\n%s──%s %s%s%s\n' "${DIM}" "${RESET}" "${BOLD}" "$*" "${RESET}"; }
-
-dry() {
-  if [ "${DRY_RUN}" = 1 ]; then
-    printf '%s[dry]%s %s\n' "${BLUE}" "${RESET}" "$*"
-    return 0
-  fi
-  return 1
-}
-
-banner() {
-  cat <<'EOF'
-  ┌───────────────────────────────────────────────┐
-  │         🐮  mooter.ai installer               │
-  │     Route smarter. Ship faster.               │
-  └───────────────────────────────────────────────┘
-EOF
-}
-
-on_error() {
-  local rc=$?
-  err "Installer failed at line ${BASH_LINENO[0]} (exit ${rc})."
-  err "Full log: ${LOG_FILE}"
-  exit "${rc}"
-}
-trap on_error ERR
-
-usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
-
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --dry-run)      DRY_RUN=1 ;;
-    --force)        FORCE=1 ;;
-    --uninstall)    UNINSTALL=1 ;;
-    --doctor)       DOCTOR_ONLY=1 ;;
-    --no-ollama)    NO_OLLAMA=1 ;;
-    --no-telemetry) NO_TELEMETRY=1 ;;
-    --runtime-url)  shift; RUNTIME_URL="$1" ;;
-    --runtime-url=*) RUNTIME_URL="${1#*=}" ;;
-    -h|--help)      usage; exit 0 ;;
-    *)              err "Unknown flag: $1"; usage; exit 2 ;;
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)    DRY_RUN=1 ;;
+    --no-path)    NO_PATH=1 ;;
+    --force)      FORCE=1 ;;
+    --channel=*)  CHANNEL="${arg#--channel=}" ;;
+    -h|--help)
+      sed -n '2,18p' "$0"; exit 0 ;;
+    *) echo "Unknown flag: $arg" >&2; exit 2 ;;
   esac
-  shift
 done
 
-exec > >(tee -a "${LOG_FILE}") 2>&1
+# ── UI helpers ──────────────────────────────────────────────────────────
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C1=$'\033[1;36m'; C2=$'\033[1;32m'; C3=$'\033[1;33m'; C4=$'\033[1;31m'; CD=$'\033[2m'; CB=$'\033[1m'; CM=$'\033[1;35m'; CR=$'\033[0m'
+else
+  C1=""; C2=""; C3=""; C4=""; CD=""; CB=""; CM=""; CR=""
+fi
+say()  { printf "  %s>%s %s\n" "$C1" "$CR" "$*"; }
+ok()   { printf "  %s[OK]%s %s\n" "$C2" "$CR" "$*"; }
+warn() { printf "  %s[!!]%s %s\n" "$C3" "$CR" "$*"; }
+fail() { printf "  %s[XX]%s %s\n" "$C4" "$CR" "$*"; }
+info() { printf "  %s%s%s\n" "$CD" "$*" "$CR"; }
+do_run() { if [ "$DRY_RUN" = "1" ]; then echo "  [dry-run] $*"; else eval "$@"; fi; }
 
-detect_os() {
-  local u; u="$(uname -s 2>/dev/null || echo unknown)"
-  case "${u}" in
-    Darwin)               echo "darwin" ;;
-    Linux)                echo "linux"  ;;
-    MINGW*|MSYS*|CYGWIN*) echo "windows-bash" ;;
-    *)                    echo "unknown" ;;
-  esac
-}
+# ── Paths ───────────────────────────────────────────────────────────────
+CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+ROUTER_DIR="$CLAUDE_DIR/tools/router"
+HOOKS_DIR="$CLAUDE_DIR/hooks"
+MOOTER_DIR="$HOME/.mooter"
+MOOTER_CLI_DIR="$MOOTER_DIR/cli"
+MOOTER_ENV="$MOOTER_DIR/env"
+LOCAL_BIN="$HOME/.local/bin"
+SHIM="$LOCAL_BIN/mooter"
+DEVICE_DIR="$HOME/.frugal"
 
-detect_arch() {
-  local a; a="$(uname -m 2>/dev/null || echo unknown)"
-  case "${a}" in
-    x86_64|amd64)  echo "x64" ;;
-    arm64|aarch64) echo "arm64" ;;
-    *)             echo "${a}" ;;
-  esac
-}
+# Determine SRC_DIR. When piped from curl, we can't rely on $0 — we detect that
+# and clone/download the repo to a temp dir.
+if [ -n "${BASH_SOURCE:-}" ] && [ -f "${BASH_SOURCE:-}" ]; then
+  SRC_DIR="$(cd "$(dirname "${BASH_SOURCE:-$0}")" && pwd)"
+else
+  SRC_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null || echo "")"
+fi
 
-detect_ram_gb() {
-  case "$(detect_os)" in
-    darwin)
-      local bytes; bytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
-      echo $(( bytes / 1024 / 1024 / 1024 )) ;;
-    linux)
-      awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0 ;;
-    windows-bash)
-      local kb
-      kb="$(wmic ComputerSystem get TotalPhysicalMemory /value 2>/dev/null | tr -d '\r' | awk -F= '/=/ {print $2}')"
-      if [ -n "${kb:-}" ] && [ "${kb}" -gt 0 ] 2>/dev/null; then
-        echo $(( kb / 1024 / 1024 / 1024 ))
-      else echo 0; fi ;;
-    *) echo 0 ;;
-  esac
-}
-
-detect_hw_tier() {
-  local os arch ram
-  os="$(detect_os)"; arch="$(detect_arch)"; ram="$(detect_ram_gb)"
-  if [ "${os}" = "darwin" ] && [ "${arch}" = "arm64" ]; then
-    echo "apple-silicon"; return
-  fi
-  if command -v nvidia-smi >/dev/null 2>&1; then
-    local vram
-    vram="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo 0)"
-    vram="${vram// /}"
-    if [ "${vram:-0}" -ge 8000 ] 2>/dev/null; then
-      echo "nvidia-high"; return
-    fi
-    echo "nvidia-low"; return
-  fi
-  if [ "${ram:-0}" -ge 16 ]; then
-    echo "integrated-high"
+if [ ! -f "$SRC_DIR/tools/router/classify.js" ]; then
+  say "Running from curl pipe — downloading mooter source..."
+  TMP_DIR="$(mktemp -d)"
+  if command -v git >/dev/null 2>&1; then
+    do_run "git clone --depth 1 --quiet https://github.com/paulo-loureiro/mooter.git '$TMP_DIR'"
   else
-    echo "cpu-only"
-  fi
-}
-
-check_prereqs() {
-  step "Prerequisites"
-  local missing=0
-  if command -v node >/dev/null 2>&1; then
-    local nv major; nv="$(node --version 2>/dev/null)"
-    major="${nv#v}"; major="${major%%.*}"
-    if [ "${major:-0}" -ge "${MIN_NODE_MAJOR}" ]; then
-      ok "Node.js ${nv}"
-    else
-      err "Node.js ${nv} is too old (need ≥${MIN_NODE_MAJOR}). https://nodejs.org"
-      missing=1
-    fi
-  else
-    err "Node.js not found. https://nodejs.org"
-    missing=1
-  fi
-  command -v git >/dev/null 2>&1 && ok "git $(git --version | awk '{print $3}')" || warn "git not found (optional)"
-  if command -v claude >/dev/null 2>&1; then
-    ok "Claude Code $(claude --version 2>/dev/null | head -1 || echo 'present')"
-  else
-    err "Claude Code not found. Run: npm install -g @anthropic-ai/claude-code"
-    missing=1
-  fi
-  if command -v curl >/dev/null 2>&1; then
-    ok "curl $(curl --version | head -1 | awk '{print $2}')"
-  else
-    err "curl not found (required)."
-    missing=1
-  fi
-  if [ "${NO_OLLAMA}" = 0 ]; then
-    if command -v ollama >/dev/null 2>&1; then
-      ok "Ollama present (T0 local routing available)"
-    else
-      warn "Ollama not found. https://ollama.com — T0 will fall back to Haiku."
-    fi
-  fi
-  if [ "${missing}" = 1 ]; then
-    err "Fix missing prerequisites, then re-run."
+    fail "git not found — install git first or download the tarball manually from mooter.ai"
     exit 3
   fi
-}
+  SRC_DIR="$TMP_DIR"
+fi
 
-ensure_device_id() {
-  mkdir -p "${MOOTER_DIR}"
-  local idfile="${MOOTER_DIR}/device.id"
-  if [ ! -s "${idfile}" ]; then
-    if command -v uuidgen >/dev/null 2>&1; then
-      uuidgen | tr '[:upper:]' '[:lower:]' > "${idfile}"
-    else
-      printf '%s-%s\n' "${ISO_NOW}" "$(hostname 2>/dev/null || echo host)" \
-        | shasum 2>/dev/null | awk '{print $1}' > "${idfile}"
-    fi
-    ok "Generated anonymous device.id"
-  else
-    info "Using existing device.id"
-  fi
-  cat "${idfile}"
-}
+VERSION="$(node -e "console.log(require('$SRC_DIR/tools/router/version.json').version)" 2>/dev/null || echo "0.10.0")"
 
-download_runtime() {
-  step "Downloading mooter runtime"
-  local tarball="/tmp/mooter-runtime-${ISO_NOW}.tgz"
-  local url="${RUNTIME_URL}/mooter-runtime-latest.tgz"
-  if dry "curl -fsSL ${url} -o ${tarball}"; then return 0; fi
-  info "Source: ${url}"
-  if ! curl -fsSL --retry 3 --retry-delay 2 -o "${tarball}" "${url}"; then
-    err "Could not download runtime from ${url}"
-    err "Rerun with --runtime-url https://your.mirror if needed"
-    exit 4
-  fi
-  ok "Downloaded $(wc -c < "${tarball}" | tr -d ' ') bytes"
+# ── Banner ──────────────────────────────────────────────────────────────
+echo ""
+echo "  ${CM}mooter${CR} ${CD}v${VERSION} (${CHANNEL})${CR}"
+echo "  ${CD}Intelligent model routing for Claude Code.${CR}"
+echo ""
 
-  if [ -d "${CLAUDE_DIR}/tools/router" ] && [ "${FORCE}" = 0 ]; then
-    warn "Existing ~/.claude/tools/router/ detected."
-    warn "Rerun with --force, --dry-run, or --uninstall first."
-    exit 2
-  fi
-  if [ -d "${CLAUDE_DIR}/tools/router" ]; then
-    mkdir -p "${BACKUP_DIR}"
-    cp -a "${CLAUDE_DIR}/tools" "${BACKUP_DIR}/tools"
-    cp -a "${CLAUDE_DIR}/hooks" "${BACKUP_DIR}/hooks" 2>/dev/null || true
-    cp -a "${CLAUDE_DIR}/settings.json" "${BACKUP_DIR}/settings.json" 2>/dev/null || true
-    ok "Backed up to ${BACKUP_DIR}"
-  fi
+# ── Prereq checks ───────────────────────────────────────────────────────
+OS="$(uname -s)"
+case "$OS" in
+  Darwin|Linux) ok "Platform: $OS" ;;
+  *) fail "This script is for macOS/Linux. Windows: run install.ps1 instead."; exit 3 ;;
+esac
 
-  mkdir -p "${CLAUDE_DIR}"
-  tar -xzf "${tarball}" -C "${CLAUDE_DIR}"
-  ok "Extracted to ${CLAUDE_DIR}"
-  rm -f "${tarball}"
-}
+if ! command -v claude >/dev/null 2>&1; then
+  fail "Claude Code CLI not found on PATH."
+  echo ""
+  info "  mooter wraps Claude Code — you need it installed first:"
+  info "    curl -fsSL https://claude.ai/install.sh | bash"
+  echo ""
+  info "  Once installed, re-run: curl -fsSL https://mooter.ai/install.sh | bash"
+  echo ""
+  exit 3
+fi
+ok "Claude Code detected: $(command -v claude)"
 
-merge_settings() {
-  step "Registering UserPromptSubmit hook"
-  local merger="${CLAUDE_DIR}/tools/router/merge_settings.js"
-  if [ ! -f "${merger}" ]; then
-    warn "merge_settings.js not found — skipping."
-    return 0
-  fi
-  if dry "node ${merger}"; then return 0; fi
-  node "${merger}"
-  ok "settings.json merged (existing hooks preserved)"
-}
+if ! command -v node >/dev/null 2>&1; then
+  fail "Node.js not found. Install from https://nodejs.org or: brew install node"
+  exit 3
+fi
+NODE_VER="$(node --version | sed 's/v//')"
+NODE_MAJOR="${NODE_VER%%.*}"
+if [ "$NODE_MAJOR" -lt 18 ]; then
+  fail "Node.js $NODE_VER found — mooter needs Node 18+."
+  info "Upgrade: brew upgrade node  (or) nvm install 20"
+  exit 3
+fi
+ok "Node.js v$NODE_VER"
 
-setup_ollama() {
-  [ "${NO_OLLAMA}" = 1 ] && { info "Skipping Ollama (flag)"; return 0; }
-  command -v ollama >/dev/null 2>&1 || { warn "Ollama absent."; return 0; }
-  step "Configuring Ollama models"
-  local ram tier
-  ram="$(detect_ram_gb)"; tier="$(detect_hw_tier)"
-  info "Hardware tier: ${tier} · RAM: ${ram} GB"
-  local want=("qwen2.5:3b" "qwen2.5-coder:14b" "nomic-embed-text")
-  if [ "${ram}" -ge 16 ]; then
-    want+=("qwen3:30b")
-  else
-    warn "RAM < 16 GB — skipping qwen3:30b"
-  fi
-  local m have
-  have="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}')"
-  for m in "${want[@]}"; do
-    if echo "${have}" | grep -q "^${m}"; then
-      ok "${m} already present"
-    else
-      if dry "ollama pull ${m}"; then continue; fi
-      info "Pulling ${m}..."
-      ollama pull "${m}" || warn "${m} pull failed — retry later"
-    fi
+if [ ! -d "$CLAUDE_DIR" ]; then
+  fail "~/.claude not found — open Claude Code once, then re-run."
+  exit 3
+fi
+ok "~/.claude present"
+
+# ── Copy runtime ────────────────────────────────────────────────────────
+say "Installing runtime to ~/.claude/tools/router/..."
+do_run "mkdir -p '$ROUTER_DIR' '$HOOKS_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/skills' '$CLAUDE_DIR/docs' '$MOOTER_CLI_DIR' '$LOCAL_BIN' '$DEVICE_DIR'"
+
+do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/' 2>/dev/null || true"
+do_run "cp '$SRC_DIR/tools/router/'*.json '$ROUTER_DIR/' 2>/dev/null || true"
+
+# Hooks live under ~/.claude/hooks/ (not ~/.claude/tools/router/).
+for h in gsd-statusline.js gsd-turn-end.js frugal-turn-header.js exec-logger.js PostToolUse.js; do
+  [ -f "$SRC_DIR/tools/router/$h" ] && do_run "cp '$SRC_DIR/tools/router/$h' '$HOOKS_DIR/$h'"
+  do_run "rm -f '$ROUTER_DIR/$h'"
+done
+
+# Copy CLI to ~/.mooter/cli/
+do_run "cp -R '$SRC_DIR/tools/cli/'* '$MOOTER_CLI_DIR/'"
+do_run "cp '$SRC_DIR/tools/router/version.json' '$MOOTER_DIR/version.json' 2>/dev/null || true"
+
+# Copy agents + skills (best-effort)
+do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/' 2>/dev/null || true"
+if [ -d "$SRC_DIR/skills" ]; then
+  for skill in "$SRC_DIR/skills"/*/; do
+    [ -d "$skill" ] || continue
+    name="$(basename "$skill")"
+    do_run "mkdir -p '$CLAUDE_DIR/skills/$name'"
+    do_run "cp '$skill/SKILL.md' '$CLAUDE_DIR/skills/$name/SKILL.md' 2>/dev/null || true"
   done
-}
+fi
 
-run_subscription_wizard() {
-  step "Subscription profile"
-  local profile="${CLAUDE_DIR}/tools/router/subscription-profile.json"
-  if [ -s "${profile}" ] && [ "${FORCE}" = 0 ]; then
-    ok "Existing profile kept. --force to reconfigure."
-    return 0
-  fi
-  if [ ! -t 0 ]; then
-    warn "Non-interactive — writing default profile."
-    if dry "write default profile to ${profile}"; then return 0; fi
-    mkdir -p "$(dirname "${profile}")"
-    cat > "${profile}" <<JSON
-{"anthropic":"unknown","openai":"none","gemini":"none","budget_monthly_usd":null,"currency":"USD"}
-JSON
-    return 0
-  fi
+# CLAUDE.md (only if missing or --force)
+if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
+  do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md' 2>/dev/null || true"
+fi
 
-  say ""
-  say "${BOLD}Tell mooter what you have, so it routes smartly.${RESET}"
-  say ""
-  local ant oai gem bud
-  read -rp "  Anthropic plan? [max / api / none]: " ant
-  read -rp "  OpenAI API key configured? [api / none]: " oai
-  read -rp "  Gemini API key configured? [api / none]: " gem
-  read -rp "  Monthly LLM budget ceiling in USD (empty = no cap): " bud
-  ant="${ant:-unknown}"; oai="${oai:-none}"; gem="${gem:-none}"
-  if dry "write ${profile}"; then return 0; fi
-  mkdir -p "$(dirname "${profile}")"
-  cat > "${profile}" <<JSON
-{
-  "anthropic": "${ant}",
-  "openai": "${oai}",
-  "gemini": "${gem}",
-  "budget_monthly_usd": ${bud:-null},
-  "currency": "USD",
-  "configured_at": "${ISO_NOW}"
-}
-JSON
-  ok "Saved to ${profile}"
-}
+ok "Runtime installed"
 
-smoke_test() {
-  step "Smoke test"
-  local classify="${CLAUDE_DIR}/tools/router/classify.js"
-  [ -f "${classify}" ] || { warn "classify.js missing — skipping"; return 0; }
-  if dry "run 4 prompts through classify.js"; then return 0; fi
-  local -a prompts=(
-    "write a commit message for this change"
-    "my app crashes when I click submit on mobile"
-    "design the multi-tenant authentication architecture"
-    "rm -rf the production database"
-  )
-  local -a expected=("T0|T1" "T2" "T3" "T3")
-  local i rc=0
-  for i in 0 1 2 3; do
-    local tier
-    tier="$(PROMPT="${prompts[i]}" node -e 'console.log(JSON.stringify({prompt: process.env.PROMPT}))' \
-           | node "${classify}" 2>/dev/null \
-           | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).tier||"ERR")}catch(e){console.log("ERR")}})')"
-    if echo "${tier}" | grep -Eq "^(${expected[i]})$"; then
-      ok "[$((i+1))/4] '${prompts[i]:0:40}…' → ${tier}"
-    else
-      warn "[$((i+1))/4] '${prompts[i]:0:40}…' → ${tier} (expected ${expected[i]})"
-      rc=1
+# ── Write shim + env file ───────────────────────────────────────────────
+say "Installing mooter shim to $LOCAL_BIN/mooter..."
+if [ "$DRY_RUN" = "0" ]; then
+  cat > "$SHIM" <<SHIM_EOF
+#!/bin/sh
+# mooter — launcher shim (installed by install.sh)
+exec node "\$HOME/.mooter/cli/mooter.js" "\$@"
+SHIM_EOF
+  chmod +x "$SHIM"
+fi
+ok "Shim: $SHIM"
+
+if [ "$DRY_RUN" = "0" ]; then
+  cat > "$MOOTER_ENV" <<ENV_EOF
+# mooter env — sourced by shell profiles to put ~/.local/bin on PATH.
+case ":\$PATH:" in
+  *":\$HOME/.local/bin:"*) ;;
+  *) export PATH="\$HOME/.local/bin:\$PATH" ;;
+esac
+ENV_EOF
+fi
+ok "Env file: $MOOTER_ENV"
+
+# ── Inject into shell profiles (idempotent) ─────────────────────────────
+if [ "$NO_PATH" = "0" ]; then
+  MARKER='# >>> mooter (managed) >>>'
+  ENDMARK='# <<< mooter (managed) <<<'
+  BLOCK="$MARKER\n. \"\$HOME/.mooter/env\"\n$ENDMARK"
+
+  inject() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    if ! grep -q "$MARKER" "$rc" 2>/dev/null; then
+      if [ "$DRY_RUN" = "0" ]; then
+        printf "\n%b\n" "$BLOCK" >> "$rc"
+      fi
+      ok "Added PATH entry to $rc"
     fi
-  done
-  [ "${rc}" = 0 ] && ok "Classifier routes sanely" || warn "Some tiers unexpected."
-  return 0
-}
+  }
+  # Only inject into profiles that actually exist.
+  [ -f "$HOME/.zshrc" ]        && inject "$HOME/.zshrc"
+  [ -f "$HOME/.bashrc" ]       && inject "$HOME/.bashrc"
+  [ -f "$HOME/.bash_profile" ] && inject "$HOME/.bash_profile"
+  [ -f "$HOME/.profile" ]      && inject "$HOME/.profile"
+  # Fish has its own syntax; handle separately.
+  if [ -d "$HOME/.config/fish" ] && [ -f "$HOME/.config/fish/config.fish" ]; then
+    if ! grep -q "$MARKER" "$HOME/.config/fish/config.fish" 2>/dev/null; then
+      if [ "$DRY_RUN" = "0" ]; then
+        printf "\n%s\nfish_add_path -g \$HOME/.local/bin\n%s\n" "$MARKER" "$ENDMARK" >> "$HOME/.config/fish/config.fish"
+      fi
+      ok "Added PATH entry to ~/.config/fish/config.fish"
+    fi
+  fi
+fi
 
-send_heartbeat() {
-  [ "${NO_TELEMETRY}" = 1 ] && { info "Skipping telemetry (flag)"; return 0; }
-  step "Anonymous install heartbeat"
-  local device_id os arch ram tier node_v claude_v
-  device_id="$(ensure_device_id)"
-  os="$(detect_os)"; arch="$(detect_arch)"; ram="$(detect_ram_gb)"; tier="$(detect_hw_tier)"
-  node_v="$(node --version 2>/dev/null || echo unknown)"
-  claude_v="$(claude --version 2>/dev/null | head -1 || echo unknown)"
-  local payload
-  payload=$(cat <<JSON
-{
-  "device_id": "${device_id}",
-  "event": "installed",
-  "hw_tier": "${tier}",
-  "ram_gb": ${ram:-0},
-  "platform": "${os}-${arch}",
-  "node_version": "${node_v}",
-  "claude_code_version": "${claude_v}",
-  "setup_version": "${MOOTER_VERSION}",
-  "ts": "${ISO_NOW}"
-}
-JSON
-)
-  if dry "POST ${HUB_URL}/api/device-heartbeat"; then return 0; fi
-  local resp
-  resp="$(curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
-         -d "${payload}" "${HUB_URL}/api/device-heartbeat" 2>/dev/null || echo 'FAIL')"
-  if echo "${resp}" | grep -q '"ok":true'; then
-    ok "Hub acknowledged install (${device_id:0:8}…)"
+# ── Hook registration in settings.json (non-destructive) ────────────────
+if [ -f "$CLAUDE_DIR/settings.json" ]; then
+  say "Registering hooks in settings.json..."
+  do_run "node '$MOOTER_CLI_DIR/lib/register-hooks.js' '$CLAUDE_DIR/settings.json' '$ROUTER_DIR' '$HOOKS_DIR'"
+  ok "Hooks registered (UserPromptSubmit + Stop)"
+fi
+
+# ── Device ID ───────────────────────────────────────────────────────────
+if [ ! -f "$DEVICE_DIR/device.id" ]; then
+  if [ "$DRY_RUN" = "0" ]; then
+    node -e "require('fs').writeFileSync('$DEVICE_DIR/device.id', require('crypto').randomUUID() + '\\n')"
+  fi
+  ok "Device ID generated"
+fi
+
+# ── Ollama (optional, non-blocking) ─────────────────────────────────────
+if command -v ollama >/dev/null 2>&1; then
+  ok "Ollama detected"
+  if ! ollama list 2>/dev/null | grep -q "qwen2.5:3b"; then
+    say "Pulling qwen2.5:3b (~1.9 GB) — required for T0 tier..."
+    do_run "ollama pull qwen2.5:3b" || warn "Pull failed — retry later: ollama pull qwen2.5:3b"
   else
-    warn "Heartbeat didn't reach hub — non-fatal."
+    ok "qwen2.5:3b ready"
   fi
-}
+else
+  warn "Ollama not installed — T0 (local, free) tier disabled."
+  info "To enable T0 later:"
+  info "  1. Install Ollama: https://ollama.com/download"
+  info "  2. Run: mooter doctor"
+fi
 
-run_doctor() {
-  step "Health check"
-  local doc="${CLAUDE_DIR}/tools/router/frugal-doctor.js"
-  if [ -f "${doc}" ]; then
-    node "${doc}" --fix || warn "Doctor finished with warnings"
-  else
-    [ -f "${CLAUDE_DIR}/tools/router/classify.js" ] && ok "classify.js installed"
-    [ -f "${CLAUDE_DIR}/settings.json" ]            && ok "settings.json present"
-    [ -f "${MOOTER_DIR}/device.id" ]                && ok "device.id set"
-  fi
-}
+# ── API key hint ────────────────────────────────────────────────────────
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  warn "ANTHROPIC_API_KEY not set — T1 will use subagent fallback (still works)."
+fi
 
-run_uninstall() {
-  step "Uninstalling mooter runtime"
-  if [ ! -d "${CLAUDE_DIR}/tools/router" ]; then
-    warn "Nothing to uninstall."; exit 0
-  fi
-  local bak="${BACKUP_ROOT}/mooter-uninstall-${ISO_NOW}"
-  mkdir -p "${bak}"
-  cp -a "${CLAUDE_DIR}/tools/router/decisions.log" "${bak}/" 2>/dev/null || true
-  cp -a "${CLAUDE_DIR}/tools" "${bak}/tools" 2>/dev/null || true
-  cp -a "${CLAUDE_DIR}/settings.json" "${bak}/settings.json" 2>/dev/null || true
-  ok "Preserved decisions.log + snapshot in ${bak}"
-  rm -rf "${CLAUDE_DIR}/tools/router"
-  rm -rf "${CLAUDE_DIR}/hooks/mooter"* 2>/dev/null || true
-  ok "Runtime removed. Claude Code continues normally."
-  exit 0
-}
-
-print_summary() {
-  local device_id
-  device_id="$(cat "${MOOTER_DIR}/device.id" 2>/dev/null || echo '—')"
-  cat <<EOF
-
-  ┌───────────────────────────────────────────────┐
-  │  ${GREEN}${BOLD}✓ mooter is installed${RESET}                        │
-  └───────────────────────────────────────────────┘
-
-  Device id (anonymous): ${device_id:0:12}…
-  Runtime:               ${CLAUDE_DIR}/tools/router
-  Log:                   ${LOG_FILE}
-
-  ${BOLD}Next steps:${RESET}
-
-    1. Open a new Claude Code session:       claude
-    2. Live routing + savings:               bash ${CLAUDE_DIR}/tools/router/statusline.sh
-    3. Dashboard:                            https://mooter.ai/dashboard
-    4. If anything looks off:                bash <(curl -fsSL https://mooter.ai/install.sh) --doctor
-
-  Questions: paulo@mooter.ai
-
-EOF
-}
-
-main() {
-  banner
-  info "Version: ${MOOTER_VERSION}  ·  DRY_RUN=${DRY_RUN}  ·  FORCE=${FORCE}"
-  if [ "${UNINSTALL}" = 1 ]; then run_uninstall; fi
-  if [ "${DOCTOR_ONLY}" = 1 ]; then run_doctor; exit 0; fi
-  check_prereqs
-  ensure_device_id >/dev/null
-  download_runtime
-  merge_settings
-  setup_ollama
-  run_subscription_wizard
-  smoke_test
-  send_heartbeat
-  run_doctor
-  print_summary
-}
-
-main "$@"
+# ── Post-install ────────────────────────────────────────────────────────
+echo ""
+echo "  ${C2}mooter v${VERSION} installed.${CR}"
+echo ""
+echo "  Next steps:"
+echo "    1. ${CB}source ~/.mooter/env${CR}  ${CD}(or open a new terminal)${CR}"
+echo "    2. ${CB}mooter doctor${CR}         ${CD}(verify — 10 checks)${CR}"
+echo "    3. ${CB}mooter${CR}                 ${CD}(launches Claude Code with routing)${CR}"
+echo ""
+echo "  ${CD}Uninstall anytime: mooter uninstall${CR}"
+echo "  ${CD}Docs: https://mooter.ai${CR}"
+echo ""

@@ -1,645 +1,264 @@
 #!/usr/bin/env bash
-# install.sh — one-command installer for the Claude Code Router.
+# install.sh — mooter installer (Mac + Linux)
 #
-# Bootstrap a personal mediator-router into ~/.claude/ on a fresh machine.
-# Idempotent: safe to re-run. Backs up anything it touches.
+# One-liner:
+#   curl -fsSL https://mooter.ai/install.sh | bash
 #
-# Usage:
-#   bash install.sh                 # full install
-#   bash install.sh --dry-run       # show what would change
-#   bash install.sh --uninstall     # restore backups, remove router files
-#   bash install.sh --doctor        # diagnose current install
+# What it does (zero-admin, zero-sudo):
+#   1. Verifies Claude Code + Node 18 (degrades gracefully on Ollama / API key)
+#   2. Copies runtime to ~/.claude/tools/router/  (the existing routing engine)
+#   3. Copies CLI to   ~/.mooter/cli/             (the new `mooter` binary)
+#   4. Drops shim at   ~/.local/bin/mooter        (shell PATH entry)
+#   5. Writes env file ~/.mooter/env              (sourced by shell profiles)
+#   6. Registers hooks in ~/.claude/settings.json (non-destructive merge)
+#   7. Prints the 3 commands the user should run next
 #
-# Detects:
-#   - existing ~/.claude (creates if missing)
-#   - existing settings.json hooks (merges non-destructively)
-#   - ollama binary + recommended models
-#   - ANTHROPIC_API_KEY in env
-#   - existing CLAUDE.md (will not overwrite without --force)
+# Safe to re-run. Flags: --dry-run, --no-path, --force, --channel=<name>
 
-set -euo pipefail
-
-CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
-ROUTER_DIR="$CLAUDE_DIR/tools/router"
-BACKUP_DIR="$CLAUDE_DIR/backups/install-$(date +%Y%m%d-%H%M%S)"
-RECOMMENDED_OLLAMA_TERSE="qwen2.5:3b"
-RECOMMENDED_OLLAMA_REASON="qwen3:30b"
+set -eu
 
 DRY_RUN=0
-UNINSTALL=0
-DOCTOR=0
+NO_PATH=0
 FORCE=0
+CHANNEL="${MOOTER_CHANNEL:-stable}"
 
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --dry-run)   DRY_RUN=1; shift ;;
-    --uninstall) UNINSTALL=1; shift ;;
-    --doctor)    DOCTOR=1; shift ;;
-    --force)     FORCE=1; shift ;;
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)    DRY_RUN=1 ;;
+    --no-path)    NO_PATH=1 ;;
+    --force)      FORCE=1 ;;
+    --channel=*)  CHANNEL="${arg#--channel=}" ;;
     -h|--help)
       sed -n '2,18p' "$0"; exit 0 ;;
-    *) echo "unknown arg: $1"; exit 2 ;;
+    *) echo "Unknown flag: $arg" >&2; exit 2 ;;
   esac
 done
 
-say()    { printf '\033[1;36m▸\033[0m %s\n' "$*"; }
-ok()     { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
-warn()   { printf '\033[1;33m⚠\033[0m %s\n' "$*"; }
-fail()   { printf '\033[1;31m✗\033[0m %s\n' "$*"; }
+# ── UI helpers ──────────────────────────────────────────────────────────
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C1=$'\033[1;36m'; C2=$'\033[1;32m'; C3=$'\033[1;33m'; C4=$'\033[1;31m'; CD=$'\033[2m'; CB=$'\033[1m'; CM=$'\033[1;35m'; CR=$'\033[0m'
+else
+  C1=""; C2=""; C3=""; C4=""; CD=""; CB=""; CM=""; CR=""
+fi
+say()  { printf "  %s>%s %s\n" "$C1" "$CR" "$*"; }
+ok()   { printf "  %s[OK]%s %s\n" "$C2" "$CR" "$*"; }
+warn() { printf "  %s[!!]%s %s\n" "$C3" "$CR" "$*"; }
+fail() { printf "  %s[XX]%s %s\n" "$C4" "$CR" "$*"; }
+info() { printf "  %s%s%s\n" "$CD" "$*" "$CR"; }
 do_run() { if [ "$DRY_RUN" = "1" ]; then echo "  [dry-run] $*"; else eval "$@"; fi; }
 
-# ─────────────────────────────────────────────────────────────
-# DOCTOR mode
-# ─────────────────────────────────────────────────────────────
-if [ "$DOCTOR" = "1" ]; then
-  echo ""
-  echo "  frugal — running comprehensive doctor check..."
-  echo ""
-  if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/frugal-doctor.js" ]; then
-    node "$ROUTER_DIR/frugal-doctor.js" "$@"
-    exit $?
-  fi
-  # Fallback: basic checks if frugal-doctor.js not installed yet
-  echo "Claude Code Router — Doctor (basic)"
-  echo "════════════════════════════════════"
-  [ -d "$CLAUDE_DIR" ] && ok "~/.claude exists" || fail "~/.claude missing"
-  [ -f "$CLAUDE_DIR/CLAUDE.md" ] && ok "CLAUDE.md present" || warn "CLAUDE.md missing"
-  [ -f "$CLAUDE_DIR/settings.json" ] && ok "settings.json present" || warn "settings.json missing"
-  [ -f "$ROUTER_DIR/classify.js" ] && ok "classifier installed" || fail "classifier missing"
-  [ -f "$ROUTER_DIR/inject_context.js" ] && ok "hook entry installed" || fail "hook missing"
+# ── Paths ───────────────────────────────────────────────────────────────
+CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+ROUTER_DIR="$CLAUDE_DIR/tools/router"
+HOOKS_DIR="$CLAUDE_DIR/hooks"
+MOOTER_DIR="$HOME/.mooter"
+MOOTER_CLI_DIR="$MOOTER_DIR/cli"
+MOOTER_ENV="$MOOTER_DIR/env"
+LOCAL_BIN="$HOME/.local/bin"
+SHIM="$LOCAL_BIN/mooter"
+DEVICE_DIR="$HOME/.frugal"
 
-  if command -v ollama >/dev/null 2>&1; then
-    ok "ollama detected: $(ollama --version 2>/dev/null | head -1)"
-    MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-    if echo "$MODELS" | grep -q "$RECOMMENDED_OLLAMA_TERSE"; then
-      ok "terse model present: $RECOMMENDED_OLLAMA_TERSE"
-    else
-      warn "terse model missing — run: ollama pull $RECOMMENDED_OLLAMA_TERSE"
-    fi
-  else
-    warn "ollama not found — install from https://ollama.com (T0 tier will be unavailable)"
-  fi
-
-  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    ok "ANTHROPIC_API_KEY set — T1 (direct Haiku) tier active"
-  else
-    warn "ANTHROPIC_API_KEY not set — T1 will route through cheap-triage subagent (still works)"
-  fi
-
-  if [ -f "$ROUTER_DIR/decisions.log" ]; then
-    LINES=$(wc -l < "$ROUTER_DIR/decisions.log")
-    ok "telemetry log has $LINES decisions — run: node $ROUTER_DIR/stats.js"
-  else
-    warn "no decisions yet — telemetry will start on next prompt"
-  fi
-
-  SKILL_COUNT=$(ls "$CLAUDE_DIR/skills/" 2>/dev/null | grep -c "^frugal" || echo 0)
-  if [ "$SKILL_COUNT" -ge 8 ]; then
-    ok "$SKILL_COUNT frugal slash commands installed (/frugal-status, /frugal-savings, /frugal-beast, /frugal-zen, /frugal-auto, etc.)"
-  else
-    warn "frugal slash commands missing ($SKILL_COUNT/8) — re-run install.sh to add them"
-  fi
-  echo ""
-  exit 0
+# Determine SRC_DIR. When piped from curl, we can't rely on $0 — we detect that
+# and clone/download the repo to a temp dir.
+if [ -n "${BASH_SOURCE:-}" ] && [ -f "${BASH_SOURCE:-}" ]; then
+  SRC_DIR="$(cd "$(dirname "${BASH_SOURCE:-$0}")" && pwd)"
+else
+  SRC_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null || echo "")"
 fi
 
-# ─────────────────────────────────────────────────────────────
-# UNINSTALL mode
-# ─────────────────────────────────────────────────────────────
-if [ "$UNINSTALL" = "1" ]; then
-  say "Uninstalling Claude Code Router…"
-  LATEST_BACKUP=$(ls -1dt "$CLAUDE_DIR/backups"/*/ 2>/dev/null | head -1 || true)
-  if [ -n "$LATEST_BACKUP" ] && [ -f "$LATEST_BACKUP/settings.json.bak" ]; then
-    do_run "cp '$LATEST_BACKUP/settings.json.bak' '$CLAUDE_DIR/settings.json'"
-    ok "restored settings.json from $LATEST_BACKUP"
+if [ ! -f "$SRC_DIR/tools/router/classify.js" ]; then
+  say "Running from curl pipe — downloading mooter source..."
+  TMP_DIR="$(mktemp -d)"
+  if command -v git >/dev/null 2>&1; then
+    do_run "git clone --depth 1 --quiet https://github.com/paulo-loureiro/mooter.git '$TMP_DIR'"
+  else
+    fail "git not found — install git first or download the tarball manually from mooter.ai"
+    exit 3
   fi
-  do_run "rm -f '$CLAUDE_DIR/CLAUDE.md'"
-  do_run "rm -rf '$ROUTER_DIR'"
-  do_run "rm -rf '$CLAUDE_DIR/skills/model-router'"
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor frugal-dashboard; do
-    do_run "rm -rf '$CLAUDE_DIR/skills/$skill'"
-  done
-  for a in model-architect model-reasoner cheap-triage local-summarizer local-transformer final-reviewer; do
-    do_run "rm -f '$CLAUDE_DIR/agents/$a.md'"
-  done
-  ok "Uninstalled. Backups kept in $CLAUDE_DIR/backups/."
-  exit 0
+  SRC_DIR="$TMP_DIR"
 fi
 
-# ─────────────────────────────────────────────────────────────
-# INSTALL mode
-# ─────────────────────────────────────────────────────────────
-echo ""
-echo "  frugal v0.9.4"
-echo "  Stop paying for a brain surgeon when you need a band-aid."
-echo ""
-say "Target: $CLAUDE_DIR"
+VERSION="$(node -e "console.log(require('$SRC_DIR/tools/router/version.json').version)" 2>/dev/null || echo "0.10.0")"
 
-# 1. ~/.claude exists?
-if [ ! -d "$CLAUDE_DIR" ]; then
-  warn "~/.claude does not exist — Claude Code may not be installed."
-  warn "Install Claude Code first: https://docs.anthropic.com/claude-code"
+# ── Banner ──────────────────────────────────────────────────────────────
+echo ""
+echo "  ${CM}mooter${CR} ${CD}v${VERSION} (${CHANNEL})${CR}"
+echo "  ${CD}Intelligent model routing for Claude Code.${CR}"
+echo ""
+
+# ── Prereq checks ───────────────────────────────────────────────────────
+OS="$(uname -s)"
+case "$OS" in
+  Darwin|Linux) ok "Platform: $OS" ;;
+  *) fail "This script is for macOS/Linux. Windows: run install.ps1 instead."; exit 3 ;;
+esac
+
+if ! command -v claude >/dev/null 2>&1; then
+  fail "Claude Code CLI not found on PATH."
+  echo ""
+  info "  mooter wraps Claude Code — you need it installed first:"
+  info "    curl -fsSL https://claude.ai/install.sh | bash"
+  echo ""
+  info "  Once installed, re-run: curl -fsSL https://mooter.ai/install.sh | bash"
+  echo ""
   exit 3
 fi
+ok "Claude Code detected: $(command -v claude)"
 
-# 2. backup
-do_run "mkdir -p '$BACKUP_DIR'"
-[ -f "$CLAUDE_DIR/settings.json" ] && do_run "cp '$CLAUDE_DIR/settings.json' '$BACKUP_DIR/settings.json.bak'"
-[ -f "$CLAUDE_DIR/CLAUDE.md" ] && do_run "cp '$CLAUDE_DIR/CLAUDE.md' '$BACKUP_DIR/CLAUDE.md.bak'"
-ok "backed up to $BACKUP_DIR"
-
-# 3. ollama check
-if command -v ollama >/dev/null 2>&1; then
-  ok "ollama detected"
-  if ! ollama list 2>/dev/null | grep -q "$RECOMMENDED_OLLAMA_TERSE"; then
-    say "pulling $RECOMMENDED_OLLAMA_TERSE (~1.9 GB)…"
-    do_run "ollama pull $RECOMMENDED_OLLAMA_TERSE"
-  else
-    ok "$RECOMMENDED_OLLAMA_TERSE already installed"
-  fi
-else
-  warn "ollama not found — T0 tier will be unavailable until you install it"
-  warn "  → https://ollama.com/download"
+if ! command -v node >/dev/null 2>&1; then
+  fail "Node.js not found. Install from https://nodejs.org or: brew install node"
+  exit 3
 fi
-
-# 4. anthropic key
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  warn "ANTHROPIC_API_KEY not set — T1 will use cheap-triage subagent (slightly higher latency, still works)"
-  warn "  → optional: add 'export ANTHROPIC_API_KEY=...' to your shell rc"
+NODE_VER="$(node --version | sed 's/v//')"
+NODE_MAJOR="${NODE_VER%%.*}"
+if [ "$NODE_MAJOR" -lt 18 ]; then
+  fail "Node.js $NODE_VER found — mooter needs Node 18+."
+  info "Upgrade: brew upgrade node  (or) nvm install 20"
+  exit 3
 fi
+ok "Node.js v$NODE_VER"
 
-# 5. file install: copies from repo root (this script's parent) into ~/.claude/
-#
-# Source layout in the repo:
-#   tools/router/*.{js,sh,cmd}   → runtime router scripts (canonical)
-#   agents/*.md                   → subagent definitions
-#   skills/model-router/*.md      → optional slash command skill
-#   docs/*.md                     → routing policy + how-it-works reference
-#   CLAUDE.md                     → mediator doctrine
-SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -d "$SRC_DIR/tools/router" ] && [ -d "$SRC_DIR/agents" ]; then
-  do_run "mkdir -p '$ROUTER_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/skills/model-router' '$CLAUDE_DIR/docs' '$CLAUDE_DIR/hooks'"
-  do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/'"
-  do_run "cp '$SRC_DIR/tools/router/'*.sh '$ROUTER_DIR/' 2>/dev/null || true"
-  do_run "cp '$SRC_DIR/tools/router/'*.cmd '$ROUTER_DIR/' 2>/dev/null || true"
-  # Hook files ship alongside router scripts in the repo but live under hooks/ at runtime.
-  # Keep the canonical copies in ~/.claude/hooks/ and remove the duplicates created
-  # by the bulk *.js cp above (which would otherwise sit in router/ as orphans).
-  if [ -f "$SRC_DIR/tools/router/gsd-statusline.js" ]; then
-    do_run "cp '$SRC_DIR/tools/router/gsd-statusline.js' '$CLAUDE_DIR/hooks/gsd-statusline.js'"
-  fi
-  if [ -f "$SRC_DIR/tools/router/gsd-turn-end.js" ]; then
-    do_run "cp '$SRC_DIR/tools/router/gsd-turn-end.js' '$CLAUDE_DIR/hooks/gsd-turn-end.js'"
-  fi
-  if [ -f "$SRC_DIR/tools/router/frugal-turn-header.js" ]; then
-    do_run "cp '$SRC_DIR/tools/router/frugal-turn-header.js' '$CLAUDE_DIR/hooks/frugal-turn-header.js'"
-  fi
-  # exec-logger.js + PostToolUse.js — the visibility stack for delegation
-  # tracking. Ship from frugal so that fresh installs get subagent-aware
-  # logging + visual indicators out of the box.
-  if [ -f "$SRC_DIR/tools/router/exec-logger.js" ]; then
-    do_run "cp '$SRC_DIR/tools/router/exec-logger.js' '$CLAUDE_DIR/hooks/exec-logger.js'"
-  fi
-  if [ -f "$SRC_DIR/tools/router/PostToolUse.js" ]; then
-    do_run "cp '$SRC_DIR/tools/router/PostToolUse.js' '$CLAUDE_DIR/hooks/PostToolUse.js'"
-  fi
-  do_run "rm -f '$ROUTER_DIR/gsd-statusline.js' '$ROUTER_DIR/gsd-turn-end.js' '$ROUTER_DIR/frugal-turn-header.js' '$ROUTER_DIR/exec-logger.js' '$ROUTER_DIR/PostToolUse.js' 2>/dev/null || true"
-  do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/'"
-  do_run "cp '$SRC_DIR/skills/model-router/'*.md '$CLAUDE_DIR/skills/model-router/' 2>/dev/null || true"
-  # Install frugal slash command skills
-  for skill in frugal-status frugal-savings frugal-update frugal-summary frugal-route frugal-beast frugal-zen frugal-auto frugal-hello frugal-doctor frugal-dashboard; do
-    if [ -d "$SRC_DIR/skills/$skill" ]; then
-      do_run "mkdir -p '$CLAUDE_DIR/skills/$skill'"
-      do_run "cp '$SRC_DIR/skills/$skill/SKILL.md' '$CLAUDE_DIR/skills/$skill/SKILL.md'"
-    fi
+if [ ! -d "$CLAUDE_DIR" ]; then
+  fail "~/.claude not found — open Claude Code once, then re-run."
+  exit 3
+fi
+ok "~/.claude present"
+
+# ── Copy runtime ────────────────────────────────────────────────────────
+say "Installing runtime to ~/.claude/tools/router/..."
+do_run "mkdir -p '$ROUTER_DIR' '$HOOKS_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/skills' '$CLAUDE_DIR/docs' '$MOOTER_CLI_DIR' '$LOCAL_BIN' '$DEVICE_DIR'"
+
+do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/' 2>/dev/null || true"
+do_run "cp '$SRC_DIR/tools/router/'*.json '$ROUTER_DIR/' 2>/dev/null || true"
+
+# Hooks live under ~/.claude/hooks/ (not ~/.claude/tools/router/).
+for h in gsd-statusline.js gsd-turn-end.js frugal-turn-header.js exec-logger.js PostToolUse.js; do
+  [ -f "$SRC_DIR/tools/router/$h" ] && do_run "cp '$SRC_DIR/tools/router/$h' '$HOOKS_DIR/$h'"
+  do_run "rm -f '$ROUTER_DIR/$h'"
+done
+
+# Copy CLI to ~/.mooter/cli/
+do_run "cp -R '$SRC_DIR/tools/cli/'* '$MOOTER_CLI_DIR/'"
+do_run "cp '$SRC_DIR/tools/router/version.json' '$MOOTER_DIR/version.json' 2>/dev/null || true"
+
+# Copy agents + skills (best-effort)
+do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/' 2>/dev/null || true"
+if [ -d "$SRC_DIR/skills" ]; then
+  for skill in "$SRC_DIR/skills"/*/; do
+    [ -d "$skill" ] || continue
+    name="$(basename "$skill")"
+    do_run "mkdir -p '$CLAUDE_DIR/skills/$name'"
+    do_run "cp '$skill/SKILL.md' '$CLAUDE_DIR/skills/$name/SKILL.md' 2>/dev/null || true"
   done
-  ok "installed 11 frugal slash commands (/frugal-status, /frugal-savings, /frugal-update, /frugal-summary, /frugal-route, /frugal-beast, /frugal-zen, /frugal-auto, /frugal-hello, /frugal-doctor, /frugal-dashboard)"
-  do_run "cp '$SRC_DIR/docs/'*.md '$CLAUDE_DIR/docs/' 2>/dev/null || true"
-  if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
-    do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md'"
-    ok "installed CLAUDE.md doctrine"
-  else
-    warn "CLAUDE.md exists — not overwriting (use --force to replace, backup is in $BACKUP_DIR)"
-  fi
-  do_run "chmod +x $ROUTER_DIR/*.sh $ROUTER_DIR/*.js 2>/dev/null || true"
-  ok "installed router files into $ROUTER_DIR"
-else
-  warn "tools/router/ or agents/ directory not found in $SRC_DIR — running in self-test mode"
 fi
 
-# 6. settings.json hook merge (non-destructive)
-if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  if grep -q "inject_context.js" "$CLAUDE_DIR/settings.json"; then
-    ok "UserPromptSubmit hook already registered"
-  else
-    say "merging UserPromptSubmit hook into settings.json…"
-    do_run "node -e \"
-      const fs=require('fs');
-      const path='$CLAUDE_DIR/settings.json';
-      const s=JSON.parse(fs.readFileSync(path,'utf8'));
-      s.hooks=s.hooks||{};
-      s.hooks.UserPromptSubmit=s.hooks.UserPromptSubmit||[];
-      s.hooks.UserPromptSubmit.push({hooks:[{type:'command',command:'node \\\"$ROUTER_DIR/inject_context.js\\\"',timeout:3}]});
-      fs.writeFileSync(path, JSON.stringify(s, null, 2));
-    \""
-    ok "hook registered in settings.json"
-  fi
-  # frugal-turn-header.js — second UserPromptSubmit hook that emits a visible
-  # "routing → tier · model · confidence · est. save" message every turn, so
-  # users SEE the routing decision (not just hidden in the hint).
-  if grep -q "frugal-turn-header.js" "$CLAUDE_DIR/settings.json"; then
-    ok "turn-header hook already registered"
-  else
-    say "merging turn-header hook into settings.json…"
-    do_run "node -e \"
-      const fs=require('fs');
-      const path='$CLAUDE_DIR/settings.json';
-      const s=JSON.parse(fs.readFileSync(path,'utf8'));
-      s.hooks=s.hooks||{};
-      s.hooks.UserPromptSubmit=s.hooks.UserPromptSubmit||[];
-      s.hooks.UserPromptSubmit.push({hooks:[{type:'command',command:'node \\\"$CLAUDE_DIR/hooks/frugal-turn-header.js\\\"',timeout:3}]});
-      fs.writeFileSync(path, JSON.stringify(s, null, 2));
-    \""
-    ok "turn-header hook registered in settings.json"
-  fi
-  # Matcher migration — exec-logger.js and PostToolUse.js previously shipped
-  # with matcher "Bash" so Agent/Task tool calls (subagent spawns) went
-  # unrecorded, making all delegation invisible to the compliance tracker.
-  # This migration upgrades any "Bash"-only matcher that points at those two
-  # hooks to "Bash|Agent|Task". Idempotent.
-  say "upgrading exec-logger + PostToolUse matchers to Bash|Agent|Task…"
-  do_run "node -e \"
-    const fs=require('fs');
-    const p='$CLAUDE_DIR/settings.json';
-    const s=JSON.parse(fs.readFileSync(p,'utf8'));
-    let touched=0;
-    for (const h of (s.hooks && s.hooks.PostToolUse) || []) {
-      if (h.matcher === 'Bash') {
-        const s2=JSON.stringify(h);
-        if (s2.includes('exec-logger.js') || s2.includes('PostToolUse.js')) {
-          h.matcher='Bash|Agent|Task';
-          touched++;
-        }
-      }
-    }
-    if (touched>0) fs.writeFileSync(p, JSON.stringify(s, null, 2));
-    console.log('matchers_upgraded='+touched);
-  \""
-  # Stop hook — feedback loop telemetry (writes turn_end events for backtest.resolveFeedback)
-  if grep -q "gsd-turn-end.js" "$CLAUDE_DIR/settings.json"; then
-    ok "Stop hook already registered"
-  else
-    say "merging Stop hook into settings.json…"
-    do_run "node -e \"
-      const fs=require('fs');
-      const path='$CLAUDE_DIR/settings.json';
-      const s=JSON.parse(fs.readFileSync(path,'utf8'));
-      s.hooks=s.hooks||{};
-      s.hooks.Stop=s.hooks.Stop||[];
-      s.hooks.Stop.push({hooks:[{type:'command',command:'node \\\"$CLAUDE_DIR/hooks/gsd-turn-end.js\\\"',timeout:3}]});
-      fs.writeFileSync(path, JSON.stringify(s, null, 2));
-    \""
-    ok "Stop hook registered in settings.json (feedback loop enabled)"
-  fi
-else
-  warn "settings.json not found — Claude Code may not be installed or not yet run once"
-  warn "  Open Claude Code at least once, then re-run this installer to register the hook"
+# CLAUDE.md (only if missing or --force)
+if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
+  do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md' 2>/dev/null || true"
 fi
 
-# 7. Subscription profile wizard (interactive, only if not already configured)
-SUB_PROFILE_PATH="$ROUTER_DIR/subscription-profile.json"
-if [ ! -f "$SUB_PROFILE_PATH" ] || [ "$FORCE" = "1" ]; then
-  echo ""
-  say "Let's configure your subscription profile so frugal can route optimally."
-  echo ""
-  printf "  Do you have Claude Max (unlimited Opus)? [y/N]: "
-  read -r HAS_MAX < /dev/tty 2>/dev/null || HAS_MAX="n"
-  printf "  Do you have an Anthropic API key (pay-per-token)? [y/N]: "
-  read -r HAS_API < /dev/tty 2>/dev/null || HAS_API="n"
-  printf "  Do you have an OpenAI API key? [y/N]: "
-  read -r HAS_OPENAI < /dev/tty 2>/dev/null || HAS_OPENAI="n"
-  printf "  Do you have Gemini API access? [y/N]: "
-  read -r HAS_GEMINI < /dev/tty 2>/dev/null || HAS_GEMINI="n"
+ok "Runtime installed"
 
-  # Map answers to profile values (bash 3.2 compat — no ${var,,})
-  HAS_MAX_LC=$(echo "$HAS_MAX" | tr '[:upper:]' '[:lower:]')
-  HAS_API_LC=$(echo "$HAS_API" | tr '[:upper:]' '[:lower:]')
-  HAS_OPENAI_LC=$(echo "$HAS_OPENAI" | tr '[:upper:]' '[:lower:]')
-  HAS_GEMINI_LC=$(echo "$HAS_GEMINI" | tr '[:upper:]' '[:lower:]')
-  case "$HAS_MAX_LC" in y|yes|s|sim) ANTHROPIC_PLAN="max" ;;
-    *) case "$HAS_API_LC" in y|yes|s|sim) ANTHROPIC_PLAN="api-paid" ;;
-       *) ANTHROPIC_PLAN="none" ;; esac ;;
-  esac
-  case "$HAS_OPENAI_LC" in y|yes|s|sim) OPENAI_PLAN="api-paid" ;; *) OPENAI_PLAN="none" ;; esac
-  case "$HAS_GEMINI_LC" in y|yes|s|sim) GEMINI_PLAN="api-paid" ;; *) GEMINI_PLAN="none" ;; esac
-
-  do_run "node -e \"
-    const fs=require('fs');
-    const profile={
-      updated_at: new Date().toISOString(),
-      profiles: { anthropic: '$ANTHROPIC_PLAN', openai: '$OPENAI_PLAN', gemini: '$GEMINI_PLAN' },
-      budget_strategy: 'auto',
-      notes: 'Configured during install.sh v2'
-    };
-    fs.writeFileSync('$SUB_PROFILE_PATH', JSON.stringify(profile, null, 2));
-  \""
-  ok "subscription profile saved (anthropic: $ANTHROPIC_PLAN | openai: $OPENAI_PLAN | gemini: $GEMINI_PLAN)"
-else
-  ok "subscription profile already configured — skipping wizard"
+# ── Write shim + env file ───────────────────────────────────────────────
+say "Installing mooter shim to $LOCAL_BIN/mooter..."
+if [ "$DRY_RUN" = "0" ]; then
+  cat > "$SHIM" <<SHIM_EOF
+#!/bin/sh
+# mooter — launcher shim (installed by install.sh)
+exec node "\$HOME/.mooter/cli/mooter.js" "\$@"
+SHIM_EOF
+  chmod +x "$SHIM"
 fi
+ok "Shim: $SHIM"
 
-# 7A. Device ID — ensure ~/.frugal/device.id exists (required for heartbeat + telemetry)
-DEVICE_DIR="$HOME/.frugal"
-DEVICE_ID_FILE="$DEVICE_DIR/device.id"
-if [ ! -f "$DEVICE_ID_FILE" ]; then
-  do_run "mkdir -p '$DEVICE_DIR'"
-  if command -v uuidgen >/dev/null 2>&1; then
-    do_run "uuidgen | tr '[:upper:]' '[:lower:]' > '$DEVICE_ID_FILE'"
-  elif command -v node >/dev/null 2>&1; then
-    do_run "node -e \"console.log(require('crypto').randomUUID())\" > '$DEVICE_ID_FILE'"
-  elif [ -r /proc/sys/kernel/random/uuid ]; then
-    do_run "cat /proc/sys/kernel/random/uuid > '$DEVICE_ID_FILE'"
-  else
-    warn "cannot generate device.id — no uuidgen/node/random source"
-  fi
-  [ -f "$DEVICE_ID_FILE" ] && ok "device.id generated: $(cat "$DEVICE_ID_FILE" 2>/dev/null | head -c 8)…"
-else
-  ok "device.id already exists"
+if [ "$DRY_RUN" = "0" ]; then
+  cat > "$MOOTER_ENV" <<ENV_EOF
+# mooter env — sourced by shell profiles to put ~/.local/bin on PATH.
+case ":\$PATH:" in
+  *":\$HOME/.local/bin:"*) ;;
+  *) export PATH="\$HOME/.local/bin:\$PATH" ;;
+esac
+ENV_EOF
 fi
+ok "Env file: $MOOTER_ENV"
 
-# 7B. Device profile — hardware + software auto-detect (non-interactive, idempotent)
-if [ -f "$ROUTER_DIR/setup-profile.js" ]; then
-  say "capturing device profile (hardware + software)…"
-  do_run "node '$ROUTER_DIR/setup-profile.js' --non-interactive" 2>&1 | tail -3 || true
-  ok "device-profile.json written"
-fi
+# ── Inject into shell profiles (idempotent) ─────────────────────────────
+if [ "$NO_PATH" = "0" ]; then
+  MARKER='# >>> mooter (managed) >>>'
+  ENDMARK='# <<< mooter (managed) <<<'
+  BLOCK="$MARKER\n. \"\$HOME/.mooter/env\"\n$ENDMARK"
 
-# 7C. Sprint B feature flags — shadow mode, per-user adaptation, implicit signals, ground-truth oracle
-MOOTER_MODE_PATH="$ROUTER_DIR/.mooter-mode.json"
-if [ ! -f "$MOOTER_MODE_PATH" ]; then
-  say "enabling Sprint B feature flags…"
-  if [ "$DRY_RUN" = "0" ]; then
-    cat > "$MOOTER_MODE_PATH" <<FLAGS_EOF
-{
-  "shadow_mode": true,
-  "shadow_sample_rate": 0.05,
-  "per_user_adaptation": true,
-  "implicit_signals": true,
-  "ground_truth_oracle": true,
-  "_enabled_at": "install.sh",
-  "_enabled_on": "$(date +%Y-%m-%d)"
-}
-FLAGS_EOF
-  fi
-  ok "feature flags enabled (.mooter-mode.json)"
-else
-  ok "feature flags already configured"
-fi
-
-# 7D. Ollama enrichment — pull nomic-embed-text for KNN similarity (small, always safe)
-if command -v ollama >/dev/null 2>&1; then
-  if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
-    say "pulling nomic-embed-text (~274MB, required for KNN similarity)…"
-    do_run "ollama pull nomic-embed-text" 2>&1 | tail -2 || warn "nomic pull failed — KNN will fall back"
-  else
-    ok "nomic-embed-text already installed"
-  fi
-  # qwen3:30b is 20GB — only pull if enough RAM (>=16GB) and user wants smart T0
-  MEM_GB=0
-  if [ "$(uname)" = "Darwin" ]; then
-    MEM_GB=$(sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024/1024/1024)}')
-  elif [ "$(uname)" = "Linux" ]; then
-    MEM_GB=$(awk '/MemTotal/ {print int($2/1024/1024)}' /proc/meminfo 2>/dev/null || echo 0)
-  fi
-  if [ "$MEM_GB" -ge 16 ] && ! ollama list 2>/dev/null | grep -q "qwen3:30b"; then
-    say "RAM=${MEM_GB}GB supports qwen3:30b (T0-smart, 20GB download). Skipping by default — run manually if wanted:"
-    echo "  ollama pull qwen3:30b &"
-  fi
-fi
-
-# 7E. MCPs — filesystem + context7 via `claude mcp add` (project scope)
-if command -v claude >/dev/null 2>&1; then
-  # Only add MCPs when install.sh was invoked from inside a frugal/mooter repo
-  if [ -f "$SRC_DIR/tools/router/classify.js" ] && [ "$SRC_DIR" != "$HOME" ]; then
-    if ! (cd "$SRC_DIR" && claude mcp list 2>/dev/null | grep -q "filesystem"); then
-      say "registering MCPs (filesystem + context7) at project scope $SRC_DIR…"
-      do_run "cd '$SRC_DIR' && claude mcp add filesystem --scope project -- npx -y @modelcontextprotocol/server-filesystem '$SRC_DIR' >/dev/null 2>&1" || warn "filesystem MCP add failed"
-      do_run "cd '$SRC_DIR' && claude mcp add context7 --scope project -- npx -y @upstash/context7-mcp >/dev/null 2>&1" || warn "context7 MCP add failed"
-      ok "MCPs registered (filesystem + context7)"
-    else
-      ok "MCPs already registered in project"
-    fi
-  fi
-fi
-
-# 7F. VS Code `code` CLI symlink (macOS) — avoids requiring Cmd+Shift+P install step
-if [ "$(uname)" = "Darwin" ] && [ -d "/Applications/Visual Studio Code.app" ] && ! command -v code >/dev/null 2>&1; then
-  USER_BIN="$HOME/.local/bin"
-  if [ -d "$USER_BIN" ] && case ":$PATH:" in *":$USER_BIN:"*) true;; *) false;; esac; then
-    do_run "ln -sf '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code' '$USER_BIN/code'"
-    ok "VS Code 'code' CLI linked at $USER_BIN/code"
-  else
-    warn "VS Code installed but ~/.local/bin not in PATH — skipping symlink"
-  fi
-fi
-
-# 7G. VS Code extensions (recommended mooter set) — only if `code` exists
-if command -v code >/dev/null 2>&1; then
-  MOOTER_EXTS="anthropic.claude-code usernamehw.errorlens eamodio.gitlens aaron-bond.better-comments bradlc.vscode-tailwindcss esbenp.prettier-vscode dbaeumer.vscode-eslint davidanson.vscode-markdownlint yzhang.markdown-all-in-one"
-  INSTALLED_LIST=$(code --list-extensions 2>/dev/null || true)
-  TO_INSTALL=""
-  for ext in $MOOTER_EXTS; do
-    if ! echo "$INSTALLED_LIST" | grep -qx "$ext"; then
-      TO_INSTALL="$TO_INSTALL --install-extension $ext"
-    fi
-  done
-  if [ -n "$TO_INSTALL" ]; then
-    say "installing missing VS Code extensions…"
-    do_run "code $TO_INSTALL >/dev/null 2>&1" || warn "some VS Code extensions may have failed"
-    ok "VS Code extensions aligned with mooter set"
-  else
-    ok "VS Code mooter extensions already installed"
-  fi
-fi
-
-# 7H. Workspace file — ~/mooter.code-workspace (idempotent)
-WORKSPACE_FILE="$HOME/mooter.code-workspace"
-if [ ! -f "$WORKSPACE_FILE" ] && [ -d "$SRC_DIR/.git" ]; then
-  say "generating $WORKSPACE_FILE…"
-  if [ "$DRY_RUN" = "0" ]; then
-    cat > "$WORKSPACE_FILE" <<WS_EOF
-{
-  "folders": [
-    { "name": "mooter (repo)", "path": "$SRC_DIR" },
-    { "name": "runtime (~/.claude)", "path": "$CLAUDE_DIR" },
-    { "name": "reports", "path": "$SRC_DIR/reports" }
-  ],
-  "settings": {
-    "editor.formatOnSave": true,
-    "editor.tabSize": 2,
-    "git.autofetch": true
-  },
-  "extensions": {
-    "recommendations": [
-      "anthropic.claude-code", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode",
-      "eamodio.gitlens", "usernamehw.errorlens"
-    ]
-  }
-}
-WS_EOF
-  fi
-  ok "workspace generated at $WORKSPACE_FILE"
-fi
-
-# 8. macOS LaunchAgent for auto-learning backtest at 02:00 daily
-if [ "$(uname)" = "Darwin" ]; then
-  LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
-  PLIST_PATH="$LAUNCH_AGENTS_DIR/com.frugal.backtest.plist"
-  BACKTEST_LOG="$ROUTER_DIR/backtest-cron.log"
-
-  if [ ! -f "$PLIST_PATH" ]; then
-    say "Installing macOS LaunchAgent (backtest at 02:00 daily)…"
-    do_run "mkdir -p '$LAUNCH_AGENTS_DIR'"
-    if [ "$DRY_RUN" = "0" ]; then
-      cat > "$PLIST_PATH" << PLIST_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.frugal.backtest</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$(command -v node)</string>
-        <string>$ROUTER_DIR/backtest.js</string>
-        <string>--export-delta</string>
-    </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>2</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
-    <key>StandardOutPath</key>
-    <string>$BACKTEST_LOG</string>
-    <key>StandardErrorPath</key>
-    <string>$BACKTEST_LOG</string>
-    <key>RunAtLoad</key>
-    <false/>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
-    </dict>
-</dict>
-</plist>
-PLIST_EOF
-      if launchctl load "$PLIST_PATH" 2>/dev/null; then
-        ok "LaunchAgent installed and loaded (backtest runs daily at 02:00)"
-      else
-        ok "LaunchAgent file installed at $PLIST_PATH"
-        warn "Could not load automatically — run: launchctl load '$PLIST_PATH'"
+  inject() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    if ! grep -q "$MARKER" "$rc" 2>/dev/null; then
+      if [ "$DRY_RUN" = "0" ]; then
+        printf "\n%b\n" "$BLOCK" >> "$rc"
       fi
+      ok "Added PATH entry to $rc"
     fi
-  else
-    ok "macOS LaunchAgent already installed"
-  fi
-elif [ "$(uname)" != "Darwin" ] && [ ! "$IS_WINDOWS" ]; then
-  # Linux cron fallback
-  if command -v crontab >/dev/null 2>&1; then
-    if ! crontab -l 2>/dev/null | grep -q "backtest.js"; then
-      say "Adding cron job for auto-learning backtest at 02:00 daily…"
-      do_run "(crontab -l 2>/dev/null; echo '0 2 * * * $(command -v node) $ROUTER_DIR/backtest.js --export-delta >> $ROUTER_DIR/backtest-cron.log 2>&1') | crontab -"
-      ok "cron job added (backtest at 02:00 daily)"
-    else
-      ok "cron job already configured"
+  }
+  # Only inject into profiles that actually exist.
+  [ -f "$HOME/.zshrc" ]        && inject "$HOME/.zshrc"
+  [ -f "$HOME/.bashrc" ]       && inject "$HOME/.bashrc"
+  [ -f "$HOME/.bash_profile" ] && inject "$HOME/.bash_profile"
+  [ -f "$HOME/.profile" ]      && inject "$HOME/.profile"
+  # Fish has its own syntax; handle separately.
+  if [ -d "$HOME/.config/fish" ] && [ -f "$HOME/.config/fish/config.fish" ]; then
+    if ! grep -q "$MARKER" "$HOME/.config/fish/config.fish" 2>/dev/null; then
+      if [ "$DRY_RUN" = "0" ]; then
+        printf "\n%s\nfish_add_path -g \$HOME/.local/bin\n%s\n" "$MARKER" "$ENDMARK" >> "$HOME/.config/fish/config.fish"
+      fi
+      ok "Added PATH entry to ~/.config/fish/config.fish"
     fi
-  fi
-fi
-
-# 9. Start savings tracker in background
-if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/savings-tracker.js" ]; then
-  if ! curl -sf "http://127.0.0.1:7821/health" >/dev/null 2>&1; then
-    say "Starting savings tracker (port 7821)…"
-    do_run "nohup node '$ROUTER_DIR/savings-tracker.js' >/dev/null 2>&1 &"
-    sleep 1
-    if curl -sf "http://127.0.0.1:7821/health" >/dev/null 2>&1; then
-      ok "savings tracker running on :7821"
-    else
-      warn "savings tracker starting (will be ready on next prompt)"
-    fi
-  else
-    ok "savings tracker already running on :7821"
   fi
 fi
 
-# 10. Smoke test — validate the classifier works
-if command -v node >/dev/null 2>&1 && [ -f "$ROUTER_DIR/smoke-test.js" ]; then
-  say "Running smoke test…"
-  SMOKE_OUT=$(node "$ROUTER_DIR/smoke-test.js" 2>&1)
-  SMOKE_EXIT=$?
-  if [ "$SMOKE_EXIT" = "0" ]; then
-    ok "smoke test passed — classifier is working"
-    SMOKE_RESULT="install_ok"
+# ── Hook registration in settings.json (non-destructive) ────────────────
+if [ -f "$CLAUDE_DIR/settings.json" ]; then
+  say "Registering hooks in settings.json..."
+  do_run "node '$MOOTER_CLI_DIR/lib/register-hooks.js' '$CLAUDE_DIR/settings.json' '$ROUTER_DIR' '$HOOKS_DIR'"
+  ok "Hooks registered (UserPromptSubmit + Stop)"
+fi
+
+# ── Device ID ───────────────────────────────────────────────────────────
+if [ ! -f "$DEVICE_DIR/device.id" ]; then
+  if [ "$DRY_RUN" = "0" ]; then
+    node -e "require('fs').writeFileSync('$DEVICE_DIR/device.id', require('crypto').randomUUID() + '\\n')"
+  fi
+  ok "Device ID generated"
+fi
+
+# ── Ollama (optional, non-blocking) ─────────────────────────────────────
+if command -v ollama >/dev/null 2>&1; then
+  ok "Ollama detected"
+  if ! ollama list 2>/dev/null | grep -q "qwen2.5:3b"; then
+    say "Pulling qwen2.5:3b (~1.9 GB) — required for T0 tier..."
+    do_run "ollama pull qwen2.5:3b" || warn "Pull failed — retry later: ollama pull qwen2.5:3b"
   else
-    warn "smoke test had failures:"
-    echo "$SMOKE_OUT" | grep "✗" | sed 's/^/    /'
-    SMOKE_RESULT="install_fail"
+    ok "qwen2.5:3b ready"
   fi
 else
-  SMOKE_RESULT="install_ok"
+  warn "Ollama not installed — T0 (local, free) tier disabled."
+  info "To enable T0 later:"
+  info "  1. Install Ollama: https://ollama.com/download"
+  info "  2. Run: mooter doctor"
 fi
 
-# 11. Device heartbeat — fire-and-forget ping to hub so we can see install success rate
-# Uses values written by setup-profile.js in step 7B (single source of truth).
-HUB_URL="${MOOTER_HUB_URL:-https://mooter-hub.frugal-hub.workers.dev}"
-DEVICE_PROFILE_FILE="$ROUTER_DIR/device-profile.json"
-if [ -f "$DEVICE_ID_FILE" ] && [ -f "$DEVICE_PROFILE_FILE" ] && command -v curl >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
-  HEARTBEAT_BODY=$(node -e "
-    const fs=require('fs');
-    const id=fs.readFileSync('$DEVICE_ID_FILE','utf8').trim();
-    const p=JSON.parse(fs.readFileSync('$DEVICE_PROFILE_FILE','utf8'));
-    const sub=(p.subscriptions && p.subscriptions.anthropic) || 'unknown';
-    const body={
-      device_id:id,
-      event:'$SMOKE_RESULT',
-      setup_version:'install.sh@v0.9.4',
-      hw_tier:(p.hardware && p.hardware.hw_tier) || 'unknown',
-      sub_profile:sub,
-      platform:(p.hardware && p.hardware.platform) || null,
-      node_version:(p.software && p.software.node_version) || null,
-      claude_code_version:(p.software && p.software.claude_code_version) || null,
-      ts:new Date().toISOString()
-    };
-    console.log(JSON.stringify(body));
-  " 2>/dev/null)
-  if [ -n "$HEARTBEAT_BODY" ]; then
-    # Pipe body via stdin to avoid eval-injection through quoted args
-    do_run "printf '%s' '$HEARTBEAT_BODY' | curl -s -X POST -H 'Content-Type: application/json' --max-time 3 --data-binary @- '$HUB_URL/api/device-heartbeat' >/dev/null 2>&1 || true"
-  fi
+# ── API key hint ────────────────────────────────────────────────────────
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  warn "ANTHROPIC_API_KEY not set — T1 will use subagent fallback (still works)."
 fi
 
-# ── Final summary ────────────────────────────────────────────────────────────
+# ── Post-install ────────────────────────────────────────────────────────
 echo ""
-echo "  ┌────────────────────────────────────────────────────┐"
-echo "  │   frugal v0.9.4 installation complete              │"
-echo "  └────────────────────────────────────────────────────┘"
+echo "  ${C2}mooter v${VERSION} installed.${CR}"
 echo ""
-ok "Files installed to $CLAUDE_DIR"
-ok "Hook registered in settings.json"
-if [ "$(uname)" = "Darwin" ]; then
-  ok "LaunchAgent: backtest auto-learning at 02:00 daily"
-fi
+echo "  Next steps:"
+echo "    1. ${CB}source ~/.mooter/env${CR}  ${CD}(or open a new terminal)${CR}"
+echo "    2. ${CB}mooter doctor${CR}         ${CD}(verify — 10 checks)${CR}"
+echo "    3. ${CB}mooter${CR}                 ${CD}(launches Claude Code with routing)${CR}"
 echo ""
-say "Next steps:"
-echo "  1. Open Claude Code in any project"
-echo "  2. Type: /frugal-hello  (see your first routing decision)"
-echo "  3. Type: /frugal-status (full health check)"
-echo "  4. Type: /frugal-dashboard (open local dashboard at localhost:7820)"
-echo "  5. Use Claude normally — frugal routes silently in the background"
-echo ""
-say "Verify everything is working:"
-echo "  node $ROUTER_DIR/frugal-doctor.js"
-echo "  node $ROUTER_DIR/frugal-doctor.js --fix   (auto-fix issues)"
+echo "  ${CD}Uninstall anytime: mooter uninstall${CR}"
+echo "  ${CD}Docs: https://mooter.ai${CR}"
 echo ""
