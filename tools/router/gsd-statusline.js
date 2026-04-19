@@ -247,6 +247,71 @@ function stripAnsi(str) {
   return String(str).replace(/\x1B\[[0-9;]*[mGKHF]/g, '');
 }
 
+// ── v5.0 multi-subscription awareness helpers ──────────────────────────
+// Mooter's real value prop: orchestrate ALL paid LLM subscriptions.
+// The statusline should surface which ones are active, what mode the
+// router is in, and where we are in the billing cycle so the user can
+// judge "should I be in zen or beast mode right now?"
+
+// Mode: reads .mooter-mode.json flags. Returns { mode: 'beast'|'zen'|null }.
+function getRouterMode() {
+  if (process.env.MOOTER_MOCK === '1') {
+    if (process.env.MOOTER_MODE_MOCK === 'beast') return { mode: 'beast' };
+    if (process.env.MOOTER_MODE_MOCK === 'zen')   return { mode: 'zen' };
+    return { mode: null };
+  }
+  try {
+    const p = path.join(os.homedir(), '.claude', 'tools', 'router', '.mooter-mode.json');
+    if (!fs.existsSync(p)) return { mode: null };
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (j.beast_mode === true) return { mode: 'beast' };
+    if (j.zen_mode === true)   return { mode: 'zen' };
+  } catch {}
+  return { mode: null };
+}
+
+// Subscriptions: reads subscription-profile.json. Returns array of plan
+// labels for every provider the user has declared. Future-ready for
+// multi-provider (anthropic + openai + google + etc.).
+function getSubscriptions() {
+  if (process.env.MOOTER_MOCK === '1') {
+    return ['Claude Max'];
+  }
+  try {
+    const p = path.join(os.homedir(), '.claude', 'tools', 'router', 'subscription-profile.json');
+    if (!fs.existsSync(p)) return [];
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!j.profiles) return [];
+    const MAP = {
+      anthropic: { max: 'Claude Max', pro: 'Claude Pro', team: 'Claude Team', free: 'Claude Free' },
+      openai:    { plus: 'GPT Plus', team: 'GPT Team', pro: 'GPT Pro', free: 'GPT Free' },
+      google:    { advanced: 'Gemini Adv', pro: 'Gemini Pro', free: 'Gemini' },
+      xai:       { premium: 'Grok Premium', free: 'Grok' },
+      mistral:   { pro: 'Mistral Pro', free: 'Mistral' },
+    };
+    const labels = [];
+    for (const [provider, tierKey] of Object.entries(j.profiles)) {
+      const tier = String(tierKey).toLowerCase();
+      const providerMap = MAP[provider] || {};
+      const label = providerMap[tier] || `${provider} ${tier}`;
+      labels.push(label);
+    }
+    return labels;
+  } catch {}
+  return [];
+}
+
+// Cycle awareness: where are we in the billing month? Helps user decide
+// if they should be in zen (conserve budget) or beast (spend remaining
+// before reset) mode. Returns compact string like "d19/30" + progress %.
+function getCycleDay() {
+  const d = new Date();
+  const day = d.getDate();
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const progressPct = Math.round((day / lastDay) * 100);
+  return { day, lastDay, progressPct };
+}
+
 // ── v0.12: statusline — full transparency with model names + tokens ────────
 // The statusline is frugal's business card. It must prove at a glance:
 //   "frugal saves you real money — here's the proof."
@@ -1194,7 +1259,9 @@ function buildStatusline(data) {
   const label = healthLabel(pct);
   const latency = getLatencyPill(metrics);
   const providers = renderProviderDots(metrics);
-  const plan = getPlanLabel(metrics);
+  const subscriptions = getSubscriptions();
+  const routerMode = getRouterMode();
+  const cycle = getCycleDay();
   const version = getVersionInfo();
   const termW = termWidthCols();
 
@@ -1211,41 +1278,68 @@ function buildStatusline(data) {
   const SEP = ` ${DIM}·${RESET} `;
   const sepLen = stripAnsi(SEP).length;
 
+  // Mandatory pills — always visible, budget-insensitive. Mode pill goes
+  // here (not in extras) because when beast/zen is active the user MUST
+  // see it, no matter how narrow the terminal is.
+  const modeBadge = routerMode.mode === 'beast'
+    ? `${DANGER}${BOLD}🦁 BEAST${RESET}`
+    : routerMode.mode === 'zen'
+      ? `${HEALTHY}${BOLD}🧘 ZEN${RESET}`
+      : null;
   const A_mandatory = [
     `🐮 ${BRAND}${BOLD}mooter${RESET}`,
+    modeBadge,
     tierBadge,
     `${BOLD}${modelShort}${RESET}`,
-  ];
+  ].filter(Boolean);
   const savingsCore = savedStr
     ? `${BOLD}${pct}%${arrow}${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}saved${RESET}`
     : (savings?.promptCount ? `${DIM}${pct}% no savings yet${RESET}` : null);
   const healthCore = renderRightAnchor(pct, !!metrics);
 
-  // Priority-ordered extras. User-facing priorities (lower = shown earlier):
-  //   1 bar          — visual hero (what's the distribution?)
-  //   2 plan         — what plan am I on? (promoted from 7)
-  //   3 spent $      — how much did this session cost? (promoted from 4)
-  //   4 prompts N    — how many prompts in session? (promoted from 5)
-  //   5 ctx %        — context utilization
-  //   6 latency Ns   — perf feedback
-  //   7 providers    — infra health dots
-  //   8 auto-routed  — option-A deflection count
-  //   9 version      — meta
+  // Priority-ordered extras. v5.0 reorder emphasizes mooter as a
+  // multi-subscription orchestrator (not just a "route to local" router):
+  //   1 bar           — visual hero (distribution across all tiers)
+  //   2 MODE          — beast/zen is CRITICAL when active (overrides routing)
+  //   3 subscriptions — all paid LLM plans the user has (multi-provider)
+  //   4 cycle d/N     — where in the billing month (decides beast vs zen)
+  //   5 spent $       — session cost
+  //   6 prompts N     — session activity
+  //   7 ctx %         — working memory
+  //   8 latency Ns    — perf feedback
+  //   9 providers     — infra health dots (online/degraded)
+  //  10 auto-routed   — option-A deflection count
+  //  11 version       — meta
   const extras = [];
   if (compactBar) extras.push({ prio: 1, str: compactBar });
-  if (plan) extras.push({ prio: 2, str: `${DIM}plan${RESET} ${BOLD}${plan}${RESET}` });
-  if (spentStr) extras.push({ prio: 3, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
-  if (savings?.promptCount) extras.push({ prio: 4, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
+
+  // mode is in mandatory (see above) — never drops out of budget.
+
+  if (subscriptions && subscriptions.length > 0) {
+    // Compact multi-sub: "Claude Max +2" when more than 1, else full label.
+    const shown = subscriptions.length === 1
+      ? subscriptions[0]
+      : `${subscriptions[0]}${DIM}+${subscriptions.length - 1}${RESET}`;
+    extras.push({ prio: 3, str: `${DIM}plan${RESET} ${BOLD}${shown}${RESET}` });
+  }
+
+  // Cycle pill with color semantics: late-month gets WARN tint so the user
+  // notices when they should be in beast mode (spend-down before reset).
+  const cycleColor = cycle.progressPct >= 75 ? WARN : cycle.progressPct >= 90 ? DANGER : DIM;
+  extras.push({ prio: 4, str: `${DIM}cycle${RESET} ${cycleColor}${BOLD}d${cycle.day}/${cycle.lastDay}${RESET}` });
+
+  if (spentStr) extras.push({ prio: 5, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
+  if (savings?.promptCount) extras.push({ prio: 6, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
   if (ctxPct !== null) {
     const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
-    extras.push({ prio: 5, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
+    extras.push({ prio: 7, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
   }
-  if (latency) extras.push({ prio: 6, str: latency });
-  if (providers) extras.push({ prio: 7, str: providers });
+  if (latency) extras.push({ prio: 8, str: latency });
+  if (providers) extras.push({ prio: 9, str: providers });
   if (metrics && metrics.option_a_hits != null && metrics.option_a_hits > 0) {
-    extras.push({ prio: 8, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
+    extras.push({ prio: 10, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
   }
-  if (version && version.version) extras.push({ prio: 9, str: `${DIM}v${version.version}${RESET}` });
+  if (version && version.version) extras.push({ prio: 11, str: `${DIM}v${version.version}${RESET}` });
 
   // Measure budget and add extras while we have room.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
