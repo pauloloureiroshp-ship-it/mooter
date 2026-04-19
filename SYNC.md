@@ -249,6 +249,21 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 **Página Notion:** [🐮 Sessão 2026-04-19 v6.8](https://www.notion.so/3476f6e42bc4810888e3e64204721c85)
 
+**Addendum — Mooline polish (mesma sessão, +2 commits):**
+- `1d13fd1` — `feat(statusline): v6.8 refine — Moo default, pace sentiment, monthly label`
+- `28db65c` — `feat(statusline): v6.8 polish — honest 'all-Opus session' + 5h sentiment`
+
+Três dores concretas reportadas + visão de "mooline como storytelling" → escolhida variante Refine mínima + 2 polimentos extra:
+
+1. **L1 default badge** — `routerMode.mode === null` deixou de ser silencioso. Render `🐮 Moo` em dim-rose. Trio completo: Moo (auto) / CrazyMoo (beast) / LazyMoo (zen).
+2. **L2 all-Opus session** — quando `savingsPct == 0`, L2 agora escreve `🐮 all-Opus session` em vez do confuso `saved $0.00 (0%∅ vs all-Opus)`. Glyph `∅` removido. `parseFloat` gate para savedStr evitar `'0.00'` (string truthy).
+3. **L3 pace sentiment** — `1%↓` substituído por palavra: `relaxed` / `on pace` / `burning` / `critical` (threshold pace_ratio).
+4. **L3 5h sentiment** — `5h 27%` agora é `5h 27% cold` (ou warm/hot/throttling conforme used_pct).
+5. **L3 monthly label** — `quota $X/Y` renomeado para `$X/$Y month` (período explícito).
+6. **L3 ordem narrativa** — reordenado para `name → budget mensal → 5h → pace → sparkline`, lê como frase.
+
+Zero logic/data changes — só apresentação. Single-line path (non-MOOTER_MODE) intacto por disciplina de blast-radius.
+
 **Pendentes próxima sessão (#33) — candidatos a v6.9:**
 1. **Probes 13-14 — combinar U+25xx elementos nunca testados juntos:**
    - Probe 13: `═` filler + single close-corners `╮┤╯` (probe 9 + 11 combo)
