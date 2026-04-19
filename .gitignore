@@ -50,6 +50,10 @@ tools/router/classify.js.bak
 tools/router/classify.js.bak2
 tools/router/.env
 
+# Test coverage artefacts (c8/nyc output — can reach tens of MB, never commit)
+tools/router/coverage/
+tools/router/.nyc_output/
+
 # Wrangler local state
 hub/.wrangler/
 
