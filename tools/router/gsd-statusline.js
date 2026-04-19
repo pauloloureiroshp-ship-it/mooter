@@ -698,8 +698,9 @@ function getLatencyPill(metrics) {
   return `${DIM}latency${RESET} ${color}${BOLD}${p50s}s${RESET}`;
 }
 
-// Warning row — stale hooks, update available, tracker offline. Dim red banner.
-function renderWarningRow(metricsAvailable) {
+// Collect active warnings (stale hooks, update available, tracker offline).
+// Returns an array of short messages, empty if no warnings.
+function collectWarnings(metricsAvailable) {
   const warnings = [];
   try {
     const sharedCacheFile = path.join(os.homedir(), '.cache', 'gsd', 'gsd-update-check.json');
@@ -707,13 +708,23 @@ function renderWarningRow(metricsAvailable) {
     const cacheFile = fs.existsSync(sharedCacheFile) ? sharedCacheFile : legacyCacheFile;
     if (fs.existsSync(cacheFile)) {
       const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-      if (cache.update_available) warnings.push('update available — /gsd-update');
-      if (cache.stale_hooks && cache.stale_hooks.length > 0) warnings.push('stale hooks — /gsd-update');
+      if (cache.update_available) warnings.push('update available');
+      if (cache.stale_hooks && cache.stale_hooks.length > 0) warnings.push('stale hooks');
     }
   } catch {}
-  if (!metricsAvailable) warnings.push('tracker offline (127.0.0.1:7821)');
-  if (!warnings.length) return null;
-  return `${DANGER}⚠${RESET}        ${DANGER}${warnings.join(`  ${DIM}·${RESET}  ${DANGER}`)}${RESET}`;
+  if (!metricsAvailable) warnings.push('tracker offline');
+  return warnings;
+}
+
+// Right-anchor pill — warning takes priority over health signal.
+function renderRightAnchor(savingsPct, metricsAvailable) {
+  const warnings = collectWarnings(metricsAvailable);
+  if (warnings.length) {
+    // Short join for single-line constraint
+    const msg = warnings.slice(0, 2).join(' · ');
+    return `${DANGER}⚠${RESET} ${DANGER}${msg}${RESET}`;
+  }
+  return renderHealthPill(savingsPct);
 }
 
 // Task row — rendered between header and session when a todo is in_progress.
@@ -1104,12 +1115,14 @@ function renderProviders(m) {
   }
 }
 
-// v3.0 — buildStatusline: rich 5-row dashboard layout.
-// Row 1: brand · model · tier · classify · ctx                    ● health
-// Row 2: session N prompts · $spent · $saved · % vs all-Opus
-// Row 3: routing [full-width colored bar]
-// Row 4:    ■ T0 % local · ■ T1 % haiku · ■ T2 % sonnet · ■ T3 % opus
-// Row 5: plan X · deflected N                            vX.Y.Z · sha abc1234
+// v4.0 — buildStatusline: Claude Code only renders the first line of statusline
+// output (by design), so we condense everything into ONE width-adaptive row.
+//
+// Priority tiers (left to right, added while width budget allows):
+//   TIER A (always):   🐮 [Tn] model · ↓savings% $saved · ● health
+//   TIER B (≥100 col): · ctx X% · 10s lat · bar
+//   TIER C (≥140 col): · $spent · ⚡GPU · ●Cld●Oll
+//   TIER D (≥180 col): · auto-routed N · plan · vX.Y
 function buildStatusline(data) {
   const model = data?.model?.display_name || null;
   const session = data?.session_id || '';
@@ -1138,19 +1151,83 @@ function buildStatusline(data) {
 
   const metrics = fetchFrugalMetrics(session);
   const savings = calcSavings(metrics, session);
-  const savingsPct = savings?.savingsPct || 0;
+  const env = readRouterEnv();
+  const tier = env.lastTier || 'T?';
+  const tierBg = TIER_BG[tier] || '\x1b[48;2;100;100;100m';
+  const tierBadge = `${tierBg}${BLACK}${BOLD} ${tier} ${RESET}`;
+  const modelRaw = model || tierToModelShort(tier);
+  const modelShort = String(modelRaw).replace(/^claude-/, '').replace(/-202510\w*/, '');
 
-  const rows = [
-    renderWarningRow(!!metrics),              // conditional — only on alerts
-    renderHeaderRow(metrics, session, model, ctxPct, savingsPct),
-    renderTaskRow(session),                   // conditional — only when a todo is in_progress
-    renderSessionRow(savings),
-    renderRoutingRow(metrics, session),
-    renderLegendRow(session),
-    renderPlanRow(metrics),
-  ].filter(Boolean);
+  const pct = savings?.savingsPct || 0;
+  const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
+  const savedStr = savings?.savedUsd ? `$${savings.savedUsd}` : null;
+  const spentStr = savings?.spentUsd ? `$${savings.spentUsd}` : null;
+  const dot = healthDot(pct);
+  const label = healthLabel(pct);
+  const latency = getLatencyPill(metrics);
+  const providers = renderProviderDots(metrics);
+  const plan = getPlanLabel(metrics);
+  const version = getVersionInfo();
+  const termW = termWidthCols();
 
-  return rows.join('\n');
+  // Compact bar (8 chars) — visual spine of the distribution.
+  let compactBar = '';
+  try {
+    const b = renderDistributionBar(metrics, session, 10);
+    if (b) compactBar = b;
+  } catch {}
+
+  // Build priority buckets. We'll assemble left-to-right, dropping lower-priority
+  // fragments if the total visible width would exceed termW.
+  const SEP = `  ${DIM}·${RESET}  `;
+  const sepLen = stripAnsi(SEP).length;
+
+  const A_mandatory = [
+    `🐮 ${BRAND}${BOLD}mooter${RESET}`,
+    tierBadge,
+    `${BOLD}${modelShort}${RESET}`,
+  ];
+  const savingsCore = savedStr
+    ? `${BOLD}${pct}%${arrow}${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}saved${RESET}`
+    : (savings?.promptCount ? `${DIM}${pct}% no savings yet${RESET}` : null);
+  const healthCore = renderRightAnchor(pct, !!metrics);
+
+  // Priority-ordered extras. Each is [priority, render] — higher priority added first.
+  const extras = [];
+  if (compactBar) extras.push({ prio: 1, str: compactBar });
+  if (ctxPct !== null) {
+    const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
+    extras.push({ prio: 2, str: `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}` });
+  }
+  if (latency) extras.push({ prio: 3, str: latency });
+  if (spentStr) extras.push({ prio: 4, str: `${BOLD}${spentStr}${RESET} ${DIM}spent${RESET}` });
+  if (savings?.promptCount) extras.push({ prio: 5, str: `${BOLD}${savings.promptCount}${RESET}${DIM}p${RESET}` });
+  if (providers) extras.push({ prio: 6, str: providers });
+  if (plan) extras.push({ prio: 7, str: `${DIM}plan${RESET} ${BOLD}${plan}${RESET}` });
+  if (metrics && metrics.option_a_hits != null && metrics.option_a_hits > 0) {
+    extras.push({ prio: 8, str: `${DIM}auto-routed${RESET} ${BOLD}${metrics.option_a_hits}${RESET}` });
+  }
+  if (version && version.version) extras.push({ prio: 9, str: `${DIM}v${version.version}${RESET}` });
+
+  // Measure budget and add extras while we have room.
+  const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
+  let visible = stripAnsi(mandatory.join(SEP)).length;
+  const budget = termW - 2;  // tiny safety margin so we never overflow
+
+  const sorted = extras.sort((a, b) => a.prio - b.prio);
+  const addedExtras = [];
+  for (const e of sorted) {
+    const needed = sepLen + stripAnsi(e.str).length;
+    if (visible + needed > budget) break;
+    addedExtras.push(e.str);
+    visible += needed;
+  }
+
+  // Final assembly: mandatory fields first, then extras (priority order), health last.
+  // We reinsert healthCore at the end for visual anchor.
+  const withoutHealth = mandatory.slice(0, -1);
+  const all = [...withoutHealth, ...addedExtras, healthCore];
+  return all.join(SEP);
 }
 
 // Mock entry point — bypass stdin so `MOOTER_MOCK=1 node gsd-statusline.js`
