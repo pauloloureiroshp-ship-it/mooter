@@ -188,7 +188,7 @@ REM mooter launcher shim (installed by install.ps1)
 node "%USERPROFILE%\.mooter\cli\mooter.js" %*
 "@
 if (-not $DryRun) { Set-Content -Path $ShimPath -Value $shimContent -Encoding ASCII }
-Ok "Shim: $ShimPath"
+if ($DryRun) { Write-Host "  [dry-run] Would write shim to $ShimPath" -ForegroundColor DarkGray } else { Ok "Shim: $ShimPath" }
 
 # -- User PATH via .NET API (NOT setx) ------------------------------------
 if (-not $NoPath) {
@@ -198,12 +198,13 @@ if (-not $NoPath) {
     if ($pathEntries -notcontains $LocalBin) {
         Say "Adding $LocalBin to User PATH (via .NET API, no admin)..."
         $newPath = if ($currentUserPath) { "$currentUserPath;$LocalBin" } else { $LocalBin }
-        if (-not $DryRun) {
+        if ($DryRun) {
+            Write-Host "  [dry-run] Would set User PATH via .NET SetEnvironmentVariable" -ForegroundColor DarkGray
+        } else {
             [System.Environment]::SetEnvironmentVariable("Path", $newPath, [System.EnvironmentVariableTarget]::User)
+            $env:Path = "$env:Path;$LocalBin"
+            Ok "PATH updated - new terminals will pick it up"
         }
-        # Make it available in current session too
-        $env:Path = "$env:Path;$LocalBin"
-        Ok "PATH updated - new terminals will pick it up"
     } else {
         Ok "$LocalBin already in User PATH"
     }
