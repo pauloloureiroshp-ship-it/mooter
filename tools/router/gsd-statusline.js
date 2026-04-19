@@ -823,6 +823,112 @@ function termWidthCols() {
   return process.stdout.columns || parseInt(process.env.COLUMNS) || 120;
 }
 
+// v6.2 — ctx bar as routing-distribution spine. The ctx progress shows how
+// full Claude Code's context window is (filled width = ctxPct). Within the
+// filled portion, characters are colour-split by tier share so the user
+// sees at a glance "what paid my ctx so far". T0=rose=mooter win.
+function renderCtxBarTier(ctxPct, counts, width) {
+  const w = Math.max(6, width || 16);
+  const filled = Math.max(0, Math.min(w, Math.round((ctxPct / 100) * w)));
+  const empty  = w - filled;
+  if (filled === 0) return `${DIM}${'░'.repeat(w)}${RESET}`;
+  if (!counts || counts.total === 0) {
+    const solid = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
+    return `${solid}${'█'.repeat(filled)}${RESET}${DIM}${'░'.repeat(empty)}${RESET}`;
+  }
+  const shares = [
+    { color: TIER_COLOR.T0, n: counts.local  || 0 },
+    { color: TIER_COLOR.T1, n: counts.haiku  || 0 },
+    { color: TIER_COLOR.T2, n: counts.sonnet || 0 },
+    { color: TIER_COLOR.T3, n: counts.opus   || 0 },
+  ];
+  let bar = '', used = 0;
+  for (const s of shares) {
+    if (s.n === 0) continue;
+    const chars = Math.round((s.n / counts.total) * filled);
+    if (chars > 0) {
+      bar += `${s.color}${'█'.repeat(chars)}${RESET}`;
+      used += chars;
+    }
+  }
+  if (used < filled) bar += `${BRAND}${'█'.repeat(filled - used)}${RESET}`;
+  bar += `${DIM}${'░'.repeat(empty)}${RESET}`;
+  return bar;
+}
+
+// v6.2 — subscription row. One paid plan per row, showing pace · 5h · spark ·
+// quota. Rec badge right-anchors when THIS provider triggered the mode
+// recommendation.
+function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineStr, sepStr) {
+  const u = usageData && usageData.usage && usageData.usage[sub.providerKey];
+  const sep = sepStr || ` ${DIM}·${RESET} `;
+  const nameSeg = `${DIM}📦${RESET} ${BOLD}${sub.label}${RESET}`;
+  if (!u) {
+    const left = `${nameSeg} ${DIM}— no usage data${RESET}`;
+    return boxLine(pos, left, '', width);
+  }
+  // Pace pill (uses same colour semantics as v5.4 subscription pill)
+  const pctNum = Math.round(u.used_pct || 0);
+  const ratio  = u.pace_ratio || 0;
+  let paceColor = DIM, paceArrow = '·';
+  if      (ratio < 0.8)  { paceColor = GREEN;  paceArrow = '↓'; }
+  else if (ratio <= 1.2) { paceColor = DIM;    paceArrow = '·'; }
+  else if (ratio <= 1.5) { paceColor = WARN;   paceArrow = '↑'; }
+  else                   { paceColor = DANGER; paceArrow = '↑'; }
+  const pacePill = `${paceColor}${BOLD}${pctNum}%${paceArrow}${RESET}`;
+  // 5h rolling window (Anthropic cares most, others optional)
+  let fivePill = '';
+  if (u.rolling_5h && u.rolling_5h.budget_usd > 0) {
+    const p5 = Math.round(u.rolling_5h.used_pct);
+    const r5 = u.rolling_5h.pace_ratio || 0;
+    let c5 = DIM;
+    if (r5 > 2)        c5 = DANGER;
+    else if (r5 > 1.3) c5 = WARN;
+    else if (r5 > 0.8) c5 = DIM;
+    else               c5 = HEALTHY;
+    fivePill = `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET}`;
+  }
+  // Quota — "$cost/$budget" (rounded for compactness)
+  let quotaPill = '';
+  if (u.budget_usd > 0) {
+    const cost = u.cost_usd || 0;
+    const c = cost < 10 ? cost.toFixed(2) : cost.toFixed(0);
+    quotaPill = `${DIM}quota${RESET} ${BOLD}$${c}/${Math.round(u.budget_usd)}${RESET}`;
+  }
+  const spark = sparklineStr || '';
+  const leftParts = [nameSeg, pacePill, fivePill, spark, quotaPill].filter(Boolean);
+  const left = leftParts.join(sep);
+  // Right anchor: rec badge if this sub triggered it, else a pace dot
+  const right = recBadge || `${paceColor}●${RESET}`;
+  return boxLine(pos, left, right, width);
+}
+
+// v6.2 — local layer row. Shows Ollama/T0 routing share, latency, and $0
+// cost. Right anchors a "mooter win" badge when local share > 50%.
+function renderLocalRow(counts, metrics, width, pos, sepStr) {
+  const sep = sepStr || ` ${DIM}·${RESET} `;
+  const total = counts && counts.total ? counts.total : 0;
+  const share = total > 0 ? Math.round(((counts.local || 0) / total) * 100) : 0;
+  let shareColor = DANGER;
+  if (share >= 60)      shareColor = BRAND;
+  else if (share >= 30) shareColor = WARN;
+  const nameSeg = `${DIM}🦙${RESET} ${BOLD}Ollama local${RESET}`;
+  const sharePill = `${shareColor}${BOLD}${share}%${RESET} ${DIM}routing${RESET}`;
+  const modelPill = `${DIM}model${RESET} ${BOLD}${process.env.MOOTER_OLLAMA_MODEL || 'qwen3:30b'}${RESET}`;
+  let latPill = '';
+  if (metrics && metrics.latency && metrics.latency.sample_size) {
+    const p50s = Math.round(metrics.latency.p50_ms / 1000);
+    if (Number.isFinite(p50s) && p50s >= 1) {
+      latPill = `${DIM}p50${RESET} ${HEALTHY}${BOLD}${p50s}s${RESET}`;
+    }
+  }
+  const costPill = `${DIM}cost${RESET} ${GREEN}${BOLD}$0${RESET}`;
+  const leftParts = [nameSeg, sharePill, modelPill, latPill, costPill].filter(Boolean);
+  const left = leftParts.join(sep);
+  const right = share >= 50 ? `${BRAND}${BOLD}🐮 mooter win${RESET}` : '';
+  return boxLine(pos, left, right, width);
+}
+
 // Health indicator — mascot-coloured dot + matching text (no bg pill: we want
 // the shape of the row to stay calm, the *colour* carries the signal).
 function renderHealthPill(savingsPct) {
@@ -1484,17 +1590,23 @@ function buildStatusline(data) {
     : routerMode.mode === 'zen'
       ? `${HEALTHY}${BOLD}🐄 LazyMoo${RESET}`
       : null;
-  // v5.4 — ctx % moved to mandatory. The user needs to see it ALL THE TIME
-  // to judge when to /compact or /clear — it can't drop out on narrow widths.
+  // v6.2 — tier-segmented ctx bar. Replaces both ctx% pill and the
+  // last-prompt tierBadge. Filled width = ctxPct; colours within filled
+  // portion = tier share of routing (T0=rose=mooter win). At a glance
+  // the user sees both HOW FULL and HOW MUCH was local.
+  const tierCountsEarly = realExecutionCounts(session) || { total: 0 };
   const ctxPill = (ctxPct !== null && ctxPct !== undefined) ? (() => {
     const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
-    return `${DIM}ctx${RESET} ${ctxColor}${BOLD}${ctxPct}%${RESET}`;
+    const bar = renderCtxBarTier(ctxPct, tierCountsEarly, 14);
+    return `${DIM}ctx${RESET} ${bar} ${ctxColor}${BOLD}${ctxPct}%${RESET}`;
   })() : null;
 
+  // v6.2 — tierBadge dropped from L1 (it was the last-prompt tier, which
+  // duplicates / contradicts the session model name). The tier-segmented
+  // ctx bar now carries the routing information.
   const A_mandatory = [
     `🐮 ${BRAND}${BOLD}mooter${RESET}`,
     modeBadge,
-    tierBadge,
     `${BOLD}${modelShort}${RESET}`,
     ctxPill,
   ].filter(Boolean);
@@ -1627,29 +1739,32 @@ function buildStatusline(data) {
   }
   if (version && version.version) extras.push({ prio: 14, str: `${DIM}v${version.version}${RESET}` });
 
-  // v6.0 — dispatch by terminal width:
-  //   ≥ 160 col → 3 lines with HERO bar (distribution bar fills L2 width)
-  //   120-159   → 3 lines COMPACT (10-char bar, pills inline)
+  // v6.2 — dispatch by terminal width:
+  //   ≥ 120 col → layered dashboard (one line per layer/subscription)
   //   < 120     → 1 line adaptive (v5.4 preserved for narrow terminals)
   //
-  // Pill-to-line mapping (by prio, for multi-line):
-  //   L1 identity  → mandatory + cycle (prio 6)
-  //   L2 savings   → compactBar(1) + eff(4) + spent(9) + prompts(10) + savingsCore + health
-  //   L3 context   → rec(2) + subs(3) + 5h(7) + sparkline(8) + latency(11) + providers(12) + autoroute(13) + version(14)
-  const LINE_OF = { 1: 2, 2: 3, 3: 3, 4: 2, 6: 1, 7: 3, 8: 3, 9: 2, 10: 2, 11: 3, 12: 3, 13: 3, 14: 3 };
-
+  // Layer composition (each = one box-drawn row):
+  //   L1        → Identity (mooter · mode · model · ctx-tier-bar · cycle)
+  //   L2        → Savings ($saved · $spent · prompts · eff% · health)
+  //   L3..Ln    → One per paid subscription (pace · 5h · spark · quota · rec)
+  //   Ln+1      → Ollama local layer (share · model · latency · $0) [optional]
   if (termW >= 120) {
+    const tierCounts = realExecutionCounts(session) || { total: 0 };
     return renderMultiLine({
       width: termW,
-      hero: termW >= 160,
       mandatory: A_mandatory,
       savingsCore,
       healthCore,
-      extras,
-      lineOf: LINE_OF,
       sep: SEP,
       metrics,
       session,
+      subscriptions,
+      usageData,
+      routerMode,
+      cycle,
+      tierCounts,
+      savings,
+      spentStr,
     });
   }
 
@@ -1671,96 +1786,105 @@ function buildStatusline(data) {
   return all.join(SEP);
 }
 
-// v6.0 — multi-line renderer. Distributes pre-built pills across 3 box-drawn
-// rows. Each row gets a left content cluster + an optional right anchor; the
-// ─ fill between them adapts to terminal width. In hero mode (≥160 col), the
-// distribution bar on L2 is rendered at fill-size so it stretches as the
-// value-prop "spine" of the row. In compact mode, the 10-char compactBar
-// already in extras (prio 1) stays inline with its sibling pills.
-function renderMultiLine({ width, hero, mandatory, savingsCore, healthCore, extras, lineOf, sep, metrics, session }) {
-  const sepLen = stripAnsi(sep).length;
-  const byLine = { 1: [], 2: [], 3: [] };
-  const sorted = [...extras].sort((a, b) => a.prio - b.prio);
-  for (const e of sorted) {
-    const line = lineOf[e.prio] || 3;
-    // Skip compactBar on L2 when hero mode is on — hero bar replaces it.
-    if (hero && e.prio === 1) continue;
-    byLine[line].push(e);
-  }
+// v6.2 — layered dashboard renderer. One box-drawn row per consumption
+// layer: identity, savings, each paid subscription, local/Ollama. Row
+// count scales with the user's profile — 1 sub = 4 rows, 3 subs = 6 rows.
+function renderMultiLine({
+  width, mandatory, savingsCore, healthCore, sep, metrics, session,
+  subscriptions, usageData, routerMode, cycle, tierCounts, savings, spentStr
+}) {
+  const FRAME = 6;
 
-  // Per-line budget fitter. Adds pills one-by-one in priority order, dropping
-  // those that would push the row past `budget`. Uses `continue` (not break)
-  // so a small pill later in the list can slip in when a big one doesn't fit.
-  const fitPills = (pills, budget, seedLen = 0) => {
-    let used = seedLen;
-    const kept = [];
-    for (const p of pills) {
-      const str = p.str || p;
-      const needed = (kept.length > 0 || seedLen > 0 ? sepLen : 0) + stripAnsi(str).length;
-      if (used + needed > budget) continue;
-      kept.push(str);
-      used += needed;
+  // --- L1 Identity -----------------------------------------------------
+  // Left: mandatory pills (mooter · mode · model · ctx-tier-bar · ctx%).
+  // Right: cycle d/N (billing window anchor).
+  const cycleColor = cycle.progressPct >= 90 ? DANGER : cycle.progressPct >= 75 ? WARN : DIM;
+  const cyclePill = `${DIM}cycle${RESET} ${cycleColor}${BOLD}d${cycle.day}/${cycle.lastDay}${RESET}`;
+  const l1Left = mandatory.join(sep);
+  const l1 = boxLine('top', l1Left, cyclePill, width);
+
+  // --- L2 Savings ------------------------------------------------------
+  // Clarified copy — explicitly says what was saved vs spent. Reads left
+  // to right as an English sentence: "mooter saved $X (N%↓ vs all-Opus)
+  // · spent $Y · Np · M% local".
+  const pct = savings?.savingsPct || 0;
+  const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
+  const savedStr = savings?.savedUsd ? `$${savings.savedUsd}` : null;
+  const savedHero = savedStr
+    ? `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`
+    : (savings?.promptCount ? `${BRAND}${BOLD}🐮${RESET} ${DIM}${pct}% · no savings yet${RESET}` : `${BRAND}${BOLD}🐮${RESET} ${DIM}no data yet${RESET}`);
+  const spentPart = spentStr ? `${DIM}spent${RESET} ${BOLD}${spentStr}${RESET}` : null;
+  const promptsPart = savings?.promptCount ? `${BOLD}${savings.promptCount}${RESET}${DIM} prompts${RESET}` : null;
+  // Efficiency pill — % of routing that went local (the mooter win).
+  let effPart = null;
+  if (tierCounts && tierCounts.total > 0) {
+    const t0share = Math.round(((tierCounts.local || 0) / tierCounts.total) * 100);
+    let ec = DANGER;
+    if (t0share >= 60)      ec = BRAND;
+    else if (t0share >= 30) ec = WARN;
+    effPart = `${ec}${BOLD}${t0share}%${RESET} ${DIM}local${RESET}`;
+  }
+  const l2Left = [savedHero, spentPart, promptsPart, effPart].filter(Boolean).join(sep);
+  const l2 = boxLine('mid', l2Left, healthCore || '', width);
+
+  // --- L3..Ln One row per paid subscription ----------------------------
+  // Sparkline belongs to Anthropic in the current tracker; passed through
+  // to the anthropic row only.
+  const sparkline = usageData && usageData.sparkline && usageData.sparkline.peak > 0
+    ? `${BRAND}${usageData.sparkline.spark}${RESET}`
+    : '';
+  // Rec badge is attached to the subscription that TRIGGERED the recommendation.
+  // Current usage-estimator picks from anthropic; future multi-provider can
+  // return a providerKey in the rec. For now, attach to the first sub that
+  // has usage data.
+  let recBadge = '';
+  if (usageData && usageData.recommendation) {
+    const rec = usageData.recommendation.mode;
+    const active = routerMode.mode;
+    if (rec !== 'auto' && rec !== active) {
+      const icon  = rec === 'beast' ? '🐂' : '🐄';
+      const label = rec === 'beast' ? 'CrazyMoo' : 'LazyMoo';
+      const slash = rec === 'beast' ? '/mooter-beast' : '/mooter-zen';
+      const color = rec === 'beast' ? WARN : HEALTHY;
+      recBadge = `${color}${BOLD}→ ${icon} ${label}${RESET} ${DIM}${slash}${RESET}`;
     }
-    return { strs: kept, used };
-  };
-
-  const FRAME = 6; // "╭─ " + " ─╮"
-
-  // --- L1 Identity ------------------------------------------------------
-  // Right anchor: cycle pill (prio 6). Left: mandatory + any remainder.
-  const l1MandLen = stripAnsi(mandatory.join(sep)).length;
-  const l1RightPill = byLine[1][0] ? byLine[1][0].str : '';
-  const l1RightLen = stripAnsi(l1RightPill).length;
-  const l1Budget = width - FRAME - l1MandLen - l1RightLen - 4;
-  const l1Extras = fitPills(byLine[1].slice(1), Math.max(0, l1Budget));
-  const l1Left = [mandatory.join(sep), ...l1Extras.strs].filter(Boolean).join(sep);
-  const line1 = boxLine('top', l1Left, l1RightPill, width);
-
-  // --- L2 Savings Hero --------------------------------------------------
-  // Right anchor: healthCore (flip/warning/health). Middle: bar + savings +
-  // mid pills (eff/spent/prompts). In hero mode, bar fills remaining space.
-  const l2Right = healthCore || '';
-  const l2RightLen = stripAnsi(l2Right).length;
-  const savingsLen = savingsCore ? stripAnsi(savingsCore).length : 0;
-  let l2Left;
-  if (hero) {
-    // Fit mid pills first, then size bar to fill what's left.
-    const midBudget = Math.max(0, width - FRAME - l2RightLen - savingsLen - 6);
-    const midFit = fitPills(byLine[2], midBudget);
-    const midStr = midFit.strs.join(sep);
-    const midLen = midFit.used;
-    const barW = Math.max(20, width - FRAME - savingsLen - midLen - l2RightLen - 10);
-    let heroBar = '';
-    try {
-      heroBar = renderDistributionBar(metrics, session, barW) || '';
-    } catch {}
-    const rightCluster = [savingsCore, midStr].filter(Boolean).join(sep);
-    l2Left = heroBar ? `${heroBar}  ${rightCluster}` : rightCluster;
-  } else {
-    // Compact: savings + all mid pills budget-fit. compactBar is in byLine[2] (prio 1).
-    const l2Budget = Math.max(0, width - FRAME - l2RightLen - savingsLen - 4);
-    const midFit = fitPills(byLine[2], l2Budget);
-    l2Left = [savingsCore, ...midFit.strs].filter(Boolean).join(sep);
   }
-  const line2 = boxLine('mid', l2Left, l2Right, width);
+  const subRows = (subscriptions || []).map((sub, idx) => {
+    const hasUsage = usageData && usageData.usage && usageData.usage[sub.providerKey];
+    const rec = hasUsage && idx === 0 ? recBadge : '';   // attach rec to first provider w/ usage
+    const spark = sub.providerKey === 'anthropic' ? sparkline : '';
+    return renderSubscriptionRow(sub, usageData, width, 'mid', rec, spark, sep);
+  });
 
-  // --- L3 Context -------------------------------------------------------
-  // Right anchor: rec badge (prio 2) or version (prio 14). Left: remaining
-  // L3 pills fit to budget.
-  const l3All = [...byLine[3]];
-  let l3RightPill = '';
-  let anchorIdx = l3All.findIndex(p => p.prio === 2);
-  if (anchorIdx === -1) anchorIdx = l3All.findIndex(p => p.prio === 14);
-  if (anchorIdx !== -1) {
-    l3RightPill = l3All.splice(anchorIdx, 1)[0].str;
+  // --- Final row: Ollama local layer -----------------------------------
+  // Only show when there's actually been local routing (avoids a "0%" row
+  // on a fresh session with zero T0 calls).
+  let localRow = null;
+  if (tierCounts && (tierCounts.local || 0) > 0) {
+    localRow = renderLocalRow(tierCounts, metrics, width, 'bottom', sep);
   }
-  const l3RightLen = stripAnsi(l3RightPill).length;
-  const l3Budget = Math.max(0, width - FRAME - l3RightLen - 4);
-  const l3Fit = fitPills(l3All, l3Budget);
-  const l3Left = l3Fit.strs.join(sep);
-  const line3 = boxLine('bottom', l3Left, l3RightPill, width);
 
-  return [line1, line2, line3].join('\n');
+  // Assemble — last row uses 'bottom' corner, rest of mid rows stay 'mid'.
+  // If no local row, the last subscription row becomes 'bottom'.
+  const rows = [l1, l2, ...subRows];
+  if (localRow) {
+    rows.push(localRow);
+  } else if (rows.length > 0) {
+    // Re-render last row with 'bottom' corners.
+    const lastIdx = rows.length - 1;
+    if (subRows.length > 0) {
+      const lastSub = subscriptions[subscriptions.length - 1];
+      const hasUsage = usageData && usageData.usage && usageData.usage[lastSub.providerKey];
+      const rec = hasUsage && subscriptions.length === 1 ? recBadge : '';
+      const spark = lastSub.providerKey === 'anthropic' ? sparkline : '';
+      rows[lastIdx] = renderSubscriptionRow(lastSub, usageData, width, 'bottom', rec, spark, sep);
+    } else {
+      // No subs at all — L2 becomes the bottom.
+      rows[lastIdx] = boxLine('bottom', l2Left, healthCore || '', width);
+    }
+  }
+
+  return rows.join('\n');
 }
 
 // Mock entry point — bypass stdin so `MOOTER_MOCK=1 node gsd-statusline.js`
