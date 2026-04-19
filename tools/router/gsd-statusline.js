@@ -1786,13 +1786,33 @@ function buildStatusline(data) {
     extras.push({ prio: 5, str: `🦙 ${sc}${BOLD}${share}%${RESET}` });
   }
 
-  // v6.5 — multi-line dispatch REMOVED. Research confirmed Claude Code
-  // v2.1.x clips statusline stdout to the first line in practice (despite
-  // docs), so the layered dashboard would never render. All v6.x
-  // innovations (tier legend, tier-bar in ctx, per-sub pills, local
-  // layer, rec slash hint, per-provider emoji) now ride in this single
-  // row via the priority-fit extras pipeline. renderMultiLine is kept
-  // dead for a future Claude Code version that honours multi-line.
+  // v6.6 — MOOTER_FORCE_MULTILINE opt-in for the mooter-dashboard.js
+  // companion process. Claude Code itself still clips to 1 line, but the
+  // separate dashboard window CAN render multi-line. When the dashboard
+  // calls this script with MOOTER_FORCE_MULTILINE=1, bypass the single-
+  // line pack and return the full layered dashboard.
+  if (process.env.MOOTER_FORCE_MULTILINE === '1') {
+    const tierCounts = realExecutionCounts(session) || { total: 0 };
+    return renderMultiLine({
+      width: termW,
+      mandatory: A_mandatory,
+      savingsCore,
+      healthCore,
+      sep: SEP,
+      metrics,
+      session,
+      subscriptions,
+      usageData,
+      routerMode,
+      cycle,
+      tierCounts,
+      savings,
+      spentStr,
+    });
+  }
+
+  // Default (Claude Code native statusline) — all v6.x innovations packed
+  // into a single priority-fit line. See v6.5 commit for rationale.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
   let visible = stripAnsi(mandatory.join(SEP)).length;
   const budget = Math.max(40, termW - 22);
