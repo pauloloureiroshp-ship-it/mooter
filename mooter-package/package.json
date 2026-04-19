@@ -1,7 +1,7 @@
 {
   "name": "@mooter/cli",
-  "version": "0.0.1",
-  "description": "Reserved for the Mooter LLM router (https://mooter.ai). Public release coming soon.",
+  "version": "0.0.2",
+  "description": "Reserved for mooter — intelligent model routing for Claude Code (https://mooter.ai). Currently private friends-beta.",
   "keywords": [
     "llm",
     "router",
@@ -14,15 +14,14 @@
   ],
   "homepage": "https://mooter.ai",
   "bugs": {
-    "url": "https://github.com/mooter-ai/mooter/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mooter-ai/mooter.git"
+    "email": "paulo@mooter.ai"
   },
   "license": "MIT",
   "author": "Paulo Loureiro <paulo@mooter.ai>",
   "main": "index.js",
+  "bin": {
+    "mooter-cli-stub": "index.js"
+  },
   "files": [
     "index.js",
     "README.md",
