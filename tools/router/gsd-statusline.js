@@ -913,15 +913,21 @@ function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineSt
     const left = `${nameSeg} ${DIM}— no usage data${RESET}`;
     return flat ? flatLine(left, '', width) : boxLine(pos, left, '', width);
   }
-  // Pace pill (uses same colour semantics as v5.4 subscription pill)
-  const pctNum = Math.round(u.used_pct || 0);
-  const ratio  = u.pace_ratio || 0;
-  let paceColor = DIM, paceArrow = '·';
-  if      (ratio < 0.8)  { paceColor = GREEN;  paceArrow = '↓'; }
-  else if (ratio <= 1.2) { paceColor = DIM;    paceArrow = '·'; }
-  else if (ratio <= 1.5) { paceColor = WARN;   paceArrow = '↑'; }
-  else                   { paceColor = DANGER; paceArrow = '↑'; }
-  const pacePill = `${paceColor}${BOLD}${pctNum}%${paceArrow}${RESET}`;
+  // v6.8 — pace sentiment replaces the cryptic "N%↑" pill. pace_ratio
+  // compares monthly burn rate vs the day-of-cycle expectation, so:
+  //   <0.8  → "relaxed"  (plenty of headroom, under pace)
+  //   ≤1.2  → "on pace"  (right on track)
+  //   ≤1.5  → "burning"  (over pace, watch the 5h window)
+  //   >1.5  → "critical" (way over, consider /mooter-zen)
+  // The right-anchor dot below still uses paceColor so sentiment + colour
+  // tell the same story.
+  const ratio = u.pace_ratio || 0;
+  let paceColor, paceWord;
+  if      (ratio < 0.8)  { paceColor = GREEN;  paceWord = 'relaxed'; }
+  else if (ratio <= 1.2) { paceColor = DIM;    paceWord = 'on pace'; }
+  else if (ratio <= 1.5) { paceColor = WARN;   paceWord = 'burning'; }
+  else                   { paceColor = DANGER; paceWord = 'critical'; }
+  const pacePill = `${paceColor}${BOLD}${paceWord}${RESET} ${DIM}pace${RESET}`;
   // 5h rolling window (Anthropic cares most, others optional)
   let fivePill = '';
   if (u.rolling_5h && u.rolling_5h.budget_usd > 0) {
@@ -934,15 +940,19 @@ function renderSubscriptionRow(sub, usageData, width, pos, recBadge, sparklineSt
     else               c5 = HEALTHY;
     fivePill = `${DIM}5h${RESET} ${c5}${BOLD}${p5}%${RESET}`;
   }
-  // Quota — "$cost/$budget" (rounded for compactness)
+  // v6.8 — monthly budget. Label changed from "quota $X/Y" to "$X/$Y month"
+  // so the period ("month") is explicit. Reads as: "used $X of $Y this month".
   let quotaPill = '';
   if (u.budget_usd > 0) {
     const cost = u.cost_usd || 0;
     const c = cost < 10 ? cost.toFixed(2) : cost.toFixed(0);
-    quotaPill = `${DIM}quota${RESET} ${BOLD}$${c}/${Math.round(u.budget_usd)}${RESET}`;
+    quotaPill = `${BOLD}$${c}/$${Math.round(u.budget_usd)}${RESET} ${DIM}month${RESET}`;
   }
   const spark = sparklineStr || '';
-  const leftParts = [nameSeg, pacePill, fivePill, spark, quotaPill].filter(Boolean);
+  // v6.8 — narrative order: name → monthly budget → 5h window → pace
+  // sentiment → sparkline. Reads left-to-right like: "Claude Max, $2.67
+  // of $200 this month, 5h window 27%, relaxed pace, [trend]".
+  const leftParts = [nameSeg, quotaPill, fivePill, pacePill, spark].filter(Boolean);
   const left = leftParts.join(sep);
   // Right anchor: rec badge if this sub triggered it, else a pace dot
   const right = recBadge || `${paceColor}●${RESET}`;
@@ -1627,17 +1637,20 @@ function buildStatusline(data) {
   const sepLen = stripAnsi(SEP).length;
 
   // v5.4 — mode badge rebrand to the mooter cow family.
-  //   beast → 🐂 CrazyMoo (bull = aggressive cow, all power)
-  //   zen   → 🐄 LazyMoo  (grazing cow = conserve, easy pace)
-  // Internal keys 'beast' / 'zen' stay unchanged for backwards compat
-  // with /mooter-beast, /mooter-zen, autopilot, etc.
+  //   beast   → 🐂 CrazyMoo (bull = aggressive cow, all power, all-Opus)
+  //   zen     → 🐄 LazyMoo  (grazing cow = conserve, favour T0/T1)
+  //   default → 🐮 Moo      (the mooter brand cow = auto-route, intelligent)
+  // Internal keys 'beast' / 'zen' / null stay unchanged for backwards compat
+  // with /mooter-beast, /mooter-zen, /mooter-auto, autopilot, etc.
   // Source of truth: getRouterMode() → ~/.claude/tools/router/.mooter-mode.json
   //   (written by /mooter-beast, /mooter-zen, /mooter-auto, autopilot).
+  // v6.8 — default no longer silently omits the badge: the user always sees
+  //   which routing posture the session is running under (Moo / Crazy / Lazy).
   const modeBadge = routerMode.mode === 'beast'
     ? `${DANGER}${BOLD}🐂 CrazyMoo${RESET}`
     : routerMode.mode === 'zen'
       ? `${HEALTHY}${BOLD}🐄 LazyMoo${RESET}`
-      : null;
+      : `${DIM}${BOLD}🐮 Moo${RESET}`;
   // v6.2 — tier-segmented ctx bar. Replaces both ctx% pill and the
   // last-prompt tierBadge. Filled width = ctxPct; colours within filled
   // portion = tier share of routing (T0=rose=mooter win). At a glance
