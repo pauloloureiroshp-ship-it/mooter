@@ -1156,7 +1156,11 @@ function buildStatusline(data) {
   const tierBg = TIER_BG[tier] || '\x1b[48;2;100;100;100m';
   const tierBadge = `${tierBg}${BLACK}${BOLD} ${tier} ${RESET}`;
   const modelRaw = model || tierToModelShort(tier);
-  const modelShort = String(modelRaw).replace(/^claude-/, '').replace(/-202510\w*/, '');
+  const modelShort = String(modelRaw)
+    .replace(/^claude-/, '')
+    .replace(/-202510\w*/, '')
+    .replace(/\s*\([^)]*\)$/, '')   // strip "(1M context)" etc
+    .trim();
 
   const pct = savings?.savingsPct || 0;
   const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
@@ -1212,7 +1216,10 @@ function buildStatusline(data) {
   // Measure budget and add extras while we have room.
   const mandatory = [...A_mandatory, savingsCore, healthCore].filter(Boolean);
   let visible = stripAnsi(mandatory.join(SEP)).length;
-  const budget = termW - 2;  // tiny safety margin so we never overflow
+  // Claude Code reserves space on the right for its own footer decorations
+  // (keyboard hints, token counter). Leaving ~30 chars headroom prevents the
+  // "…" truncation we saw on real renders.
+  const budget = Math.max(40, termW - 30);
 
   const sorted = extras.sort((a, b) => a.prio - b.prio);
   const addedExtras = [];
