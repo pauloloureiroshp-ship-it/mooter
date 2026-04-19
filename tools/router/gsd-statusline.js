@@ -1620,6 +1620,8 @@ function buildStatusline(data) {
   //   zen   → 🐄 LazyMoo  (grazing cow = conserve, easy pace)
   // Internal keys 'beast' / 'zen' stay unchanged for backwards compat
   // with /mooter-beast, /mooter-zen, autopilot, etc.
+  // Source of truth: getRouterMode() → ~/.claude/tools/router/.mooter-mode.json
+  //   (written by /mooter-beast, /mooter-zen, /mooter-auto, autopilot).
   const modeBadge = routerMode.mode === 'beast'
     ? `${DANGER}${BOLD}🐂 CrazyMoo${RESET}`
     : routerMode.mode === 'zen'
@@ -1638,6 +1640,9 @@ function buildStatusline(data) {
   // session, with % share. Renders only tiers with >0 counts (compact). This
   // is the "colour key" that decodes the ctx bar's segments immediately to
   // the right. Format: "●T0 58% · ●T1 22% · ●T3 6%"
+  // Source of truth: tierCountsEarly ← realExecutionCounts(session|null) which
+  //   reads ~/.claude/tools/router/execution.log and buckets via bucketFor()
+  //   (line 427): Opus→T3, Sonnet→T2, Haiku→T1, qwen3:30b/local→T0.
   const tierLegendPill = (() => {
     if (!tierCountsEarly || tierCountsEarly.total === 0) return null;
     // T0 dot uses BRAND (not TIER_COLOR.T0) to match the frame's rose
@@ -1655,6 +1660,9 @@ function buildStatusline(data) {
     }).join(` ${DIM}·${RESET} `);
   })();
 
+  // Source of truth: ctxPct ← data.context_window.remaining_percentage (Claude
+  //   Code stdin JSON, converted to "used %" in buildStatusline line ~1557).
+  //   Always-show contract: renders even at 0% as long as remaining is provided.
   const ctxPill = (ctxPct !== null && ctxPct !== undefined) ? (() => {
     const ctxColor = ctxPct >= 80 ? DANGER : ctxPct >= 65 ? WARN : HEALTHY;
     const bar = renderCtxBarTier(ctxPct, tierCountsEarly, 14);
@@ -1812,6 +1820,13 @@ function buildStatusline(data) {
   //   MOOTER_PROBE=3 → 4 lines, ANSI + block chars (█ ▓ ░ ●)
   //   MOOTER_PROBE=4 → 4 lines, dense RGB ANSI + BOLD + DIM (v6.7-grade)
   //   MOOTER_PROBE=5 → 4 lines, ASCII only, with right-side padding (~80 cols)
+  //   MOOTER_PROBE=6 → 4 lines, ASCII '-' filler (confirmed ✅ renders)
+  //   MOOTER_PROBE=7 → 4 lines, U+00B7 middle-dot '·' filler (confirmed ✅)
+  //   MOOTER_PROBE=8 → 4 lines, ASCII pseudo-corners '+--- … ---+' (v6.8 agenda)
+  //   MOOTER_PROBE=9 → 4 lines, U+2550 '═' DOUBLE HORIZONTAL filler
+  //   MOOTER_PROBE=10 → 4 lines, U+2581 '▁' LOWER ONE EIGHTH BLOCK filler
+  //   MOOTER_PROBE=11 → 4 lines, ASCII '-' filler + U+256E/2524/256F close-corners only
+  //   MOOTER_PROBE=12 → 4 lines, NO filler but explicit trailing '\n' per row
   // First failing probe tells us which variable kills multi-line rendering.
   if (process.env.MOOTER_PROBE) {
     const C = '\x1B[36m', R = '\x1B[0m', B = '\x1B[1m', D = '\x1B[2m';
@@ -1853,6 +1868,64 @@ function buildStatusline(data) {
         `probe7 line D ${fill} right D`,
       ].join('\n');
     }
+    // v6.8 probe 8 — ASCII pseudo-corners. If Claude Code's parser is
+    // width-agnostic but Unicode-block-hostile, this is the cheapest box-look.
+    if (probe === '8') {
+      const f = '-'.repeat(16);
+      return [
+        `+--- probe8 line A ${f} right A ---+`,
+        `|--- probe8 line B ${f} right B ---|`,
+        `|--- probe8 line C ${f} right C ---|`,
+        `+--- probe8 line D ${f} right D ---+`,
+      ].join('\n');
+    }
+    // v6.8 probe 9 — U+2550 DOUBLE HORIZONTAL. Same Unicode block as '─';
+    // expected to fail if the parser's issue is with U+25xx wide-char width,
+    // but worth confirming vs a different codepoint.
+    if (probe === '9') {
+      const fill = '═'.repeat(20);
+      return [
+        `probe9 line A ${fill} right A`,
+        `probe9 line B ${fill} right B`,
+        `probe9 line C ${fill} right C`,
+        `probe9 line D ${fill} right D`,
+      ].join('\n');
+    }
+    // v6.8 probe 10 — U+2581 LOWER ONE EIGHTH BLOCK. Probe 3 already showed
+    // the full ▁▂▃▄▅▆▇ sparkline rendering inline; this isolates whether
+    // '▁' alone as filler survives repetition at length 20.
+    if (probe === '10') {
+      const fill = '▁'.repeat(20);
+      return [
+        `probe10 line A ${fill} right A`,
+        `probe10 line B ${fill} right B`,
+        `probe10 line C ${fill} right C`,
+        `probe10 line D ${fill} right D`,
+      ].join('\n');
+    }
+    // v6.8 probe 11 — asymmetric mix: ASCII '-' filler (safe) + single
+    // Unicode close-corner on the right. Tests whether a lone U+25xx glyph
+    // (not a repeated fill) survives the parser.
+    if (probe === '11') {
+      const f = '-'.repeat(20);
+      return [
+        `probe11 line A ${f} right A ╮`,
+        `probe11 line B ${f} right B ┤`,
+        `probe11 line C ${f} right C ┤`,
+        `probe11 line D ${f} right D ╯`,
+      ].join('\n');
+    }
+    // v6.8 probe 12 — no filler, but every row ends with explicit '\n'
+    // INCLUDING the last. Claims from commit b7f0ec3 said trailing \n was
+    // tested; re-verify under v6.7 dispatch conditions.
+    if (probe === '12') {
+      return [
+        'probe12 line A           right A\n',
+        'probe12 line B           right B\n',
+        'probe12 line C           right C\n',
+        'probe12 line D           right D\n',
+      ].join('');
+    }
   }
 
   // v6.7 dispatch:
@@ -1862,7 +1935,11 @@ function buildStatusline(data) {
   //     same content/alignment but no corner glyphs that broke Claude
   //     Code's parser; '─' fillers proven safe).
   if (process.env.MOOTER_FORCE_MULTILINE === '1' || process.env.MOOTER_MODE === '1') {
-    const tierCounts = realExecutionCounts(session) || { total: 0 };
+    // v6.8 — same cumulative fallback as tierCountsEarly (line 1635). Without
+    // this, a fresh terminal's renderMultiLine sees total=0 and the "0% local"
+    // pill in L2 never renders, breaking the always-show contract.
+    const tierCounts =
+      realExecutionCounts(session) || realExecutionCounts(null) || { total: 0 };
     return renderMultiLine({
       width: termW,
       mandatory: A_mandatory,
@@ -1927,6 +2004,10 @@ function renderMultiLine({
   // Clarified copy — explicitly says what was saved vs spent. Reads left
   // to right as an English sentence: "mooter saved $X (N%↓ vs all-Opus)
   // · spent $Y · Np · M% local".
+  // Source of truth: savings ← calcSavings(metrics, session); metrics ←
+  //   fetchFrugalMetrics(session) = GET http://127.0.0.1:7821/metrics on the
+  //   local tracker. Fallback path (line ~1416) recomputes from decisions.log
+  //   via pricing.js so the number matches /mooter-savings exactly.
   const pct = savings?.savingsPct || 0;
   const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
   const savedStr = savings?.savedUsd ? `$${savings.savedUsd}` : null;
@@ -1936,6 +2017,9 @@ function renderMultiLine({
   const spentPart = spentStr ? `${DIM}spent${RESET} ${BOLD}${spentStr}${RESET}` : null;
   const promptsPart = savings?.promptCount ? `${BOLD}${savings.promptCount}${RESET}${DIM} prompts${RESET}` : null;
   // Efficiency pill — % of routing that went local (the mooter win).
+  // Source of truth: tierCounts ← realExecutionCounts(session|null) from
+  //   execution.log; local = T0 bucket (qwen3:30b + other Ollama models).
+  //   Renders 0% as an honest zero — always-show contract when total>0.
   let effPart = null;
   if (tierCounts && tierCounts.total > 0) {
     const t0share = Math.round(((tierCounts.local || 0) / tierCounts.total) * 100);
@@ -1950,6 +2034,10 @@ function renderMultiLine({
   // --- L3..Ln One row per paid subscription ----------------------------
   // Sparkline belongs to Anthropic in the current tracker; passed through
   // to the anthropic row only.
+  // Source of truth: usageData ← getUsageData() (reads usage-estimator output).
+  //   Subscription list ← subscription-profile.json via getSubscriptions().
+  //   Per-provider bucket: usageData.usage[sub.providerKey] → used_pct,
+  //   pace_ratio, rolling_5h, cost_usd, budget_usd.
   const sparkline = usageData && usageData.sparkline && usageData.sparkline.peak > 0
     ? `${BRAND}${usageData.sparkline.spark}${RESET}`
     : '';
@@ -1957,6 +2045,9 @@ function renderMultiLine({
   // Current usage-estimator picks from anthropic; future multi-provider can
   // return a providerKey in the rec. For now, attach to the first sub that
   // has usage data.
+  // Source of truth: usageData.recommendation.mode ← usage-estimator pace/budget
+  //   heuristic (triggers beast/zen/auto based on 5h rolling window + cycle
+  //   progress). Only surfaces when rec != 'auto' AND rec != active mode.
   let recBadge = '';
   if (usageData && usageData.recommendation) {
     const rec = usageData.recommendation.mode;
@@ -1979,6 +2070,9 @@ function renderMultiLine({
   // --- Final row: Ollama local layer -----------------------------------
   // Only show when there's actually been local routing (avoids a "0%" row
   // on a fresh session with zero T0 calls).
+  // Source of truth: tierCounts.local > 0 predicate (execution.log T0 bucket).
+  //   Latency p50 ← metrics.latency.p50_ms from tracker /metrics endpoint.
+  //   Model name ← MOOTER_OLLAMA_MODEL env (defaults to qwen3:30b).
   let localRow = null;
   if (tierCounts && (tierCounts.local || 0) > 0) {
     localRow = renderLocalRow(tierCounts, metrics, width, 'bottom', sep, flat);
