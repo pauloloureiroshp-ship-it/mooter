@@ -201,10 +201,10 @@ function estimateTurnCost(tier, promptLenChars) {
  * Opus-with-1M-context session had to process it?" This is the honest
  * baseline we subtract from to report savings.
  *
- * v0.10 fix: uses 1M-context pricing ($30/$150 per MTok) because Claude
- * Code sessions always use the 1M context variant. The old $15/$75 rate
- * (200k context) underestimated the baseline by 2×, making savings look
- * smaller than they really are.
+ * v0.10 fix: uses Opus 4.6 1M-context STANDARD pricing ($5/$25 per MTok,
+ * verified 2026-Q1). Claude Code sessions always use the 1M-context variant,
+ * which is now included at standard pricing (no 2× surcharge). Fast-mode
+ * ($30/$150) is a separate SKU and NOT the baseline.
  */
 /**
  * @param {number} promptLenChars

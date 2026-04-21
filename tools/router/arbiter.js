@@ -287,7 +287,18 @@ function arbitrate(prompt, options = {}) {
     const cache = loadCache();
     const entry = cache.entries[key];
     if (entry && Date.now() - entry.ts < CACHE_TTL_MS && entry.decision) {
-      return { ...entry.decision, cached: true };
+      // Log cache hits so /metrics can reconstruct the real hit-rate after a
+      // tracker restart (AUDIT-MOOTER-2026-04-19 F6.1). Before this, hits were
+      // only visible in the in-memory ARBITER_METRICS counter and zeroed at
+      // every restart.
+      logArbiterEvent({
+        ts: new Date().toISOString(),
+        event: 'arbiter_call',
+        outcome: 'cache_hit',
+        duration_ms: 0,
+        prompt_len: prompt.length,
+      });
+      return { ...entry.decision, cached: true, latency_ms: 0 };
     }
   }
 
@@ -344,7 +355,7 @@ function arbitrate(prompt, options = {}) {
       ((320 + Math.ceil(prompt.length / 3.5)) * 0.8 + 50 * 4) / 1e6,
   });
 
-  return { ...decision, cached: false };
+  return { ...decision, cached: false, latency_ms: durationMs };
 }
 
 module.exports = {

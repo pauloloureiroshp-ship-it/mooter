@@ -145,7 +145,9 @@ function readRouterContext() {
 // reasoning → ollama_reason, general → ollama_general, quick → ollama_terse.
 const MODELS = {
   ollama_terse:   process.env.ROUTER_OLLAMA_TERSE   || 'qwen2.5:3b',
-  ollama_general: process.env.ROUTER_OLLAMA_GENERAL || 'gemma4:e4b',
+  // Safe fallback: qwen2.5:3b is always installable. Best-general selection
+  // runs in inject_context.js via bestOllamaT0() against hw-capability.
+  ollama_general: process.env.ROUTER_OLLAMA_GENERAL || 'qwen2.5:3b',
   ollama_reason:  process.env.ROUTER_OLLAMA_REASON  || 'qwen3:30b',
   ollama_code:    process.env.ROUTER_OLLAMA_CODE    || 'qwen2.5-coder:14b',
   ollama_math:   process.env.ROUTER_OLLAMA_MATH   || 'deepseek-r1-distill-qwen:14b',

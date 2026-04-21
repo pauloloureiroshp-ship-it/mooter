@@ -317,6 +317,8 @@ function getRouterMode() {
     const p = path.join(os.homedir(), '.claude', 'tools', 'router', '.mooter-mode.json');
     if (!fs.existsSync(p)) return { mode: null };
     const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // Union schema (AUDIT-MOOTER-2026-04-19 F5.1): prefer `mode` string.
+    if (typeof j.mode === 'string' && j.mode !== 'auto') return { mode: j.mode };
     if (j.beast_mode === true) return { mode: 'beast' };
     if (j.zen_mode === true)   return { mode: 'zen' };
   } catch {}
@@ -1656,13 +1658,13 @@ function buildStatusline(data) {
   // with /mooter-beast, /mooter-zen, /mooter-auto, autopilot, etc.
   // Source of truth: getRouterMode() → ~/.claude/tools/router/.mooter-mode.json
   //   (written by /mooter-beast, /mooter-zen, /mooter-auto, autopilot).
-  // v6.8 — default no longer silently omits the badge: the user always sees
-  //   which routing posture the session is running under (Moo / Crazy / Lazy).
-  const modeBadge = routerMode.mode === 'beast'
-    ? `${DANGER}${BOLD}🐂 CrazyMoo${RESET}`
-    : routerMode.mode === 'zen'
-      ? `${HEALTHY}${BOLD}🐄 LazyMoo${RESET}`
-      : `${DIM}${BOLD}🐮 Moo${RESET}`;
+  // v6.9 — all three modes always visible; only the active one gets emoji + color.
+  //   Inactive modes render as dim plain text. Makes modes discoverable and
+  //   removes ambiguity about which mode is active at a glance.
+  const modeMoo   = routerMode.mode === null    ? `${BOLD}🐮 Moo${RESET}`              : `${DIM}Moo${RESET}`;
+  const modeCrazy = routerMode.mode === 'beast' ? `${DANGER}${BOLD}🐂 CrazyMoo${RESET}` : `${DIM}CrazyMoo${RESET}`;
+  const modeLazy  = routerMode.mode === 'zen'   ? `${HEALTHY}${BOLD}🐄 LazyMoo${RESET}`  : `${DIM}LazyMoo${RESET}`;
+  const modeBadge = `${modeMoo} ${DIM}·${RESET} ${modeCrazy} ${DIM}·${RESET} ${modeLazy}`;
   // v6.2 — tier-segmented ctx bar. Replaces both ctx% pill and the
   // last-prompt tierBadge. Filled width = ctxPct; colours within filled
   // portion = tier share of routing (T0=rose=mooter win). At a glance

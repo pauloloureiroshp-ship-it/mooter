@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-18 late (Claude Code Windows — **CCA CERTIFICATION 87/100**)
+**Última sync:** 2026-04-19 (Claude Code Windows — **FULL-SYSTEM AUDIT: 3 CRITICAL, 6 HIGH, 5 MEDIUM, 3 LOW**)
 **Versão:** v0.10.1 · mooter.ai live · CI 130/130 green · Claude Certified Architect ✅
-**Último commit main:** `0754de8` (test(cca): Sprint 12 — branch coverage classify.js promote/demote)
-**Sessão Claude Code:** #29 — **22 commits CCA shipped em ~6h**. Score de 19/100 CRÍTICO → 87/100 CERTIFICADO. Final-reviewer Opus 4.7 verdict PASS. Página Notion canónica: [🏆 Mooter CCA (2026-04-18)](https://www.notion.so/3466f6e42bc481dfbe28fad9a9e71d33). Log de sessão: [Sessão #29](https://www.notion.so/3466f6e42bc481e49038fb619d0f2ad5).
+**Último commit main:** `fc2c991` (docs(sync): update pendentes - mooter-landing cleanup done, flag Vercel dashboard step)
+**Sessão Claude Code:** #34 — auditoria completa de 8 camadas (classificação → execução → telemetria → display → modes → savings → docs → landing). Detectados **3 CRITICAL**: (1) schema-fork entre `mooter-mode.js` e `mooter-autopilot.js` deixa beast_mode visualmente "ON" mas sem efeito no classifier, (2) triple-location drift (8 files × 3 cópias) faz edits em `frugal/tools/router/` não propagarem ao runtime `~/.claude/tools/router/`, (3) arbiter metrics in-memory-only zeram em cada restart do tracker. **Nenhum fix aplicado — plano pendente aprovação.** Página Notion: [🔍 Auditoria Mooter 2026-04-19](https://www.notion.so/3476f6e42bc481e3b01ed827804a89a6). Relatório completo: `frugal/AUDIT-MOOTER-2026-04-19.md`. Masterprompt reutilizável: `frugal/docs/AUDIT-MASTERPROMPT.md`.
 
 ### 🏆 Claude Certified Architect — 10/10 critérios COVERED
 
@@ -211,8 +211,31 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-04-19 (Sessão #33 — One-command install + mooter as native CLI)
-**Estado:** 🟢 Lido e parcialmente aplicado em sessão #25 (2026-04-17) — ver estado abaixo
+**Última actualização Cowork:** 2026-04-19 late (Sessão #34 — Full-system audit produzida, remediation plan pendente aprovação)
+**Estado:** 🟡 Audit completa. Aguarda aprovação do Paulo para iniciar Sprint A de remediation.
+
+---
+
+### 🔍 Sessão #34 — 2026-04-19 late (Full-system audit Mooter)
+
+**Âmbito:** auditoria de 8 camadas (classificação → execução → telemetria → display → modes → savings → docs → landing). Objectivo: verificar que cada sítio que expõe métricas ao user reporta a mesma verdade que `execution.log` e `decisions.log`.
+
+**Entregas:**
+- `frugal/docs/AUDIT-MASTERPROMPT.md` — versão reutilizável do prompt (pode ser invocado em sessão nova por `model-architect` ou futura skill `/mooter-audit`).
+- `frugal/AUDIT-MOOTER-2026-04-19.md` — relatório completo com 17 findings accionáveis, cross-layer matrix 10/10, remediation plan em 4 sprints (~4h total), rollback readiness.
+- Página Notion: [🔍 Auditoria Mooter 2026-04-19](https://www.notion.so/3476f6e42bc481e3b01ed827804a89a6) (espelho do relatório).
+
+**Severidade total:** 3 CRITICAL · 6 HIGH · 5 MEDIUM · 3 LOW
+
+**Top-3 CRITICAL (fixes <30 min cada mas fecham as 3 principais mentiras de display):**
+1. **Mode schema fork** — `mooter-mode.js` escreve `{mode:"beast"}`, `mooter-autopilot.js` escreve `{beast_mode:true}`. Statusline lê a flag booleana (mostra BEAST activo), `inject_context.js` lê a string `mode` (não encontra, não força T3). User vê BEAST on, router continua a rotear normal.
+2. **Triple-location file drift** — classify/inject_context/arbiter/statusline/pricing/tracker têm 2-3 cópias divergentes entre `~/.claude/tools/router/`, `~/.claude/hooks/` e `frugal/tools/router/`. Edits no repo versionado não propagam ao runtime.
+3. **Arbiter metrics zeram em cada restart do tracker** — decisions.log tem 80 arbiter_call events, `/metrics` reporta 0.
+
+**NON-GOAL desta sessão:** aplicar fixes. O audit é read-only até aprovação explícita.
+
+**Próxima missão (Sprint A recomendado, ~1h):**
+Patch de 7 ficheiros para fechar os 3 CRITICAL + quick-wins (pricing comment, gemma4 fallback, dead counter, SYNC update, arbiter.latency_ms). Detalhes na Secção 5 do relatório.
 
 ---
 

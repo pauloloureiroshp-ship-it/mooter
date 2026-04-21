@@ -65,17 +65,42 @@ function readMode() {
     if (!file) return null;
     const raw = fs.readFileSync(file, 'utf8');
     const data = JSON.parse(raw);
-    if (!data.mode || !VALID_MODES.includes(data.mode) || data.mode === 'auto') return null;
-    return data;
+    // Union schema: prefer `mode` string, fall back to legacy flags written by
+    // mooter-autopilot.js before v1.1. See AUDIT-MOOTER-2026-04-19 finding F5.1.
+    let mode = null;
+    if (data.mode && VALID_MODES.includes(data.mode) && data.mode !== 'auto') mode = data.mode;
+    else if (data.beast_mode === true) mode = 'beast';
+    else if (data.zen_mode === true)   mode = 'zen';
+    if (!mode) return null;
+    return Object.assign({}, data, { mode });
   } catch {
     return null;
   }
 }
 
 function writeMode(mode) {
+  // Preserve feature flags written by mooter-autopilot.js if the file already exists.
+  // Union schema (v1.1) emits both `mode` string and `beast_mode`/`zen_mode` flags
+  // so readers with either expectation stay in sync — see AUDIT-MOOTER-2026-04-19
+  // finding F5.1 (schema fork).
+  let cur = null;
+  try {
+    const f = fs.existsSync(MODE_FILE_NEW) ? MODE_FILE_NEW
+            : fs.existsSync(MODE_FILE_OLD) ? MODE_FILE_OLD
+            : null;
+    if (f) cur = JSON.parse(fs.readFileSync(f, 'utf8'));
+  } catch { cur = null; }
+  if (!cur || typeof cur !== 'object') cur = {};
+
   const data = mode === 'auto'
     ? null
-    : { mode, active_since: new Date().toISOString(), version: '1.0' };
+    : Object.assign({}, cur, {
+        mode,
+        beast_mode:   mode === 'beast',
+        zen_mode:     mode === 'zen',
+        active_since: new Date().toISOString(),
+        version:      '1.1',
+      });
 
   try {
     if (data === null) {

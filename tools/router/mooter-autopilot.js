@@ -49,14 +49,18 @@ function writeMode(targetMode) {
       implicit_signals: false,
     };
   }
-  cur.beast_mode = targetMode === 'beast';
-  cur.zen_mode   = targetMode === 'zen';
+  cur.mode         = targetMode;
+  cur.beast_mode   = targetMode === 'beast';
+  cur.zen_mode     = targetMode === 'zen';
+  cur.active_since = new Date().toISOString();
+  cur.version      = '1.1';
   fs.writeFileSync(MODE_FILE, JSON.stringify(cur, null, 2));
 }
 
 function currentMode() {
   const m = readMode();
   if (!m) return 'auto';
+  if (typeof m.mode === 'string' && m.mode !== 'auto') return m.mode;
   if (m.beast_mode === true) return 'beast';
   if (m.zen_mode   === true) return 'zen';
   return 'auto';

@@ -405,6 +405,12 @@ function emptyMetrics() {
     pct_by_tier: { T0: 0, T1: 0, T2: 0, T3: 0 },
     by_model: { Ollama: 0, Haiku: 0, Sonnet: 0, Opus: 0 },
     pct_by_model: { Ollama: 0, Haiku: 0, Sonnet: 0, Opus: 0 },
+
+    // Count of turns where tier selection produced a higher estimate than
+    // the naive Opus baseline (rare — fires when a T2 estimate exceeds T3
+    // baseline for very short prompts). Surfaced in /metrics as a health
+    // signal; previously incremented but never exposed.
+    routing_inefficiency_count: 0,
   };
 }
 
@@ -607,6 +613,45 @@ function buildArbiterMetrics() {
     cost_usd: round(ARBITER_METRICS.cost_usd, 4),
     avg_latency_ms: total > 0 ? Math.round(ARBITER_METRICS.total_latency_ms / total) : 0,
   };
+}
+
+// Seed ARBITER_METRICS from decisions.log at startup so /metrics doesn't
+// report zeros after a tracker restart (AUDIT-MOOTER-2026-04-19 F6.1).
+function seedArbiterMetricsFromLog() {
+  try {
+    if (!fs.existsSync(LOG_PATH)) return;
+    const stat = fs.statSync(LOG_PATH);
+    const MAX = 2 * 1024 * 1024; // 2 MB tail
+    const start = Math.max(0, stat.size - MAX);
+    const fd = fs.openSync(LOG_PATH, 'r');
+    const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+
+    let hits = 0, misses = 0, refused = 0, latency = 0, cost = 0;
+    for (const line of lines) {
+      const e = safeParse(line);
+      if (!e) continue;
+      if (e.event === 'arbiter_call') {
+        if (e.outcome === 'cache_hit') {
+          hits++;
+        } else if (e.outcome === 'ok') {
+          misses++;
+          latency += (e.duration_ms || 0);
+          cost += (e.est_cost_usd || 0);
+        }
+      } else if (e.event === 'classified' && e.arbiter_honored === false) {
+        refused++;
+      }
+    }
+    ARBITER_METRICS.cache_hits += hits;
+    ARBITER_METRICS.cache_misses += misses;
+    ARBITER_METRICS.calls_total += (hits + misses);
+    ARBITER_METRICS.high_risk_refused += refused;
+    ARBITER_METRICS.total_latency_ms += latency;
+    ARBITER_METRICS.cost_usd += cost;
+  } catch { /* non-fatal */ }
 }
 
 function round(n, decimals) {
@@ -1071,6 +1116,10 @@ if (require.main === module) {
     process.stderr.write(`[mooter] Fix the offending MOOTER_* / FRUGAL_* env var and restart.\n`);
     process.exit(2);
   }
+
+  // Seed arbiter metrics from log history so /metrics reflects reality
+  // after a tracker restart (AUDIT-MOOTER-2026-04-19 F6.1).
+  seedArbiterMetricsFromLog();
 
   const server = http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];

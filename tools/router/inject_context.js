@@ -858,7 +858,14 @@ if (budget) {
     if (fs.existsSync(MODE_FILE)) {
       const raw = fs.readFileSync(MODE_FILE, 'utf8');
       const data = JSON.parse(raw);
-      if (data && data.mode && data.mode !== 'auto') activeMode = data.mode;
+      if (data) {
+        // Union schema (see AUDIT-MOOTER-2026-04-19 finding F5.1): prefer
+        // the `mode` string, fall back to legacy flags set by older
+        // mooter-autopilot.js versions.
+        if (typeof data.mode === 'string' && data.mode !== 'auto') activeMode = data.mode;
+        else if (data.beast_mode === true) activeMode = 'beast';
+        else if (data.zen_mode   === true) activeMode = 'zen';
+      }
     }
   } catch { /* silent */ }
 
