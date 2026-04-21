@@ -28,7 +28,9 @@ for arg in "$@"; do
 done
 
 # Files to sync (JS modules used by hooks + runtime config).
-# Excludes: test files, docs, .cmd scripts, data files (decisions.log etc).
+# Excludes: test files, docs, .cmd scripts, data files (decisions.log etc),
+# and tuning-state.json (runtime-owned, written by update-router.js —
+# syncing it would overwrite live tuning with stale canonical defaults).
 SYNC_FILES=(
   classify.js
   patterns.js

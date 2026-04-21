@@ -1,0 +1,8 @@
+{
+  "_comment": "Fresh-install defaults for classify.js tuning. Runtime reads tuning-state.json; if absent, falls back here. Never edited by the tuning pipeline — update-router.js writes tuning-state.json only.",
+  "generated_at": null,
+  "sample_size": 0,
+  "complexity_threshold": 0.3,
+  "promote_t0": [],
+  "demote_t3": []
+}

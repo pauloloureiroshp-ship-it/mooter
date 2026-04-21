@@ -81,6 +81,10 @@ frugal-core/
 # Auth local
 tools/router/.frugal-auth.json
 
+# Runtime tuning state — written by update-router.js, never committed.
+# Canonical seed is tools/router/tuning-state.defaults.json (committed).
+tools/router/tuning-state.json
+
 # Dataset e modelo
 *.jsonl
 training-*.json
