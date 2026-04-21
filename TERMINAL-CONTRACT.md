@@ -1,8 +1,9 @@
 ---
-version: 1.0
+version: 1.1
 last_reviewed: 2026-04-21
 owner: paulo-loureiro
 enforcement: terminal-2 must parse frontmatter before any action; violation = hard abort
+supersedes: 1.0 (2026-04-21, adds task-specific output dirs + explicit T2 tooling contract)
 
 terminal_2:
   identity:
@@ -14,6 +15,10 @@ terminal_2:
   allowed_paths:
     - "docs/**"
     - "docs/sessions/**"
+    - "docs/backtests/**"
+    - "docs/coherence/**"
+    - "docs/learnings/**"
+    - "docs/suggested-prompts/**"
     - "docs/proposed-skills/**"
     - "tools/router/tests/**"
     - "tools/router/benchmarks/**"
@@ -22,6 +27,17 @@ terminal_2:
     - "scripts/benchmarks/**"
     - "reports/**"
     - "LOOP.md"
+
+  task_specific_output_dirs:
+    session_report: "docs/sessions/T2-session-report-YYYY-MM-DD.md"
+    coherence_check: "docs/coherence/T2-coherence-YYYY-MM-DD.md"
+    backtest: "docs/backtests/T2-backtest-YYYY-MM-DD.md"
+    usage_profile: "docs/learnings/T2-paulo-profile-YYYY-MM-DD.md"
+    suggested_prompts: "docs/suggested-prompts/T2-suggested-prompts-YYYY-MM-DD.md"
+    session_summary: "docs/sessions/T2-SUMMARY-YYYYMMDD-HHMMSS-<pid>.md"
+    violation_report: "docs/sessions/T2-VIOLATION-YYYYMMDD-HHMMSS-<pid>.md"
+    error_report: "docs/sessions/T2-ERROR-<reason>-YYYYMMDD-HHMMSS-<pid>.md"
+    filename_precision: "append <pid> to avoid same-second collisions"
 
   append_only_paths:
     - "LOOP.md"
@@ -292,5 +308,30 @@ Terminal 2 relê este contrato no início de toda sessão — se versão é maio
 - MEMORY.md — decisões arquiteturais duradouras
 - LOOP.md — aprendizado contínuo
 - SYNC.md — estado operacional
+- `docs/TWO-TERMINALS.md` — prompts canónicos T1/T2 que colas no Claude Code (orquestração). Este contrato é o SSoT das regras; `TWO-TERMINALS.md` referencia-o, nunca o duplica.
 - `~/.claude/skills/mooter-session-boundary/SKILL.md` — ritual de abertura/fechamento
 - `~/.claude/skills/mooter-loop-append/SKILL.md` — como Terminal 2 escreve em LOOP.md
+
+## Changelog
+
+### 1.1 — 2026-04-21
+
+Bump minor: adiciona paths à lista allowed, formaliza convenção de filenames por tarefa.
+
+**Mudanças:**
+- `allowed_paths`: adicionados `docs/backtests/**`, `docs/coherence/**`, `docs/learnings/**`, `docs/suggested-prompts/**` (antes só `docs/**` + `docs/sessions/**` + `docs/proposed-skills/**`). Nota: `docs/suggested-prompts/` e não `docs/prompts/` porque `prompts/` está em `.gitignore:75` reservado para master prompts estratégicos.
+- Adicionada seção `task_specific_output_dirs` com convenção de nomenclatura por tipo de output
+- Precisão de filename: `YYYYMMDD-HHMMSS-<pid>` obrigatório para summaries/violations/errors (elimina collision risk quando dois outputs caem no mesmo segundo)
+
+**Não muda:**
+- `forbidden_paths`, `forbidden_commands`, `read_only_paths` iguais à 1.0
+- `check_emergency_stop_every_seconds: 30` inalterado
+- `max_files_per_pr: 15`, `max_lines_changed_per_pr: 500` inalterados
+- Escalation Playbook 1-8 inalterado
+- `gpu_lock_protocol` staleness check "older than 4h" inalterado
+
+**Motivação:** o documento `docs/TWO-TERMINALS.md` (orquestração dos prompts T1/T2) precisa escrever em 5 dirs especializados. 1.0 tinha `docs/**` como allowed mas não nomeava as 5 subdirs — pode gerar ambiguidade em pre-flight check.
+
+### 1.0 — 2026-04-21
+
+Versão inicial. Estabelece contrato bilateral T1/T2, frontmatter machine-readable, 8 casos de Escalation Playbook, gpu_lock protocol, emergency_stop protocol.
