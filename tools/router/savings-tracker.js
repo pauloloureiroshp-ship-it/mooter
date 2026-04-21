@@ -183,6 +183,37 @@ function computeLatency(lines) {
   const avgOpusBaseline = opusEstimates.reduce((a, b) => a + b, 0) / opusEstimates.length;
   const delta = avgActual - avgOpusBaseline;
 
+  // AUDIT-MOOTER-2026-04-19 F4.3: annotate the delta with tool-call count
+  // so consumers can compute a fair per-call comparison.
+  let avgToolCallsPerTurn = null;
+  try {
+    if (fs.existsSync(EXEC_LOG_PATH)) {
+      const stat = fs.statSync(EXEC_LOG_PATH);
+      const size = Math.min(stat.size, 512 * 1024);
+      const startOff = stat.size - size;
+      const fd = fs.openSync(EXEC_LOG_PATH, 'r');
+      const buf = Buffer.alloc(size);
+      fs.readSync(fd, buf, 0, size, startOff);
+      fs.closeSync(fd);
+      const lns = buf.toString('utf8').split('\n').filter(Boolean);
+      const bashBySession = new Map();
+      for (const ln of lns) {
+        if (/\bmode=decisions_log\b/.test(ln)) continue;
+        const sm = ln.match(/session=(\S+)/);
+        if (!sm) continue;
+        bashBySession.set(sm[1], (bashBySession.get(sm[1]) || 0) + 1);
+      }
+      const totalBash = [...bashBySession.values()].reduce((a, b) => a + b, 0);
+      if (totalBash > 0 && turnDurations.length > 0) {
+        avgToolCallsPerTurn = round(totalBash / turnDurations.length, 1);
+      }
+    }
+  } catch { /* best-effort */ }
+
+  const perCallDelta = avgToolCallsPerTurn && avgToolCallsPerTurn > 0
+    ? Math.round(delta / avgToolCallsPerTurn)
+    : null;
+
   return {
     sample_size: turnDurations.length,
     p50_ms: Math.round(p50),
@@ -190,7 +221,10 @@ function computeLatency(lines) {
     avg_ms: Math.round(avgActual),
     opus_baseline_ms_est: Math.round(avgOpusBaseline),
     delta_vs_opus_ms: Math.round(delta),
-    methodology: 'measured_turn_wall_clock_vs_estimated_opus_baseline_2026q2',
+    avg_tool_calls_per_turn: avgToolCallsPerTurn,
+    delta_vs_opus_ms_per_call: perCallDelta,
+    methodology: 'turn_wall_clock_includes_all_tool_calls_vs_single_call_opus_baseline',
+    methodology_note: 'delta_vs_opus_ms compares full turn (with N tool calls) to a single Opus call. Use delta_vs_opus_ms_per_call for a fair per-call comparison when avg_tool_calls_per_turn > 1.',
   };
 }
 
@@ -562,42 +596,79 @@ function computeMetrics(lines) {
   return m;
 }
 
-// P3: Routing audit via latency proxy. Pairs classified+turn_end events,
-// then for each pair checks whether the measured duration is closer to the
-// suggested-tier baseline than to the next tier up. Honest methodology:
-// "honored" = within ±50% of expected tier baseline.
+// Routing compliance (AUDIT-MOOTER-2026-04-19 F4.2): direct comparison of
+// recommended tier (from decisions.log.classified) vs actual tier executed
+// (from execution.log model= counts). Session-scoped. Replaces the older
+// latency_proxy method which confused tool-loop wall-clock with obedience.
+const EXEC_LOG_PATH = path.join(os.homedir(), '.claude', 'hooks', 'execution.log');
+
+function modelToTier(model) {
+  const m = String(model || '').toLowerCase();
+  if (m.includes('opus')) return 'T3';
+  if (m.includes('sonnet')) return 'T2';
+  if (m.includes('haiku')) return 'T1';
+  if (m.includes('qwen') || m.includes('ollama') || m.includes('local') ||
+      m.includes('gemma') || m.includes('deepseek')) return 'T0';
+  return null;
+}
+
 function computeRoutingAudit(lines) {
-  const startsBySession = new Map();
-  let audited = 0;
-  let honored = 0;
+  const recBySession = new Map();
   for (const line of lines) {
     const e = safeParse(line);
-    if (!e || !e.event) continue;
-    if (e.event === 'classified' && e.ts_ms && e.session_id && !isSystemPrompt(e)) {
-      startsBySession.set(e.session_id, { ts_ms: e.ts_ms, tier: e.tier });
-    } else if (e.event === 'turn_end' && e.ts_ms && e.session_id) {
-      const start = startsBySession.get(e.session_id);
-      if (!start || !start.tier) continue;
-      const dur = e.ts_ms - start.ts_ms;
-      if (dur <= 0 || dur > MAX_REALISTIC_TURN_MS) {
-        startsBySession.delete(e.session_id);
-        continue;
-      }
-      const expectedMs = OPUS_BASELINE_MS_PER_TIER[start.tier];
-      if (!expectedMs) { startsBySession.delete(e.session_id); continue; }
-      audited++;
-      // honored if duration is within 2× the expected baseline
-      // (gives slack for variance, queueing, network)
-      if (dur <= expectedMs * 2.0) honored++;
-      startsBySession.delete(e.session_id);
+    if (!e || e.event !== 'classified' || !e.session_id || isSystemPrompt(e)) continue;
+    if (!e.tier) continue;
+    if (!recBySession.has(e.session_id)) recBySession.set(e.session_id, new Map());
+    const m = recBySession.get(e.session_id);
+    m.set(e.tier, (m.get(e.tier) || 0) + 1);
+  }
+  if (recBySession.size === 0) return null;
+
+  let execLines = [];
+  try {
+    if (fs.existsSync(EXEC_LOG_PATH)) {
+      const stat = fs.statSync(EXEC_LOG_PATH);
+      const start = Math.max(0, stat.size - 512 * 1024);
+      const fd = fs.openSync(EXEC_LOG_PATH, 'r');
+      const buf = Buffer.alloc(stat.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      fs.closeSync(fd);
+      execLines = buf.toString('utf8').split('\n').filter(Boolean);
     }
+  } catch { /* best-effort */ }
+
+  const actBySession = new Map();
+  for (const el of execLines) {
+    if (/\bmode=decisions_log\b/.test(el)) continue;
+    const sm = el.match(/session=(\S+)/);
+    const mm = el.match(/model=(\S+)/);
+    if (!sm || !mm) continue;
+    const tier = modelToTier(mm[1]);
+    if (!tier) continue;
+    if (!actBySession.has(sm[1])) actBySession.set(sm[1], new Map());
+    const m = actBySession.get(sm[1]);
+    m.set(tier, (m.get(tier) || 0) + 1);
+  }
+
+  const order = ['T0', 'T1', 'T2', 'T3'];
+  let audited = 0;
+  let sumCompliance = 0;
+  for (const [sid, recMap] of recBySession) {
+    const actMap = actBySession.get(sid);
+    if (!actMap || actMap.size === 0) continue;
+    const topRec = [...recMap.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const topAct = [...actMap.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    audited++;
+    if (topRec === topAct) sumCompliance += 1;
+    else if (Math.abs(order.indexOf(topRec) - order.indexOf(topAct)) === 1) sumCompliance += 0.5;
   }
   if (audited === 0) return null;
+
   return {
-    audited_turns: audited,
-    estimated_honored: honored,
-    estimated_honored_pct: round((honored / audited) * 100, 1),
-    methodology: 'latency_proxy',
+    audited_sessions: audited,
+    compliance_pct: round((sumCompliance / audited) * 100, 1),
+    methodology: 'session_tier_mode_agreement_from_exec_log',
+    estimated_honored_pct: round((sumCompliance / audited) * 100, 1),
   };
 }
 
