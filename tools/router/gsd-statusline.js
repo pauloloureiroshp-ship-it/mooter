@@ -479,6 +479,12 @@ function realExecutionCounts(sessionId) {
         const sm = line.match(/session=(\S+)/);
         if (!sm || sm[1] !== sessionId) continue;
       }
+      // AUDIT-MOOTER-2026-04-19 F3.1: exec-logger's degraded mode writes
+      // the classifier's `recommended_model` (not the real one) when the
+      // transcript scan is too slow. Skip those lines so the distribution
+      // bar never conflates advisory with real exec counts.
+      const modeM = line.match(/\bmode=(\S+)/);
+      if (modeM && modeM[1] === 'decisions_log') continue;
       const mm = line.match(/model=(\S+)/);
       if (!mm) continue;
       const b = bucketFor(mm[1]);

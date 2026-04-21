@@ -190,7 +190,7 @@ const MULTI_FILE = /\bmulti[- ]?(arquivo|file)/i;
 const USER_OVERRIDE_MODELS = {
   opus:    { tier: 'T3', model: 'claude-opus-4-6',    backend: 'claude_subagent', label: 'Opus' },
   sonnet:  { tier: 'T2', model: 'claude-sonnet-4-6',  backend: 'claude_subagent', label: 'Sonnet' },
-  haiku:   { tier: 'T1', model: 'claude-haiku-4-5',   backend: 'anthropic_api',   label: 'Haiku' },
+  haiku:   { tier: 'T1', model: 'claude-haiku-4-5-20251001', backend: 'anthropic_api', label: 'Haiku' },
   ollama:  { tier: 'T0', model: 'qwen2.5:3b',         backend: 'ollama',          label: 'Ollama' },
   local:   { tier: 'T0', model: 'qwen2.5:3b',         backend: 'ollama',          label: 'Ollama' },
   qwen:    { tier: 'T0', model: 'qwen2.5:3b',         backend: 'ollama',          label: 'Ollama' },

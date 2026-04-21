@@ -54,7 +54,7 @@ function subagentTypeToModel(subagentType) {
   if (!subagentType) return null;
   const t = String(subagentType).toLowerCase();
   if (t === 'local-summarizer' || t === 'local-transformer') return 'qwen3:30b';
-  if (t === 'cheap-triage') return 'claude-haiku-4-5';
+  if (t === 'cheap-triage') return 'claude-haiku-4-5-20251001';
   if (t === 'model-reasoner') return 'claude-sonnet-4-6';
   if (t === 'model-architect' || t === 'final-reviewer') return 'claude-opus-4-6';
   // GSD and exploratory agents: lean Sonnet by default
