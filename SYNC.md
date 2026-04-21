@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-19 (Claude Code Windows — **FULL-SYSTEM AUDIT: 3 CRITICAL, 6 HIGH, 5 MEDIUM, 3 LOW**)
+**Última sync:** 2026-04-21 (Claude Code Windows — **H2 hygiene closed + bidirectional drift discovery**)
 **Versão:** v0.10.1 · mooter.ai live · CI 130/130 green · Claude Certified Architect ✅
-**Último commit main:** `fc2c991` (docs(sync): update pendentes - mooter-landing cleanup done, flag Vercel dashboard step)
-**Sessão Claude Code:** #34 — auditoria completa de 8 camadas (classificação → execução → telemetria → display → modes → savings → docs → landing). Detectados **3 CRITICAL**: (1) schema-fork entre `mooter-mode.js` e `mooter-autopilot.js` deixa beast_mode visualmente "ON" mas sem efeito no classifier, (2) triple-location drift (8 files × 3 cópias) faz edits em `frugal/tools/router/` não propagarem ao runtime `~/.claude/tools/router/`, (3) arbiter metrics in-memory-only zeram em cada restart do tracker. **Nenhum fix aplicado — plano pendente aprovação.** Página Notion: [🔍 Auditoria Mooter 2026-04-19](https://www.notion.so/3476f6e42bc481e3b01ed827804a89a6). Relatório completo: `frugal/AUDIT-MOOTER-2026-04-19.md`. Masterprompt reutilizável: `frugal/docs/AUDIT-MASTERPROMPT.md`.
+**Último commit main:** `73f76aa` (chore(hygiene): H2 — archive pre-rename skills/ + kill 44 leaked shells)
+**Sessão Claude Code:** #35 — H2 hygiene closure + audit runtime verification. **Descoberta crítica:** Sprint A/B/D do audit 2026-04-19 foram shipped para canonical (commits 0cdf73f/0a9d05c/028a0ea/4d60d9f) mas a propagação canonical→runtime `~/.claude/tools/router/` nunca aconteceu. `sync-to-runtime.sh --diff` revelou drift **bidirectional** em 9 ficheiros: canonical tem Sprint A/B/D fixes + Type Safety (@ts-check) + B4 weight boost + Sentry; runtime tem tuning actualizado (generated_at=2026-04-21 sample=38364) + v0.10.0 version + mooter.ai homepage. **NÃO apliquei --apply** (destruiria 4 dias de tuning patches). Documentado em LOOP.md OBSERVADO com 3 opções de reconciliação (recomendada: separar tuning-state.json de classify.js). Paulo tinha adiado este débito para "fresh install" — mantido adiado. **H2 hygiene completo**: mooter-design-updated/ archivado (→ docs/design-exploration/), frugal/skills/ pre-rename archivado via git mv (→ docs/archive/), 4 unique skills promovidos para ~/.claude/skills/ (frugal-doctor, mooter-bad, mooter-good, mooter-feedback), 44 bash leaked Apr17-18 killed (86 MB RAM). Commits: 2466a9b + 73f76aa, ambos push com final-reviewer PASS-WITH-NOTES.
 
 ### 🏆 Claude Certified Architect — 10/10 critérios COVERED
 
@@ -744,6 +744,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-04-18 — Review #11 + Counters data layer (#27) | https://www.notion.so/3466f6e42bc481c99569cb216e748c5f |
 | Sessão 2026-04-18 — Mooter Review #16 (classifier limpo) | https://www.notion.so/3476f6e42bc4810b9ad6e7c605acccad |
 | Sessão 2026-04-19 — /doctor fix (MCP Windows + HOME env) | https://www.notion.so/3476f6e42bc481a1a3ffc682d7fcdc1f |
+| Sessão #35 2026-04-21 — H2 hygiene + bidirectional drift | https://www.notion.so/3496f6e42bc4814286b1d4d41c1a658e |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
