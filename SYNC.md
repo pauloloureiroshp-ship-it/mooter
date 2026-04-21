@@ -3,10 +3,25 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-21 (Claude Code Windows — **H2 hygiene closed + bidirectional drift discovery**)
+**Última sync:** 2026-04-21 (Claude Code Windows — **Sessão #36: drift RESOLVIDO + T1/T2 contract v1.1 + Sentry runbook**)
 **Versão:** v0.10.1 · mooter.ai live · CI 130/130 green · Claude Certified Architect ✅
-**Último commit main:** `73f76aa` (chore(hygiene): H2 — archive pre-rename skills/ + kill 44 leaked shells)
-**Sessão Claude Code:** #35 — H2 hygiene closure + audit runtime verification. **Descoberta crítica:** Sprint A/B/D do audit 2026-04-19 foram shipped para canonical (commits 0cdf73f/0a9d05c/028a0ea/4d60d9f) mas a propagação canonical→runtime `~/.claude/tools/router/` nunca aconteceu. `sync-to-runtime.sh --diff` revelou drift **bidirectional** em 9 ficheiros: canonical tem Sprint A/B/D fixes + Type Safety (@ts-check) + B4 weight boost + Sentry; runtime tem tuning actualizado (generated_at=2026-04-21 sample=38364) + v0.10.0 version + mooter.ai homepage. **NÃO apliquei --apply** (destruiria 4 dias de tuning patches). Documentado em LOOP.md OBSERVADO com 3 opções de reconciliação (recomendada: separar tuning-state.json de classify.js). Paulo tinha adiado este débito para "fresh install" — mantido adiado. **H2 hygiene completo**: mooter-design-updated/ archivado (→ docs/design-exploration/), frugal/skills/ pre-rename archivado via git mv (→ docs/archive/), 4 unique skills promovidos para ~/.claude/skills/ (frugal-doctor, mooter-bad, mooter-good, mooter-feedback), 44 bash leaked Apr17-18 killed (86 MB RAM). Commits: 2466a9b + 73f76aa, ambos push com final-reviewer PASS-WITH-NOTES.
+**Último commit main:** `d118e55` (refactor(router): externalize tuning state to tuning-state.json)
+**Sessão Claude Code:** #36 — bidirectional drift FULLY RESOLVED. 7 commits push a `main` (39b9e92, 4ec1c5e, cbfaef7, 4336dba, 5c41888, e5a29d8, d118e55), 3 final-reviewer gates (all PASS / PASS-WITH-NOTES). **Major achievements:**
+
+1. **TERMINAL-CONTRACT v1.1** — bump minor (SUPERSEDES 1.0): adicionados `docs/backtests/`, `docs/coherence/`, `docs/learnings/`, `docs/suggested-prompts/` a `allowed_paths`; formalizada secção `task_specific_output_dirs` com convenção filename `<pid>` anti-collision. Zero changes em forbidden_paths/commands/read_only_paths — 17 forbidden_commands + 30s EMERGENCY_STOP poll + 4h gpu-lock staleness preservados.
+
+2. **docs/TWO-TERMINALS.md canónico** — prompts T1 (Arquiteto Opus) e T2 (Retroalimentador Ollama) reescritos a apontar TERMINAL-CONTRACT.md como SSoT. Roadmap T1 refrescado (H2 fechado → H3 drift → H4 features → H5 lançamento). 13 findings de auditoria resolvidos (headline 88.3% não 90.2%, filename precision `<pid>`, gpu-lock staleness check, capability probe para MCPs/WebFetch em Ollama-only, etc).
+
+3. **Bidirectional drift RESOLVED** (esta foi a dívida principal adiada em #35):
+   - **Phase 1 non-destructive scaffold** (commit 5c41888): `tuning-state.defaults.json` seed + `.gitignore` entry + `sync-to-runtime.sh` exclude comment + `docs/DRIFT-RESOLUTION-PLAN.md` plano completo
+   - **Phase 2 core refactor** (commit d118e55): classify.js carrega tuning de JSON externo via `_loadTuningState()` com fallback try/catch → defaults; update-router.js escreve `tuning-state.json` em runtime (não edita classify.js). Testes: classify.test.js 3/3, classify-branches.test.js 20/20, sanitize.test.js 19/19 green. Smoke tests canonical + runtime OK. `sync-to-runtime.sh --diff` agora reporta `0 synced, 23 identical, 0 diverged` (era 9 diverged).
+   - Runtime `tuning-state.json` seeded com estado 2026-04-21T15:37:26.739Z (sample 39593, threshold 0.35, 3 demote patterns proxima/avança/vamos) — preserva 4 dias de tuning history.
+
+4. **Sentry DSN runbook** (commit e5a29d8): `docs/SENTRY-DSN-RUNBOOK.md` com comandos exactos para provisionar 4 projectos + DSN em Vercel×2 / Cloudflare / shell. Auditado código: 4 SDKs são DSN-conditional no-op via Zod `.optional()`.
+
+5. **Canonical `version.json` v0.10.0→v0.10.1** (commit 4336dba) — alinha com estado real.
+
+6. **5 dirs T2 scaffold** (commit 39b9e92): `docs/{sessions,backtests,coherence,learnings,suggested-prompts}/` com `.gitkeep`. `docs/prompts/` descartado (conflito com `.gitignore:75` reservado a master prompts estratégicos).
 
 ### 🏆 Claude Certified Architect — 10/10 critérios COVERED
 
