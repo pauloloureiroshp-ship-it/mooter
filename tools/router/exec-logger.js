@@ -19,82 +19,17 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// AUDIT-MOOTER-2026-04-19 F3.2: shared helpers so exec-logger and PostToolUse
+// always agree on which model is attached to a given Bash / Agent call.
+// Runtime wires this hook from ~/.claude/hooks/; this frugal copy mirrors
+// that behaviour so /mooter-update doesn't reintroduce the old duplication.
+const { subagentTypeToModel, detectExternalModel, getRole } = require('./_model-resolver');
+
 const PERF_PATH = path.join(os.homedir(), '.claude', 'hooks', 'exec-logger-perf.json');
 const LOG_PATH = path.join(os.homedir(), '.claude', 'hooks', 'execution.log');
 const DECISIONS_PATH = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
 const PERF_THRESHOLD_MS = 200;
 const PERF_WINDOW = 20;
-
-function getRole(model) {
-  if (!model) return 'unknown';
-  const m = String(model).toLowerCase();
-  if (m.includes('opus')) return 'architect';
-  if (m.includes('sonnet')) return 'reasoning';
-  if (m.includes('haiku')) return 'reflex';
-  if (m.includes('qwen') || m.includes('ollama') || m.includes('local')) return 'local';
-  if (m.includes('codex') || m.includes('openai') || m.includes('gpt')) return 'generalist';
-  if (m.includes('gemini') || m.includes('google')) return 'multimodal';
-  return 'unknown';
-}
-
-// Detect external LLM CLIs invoked via Bash. When the user shells out to
-// codex / gemini / aider / ollama run, the REAL work happens in that external
-// model — the Claude call was just the orchestrator. Return the model id so
-// execution.log records the actual worker, not the parent Claude session.
-// Returns null if no external LLM CLI is detected.
-// Map a subagent_type (from Agent/Task tool calls) to the effective model
-// the subagent runs on. This lets exec-logger.js record delegated work with
-// the REAL worker model, not the parent Claude session model.
-//
-// When a subagent is spawned (e.g. Agent({subagent_type: 'local-summarizer'})),
-// Claude Code fires PostToolUse with tool_input.subagent_type set. Without
-// this mapping the log would tag the Agent call with the parent's model
-// (claude-opus-4-6) — exactly the "invisible delegation" bug we are fixing.
-function subagentTypeToModel(subagentType) {
-  if (!subagentType) return null;
-  const t = String(subagentType).toLowerCase();
-  if (t === 'local-summarizer' || t === 'local-transformer') return 'qwen3:30b';
-  if (t === 'cheap-triage') return 'claude-haiku-4-5-20251001';
-  if (t === 'model-reasoner') return 'claude-sonnet-4-6';
-  if (t === 'model-architect' || t === 'final-reviewer') return 'claude-opus-4-6';
-  // GSD and exploratory agents: lean Sonnet by default
-  if (t === 'explore' || t === 'plan' || t === 'general-purpose') return 'claude-sonnet-4-6';
-  if (t.startsWith('gsd-')) return 'claude-sonnet-4-6';
-  // Unknown subagent type — leave null so the parent resolver takes over.
-  return null;
-}
-
-function detectExternalModel(command) {
-  if (!command) return null;
-  const cmd = String(command);
-
-  // ollama_call.sh wrapper (our own local path)
-  if (cmd.includes('ollama_call.sh')) return 'qwen3:30b';
-
-  // Direct `ollama run <model>` — extract model name
-  const ollamaRun = cmd.match(/\bollama\s+run\s+(\S+)/);
-  if (ollamaRun) return ollamaRun[1];
-
-  // OpenAI Codex CLI — default model is gpt-5-codex, optional --model override
-  if (/\bcodex\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5-codex';
-  }
-
-  // Google Gemini CLI — default gemini-2.5-flash, optional --model override
-  if (/\bgemini(-cli)?\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gemini-2.5-flash';
-  }
-
-  // Aider — always takes --model; fallback to gpt-5 if absent
-  if (/\baider\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5';
-  }
-
-  return null;
-}
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch (e) { return ''; }

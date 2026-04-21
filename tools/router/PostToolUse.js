@@ -9,6 +9,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// AUDIT-MOOTER-2026-04-19 F3.2: shared helpers so the per-call emoji and
+// execution.log agree on which model handled any given Bash / Agent call.
+const { subagentTypeToModel, detectExternalModel } = require('./_model-resolver');
+
 function getModelEmoji(model) {
   if (!model) return '❓';
   const m = String(model).toLowerCase();
@@ -31,46 +35,6 @@ function getModelRole(model) {
   if (m.includes('codex') || m.includes('openai') || m.includes('gpt')) return 'generalist';
   if (m.includes('gemini') || m.includes('google')) return 'multimodal';
   return 'unknown';
-}
-
-// v0.12: Agent/Task subagent spawn → effective model. When the user invokes
-// Agent({subagent_type:'local-summarizer'}), the visual indicator should
-// show 🦙 qwen3:30b, not 🔴 opus (the parent orchestrator). Mirrors the
-// mapping in exec-logger.js so both halves of the visibility stack agree.
-function subagentTypeToModel(subagentType) {
-  if (!subagentType) return null;
-  const t = String(subagentType).toLowerCase();
-  if (t === 'local-summarizer' || t === 'local-transformer') return 'qwen3:30b';
-  if (t === 'cheap-triage') return 'claude-haiku-4-5-20251001';
-  if (t === 'model-reasoner') return 'claude-sonnet-4-6';
-  if (t === 'model-architect' || t === 'final-reviewer') return 'claude-opus-4-6';
-  if (t === 'explore' || t === 'plan' || t === 'general-purpose') return 'claude-sonnet-4-6';
-  if (t.startsWith('gsd-')) return 'claude-sonnet-4-6';
-  return null;
-}
-
-// Detect external LLM CLIs invoked via Bash. Mirrors exec-logger.js.
-// Returns the real worker model id (or null) so the visual indicator reflects
-// the actual executor rather than the Claude orchestrator.
-function detectExternalModel(command) {
-  if (!command) return null;
-  const cmd = String(command);
-  if (cmd.includes('ollama_call.sh')) return 'qwen3:30b';
-  const ollamaRun = cmd.match(/\bollama\s+run\s+(\S+)/);
-  if (ollamaRun) return ollamaRun[1];
-  if (/\bcodex\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5-codex';
-  }
-  if (/\bgemini(-cli)?\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gemini-2.5-flash';
-  }
-  if (/\baider\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5';
-  }
-  return null;
 }
 
 function readStdin() {

@@ -237,6 +237,9 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 **Próxima missão (Sprint A recomendado, ~1h):**
 Patch de 7 ficheiros para fechar os 3 CRITICAL + quick-wins (pricing comment, gemma4 fallback, dead counter, SYNC update, arbiter.latency_ms). Detalhes na Secção 5 do relatório.
 
+**⚠️ AVISO IMPORTANTE para a próxima sessão:**
+Após aplicar o fix F5.1 (Sprint A), o ficheiro `.mooter-mode.json` já tem `beast_mode: true` (ficou assim de uma run anterior do autopilot). Antes do fix, `inject_context.js` ignorava esta flag. **Depois do fix**, o classifier passa a honrar beast_mode:true e vai forçar T3 (Opus) em todos os prompts da próxima sessão. Se não queres isso, corre `/mooter-auto` antes de começar a trabalhar. Esta mudança de comportamento é intencional — é exactamente o fix que o audit pedia: alinhar intent do user com execução real.
+
 ---
 
 ### ✅ Sessão #33 — 2026-04-19 (One-command install + mooter como CLI nativo)
