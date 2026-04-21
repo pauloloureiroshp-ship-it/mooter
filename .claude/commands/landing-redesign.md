@@ -6,11 +6,11 @@ You are executing the Mooter landing redesign. This replaces the dark Next.js la
 
 ```
 1. Read /frugal/prompts/LANDING_REDESIGN_MASTER.md      ← full brief (read this first, completely)
-2. Read /frugal/mooter-design-updated/landing.css        ← new design tokens
-3. Read /frugal/mooter-design-updated/landing-core.jsx   ← Nav, HeroTerminalDemo, MOOTER_MARK SVG
-4. Read /frugal/mooter-design-updated/landing-sections-a.jsx  ← FlowDiagram, ModelsSection, CompareSection
-5. Read /frugal/mooter-design-updated/landing-sections-b.jsx  ← TerminalCompare, InstallSection
-6. Read /frugal/mooter-design-updated/landing-sections-c.jsx  ← MooterStatusline (6-row TTY)
+2. Read /frugal/docs/design-exploration/landing-redesign-2026-04-18/landing.css        ← new design tokens
+3. Read /frugal/docs/design-exploration/landing-redesign-2026-04-18/landing-core.jsx   ← Nav, HeroTerminalDemo, MOOTER_MARK SVG
+4. Read /frugal/docs/design-exploration/landing-redesign-2026-04-18/landing-sections-a.jsx  ← FlowDiagram, ModelsSection, CompareSection
+5. Read /frugal/docs/design-exploration/landing-redesign-2026-04-18/landing-sections-b.jsx  ← TerminalCompare, InstallSection
+6. Read /frugal/docs/design-exploration/landing-redesign-2026-04-18/landing-sections-c.jsx  ← MooterStatusline (6-row TTY) — NOT PRESENT: only 5 files were captured in original untracked dir
 7. Read /frugal/landing/app/globals.css                  ← current CSS to replace
 8. Read /frugal/landing/app/page.tsx                     ← current page to replace
 ```

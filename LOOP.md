@@ -156,6 +156,53 @@ Ambas executaram localmente sem invocar Opus. Qualidade de output foi equivalent
 
 ---
 
+### 2026-04-21-drift-bidireccional-canonical-vs-runtime
+
+**Contexto:** investigação a `sync-to-runtime.sh --diff` para fechar CRITICAL-2 do audit 2026-04-19 (triple-location file drift). Sprint A/B/D tinham sido aplicados ao canonical mas o runtime `~/.claude/tools/router/` não reflectia as fixes.
+
+**Resultado observado:** o drift não é uni-direccional — é **bi-direccional** com dois fluxos que nunca se reconciliam. Aplicar `sync-to-runtime.sh --apply` cegamente destruiria trabalho não-versionado do runtime.
+
+**Inventário dos 9 ficheiros divergentes:**
+
+| Ficheiro | Canonical tem mais novo | Runtime tem mais novo |
+|---|---|---|
+| classify.js | `@ts-check` + JSDoc typedefs, `TUNED_COMPLEXITY_THRESHOLD=0.3` | tuning `generated_at=2026-04-21T10:29:19Z` sample=38364, `TUNED_COMPLEXITY_THRESHOLD=0.35`, TUNED_DEMOTE_* arrays |
+| inject_context.js | `@ts-check` + JSDoc, Sprint A fixes | — |
+| arbiter.js | `@ts-check` + JSDoc, Sprint A metrics seed from log | — |
+| backtest.js | **B4 weight boost (+248 linhas)** | — |
+| savings-tracker.js | `sanitizeJson`, `requireEnv`, `sentry-helper` imports (CCA Sprint 8.4) | — |
+| shadow-mode.js, pricing.js, event-builder.js | `@ts-check` + JSDoc (CCA Sprint 1.x) | — |
+| version.json | v0.9.9 / 2026-04-13 / landing-five-azure-16.vercel.app | **v0.10.0 / 2026-04-17 / mooter.ai** |
+
+**Dois fluxos independentes:**
+1. **Dev flow**: edits no repo → commit → mas **nunca chega ao runtime** (sync manual esquecido desde Apr 17).
+2. **Tuning flow**: `update-router.js` corre diariamente 02:00 → reescreve `classify.js` do runtime com patches do backtest → **nunca propaga de volta ao repo**.
+
+Resultado: canonical sempre desactualizado em tuning; runtime sempre desactualizado em dev fixes. Sprint A/B/D (fixes) no canonical; tuning 04-21 (38364 samples) no runtime. Ambas versões têm valor diferente.
+
+**Por que isto importa agora:** `inject_context.js` do runtime é o hook que classifica cada prompt. Está sem a fix F5.1 (mode schema union). Se `.mooter-mode.json` for criado com `{beast_mode:true}`, o classifier runtime silenciosamente ignora — UI mente.
+
+**Dados brutos:**
+- Sprint commits no canonical: `0cdf73f` (Sprint A), `0a9d05c` (Sprint B), `4d60d9f` (Sprint D)
+- `sync-to-runtime.sh --diff` output preservado no transcript desta sessão
+- Tamanhos: canonical maior que runtime em 8 de 9 ficheiros (fixes são additive); só `version.json` tem runtime maior
+
+**Quem observou:** Terminal 1 durante investigação pós-abertura em resposta a "faça sua melhor análise e siga em frente".
+
+**Status:** novo — bloqueado em decisão de arquitectura.
+
+**Priority for Terminal 1:** **HIGH**. Três fixes necessárias antes de qualquer sync cego:
+
+1. **Exclude `version.json` do sync script** — runtime é source of truth para versão (actualizado por install/update).
+2. **Separar tuning state de classify.js** — mover `TUNED_COMPLEXITY_THRESHOLD`, `TUNED_DEMOTE_*`, `generated_at`, `sample_size` para um `tuning-state.json` runtime-only, carregado dinamicamente. Isto resolve o conflito de fluxo permanentemente.
+3. **Só então** propagar canonical → runtime. Preserva type safety + Sprint A/B/D + B4 + Sentry; preserva também tuning patches via nova separação.
+
+Alternativa tática (sem refactor): antes do sync, extrair do runtime `classify.js` as linhas 23-28 (tuning header + threshold + TUNED_DEMOTE arrays), sync, re-injectar. Frágil — qualquer mudança de estrutura no canonical parte o patch.
+
+**Recomendação arquitectónica:** opção 2. Tuning data não é código, não pertence a um ficheiro .js versionado.
+
+---
+
 ## HIPÓTESE
 
 ### Sobre 2026-04-21-classifier-gastou-opus-em-tarefa-descritiva
