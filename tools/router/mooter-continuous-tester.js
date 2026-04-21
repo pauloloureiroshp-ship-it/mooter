@@ -710,7 +710,8 @@ function writeStats(validation) {
     ab_tests_run: stats.ab_tests_run,
     optimizer_ab_tests: stats.optimizer_ab_tests,
     embeddings_built: stats.embedding_builds,
-    misroutings_found: stats.misroutings_found,
+    misroutings_found: stats.misroutings_found,           // alias kept for backward compat
+    raw_misrouting_detections: stats.misroutings_found,   // canonical: raw count before gold-label dedup
     fixes_applied: stats.fixes_applied,
     fixes_reverted: stats.fixes_reverted,
     models_available: availableModels,
@@ -1098,7 +1099,8 @@ function writeBacklog(snapshot) {
     total_ab_tests: stats.ab_tests_run,
     total_optimizer_tests: stats.optimizer_ab_tests,
     total_embeddings: stats.embedding_builds,
-    total_misroutings: stats.misroutings_found,
+    total_misroutings: stats.misroutings_found,            // alias kept for backward compat
+    raw_misrouting_detections: stats.misroutings_found,    // canonical: raw count before gold-label dedup
     optimizer_win_rate: stats.optimizer_ab_tests > 0 ? (stats.optimizer_wins / stats.optimizer_ab_tests * 100).toFixed(1) + '%' : 'n/a',
     models_benchmarked: Object.keys(stats.model_runs).length,
     uptime: snapshot.uptime_human,

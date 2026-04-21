@@ -526,16 +526,32 @@ function buildCounters(allSnap, state) {
     } catch { /* log missing or tracker unavailable */ }
   }
 
-  // cost_usd: computed from model_performance × per-token pricing
-  let cost_usd = 0;
+  // tester_cost_usd: computed from model_performance × per-token pricing.
+  // This is the cost of synthetic tester runs only (Ollama = $0, paid models if used).
+  // It is NOT the cost of Paulo's real Claude sessions — see real_session_cost_usd below.
+  let tester_cost_usd = 0;
   if (pricing) {
     for (const [model, data] of Object.entries(mp)) {
       const price = pricing.PRICES[model] || pricing.FALLBACK_PRICE;
       const tokensIn = (data.runs || 0) * (data.avg_tokens || 0);
-      cost_usd += (tokensIn * (price.input || 0)) / 1e6;
+      tester_cost_usd += (tokensIn * (price.input || 0)) / 1e6;
     }
   }
   // TODO: wire to model-catalog pricing once available
+
+  // real_session_cost_usd: cost of Paulo's real Claude sessions, read from
+  // savings-tracker computeMetrics(decisions.log).real_cost.
+  let real_session_cost_usd = 0;
+  if (savingsTracker) {
+    try {
+      const os = require('os');
+      const logPath = require('path').join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+      const rawLog = require('fs').readFileSync(logPath, 'utf8');
+      const logLines = rawLog.split('\n').filter(Boolean);
+      const sessionMetrics = savingsTracker.computeMetrics(logLines);
+      real_session_cost_usd = sessionMetrics.real_cost || 0;
+    } catch { /* log missing or tracker unavailable */ }
+  }
 
   return {
     prompts_tested: allSnap.classifications,
@@ -552,7 +568,10 @@ function buildCounters(allSnap, state) {
     cycles: live.cycles || null,
     tokens_used,
     savings_usd_cumulative: +savings_usd_cumulative.toFixed(4),
-    cost_usd: +cost_usd.toFixed(4),
+    tester_cost_usd: +tester_cost_usd.toFixed(4),
+    real_session_cost_usd: +real_session_cost_usd.toFixed(4),
+    // TODO: remove cost_usd alias once no consumer reads it (kept for backward compat)
+    cost_usd: +tester_cost_usd.toFixed(4),
     last_updated: new Date().toISOString(),
   };
 }
@@ -599,8 +618,8 @@ if (historyMode) {
   // Counters are always cumulative, don't advance watermark
   showCounters(allSnap, state);
 } else if (reportMode) {
-  showReport(deltaSnap, allSnap, state, allEvents.length);
-  // Advance watermark
+  // Advance watermark and persist BEFORE emitting output so review_count is
+  // never lost if the process is killed or showReport throws mid-stream.
   state.last_review_at = new Date().toISOString();
   state.last_event_index = allEvents.length;
   state.review_count++;
@@ -615,6 +634,7 @@ if (historyMode) {
   // Keep only last 50 reviews in history
   if (state.reviews.length > 50) state.reviews = state.reviews.slice(-50);
   saveState(state);
+  showReport(deltaSnap, allSnap, state, allEvents.length);
 } else if (exportGold) {
   doExportGold(deltaSnap);
   // Record gold export in last review entry
@@ -623,8 +643,8 @@ if (historyMode) {
     saveState(state);
   }
 } else {
-  showSummary(deltaSnap, allSnap, state, allEvents.length);
-  // Summary also advances watermark (user saw the data)
+  // Advance watermark and persist BEFORE emitting output (same as --report)
+  // so review_count is never lost if the process is killed mid-stream.
   state.last_review_at = new Date().toISOString();
   state.last_event_index = allEvents.length;
   state.review_count++;
@@ -638,4 +658,5 @@ if (historyMode) {
   });
   if (state.reviews.length > 50) state.reviews = state.reviews.slice(-50);
   saveState(state);
+  showSummary(deltaSnap, allSnap, state, allEvents.length);
 }
