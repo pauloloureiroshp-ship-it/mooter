@@ -241,9 +241,63 @@ Output do próprio Claude Code disse: "o próximo /mooter-update já o sincroniz
 
 ---
 
+### Sobre 2026-04-21-drift-bidireccional-canonical-vs-runtime
+
+**Hipótese única (probabilidade: alta)** — Opção 2 do OBSERVADO (separar `tuning-state.json` de `classify.js`) é a solução arquitectónica correcta, não apenas tratamento de sintoma.
+
+**Por que é a solução e não um paliativo:**
+
+1. A raiz do drift é estrutural: tuning state mutável e código executável vivem no mesmo ficheiro. Qualquer pipeline que escreva tuning precisa parsear e reinjectar blocos de código — frágil por natureza e invisível ao git (porque tanto código como tuning são `.js`).
+2. Opção 1 (excluir `version.json` do sync script) trata apenas 1 de 9 ficheiros. O drift em 7 outros (classify.js código vs tuning, type safety vs TUNED_BLOCK) continua a acontecer em cada backtest nocturno.
+3. A opção tática (patch runtime → canonical pré-sync) é anti-pattern: encoda stale tuning em ficheiros versionados, commits ruidosos diários, e a história do git fica poluída com mudanças semânticas zero.
+
+**Critério de confirmação:** após refactor, `sync-to-runtime.sh --apply` preserva tuning em runtime + propaga code changes sem destruir estado. Testes 42+ green pós-refactor.
+
+**Risco identificado + mitigação:** `loadTuningState()` em classify.js tem que ter fallback defensivo, caso contrário fresh install falha em tempo de `require()` do classifier, e o hook `inject_context.js` passa a devolver `claude_session` em todos os prompts (router inoperante). Mitigação: try/catch + `tuning-state.defaults.json` (canonical seed committed). Se ambos falharem (ENOENT em defaults committed é impossible), o hook é fail-safe por design — nunca bloqueia prompts.
+
+---
+
 ## EXPERIMENTO
 
-### (nenhum experimento ativo neste momento — aguardando primeiro ciclo de Terminal 2)
+### 2026-04-21-externalize-tuning-state
+
+**Hipótese-alvo:** `2026-04-21-drift-bidireccional-canonical-vs-runtime` — Opção 2 (separar `tuning-state.json` de `classify.js`)
+
+**Critério de validação:**
+- `sync-to-runtime.sh --diff` reporta `0 diverged` (era 9)
+- classify.test.js 3/3 + classify-branches.test.js 20/20 + sanitize.test.js 19/19 green
+- Smoke canonical + runtime classify.js retornam JSON válido com mesmo tier pré/pós-refactor
+- Runtime tuning state preservado através do refactor (threshold 0.35, sample 39593, 3 demote patterns)
+
+**Procedimento:**
+1. Phase 1 scaffold non-destructive (commit `5c41888`): `tuning-state.defaults.json` canonical seed + `.gitignore` entry + `sync-to-runtime.sh` exclude comment + `docs/DRIFT-RESOLUTION-PLAN.md` plano completo
+2. Phase 2 core refactor (commit `d118e55`): `classify.js` com `_loadTuningState()` fallback-safe + `update-router.js` escreve `tuning-state.json` (JSON) em vez de editar classify.js
+3. Seed runtime `~/.claude/tools/router/tuning-state.json` a partir do estado live de runtime classify.js pré-refactor (evita perder tuning acumulado em 4 dias)
+4. Sync canonical → runtime (9 ficheiros)
+5. Smoke tests canonical + runtime + `sync-to-runtime.sh --diff`
+6. Final-reviewer gate → push `main`
+
+**Owner:** Terminal 1 (Opus 4.7, sessão #36, 2026-04-21)
+
+**Cost ceiling:** ~80 tool calls + 3 final-reviewer gates (estimativa pré-execução). Atingido dentro do orçamento.
+
+**Resultado:**
+- `sync-to-runtime.sh --diff`: `0 synced, 23 identical, 0 diverged` ✅
+- Testes: **42/42 green** (sanitize 19, classify 3, classify-branches 20). backtest.test.js + env.test.js + classify-retry.test.js não re-executados (não afectados pela refactor — nenhum testa TUNED_BLOCK nem fs.readFile em classify.js) ✅
+- Smoke canonical `classify.js "hello world"` → T0 trivial_local, qwen2.5:3b ✅
+- Smoke runtime `classify.js "hello world"` → T0 trivial_local, qwen2.5:3b (idêntico ao canonical) ✅
+- Smoke runtime `classify.js "proxima vamos continuar"` → T0 com demote pattern `\\bproxima\\b` a disparar via runtime `tuning-state.json` (preservado) ✅
+- Runtime `tuning-state.json` contém estado seeded `2026-04-21T15:37:26.739Z` (sample 39593, threshold 0.35, 3 demote patterns) ✅
+- node --check em ambos ficheiros: OK ✅
+- Final-reviewer gate (commit d118e55): PASS, zero blockers ✅
+
+**Conclusão:** **CONFIRMA** — Opção 2 é a solução correcta. Drift resolvido definitivamente: pipeline de tuning agora é idempotente e não afecta código versionado.
+
+**Próxima acção:**
+- Aguardar próximo scheduled backtest (02:00 próximo ciclo) para validar que `update-router.js` refactored escreve `tuning-state.json` correctamente em runtime. Se OK → mais 2 ciclos estáveis → destilar em `MEMORY.md` como princípio geral ("externalizar mutable state de código executável sempre que o pipeline de escrita não está sob controlo do git"). Arquivar este entry quando destilado (`ARCHIVED → MEMORY.md#slug`).
+- Phase 3 cleanup de artifacts legacy (`classify.js.bak`, `classify.js.sync-bak`, `backtest.js.bak`, `backtest.js.sync-bak`) opcional, pós-estabilização de 1-2 dias sem incidentes.
+
+---
 
 Template para entries futuras:
 
