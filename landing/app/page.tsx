@@ -530,6 +530,8 @@ function HeroTerminalDemo() {
         <MooterMarkTiny />
         <span style={{ color: '#E8888A', fontWeight: 700 }}>mooter</span>
         <span style={{ color: '#3A332B' }}>│</span>
+        <span style={{ color: '#F2ECDF', fontWeight: 700 }}>🐮 Moo</span>
+        <span style={{ color: '#3A332B' }}>│</span>
         <span style={{ color: s.tierColor, fontWeight: 700 }}>{s.tier}</span>
         <span style={{ color: '#3A332B' }}>│</span>
         <span style={{ color: '#C8BFB2' }}>{s.sessionN}p</span>
@@ -700,7 +702,7 @@ function ModelsSection() {
             <span className="eyebrow">The roster</span>
             <h2>Every model has a specialty.<br />Opus isn&apos;t always the answer.</h2>
             <p className="lede muted">
-              A brain surgeon shouldn&apos;t put on band-aids. Mooter evaluates {T0_MODELS.length + 3} models across 4 tiers — and picks the right one per prompt.
+              A brain surgeon shouldn&apos;t put on band-aids. Mooter evaluates {T0_MODELS.length + 9} models across 4 tiers — and picks the right one per prompt.
             </p>
           </div>
         </Reveal>
