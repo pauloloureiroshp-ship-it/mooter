@@ -873,7 +873,7 @@ function StatuslineSection() {
                 <span className="sl-chip"><span className="sl-dim">quota</span> <b>43/80</b> prompts</span>
                 <span className="sl-chip ticky">next reset · 4h 12m</span>
                 <span className="sl-grow" />
-                <span className="sl-dim">v0.10.1 · sha 4f8c2a1</span>
+                <span className="sl-dim">v0.10.1 · sha {process.env.NEXT_PUBLIC_BUILD_SHA ?? 'dev'}</span>
               </div>
 
               {/* row 6: community pulse */}
@@ -1471,7 +1471,7 @@ function Footer() {
         </div>
         <div className="footer-bottom">
           <span>© 2026 mooter · MIT License · Open source, not a proxy</span>
-          <span>v0.10.1 · classifier sha 4f8c2a1</span>
+          <span>v0.10.1 · build {process.env.NEXT_PUBLIC_BUILD_SHA ?? 'dev'}</span>
         </div>
       </div>
     </footer>

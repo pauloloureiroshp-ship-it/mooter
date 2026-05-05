@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+import { execSync } from 'child_process';
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -8,11 +9,27 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
 ];
 
+// Build-time SHA for the statusline + footer. Vercel exposes
+// VERCEL_GIT_COMMIT_SHA in production; locally we fall back to git, then
+// to "dev" if neither is available.
+function resolveBuildSha() {
+  if (process.env.NEXT_PUBLIC_BUILD_SHA) return process.env.NEXT_PUBLIC_BUILD_SHA;
+  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8', timeout: 1500 }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   // Vercel deployment works out of the box; standalone output is used when
   // self-hosting (Docker, Railway, Fly). Toggled via env.
   ...(process.env.FRUGAL_LANDING_STANDALONE === '1' && { output: 'standalone' as const }),
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: resolveBuildSha(),
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
