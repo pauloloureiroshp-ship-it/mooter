@@ -6,7 +6,7 @@
 
 **Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · Federated-learning foundation · ~90% cost savings validated on 1,437 real prompts**
 
-[![Version](https://img.shields.io/badge/version-v0.9.8-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.10.1-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
 [![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
@@ -223,18 +223,29 @@ Runs every 2 hours in the background, displayed in the statusline as `5h:37% ↺
 
 ## Setup
 
-See **[SETUP.md](INSTALL.md)** for full instructions. TL;DR (once you have access):
+**TL;DR** (once you have access — see [REQUEST_ACCESS.md](REQUEST_ACCESS.md)):
+
+```bash
+# macOS / Linux
+curl -fsSL https://mooter.ai/install.sh | bash
+
+# Windows (PowerShell)
+irm https://mooter.ai/install.ps1 | iex
+```
+
+Or, from a cloned repo:
 
 ```bash
 git clone git@github.com:pauloloureiroshp-ship-it/frugal.git
 cd frugal
-bash install.sh           # copies hooks, agents, docs to ~/.claude/
+bash install.sh           # macOS / Linux
+.\install.ps1             # Windows
 ```
 
 Requirements:
 
 - Claude Code (latest)
-- Node.js 20+
+- Node.js 18+
 - [Ollama](https://ollama.ai) with a model installed (optional — falls back to Haiku if missing)
 - Anthropic API key (optional — only needed for the T1 Haiku direct path)
 
