@@ -55,6 +55,13 @@ SYNC_FILES=(
   model-catalog.json
   model-profile.json
   version.json
+  quota-tracker.js
+  statusline-multi.js
+  providers/_load-env.js
+  providers/codex-cli.js
+  providers/openai-api.js
+  providers/CODEX_CLI_NOTES.md
+  providers/README.md
 )
 
 echo "Sync: $REPO_DIR → $RUNTIME_DIR"
@@ -70,6 +77,12 @@ for f in "${SYNC_FILES[@]}"; do
 
   if [ ! -f "$src" ]; then
     continue
+  fi
+
+  # Make sure subdirectories under RUNTIME_DIR exist (e.g. providers/).
+  dst_dir="$(dirname "$dst")"
+  if [ "$DRY_RUN" = false ] && [ "$DIFF_ONLY" = false ]; then
+    mkdir -p "$dst_dir"
   fi
 
   if [ ! -f "$dst" ]; then

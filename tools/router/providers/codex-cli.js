@@ -111,7 +111,7 @@ function callCodex(prompt, opts = {}) {
       maxBuffer: 10 * 1024 * 1024,
       input: prompt,
     });
-  } catch (err) {
+  } catch {
     return null;
   }
   const durationMs = Date.now() - t0;
