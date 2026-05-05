@@ -223,7 +223,10 @@ if (Test-Path $settingsPath) {
 $deviceIdFile = Join-Path $DeviceDir "device.id"
 if (-not (Test-Path $deviceIdFile)) {
     DoRun "Generate device.id" {
-        & node -e "require('fs').writeFileSync('$($deviceIdFile -replace '\\','/')', require('crypto').randomUUID() + '\n')"
+        # Pass path as positional argv[1] (NOT inline interpolation) so paths
+        # with spaces (e.g. "C:/Users/Paulo Loureiro/.frugal/device.id") work.
+        $nodeScript = "require('fs').writeFileSync(process.argv[1], require('crypto').randomUUID() + '\n')"
+        & node -e $nodeScript $deviceIdFile
     }
     Ok "Device ID generated"
 }

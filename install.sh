@@ -204,6 +204,12 @@ if [ "$NO_PATH" = "0" ]; then
       ok "Added PATH entry to $rc"
     fi
   }
+  # On macOS, ~/.zshrc may not exist on a fresh install (zsh is default
+  # shell since Catalina but the file isn't created until customised).
+  # Create an empty one so PATH injection lands somewhere persistent.
+  if [ "$(uname -s)" = "Darwin" ] && [ ! -f "$HOME/.zshrc" ]; then
+    if [ "$DRY_RUN" = "0" ]; then touch "$HOME/.zshrc"; fi
+  fi
   # Only inject into profiles that actually exist.
   [ -f "$HOME/.zshrc" ]        && inject "$HOME/.zshrc"
   [ -f "$HOME/.bashrc" ]       && inject "$HOME/.bashrc"
