@@ -1,4 +1,4 @@
-# frugal — Landing (v0.9.1)
+# mooter — Landing (v0.10.1)
 
 Public landing page. URL analyser + waitlist. Next.js 15, port `127.0.0.1:7819`
 locally, deployed on Vercel.

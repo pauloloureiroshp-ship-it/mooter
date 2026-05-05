@@ -1,11 +1,11 @@
-# frugal — Dashboard (v0.6.0)
+# mooter — Dashboard (v0.10.1)
 
 Local-only web UI for exploring `decisions.log`, `router-tuning.json`, and
 cost trends. Bound to `127.0.0.1:7820`. Never listens on a public interface.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 18+
 - The frugal savings-tracker running on `127.0.0.1:7821`
   (started automatically by `inject_context.js` on the first prompt)
 - `decisions.log` at `~/.claude/tools/router/decisions.log`

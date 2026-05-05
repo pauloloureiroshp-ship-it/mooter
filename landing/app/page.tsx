@@ -808,10 +808,15 @@ function StatuslineSection() {
             </div>
 
             <div className="statusline">
-              {/* row 1: brand + model */}
+              {/* row 1: brand + mode trio (auto/beast/zen) */}
               <div className="sl-row">
                 <span className="sl-cow"><MooterMarkTiny size={14} /></span>
                 <span className="sl-brand">mooter</span>
+                <span className="sl-sep">│</span>
+                <span className="sl-cell">
+                  <b style={{ color: '#F2ECDF' }}>🐮 Moo</b>
+                  <span className="sl-dim"> · CrazyMoo · LazyMoo</span>
+                </span>
                 <span className="sl-sep">│</span>
                 <span className="sl-cell"><span className="sl-dim">model</span> <span className="sl-k sl-model" style={{ color: '#A88BD4' }}>claude-sonnet</span></span>
                 <span className="sl-sep">│</span>
@@ -862,7 +867,7 @@ function StatuslineSection() {
                 <span className="sl-chip"><span className="sl-dim">quota</span> <b>43/80</b> prompts</span>
                 <span className="sl-chip ticky">next reset · 4h 12m</span>
                 <span className="sl-grow" />
-                <span className="sl-dim">v0.9.4 · sha 4f8c2a1</span>
+                <span className="sl-dim">v0.10.1 · sha 4f8c2a1</span>
               </div>
 
               {/* row 6: community pulse */}
@@ -1279,7 +1284,7 @@ function InstallSection() {
                 </button>
               </div>
               <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted-ink)', letterSpacing: '0.04em' }}>
-                v0.9.4 · MIT · cross-platform
+                v0.10.1 · MIT · cross-platform
               </div>
             </div>
           </div>
@@ -1323,7 +1328,7 @@ function Footer() {
         </div>
         <div className="footer-bottom">
           <span>© 2026 mooter · MIT License · Open source, not a proxy</span>
-          <span>v0.9.4 · classifier sha 4f8c2a1</span>
+          <span>v0.10.1 · classifier sha 4f8c2a1</span>
         </div>
       </div>
     </footer>
