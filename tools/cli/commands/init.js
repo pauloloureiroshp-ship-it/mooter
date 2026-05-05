@@ -37,10 +37,43 @@ async function run() {
   const subFile = path.join(paths.router, 'subscription-profile.json');
   if (!fs.existsSync(subFile)) {
     say("Let's configure your subscription profile.");
-    const hasMax = await prompt('Do you have Claude Max (unlimited Opus)?');
-    const hasApi = hasMax ? false : await prompt('Do you have an Anthropic API key (pay-per-token)?');
-    const hasOpenAI = await prompt('Do you have an OpenAI API key?');
-    const hasGemini = await prompt('Do you have Gemini API access?');
+
+    // 2026-05-05 (deepdive #38 follow-up): probe env for API keys before
+    // asking. If the user has already exported a key, default the answer
+    // to 'y' so they can just press Enter — and surface the detection so
+    // they understand why. Claude Max has no env signal, stays a question.
+    const detectedAnthropic = !!process.env.ANTHROPIC_API_KEY;
+    const detectedOpenAI    = !!process.env.OPENAI_API_KEY;
+    const detectedGemini    = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+
+    const detectedSummary = [
+      detectedAnthropic && 'ANTHROPIC_API_KEY',
+      detectedOpenAI    && 'OPENAI_API_KEY',
+      detectedGemini    && (process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : 'GOOGLE_API_KEY'),
+    ].filter(Boolean);
+    if (detectedSummary.length) {
+      info(`Detected in environment: ${detectedSummary.join(', ')} — pre-filled below.`);
+    }
+
+    const hasMax    = await prompt('Do you have Claude Max (unlimited Opus)?');
+    const hasApi    = hasMax ? false : await prompt(
+      detectedAnthropic
+        ? 'Anthropic API key detected — confirm pay-per-token plan?'
+        : 'Do you have an Anthropic API key (pay-per-token)?',
+      detectedAnthropic ? 'y' : 'n',
+    );
+    const hasOpenAI = await prompt(
+      detectedOpenAI
+        ? 'OpenAI API key detected — confirm?'
+        : 'Do you have an OpenAI API key?',
+      detectedOpenAI ? 'y' : 'n',
+    );
+    const hasGemini = await prompt(
+      detectedGemini
+        ? 'Gemini / Google API key detected — confirm?'
+        : 'Do you have Gemini API access?',
+      detectedGemini ? 'y' : 'n',
+    );
 
     const profile = {
       updated_at: new Date().toISOString(),
@@ -50,6 +83,11 @@ async function run() {
         gemini: hasGemini ? 'api-paid' : 'none',
       },
       budget_strategy: 'auto',
+      detection: {
+        anthropic_env: detectedAnthropic,
+        openai_env:    detectedOpenAI,
+        gemini_env:    detectedGemini,
+      },
       notes: 'Configured via mooter init',
     };
     fs.mkdirSync(paths.router, { recursive: true });
