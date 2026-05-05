@@ -49,6 +49,8 @@ tools/router/backtest-latest.log
 tools/router/classify.js.bak
 tools/router/classify.js.bak2
 tools/router/.env
+tools/router/quota-state.json
+tools/router/quota-state.json.tmp
 
 # Test coverage artefacts (c8/nyc output — can reach tens of MB, never commit)
 tools/router/coverage/
