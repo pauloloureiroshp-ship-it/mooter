@@ -1075,8 +1075,89 @@ function classify(prompt) {
     if (overrideBackend) Object.assign(result, overrideBackend);
   }
 
+  // ── ADDITIVE: multi-provider suggestion (Codex integration v0.11) ─────
+  // Annotate the result with an ordered list of providers the consumer
+  // (inject_context.js / statusline-multi.js) should prefer. This is
+  // ADVISORY — existing tier/category/recommended_backend/recommended_model
+  // fields are unchanged. Read errors degrade silently to a single-provider
+  // list so a missing quota-state.json never breaks classification.
+  try {
+    result.suggested_providers = getSuggestedProviders(
+      /** @type {Tier} */ (result.tier),
+      { isCodeRelated: CODE_SUBTIER_RE.test(p) }
+    );
+  } catch {
+    // Ultra-safe fallback: tier-default only, no quota awareness.
+    result.suggested_providers = DEFAULT_PROVIDERS_BY_TIER[
+      /** @type {Tier} */ (result.tier)
+    ] || ['session'];
+  }
+
   setCache(prompt || '', result);
   return result;
+}
+
+// ── Provider suggestion (Codex integration v0.11, additive) ─────────────
+// Returns an ORDERED list of provider keys. First entry = most-preferred.
+// Consumers walk the list until one accepts the call.
+
+/** @type {Record<Tier, string[]>} */
+const DEFAULT_PROVIDERS_BY_TIER = {
+  T0: ['ollama'],
+  T1: ['haiku'],
+  T2: ['sonnet'],
+  T3: ['opus'],
+};
+
+const ANTHROPIC_LOW_QUOTA_THRESHOLD = 0.25; // <25% remaining = "low"
+
+/**
+ * @param {Tier} tier
+ * @param {{ isCodeRelated?: boolean }} [opts]
+ * @returns {string[]}
+ */
+function getSuggestedProviders(tier, opts = {}) {
+  const isCode = !!opts.isCodeRelated;
+
+  // Lazy-load to keep classify.js hot path lean and avoid circular imports.
+  /** @type {{ summary: () => any, shouldPreferCodex: () => boolean }} */
+  let tracker;
+  try {
+    tracker = require('./quota-tracker');
+  } catch {
+    return DEFAULT_PROVIDERS_BY_TIER[tier].slice();
+  }
+
+  const snap = tracker.summary();
+  const anthropicRemaining = (snap.anthropic_remaining_pct || 100) / 100;
+  const preferCodex = tracker.shouldPreferCodex() && isCode;
+
+  switch (tier) {
+    case 'T0':
+      return ['ollama'];
+    case 'T1': {
+      const out = preferCodex ? ['codex_cli', 'haiku'] : ['haiku'];
+      if (anthropicRemaining < ANTHROPIC_LOW_QUOTA_THRESHOLD) {
+        out.push('openai_api');
+      }
+      return out;
+    }
+    case 'T2': {
+      const out = preferCodex ? ['codex_cli', 'sonnet'] : ['sonnet'];
+      if (anthropicRemaining < ANTHROPIC_LOW_QUOTA_THRESHOLD) {
+        // Anthropic running low — give the consumer a 3rd-party fallback.
+        if (!out.includes('codex_cli')) out.push('codex_cli');
+        out.push('openai_api');
+      }
+      return out;
+    }
+    case 'T3':
+    default:
+      // Architecture / critical work always stays on Opus. We never insert
+      // a cheaper provider here even if quota is tight — the user wants
+      // best-quality reasoning, not budget triage.
+      return ['opus'];
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────
