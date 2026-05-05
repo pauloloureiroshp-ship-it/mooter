@@ -29,7 +29,7 @@ param(
     [switch]$DryRun,
     [switch]$NoPath,
     [switch]$Force,
-    [string]$Channel = "stable"
+    [string]$Channel = "friends-beta"
 )
 
 $ErrorActionPreference = "Stop"

@@ -20,7 +20,7 @@ set -eu
 DRY_RUN=0
 NO_PATH=0
 FORCE=0
-CHANNEL="${MOOTER_CHANNEL:-stable}"
+CHANNEL="${MOOTER_CHANNEL:-friends-beta}"
 
 for arg in "$@"; do
   case "$arg" in
