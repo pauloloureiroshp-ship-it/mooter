@@ -1010,6 +1010,36 @@ if (decision.arbiter && decision.arbiter.consulted) {
   }
 }
 
+// ── Codex integration v0.11 — multi-provider hint lines (additive) ─────
+// Surfaces the ordered suggested_providers list and current Anthropic +
+// Codex CLI quota state so the main session can pick a subagent without
+// re-reading quota-state.json. Lazy-loads the tracker; any failure leaves
+// providerLines empty so existing router-hint shape is preserved.
+const providerLines = [];
+try {
+  const providers = Array.isArray(decision.suggested_providers)
+    ? decision.suggested_providers
+    : null;
+  // Pull a quota snapshot only if we'll actually print it.
+  let quotaSnap = null;
+  try { quotaSnap = require('./quota-tracker').summary(); } catch { /* tracker absent */ }
+  if (providers && providers.length) {
+    providerLines.push(`suggested_providers: ${providers.join(', ')}`);
+  }
+  if (quotaSnap) {
+    if (typeof quotaSnap.codex_remaining_pct === 'number') {
+      providerLines.push(
+        `codex_quota: ${quotaSnap.codex_remaining_pct}% remaining (5h window)`
+      );
+    }
+    if (typeof quotaSnap.anthropic_remaining_pct === 'number') {
+      providerLines.push(
+        `anthropic_quota: ${quotaSnap.anthropic_remaining_pct}% remaining (5h window)`
+      );
+    }
+  }
+} catch { /* never let this break the hint */ }
+
 const lines = [
   '<router-hint>',
   `task_category: ${decision.task_category}`,
@@ -1026,6 +1056,7 @@ const lines = [
   ...overrideLines,
   ...arbiterLines,
   ...decompositionLines,
+  ...providerLines,
   '',
   'Routing policy: see ~/.claude/docs/ROUTING_POLICY.md',
   decision.user_override && decision.user_override.honored
