@@ -103,18 +103,14 @@ async function handleStats(request, env) {
         AND savings_usd IS NOT NULL
     `).first();
 
-    // 2026-05-05 (deepdive #38): cumulative all-time totals — what the landing
-    // counter actually shows. The 7-day numbers above feed the tier/hw
-    // distribution charts that need a recent window; the landing big counter
-    // claims "since launch" so it must be unbounded.
-    const lifetimeTotals = await env.DB.prepare(`
-      SELECT
-        COUNT(DISTINCT profile_hash) as user_count_all_time,
-        SUM(savings_usd) as total_savings_usd_all_time,
-        SUM(prompt_count) as total_prompts_all_time
-      FROM deltas
-      WHERE savings_usd IS NOT NULL
-    `).first();
+    // 2026-05-05 (deepdive #38): a real cumulative-since-launch counter would
+    // need a separate rollup table — the `deltas` table is pruned to 7 days by
+    // the notify cron (DELTA_TTL_DAYS=7), so any "all-time" query against it
+    // is mathematically equivalent to the 7-day window above. The landing
+    // labels were updated to say "last 7 days" in the same commit and the
+    // canonical fields below now mirror the 7-day query directly. When a
+    // lifetime rollup ships (future migration), expose it as `*_all_time`
+    // siblings without removing the 7-day fields.
 
     // Pending model signals
     const pendingModels = await env.DB.prepare(`
@@ -124,25 +120,12 @@ async function handleStats(request, env) {
     return new Response(JSON.stringify({
       period: 'last_7_days',
       generated_at: new Date().toISOString(),
-      // Landing big counter — cumulative all-time. Falls back to the 7-day
-      // figure (and the 1-row baseline) only if the lifetime query returns null.
-      prompt_count: Number(
-        lifetimeTotals?.total_prompts_all_time ||
-        savingsAndUsers?.total_prompts_all ||
-        totals?.total_prompts ||
-        0,
-      ),
-      user_count: Number(
-        lifetimeTotals?.user_count_all_time ||
-        savingsAndUsers?.user_count ||
-        1,
-      ),
-      total_savings_usd: Math.round(
-        (Number(lifetimeTotals?.total_savings_usd_all_time) ||
-          Number(savingsAndUsers?.total_savings_usd) ||
-          0) * 100,
-      ) / 100,
-      // 7-day rolling totals — kept for charts and "this week" callouts.
+      // Landing big counter — 7-day rolling (deltas TTL is 7d). Same numbers
+      // are also exposed as `*_7d` siblings for clarity in clients that want
+      // an explicit window suffix.
+      prompt_count: Number(savingsAndUsers?.total_prompts_all || totals?.total_prompts || 0),
+      user_count: Number(savingsAndUsers?.user_count || 1),
+      total_savings_usd: Math.round((Number(savingsAndUsers?.total_savings_usd) || 0) * 100) / 100,
       prompt_count_7d: Number(savingsAndUsers?.total_prompts_all || totals?.total_prompts || 0),
       user_count_7d: Number(savingsAndUsers?.user_count || 1),
       total_savings_usd_7d: Math.round((Number(savingsAndUsers?.total_savings_usd) || 0) * 100) / 100,

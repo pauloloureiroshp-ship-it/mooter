@@ -598,7 +598,7 @@ function StatsStrip() {
             <div className="stat">
               <div className="v"><AnimatedNumber value={stats.prompt_count} /></div>
               <div className="k">Prompts routed</div>
-              <div className="delta">{live ? 'cumulative · community hub' : 'baseline · seed'}</div>
+              <div className="delta">{live ? 'last 7 days · community hub' : 'baseline · seed'}</div>
             </div>
             <div className="stat">
               <div className="v"><AnimatedNumber value={stats.savings_pct} decimals={1} suffix="%" /></div>
@@ -607,8 +607,8 @@ function StatsStrip() {
             </div>
             <div className="stat">
               <div className="v"><span className="unit">$</span><AnimatedNumber value={stats.savings_usd} decimals={2} /></div>
-              <div className="k">Total saved</div>
-              <div className="delta">since launch · {stats.user_count} {stats.user_count === 1 ? 'profile' : 'profiles'}</div>
+              <div className="k">Saved last 7d</div>
+              <div className="delta">{stats.user_count} {stats.user_count === 1 ? 'profile' : 'profiles'} · rolling window</div>
             </div>
             <div className="stat">
               <div className="v">&lt;<AnimatedNumber value={50} />ms</div>
@@ -975,7 +975,7 @@ function ModesSection() {
             {/* CrazyMoo (beast) — force Opus */}
             <div className="mode-card crazymoo">
               <div className="mode-head">
-                <span className="mode-emoji" aria-hidden="true">🤘</span>
+                <span className="mode-emoji" aria-hidden="true">🐂</span>
                 <div className="mode-meta">
                   <div className="mode-name">CrazyMoo</div>
                   <div className="mode-sub">beast · force T3</div>
@@ -1009,7 +1009,7 @@ function ModesSection() {
             {/* LazyMoo (zen) — cap at T1 */}
             <div className="mode-card lazymoo">
               <div className="mode-head">
-                <span className="mode-emoji" aria-hidden="true">😎</span>
+                <span className="mode-emoji" aria-hidden="true">🐄</span>
                 <div className="mode-meta">
                   <div className="mode-name">LazyMoo</div>
                   <div className="mode-sub">zen · cap at T1</div>
