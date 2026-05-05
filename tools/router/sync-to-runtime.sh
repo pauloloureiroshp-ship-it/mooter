@@ -32,6 +32,7 @@ done
 # and tuning-state.json (runtime-owned, written by update-router.js —
 # syncing it would overwrite live tuning with stale canonical defaults).
 SYNC_FILES=(
+  paths.js
   classify.js
   patterns.js
   inject_context.js
