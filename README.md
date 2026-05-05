@@ -1,6 +1,6 @@
 <div align="center">
 
-# frugal
+# mooter
 
 ### The Claude Code router that knows when to save.
 
@@ -18,10 +18,10 @@
 ---
 
 ```
-⬆ main·a1b2 │ 🐕 frugal v0.9 │ [T3] ops arch 2.5s L1→L2→T3 │ qwen 61% · hku 22% · son 13% · ops 4% │ 💰 $12.80 (90%) 79% ▓▓▓▓▓░░░ │ 💻 RTX 4090 ▓▓▓▓░░ 61% │ ●●◐○○○
+⬆ main·a1b2 │ 🐮 mooter v0.10.1 · 🐮 Moo · CrazyMoo · LazyMoo │ [T3] ops arch 2.5s │ qwen 61% · hku 22% · son 13% · ops 4% │ 💰 $12.80 (90%) │ 💻 RTX 4090 61% │ ●●◐○○○
 ```
 
-*Your statusline v3 after a day of work. 7 segments: git · 🐕 brand · last-turn cascade · distribution · savings + budget track · GPU · all LLM providers. No router. No proxy. No extra bill.*
+*Your statusline after a day of work: git · 🐮 brand + mode trio · current tier + classify · tier distribution · savings + budget · GPU · provider availability. No router. No proxy. No extra bill.*
 
 **Tier emojis** — 🏠 T0 (local) · 🌸 T1 (Haiku) · 🎵 T2 (Sonnet) · 💎 T3 (Opus)
 
@@ -31,11 +31,11 @@
 
 ## 🔒 Access
 
-**This repository is private.** Access is by invitation only while frugal is in private beta.
+**This repository is private.** Access is by invitation only while mooter is in private beta.
 
 If you want to try it, please see **[REQUEST_ACCESS.md](REQUEST_ACCESS.md)** — it's a two-line email. Paulo reviews requests weekly.
 
-Why private? frugal is being validated on real production usage (including my own solo-founder workflow) before it's ready for a wider audience. Source code is shared with trusted testers under the MIT license — you can use it, fork it, modify it — but you need to be let in first. See [NOTICE.md](NOTICE.md) for the full rationale.
+Why private? mooter is being validated on real production usage (including my own solo-founder workflow) before it's ready for a wider audience. Source code is shared with trusted testers under the MIT license — you can use it, fork it, modify it — but you need to be let in first. See [NOTICE.md](NOTICE.md) for the full rationale.
 
 ---
 
@@ -53,13 +53,13 @@ Existing "routers" for LLMs solve this with **proxies**: they sit between your c
 - Opaque behaviour (what did the proxy decide? why?)
 - Vendor lock-in to whatever proxy service you chose
 
-**frugal takes a different approach.**
+**mooter takes a different approach.**
 
 ---
 
 ## The approach — *doctrine, not proxy*
 
-frugal doesn't intercept anything. It teaches Claude Code itself when to reach for Opus and when to delegate to Ollama, Haiku, or Sonnet. It does this through three mechanisms that work together:
+mooter doesn't intercept anything. It teaches Claude Code itself when to reach for Opus and when to delegate to Ollama, Haiku, or Sonnet. It does this through three mechanisms that work together:
 
 1. **A classifier hook** (`inject_context.js` + `classify.js`) runs on every prompt before Claude Code processes it. Pure regex, <50 ms, zero LLM cost. It emits a `<router-hint>` with a recommended tier (T0/T1/T2/T3) and confidence score.
 
@@ -69,13 +69,13 @@ frugal doesn't intercept anything. It teaches Claude Code itself when to reach f
 
 **The result:** Claude Code itself decides, on every prompt, which model is the cheapest capable tool for the job. The decision is explainable (the classifier returns a `reasoning` field), reversible (edit one file to override), and auditable (every decision is logged to `decisions.log`).
 
-And because it's doctrine and not a proxy, **if frugal dies, Claude Code still works**. It falls back to default behaviour. Zero blast radius.
+And because it's doctrine and not a proxy, **if mooter dies, Claude Code still works**. It falls back to default behaviour. Zero blast radius.
 
 ---
 
 ## Self-tuning loop (new in v0.5)
 
-frugal now learns from its own decisions. Every night at 02:00, a scheduled task runs:
+mooter now learns from its own decisions. Every night at 02:00, a scheduled task runs:
 
 ```
 decisions.log ──► backtest.js ──► router-tuning.json ──► update-router.js ──► classify.js
@@ -135,7 +135,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 
 ## Who is this for?
 
-| Persona | Why frugal helps |
+| Persona | Why mooter helps |
 |---|---|
 | **Solo founders** burning Claude Code credits on trivial work | 90% savings on a $200/mo budget = $180 back |
 | **Small teams** sharing a company Anthropic account | Consistent routing across developers, visible spend per tier |
@@ -143,7 +143,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | **Researchers & tinkerers** who want a transparent, regex-based router | Every decision is explainable in <10 lines of code |
 | **Budget-conscious devs** on the Anthropic 5-hour OAuth plan | Live statusline shows your budget burn in real time |
 
-It is **not** for: production AI workloads where latency matters more than cost, or teams that need a hosted multi-tenant router. frugal is single-user, local, and opinionated.
+It is **not** for: production AI workloads where latency matters more than cost, or teams that need a hosted multi-tenant router. mooter is single-user, local, and opinionated.
 
 ---
 
@@ -207,7 +207,7 @@ Want to swap providers? See [docs/MODEL_MAPPING.md](docs/MODEL_MAPPING.md).
 
 ## Budget guardrail
 
-frugal reads your Anthropic OAuth usage and caps the maximum tier dynamically:
+mooter reads your Anthropic OAuth usage and caps the maximum tier dynamically:
 
 | 5-hour usage | Max tier | Effective ceiling |
 |---|---|---|
@@ -278,26 +278,26 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 
 | Command | What it does |
 |---|---|
-| `/frugal-status` | Health check: hook active, Ollama live, hub reachable, last 5 decisions |
-| `/frugal-savings` | Economic report: session savings, projected annual, tier distribution |
-| `/frugal-route <task>` | Classify any task description before running it |
-| `/frugal-summary` | What the router decided this session (full breakdown) |
-| `/frugal-update` | Pull from GitHub + sync classifier (idempotent) |
-| `/frugal-beast` | Beast Mode: forces T3 (Opus) on everything until reset |
-| `/frugal-zen` | Zen Mode: caps at T1 (Haiku/Ollama) — great for focused writing |
-| `/frugal-auto` | Resets to intelligent auto-routing |
-| `/frugal-hello` | Onboarding walkthrough for first-time users |
-| `/frugal-doctor` | Full system diagnostic: hooks, models, log permissions, --fix mode |
+| `/mooter-status` | Health check: hook active, Ollama live, hub reachable, last 5 decisions |
+| `/mooter-savings` | Economic report: session savings, projected annual, tier distribution |
+| `/mooter-route <task>` | Classify any task description before running it |
+| `/mooter-summary` | What the router decided this session (full breakdown) |
+| `/mooter-update` | Pull from GitHub + sync classifier (idempotent) |
+| `/mooter-beast` | Beast Mode: forces T3 (Opus) on everything until reset |
+| `/mooter-zen` | Zen Mode: caps at T1 (Haiku/Ollama) — great for focused writing |
+| `/mooter-auto` | Resets to intelligent auto-routing |
+| `/mooter-hello` | Onboarding walkthrough for first-time users |
+| `/mooter-doctor` | Full system diagnostic: hooks, models, log permissions, --fix mode |
 
 ---
 
-## frugal-doctor
+## mooter-doctor
 
-`frugal-doctor.js` is a cross-platform diagnostic tool that runs 12 health checks and can auto-fix common issues:
+`mooter-doctor.js` is a cross-platform diagnostic tool that runs 12 health checks and can auto-fix common issues:
 
 ```bash
-node ~/.claude/hooks/frugal-doctor.js          # diagnose
-node ~/.claude/hooks/frugal-doctor.js --fix    # diagnose + repair
+node ~/.claude/hooks/mooter-doctor.js          # diagnose
+node ~/.claude/hooks/mooter-doctor.js --fix    # diagnose + repair
 ```
 
 Checks: hook registration in settings.json, Ollama reachability, GPU probe, decisions.log write permission, exec-logger presence, statusline segments, CLAUDE.md doctrine version, hub connectivity, and more.
@@ -318,7 +318,7 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 | [NOTICE.md](NOTICE.md) | Legal + commercial intent |
 | [docs/ROUTING_POLICY.md](docs/ROUTING_POLICY.md) | Complete tier routing rules |
 | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | Request lifecycle diagram |
-| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | What frugal does *not* do |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | What mooter does *not* do |
 | [docs/REAL_CORPUS_VALIDATION.md](docs/REAL_CORPUS_VALIDATION.md) | The 1,370-prompt benchmark |
 | [docs/MODEL_MAPPING.md](docs/MODEL_MAPPING.md) | How to swap providers |
 | [docs/COST_MODEL.md](docs/COST_MODEL.md) | How v0.6 measures savings (token-estimated) |
