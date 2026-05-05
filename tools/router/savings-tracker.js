@@ -466,6 +466,11 @@ function computeMetrics(lines) {
     if (!e || e.event !== 'classified' || !e.tier) continue;
     if (!(e.tier in TIER_TO_MODEL)) continue;
 
+    // Filter synthetic tester events from real-user metrics (audit #25 + #37).
+    // Tester events have source: 'mooter-tester'. They inflated all-time savings
+    // ~10× before separation; backtest.js already filters them — align here.
+    if (e.source === 'mooter-tester' || (e.event && e.event.startsWith && e.event.startsWith('tester_'))) continue;
+
     if (isSystemPrompt(e)) {
       m.system_prompts_filtered += 1;
       continue;

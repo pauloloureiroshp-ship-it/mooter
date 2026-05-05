@@ -36,14 +36,15 @@ npx wrangler deploy
 ## Environment
 
 - **Worker URL:** https://mooter-hub.frugal-hub.workers.dev
-- **D1 database:** `frugal-hub-db`
-- **R2 bucket:** `frugal-hub-storage`
+- **D1 database:** `mooter-hub` (id `3659b56e`, see `wrangler.mooter.toml`)
+- **R2 bucket:** `mooter-hub-storage`
 - **Account:** (see INFRA.md)
+- **Legacy worker:** `frugal-hub` is still deployed (200 OK as of 2026-05-05) and bound to the same `mooter-hub` D1/R2 — kept alive for any pre-rebrand client that hits `frugal-hub.frugal-hub.workers.dev`. Safe to retire once telemetry confirms zero traffic.
 
 ## Migrations
 
 ```bash
-npx wrangler d1 migrations apply frugal-hub-db
+npx wrangler d1 migrations apply mooter-hub -c wrangler.mooter.toml
 ```
 
 **Deploy order — ALWAYS apply migrations BEFORE deploying the worker.**
