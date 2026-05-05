@@ -625,7 +625,7 @@ function FlowDiagram() {
   const steps = [
     { n: '01', title: 'Prompt in',     desc: 'Your prompt enters the Claude Code hook — intercepted locally, zero network.', badge: 'hook' },
     { n: '02', title: 'Classify',      desc: '167 regex patterns score complexity, risk & intent in <50ms.', badge: 'classify.js' },
-    { n: '03', title: 'Profile match', desc: 'Your GPU, installed models, subscription tier & budget ceiling are factored in.', badge: 'profile' },
+    { n: '03', title: 'Profile match', desc: 'Your GPU (probed via nvidia-smi / system_profiler), installed Ollama models, and the subscription profile you set in `mooter init` shape the decision.', badge: 'profile' },
     { n: '04', title: 'Route',         desc: 'Picks the cheapest model that meets the quality bar for this exact prompt.', badge: 'T0/T1/T2/T3' },
     { n: '05', title: 'Answer back',   desc: 'Best model responds. Decision logged, savings tracked, community learns.', badge: 'validate' },
   ];
@@ -711,7 +711,7 @@ function ModelsSection() {
                 <span className="price">local · $0.000</span>
               </div>
               <h3>Local on your hardware</h3>
-              <p className="desc">Free. Runs on your GPU via Ollama. Mooter auto-detects VRAM and installs the right set at setup.</p>
+              <p className="desc">Free. Runs on your GPU via Ollama. <code>mooter init</code> probes your GPU and recommends the model set that fits your VRAM. T0 is opt-in — skip it and cloud tiers still work.</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
                 {T0_MODELS.map(m => (
                   <ModelRow key={m.name} glyph={m.glyph} name={m.name} meta={`${m.vram} · ${m.role}`} />
@@ -1265,8 +1265,8 @@ const CMP_ROWS: {
   { f: 'Works natively with Claude Code', mooter: ['yes', 'Hook-based, no proxy'],      litellm: ['meh', 'Custom config'],    openrouter: ['no',  'Different CLI'],   cursor: ['no',  'Cursor-only'],   plain: ['yes', 'But no routing']   },
   { f: 'No proxy / no interception',      mooter: ['yes', 'Zero MitM'],                 litellm: ['no',  'Proxy server'],     openrouter: ['no',  'Cloud proxy'],     cursor: ['no',  'Intercepts all'], plain: ['yes', 'Direct']           },
   { f: 'Local model support',             mooter: ['yes', 'Hardware-aware'],            litellm: ['yes', 'Manual config'],    openrouter: ['no',  'Cloud only'],      cursor: ['meh', 'Limited'],       plain: ['no',  'API only']         },
-  { f: 'Hardware-aware routing',          mooter: ['yes', 'GPU probe at install'],      litellm: ['no',  '—'],                openrouter: ['no',  '—'],               cursor: ['no',  '—'],             plain: ['no',  '—']                },
-  { f: 'Subscription-aware routing',      mooter: ['yes', 'Max · Pro · API'],           litellm: ['no',  '—'],                openrouter: ['no',  '—'],               cursor: ['no',  '—'],             plain: ['no',  '—']                },
+  { f: 'Hardware-aware routing',          mooter: ['yes', 'GPU probe + VRAM-aware'],    litellm: ['no',  '—'],                openrouter: ['no',  '—'],               cursor: ['no',  '—'],             plain: ['no',  '—']                },
+  { f: 'Subscription-aware routing',      mooter: ['yes', 'Max · Pro · API · Codex'],   litellm: ['no',  '—'],                openrouter: ['no',  '—'],               cursor: ['no',  '—'],             plain: ['no',  '—']                },
   { f: 'Classification latency',          mooter: ['yes', '<50ms · regex'],             litellm: ['meh', '~200ms LLM'],       openrouter: ['meh', '50–200ms'],        cursor: ['no',  'n/a'],           plain: ['no',  'n/a']              },
   { f: 'Community-fed patterns',          mooter: ['yes', 'Weekly updates'],            litellm: ['no',  '—'],                openrouter: ['no',  '—'],               cursor: ['no',  '—'],             plain: ['no',  '—']                },
   { f: 'Price',                           mooter: ['yes', 'Free · MIT'],                litellm: ['yes', 'OSS, self-host'],   openrouter: ['meh', '5–10% markup'],    cursor: ['meh', '$20/mo'],        plain: ['yes', 'API cost only']    },
@@ -1408,8 +1408,9 @@ function InstallSection() {
               </p>
 
               <div className="vsc-checklist">
-                <div><CheckIcon /> GPU &amp; VRAM probed automatically</div>
-                <div><CheckIcon /> Recommended local models installed</div>
+                <div><CheckIcon /> GPU probed on first <code>mooter init</code></div>
+                <div><CheckIcon /> Local models pulled to fit your VRAM</div>
+                <div><CheckIcon /> Subscriptions configured once, used forever</div>
                 <div><CheckIcon /> Hook wired into Claude Code</div>
                 <div><CheckIcon /> Statusline goes live on next prompt</div>
               </div>
