@@ -64,6 +64,9 @@ function useInView(ref: RefObject<HTMLElement | null>, threshold = 0.15) {
 }
 
 function useCommunityStats() {
+  // Baseline = friends-beta seed snapshot 2026-05-05. Replaced as soon as
+  // the hub responds. Numbers come from the cumulative all-time queries
+  // shipped in stats.js on this same date — not personal session data.
   const [stats, setStats] = useState({
     prompt_count: 1437,
     savings_pct: 89.9,
@@ -83,8 +86,8 @@ function useCommunityStats() {
           if (data?.prompt_count) {
             setStats({
               prompt_count: data.prompt_count,
-              savings_pct: data.avg_savings_pct ?? 90.2,
-              savings_usd: data.total_savings_usd ?? 6.29,
+              savings_pct: data.avg_savings_pct ?? 89.9,
+              savings_usd: data.total_savings_usd ?? 0,
               user_count: data.user_count ?? 1,
             });
             setLive(true);
@@ -593,17 +596,17 @@ function StatsStrip() {
             <div className="stat">
               <div className="v"><AnimatedNumber value={stats.prompt_count} /></div>
               <div className="k">Prompts routed</div>
-              <div className="delta">{live ? 'live · community hub' : 'baseline'}</div>
+              <div className="delta">{live ? 'cumulative · community hub' : 'baseline · seed'}</div>
             </div>
             <div className="stat">
               <div className="v"><AnimatedNumber value={stats.savings_pct} decimals={1} suffix="%" /></div>
               <div className="k">Avg savings</div>
-              <div className="delta">vs all-Opus baseline</div>
+              <div className="delta">vs all-Opus · last 7d</div>
             </div>
             <div className="stat">
               <div className="v"><span className="unit">$</span><AnimatedNumber value={stats.savings_usd} decimals={2} /></div>
               <div className="k">Total saved</div>
-              <div className="delta">and counting</div>
+              <div className="delta">since launch · {stats.user_count} {stats.user_count === 1 ? 'profile' : 'profiles'}</div>
             </div>
             <div className="stat">
               <div className="v">&lt;<AnimatedNumber value={50} />ms</div>
