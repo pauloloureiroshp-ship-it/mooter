@@ -3,10 +3,46 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-04-21 (Claude Code Windows — **Sessão #36: drift RESOLVIDO + T1/T2 contract v1.1 + Sentry runbook**)
+**Última sync:** 2026-05-05 (Claude Code Windows — **Sessão #37: site coherence + install alignment + statusline mode trio na landing**)
 **Versão:** v0.10.1 · mooter.ai live · CI 130/130 green · Claude Certified Architect ✅
-**Último commit main:** `d118e55` (refactor(router): externalize tuning state to tuning-state.json)
-**Sessão Claude Code:** #36 — bidirectional drift FULLY RESOLVED. 7 commits push a `main` (39b9e92, 4ec1c5e, cbfaef7, 4336dba, 5c41888, e5a29d8, d118e55), 3 final-reviewer gates (all PASS / PASS-WITH-NOTES). **Major achievements:**
+**Último commit main:** `116c2f8` (feat(landing): v0.10.1 versions + Moo/CrazyMoo/LazyMoo mode badge)
+**Sessão Claude Code:** #37 — Audit completa do site mooter.ai + install flow + statusline coherence. 9/10 findings da auditoria fechados em 3 commits atómicos (`79426de` access fix, `e488a92` install alignment, `116c2f8` landing+statusline). Landing estava 2 versões atrás do SSOT (mostrava v0.9.4, real v0.10.1) e omitia identidade-chave do produto (mode trio Moo/CrazyMoo/LazyMoo). REQUEST_ACCESS.md criado (era 404 para qualquer convidado).
+
+### 🌐 Sessão #37 — 2026-05-05 (Site coherence + install alignment + statusline mode trio)
+
+**Âmbito:** garantir que `mooter.ai` + install flow + statusline reflectem a verdade actual da v0.10.1 friends-beta. Auditoria deep com `model-reasoner` (17 findings classificados por severidade) → remediação imediata em 3 commits atómicos.
+
+**Findings closed (9/10):**
+
+| # | Severidade | Resolução |
+|---|---|---|
+| B1 — REQUEST_ACCESS.md missing | BLOQUEADOR | Criado com 2 paths: signin landing OR email direto |
+| B2 — README broken [SETUP.md](INSTALL.md) link | BLOQUEADOR | Reescreveu setup section, aponta para mooter.ai installers |
+| G1 — Landing 3× v0.9.4 hardcoded | GAP visível | 3 strings → v0.10.1 (page.tsx:865, 1282, 1326) |
+| G2 — Channel default `stable` vs SSOT `friends-beta` | GAP UX | 4 install scripts alinhados |
+| G3 — install-windows.ps1 duplicado | GAP manutenção | Apagado |
+| G4 — README badge v0.9.8 | GAP visível | → v0.10.1 |
+| G5 — Node 20+ vs script 18+ | GAP UX | → 18+ alinhado |
+| G6 — Sub-READMEs stale | GAP visível | landing/dashboard READMEs → v0.10.1 + frugal→mooter |
+| **Statusline coherence** | GAP brand | modeBadge `🐮 Moo · CrazyMoo · LazyMoo` adicionado à row 1 da landing mockup |
+
+**NÃO tocado (decisão consciente):**
+- Rebrand frugal → mooter completo no README raiz (header, statusline example, tier emojis) — esforço maior, merece commit dedicado
+- `landing/public/runtime/mooter-runtime-latest.tgz` (371KB, 2026-04-18) — pendente decisão Paulo: apagar ou manter
+
+**Página Notion:** [🌐 Sessão #37 — Site coherence + install alignment + statusline mode trio](https://www.notion.so/3576f6e42bc481fab148fa6a26db00de)
+
+**Próxima missão sugerida:**
+- **Opção A (curto):** completar rebrand frugal→mooter no README raiz
+- **Opção B (estratégico):** atacar pendentes herdados — Sentry DSN config + Vercel orphan cleanup + `npm publish @mooter/cli@0.0.2` + revogar PAT Supabase
+
+**Pendente Paulo antes do push para origin/main:** revisar diff visual do mode badge na landing (push triggers Vercel deploy automático ~12s). Mudança visível na hero do site.
+
+---
+
+### Sessão #36 — 2026-04-21 (drift RESOLVIDO + T1/T2 contract v1.1 + Sentry runbook)
+
+7 commits push a `main` (39b9e92, 4ec1c5e, cbfaef7, 4336dba, 5c41888, e5a29d8, d118e55), 3 final-reviewer gates (all PASS / PASS-WITH-NOTES). **Major achievements:**
 
 1. **TERMINAL-CONTRACT v1.1** — bump minor (SUPERSEDES 1.0): adicionados `docs/backtests/`, `docs/coherence/`, `docs/learnings/`, `docs/suggested-prompts/` a `allowed_paths`; formalizada secção `task_specific_output_dirs` com convenção filename `<pid>` anti-collision. Zero changes em forbidden_paths/commands/read_only_paths — 17 forbidden_commands + 30s EMERGENCY_STOP poll + 4h gpu-lock staleness preservados.
 
@@ -760,6 +796,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-04-18 — Mooter Review #16 (classifier limpo) | https://www.notion.so/3476f6e42bc4810b9ad6e7c605acccad |
 | Sessão 2026-04-19 — /doctor fix (MCP Windows + HOME env) | https://www.notion.so/3476f6e42bc481a1a3ffc682d7fcdc1f |
 | Sessão #35 2026-04-21 — H2 hygiene + bidirectional drift | https://www.notion.so/3496f6e42bc4814286b1d4d41c1a658e |
+| Sessão #37 2026-05-05 — Site coherence + install alignment + statusline mode trio | https://www.notion.so/3576f6e42bc481fab148fa6a26db00de |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
