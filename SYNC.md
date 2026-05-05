@@ -3,10 +3,58 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-05 (Claude Code Windows — **Sessão #37: site coherence + install alignment + statusline mode trio na landing**)
+**Última sync:** 2026-05-05 (Claude Code Windows — **Sessão #38: site deepdive — modes section + honest detection + 7d stats + cow-emoji align**)
 **Versão:** v0.10.1 · mooter.ai live · CI 130/130 green · Claude Certified Architect ✅
-**Último commit main:** `116c2f8` (feat(landing): v0.10.1 versions + Moo/CrazyMoo/LazyMoo mode badge)
-**Sessão Claude Code:** #37 — Audit completa do site mooter.ai + install flow + statusline coherence. 9/10 findings da auditoria fechados em 3 commits atómicos (`79426de` access fix, `e488a92` install alignment, `116c2f8` landing+statusline). Landing estava 2 versões atrás do SSOT (mostrava v0.9.4, real v0.10.1) e omitia identidade-chave do produto (mode trio Moo/CrazyMoo/LazyMoo). REQUEST_ACCESS.md criado (era 404 para qualquer convidado).
+**Último commit main:** `f56ad9c` (fix(landing+stats): align mode emojis to statusline + honest 7d labels)
+**Sessão Claude Code:** #38 — Deepdive ao mooter.ai pedido pelo Paulo: validar tudo, expor identidade do mode trio, corrigir overclaims de detection, validar accuracy do contador. 6 commits atómicos pushed a main + mooter-hub Worker redeployed. Final-reviewer gate 2× (PASS-WITH-NOTES após primeira ronda apanhar 3 blockers que foram fixados num 6º commit). Landing agora tem secção dedicada Moo/CrazyMoo/LazyMoo, claims de detection honestos, contador identificado como 7-day rolling (lifetime real precisa de rollup table — flagged), e SHA injectado em build-time.
+
+### 🌐 Sessão #38 — 2026-05-05 (Site deepdive — modes section + honest detection + 7d stats)
+
+**Âmbito:** Paulo pediu deepdive ao site para garantir que tudo reflecte o objectivo real da solução. 5 áreas de foco: (1) statusline mockups desactualizados, (2) Moo/CrazyMoo/LazyMoo invisíveis, (3) hardware+subscription detection mal explicada, (4) accuracy do contador, (5) wording geral. Diagnóstico produziu 7 findings com severidade, plano de remediação alinhado em 1 troca de mensagem, execução em 6 commits.
+
+**Commits (oldest → newest):**
+
+| # | Hash | Mudança | Files |
+|---|---|---|---|
+| 1 | `831acc4` | feat(landing): mode trio dedicated section (Moo/CrazyMoo/LazyMoo) — 3 cards com cap, descrição, mini statusline pulse, slash command, when-to-use | page.tsx + globals.css |
+| 2 | `1a66967` | fix(landing): honest GPU + sub detection messaging — 4 strings reescritas (T0 desc, flow step 03, compare table, VSCode card) | page.tsx |
+| 3 | `9a4732a` | feat(stats): cumulative all-time totals (foi revertido em #6 — TTL prune impede lifetime real) | stats.js + page.tsx |
+| 4 | `c426ac6` | fix(landing): hero terminal demo `🐮 Moo` badge + accurate model count `+9` (17 not 11) | page.tsx |
+| 5 | `716a31b` | chore(landing): build-time SHA injection (Vercel SHA → git → "dev" fallback) | next.config.ts + page.tsx |
+| 6 | `f56ad9c` | fix(landing+stats): cow emojis 🐂🐄 (era 🤘😎), drop fake-lifetime query, "last 7d" labels honest, CSS scope fix | stats.js + page.tsx + globals.css |
+
+**Final-reviewer gate (Opus, 2 rondas):**
+
+- **Ronda 1** (após commits 1-5): PASS-WITH-NOTES com 3 blockers reais — (a) lifetime query era idêntica ao 7d (deltas TTL=7d), (b) emojis 🤘/😎 quebravam cow-theme do gsd-statusline.js (🐂/🐄), (c) `.sl-*` helpers não aplicavam dentro de `.mode-pulse` por scope.
+- **Ronda 2** (após commit 6): PASS-WITH-NOTES, zero blockers, único follow-up cosmético (`.mode-pulse .sl-grow` duplicado, sem impacto visual).
+
+**Deploys feitos:**
+
+- ✅ `git push origin main` → Vercel deploy automático para mooter.ai
+- ✅ `wrangler deploy -c wrangler.mooter.toml` → mooter-hub Worker version `0c5099e5`
+- ✅ Live `/api/stats` confirma nova shape com `prompt_count_7d`, `total_savings_usd_7d` siblings
+
+**Anomalia herdada descoberta (NÃO blocker, NÃO introduzida nesta sessão):**
+
+`avg_savings_pct: 100` quando `avg_tier_distribution` vem todo a zero (deltas sem tier_distribution populado). Fórmula `1 - (t0*0 + t1*0.044 + t2*0.178 + t3*1.0)` dá 100% num row vazio. Fix de 1 linha em `stats.js:91-93`: tratar all-zero como null. **Recomendação:** abrir como follow-up phase, não fix-em-flight.
+
+**NÃO tocado (decisão consciente):**
+
+- Rebrand frugal→mooter completo no README raiz (continua como pendente de #37)
+- Lifetime stats rollup table (precisa de migration + cron job)
+- Subscription auto-detect real (probe de `ANTHROPIC_API_KEY` etc no install) — claim foi **suavizado** em vez de implementado
+- Install-time GPU probe (mesmo critério: claim suavizado)
+- frugal-hub legacy worker (só mooter-hub foi deployed; frugal-hub continua na versão antiga)
+
+**Página Notion:** [🌐 Sessão #38 — Site deepdive](https://www.notion.so/3576f6e42bc481c39318da33eb44d96e) · `3576f6e4-2bc4-81c3-9318-da33eb44d96e`
+
+**Próxima missão sugerida:**
+
+- **Opção A (curto, 30min):** fix do `avg_savings_pct: 100` bug herdado — 1 linha em stats.js + redeploy worker
+- **Opção B (médio, 2h):** rollup table real para lifetime stats — migration `008_lifetime_totals.sql` + cron diário em `notify.js`
+- **Opção C (estratégico):** atacar pendentes herdados de #37 (Sentry DSN, npm publish, Supabase PAT revoke)
+
+---
 
 ### 🌐 Sessão #37 — 2026-05-05 (Site coherence + install alignment + statusline mode trio)
 
