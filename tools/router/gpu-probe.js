@@ -146,8 +146,10 @@ const HW_CAPABILITY_PATH = path.join(os.homedir(), '.claude', 'tools', 'router',
 const MODEL_VRAM_REQ = {
   'qwen2.5:3b':                    2048,
   'qwen2.5-coder:7b':              4096,
+  'deepseek-r1:7b':                4096,
+  'gemma3:12b':                    8192,
   'qwen2.5-coder:14b-q4':         9216,
-  'deepseek-r1-distill-qwen:14b': 9216,
+  'gemma4:e4b':                    9830,
   'qwen2.5:32b-q4':               20480,
   'qwen3:30b':                    20480,
 };
@@ -185,7 +187,7 @@ function buildHwCapability(probe) {
 
   // recommended_t0: largest model that can_run, preferring qwen3:30b over qwen2.5:32b
   // (qwen3 is the primary T0 model in the frugal doctrine)
-  const PREFER_ORDER = ['qwen3:30b', 'qwen2.5:32b-q4', 'deepseek-r1-distill-qwen:14b', 'qwen2.5-coder:14b-q4', 'qwen2.5-coder:7b', 'qwen2.5:3b'];
+  const PREFER_ORDER = ['qwen3:30b', 'qwen2.5:32b-q4', 'qwen2.5-coder:14b-q4', 'gemma4:e4b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5-coder:7b', 'qwen2.5:3b'];
   const runnable = t0Models.filter(m => m.can_run);
   const recommended = PREFER_ORDER.find(m => runnable.some(r => r.model === m)) || 'qwen2.5:3b';
 
