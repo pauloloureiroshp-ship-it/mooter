@@ -87,8 +87,21 @@ async function handleStats(request, env) {
         AND trust_score >= 0.4
     `).first();
 
-    // Average savings estimate (1 - weighted cost)
-    const avgSavings = tierAvg
+    // Average savings estimate (1 - weighted cost).
+    //
+    // 2026-05-05 (deepdive #38 follow-up): treat all-zero tier distribution
+    // as null instead of yielding a fake 100%. The deltas table can have
+    // rows with empty/null `tier_distribution` JSON (legacy clients, partial
+    // signals); SQLite AVG returns 0/null for those, the formula collapses
+    // to `1 - 0 = 1.0`, and the landing painted "100% Avg savings" which
+    // is misleading. When the distribution is effectively empty we return
+    // null so the landing falls back to the seeded baseline (89.9%).
+    const tierSum =
+      (tierAvg?.avg_t0 || 0) +
+      (tierAvg?.avg_t1 || 0) +
+      (tierAvg?.avg_t2 || 0) +
+      (tierAvg?.avg_t3 || 0);
+    const avgSavings = tierAvg && tierSum > 0
       ? 1 - ((tierAvg.avg_t0 || 0) * 0 + (tierAvg.avg_t1 || 0) * 0.044 + (tierAvg.avg_t2 || 0) * 0.178 + (tierAvg.avg_t3 || 0) * 1.0)
       : null;
 
