@@ -49,7 +49,7 @@ function estimateMonthlySavings({ hw, subs, budget }: { hw: string; subs: string
 // Router (classify.js) uses these models per task type:
 //   ollama_terse   → qwen2.5:3b              (Option A / baseline, ~1.9 GB)
 //   ollama_code    → qwen2.5-coder:14b       (code tasks, ~9 GB)
-//   ollama_math    → deepseek-r1-distill-qwen:14b  (math/reasoning, ~9 GB)
+//   ollama_math    → deepseek-r1:7b          (math/reasoning, ~4 GB)
 //   ollama_reason  → qwen3:30b               (heavy reasoning, ~18 GB)
 //
 // The installer pulls the baseline. The router auto-uses the others
@@ -78,8 +78,8 @@ function recommendOllamaModel(hwValue: string, gpuName: string | null): OllamaRe
     role: 'code tasks',
   };
   const math: OllamaModel = {
-    name: 'deepseek-r1-distill-qwen:14b',
-    size: '~9 GB',
+    name: 'deepseek-r1:7b',
+    size: '~4 GB',
     role: 'math / reasoning',
   };
   const heavy: OllamaModel = {

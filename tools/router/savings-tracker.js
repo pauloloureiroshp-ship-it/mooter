@@ -469,7 +469,9 @@ function computeMetrics(lines) {
     // Filter synthetic tester events from real-user metrics (audit #25 + #37).
     // Tester events have source: 'mooter-tester'. They inflated all-time savings
     // ~10× before separation; backtest.js already filters them — align here.
-    if (e.source === 'mooter-tester' || (e.event && e.event.startsWith && e.event.startsWith('tester_'))) continue;
+    // (The legacy `tester_*` event-name probe was redundant — line 466 already
+    //  gates on event === 'classified', so it could never fire.)
+    if (e.source === 'mooter-tester') continue;
 
     if (isSystemPrompt(e)) {
       m.system_prompts_filtered += 1;

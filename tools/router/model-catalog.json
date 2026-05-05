@@ -14,7 +14,9 @@
     "qwen2.5:3b":                      { "tier": "t0", "provider": "ollama",    "vram_min_mb":  2048 },
     "qwen2.5-coder:7b":                { "tier": "t0", "provider": "ollama",    "vram_min_mb":  4096 },
     "qwen2.5-coder:14b-q4":            { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9216 },
-    "deepseek-r1-distill-qwen:14b":    { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9216 },
+    "deepseek-r1:7b":                  { "tier": "t0", "provider": "ollama",    "vram_min_mb":  4096 },
+    "gemma3:12b":                      { "tier": "t0", "provider": "ollama",    "vram_min_mb":  8192 },
+    "gemma4:e4b":                      { "tier": "t0", "provider": "ollama",    "vram_min_mb":  9830 },
     "qwen2.5:32b-q4":                  { "tier": "t0", "provider": "ollama",    "vram_min_mb": 20480 },
     "qwen3:30b":                       { "tier": "t0", "provider": "ollama",    "vram_min_mb": 20480 }
   }

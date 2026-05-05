@@ -152,7 +152,7 @@ function readRouterContext() {
 //   - ollama_reason:  bigger, reasoning-trained (local analysis with 1-2 hops)
 //   - ollama_general: best general-purpose local model (gemma4 when installed)
 //   - ollama_code:    qwen2.5-coder:14b — dedicated local code specialist
-//   - ollama_math:    deepseek-r1-distill-qwen:14b — dedicated local math/reasoning
+//   - ollama_math:    deepseek-r1:7b — dedicated local math/reasoning
 //
 // v0.10: gemma4:e4b added as preferred general model. It's Google's newest,
 // with strong reasoning + multimodal + 128k context. Falls back to qwen2.5:3b
@@ -837,7 +837,7 @@ function classify(prompt) {
   // ── T0 SUB-TIER SELECTION (v0.10) ──────────────────────────────────────
   // At T0, pick the best local model by content intent:
   //   - code signals  → qwen2.5-coder:14b
-  //   - math signals  → deepseek-r1-distill-qwen:14b
+  //   - math signals  → deepseek-r1:7b
   //   - reasoning degraded from T1/T2 → qwen3:30b (heavy reasoning)
   //   - general/summarize/explain → gemma4:e4b (best overall local model)
   //   - quick terse (Option A target) → qwen2.5:3b
