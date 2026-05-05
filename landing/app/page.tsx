@@ -331,6 +331,7 @@ function Nav() {
         <div className="nav-links">
           <a href="#how" onClick={scrollTo('how')}>How it works</a>
           <a href="#models" onClick={scrollTo('models')}>Models</a>
+          <a href="#modes" onClick={scrollTo('modes')}>Modes</a>
           <a href="#statusline" onClick={scrollTo('statusline')}>Statusline</a>
           <a href="#compare" onClick={scrollTo('compare')}>Compare</a>
           <a href="#install" onClick={scrollTo('install')}>Install</a>
@@ -913,6 +914,141 @@ function StatuslineSection() {
 }
 
 /* -----------------------------------------------------------------
+ * Modes section — Moo / CrazyMoo / LazyMoo
+ * ----------------------------------------------------------------- */
+
+function ModesSection() {
+  return (
+    <section className="band beige-2" id="modes">
+      <div className="page">
+        <Reveal>
+          <div className="section-head">
+            <span className="eyebrow">The mood control</span>
+            <h2>Moo. CrazyMoo. LazyMoo.<br />Three moods. One command away.</h2>
+            <p className="lede muted">
+              Sometimes you want max savings. Sometimes you&apos;re shipping and cost is irrelevant. Sometimes you want
+              mooter to just figure it out. Each mood caps the router differently — and you can swap mid-session.
+            </p>
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <div className="modes">
+            {/* Moo (auto) — default */}
+            <div className="mode-card moo">
+              <div className="mode-head">
+                <span className="mode-emoji" aria-hidden="true">🐮</span>
+                <div className="mode-meta">
+                  <div className="mode-name">Moo</div>
+                  <div className="mode-sub">auto · default</div>
+                </div>
+                <span className="mode-cap">T0 → T3</span>
+              </div>
+              <p className="mode-desc">
+                The balanced brain. Mooter classifies every prompt and routes to the cheapest model that meets the
+                quality bar. This is what you get out of the box — and where 90% of savings actually come from.
+              </p>
+              <div className="mode-pulse">
+                <MooterMarkTiny size={12} />
+                <b style={{ color: '#F2ECDF' }}>Moo</b>
+                <span className="sl-sep">│</span>
+                <span className="sl-dim">model</span>{' '}
+                <span style={{ color: '#A88BD4' }}>claude-sonnet</span>
+                <span className="sl-grow" />
+                <span className="sl-save">90% saved</span>
+              </div>
+              <div className="mode-cmd">
+                <code>/mooter-auto</code>
+                <span className="sl-dim"> · or just don&apos;t override</span>
+              </div>
+              <div className="mode-when">
+                <span className="mode-when-k">When</span>
+                <span>Any normal day. The default. 90%+ of sessions.</span>
+              </div>
+            </div>
+
+            {/* CrazyMoo (beast) — force Opus */}
+            <div className="mode-card crazymoo">
+              <div className="mode-head">
+                <span className="mode-emoji" aria-hidden="true">🤘</span>
+                <div className="mode-meta">
+                  <div className="mode-name">CrazyMoo</div>
+                  <div className="mode-sub">beast · force T3</div>
+                </div>
+                <span className="mode-cap warn">T3 only</span>
+              </div>
+              <p className="mode-desc">
+                Cost is irrelevant. Force claude-opus on every prompt — even the trivial ones. For when you&apos;re
+                shipping a release, debugging in production, or just want maximum horsepower with no
+                second-guessing.
+              </p>
+              <div className="mode-pulse">
+                <MooterMarkTiny size={12} />
+                <b style={{ color: '#F2ECDF' }}>CrazyMoo</b>
+                <span className="sl-sep">│</span>
+                <span className="sl-dim">model</span>{' '}
+                <span style={{ color: '#D46A5A' }}>claude-opus</span>
+                <span className="sl-grow" />
+                <span style={{ color: '#D46A5A' }}>$0.046 spent</span>
+              </div>
+              <div className="mode-cmd">
+                <code>/mooter-beast</code>
+                <span className="sl-dim"> · until you switch back</span>
+              </div>
+              <div className="mode-when">
+                <span className="mode-when-k">When</span>
+                <span>Pre-release, prod incident, deep refactor. Burn the credits.</span>
+              </div>
+            </div>
+
+            {/* LazyMoo (zen) — cap at T1 */}
+            <div className="mode-card lazymoo">
+              <div className="mode-head">
+                <span className="mode-emoji" aria-hidden="true">😎</span>
+                <div className="mode-meta">
+                  <div className="mode-name">LazyMoo</div>
+                  <div className="mode-sub">zen · cap at T1</div>
+                </div>
+                <span className="mode-cap save">T0 / T1</span>
+              </div>
+              <p className="mode-desc">
+                Maximum savings, zero compromise on availability. Cap the router at T1 — Haiku and local Ollama
+                only. Guardrails still escalate to Opus for migrations, secrets and deploys, no matter the mood.
+              </p>
+              <div className="mode-pulse">
+                <MooterMarkTiny size={12} />
+                <b style={{ color: '#F2ECDF' }}>LazyMoo</b>
+                <span className="sl-sep">│</span>
+                <span className="sl-dim">model</span>{' '}
+                <span style={{ color: '#3D8B5E' }}>qwen2.5:3b</span>
+                <span className="sl-grow" />
+                <span className="sl-save">100% saved</span>
+              </div>
+              <div className="mode-cmd">
+                <code>/mooter-zen</code>
+                <span className="sl-dim"> · safe to leave on</span>
+              </div>
+              <div className="mode-when">
+                <span className="mode-when-k">When</span>
+                <span>Out of credits, exploration, drafting, learning a new codebase.</span>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <div className="modes-foot">
+            <span className="sl-dim">Switch any time.</span>{' '}
+            <code>/mooter-auto</code>{' '}
+            <span className="sl-dim">resets to default. Mood is per-session, persisted across restarts.</span>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* -----------------------------------------------------------------
  * Terminal compare — interactive replay
  * ----------------------------------------------------------------- */
 
@@ -1312,6 +1448,7 @@ function Footer() {
             <h5>Product</h5>
             <a href="#how">How it works</a>
             <a href="#models">Models</a>
+            <a href="#modes">Modes</a>
             <a href="#statusline">Statusline</a>
             <a href="#install">Install</a>
           </div>
@@ -1349,6 +1486,7 @@ export default function Page() {
         <FlowDiagram />
         <ModelsSection />
         <StatuslineSection />
+        <ModesSection />
         <TerminalCompare />
         <CompareSection />
         <InstallSection />
