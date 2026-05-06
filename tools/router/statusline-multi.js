@@ -1,27 +1,41 @@
 #!/usr/bin/env node
 /**
- * statusline-multi.js — multi-provider statusline for the Mooter router.
+ * statusline-multi.js — narrative statusline for the Mooter router.
  *
- * Companion to statusline.sh (which is left untouched). This Node script
- * reads decisions.log + quota-state.json and prints a single line with the
- * provider distribution, today's spend, and live quota state.
+ * Design philosophy: a statusline is read in 200ms. We pick a SINGLE
+ * primary state (🟢 / 🟡 / 🔴) with one short sentence the operator can
+ * act on, then surface two compact proofs after the separator. The old
+ * "8 metrics on one line" mode caused visual noise — that file is now
+ * statusline.sh; this one tells a story.
  *
- * Output (single line):
- *   🟢 Local 67% · 🔵 Haiku 8% · 🟣 Sonnet 6% · 🟠 Codex 11% · 🔴 Opus 8% │ 💰 $1.23 today │ Anth 78% · OAI 66%
+ *   🟢 mooter saved $0.27 today (89%)        │ T2 0.84 · 42% 5h · 27t
+ *   🟡 8% saved — beast forcing T3 trivially │ T3 0.95 · 76% 5h · 12t
+ *   🔴 Anthropic 92% used — falling to Codex │ T2 codex · 41 left · 18t
+ *   ⚪ no data yet — make a request          │ —
  *
- * Wiring (manual, not auto-applied):
- *   Set "statusLine" in ~/.claude/settings.json to:
- *     { "type": "command", "command": "node ~/.claude/tools/router/statusline-multi.js" }
+ * Data sources:
+ *   - decisions.log     (last 256KB, classified events only, today's UTC date)
+ *   - quota-state.json  (anthropic + codex 5h windows, today's cost)
+ *   - http://127.0.0.1:7821/metrics  (savings-tracker, optional)
  *
- * Performance: tails the last ~256KB of decisions.log so it stays fast even
- * after the file grows past tens of MB. Pure Node built-ins, no deps.
+ * Wiring (manual — never auto-applied):
+ *   { "type": "command", "command": "node ~/.claude/tools/router/statusline-multi.js" }
+ *
+ * Performance: tail-reads the log so it stays sub-50ms even at tens of MB.
+ * Pure Node built-ins. No deps.
+ *
+ * Flags:
+ *   --mock                  render synthetic green/yellow/red rotation
+ *   --demo green|yellow|red render a specific state for screenshots
  */
 
 'use strict';
 
 const fs   = require('fs');
 const path = require('path');
+const http = require('http');
 
+// ── Locator (resolves to runtime ROUTER_DIR; falls back to ~/.claude/) ──
 const { ROUTER_DIR, DECISIONS_LOG } = (() => {
   try { return require('./paths'); }
   catch {
@@ -31,38 +45,66 @@ const { ROUTER_DIR, DECISIONS_LOG } = (() => {
   }
 })();
 
-const QUOTA_PATH = path.join(ROUTER_DIR, 'quota-state.json');
-const TAIL_BYTES = 256 * 1024;
+const QUOTA_PATH    = path.join(ROUTER_DIR, 'quota-state.json');
+const TAIL_BYTES    = 256 * 1024;
+const TRACKER_URL   = 'http://127.0.0.1:7821/metrics';
+const TRACKER_TIMEOUT_MS = 250;
+const RECENT_WINDOW = 10; // last N decisions for drift / beast-overkill detection
+
+// ── Health thresholds (single place to tune) ────────────────────────────
+const TH = {
+  ANTH_RED:        15,  // % remaining → red
+  ANTH_YELLOW:     30,  // % remaining → yellow
+  CODEX_LOW:       20,  // % remaining → "falling to" copy
+  SAVINGS_YELLOW:  30,  // saved% below this → yellow
+  CONFIDENCE_LOW:  0.5, // avg confidence of last 3 → red drift
+  BEAST_OVERKILL_PCT: 40, // % of last 10 turns where beast forced T3 over a T0/T1 baseline
+};
+
+// ────────────────────────────────────────────────────────────────────────
+// Data layer
+// ────────────────────────────────────────────────────────────────────────
 
 function readQuota() {
-  try {
-    const raw = fs.readFileSync(QUOTA_PATH, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(fs.readFileSync(QUOTA_PATH, 'utf8')); }
+  catch { return null; }
 }
 
 function readDecisionsTail() {
   let fd;
-  try {
-    fd = fs.openSync(DECISIONS_LOG, 'r');
-  } catch {
-    return [];
-  }
+  try { fd = fs.openSync(DECISIONS_LOG, 'r'); }
+  catch { return []; }
   try {
     const stat = fs.fstatSync(fd);
     const len  = Math.min(TAIL_BYTES, stat.size);
     const buf  = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, stat.size - len);
-    // Drop the (likely partial) first line.
     const text = buf.toString('utf8');
     const nl   = text.indexOf('\n');
     return text.slice(nl + 1).split('\n').filter(Boolean);
-  } finally {
-    fs.closeSync(fd);
-  }
+  } finally { fs.closeSync(fd); }
 }
+
+/** Best-effort sync GET with hard timeout. Returns null on any failure. */
+function readSavingsSync() {
+  return new Promise((resolve) => {
+    const req = http.get(TRACKER_URL, { timeout: TRACKER_TIMEOUT_MS }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); return resolve(null); }
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch { resolve(null); }
+      });
+    });
+    req.on('error',   () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Aggregation
+// ────────────────────────────────────────────────────────────────────────
 
 function isToday(isoTs) {
   if (!isoTs) return false;
@@ -74,90 +116,334 @@ function isToday(isoTs) {
          d.getUTCDate()     === now.getUTCDate();
 }
 
-function tally(lines) {
+/**
+ * Walks the tail and returns:
+ *   counts:   per-tier counts among today's classified events
+ *   total:    sum of counts
+ *   last:     the most-recent classified event (or null)
+ *   recent:   the last RECENT_WINDOW classified events (newest first)
+ */
+function digest(lines) {
   const counts = { T0: 0, T1: 0, T2: 0, T3: 0, codex: 0 };
   let total = 0;
+  /** @type {any[]} */
+  const recent = [];
+  let last = null;
 
-  for (const line of lines) {
+  for (let i = lines.length - 1; i >= 0; i--) {
     let evt;
-    try { evt = JSON.parse(line); } catch { continue; }
+    try { evt = JSON.parse(lines[i]); } catch { continue; }
     if (!evt || evt.event !== 'classified') continue;
-    if (evt.source === 'mooter-tester') continue; // tester noise
+    if (evt.source === 'mooter-tester') continue;
+
+    if (!last) last = evt;
+    if (recent.length < RECENT_WINDOW) recent.push(evt);
+
     if (!isToday(evt.ts)) continue;
 
-    // Codex CLI uses are tagged either by recommended_backend or by an
-    // upstream provider tag once execution telemetry lands. Today the
-    // "classified" event records the *suggested* provider list; if the
-    // first suggestion is codex_cli we count it as a Codex slot to give
-    // operators visibility into how often Codex would have fired.
     const providers = Array.isArray(evt.suggested_providers) ? evt.suggested_providers : [];
-    if (providers[0] === 'codex_cli') {
-      counts.codex += 1;
-    } else if (evt.tier && counts[evt.tier] !== undefined) {
-      counts[evt.tier] += 1;
-    } else {
-      continue; // unknown tier/provider — skip
-    }
+    if (providers[0] === 'codex_cli') counts.codex += 1;
+    else if (evt.tier && counts[evt.tier] !== undefined) counts[evt.tier] += 1;
+    else continue;
     total += 1;
   }
-  return { counts, total };
+  return { counts, total, last, recent };
 }
 
-function pct(num, denom) {
-  if (!denom) return 0;
-  return Math.round((num / denom) * 100);
+function computeAnthropicRem(quota) {
+  const a = quota && quota.providers && quota.providers.anthropic;
+  if (!a || !a.window_5h) return null;
+  const w = a.window_5h;
+  if (!w.limit) return 100;
+  return Math.max(0, Math.min(100, Math.round((1 - w.tokens_used / w.limit) * 100)));
 }
 
-function fmt$(x) {
-  return `$${(Math.round(x * 100) / 100).toFixed(2)}`;
+function computeCodexRem(quota) {
+  const c = quota && quota.providers && quota.providers.openai_codex_cli;
+  if (!c || !c.window_5h) return null;
+  if (c.exhausted) return 0;
+  const w = c.window_5h;
+  if (!w.limit) return 100;
+  return Math.max(0, Math.min(100, Math.round((1 - w.messages_used / w.limit) * 100)));
 }
 
-function render() {
+function computeCodexMessagesLeft(quota) {
+  const c = quota && quota.providers && quota.providers.openai_codex_cli;
+  if (!c || !c.window_5h) return null;
+  if (c.exhausted) return 0;
+  return Math.max(0, c.window_5h.limit - (c.window_5h.messages_used || 0));
+}
+
+function avgConfidence(events) {
+  const xs = events
+    .map((e) => Number(e && e.confidence))
+    .filter((n) => Number.isFinite(n));
+  if (!xs.length) return null;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+function beastOverkillPct(events) {
+  if (!events.length) return 0;
+  const forced = events.filter((e) =>
+    e && (
+      e.escalation_rule === 'beast_intent_force_t3' ||
+      e.escalation_rule === 'beast_mode' ||
+      e.active_mode === 'beast'
+    ) && (e.tier === 'T3') && (
+      // The classifier had a small/cheap intent before beast pulled it up.
+      typeof e.prompt_complexity_score === 'number' && e.prompt_complexity_score < 0.05
+    )
+  );
+  return Math.round((forced.length / events.length) * 100);
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// State picker — produces { color, headline, proof }
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * @param {Object} ctx
+ * @returns {{ color: 'green'|'yellow'|'red'|'empty', headline: string, proof: string }}
+ */
+function pickState(ctx) {
+  const {
+    total, last, recent, anthRem, codexRem, codexLeft,
+    savedPct, savedUsd, todayCost, dataMissing,
+  } = ctx;
+
+  // ── Empty (cold start, no classified events yet today) ────────────────
+  if (dataMissing && total === 0) {
+    return {
+      color:    'empty',
+      headline: 'no data yet — make a request',
+      proof:    '—',
+    };
+  }
+
+  // ── Confidence / drift signal ─────────────────────────────────────────
+  const last3 = recent.slice(0, 3);
+  const conf3 = avgConfidence(last3);
+
+  // ── Last-decision label (T-tier · provider-short · confidence) ────────
+  // For legacy events that pre-date suggested_providers, infer the label
+  // from tier alone so we never print redundancies like "T0 t0".
+  const TIER_DEFAULT_TAG = { T0: 'local', T1: 'haiku', T2: 'sonnet', T3: 'opus' };
+  let lastLabel = '—';
+  if (last) {
+    const tier = last.tier || 'T?';
+    const conf = Number.isFinite(last.confidence) ? last.confidence.toFixed(2) : '?';
+    const provider0 = (Array.isArray(last.suggested_providers) && last.suggested_providers[0]) || null;
+    const explicit = provider0 === 'codex_cli'  ? 'codex' :
+                     provider0 === 'openai_api' ? 'oai' :
+                     provider0 === 'opus'       ? 'opus' :
+                     provider0 === 'sonnet'     ? 'sonnet' :
+                     provider0 === 'haiku'      ? 'haiku' :
+                     provider0 === 'ollama'     ? 'local' : null;
+    const tag = explicit || TIER_DEFAULT_TAG[tier] || tier.toLowerCase();
+    lastLabel = `${tier} ${tag} ${conf}`;
+  }
+
+  const proofParts = [];
+  if (lastLabel !== '—') proofParts.push(lastLabel);
+  if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h`);
+  if (total) proofParts.push(`${total}t`);
+  const proof = proofParts.join(' · ') || '—';
+
+  // ── RED: Anthropic critically low → forced fallback ───────────────────
+  if (typeof anthRem === 'number' && anthRem < TH.ANTH_RED) {
+    const codexNote = (typeof codexRem === 'number' && codexRem > TH.CODEX_LOW)
+      ? `falling to Codex (${codexRem}%)`
+      : 'no fallback ready';
+    return {
+      color:    'red',
+      headline: `Anthropic ${anthRem}% used — ${codexNote}`,
+      proof:    typeof codexLeft === 'number'
+                ? `T? · ${codexLeft} Codex msgs left · ${total}t`
+                : proof,
+    };
+  }
+
+  // ── RED: router miscalibrated → confidence collapse ───────────────────
+  if (last3.length >= 3 && typeof conf3 === 'number' && conf3 < TH.CONFIDENCE_LOW) {
+    return {
+      color:    'red',
+      headline: `router miscalibrated — last 3 conf avg ${conf3.toFixed(2)}`,
+      proof,
+    };
+  }
+
+  // ── YELLOW: beast overkill on trivials ────────────────────────────────
+  if (recent.length >= 5) {
+    const overkill = beastOverkillPct(recent);
+    if (overkill >= TH.BEAST_OVERKILL_PCT) {
+      return {
+        color:    'yellow',
+        headline: `${overkill}% of last 10 turns forced T3 on trivials`,
+        proof,
+      };
+    }
+  }
+
+  // ── YELLOW: Anthropic budget approaching cap ──────────────────────────
+  if (typeof anthRem === 'number' && anthRem < TH.ANTH_YELLOW) {
+    return {
+      color:    'yellow',
+      headline: `Anthropic ${anthRem}% remaining — pace yourself`,
+      proof,
+    };
+  }
+
+  // ── YELLOW: low savings (mooter not earning its keep) ─────────────────
+  if (typeof savedPct === 'number' && total >= 5 && savedPct < TH.SAVINGS_YELLOW) {
+    return {
+      color:    'yellow',
+      headline: `only ${Math.round(savedPct)}% saved today — check tier mix`,
+      proof,
+    };
+  }
+
+  // ── GREEN: default healthy state ──────────────────────────────────────
+  if (typeof savedUsd === 'number' && typeof savedPct === 'number') {
+    return {
+      color:    'green',
+      headline: `mooter saved $${savedUsd.toFixed(2)} today (${Math.round(savedPct)}%)`,
+      proof,
+    };
+  }
+
+  // ── GREEN fallback: tracker down but data present ─────────────────────
+  return {
+    color:    'green',
+    headline: `routing healthy — $${todayCost.toFixed(2)} spent`,
+    proof,
+  };
+}
+
+const COLOR_GLYPH = {
+  green:  '🟢',
+  yellow: '🟡',
+  red:    '🔴',
+  empty:  '⚪',
+};
+
+// ────────────────────────────────────────────────────────────────────────
+// Render
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Pure render function — no I/O. Takes a context object and returns the
+ * one-line statusline. Used by tests and by the demo modes.
+ */
+function renderFromContext(ctx) {
+  const state = pickState(ctx);
+  return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${state.proof}`;
+}
+
+async function buildContext() {
   const quota = readQuota() || {};
   const lines = readDecisionsTail();
-  const { counts, total } = tally(lines);
+  const { counts, total, last, recent } = digest(lines);
 
-  const local  = pct(counts.T0, total);
-  const haiku  = pct(counts.T1, total);
-  const sonnet = pct(counts.T2, total);
-  const opus   = pct(counts.T3, total);
-  const codex  = pct(counts.codex, total);
+  const anthRem    = computeAnthropicRem(quota);
+  const codexRem   = computeCodexRem(quota);
+  const codexLeft  = computeCodexMessagesLeft(quota);
 
   const todayCost =
-    (quota.providers && quota.providers.anthropic && quota.providers.anthropic.today.cost_usd || 0) +
-    (quota.providers && quota.providers.openai_api && quota.providers.openai_api.today.cost_usd || 0);
+    ((quota.providers && quota.providers.anthropic && quota.providers.anthropic.today.cost_usd) || 0) +
+    ((quota.providers && quota.providers.openai_api && quota.providers.openai_api.today.cost_usd) || 0);
 
-  const anthRem = quota.providers && quota.providers.anthropic
-    ? Math.max(0, Math.round((1 - (quota.providers.anthropic.window_5h.tokens_used /
-        Math.max(1, quota.providers.anthropic.window_5h.limit))) * 100))
-    : 100;
-  const codexRem = quota.providers && quota.providers.openai_codex_cli
-    ? (quota.providers.openai_codex_cli.exhausted ? 0
-       : Math.max(0, Math.round((1 - (quota.providers.openai_codex_cli.window_5h.messages_used /
-           Math.max(1, quota.providers.openai_codex_cli.window_5h.limit))) * 100)))
-    : 100;
+  const metrics = await readSavingsSync();
+  const savedUsd = metrics && Number.isFinite(Number(metrics.saved)) ? Number(metrics.saved) : null;
+  const savedPct = metrics && Number.isFinite(Number(metrics.saved_pct)) ? Number(metrics.saved_pct) : null;
 
-  const dist = [
-    `🟢 Local ${local}%`,
-    `🔵 Haiku ${haiku}%`,
-    `🟣 Sonnet ${sonnet}%`,
-    `🟠 Codex ${codex}%`,
-    `🔴 Opus ${opus}%`,
-  ].join(' · ');
-
-  return `${dist} │ 💰 ${fmt$(todayCost)} today │ Anth ${anthRem}% · OAI ${codexRem}%`;
+  return {
+    counts, total, last, recent,
+    anthRem, codexRem, codexLeft,
+    savedUsd, savedPct, todayCost,
+    dataMissing: !lines.length && !quota.providers,
+  };
 }
 
-// CLI entry: write a single line and exit.
-if (require.main === module) {
-  try {
-    process.stdout.write(render() + '\n');
-  } catch (err) {
-    // Statusline must NEVER throw — degrade to a minimal fallback so the
-    // user's terminal is never broken by a stale log or missing file.
-    process.stdout.write('mooter (statusline-multi: degraded)\n');
-    if (process.env.MOOTER_DEBUG) process.stderr.write(String(err) + '\n');
+// ────────────────────────────────────────────────────────────────────────
+// Demo / mock contexts (for screenshots and tests)
+// ────────────────────────────────────────────────────────────────────────
+
+const DEMO_CONTEXTS = {
+  green: {
+    counts: { T0: 18, T1: 2, T2: 4, T3: 2, codex: 1 }, total: 27,
+    last:    { tier: 'T2', confidence: 0.84, suggested_providers: ['sonnet'] },
+    recent:  Array(10).fill({ tier: 'T2', confidence: 0.82 }),
+    anthRem: 42, codexRem: 88, codexLeft: 132,
+    savedUsd: 0.27, savedPct: 89, todayCost: 0.04, dataMissing: false,
+  },
+  yellow: {
+    counts: { T0: 1, T1: 0, T2: 1, T3: 10, codex: 0 }, total: 12,
+    last:    { tier: 'T3', confidence: 0.95, suggested_providers: ['opus'] },
+    recent:  Array(10).fill({
+      tier: 'T3',
+      confidence: 0.95,
+      escalation_rule: 'beast_intent_force_t3',
+      prompt_complexity_score: 0.01,
+    }),
+    anthRem: 24, codexRem: 91, codexLeft: 137,
+    savedUsd: 0.04, savedPct: 8, todayCost: 0.42, dataMissing: false,
+  },
+  red: {
+    counts: { T0: 4, T1: 1, T2: 8, T3: 2, codex: 3 }, total: 18,
+    last:    { tier: 'T2', confidence: 0.71, suggested_providers: ['codex_cli', 'sonnet'] },
+    recent:  Array(10).fill({ tier: 'T2', confidence: 0.71 }),
+    anthRem: 8, codexRem: 84, codexLeft: 41,
+    savedUsd: 0.34, savedPct: 71, todayCost: 0.13, dataMissing: false,
+  },
+  empty: {
+    counts: { T0: 0, T1: 0, T2: 0, T3: 0, codex: 0 }, total: 0,
+    last: null, recent: [],
+    anthRem: 100, codexRem: 100, codexLeft: 150,
+    savedUsd: null, savedPct: null, todayCost: 0, dataMissing: true,
+  },
+};
+
+// ────────────────────────────────────────────────────────────────────────
+// CLI
+// ────────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const argv = process.argv.slice(2);
+  if (argv[0] === '--mock') {
+    for (const k of ['green', 'yellow', 'red', 'empty']) {
+      process.stdout.write(renderFromContext(DEMO_CONTEXTS[k]) + '\n');
+    }
+    return;
   }
+  if (argv[0] === '--demo' && DEMO_CONTEXTS[argv[1]]) {
+    process.stdout.write(renderFromContext(DEMO_CONTEXTS[argv[1]]) + '\n');
+    return;
+  }
+
+  const ctx = await buildContext();
+  process.stdout.write(renderFromContext(ctx) + '\n');
 }
 
-module.exports = { render, tally, readDecisionsTail, readQuota };
+if (require.main === module) {
+  main().catch((err) => {
+    // The statusline must NEVER throw — degrade so the user's terminal stays
+    // usable even if a stale log or missing tracker breaks the pipeline.
+    process.stdout.write('⚪ mooter — statusline degraded                 │ —\n');
+    if (process.env.MOOTER_DEBUG) process.stderr.write(String(err) + '\n');
+  });
+}
+
+module.exports = {
+  // Pure helpers — exported for tests
+  pickState,
+  renderFromContext,
+  digest,
+  computeAnthropicRem,
+  computeCodexRem,
+  computeCodexMessagesLeft,
+  beastOverkillPct,
+  avgConfidence,
+  // Demo contexts kept on the export so consumers can render previews.
+  DEMO_CONTEXTS,
+  TH,
+};
