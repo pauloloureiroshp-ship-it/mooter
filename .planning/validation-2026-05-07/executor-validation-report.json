@@ -1,0 +1,25 @@
+{
+  "ts": "2026-05-07T18:42:00.506Z",
+  "wall_clock_ms": 88430,
+  "corpus_size": 60,
+  "tally": {
+    "total": 60,
+    "skipped_t3": 13,
+    "invoked": 47,
+    "ok": 31,
+    "deferred": 16,
+    "error": 0,
+    "by_provider": {
+      "ollama": 31
+    },
+    "by_subagent": {
+      "cheap-triage": 6,
+      "model-reasoner": 10
+    }
+  },
+  "ok_ratio": 0.6596,
+  "acceptance_target": 0.55,
+  "acceptance_pass": true,
+  "spec_reference": "wave-2 SPEC.md §10 #5",
+  "note": "T3 prompts are excluded from the denominator — executor always defers them by doctrine; no outcome=ok possible."
+}
