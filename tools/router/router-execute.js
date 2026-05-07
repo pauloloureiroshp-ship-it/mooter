@@ -29,7 +29,18 @@
  * Production entry point: programmatic require + execute(input), CLI in T-10.
  */
 
+const fs = require('node:fs');
+const http = require('node:http');
 const { sanitizeJson } = require('./sanitize');
+
+// Lazy paths import — keeps the hot path fast and avoids a circular
+// import if paths.js ever pulls something from this module.
+let _paths = null;
+function getPaths() {
+  if (_paths) return _paths;
+  try { _paths = require('./paths'); } catch { _paths = {}; }
+  return _paths;
+}
 
 // ── Subagent mapping helpers ────────────────────────────────────────────
 
@@ -308,6 +319,58 @@ function sanitisePromptPreview(prompt) {
   return redacted.slice(0, 80);
 }
 
+// ── Default telemetry writer (T-08) ─────────────────────────────────────
+//
+// Two best-effort sinks:
+//   1. Append one JSONL line to ~/.claude/tools/router/decisions.log so
+//      backtest.js can re-aggregate and the calibration loop has data.
+//   2. POST to http://127.0.0.1:7821/decision so /metrics aggregates the
+//      executions block in real time. The savings-tracker handler stores
+//      the latest record in LAST_EXECUTION (T-08b adds this).
+//
+// Both sinks swallow errors. Telemetry is never allowed to delay or crash
+// the executor's return path — the user-facing dispatch must complete even
+// if the log file is unwritable or :7821 is down.
+
+function appendDecisionsLog(record) {
+  try {
+    const paths = getPaths();
+    const logPath = process.env.MOOTER_DECISIONS_LOG
+      || paths.DECISIONS_LOG
+      || null;
+    if (!logPath) return;
+    const sanitised = sanitizeJson(record);
+    fs.appendFileSync(logPath, JSON.stringify(sanitised) + '\n');
+  } catch { /* best-effort */ }
+}
+
+function postToSavingsTracker(record) {
+  try {
+    const sanitised = sanitizeJson(record);
+    const body = Buffer.from(JSON.stringify(sanitised));
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port: Number(process.env.MOOTER_TRACKER_PORT) || 7821,
+      path: '/decision',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': body.length,
+      },
+      timeout: 250,
+    });
+    req.on('error', () => { /* best-effort */ });
+    req.on('timeout', () => { try { req.destroy(); } catch {} });
+    req.write(body);
+    req.end();
+  } catch { /* best-effort */ }
+}
+
+function defaultTelemetryWriter(record) {
+  appendDecisionsLog(record);
+  postToSavingsTracker(record);
+}
+
 // ── execute() — main entry ──────────────────────────────────────────────
 
 /**
@@ -320,12 +383,19 @@ function sanitisePromptPreview(prompt) {
 async function execute(input = {}) {
   const { prompt, classification, options = {} } = input;
   const deps = options.__deps || {};
+  // Default to disk + HTTP sink when no test override is provided. This
+  // is the production path — every executed event lands in decisions.log
+  // and on /metrics without further wiring.
+  const telemetryWriter = deps.telemetryWriter || defaultTelemetryWriter;
+  const writeTelemetry = (rec) => {
+    try { telemetryWriter(rec); } catch { /* best-effort */ }
+  };
 
   // Defensive: invalid classification → structured error.
   if (!classification || typeof classification !== 'object') {
     const errResult = buildClassificationInvalidError();
-    if (deps.telemetryWriter) {
-      deps.telemetryWriter(buildTelemetryRecord({
+    {
+      writeTelemetry(buildTelemetryRecord({
         prompt: prompt || '',
         classification: {},
         result: errResult,
@@ -353,8 +423,8 @@ async function execute(input = {}) {
         reason: 'user_override',
         classification,
       });
-      if (deps.telemetryWriter) {
-        deps.telemetryWriter(buildTelemetryRecord({
+      {
+        writeTelemetry(buildTelemetryRecord({
           prompt: prompt || '',
           classification,
           result,
@@ -373,8 +443,8 @@ async function execute(input = {}) {
       reason,
       classification,
     });
-    if (deps.telemetryWriter) {
-      deps.telemetryWriter(buildTelemetryRecord({
+    {
+      writeTelemetry(buildTelemetryRecord({
         prompt: prompt || '',
         classification,
         result,
@@ -390,8 +460,8 @@ async function execute(input = {}) {
       reason: 'high_risk_floor',
       classification,
     });
-    if (deps.telemetryWriter) {
-      deps.telemetryWriter(buildTelemetryRecord({
+    {
+      writeTelemetry(buildTelemetryRecord({
         prompt: prompt || '',
         classification,
         result,
@@ -416,8 +486,8 @@ async function execute(input = {}) {
       classification,
       fallbackChain: [],
     });
-    if (deps.telemetryWriter) {
-      deps.telemetryWriter(buildTelemetryRecord({
+    {
+      writeTelemetry(buildTelemetryRecord({
         prompt: prompt || '',
         classification,
         result,
@@ -446,8 +516,8 @@ async function execute(input = {}) {
         fallbackChain,
         errors: errors.length ? errors : undefined,
       });
-      if (deps.telemetryWriter) {
-        deps.telemetryWriter(buildTelemetryRecord({
+      {
+        writeTelemetry(buildTelemetryRecord({
           prompt: prompt || '',
           classification,
           result,
@@ -496,8 +566,8 @@ async function execute(input = {}) {
         classification,
         fallbackChain,
       });
-      if (deps.telemetryWriter) {
-        deps.telemetryWriter(buildTelemetryRecord({
+      {
+        writeTelemetry(buildTelemetryRecord({
           prompt: prompt || '',
           classification,
           result: ok,
@@ -598,6 +668,9 @@ module.exports = {
     filterDegraded,
     anthropicProviderToSubagent,
     buildOk,
+    appendDecisionsLog,
+    postToSavingsTracker,
+    defaultTelemetryWriter,
   },
 };
 

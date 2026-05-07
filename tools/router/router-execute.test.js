@@ -418,3 +418,136 @@ test('execute() never throws on async wrapper rejection — error captured in re
   assert.equal(out.result.errors[0].code, 'wrapper_threw');
   assert.match(out.result.errors[0].message, /spurious failure/);
 });
+
+// ── T-08 — telemetry write-through (I10 + disk write) ───────────────────
+
+const os = require('node:os');
+// fs and path are already required at the top of this file.
+
+test('I10: prompt_preview redacts API keys, bearer tokens, and KEY=value patterns', () => {
+  const r = _internal.sanitisePromptPreview(
+    'use OPENAI_API_KEY=sk-proj-abcdef1234567890 to debug, also Bearer eyJhbGciOiJIUzI1Ni'
+  );
+  assert.ok(!r.includes('sk-proj-abcdef1234567890'), 'sk-proj key must be redacted');
+  assert.ok(!r.includes('Bearer eyJhbGciOiJIUzI1Ni'), 'bearer token must be redacted');
+  assert.ok(r.includes('[REDACTED]'));
+  assert.ok(r.length <= 80, 'preview is capped at 80 chars');
+});
+
+test('I10: sanitisePromptPreview redacts ghp_ and AIza patterns', () => {
+  const a = _internal.sanitisePromptPreview('GitHub PAT ghp_abcdefghijklmnopqrstuv1234');
+  const b = _internal.sanitisePromptPreview('Google AIzaSyCabcdefghij1234567890abc');
+  assert.ok(!a.includes('ghp_abcdefghijklmnopqrstuv'));
+  assert.ok(!b.includes('AIzaSyCabcdefghij1234567890abc'));
+});
+
+test('I10: sanitisePromptPreview tolerates non-string and empty input', () => {
+  assert.equal(_internal.sanitisePromptPreview(undefined), '');
+  assert.equal(_internal.sanitisePromptPreview(null), '');
+  assert.equal(_internal.sanitisePromptPreview(''), '');
+  // Numbers / objects pass through as ''.
+  assert.equal(_internal.sanitisePromptPreview(/** @type {any} */ (42)), '');
+});
+
+test('appendDecisionsLog writes one JSONL line under MOOTER_DECISIONS_LOG override', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-exec-tel-'));
+  const tmpLog = path.join(tmpDir, 'decisions.log');
+  const SAVED = process.env.MOOTER_DECISIONS_LOG;
+  process.env.MOOTER_DECISIONS_LOG = tmpLog;
+  try {
+    _internal.appendDecisionsLog({
+      ts: '2026-05-07T18:42:11.234Z',
+      event: 'executed',
+      tier: 'T1',
+      outcome: 'ok',
+      provider_used: 'codex_cli',
+    });
+    const lines = fs.readFileSync(tmpLog, 'utf8').trim().split('\n');
+    assert.equal(lines.length, 1);
+    const parsed = JSON.parse(lines[0]);
+    assert.equal(parsed.event, 'executed');
+    assert.equal(parsed.provider_used, 'codex_cli');
+  } finally {
+    if (SAVED === undefined) delete process.env.MOOTER_DECISIONS_LOG;
+    else process.env.MOOTER_DECISIONS_LOG = SAVED;
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+});
+
+test('appendDecisionsLog: best-effort on unwritable path (no throw)', () => {
+  const SAVED = process.env.MOOTER_DECISIONS_LOG;
+  process.env.MOOTER_DECISIONS_LOG = '/nonexistent/dir/that/cannot/exist/decisions.log';
+  try {
+    assert.doesNotThrow(() => _internal.appendDecisionsLog({ event: 'executed' }));
+  } finally {
+    if (SAVED === undefined) delete process.env.MOOTER_DECISIONS_LOG;
+    else process.env.MOOTER_DECISIONS_LOG = SAVED;
+  }
+});
+
+test('postToSavingsTracker: best-effort on unreachable port (no throw)', () => {
+  const SAVED = process.env.MOOTER_TRACKER_PORT;
+  process.env.MOOTER_TRACKER_PORT = '64999'; // unbound port
+  try {
+    assert.doesNotThrow(() => _internal.postToSavingsTracker({ event: 'executed' }));
+  } finally {
+    if (SAVED === undefined) delete process.env.MOOTER_TRACKER_PORT;
+    else process.env.MOOTER_TRACKER_PORT = SAVED;
+  }
+});
+
+test('defaultTelemetryWriter does not throw on any input shape', () => {
+  assert.doesNotThrow(() => _internal.defaultTelemetryWriter({ event: 'executed' }));
+  assert.doesNotThrow(() => _internal.defaultTelemetryWriter({}));
+  assert.doesNotThrow(() => _internal.defaultTelemetryWriter(/** @type {any} */ (null)));
+});
+
+test('execute() with no telemetryWriter dep falls back to defaultTelemetryWriter (smoke)', async () => {
+  // Don't assert side effects — just confirm execute() does not throw
+  // when no telemetryWriter is provided in deps. Production path.
+  const handcrafted = {
+    prompt: 'rename foo to bar',
+    classification: {
+      tier: 'T1',
+      confidence: 0.9,
+      suggested_providers: ['haiku'],
+      task_category: 'mechanical_trivial',
+      escalation_rule: 'none',
+    },
+  };
+  // Direct execute() call without harness — bypasses harness's telemetryWriter override.
+  delete require.cache[require.resolve('./router-execute')];
+  const { execute } = require('./router-execute');
+  const SAVED = process.env.MOOTER_TRACKER_PORT;
+  process.env.MOOTER_TRACKER_PORT = '64998';
+  try {
+    const result = await execute({ prompt: handcrafted.prompt, classification: handcrafted.classification });
+    assert.equal(result.ok, false);
+    assert.equal(result.defer_to_subagent, 'cheap-triage');
+  } finally {
+    if (SAVED === undefined) delete process.env.MOOTER_TRACKER_PORT;
+    else process.env.MOOTER_TRACKER_PORT = SAVED;
+  }
+});
+
+test('I10 (e2e): executed telemetry record has redacted prompt_preview', async () => {
+  reset();
+  const handcrafted = {
+    prompt: 'use OPENAI_API_KEY=sk-proj-abcdef1234567890 to debug rate limiter',
+    classification: {
+      tier: 'T1',
+      confidence: 0.85,
+      suggested_providers: ['haiku'],
+      task_category: 'explain_error',
+      escalation_rule: 'none',
+    },
+    provider_state: {},
+    provider_mocks: {},
+  };
+  const { telemetryWrites } = await runExecutorWithFixture({ fixture: handcrafted });
+  assert.equal(telemetryWrites.length, 1);
+  const preview = telemetryWrites[0].prompt_preview;
+  assert.ok(!preview.includes('sk-proj-abcdef1234567890'),
+    `expected redaction in: ${preview}`);
+  assert.ok(preview.includes('[REDACTED]'));
+});
