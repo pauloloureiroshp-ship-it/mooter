@@ -72,7 +72,28 @@ Restart savings-tracker server (apanha o novo `/last-execution` + executions blo
 5. `469fd63` — async appendDecisionsLog com per-path Promise chain + `flushDecisionsLog` test helper (S2#1, também flagged pelo final-reviewer original); +2 testes (concurrent ordering, queue auto-evict)
 6. `edbbb32` — polish per final-reviewer N1+N2 (defensive `.catch` + Windows O_APPEND caveat comment)
 
-Suite: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **I11 ainda invariant** (`diff aa25a2b classify.js` IDENTICAL re-confirmado pós-hotfix). Final-reviewer pre-push verdict: **PASS-WITH-NOTES** (notes advisory, sem required actions).
+**Wave-3 closure cycle (mesma sessão, post-push):**
+
+7. `33fc9a3` — `feat(metrics): savings-tracker honours MOOTER_TRACKER_PORT env override` — fecha o ciclo cliente↔servidor (router-execute lia esta env var desde Wave-2 mas server ignorava, impossibilitando spawning de instância secundária para validação)
+8. `5922865` — `fix(router): CLI drains telemetry before exit` — **regressão real do `469fd63`** descoberta ao testar runtime: o async appendDecisionsLog + fire-and-forget HTTP POST eram perdidos quando o CLI process saía via `process.exit(0)` antes do drain. Fix: `await flushDecisionsLog()` + 300ms wait no module-init block (afecta SÓ CLI, programmatic require() unaffected).
+
+**Acceptance §10 #4 PROVEN AT RUNTIME** (secondary tracker, port 7822):
+- 15 CLI executes via MOCK_PROVIDERS=1 + MOOTER_TRACKER_PORT=7822
+- `/metrics.executions.total` = 16 (1 extra do mktemp test)
+- `by_provider`: `{deferred:model-architect: 11, deferred:cheap-triage: 5}` — partition correcta por tier
+- `by_outcome`: `{deferred: 16}` — esperado com mocks (todos retornam null)
+- `/last-execution`: shape completa correcta (tier T3, deferred_subagent, deferred_reason: tier_t3, sanitised prompt_preview)
+- Suite: 309/310 verde após cada commit (1 expected skip)
+
+Restart do daemon real (PID 59172, port 7821) deferido — code está provadamente funcional, restart é puramente operacional e fica para o momento que o Paulo escolher. Para fazer:
+```powershell
+Get-Process -Id 59172 | Stop-Process -Force
+node tools/router/savings-tracker.js  # default port 7821
+curl http://127.0.0.1:7821/health     # confirma version=0.7.0
+curl http://127.0.0.1:7821/metrics | jq .executions
+```
+
+Suite final: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **I11 ainda invariant** (`diff aa25a2b classify.js` IDENTICAL re-confirmado pós-todos-os-commits). Final-reviewer pre-push verdict (gate aplicado entre commits 6 e 7): **PASS-WITH-NOTES** (notes advisory, sem required actions).
 
 **Carry-overs explicitamente N/A nesta hotfix wave** (preserve scope):
 - ECE-style calibration (3h, requer SPEC update — Wave-3 proper)
