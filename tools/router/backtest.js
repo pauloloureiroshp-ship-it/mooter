@@ -1002,7 +1002,7 @@ function main() {
   const holdoutIdx = args.indexOf('--holdout');
   const holdoutMode = holdoutIdx >= 0;
   const holdoutPct  = (() => {
-    if (!holdoutMode) return null;
+    if (!holdoutMode) return 0.2;
     const next = args[holdoutIdx + 1];
     if (next && !next.startsWith('--')) {
       const v = Number(next);
