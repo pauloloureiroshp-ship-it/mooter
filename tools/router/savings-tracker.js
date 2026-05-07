@@ -78,6 +78,21 @@ const ARBITER_METRICS = {
   total_latency_ms: 0,
 };
 
+// ── Wave-2 (T-08b): router-execute telemetry aggregate ─────────────────
+// router-execute.js POSTs /decision with event='executed' after each
+// dispatch. We mirror inject_context.js's pattern: keep the latest record
+// for /last-execution and aggregate counts for /metrics.executions.
+let LAST_EXECUTION = null;
+const EXECUTIONS_AGGREGATE = {
+  total: 0,
+  by_provider: /** @type {Record<string, number>} */ ({}),
+  by_outcome:  /** @type {Record<string, number>} */ ({}),
+  guaranteed_saved_usd: 0,    // naive_opus_cost - actual_cost_paid on outcome=ok
+  tokens_in_total: 0,
+  tokens_out_total: 0,
+  actual_cost_usd: 0,
+};
+
 const CURRENCY = (process.env.FRUGAL_CURRENCY || 'USD').toUpperCase();
 
 // Tier → human-readable model label (for pct_by_model in the statusline).
@@ -801,11 +816,31 @@ function handleMetrics(req, res) {
   }
   if (sessionId) {
     const metrics = computeMetricsForSession(sessionId);
+    metrics.executions = buildExecutionsBlock();
     send(res, 200, JSON.stringify(metrics));
     return;
   }
   const { metrics } = readDecisions();
+  metrics.executions = buildExecutionsBlock();
   send(res, 200, JSON.stringify(metrics));
+}
+
+/**
+ * Wave-2 (T-08b): expose router-execute aggregate stats so dashboards
+ * and the statusline can show guaranteed savings (vs. the legacy
+ * advisory_saved estimate that's been there since v0.6).
+ */
+function buildExecutionsBlock() {
+  const a = EXECUTIONS_AGGREGATE;
+  return {
+    total: a.total,
+    by_provider: { ...a.by_provider },
+    by_outcome:  { ...a.by_outcome },
+    guaranteed_saved_usd: Math.round(a.guaranteed_saved_usd * 1e4) / 1e4,
+    actual_cost_usd:      Math.round(a.actual_cost_usd      * 1e4) / 1e4,
+    tokens_in_total:      a.tokens_in_total,
+    tokens_out_total:     a.tokens_out_total,
+  };
 }
 
 // Session-scoped metrics: filters decisions.log by session_id, then runs the
@@ -901,7 +936,8 @@ function handleLast(_req, res) {
 }
 
 // ── v0.9: POST /decision — called by inject_context.js after every hook
-// invocation. Fire-and-forget, 200ms timeout on the client side.
+// invocation. Wave-2 (T-08b): also called by router-execute.js with
+// event='executed'. Fire-and-forget, 200ms timeout on the client side.
 function handleDecision(req, res) {
   readBody(req, (body) => {
     try {
@@ -910,11 +946,66 @@ function handleDecision(req, res) {
         // Sanitize every string leaf before persisting — handleDecision
         // receives arbitrary payloads from the hook and this value is
         // later reflected back over HTTP on /last and /metrics.
-        LAST_DECISION = sanitizeJson(json);
+        const sanitised = sanitizeJson(json);
+        LAST_DECISION = sanitised;
+        if (sanitised && sanitised.event === 'executed') {
+          LAST_EXECUTION = sanitised;
+          aggregateExecution(sanitised);
+        }
       }
     } catch { /* non-fatal */ }
     send(res, 200, '{"ok":true}');
   });
+}
+
+/** GET /last-execution — returns the latest executed event. */
+function handleLastExecution(req, res) {
+  if (!LAST_EXECUTION) {
+    send(res, 200, '{"ok":false,"reason":"no_executions_yet"}');
+    return;
+  }
+  send(res, 200, JSON.stringify(LAST_EXECUTION));
+}
+
+/**
+ * Aggregate one executed event into EXECUTIONS_AGGREGATE.
+ * Computes guaranteed_saved_usd = naive_opus_cost - actual_cost_paid
+ * for outcome=ok rows. Naive cost uses the central pricing.js so the
+ * number stays consistent with /metrics.real_cost methodology.
+ */
+function aggregateExecution(rec) {
+  EXECUTIONS_AGGREGATE.total += 1;
+
+  const provKey = rec.provider_used
+    || (rec.deferred_subagent ? `deferred:${rec.deferred_subagent}` : 'unknown');
+  EXECUTIONS_AGGREGATE.by_provider[provKey] =
+    (EXECUTIONS_AGGREGATE.by_provider[provKey] || 0) + 1;
+
+  const outc = rec.outcome || 'unknown';
+  EXECUTIONS_AGGREGATE.by_outcome[outc] = (EXECUTIONS_AGGREGATE.by_outcome[outc] || 0) + 1;
+
+  const tIn  = Number(rec.tokens_in)  || 0;
+  const tOut = Number(rec.tokens_out) || 0;
+  const cost = Number(rec.cost_usd)   || 0;
+
+  EXECUTIONS_AGGREGATE.tokens_in_total  += tIn;
+  EXECUTIONS_AGGREGATE.tokens_out_total += tOut;
+  EXECUTIONS_AGGREGATE.actual_cost_usd  += cost;
+
+  if (outc === 'ok' && (tIn + tOut) > 0) {
+    // What would Opus have cost for the same tokens? Pricing.js is the
+    // single source of truth (same path /metrics.real_cost uses).
+    try {
+      const opusPrice = (pricing && pricing.PRICES
+        && (pricing.PRICES['claude-opus-4-6']
+          || pricing.PRICES['claude-opus-4-5']
+          || pricing.PRICES['opus']))
+        || { input: 15, output: 75 }; // hard fallback at Opus 4.x list price
+      const naiveOpus = ((tIn * opusPrice.input) + (tOut * opusPrice.output)) / 1_000_000;
+      const saved = Math.max(0, naiveOpus - cost);
+      EXECUTIONS_AGGREGATE.guaranteed_saved_usd += saved;
+    } catch { /* pricing.js missing or malformed — skip this row */ }
+  }
 }
 
 // ── v0.9: POST /arbiter-event — arbiter.js posts one of these after each call.
@@ -1396,6 +1487,7 @@ const ROUTES = {
   '/metrics': handleMetrics,
   '/summary': handleSummary,
   '/last': handleLast,
+  '/last-execution': handleLastExecution,  // Wave-2 (T-08b)
   '/real': handleReal,
   '/corpus': handleCorpus,
   '/providers': handleProviders,
@@ -1543,4 +1635,20 @@ module.exports = {
   // v0.7.2 turn latency
   computeLatency,
   OPUS_BASELINE_MS_PER_TIER,
+  // Wave-2 (T-08b) — router-execute aggregation
+  aggregateExecution,
+  buildExecutionsBlock,
+  EXECUTIONS_AGGREGATE,
+  // accessor for tests (LAST_EXECUTION is mutable, can't export the binding directly)
+  getLastExecution: () => LAST_EXECUTION,
+  resetExecutionsAggregate: () => {
+    EXECUTIONS_AGGREGATE.total = 0;
+    EXECUTIONS_AGGREGATE.by_provider = {};
+    EXECUTIONS_AGGREGATE.by_outcome = {};
+    EXECUTIONS_AGGREGATE.guaranteed_saved_usd = 0;
+    EXECUTIONS_AGGREGATE.tokens_in_total = 0;
+    EXECUTIONS_AGGREGATE.tokens_out_total = 0;
+    EXECUTIONS_AGGREGATE.actual_cost_usd = 0;
+    LAST_EXECUTION = null;
+  },
 };
