@@ -101,6 +101,19 @@ Suite final: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **
 - Briefing para sessão Claude FRESCA implementar separação visual `guaranteed_saved_usd` (Wave-2) vs `advisory_saved` (legacy) no statusline wired (`gsd-statusline.js`) + paridade no `statusline.sh` fallback. Inclui fix de bug visível `5h:[object Object]%` + honesty marker `⚠` quando `guaranteed/advisory < 0.5` E `executions.total >= 50`. 4 atomic commits previstos, ~90-120 min wall-clock, $0 quota.
 - Acceptance criteria: 12 (visuais A1-A6 + funcionais F1-F4 + doctrine D1-D3). Saída esperada: 3 sample outputs (state A/B/C) copy-paste + verdict + final-reviewer gate.
 
+**Wave-3 statusline LANDED (Sessão #40 mesma sessão, 2026-05-07):** **APPROVED_WITH_NOTES** (final-reviewer pre-push gate). 4 atomic commits sobre `030feea` cobrindo todas as 12 acceptance criteria do master prompt:
+1. `4392124` — `fix(statusline): parse five_hour/seven_day as object.utilization not literal` (T-01, A4 — bug `[object Object]%` corrigido at root cause schema)
+2. `c095cf2` — `feat(statusline): split guaranteed (Wave-2 executor) vs advisory savings` (T-02, F3/F4 — `calcSavings` expõe `executionCount`/`guaranteedUsdW2`/`advisoryUsd`; render `🐮 saved $X gtd · $Y adv` quando exec>0)
+3. `64f8f94` — `feat(statusline): honesty marker ⚠ when guaranteed/advisory ratio < 0.5` (T-03, A5 — gates: exec≥50 floor + ratio<0.5)
+4. `9447923` — `chore(statusline): refuse advisory→gtd conflation in tracker fallback` (final-reviewer Q4 polish — `signal` field per return path; refuse a colapso `savedUsd→advisory` no FALLBACK 1)
+
+**Live render (production, exec=50, ratio 0.43, marker fires):**
+```
+⚠ 🐮 saved $24.07 gtd · $56.01 adv (11% vs all-Opus) · spent $193.12 · 2538 prompts · 0% local ══ ● ok
+```
+
+**Doctrine compliance**: I11 ainda invariant (`classify.js` byte-identical), D2 ainda invariant (`savings-tracker.js` 0 lines diff). Suite: 310 verde (309 pass + 1 expected skip). Mirror completo em `paulo-vault/30-learnings/wave-3-statusline-2026-05-07.md`.
+
 **Carry-overs explicitamente N/A nesta hotfix wave** (preserve scope):
 - ECE-style calibration (3h, requer SPEC update — Wave-3 proper)
 - Statusline reflectir `guaranteed_saved_usd` (UI work)
