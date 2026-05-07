@@ -1157,6 +1157,240 @@ function handleOptimizerStats(_req, res) {
   }
 }
 
+// ── /me — per-user aggregations (Wave-1.5 task #3) ─────────────────────────
+//
+// Filters decisions.log by user_id_hash when one is available. When the local
+// install is anonymous (no ~/.frugal/user.hash) we treat every entry as
+// belonging to "this user", which is the correct semantics for a single-user
+// machine.
+const USER_HASH_PATH_FRUGAL = path.join(os.homedir(), '.frugal', 'user.hash');
+const DEVICE_ID_PATH_FRUGAL = path.join(os.homedir(), '.frugal', 'device.id');
+const MOOTER_MODE_PATH = path.join(ROUTER_DIR, '.mooter-mode.json');
+const BUDGET_CONFIG_PATH = path.join(os.homedir(), '.frugal', 'budget-config.json');
+
+function readUserIdHash() {
+  try {
+    const raw = fs.readFileSync(USER_HASH_PATH_FRUGAL, 'utf8').trim();
+    if (/^[a-f0-9]{16}$/.test(raw)) return raw;
+  } catch { /* anonymous install */ }
+  return null;
+}
+
+function readDeviceId() {
+  try { return fs.readFileSync(DEVICE_ID_PATH_FRUGAL, 'utf8').trim(); } catch { return null; }
+}
+
+function aggregateForUser(userHash) {
+  let raw = '';
+  try { raw = fs.readFileSync(LOG_PATH, 'utf8'); } catch { return null; }
+  const lines = raw.split('\n').filter((l) => l.trim());
+  const horizonMs30 = 30 * 24 * 60 * 60 * 1000;
+  const horizonMs1 = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  let prompts30 = 0;
+  let promptsToday = 0;
+  let saved30 = 0;
+  const tier30 = { T0: 0, T1: 0, T2: 0, T3: 0 };
+  const cat30 = {};
+  const hourBuckets = new Array(24).fill(0);
+  let qualitySum = 0;
+  let qualityN = 0;
+  let lastMisroutingTs = null;
+
+  for (const line of lines) {
+    const e = safeParse(line);
+    if (!e) continue;
+    if (userHash && e.user_id_hash && e.user_id_hash !== userHash) continue;
+    if (e.event === 'classified' && !isSystemPrompt(e)) {
+      const ts = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+      if (!ts) continue;
+      if (now - ts > horizonMs30) continue;
+      prompts30++;
+      if (now - ts <= horizonMs1) promptsToday++;
+      if (e.tier && tier30[e.tier] !== undefined) tier30[e.tier]++;
+      if (e.task_category) cat30[e.task_category] = (cat30[e.task_category] || 0) + 1;
+      const hour = new Date(ts).getUTCHours();
+      hourBuckets[hour]++;
+      if (typeof e.per_decision_savings_usd === 'number') saved30 += e.per_decision_savings_usd;
+    } else if (e.event === 'quality_feedback' && typeof e.followup_quality === 'number') {
+      qualitySum += e.followup_quality;
+      qualityN++;
+    } else if (e.event === 'misrouting' || (e.expected_tier && e.tier && e.expected_tier !== e.tier)) {
+      const ts = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+      if (ts && (!lastMisroutingTs || ts > lastMisroutingTs)) lastMisroutingTs = ts;
+    }
+  }
+
+  const tierDist = {};
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    tierDist[t] = prompts30 > 0 ? +(tier30[t] / prompts30).toFixed(3) : 0;
+  }
+  const peakHours = hourBuckets
+    .map((n, h) => ({ h, n }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3)
+    .filter((x) => x.n > 0)
+    .map((x) => x.h)
+    .sort((a, b) => a - b);
+  const topCats = Object.entries(cat30)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([k, v]) => ({ category: k, count: v }));
+  const avgQuality = qualityN > 0 ? +(qualitySum / qualityN).toFixed(3) : null;
+
+  // Calibration alert flag — wired from .mooter-mode.json side-channel or
+  // tuning-state. For now we surface the raw signal: if ≥3 misroutings in
+  // last 24h, alert.
+  const recentMisroutings = lines.filter((l) => {
+    const e = safeParse(l);
+    if (!e) return false;
+    const ts = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+    return e.event === 'misrouting' && ts && (now - ts < horizonMs1);
+  }).length;
+
+  return {
+    user_id_hash: userHash || null,
+    device_id: readDeviceId(),
+    prompts_today: promptsToday,
+    prompts_30d: prompts30,
+    saved_usd_30d: +saved30.toFixed(4),
+    tier_distribution_30d: tierDist,
+    avg_quality_score_30d: avgQuality,
+    quality_feedback_count: qualityN,
+    peak_hours_utc: peakHours,
+    top_categories: topCats,
+    last_misrouting_ts: lastMisroutingTs ? new Date(lastMisroutingTs).toISOString() : null,
+    calibration_alert: recentMisroutings >= 3,
+    subscription_state: readPlan(),
+    generated_at: new Date().toISOString(),
+  };
+}
+
+function handleMe(req, res) {
+  const url = new URL(req.url || '/me', `http://${req.headers.host || 'localhost'}`);
+  const queryUser = url.searchParams.get('user');
+  const headerUser = (req.headers['x-user-hash'] || '').toString().trim();
+  const userHash = (queryUser || headerUser || readUserIdHash() || '') || null;
+  // Validate hash shape — never let arbitrary input drive the filter.
+  if (userHash && !/^[a-f0-9]{16}$/.test(userHash)) {
+    return send(res, 400, JSON.stringify({ error: 'invalid user_id_hash shape (expected 16 hex chars)' }));
+  }
+  const out = aggregateForUser(userHash);
+  if (!out) return send(res, 200, JSON.stringify({ error: 'no_log', user_id_hash: userHash }));
+  send(res, 200, JSON.stringify(out));
+}
+
+function handleMeFeedback(req, res) {
+  readBody(req, (body) => {
+    let json;
+    try { json = JSON.parse(body); } catch {
+      return send(res, 400, JSON.stringify({ error: 'invalid json' }));
+    }
+    const { session_id, tier, followup_quality } = json || {};
+    if (typeof session_id !== 'string' || !session_id) {
+      return send(res, 400, JSON.stringify({ error: 'session_id required' }));
+    }
+    if (![0, 1].includes(followup_quality)) {
+      return send(res, 400, JSON.stringify({ error: 'followup_quality must be 0 or 1' }));
+    }
+    const entry = {
+      ts: new Date().toISOString(),
+      ts_ms: Date.now(),
+      event: 'quality_feedback',
+      session_id,
+      tier: tier || 'unknown',
+      task_category: (json && json.task_category) || 'unknown',
+      followup_quality,
+      source: 'me_feedback_api',
+      user_id_hash: readUserIdHash() || undefined,
+    };
+    if (entry.user_id_hash === undefined) delete entry.user_id_hash;
+    try {
+      fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n');
+    } catch (e) {
+      return send(res, 500, JSON.stringify({ error: 'log_write_failed', detail: String(e && e.message || e) }));
+    }
+    send(res, 200, JSON.stringify({ ok: true, recorded: entry }));
+  });
+}
+
+function readMooterMode() {
+  try {
+    const data = JSON.parse(fs.readFileSync(MOOTER_MODE_PATH, 'utf8'));
+    let mode = 'auto';
+    if (data.mode && ['beast', 'zen', 'auto'].includes(data.mode)) mode = data.mode;
+    else if (data.beast_mode === true) mode = 'beast';
+    else if (data.zen_mode === true) mode = 'zen';
+    return { mode, active_since: data.active_since || null, version: data.version || null };
+  } catch { return { mode: 'auto', active_since: null, version: null }; }
+}
+
+function readBudgetConfig() {
+  try { return JSON.parse(fs.readFileSync(BUDGET_CONFIG_PATH, 'utf8')); }
+  catch { return null; }
+}
+
+function handleMeSettings(req, res) {
+  if (req.method === 'GET') {
+    return send(res, 200, JSON.stringify({
+      mode: readMooterMode(),
+      budget: readBudgetConfig(),
+      user_id_hash: readUserIdHash(),
+      device_id: readDeviceId(),
+    }));
+  }
+  if (req.method === 'PUT') {
+    return readBody(req, (body) => {
+      let json;
+      try { json = JSON.parse(body); } catch {
+        return send(res, 400, JSON.stringify({ error: 'invalid json' }));
+      }
+      const out = { wrote: [] };
+      if (typeof json.mode === 'string') {
+        const mode = json.mode.toLowerCase();
+        if (!['beast', 'zen', 'auto'].includes(mode)) {
+          return send(res, 400, JSON.stringify({ error: 'mode must be beast|zen|auto' }));
+        }
+        try {
+          if (mode === 'auto') {
+            if (fs.existsSync(MOOTER_MODE_PATH)) fs.unlinkSync(MOOTER_MODE_PATH);
+          } else {
+            const data = {
+              mode,
+              beast_mode: mode === 'beast',
+              zen_mode: mode === 'zen',
+              active_since: new Date().toISOString(),
+              version: '1.1',
+              source: 'me_settings_api',
+            };
+            fs.writeFileSync(MOOTER_MODE_PATH, JSON.stringify(data, null, 2));
+          }
+          out.wrote.push('mode');
+        } catch (e) {
+          return send(res, 500, JSON.stringify({ error: 'mode_write_failed', detail: String(e && e.message || e) }));
+        }
+      }
+      if (typeof json.monthly_budget_usd === 'number' && Number.isFinite(json.monthly_budget_usd) && json.monthly_budget_usd >= 0) {
+        try {
+          const cur = readBudgetConfig() || {};
+          cur.monthly_budget_usd = json.monthly_budget_usd;
+          cur.updated_at = new Date().toISOString();
+          fs.mkdirSync(path.dirname(BUDGET_CONFIG_PATH), { recursive: true });
+          fs.writeFileSync(BUDGET_CONFIG_PATH, JSON.stringify(cur, null, 2));
+          out.wrote.push('monthly_budget_usd');
+        } catch (e) {
+          return send(res, 500, JSON.stringify({ error: 'budget_write_failed', detail: String(e && e.message || e) }));
+        }
+      }
+      out.mode = readMooterMode();
+      out.budget = readBudgetConfig();
+      send(res, 200, JSON.stringify(out));
+    });
+  }
+  send(res, 405, JSON.stringify({ error: 'method not allowed', allow: 'GET,PUT' }));
+}
+
 const ROUTES = {
   '/health': handleHealth,
   '/metrics': handleMetrics,
@@ -1167,12 +1401,19 @@ const ROUTES = {
   '/providers': handleProviders,
   '/gpu': handleGpu,
   '/optimizer-stats': handleOptimizerStats,
+  '/me': handleMe,
 };
 
 // POST-only routes (body-consuming)
 const POST_ROUTES = {
   '/decision': handleDecision,
   '/arbiter-event': handleArbiterEvent,
+  '/me/feedback': handleMeFeedback,
+};
+
+// Mixed-method routes (GET + PUT). Handler checks req.method itself.
+const MIXED_ROUTES = {
+  '/me/settings': handleMeSettings,
 };
 
 // Only start the HTTP server when run as a script — never when this
@@ -1207,9 +1448,16 @@ if (require.main === module) {
         POST_ROUTES[url](req, res);
         return;
       }
+      if (MIXED_ROUTES[url]) {
+        MIXED_ROUTES[url](req, res);
+        return;
+      }
       const handler = ROUTES[url];
       if (!handler) {
-        send(res, 404, JSON.stringify({ error: 'not found', routes: Object.keys(ROUTES) }));
+        send(res, 404, JSON.stringify({
+          error: 'not found',
+          routes: Object.keys(ROUTES).concat(Object.keys(MIXED_ROUTES)),
+        }));
         return;
       }
       handler(req, res);
