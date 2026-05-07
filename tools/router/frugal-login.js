@@ -26,6 +26,11 @@ const TIMEOUT_MS = 120_000;
 const LANDING_URL = 'https://landing-five-azure-16.vercel.app';
 const FRUGAL_DIR = path.join(os.homedir(), '.frugal');
 const TOKEN_PATH = path.join(FRUGAL_DIR, 'auth.token');
+// 16-hex-char SHA256(supabase_user_id) — stable per-user identifier with no
+// PII. event-builder.js reads it on every event so authenticated users get
+// per-user aggregations without the hub ever seeing raw user_id / email.
+const USER_HASH_PATH = path.join(FRUGAL_DIR, 'user.hash');
+const USER_HASH_RE = /^[a-f0-9]{16}$/;
 
 const C = {
   green: s => `\x1b[38;2;78;201;176m${s}\x1b[0m`,
@@ -86,6 +91,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/callback') {
     const token = url.searchParams.get('token');
+    const userHash = url.searchParams.get('user_hash');
 
     if (!token) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
@@ -93,10 +99,15 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // Save token
+    // Save token (and the optional user hash). The hash is shape-checked
+    // here — if the landing ever sent something malformed we'd rather not
+    // poison every future event than fail loudly later.
     try {
       fs.mkdirSync(FRUGAL_DIR, { recursive: true });
       fs.writeFileSync(TOKEN_PATH, token, { mode: 0o600 });
+      if (userHash && USER_HASH_RE.test(userHash)) {
+        fs.writeFileSync(USER_HASH_PATH, userHash, { mode: 0o600 });
+      }
     } catch (err) {
       console.error(`  ${C.red('Failed to save token:')} ${err.message}`);
       res.writeHead(500, { 'Content-Type': 'text/plain' });

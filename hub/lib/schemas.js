@@ -49,6 +49,10 @@ export const deltaBodySchema = z.object({
 
 // ── POST /api/device-heartbeat ─────────────────────────────────────────
 
+// Stable 16-hex-char hash of the Supabase user_id. Optional: anonymous
+// installs send no hash. Migration 008 added the matching column.
+const USER_ID_HASH_RE = /^[a-f0-9]{16}$/;
+
 export const heartbeatBodySchema = z.object({
   device_id: z.string().min(1).max(256),
   event: HeartbeatEventEnum,
@@ -60,6 +64,7 @@ export const heartbeatBodySchema = z.object({
   claude_code_version: z.string().max(256).optional(),
   error: z.string().max(2048).optional(),
   ts: z.string().datetime({ offset: true }).optional(),
+  user_id_hash: z.string().regex(USER_ID_HASH_RE).nullable().optional(),
 }).passthrough();
 
 // ── POST /submit-events ────────────────────────────────────────────────
@@ -107,6 +112,7 @@ export const eventSchema = z.object({
   outcome_score: z.number().nullable().optional(),
   outcome_source: z.string().nullable().optional(),
   per_decision_savings_usd: z.number().nullable().optional(),
+  user_id_hash: z.string().regex(USER_ID_HASH_RE).nullable().optional(),
 }).refine(
   (evt) => !PRIVACY_FIELDS.some((k) => k in evt),
   { message: `event must not contain any privacy field: ${PRIVACY_FIELDS.join(', ')}` }

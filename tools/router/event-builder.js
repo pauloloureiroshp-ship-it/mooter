@@ -57,7 +57,13 @@ const ALLOWED_FIELDS = new Set([
   'algorithm_version', 'prompt_complexity_score',
   'outcome_score', 'outcome_source', 'per_decision_savings_usd',
   'session_hour', 'event_date', 'created_at',
+  'user_id_hash',
 ]);
+
+// 16-hex stable hash of the authenticated Supabase user_id. Persisted by
+// frugal-login.js after GitHub OAuth; absent for anonymous installs.
+const USER_HASH_PATH = path.join(os.homedir(), '.frugal', 'user.hash');
+const USER_HASH_RE = /^[a-f0-9]{16}$/;
 
 // ─── Banned content patterns ────────────────────────────────────────────
 // Scanned across every string-valued field (except id/instance_id/
@@ -118,6 +124,13 @@ function readClassifierVersion() {
     const src = fs.readFileSync(CLASSIFY_PATH, 'utf8');
     return crypto.createHash('sha256').update(src).digest('hex').slice(0, 8);
   } catch { return 'unknown0'; }
+}
+
+function readUserIdHash() {
+  try {
+    const v = fs.readFileSync(USER_HASH_PATH, 'utf8').trim();
+    return USER_HASH_RE.test(v) ? v : null;
+  } catch { return null; }
 }
 
 /** @param {string | null | undefined} preview @returns {string[]} */
@@ -350,7 +363,15 @@ function buildEvent(classified, execEntries, lastClassified, opts) {
     session_hour: sessionHour,
     event_date: eventDate,
     created_at: new Date().toISOString(),
+
+    user_id_hash: opts.user_id_hash || readUserIdHash(),
   };
+
+  // Strip user_id_hash if it ended up null — the privacy validator's
+  // "missing required" check is name-based, but the ALLOWED_FIELDS check
+  // does not require optional fields. Keeping it as `null` is fine, but
+  // we drop it for a cleaner shape on disk and lower bandwidth.
+  if (event.user_id_hash == null) delete event.user_id_hash;
 
   const val = validateEventPrivacy(event);
   if (!val.ok) {

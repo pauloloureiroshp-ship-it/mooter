@@ -76,6 +76,7 @@ export async function handleHeartbeat(request, env) {
       error: capped(body.error),
       client_ts: capped(clientTs),
       received_at: receivedAt,
+      user_id_hash: body.user_id_hash || null,
     });
   } catch (e) {
     console.error('device-heartbeat db error:', e && e.message);

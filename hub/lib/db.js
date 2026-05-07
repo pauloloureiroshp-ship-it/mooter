@@ -53,8 +53,8 @@ const INSERT_HEARTBEAT_SQL = `
   INSERT INTO device_heartbeats (
     id, device_id, event, setup_version, hw_tier, sub_profile,
     platform, node_version, claude_code_version, error,
-    client_ts, received_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    client_ts, received_at, user_id_hash
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 /**
@@ -67,7 +67,8 @@ export async function insertHeartbeat(db, hb) {
   return db.prepare(INSERT_HEARTBEAT_SQL).bind(
     hb.id, hb.device_id, hb.event, hb.setup_version,
     hb.hw_tier, hb.sub_profile, hb.platform, hb.node_version,
-    hb.claude_code_version, hb.error, hb.client_ts, hb.received_at
+    hb.claude_code_version, hb.error, hb.client_ts, hb.received_at,
+    hb.user_id_hash || null
   ).run();
 }
 
@@ -82,7 +83,8 @@ const INSERT_EVENT_SQL = `
     response_len_bucket, cascade_upgrade, retry_detected, ollama_warm, gpu_util_pct,
     explicit_rating, explicit_feedback_type,
     session_hour, event_date, created_at,
-    algorithm_version, prompt_complexity_score, outcome_score, outcome_source, per_decision_savings_usd
+    algorithm_version, prompt_complexity_score, outcome_score, outcome_source, per_decision_savings_usd,
+    user_id_hash
   ) VALUES (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
@@ -91,7 +93,8 @@ const INSERT_EVENT_SQL = `
     ?, ?, ?, ?, ?,
     ?, ?,
     ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?,
+    ?
   )
 `;
 
@@ -116,7 +119,8 @@ export function bindEventInsert(db, e) {
     e.session_hour, e.event_date, e.created_at,
     e.algorithm_version || null, e.prompt_complexity_score || null,
     e.outcome_score || null, e.outcome_source || null,
-    e.per_decision_savings_usd || null
+    e.per_decision_savings_usd || null,
+    e.user_id_hash || null
   );
 }
 
