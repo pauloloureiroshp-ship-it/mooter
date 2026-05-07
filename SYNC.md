@@ -95,6 +95,12 @@ curl http://127.0.0.1:7821/metrics | jq .executions
 
 Suite final: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **I11 ainda invariant** (`diff aa25a2b classify.js` IDENTICAL re-confirmado pós-todos-os-commits). Final-reviewer pre-push verdict (gate aplicado entre commits 6 e 7): **PASS-WITH-NOTES** (notes advisory, sem required actions).
 
+**Statusline master prompt (paralelo, executa em sessão fresca quando quiseres):**
+- `frugal/prompts/MOOTER_STATUSLINE_GUARANTEED_SAVINGS_MASTER.md` (gitignored)
+- Mirror em `Documents/paulo-vault/10-projects/mooter-statusline-guaranteed-savings-master.md` (byte-identical)
+- Briefing para sessão Claude FRESCA implementar separação visual `guaranteed_saved_usd` (Wave-2) vs `advisory_saved` (legacy) no statusline wired (`gsd-statusline.js`) + paridade no `statusline.sh` fallback. Inclui fix de bug visível `5h:[object Object]%` + honesty marker `⚠` quando `guaranteed/advisory < 0.5` E `executions.total >= 50`. 4 atomic commits previstos, ~90-120 min wall-clock, $0 quota.
+- Acceptance criteria: 12 (visuais A1-A6 + funcionais F1-F4 + doctrine D1-D3). Saída esperada: 3 sample outputs (state A/B/C) copy-paste + verdict + final-reviewer gate.
+
 **Carry-overs explicitamente N/A nesta hotfix wave** (preserve scope):
 - ECE-style calibration (3h, requer SPEC update — Wave-3 proper)
 - Statusline reflectir `guaranteed_saved_usd` (UI work)
