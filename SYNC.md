@@ -373,8 +373,33 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-05-05 (Sessão Codex Integration v0.11 — advisory layer entregue, Wave-2 execution layer pendente)
-**Estado:** 🟢 Codex advisory layer pronto e em runtime. ⏭️ Próxima missão: Wave-2 (execution layer) — sem isto, a poupança real é zero.
+**Última actualização Cowork:** 2026-05-07 (Sessão Validation 2026-05-07 — verdict ⚠️ PATCH BEFORE WAVE-2)
+**Estado:** ⚠️ Advisory layer entregue (v0.11) + validado (60 prompts, 80 min). Tier accuracy 77.5% (target 85%), calibration bin 0.8-1.0 = 75% (target 95%). 14 loopholes (3 S0, 9 S1, 2 S2). Production aggregate sound (73.7% saved em 859 prompts). ⏭️ Próxima missão: Wave-1.6 (patch dos blockers) ANTES de Wave-2.
+
+---
+
+### 🧪 Sessão 2026-05-07 — Routing strategy validation
+
+**Âmbito:** correr `MOOTER_VALIDATION_MASTER` em 60 prompts (validation-set + decisions.log + multilingual). Mediu accuracy, calibration, qualidade, savings. Detectou loopholes.
+
+**Entregas:**
+- `frugal/.planning/validation-2026-05-07/VALIDATION-REPORT.md` (5 KB report final)
+- 12 artefactos JSON/JSONL + 5 runner scripts JS
+- 14 loopholes catalogados em `loopholes.md`
+
+**Verdict:** ⚠️ PATCH BEFORE WAVE-2. Estratégia agregada funciona; a calibração detalhada não está.
+
+**Top blockers (must-fix Wave-1.6):**
+1. `OPENAI_API_KEY` com `sk-` duplicado → 401 silent fall
+2. `ollama_call.sh:40` — `$MODEL` shell-local, payload tem `model:""`
+3. `classify.js:1228` IIFE não guardado por `require.main === module`
+4. T0 trivial detector falha em `rename`/`format` (predicted T1, conf 0.85)
+5. ARCH_SIGNALS over-promote `compare/recommend` para T3 quando deviam ficar T2
+
+**Ferramenta master para próximas waves:** `frugal/prompts/MOOTER_NEXT_WAVES_MASTER.md` (gitignored — também em `paulo-vault/10-projects/mooter-next-waves-master.md`). Orquestra Wave-1.6 → Wave-2 → Wave-3.
+
+**Próxima missão (Wave-1.6, ~2h):**
+Aplicar 5 must-fix items + re-correr validation runner. Acceptance: tier accuracy ≥85% AND calibration bin 0.8-1.0 ≥95%. Sem isto, Wave-2 amplifica miscalibrações.
 
 ---
 
