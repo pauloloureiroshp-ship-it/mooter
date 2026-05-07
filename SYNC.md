@@ -373,10 +373,25 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-05-07 late (per-user telemetry audit — Wave-1.5 prepended ao master prompt)
-**Estado:** ⚠️ Advisory layer + Validation report ⚠️ + audit per-user telemetria revelou: subscription-profile.json AUSENTE (subs todas "no/none"), continuous-tester INATIVO há 16d (mas com 693 misroutings já harvest-ables), hub last_pull "never" agora "ok", tracker UP (864 prompts, 73.7% saved, plan=max). ⏭️ Próxima missão: **Wave-1.5 (per-user bootstrap)** → Wave-1.6 (patches) → Wave-2 (executor) → Wave-3 (site).
+**Última actualização Cowork:** 2026-05-07 late (Wave-1.5 ENTREGUE — per-user telemetry bootstrap completo)
+**Estado:** ✅ Wave-1.5 PASS · Final-reviewer PASS-WITH-NOTES · 12 commits ahead de origin/main (8 Wave-1.5 + 3 Wave-2 P1 prévias + 2 tsc-fix do final-reviewer) · 26/26 testes Wave-1.5 verdes · zero novas falhas vs baseline. ⏳ Aguarda push approval do Paulo. ⏭️ Próxima missão: **Wave-1.6 (classifier patches)** → Wave-2 (executor) → Wave-3 (site).
 
-**Insight crítico:** as peças do loop de auto-melhoria EXISTEM TODAS (hub D1, feedback-collector, auto-feedback, shadow-judge, continuous-tester, user-profile, sentry-helper) mas o **loop não fecha automaticamente** — subscription detection é manual, hub-submit-events é manual, profile refresh é manual, tester foi parado há 16d. Wave-1.5 fecha estes 7 buracos (~2h) antes de qualquer retrain.
+**Wave-1.5 deliverables (resumo):**
+1. `detect-subscriptions.js` — auto-detect Anthropic Max + Codex CLI + OpenAI/Gemini/Ollama (10 testes)
+2. `profile-refresh.js` — wrapper 7d com hash-fingerprint para evitar noise (5 testes)
+3. Tracker `/me` + `/me/feedback` + `/me/settings` em `:7821` (4 testes + smoke vivo OK)
+4. `hub-events-scheduler.js` — incremental push every 50 events, lock + bearer de `~/.frugal/auth.token` (5 testes)
+5. `mooter-tester-focus.json` v3.1 — classifier weight 0.03→0.40, statusline 0.70→0.30, 3 novos probing skills + 12 seeds Wave-1.6
+6. `harvest-misroutings.js` + `.planning/wave-1.5/adversarial-corpus.jsonl` (79 unique + 326 weighted, top: T2→T0=62, T3→T0=12)
+7. `sentry-setup.js` — opt-in CLI com DSN masking, chmod 0600, auto-tags user_id_hash + mooter_version (2 testes)
+8. `WAVE-1.5-VERDICT.md` em `.planning/wave-1.5/`
+
+**Insight Wave-1.6:** o adversarial corpus mostra que o T0 fast-path está demasiado agressivo (62 T2→T0). Wave-1.6 Task #4 (T0 trivial detector re-tune) deve TIGHTEN o discriminator, NÃO widen T0.
+
+**Pendentes desta sessão:**
+- ✅ Sub-página Notion criada: https://www.notion.so/3596f6e42bc481eda074d0de4ba8fa5c (Sessão 2026-05-07 — Wave-1.5 ENTREGUE)
+- ⏳ Push 12 commits → origin/main (gated em aprovação do Paulo, scope drift documentado)
+- ⏳ Restart manual do `run-continuous-tester.cmd` (lê novo focus.json v3.1 ao arrancar)
 
 ---
 
