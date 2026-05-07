@@ -81,13 +81,28 @@ else
 fi
 
 # ── 2. OAuth budget from disk cache (written by inject_context.js) ──────────
+# Schema (current 2026-05-07):
+#   data.five_hour  = { utilization: <number>, resets_at: <ISO> }
+#   data.seven_day  = { utilization: <number>, resets_at: <ISO> }
+# Older schemas (kept as fallbacks for compatibility):
+#   data.fiveHour / data.sevenDay   — camelCase variant
+#   data.five_hour as flat number   — legacy pre-object
 if [ "$MOCK" != "1" ]; then
   if [ -f "$BUDGET_CACHE" ]; then
     BUDGET_JSON=$(cat "$BUDGET_CACHE" 2>/dev/null)
-    FIVE_PCT=$(json_get "$BUDGET_JSON" "data.five_hour")
-    SEVEN_PCT=$(json_get "$BUDGET_JSON" "data.seven_day")
-    [ -z "$FIVE_PCT" ] && FIVE_PCT=$(json_get "$BUDGET_JSON" "data.fiveHour")
-    [ -z "$SEVEN_PCT" ] && SEVEN_PCT=$(json_get "$BUDGET_JSON" "data.sevenDay")
+    # New schema: pull `.utilization` from the nested object.
+    FIVE_PCT=$(json_get "$BUDGET_JSON" "data.five_hour.utilization")
+    SEVEN_PCT=$(json_get "$BUDGET_JSON" "data.seven_day.utilization")
+    # camelCase fallback (older inject_context versions)
+    [ -z "$FIVE_PCT" ] && FIVE_PCT=$(json_get "$BUDGET_JSON" "data.fiveHour.utilization")
+    [ -z "$SEVEN_PCT" ] && SEVEN_PCT=$(json_get "$BUDGET_JSON" "data.sevenDay.utilization")
+    # Pre-nested-object fallback (numeric leaf at the top level of `data`).
+    # If the leaf is itself an object the json_get helper returns
+    # "[object Object]" — strip that to empty so the default zero kicks in.
+    [ -z "$FIVE_PCT" ] && FIVE_PCT=$(json_get "$BUDGET_JSON" "data.five_hour")
+    [ -z "$SEVEN_PCT" ] && SEVEN_PCT=$(json_get "$BUDGET_JSON" "data.seven_day")
+    case "$FIVE_PCT"  in *"[object Object]"*) FIVE_PCT="";;  esac
+    case "$SEVEN_PCT" in *"[object Object]"*) SEVEN_PCT=""; esac
   fi
   FIVE_PCT=${FIVE_PCT:-0}
   SEVEN_PCT=${SEVEN_PCT:-0}
