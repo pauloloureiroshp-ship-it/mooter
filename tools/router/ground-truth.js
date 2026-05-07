@@ -196,4 +196,17 @@ function main() {
   console.log(`\nSummary: ${verified} verified (${passed} pass, ${failed} fail, ${notApplicable} not applicable)`);
 }
 
-main();
+// Side-effect guard: require()-ing this file should NOT write to decisions.log.
+// Before this guard, `node -e "require('./ground-truth.js')"` triggered main()
+// and appended ground_truth events. Any module that wants the oracle helpers
+// (confidence-calibrator.js, etc.) can now import safely.
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  ORACLE_CATEGORIES,
+  oracleJsonParse,
+  oracleRegexCompile,
+  runOracle,
+};
