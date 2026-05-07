@@ -1,0 +1,34 @@
+{
+  "total": 60,
+  "by_source": {
+    "validation-set:historical": 10,
+    "validation-set:canonical": 11,
+    "validation-set:adversarial": 9,
+    "decisions-log": 20,
+    "handcrafted": 10
+  },
+  "by_tier": {
+    "T0": 11,
+    "T1": 10,
+    "T2": 9,
+    "T3": 10,
+    "predicted:T0": 8,
+    "predicted:T1": 2,
+    "predicted:T2": 5,
+    "predicted:T3": 5
+  },
+  "by_language": {
+    "en": 30,
+    "pt": 30
+  },
+  "by_class": {
+    "trivial": 15,
+    "transform": 10,
+    "misc": 24,
+    "refactor": 2,
+    "code-gen": 1,
+    "architecture": 4,
+    "debug": 4
+  },
+  "accuracy_subset_size": 40
+}

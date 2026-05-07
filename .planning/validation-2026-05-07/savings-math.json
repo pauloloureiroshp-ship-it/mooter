@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "generated_at": "2026-05-07T13:46:42.515Z",
+    "note": "Codex calls excluded from token-based math (subscription, no tokens exposed). Counted separately as 3 messages.",
+    "successful_with_tokens": 43,
+    "codex_subscription_calls": 3,
+    "skipped": 4,
+    "failed": 1
+  },
+  "totals": {
+    "tokens_in": 1042,
+    "tokens_out": 16069,
+    "naive_cost_all_opus_usd": 0.4069,
+    "mooter_actual_cost_usd": 0.1635,
+    "saved_usd": 0.2434,
+    "saved_pct": 59.8
+  },
+  "by_provider": {
+    "ollama": {
+      "n": 14,
+      "naive_usd": 0.1545,
+      "mooter_usd": 0,
+      "saved_usd": 0.1545,
+      "saved_pct": 100,
+      "tokens_in": 459,
+      "tokens_out": 6088
+    },
+    "opus": {
+      "n": 10,
+      "naive_usd": 0.1007,
+      "mooter_usd": 0.1007,
+      "saved_usd": 0,
+      "saved_pct": 0,
+      "tokens_in": 210,
+      "tokens_out": 3984
+    },
+    "sonnet": {
+      "n": 8,
+      "naive_usd": 0.0813,
+      "mooter_usd": 0.0488,
+      "saved_usd": 0.0325,
+      "saved_pct": 40,
+      "tokens_in": 175,
+      "tokens_out": 3215
+    },
+    "haiku": {
+      "n": 8,
+      "naive_usd": 0.0705,
+      "mooter_usd": 0.0141,
+      "saved_usd": 0.0564,
+      "saved_pct": 80,
+      "tokens_in": 198,
+      "tokens_out": 2782
+    },
+    "codex_cli": {
+      "n": 3,
+      "naive_usd": 0,
+      "mooter_usd": 0,
+      "saved_usd": 0,
+      "saved_pct": null,
+      "tokens_in": 0,
+      "tokens_out": 0
+    }
+  },
+  "by_layer": {
+    "primary": {
+      "n": 23,
+      "naive_usd": 0.2005,
+      "mooter_usd": 0.091,
+      "saved_pct": 54.6
+    },
+    "horizontal": {
+      "n": 20,
+      "naive_usd": 0.2065,
+      "mooter_usd": 0.0725,
+      "saved_pct": 64.9
+    }
+  },
+  "projection": {
+    "note": "Linear projection assuming corpus distribution holds at scale.",
+    "saved_per_call_usd": 0.0057,
+    "saved_per_1000_calls_usd": 5.66,
+    "monthly_at_500_calls_per_day": 84.92
+  }
+}

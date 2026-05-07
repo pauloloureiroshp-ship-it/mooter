@@ -1,0 +1,142 @@
+{
+  "_meta": {
+    "session_started_at": "2026-05-07T13:20:26Z",
+    "session_id": "4d966b21-aca9-4820-84cd-91757c24985e",
+    "git_branch": "main",
+    "git_head": "2b7a9fe",
+    "git_head_subject": "ci: temporarily disable c8 coverage to unblock CI",
+    "git_status": "clean",
+    "working_directory": "C:\\Users\\Paulo Loureiro\\frugal",
+    "platform": "win32",
+    "validation_mode": "auto (mooter router decides per-prompt)"
+  },
+  "providers": {
+    "codex_cli": {
+      "available": true,
+      "version": "codex-cli 0.118.0",
+      "login_status": "Logged in using ChatGPT",
+      "quota_remaining_pct": 99,
+      "quota_5h_reset_at": "2026-05-07T17:34:29Z",
+      "estimated_messages_budget": 50,
+      "estimated_messages_used": 0
+    },
+    "anthropic_api": {
+      "available": true,
+      "key_present_in_env": true,
+      "env_path": "tools/router/.env",
+      "quota_remaining_pct": 100,
+      "quota_5h_reset_at": "2026-05-07T17:34:29Z",
+      "today_cost_usd": 0,
+      "budget_cap_usd": 0.50
+    },
+    "openai_api": {
+      "available": true,
+      "key_present_in_env": true,
+      "env_path": "tools/router/.env",
+      "today_cost_usd": 0,
+      "budget_cap_usd": 0.50
+    },
+    "ollama": {
+      "available": true,
+      "host": "local",
+      "models": [
+        { "name": "qwen3:30b",            "size_gb": 18.0, "modified": "6 weeks ago" },
+        { "name": "qwen2.5-coder:14b",    "size_gb": 9.0,  "modified": "3 weeks ago" },
+        { "name": "qwen2.5-coder:7b",     "size_gb": 4.7,  "modified": "2 weeks ago" },
+        { "name": "gemma4:e4b",           "size_gb": 9.6,  "modified": "3 weeks ago" },
+        { "name": "gemma3:12b",           "size_gb": 8.1,  "modified": "3 weeks ago" },
+        { "name": "deepseek-r1:7b",       "size_gb": 4.7,  "modified": "3 weeks ago" },
+        { "name": "qwen2.5:3b",           "size_gb": 1.9,  "modified": "4 weeks ago" },
+        { "name": "nomic-embed-text",     "size_gb": 0.274, "modified": "3 weeks ago", "purpose": "embeddings only, skip for chat" }
+      ],
+      "models_count_chat_capable": 7
+    }
+  },
+  "tooling": {
+    "classify_js":          { "exists": true, "path": "tools/router/classify.js" },
+    "quota_tracker_js":     { "exists": true, "path": "tools/router/quota-tracker.js" },
+    "shadow_judge_js":      { "exists": true, "path": "tools/router/shadow-judge.js" },
+    "savings_tracker_js":   { "exists": true, "path": "tools/router/savings-tracker.js", "running_on_7821": false, "note": "Will be started before Task #4" },
+    "pricing_js":           { "exists": true, "path": "tools/router/pricing.js" },
+    "sanitize_js":          { "exists": true, "path": "tools/router/sanitize.js" },
+    "anthropic_call_sh":    { "exists": true, "path": "tools/router/anthropic_call.sh" },
+    "ollama_call_sh":       { "exists": true, "path": "tools/router/ollama_call.sh" },
+    "providers_codex_cli":  { "exists": true, "path": "tools/router/providers/codex-cli.js" },
+    "providers_openai_api": { "exists": true, "path": "tools/router/providers/openai-api.js" },
+    "classify_cache":       { "exists": false, "note": "No cache pollution to clear" }
+  },
+  "corpora": {
+    "validation_set_json": {
+      "path": "tools/router/validation-set.json",
+      "shape": "object",
+      "keys": ["_version", "_updated", "_reference_model", "_description", "_schema", "canonical", "adversarial", "historical"],
+      "canonical_count": 20,
+      "sample_schema": ["prompt", "expected_tier", "expected_category", "trust", "confidence_source", "notes"]
+    },
+    "gold_labels_json": {
+      "path": "tools/router/gold-labels.json",
+      "shape": "array",
+      "count": 84,
+      "sample_schema": ["id", "prompt", "expected_tier", "expected_category", "notes"]
+    },
+    "decisions_log": {
+      "path": "~/.claude/tools/router/decisions.log",
+      "absolute_path": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions.log",
+      "size_bytes": 14163340,
+      "line_count": 40355,
+      "format": "jsonl",
+      "sample_event_types_seen": ["classified", "turn_end"],
+      "note": "Master prompt assumed local path tools/router/decisions.log; real path is in ~/.claude/. Adapted."
+    }
+  },
+  "pricing_snapshot": {
+    "claude-haiku-4-5":  "OK",
+    "claude-sonnet-4-6": "OK",
+    "claude-opus-4-6":   "OK",
+    "gpt-4o":            "OK",
+    "o3":                "OK",
+    "_note": "All 5 referenced models defined in pricing.PRICES. Detailed input/output rates available via pricing.PRICES[model]."
+  },
+  "budget_caps": {
+    "codex_messages_max": 50,
+    "openai_usd_max": 0.50,
+    "anthropic_usd_max": 0.50,
+    "wall_clock_minutes_max": 60,
+    "auto_stop_on_breach": true
+  },
+  "deviations_from_master_prompt": [
+    {
+      "id": "DEV-001",
+      "topic": "decisions.log path",
+      "expected": "tools/router/decisions.log (project-local)",
+      "actual": "~/.claude/tools/router/decisions.log",
+      "impact": "Task #2 will sample from real path. Functionally equivalent.",
+      "severity": "info"
+    },
+    {
+      "id": "DEV-002",
+      "topic": "validation-set.json shape",
+      "expected": "JSON array of {prompt, expected_tier, ...}",
+      "actual": "JSON object with sub-arrays canonical/adversarial/historical",
+      "impact": "Task #2 iterates the three sub-arrays for sample. Functionally equivalent.",
+      "severity": "info"
+    },
+    {
+      "id": "DEV-003",
+      "topic": "savings-tracker /metrics endpoint",
+      "expected": "Live on http://127.0.0.1:7821/metrics",
+      "actual": "HTTP 000 (not bound). Will start service before Task #4 to enable Task #6 reconcile.",
+      "impact": "Adds ~5s setup time; resolves the acceptance criteria 'savings reconciled with /metrics in ≤5% drift'.",
+      "severity": "blocker_until_resolved"
+    },
+    {
+      "id": "DEV-004",
+      "topic": "router mode",
+      "expected": "Default mooter routing",
+      "actual": "User explicitly set /moo (auto) before Task #1. Beast mode cleared.",
+      "impact": "Sub-tasks may be routed by mooter into Sonnet/Haiku/Ollama subagents per natural classifier output. Documented per acceptance.",
+      "severity": "info"
+    }
+  ],
+  "next_step": "Task #2 — Build test corpus (60 prompts)"
+}

@@ -1,0 +1,631 @@
+{
+  "_meta": {
+    "generated_at": "2026-05-07T13:45:52.812Z",
+    "executions_total": 48,
+    "judged": 35,
+    "judge_cost_usd": 0.0282,
+    "judge_budget_cap": 0.2
+  },
+  "mean_score_by_provider": {
+    "ollama": {
+      "n": 6,
+      "mean": 43.5
+    },
+    "opus": {
+      "n": 10,
+      "mean": 60.8
+    },
+    "sonnet": {
+      "n": 8,
+      "mean": 69.8
+    },
+    "haiku": {
+      "n": 8,
+      "mean": 66.3
+    },
+    "codex_cli": {
+      "n": 3,
+      "mean": 69.3
+    }
+  },
+  "mean_score_by_model": {
+    "qwen3:30b": {
+      "n": 2,
+      "mean": 23.5
+    },
+    "claude-opus-4-6": {
+      "n": 6,
+      "mean": 56.2
+    },
+    "claude-sonnet-4-6": {
+      "n": 4,
+      "mean": 66
+    },
+    "claude-haiku-4-5-20251001": {
+      "n": 4,
+      "mean": 56.5
+    },
+    "codex-default": {
+      "n": 3,
+      "mean": 69.3
+    },
+    "ollama:qwen2.5:3b": {
+      "n": 4,
+      "mean": 53.5
+    },
+    "anthropic:haiku-4.5": {
+      "n": 4,
+      "mean": 76
+    },
+    "anthropic:sonnet-4.6": {
+      "n": 4,
+      "mean": 73.5
+    },
+    "anthropic:opus-4.6": {
+      "n": 4,
+      "mean": 67.8
+    }
+  },
+  "mean_score_by_tier": {
+    "T0": {
+      "n": 7,
+      "mean": 54.1
+    },
+    "T1": {
+      "n": 8,
+      "mean": 71.6
+    },
+    "T2": {
+      "n": 10,
+      "mean": 60.5
+    },
+    "T3": {
+      "n": 10,
+      "mean": 60.8
+    }
+  },
+  "horizontal_matrix_ranking": {
+    "prompt-051": [
+      {
+        "rank": 1,
+        "model": "anthropic:haiku-4.5",
+        "score": 75,
+        "cost": 0.001023,
+        "latency": 2003
+      },
+      {
+        "rank": 2,
+        "model": "anthropic:sonnet-4.6",
+        "score": 75,
+        "cost": 0.003924,
+        "latency": 4778
+      },
+      {
+        "rank": 3,
+        "model": "anthropic:opus-4.6",
+        "score": 72,
+        "cost": 0.00779,
+        "latency": 6825
+      },
+      {
+        "rank": 4,
+        "model": "ollama:qwen2.5:3b",
+        "score": 35,
+        "cost": 0,
+        "latency": 2661
+      }
+    ],
+    "prompt-052": [
+      {
+        "rank": 1,
+        "model": "anthropic:haiku-4.5",
+        "score": 85,
+        "cost": 0.001214,
+        "latency": 2606
+      },
+      {
+        "rank": 2,
+        "model": "anthropic:opus-4.6",
+        "score": 82,
+        "cost": 0.007295,
+        "latency": 8272
+      },
+      {
+        "rank": 3,
+        "model": "anthropic:sonnet-4.6",
+        "score": 75,
+        "cost": 0.004632,
+        "latency": 6343
+      },
+      {
+        "rank": 4,
+        "model": "ollama:qwen2.5:3b",
+        "score": 72,
+        "cost": 0,
+        "latency": 2554
+      }
+    ],
+    "prompt-053": [
+      {
+        "rank": 1,
+        "model": "anthropic:haiku-4.5",
+        "score": 72,
+        "cost": 0.002588,
+        "latency": 4604
+      },
+      {
+        "rank": 2,
+        "model": "anthropic:sonnet-4.6",
+        "score": 72,
+        "cost": 0.007764,
+        "latency": 9261
+      },
+      {
+        "rank": 3,
+        "model": "ollama:qwen2.5:3b",
+        "score": 45,
+        "cost": 0,
+        "latency": 3691
+      },
+      {
+        "rank": 4,
+        "model": "anthropic:opus-4.6",
+        "score": 45,
+        "cost": 0.01294,
+        "latency": 11360
+      }
+    ],
+    "prompt-054": [
+      {
+        "rank": 1,
+        "model": "anthropic:haiku-4.5",
+        "score": 72,
+        "cost": 0.002595,
+        "latency": 4108
+      },
+      {
+        "rank": 2,
+        "model": "anthropic:sonnet-4.6",
+        "score": 72,
+        "cost": 0.007785,
+        "latency": 6077
+      },
+      {
+        "rank": 3,
+        "model": "anthropic:opus-4.6",
+        "score": 72,
+        "cost": 0.012975,
+        "latency": 7670
+      },
+      {
+        "rank": 4,
+        "model": "ollama:qwen2.5:3b",
+        "score": 62,
+        "cost": 0,
+        "latency": 3721
+      }
+    ]
+  },
+  "raw_grades": [
+    {
+      "idx": 1,
+      "layer": "primary",
+      "prompt_id": "prompt-007",
+      "provider": "ollama",
+      "model_label": "qwen3:30b",
+      "result_text_len": 36,
+      "cost_usd": 0,
+      "duration_ms": 14313,
+      "score": 32,
+      "verdict": "Prompt is empty/unclear; response is a generic greeting that doesn't address any actual request."
+    },
+    {
+      "idx": 3,
+      "layer": "primary",
+      "prompt_id": "prompt-010",
+      "provider": "ollama",
+      "model_label": "qwen3:30b",
+      "result_text_len": 149,
+      "cost_usd": 0,
+      "duration_ms": 3502,
+      "score": 15,
+      "verdict": "Response ignores the actual prompt structure and requests clarification instead of addressing the incomplete task notification provided."
+    },
+    {
+      "idx": 7,
+      "layer": "primary",
+      "prompt_id": "prompt-019",
+      "provider": "opus",
+      "model_label": "claude-opus-4-6",
+      "result_text_len": 589,
+      "cost_usd": 0.003945,
+      "duration_ms": 4842,
+      "score": 32,
+      "verdict": "Addresses the missing code issue but misinterprets the prompt's cost concern and provides unnecessary meta-commentary about model selection."
+    },
+    {
+      "idx": 8,
+      "layer": "primary",
+      "prompt_id": "prompt-022",
+      "provider": "opus",
+      "model_label": "claude-opus-4-6",
+      "result_text_len": 1213,
+      "cost_usd": 0.008825,
+      "duration_ms": 9634,
+      "score": 85,
+      "verdict": "Appropriately refuses to execute the command while providing helpful context, safer alternatives, and best practices—slightly verbose but well-calibrated for a potentially destructive request."
+    },
+    {
+      "idx": 9,
+      "layer": "primary",
+      "prompt_id": "prompt-023",
+      "provider": "opus",
+      "model_label": "claude-opus-4-6",
+      "result_text_len": 1438,
+      "cost_usd": 0.01289,
+      "duration_ms": 10979,
+      "score": 75,
+      "verdict": "Solid production review checklist with practical commands, but incomplete—missing deployment verification, monitoring setup, rollback plan, and testing confirmation steps."
+    },
+    {
+      "idx": 10,
+      "layer": "primary",
+      "prompt_id": "prompt-024",
+      "provider": "opus",
+      "model_label": "claude-opus-4-6",
+      "result_text_len": 896,
+      "cost_usd": 0.00823,
+      "duration_ms": 7564,
+      "score": 35,
+      "verdict": "Misunderstands the prompt; user likely asked to use Opus for quick analysis of something unspecified, but response focuses on explaining Opus availability rather than asking for clarification in a concise way."
+    },
+    {
+      "idx": 11,
+      "layer": "primary",
+      "prompt_id": "prompt-025",
+      "provider": "opus",
+      "model_label": "claude-opus-4-6",
+      "result_text_len": 1445,
+      "cost_usd": 0.01288,
+      "duration_ms": 10535,
+      "score": 75,
+      "verdict": "Provides sound production migration safety guidance with practical steps, but doesn't directly execute the command as literally requested—appropriate caution that slightly misses the prompt's intent."
+    },
+    {
+      "idx": 12,
+      "layer": "primary",
+      "prompt_id": "prompt-027",
+      "provider": "opus",
+      "model_label": "claude-opus-4-6",
+      "result_text_len": 1403,
+      "cost_usd": 0.01288,
+      "duration_ms": 10984,
+      "score": 35,
+      "verdict": "Response uses outdated model name (Sonnet instead of Opus), provides generic templates rather than addressing the actual request, and contains incomplete code examples."
+    },
+    {
+      "idx": 13,
+      "layer": "primary",
+      "prompt_id": "prompt-016",
+      "provider": "sonnet",
+      "model_label": "claude-sonnet-4-6",
+      "result_text_len": 1694,
+      "cost_usd": 0.007728,
+      "duration_ms": 8005,
+      "score": 72,
+      "verdict": "Good technical explanation of WebSocket race conditions with clear examples, but response is incomplete (cuts off mid-code) and lacks concrete solutions or testing strategies."
+    },
+    {
+      "idx": 14,
+      "layer": "primary",
+      "prompt_id": "prompt-017",
+      "provider": "sonnet",
+      "model_label": "claude-sonnet-4-6",
+      "result_text_len": 1695,
+      "cost_usd": 0.007734,
+      "duration_ms": 7643,
+      "score": 72,
+      "verdict": "Solid practical guidance on token expiry patterns with good code examples, but response cuts off mid-table and lacks backend considerations like token rotation security and storage best practices."
+    },
+    {
+      "idx": 15,
+      "layer": "primary",
+      "prompt_id": "prompt-018",
+      "provider": "sonnet",
+      "model_label": "claude-sonnet-4-6",
+      "result_text_len": 248,
+      "cost_usd": 0.001419,
+      "duration_ms": 3593,
+      "score": 75,
+      "verdict": "Appropriately asks for clarification on a vague problem statement, but could be more concise and direct."
+    },
+    {
+      "idx": 16,
+      "layer": "primary",
+      "prompt_id": "prompt-020",
+      "provider": "sonnet",
+      "model_label": "claude-sonnet-4-6",
+      "result_text_len": 1173,
+      "cost_usd": 0.007764,
+      "duration_ms": 6971,
+      "score": 45,
+      "verdict": "Response is incomplete (cut off mid-table), lacks final recommendation despite prompt asking to choose one approach, but shows solid comparative structure."
+    },
+    {
+      "idx": 17,
+      "layer": "primary",
+      "prompt_id": "prompt-046",
+      "provider": "haiku",
+      "model_label": "claude-haiku-4-5-20251001",
+      "result_text_len": 613,
+      "cost_usd": 0.001227,
+      "duration_ms": 2733,
+      "score": 25,
+      "verdict": "Prompt is incomplete/cut off, response pretends to read files it cannot access and asks for clarification instead of operating autonomously as requested."
+    },
+    {
+      "idx": 18,
+      "layer": "primary",
+      "prompt_id": "prompt-055",
+      "provider": "haiku",
+      "model_label": "claude-haiku-4-5-20251001",
+      "result_text_len": 1538,
+      "cost_usd": 0.002582,
+      "duration_ms": 3692,
+      "score": 78,
+      "verdict": "Good explanation with practical solutions, but response is cut off mid-code and could be more specific about the exact error message format."
+    },
+    {
+      "idx": 19,
+      "layer": "primary",
+      "prompt_id": "prompt-057",
+      "provider": "haiku",
+      "model_label": "claude-haiku-4-5-20251001",
+      "result_text_len": 999,
+      "cost_usd": 0.002581,
+      "duration_ms": 3639,
+      "score": 78,
+      "verdict": "Solid regex with good examples and breakdown, but allows arbitrary decimal places in seconds and doesn't validate date/time ranges (e.g., month 99 would match)."
+    },
+    {
+      "idx": 20,
+      "layer": "primary",
+      "prompt_id": "prompt-060",
+      "provider": "haiku",
+      "model_label": "claude-haiku-4-5-20251001",
+      "result_text_len": 203,
+      "cost_usd": 0.000298,
+      "duration_ms": 1046,
+      "score": 45,
+      "verdict": "Refuses to engage without input, but the prompt itself lacks the required JSON data—response is reasonable but doesn't acknowledge this limitation clearly."
+    },
+    {
+      "idx": 21,
+      "layer": "primary",
+      "prompt_id": "prompt-005",
+      "provider": "codex_cli",
+      "model_label": "codex-default",
+      "result_text_len": 635,
+      "cost_usd": 0,
+      "duration_ms": 23527,
+      "score": 45,
+      "verdict": "Refuses the task due to missing file, but helpfully identifies related files and userId usages instead of attempting the refactor."
+    },
+    {
+      "idx": 22,
+      "layer": "primary",
+      "prompt_id": "prompt-011",
+      "provider": "codex_cli",
+      "model_label": "codex-default",
+      "result_text_len": 752,
+      "cost_usd": 0,
+      "duration_ms": 9044,
+      "score": 88,
+      "verdict": "Accurate explanation with clear examples and practical debugging steps, minor verbosity but highly useful for Portuguese speakers."
+    },
+    {
+      "idx": 24,
+      "layer": "primary",
+      "prompt_id": "prompt-038",
+      "provider": "codex_cli",
+      "model_label": "codex-default",
+      "result_text_len": 1173,
+      "cost_usd": 0,
+      "duration_ms": 31670,
+      "score": 75,
+      "verdict": "Correctly explains TS2345 and provides helpful examples, but the prompt is truncated/unclear so the answer necessarily remains somewhat generic."
+    },
+    {
+      "idx": 25,
+      "layer": "horizontal",
+      "prompt_id": "prompt-051",
+      "provider": "ollama",
+      "model_label": "ollama:qwen2.5:3b",
+      "result_text_len": 955,
+      "cost_usd": 0,
+      "duration_ms": 2661,
+      "score": 35,
+      "verdict": "Misunderstood the request as a general design question when user likely wanted specific code help; response is defensive rather than directly helpful."
+    },
+    {
+      "idx": 27,
+      "layer": "horizontal",
+      "prompt_id": "prompt-051",
+      "provider": "haiku",
+      "model_label": "anthropic:haiku-4.5",
+      "result_text_len": 572,
+      "cost_usd": 0.001023,
+      "duration_ms": 2003,
+      "score": 75,
+      "verdict": "Provides multiple valid approaches to change button color to blue, but lacks context about the user's actual codebase and could be more concise."
+    },
+    {
+      "idx": 28,
+      "layer": "horizontal",
+      "prompt_id": "prompt-051",
+      "provider": "sonnet",
+      "model_label": "anthropic:sonnet-4.6",
+      "result_text_len": 753,
+      "cost_usd": 0.003924,
+      "duration_ms": 4778,
+      "score": 75,
+      "verdict": "Helpful response with multiple practical solutions, but doesn't directly modify code without seeing it first—reasonable approach that could be more proactive."
+    },
+    {
+      "idx": 29,
+      "layer": "horizontal",
+      "prompt_id": "prompt-051",
+      "provider": "opus",
+      "model_label": "anthropic:opus-4.6",
+      "result_text_len": 919,
+      "cost_usd": 0.00779,
+      "duration_ms": 6825,
+      "score": 72,
+      "verdict": "Provides practical solutions across multiple frameworks, but lacks specificity without seeing actual code; helpful but somewhat generic response to a vague request."
+    },
+    {
+      "idx": 31,
+      "layer": "horizontal",
+      "prompt_id": "prompt-052",
+      "provider": "ollama",
+      "model_label": "ollama:qwen2.5:3b",
+      "result_text_len": 688,
+      "cost_usd": 0,
+      "duration_ms": 2554,
+      "score": 72,
+      "verdict": "Provides a reasonable commit message template with conventional format, but lacks specificity about actual changes and could be more concise for a real refactor."
+    },
+    {
+      "idx": 33,
+      "layer": "horizontal",
+      "prompt_id": "prompt-052",
+      "provider": "haiku",
+      "model_label": "anthropic:haiku-4.5",
+      "result_text_len": 806,
+      "cost_usd": 0.001214,
+      "duration_ms": 2606,
+      "score": 85,
+      "verdict": "Provides well-structured commit message options following conventional commits, with clear bullet points and alternatives, though slightly verbose for what was asked."
+    },
+    {
+      "idx": 34,
+      "layer": "horizontal",
+      "prompt_id": "prompt-052",
+      "provider": "sonnet",
+      "model_label": "anthropic:sonnet-4.6",
+      "result_text_len": 1066,
+      "cost_usd": 0.004632,
+      "duration_ms": 6343,
+      "score": 75,
+      "verdict": "Provides useful commit message examples in Conventional Commits format with good structure, but lacks specificity since the actual refactor details weren't provided in the prompt."
+    },
+    {
+      "idx": 35,
+      "layer": "horizontal",
+      "prompt_id": "prompt-052",
+      "provider": "opus",
+      "model_label": "anthropic:opus-4.6",
+      "result_text_len": 998,
+      "cost_usd": 0.007295,
+      "duration_ms": 8272,
+      "score": 82,
+      "verdict": "Provides well-structured, practical commit message suggestions following Conventional Commits standard with clear examples and explanation, though slightly verbose for the straightforward request."
+    },
+    {
+      "idx": 37,
+      "layer": "horizontal",
+      "prompt_id": "prompt-053",
+      "provider": "ollama",
+      "model_label": "ollama:qwen2.5:3b",
+      "result_text_len": 2194,
+      "cost_usd": 0,
+      "duration_ms": 3691,
+      "score": 45,
+      "verdict": "Generic troubleshooting without investigating actual root cause; lacks specific diagnosis, code analysis, or concrete debugging steps needed to solve the problem."
+    },
+    {
+      "idx": 39,
+      "layer": "horizontal",
+      "prompt_id": "prompt-053",
+      "provider": "haiku",
+      "model_label": "anthropic:haiku-4.5",
+      "result_text_len": 1486,
+      "cost_usd": 0.002588,
+      "duration_ms": 4604,
+      "score": 72,
+      "verdict": "Good diagnostic approach with practical examples, but lacks depth on infrastructure causes (firewalls, NAT, proxies) and doesn't guide toward root cause identification systematically."
+    },
+    {
+      "idx": 40,
+      "layer": "horizontal",
+      "prompt_id": "prompt-053",
+      "provider": "sonnet",
+      "model_label": "anthropic:sonnet-4.6",
+      "result_text_len": 1394,
+      "cost_usd": 0.007764,
+      "duration_ms": 9261,
+      "score": 72,
+      "verdict": "Good diagnostic framework with practical causes and examples, but response cuts off mid-solution and lacks concrete verification steps or client-side keepalive recommendations."
+    },
+    {
+      "idx": 41,
+      "layer": "horizontal",
+      "prompt_id": "prompt-053",
+      "provider": "opus",
+      "model_label": "anthropic:opus-4.6",
+      "result_text_len": 1466,
+      "cost_usd": 0.01294,
+      "duration_ms": 11360,
+      "score": 45,
+      "verdict": "Response identifies real causes (proxy timeouts) but is incomplete, cuts off mid-explanation, lacks client-side investigation, and doesn't provide actionable debugging steps."
+    },
+    {
+      "idx": 43,
+      "layer": "horizontal",
+      "prompt_id": "prompt-054",
+      "provider": "ollama",
+      "model_label": "ollama:qwen2.5:3b",
+      "result_text_len": 1887,
+      "cost_usd": 0,
+      "duration_ms": 3721,
+      "score": 62,
+      "verdict": "Covers basic concepts but lacks technical depth, code examples, architecture details, and doesn't address key complexities like tax nexus, reverse charge mechanisms, or multi-tier product taxation."
+    },
+    {
+      "idx": 45,
+      "layer": "horizontal",
+      "prompt_id": "prompt-054",
+      "provider": "haiku",
+      "model_label": "anthropic:haiku-4.5",
+      "result_text_len": 1414,
+      "cost_usd": 0.002595,
+      "duration_ms": 4108,
+      "score": 72,
+      "verdict": "Good structure and types defined, but response cuts off mid-implementation and lacks complete service logic, database schema, and practical examples of tax calculation."
+    },
+    {
+      "idx": 46,
+      "layer": "horizontal",
+      "prompt_id": "prompt-054",
+      "provider": "sonnet",
+      "model_label": "anthropic:sonnet-4.6",
+      "result_text_len": 1227,
+      "cost_usd": 0.007785,
+      "duration_ms": 6077,
+      "score": 72,
+      "verdict": "Good structural foundation with clear architecture, but lacks implementation details, code examples, and specific tax tier logic needed for a complete redesign."
+    },
+    {
+      "idx": 47,
+      "layer": "horizontal",
+      "prompt_id": "prompt-054",
+      "provider": "opus",
+      "model_label": "anthropic:opus-4.6",
+      "result_text_len": 1154,
+      "cost_usd": 0.012975,
+      "duration_ms": 7670,
+      "score": 72,
+      "verdict": "Good structural foundation with proper DDD layering, but lacks implementation details, tax tier logic, and concrete examples of IVA/GST/VAT handling."
+    }
+  ]
+}
