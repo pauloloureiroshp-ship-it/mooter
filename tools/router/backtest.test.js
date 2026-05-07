@@ -904,3 +904,103 @@ test('B4 analyze: tester-generated events still skipped under boost', () => {
   const weighted = analyze(FIX, { boost: true });
   assert.equal(weighted.weightBoost.topUnderRoute.length, 0);
 });
+
+// ── Wave-2 calibration mode (--calibration-only) ─────────────────────────
+//
+// Tests run the actual CLI via spawnSync against a fixture decisions.log
+// pointed to by MOOTER_DECISIONS_LOG. Validates the three-state honesty
+// surface: warning (drift confirmed) / note (gap visible but unreliable)
+// / both null (nothing to report).
+
+const BACKTEST_PATH = path.join(__dirname, 'backtest.js');
+
+function runCalibration(events, lastN = 1000) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-bt-cal-'));
+  const tmpLog = path.join(tmpDir, 'decisions.log');
+  fs.writeFileSync(tmpLog, events.map((e) => JSON.stringify(e)).join('\n'));
+  try {
+    const r = spawnSync(process.execPath, [
+      BACKTEST_PATH,
+      '--calibration-only',
+      `--last-n=${lastN}`,
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, MOOTER_DECISIONS_LOG: tmpLog },
+      timeout: 10_000,
+    });
+    if (r.status !== 0) {
+      throw new Error(`backtest exit ${r.status}: ${r.stderr}`);
+    }
+    return JSON.parse(r.stdout);
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+test('calibration: empty log → note=no_executed_events_in_log, warning=null', () => {
+  const r = runCalibration([]);
+  assert.equal(r.samples, 0);
+  assert.equal(r.warning, null);
+  assert.equal(r.note, 'no_executed_events_in_log');
+});
+
+test('calibration: low accuracy + few samples → note=below_min_sample_count, warning=null', () => {
+  // 5 samples in 0.8-1.0 bin, all outcome != ok → 0% accuracy, count<100.
+  const events = Array.from({ length: 5 }, (_, i) => ({
+    event: 'executed',
+    confidence: 0.9,
+    outcome: 'deferred',
+    tier: 'T1',
+    ts: new Date(Date.now() - i * 1000).toISOString(),
+  }));
+  const r = runCalibration(events);
+  assert.equal(r.samples, 5);
+  assert.equal(r.bins['0.8-1.0'].count, 5);
+  assert.equal(r.bins['0.8-1.0'].accuracy, 0);
+  assert.equal(r.warning, null);
+  assert.equal(r.note, 'below_min_sample_count');
+});
+
+test('calibration: low accuracy + many samples → warning=calibration_below_threshold', () => {
+  // 120 samples, 50% ok → accuracy 0.5 < 0.9, count >= 100 → warning.
+  const events = [];
+  for (let i = 0; i < 120; i++) {
+    events.push({
+      event: 'executed',
+      confidence: 0.9,
+      outcome: i < 60 ? 'ok' : 'deferred',
+      tier: 'T1',
+      ts: new Date(Date.now() - i * 1000).toISOString(),
+    });
+  }
+  const r = runCalibration(events);
+  assert.equal(r.bins['0.8-1.0'].count, 120);
+  assert.ok(r.bins['0.8-1.0'].accuracy < 0.9);
+  assert.equal(r.warning, 'calibration_below_threshold');
+  // note stays null when warning fires — they are mutually exclusive
+  assert.equal(r.note, null);
+});
+
+test('calibration: high accuracy + many samples → both null (clean)', () => {
+  // 120 samples, all ok → accuracy 1.0, no alert and no note.
+  const events = Array.from({ length: 120 }, (_, i) => ({
+    event: 'executed',
+    confidence: 0.9,
+    outcome: 'ok',
+    tier: 'T1',
+    ts: new Date(Date.now() - i * 1000).toISOString(),
+  }));
+  const r = runCalibration(events);
+  assert.equal(r.bins['0.8-1.0'].accuracy, 1);
+  assert.equal(r.warning, null);
+  assert.equal(r.note, null);
+});
+
+test('calibration: MOOTER_DECISIONS_LOG override is honoured', () => {
+  // Sentinel: a deliberately bizarre confidence ensures the report came
+  // from the fixture, not the real decisions.log.
+  const events = [{ event: 'executed', confidence: 0.95, outcome: 'ok', tier: 'T1', ts: new Date().toISOString() }];
+  const r = runCalibration(events);
+  assert.equal(r.samples, 1);
+  assert.equal(r.bins['0.8-1.0'].count, 1);
+});

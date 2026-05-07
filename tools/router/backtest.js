@@ -23,7 +23,11 @@ const os = require('os');
 const { spawn } = require('child_process');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
-const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
+// LOG_PATH is overridable via MOOTER_DECISIONS_LOG so test runners can
+// point at a fixture without polluting the real router log. The override
+// matches the same env var consumed by router-execute.js.
+const LOG_PATH = process.env.MOOTER_DECISIONS_LOG
+  || path.join(ROUTER_DIR, 'decisions.log');
 const TUNING_PATH = path.join(ROUTER_DIR, 'router-tuning.json');
 
 // Cost computation — delegated to pricing.js (single source of truth).
@@ -1029,15 +1033,31 @@ function runCalibrationOnly(lastN) {
     },
     threshold: 0.90,
     warning: null,
+    note: null,
   };
 
+  // Three-state honesty surface (Wave-2 audit S2#5):
+  //   - warning  → confident drift; alert is written and consumers should act
+  //   - note     → something is visible (low accuracy or empty log) but
+  //                we don't have enough samples to alert reliably
+  //   - both null → nothing to report
   const high = report.bins['0.8-1.0'];
-  if (high.accuracy !== null && high.accuracy < 0.90 && high.count >= 100) {
-    report.warning = 'calibration_below_threshold';
-    try {
-      const alertPath = path.join(ROUTER_DIR, '.calibration-alerts.jsonl');
-      fs.appendFileSync(alertPath, JSON.stringify(report) + '\n');
-    } catch { /* best-effort */ }
+  if (recent.length === 0) {
+    report.note = 'no_executed_events_in_log';
+  } else if (high.accuracy !== null && high.accuracy < 0.90) {
+    if (high.count >= 100) {
+      report.warning = 'calibration_below_threshold';
+      try {
+        const alertPath = path.join(ROUTER_DIR, '.calibration-alerts.jsonl');
+        fs.appendFileSync(alertPath, JSON.stringify(report) + '\n');
+      } catch { /* best-effort */ }
+    } else {
+      // Low accuracy but not enough samples to alert reliably — surface
+      // the gap honestly so consumers know "we see something, but we
+      // can't yet say it's a real drift". Prevents the silent-zero-bin
+      // surprise documented in audit Wave-2 S2#5.
+      report.note = 'below_min_sample_count';
+    }
   }
 
   process.stdout.write(JSON.stringify(report, null, 2) + '\n');
