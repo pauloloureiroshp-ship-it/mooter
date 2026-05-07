@@ -156,7 +156,12 @@ async function runExecutorLoop(input) {
     });
   }
 
-  return { spawnCount: calibrationSpawns.length, lastResult, telemetryWrites };
+  return {
+    spawnCount: calibrationSpawns.length,
+    calibrationEvents: calibrationSpawns,
+    lastResult,
+    telemetryWrites,
+  };
 }
 
 /**

@@ -371,6 +371,111 @@ function defaultTelemetryWriter(record) {
   postToSavingsTracker(record);
 }
 
+// ── Calibration trigger (T-09) ──────────────────────────────────────────
+
+const CALIBRATION_INTERVAL = 1000;
+const CALIBRATION_MIN_GAP_MS = 24 * 60 * 60 * 1000; // 24h
+let EXEC_COUNTER = 0;
+let LAST_CALIBRATION_AT = 0;
+
+/**
+ * Read the persisted calibration state file. Returns defaults if missing
+ * or unparseable. Path is overridable via MOOTER_CALIBRATION_STATE env.
+ * @returns {{last_run_at: number, exec_counter: number}}
+ */
+function readCalibrationState() {
+  try {
+    const paths = getPaths();
+    const p = process.env.MOOTER_CALIBRATION_STATE
+      || (paths.ROUTER_DIR ? require('node:path').join(paths.ROUTER_DIR, '.calibration-state.json') : null);
+    if (!p) return { last_run_at: 0, exec_counter: 0 };
+    const raw = fs.readFileSync(p, 'utf8');
+    const j = JSON.parse(raw);
+    return {
+      last_run_at: Number(j.last_run_at) || 0,
+      exec_counter: Number(j.exec_counter) || 0,
+    };
+  } catch { return { last_run_at: 0, exec_counter: 0 }; }
+}
+
+function writeCalibrationState(state) {
+  try {
+    const paths = getPaths();
+    const p = process.env.MOOTER_CALIBRATION_STATE
+      || (paths.ROUTER_DIR ? require('node:path').join(paths.ROUTER_DIR, '.calibration-state.json') : null);
+    if (!p) return;
+    fs.writeFileSync(p, JSON.stringify(state));
+  } catch { /* best-effort */ }
+}
+
+/**
+ * Decide whether calibration should fire and either spawn the real
+ * backtest or call the test-side spy. Non-blocking.
+ *
+ * Fire conditions:
+ *   1. EXEC_COUNTER % 1000 === 0 (resets when 0 — every 1000th call)
+ *   2. Last run was ≥ 24h ago (or has never run)
+ *
+ * @param {object} deps
+ * @param {(event:object)=>void} [deps.calibrationSpy]  — test-only sink
+ */
+function maybeTriggerCalibration(deps) {
+  EXEC_COUNTER += 1;
+  if (EXEC_COUNTER % CALIBRATION_INTERVAL !== 0) return;
+
+  const state = readCalibrationState();
+  const now = Date.now();
+  if (now - (state.last_run_at || 0) < CALIBRATION_MIN_GAP_MS) {
+    // Counter hit but the gap hasn't elapsed → log the deferral and skip.
+    if (deps && typeof deps.calibrationSpy === 'function') {
+      deps.calibrationSpy({
+        type: 'calibration_skipped',
+        reason: 'within_24h_window',
+        exec_counter: EXEC_COUNTER,
+        ms_since_last: now - state.last_run_at,
+      });
+    }
+    return;
+  }
+
+  // Fire — either via spy (tests) or real spawn (production).
+  if (deps && typeof deps.calibrationSpy === 'function') {
+    deps.calibrationSpy({
+      type: 'calibration_triggered',
+      exec_counter: EXEC_COUNTER,
+      last_n: CALIBRATION_INTERVAL,
+    });
+  } else {
+    try {
+      const { spawn } = require('node:child_process');
+      const p = require('node:path');
+      const paths = getPaths();
+      const backtestPath = paths.ROUTER_DIR
+        ? p.join(paths.ROUTER_DIR, 'backtest.js')
+        : p.join(__dirname, 'backtest.js');
+      const child = spawn(process.execPath, [
+        backtestPath,
+        '--calibration-only',
+        `--last-n=${CALIBRATION_INTERVAL}`,
+      ], {
+        stdio: 'ignore',
+        detached: true,
+      });
+      child.on('error', () => { /* swallow — best-effort */ });
+      child.unref();
+    } catch { /* best-effort */ }
+  }
+
+  LAST_CALIBRATION_AT = now;
+  writeCalibrationState({ last_run_at: now, exec_counter: EXEC_COUNTER });
+}
+
+/** Test-only: reset counters between test scenarios. */
+function _resetCalibrationState() {
+  EXEC_COUNTER = 0;
+  LAST_CALIBRATION_AT = 0;
+}
+
 // ── execute() — main entry ──────────────────────────────────────────────
 
 /**
@@ -390,7 +495,15 @@ async function execute(input = {}) {
   const writeTelemetry = (rec) => {
     try { telemetryWriter(rec); } catch { /* best-effort */ }
   };
+  // Calibration trigger fires after each completed execute(), before return.
+  // Uses deps.calibrationSpy (test) or spawns backtest.js (production).
+  // Skipped when the test explicitly passes options.skipCalibrationCheck.
+  const tickCalibration = () => {
+    if (options.skipCalibrationCheck) return;
+    try { maybeTriggerCalibration(deps); } catch { /* best-effort */ }
+  };
 
+  try {
   // Defensive: invalid classification → structured error.
   if (!classification || typeof classification !== 'object') {
     const errResult = buildClassificationInvalidError();
@@ -602,15 +715,16 @@ async function execute(input = {}) {
     fallbackChain,
   });
 
-  if (deps.telemetryWriter) {
-    deps.telemetryWriter(buildTelemetryRecord({
-      prompt: prompt || '',
-      classification,
-      result: exhausted,
-      suggestedProviders,
-    }));
-  }
+  writeTelemetry(buildTelemetryRecord({
+    prompt: prompt || '',
+    classification,
+    result: exhausted,
+    suggestedProviders,
+  }));
   return exhausted;
+  } finally {
+    tickCalibration();
+  }
 }
 
 /**
@@ -671,6 +785,12 @@ module.exports = {
     appendDecisionsLog,
     postToSavingsTracker,
     defaultTelemetryWriter,
+    maybeTriggerCalibration,
+    readCalibrationState,
+    writeCalibrationState,
+    _resetCalibrationState,
+    CALIBRATION_INTERVAL,
+    CALIBRATION_MIN_GAP_MS,
   },
 };
 

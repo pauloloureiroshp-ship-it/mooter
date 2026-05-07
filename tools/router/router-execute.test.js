@@ -551,3 +551,126 @@ test('I10 (e2e): executed telemetry record has redacted prompt_preview', async (
     `expected redaction in: ${preview}`);
   assert.ok(preview.includes('[REDACTED]'));
 });
+
+// ── T-09 — calibration trigger (I8) ─────────────────────────────────────
+
+const { runExecutorLoop } = require('./router-execute.harness');
+
+async function withTempCalibrationState(fn) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-calib-'));
+  const tmpStatePath = path.join(tmpDir, '.calibration-state.json');
+  const SAVED = process.env.MOOTER_CALIBRATION_STATE;
+  process.env.MOOTER_CALIBRATION_STATE = tmpStatePath;
+  try { return await fn(tmpStatePath); }
+  finally {
+    if (SAVED === undefined) delete process.env.MOOTER_CALIBRATION_STATE;
+    else process.env.MOOTER_CALIBRATION_STATE = SAVED;
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+test('I8: 1000 simulated executions trigger calibration spy exactly once', async () => {
+  await withTempCalibrationState(async () => {
+    reset();
+    // Reset module-level counter via require cache flush.
+    const { _internal } = require('./router-execute');
+    _internal._resetCalibrationState();
+    const fixture = fixtureById('I8_calibration_trigger_simple');
+    const { spawnCount } = await runExecutorLoop({ fixture, times: 1000 });
+    // Exactly one trigger event for the 1000th call.
+    const triggers = spawnCount; // calibrationSpy receives one entry per fire/skip
+    assert.equal(triggers, 1, `expected 1 calibration event after 1000 calls, got ${triggers}`);
+  });
+});
+
+test('I8: 999 executions do NOT trigger calibration (just under threshold)', async () => {
+  await withTempCalibrationState(async () => {
+    reset();
+    const { _internal } = require('./router-execute');
+    _internal._resetCalibrationState();
+    const fixture = fixtureById('I8_calibration_trigger_simple');
+    const { spawnCount } = await runExecutorLoop({ fixture, times: 999 });
+    assert.equal(spawnCount, 0);
+  });
+});
+
+test('Calibration: second 1000-call cycle within 24h emits skipped event, not triggered', async () => {
+  await withTempCalibrationState(async (statePath) => {
+    reset();
+    const { _internal } = require('./router-execute');
+    _internal._resetCalibrationState();
+    // Simulate that the first calibration ran 5 minutes ago.
+    fs.writeFileSync(statePath, JSON.stringify({
+      last_run_at: Date.now() - 5 * 60 * 1000,
+      exec_counter: 1000,
+    }));
+    const fixture = fixtureById('I8_calibration_trigger_simple');
+    const { calibrationEvents } = await runExecutorLoop({ fixture, times: 1000 });
+    // The 1000th call hits %1000===0 → emits 'calibration_skipped' (within 24h).
+    assert.equal(calibrationEvents.length, 1,
+      `expected 1 event after 1000 calls, got ${calibrationEvents.length}`);
+    assert.equal(calibrationEvents[0].type, 'calibration_skipped');
+    assert.equal(calibrationEvents[0].reason, 'within_24h_window');
+  });
+});
+
+test('readCalibrationState: tolerates missing file', async () => {
+  await withTempCalibrationState(async () => {
+    const { _internal } = require('./router-execute');
+    const state = _internal.readCalibrationState();
+    assert.equal(state.last_run_at, 0);
+    assert.equal(state.exec_counter, 0);
+  });
+});
+
+test('readCalibrationState: tolerates malformed JSON', async () => {
+  await withTempCalibrationState(async (statePath) => {
+    fs.writeFileSync(statePath, 'not valid json {{{');
+    const { _internal } = require('./router-execute');
+    const state = _internal.readCalibrationState();
+    assert.equal(state.last_run_at, 0);
+    assert.equal(state.exec_counter, 0);
+  });
+});
+
+test('CALIBRATION_INTERVAL is 1000 and CALIBRATION_MIN_GAP_MS is 24h', () => {
+  const { _internal } = require('./router-execute');
+  assert.equal(_internal.CALIBRATION_INTERVAL, 1000);
+  assert.equal(_internal.CALIBRATION_MIN_GAP_MS, 24 * 60 * 60 * 1000);
+});
+
+test('execute() with skipCalibrationCheck does not trigger calibration', async () => {
+  await withTempCalibrationState(async () => {
+    reset();
+    const { _internal } = require('./router-execute');
+    _internal._resetCalibrationState();
+    const { execute } = require('./router-execute');
+    const calibrationSpawns = [];
+    const handcrafted = {
+      tier: 'T0',
+      confidence: 0.9,
+      suggested_providers: ['ollama'],
+      task_category: 'summarization',
+      escalation_rule: 'none',
+    };
+    // Run 1000 with skipCalibrationCheck — must not fire even at the threshold.
+    for (let i = 0; i < 1000; i++) {
+      await execute({
+        prompt: 'p',
+        classification: handcrafted,
+        options: {
+          skipCalibrationCheck: true,
+          __deps: {
+            providers: { ollama: async () => ({ ok: true, text: 'x', model: 'qwen2.5:3b', tokens_in: 1, tokens_out: 1, cost_usd: 0, duration_ms: 10 }) },
+            tracker: { recordUsage(){}, summary(){return{};}, shouldPreferCodex(){return false;} },
+            providerState: { claude: 'ok', codex_cli: 'ok', ollama: 'ok' },
+            telemetryWriter: () => {},
+            calibrationSpy: (e) => calibrationSpawns.push(e),
+          },
+        },
+      });
+    }
+    assert.equal(calibrationSpawns.length, 0,
+      `skipCalibrationCheck must suppress all triggers; got ${calibrationSpawns.length}`);
+  });
+});

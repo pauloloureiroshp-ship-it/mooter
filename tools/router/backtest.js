@@ -988,8 +988,76 @@ function weightedDryrun(decisions) {
   console.log(lines.join('\n'));
 }
 
+// Wave-2 (T-09): calibration-only mode — read last N executed events
+// and emit a JSON report with bin accuracy + alert-write side-effect.
+// Spawned non-blocking by router-execute.js every 1000 calls.
+function runCalibrationOnly(lastN) {
+  const N = Number(lastN) > 0 ? Number(lastN) : 1000;
+  let raw = '';
+  try { raw = fs.readFileSync(LOG_PATH, 'utf8'); } catch { /* missing log */ }
+  const lines = raw.split('\n').filter((l) => l.trim().length > 0);
+  /** @type {object[]} */
+  const recent = [];
+  for (let i = lines.length - 1; i >= 0 && recent.length < N; i--) {
+    let e;
+    try { e = JSON.parse(lines[i]); } catch { continue; }
+    if (e && e.event === 'executed') recent.unshift(e);
+  }
+
+  /** @type {Record<string,{count:number,ok:number}>} */
+  const bins = {
+    '0.6-0.8': { count: 0, ok: 0 },
+    '0.8-1.0': { count: 0, ok: 0 },
+  };
+  for (const e of recent) {
+    const c = Number(e.confidence);
+    if (!Number.isFinite(c)) continue;
+    const bin = c >= 0.8 ? '0.8-1.0' : (c >= 0.6 ? '0.6-0.8' : null);
+    if (!bin) continue;
+    bins[bin].count += 1;
+    if (e.outcome === 'ok') bins[bin].ok += 1;
+  }
+
+  const report = {
+    ts: new Date().toISOString(),
+    samples: recent.length,
+    bins: {
+      '0.6-0.8': { count: bins['0.6-0.8'].count, ok: bins['0.6-0.8'].ok,
+        accuracy: bins['0.6-0.8'].count ? bins['0.6-0.8'].ok / bins['0.6-0.8'].count : null },
+      '0.8-1.0': { count: bins['0.8-1.0'].count, ok: bins['0.8-1.0'].ok,
+        accuracy: bins['0.8-1.0'].count ? bins['0.8-1.0'].ok / bins['0.8-1.0'].count : null },
+    },
+    threshold: 0.90,
+    warning: null,
+  };
+
+  const high = report.bins['0.8-1.0'];
+  if (high.accuracy !== null && high.accuracy < 0.90 && high.count >= 100) {
+    report.warning = 'calibration_below_threshold';
+    try {
+      const alertPath = path.join(ROUTER_DIR, '.calibration-alerts.jsonl');
+      fs.appendFileSync(alertPath, JSON.stringify(report) + '\n');
+    } catch { /* best-effort */ }
+  }
+
+  process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+}
+
 function main() {
   const args = process.argv.slice(2);
+
+  // Wave-2: dispatched mode for non-blocking calibration check.
+  if (args.includes('--calibration-only')) {
+    const lastNIdx = args.findIndex((a) => a === '--last-n' || a.startsWith('--last-n='));
+    let lastN = 1000;
+    if (lastNIdx >= 0) {
+      const arg = args[lastNIdx];
+      if (arg.includes('=')) lastN = Number(arg.split('=')[1]) || 1000;
+      else if (args[lastNIdx + 1]) lastN = Number(args[lastNIdx + 1]) || 1000;
+    }
+    return runCalibrationOnly(lastN);
+  }
+
   const explain = args.includes('--explain');
   const optimizerDryrunMode = args.includes('--optimizer-dryrun');
   const exportMode = args.includes('--export-delta');
