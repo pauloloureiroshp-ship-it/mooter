@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
-# statusline.sh — frugal terminal statusline for Claude Code
+# statusline.sh — frugal terminal statusline for Claude Code (LEGACY)
+#
+# ─────────────────────────────────────────────────────────────────────────
+# ⚠ LEGACY / FALLBACK ENTRY POINT
+#
+# The wired statusline (referenced by ~/.claude/settings.json) is
+# tools/router/gsd-statusline.js (Node, multi-line, richer rendering).
+# This .sh file remains as:
+#   - A POSIX-only fallback for environments without Node available
+#   - A debug helper for the savings/budget endpoints (cheap to invoke)
+#   - The single-line reference renderer for old documentation
+#
+# When making rendering changes, edit gsd-statusline.js FIRST. Only
+# mirror visual fixes here when there is a clear value (e.g. the
+# 2026-05-07 "[object Object]%" schema fix that affected both paths).
+# ─────────────────────────────────────────────────────────────────────────
 #
 # Output format (one line):
 #   ◈ <model> │ ctx:NN% ▓▓░░░░ │ 5h:NN% ▓▓░░░░ ↺Hh:Mm │ 7d:NN% │ $X.XX │ 💰 $X.XX (NN%) │ alltime:$X.XX │ max:TN
