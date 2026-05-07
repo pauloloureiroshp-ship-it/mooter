@@ -953,6 +953,73 @@ if (
   }
 }
 
+// OPTION B (Wave-3+) — pre-compute T1 answers via the Wave-2 executor.
+// Disabled by default. Opt-in: set FRUGAL_OPTION_B_ENABLE=1 in your env.
+// Reason for opt-in: this path triggers real Codex CLI / OpenAI calls
+// per T1 prompt that didn't already get an Option-A hit. For users not
+// expecting routed pre-compute, that could silently burn subscription
+// quota. With the flag explicit, the user opts in knowingly.
+//
+// Constraints (intentionally tighter than Option-A):
+//   - tier === 'T1' (T0 already handled by Option-A above)
+//   - confidence >= 0.80 (higher bar — pre-compute waste hurts more on T1)
+//   - prompt.length < 800 (same prose-window guard as Option-A)
+//   - skip when user pinned a model OR quality_intent fired
+//   - executor capped at 2.5s per provider attempt; spawnSync at 7s
+const optionBEnabled = process.env.FRUGAL_OPTION_B_ENABLE === '1';
+if (
+  optionBEnabled &&
+  !suggestedAnswer &&
+  !userPinnedOverride &&
+  !decision.quality_intent &&
+  decision.tier === 'T1' &&
+  typeof decision.confidence === 'number' && decision.confidence >= 0.80 &&
+  prompt.length < 800
+) {
+  try {
+    const cliScript = path.join(__dirname, 'router-execute.js');
+    const execEnv = Object.assign({}, process.env);
+    execEnv.MOOTER_CLASSIFICATION_JSON = JSON.stringify(decision);
+    execEnv.MOOTER_PER_ATTEMPT_TIMEOUT_MS = '2500';
+    const execRes = spawnSync(process.execPath, [cliScript, prompt], {
+      encoding: 'utf8',
+      timeout: 7000,
+      env: execEnv,
+    });
+    if (execRes.status === 0 && execRes.stdout) {
+      try {
+        const result = JSON.parse(execRes.stdout);
+        if (result.ok && typeof result.text === 'string' && result.text.trim().length > 5) {
+          suggestedAnswer = result.text.trim();
+          logDecision({
+            ts: new Date().toISOString(),
+            event: 'option_b_hit',
+            prompt_len: prompt.length,
+            provider: result.provider_used,
+            duration_ms: result.duration_ms,
+          });
+        } else {
+          logDecision({
+            ts: new Date().toISOString(),
+            event: 'option_b_miss',
+            reason: result.reason || 'no_text',
+          });
+        }
+      } catch {
+        logDecision({ ts: new Date().toISOString(), event: 'option_b_parse_error' });
+      }
+    } else {
+      logDecision({
+        ts: new Date().toISOString(),
+        event: 'option_b_timeout_or_error',
+        status: execRes.status,
+      });
+    }
+  } catch {
+    logDecision({ ts: new Date().toISOString(), event: 'option_b_throw' });
+  }
+}
+
 // User override surface — when the prompt explicitly mentions a model, the
 // hint includes a USER_OVERRIDE block so the doctrine can honor it without
 // re-parsing. Two states: honored=true (user got what they asked for) or
