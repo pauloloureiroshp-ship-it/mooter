@@ -728,9 +728,15 @@ function renderGpu() {
 //   { savingsPct, savedUsd, spentUsd, promptCount } — never throws.
 function calcSavings(mOpt, sessionId) {
   if (process.env.MOOTER_MOCK === '1') {
-    return { savingsPct: 90, savedUsd: '1.68', spentUsd: '0.18', promptCount: 42 };
+    return {
+      savingsPct: 90, savedUsd: '1.68', spentUsd: '0.18', promptCount: 42,
+      executionCount: 0, guaranteedUsdW2: 0, advisoryUsd: 1.68,
+    };
   }
-  const empty = { savingsPct: 0, savedUsd: null, spentUsd: null, promptCount: 0 };
+  const empty = {
+    savingsPct: 0, savedUsd: null, spentUsd: null, promptCount: 0,
+    executionCount: 0, guaranteedUsdW2: 0, advisoryUsd: 0,
+  };
   try {
     const m = mOpt || fetchFrugalMetrics(sessionId);
 
@@ -760,11 +766,18 @@ function calcSavings(mOpt, sessionId) {
           const baseline = real.total * opusUnit;
           const saved = Math.max(0, baseline - realSpent);
           const pct = baseline > 0 ? Math.round((saved / baseline) * 100) : 0;
+          // Wave-2 honesty surface — even when the PRIMARY path drives
+          // the headline number, expose the executor and advisory
+          // values so the renderer can show the diff when it exists.
+          const exec = (m && m.executions) || {};
           return {
             savingsPct: pct,
             savedUsd: saved.toFixed(2),
             spentUsd: realSpent.toFixed(2),
             promptCount: real.total,
+            executionCount: Number(exec.total) || 0,
+            guaranteedUsdW2: Number(exec.guaranteed_saved_usd) || 0,
+            advisoryUsd: Number(m && m.saved) || 0,
           };
         }
       }
@@ -774,12 +787,22 @@ function calcSavings(mOpt, sessionId) {
     if (m && m.prompts) {
       const advisoryUsd = m.saved || 0;
       const guaranteedUsd = m.guaranteed_saved || 0;
-      const savedUsd = guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd;
+      const exec = m.executions || {};
+      const guaranteedUsdW2 = Number(exec.guaranteed_saved_usd) || 0;
+      // Pick order: Wave-2 executor (real outcomes) > legacy Option-A
+      // hits > advisory estimate. The renderer separately displays
+      // advisory vs guaranteed when the executor has real data.
+      const savedUsd = guaranteedUsdW2 > 0
+        ? guaranteedUsdW2
+        : (guaranteedUsd > 0 ? guaranteedUsd : advisoryUsd);
       return {
         savingsPct: Math.round(m.saved_pct || 0),
         savedUsd: savedUsd.toFixed(2),
         spentUsd: (m.actual_cost || 0).toFixed(2),
         promptCount: m.prompts,
+        executionCount: Number(exec.total) || 0,
+        guaranteedUsdW2,
+        advisoryUsd,
       };
     }
 
@@ -803,11 +826,17 @@ function calcSavings(mOpt, sessionId) {
       });
       if (total === 0 || naive === 0) return empty;
       const saved = naive - actual;
+      // No Wave-2 executor visibility from this fallback (it works off
+      // raw decisions.log without the aggregate). Zeros tell the
+      // renderer to keep the legacy single-number rendering.
       return {
         savingsPct: Math.round((1 - actual / naive) * 100),
         savedUsd: saved.toFixed(2),
         spentUsd: actual.toFixed(2),
         promptCount: total,
+        executionCount: 0,
+        guaranteedUsdW2: 0,
+        advisoryUsd: 0,
       };
     } catch {
       return empty;
@@ -1957,16 +1986,41 @@ function renderMultiLine({
   const arrow = pct >= 30 ? '↓' : '';
   const savedUsdNum = parseFloat(savings?.savedUsd) || 0;
   const savedStr = savedUsdNum > 0.01 ? `$${savings.savedUsd}` : null;
+  // Wave-3 honesty surface (audit S1#2 closure):
+  //   When the executor has real data (executionCount > 0) we show BOTH
+  //   the guaranteed (Wave-2 real outcomes) and advisory (legacy
+  //   estimate) numbers so the user can see the gap between what
+  //   advisory promised and what the executor actually delivered.
+  //   - Healthy:  "saved $42.10 gtd · $24.30 adv (45%↓ vs all-Opus)"
+  //   - Drift:    "⚠ saved $0.00 gtd · $24.30 adv (11% vs all-Opus)"  (T-03 marker)
+  //   - No exec:  "saved $24.30 (11% vs all-Opus)"  (legacy single-number)
+  const exec = Number(savings?.executionCount) || 0;
+  const w2 = Number(savings?.guaranteedUsdW2) || 0;
+  const adv = Number(savings?.advisoryUsd) || 0;
+  const showSplit = savedStr && exec > 0 && adv > 0;
   // v6.8 storytelling — three states, each a clean sentence start:
   //   real savings → "🐮 saved $X (N%↓ vs all-Opus)"
   //   pct=0 with   → "🐮 all-Opus session"  (honest, no '∅' math glyph,
   //   activity        no phantom "$0 saved")
   //   no prompts   → "🐮 no data yet"
-  const savedHero = savedStr
-    ? `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`
-    : (savings?.promptCount
-        ? `${BRAND}${BOLD}🐮${RESET} ${DIM}all-Opus session${RESET}`
-        : `${BRAND}${BOLD}🐮${RESET} ${DIM}no data yet${RESET}`);
+  let savedHero;
+  if (showSplit) {
+    const gtdNum = w2 > 0 ? w2 : savedUsdNum; // surface zero explicitly when executions all deferred
+    const gtdStr = `$${gtdNum.toFixed(2)}`;
+    const advStr = `$${adv.toFixed(2)}`;
+    savedHero =
+      `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ` +
+      `${GREEN}${BOLD}${gtdStr}${RESET} ${DIM}gtd${RESET}` +
+      ` ${DIM}·${RESET} ` +
+      `${DIM}${advStr} adv${RESET}` +
+      ` ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`;
+  } else {
+    savedHero = savedStr
+      ? `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`
+      : (savings?.promptCount
+          ? `${BRAND}${BOLD}🐮${RESET} ${DIM}all-Opus session${RESET}`
+          : `${BRAND}${BOLD}🐮${RESET} ${DIM}no data yet${RESET}`);
+  }
   const spentPart = spentStr ? `${DIM}spent${RESET} ${BOLD}${spentStr}${RESET}` : null;
   const promptsPart = savings?.promptCount ? `${BOLD}${savings.promptCount}${RESET}${DIM} prompts${RESET}` : null;
   // Efficiency pill — % of routing that went local (the mooter win).
