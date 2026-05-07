@@ -373,8 +373,10 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-05-07 (Sessão Validation 2026-05-07 — verdict ⚠️ PATCH BEFORE WAVE-2)
-**Estado:** ⚠️ Advisory layer entregue (v0.11) + validado (60 prompts, 80 min). Tier accuracy 77.5% (target 85%), calibration bin 0.8-1.0 = 75% (target 95%). 14 loopholes (3 S0, 9 S1, 2 S2). Production aggregate sound (73.7% saved em 859 prompts). ⏭️ Próxima missão: Wave-1.6 (patch dos blockers) ANTES de Wave-2.
+**Última actualização Cowork:** 2026-05-07 late (per-user telemetry audit — Wave-1.5 prepended ao master prompt)
+**Estado:** ⚠️ Advisory layer + Validation report ⚠️ + audit per-user telemetria revelou: subscription-profile.json AUSENTE (subs todas "no/none"), continuous-tester INATIVO há 16d (mas com 693 misroutings já harvest-ables), hub last_pull "never" agora "ok", tracker UP (864 prompts, 73.7% saved, plan=max). ⏭️ Próxima missão: **Wave-1.5 (per-user bootstrap)** → Wave-1.6 (patches) → Wave-2 (executor) → Wave-3 (site).
+
+**Insight crítico:** as peças do loop de auto-melhoria EXISTEM TODAS (hub D1, feedback-collector, auto-feedback, shadow-judge, continuous-tester, user-profile, sentry-helper) mas o **loop não fecha automaticamente** — subscription detection é manual, hub-submit-events é manual, profile refresh é manual, tester foi parado há 16d. Wave-1.5 fecha estes 7 buracos (~2h) antes de qualquer retrain.
 
 ---
 
