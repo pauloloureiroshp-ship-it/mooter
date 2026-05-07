@@ -441,6 +441,60 @@ test('I10: sanitisePromptPreview redacts ghp_ and AIza patterns', () => {
   assert.ok(!b.includes('AIzaSyCabcdefghij1234567890abc'));
 });
 
+test('I10: redacts GitHub PATs across all five prefixes (ghp/gho/ghu/ghs/ghr)', () => {
+  for (const p of ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_']) {
+    const token = p + 'abcdefghijklmnopqrstuv1234';
+    const r = _internal.sanitisePromptPreview(`GitHub ${token} for repo`);
+    assert.ok(!r.includes(token), `expected redaction for ${p} prefix in: ${r}`);
+  }
+});
+
+test('I10: redacts AWS access key IDs (AKIA...)', () => {
+  const r = _internal.sanitisePromptPreview('use AKIAIOSFODNN7EXAMPLE to upload backups');
+  assert.ok(!r.includes('AKIAIOSFODNN7EXAMPLE'), `not redacted: ${r}`);
+  assert.ok(r.includes('[REDACTED]'));
+});
+
+test('I10: redacts GitLab PATs (glpat-...)', () => {
+  const r = _internal.sanitisePromptPreview('GITLAB_TOKEN=glpat-abcdef1234567890qrstuv');
+  assert.ok(!r.includes('glpat-abcdef1234567890qrstuv'), `not redacted: ${r}`);
+  assert.ok(r.includes('[REDACTED]'));
+});
+
+test('I10: redacts Slack tokens (xoxb/xoxp/xoxa/xoxr/xoxs)', () => {
+  for (const p of ['xoxb-', 'xoxp-', 'xoxa-', 'xoxr-', 'xoxs-']) {
+    const token = p + '1234-5678-9abcdefghijk';
+    const r = _internal.sanitisePromptPreview(`SLACK ${token}`);
+    assert.ok(!r.includes(token), `expected redaction for ${p} in: ${r}`);
+  }
+});
+
+test('I10: redacts JWT tokens (eyJ.X.Y)', () => {
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NSJ9.SflKxwRJSMeKKF2QT4fwp';
+  const r = _internal.sanitisePromptPreview(`Authorization: ${jwt} expired`);
+  assert.ok(!r.includes(jwt.slice(0, 40)), `not redacted: ${r}`);
+});
+
+test('I10: redacts Azure SharedAccessSignature', () => {
+  const r = _internal.sanitisePromptPreview('uri SharedAccessSignature sv=2020-08-04&ss=b&sig=abc');
+  assert.ok(!r.includes('sv=2020-08-04'), `not redacted: ${r}`);
+});
+
+test('I10: redacts generic credential env-vars (SECRET_KEY, ACCESS_TOKEN, etc)', () => {
+  const cases = [
+    'SECRET_KEY=topsecret123',
+    'ACCESS_TOKEN=ya29.aBcDeFgHiJ',
+    'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    'AZURE_CLIENT_SECRET=Q1abcdefghij~',
+    'GITLAB_TOKEN=glpat-shortbutset',
+  ];
+  for (const c of cases) {
+    const r = _internal.sanitisePromptPreview(c);
+    const value = c.split('=')[1];
+    assert.ok(!r.includes(value), `expected redaction for "${c}", got: ${r}`);
+  }
+});
+
 test('I10: sanitisePromptPreview tolerates non-string and empty input', () => {
   assert.equal(_internal.sanitisePromptPreview(undefined), '');
   assert.equal(_internal.sanitisePromptPreview(null), '');

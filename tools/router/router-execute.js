@@ -303,12 +303,26 @@ function buildTelemetryRecord({ prompt, classification, result, suggestedProvide
 function sanitisePromptPreview(prompt) {
   if (!prompt || typeof prompt !== 'string') return '';
   const PATTERNS = [
-    /sk-[A-Za-z0-9_-]{4,}/g,                          // OpenAI / Anthropic-style keys
-    /Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,              // Bearer tokens
-    /AIza[0-9A-Za-z_-]{20,}/g,                        // Google API keys
-    /ghp_[A-Za-z0-9]{20,}/g,                          // GitHub PAT
-    /OPENAI_API_KEY\s*=\s*\S+/gi,
-    /ANTHROPIC_API_KEY\s*=\s*\S+/gi,
+    // OpenAI / Anthropic / generic sk- prefix keys
+    /sk-[A-Za-z0-9_-]{4,}/g,
+    // Authorization: Bearer ...
+    /Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+    // Google API keys (AIza...)
+    /AIza[0-9A-Za-z_-]{20,}/g,
+    // GitHub PATs across all prefixes (ghp_/gho_/ghu_/ghs_/ghr_)
+    /gh[pousr]_[A-Za-z0-9]{20,}/g,
+    // GitLab PATs
+    /glpat-[A-Za-z0-9_-]{20,}/g,
+    // Slack tokens (xoxb-/xoxp-/xoxa-/xoxr-/xoxs-)
+    /xox[baprs]-[A-Za-z0-9-]{10,}/g,
+    // AWS access key IDs (AKIA + 16 base32 chars)
+    /AKIA[0-9A-Z]{16}/g,
+    // JWT tokens (header.payload.signature, base64url)
+    /eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}/g,
+    // Azure SAS signatures
+    /SharedAccessSignature\s+\S+/gi,
+    // Generic credential env-var assignments — broad catch-all
+    /(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|API_KEY|SECRET_KEY|ACCESS_TOKEN|AUTH_TOKEN|PRIVATE_KEY|AWS_SECRET_ACCESS_KEY|AZURE_CLIENT_SECRET|GITLAB_TOKEN|SLACK_TOKEN|GITHUB_TOKEN)\s*=\s*\S+/gi,
   ];
   let redacted = prompt;
   for (const re of PATTERNS) redacted = redacted.replace(re, '[REDACTED]');
