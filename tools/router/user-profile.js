@@ -144,10 +144,18 @@ function extractSubscriptions() {
   if (!sub) return null;
   const p = sub.profiles || {};
   const hints = sub.routing_hints || {};
+  const detected = sub.detected || {};
   // ChatGPT Plus / Pro is distinct from an OpenAI API key — track both.
   // Schema accepts either the legacy `p.openai === 'plus'` or the new boolean
   // `p.openai_plus` written by `mooter init`.
   const openaiPlus = p.openai_plus === true || p.openai === 'plus';
+  // Codex CLI auto-detect surfaced by detect-subscriptions.js (Wave-1.5):
+  // `chatgpt_pro_or_plus` or `chatgpt_unknown` both imply ChatGPT subscription.
+  const codexPlan = (detected.openai_codex_cli && detected.openai_codex_cli.plan) || p.openai_codex_cli;
+  const openaiCodexCli = typeof codexPlan === 'string' && codexPlan.startsWith('chatgpt');
+  // If the user is logged into Codex CLI, ChatGPT Plus/Pro is implied even
+  // when the user didn't tick the legacy openai_plus prompt.
+  const openaiPlusInferred = openaiPlus || openaiCodexCli;
   return {
     source: 'subscription-profile.json',
     anthropic_pro: p.anthropic === 'pro' || p.anthropic === 'max' || hints.haiku_available === true,
@@ -155,7 +163,9 @@ function extractSubscriptions() {
     copilot: p.github === 'copilot' || p.copilot === true || false,
     cursor_pro: p.cursor === 'pro' || false,
     gemini_advanced: p.google === 'advanced' || p.gemini === 'advanced' || false,
-    openai_plus: openaiPlus,
+    openai_plus: openaiPlusInferred,
+    openai_codex_cli: openaiCodexCli,
+    detected_at: detected.checked_at || null,
     other: [],
   };
 }
