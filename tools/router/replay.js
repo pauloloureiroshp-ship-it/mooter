@@ -61,12 +61,13 @@ const classifyBody = classifySrc
 // eslint-disable-next-line no-new-func
 // classify.js declares its own `const fs = require('fs')` etc. at the top,
 // so we only need to inject `require` itself (new Function has no closure
-// over the module-level require). The const declarations inside the body
-// will call that injected require to rebuild fs/path/crypto/os.
-const classify = new Function('require', `
+// over the module-level require). Also inject `__dirname` because
+// classify.js's _loadTuningState() reads `tuning-state.defaults.json`
+// relative to it — without injection, eval crashes with ReferenceError.
+const classify = new Function('require', '__dirname', `
   ${classifyBody}
   return classify;
-`)(require);
+`)(require, __dirname);
 
 // ─────────────────────────────────────────────────────────────
 // Args
