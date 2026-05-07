@@ -731,11 +731,13 @@ function calcSavings(mOpt, sessionId) {
     return {
       savingsPct: 90, savedUsd: '1.68', spentUsd: '0.18', promptCount: 42,
       executionCount: 0, guaranteedUsdW2: 0, advisoryUsd: 1.68,
+      signal: 'mock',
     };
   }
   const empty = {
     savingsPct: 0, savedUsd: null, spentUsd: null, promptCount: 0,
     executionCount: 0, guaranteedUsdW2: 0, advisoryUsd: 0,
+    signal: 'empty',
   };
   try {
     const m = mOpt || fetchFrugalMetrics(sessionId);
@@ -778,6 +780,10 @@ function calcSavings(mOpt, sessionId) {
             executionCount: Number(exec.total) || 0,
             guaranteedUsdW2: Number(exec.guaranteed_saved_usd) || 0,
             advisoryUsd: Number(m && m.saved) || 0,
+            // Signal tells the renderer that savedUsd here is computed
+            // from real execution.log data — a legitimate "guaranteed"
+            // number even when guaranteedUsdW2 is zero.
+            signal: 'real_exec',
           };
         }
       }
@@ -803,6 +809,10 @@ function calcSavings(mOpt, sessionId) {
         executionCount: Number(exec.total) || 0,
         guaranteedUsdW2,
         advisoryUsd,
+        // Signal tells the renderer that savedUsd may collapse to
+        // advisory when both Wave-2 and Option-A produce zero — used
+        // by the honesty marker to refuse the conflation.
+        signal: 'tracker',
       };
     }
 
@@ -837,6 +847,7 @@ function calcSavings(mOpt, sessionId) {
         executionCount: 0,
         guaranteedUsdW2: 0,
         advisoryUsd: 0,
+        signal: 'log_fallback',
       };
     } catch {
       return empty;
@@ -2005,7 +2016,18 @@ function renderMultiLine({
   //   no prompts   → "🐮 no data yet"
   let savedHero;
   if (showSplit) {
-    const gtdNum = w2 > 0 ? w2 : savedUsdNum; // surface zero explicitly when executions all deferred
+    // Refusing the conflation flagged by final-reviewer Q4:
+    // when signal='tracker' (FALLBACK 1) and savedUsd has collapsed
+    // to advisory because both w2 and legacy Option-A are zero, do
+    // NOT label that as `gtd`. Surface $0.00 honestly — the marker
+    // logic below will then see a true zero ratio and fire.
+    // When signal='real_exec' or 'log_fallback', savedUsdNum is a
+    // legitimate measured-real number (computed from execution.log
+    // tier mix or decisions.log replay) — use it as gtd even when
+    // w2 itself is zero.
+    const signal = savings?.signal;
+    const trackerCollapsed = signal === 'tracker' && w2 === 0;
+    const gtdNum = trackerCollapsed ? 0 : (w2 > 0 ? w2 : savedUsdNum);
     const gtdStr = `$${gtdNum.toFixed(2)}`;
     const advStr = `$${adv.toFixed(2)}`;
     // Wave-3 T-03: honesty marker. When the executor has enough samples
