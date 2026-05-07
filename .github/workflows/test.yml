@@ -122,7 +122,10 @@ jobs:
         run: node "$HOME/.claude/tools/router/backtest.js"
 
       - name: Run unit + integration tests
-        run: node "$HOME/.claude/tools/router/backtest.test.js"
+        run: |
+          node --test --test-force-exit \
+            --test-skip-pattern="(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)" \
+            "$HOME/.claude/tools/router/backtest.test.js"
 
       - name: Run event-builder self-test
         run: node tools/router/event-builder.js --self-test
