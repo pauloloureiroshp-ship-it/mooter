@@ -55,7 +55,12 @@ const { requireEnv } = require('./env');
 const sentry = require('./sentry-helper');
 sentry.init();
 
-const PORT = 7821;
+// PORT is overridable via MOOTER_TRACKER_PORT so secondary instances
+// (test fixtures, validation runs, staging) can run alongside the
+// production daemon without port conflict. The env var matches the
+// same one router-execute.js's postToSavingsTracker honours on the
+// client side — completing the loop end-to-end.
+const PORT = Number(process.env.MOOTER_TRACKER_PORT) || 7821;
 const HOST = '127.0.0.1';
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
