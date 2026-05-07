@@ -144,12 +144,18 @@ function extractSubscriptions() {
   if (!sub) return null;
   const p = sub.profiles || {};
   const hints = sub.routing_hints || {};
+  // ChatGPT Plus / Pro is distinct from an OpenAI API key — track both.
+  // Schema accepts either the legacy `p.openai === 'plus'` or the new boolean
+  // `p.openai_plus` written by `mooter init`.
+  const openaiPlus = p.openai_plus === true || p.openai === 'plus';
   return {
     source: 'subscription-profile.json',
     anthropic_pro: p.anthropic === 'pro' || p.anthropic === 'max' || hints.haiku_available === true,
+    claude_code: p.claude_code || (p.anthropic === 'max' ? 'max' : 'none'),
     copilot: p.github === 'copilot' || p.copilot === true || false,
-    gemini_advanced: p.google === 'advanced' || false,
-    openai_plus: p.openai === 'plus' || false,
+    cursor_pro: p.cursor === 'pro' || false,
+    gemini_advanced: p.google === 'advanced' || p.gemini === 'advanced' || false,
+    openai_plus: openaiPlus,
     other: [],
   };
 }
@@ -285,7 +291,9 @@ function prettyPrint(profile) {
   lines.push('');
   lines.push('  ── Subscriptions ─────────────────────────────────────────────');
   lines.push(`    Anthropic Pro:  ${bool(profile.subscriptions.anthropic_pro)}`);
+  lines.push(`    Claude Code:    ${profile.subscriptions.claude_code || 'none'}`);
   lines.push(`    Copilot:        ${bool(profile.subscriptions.copilot)}`);
+  lines.push(`    Cursor Pro:     ${bool(profile.subscriptions.cursor_pro)}`);
   lines.push(`    Gemini Adv:     ${bool(profile.subscriptions.gemini_advanced)}`);
   lines.push(`    OpenAI Plus:    ${bool(profile.subscriptions.openai_plus)}`);
   lines.push('');

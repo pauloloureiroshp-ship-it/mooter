@@ -62,12 +62,33 @@ async function run() {
         : 'Do you have an Anthropic API key (pay-per-token)?',
       detectedAnthropic ? 'y' : 'n',
     );
+
+    // Claude Code subscription tier (separate product from API key).
+    // Max users: implicitly bundled. Others: explicit.
+    let claudeCodeTier = 'none';
+    if (hasMax) {
+      claudeCodeTier = 'max';
+    } else if (hasApi) {
+      const ccPro = await prompt('Do you have a Claude Code Pro plan (claude.ai/code)?');
+      claudeCodeTier = ccPro ? 'pro' : 'api-paid';
+    } else {
+      const ccProOnly = await prompt('Do you have a Claude Code Pro plan (without separate API key)?');
+      if (ccProOnly) claudeCodeTier = 'pro';
+    }
+
     const hasOpenAI = await prompt(
       detectedOpenAI
         ? 'OpenAI API key detected — confirm?'
         : 'Do you have an OpenAI API key?',
       detectedOpenAI ? 'y' : 'n',
     );
+
+    // ChatGPT Plus / Pro is a distinct product from OpenAI API access.
+    // Many users have one but not the other; routing benefits from knowing both.
+    const hasOpenAIPlus = await prompt(
+      'Do you have a ChatGPT Plus or Pro subscription (chat.openai.com)?',
+    );
+
     const hasGemini = await prompt(
       detectedGemini
         ? 'Gemini / Google API key detected — confirm?'
@@ -75,12 +96,20 @@ async function run() {
       detectedGemini ? 'y' : 'n',
     );
 
+    // Other premium AI subscriptions the router can leverage for cost optimisation.
+    const hasCursor   = await prompt('Do you use Cursor IDE with a Pro subscription (cursor.com)?');
+    const hasCopilot  = await prompt('Do you have GitHub Copilot (Individual / Business)?');
+
     const profile = {
       updated_at: new Date().toISOString(),
       profiles: {
         anthropic: hasMax ? 'max' : hasApi ? 'api-paid' : 'none',
+        claude_code: claudeCodeTier,
         openai: hasOpenAI ? 'api-paid' : 'none',
+        openai_plus: hasOpenAIPlus,
         gemini: hasGemini ? 'api-paid' : 'none',
+        cursor: hasCursor ? 'pro' : 'none',
+        github: hasCopilot ? 'copilot' : 'none',
       },
       budget_strategy: 'auto',
       detection: {
