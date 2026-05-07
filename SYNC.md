@@ -131,6 +131,26 @@ Suite final: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **
 
 Suite final: 313 verde (312 pass + 1 expected skip), +14 net new tests desde audit baseline (296). I11 + D2 invariants preservados pós-todos-os-commits.
 
+**Wave-3 closure cycle III — "manda bala" sweep (2026-05-07):** **5 atomic commits adicionais** sobre `4064ea5` fechando os 4 carry-over recommendations Wave-4 que tinha listado:
+
+10. `360b7e8` — `docs(statusline): mark statusline.sh as legacy/fallback entry point` (paulo-vault Wave-4 #1)
+11. `9b9c845` — `feat(router): CLI accepts pre-classified JSON + per-attempt timeout via env` — adiciona `MOOTER_CLASSIFICATION_JSON` + `MOOTER_PER_ATTEMPT_TIMEOUT_MS` env vars; unblocks injection from hooks.
+12. `e9accd4` — `feat(hook): inject_context Option-B pre-compute via Wave-2 executor` — opt-in via `FRUGAL_OPTION_B_ENABLE=1` (zero-risk additivo); T1 mechanical tasks com confidence ≥ 0.80 routam para executor pré-compute via Codex/OpenAI.
+13. `a566e86` — `test(validation): Wave-2 executor closes acceptance §10 #5 — 66% OK (≥55%)` — novo `run-executor-validation.js` drives full 60-prompt corpus pelo executor real. **Resultado: 31 ok / 47 invoked = 66% (target 55%) → PASS**. T3 prompts (13) skipped doctrinal. Zero quota burned (todos os ok via Ollama qwen2.5:3b local).
+14. `7ec9615` — `feat(router): backtest ECE-light — 5 bins fine + Expected Calibration Error` — extende `runCalibrationOnly` com `bins_fine` (0.0-0.2 / 0.2-0.4 / 0.4-0.6 / 0.6-0.8 / 0.8-1.0) + `ece` scalar weighted by sample frequency. Back-compat preserved (legacy 2-bin `bins` shape mantido).
+
+**Acceptance §10 final scorecard (todos PASS):**
+- §10 #1 ≥ 230 testes → ✅ **316** (315 pass + 1 expected skip)
+- §10 #2 classify.js byte-identical → ✅ I11 verified pós-todos-os-commits
+- §10 #3 CLI smoke 4 prompts → ✅ verde
+- §10 #4 `/metrics.executions` block live → ✅ daemon production v0.7.0 (PID 67288), 76+ executions registadas, real outcome=ok rows
+- §10 #5 ≥ 55% executions OK ratio → ✅ **66%** via run-executor-validation.js
+- §10 #6 final-reviewer APPROVED → ✅ APPROVED_WITH_NOTES (notes applied)
+- §10 #7 Notion sub-page + SYNC.md → ✅ `3596f6e4-2bc4-81b9-a9e4-c80086087885`
+- §10 #8 doctrine preserved → ✅ I11 + D2 invariants final-confirmed
+
+Suite final: 296 → **316** (+20 net new tests desde audit baseline). 23 commits desde `374480e` (audit doc), todos pushed. **Mooter Wave-2 + Wave-3 está completo. Próximo: Wave-4 (real-volume calibration data, statusline polishing, eventual ECE-full migration).**
+
 **Carry-overs explicitamente N/A nesta hotfix wave** (preserve scope):
 - ECE-style calibration (3h, requer SPEC update — Wave-3 proper)
 - Statusline reflectir `guaranteed_saved_usd` (UI work)
