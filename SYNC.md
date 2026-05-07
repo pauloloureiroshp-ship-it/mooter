@@ -3,10 +3,60 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-07 (Claude Code Windows — **Sessão #39: Wave-2 readiness — 5 patches from validation 2026-05-07 → 87.5 % accuracy**)
-**Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 206/206 ✅ · Claude Certified Architect ✅
-**Último commit main:** `aa25a2b` (fix(router): apply 5 patches from validation 2026-05-07 → 87.5% accuracy)
-**Sessão Claude Code:** #39 — Resposta directa ao verdict ⚠️ PATCH BEFORE WAVE-2 do validador autónomo (commit `24da23a` parallel-timeline → presente no working tree via `879e0bf`). 5 fixes aplicados, suite 198→206, accuracy 77.5 %→87.5 %, 3 bugs operacionais resolvidos (.env / ollama_call.sh / IIFE guard). Drift do runtime mirror (TUNED-BLOCK + loader duplicate em `~/.claude/tools/router/classify.js`) também corrigido pelo sync canonical → runtime. Wave-2 readiness: ⚠️ → ✅. NÃO push.
+**Última sync:** 2026-05-07 (Claude Code Windows — **Sessão #40: Wave-2 LANDED — `router-execute.js` advisor→executor + telemetry + calibration**)
+**Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 295/296 ✅ (1 skip esperado) · Wave-2 router-execute APPROVED ✅
+**Último commit main:** `b34fdc4` (feat(router): router-execute CLI for ad-hoc and validation use)
+**Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. NÃO push (espera GO do Paulo). Ver §40 abaixo para detalhe.
+
+### 🚀 Sessão #40 — 2026-05-07 (Wave-2 LANDED — advisor → executor)
+
+**Mandato Paulo:** "Desenhar a transição advisor → executor. Entrega esperada: SPEC + PLAN em `.planning/wave-2/`. Sem código ainda. Quando o plano estiver verde, executar."
+
+**Outcome:** SPEC + PLAN entregues E executados — 12 commits atómicos (T-01..T-10 + design A) sobre `aa25a2b`. Final-reviewer APPROVED.
+
+**Deliverables:**
+1. `.planning/wave-2/SPEC.md` — design contract com 11 invariantes (I1..I11) + 3 ExecuteResult shapes (Ok / Defer / Error) + telemetry contract + calibration loop spec.
+2. `.planning/wave-2/PLAN.md` — 11-task atomic-commit DAG com pré-flight checks, risk register, definition-of-done.
+3. `tools/router/router-execute.js` (886 linhas) — executor que consome `classify.js`'s `suggested_providers`, despacha non-Anthropic providers directamente, defere Anthropic-tier para subagents.
+4. `tools/router/providers/ollama-api.js` — wrapper programático para Ollama (faltava — `ollama_call_node.js` é só CLI).
+5. `tools/router/router-execute.{fixtures.json,mocks.js,harness.js,test.js}` + extensões a `providers.test.js` e `savings-tracker-me.test.js` — suite Wave-2 completa.
+6. `tools/router/savings-tracker.js` — novo `/last-execution` GET + `/metrics.executions` block (+ `aggregateExecution` helper exported para testes).
+7. `tools/router/backtest.js` — novo `--calibration-only --last-n=N` mode, escreve em `.calibration-alerts.jsonl` se bin 0.8-1.0 < 90 % (count ≥ 100).
+
+**Doctrine guards verificados:**
+- I1: T3 sempre defere model-architect, mesmo com codex_cli mocked-success.
+- I2: HIGH_RISK floor força architect (mesmo em prompts T2 forçados).
+- I3 (a..c): user_override pinning Anthropic → mapeia para subagent matching, exclusivo.
+- I7b: T3 com claude=degraded NÃO injecta codex/ollama (anti-bazuca-invertida).
+- I11: `git diff aa25a2b -- tools/router/classify.js` = vazio. classify.js NÃO foi tocado.
+
+**Métricas Wave-2:**
+- Suite: 206 → **295 pass + 1 skip** (1 skip esperado: harness "executor absent" sentinel).
+- 49 novos testes em router-execute.test.js cobrindo I1..I10 + boundary cases + CLI smoke.
+- 12 testes em router-execute.mocks.test.js + 5 em router-execute.harness.test.js + 9 ollama em providers.test.js + 6 em savings-tracker-me.test.js.
+- Diff total: 14 ficheiros, +3875 / -9.
+
+**Final-reviewer (Opus subagent) verdict:** APPROVED.
+- Smartest design (segundo reviewer): outcome derivation em buildTelemetryRecord — distingue ok / deferred / error correctamente, mantém errors[] como sub-detail mesmo em defers, evitando double-counting em `guaranteed_saved_usd`.
+- Highest-risk smell (não-blocante): `appendDecisionsLog` usa `fs.appendFileSync` no hot path. Single-process hoje (CLI sequencial) → OK. Wave-3 (parallel callers) → trocar por async + queue.
+- Notas para futuro: comentar idempotency da mutation local de `classification.suggested_providers` na JSDoc do `execute`. Wave-3.
+
+**Push status:** NÃO push. Espera GO explícito do Paulo (12 commits sobre origin/main).
+
+**Pré-push checklist (T-11):**
+- [x] suite verde (295/296)
+- [x] classify.js byte-identical a aa25a2b
+- [x] CLI smoke OK (4 prompts representativos)
+- [x] final-reviewer APPROVED
+- [ ] live `/metrics.executions` curl (server actual ainda corre código pré-Wave-2 — vai picar-se após restart, deferred)
+- [ ] re-run validation runner contra fresh corpus (acceptance §10 #5: ≥55% executions OK ratio) — deferred a Paulo
+- [ ] Notion sub-page (deferred — espera GO)
+- [ ] push autorizado
+
+**Próxima missão (Wave-3, master prompt à parte):**
+Restart savings-tracker server (apanha o novo `/last-execution` + executions block); validation runner fresh contra Wave-2; mover `appendDecisionsLog` para async; statusline reflectir `guaranteed_saved_usd` separado de `advisory_saved_usd`; eventual gemini provider wrapper.
+
+---
 
 ### 🌐 Sessão #39 — 2026-05-07 (Wave-2 readiness — validation patch cycle)
 
