@@ -910,8 +910,20 @@ if (require.main === module) {
         process.exit(2);
       }
 
-      const { classifyWithRetry } = require('./classify');
-      const classification = classifyWithRetry(prompt);
+      // Classification source (in priority order):
+      //   1. MOOTER_CLASSIFICATION_JSON env — pre-classified by the
+      //      caller (e.g. inject_context.js already classified the
+      //      prompt; passing it here avoids a duplicate classify pass).
+      //   2. Fresh classify.js run on the prompt (default CLI use).
+      let classification;
+      if (process.env.MOOTER_CLASSIFICATION_JSON) {
+        try { classification = JSON.parse(process.env.MOOTER_CLASSIFICATION_JSON); }
+        catch { /* fall through to fresh classify */ }
+      }
+      if (!classification) {
+        const { classifyWithRetry } = require('./classify');
+        classification = classifyWithRetry(prompt);
+      }
 
       /** @type {object | undefined} */
       let depsOverride;
@@ -942,10 +954,19 @@ if (require.main === module) {
         }
       }
 
+      // Per-attempt timeout override — when CALLED FROM A HOOK
+      // (inject_context.js sets this) we cap each provider attempt
+      // to a few seconds so the chain total fits under the hook
+      // budget. Default executor per-attempt is 90s — fine for
+      // standalone CLI but too generous for a 5s hook timeout.
+      const cliOptions = depsOverride ? { __deps: depsOverride } : {};
+      const perAttempt = Number(process.env.MOOTER_PER_ATTEMPT_TIMEOUT_MS) || 0;
+      if (perAttempt > 0) cliOptions.timeoutMs = perAttempt;
+
       const result = await execute({
         prompt,
         classification,
-        options: depsOverride ? { __deps: depsOverride } : {},
+        options: cliOptions,
       });
 
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
