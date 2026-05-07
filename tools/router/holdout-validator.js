@@ -74,6 +74,7 @@ function splitChronological(decisions, holdoutPct) {
   };
 }
 
+/** @param {Record<string, any> | null | undefined} d @returns {number} */
 function tsMs(d) {
   if (!d) return 0;
   if (typeof d.ts_ms === 'number') return d.ts_ms;
@@ -138,7 +139,7 @@ function validateAgainstHoldout(tuning, holdout, signatureFn) {
   }
   const sig = typeof signatureFn === 'function'
     ? signatureFn
-    : ((p) => String(p || '').toLowerCase().split(/\s+/).slice(0, 3).join(' '));
+    : (/** @param {string | undefined} p */ (p) => String(p || '').toLowerCase().split(/\s+/).slice(0, 3).join(' '));
 
   for (const d of holdout) {
     if (!d || d.event !== 'classified') continue;
