@@ -776,14 +776,18 @@ test('CLI: T3 architecture defers to model-architect even with mocked providers'
   assert.deepEqual(json.fallback_chain, []); // no providers tried for T3
 });
 
-test('CLI: T1 explain_error → defer cheap-triage with anthropic_only_chain', () => {
-  // T1 default chain is ['haiku'] (no codex preference) → all-Anthropic.
+test('CLI: ambiguous explain prompt defers to a recognised subagent', () => {
+  // The real classifier may put "explain TypeError ..." into either T0
+  // (simple_transform_or_explain) or T1 (explain_error) depending on
+  // patterns.js tuning. Both are valid; this CLI test only asserts the
+  // executor produces a structured defer to a known subagent — not a
+  // hard error. The flexible matcher prevents test brittleness when the
+  // classifier is re-tuned.
   const r = spawnCli('explain TypeError x is not a function');
   assert.equal(r.status, 0);
   const json = JSON.parse(r.stdout);
   // Either anthropic_only_chain (no provider attempted) OR all_providers_failed
   // (mock attempted) — both are valid outputs depending on chain shape.
-  // Acceptance: we get a defer to a recognised subagent, not a hard error.
   assert.equal(json.ok, false);
   assert.match(json.defer_to_subagent || '',
     /^(cheap-triage|model-reasoner|model-architect)$/);
