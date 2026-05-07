@@ -76,6 +76,11 @@ output/
 # Master prompts — strategic content, not for public repo
 prompts/
 
+# Strategy PDFs — source markdown is versioned; PDFs mirrored in paulo-vault
+# to preserve git clone size. *_pdf.md are intermediate generation copies.
+MOOTER_*.pdf
+MOOTER_*_pdf.md
+
 # frugal-core — nunca no repo público
 .frugal-core/
 frugal-core/
