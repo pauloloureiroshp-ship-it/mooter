@@ -1004,3 +1004,57 @@ test('calibration: MOOTER_DECISIONS_LOG override is honoured', () => {
   assert.equal(r.samples, 1);
   assert.equal(r.bins['0.8-1.0'].count, 1);
 });
+
+// ── Wave-3 ECE-light extension ────────────────────────────────────────
+
+test('calibration: bins_fine has all 5 buckets', () => {
+  const events = [{ event: 'executed', confidence: 0.9, outcome: 'ok', tier: 'T1', ts: new Date().toISOString() }];
+  const r = runCalibration(events);
+  assert.ok(r.bins_fine, 'bins_fine present');
+  const keys = Object.keys(r.bins_fine).sort();
+  assert.deepEqual(keys, ['0.0-0.2', '0.2-0.4', '0.4-0.6', '0.6-0.8', '0.8-1.0']);
+  // The single high-confidence sample lands in 0.8-1.0; lower bins are empty.
+  assert.equal(r.bins_fine['0.8-1.0'].count, 1);
+  assert.equal(r.bins_fine['0.0-0.2'].count, 0);
+  assert.equal(r.bins_fine['0.2-0.4'].count, 0);
+  // mid is 0.9 for the top bin (representative confidence)
+  assert.equal(r.bins_fine['0.8-1.0'].mid, 0.9);
+});
+
+test('calibration: ECE is zero when accuracy matches confidence midpoint', () => {
+  // 100 events at confidence=0.9 with 90% accuracy → ECE for 0.8-1.0 bin
+  // should be close to zero (|0.9 - 0.9| × 1.0 weight = 0).
+  const events = [];
+  for (let i = 0; i < 100; i++) {
+    events.push({
+      event: 'executed',
+      confidence: 0.9,
+      outcome: i < 90 ? 'ok' : 'deferred',
+      tier: 'T1',
+      ts: new Date(Date.now() - i * 1000).toISOString(),
+    });
+  }
+  const r = runCalibration(events);
+  assert.ok(r.bins_fine['0.8-1.0'].count === 100);
+  assert.ok(r.bins_fine['0.8-1.0'].accuracy === 0.9);
+  assert.ok(typeof r.ece === 'number', 'ece is numeric');
+  // |0.9 - 0.9| = 0 → ECE ≈ 0 (within rounding to 4 decimals)
+  assert.ok(r.ece < 0.001, `expected ECE near zero for perfectly-calibrated bin; got ${r.ece}`);
+});
+
+test('calibration: ECE rises when bin accuracy diverges from midpoint', () => {
+  // 100 events at confidence=0.9 with 0% accuracy → |accuracy - mid| = 0.9
+  // Weight = 1.0 → ECE = 0.9.
+  const events = [];
+  for (let i = 0; i < 100; i++) {
+    events.push({
+      event: 'executed',
+      confidence: 0.9,
+      outcome: 'deferred',
+      tier: 'T1',
+      ts: new Date(Date.now() - i * 1000).toISOString(),
+    });
+  }
+  const r = runCalibration(events);
+  assert.ok(r.ece >= 0.85 && r.ece <= 0.95, `expected ECE near 0.9 for fully miscalibrated; got ${r.ece}`);
+});

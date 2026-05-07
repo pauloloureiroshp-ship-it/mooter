@@ -1008,29 +1008,69 @@ function runCalibrationOnly(lastN) {
     if (e && e.event === 'executed') recent.unshift(e);
   }
 
+  // Wave-3 ECE-light extension. We keep the original 2-bin coarse
+  // summary (`bins`) for back-compat with downstream consumers and
+  // tests, AND add a 5-bin fine-grained tally (`bins_fine`) plus an
+  // Expected Calibration Error scalar (`ece`) so future Wave-4
+  // tuning has empirical data instead of the binary "above/below
+  // threshold" signal of the v1 schema.
+  const BINS_FINE = [
+    { key: '0.0-0.2', lo: 0.0, hi: 0.2, mid: 0.10 },
+    { key: '0.2-0.4', lo: 0.2, hi: 0.4, mid: 0.30 },
+    { key: '0.4-0.6', lo: 0.4, hi: 0.6, mid: 0.50 },
+    { key: '0.6-0.8', lo: 0.6, hi: 0.8, mid: 0.70 },
+    { key: '0.8-1.0', lo: 0.8, hi: 1.001, mid: 0.90 }, // hi inclusive at 1.0
+  ];
   /** @type {Record<string,{count:number,ok:number}>} */
-  const bins = {
-    '0.6-0.8': { count: 0, ok: 0 },
-    '0.8-1.0': { count: 0, ok: 0 },
-  };
+  const finesTally = {};
+  for (const b of BINS_FINE) finesTally[b.key] = { count: 0, ok: 0 };
+  let totalInBins = 0;
   for (const e of recent) {
     const c = Number(e.confidence);
     if (!Number.isFinite(c)) continue;
-    const bin = c >= 0.8 ? '0.8-1.0' : (c >= 0.6 ? '0.6-0.8' : null);
-    if (!bin) continue;
-    bins[bin].count += 1;
-    if (e.outcome === 'ok') bins[bin].ok += 1;
+    const b = BINS_FINE.find((b) => c >= b.lo && c < b.hi);
+    if (!b) continue;
+    finesTally[b.key].count += 1;
+    if (e.outcome === 'ok') finesTally[b.key].ok += 1;
+    totalInBins += 1;
   }
+
+  /** @type {Record<string, {count:number,ok:number,accuracy:number|null,mid:number}>} */
+  const binsFine = {};
+  let ece = 0;
+  for (const b of BINS_FINE) {
+    const t = finesTally[b.key];
+    const accuracy = t.count > 0 ? t.ok / t.count : null;
+    binsFine[b.key] = { count: t.count, ok: t.ok, accuracy, mid: b.mid };
+    if (totalInBins > 0 && t.count > 0 && accuracy !== null) {
+      const weight = t.count / totalInBins;
+      ece += weight * Math.abs(accuracy - b.mid);
+    }
+  }
+
+  // 2-bin coarse summary: shaped exactly like the pre-Wave-3 schema
+  // so existing tests and consumers (statusline, dashboards) keep
+  // reading `bins['0.8-1.0'].accuracy` etc unchanged.
+  /** @type {Record<string, {count:number,ok:number,accuracy:number|null}>} */
+  const bins = {
+    '0.6-0.8': {
+      count: binsFine['0.6-0.8'].count,
+      ok: binsFine['0.6-0.8'].ok,
+      accuracy: binsFine['0.6-0.8'].accuracy,
+    },
+    '0.8-1.0': {
+      count: binsFine['0.8-1.0'].count,
+      ok: binsFine['0.8-1.0'].ok,
+      accuracy: binsFine['0.8-1.0'].accuracy,
+    },
+  };
 
   const report = {
     ts: new Date().toISOString(),
     samples: recent.length,
-    bins: {
-      '0.6-0.8': { count: bins['0.6-0.8'].count, ok: bins['0.6-0.8'].ok,
-        accuracy: bins['0.6-0.8'].count ? bins['0.6-0.8'].ok / bins['0.6-0.8'].count : null },
-      '0.8-1.0': { count: bins['0.8-1.0'].count, ok: bins['0.8-1.0'].ok,
-        accuracy: bins['0.8-1.0'].count ? bins['0.8-1.0'].ok / bins['0.8-1.0'].count : null },
-    },
+    bins,
+    bins_fine: binsFine,
+    ece: Math.round(ece * 10000) / 10000,
     threshold: 0.90,
     warning: null,
     note: null,
