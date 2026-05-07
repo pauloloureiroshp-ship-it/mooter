@@ -114,6 +114,23 @@ Suite final: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **
 
 **Doctrine compliance**: I11 ainda invariant (`classify.js` byte-identical), D2 ainda invariant (`savings-tracker.js` 0 lines diff). Suite: 310 verde (309 pass + 1 expected skip). Mirror completo em `paulo-vault/30-learnings/wave-3-statusline-2026-05-07.md`.
 
+**Wave-3 closure cycle II (mesma sessão, post-statusline):** **3 atomic commits adicionais** sobre `309d5a6` a fechar os carry-overs S2 do paulo-vault Wave-4 recommendations:
+
+7. `2e1b6b4` — `feat(router): CLI auto-loads real provider wrappers (Ollama/Codex/OpenAI)` — **mudança visceral**: pre-Wave-3 o CLI sem `MOCK_PROVIDERS=1` falhava sempre com `wrapper_missing` (deps={} → undefined wrappers). Agora auto-load via `require('./providers/ollama-api')` etc. Verified end-to-end: 10 prompts via local Ollama qwen2.5:3b → `outcome=ok` × 10 (~200ms each), `EXECUTIONS_AGGREGATE.guaranteed_saved_usd` agora positivo ($0.0089), `by_outcome: {ok: 11, deferred: 50}`.
+8. `89ed3ea` — `test(statusline): latency benchmark guard rail (median<600ms, max<1500ms)` — 3 novos tests em `gsd-statusline-latency.test.js` (median + max + 🐮 glyph integrity). Empirical baseline: 170-230ms cold spawn em Windows + Node 22; budget 600ms median deixa headroom para CI cold runners. Suite: 310 → 313.
+9. `a0e36a1` — `feat(statusline): sampled calibration log for empirical threshold tuning` — 1% de split-renders escrevem `{ratio, exec, w2, adv, signal, marker_fired}` para `~/.claude/tools/router/.statusline-calibration.jsonl`. Fire-and-forget async, never blocks. Statusline corre ~every 5s → 1% ≈ entry/8min. Over weeks acumula data empírica para Wave-4 tunar 50/0.5 thresholds contra distribuição real.
+
+**Live render pós Wave-2 closure (real Ollama executions registadas):**
+```
+⚠ 🐮 saved $0.01 gtd · $56.10 adv (11% vs all-Opus) · spent $193.45 · 2538 prompts · 0% local ══ ● ok
+```
+
+`gtd $0.01` agora é o **REAL** Wave-2 number (`m.executions.guaranteed_saved_usd`, 11 outcome=ok rows × ~$0.001 each), não o PRIMARY-path proxy. Marker continua a disparar — é honesto: o executor só viu 11/2538 prompts (sub-utilização). Para drift fechar, `inject_context.js` teria que router todos os prompts via executor (Wave-4+).
+
+**Acceptance progress**: §10 #5 (executions OK ratio ≥ 55%) **parcialmente fechado** — 11/61 = 18% no current corpus, mas todos os 11 reais são `ok`. Quando o tester sintético / inject_context router corrente, o ratio sobe naturalmente.
+
+Suite final: 313 verde (312 pass + 1 expected skip), +14 net new tests desde audit baseline (296). I11 + D2 invariants preservados pós-todos-os-commits.
+
 **Carry-overs explicitamente N/A nesta hotfix wave** (preserve scope):
 - ECE-style calibration (3h, requer SPEC update — Wave-3 proper)
 - Statusline reflectir `guaranteed_saved_usd` (UI work)
