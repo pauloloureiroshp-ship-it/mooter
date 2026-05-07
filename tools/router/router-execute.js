@@ -936,6 +936,22 @@ if (require.main === module) {
       });
 
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+
+      // Drain telemetry before exit. Required since the Wave-3 hotfix
+      // moved appendDecisionsLog from fs.appendFileSync to async
+      // fs.promises.appendFile — without an explicit drain the CLI
+      // process exits before the queued write hits disk, AND before
+      // the fire-and-forget HTTP POST to the savings-tracker reaches
+      // the socket. Both sinks are best-effort, but losing 100% of
+      // CLI-mode telemetry to a process-exit race is a silent
+      // regression that hides /metrics.executions in production.
+      await flushDecisionsLog();
+      // Give the HTTP request a chance to land before exit. The POST
+      // itself has a 250ms timeout (postToSavingsTracker), so 300ms
+      // here is a generous upper bound. Programmatic require()
+      // callers don't need this — only the short-lived CLI does.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       process.exit(0);
     } catch (err) {
       process.stderr.write(`router-execute fatal: ${err && err.stack || err}\n`);
