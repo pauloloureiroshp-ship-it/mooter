@@ -149,3 +149,144 @@ test('execute() never throws — all error paths produce a structured value', as
   assert.ok(out && out.result);
   assert.equal(typeof out.result.ok, 'boolean');
 });
+
+// ── T-06 — fallback chain resolution (I7, I7b) ──────────────────────────
+
+const { _internal } = require('./router-execute');
+
+test('resolveFallbackChain: T2 with claude=ok keeps chain unchanged', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T2', suggested_providers: ['sonnet'] },
+    { claude: 'ok', codex_cli: 'ok', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['sonnet']);
+});
+
+test('I7: T2 with claude=degraded prepends codex_cli', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T2', suggested_providers: ['sonnet'] },
+    { claude: 'degraded', codex_cli: 'ok', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['codex_cli', 'sonnet']);
+});
+
+test('T1 with claude=degraded prepends codex_cli when available', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T1', suggested_providers: ['haiku'] },
+    { claude: 'degraded', codex_cli: 'ok', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['codex_cli', 'haiku']);
+});
+
+test('T1 with claude=degraded falls back to ollama when codex unavailable', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T1', suggested_providers: ['haiku'] },
+    { claude: 'degraded', codex_cli: 'unavailable', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['ollama', 'haiku']);
+});
+
+test('T2 with claude=degraded but codex unavailable does NOT inject ollama', () => {
+  // T2 reasoning is too weak for Ollama — doctrine: prefer waiting for
+  // sonnet rather than serving a bad answer.
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T2', suggested_providers: ['sonnet'] },
+    { claude: 'degraded', codex_cli: 'unavailable', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['sonnet']);
+});
+
+test('I7b: T3 with claude=degraded does NOT prepend anything (architecture work waits)', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T3', suggested_providers: ['opus'] },
+    { claude: 'degraded', codex_cli: 'ok', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['opus']);
+});
+
+test('codex_cli=exhausted is dropped from the chain', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T1', suggested_providers: ['codex_cli', 'haiku'] },
+    { claude: 'ok', codex_cli: 'exhausted', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['haiku']);
+});
+
+test('ollama=down is dropped from the chain', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T0', suggested_providers: ['ollama'] },
+    { claude: 'ok', codex_cli: 'ok', ollama: 'down' }
+  );
+  assert.deepEqual(chain, []);
+});
+
+test('chain entries are normalised to lowercase', () => {
+  const chain = _internal.resolveFallbackChain(
+    { tier: 'T1', suggested_providers: ['Codex_CLI', 'HAIKU'] },
+    { claude: 'ok', codex_cli: 'ok', ollama: 'ok' }
+  );
+  assert.deepEqual(chain, ['codex_cli', 'haiku']);
+});
+
+test('isAnthropicProvider classifies tier correctly', () => {
+  assert.equal(_internal.isAnthropicProvider('haiku'), true);
+  assert.equal(_internal.isAnthropicProvider('sonnet'), true);
+  assert.equal(_internal.isAnthropicProvider('opus'), true);
+  assert.equal(_internal.isAnthropicProvider('claude'), true);
+  assert.equal(_internal.isAnthropicProvider('codex_cli'), false);
+  assert.equal(_internal.isAnthropicProvider('ollama'), false);
+  assert.equal(_internal.isAnthropicProvider(undefined), false);
+});
+
+// Integration via execute(): T1 default chain ['haiku'] resolves to all-Anthropic
+// → defer cheap-triage with reason 'anthropic_only_chain'. Pre-T-07 verifies
+// the new code path is wired correctly.
+test('execute(): T1 default chain [haiku] resolves to all-Anthropic and defers cheap-triage', async () => {
+  reset();
+  const handcrafted = {
+    prompt: 'explain TypeError: x is not a function',
+    classification: {
+      tier: 'T1',
+      confidence: 0.85,
+      recommended_backend: 'anthropic_api',
+      recommended_model: 'claude-haiku-4-5-20251001',
+      suggested_providers: ['haiku'],
+      task_category: 'explain_error',
+      escalation_rule: 'none',
+    },
+    provider_state: { claude: 'ok', codex_cli: 'ok', ollama: 'ok' },
+    provider_mocks: {},
+  };
+  const { result } = await runExecutorWithFixture({ fixture: handcrafted });
+  assert.equal(result.ok, false);
+  assert.equal(result.defer_to_subagent, 'cheap-triage');
+  assert.equal(result.reason, 'anthropic_only_chain');
+  assert.deepEqual(result.fallback_chain, []);
+});
+
+test('execute(): T2 with degraded claude+codex resolves chain with codex_cli first (T-07 placeholder)', async () => {
+  reset();
+  const handcrafted = {
+    prompt: 'compare mutex vs semaphore for our worker pool',
+    classification: {
+      tier: 'T2',
+      confidence: 0.78,
+      recommended_backend: 'claude_subagent',
+      recommended_model: 'claude-sonnet-4-6',
+      suggested_providers: ['sonnet'],
+      task_category: 'reasoning',
+      escalation_rule: 'none',
+    },
+    provider_state: { claude: 'degraded', codex_cli: 'ok', ollama: 'ok' },
+    provider_mocks: {},
+  };
+  const { result } = await runExecutorWithFixture({ fixture: handcrafted });
+  // T-07 not yet shipped → placeholder. The error payload exposes the
+  // resolved chain so we can assert chain construction even before
+  // dispatch is wired.
+  assert.equal(result.ok, false);
+  assert.ok(result.errors && result.errors.length >= 1);
+  const phase = result.errors[0];
+  assert.equal(phase.code, 'phase_t06_only');
+  assert.deepEqual(phase.resolved_chain, ['codex_cli', 'sonnet']);
+});

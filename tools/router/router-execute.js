@@ -84,6 +84,104 @@ function isHighRiskFloor(classification) {
   return false;
 }
 
+// ── Fallback chain (T-06) ───────────────────────────────────────────────
+
+const ANTHROPIC_KEYS = new Set(['haiku', 'sonnet', 'opus', 'claude']);
+const NON_ANTHROPIC_KEYS = new Set(['ollama', 'codex_cli', 'openai_api']);
+
+/**
+ * @param {string} key
+ * @returns {boolean}
+ */
+function isAnthropicProvider(key) {
+  return ANTHROPIC_KEYS.has(String(key || '').toLowerCase());
+}
+
+/**
+ * Resolve the ordered provider chain for dispatch given a classification
+ * and current provider-state snapshot. SPEC §6.1 verbatim.
+ *
+ * Order of operations:
+ *   1. Start with classification.suggested_providers verbatim.
+ *   2. If claude is degraded AND chain leads with an Anthropic provider:
+ *        - tier T1: prepend codex_cli (if available), else prepend ollama.
+ *        - tier T2: prepend codex_cli (if available); ollama is too weak
+ *          for T2 reasoning so we do NOT prepend it as a fallback.
+ *        - tier T3: do NOT prepend anything (doctrine — architecture work
+ *          waits for Anthropic to recover).
+ *   3. Drop providers whose state is degraded/exhausted/down/unavailable
+ *      from the resolved chain.
+ *   4. Return possibly-empty array; caller decides whether to dispatch
+ *      or defer.
+ *
+ * Doctrine guards (T3 lock, high_risk, user_override) are already
+ * applied upstream in execute() before this runs — this helper does NOT
+ * re-check them.
+ *
+ * @param {object} classification
+ * @param {object} providerState
+ * @returns {string[]}
+ */
+function resolveFallbackChain(classification, providerState) {
+  const tier = classification && classification.tier;
+  const initial = Array.isArray(classification && classification.suggested_providers)
+    ? classification.suggested_providers.slice()
+    : [];
+
+  // T3: chain is locked — even if classify.js produced a multi-entry list
+  // and claude is degraded, do not inject. Caller short-circuits earlier
+  // for T3, but defending here keeps the helper safe to call standalone.
+  if (tier === 'T3') {
+    return filterDegraded(initial, providerState);
+  }
+
+  let chain = initial.slice();
+  const claudeDegraded = providerState && providerState.claude === 'degraded';
+  const codexAvailable = providerState && providerState.codex_cli === 'ok';
+  const ollamaUp = providerState && providerState.ollama === 'ok';
+
+  if (claudeDegraded && chain.length > 0 && isAnthropicProvider(chain[0])) {
+    if (tier === 'T2' && codexAvailable && !chain.includes('codex_cli')) {
+      chain = ['codex_cli', ...chain];
+    } else if (tier === 'T1') {
+      if (codexAvailable && !chain.includes('codex_cli')) {
+        chain = ['codex_cli', ...chain];
+      } else if (ollamaUp && !chain.includes('ollama')) {
+        chain = ['ollama', ...chain];
+      }
+    }
+    // tier T0 doesn't reach here (T0 default chain is ['ollama'], not Anthropic).
+  }
+
+  return filterDegraded(chain, providerState);
+}
+
+/**
+ * Drop providers whose state indicates they cannot serve a call right now.
+ * Anthropic providers stay in the chain even when claude=degraded — the
+ * executor will eventually defer to the subagent (which has its own
+ * recovery semantics), and removing them would lose the explicit signal
+ * that a defer is needed.
+ *
+ * @param {string[]} chain
+ * @param {object} providerState
+ * @returns {string[]}
+ */
+function filterDegraded(chain, providerState) {
+  if (!providerState) return chain.slice();
+  /** @type {string[]} */
+  const out = [];
+  for (const key of chain) {
+    const k = String(key || '').toLowerCase();
+    if (k === 'codex_cli' && (providerState.codex_cli === 'exhausted' || providerState.codex_cli === 'unavailable')) continue;
+    if (k === 'ollama'    && providerState.ollama === 'down') continue;
+    if (k === 'openai_api' && providerState.openai_api === 'down') continue;
+    if (k === 'gemini' && (providerState.gemini === 'off' || providerState.gemini === 'down')) continue;
+    out.push(k);
+  }
+  return out;
+}
+
 // ── Result helpers ──────────────────────────────────────────────────────
 
 /**
@@ -294,17 +392,43 @@ async function execute(input = {}) {
     return result;
   }
 
-  // ── T-06 / T-07 placeholder — chain construction + dispatch loop ─────
-  // Until T-06 lands, fall through to a "not implemented" defer so callers
-  // surface T-05 incompleteness without crashing.
+  // ── T-06 — fallback chain construction ──────────────────────────────
+  const chain = resolveFallbackChain(classification, deps.providerState || {});
+
+  // If the resolved chain is empty or contains only Anthropic-tier
+  // providers, there is nothing the executor can dispatch directly →
+  // defer to the matching subagent. This is the legitimate "advisor was
+  // already routing to Anthropic" path.
+  const dispatchable = chain.filter((k) => NON_ANTHROPIC_KEYS.has(k));
+  if (dispatchable.length === 0) {
+    const result = buildDefer({
+      subagent: defaultSubagentForTier(classification.tier),
+      reason: 'anthropic_only_chain',
+      classification,
+      fallbackChain: [],
+    });
+    if (deps.telemetryWriter) {
+      deps.telemetryWriter(buildTelemetryRecord({
+        prompt: prompt || '',
+        classification,
+        result,
+        suggestedProviders,
+      }));
+    }
+    return result;
+  }
+
+  // ── T-07 placeholder — dispatch loop not yet shipped ────────────────
   const placeholder = buildDefer({
     subagent: defaultSubagentForTier(classification.tier),
-    reason: 'anthropic_only_chain', // best approximation pending T-06
+    reason: 'anthropic_only_chain', // best approximation pending T-07
     classification,
+    fallbackChain: [],
     errors: [{
       provider: 'executor',
-      message: 'T-06 (chain) and T-07 (dispatch) not yet shipped — only doctrine-guard defers are implemented',
-      code: 'phase_t05_only',
+      message: 'T-07 dispatch loop not yet shipped — non-Anthropic provider in chain but cannot dispatch',
+      code: 'phase_t06_only',
+      resolved_chain: chain,
     }],
   });
   if (deps.telemetryWriter) {
@@ -329,6 +453,9 @@ module.exports = {
     defaultSubagentForTier,
     sanitisePromptPreview,
     buildTelemetryRecord,
+    resolveFallbackChain,
+    isAnthropicProvider,
+    filterDegraded,
   },
 };
 
