@@ -22,7 +22,7 @@ const assert   = require('node:assert/strict');
 
 const {
   pickState, renderFromContext,
-  digest, beastOverkillPct, avgConfidence,
+  digest, beastOverkillPct, zenUnderkillPct, avgConfidence,
   computeAnthropicRem, computeCodexRem, computeCodexMessagesLeft,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
@@ -186,6 +186,45 @@ test('beastOverkillPct: counts forced trivials only', () => {
   ];
   // 2 of 4 are forced trivials → 50%.
   assert.equal(beastOverkillPct(events), 50);
+});
+
+test('zenUnderkillPct: 0 on empty, ignores low-complexity prompts', () => {
+  assert.equal(zenUnderkillPct([]), 0);
+  const events = [
+    { tier: 'T1', active_mode: 'zen', prompt_complexity_score: 0.1 },
+    { tier: 'T1', active_mode: 'zen', prompt_complexity_score: 0.3 },
+  ];
+  // Both are within zen's competence (complexity ≤ 0.5) → no underkill.
+  assert.equal(zenUnderkillPct(events), 0);
+});
+
+test('zenUnderkillPct: counts capped complex tasks only', () => {
+  const events = [
+    { tier: 'T1', active_mode: 'zen', prompt_complexity_score: 0.8 }, // capped + complex
+    { tier: 'T0', active_mode: 'zen', prompt_complexity_score: 0.7 }, // capped + complex
+    { tier: 'T1', active_mode: 'zen', prompt_complexity_score: 0.2 }, // capped + simple — fine
+    { tier: 'T2' }, // no zen
+  ];
+  // 2 of 4 are zen-capped complex tasks → 50%.
+  assert.equal(zenUnderkillPct(events), 50);
+});
+
+test('pickState: yellow when zen underkill exceeds threshold', () => {
+  const zenEvents = Array(10).fill({
+    tier: 'T1',
+    active_mode: 'zen',
+    escalation_rule: 'zen_mode',
+    prompt_complexity_score: 0.7,
+    confidence: 0.8,
+  });
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    last:   zenEvents[0],
+    recent: zenEvents,
+  };
+  const s = pickState(ctx);
+  assert.equal(s.color, 'yellow');
+  assert.match(s.headline, /zen-capped on complex tasks/);
 });
 
 test('avgConfidence: ignores undefined / non-finite values', () => {

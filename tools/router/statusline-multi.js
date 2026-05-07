@@ -59,6 +59,8 @@ const TH = {
   SAVINGS_YELLOW:  30,  // saved% below this → yellow
   CONFIDENCE_LOW:  0.5, // avg confidence of last 3 → red drift
   BEAST_OVERKILL_PCT: 40, // % of last 10 turns where beast forced T3 over a T0/T1 baseline
+  ZEN_UNDERKILL_PCT:  40, // % of last 10 turns where zen capped T1 on a complex task
+  ZEN_COMPLEXITY_HI:  0.5, // prompt_complexity_score above which zen-cap is wasteful
 };
 
 // ────────────────────────────────────────────────────────────────────────
@@ -197,6 +199,23 @@ function beastOverkillPct(events) {
   return Math.round((forced.length / events.length) * 100);
 }
 
+// Symmetric to beastOverkillPct — surfaces when LazyMoo (zen mode) is capping
+// a high-complexity task to T1, where the user is likely to feel the quality
+// drop. Threshold mirrors the beast detector; tuned in TH.
+function zenUnderkillPct(events) {
+  if (!events.length) return 0;
+  const capped = events.filter((e) =>
+    e && (
+      e.escalation_rule === 'zen_mode' ||
+      e.active_mode === 'zen'
+    ) && (e.tier === 'T0' || e.tier === 'T1') && (
+      typeof e.prompt_complexity_score === 'number' &&
+      e.prompt_complexity_score > TH.ZEN_COMPLEXITY_HI
+    )
+  );
+  return Math.round((capped.length / events.length) * 100);
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // State picker — produces { color, headline, proof }
 // ────────────────────────────────────────────────────────────────────────
@@ -279,6 +298,18 @@ function pickState(ctx) {
       return {
         color:    'yellow',
         headline: `${overkill}% of last 10 turns forced T3 on trivials`,
+        proof,
+      };
+    }
+  }
+
+  // ── YELLOW: zen underkill on complex tasks ────────────────────────────
+  if (recent.length >= 5) {
+    const underkill = zenUnderkillPct(recent);
+    if (underkill >= TH.ZEN_UNDERKILL_PCT) {
+      return {
+        color:    'yellow',
+        headline: `${underkill}% of last 10 turns zen-capped on complex tasks`,
         proof,
       };
     }
@@ -442,6 +473,7 @@ module.exports = {
   computeCodexRem,
   computeCodexMessagesLeft,
   beastOverkillPct,
+  zenUnderkillPct,
   avgConfidence,
   // Demo contexts kept on the export so consumers can render previews.
   DEMO_CONTEXTS,
