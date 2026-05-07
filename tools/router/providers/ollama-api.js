@@ -1,0 +1,173 @@
+#!/usr/bin/env node
+// @ts-check
+'use strict';
+/**
+ * providers/ollama-api.js — programmatic Ollama wrapper for the router.
+ *
+ * Mirrors the (prompt, opts) → Promise<Result|null> shape used by
+ * providers/codex-cli.js and providers/openai-api.js so router-execute.js
+ * (Wave-2) can dispatch all non-Anthropic providers through a uniform
+ * interface.
+ *
+ * The legacy ollama_call_node.js is kept as a thin CLI for the Option-A
+ * pre-computed path in inject_context.js — it does NOT expose a callable
+ * function. This module fills that gap.
+ *
+ * Token counts come from Ollama's `prompt_eval_count` and `eval_count`
+ * fields (non-stream mode). cost_usd is always 0 (local subscription).
+ *
+ * No npm deps — pure Node built-ins (`fetch` is global since Node 18).
+ */
+
+const tracker = require('../quota-tracker');
+
+const DEFAULT_HOST  = 'http://localhost:11434';
+const DEFAULT_MODEL = 'qwen2.5:3b';
+const DEFAULT_TIMEOUT_MS = 90_000;
+
+const SYSTEM = [
+  'És um assistente de software engineering conciso.',
+  'Respondes em PT-PT (Portugal). Código e identificadores em inglês.',
+  'Respostas curtas e directas — nunca mais de 3 frases para perguntas simples.',
+  'Não uses preâmbulo. Não repitas o que o user perguntou.',
+].join('\n');
+
+/**
+ * @typedef {Object} OllamaResult
+ * @property {true}    ok
+ * @property {string}  text
+ * @property {string}  model
+ * @property {number}  tokensIn
+ * @property {number}  tokensOut
+ * @property {number}  costUsd
+ * @property {number}  durationMs
+ */
+
+/**
+ * Call Ollama's /api/generate endpoint (non-streaming).
+ *
+ * @param {string} prompt
+ * @param {object} [opts]
+ * @param {string} [opts.model='qwen2.5:3b']
+ * @param {string} [opts.host]               override OLLAMA_HOST
+ * @param {string} [opts.system]             override default system prompt
+ * @param {number} [opts.maxTokens=256]      forwarded as num_predict
+ * @param {number} [opts.temperature=0.2]
+ * @param {number} [opts.timeoutMs=90000]
+ * @returns {Promise<OllamaResult|null>}     null on any failure (caller falls through)
+ */
+async function callOllama(prompt, opts = {}) {
+  if (!prompt || typeof prompt !== 'string') {
+    throw new Error('ollama-api: prompt must be a non-empty string');
+  }
+
+  const host  = opts.host  || process.env.OLLAMA_HOST          || DEFAULT_HOST;
+  const model = opts.model || process.env.OLLAMA_OPTION_A_MODEL || DEFAULT_MODEL;
+  const timeoutMs = Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS;
+
+  const body = JSON.stringify({
+    model,
+    system: opts.system || SYSTEM,
+    prompt,
+    stream: false,
+    keep_alive: -1,
+    options: {
+      temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.2,
+      num_predict: Number(opts.maxTokens) || 256,
+    },
+    think: false,
+  });
+
+  const url = host.replace(/\/+$/, '') + '/api/generate';
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const t0 = Date.now();
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+      signal: controller.signal,
+    });
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+  clearTimeout(timer);
+  const durationMs = Date.now() - t0;
+
+  if (!res.ok) return null;
+
+  let json;
+  try {
+    json = await res.json();
+  } catch {
+    return null;
+  }
+
+  const text = (json && typeof json.response === 'string') ? json.response.trim() : '';
+  if (!text) return null;
+
+  const tokensIn  = Number(json.prompt_eval_count) || 0;
+  const tokensOut = Number(json.eval_count)        || 0;
+  const costUsd = 0; // local model; subscription-style
+
+  try {
+    tracker.recordUsage('ollama', {
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      cost_usd: costUsd,
+      duration_ms: durationMs,
+    });
+  } catch { /* tracker is best-effort */ }
+
+  return { ok: true, text, model, tokensIn, tokensOut, costUsd, durationMs };
+}
+
+/**
+ * Cheap availability probe — does the Ollama host respond to /api/tags?
+ * Uses a short timeout to keep the hot path fast. Does not consume quota.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.host]
+ * @param {number} [opts.timeoutMs=1500]
+ * @returns {Promise<{available:boolean,reason?:string}>}
+ */
+async function isAvailable(opts = {}) {
+  const host = opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST;
+  const url  = host.replace(/\/+$/, '') + '/api/tags';
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Number(opts.timeoutMs) || 1500);
+
+  try {
+    const res = await fetch(url, { method: 'GET', signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return { available: false, reason: `tags http ${res.status}` };
+    return { available: true };
+  } catch (err) {
+    clearTimeout(timer);
+    return { available: false, reason: `tags error: ${err && err.message || 'unknown'}` };
+  }
+}
+
+module.exports = {
+  callOllama,
+  isAvailable,
+  DEFAULT_MODEL,
+  DEFAULT_HOST,
+};
+
+// CLI sanity check: `node providers/ollama-api.js`
+if (require.main === module) {
+  isAvailable().then((probe) => {
+    process.stdout.write(JSON.stringify({
+      ...probe,
+      default_model: DEFAULT_MODEL,
+      default_host: DEFAULT_HOST,
+    }, null, 2) + '\n');
+  });
+}

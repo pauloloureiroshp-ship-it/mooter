@@ -30,12 +30,14 @@ function loadFresh() {
     '../quota-tracker.js',
     './codex-cli.js',
     './openai-api.js',
+    './ollama-api.js',
   ]) {
     try { delete require.cache[require.resolve(m)]; } catch {}
   }
   return {
-    codex:  require('./codex-cli.js'),
-    openai: require('./openai-api.js'),
+    codex:   require('./codex-cli.js'),
+    openai:  require('./openai-api.js'),
+    ollama:  require('./ollama-api.js'),
     loadEnv: require('./_load-env.js'),
   };
 }
@@ -165,4 +167,147 @@ test('_load-env: ignores comments and blank lines, strips quotes', () => {
   loadEnv.loadEnv();
   assert.equal(process.env.TEST_FOO_VAR, 'quoted-value');
   assert.equal(process.env.TEST_BAR_VAR, 'single-quoted');
+});
+
+// ── ollama-api: callOllama ──────────────────────────────────────────────
+//
+// Mocks the global `fetch` so tests stay deterministic without a real
+// Ollama server. Each test installs its own stub and restores afterwards.
+
+let SAVED_FETCH;
+
+function withMockedFetch(stub, fn) {
+  SAVED_FETCH = globalThis.fetch;
+  globalThis.fetch = stub;
+  try { return fn(); }
+  finally { globalThis.fetch = SAVED_FETCH; }
+}
+
+function makeFetchStub(jsonOrError) {
+  return async () => {
+    if (jsonOrError instanceof Error) throw jsonOrError;
+    return {
+      ok: true,
+      json: async () => jsonOrError,
+    };
+  };
+}
+
+test('ollama callOllama: success returns shape with token counts and zero cost', async () => {
+  const { ollama } = loadFresh();
+  await withMockedFetch(
+    makeFetchStub({
+      response: 'O sistema processa em lotes de 100.',
+      prompt_eval_count: 32,
+      eval_count: 12,
+    }),
+    async () => {
+      const result = await ollama.callOllama('summarise', { timeoutMs: 5000 });
+      assert.equal(result && result.ok, true);
+      assert.equal(result.text, 'O sistema processa em lotes de 100.');
+      assert.equal(result.tokensIn,  32);
+      assert.equal(result.tokensOut, 12);
+      assert.equal(result.costUsd, 0);
+      assert.ok(typeof result.durationMs === 'number');
+    }
+  );
+});
+
+test('ollama callOllama: records usage exactly once on success', async () => {
+  const { ollama } = loadFresh();
+  const tracker = require('../quota-tracker.js');
+  // Capture only the calls produced by THIS test (tracker is module-singleton).
+  const baseline = tracker.snapshot ? tracker.snapshot() : null;
+  let calls = 0;
+  const origRecord = tracker.recordUsage;
+  tracker.recordUsage = (...args) => { calls++; return origRecord.apply(tracker, args); };
+
+  await withMockedFetch(
+    makeFetchStub({ response: 'short answer', prompt_eval_count: 4, eval_count: 2 }),
+    async () => {
+      await ollama.callOllama('p', { timeoutMs: 5000 });
+    }
+  );
+  tracker.recordUsage = origRecord;
+  assert.equal(calls, 1);
+  void baseline;
+});
+
+test('ollama callOllama: does NOT record usage on failure (fetch throws)', async () => {
+  const { ollama } = loadFresh();
+  const tracker = require('../quota-tracker.js');
+  let calls = 0;
+  const origRecord = tracker.recordUsage;
+  tracker.recordUsage = (...args) => { calls++; return origRecord.apply(tracker, args); };
+
+  const result = await withMockedFetch(
+    makeFetchStub(new Error('ECONNREFUSED')),
+    async () => ollama.callOllama('p', { timeoutMs: 5000 })
+  );
+  tracker.recordUsage = origRecord;
+  assert.equal(result, null);
+  assert.equal(calls, 0);
+});
+
+test('ollama callOllama: returns null when response has no text', async () => {
+  const { ollama } = loadFresh();
+  await withMockedFetch(
+    makeFetchStub({ response: '', prompt_eval_count: 0, eval_count: 0 }),
+    async () => {
+      const r = await ollama.callOllama('p', { timeoutMs: 5000 });
+      assert.equal(r, null);
+    }
+  );
+});
+
+test('ollama callOllama: returns null when http response is not ok', async () => {
+  const { ollama } = loadFresh();
+  const stub = async () => ({ ok: false, json: async () => ({ error: 'boom' }) });
+  await withMockedFetch(stub, async () => {
+    const r = await ollama.callOllama('p', { timeoutMs: 5000 });
+    assert.equal(r, null);
+  });
+});
+
+test('ollama callOllama: opts.model overrides the default', async () => {
+  const { ollama } = loadFresh();
+  let capturedBody;
+  const stub = async (_url, init) => {
+    capturedBody = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ response: 'hi', prompt_eval_count: 1, eval_count: 1 }) };
+  };
+  await withMockedFetch(stub, async () => {
+    const r = await ollama.callOllama('p', { model: 'qwen2.5-coder:14b', timeoutMs: 5000 });
+    assert.equal(r && r.model, 'qwen2.5-coder:14b');
+  });
+  assert.equal(capturedBody.model, 'qwen2.5-coder:14b');
+});
+
+test('ollama callOllama: throws on empty prompt (defensive)', async () => {
+  const { ollama } = loadFresh();
+  await assert.rejects(() => ollama.callOllama(''), /non-empty/);
+  await assert.rejects(() => ollama.callOllama(null), /non-empty/);
+});
+
+test('ollama isAvailable: returns false when fetch throws', async () => {
+  const { ollama } = loadFresh();
+  await withMockedFetch(
+    async () => { throw new Error('ENOTFOUND'); },
+    async () => {
+      const probe = await ollama.isAvailable({ timeoutMs: 200 });
+      assert.equal(probe.available, false);
+      assert.match(probe.reason || '', /ENOTFOUND|tags error/);
+    }
+  );
+});
+
+test('ollama isAvailable: returns true when /api/tags responds ok', async () => {
+  const { ollama } = loadFresh();
+  await withMockedFetch(
+    async () => ({ ok: true, json: async () => ({ models: [] }) }),
+    async () => {
+      const probe = await ollama.isAvailable({ timeoutMs: 200 });
+      assert.equal(probe.available, true);
+    }
+  );
 });
