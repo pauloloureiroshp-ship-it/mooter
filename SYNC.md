@@ -62,6 +62,8 @@ Restart savings-tracker server (apanha o novo `/last-execution` + executions blo
 - Notion log: https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d
 - Briefing para sessão Claude FRESCA (não-Opus-author) auditar I1..I11 + comparar contra estado-da-arte 2026 (advisor→executor, fallback chains, calibration loops, vibe-coding harnesses) e devolver veredicto independente em paulo-vault `30-learnings/wave-2-validation-2026-05-07.md` + Notion sub-page.
 
+**Audit independente (Sessão #40-validation, 2026-05-07):** **APPROVED_WITH_NOTES**. Sessão Claude Opus fresca correu o master prompt completo (§3.1–§3.6), validou I1–I11, comparou contra SOTA 2026 (RouteLLM, Inworld Router, BaseCal, Calibration-aware RL). Mandate match 100%. 1 finding S1 real (sanitisation regex bank incompleta — falta AWS/GitLab/Slack/JWT/Azure) + 4 S2 cosmetic não-blocantes. SOTA conclusion: Mooter está level com Inworld em conceito, à frente em doctrine guards + subagent semantics + Codex CLI integration. Lição principal: o reviewer-Opus original (mesmo subagent family) tende a perder honesty signals (versões não bumpadas, test titles enganadores, sanitisation gaps que cheap-triage teria flagged) — **trust-but-verify justifica sessão fresca distinta**. Mirror completo em `paulo-vault/30-learnings/wave-2-validation-2026-05-07.md`.
+
 ---
 
 ### 🌐 Sessão #39 — 2026-05-07 (Wave-2 readiness — validation patch cycle)
@@ -1097,6 +1099,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão #37 2026-05-05 — Site coherence + install alignment + statusline mode trio | https://www.notion.so/3576f6e42bc481fab148fa6a26db00de |
 | Sessão #39 2026-05-07 — Wave-2 readiness (5 patches → 87.5% accuracy) | https://www.notion.so/3596f6e42bc4818caaf2e3b18dd7a581 |
 | Sessão #40 2026-05-07 — Wave-2 router-execute LANDED + Validation Master Prompt | https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d |
+| Sessão #40-validation 2026-05-07 — Wave-2 Independent Audit (APPROVED_WITH_NOTES) | https://www.notion.so/3596f6e42bc481b9a9e4c80086087885 |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
