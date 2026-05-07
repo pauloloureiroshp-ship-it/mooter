@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 720" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif">
+  <title>Mooter routing pipeline V3 — 7 camadas + loop feedback</title>
+  <desc>Pipeline de decisão do Mooter: cache, guardrails, features, k-NN, confidence gate, tier dispatch, cascade, telemetry.</desc>
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#4a4a4a" />
+    </marker>
+    <marker id="arrFb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#e07b39" />
+    </marker>
+  </defs>
+
+  <style><![CDATA[
+    .bg { fill: #fafafa; }
+    .box { fill: #ffffff; stroke: #cccccc; stroke-width: 1.5; rx: 8; }
+    .box-accent { fill: #ffffff; stroke: #2855b8; stroke-width: 2; rx: 8; }
+    .box-warn { fill: #ffffff; stroke: #e07b39; stroke-width: 2; rx: 8; }
+    .label { fill: #1a1a1a; font-size: 14px; font-weight: 600; }
+    .sub { fill: #555555; font-size: 11px; }
+    .tier { fill: #1a1a1a; font-size: 12px; font-weight: 700; }
+    .arrow { stroke: #4a4a4a; stroke-width: 1.5; fill: none; }
+    .arrow-fb { stroke: #e07b39; stroke-width: 1.5; fill: none; stroke-dasharray: 4 4; }
+    .legend { fill: #555555; font-size: 11px; }
+    .header { fill: #1a1a1a; font-size: 17px; font-weight: 700; }
+  ]]></style>
+
+  <rect class="bg" x="0" y="0" width="900" height="720"/>
+
+  <text class="header" x="450" y="20" text-anchor="middle">Mooter — Routing Pipeline V3</text>
+
+  <rect class="box" x="350" y="35" width="200" height="48"/>
+  <text class="label" x="450" y="57" text-anchor="middle">Prompt do user</text>
+  <text class="sub" x="450" y="73" text-anchor="middle">PT/EN/ZH · com ou sem código</text>
+
+  <line class="arrow" x1="450" y1="83" x2="450" y2="107" marker-end="url(#arr)"/>
+
+  <rect class="box" x="80" y="110" width="220" height="60"/>
+  <text class="label" x="190" y="133" text-anchor="middle">Cache semântico</text>
+  <text class="sub" x="190" y="150" text-anchor="middle">cosine ≥ 0.92 → retorna 0ms</text>
+  <text class="sub" x="190" y="163" text-anchor="middle">hit-rate alvo 30-60%</text>
+
+  <rect class="box-warn" x="600" y="110" width="220" height="60"/>
+  <text class="label" x="710" y="133" text-anchor="middle">Guardrails regex</text>
+  <text class="sub" x="710" y="150" text-anchor="middle">.env, secret, migration, prod</text>
+  <text class="sub" x="710" y="163" text-anchor="middle">→ força T3 + final-reviewer</text>
+
+  <line class="arrow" x1="450" y1="107" x2="190" y2="110" marker-end="url(#arr)"/>
+  <line class="arrow" x1="450" y1="107" x2="710" y2="110" marker-end="url(#arr)"/>
+
+  <line class="arrow" x1="190" y1="170" x2="450" y2="195" marker-end="url(#arr)"/>
+  <line class="arrow" x1="710" y1="170" x2="450" y2="195" marker-end="url(#arr)"/>
+
+  <rect class="box" x="290" y="195" width="320" height="52"/>
+  <text class="label" x="450" y="217" text-anchor="middle">Feature extraction</text>
+  <text class="sub" x="450" y="235" text-anchor="middle">FastText lang · code? · n_files · tools? · task_form</text>
+
+  <line class="arrow" x1="450" y1="247" x2="450" y2="271" marker-end="url(#arr)"/>
+
+  <rect class="box" x="290" y="273" width="320" height="56"/>
+  <text class="label" x="450" y="295" text-anchor="middle">Embedding k-NN (Phase 0)</text>
+  <text class="sub" x="450" y="312" text-anchor="middle">bge-small + 80-150 seeds · ~50ms</text>
+  <text class="sub" x="450" y="325" text-anchor="middle">→ Thompson após 1k decisões</text>
+
+  <line class="arrow" x1="450" y1="329" x2="450" y2="353" marker-end="url(#arr)"/>
+
+  <rect class="box-warn" x="320" y="355" width="260" height="44"/>
+  <text class="label" x="450" y="377" text-anchor="middle">Confidence ≥ 0.6?</text>
+  <text class="sub" x="450" y="392" text-anchor="middle">não → Haiku judge (≤5% tráfego)</text>
+
+  <line class="arrow" x1="450" y1="399" x2="450" y2="423" marker-end="url(#arr)"/>
+
+  <rect class="box-accent" x="40" y="425" width="180" height="78"/>
+  <text class="tier" x="130" y="447" text-anchor="middle">T0 · LOCAL</text>
+  <text class="sub" x="130" y="465" text-anchor="middle">Qwen3-30B-A3B Q4</text>
+  <text class="sub" x="130" y="479" text-anchor="middle">Ollama warm · ~$0</text>
+  <text class="sub" x="130" y="493" text-anchor="middle">summarize · JSON · format</text>
+
+  <rect class="box-accent" x="240" y="425" width="180" height="78"/>
+  <text class="tier" x="330" y="447" text-anchor="middle">T1 · HAIKU</text>
+  <text class="sub" x="330" y="465" text-anchor="middle">Haiku 4.5 · TTFT 0.7s</text>
+  <text class="sub" x="330" y="479" text-anchor="middle">$1/$5 · 90 t/s</text>
+  <text class="sub" x="330" y="493" text-anchor="middle">commit · docstring · regex</text>
+
+  <rect class="box-accent" x="440" y="425" width="200" height="78"/>
+  <text class="tier" x="540" y="447" text-anchor="middle">T2 · SONNET 4.6 + cache</text>
+  <text class="sub" x="540" y="465" text-anchor="middle">$3/$15 · cache -90% input</text>
+  <text class="sub" x="540" y="479" text-anchor="middle">43-63 t/s · -85% latency</text>
+  <text class="sub" x="540" y="493" text-anchor="middle">bug · refactor 1-3 ficheiros</text>
+
+  <rect class="box-accent" x="660" y="425" width="200" height="78"/>
+  <text class="tier" x="760" y="447" text-anchor="middle">T3 · OPUS + cache</text>
+  <text class="sub" x="760" y="465" text-anchor="middle">$5/$25 · 20-45 t/s</text>
+  <text class="sub" x="760" y="479" text-anchor="middle">arquitectura · multi-file</text>
+  <text class="sub" x="760" y="493" text-anchor="middle">final-reviewer pré-merge</text>
+
+  <line class="arrow" x1="450" y1="399" x2="130" y2="425" marker-end="url(#arr)"/>
+  <line class="arrow" x1="450" y1="399" x2="330" y2="425" marker-end="url(#arr)"/>
+  <line class="arrow" x1="450" y1="399" x2="540" y2="425" marker-end="url(#arr)"/>
+  <line class="arrow" x1="450" y1="399" x2="760" y2="425" marker-end="url(#arr)"/>
+
+  <line class="arrow" x1="130" y1="503" x2="450" y2="525" marker-end="url(#arr)"/>
+  <line class="arrow" x1="330" y1="503" x2="450" y2="525" marker-end="url(#arr)"/>
+  <line class="arrow" x1="540" y1="503" x2="450" y2="525" marker-end="url(#arr)"/>
+  <line class="arrow" x1="760" y1="503" x2="450" y2="525" marker-end="url(#arr)"/>
+
+  <rect class="box-warn" x="290" y="525" width="320" height="44"/>
+  <text class="label" x="450" y="547" text-anchor="middle">Output check: test fail ou retry?</text>
+  <text class="sub" x="450" y="563" text-anchor="middle">sim → cascade tier+1 e re-executa</text>
+
+  <line class="arrow" x1="450" y1="569" x2="450" y2="593" marker-end="url(#arr)"/>
+
+  <rect class="box" x="290" y="595" width="320" height="48"/>
+  <text class="label" x="450" y="618" text-anchor="middle">Resposta + log OTel</text>
+  <text class="sub" x="450" y="634" text-anchor="middle">SQLite local · cold opt-in Postgres</text>
+
+  <line class="arrow-fb" x1="610" y1="619" x2="700" y2="619" marker-end="url(#arrFb)"/>
+  <rect class="box" x="700" y="587" width="170" height="64" stroke="#e07b39" stroke-width="2"/>
+  <text class="label" x="785" y="607" text-anchor="middle">Loop retro-aliment.</text>
+  <text class="sub" x="785" y="623" text-anchor="middle">Thompson posterior 100×</text>
+  <text class="sub" x="785" y="636" text-anchor="middle">Golden replay 1k×</text>
+  <text class="sub" x="785" y="648" text-anchor="middle">Champion vs challenger</text>
+
+  <path class="arrow-fb" d="M785,587 Q785,515 700,415 Q500,275 450,273" marker-end="url(#arrFb)"/>
+
+  <text class="legend" x="40" y="685">Pipeline V3 · ~50ms p/ decisão · Phase 0 ε-greedy → Phase 1 Thompson @1k → Phase 2 LinUCB @10k</text>
+  <text class="legend" x="40" y="703">Cor sólida = tier dispatch · Cor ponteada (laranja) = loop de auto-melhoria · Borda warn = guardrail/check</text>
+</svg>

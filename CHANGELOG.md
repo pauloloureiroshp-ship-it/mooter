@@ -1,8 +1,74 @@
 # Changelog
 
-All notable changes to frugal are documented in this file.
+All notable changes to mooter are documented in this file.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follow [Semantic Versioning](https://semver.org/).
+
+> **Note (2026-04-14):** project rebranded from `frugal` to `mooter`. Older entries below retain `frugal` references for historical accuracy.
+
+---
+
+## [Strategy Canonical V1.0] — 2026-05-07 — Single Source of Truth (Cowork night session)
+
+### Added — Strategy documentation suite (no code changes)
+- `MOOTER_STRATEGY_CANONICAL_2026-05-07.md` (47 KB) + **`.pdf`** (148 KB, 30 pages) — single source of truth consolidating V1+V2+V3+Master Prompt
+- `MOOTER_EXECUTIVE_BRIEFING_2026-05-07.md` (5 KB) + `.pdf` (77 KB, 3 pages) — outreach 2-pager for Anthropic DevRel, contributors, partners
+- `MOOTER_ROUTING_STRATEGY_2026-05-07.md` (V1, 41 KB) — market state + competitive landscape
+- `MOOTER_ROUTING_STRATEGY_V2_2026-05-07.md` (V2, 39 KB) — Anthropic ecosystem + autonomous loops + lang-aware
+- `MOOTER_FLUXOGRAMA_DEFINITIVO_2026-05-07.md` (V3, 32 KB) — quantified 7-layer pipeline (latency/cost/affinity)
+- `MOOTER_MASTER_PROMPT_2026-05-07.md` (33 KB) — 9-Phase playbook for Claude Code + Ralph Loop
+- `docs/architecture/routing-pipeline.svg` — standalone flowchart for README/landing
+- `docs/adr/W3-001-async-decisions-log.md` — Wave-3 T-1 ADR template (skeleton)
+
+### Strategic decisions canonized
+- Default T3 = Opus 4.6 (NOT 4.7) until 4.7 tokenizer +35% tokens stabilize economics
+- 3 defensible moats: Subscription-Aware Routing · Codebase-Aware Language Harmonisation (PT-PT/PT-BR first-class) · Triple-stack Anthropic alignment (plugin + skill + MCP server)
+- 20 anti-goals codified (no fine-tuning, no auto-merge, no plan-with-frontier+exec-with-local default, etc.)
+- Mooter coabita com Claude Code (NÃO substitui) — design defensivo face a separação first-party/third-party de 2026-04-04
+- Realistic cost reduction expectation: 65–82% vs all-Opus baseline (not the 95% blogs promise)
+
+### Roadmap consolidated for gate (2026-05-26)
+- Wave-3 (2026-05-08-13): async decisions-log · Gemini provider · Thompson Phase 1
+- Wave-4 (2026-05-14-20): Subscription-Aware + Codebase-Aware + RDTR + Honest Cost Report
+- Wave-5 (2026-05-21-25): Triple-stack publish + PR claude-cookbooks + CWC London 2026-05-19
+- Critical events: 2026-05-19 Code with Claude London (12 days lead-time) · 2026-05-26 GATE (≥250 stars + ≥3 contributors)
+
+### Updated
+- `CLAUDE.md` — pointer added to canonical strategy PDF
+- `SYNC.md` — Cowork→Claude Code section with full deliverables list, decisions, caveats, pendentes
+
+### Notion log
+- Sub-page created at HQ: <https://www.notion.so/3596f6e42bc48177a8a9fb30263079d9>
+
+### Caveats (honesty)
+- Repo is more mature than Master Prompt assumed — Phase 0 (audit) partially done. Phase 1 (router core) is redundant with `classify.js` v0.10. Adjust master prompt before following blindly.
+- Cowork did NOT touch core code (`classify.js`, `tools/router/*`, `agents/*`). Wave-3 with final-reviewer required for those.
+- Vault `~/Documents/paulo-vault/` not accessible from Cowork sandbox — manual sync required.
+
+---
+
+## [0.11] — 2026-05-07 — Wave-2 LANDED · advisor → executor
+
+### Added
+- `tools/router/router-execute.js` (886 lines) — executor consumes `classify.js` `suggested_providers`, dispatches non-Anthropic providers directly, defers Anthropic-tier to subagents
+- `tools/router/providers/ollama-api.js` — programmatic Ollama wrapper (was missing — `ollama_call_node.js` is CLI-only)
+- `tools/router/router-execute.{fixtures.json,mocks.js,harness.js,test.js}` + extensions to `providers.test.js` and `savings-tracker-me.test.js` — full Wave-2 suite
+- `tools/router/savings-tracker.js` — new `/last-execution` GET + `/metrics.executions` block (+ `aggregateExecution` helper exported for tests)
+- `tools/router/backtest.js` — new `--calibration-only --last-n=N` mode, writes to `.calibration-alerts.jsonl` if bin 0.8-1.0 < 90% (count ≥ 100)
+
+### Validated
+- 12 atomic commits over `aa25a2b` (T-01..T-10 + design A)
+- Final-reviewer Opus subagent: APPROVED with 2 non-blocking notes
+- I1..I11 doctrine guards verified
+- Suite: 206 → 295 pass + 1 skip (skip is "executor absent" sentinel, expected)
+- Tier accuracy validation: 87.5% (35/40, target ≥85% PASS)
+- Hook latency p50: 113ms (target <200ms PASS)
+- `git diff aa25a2b -- tools/router/classify.js` = empty (I11 invariant maintained)
+
+### Pending
+- Push 12 commits to origin/main (gated on Paulo approval)
+- Live `/metrics.executions` curl validation (deferred — server still running pre-Wave-2 code, will pick up after restart)
+- Re-run validation runner against fresh Wave-2 corpus (acceptance §10 #5: ≥55% executions OK ratio)
 
 ---
 
