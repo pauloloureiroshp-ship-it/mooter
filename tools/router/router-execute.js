@@ -349,9 +349,15 @@ function sanitisePromptPreview(prompt) {
 // Per-path serialised write queue (Wave-2 audit S2#1).
 // Replaces the previous fs.appendFileSync hot-path. Concurrent execute()
 // calls within the same process land here in order; cross-process
-// concurrency relies on POSIX append atomicity (≤PIPE_BUF, ~4KB).
+// concurrency relies on POSIX O_APPEND atomicity (≤PIPE_BUF, ~4KB).
 // Each entry in the map is the tail of a Promise chain for that logPath
 // — chaining ensures lines never interleave within a single process.
+//
+// Cross-process caveat: Windows does not provide the same O_APPEND
+// atomicity guarantee POSIX does. In practice the previous sync
+// implementation had the same Windows weakness; this caveat is
+// surfaced here so future readers don't assume "async = unsafe" when
+// the limitation predates this refactor.
 const _logWriteQueue = new Map();
 
 function appendDecisionsLog(record) {
@@ -371,10 +377,15 @@ function appendDecisionsLog(record) {
     _logWriteQueue.set(logPath, next);
     // Auto-evict the chain when it drains so the Map doesn't grow
     // unbounded across long-lived processes that touch many tmp paths
-    // (test suites in particular).
-    next.then(() => {
-      if (_logWriteQueue.get(logPath) === next) _logWriteQueue.delete(logPath);
-    });
+    // (test suites in particular). The trailing .catch is defensive —
+    // the .catch on the upstream chain already swallows rejections, so
+    // this branch only ever sees fulfilled values, but a future linter
+    // (or a bug above) could surface an uncaught rejection here.
+    next
+      .then(() => {
+        if (_logWriteQueue.get(logPath) === next) _logWriteQueue.delete(logPath);
+      })
+      .catch(() => {});
   } catch { /* best-effort */ }
 }
 
