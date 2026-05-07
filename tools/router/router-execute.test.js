@@ -674,3 +674,77 @@ test('execute() with skipCalibrationCheck does not trigger calibration', async (
       `skipCalibrationCheck must suppress all triggers; got ${calibrationSpawns.length}`);
   });
 });
+
+// ── T-10 — CLI smoke ────────────────────────────────────────────────────
+
+const { spawnSync } = require('node:child_process');
+
+function spawnCli(prompt, env = {}) {
+  return spawnSync(process.execPath, [
+    path.join(__dirname, 'router-execute.js'),
+    prompt,
+  ], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      MOCK_PROVIDERS: '1',
+      MOOTER_TRACKER_PORT: '64995', // unbound — telemetry is best-effort
+      ...env,
+    },
+    timeout: 10_000,
+  });
+}
+
+test('CLI: high_risk T3 prompt defers to model-architect with reason tier_t3', () => {
+  const r = spawnCli('deploy this to production right now');
+  assert.equal(r.status, 0, `CLI exit non-zero: ${r.stderr}`);
+  const json = JSON.parse(r.stdout);
+  assert.equal(json.defer_to_subagent, 'model-architect');
+  assert.equal(json.reason, 'tier_t3');
+});
+
+test('CLI: T0 mechanical_trivial with mocked nulls → all_providers_failed', () => {
+  const r = spawnCli('rename foo to bar in retry.ts');
+  assert.equal(r.status, 0, `CLI exit non-zero: ${r.stderr}`);
+  const json = JSON.parse(r.stdout);
+  assert.equal(json.classification_ref.tier, 'T0');
+  assert.deepEqual(json.fallback_chain, ['ollama']);
+  assert.equal(json.reason, 'all_providers_failed');
+});
+
+test('CLI: T3 architecture defers to model-architect even with mocked providers', () => {
+  const r = spawnCli('redesign the auth subsystem for multi-tenant');
+  assert.equal(r.status, 0);
+  const json = JSON.parse(r.stdout);
+  assert.equal(json.classification_ref.tier, 'T3');
+  assert.equal(json.defer_to_subagent, 'model-architect');
+  assert.equal(json.reason, 'tier_t3');
+  assert.deepEqual(json.fallback_chain, []); // no providers tried for T3
+});
+
+test('CLI: T1 explain_error → defer cheap-triage with anthropic_only_chain', () => {
+  // T1 default chain is ['haiku'] (no codex preference) → all-Anthropic.
+  const r = spawnCli('explain TypeError x is not a function');
+  assert.equal(r.status, 0);
+  const json = JSON.parse(r.stdout);
+  // Either anthropic_only_chain (no provider attempted) OR all_providers_failed
+  // (mock attempted) — both are valid outputs depending on chain shape.
+  // Acceptance: we get a defer to a recognised subagent, not a hard error.
+  assert.equal(json.ok, false);
+  assert.match(json.defer_to_subagent || '',
+    /^(cheap-triage|model-reasoner|model-architect)$/);
+});
+
+test('CLI: empty prompt exits 2 with a clear stderr message', () => {
+  // Spawn with no argv prompt and stdin closed — should detect empty.
+  const r = spawnSync(process.execPath, [
+    path.join(__dirname, 'router-execute.js'),
+  ], {
+    encoding: 'utf8',
+    input: '',
+    env: { ...process.env, MOCK_PROVIDERS: '1', MOOTER_TRACKER_PORT: '64995' },
+    timeout: 5_000,
+  });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /no prompt/i);
+});

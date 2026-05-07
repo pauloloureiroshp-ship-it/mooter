@@ -518,9 +518,25 @@ async function execute(input = {}) {
     return errResult;
   }
 
-  const suggestedProviders = Array.isArray(classification.suggested_providers)
-    ? classification.suggested_providers.slice()
-    : [];
+  // classify.js's fast-paths (mechanical_trivial, file_read, bash_paste) early-
+  // return BEFORE the suggested_providers assignment at the end of classify().
+  // CLAUDE.md doctrine forbids modifying classify.js, so we backfill here from
+  // tier defaults to make the executor robust to that gap. recommended_backend
+  // already encodes the right provider (e.g. 'ollama' for fast-path T0).
+  const TIER_DEFAULTS = { T0: ['ollama'], T1: ['haiku'], T2: ['sonnet'], T3: ['opus'] };
+  let suggestedProviders;
+  if (Array.isArray(classification.suggested_providers) && classification.suggested_providers.length > 0) {
+    suggestedProviders = classification.suggested_providers.slice();
+  } else if (classification.recommended_backend === 'ollama') {
+    suggestedProviders = ['ollama'];
+  } else {
+    suggestedProviders = (TIER_DEFAULTS[classification.tier] || ['haiku']).slice();
+  }
+  // Reflect the backfill onto the classification so resolveFallbackChain
+  // (which reads classification.suggested_providers directly) sees the
+  // same value. This is a local mutation; the caller's reference is
+  // updated but the executor owns the object for the duration of execute().
+  classification.suggested_providers = suggestedProviders.slice();
 
   // ── Doctrine guards (T-05) — order matters ───────────────────────────
   // 1. user_override pinning Anthropic always wins (Paulo asked for X).
@@ -794,10 +810,77 @@ module.exports = {
   },
 };
 
-// CLI entry deferred to T-10. Guard the IIFE so `require('./router-execute')`
-// from tests does not invoke any side effects (mirrors the classify.js
-// fix from validation-2026-05-07 #3).
+// ── CLI entry (T-10) ────────────────────────────────────────────────────
+//
+// Usage:
+//   echo "your prompt" | node router-execute.js
+//   node router-execute.js "your prompt"
+//
+// Reads prompt from argv (joined with spaces) or stdin, classifies via
+// classify.js (read-only, no modification per CLAUDE.md doctrine),
+// dispatches via execute(), and prints the ExecuteResult as JSON to
+// stdout. Exit 0 on any structured result (including defer/error — the
+// caller decides what to do); exit 2 on a fatal classify failure.
+//
+// Env:
+//   MOCK_PROVIDERS=1  — substitute provider wrappers with no-op stubs
+//                       that always return null. Used by the smoke runner
+//                       and by Paulo when validating the dispatch wiring
+//                       without burning real quota.
+//
+// Guard with require.main === module so `require('./router-execute')` is
+// side-effect-free (mirrors the classify.js fix from validation-2026-05-07).
 if (require.main === module) {
-  process.stderr.write('router-execute CLI: not implemented yet (T-10 — Wave-2).\n');
-  process.exit(1);
+  (async () => {
+    try {
+      const argvPrompt = process.argv.slice(2).filter((a) => !a.startsWith('--')).join(' ').trim();
+      let prompt = argvPrompt;
+      if (!prompt) {
+        // Read from stdin
+        prompt = await new Promise((resolve) => {
+          let buf = '';
+          process.stdin.setEncoding('utf8');
+          process.stdin.on('data', (chunk) => { buf += chunk; });
+          process.stdin.on('end',  () => resolve(buf.trim()));
+          // If stdin is a TTY (interactive), exit fast
+          if (process.stdin.isTTY) resolve('');
+        });
+      }
+      if (!prompt) {
+        process.stderr.write('router-execute: no prompt (pass via argv or stdin)\n');
+        process.exit(2);
+      }
+
+      const { classifyWithRetry } = require('./classify');
+      const classification = classifyWithRetry(prompt);
+
+      /** @type {object | undefined} */
+      let depsOverride;
+      if (process.env.MOCK_PROVIDERS === '1') {
+        // Stub every provider to return null so the executor walks the
+        // chain, records errors, and ultimately defers — exercises the
+        // dispatch loop without hitting real quotas.
+        const stub = async () => null;
+        depsOverride = {
+          providers: { ollama: stub, codex_cli: stub, openai_api: stub },
+          tracker: {
+            recordUsage() {}, summary() { return {}; }, shouldPreferCodex() { return false; },
+          },
+          providerState: { claude: 'ok', ollama: 'ok', codex_cli: 'ok', openai_api: 'ok' },
+        };
+      }
+
+      const result = await execute({
+        prompt,
+        classification,
+        options: depsOverride ? { __deps: depsOverride } : {},
+      });
+
+      process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`router-execute fatal: ${err && err.stack || err}\n`);
+      process.exit(2);
+    }
+  })();
 }
