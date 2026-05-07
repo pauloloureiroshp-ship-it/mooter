@@ -2040,6 +2040,29 @@ function renderMultiLine({
     const driftMarker = (exec >= 50 && ratio < 0.5)
       ? `${WARN}${BOLD}⚠${RESET} `
       : '';
+    // Wave-3 T-04 — calibration sampling. 1% of split-renders write
+    // {ratio, exec, w2, adv, signal} to .statusline-calibration.jsonl.
+    // Statusline runs ~every 5s, so 1% ≈ one entry every 8min. Over
+    // weeks this builds up empirical data so a future Wave-4 can tune
+    // the 50-dispatch / 0.5-ratio thresholds against the real
+    // distribution instead of the hardcoded defaults.
+    // Sampling is fire-and-forget async — never blocks the render.
+    if (Math.random() < 0.01) {
+      try {
+        const lp = require('node:path').join(
+          require('node:os').homedir(),
+          '.claude', 'tools', 'router', '.statusline-calibration.jsonl'
+        );
+        const line = JSON.stringify({
+          ts: new Date().toISOString(),
+          ratio: Number(ratio.toFixed(4)),
+          exec, w2, adv,
+          signal: savings?.signal || 'unknown',
+          marker_fired: driftMarker.length > 0,
+        }) + '\n';
+        require('node:fs').promises.appendFile(lp, line).catch(() => {});
+      } catch { /* best-effort */ }
+    }
     savedHero =
       `${driftMarker}${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ` +
       `${GREEN}${BOLD}${gtdStr}${RESET} ${DIM}gtd${RESET}` +
