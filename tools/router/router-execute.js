@@ -243,8 +243,17 @@ function buildClassificationInvalidError() {
  */
 function buildTelemetryRecord({ prompt, classification, result, suggestedProviders }) {
   const sanitisedPreview = sanitisePromptPreview(prompt);
-  const outcome = result.ok ? 'ok'
-    : result.errors && result.errors.length && result.reason !== 'anthropic_only_chain'
+  // outcome semantics:
+  //   ok       — provider returned text successfully
+  //   error    — executor itself failed without a usable defer target
+  //              (currently only classification_invalid)
+  //   deferred — every other result.ok===false case, including
+  //              all_non_anthropic_failed and all_providers_failed.
+  //              These ARE deferrals — the next step is the subagent
+  //              named in defer_to_subagent. errors[] is a sub-detail.
+  const outcome = result.ok
+    ? 'ok'
+    : result.reason === 'classification_invalid'
       ? 'error'
       : 'deferred';
 
@@ -418,28 +427,159 @@ async function execute(input = {}) {
     return result;
   }
 
-  // ── T-07 placeholder — dispatch loop not yet shipped ────────────────
-  const placeholder = buildDefer({
-    subagent: defaultSubagentForTier(classification.tier),
-    reason: 'anthropic_only_chain', // best approximation pending T-07
+  // ── T-07 — per-attempt dispatch loop ────────────────────────────────
+  /** @type {string[]} */
+  const fallbackChain = [];
+  /** @type {Array<{provider:string,message:string,code?:string}>} */
+  const errors = [];
+  const timeoutMs  = options.timeoutMs  || 90_000;
+  const maxTokens  = options.maxTokens  || 1024;
+
+  for (const provider of chain) {
+    // Anthropic provider mid-chain → defer with what we tried so far.
+    if (isAnthropicProvider(provider)) {
+      const sub = anthropicProviderToSubagent(provider);
+      const result = buildDefer({
+        subagent: sub,
+        reason: errors.length > 0 ? 'all_non_anthropic_failed' : 'anthropic_only_chain',
+        classification,
+        fallbackChain,
+        errors: errors.length ? errors : undefined,
+      });
+      if (deps.telemetryWriter) {
+        deps.telemetryWriter(buildTelemetryRecord({
+          prompt: prompt || '',
+          classification,
+          result,
+          suggestedProviders,
+        }));
+      }
+      return result;
+    }
+
+    // Non-Anthropic provider — attempt dispatch.
+    const wrapper = (deps.providers || {})[provider];
+    if (typeof wrapper !== 'function') {
+      fallbackChain.push(provider);
+      errors.push({
+        provider,
+        message: 'wrapper not provided by deps.providers',
+        code: 'wrapper_missing',
+      });
+      continue;
+    }
+
+    let response = null;
+    let attemptError = null;
+    try {
+      response = await wrapper(prompt, { timeoutMs, maxTokens });
+    } catch (err) {
+      attemptError = err;
+    }
+
+    fallbackChain.push(provider);
+
+    if (attemptError) {
+      errors.push({
+        provider,
+        message: String((attemptError && attemptError.message) || attemptError || 'unknown error'),
+        code: 'wrapper_threw',
+      });
+      continue;
+    }
+
+    if (response && response.ok && response.text) {
+      // Success! Build ExecuteResult_Ok in the SPEC §4.1 shape.
+      const ok = buildOk({
+        provider,
+        response,
+        classification,
+        fallbackChain,
+      });
+      if (deps.telemetryWriter) {
+        deps.telemetryWriter(buildTelemetryRecord({
+          prompt: prompt || '',
+          classification,
+          result: ok,
+          suggestedProviders,
+        }));
+      }
+      return ok;
+    }
+
+    // Soft failure (returned null or empty text).
+    errors.push({
+      provider,
+      message: 'wrapper returned null or empty text',
+      code: 'wrapper_returned_null',
+    });
+  }
+
+  // Chain exhausted without success — emit ExecuteResult_Error (SPEC §4.3)
+  // when at least one attempt was made, otherwise Defer (no chain).
+  const fallbackSubagent = defaultSubagentForTier(classification.tier);
+  const exhausted = errors.length > 0 ? {
+    ok: false,
+    defer_to_subagent: fallbackSubagent,
+    reason: 'all_providers_failed',
+    fallback_chain: fallbackChain,
+    errors,
+    classification_ref: refOf(classification),
+  } : buildDefer({
+    subagent: fallbackSubagent,
+    reason: 'anthropic_only_chain',
     classification,
-    fallbackChain: [],
-    errors: [{
-      provider: 'executor',
-      message: 'T-07 dispatch loop not yet shipped — non-Anthropic provider in chain but cannot dispatch',
-      code: 'phase_t06_only',
-      resolved_chain: chain,
-    }],
+    fallbackChain,
   });
+
   if (deps.telemetryWriter) {
     deps.telemetryWriter(buildTelemetryRecord({
       prompt: prompt || '',
       classification,
-      result: placeholder,
+      result: exhausted,
       suggestedProviders,
     }));
   }
-  return placeholder;
+  return exhausted;
+}
+
+/**
+ * @param {string} provider
+ */
+function anthropicProviderToSubagent(provider) {
+  const k = String(provider || '').toLowerCase();
+  if (k === 'opus' || k === 'claude') return 'model-architect';
+  if (k === 'sonnet') return 'model-reasoner';
+  return 'cheap-triage'; // haiku and any unknown Anthropic-keyed provider
+}
+
+/**
+ * Build the ok result, normalising provider response (camelCase wrappers
+ * vs. snake_case fixture mocks) into the SPEC §4.1 snake_case shape.
+ *
+ * @param {object} args
+ * @param {string} args.provider
+ * @param {object} args.response
+ * @param {object} args.classification
+ * @param {string[]} args.fallbackChain
+ */
+function buildOk({ provider, response, classification, fallbackChain }) {
+  const tokensIn = response.tokens_in ?? response.tokensIn ?? 0;
+  const tokensOut = response.tokens_out ?? response.tokensOut ?? 0;
+  const costUsd  = response.cost_usd ?? response.costUsd ?? 0;
+  const durationMs = response.duration_ms ?? response.durationMs ?? 0;
+  return {
+    ok: true,
+    text: String(response.text || ''),
+    provider_used: provider,
+    model_used: response.model || '',
+    fallback_chain: fallbackChain,
+    duration_ms: durationMs,
+    tokens_in: tokensIn,
+    tokens_out: tokensOut,
+    cost_usd: costUsd,
+    classification_ref: refOf(classification),
+  };
 }
 
 module.exports = {
@@ -456,6 +596,8 @@ module.exports = {
     resolveFallbackChain,
     isAnthropicProvider,
     filterDegraded,
+    anthropicProviderToSubagent,
+    buildOk,
   },
 };
 

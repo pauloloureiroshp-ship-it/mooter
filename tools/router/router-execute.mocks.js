@@ -32,17 +32,37 @@
 /**
  * Build a mock provider function compatible with the real wrappers.
  *
+ * On a successful spec the mock additionally records usage on the tracker
+ * (when `opts.tracker` and `opts.providerKey` are provided) — this mirrors
+ * the real wrappers' behaviour so executor tests can assert "tracker
+ * recorded exactly once per ok call" (I6) without re-implementing it.
+ *
  * @param {ProviderResult | null | { throws: string } | undefined} spec
  *   - null/undefined → mock returns null (treated as failure by executor)
  *   - { throws: msg } → mock throws Error(msg) when called
- *   - ProviderResult  → mock resolves to this shape verbatim
+ *   - ProviderResult  → mock resolves to the shape (verbatim, no normalisation)
+ * @param {object} [opts]
+ * @param {string} [opts.providerKey]   key used in tracker.recordUsage(<key>, ...)
+ * @param {object} [opts.tracker]       tracker stub (must implement recordUsage)
  * @returns {(prompt: string, opts?: object) => Promise<ProviderResult|null>}
  */
-function createMockProvider(spec) {
+function createMockProvider(spec, opts = {}) {
   return async function mockProvider(_prompt, _opts) {
     if (spec === null || spec === undefined) return null;
     if (typeof spec === 'object' && 'throws' in spec && spec.throws) {
-      throw new Error(spec.throws);
+      throw new Error(/** @type {string} */ (spec.throws));
+    }
+    // Mirror real wrappers: record usage on success.
+    if (opts && opts.tracker && opts.providerKey) {
+      try {
+        const r = /** @type {any} */ (spec);
+        opts.tracker.recordUsage(opts.providerKey, {
+          tokens_in:   r.tokens_in   ?? r.tokensIn   ?? 0,
+          tokens_out:  r.tokens_out  ?? r.tokensOut  ?? 0,
+          cost_usd:    r.cost_usd    ?? r.costUsd    ?? 0,
+          duration_ms: r.duration_ms ?? r.durationMs ?? 0,
+        });
+      } catch { /* tracker is best-effort */ }
     }
     return /** @type {ProviderResult} */ (spec);
   };
@@ -94,16 +114,24 @@ function createMockProviderState(state = {}) {
 
 /**
  * Convert a fixture's `provider_mocks` block into a map of real mock
- * functions ready to inject via the test harness.
+ * functions ready to inject via the test harness. When a tracker is
+ * provided, every mock is wired to call tracker.recordUsage on success
+ * — mirroring the real wrappers' behaviour so I6 "tracker recorded
+ * exactly once per ok call" can be asserted without further plumbing.
  *
  * @param {Record<string, ProviderResult|null|{throws:string}|undefined>} block
+ * @param {object} [opts]
+ * @param {object} [opts.tracker]   tracker stub threaded into every mock
  * @returns {Record<string, ReturnType<typeof createMockProvider>>}
  */
-function buildProviderMockSuite(block) {
+function buildProviderMockSuite(block, opts = {}) {
   /** @type {Record<string, ReturnType<typeof createMockProvider>>} */
   const out = {};
   for (const key of Object.keys(block || {})) {
-    out[key] = createMockProvider(block[key]);
+    out[key] = createMockProvider(block[key], {
+      providerKey: key,
+      tracker: opts.tracker,
+    });
   }
   return out;
 }

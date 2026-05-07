@@ -264,7 +264,7 @@ test('execute(): T1 default chain [haiku] resolves to all-Anthropic and defers c
   assert.deepEqual(result.fallback_chain, []);
 });
 
-test('execute(): T2 with degraded claude+codex resolves chain with codex_cli first (T-07 placeholder)', async () => {
+test('execute(): T2 with degraded claude+codex but no wrapper provided fails with wrapper_missing → defers to model-reasoner', async () => {
   reset();
   const handcrafted = {
     prompt: 'compare mutex vs semaphore for our worker pool',
@@ -278,15 +278,143 @@ test('execute(): T2 with degraded claude+codex resolves chain with codex_cli fir
       escalation_rule: 'none',
     },
     provider_state: { claude: 'degraded', codex_cli: 'ok', ollama: 'ok' },
-    provider_mocks: {},
+    provider_mocks: {},  // no wrapper for codex_cli — dispatch records wrapper_missing
   };
   const { result } = await runExecutorWithFixture({ fixture: handcrafted });
-  // T-07 not yet shipped → placeholder. The error payload exposes the
-  // resolved chain so we can assert chain construction even before
-  // dispatch is wired.
+  // codex_cli prepended via T-06 injection, but no wrapper → records error,
+  // continues to next chain entry (sonnet, Anthropic) → defers to reasoner.
   assert.equal(result.ok, false);
+  assert.equal(result.defer_to_subagent, 'model-reasoner');
+  assert.equal(result.reason, 'all_non_anthropic_failed');
+  assert.deepEqual(result.fallback_chain, ['codex_cli']);
+  assert.equal(result.errors[0].code, 'wrapper_missing');
+});
+
+// ── T-07 — dispatch loop (I4, I5, I6, I9) ───────────────────────────────
+
+test('I4: codex_cli returns null → defer cheap-triage with all_non_anthropic_failed', async () => {
+  reset();
+  const { result, telemetryWrites } = await runExecutorWithFixture({
+    fixture: fixtureById('I4_codex_fails_defers_to_triage'),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.defer_to_subagent, 'cheap-triage');
+  assert.equal(result.reason, 'all_non_anthropic_failed');
+  assert.deepEqual(result.fallback_chain, ['codex_cli']);
   assert.ok(result.errors && result.errors.length >= 1);
-  const phase = result.errors[0];
-  assert.equal(phase.code, 'phase_t06_only');
-  assert.deepEqual(phase.resolved_chain, ['codex_cli', 'sonnet']);
+  assert.equal(result.errors[0].provider, 'codex_cli');
+  assert.equal(telemetryWrites.length, 1);
+  assert.equal(telemetryWrites[0].outcome, 'deferred');
+});
+
+test('I5: codex_cli returns ok → ExecuteResult_Ok with provider_used=codex_cli', async () => {
+  reset();
+  const { result, telemetryWrites } = await runExecutorWithFixture({
+    fixture: fixtureById('I5_codex_succeeds'),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider_used, 'codex_cli');
+  assert.equal(result.model_used, 'gpt-5-codex');
+  assert.deepEqual(result.fallback_chain, ['codex_cli']);
+  assert.ok(result.text && result.text.length > 0);
+  assert.equal(telemetryWrites.length, 1);
+  assert.equal(telemetryWrites[0].outcome, 'ok');
+  assert.equal(telemetryWrites[0].provider_used, 'codex_cli');
+});
+
+test('I6: T0 ollama success records usage exactly once on tracker', async () => {
+  reset();
+  const { result, tracker } = await runExecutorWithFixture({
+    fixture: fixtureById('I6_t0_ollama_records_usage_once'),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider_used, 'ollama');
+  // Mock provider mirrors real wrapper: records usage once on success.
+  assert.equal(tracker._calls.length, 1);
+  assert.equal(tracker._calls[0].provider, 'ollama');
+});
+
+test('I9: provider throws → ExecuteResult_Error with reason all_providers_failed', async () => {
+  reset();
+  const { result } = await runExecutorWithFixture({
+    fixture: fixtureById('I9_provider_throws'),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.defer_to_subagent, 'cheap-triage'); // T0 fallback subagent
+  assert.equal(result.reason, 'all_providers_failed');
+  assert.deepEqual(result.fallback_chain, ['ollama']);
+  assert.ok(result.errors && result.errors.length === 1);
+  assert.equal(result.errors[0].provider, 'ollama');
+  assert.match(result.errors[0].message, /ECONNREFUSED/);
+});
+
+test('Mid-chain success: codex returns ok → no defer even if haiku is later in chain', async () => {
+  reset();
+  const handcrafted = {
+    prompt: 'rename foo to bar',
+    classification: {
+      tier: 'T1',
+      confidence: 0.9,
+      recommended_backend: 'anthropic_api',
+      recommended_model: 'claude-haiku-4-5-20251001',
+      suggested_providers: ['codex_cli', 'haiku'],
+      task_category: 'mechanical_trivial',
+      escalation_rule: 'none',
+    },
+    provider_state: { claude: 'ok', codex_cli: 'ok', ollama: 'ok' },
+    provider_mocks: {
+      codex_cli: { ok: true, text: 'renamed', model: 'gpt-5-codex', tokens_in: 50, tokens_out: 20, cost_usd: 0, duration_ms: 800 },
+    },
+  };
+  const { result } = await runExecutorWithFixture({ fixture: handcrafted });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider_used, 'codex_cli');
+  // haiku never reached — chain is just what was dispatched.
+  assert.deepEqual(result.fallback_chain, ['codex_cli']);
+});
+
+test('Soft failure then mid-chain Anthropic: codex null → defer cheap-triage with one error', async () => {
+  // Same as I4 but verifies the precise telemetry outcome label.
+  reset();
+  const handcrafted = {
+    prompt: 'rename foo to bar',
+    classification: {
+      tier: 'T1',
+      confidence: 0.9,
+      suggested_providers: ['codex_cli', 'haiku'],
+      task_category: 'mechanical_trivial',
+      escalation_rule: 'none',
+    },
+    provider_state: { claude: 'ok', codex_cli: 'ok', ollama: 'ok' },
+    provider_mocks: { codex_cli: null },
+  };
+  const { result, telemetryWrites } = await runExecutorWithFixture({ fixture: handcrafted });
+  assert.equal(result.ok, false);
+  assert.equal(result.defer_to_subagent, 'cheap-triage');
+  assert.equal(result.reason, 'all_non_anthropic_failed');
+  assert.equal(result.fallback_chain.length, 1);
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.errors[0].code, 'wrapper_returned_null');
+  assert.equal(telemetryWrites[0].outcome, 'deferred');
+});
+
+test('execute() never throws on async wrapper rejection — error captured in result', async () => {
+  reset();
+  const handcrafted = {
+    prompt: 'p',
+    classification: {
+      tier: 'T0',
+      confidence: 0.9,
+      suggested_providers: ['ollama'],
+      task_category: 'summarization',
+      escalation_rule: 'none',
+    },
+    provider_state: { claude: 'ok', codex_cli: 'ok', ollama: 'ok' },
+    provider_mocks: { ollama: { throws: 'spurious failure' } },
+  };
+  const out = await runExecutorWithFixture({ fixture: handcrafted });
+  assert.ok(out.result);
+  assert.equal(out.result.ok, false);
+  assert.equal(out.result.errors[0].code, 'wrapper_threw');
+  assert.match(out.result.errors[0].message, /spurious failure/);
 });

@@ -57,8 +57,10 @@ async function runExecutorWithFixture(input) {
     ...(input.providerMocksOverride || {}),
   };
 
-  const providers = buildProviderMockSuite(providerMocksMerged);
   const tracker = createMockTracker(input.trackerOpts || {});
+  // Build provider mocks AFTER tracker so each mock can record on its
+  // success path — mirrors real-wrapper behaviour for I6 assertion.
+  const providers = buildProviderMockSuite(providerMocksMerged, { tracker });
   const providerState = createMockProviderState({
     ...(fixture.provider_state || {}),
     ...(input.providerStateOverride || {}),
@@ -128,8 +130,8 @@ async function runExecutorLoop(input) {
     );
   }
 
-  const providers = buildProviderMockSuite(fixture.provider_mocks || {});
   const tracker = createMockTracker();
+  const providers = buildProviderMockSuite(fixture.provider_mocks || {}, { tracker });
   const providerState = createMockProviderState(fixture.provider_state || {});
 
   /** @type {any[]} */
