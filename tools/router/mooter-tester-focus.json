@@ -1,7 +1,33 @@
 {
-  "_doc": "v3.0 — Deeply scoped project pillars. Each pillar maps current_state + verify + improve + guardrails so the autonomous tester knows exactly what to check and what NOT to touch.",
-  "_updated": "2026-04-16",
-  "_version": "3.0",
+  "_doc": "v3.1 — Wave-1.5 re-weighting for Wave-1.6 adversarials. Classifier weight raised to 0.40 (from 0.03) and statusline dropped to 0.30 (from 0.70). Tester is now expected to surface rename/format/ARCH_SIGNALS misroutings that feed the Wave-1.6 retune.",
+  "_updated": "2026-05-07",
+  "_version": "3.1",
+  "_wave_1_6_adversarials": {
+    "doc": "Probing seeds appended to the classifier pillar's skills. Tester should generate variations and log when classify.js predicts a tier different from the expected (rename/format → T0; advice/compare without concrete system → T2).",
+    "rename_seeds": [
+      "rename variable userId to accountId in auth.ts",
+      "rename the variable counter to attemptCount in retry.ts",
+      "rename function fetchUser to loadAccount across the auth module",
+      "rename the file utils.ts to helpers.ts and update imports"
+    ],
+    "format_seeds": [
+      "format this JSON file with 2-space indentation",
+      "reindent this Python block to 4 spaces",
+      "prettify this YAML block",
+      "convert tabs to 2-space indents in styles.css"
+    ],
+    "arch_t2_keep_seeds": [
+      "compare these two refactor approaches and recommend one",
+      "should we move the cache layer to Redis or keep it in-memory? compare tradeoffs",
+      "advise on splitting the auth middleware into smaller pieces",
+      "recommend whether to use SSE or WebSockets for the live counter"
+    ],
+    "expected_outcomes": {
+      "rename_seeds": { "tier": "T0", "min_confidence": 0.9 },
+      "format_seeds": { "tier": "T0", "min_confidence": 0.9 },
+      "arch_t2_keep_seeds": { "tier": "T2", "max_tier": "T2" }
+    }
+  },
   "autopilot": {
     "enabled": true,
     "weight_when_no_focus": 0.5,
@@ -164,7 +190,7 @@
     {
       "id": "statusline",
       "name": "Statusline & Real-time Display",
-      "weight": 0.7,
+      "weight": 0.3,
       "icon": "📊",
       "description": "VS Code status bar segments, layout, provider dots, savings display, context bar",
       "current_state": "gsd-statusline.js (792 lines). Reads JSON from stdin (Claude Code passes model, workspace, context_window, session_id). Fetches metrics from savings-tracker :7821/metrics. Renders 3 lines: Line1=model+dir+context_bar, Line2=🐮+savings_hero, Line3=provider_dots. Supports FRUGAL_CURRENCY for BRL/EUR/GBP. Mode badges: 🦁 beast, 🧘 zen. Context bar normalises for 16.5% autocompact buffer.",
@@ -212,7 +238,7 @@
     {
       "id": "classifier",
       "name": "Classifier Accuracy",
-      "weight": 0.03,
+      "weight": 0.4,
       "icon": "🎯",
       "description": "11-pass classification pipeline, 114+ patterns, tier boundaries, demotion logic",
       "current_state": "classify.js runs 11 passes in <50ms: cache→context→override→fast_paths→main_scoring→demotion→quality_intent→beast_intent→tuned_demote→budget_cap→provider_degradation. 114+ patterns in patterns.js (HIGH_RISK, MED_RISK, LOW_RISK, TRIVIAL). SHA-256 cache with 30min TTL. validation-set.json: 60 prompts, 88.3% accuracy (GATE PASS). 84 gold labels.",
@@ -221,7 +247,10 @@
         "adversarial-gen: create prompts designed to fool the classifier — e.g. 'deploy this CSS change' (deploy keyword but trivial task), 'explain how to refactor' (refactor keyword but explanation)",
         "pattern-discoverer: generate common developer prompts not covered by existing 114 patterns — test if they classify correctly",
         "regression-hunter: re-test all 84 gold labels to ensure no regression after pattern changes",
-        "multilang-tester: test classification with PT-PT ('muda a cor'), PT-BR ('preciso que faça'), EN ('change the color'), mixed ('change a cor do botão')"
+        "multilang-tester: test classification with PT-PT ('muda a cor'), PT-BR ('preciso que faça'), EN ('change the color'), mixed ('change a cor do botão')",
+        "wave-1-6-rename-prober: generate variations of '_wave_1_6_adversarials.rename_seeds' with synonyms (rename/move/replace, variable/function/constant) and assert tier=T0 confidence>=0.9",
+        "wave-1-6-format-prober: generate variations of '_wave_1_6_adversarials.format_seeds' (format/prettify/reindent across JSON/YAML/CSS/Python) and assert tier=T0 confidence>=0.9",
+        "wave-1-6-arch-discriminator: generate prompts pairing advice/compare/recommend/should-we verbs with abstract architecture topics (no concrete system named) — assert classifier stays at T2, never escalates to T3"
       ],
       "verify": [
         "HIGH_RISK (deploy/migrate/push/secrets/architect/refactor) always → T3",
