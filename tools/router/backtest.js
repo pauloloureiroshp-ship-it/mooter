@@ -995,6 +995,21 @@ function main() {
   const exportMode = args.includes('--export-delta');
   const exportEventsMode = args.includes('--export-events');
   const weightedDryrunMode = args.includes('--weighted') && args.includes('--dry-run');
+  // --holdout [pct] reserves the last `pct` of decisions (default 0.2) as
+  // an out-of-sample test set. Tuning is fitted on train only and then
+  // graded on the holdout via signatures vs explicit ratings. Closes the
+  // train/test leak flagged by the Anthropic-grade audit (Wave 2 P1).
+  const holdoutIdx = args.indexOf('--holdout');
+  const holdoutMode = holdoutIdx >= 0;
+  const holdoutPct  = (() => {
+    if (!holdoutMode) return null;
+    const next = args[holdoutIdx + 1];
+    if (next && !next.startsWith('--')) {
+      const v = Number(next);
+      if (Number.isFinite(v) && v > 0 && v < 1) return v;
+    }
+    return 0.2;
+  })();
   const outputIdx = args.indexOf('--output');
   const exportEventsIdx = args.indexOf('--export-events');
   const exportEventsPath =
@@ -1074,12 +1089,35 @@ function main() {
     return;
   }
 
+  // ── Holdout split (Wave 2 P1) ───────────────────────────────────────
+  // When --holdout is set: fit tuning on the train split only, then grade
+  // it against the holdout. Otherwise behave exactly as before.
+  let trainDecisions = decisions;
+  let holdoutDecisions = null;
+  if (holdoutMode) {
+    const { splitChronological } = require('./holdout-validator.js');
+    const split = splitChronological(decisions, holdoutPct);
+    trainDecisions   = split.train;
+    holdoutDecisions = split.holdout;
+    console.log(
+      `[backtest] holdout mode: ${trainDecisions.length} train / ` +
+      `${holdoutDecisions.length} holdout (last ${(holdoutPct * 100).toFixed(0)}% chronological)`
+    );
+  }
+
   /** @type {ReturnType<typeof analyze> & { feedbackSignals?: { accepted: number, followup_immediate: number } }} */
-  const stats = analyze(decisions);
+  const stats = analyze(trainDecisions);
   stats.feedbackSignals = feedbackSignals;
   const tuning = buildTuning(stats);
   fs.writeFileSync(TUNING_PATH, JSON.stringify(tuning, null, 2));
   console.log(report(stats, tuning));
+
+  if (holdoutMode && holdoutDecisions && holdoutDecisions.length) {
+    const { validateAgainstHoldout, formatHoldoutReport } = require('./holdout-validator.js');
+    const verdict = validateAgainstHoldout(tuning, holdoutDecisions, signature);
+    console.log('');
+    console.log(formatHoldoutReport(verdict));
+  }
 
   // ── Auto-update metrics snapshot (v0.9.6+) ──────────────────────────────
   // Keeps metrics-snapshot.json in sync after every backtest run so the
