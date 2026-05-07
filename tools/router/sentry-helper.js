@@ -37,9 +37,23 @@ function _tryLoad() {
   return _sdk;
 }
 
+// Read fallback config from ~/.claude/tools/router/.sentry.json when env vars
+// are absent. Wave-1.5 task #7: opt-in CLI writes this file. Tags include
+// user_id_hash + mooter_version so Sentry events are stably grouped per user.
+function _loadFileConfig() {
+  try {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const cfgPath = path.join(os.homedir(), '.claude', 'tools', 'router', '.sentry.json');
+    return JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  } catch { return null; }
+}
+
 function init() {
   if (_initialized) return false;
-  const dsn = process.env.MOOTER_SENTRY_DSN;
+  const fileCfg = _loadFileConfig();
+  const dsn = process.env.MOOTER_SENTRY_DSN || (fileCfg && fileCfg.dsn) || null;
   if (!dsn) {
     _initialized = true; // skip-silently path — don't retry on each call
     return false;
@@ -51,14 +65,30 @@ function init() {
   }
   try {
     const sampleRateRaw = process.env.MOOTER_SENTRY_TRACES_SAMPLE_RATE;
-    const sampleRate = sampleRateRaw ? Number(sampleRateRaw) : 0.1;
+    const sampleRate = sampleRateRaw
+      ? Number(sampleRateRaw)
+      : (fileCfg && Number.isFinite(fileCfg.traces_sample_rate) ? fileCfg.traces_sample_rate : 0.1);
+    const environment = process.env.MOOTER_SENTRY_ENVIRONMENT
+      || (fileCfg && fileCfg.environment)
+      || 'production';
+    const release = process.env.MOOTER_SENTRY_RELEASE
+      || (fileCfg && fileCfg.tags && fileCfg.tags.mooter_version
+        ? `mooter-router@${fileCfg.tags.mooter_version}`
+        : 'mooter-router@unknown');
     sdk.init({
       dsn,
-      environment: process.env.MOOTER_SENTRY_ENVIRONMENT || 'production',
-      release: process.env.MOOTER_SENTRY_RELEASE || 'mooter-router@unknown',
+      environment,
+      release,
       tracesSampleRate: Number.isFinite(sampleRate) ? sampleRate : 0.1,
       // Default integrations are fine (HTTP, onUncaughtException, etc.).
     });
+    if (fileCfg && fileCfg.tags && typeof sdk.setTags === 'function') {
+      const tags = {};
+      for (const [k, v] of Object.entries(fileCfg.tags)) {
+        if (v != null) tags[k] = String(v);
+      }
+      try { sdk.setTags(tags); } catch { /* non-fatal */ }
+    }
     _initialized = true;
     return true;
   } catch {

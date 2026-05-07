@@ -87,6 +87,9 @@ tools/router/.frugal-auth.json
 # Canonical seed is tools/router/tuning-state.defaults.json (committed).
 tools/router/tuning-state.json
 
+# Sentry opt-in config — DSN + tags written by sentry-setup.js (Wave-1.5 #7).
+tools/router/.sentry.json
+
 # Dataset e modelo
 *.jsonl
 training-*.json
