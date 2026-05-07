@@ -56,6 +56,12 @@
 **Próxima missão (Wave-3, master prompt à parte):**
 Restart savings-tracker server (apanha o novo `/last-execution` + executions block); validation runner fresh contra Wave-2; mover `appendDecisionsLog` para async; statusline reflectir `guaranteed_saved_usd` separado de `advisory_saved_usd`; eventual gemini provider wrapper.
 
+**Validation master prompt (paralelo, executa quando quiseres):**
+- `frugal/prompts/MOOTER_WAVE-2_VALIDATION_MASTER.md` (gitignored)
+- Mirror em `Documents/paulo-vault/10-projects/mooter-wave-2-validation-master.md`
+- Notion log: https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d
+- Briefing para sessão Claude FRESCA (não-Opus-author) auditar I1..I11 + comparar contra estado-da-arte 2026 (advisor→executor, fallback chains, calibration loops, vibe-coding harnesses) e devolver veredicto independente em paulo-vault `30-learnings/wave-2-validation-2026-05-07.md` + Notion sub-page.
+
 ---
 
 ### 🌐 Sessão #39 — 2026-05-07 (Wave-2 readiness — validation patch cycle)
@@ -1090,6 +1096,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão 2026-05-05 — Codex Integration v0.11 (advisory layer) | https://www.notion.so/3586f6e42bc48177894dd04aec7a0e16 |
 | Sessão #37 2026-05-05 — Site coherence + install alignment + statusline mode trio | https://www.notion.so/3576f6e42bc481fab148fa6a26db00de |
 | Sessão #39 2026-05-07 — Wave-2 readiness (5 patches → 87.5% accuracy) | https://www.notion.so/3596f6e42bc4818caaf2e3b18dd7a581 |
+| Sessão #40 2026-05-07 — Wave-2 router-execute LANDED + Validation Master Prompt | https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
