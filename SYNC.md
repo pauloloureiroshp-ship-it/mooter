@@ -64,6 +64,26 @@ Restart savings-tracker server (apanha o novo `/last-execution` + executions blo
 
 **Audit independente (Sessão #40-validation, 2026-05-07):** **APPROVED_WITH_NOTES**. Sessão Claude Opus fresca correu o master prompt completo (§3.1–§3.6), validou I1–I11, comparou contra SOTA 2026 (RouteLLM, Inworld Router, BaseCal, Calibration-aware RL). Mandate match 100%. 1 finding S1 real (sanitisation regex bank incompleta — falta AWS/GitLab/Slack/JWT/Azure) + 4 S2 cosmetic não-blocantes. SOTA conclusion: Mooter está level com Inworld em conceito, à frente em doctrine guards + subagent semantics + Codex CLI integration. Lição principal: o reviewer-Opus original (mesmo subagent family) tende a perder honesty signals (versões não bumpadas, test titles enganadores, sanitisation gaps que cheap-triage teria flagged) — **trust-but-verify justifica sessão fresca distinta**. Mirror completo em `paulo-vault/30-learnings/wave-2-validation-2026-05-07.md`.
 
+**Wave-3 hotfix wave (Sessão #40-fix, 2026-05-07):** **6 atomic commits aplicados** sobre `374480e` resolvendo todos os findings actionable do audit:
+1. `7f4ab87` — sanitisation regex extension (S1#1): adiciona AWS/GitLab/Slack/JWT/Azure SAS + GitHub multi-prefix + 10 generic credential env-vars; +7 testes I10
+2. `7b51c09` — version bump 0.6.0→0.7.0 em 3 sítios coordenados (S2#3): savings-tracker `/health` + `/metrics` + `backtest.test.js:210`
+3. `8a4134a` — backtest calibration honesty surface (S2#5): three-state `warning`/`note`/null + `MOOTER_DECISIONS_LOG` env override (consistente com router-execute); +5 testes via spawnSync
+4. `a5086f0` — rename misleading test "T1 explain_error" → "ambiguous explain prompt" (S2#4)
+5. `469fd63` — async appendDecisionsLog com per-path Promise chain + `flushDecisionsLog` test helper (S2#1, também flagged pelo final-reviewer original); +2 testes (concurrent ordering, queue auto-evict)
+6. `edbbb32` — polish per final-reviewer N1+N2 (defensive `.catch` + Windows O_APPEND caveat comment)
+
+Suite: 296 → **310 (+14 net new tests, all green)**. CLI smoke verde. **I11 ainda invariant** (`diff aa25a2b classify.js` IDENTICAL re-confirmado pós-hotfix). Final-reviewer pre-push verdict: **PASS-WITH-NOTES** (notes advisory, sem required actions).
+
+**Carry-overs explicitamente N/A nesta hotfix wave** (preserve scope):
+- ECE-style calibration (3h, requer SPEC update — Wave-3 proper)
+- Statusline reflectir `guaranteed_saved_usd` (UI work)
+- Gemini provider wrapper (6h)
+- A/B testing live (8h infra)
+- Validation runner fresh 60-prompt corpus (decisão Paulo, acceptance §10 #5)
+- Restart savings-tracker daemon (operação destrutiva em PID 59172, requer GO Paulo — código novo está em disco e pronto)
+
+**Push status:** ainda **NÃO push** — espera GO explícito Paulo. 18 commits ahead de origin/main (12 Wave-2 + 1 master prompt + 1 audit doc + 6 hotfix).
+
 ---
 
 ### 🌐 Sessão #39 — 2026-05-07 (Wave-2 readiness — validation patch cycle)
@@ -484,6 +504,55 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 ### Instruções e decisões tomadas no Cowork para a próxima sessão
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
+
+---
+
+### 🎯 Cowork Sessão 2026-05-07 night — Strategy canonical + briefing executivo
+
+**Âmbito:** Análise estratégica profunda (V1 mercado · V2 Anthropic ecosystem · V3 fluxograma definitivo) + Master Prompt para Claude Code + documento canónico unificado em PDF profissional.
+
+**Deliverables (todos em `~/frugal/`):**
+
+| Ficheiro | Propósito | Tamanho |
+|---|---|---|
+| `MOOTER_ROUTING_STRATEGY_2026-05-07.md` | V1 — estado mercado + competitive landscape | 41 KB |
+| `MOOTER_ROUTING_STRATEGY_V2_2026-05-07.md` | V2 — Anthropic ecosystem + autonomous loops + lang-aware | 39 KB |
+| `MOOTER_FLUXOGRAMA_DEFINITIVO_2026-05-07.md` | V3 — pipeline 7 camadas quantificado | 32 KB |
+| `MOOTER_MASTER_PROMPT_2026-05-07.md` | Master prompt 9-Phase para Claude Code + Ralph Loop | 33 KB |
+| **`MOOTER_STRATEGY_CANONICAL_2026-05-07.md`** | **Single source of truth** consolidado | 47 KB |
+| **`MOOTER_STRATEGY_CANONICAL_2026-05-07.pdf`** | **PDF profissional 30 páginas** (ponto focal estratégia) | 148 KB |
+| `MOOTER_EXECUTIVE_BRIEFING_2026-05-07.md` + `.pdf` | 2-pager outreach (Anthropic DevRel, contributors, partners) | 4.9 KB / 78 KB |
+| `docs/architecture/routing-pipeline.svg` | Fluxograma standalone para README/landing | 7 KB |
+| `docs/adr/W3-001-async-decisions-log.md` | ADR template Wave-3 T-1 (skeleton) | 5 KB |
+
+**Decisão estratégica canónica:**
+1. **Posicionamento**: Mooter coabita com Claude Code (NÃO substitui — ban first-party 2026-04-04 não pega).
+2. **3 moats defensáveis 12-18 meses**: Subscription-Aware Routing · Codebase-Aware Language Harmonisation (PT-PT/PT-BR cidadãos de 1ª) · Triple-stack Anthropic alignment (plugin+skill+MCP).
+3. **Anti-goals codificados**: 20 tentações documentadas. Ver `MOOTER_MASTER_PROMPT_2026-05-07.md` §4.
+4. **Default T3 = Opus 4.6** (não 4.7) até tokenizer +35% tokens estabilizar economics.
+
+**Eventos críticos:**
+- 🔥 **2026-05-19 (12 dias)** — Code with Claude London (livestream grátis). Demo submission ANTES.
+- 2026-05-20 — Show HN. 2026-05-25 — Anthropic Startup Program. 2026-05-26 — GATE.
+
+**Para a próxima sessão Claude Code:**
+- ⏳ Ler `MOOTER_STRATEGY_CANONICAL_2026-05-07.md` (single source of truth) — antes de qualquer Wave-3 work
+- ⏳ Wave-3 T-1: implementar `appendDecisionsLog` async + queue. ADR template já em `docs/adr/W3-001-async-decisions-log.md`
+- ⏳ Confirmar comigo (Paulo) se Wave-3 deve seguir playbook V3 ou se há ajustes dado o repo já estar mais maduro que assumido no master prompt
+- ⏳ Embed `docs/architecture/routing-pipeline.svg` no README.md principal
+
+**Caveats honestos do Cowork:**
+- Repo está MAIS maduro que assumi no master prompt — Phase 0 (audit) parcialmente feita. Phase 1 redundante face a `classify.js` v0.10. **Ajustar master prompt antes de seguir cegamente**.
+- Documentos V1/V2/V3/master prompt foram gerados via 13 agentes paralelos com web search + análise. Fontes citadas no Apêndice D do canónico.
+- Não testei pessoalmente `claude code`, `ollama pull` CLI flags. Validar antes de seguir.
+
+**Não-feito propositadamente:**
+- Não criei issues GitHub Wave-3 (decisão Paulo)
+- Não fiz push (12 commits Wave-2 ainda gated)
+- Não criei sub-página Notion adicional
+- Não toquei em `classify.js`, `tools/router/*` ou outros ficheiros core
+
+---
 
 **Última actualização Cowork:** 2026-05-07 late (Wave-1.5 ENTREGUE — per-user telemetry bootstrap completo)
 **Estado:** ✅ Wave-1.5 PASS · Final-reviewer PASS-WITH-NOTES · 12 commits ahead de origin/main (8 Wave-1.5 + 3 Wave-2 P1 prévias + 2 tsc-fix do final-reviewer) · 26/26 testes Wave-1.5 verdes · zero novas falhas vs baseline. ⏳ Aguarda push approval do Paulo. ⏭️ Próxima missão: **Wave-1.6 (classifier patches)** → Wave-2 (executor) → Wave-3 (site).
