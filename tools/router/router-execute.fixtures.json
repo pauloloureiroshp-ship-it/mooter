@@ -1,0 +1,362 @@
+[
+  {
+    "id": "I1_t3_always_defers",
+    "spec_invariant": "I1",
+    "prompt": "redesign the auth subsystem to support multi-tenant tenancy with hierarchical role inheritance",
+    "classification": {
+      "tier": "T3",
+      "confidence": 0.85,
+      "recommended_backend": "claude_subagent",
+      "recommended_model": "claude-opus-4-6",
+      "suggested_providers": ["opus"],
+      "task_category": "architecture",
+      "escalation_rule": "none",
+      "reasoning": "arch_signals=3,multi_file=1"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {},
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "model-architect",
+      "reason": "tier_t3",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T3", "confidence": 0.85, "task_category": "architecture" }
+    }
+  },
+  {
+    "id": "I1b_t3_defers_even_when_codex_available",
+    "spec_invariant": "I1",
+    "prompt": "design a distributed event bus that survives a single-AZ failure",
+    "classification": {
+      "tier": "T3",
+      "confidence": 0.9,
+      "recommended_backend": "claude_subagent",
+      "recommended_model": "claude-opus-4-6",
+      "suggested_providers": ["opus"],
+      "task_category": "architecture",
+      "escalation_rule": "none",
+      "reasoning": "arch_signals=4"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "codex_cli": { "ok": true, "text": "should NOT be used", "model": "gpt-5-codex", "tokens_in": 50, "tokens_out": 200, "cost_usd": 0, "duration_ms": 1500 }
+    },
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "model-architect",
+      "reason": "tier_t3",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T3", "confidence": 0.9, "task_category": "architecture" }
+    },
+    "note": "Even when codex_cli is mocked to succeed, T3 must defer. Doctrine: anti-bazuca-invertida."
+  },
+  {
+    "id": "I2_high_risk_floor",
+    "spec_invariant": "I2",
+    "prompt": "deploy this branch to production right now",
+    "classification": {
+      "tier": "T3",
+      "confidence": 0.9,
+      "recommended_backend": "claude_subagent",
+      "recommended_model": "claude-opus-4-6",
+      "suggested_providers": ["opus"],
+      "task_category": "deployment",
+      "escalation_rule": "high_risk_floor_t3",
+      "reasoning": "high_risk=2,deploy",
+      "high_risk": true
+    },
+    "provider_state": { "claude": "degraded", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {},
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "model-architect",
+      "reason": "high_risk_floor",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T3", "confidence": 0.9, "task_category": "deployment" }
+    },
+    "note": "high_risk wins over claude=degraded. No injection of codex/ollama into the chain."
+  },
+  {
+    "id": "I3_user_override_opus",
+    "spec_invariant": "I3",
+    "prompt": "@opus help me think through this naming",
+    "classification": {
+      "tier": "T3",
+      "confidence": 0.99,
+      "recommended_backend": "claude_subagent",
+      "recommended_model": "claude-opus-4-6",
+      "suggested_providers": ["opus"],
+      "task_category": "advisory",
+      "escalation_rule": "user_override_short_form",
+      "reasoning": "override_short_form=opus",
+      "user_override": {
+        "kind": "short_form",
+        "requested": "opus",
+        "label": "Opus",
+        "honored": true,
+        "original_tier": "T1"
+      }
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {},
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "model-architect",
+      "reason": "user_override",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T3", "confidence": 0.99, "task_category": "advisory" }
+    }
+  },
+  {
+    "id": "I3b_user_override_haiku",
+    "spec_invariant": "I3",
+    "prompt": "use haiku to write the commit message for this diff",
+    "classification": {
+      "tier": "T1",
+      "confidence": 0.99,
+      "recommended_backend": "anthropic_api",
+      "recommended_model": "claude-haiku-4-5-20251001",
+      "suggested_providers": ["haiku"],
+      "task_category": "commit_message",
+      "escalation_rule": "user_override_positive",
+      "reasoning": "override_positive=haiku",
+      "user_override": {
+        "kind": "positive",
+        "requested": "haiku",
+        "label": "Haiku",
+        "honored": true,
+        "original_tier": "T2"
+      }
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "codex_cli": { "ok": true, "text": "should NOT be used", "model": "gpt-5-codex", "tokens_in": 50, "tokens_out": 100, "cost_usd": 0, "duration_ms": 800 }
+    },
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "cheap-triage",
+      "reason": "user_override",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T1", "confidence": 0.99, "task_category": "commit_message" }
+    },
+    "note": "Override pins haiku → defer cheap-triage. Codex is NOT tried even though it's in suggested_providers default — override is exclusive."
+  },
+  {
+    "id": "I4_codex_fails_defers_to_triage",
+    "spec_invariant": "I4",
+    "prompt": "rename the variable counter to attemptCount in retry.ts",
+    "classification": {
+      "tier": "T1",
+      "confidence": 0.9,
+      "recommended_backend": "anthropic_api",
+      "recommended_model": "claude-haiku-4-5-20251001",
+      "suggested_providers": ["codex_cli", "haiku"],
+      "task_category": "mechanical_trivial",
+      "escalation_rule": "none",
+      "reasoning": "mechanical_trivial_t0_promoted=1"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "codex_cli": null
+    },
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "cheap-triage",
+      "reason": "all_non_anthropic_failed",
+      "fallback_chain": ["codex_cli"],
+      "classification_ref": { "tier": "T1", "confidence": 0.9, "task_category": "mechanical_trivial" }
+    },
+    "note": "Codex returns null → executor does NOT attempt direct Haiku call (Anthropic-tier deferral) — defers to cheap-triage subagent."
+  },
+  {
+    "id": "I5_codex_succeeds",
+    "spec_invariant": "I5",
+    "prompt": "rename the variable counter to attemptCount in retry.ts",
+    "classification": {
+      "tier": "T1",
+      "confidence": 0.9,
+      "recommended_backend": "anthropic_api",
+      "recommended_model": "claude-haiku-4-5-20251001",
+      "suggested_providers": ["codex_cli", "haiku"],
+      "task_category": "mechanical_trivial",
+      "escalation_rule": "none",
+      "reasoning": "mechanical_trivial_t0_promoted=1"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "codex_cli": { "ok": true, "text": "Renamed `counter` to `attemptCount` across retry.ts.", "model": "gpt-5-codex", "tokens_in": 124, "tokens_out": 412, "cost_usd": 0, "duration_ms": 1820 }
+    },
+    "expected": {
+      "ok": true,
+      "provider_used": "codex_cli",
+      "model_used": "gpt-5-codex",
+      "fallback_chain": ["codex_cli"],
+      "duration_ms_at_least": 1,
+      "classification_ref": { "tier": "T1", "confidence": 0.9, "task_category": "mechanical_trivial" }
+    }
+  },
+  {
+    "id": "I6_t0_ollama_records_usage_once",
+    "spec_invariant": "I6",
+    "prompt": "summarise this paragraph in one sentence: the system processes events in batches of 100",
+    "classification": {
+      "tier": "T0",
+      "confidence": 0.9,
+      "recommended_backend": "ollama",
+      "recommended_model": "qwen2.5:3b",
+      "suggested_providers": ["ollama"],
+      "task_category": "summarization",
+      "escalation_rule": "none",
+      "reasoning": "low_risk=1,short_text"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "ollama": { "ok": true, "text": "The system batches events 100 at a time.", "model": "qwen2.5:3b", "tokens_in": 32, "tokens_out": 12, "cost_usd": 0, "duration_ms": 480 }
+    },
+    "expected": {
+      "ok": true,
+      "provider_used": "ollama",
+      "model_used": "qwen2.5:3b",
+      "fallback_chain": ["ollama"],
+      "tracker_record_calls": 1,
+      "classification_ref": { "tier": "T0", "confidence": 0.9, "task_category": "summarization" }
+    }
+  },
+  {
+    "id": "I7_degraded_chain_injection_t2",
+    "spec_invariant": "I7",
+    "prompt": "explain the trade-offs between mutex and semaphore for our worker pool",
+    "classification": {
+      "tier": "T2",
+      "confidence": 0.78,
+      "recommended_backend": "claude_subagent",
+      "recommended_model": "claude-sonnet-4-6",
+      "suggested_providers": ["sonnet"],
+      "task_category": "reasoning",
+      "escalation_rule": "none",
+      "reasoning": "med_risk=1,explain"
+    },
+    "provider_state": { "claude": "degraded", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "codex_cli": { "ok": true, "text": "Use a mutex for short critical sections; semaphore for resource pools.", "model": "gpt-5-codex", "tokens_in": 80, "tokens_out": 240, "cost_usd": 0, "duration_ms": 2100 }
+    },
+    "expected": {
+      "ok": true,
+      "provider_used": "codex_cli",
+      "model_used": "gpt-5-codex",
+      "fallback_chain": ["codex_cli"],
+      "resolved_chain_started_with": "codex_cli",
+      "classification_ref": { "tier": "T2", "confidence": 0.78, "task_category": "reasoning" }
+    },
+    "note": "claude=degraded triggers prepend of codex_cli. T2 is allowed."
+  },
+  {
+    "id": "I7b_t3_degraded_does_not_inject",
+    "spec_invariant": "I7",
+    "prompt": "redesign the auth middleware to support OIDC token rotation",
+    "classification": {
+      "tier": "T3",
+      "confidence": 0.85,
+      "recommended_backend": "claude_subagent",
+      "recommended_model": "claude-opus-4-6",
+      "suggested_providers": ["opus"],
+      "task_category": "architecture",
+      "escalation_rule": "none",
+      "reasoning": "arch_signals=3"
+    },
+    "provider_state": { "claude": "degraded", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "codex_cli": { "ok": true, "text": "must NOT be used", "model": "gpt-5-codex", "tokens_in": 50, "tokens_out": 100, "cost_usd": 0, "duration_ms": 1000 }
+    },
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "model-architect",
+      "reason": "tier_t3",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T3", "confidence": 0.85, "task_category": "architecture" }
+    },
+    "note": "T3 doctrine guard runs BEFORE degradation injection. Even degraded claude doesn't enable Codex/Ollama for architecture work."
+  },
+  {
+    "id": "I8_calibration_trigger_simple",
+    "spec_invariant": "I8",
+    "prompt": "summarise: the cache is cold",
+    "classification": {
+      "tier": "T0",
+      "confidence": 0.9,
+      "recommended_backend": "ollama",
+      "recommended_model": "qwen2.5:3b",
+      "suggested_providers": ["ollama"],
+      "task_category": "summarization",
+      "escalation_rule": "none",
+      "reasoning": "trivial=1"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "ollama": { "ok": true, "text": "Cache cold.", "model": "qwen2.5:3b", "tokens_in": 8, "tokens_out": 3, "cost_usd": 0, "duration_ms": 120 }
+    },
+    "expected": {
+      "ok": true,
+      "provider_used": "ollama",
+      "fallback_chain": ["ollama"],
+      "classification_ref": { "tier": "T0", "confidence": 0.9, "task_category": "summarization" }
+    },
+    "note": "Same simple T0/Ollama scenario — test loops this 1000 times to verify calibration trigger fires exactly once."
+  },
+  {
+    "id": "I9_provider_throws",
+    "spec_invariant": "I9",
+    "prompt": "format this JSON file with 2-space indentation",
+    "classification": {
+      "tier": "T0",
+      "confidence": 0.9,
+      "recommended_backend": "ollama",
+      "recommended_model": "qwen2.5:3b",
+      "suggested_providers": ["ollama"],
+      "task_category": "mechanical_trivial",
+      "escalation_rule": "none",
+      "reasoning": "mechanical_trivial=1"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {
+      "ollama": { "throws": "ECONNREFUSED" }
+    },
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "cheap-triage",
+      "reason": "all_providers_failed",
+      "fallback_chain": ["ollama"],
+      "errors_contain_provider": "ollama",
+      "errors_contain_message": "ECONNREFUSED",
+      "classification_ref": { "tier": "T0", "confidence": 0.9, "task_category": "mechanical_trivial" }
+    },
+    "note": "Wrapper throws (network refused). Executor catches, records error, returns structured Error result. T0 → fallback subagent for hard-failure is cheap-triage (Haiku), not architect."
+  },
+  {
+    "id": "I10_sanitisation_redacts_keys",
+    "spec_invariant": "I10",
+    "prompt": "use OPENAI_API_KEY=sk-proj-abcdef1234567890 to debug the rate limiter",
+    "classification": {
+      "tier": "T1",
+      "confidence": 0.85,
+      "recommended_backend": "anthropic_api",
+      "recommended_model": "claude-haiku-4-5-20251001",
+      "suggested_providers": ["haiku"],
+      "task_category": "explain_error",
+      "escalation_rule": "none",
+      "reasoning": "low_risk=1"
+    },
+    "provider_state": { "claude": "ok", "ollama": "ok", "codex_cli": "ok", "openai_api": "ok" },
+    "provider_mocks": {},
+    "expected": {
+      "ok": false,
+      "defer_to_subagent": "cheap-triage",
+      "reason": "anthropic_only_chain",
+      "fallback_chain": [],
+      "classification_ref": { "tier": "T1", "confidence": 0.85, "task_category": "explain_error" },
+      "telemetry_prompt_preview_must_not_contain": "sk-proj-abcdef1234567890",
+      "telemetry_prompt_preview_must_contain_redaction": true
+    },
+    "note": "When chain is purely Anthropic-tier (no codex/openai/ollama in suggested_providers), executor defers immediately. Reason is `anthropic_only_chain` (cheap defer), not `all_non_anthropic_failed` (which implies a real failure happened). Sanitisation must redact API key from prompt_preview."
+  }
+]
