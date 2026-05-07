@@ -207,7 +207,7 @@ test('savings-tracker: computeMetrics excludes system prompts from counts', () =
   assert.equal(m.by_tier.T3, 1);
   assert.ok(m.guaranteed_saved > 0, 'Option-A hit should produce guaranteed savings');
   assert.ok(m.real_cost_estimated > 0, 'T3 prompt should produce non-zero estimated cost');
-  assert.equal(m.version, '0.6.0');
+  assert.equal(m.version, '0.7.0');
 });
 
 test('savings-tracker: saved_pct is a percentage, real_cost < naive_cost', () => {

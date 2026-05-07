@@ -424,7 +424,7 @@ function readPlan() {
 function emptyMetrics() {
   return {
     // Meta
-    version: '0.6.0',
+    version: '0.7.0',
     currency: CURRENCY,
     methodology: 'token-estimated',
 
@@ -799,7 +799,7 @@ function send(res, status, body, contentType) {
 }
 
 function handleHealth(_req, res) {
-  send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid, version: '0.6.0' }));
+  send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid, version: '0.7.0' }));
 }
 
 function handleMetrics(req, res) {
