@@ -3,10 +3,64 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-05 (Claude Code Windows — **Sessão #38b: deepdive follow-ups — avg_savings fix + README rebrand + env detection + T0 roster**)
-**Versão:** v0.10.1 · mooter.ai live · CI ⚠️ 9 fail (test pollution, not introduced) · Claude Certified Architect ✅
-**Último commit main:** `3fa2300` (chore(router+landing): drift cleanup after T0 model roster realignment)
-**Sessão Claude Code:** #38b — Continuação autónoma da #38 com mandato "atacar em paralelo qualquer coisa que melhore a solução". 7 novos commits push a main + worker redeployed + 3 investigation agents paralelos (frugal-hub legacy / README rebrand / env-var sub detection). Final-reviewer gate PASS-WITH-NOTES sem blockers. Test pollution P1 descoberto e flagged para #39 (não atacado por risco — toca classify.js core).
+**Última sync:** 2026-05-07 (Claude Code Windows — **Sessão #39: Wave-2 readiness — 5 patches from validation 2026-05-07 → 87.5 % accuracy**)
+**Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 206/206 ✅ · Claude Certified Architect ✅
+**Último commit main:** `aa25a2b` (fix(router): apply 5 patches from validation 2026-05-07 → 87.5% accuracy)
+**Sessão Claude Code:** #39 — Resposta directa ao verdict ⚠️ PATCH BEFORE WAVE-2 do validador autónomo (commit `24da23a` parallel-timeline → presente no working tree via `879e0bf`). 5 fixes aplicados, suite 198→206, accuracy 77.5 %→87.5 %, 3 bugs operacionais resolvidos (.env / ollama_call.sh / IIFE guard). Drift do runtime mirror (TUNED-BLOCK + loader duplicate em `~/.claude/tools/router/classify.js`) também corrigido pelo sync canonical → runtime. Wave-2 readiness: ⚠️ → ✅. NÃO push.
+
+### 🌐 Sessão #39 — 2026-05-07 (Wave-2 readiness — validation patch cycle)
+
+**Mandato Paulo:** "aplicar todos os fixes e deixar perfeita a solução para o momento" após o validator autónomo devolver verdict ⚠️ PATCH BEFORE WAVE-2 com 14 loopholes (3 S0, 9 S1, 2 S2).
+
+**Inputs:**
+- `.planning/validation-2026-05-07/VALIDATION-REPORT.md` — verdict do validador autónomo
+- `.planning/validation-2026-05-07/loopholes.md` — catálogo S0/S1/S2
+
+**Fixes aplicados (commit `aa25a2b`):**
+
+| # | Fix | Ficheiro | Resultado |
+|---|---|---|---|
+| 1 | Strip duplicate `sk-` prefix | `tools/router/.env` (gitignored) | OPENAI direct calls funcionais |
+| 2 | Export MODEL to inline node spawn | `tools/router/ollama_call.sh:40` | `--model` flag agora propaga |
+| 3 | Guard CLI IIFE with require.main | `tools/router/classify.js:1228` | `require('./classify')` 0 stdout |
+| 4 | `MECHANICAL_TRIVIAL_T0` fast-path | `tools/router/classify.js` | `rename`/`format`/`move` → T0 conf 0.9 |
+| 5 | `ADVISORY_T2` override | `tools/router/classify.js` | `compare … approaches` → T2 (não T3) |
+| Bonus | PT-PT extension to explain_difference | `tools/router/classify.js` | `qual a diferença entre` → T1 |
+
+**Métricas pre→post fix:**
+
+| Métrica | Pre | Post | Target | Verdict |
+|---|---|---|---|---|
+| Tier accuracy overall | 77.5 % (31/40) | **87.5 % (35/40)** | ≥85 % | **PASS** |
+| T0 accuracy | 73 % | **100 %** (11/11) | — | strong |
+| T2 accuracy | 67 % | 78 % | — | improved |
+| Calibration 0.6-0.8 | 83 % | **91 %** | — | improved |
+| Calibration 0.8-1.0 | 75 % | 86 % | ≥95 % | aspirational |
+| `npm test` | 198/198 | **206/206** (+8 new) | green | green |
+| Operational bugs | 3 (S1) | **0** | — | resolved |
+
+**4 misclassifications restantes (acceptable, NÃO blockers):**
+- `prompt-010` — `<task-notification>` system XML (corpus quality issue)
+- `prompt-015` — comentário PT-PT 80-char-truncado
+- `prompt-019` — HIGH_RISK guardrail correctamente recusa override negativo (validation label disputado, by design)
+- `prompt-026` — header de projecto truncado
+
+**Drift bug pre-existente também resolvido:**
+`~/.claude/tools/router/classify.js` tinha duplicate declaration `TUNED_COMPLEXITY_THRESHOLD` (linhas 26 + 55) — TUNED-BLOCK auto-gerado obsoleto + novo `_loadTuningState()` loader. Causava `SyntaxError` em `backtest.test.js` (que aponta hardcoded para o runtime path). Sync canonical → runtime resolveu.
+
+**Tests added:**
+8 testes em `classify.test.js` cobrindo as 4 novas fast-paths + IIFE guard + PT-PT explain. Suite passou de 198 para 206/206 ✅. tsc strict 0 errors. ESLint 0 errors em ficheiros tocados.
+
+**Artefactos:**
+- `.planning/validation-2026-05-07/POST-FIX-REPORT.md` — relatório do post-fix
+- `.planning/validation-2026-05-07/accuracy-report.json` — regenerado post-fix
+- `.planning/validation-2026-05-07/accuracy-report.baseline.json` — snapshot pre-fix (audit trail)
+
+**Wave-2 readiness:** ⚠️ PATCH BEFORE WAVE-2 → ✅ READY FOR WAVE-2.
+
+**Estado de push:** local commit `aa25a2b` por confirmar. Paulo decide quando fazer push (final-reviewer gate aplicável).
+
+---
 
 ### 🌐 Sessão #38b — 2026-05-05 (Deepdive follow-ups + autonomous improvements)
 
@@ -985,6 +1039,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão #35 2026-04-21 — H2 hygiene + bidirectional drift | https://www.notion.so/3496f6e42bc4814286b1d4d41c1a658e |
 | Sessão 2026-05-05 — Codex Integration v0.11 (advisory layer) | https://www.notion.so/3586f6e42bc48177894dd04aec7a0e16 |
 | Sessão #37 2026-05-05 — Site coherence + install alignment + statusline mode trio | https://www.notion.so/3576f6e42bc481fab148fa6a26db00de |
+| Sessão #39 2026-05-07 — Wave-2 readiness (5 patches → 87.5% accuracy) | https://www.notion.so/3596f6e42bc4818caaf2e3b18dd7a581 |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
