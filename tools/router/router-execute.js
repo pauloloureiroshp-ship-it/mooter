@@ -927,6 +927,19 @@ if (require.main === module) {
           },
           providerState: { claude: 'ok', ollama: 'ok', codex_cli: 'ok', openai_api: 'ok' },
         };
+      } else {
+        // Auto-load real provider wrappers when not in mock mode. Without
+        // this the CLI was ALWAYS deferring with `wrapper_missing` because
+        // execute() received deps={} → providers={} → wrapper undefined.
+        // Every provider load is best-effort: a missing wrapper drops
+        // out of the chain and the executor falls through to the next.
+        const providers = {};
+        try { ({ callOllama: providers.ollama } = require('./providers/ollama-api')); } catch {}
+        try { ({ callCodex:  providers.codex_cli } = require('./providers/codex-cli')); } catch {}
+        try { ({ callOpenAI: providers.openai_api } = require('./providers/openai-api')); } catch {}
+        if (Object.keys(providers).length > 0) {
+          depsOverride = { providers };
+        }
       }
 
       const result = await execute({
