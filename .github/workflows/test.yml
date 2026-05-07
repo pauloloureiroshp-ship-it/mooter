@@ -17,7 +17,11 @@ jobs:
   unit:
     name: unit + integration tests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Bumped 5→10 (2026-05-07) because classify-retry.test.js has a known
+    # file-level 60s hang and c8 coverage adds enough overhead that the
+    # full suite skirts the previous 5min cap. Investigating the hang is
+    # tracked as Wave-2 debt; the suite itself stays green at ~6-7 min.
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
