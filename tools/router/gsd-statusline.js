@@ -2008,8 +2008,18 @@ function renderMultiLine({
     const gtdNum = w2 > 0 ? w2 : savedUsdNum; // surface zero explicitly when executions all deferred
     const gtdStr = `$${gtdNum.toFixed(2)}`;
     const advStr = `$${adv.toFixed(2)}`;
+    // Wave-3 T-03: honesty marker. When the executor has enough samples
+    // to be statistically meaningful (≥ 50 dispatches) AND the
+    // guaranteed value is less than half of advisory, surface a ⚠ at
+    // the head of the line. The user instantly sees that advisory is
+    // promising more than the executor delivers — the drift signal.
+    // Below 50 samples we stay quiet (small-sample noise is not drift).
+    const ratio = adv > 0 ? gtdNum / adv : 1;
+    const driftMarker = (exec >= 50 && ratio < 0.5)
+      ? `${WARN}${BOLD}⚠${RESET} `
+      : '';
     savedHero =
-      `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ` +
+      `${driftMarker}${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ` +
       `${GREEN}${BOLD}${gtdStr}${RESET} ${DIM}gtd${RESET}` +
       ` ${DIM}·${RESET} ` +
       `${DIM}${advStr} adv${RESET}` +
