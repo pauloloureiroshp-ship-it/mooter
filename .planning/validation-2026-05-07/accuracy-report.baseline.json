@@ -1,43 +1,43 @@
 {
   "_meta": {
-    "generated_at": "2026-05-07T15:41:20.221Z",
+    "generated_at": "2026-05-07T13:29:28.613Z",
     "corpus_total": 60,
     "accuracy_subset_size": 40,
     "classify_avg_ms": 0.6,
-    "classify_total_ms": 34
+    "classify_total_ms": 36
   },
   "tier_accuracy": {
-    "overall": 90,
-    "correct": 36,
+    "overall": 77.5,
+    "correct": 31,
     "total": 40,
     "target_pct": 85,
     "hard_fail_threshold_pct": 70,
-    "passes_target": true,
+    "passes_target": false,
     "passes_hard_fail": true
   },
   "category_accuracy": {
-    "overall_pct": 42.5,
-    "correct": 17,
+    "overall_pct": 40,
+    "correct": 16,
     "total": 40
   },
   "confusion_matrix": {
     "T0": {
-      "T0": 11,
-      "T1": 0,
+      "T0": 8,
+      "T1": 3,
       "T2": 0,
       "T3": 0
     },
     "T1": {
-      "T0": 1,
-      "T1": 9,
+      "T0": 2,
+      "T1": 8,
       "T2": 0,
       "T3": 0
     },
     "T2": {
       "T0": 1,
       "T1": 0,
-      "T2": 7,
-      "T3": 1
+      "T2": 6,
+      "T3": 2
     },
     "T3": {
       "T0": 1,
@@ -48,19 +48,19 @@
   },
   "per_tier_accuracy": {
     "T0": {
-      "correct": 11,
+      "correct": 8,
       "total": 11,
-      "accuracy": 1
+      "accuracy": 0.7272727272727273
     },
     "T1": {
-      "correct": 9,
+      "correct": 8,
       "total": 10,
-      "accuracy": 0.9
+      "accuracy": 0.8
     },
     "T2": {
-      "correct": 7,
+      "correct": 6,
       "total": 9,
-      "accuracy": 0.7777777777777778
+      "accuracy": 0.6666666666666666
     },
     "T3": {
       "correct": 9,
@@ -83,37 +83,37 @@
     },
     {
       "bin": "0.60-0.80",
-      "count": 11,
+      "count": 12,
       "correct": 10,
-      "accuracy": 0.9090909090909091
+      "accuracy": 0.8333333333333334
     },
     {
       "bin": "0.80-1.00",
-      "count": 29,
-      "correct": 26,
-      "accuracy": 0.896551724137931
+      "count": 28,
+      "correct": 21,
+      "accuracy": 0.75
     }
   ],
   "by_class": {
     "trivial": {
       "total": 9,
-      "correct": 9,
-      "accuracy": 1
+      "correct": 8,
+      "accuracy": 0.8888888888888888
     },
     "transform": {
       "total": 9,
-      "correct": 9,
-      "accuracy": 1
+      "correct": 7,
+      "accuracy": 0.7777777777777778
     },
     "misc": {
       "total": 16,
-      "correct": 13,
-      "accuracy": 0.8125
+      "correct": 12,
+      "accuracy": 0.75
     },
     "refactor": {
       "total": 2,
-      "correct": 1,
-      "accuracy": 0.5
+      "correct": 0,
+      "accuracy": 0
     },
     "debug": {
       "total": 2,
@@ -129,8 +129,8 @@
   "by_language": {
     "en": {
       "total": 24,
-      "correct": 22,
-      "accuracy": 0.9166666666666666
+      "correct": 17,
+      "accuracy": 0.7083333333333334
     },
     "pt": {
       "total": 16,
@@ -139,29 +139,46 @@
     }
   },
   "escalation_rule_distribution": {
-    "none": 52,
+    "none": 54,
     "regex_task_override": 2,
-    "explain_difference_override": 2,
+    "explain_difference_override": 1,
     "user_override_positive": 2,
-    "quality_intent_promote": 1,
-    "advisory_override": 1
+    "quality_intent_promote": 1
   },
   "suggested_providers_distribution": {
-    "none": 17,
-    "ollama": 17,
-    "codex_cli": 3,
+    "none": 12,
+    "codex_cli": 5,
+    "ollama": 18,
     "sonnet": 7,
-    "opus": 13,
-    "haiku": 3
+    "opus": 14,
+    "haiku": 4
   },
   "suggested_subagent_distribution": {
-    "local-transformer": 9,
-    "local-summarizer": 18,
-    "cheap-triage": 10,
-    "model-reasoner": 10,
-    "model-architect": 13
+    "local-transformer": 6,
+    "cheap-triage": 12,
+    "local-summarizer": 19,
+    "model-reasoner": 9,
+    "model-architect": 14
   },
   "wrong_predictions": [
+    {
+      "id": "prompt-005",
+      "source": "validation-set:canonical",
+      "expected": "T0",
+      "predicted": "T1",
+      "confidence": 0.85,
+      "escalation": "none",
+      "prompt_preview": "rename variable userId to accountId in auth.ts"
+    },
+    {
+      "id": "prompt-009",
+      "source": "validation-set:adversarial",
+      "expected": "T1",
+      "predicted": "T0",
+      "confidence": 0.8,
+      "escalation": "none",
+      "prompt_preview": "qual a diferença entre mutex e semaphore"
+    },
     {
       "id": "prompt-010",
       "source": "validation-set:historical",
@@ -197,6 +214,33 @@
       "confidence": 0.8,
       "escalation": "none",
       "prompt_preview": "Projecto: frugal — Vibe Coder Intelligence Platform Repo: C:\\Users\\Paulo Loureir"
+    },
+    {
+      "id": "prompt-056",
+      "source": "handcrafted",
+      "expected": "T0",
+      "predicted": "T1",
+      "confidence": 0.85,
+      "escalation": "none",
+      "prompt_preview": "rename the variable counter to attemptCount in retry.ts"
+    },
+    {
+      "id": "prompt-058",
+      "source": "handcrafted",
+      "expected": "T2",
+      "predicted": "T3",
+      "confidence": 0.75,
+      "escalation": "none",
+      "prompt_preview": "compare these two refactor approaches: extract-component vs prop-drill — recomme"
+    },
+    {
+      "id": "prompt-060",
+      "source": "handcrafted",
+      "expected": "T0",
+      "predicted": "T1",
+      "confidence": 0.85,
+      "escalation": "none",
+      "prompt_preview": "format this JSON file with 2-space indentation"
     }
   ],
   "raw_results": [
@@ -277,16 +321,22 @@
       "source": "validation-set:canonical",
       "expected_tier": "T0",
       "expected_category": "trivial_local",
-      "predicted_tier": "T0",
-      "predicted_category": "mechanical_trivial",
-      "confidence": 0.9,
-      "suggested_subagent": "local-transformer",
+      "predicted_tier": "T1",
+      "predicted_category": "simple_transform_or_explain",
+      "confidence": 0.85,
+      "suggested_subagent": "cheap-triage",
+      "suggested_providers": [
+        "codex_cli",
+        "haiku"
+      ],
       "escalation_rule": "none",
-      "risk_level": "minimal",
+      "quality_intent": false,
+      "risk_level": "low",
+      "prompt_complexity_score": 0.077,
       "use_for_accuracy": true,
       "class": "transform",
       "language": "en",
-      "tier_correct": true,
+      "tier_correct": false,
       "category_correct": false,
       "prompt_preview": "rename variable userId to accountId in auth.ts"
     },
@@ -354,16 +404,21 @@
       "source": "validation-set:adversarial",
       "expected_tier": "T1",
       "expected_category": "explain_concept",
-      "predicted_tier": "T1",
-      "predicted_category": "simple_transform_or_explain",
+      "predicted_tier": "T0",
+      "predicted_category": "trivial_local",
       "confidence": 0.8,
-      "suggested_subagent": "cheap-triage",
-      "escalation_rule": "explain_difference_override",
-      "risk_level": "low",
+      "suggested_subagent": "local-summarizer",
+      "suggested_providers": [
+        "ollama"
+      ],
+      "escalation_rule": "none",
+      "quality_intent": false,
+      "risk_level": "minimal",
+      "prompt_complexity_score": 0.006,
       "use_for_accuracy": true,
       "class": "misc",
       "language": "en",
-      "tier_correct": true,
+      "tier_correct": false,
       "category_correct": false,
       "prompt_preview": "qual a diferença entre mutex e semaphore"
     },
@@ -1403,16 +1458,22 @@
       "source": "handcrafted",
       "expected_tier": "T0",
       "expected_category": "trivial_local",
-      "predicted_tier": "T0",
-      "predicted_category": "mechanical_trivial",
-      "confidence": 0.9,
-      "suggested_subagent": "local-transformer",
+      "predicted_tier": "T1",
+      "predicted_category": "simple_transform_or_explain",
+      "confidence": 0.85,
+      "suggested_subagent": "cheap-triage",
+      "suggested_providers": [
+        "codex_cli",
+        "haiku"
+      ],
       "escalation_rule": "none",
-      "risk_level": "minimal",
+      "quality_intent": false,
+      "risk_level": "low",
+      "prompt_complexity_score": 0.078,
       "use_for_accuracy": true,
       "class": "trivial",
       "language": "en",
-      "tier_correct": true,
+      "tier_correct": false,
       "category_correct": false,
       "prompt_preview": "rename the variable counter to attemptCount in retry.ts"
     },
@@ -1444,17 +1505,22 @@
       "source": "handcrafted",
       "expected_tier": "T2",
       "expected_category": "reasoning_intermediate",
-      "predicted_tier": "T2",
-      "predicted_category": "reasoning_intermediate",
-      "confidence": 0.8,
-      "suggested_subagent": "model-reasoner",
-      "escalation_rule": "advisory_override",
-      "risk_level": "medium",
+      "predicted_tier": "T3",
+      "predicted_category": "architecture_or_critical",
+      "confidence": 0.75,
+      "suggested_subagent": "model-architect",
+      "suggested_providers": [
+        "opus"
+      ],
+      "escalation_rule": "none",
+      "quality_intent": false,
+      "risk_level": "high",
+      "prompt_complexity_score": 0.315,
       "use_for_accuracy": true,
       "class": "refactor",
       "language": "en",
-      "tier_correct": true,
-      "category_correct": true,
+      "tier_correct": false,
+      "category_correct": false,
       "prompt_preview": "compare these two refactor approaches: extract-component vs prop-drill — recomme"
     },
     {
@@ -1485,16 +1551,21 @@
       "source": "handcrafted",
       "expected_tier": "T0",
       "expected_category": "trivial_local",
-      "predicted_tier": "T0",
-      "predicted_category": "mechanical_trivial",
-      "confidence": 0.9,
-      "suggested_subagent": "local-transformer",
+      "predicted_tier": "T1",
+      "predicted_category": "simple_transform_or_explain",
+      "confidence": 0.85,
+      "suggested_subagent": "cheap-triage",
+      "suggested_providers": [
+        "haiku"
+      ],
       "escalation_rule": "none",
-      "risk_level": "minimal",
+      "quality_intent": false,
+      "risk_level": "low",
+      "prompt_complexity_score": 0.027,
       "use_for_accuracy": true,
       "class": "transform",
       "language": "en",
-      "tier_correct": true,
+      "tier_correct": false,
       "category_correct": false,
       "prompt_preview": "format this JSON file with 2-space indentation"
     }

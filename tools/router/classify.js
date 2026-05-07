@@ -505,6 +505,39 @@ function classify(prompt) {
     };
   }
 
+  // ── MECHANICAL TRIVIAL VERBS (validation 2026-05-07, H1 fix) ───────────
+  // Single-action verbs (rename / format / move / replace / change colour /
+  // extract / inline / swap) on a short single-file prompt are pure T0 work.
+  // Without this fast-path the LOW_RISK regex bank fires on "auth.ts" / "json"
+  // tokens and routes to T1 with confidence 0.85 — the worst-calibrated bin
+  // in the validation corpus (75% accuracy where ≥95% is required).
+  // Gated by length, single-file, and ARCH_SIGNALS < 2 so prompts like
+  // "rename the entire distributed payment system architecture" still escalate.
+  const MECHANICAL_TRIVIAL_T0 = /^\s*(?:rename|format|move|replace|change(?:\s+(?:the\s+)?(?:colour|color))?|extract|inline|swap|reorder|reformat|reindent)\b/i;
+  if (
+    high === 0 &&
+    len < 200 &&
+    fileMatches <= 1 &&
+    !multiFile &&
+    MECHANICAL_TRIVIAL_T0.test(p) &&
+    ARCH_SIGNALS.reduce((n, rx) => n + (rx.test(p) ? 1 : 0), 0) < 2
+  ) {
+    return setCache(p, {
+      task_category: 'mechanical_trivial',
+      risk_level: 'minimal',
+      tier: 'T0',
+      recommended_backend: 'ollama',
+      recommended_model: MODELS.ollama_terse,
+      suggested_subagent: 'local-transformer',
+      confidence: 0.9,
+      escalation_rule: 'none',
+      reasoning: 'mechanical single-action verb (rename/format/move/replace) on short single-file prompt — T0',
+      anthropic_key_present: !!process.env.ANTHROPIC_API_KEY,
+      prompt_length: len,
+      file_hint_count: fileMatches,
+    });
+  }
+
   // ── CONTEXT-AWARE OVERRIDES (mooter-review #1, 2026-04-16) ─────────────
   // These fast-paths fire BEFORE the HIGH_RISK escalation to handle cases
   // where a HIGH_RISK keyword appears in a non-risky context.
@@ -529,8 +562,14 @@ function classify(prompt) {
   }
 
   // "explain the difference between X and Y" — explanation, not architecture decision.
+  // PT-PT: "qual a diferença entre", "explica a diferença entre".
   // Only fires for short prompts (<250 chars) with no other high-risk context.
-  if (/\bexplain\s+(?:the\s+)?difference\s+between\b/i.test(p) && len < 250 && !multiFile) {
+  if (
+    (
+      /\bexplain\s+(?:the\s+)?difference\s+between\b/i.test(p) ||
+      /\b(?:qual\s+(?:é\s+)?a|explica(?:-me)?(?:\s+por\s+favor)?\s+a)\s+diferen[çc]a\s+entre\b/i.test(p)
+    ) && len < 250 && !multiFile
+  ) {
     return setCache(p, {
       task_category: 'simple_transform_or_explain',
       risk_level: 'low',
@@ -580,6 +619,31 @@ function classify(prompt) {
       confidence: 0.85,
       escalation_rule: 'translation_override',
       reasoning: 'translation task — T0 regardless of content keywords',
+      anthropic_key_present: !!process.env.ANTHROPIC_API_KEY,
+      prompt_length: len,
+      file_hint_count: fileMatches,
+    });
+  }
+
+  // ── ADVISORY OVERRIDE (validation 2026-05-07, ARCH_SIGNALS re-tune) ────
+  // Comparison / recommendation prompts asking for *opinion* on approaches,
+  // not destructive actions. HIGH_RISK keywords (refactor, deploy, migrate)
+  // can appear inside the question without making the answer destructive.
+  // Repro: "compare these two refactor approaches" was forced to T3 by the
+  // /\brefactor/i HIGH_RISK pattern. With this override it routes to T2.
+  // Discriminator: the prompt is a question/comparison, not an imperative.
+  const ADVISORY_T2 = /\b(?:compar(?:e|ar|açao|ação)\s+(?:these|those|the|two|os|as|estas|estes|essa|essas|este|esses|este|esta)|qual\s+(?:é\s+)?(?:o\s+)?melhor|which\s+(?:is|would\s+be)\s+better|recommend(?:s|ed)?\s+(?:an?\s+|uma?\s+)?(?:approach|option|strategy|abordagem|estrat[ée]gia|op(?:c|ç)[aã]o)|advise\s+on|trade-?offs?\s+between|pros?\s+(?:and|e)\s+cons?\s+(?:of|de))/i;
+  if (ADVISORY_T2.test(p) && !multiFile && len < 400) {
+    return setCache(p, {
+      task_category: 'reasoning_intermediate',
+      risk_level: 'medium',
+      tier: 'T2',
+      recommended_backend: 'anthropic_api',
+      recommended_model: MODELS.sonnet,
+      suggested_subagent: 'model-reasoner',
+      confidence: 0.8,
+      escalation_rule: 'advisory_override',
+      reasoning: 'comparison/recommendation request — advisory task, T2 sufficient even when HIGH_RISK keywords appear in the question',
       anthropic_key_present: !!process.env.ANTHROPIC_API_KEY,
       prompt_length: len,
       file_hint_count: fileMatches,
@@ -1225,20 +1289,25 @@ function classifyWithRetry(prompt) {
 
 module.exports = { classify, classifyWithRetry, normalisePrompt };
 
-(async () => {
-  try {
-    const prompt = await readPrompt();
-    const result = classifyWithRetry(prompt);
-    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-  } catch (err) {
-    process.stdout.write(
-      JSON.stringify({
-        recommended_backend: 'claude_session',
-        recommended_model: 'session-default',
-        confidence: 0,
-        escalation_rule: 'classifier_error_fallthrough',
-        error: String((err && /** @type {Error} */ (err).message) || err),
-      }) + '\n'
-    );
-  }
-})();
+// CLI entry — guarded so that `require('./classify')` from runners and tests
+// does not trigger stdin reads or stdout writes. Validation 2026-05-07 found
+// this IIFE was firing on every import, polluting runner output.
+if (require.main === module) {
+  (async () => {
+    try {
+      const prompt = await readPrompt();
+      const result = classifyWithRetry(prompt);
+      process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    } catch (err) {
+      process.stdout.write(
+        JSON.stringify({
+          recommended_backend: 'claude_session',
+          recommended_model: 'session-default',
+          confidence: 0,
+          escalation_rule: 'classifier_error_fallthrough',
+          error: String((err && /** @type {Error} */ (err).message) || err),
+        }) + '\n'
+      );
+    }
+  })();
+}

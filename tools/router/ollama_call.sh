@@ -36,8 +36,11 @@ if [ -z "$PROMPT" ]; then
   exit 2
 fi
 
-# /api/generate is non-streaming by default when stream=false
-PAYLOAD=$(node -e "
+# /api/generate is non-streaming by default when stream=false.
+# MODEL must be passed explicitly to the inline node — it is shell-local,
+# not exported. Without this prefix, process.env.MODEL is undefined and
+# the payload ships {"model":""} which Ollama rejects.
+PAYLOAD=$(MODEL="$MODEL" node -e "
   const p = process.argv[1];
   process.stdout.write(JSON.stringify({
     model: process.env.MODEL,
@@ -47,7 +50,6 @@ PAYLOAD=$(node -e "
   }));
 " "$PROMPT")
 
-MODEL="$MODEL" \
 RESPONSE=$(curl -sS -X POST "$HOST/api/generate" \
   -H 'Content-Type: application/json' \
   -d "$PAYLOAD" \
