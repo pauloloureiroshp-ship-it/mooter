@@ -346,6 +346,14 @@ function sanitisePromptPreview(prompt) {
 // the executor's return path — the user-facing dispatch must complete even
 // if the log file is unwritable or :7821 is down.
 
+// Per-path serialised write queue (Wave-2 audit S2#1).
+// Replaces the previous fs.appendFileSync hot-path. Concurrent execute()
+// calls within the same process land here in order; cross-process
+// concurrency relies on POSIX append atomicity (≤PIPE_BUF, ~4KB).
+// Each entry in the map is the tail of a Promise chain for that logPath
+// — chaining ensures lines never interleave within a single process.
+const _logWriteQueue = new Map();
+
 function appendDecisionsLog(record) {
   try {
     const paths = getPaths();
@@ -354,8 +362,33 @@ function appendDecisionsLog(record) {
       || null;
     if (!logPath) return;
     const sanitised = sanitizeJson(record);
-    fs.appendFileSync(logPath, JSON.stringify(sanitised) + '\n');
+    const line = JSON.stringify(sanitised) + '\n';
+    const prev = _logWriteQueue.get(logPath) || Promise.resolve();
+    const next = prev
+      .catch(() => {}) // never let an earlier failure block subsequent writes
+      .then(() => fs.promises.appendFile(logPath, line))
+      .catch(() => {}); // swallow — telemetry is best-effort
+    _logWriteQueue.set(logPath, next);
+    // Auto-evict the chain when it drains so the Map doesn't grow
+    // unbounded across long-lived processes that touch many tmp paths
+    // (test suites in particular).
+    next.then(() => {
+      if (_logWriteQueue.get(logPath) === next) _logWriteQueue.delete(logPath);
+    });
   } catch { /* best-effort */ }
+}
+
+/**
+ * Wait for every pending appendDecisionsLog write to land on disk.
+ * Test/shutdown helper — production callers don't need this, but tests
+ * that read the log immediately after appending must await it.
+ *
+ * @returns {Promise<void>}
+ */
+async function flushDecisionsLog() {
+  // Snapshot so writes that arrive after we begin draining aren't waited on.
+  const pending = Array.from(_logWriteQueue.values());
+  await Promise.allSettled(pending);
 }
 
 function postToSavingsTracker(record) {
@@ -813,6 +846,7 @@ module.exports = {
     anthropicProviderToSubagent,
     buildOk,
     appendDecisionsLog,
+    flushDecisionsLog,
     postToSavingsTracker,
     defaultTelemetryWriter,
     maybeTriggerCalibration,

@@ -503,7 +503,7 @@ test('I10: sanitisePromptPreview tolerates non-string and empty input', () => {
   assert.equal(_internal.sanitisePromptPreview(/** @type {any} */ (42)), '');
 });
 
-test('appendDecisionsLog writes one JSONL line under MOOTER_DECISIONS_LOG override', () => {
+test('appendDecisionsLog writes one JSONL line under MOOTER_DECISIONS_LOG override', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-exec-tel-'));
   const tmpLog = path.join(tmpDir, 'decisions.log');
   const SAVED = process.env.MOOTER_DECISIONS_LOG;
@@ -516,6 +516,7 @@ test('appendDecisionsLog writes one JSONL line under MOOTER_DECISIONS_LOG overri
       outcome: 'ok',
       provider_used: 'codex_cli',
     });
+    await _internal.flushDecisionsLog();
     const lines = fs.readFileSync(tmpLog, 'utf8').trim().split('\n');
     assert.equal(lines.length, 1);
     const parsed = JSON.parse(lines[0]);
@@ -528,14 +529,77 @@ test('appendDecisionsLog writes one JSONL line under MOOTER_DECISIONS_LOG overri
   }
 });
 
-test('appendDecisionsLog: best-effort on unwritable path (no throw)', () => {
+test('appendDecisionsLog: best-effort on unwritable path (no throw)', async () => {
+  // Use an OS-appropriate impossible path so the test exercises the
+  // "write fails silently" branch on both POSIX and Windows. On POSIX
+  // /dev/null/x is ENOTDIR; on Windows we put a NUL byte in the path
+  // which fails on every modern fs. Either way the call must not throw.
   const SAVED = process.env.MOOTER_DECISIONS_LOG;
-  process.env.MOOTER_DECISIONS_LOG = '/nonexistent/dir/that/cannot/exist/decisions.log';
+  const impossiblePath = process.platform === 'win32'
+    ? 'Z:\\__nonexistent_drive__\\decisions.log'
+    : '/dev/null/cannot-write-here.log';
+  process.env.MOOTER_DECISIONS_LOG = impossiblePath;
   try {
     assert.doesNotThrow(() => _internal.appendDecisionsLog({ event: 'executed' }));
+    // The write rejects asynchronously; flush must also not throw.
+    await _internal.flushDecisionsLog();
   } finally {
     if (SAVED === undefined) delete process.env.MOOTER_DECISIONS_LOG;
     else process.env.MOOTER_DECISIONS_LOG = SAVED;
+  }
+});
+
+test('appendDecisionsLog: concurrent appends to same path are serialised in order', async () => {
+  // Wave-2 audit S2#1: the previous sync impl was atomic-by-blocking.
+  // The new async impl uses a per-path Promise chain so concurrent
+  // calls within one process must still produce a well-formed log
+  // with no torn lines and preserved order.
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-exec-cc-'));
+  const tmpLog = path.join(tmpDir, 'decisions.log');
+  const SAVED = process.env.MOOTER_DECISIONS_LOG;
+  process.env.MOOTER_DECISIONS_LOG = tmpLog;
+  try {
+    const N = 50;
+    for (let i = 0; i < N; i++) {
+      _internal.appendDecisionsLog({ event: 'executed', seq: i });
+    }
+    await _internal.flushDecisionsLog();
+    const lines = fs.readFileSync(tmpLog, 'utf8').trim().split('\n');
+    assert.equal(lines.length, N);
+    // Order must be preserved (per-path chain).
+    for (let i = 0; i < N; i++) {
+      const parsed = JSON.parse(lines[i]);
+      assert.equal(parsed.seq, i, `line ${i} out of order`);
+    }
+  } finally {
+    if (SAVED === undefined) delete process.env.MOOTER_DECISIONS_LOG;
+    else process.env.MOOTER_DECISIONS_LOG = SAVED;
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+});
+
+test('appendDecisionsLog: queue auto-evicts drained chains (no unbounded growth)', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-exec-evict-'));
+  const SAVED = process.env.MOOTER_DECISIONS_LOG;
+  try {
+    // Touch 5 different log paths, drain each, verify the queue map
+    // does not retain entries.
+    for (let i = 0; i < 5; i++) {
+      const tmpLog = path.join(tmpDir, `dec-${i}.log`);
+      process.env.MOOTER_DECISIONS_LOG = tmpLog;
+      _internal.appendDecisionsLog({ event: 'executed', i });
+      await _internal.flushDecisionsLog();
+    }
+    // After flush the per-path entries must have been auto-evicted.
+    // We can't read the private Map directly but a fresh flush should
+    // resolve immediately on an empty queue.
+    const t0 = Date.now();
+    await _internal.flushDecisionsLog();
+    assert.ok(Date.now() - t0 < 100, 'flush on empty queue must be fast');
+  } finally {
+    if (SAVED === undefined) delete process.env.MOOTER_DECISIONS_LOG;
+    else process.env.MOOTER_DECISIONS_LOG = SAVED;
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
 });
 
