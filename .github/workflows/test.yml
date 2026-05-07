@@ -86,8 +86,14 @@ jobs:
       # $HOME/.claude/tools/router/classify.js as a subprocess.
       - name: Stage runtime into $HOME/.claude
         run: |
-          mkdir -p "$HOME/.claude/tools/router"
+          mkdir -p "$HOME/.claude/tools/router/providers"
           cp tools/router/*.js "$HOME/.claude/tools/router/"
+          # Codex Integration v0.11 added providers/ — stage those too.
+          cp tools/router/providers/*.js "$HOME/.claude/tools/router/providers/" 2>/dev/null || true
+          # classify.js calls _loadTuningState() at module load which reads
+          # tuning-state.defaults.json (canonical seed). Without it, every
+          # test that spawns runtime classify.js crashes with ENOENT.
+          cp tools/router/*.json "$HOME/.claude/tools/router/" 2>/dev/null || true
           # Link node_modules so transitive requires (zod via env.js) resolve
           # when backtest.js runs from $HOME/.claude. Symlink is cheaper than
           # cp -r and the deps are already installed by the earlier npm ci step.
