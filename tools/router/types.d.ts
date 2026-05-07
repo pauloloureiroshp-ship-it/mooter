@@ -30,6 +30,7 @@ export interface ArbiterDecision {
   reasoning: string;
   decomposition?: Decomposition;
   cached?: boolean;
+  latency_ms?: number;
 }
 
 export interface ArbiterCacheEntry {

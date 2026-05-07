@@ -23,7 +23,41 @@
  * even if quota-state.json does not yet exist (returns sensible defaults).
  */
 
+// @ts-check
 'use strict';
+
+/**
+ * @typedef {'anthropic' | 'openai_codex_cli' | 'openai_api' | 'ollama'} ProviderName
+ *
+ * @typedef {{
+ *   version: number,
+ *   providers: {
+ *     anthropic: {
+ *       window_5h: { tokens_used: number, reset_at: string | null, limit: number },
+ *       today:     { tokens: number, cost_usd: number, reset_at: string | null },
+ *     },
+ *     openai_codex_cli: {
+ *       window_5h: { messages_used: number, reset_at: string | null, limit: number },
+ *       weekly:    { pct_used: number, reset_at: string | null },
+ *       last_status_check: string | null,
+ *       exhausted: boolean,
+ *     },
+ *     openai_api: {
+ *       today: { tokens_in: number, tokens_out: number, cost_usd: number, reset_at: string | null },
+ *     },
+ *     ollama: {
+ *       today: { calls: number, reset_at: string | null },
+ *     },
+ *   },
+ *   last_updated: string | null,
+ * }} QuotaState
+ *
+ * @typedef {{ tokens?: number, cost_usd?: number }}                                 AnthropicUsage
+ * @typedef {{ messages?: number, exhausted?: boolean }}                             CodexCliUsage
+ * @typedef {{ tokens_in?: number, tokens_out?: number, cost_usd?: number }}         OpenAIApiUsage
+ * @typedef {{ calls?: number }}                                                     OllamaUsage
+ * @typedef {AnthropicUsage | CodexCliUsage | OpenAIApiUsage | OllamaUsage}          UsagePayload
+ */
 
 const fs   = require('fs');
 const path = require('path');
@@ -42,8 +76,10 @@ const ANTHROPIC_5H_TOKEN_LIMIT =
 const CODEX_5H_MSG_LIMIT =
   Number(process.env.MOOTER_CODEX_5H_LIMIT) || 150;
 
+/** @type {ProviderName[]} */
 const PROVIDERS = ['anthropic', 'openai_codex_cli', 'openai_api', 'ollama'];
 
+/** @returns {QuotaState} */
 function defaultState() {
   return {
     version: SCHEMA_VERSION,
@@ -77,6 +113,7 @@ function defaultState() {
   };
 }
 
+/** @returns {QuotaState} */
 function readRaw() {
   try {
     const raw = fs.readFileSync(STATE_PATH, 'utf8');
@@ -88,16 +125,29 @@ function readRaw() {
   }
 }
 
+/**
+ * @param {Partial<QuotaState>} state
+ * @returns {QuotaState}
+ */
 function mergeWithDefaults(state) {
   const base = defaultState();
-  const out  = { ...base, ...state };
-  out.providers = { ...base.providers, ...(state.providers || {}) };
+  /** @type {QuotaState} */
+  const out  = /** @type {QuotaState} */ ({ ...base, ...state });
+  /** @type {any} */
+  const inputProviders = state.providers || {};
+  /** @type {any} */
+  const merged = { ...base.providers };
   for (const p of PROVIDERS) {
-    out.providers[p] = { ...base.providers[p], ...(state.providers[p] || {}) };
+    merged[p] = { ...base.providers[p], ...(inputProviders[p] || {}) };
   }
+  out.providers = merged;
   return out;
 }
 
+/**
+ * @param {QuotaState} state
+ * @returns {QuotaState}
+ */
 function writeAtomic(state) {
   state.last_updated = new Date().toISOString();
   const tmp = `${STATE_PATH}.tmp`;
@@ -108,6 +158,12 @@ function writeAtomic(state) {
 
 function nowMs() { return Date.now(); }
 
+/**
+ * @param {Record<string, any>} target
+ * @param {string[]} fields
+ * @param {number} intervalMs
+ * @returns {boolean}
+ */
 function rollWindow(target, fields, intervalMs) {
   if (!target.reset_at || nowMs() >= new Date(target.reset_at).getTime()) {
     for (const f of fields) target[f] = 0;
@@ -117,6 +173,10 @@ function rollWindow(target, fields, intervalMs) {
   return false;
 }
 
+/**
+ * @param {QuotaState} [stateIn]
+ * @returns {QuotaState}
+ */
 function resetIfExpired(stateIn) {
   const state = stateIn || readRaw();
   let changed = false;
@@ -143,6 +203,7 @@ function resetIfExpired(stateIn) {
   return state;
 }
 
+/** @returns {QuotaState} */
 function getState() {
   return resetIfExpired();
 }
@@ -153,38 +214,49 @@ function getState() {
  *   openai_codex_cli → { messages = 1, exhausted? = false }
  *   openai_api       → { tokens_in, tokens_out, cost_usd }
  *   ollama           → { calls = 1 }
+ *
+ * @param {ProviderName} provider
+ * @param {UsagePayload} [payload]
+ * @returns {QuotaState}
  */
 function recordUsage(provider, payload = {}) {
   if (!PROVIDERS.includes(provider)) {
     throw new Error(`quota-tracker: unknown provider "${provider}"`);
   }
   const state = resetIfExpired(readRaw());
-  const p = state.providers[provider];
 
   switch (provider) {
     case 'anthropic': {
-      const tokens   = Number(payload.tokens)   || 0;
-      const costUsd  = Number(payload.cost_usd) || 0;
+      const p = state.providers.anthropic;
+      const a = /** @type {AnthropicUsage} */ (payload);
+      const tokens   = Number(a.tokens)   || 0;
+      const costUsd  = Number(a.cost_usd) || 0;
       p.window_5h.tokens_used += tokens;
       p.today.tokens          += tokens;
       p.today.cost_usd        += costUsd;
       break;
     }
     case 'openai_codex_cli': {
-      const msgs = Number(payload.messages) || 1;
+      const p = state.providers.openai_codex_cli;
+      const c = /** @type {CodexCliUsage} */ (payload);
+      const msgs = Number(c.messages) || 1;
       p.window_5h.messages_used += msgs;
-      if (payload.exhausted === true) p.exhausted = true;
+      if (c.exhausted === true) p.exhausted = true;
       p.last_status_check = new Date().toISOString();
       break;
     }
     case 'openai_api': {
-      p.today.tokens_in  += Number(payload.tokens_in)  || 0;
-      p.today.tokens_out += Number(payload.tokens_out) || 0;
-      p.today.cost_usd   += Number(payload.cost_usd)   || 0;
+      const p = state.providers.openai_api;
+      const o = /** @type {OpenAIApiUsage} */ (payload);
+      p.today.tokens_in  += Number(o.tokens_in)  || 0;
+      p.today.tokens_out += Number(o.tokens_out) || 0;
+      p.today.cost_usd   += Number(o.cost_usd)   || 0;
       break;
     }
     case 'ollama': {
-      p.today.calls += Number(payload.calls) || 1;
+      const p = state.providers.ollama;
+      const ol = /** @type {OllamaUsage} */ (payload);
+      p.today.calls += Number(ol.calls) || 1;
       break;
     }
   }
@@ -199,18 +271,21 @@ function recordUsage(provider, payload = {}) {
  *   - openai_api       → always 1 (no quota tracked client-side; pay-per-call)
  *   - ollama           → always 1 (local, free)
  */
+/**
+ * @param {ProviderName} provider
+ * @returns {number}
+ */
 function getQuotaRemaining(provider) {
   const state = getState();
-  const p = state.providers[provider];
-  if (!p) return 0;
 
   switch (provider) {
     case 'anthropic': {
-      const w = p.window_5h;
+      const w = state.providers.anthropic.window_5h;
       if (!w.limit) return 1;
       return clamp01(1 - (w.tokens_used / w.limit));
     }
     case 'openai_codex_cli': {
+      const p = state.providers.openai_codex_cli;
       if (p.exhausted) return 0;
       const w = p.window_5h;
       if (!w.limit) return 1;
@@ -223,6 +298,7 @@ function getQuotaRemaining(provider) {
   }
 }
 
+/** @param {number} x @returns {number} */
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
 /**
@@ -254,6 +330,7 @@ function summary() {
   };
 }
 
+/** @param {number} x @returns {number} */
 function round2(x) { return Math.round(x * 100) / 100; }
 
 module.exports = {
