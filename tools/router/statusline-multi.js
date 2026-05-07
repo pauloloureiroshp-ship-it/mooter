@@ -291,6 +291,18 @@ function pickState(ctx) {
     };
   }
 
+  // ── YELLOW: severe routing drift vs lifetime baseline ─────────────────
+  // Picked up here (above mode-mix yellows) because severe drift means the
+  // tuning has decayed, which a beast/zen warning would mask.
+  const drift = ctx.drift;
+  if (drift && drift.drift && drift.severity === 'severe') {
+    return {
+      color:    'yellow',
+      headline: `routing drift — ${drift.tier} ${drift.actual}% vs ${drift.expected}% baseline`,
+      proof,
+    };
+  }
+
   // ── YELLOW: beast overkill on trivials ────────────────────────────────
   if (recent.length >= 5) {
     const overkill = beastOverkillPct(recent);
@@ -329,6 +341,15 @@ function pickState(ctx) {
     return {
       color:    'yellow',
       headline: `only ${Math.round(savedPct)}% saved today — check tier mix`,
+      proof,
+    };
+  }
+
+  // ── YELLOW: mild routing drift (informational, lowest priority) ───────
+  if (drift && drift.drift && drift.severity === 'mild') {
+    return {
+      color:    'yellow',
+      headline: `mild drift on ${drift.tier} (Δ ${drift.deltaPct} pp vs baseline)`,
       proof,
     };
   }
@@ -387,10 +408,19 @@ async function buildContext() {
   const savedUsd = metrics && Number.isFinite(Number(metrics.saved)) ? Number(metrics.saved) : null;
   const savedPct = metrics && Number.isFinite(Number(metrics.saved_pct)) ? Number(metrics.saved_pct) : null;
 
+  // Drift detection: cheap when no baseline exists (returns drift=false
+  // immediately). Wrapped in try/catch so a drift module bug never blocks
+  // the statusline render.
+  let drift = null;
+  try {
+    drift = require('./drift-detector.js').checkDrift();
+  } catch { drift = null; }
+
   return {
     counts, total, last, recent,
     anthRem, codexRem, codexLeft,
     savedUsd, savedPct, todayCost,
+    drift,
     dataMissing: !lines.length && !quota.providers,
   };
 }

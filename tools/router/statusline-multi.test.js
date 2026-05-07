@@ -227,6 +227,39 @@ test('pickState: yellow when zen underkill exceeds threshold', () => {
   assert.match(s.headline, /zen-capped on complex tasks/);
 });
 
+test('pickState: severe drift wins over beast overkill (priority)', () => {
+  const beastEvents = Array(10).fill({
+    tier: 'T3',
+    escalation_rule: 'beast_intent_force_t3',
+    prompt_complexity_score: 0.01,
+    confidence: 0.95,
+  });
+  const ctx = {
+    ...DEMO_CONTEXTS.yellow,
+    recent: beastEvents,
+    drift: { drift: true, severity: 'severe', tier: 'T3', actual: 80, expected: 25, deltaPct: 55 },
+  };
+  const s = pickState(ctx);
+  assert.equal(s.color, 'yellow');
+  assert.match(s.headline, /routing drift/);
+});
+
+test('pickState: mild drift surfaces only when no other yellow fires', () => {
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    drift: { drift: true, severity: 'mild', tier: 'T0', deltaPct: 12 },
+  };
+  const s = pickState(ctx);
+  assert.equal(s.color, 'yellow');
+  assert.match(s.headline, /mild drift on T0/);
+});
+
+test('pickState: drift=false context is identical to no-drift baseline', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, drift: { drift: false } };
+  const s = pickState(ctx);
+  assert.equal(s.color, 'green');
+});
+
 test('avgConfidence: ignores undefined / non-finite values', () => {
   const xs = [{ confidence: 0.8 }, { confidence: 0.4 }, { confidence: NaN }, {}];
   const avg = avgConfidence(xs);
