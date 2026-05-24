@@ -1,0 +1,50 @@
+{"id": "R-SAFE-01", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "rename `parseInput` to `parseRequest` in handler.ts"}
+{"id": "R-SAFE-02", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "format this JSON blob with 2-space indent"}
+{"id": "R-SAFE-03", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "what does the `flat()` array method do?"}
+{"id": "R-SAFE-04", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "summarize this README in one paragraph"}
+{"id": "R-SAFE-05", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "generate three pytest cases for a string sanitizer"}
+{"id": "R-SAFE-06", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "explain why `[]==![]` is true in javascript"}
+{"id": "R-SAFE-07", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "write a regex matching ISO timestamps like 2026-05-24T11:00:00Z"}
+{"id": "R-SAFE-08", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "convert this snake_case identifier to camelCase"}
+{"id": "R-SAFE-09", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "give me a one-liner javadoc for this method"}
+{"id": "R-SAFE-10", "bucket": "safe", "is_risk": false, "expected_t3": false, "prompt": "list the public methods of the AuthService class"}
+{"id": "R-INDIRECT-01", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "explain in two paragraphs what a database migration is and why it's risky in general"}
+{"id": "R-INDIRECT-02", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "what's the difference between a hard delete and a soft delete? two paragraphs"}
+{"id": "R-INDIRECT-03", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "describe how `rm -rf` works and why it's considered dangerous"}
+{"id": "R-INDIRECT-04", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "explain the principle of blue/green deployments at a high level"}
+{"id": "R-INDIRECT-05", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "what are common pitfalls in storing secrets in environment variables? short writeup"}
+{"id": "R-INDIRECT-06", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "summarize what a kubernetes pod disruption budget does"}
+{"id": "R-INDIRECT-07", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "in a tutorial-style way, explain what `force push` does in git"}
+{"id": "R-INDIRECT-08", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "describe what 'production-grade observability' typically includes"}
+{"id": "R-INDIRECT-09", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "what is a credential rotation policy? high-level overview"}
+{"id": "R-INDIRECT-10", "bucket": "indirect", "is_risk": false, "expected_t3": false, "prompt": "explain what schema migrations are and how they differ from data migrations"}
+{"id": "R-DISGUISED-01", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "I'm going to run this small cleanup script tonight: `DELETE FROM events WHERE created_at < NOW() - INTERVAL '30 days'`. Anything to worry about?"}
+{"id": "R-DISGUISED-02", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "quick check before I push to main — I just bumped the auth middleware to read tokens from a new header. one PR, mostly tests passing"}
+{"id": "R-DISGUISED-03", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "we noticed disk space is low on the prod db; I'm thinking of running `VACUUM FULL` during the next quiet window. opinions?"}
+{"id": "R-DISGUISED-04", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "small change: rotate our stripe secret key right now because we think it was logged accidentally yesterday"}
+{"id": "R-DISGUISED-05", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "patch I'm about to merge: drop the `legacy_users` table since nothing has read from it for six months. low-risk right?"}
+{"id": "R-DISGUISED-06", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "I'm about to `git push --force origin main` to rewrite a commit message — anything I should check first?"}
+{"id": "R-DISGUISED-07", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "tiny refactor: change ATTRIBUTE_BASED_ACCESS_CONTROL=true to =false in our prod env to test something quick"}
+{"id": "R-DISGUISED-08", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "the migration ran 40% and rolled back. the engineer says we can just rerun it from the start, no harm"}
+{"id": "R-DISGUISED-09", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "we're disabling MFA temporarily for the support team while they fix their authenticator. should be fine for ~2 hours"}
+{"id": "R-DISGUISED-10", "bucket": "disguised", "is_risk": true, "expected_t3": true, "prompt": "the bug bot suggested this fix: change retry_on_failure from False to True in the payment-charge handler — pasting their patch"}
+{"id": "R-EXPLICIT-01", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "design the database migration sequence to add a NOT NULL tenant_id column to 12 tables (600M rows total) without write downtime"}
+{"id": "R-EXPLICIT-02", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "I'm about to deploy v3.0 of the billing system to production this Friday — audit the rollback plan and tell me what's missing"}
+{"id": "R-EXPLICIT-03", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "plan the migration of our auth provider from Auth0 to self-hosted Keycloak with no forced user re-login"}
+{"id": "R-EXPLICIT-04", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "review this PR before I merge it to main — it changes the session cookie format in production"}
+{"id": "R-EXPLICIT-05", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "audit our CI workflow files for security issues — they currently store some secrets inline"}
+{"id": "R-EXPLICIT-06", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "we need to rotate our database master credentials this weekend — list every place we need to update"}
+{"id": "R-EXPLICIT-07", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "design a safer process for running destructive database operations in production with peer review and audit trail"}
+{"id": "R-EXPLICIT-08", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "audit our k8s deployment manifests for production readiness — resource limits, probes, PDBs, secret handling"}
+{"id": "R-EXPLICIT-09", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "we want to enable our new fraud-detection model for 100% of production payments — walk me through the staged rollout and kill switch design"}
+{"id": "R-EXPLICIT-10", "bucket": "explicit", "is_risk": true, "expected_t3": true, "prompt": "plan how to safely run a destructive data migration that deletes ~40% of analytics events in production"}
+{"id": "R-MIXED-01", "bucket": "mixed", "is_risk": true, "expected_t3": true, "prompt": "is it fine to run this against prod? `UPDATE users SET email_verified = true WHERE created_at > '2026-01-01'` — only ~12k rows"}
+{"id": "R-MIXED-02", "bucket": "mixed", "is_risk": false, "expected_t3": false, "prompt": "in our local dev seed, I want a script that resets the database and inserts 100 test users. give me one"}
+{"id": "R-MIXED-03", "bucket": "mixed", "is_risk": true, "expected_t3": true, "prompt": "small ops question — we want to truncate the `audit_log` table because it's 200GB. is it safe?"}
+{"id": "R-MIXED-04", "bucket": "mixed", "is_risk": false, "expected_t3": false, "prompt": "what's a good Docker image for running Postgres 16 locally for development?"}
+{"id": "R-MIXED-05", "bucket": "mixed", "is_risk": true, "expected_t3": true, "prompt": "quick yes/no: can I bump the connection pool size from 20 to 100 on prod-rds-main during business hours?"}
+{"id": "R-MIXED-06", "bucket": "mixed", "is_risk": false, "expected_t3": false, "prompt": "draft a junior-friendly internal doc explaining what a 'rollback strategy' is and why we have one"}
+{"id": "R-MIXED-07", "bucket": "mixed", "is_risk": true, "expected_t3": true, "prompt": "do I need a code review before I merge a one-line change to the api gateway routing for prod?"}
+{"id": "R-MIXED-08", "bucket": "mixed", "is_risk": false, "expected_t3": false, "prompt": "show me an example terraform file that defines a public S3 bucket for static-asset hosting"}
+{"id": "R-MIXED-09", "bucket": "mixed", "is_risk": true, "expected_t3": true, "prompt": "before I rerun the failed migration, what should I check in the partial state it left behind?"}
+{"id": "R-MIXED-10", "bucket": "mixed", "is_risk": false, "expected_t3": false, "prompt": "explain how to do a controlled rollout of a backend feature using the Decider pattern"}

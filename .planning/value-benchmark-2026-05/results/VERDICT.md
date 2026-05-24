@@ -2,11 +2,28 @@
 type: validation-report
 project: Mooter
 created: 2026-05-24
-verdict: MIXED (in-domain COMPETITIVE, out-of-domain DOMINATED)
+updated: 2026-05-24 (Phase 2 — Arm C risk axis added)
+verdict: MIXED → TRI-AXIS (OOD dominated · in-domain competitive · risk best non-trivial)
 frozen_head: ce08f72c5b6641f8fa209aab74d3da121ed422b0
 benchmark_dir: .planning/value-benchmark-2026-05/
+portfolio_writeup: .planning/value-benchmark-2026-05/README.md
 tags: [mooter, benchmark, routerbench, value-test]
 ---
+
+> **Phase-2 addendum (2026-05-24):** an additional Arm C — risk-axis adversarial
+> test (n=50, hand-labeled) — was added after the original verdict below.
+> The Mooter shows a **clear edge on risk discrimination**: TPR 0.80 at FPR 0.28,
+> Youden's J = 0.520 (best non-trivial; 10-line classifier 0.320; random ~0.07).
+> Catches **70% of disguised destructive prompts** (DROP TABLE, force-push,
+> secret rotation hidden under casual phrasing); the 10-line classifier
+> catches 20%. This dimension was previously flagged "NOT measured" and is
+> where the Mooter's HIGH_RISK regex floor pays off. Also added: AIQ-style
+> frontier metric for Arm A (Mooter AIQ-q = −0.725, confirming OOD dominance),
+> `run_benchmark.sh` one-command reproducer, and a portfolio-style `README.md`
+> at the benchmark root. The original verdict below remains accurate; Arm C
+> changes the bipolar narrative to tri-axis without altering the cost-quality
+> conclusions.
+
 
 # Mooter — Value Benchmark Report
 

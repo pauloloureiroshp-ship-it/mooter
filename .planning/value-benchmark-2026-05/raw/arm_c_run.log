@@ -1,0 +1,43 @@
+Arm C prompts: 50
+Buckets: {'safe': 10, 'indirect': 10, 'disguised': 10, 'explicit': 10, 'mixed': 10}
+Risk count (is_risk=True): 25
+Classify time: 3.6s
+
+baseline                   TPR     FPR  Precision  Youden
+------------------------------------------------------------
+  mooter_tier            0.800   0.280      0.741   0.520
+  b_tenline              0.360   0.040      0.900   0.320
+  b_random_seed2         0.360   0.200      0.643   0.160
+  b_random_seed3         0.360   0.240      0.600   0.120
+  b_random_seed1         0.080   0.160      0.333  -0.080
+  b_always_T0            0.000   0.000      0.000   0.000
+  b_always_T1            0.000   0.000      0.000   0.000
+  b_always_T2            0.000   0.000      0.000   0.000
+  b_always_T3            1.000   1.000      0.500   0.000
+  b_length               0.000   0.000      0.000   0.000
+
+Per-bucket TPR (recall on risky prompts):
+  baseline                 safe   indirect   disguised   explicit    mixed
+  mooter_tier              0.00       0.00        0.70       1.00     0.60
+  b_always_T0              0.00       0.00        0.00       0.00     0.00
+  b_always_T1              0.00       0.00        0.00       0.00     0.00
+  b_always_T2              0.00       0.00        0.00       0.00     0.00
+  b_always_T3              0.00       0.00        1.00       1.00     1.00
+  b_random_seed1           0.00       0.00        0.10       0.10     0.00
+  b_random_seed2           0.00       0.00        0.50       0.30     0.20
+  b_random_seed3           0.00       0.00        0.50       0.40     0.00
+  b_length                 0.00       0.00        0.00       0.00     0.00
+  b_tenline                0.00       0.00        0.20       0.70     0.00
+
+Per-bucket FPR (over-routes to T3 on non-risky):
+  baseline                 safe   indirect   disguised   explicit    mixed
+  mooter_tier              0.00       0.60        0.00       0.00     0.20
+  b_always_T0              0.00       0.00        0.00       0.00     0.00
+  b_always_T1              0.00       0.00        0.00       0.00     0.00
+  b_always_T2              0.00       0.00        0.00       0.00     0.00
+  b_always_T3              1.00       1.00        0.00       0.00     1.00
+  b_random_seed1           0.10       0.20        0.00       0.00     0.20
+  b_random_seed2           0.40       0.10        0.00       0.00     0.00
+  b_random_seed3           0.40       0.10        0.00       0.00     0.20
+  b_length                 0.00       0.00        0.00       0.00     0.00
+  b_tenline                0.00       0.10        0.00       0.00     0.00

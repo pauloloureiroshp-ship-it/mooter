@@ -1,0 +1,214 @@
+{
+  "n_prompts": 50,
+  "buckets": {
+    "safe": 10,
+    "indirect": 10,
+    "disguised": 10,
+    "explicit": 10,
+    "mixed": 10
+  },
+  "n_risk": 25,
+  "n_norisk": 25,
+  "metrics": {
+    "mooter_tier": {
+      "tp": 20,
+      "fp": 7,
+      "fn": 5,
+      "tn": 18,
+      "tpr_risk_recall": 0.8,
+      "fpr_false_alarm": 0.28,
+      "precision_at_t3": 0.7407407407407407,
+      "youden_j": 0.52,
+      "per_bucket_tpr": {
+        "disguised": 0.7,
+        "explicit": 1.0,
+        "mixed": 0.6
+      },
+      "per_bucket_fpr": {
+        "safe": 0.0,
+        "indirect": 0.6,
+        "mixed": 0.2
+      }
+    },
+    "b_always_T0": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 25,
+      "tn": 25,
+      "tpr_risk_recall": 0.0,
+      "fpr_false_alarm": 0.0,
+      "precision_at_t3": null,
+      "youden_j": 0.0,
+      "per_bucket_tpr": {
+        "disguised": 0.0,
+        "explicit": 0.0,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.0,
+        "indirect": 0.0,
+        "mixed": 0.0
+      }
+    },
+    "b_always_T1": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 25,
+      "tn": 25,
+      "tpr_risk_recall": 0.0,
+      "fpr_false_alarm": 0.0,
+      "precision_at_t3": null,
+      "youden_j": 0.0,
+      "per_bucket_tpr": {
+        "disguised": 0.0,
+        "explicit": 0.0,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.0,
+        "indirect": 0.0,
+        "mixed": 0.0
+      }
+    },
+    "b_always_T2": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 25,
+      "tn": 25,
+      "tpr_risk_recall": 0.0,
+      "fpr_false_alarm": 0.0,
+      "precision_at_t3": null,
+      "youden_j": 0.0,
+      "per_bucket_tpr": {
+        "disguised": 0.0,
+        "explicit": 0.0,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.0,
+        "indirect": 0.0,
+        "mixed": 0.0
+      }
+    },
+    "b_always_T3": {
+      "tp": 25,
+      "fp": 25,
+      "fn": 0,
+      "tn": 0,
+      "tpr_risk_recall": 1.0,
+      "fpr_false_alarm": 1.0,
+      "precision_at_t3": 0.5,
+      "youden_j": 0.0,
+      "per_bucket_tpr": {
+        "disguised": 1.0,
+        "explicit": 1.0,
+        "mixed": 1.0
+      },
+      "per_bucket_fpr": {
+        "safe": 1.0,
+        "indirect": 1.0,
+        "mixed": 1.0
+      }
+    },
+    "b_random_seed1": {
+      "tp": 2,
+      "fp": 4,
+      "fn": 23,
+      "tn": 21,
+      "tpr_risk_recall": 0.08,
+      "fpr_false_alarm": 0.16,
+      "precision_at_t3": 0.3333333333333333,
+      "youden_j": -0.08,
+      "per_bucket_tpr": {
+        "disguised": 0.1,
+        "explicit": 0.1,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.1,
+        "indirect": 0.2,
+        "mixed": 0.2
+      }
+    },
+    "b_random_seed2": {
+      "tp": 9,
+      "fp": 5,
+      "fn": 16,
+      "tn": 20,
+      "tpr_risk_recall": 0.36,
+      "fpr_false_alarm": 0.2,
+      "precision_at_t3": 0.6428571428571429,
+      "youden_j": 0.15999999999999998,
+      "per_bucket_tpr": {
+        "disguised": 0.5,
+        "explicit": 0.3,
+        "mixed": 0.2
+      },
+      "per_bucket_fpr": {
+        "safe": 0.4,
+        "indirect": 0.1,
+        "mixed": 0.0
+      }
+    },
+    "b_random_seed3": {
+      "tp": 9,
+      "fp": 6,
+      "fn": 16,
+      "tn": 19,
+      "tpr_risk_recall": 0.36,
+      "fpr_false_alarm": 0.24,
+      "precision_at_t3": 0.6,
+      "youden_j": 0.12,
+      "per_bucket_tpr": {
+        "disguised": 0.5,
+        "explicit": 0.4,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.4,
+        "indirect": 0.1,
+        "mixed": 0.2
+      }
+    },
+    "b_length": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 25,
+      "tn": 25,
+      "tpr_risk_recall": 0.0,
+      "fpr_false_alarm": 0.0,
+      "precision_at_t3": null,
+      "youden_j": 0.0,
+      "per_bucket_tpr": {
+        "disguised": 0.0,
+        "explicit": 0.0,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.0,
+        "indirect": 0.0,
+        "mixed": 0.0
+      }
+    },
+    "b_tenline": {
+      "tp": 9,
+      "fp": 1,
+      "fn": 16,
+      "tn": 24,
+      "tpr_risk_recall": 0.36,
+      "fpr_false_alarm": 0.04,
+      "precision_at_t3": 0.9,
+      "youden_j": 0.32,
+      "per_bucket_tpr": {
+        "disguised": 0.2,
+        "explicit": 0.7,
+        "mixed": 0.0
+      },
+      "per_bucket_fpr": {
+        "safe": 0.0,
+        "indirect": 0.1,
+        "mixed": 0.0
+      }
+    }
+  }
+}

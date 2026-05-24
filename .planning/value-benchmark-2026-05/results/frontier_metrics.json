@@ -1,0 +1,165 @@
+{
+  "primary": {
+    "mooter": {
+      "quality": 0.14277694610778446,
+      "cost": 0.000395565571856288,
+      "aiq_q": -0.724626496199434,
+      "cost_save_pct_of_oracle": 0.8393194932175033,
+      "pareto_dominated": true
+    },
+    "always_T0": {
+      "quality": 0.06371631736526943,
+      "cost": 0.00011846923652694603,
+      "aiq_q": -0.909194163730086,
+      "cost_save_pct_of_oracle": 1.195450604238099,
+      "pareto_dominated": true
+    },
+    "always_T1": {
+      "quality": 0.41386601796407163,
+      "cost": 4.792387724550892e-05,
+      "aiq_q": -0.09176689868072355,
+      "cost_save_pct_of_oracle": 1.2861172568604982,
+      "pareto_dominated": false
+    },
+    "always_T2": {
+      "quality": 0.5932447604790421,
+      "cost": 0.0015538682634730569,
+      "aiq_q": 0.32699420450243216,
+      "cost_save_pct_of_oracle": -0.6493599726200429,
+      "pareto_dominated": true
+    },
+    "always_T3": {
+      "quality": 0.7278630239520957,
+      "cost": 0.002504487275449106,
+      "aiq_q": 0.6412616128374634,
+      "cost_save_pct_of_oracle": -1.8711192011928595,
+      "pareto_dominated": true
+    },
+    "random_seed1": {
+      "quality": 0.4504678143712573,
+      "cost": 0.0010081588562874265,
+      "aiq_q": -0.006319713428663006,
+      "cost_save_pct_of_oracle": 0.05199934793691128,
+      "pareto_dominated": true
+    },
+    "random_seed2": {
+      "quality": 0.46253742514970037,
+      "cost": 0.0010800020224550901,
+      "aiq_q": 0.021856889070099066,
+      "cost_save_pct_of_oracle": -0.040335278416474676,
+      "pareto_dominated": true
+    },
+    "random_seed3": {
+      "quality": 0.44651946107784446,
+      "cost": 0.0010576937020958085,
+      "aiq_q": -0.01553717564143567,
+      "cost_save_pct_of_oracle": -0.011664069520436048,
+      "pareto_dominated": true
+    },
+    "length_heuristic": {
+      "quality": 0.463903443113772,
+      "cost": 0.0006082401017964054,
+      "aiq_q": 0.02504586888778796,
+      "cost_save_pct_of_oracle": 0.565984890854984,
+      "pareto_dominated": true
+    },
+    "tenline_classifier": {
+      "quality": 0.5807447604790416,
+      "cost": 0.001331086104790418,
+      "aiq_q": 0.2978128549378214,
+      "cost_save_pct_of_oracle": -0.36303479407549116,
+      "pareto_dominated": true
+    },
+    "oracle_quality": {
+      "quality": 0.8815306886227547,
+      "cost": 0.0002705442574850299,
+      "aiq_q": 1.0,
+      "cost_save_pct_of_oracle": 1.0,
+      "pareto_dominated": false
+    }
+  },
+  "alt": {
+    "mooter": {
+      "quality": 0.30104790419161687,
+      "cost": 4.8859431137724535e-05,
+      "aiq_q": -0.37289410792789,
+      "cost_save_pct_of_oracle": -0.2503689541534294,
+      "pareto_dominated": true
+    },
+    "always_T0": {
+      "quality": 0.2643899700598804,
+      "cost": 3.180449101796407e-05,
+      "aiq_q": -0.4595934263712262,
+      "cost_save_pct_of_oracle": -0.3465639350732567,
+      "pareto_dominated": false
+    },
+    "always_T1": {
+      "quality": 0.41386601796407163,
+      "cost": 4.792387724550892e-05,
+      "aiq_q": -0.10606909981412119,
+      "cost_save_pct_of_oracle": -0.25564575889030905,
+      "pareto_dominated": false
+    },
+    "always_T2": {
+      "quality": 0.5905501497005988,
+      "cost": 0.00016361302395209658,
+      "aiq_q": 0.31180479745080103,
+      "cost_save_pct_of_oracle": 0.396875749946721,
+      "pareto_dominated": false
+    },
+    "always_T3": {
+      "quality": 0.5643525449101798,
+      "cost": 0.00012744610778443125,
+      "aiq_q": 0.2498451007582691,
+      "cost_save_pct_of_oracle": 0.1928834881007485,
+      "pareto_dominated": false
+    },
+    "random_seed1": {
+      "quality": 0.45058008982035896,
+      "cost": 9.207649700598807e-05,
+      "aiq_q": -0.01923701059215823,
+      "cost_save_pct_of_oracle": -0.006611732057306484,
+      "pareto_dominated": true
+    },
+    "random_seed2": {
+      "quality": 0.4729041916167666,
+      "cost": 9.441642964071881e-05,
+      "aiq_q": 0.0335615023751222,
+      "cost_save_pct_of_oracle": 0.006586190279037989,
+      "pareto_dominated": false
+    },
+    "random_seed3": {
+      "quality": 0.4526571856287425,
+      "cost": 9.325325598802403e-05,
+      "aiq_q": -0.014324491782963834,
+      "cost_save_pct_of_oracle": 2.554177826849403e-05,
+      "pareto_dominated": true
+    },
+    "length_heuristic": {
+      "quality": 0.46059131736526937,
+      "cost": 8.616946107784436e-05,
+      "aiq_q": 0.004440444929631446,
+      "cost_save_pct_of_oracle": -0.039929187551750026,
+      "pareto_dominated": false
+    },
+    "tenline_classifier": {
+      "quality": 0.547211826347305,
+      "cost": 0.00012250598802395236,
+      "aiq_q": 0.20930575635086807,
+      "cost_save_pct_of_oracle": 0.1650197299893771,
+      "pareto_dominated": false
+    },
+    "oracle_quality": {
+      "quality": 0.8815306886227547,
+      "cost": 0.0002705442574850299,
+      "aiq_q": 1.0,
+      "cost_save_pct_of_oracle": 1.0,
+      "pareto_dominated": false
+    }
+  },
+  "interpretation": {
+    "aiq_q": "% of oracle's quality improvement over random that was captured. Range: 0 (random) to 1 (oracle). Negative = worse than random.",
+    "cost_save_pct_of_oracle": "% of oracle's cost reduction from random captured.",
+    "pareto_dominated": "true if some other baseline matches or beats in BOTH dimensions."
+  }
+}

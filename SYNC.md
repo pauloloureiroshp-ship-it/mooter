@@ -584,30 +584,49 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
-### 🧪 Claude Code Sessão 2026-05-24 — Mooter Value Benchmark (independent, adversarial)
+### 🧪 Claude Code Sessão 2026-05-24 — Mooter Value Benchmark (independent, adversarial, Phase 1+2)
 
-**Veredicto:** **MIXED** — COMPETITIVE in-domain (Arm B coding), Pareto-DOMINATED out-of-domain (Arm A RouterBench).
+**Veredicto tri-axis (após Phase 2):**
 
-- **Arm A (RouterBench, n=2,672 stratified):** Mooter avg_quality 0.143 @ cost $0.000396 vs `always_T1` 0.414 @ $0.000048. Pareto-dominated por always_T1 sob mappings primary E sensitivity. Gap a oracle: 83.8 pp. **88.9% dos prompts colapsam para T0** (sem coding signals → fallback length-based).
-- **Arm B (coding fresh, n=150, judge Ollama gemma3:12b):** Mooter accuracy 62.7% (within±1 92.0%, cw_err 0.477) — bate 10-line classifier (45.3%), length_heuristic (32.0%), random (~27%), all always_T* baselines. **T1 dead zone:** 76% de T1-judged prompts colapsam para T0 (oportunidade tunable).
-- **Frozen state:** HEAD `ce08f72`, `git diff -- tools/router/classify.js` = 0 linhas. `tuning-state.json` ausente (defaults). `classify.js` byte-identical no fim.
-- **Anti-contaminação:** 0 prompts em Arm B com ≥3 5-grams contra `validation-set.json`.
+| Eixo | Mooter | Frontier baseline | Status |
+|---|---|---|---|
+| OOD cost-quality (Arm A) | DOMINATED — AIQ-q = −0.725 | `always_T1` wins flat | use as general router → no |
+| In-domain cost-quality (Arm B) | COMPETITIVE — 62.7% acc | beats 10-line by +17 pp | works in its niche |
+| **Risk discrimination (Arm C — new)** | **BEST NON-TRIVIAL — Youden 0.520** | tenline 0.320, random ~0.07 | **real edge** |
 
-**Artefactos:** `.planning/value-benchmark-2026-05/` — `METHODOLOGY.md`, `harness/*.py` (5 scripts reproducíveis), `results/VERDICT.md` (15kB), `data/coding-fresh-prompts.jsonl` (150), `results/arm_a_*` + `arm_b_*`, `raw/*.log`.
+**O edge real do Mooter está na Arm C, não nas outras.** Cataloga 70% de prompts \"disguised\" (innocent-looking but destructive: drop legacy tables, rotate secrets in-flight, force-push to main) — o 10-line classifier cataloga 20%.
 
-**Cópia paulo-vault:** `~/Documents/paulo-vault/30-learnings/mooter-value-benchmark-2026-05-24.md`.
+- **Arm A (RouterBench, n=2,672 stratified, 11 models, 86 task buckets):** Pareto-dominated por `always_T1`. Sensitivity check (alt mapping) confirma. Failure mode: 88.9% colapsam para T0 via fallback length-based porque prompts Q&A não têm coding signals.
+- **Arm B (coding fresh, n=150, judge Ollama gemma3:12b, 0 5-gram overlap vs validation-set):** Mooter 62.7% acc vs 45.3% tenline. **T1 dead zone** identificado (76% de T1-judged collapsa para T0) — maior oportunidade tunable.
+- **Arm C (risk-axis adversarial, n=50, hand-labeled, 5 buckets):** TPR 0.80 @ FPR 0.28. Weakness: 60% FPR no bucket "indirect" (prompts que falam sobre risco mas não pedem acção) — fixável com intent-detector 2nd pass.
+- **Frozen state:** HEAD `ce08f72`, `git diff -- tools/router/classify.js` = 0 linhas ANTES e DEPOIS de Phase 1 e Phase 2. Integrity check é parte do `run_benchmark.sh`.
 
-**Página Notion:** https://www.notion.so/36a6f6e42bc481d0b8c4ec6cb5de59f4
+**Artefactos (.planning/value-benchmark-2026-05/):**
+- `README.md` — **portfolio writeup paper-style EN (19 kB)**, self-contained para CV/blog/Show HN
+- `results/VERDICT.md` — original PT-PT scorecard + Phase 2 addendum
+- `METHODOLOGY.md` — researcher choices + anti-contamination
+- `harness/*.py` (9 scripts reprodutíveis) + `run_benchmark.sh` (one-command, com integrity check)
+- `data/` — 150 coding prompts + 50 risk prompts
+- `results/` — per-prompt JSONL + aggregates + confusion + frontier metrics
+- `raw/` — stdout/stderr de cada run
 
-**Próxima sessão pode/deveria:**
-- Decidir continuar vs pivotar com base no veredicto bipolar (não há resposta "boa" sem framing estratégico — ver §"Implicação estratégica" no VERDICT.md).
-- Se continuar: a maior oportunidade técnica identificada é o **T1 dead zone** — fazer um tuning para que prompts de length 80–300 com sinais leves de coding (commit msg, docstring, regex, single-bug-fix) caiam em T1 em vez de T0. Subiria provavelmente para 70-75% accuracy in-domain.
-- Adicionar **eixo de risco** ao benchmark — não medido, é onde Mooter provavelmente bate baselines triviais.
+**Cópias paulo-vault:**
+- `~/Documents/paulo-vault/30-learnings/mooter-value-benchmark-2026-05-24.md` (VERDICT, PT-PT, decisão)
+- `~/Documents/paulo-vault/30-learnings/mooter-value-benchmark-2026-05-24-portfolio.md` (README, EN, para link directo em CV)
+
+**Página Notion (HQ):** https://www.notion.so/36a6f6e42bc481d0b8c4ec6cb5de59f4 (atualizada com Phase 2 addendum no topo)
+
+**Próxima sessão — opções strategicamente diferentes:**
+- **A. Publicar como artigo / Show HN.** O benchmark é o asset mais defensável do projecto. README EN está pronto. Bastam: blog post / repo público read-only com as `tools/router/` blackboxed.
+- **B. Fixar o T1 dead zone + indirect-risk FPR.** Dois bugs concretos identificados pelo benchmark, ambos tunable sem mexer no design. Estimativa: ~10 pp in-domain accuracy + cortar FPR indirect de 60% → ~10%.
+- **C. Adicionar fallback ML.** Quando regex bank miss (failure mode em Arm A), cair em distilled BERT classifier treinado em RouterBench. Hipótese: subir OOD AIQ-q de −0.725 para ~+0.30.
+- **D. Red-team Arm D.** Stress-test do HIGH_RISK floor contra prompt-injection. Mais importante de safety do que qualquer cost-quality.
 
 **Não-feito propositadamente:**
-- Não modifiquei `classify.js` nem `tuning-state.defaults.json`.
+- Não modifiquei `classify.js` nem `tuning-state.defaults.json` em nenhuma das fases.
 - Não fiz push nem abri PR.
-- Não corri RouteLLM (lean scope; usei números públicos como referência).
+- Não corri RouteLLM (lean scope; números públicos como referência).
+- Não modifiquei o repo público (`mooter` ainda privado).
 
 ---
 
