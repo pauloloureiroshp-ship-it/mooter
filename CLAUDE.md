@@ -183,6 +183,19 @@ Quando um subagent falha, deve reportar:
 
 ---
 
+## HIGIENE DE MARKDOWN — anti-recidiva
+
+> Aplicado após cleanup 2026-05-24 (raiz 32 → 10 .md, total 205 → ~145). Estas regras existem para o problema não voltar.
+
+- **Master prompts one-shot** (instruções para uma sessão Claude Code) → `prompts/` (já gitignored). Não criar novos em `docs/MASTER_PROMPTS/`.
+- **Session reports / validation reports** → Notion (Protocolo Notion abaixo), nunca como ficheiro no repo. Excepção: relatório imediato pode viver em `.planning/<wave>/` enquanto a wave está activa; arquivar para `docs/archive/sessions/` ao fechar.
+- **Strategy docs canónicos** → `docs/strategy/` com nome semântico (`STRATEGY.md`, `ROUTING.md`...). **Nunca** sufixar com data ou `_V2`/`_V3` — git versiona. Versões antigas vão para `docs/archive/strategy-iterations-<yyyy-mm>/`.
+- **PDFs gerados** (`MOOTER_*.pdf`, `*_pdf.md`) → gitignored (.gitignore linhas 81-82). Não commitar.
+- **Audits históricos** → `docs/archive/audits/`. Sem datas no filename — usar git log.
+- **Quando em dúvida**: se um colaborador novo NÃO precisa do ficheiro para shippar a próxima mudança, o sítio dele é Notion ou `docs/archive/`.
+
+---
+
 ## PROTOCOLO NOTION — obrigatório no fim de cada sessão
 
 > O Paulo quer que NUNCA se perca o histórico do projecto. Isto não é opcional.
