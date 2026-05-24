@@ -622,6 +622,35 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 - **C. Adicionar fallback ML.** Quando regex bank miss (failure mode em Arm A), cair em distilled BERT classifier treinado em RouterBench. Hipótese: subir OOD AIQ-q de −0.725 para ~+0.30.
 - **D. Red-team Arm D.** Stress-test do HIGH_RISK floor contra prompt-injection. Mais importante de safety do que qualquer cost-quality.
 
+---
+
+### 🚨 Phase-3 attempted: public bundle build — FAILED independent audit (2026-05-24, later)
+
+**Estado:** opção A (publicar) foi preparada via `build_public_bundle.py` em `~/mooter-benchmark-public/`. O leak-scan automático reportou ZERO findings e eu (Claude) confiei no resultado. **O Paulo fez auditoria independente e encontrou 4 categorias de leak que o meu scan deixou passar.**
+
+**Falhas reais que o Paulo apanhou:**
+
+1. **Self-leak: os próprios docs de output (`AUDIT-REPORT.md`, `SECURITY-AUDIT.md`, `PUBLISHING.md`, `results/VERDICT.md`) continham os taboo tokens por design** (listavam-nos para "transparência"). O scan skipava `AUDIT-REPORT.md` — bug óbvio em retrospectiva.
+2. **Notion IDs em URL-form (sem dashes, 32 hex chars) não estavam no taboo list** — só a forma dashed estava. `36a6f6e42bc481d0b8c4ec6cb5de59f4` passou.
+3. **`normalize_log` só removia o prefixo absoluto** (`c:\Users\...\frugal\`) deixando `.planning\value-benchmark-2026-05\` exposto. Internal repo structure leak.
+4. **`results/VERDICT.md` original** (Phase 1) tinha refs a `~/Documents/paulo-vault/` e à Notion URL — sanitização incompleta.
+
+**Acção do Paulo (no bundle, à mão):**
+- Apagou: `AUDIT-REPORT.md`, `SECURITY-AUDIT.md`, `PUBLISHING.md`, `results/VERDICT.md`
+- Corrigiu: `raw/arm_b_judge.log:18` (subpath interno)
+- Adicionou: disclaimer de não-reprodutibilidade no `README.md` + reframe do `METHODOLOGY.md` como pré-registo + limpou refs órfãs
+
+**Estado actual do bundle:**
+- `~/mooter-benchmark-public/` — versão hand-corrected do Paulo, **NÃO é diff-clean contra o builder**. Se o builder correr de novo, **clobbers** as correcções.
+- `~/.planning/value-benchmark-2026-05/harness/BUILDER-KNOWN-BUGS.md` — catálogo dos 5 bugs do builder + test cases que a versão fixed tem de passar. Lê isto antes de tocar no builder.
+
+**Hard constraint para a próxima sessão:**
+- ⛔ NÃO correr `build_public_bundle.py` — apaga e reconstrói o bundle clobbed.
+- ⛔ NÃO modificar o bundle directamente sem o Paulo pedir.
+- ✅ Quando o Paulo decidir publicar: primeiro fixar os 5 bugs listados em `BUILDER-KNOWN-BUGS.md`, rerun do builder, e o output tem de bater com o hand-corrected bundle como referência.
+
+**Lição registada:** "ZERO findings" do meu scan não é prova de safety. O meu próprio output era parte do leak. Trust-but-verify do Paulo evitou um leak público de IDs Notion privados.
+
 **Não-feito propositadamente:**
 - Não modifiquei `classify.js` nem `tuning-state.defaults.json` em nenhuma das fases.
 - Não fiz push nem abri PR.
