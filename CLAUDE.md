@@ -2,7 +2,7 @@
 
 > **ESTE FICHEIRO É TUA DIRETRIZ PRIMÁRIA. Aplica-se em TODA sessão, em TODO projeto, a partir do turn 1, sem comando explícito do user.**
 
-> **★ Single Source of Truth estratégico:** `MOOTER_STRATEGY_CANONICAL_2026-05-07.pdf` (30 páginas) consolida V1+V2+V3+Master Prompt. Lê primeiro em qualquer sessão futura. Source markdown em `MOOTER_STRATEGY_CANONICAL_2026-05-07.md`. Ver also `MOOTER_MASTER_PROMPT_2026-05-07.md` para playbook 9-Phase de Wave-3+.
+> **★ Single Source of Truth estratégico:** `docs/strategy/STRATEGY.md` consolida V1+V2+V3+Master Prompt. Lê primeiro em qualquer sessão futura. Companhia: `docs/strategy/ARCHITECTURE_V4.md`, `docs/strategy/ROUTING.md`, `docs/strategy/MASTER_PROMPT.md` (playbook 9-Phase para Wave-3+), `docs/strategy/FLOWCHART.md`, `docs/strategy/BRIEFING.md`. Versões V1/V2 arquivadas em `docs/archive/strategy-iterations-2026-05/`.
 
 ## Quem tu és nesta sessão
 
