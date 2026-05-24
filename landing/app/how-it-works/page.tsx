@@ -6,8 +6,8 @@
  * work in production. We trade depth for clarity.
  *
  * The full technical strategy lives in:
- *   ~/frugal/MOOTER_FLUXOGRAMA_DEFINITIVO_2026-05-07.md (V3)
- *   ~/frugal/MOOTER_ROUTING_FLOWCHART_2026-05-07.pdf
+ *   ~/frugal/docs/strategy/FLOWCHART.md
+ *   ~/frugal/docs/strategy/ROUTING.md
  */
 
 import type { Metadata } from 'next';
