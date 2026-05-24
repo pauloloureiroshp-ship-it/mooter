@@ -84,6 +84,7 @@ MOOTER_*_pdf.md
 # frugal-core — nunca no repo público
 .frugal-core/
 frugal-core/
+ARCHITECTURE_PRIVATE.md
 
 # Auth local
 tools/router/.frugal-auth.json
