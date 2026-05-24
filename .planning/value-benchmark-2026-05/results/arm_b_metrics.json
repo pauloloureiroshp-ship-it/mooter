@@ -1,0 +1,147 @@
+{
+  "n_prompts": 150,
+  "tier_distribution_expected": {
+    "T0": 40,
+    "T1": 30,
+    "T2": 35,
+    "T3": 45
+  },
+  "tier_distribution_judge": {
+    "T1": 34,
+    "T0": 31,
+    "T2": 48,
+    "T3": 37
+  },
+  "tier_distribution_mooter": {
+    "T0": 67,
+    "T3": 48,
+    "T1": 3,
+    "T2": 32
+  },
+  "scored_against_judge": {
+    "mooter_tier": {
+      "accuracy_exact": 0.6266666666666667,
+      "accuracy_within1": 0.92,
+      "n": 150,
+      "cost_weighted_error_avg": 0.4773333333333331
+    },
+    "b_always_T0": {
+      "accuracy_exact": 0.20666666666666667,
+      "accuracy_within1": 0.43333333333333335,
+      "n": 150,
+      "cost_weighted_error_avg": 3.16
+    },
+    "b_always_T1": {
+      "accuracy_exact": 0.22666666666666666,
+      "accuracy_within1": 0.7533333333333333,
+      "n": 150,
+      "cost_weighted_error_avg": 1.122
+    },
+    "b_always_T2": {
+      "accuracy_exact": 0.32,
+      "accuracy_within1": 0.7933333333333333,
+      "n": 150,
+      "cost_weighted_error_avg": 0.48
+    },
+    "b_always_T3": {
+      "accuracy_exact": 0.24666666666666667,
+      "accuracy_within1": 0.5666666666666667,
+      "n": 150,
+      "cost_weighted_error_avg": 0.5873333333333319
+    },
+    "b_random_seed1": {
+      "accuracy_exact": 0.3,
+      "accuracy_within1": 0.6466666666666666,
+      "n": 150,
+      "cost_weighted_error_avg": 1.2273333333333332
+    },
+    "b_random_seed2": {
+      "accuracy_exact": 0.21333333333333335,
+      "accuracy_within1": 0.5733333333333334,
+      "n": 150,
+      "cost_weighted_error_avg": 1.5653333333333335
+    },
+    "b_random_seed3": {
+      "accuracy_exact": 0.30666666666666664,
+      "accuracy_within1": 0.64,
+      "n": 150,
+      "cost_weighted_error_avg": 1.0959999999999999
+    },
+    "b_length": {
+      "accuracy_exact": 0.32,
+      "accuracy_within1": 0.82,
+      "n": 150,
+      "cost_weighted_error_avg": 1.0353333333333334
+    },
+    "b_tenline": {
+      "accuracy_exact": 0.4533333333333333,
+      "accuracy_within1": 0.9066666666666666,
+      "n": 150,
+      "cost_weighted_error_avg": 0.7146666666666666
+    }
+  },
+  "scored_against_expected": {
+    "mooter_tier": {
+      "accuracy_exact": 0.72,
+      "accuracy_within1": 0.94,
+      "n": 150,
+      "cost_weighted_error_avg": 0.4006666666666666
+    },
+    "b_always_T0": {
+      "accuracy_exact": 0.26666666666666666,
+      "accuracy_within1": 0.4666666666666667,
+      "n": 150,
+      "cost_weighted_error_avg": 3.3
+    },
+    "b_always_T1": {
+      "accuracy_exact": 0.2,
+      "accuracy_within1": 0.7,
+      "n": 150,
+      "cost_weighted_error_avg": 1.2133333333333334
+    },
+    "b_always_T2": {
+      "accuracy_exact": 0.23333333333333334,
+      "accuracy_within1": 0.7333333333333333,
+      "n": 150,
+      "cost_weighted_error_avg": 0.5733333333333328
+    },
+    "b_always_T3": {
+      "accuracy_exact": 0.3,
+      "accuracy_within1": 0.5333333333333333,
+      "n": 150,
+      "cost_weighted_error_avg": 0.6299999999999988
+    },
+    "b_random_seed1": {
+      "accuracy_exact": 0.2733333333333333,
+      "accuracy_within1": 0.5933333333333334,
+      "n": 150,
+      "cost_weighted_error_avg": 1.3713333333333328
+    },
+    "b_random_seed2": {
+      "accuracy_exact": 0.22,
+      "accuracy_within1": 0.5666666666666667,
+      "n": 150,
+      "cost_weighted_error_avg": 1.6426666666666665
+    },
+    "b_random_seed3": {
+      "accuracy_exact": 0.32666666666666666,
+      "accuracy_within1": 0.6,
+      "n": 150,
+      "cost_weighted_error_avg": 1.1966666666666665
+    },
+    "b_length": {
+      "accuracy_exact": 0.3933333333333333,
+      "accuracy_within1": 0.7866666666666666,
+      "n": 150,
+      "cost_weighted_error_avg": 1.0286666666666668
+    },
+    "b_tenline": {
+      "accuracy_exact": 0.56,
+      "accuracy_within1": 0.8666666666666667,
+      "n": 150,
+      "cost_weighted_error_avg": 0.6973333333333332
+    }
+  },
+  "ece_mooter_vs_judge": 0.17099999999999996,
+  "ece_mooter_vs_expected": 0.12433333333333327
+}

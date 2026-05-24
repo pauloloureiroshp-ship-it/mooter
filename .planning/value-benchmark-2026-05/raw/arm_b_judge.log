@@ -1,0 +1,18 @@
+Judging 150 prompts with gemma3:12b...
+  [10/150] 1.45/s eta 97s | last: T0-010 expected=T0 judge=T0
+  [20/150] 1.45/s eta 90s | last: T0-020 expected=T0 judge=T0
+  [30/150] 1.43/s eta 84s | last: T0-030 expected=T0 judge=T0
+  [40/150] 1.44/s eta 77s | last: T0-040 expected=T0 judge=T0
+  [50/150] 1.44/s eta 70s | last: T1-010 expected=T1 judge=T1
+  [60/150] 1.42/s eta 63s | last: T1-020 expected=T1 judge=T1
+  [70/150] 1.41/s eta 57s | last: T1-030 expected=T1 judge=T1
+  [80/150] 1.41/s eta 50s | last: T2-010 expected=T2 judge=T2
+  [90/150] 1.40/s eta 43s | last: T2-020 expected=T2 judge=T2
+  [100/150] 1.40/s eta 36s | last: T2-030 expected=T2 judge=T2
+  [110/150] 1.39/s eta 29s | last: T3-005 expected=T3 judge=T3
+  [120/150] 1.38/s eta 22s | last: T3-015 expected=T3 judge=T3
+  [130/150] 1.38/s eta 15s | last: T3-025 expected=T3 judge=T3
+  [140/150] 1.37/s eta 7s | last: T3-035 expected=T3 judge=T3
+  [150/150] 1.36/s eta 0s | last: T3-045 expected=T3 judge=T3
+
+Done in 109.9s — wrote c:\Users\Paulo Loureiro\frugal\.planning\value-benchmark-2026-05\results\arm_b_judge_labels.jsonl

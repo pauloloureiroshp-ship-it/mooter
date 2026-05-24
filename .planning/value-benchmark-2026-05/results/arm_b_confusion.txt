@@ -1,0 +1,45 @@
+
+--- Mooter vs Judge (rows=judge truth) ---
+              predicted
+              T0   T1   T2   T3
+         +------------------------
+truth T0 |  30    0    0    1
+truth T1 |  26    3    5    0
+truth T2 |  10    0   26   12
+truth T3 |   1    0    1   35
+
+--- Mooter vs Expected ---
+              predicted
+              T0   T1   T2   T3
+         +------------------------
+truth T0 |  39    0    0    1
+truth T1 |  20    3    7    0
+truth T2 |   6    0   24    5
+truth T3 |   2    0    1   42
+
+--- Expected vs Judge (sanity: my labels vs gemma) ---
+              predicted
+              T0   T1   T2   T3
+         +------------------------
+truth T0 |  30    1    0    0
+truth T1 |  10   24    0    0
+truth T2 |   0    5   35    8
+truth T3 |   0    0    0   37
+
+--- Tenline-classifier vs Judge ---
+              predicted
+              T0   T1   T2   T3
+         +------------------------
+truth T0 |  30    1    0    0
+truth T1 |  19   15    0    0
+truth T2 |   0   45    0    3
+truth T3 |   0   14    0   23
+
+--- Length-heuristic vs Judge ---
+              predicted
+              T0   T1   T2   T3
+         +------------------------
+truth T0 |  30    1    0    0
+truth T1 |  19   15    0    0
+truth T2 |   0   45    3    0
+truth T3 |   0   27   10    0

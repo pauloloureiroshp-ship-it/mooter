@@ -1,0 +1,157 @@
+>> loading RouterBench...
+   rows=36497 cols=37
+>> computing model rankings...
+   ranking (weakest→strongest):
+     q=0.2022  cost=0.000172  meta/code-llama-instruct-34b-chat
+     q=0.3061  cost=0.000046  mistralai/mistral-7b-chat
+     q=0.3287  cost=0.000203  meta/llama-2-70b-chat
+     q=0.4311  cost=0.000073  WizardLM/WizardLM-13B-V1.2
+     q=0.5471  cost=0.000135  mistralai/mixtral-8x7b-chat
+     q=0.5984  cost=0.000233  claude-instant-v1
+     q=0.6193  cost=0.000243  gpt-3.5-turbo-1106
+     q=0.6301  cost=0.002145  claude-v1
+     q=0.6358  cost=0.002419  claude-v2
+     q=0.6475  cost=0.000186  zero-one-ai/Yi-34B-Chat
+     q=0.7814  cost=0.003293  gpt-4-1106-preview
+>> primary mapping (T0..T3):
+     T0 → meta/code-llama-instruct-34b-chat  (q=0.2022)
+     T1 → WizardLM/WizardLM-13B-V1.2  (q=0.4311)
+     T2 → claude-v1  (q=0.6301)
+     T3 → gpt-4-1106-preview  (q=0.7814)
+>> sensitivity (alt) mapping (T0..T3):
+     T0 → mistralai/mistral-7b-chat  (q=0.3061)
+     T1 → WizardLM/WizardLM-13B-V1.2  (q=0.4311)
+     T2 → gpt-3.5-turbo-1106  (q=0.6193)
+     T3 → zero-one-ai/Yi-34B-Chat  (q=0.6475)
+>> stratified subsampling...
+   eval_name buckets: 86
+     Chinese_character_riddles: 100 rows
+     abstract2title: 254 rows
+     accounting_audit: 30 rows
+     arc-challenge: 1470 rows
+     bias_detection: 285 rows
+     chinese-lantern-riddles: 20 rows
+     chinese-remainder-theorem: 15 rows
+     chinese_ancient_masterpieces_dynasty: 16 rows
+     chinese_ancient_poetry: 25 rows
+     chinese_chu_ci: 15 rows
+     chinese_famous_novel: 20 rows
+     chinese_hard_translations: 21 rows
+     chinese_homonym: 21 rows
+     chinese_idioms: 15 rows
+     chinese_modern_poem_identification: 21 rows
+     chinese_poem: 15 rows
+     chinese_shi_jing: 34 rows
+     chinese_song_ci: 16 rows
+     chinese_tang_poetries: 37 rows
+     chinese_zodiac: 394 rows
+     consensus_summary: 362 rows
+     grade-school-math: 7450 rows
+     hellaswag: 10042 rows
+     mbpp: 427 rows
+     mmlu-abstract-algebra: 100 rows
+     mmlu-anatomy: 135 rows
+     mmlu-astronomy: 152 rows
+     mmlu-business-ethics: 100 rows
+     mmlu-clinical-knowledge: 265 rows
+     mmlu-college-biology: 144 rows
+     mmlu-college-chemistry: 100 rows
+     mmlu-college-computer-science: 100 rows
+     mmlu-college-mathematics: 100 rows
+     mmlu-college-medicine: 173 rows
+     mmlu-college-physics: 102 rows
+     mmlu-computer-security: 100 rows
+     mmlu-conceptual-physics: 235 rows
+     mmlu-econometrics: 114 rows
+     mmlu-electrical-engineering: 145 rows
+     mmlu-elementary-mathematics: 378 rows
+     mmlu-formal-logic: 126 rows
+     mmlu-global-facts: 100 rows
+     mmlu-high-school-biology: 310 rows
+     mmlu-high-school-chemistry: 203 rows
+     mmlu-high-school-computer-science: 100 rows
+     mmlu-high-school-european-history: 165 rows
+     mmlu-high-school-geography: 198 rows
+     mmlu-high-school-government-and-politics: 193 rows
+     mmlu-high-school-macroeconomics: 390 rows
+     mmlu-high-school-mathematics: 270 rows
+     mmlu-high-school-microeconomics: 238 rows
+     mmlu-high-school-physics: 151 rows
+     mmlu-high-school-psychology: 545 rows
+     mmlu-high-school-statistics: 216 rows
+     mmlu-high-school-us-history: 204 rows
+     mmlu-high-school-world-history: 237 rows
+     mmlu-human-aging: 223 rows
+     mmlu-human-sexuality: 131 rows
+     mmlu-international-law: 121 rows
+     mmlu-jurisprudence: 108 rows
+     mmlu-logical-fallacies: 163 rows
+     mmlu-machine-learning: 112 rows
+     mmlu-management: 103 rows
+     mmlu-marketing: 234 rows
+     mmlu-medical-genetics: 100 rows
+     mmlu-miscellaneous: 783 rows
+     mmlu-moral-disputes: 346 rows
+     mmlu-moral-scenarios: 895 rows
+     mmlu-nutrition: 306 rows
+     mmlu-philosophy: 311 rows
+     mmlu-prehistory: 324 rows
+     mmlu-professional-accounting: 282 rows
+     mmlu-professional-law: 1534 rows
+     mmlu-professional-medicine: 272 rows
+     mmlu-professional-psychology: 612 rows
+     mmlu-public-relations: 110 rows
+     mmlu-security-studies: 245 rows
+     mmlu-sociology: 201 rows
+     mmlu-us-foreign-policy: 100 rows
+     mmlu-virology: 166 rows
+     mmlu-world-religions: 171 rows
+     mtbench: 41 rows
+     mtbench-math: 20 rows
+     mtbench-reference: 19 rows
+     test-match: 3 rows
+     winogrande: 1267 rows
+   sampled rows: 2672
+   usable rows after prompt filter: 2672
+>> running classify.js on each prompt...
+   [200/2672] 13.7/s, eta 181s
+   [400/2672] 13.4/s, eta 170s
+   [600/2672] 13.5/s, eta 153s
+   [800/2672] 13.5/s, eta 139s
+   [1000/2672] 13.5/s, eta 124s
+   [1200/2672] 13.5/s, eta 109s
+   [1400/2672] 13.5/s, eta 94s
+   [1600/2672] 13.6/s, eta 79s
+   [1800/2672] 13.6/s, eta 64s
+   [2000/2672] 13.6/s, eta 49s
+   [2200/2672] 13.6/s, eta 35s
+   [2400/2672] 13.6/s, eta 20s
+   [2600/2672] 13.6/s, eta 5s
+   total classify time: 196.7s
+
+>> PRIMARY MAPPING RESULTS:
+baseline                avg_quality     avg_cost
+  always_T1                  0.4139     0.000048
+  always_T0                  0.0637     0.000118
+  oracle_quality             0.8815     0.000271
+  mooter                     0.1428     0.000396
+  length_heuristic           0.4639     0.000608
+  random_seed1               0.4505     0.001008
+  random_seed3               0.4465     0.001058
+  random_seed2               0.4625     0.001080
+  tenline_classifier         0.5807     0.001331
+  always_T2                  0.5932     0.001554
+  always_T3                  0.7279     0.002504
+
+>> ALT MAPPING RESULTS:
+  always_T0                  0.2644     0.000032
+  always_T1                  0.4139     0.000048
+  mooter                     0.3010     0.000049
+  length_heuristic           0.4606     0.000086
+  random_seed1               0.4506     0.000092
+  random_seed3               0.4527     0.000093
+  random_seed2               0.4729     0.000094
+  tenline_classifier         0.5472     0.000123
+  always_T3                  0.5644     0.000127
+  always_T2                  0.5906     0.000164
+  oracle_quality             0.8815     0.000271

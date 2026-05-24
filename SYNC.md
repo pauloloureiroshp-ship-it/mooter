@@ -5,8 +5,8 @@
 
 **Última sync:** 2026-05-07 (Claude Code Windows — **Sessão #40: Wave-2 LANDED — `router-execute.js` advisor→executor + telemetry + calibration**)
 **Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 295/296 ✅ (1 skip esperado) · Wave-2 router-execute APPROVED ✅
-**Último commit main:** `b34fdc4` (feat(router): router-execute CLI for ad-hoc and validation use)
-**Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. NÃO push (espera GO do Paulo). Ver §40 abaixo para detalhe.
+**Último commit main:** `d44c70c` (docs(strategy): V4 architecture + Master Prompt V3 deliverables) — **PUSHED 2026-05-24**
+**Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. **Wave-2 + closure cycle PUSHED 2026-05-24** (final-reviewer cycle II: 315/316 pass, classify.js byte-identical, executor-loopback opt-in). Ver §40 abaixo.
 
 ### 🚀 Sessão #40 — 2026-05-07 (Wave-2 LANDED — advisor → executor)
 
@@ -41,7 +41,7 @@
 - Highest-risk smell (não-blocante): `appendDecisionsLog` usa `fs.appendFileSync` no hot path. Single-process hoje (CLI sequencial) → OK. Wave-3 (parallel callers) → trocar por async + queue.
 - Notas para futuro: comentar idempotency da mutation local de `classification.suggested_providers` na JSDoc do `execute`. Wave-3.
 
-**Push status:** NÃO push. Espera GO explícito do Paulo (12 commits sobre origin/main).
+**Push status:** ✅ PUSHED 2026-05-24 — 14 commits totais (12 Wave-2 + executor-loopback + V4 docs). Final-reviewer cycle II APPROVED: 315/316 pass, classify.js byte-identical (I11), zero secrets, loopback é opt-in CLI.
 
 **Pré-push checklist (T-11):**
 - [x] suite verde (295/296)
@@ -159,7 +159,7 @@ Suite final: 296 → **316** (+20 net new tests desde audit baseline). 23 commit
 - Validation runner fresh 60-prompt corpus (decisão Paulo, acceptance §10 #5)
 - Restart savings-tracker daemon (operação destrutiva em PID 59172, requer GO Paulo — código novo está em disco e pronto)
 
-**Push status:** ainda **NÃO push** — espera GO explícito Paulo. 18 commits ahead de origin/main (12 Wave-2 + 1 master prompt + 1 audit doc + 6 hotfix).
+**Push status:** ✅ PUSHED 2026-05-24 — origin/main agora em `d44c70c`. Wave-3 kick-off autorizado (ADR W3-001 async-decisions-log + statusline guaranteed/advisory split).
 
 ---
 
@@ -581,6 +581,62 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 ### Instruções e decisões tomadas no Cowork para a próxima sessão
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
+
+---
+
+### 🧪 Claude Code Sessão 2026-05-24 — Mooter Value Benchmark (independent, adversarial)
+
+**Veredicto:** **MIXED** — COMPETITIVE in-domain (Arm B coding), Pareto-DOMINATED out-of-domain (Arm A RouterBench).
+
+- **Arm A (RouterBench, n=2,672 stratified):** Mooter avg_quality 0.143 @ cost $0.000396 vs `always_T1` 0.414 @ $0.000048. Pareto-dominated por always_T1 sob mappings primary E sensitivity. Gap a oracle: 83.8 pp. **88.9% dos prompts colapsam para T0** (sem coding signals → fallback length-based).
+- **Arm B (coding fresh, n=150, judge Ollama gemma3:12b):** Mooter accuracy 62.7% (within±1 92.0%, cw_err 0.477) — bate 10-line classifier (45.3%), length_heuristic (32.0%), random (~27%), all always_T* baselines. **T1 dead zone:** 76% de T1-judged prompts colapsam para T0 (oportunidade tunable).
+- **Frozen state:** HEAD `ce08f72`, `git diff -- tools/router/classify.js` = 0 linhas. `tuning-state.json` ausente (defaults). `classify.js` byte-identical no fim.
+- **Anti-contaminação:** 0 prompts em Arm B com ≥3 5-grams contra `validation-set.json`.
+
+**Artefactos:** `.planning/value-benchmark-2026-05/` — `METHODOLOGY.md`, `harness/*.py` (5 scripts reproducíveis), `results/VERDICT.md` (15kB), `data/coding-fresh-prompts.jsonl` (150), `results/arm_a_*` + `arm_b_*`, `raw/*.log`.
+
+**Cópia paulo-vault:** `~/Documents/paulo-vault/30-learnings/mooter-value-benchmark-2026-05-24.md`.
+
+**Página Notion:** https://www.notion.so/36a6f6e42bc481d0b8c4ec6cb5de59f4
+
+**Próxima sessão pode/deveria:**
+- Decidir continuar vs pivotar com base no veredicto bipolar (não há resposta "boa" sem framing estratégico — ver §"Implicação estratégica" no VERDICT.md).
+- Se continuar: a maior oportunidade técnica identificada é o **T1 dead zone** — fazer um tuning para que prompts de length 80–300 com sinais leves de coding (commit msg, docstring, regex, single-bug-fix) caiam em T1 em vez de T0. Subiria provavelmente para 70-75% accuracy in-domain.
+- Adicionar **eixo de risco** ao benchmark — não medido, é onde Mooter provavelmente bate baselines triviais.
+
+**Não-feito propositadamente:**
+- Não modifiquei `classify.js` nem `tuning-state.defaults.json`.
+- Não fiz push nem abri PR.
+- Não corri RouteLLM (lean scope; usei números públicos como referência).
+
+---
+
+### 🔢 Cowork Sessão 2026-05-24 — Matriz de modelos 2026 + camada de dados do router
+
+**Âmbito:** Research da matriz de modelos LLM 2026 (multi-provider + deep-dive hardware) + correcção da camada de dados do router. `classify.js` NÃO foi tocado.
+
+**Deliverables:**
+
+| Ficheiro | Mudança |
+|---|---|
+| `docs/MOOTER_MODEL_MATRIX_2026-05-24.md` | NOVO — catálogo cloud (22 modelos) + local + matriz hardware→modelo (7 tiers + Apple Silicon) + patch list |
+| `tools/router/model-profile.json` v1.1.0 | Opus $15/$75→$5/$25; Opus+Sonnet ctx→1M; Haiku→$1/$5; qwen3:30b ctx→262k |
+| `tools/router/pricing.js` | Mistral Large 3→$2/$6; DeepSeek V3→$0.14/$0.28; +Opus 4.7, GPT-5.x, Gemini 3.x, Grok 4.3/4.20, V4 Pro; datas verified→2026-05-24 |
+| `tools/router/model-catalog.json` v1.2.0 | +claude-opus-4-7, +qwen3-coder:30b |
+| `tools/router/model-intelligence.json` v1.1.0 | +5 entradas ricas: opus-4-7, gpt-5.4, gemini-3.1-pro, grok-4.3, qwen3-coder:30b |
+
+**Decisões:**
+1. Opus 4.6 mantém-se default T3 — 4.7 tem o mesmo preço mas o tokenizer novo gera até +35% tokens; 4.7 só para agentic-coding duro.
+2. Só camada de dados — lógica de routing (classify.js, sub-tier, hardware-matcher) fica para o gate Wave-3.
+3. `pricing.js` = fonte única de verdade de custo; `model-profile.json` espelha-a.
+
+**⚠️ MISSÃO PRÓXIMA SESSÃO (Claude Code) — por ordem:**
+1. Correr `npm test` em `tools/router/` — esperado **295/296**. (Não correu no Cowork: mount do sandbox dessincronizado. Garantia lógica: classify.js intacto, nenhum teste lê os JSON, preços opus-4-6/haiku-4-5 inalterados.)
+2. Correr `final-reviewer` (gate T3) — são ficheiros de routing, pré-commit obrigatório.
+3. Commit selectivo (NUNCA `git add -A`) — só os 5 ficheiros acima.
+4. Opcional: aplicar a patch list §8 da matriz — refinar `hardware_tiers` em sub-tiers 16/24/32 GB; `recommended_models`→qwen3.6:27b / qwen3-coder:30b; CPU-only→fallback T1.
+
+**Página Notion:** https://www.notion.so/36a6f6e42bc481a886d1d48a412ca1d7
 
 ---
 
@@ -1246,6 +1302,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão #39 2026-05-07 — Wave-2 readiness (5 patches → 87.5% accuracy) | https://www.notion.so/3596f6e42bc4818caaf2e3b18dd7a581 |
 | Sessão #40 2026-05-07 — Wave-2 router-execute LANDED + Validation Master Prompt | https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d |
 | Sessão #40-validation 2026-05-07 — Wave-2 Independent Audit (APPROVED_WITH_NOTES) | https://www.notion.so/3596f6e42bc481b9a9e4c80086087885 |
+| Sessão 2026-05-24 — Matriz de modelos 2026 + camada de dados do router | https://www.notion.so/36a6f6e42bc481a886d1d48a412ca1d7 |
 | GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
