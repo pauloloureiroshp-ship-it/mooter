@@ -1142,7 +1142,7 @@ Ready?
      mcps_recommended=[...]
      mcps_missing=[...]
      subagent_primary=<name>
-     scaffold_path=packs/<id>/scaffold.md
+     scaffold_url=packs/<id>/scaffold.md
      suggest_install=<cmd or empty>
      </pack-hint>
      ```
