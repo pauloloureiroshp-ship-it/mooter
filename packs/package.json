@@ -1,0 +1,16 @@
+{
+  "name": "@mooter/packs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Moo Packs subsystem — declarative domain packs (axis 2 of two-axis routing). See ADR 015 + 016.",
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.1",
+    "js-yaml": "^4.1.1",
+    "tsx": "^4.22.3"
+  }
+}
