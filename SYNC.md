@@ -3,7 +3,7 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-27 (Claude Code Windows — **Sessão #41: Dynamic `/mooter-<model>` A+B LANDED — 10 commits, local-only, push deferred**)
+**Última sync:** 2026-05-27 (Claude Code Windows — **Sessão #41: Dynamic `/mooter-<model>` A+B LANDED + PUSHED — 16 commits em origin/main**)
 **Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 295/296 ✅ (1 skip esperado) · Wave-2 router-execute APPROVED ✅
 **Último commit main:** `d44c70c` (docs(strategy): V4 architecture + Master Prompt V3 deliverables) — **PUSHED 2026-05-24**
 **Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. **Wave-2 + closure cycle PUSHED 2026-05-24** (final-reviewer cycle II: 315/316 pass, classify.js byte-identical, executor-loopback opt-in). Ver §40 abaixo.
@@ -14,7 +14,7 @@
 
 **Outcome:** 10 commits atómicos sobre `9418cec` (5 A Anthropic + 5 B non-Anthropic). Final-reviewer (Opus) **PASS-WITH-NOTES**, zero blocking. **12 skills `/mooter-*` agora descobríveis** (4 Anthropic + 8 non-Anthropic: mooter-codex + 7 Ollama).
 
-**Commits:** `2be24b4` `34485aa` `dd020e7` `d88f69c` `a478585` (A) · `c5b3a5b` `687d42a` `9db54db` `da70810` `7d5bdd0` (B).
+**Commits:** `2be24b4` `34485aa` `dd020e7` `d88f69c` `a478585` (A) · `c5b3a5b` `687d42a` `9db54db` `da70810` `7d5bdd0` (B) · `f8b26ee` (SYNC) · `4274ce8` (test:cli script — fecha o gap de CI).
 
 **Invariantes:** I11 (`classify.js`) + D2 (`savings-tracker.js`) **byte-idênticos**. `tools/router` npm test **321 pass / 0 fail / 1 skip**. Agregado de todos os suites: **351 pass** (36 testes novos).
 
@@ -25,12 +25,12 @@
 - Sem fallback silencioso; pin-down em HIGH_RISK é REFUSED; modelos OpenAI reais (`gpt-5.4`/`o3`), não inventados.
 
 **Notas não-bloqueantes:**
-- 30 testes novos (cli + inject_context) fora do `npm test` (§5 proíbe editar `package.json`). Recomendação: aprovar um script `test:cli` separado para fechar o gap de CI.
+- ✅ RESOLVIDO: 30 testes novos (cli + inject_context) agora correm via `npm run test:cli` (`tools/router/package.json`, commit `4274ce8`) — o script `test` gate ficou intacto. Paulo autorizou a edição do package.json para isto.
 - `inject_context.js` editado no canónico; smoke live do marker no hint precisa de `/mooter-update` sync para `~/.claude/tools/router/` (as skills já foram escritas em `~/.claude/skills/`).
 
 **Página Notion:** [🎯 Sessão 2026-05-27 — Dynamic /mooter-<model> A+B](https://www.notion.so/36d6f6e42bc481beb687c066274ed629) · `36d6f6e4-2bc4-81be-b687-c066274ed629`
 
-**Push status:** ⏳ **DEFERRED** — 10 commits ahead, local-only. Aguarda autorização explícita do Paulo.
+**Push status:** ✅ **PUSHED 2026-05-27** — `ce08f72..4274ce8` (16 commits: 4 bench(mooter) ancestrais + 11 da sessão + test:cli). Paulo autorizou push dos 15 + commit test:cli depois. Branch sincronizado com origin/main.
 
 **Próxima missão (Wave-6, opcional):** review loop `/mooter-review-with codex` (writer=Claude, reviewer=Codex via router-execute); wrappers Gemini/Grok quando existirem; decidir o wiring `test:cli`.
 
