@@ -9,8 +9,12 @@ const path = require('path');
 const {
   generateMooterSkills,
   buildSkillBody,
+  buildNonAnthropicSkillBody,
   PIN_MARKER,
 } = require('./generate-mooter-skills');
+
+const OLLAMA_FIXTURE = { slug: 'qwen3-30b', model: 'qwen3:30b', displayName: 'qwen3:30b (local Ollama)', provider: 'ollama', available: true };
+const CODEX_FIXTURE = { slug: 'codex', model: null, displayName: 'Codex CLI (ChatGPT)', provider: 'codex-cli', available: true };
 
 function tmpSkillsDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-skills-'));
@@ -92,6 +96,42 @@ test('buildSkillBody: Anthropic template carries marker, model, tier, subagent',
   assert.ok(body.includes('name: mooter-opus-4-6'));
 });
 
-test('buildSkillBody: unknown provider throws (Sessão B extends this)', () => {
-  assert.throws(() => buildSkillBody({ slug: 'x', provider: 'ollama' }), /no template for provider/);
+// ── Sessão B — non-Anthropic templates ─────────────────────────────────
+
+test('buildNonAnthropicSkillBody (Ollama): router-execute call + leaky-UX caveat + marker', () => {
+  const body = buildNonAnthropicSkillBody(OLLAMA_FIXTURE);
+  assert.ok(body.includes(PIN_MARKER));
+  assert.ok(body.includes('--pin-provider=ollama'));
+  assert.ok(body.includes('--pin-model=qwen3:30b'));
+  assert.ok(body.includes('router-execute.js'));
+  assert.match(body, /tool (output|result)/i, 'must document the leaky tool-result UX');
+  assert.ok(body.includes('NO silent fallback to Anthropic') || /no silent fallback/i.test(body));
+});
+
+test('buildNonAnthropicSkillBody (Codex, model=null): omits --pin-model line', () => {
+  const body = buildNonAnthropicSkillBody(CODEX_FIXTURE);
+  assert.ok(body.includes('--pin-provider=codex-cli'));
+  assert.ok(!body.includes('--pin-model='), 'codex default model → no --pin-model flag');
+});
+
+test('buildSkillBody dispatches Ollama to the non-Anthropic template', () => {
+  const body = buildSkillBody(OLLAMA_FIXTURE);
+  assert.ok(body.includes('router-execute.js'));
+  assert.ok(body.includes('name: mooter-qwen3-30b'));
+});
+
+test('mixed catalog writes Anthropic + non-Anthropic; revoking a provider removes its skills', () => {
+  const dir = tmpSkillsDir();
+  const mixed = [...ANTHROPIC_FIXTURE, OLLAMA_FIXTURE, CODEX_FIXTURE];
+  const first = generateMooterSkills({ skillsDir: dir, models: mixed });
+  assert.ok(first.written.includes('mooter-qwen3-30b'));
+  assert.ok(first.written.includes('mooter-codex'));
+  assert.ok(first.written.includes('mooter-opus-4-6'));
+
+  // Ollama goes away (e.g. daemon stopped) → only its generated skill is removed.
+  const second = generateMooterSkills({ skillsDir: dir, models: [...ANTHROPIC_FIXTURE, CODEX_FIXTURE] });
+  assert.deepEqual(second.removed, ['mooter-qwen3-30b']);
+  assert.equal(fs.existsSync(path.join(dir, 'mooter-codex')), true);
+  assert.equal(fs.existsSync(path.join(dir, 'mooter-qwen3-30b')), false);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
