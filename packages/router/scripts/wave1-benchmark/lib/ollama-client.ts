@@ -34,7 +34,8 @@ export interface OllamaCallOpts {
 export async function callOllama(opts: OllamaCallOpts): Promise<LlmResult> {
   const host = opts.host ?? ollamaHost();
   const timeoutMs = opts.timeoutMs ?? 120_000;
-  const t0 = Date.now();
+  const t0 = performance.now(); // monotonic (see anthropic-client note)
+  const elapsed = (): number => Math.max(0, Math.round(performance.now() - t0));
   let lastErr = "";
 
   for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
@@ -60,7 +61,7 @@ export async function callOllama(opts: OllamaCallOpts): Promise<LlmResult> {
         text: data.response ?? "",
         tokens_input: data.prompt_eval_count ?? 0,
         tokens_output: data.eval_count ?? 0,
-        latency_ms: Date.now() - t0,
+        latency_ms: elapsed(),
         status: "ok",
         error: null,
       };
@@ -75,7 +76,7 @@ export async function callOllama(opts: OllamaCallOpts): Promise<LlmResult> {
     text: "",
     tokens_input: 0,
     tokens_output: 0,
-    latency_ms: Date.now() - t0,
+    latency_ms: elapsed(),
     status: "failed",
     error: `ollama ${opts.model} failed after ${BACKOFF_MS.length + 1} attempts: ${lastErr}`,
   };

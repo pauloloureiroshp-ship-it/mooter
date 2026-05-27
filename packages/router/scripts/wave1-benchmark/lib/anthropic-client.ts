@@ -46,7 +46,10 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 export async function callAnthropic(opts: AnthropicCallOpts): Promise<LlmResult> {
   const maxTokens = opts.maxTokens ?? 4096;
-  const t0 = Date.now();
+  // Monotonic clock: WSL2 wall-clock (Date.now) can jump backwards on host
+  // resync during a long call, yielding negative latency. performance.now never does.
+  const t0 = performance.now();
+  const elapsed = (): number => Math.max(0, Math.round(performance.now() - t0));
   let lastErr = "";
   let sendTemp = !modelRejectsTemperature(opts.model);
 
@@ -67,7 +70,7 @@ export async function callAnthropic(opts: AnthropicCallOpts): Promise<LlmResult>
         text,
         tokens_input: msg.usage.input_tokens,
         tokens_output: msg.usage.output_tokens,
-        latency_ms: Date.now() - t0,
+        latency_ms: elapsed(),
         status: "ok",
         error: null,
       };
@@ -88,7 +91,7 @@ export async function callAnthropic(opts: AnthropicCallOpts): Promise<LlmResult>
     text: "",
     tokens_input: 0,
     tokens_output: 0,
-    latency_ms: Date.now() - t0,
+    latency_ms: elapsed(),
     status: "failed",
     error: `anthropic ${opts.model} failed after ${BACKOFF_MS.length + 1} attempts: ${lastErr}`,
   };
