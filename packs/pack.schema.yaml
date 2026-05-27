@@ -1,0 +1,67 @@
+# =============================================================================
+# Moo Pack — canonical schema
+# =============================================================================
+# Every pack (packs/<name>/pack.yaml) MUST validate against this contract.
+# A pack is a declarative manifest + scaffolds. No code.
+#
+# Source of truth: docs/strategy/PASTOR.md §4 (Anatomia de um Moo Pack).
+# Two-axis routing: this is axis 2 (domain → pack), orthogonal to axis 1
+# (complexity → tier) handled by classify.js. See ADR 015.
+#
+# Convention used below:
+#   <type>            — value type expected in a real pack.yaml
+#   # required        — field MUST be present
+#   # optional        — field MAY be omitted
+#   # default: <v>     — value assumed by the resolver when omitted
+# Enums and ranges are documented inline; packs/tests/schema.test.ts enforces them.
+# =============================================================================
+
+name: string                            # required — kebab-case, unique across registry
+version: semver                         # required — 0.1.0+ (MAJOR.MINOR.PATCH)
+description: string                     # required — <= 100 chars, one line
+
+domain_signals:                         # required — how classify_domain() matches this pack
+  keywords: [string]                    # required — match on exact word (word boundaries)
+  intent_phrases: [string]              # optional — match as substring (lower-cased)
+  file_extensions: [string]             # optional — signal, boosts confidence score
+  negative_keywords: [string]           # optional — any match rejects this pack
+
+model_floor: T0|T1|T2|T3                # required — minimum recommended tier
+model_ceiling: T0|T1|T2|T3              # required — maximum tier (cost guard); >= model_floor
+
+skills:                                 # optional — Anthropic Skill registry names
+  required: [string]                    # optional
+  recommended: [string]                 # optional
+
+mcps:                                   # optional — MCP server identifiers
+  required: [string]                    # optional
+  recommended: [string]                 # optional
+
+subagents:                              # optional — agents from agents/
+  primary: string                       # optional — main executor for this domain
+  reviewer: string                      # optional — gate agent (e.g. final-reviewer)
+
+repos_canonical:                        # optional — known reference repos/libraries
+  - name: string                        #   required (within each entry)
+    url: string                         #   required
+    license: string                     #   required
+    note: string                        #   optional
+
+tools_cli: [string]                     # optional — CLI tools (npx, pipx, brew)
+
+prompt_scaffold: string                 # optional — specialised system prompt, multiline (| block)
+
+validation:                             # optional — how to prove the pack output is good
+  smoke_test: string                    # optional — descriptive sentence of the test
+  acceptance_criteria: [string]         # optional
+
+metadata:                               # required
+  author: string                        # required
+  created: ISO8601                       # required — YYYY-MM-DD
+  validated_against:                    # optional — snapshot at validation time
+    skills_version: string              #   optional
+    mcp_registry_snapshot: ISO8601      #   optional
+  ttl_days: integer                     # optional — re-validation required after this many days
+  trust_score: float                    # optional — 0.0-1.0, computed by the hub; default: 0.5
+  usage_count: integer                  # optional — activations (opt-in telemetry); default: 0
+  notion_kb_url: string                 # optional — Notion KB sub-page for this pack; default: null

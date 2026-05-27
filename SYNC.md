@@ -612,6 +612,19 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐑 Pastor Wave 1 — Day 1 ✅ FECHADO (2026-05-28)
+
+**Estado:** ✅ Day 1 completo. Schema dos Moo Packs (eixo 2 — domínio) + ADR 015 (Two-Axis Routing) + ADR 016 (TS stack scoped a `packs/`) + spec `<pack-hint>` + teste (5/5 verdes). **PR #1** `wave1-pastor-day1` → `dev` aberto, **final-reviewer (Opus) APPROVE** (0 blocking, 2 nits cosméticos). 6 commits. Notion: [🐑 Pastor Day 1](https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42).
+
+**Decisões registadas (ler antes do Day 2):**
+- ADR 015 — `classify_domain()` independente (alt. D), `<pack-hint>` aditivo, backward-compat total com `<router-hint>`. Status: Proposed.
+- ADR 016 — stack TS mínimo em `packs/package.json` **local** (não na raiz): `tsx` + `js-yaml`, `node:test`, sem framework. `yamllint`→PyYAML por realidade do repo. Reutilizar em Day 3–5 (`.ts`).
+- `notion_kb_url` opcional (default null); `trust_score` default 0.5.
+
+**⏭️ Próxima missão — Day 2 (PASTOR.md §10.2):** criar **3 packs sementinha** (`animation-web`, `code-audit`, `diagram-systems`) seguindo `packs/pack.schema.yaml`. Estender `packs/tests/schema.test.ts` para iterar sobre todos os `packs/*/pack.yaml`. **Pré-condição:** merge do PR #1 para `dev` antes/em paralelo. Nits do Day 1 a resolver em Day 2: (1) 2º broken fixture com campos top-level ausentes; (2) rótulo `ISO8601`→`date (YYYY-MM-DD)` no schema.
+
+---
+
 ### 🧪 Claude Code Sessão 2026-05-24 — Mooter Value Benchmark (independent, adversarial, Phase 1+2)
 
 **Veredicto tri-axis (após Phase 2):**
@@ -1362,6 +1375,7 @@ Side effects: upsert em D1 `devices` table
 | Recurso | URL |
 |---------|-----|
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| 🐑 Pastor Day 1 — Schema + ADR (2026-05-28) | https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42 |
 | Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
