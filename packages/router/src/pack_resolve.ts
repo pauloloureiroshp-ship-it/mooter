@@ -117,10 +117,15 @@ function hasSkill(available: string[], wanted: string): boolean {
   return skillKeys(wanted).some((k) => av.has(k));
 }
 function hasMcp(available: string[], wanted: string): boolean {
+  // Exact match, or an env key that *contains* the canonical id as a token
+  // (e.g. config key "claude_ai_Vercel" satisfies wanted "vercel"). We do NOT
+  // match the other direction (wanted contains available), which would let a
+  // short generic id like "git" falsely satisfy "github".
   const w = wanted.toLowerCase();
+  const wEsc = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return available.some((a) => {
     const al = a.toLowerCase();
-    return al === w || al.includes(w) || w.includes(al);
+    return al === w || new RegExp(`(^|[^a-z0-9])${wEsc}([^a-z0-9]|$)`).test(al);
   });
 }
 
