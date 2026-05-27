@@ -612,6 +612,20 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐑 Pastor Wave 1 — Day 3 ✅ FECHADO (2026-05-30)
+
+**Estado:** ✅ Day 3 completo. `classify_domain()` regex layer (eixo 2) em novo workspace `packages/router/`. `loadPacks()` genérico + scoring (kw +1.0 / intent +1.5 / ext +0.5 / neg −2.0) + confidence `top/sum(top-3)` + thresholds (≥0.6 único · [0.4,0.6) AMBIGUOUS · <0.4 GENERAL). Suite 50 prompts (30 pos + 10 neg + 10 ambíguos): **6/6 verde**. **PR #3** `wave1-pastor-day3` → `dev`, **final-reviewer (Opus) APPROVE** (0 blocking, 4 nits advisory). 3 commits. Notion: [🐑 Pastor Day 3](https://www.notion.so/36d6f6e42bc481db8954d005658a144a).
+
+**Métricas (DoD excedida):** recall **1.00** (per-pack 1/1/1, alvo ≥0.85) · precision/F1 **1.00** · 0 false positives · p99 **~0.01–0.03ms** (alvo ≤5ms) · ambíguos com par correcto.
+
+**Decisões registadas:**
+- `packages/router/package.json` espelha `packs/` (tsx + js-yaml, `node:test`) por ADR 016 ("reutilizar em Day 3–5"). Sem tocar `classify.js` (eixo 1), Ollama/Haiku, `<pack-hint>`, nem embeddings.
+- Nits advisory para depois: (1) single keyword → confidence 1.0 (bandas AMBIGUOUS/GENERAL só em contenção 2+ packs) — relevante quando Day 4 consumir o hint; (2) ADR 016 não menciona o 2º workspace; (3) `packages/router/` sem tsconfig/CI wiring ainda.
+
+**⏭️ Próxima missão — Day 4 (PASTOR.md §10.4):** estender o hook `UserPromptSubmit` (`tools/router/inject_context.js`) para emitir `<pack-hint>` em paralelo com `<router-hint>`, consumindo `classifyDomain()`. **Ler** PASTOR.md §6.1 (formato exacto do `<pack-hint>`) e `docs/spec/pack-hint.md`. Aditivo, backward-compat total. Nit do Day 3 a ter em conta: confidence 1.0 em match fraco isolado.
+
+---
+
 ### 🐑 Pastor Wave 1 — Day 2 ✅ FECHADO (2026-05-29)
 
 **Estado:** ✅ Day 2 completo. 3 packs sementinha (`animation-web`, `code-audit`, `diagram-systems`), cada um = `pack.yaml` + `scaffold.md`. Schema patch (`prompt_scaffold_path`). `packs/tests/schema.test.ts` estendido para iterar `packs/*/pack.yaml` + check de existência do scaffold (**7/7 verdes**). **PR #2** `wave1-pastor-day2` → `dev` aberto, **final-reviewer (Opus) APPROVE** (0 blocking, 3 nits cosméticos). 5 commits. Notion: [🐑 Pastor Day 2](https://www.notion.so/36d6f6e42bc481a3af0afb64c696a4e6).
