@@ -1,0 +1,107 @@
+{
+  "version": "0.1.0",
+  "updated": "2026-05-27",
+  "note": "Seed registry of common MCP servers and their install commands (Pastor Wave 1, Day 4; hardened Day 6). Source of truth is versioned here; runtime may override at ~/.mooter/cache/mcp_install_registry.json. Keys are lower-case canonical MCP ids matched against pack.yaml mcps.{required,recommended}.",
+  "servers": {
+    "github": {
+      "install": "npx -y @modelcontextprotocol/server-github",
+      "transport": "stdio",
+      "note": "Repos, issues, PRs, code search"
+    },
+    "playwright": {
+      "install": "npx -y @playwright/mcp@latest",
+      "transport": "stdio",
+      "note": "Browser automation + accessibility tree navigation"
+    },
+    "filesystem": {
+      "install": "npx -y @modelcontextprotocol/server-filesystem",
+      "transport": "stdio",
+      "note": "Scoped local filesystem access"
+    },
+    "postgres": {
+      "install": "npx -y @modelcontextprotocol/server-postgres",
+      "transport": "stdio",
+      "note": "Read-only Postgres query + schema inspection"
+    },
+    "supabase": {
+      "install": "npx -y @supabase/mcp-server-supabase@latest",
+      "transport": "stdio",
+      "note": "Supabase project: tables, migrations, edge functions"
+    },
+    "notion": {
+      "install": "npx -y @notionhq/notion-mcp-server",
+      "transport": "stdio",
+      "note": "Notion pages, databases, search"
+    },
+    "linear": {
+      "install": "npx -y @linear/mcp-server",
+      "transport": "stdio",
+      "note": "Linear issues, projects, cycles"
+    },
+    "slack": {
+      "install": "npx -y @modelcontextprotocol/server-slack",
+      "transport": "stdio",
+      "note": "Slack channels, messages, search"
+    },
+    "vercel": {
+      "install": "npx -y @vercel/mcp-server",
+      "transport": "stdio",
+      "note": "Vercel deployments, projects, logs"
+    },
+    "figma": {
+      "install": "npx -y figma-developer-mcp --stdio",
+      "transport": "stdio",
+      "note": "Figma design context, screenshots, code connect"
+    },
+    "sentry": {
+      "install": "npx -y @sentry/mcp-server",
+      "transport": "stdio",
+      "note": "Sentry issues, traces, releases"
+    },
+    "stripe": {
+      "install": "npx -y @stripe/mcp --tools=all",
+      "transport": "stdio",
+      "note": "Stripe products, prices, payments (test mode)"
+    },
+    "snyk-mcp": {
+      "install": "npm install -g snyk && snyk mcp",
+      "transport": "stdio",
+      "note": "Snyk SCA / container / IaC scanning"
+    },
+    "motion-canvas-mcp": {
+      "install": "npm install -g @motion-canvas/mcp",
+      "transport": "stdio",
+      "note": "Motion Canvas programmatic animation authoring"
+    },
+    "excel-mcp": {
+      "install": "pipx install excel-mcp-server",
+      "transport": "stdio",
+      "note": "Read/write xlsx, formulas, named ranges"
+    },
+    "context7": {
+      "install": "npx -y @upstash/context7-mcp@latest",
+      "transport": "stdio",
+      "note": "Up-to-date library docs lookup"
+    },
+    "puppeteer": {
+      "install": "npx -y @modelcontextprotocol/server-puppeteer",
+      "transport": "stdio",
+      "note": "Headless Chrome automation + screenshots"
+    },
+    "google-drive": {
+      "install": "npx -y @modelcontextprotocol/server-gdrive",
+      "transport": "stdio",
+      "note": "Google Drive search + file read"
+    },
+    "memory": {
+      "install": "npx -y @modelcontextprotocol/server-memory",
+      "transport": "stdio",
+      "note": "Knowledge-graph persistent memory"
+    },
+    "gitguardian": {
+      "install": "pipx install ggshield && ggshield mcp",
+      "transport": "stdio",
+      "note": "Secrets detection, pre-commit + CI"
+    }
+  }
+}

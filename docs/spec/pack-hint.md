@@ -1,8 +1,8 @@
 # Spec — `<pack-hint>` format
 
-**Status**: 🟡 Proposed (Wave 1, Day 1) · emitted by the hook in Day 4
+**Status**: 🟢 Emitted (Wave 1, Day 4) · `packages/router/src/hooks/inject_context.ts`
 **Source**: `docs/strategy/PASTOR.md` §6.1, §7 · ADR 015 (two-axis routing)
-**Related**: `packs/pack.schema.yaml`, `tools/router/inject_context.js`
+**Related**: `packs/pack.schema.yaml`, `tools/router/inject_context.js` (frugal axis-1 reference), `packages/router/src/pack_resolve.ts`
 
 ---
 
@@ -91,3 +91,70 @@ pack=GENERAL confidence=0.31 reason="no domain signals above threshold"
 skills_invoke=[]
 </pack-hint>
 ```
+
+## Exemplos reais emitidos (Day 4)
+
+Output verbatim de `packages/router/src/hooks/inject_context.ts`. O hook corre
+`classifyComplexity` (eixo 1, wrapper sobre `tools/router/classify.js`) e
+`classifyDomain` (eixo 2) em paralelo (`Promise.all`) e emite ambos os blocos.
+Combined p99 ≈ 3.6 ms (budget §6.4: ≤ 60 ms).
+
+**Match forte + env completo** — `"Add a scroll-trigger animation to the hero section"`
+(env: skill `web-artifacts-builder` + MCP `vercel` presentes):
+
+```xml
+<router-hint>
+task_category: trivial_local
+risk_level: minimal
+tier: T0
+recommended_backend: ollama
+recommended_model: qwen2.5:3b
+suggested_subagent: local-summarizer
+confidence: 0.8
+</router-hint>
+
+<pack-hint>
+pack=animation-web confidence=1.00 reason="signals: 1 keyword (score 1, conf 1.00)"
+model_floor=T2 (raised)
+skills_invoke=[anthropic-skills:web-artifacts-builder]
+mcps_recommended=[vercel]
+mcps_missing=[]
+subagent_primary=model-reasoner
+scaffold_url=packs/animation-web/scaffold.md
+suggest_install=[]
+</pack-hint>
+```
+
+> `model_floor=T2 (raised)`: o eixo-1 classificou T0, abaixo do piso T2 do pack —
+> a doutrina sobe para T2. O `<router-hint>` **não** é mutado (backward-compat
+> P18); o piso é honrado a partir da anotação no `<pack-hint>`.
+
+**Missing MCP** — `"audita este repositório antes de fazer push"` → `code-audit`
+(env sem os MCPs `github`/`sentry`):
+
+```xml
+<pack-hint>
+pack=code-audit confidence=1.00 reason="signals: 2 intent (score 3, conf 1.00)"
+model_floor=T3 (respected)
+skills_invoke=[design:accessibility-review, design:design-critique]
+mcps_recommended=[]
+mcps_missing=[github, sentry]
+subagent_primary=final-reviewer
+scaffold_url=packs/code-audit/scaffold.md
+suggest_install=[mooter pack install code-audit, npx -y @modelcontextprotocol/server-github, npx -y @sentry/mcp-server]
+</pack-hint>
+```
+
+### Resolução de drift §10.4 ↔ §6.1
+
+PASTOR.md §10.4 escrevia `scaffold_path`; §6.1 e este spec usam `scaffold_url`.
+**§6.1 prevalece** (era a fonte canónica e já estava committed aqui). O hook emite
+`scaffold_url`. `suggest_install` é **array** (não string). Patch a PASTOR.md §10.4
+fica como nit de Day 5.
+
+### Degradação graciosa (env desconhecido)
+
+Quando nenhuma fonte de config MCP existe (`settings.json`/`.claude.json`/`.mcp.json`
+sem `mcpServers`) ou não há inventário de skills, essa dimensão é marcada
+`*_known=false` e a respectiva `missing` fica `[]` — **nunca** se emite um nag de
+install falso. `skills_invoke` cai para os `skills.required` (advisory).

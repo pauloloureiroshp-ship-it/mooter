@@ -612,6 +612,20 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐑 Pastor Wave 1 — Day 4 ✅ FECHADO (2026-05-27)
+
+**Estado:** ✅ Day 4 completo. O hook UserPromptSubmit do monorepo (`packages/router/src/hooks/inject_context.ts`, adaptado do frugal `tools/router/inject_context.js`) passa a emitir `<pack-hint>` em paralelo com `<router-hint>`. `classifyComplexity` (eixo 1, wrapper sobre `tools/router/classify.js` via `createRequire` — zero duplicação) + `classifyDomain` (eixo 2) via `Promise.all`. `packResolve(pack, env)` em módulo dedicado `pack_resolve.ts` (gap analysis skills/MCPs + `detectEnv` + `suggestInstallCmd`). Registry `packages/router/data/mcp_install_registry.json` (top-20 MCPs, pulled forward de Day 6). **16/16 testes verde · p99 combinada ≈ 3.4 ms** (budget ≤ 60 ms, regex-only, sem Ollama/Haiku). **PR #4** `wave1-pastor-day4` → `dev`, **review gate (Opus) APPROVE_WITH_NOTES** (0 blocking; 1 false-positive `hasMcp` corrigido em `c1f19fe`). 8 commits. Notion: [🐑 Pastor Day 4](https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3).
+
+**Decisões registadas:**
+- Backward-compat P18: `<router-hint>` reflecte exactamente `classify.js`, **não** mutado pelo pack floor; `model_floor` anotado `respected`/`raised` só no `<pack-hint>`.
+- Degradação graciosa: sem config MCP (`settings.json`/`.claude.json`/`.mcp.json` sem `mcpServers`) → dimensão `*_known=false` e `missing=[]` (sem nag falso). Testes usam env mock, não fs.
+- **Drift §10.4 ↔ §6.1** (não-bloqueante): PASTOR.md §10.4 dizia `scaffold_path`, §6.1 dizia `scaffold_url`. **§6.1 prevaleceu** (fonte canónica + já committed em `docs/spec/pack-hint.md`). Hook emite `scaffold_url`; `suggest_install` é array. **Patch a PASTOR.md §10.4 fica como nit de Day 5.**
+- Nit Day 3 resolvido: ADR 016 ganhou addendum a mencionar `packages/router/` como 2º workspace TS scoped.
+
+**⏭️ Próxima missão — Day 5 (PASTOR.md §10.5):** CLI `mooter pack {list,show,diff,validate}` em `packages/cli/src/commands/pack.ts` (output human + `--json`). `diff` corre o `packResolve` deste dia. **Não tocar** `inject_context` (Day 4 estável) nem criar `install/publish/search/rate/run/create` (Wave 2). **Nit Day 5 herdado:** aplicar o patch documental a PASTOR.md §10.4 (`scaffold_path` → `scaffold_url`). **Nit Day 4 → Day 6:** endurecer `packResolve` (matching exacto, distinção required vs recommended) + suite `pack-resolve.test.ts` (registry já seeded hoje).
+
+---
+
 ### 🐑 Pastor Wave 1 — Day 3 ✅ FECHADO (2026-05-30)
 
 **Estado:** ✅ Day 3 completo. `classify_domain()` regex layer (eixo 2) em novo workspace `packages/router/`. `loadPacks()` genérico + scoring (kw +1.0 / intent +1.5 / ext +0.5 / neg −2.0) + confidence `top/sum(top-3)` + thresholds (≥0.6 único · [0.4,0.6) AMBIGUOUS · <0.4 GENERAL). Suite 50 prompts (30 pos + 10 neg + 10 ambíguos): **6/6 verde**. **PR #3** `wave1-pastor-day3` → `dev`, **final-reviewer (Opus) APPROVE** (0 blocking, 4 nits advisory). 3 commits. Notion: [🐑 Pastor Day 3](https://www.notion.so/36d6f6e42bc481db8954d005658a144a).
@@ -1403,6 +1417,7 @@ Side effects: upsert em D1 `devices` table
 |---------|-----|
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
 | 🐑 Pastor Day 1 — Schema + ADR (2026-05-28) | https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42 |
+| 🐑 Pastor Day 4 — hook emite <pack-hint> (2026-05-27) | https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3 |
 | Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
