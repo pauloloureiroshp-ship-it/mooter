@@ -306,6 +306,20 @@ For an Anthropic subscription you get:
 
 Type `/mooter-sonnet-4-6 <your prompt>` to pin Sonnet 4.6 **for that one message** — the next message returns to automatic routing. A pin that would *downgrade* a high-risk prompt (deploy / migration / secret) below its safety floor is refused, same as the router's own guardrail.
 
+### Non-Anthropic providers (Codex, OpenAI, Ollama)
+
+If mooter detects a ChatGPT subscription (Codex CLI), an `OPENAI_API_KEY`, or a local Ollama install, it also generates pins for those — e.g. `/mooter-codex`, `/mooter-openai-gpt-5-4`, `/mooter-qwen3-30b` (one per installed Ollama chat model).
+
+> **⚠️ Honest UX caveat.** Claude Code's session host is Claude, not the pinned model. A non-Anthropic pin therefore runs `router-execute.js` under the hood and the reply comes back as a **tool result the agent relays** — not as a native answer from the model. It works, but it reads as quoted output rather than the model "speaking" directly. (Anthropic pins above don't have this — they dispatch to a native subagent.)
+
+- **Single-message scope**, same as Anthropic pins.
+- **No silent fallback** — if the pinned provider has no quota or fails, you get the error, never a quiet switch to a different model.
+- See per-provider cost / quota any time:
+
+  ```bash
+  cat ~/.claude/tools/router/quota-state.json | jq .providers.openai_codex_cli
+  ```
+
 ---
 
 ## mooter-doctor
