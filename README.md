@@ -291,6 +291,23 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 
 ---
 
+## Dynamic model pins — `/mooter-<model>`
+
+Beyond the fixed commands above, mooter **generates one slash command per model you can actually reach**, discovered from your detected subscriptions. Run `mooter doctor` (or `mooter init`) to (re)generate them; they update automatically when a subscription appears or is revoked.
+
+For an Anthropic subscription you get:
+
+| Command | Pins | Tier | Subagent |
+|---|---|---|---|
+| `/mooter-opus-4-7` | Opus 4.7 | T3 | model-architect |
+| `/mooter-opus-4-6` | Opus 4.6 | T3 | model-architect |
+| `/mooter-sonnet-4-6` | Sonnet 4.6 | T2 | model-reasoner |
+| `/mooter-haiku-4-5` | Haiku 4.5 | T1 | cheap-triage |
+
+Type `/mooter-sonnet-4-6 <your prompt>` to pin Sonnet 4.6 **for that one message** — the next message returns to automatic routing. A pin that would *downgrade* a high-risk prompt (deploy / migration / secret) below its safety floor is refused, same as the router's own guardrail.
+
+---
+
 ## mooter-doctor
 
 `mooter-doctor.js` is a cross-platform diagnostic tool that runs 12 health checks and can auto-fix common issues:
