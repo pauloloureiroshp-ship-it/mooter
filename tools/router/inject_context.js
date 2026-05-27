@@ -652,6 +652,80 @@ if (!decision) {
   setClassifyCached(prompt, decision, null, _prevTier);
 }
 
+// ── /mooter-<slug> Anthropic pin (Sessão A, 2026-05-27) ────────────────
+// A `/mooter-<model>` skill is primarily instruction-driven, but when the
+// launching shell exports MOOTER_PIN_MODEL=<claude-id> we surface the pin in
+// the hint too. We synthesize an honored user_override BEFORE the arbiter runs
+// (the arbiter skips when an override is honored, line ~675) and mutate the
+// decision's tier/backend/model/subagent so the entire hint reflects the pin.
+//
+// Guardrail: a pin that would DOWNGRADE a HIGH_RISK prompt below its risk floor
+// is refused (honored=false) — mirrors the arbiter's high-risk policy and the
+// doctrine's "high-risk forces T3" rule. The existing override renderer prints
+// the REFUSED branch.
+//
+// Conflict policy: if classify already produced a user_override, the env-var
+// pin overwrites it (the env var is the more explicit, later signal).
+const pinModelRaw = (process.env.MOOTER_PIN_MODEL || '').trim();
+if (pinModelRaw && pinModelRaw.startsWith('claude-')) {
+  /** @type {Record<string, string>} */
+  const PIN_TIER = {
+    'claude-opus-4-7': 'T3',
+    'claude-opus-4-6': 'T3',
+    'claude-sonnet-4-6': 'T2',
+    'claude-haiku-4-5': 'T1',
+  };
+  /** @type {Record<string, { recommended_backend: string, subagent: string }>} */
+  const PIN_BACKEND = {
+    T1: { recommended_backend: 'anthropic_api',   subagent: 'cheap-triage' },
+    T2: { recommended_backend: 'claude_subagent', subagent: 'model-reasoner' },
+    T3: { recommended_backend: 'claude_subagent', subagent: 'model-architect' },
+  };
+  const pinTier = PIN_TIER[pinModelRaw];
+  if (pinTier) {
+    const PIN_TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
+    const originalTier = decision.tier;
+    const isDowngrade = PIN_TIER_ORDER.indexOf(pinTier) < PIN_TIER_ORDER.indexOf(originalTier);
+    const isHighRisk = decision.risk_level === 'high' || HIGH_RISK_HINT.test(prompt);
+    if (isDowngrade && isHighRisk) {
+      // Refuse the downgrade: keep classify's (high) tier, surface REFUSED.
+      decision.user_override = {
+        honored: false,
+        requested: pinModelRaw,
+        blocked: pinModelRaw,
+        kind: 'mooter-pin-skill',
+        reason: 'high_risk_downgrade_refused',
+      };
+      decision.escalation_rule =
+        decision.escalation_rule === 'none'
+          ? 'mooter_pin_refused_high_risk'
+          : `${decision.escalation_rule}+mooter_pin_refused_high_risk`;
+    } else {
+      const back = PIN_BACKEND[pinTier];
+      decision.user_override = {
+        honored: true,
+        requested: pinModelRaw,
+        label: pinModelRaw,
+        kind: 'mooter-pin-skill',
+        original_tier: originalTier,
+        tier: pinTier,
+        subagent: back.subagent,
+      };
+      decision.tier = pinTier;
+      decision.suggested_subagent = back.subagent;
+      decision.recommended_backend = back.recommended_backend;
+      decision.recommended_model = pinModelRaw;
+      // An explicit pin is a high-confidence signal — ensure the hint actually
+      // emits (the emit gate at the Option-A stage requires confidence >= 0.6).
+      decision.confidence = Math.max(Number(decision.confidence) || 0, 0.9);
+      decision.escalation_rule =
+        decision.escalation_rule === 'none'
+          ? 'mooter_pin'
+          : `${decision.escalation_rule}+mooter_pin`;
+    }
+  }
+}
+
 // ── v0.8 HAIKU ARBITER ─────────────────────────────────────────────────
 // When the regex classifier is uncertain (confidence < 0.75 OR the
 // task_category is ambiguous_medium / ambiguous_long), fall through to
