@@ -159,11 +159,10 @@ test("S5: missing skill — skills_invoke empty, suggest_install has skill cmd",
   const pack = getBlock(out, "pack-hint");
   assert.equal(token(pack, "pack"), "animation-web");
   assert.deepEqual(listField(pack, "skills_invoke"), [], "no skills available → none invoked");
-  const install = listField(pack, "suggest_install");
-  assert.ok(
-    install.some((c) => c.startsWith("claude skill install")),
-    `expected a skill install command, got ${JSON.stringify(install)}`,
-  );
+  // suggest_install renders as a tree (Day 6, §6.1): the pack installer sits on
+  // the key line, per-item commands hang below with └─.
+  assert.equal(lineValue(pack, "suggest_install"), "mooter pack install animation-web");
+  assert.match(pack, /└─ claude skill install/, "skill install command hangs below the primary");
 });
 
 // --------------------------------------------------------------------------
@@ -214,7 +213,10 @@ test("suggestInstallCmd: empty when nothing missing", () => {
 test("suggestInstallCmd: registry hit yields concrete MCP install", () => {
   const cmds = suggestInstallCmd("code-audit", [], ["github"]);
   assert.equal(cmds[0], "mooter pack install code-audit");
-  assert.ok(cmds.some((c) => c.includes("server-github")), `got ${JSON.stringify(cmds)}`);
+  // Registry hit produces the concrete github MCP install (official remote, not the
+  // generic "not in registry" fallback). Don't pin the exact package — the registry
+  // tracks the current official command (hardened Day 6).
+  assert.ok(cmds.some((c) => c.includes("api.githubcopilot.com")), `got ${JSON.stringify(cmds)}`);
 });
 
 // --------------------------------------------------------------------------

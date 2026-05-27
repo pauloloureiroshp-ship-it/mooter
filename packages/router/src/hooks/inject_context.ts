@@ -41,6 +41,21 @@ const tierIdx = (t: string): number => {
 const arr = (xs: string[]): string => `[${xs.join(", ")}]`;
 
 /**
+ * Render suggest_install as a tree (PASTOR §6.1 / §10.6): the one-shot pack
+ * installer sits on the `suggest_install=` line, per-item commands hang below
+ * with `└─`. Empty → `suggest_install=[]`. The first element stays on the key
+ * line so single-line parsers still read the primary command.
+ *
+ *   suggest_install=mooter pack install code-audit
+ *     └─ npx -y snyk@latest mcp -t stdio --experimental
+ */
+function renderSuggestInstall(cmds: string[]): string {
+  if (cmds.length === 0) return "suggest_install=[]";
+  const [head, ...rest] = cmds;
+  return [`suggest_install=${head}`, ...rest.map((c) => `  └─ ${c}`)].join("\n");
+}
+
+/**
  * Build both hint blocks for a prompt. Pure + injectable: packs and env are
  * parameters so tests never touch the real disk. Returns the full context
  * string (the two XML blocks separated by a blank line).
@@ -92,10 +107,8 @@ function renderPackHint(
 
   // GENERAL / AMBIGUOUS — no pack scaffold, no skills/MCPs (spec §6.1).
   if (domain.pack_id === "GENERAL" || domain.pack_id === "AMBIGUOUS") {
-    const reason =
-      domain.pack_id === "AMBIGUOUS"
-        ? candidateReason(domain)
-        : "no domain signals above threshold";
+    const isAmbiguous = domain.pack_id === "AMBIGUOUS";
+    const reason = isAmbiguous ? candidateReason(domain) : "no domain signals above threshold";
     return [
       "<pack-hint>",
       `pack=${domain.pack_id} confidence=${conf} reason="${reason}"`,
@@ -103,8 +116,14 @@ function renderPackHint(
       "mcps_recommended=[]",
       "mcps_missing=[]",
       "suggest_install=[]",
+      // GENERAL nudges toward hub discovery (§7 cenário E); AMBIGUOUS already
+      // lists candidates (§7 cenário D), so no search nudge there. `mooter pack
+      // search` itself lands in Wave 2 — this is the forward-looking hint.
+      isAmbiguous ? null : "suggest_search=mooter pack search <keyword>",
       "</pack-hint>",
-    ].join("\n");
+    ]
+      .filter((l): l is string => l !== null)
+      .join("\n");
   }
 
   // A confident pack match — resolve the env gap and emit the full hint.
@@ -141,7 +160,7 @@ function renderPackHint(
     `mcps_missing=${arr(r.missing_mcps)}`,
     `subagent_primary=${subagentPrimary}`,
     manifest.scaffold_url ? `scaffold_url=${manifest.scaffold_url}` : null,
-    `suggest_install=${arr(r.suggest_install)}`,
+    renderSuggestInstall(r.suggest_install),
     "</pack-hint>",
   ].filter((l): l is string => l !== null);
   return lines.join("\n");

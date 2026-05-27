@@ -612,6 +612,21 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐑 Pastor Wave 1 — Day 6 ✅ FECHADO (2026-05-27)
+
+**Estado:** ✅ Day 6 completo. `packResolve()`/`suggestInstallCmd()` endurecidos — já eram módulo DRY partilhado hook↔CLI desde Day 4, **sem refactor necessário**. **5 cenários integration** em `packages/router/tests/pack-resolve.test.ts` (A all-present · B missing-MCP · C missing-skill · D ambíguo 3-way determinístico · E GENERAL) + guard de cobertura do registry. `mcp_install_registry.json` expandido **20 → 27 MCPs** com comandos verificados vs research 2026-05-27 (§2/§8/§9/§12): github/vercel/linear → remotos oficiais (`claude mcp add --transport …`; os pacotes npm bare estavam deprecated/unverified); `snyk mcp` = subcomando da Snyk CLI; `motion-canvas-mcp` flagueado **UNVERIFIED** (não inventado). `<pack-hint>` `suggest_install` agora em **árvore** (`└─` por-item, primary na key line → parser single-line compatível); GENERAL ganha `suggest_search=mooter pack search <keyword>` (§7 cenário E), AMBIGUOUS mantém candidates. Nit Day 5 resolvido: `pack diff` distingue "No dependencies required." de "All dependencies available.". Suites: **router 24 · cli 14 · packs 7 verde · p99 hook ≤ 60ms**. **PR #6** `wave1-pastor-day6` → `dev`, **review gate (Opus) PASS** (0 blocking; 2 nits não-bloqueantes). 3 commits. Notion: [🐑 Pastor Day 6](https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30).
+
+**Decisões registadas:**
+- **D1 (desvio narrativa §7):** cenário B usa `sentry` (MCP real do code-audit), não `snyk-mcp` — o pack shipped trata snyk como `tools_cli`, não MCP (MCPs = github+sentry). Remover `sentry` é um gap real. `snyk-mcp` permanece no registry para packs que o declarem.
+- **D2 (honestidade do registry):** comandos remotos oficiais para github/vercel/linear; `motion-canvas-mcp` marcado UNVERIFIED com string `#` não-executável em vez de inventar (constraint §10.6 "não inventar comandos").
+- **D3 (3 commits, não 4):** `packResolve`/`suggestInstallCmd`/registry já existiam (Day 4) → os commits `refactor`/`registry seeded` do §10.6 eram redundantes. Sem commits fabricados; cada commit fica verde (bisectable).
+- **D4:** registry source-of-truth = `packages/router/data/` (versionado); `~/.mooter/cache/` continua override de runtime.
+- **D5 (scope guard):** **required-vs-recommended distinction NÃO implementada** — fora do escopo confirmado (§10.6 tasks/DoD + 9-point confirmation não a incluem) e mudaria a shape de `PackResolution` + hint + CLI (scope creep pós-review). Flagueada para Wave 2.
+
+**⏭️ Próxima missão — Day 7 (PASTOR.md §10.7) 🟢 FINAL Wave 1:** validação live (20 prompts reais → `docs/wave1-validation.md`, recall ≥ 17/20 = 85%, p99 ≤ 60ms) + **tornar repo `mooter-ai/mooter` público** (gate de saída Wave 1, padrão de risco do Paulo). README destaca Pastor + Two-Axis (Mermaid). Tweet draft em `docs/launch/`. Notion HQ sub-página Wave 1 SHIPPED. Tag `v0.1.0-pastor-wave1`. **HARD GATE:** sem recall ≥ 85% **não** mergear para `main` — cowork session para tuning. **Nit carry-over → Wave 2:** required-vs-recommended distinction em `packResolve` (hoje uniformes). Pendente imediato: **merge PR #6 → dev** após aprovação/CI.
+
+---
+
 ### 🐑 Pastor Wave 1 — Day 5 ✅ FECHADO (2026-05-27)
 
 **Estado:** ✅ Day 5 completo. CLI `mooter pack {list,show,diff,validate}` em novo package self-contained `packages/cli` (tsx-native, ADR 016 — sem build step) + shim `bin/mooter`. Cada subcomando: output human (tabular, ✓/✗) + `--json`. `diff` reusa `packResolve()` + `detectEnv()` de `packages/router/src/pack_resolve.ts` (módulo Day 4). `validate` é **determinístico, zero LLM**: schema (via `validatePack` extraído para `packs/validate.ts`, DRY com a suite Day-1) + smoke_test + acceptance_criteria + repos_canonical (name/url/license) + scaffold existence. **Contrato de exit codes: 0 success · 1 error · 2 missing deps (só `diff`).** Suites: **cli 14/14 · packs 7/7 verde**. **PR #5** `wave1-pastor-day5` → `dev`, **review gate (Opus) APPROVE** (0 blocking, 1 nota cosmética). 4 commits. Notion: [🐑 Pastor Day 5](https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd).
@@ -1435,6 +1450,8 @@ Side effects: upsert em D1 `devices` table
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
 | 🐑 Pastor Day 1 — Schema + ADR (2026-05-28) | https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42 |
 | 🐑 Pastor Day 4 — hook emite <pack-hint> (2026-05-27) | https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3 |
+| 🐑 Pastor Day 5 — CLI mooter pack (2026-05-27) | https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd |
+| 🐑 Pastor Day 6 — pack_resolve + 5 cenários + registry 27 (2026-05-27) | https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30 |
 | Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
