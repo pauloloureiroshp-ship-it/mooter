@@ -50,6 +50,7 @@ repos_canonical:                        # optional — known reference repos/lib
 tools_cli: [string]                     # optional — CLI tools (npx, pipx, brew)
 
 prompt_scaffold: string                 # optional — specialised system prompt, multiline (| block)
+prompt_scaffold_path: string            # alternative to inline prompt_scaffold (mutually exclusive)
 
 validation:                             # optional — how to prove the pack output is good
   smoke_test: string                    # optional — descriptive sentence of the test
