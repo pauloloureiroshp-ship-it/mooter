@@ -4,6 +4,7 @@ const { execSync } = require('child_process');
 const { color, say, ok, warn, fail, info } = require('../lib/ui');
 const { paths, which, readVersion } = require('../lib/paths');
 const { generateMooterSkills } = require('../lib/generate-mooter-skills');
+const { discoverAllModels, flattenModels } = require('../lib/discover-models');
 
 const results = [];
 
@@ -131,14 +132,18 @@ function run() {
   });
 
   check('mooter pin skills', () => {
-    const { written, removed, skipped } = generateMooterSkills({ dryRun: false });
+    const all = discoverAllModels();
+    const flat = flattenModels(all);
+    const { written, removed, skipped } = generateMooterSkills({ dryRun: false, models: flat });
     const total = written.length + skipped.length;
     if (total === 0 && removed.length === 0) {
-      return { ok: false, warn: true, detail: 'none — no Anthropic subscription detected', fix: 'Run: mooter init' };
+      return { ok: false, warn: true, detail: 'none — no providers detected', fix: 'Run: mooter init' };
     }
+    const anthropicCount = all.anthropic.filter((m) => m.available).length;
+    const nonAnthropicCount = flat.filter((m) => m.available && m.provider !== 'anthropic').length;
     return {
       ok: true,
-      detail: `${total} total — ${written.length} written, ${skipped.length} verified, ${removed.length} removed`,
+      detail: `${anthropicCount} Anthropic + ${nonAnthropicCount} non-Anthropic = ${total} total, ${removed.length} removed`,
     };
   });
 
