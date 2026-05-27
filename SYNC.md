@@ -612,6 +612,19 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐑 Pastor Wave 1 — Day 2 ✅ FECHADO (2026-05-29)
+
+**Estado:** ✅ Day 2 completo. 3 packs sementinha (`animation-web`, `code-audit`, `diagram-systems`), cada um = `pack.yaml` + `scaffold.md`. Schema patch (`prompt_scaffold_path`). `packs/tests/schema.test.ts` estendido para iterar `packs/*/pack.yaml` + check de existência do scaffold (**7/7 verdes**). **PR #2** `wave1-pastor-day2` → `dev` aberto, **final-reviewer (Opus) APPROVE** (0 blocking, 3 nits cosméticos). 5 commits. Notion: [🐑 Pastor Day 2](https://www.notion.so/36d6f6e42bc481a3af0afb64c696a4e6).
+
+**Decisões registadas:**
+- **Drift documentado:** §5.2 e §5.4 PASTOR.md eram exemplos abreviados (faltava `version`/`description`/`metadata`); boilerplate mínimo adicionado espelhando §5.1 para passar o schema. `repos_canonical` e `domain_signals` mantidos 100% literais — zero URLs inventadas.
+- `prompt_scaffold` externalizado para `scaffold.md`; yaml referencia via `prompt_scaffold_path: ./scaffold.md`. Schema patch (commit 1) documenta o campo como alternativa mutuamente exclusiva ao inline.
+- `created: 2026-05-27`, `trust_score: 0.5`, `notion_kb_url` default null.
+
+**⏭️ Próxima missão — Day 3 (PASTOR.md §10.3):** implementar `classify_domain()` regex layer em `packages/router/src/classify_domain.ts` (loadPacks ao boot + weighted scoring: keyword +1.0 / intent +1.5 / ext +0.5 / negative −2.0). Test suite ≥ 50 prompts (recall ≥ 0.85, 0 false positives em genéricos, ambíguos com top-3 candidates), p99 ≤ 5ms, doc `docs/spec/classify-domain.md`. **Não tocar** `classify.js` (eixo 1) nem Ollama/Haiku (Day 6+). Nit opcional herdado do Day 2: XOR check `prompt_scaffold` vs `prompt_scaffold_path` no `validatePack`.
+
+---
+
 ### 🐑 Pastor Wave 1 — Day 1 ✅ FECHADO (2026-05-28)
 
 **Estado:** ✅ Day 1 completo. Schema dos Moo Packs (eixo 2 — domínio) + ADR 015 (Two-Axis Routing) + ADR 016 (TS stack scoped a `packs/`) + spec `<pack-hint>` + teste (5/5 verdes). **PR #1** `wave1-pastor-day1` → `dev` aberto, **final-reviewer (Opus) APPROVE** (0 blocking, 2 nits cosméticos). 6 commits. Notion: [🐑 Pastor Day 1](https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42).

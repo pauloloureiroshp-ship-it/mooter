@@ -6,20 +6,34 @@
 //   2. The mock example-pack.yaml is valid YAML.
 //   3. The mock validates against the schema contract (required fields, enums, ranges).
 //   4. A deliberately broken pack is rejected (proves the validator actually validates).
+//   5. Every real pack (packs/<name>/pack.yaml) validates against the schema contract.
+//   6. Each pack's prompt_scaffold_path, when present, resolves to an existing file.
 //
 // The schema file (pack.schema.yaml) is descriptive (field -> type name). The contract
 // it documents is enforced here in validatePack(). Source: docs/strategy/PASTOR.md §4.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import yaml from "js-yaml";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = join(here, "..", "pack.schema.yaml");
-const MOCK_PATH = join(here, "..", "__mock__", "example-pack.yaml");
+const PACKS_DIR = join(here, "..");
+const SCHEMA_PATH = join(PACKS_DIR, "pack.schema.yaml");
+const MOCK_PATH = join(PACKS_DIR, "__mock__", "example-pack.yaml");
+
+// Directories under packs/ that are not packs themselves.
+const NON_PACK_DIRS = new Set(["node_modules", "tests", "__mock__"]);
+
+/** Discover real packs: packs/<name>/pack.yaml. */
+function discoverPacks(): { name: string; path: string }[] {
+  return readdirSync(PACKS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !NON_PACK_DIRS.has(d.name))
+    .map((d) => ({ name: d.name, path: join(PACKS_DIR, d.name, "pack.yaml") }))
+    .filter((p) => existsSync(p.path));
+}
 
 const TIERS = ["T0", "T1", "T2", "T3"] as const;
 type Tier = (typeof TIERS)[number];
@@ -151,6 +165,28 @@ test("validator rejects a broken pack (negative control)", () => {
   };
   const errors = validatePack(broken);
   assert.ok(errors.length >= 5, `expected several errors, got ${errors.length}: ${errors.join("; ")}`);
+});
+
+test("every packs/*/pack.yaml validates against the schema", () => {
+  const packs = discoverPacks();
+  assert.ok(packs.length >= 3, `expected >= 3 real packs, found ${packs.length}`);
+  for (const { name, path } of packs) {
+    const errors = validatePack(loadYaml(path));
+    assert.deepEqual(errors, [], `${name}/pack.yaml invalid: ${errors.join("; ")}`);
+  }
+});
+
+test("prompt_scaffold_path, when present, resolves to an existing file", () => {
+  for (const { name, path } of discoverPacks()) {
+    const pack = loadYaml(path) as Record<string, unknown>;
+    const rel = pack.prompt_scaffold_path;
+    if (typeof rel === "string") {
+      assert.ok(
+        existsSync(join(dirname(path), rel)),
+        `${name}: prompt_scaffold_path -> ${rel} does not exist`,
+      );
+    }
+  }
 });
 
 export { validatePack };
