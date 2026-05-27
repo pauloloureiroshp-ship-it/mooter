@@ -172,6 +172,16 @@ async function run() {
     }
   }
 
+  // Generate the /mooter-<model> pin slash commands from detected subscriptions.
+  try {
+    const { generateMooterSkills } = require('../lib/generate-mooter-skills');
+    const { written, skipped } = generateMooterSkills({ dryRun: false });
+    const total = written.length + skipped.length;
+    if (total > 0) ok(`Generated ${total} /mooter-<model> pin skill${total === 1 ? '' : 's'}`);
+  } catch (e) {
+    warn(`Could not generate mooter pin skills: ${e.message}`);
+  }
+
   console.log('');
   ok('mooter init complete.');
   console.log('');

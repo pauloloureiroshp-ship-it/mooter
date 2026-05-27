@@ -3,6 +3,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { color, say, ok, warn, fail, info } = require('../lib/ui');
 const { paths, which, readVersion } = require('../lib/paths');
+const { generateMooterSkills } = require('../lib/generate-mooter-skills');
 
 const results = [];
 
@@ -127,6 +128,18 @@ function run() {
     if (!fs.existsSync(paths.deviceId)) return { ok: false, warn: true, detail: 'missing — heartbeat telemetry off', fix: 'Run: mooter init' };
     const id = fs.readFileSync(paths.deviceId, 'utf8').trim();
     return { ok: true, detail: id.slice(0, 8) + '...' };
+  });
+
+  check('mooter pin skills', () => {
+    const { written, removed, skipped } = generateMooterSkills({ dryRun: false });
+    const total = written.length + skipped.length;
+    if (total === 0 && removed.length === 0) {
+      return { ok: false, warn: true, detail: 'none — no Anthropic subscription detected', fix: 'Run: mooter init' };
+    }
+    return {
+      ok: true,
+      detail: `${total} total — ${written.length} written, ${skipped.length} verified, ${removed.length} removed`,
+    };
   });
 
   console.log('  ' + color.dim('-'.repeat(60)));
