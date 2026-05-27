@@ -25,3 +25,31 @@
 - **Description**: This is WSL2; Ollama runs on the Windows host. Reachable via HTTP at `OLLAMA_HOST=http://host.docker.internal:11434` (also `172.25.48.1:11434`), v0.23.3, all required models present. The `ollama` CLI is NOT installed in WSL, so prod router code paths using `spawnSync('ollama', ...)` would fail here.
 - **Impact**: Arm A's T0 (local) invocations must use the Ollama HTTP API, not the CLI.
 - **Decision**: Benchmark harness calls Ollama over HTTP (`lib/ollama-client.ts`). Implementation detail, not a methodology change.
+
+## A4 — 2 Ollama (T0) invocation failures (P005/A, P012/A)
+
+- **When**: 2026-05-27, Phase E run (run_id 019e6b63-0cc6-7987-9254-4673b27fa2dd).
+- **Description**: P005/A and P012/A (both routed by Pastor to T0 → `qwen3:30b`) FAILED with "operation aborted" after the 120s timeout × 4 attempts. qwen3:30b is a reasoning model that emits long internal-thinking chains and did not finish within 120s on these prompts.
+- **Impact**: 2/102 rows = 2.0% FAILED (within DoD ≤5%). Both are arm A → they drag arm A's mean quality DOWN (empty response judged ~low) and mean latency UP massively (each failed row ≈ retries × 120s). **Arm A's mean latency (51101ms) is dominated by these 2 outliers** — exclude `status='failed'` rows for a representative latency. `n_ok` for arm A is 32/34.
+- **Decision**: Kept as FAILED + logged per §E retry policy ("marca FAILED + log + continua"). NOT re-run — qwen3:30b being too slow for T0 is a REAL Pastor finding (Q3/Q4): the T0 model choice should be a fast small model (e.g. qwen2.5:3b), not a 30B reasoner. The 120s timeout is a harness parameter (caveat for analysis). Wave 2 signal.
+
+## A5 — 2 judge JSON parse fallbacks (P021, P022)
+
+- **When**: 2026-05-27, Phase E judging.
+- **Description**: For P021 and P022 (diagram-systems / mermaid) the judge's response did not parse as the expected JSON (the greedy `{…}` extractor is confused by braces inside mermaid code in the outputs). Per design, neutral scores (correctness 0.5, completeness/relevance/actionability 3, hallucination 0) were used.
+- **Impact**: 2/34 judge calls = neutral fallback. For these 2 prompts, completeness/relevance/actionability/hallucination are neutral for all 3 arms; **correctness is still objective** (mermaid-syntax deterministic check overrides the judge). 6 rows partially affected.
+- **Decision**: Kept neutral-fallback (pre-registered behavior) + logged. NOT re-judged — impact bounded and correctness preserved via deterministic check. A more robust judge-JSON parser is a Wave 2 harness improvement.
+
+## A6 — Cost figures: invocation vs total; judge cost separate
+
+- **When**: 2026-05-27, reporting.
+- **Description**: `SUMMARY.json.total_cost_usd` = $2.86 sums only the 102 invocation rows. The run's true total incl. the 39 judge calls (34 base + 5 repeats) is **$3.52**. Per-arm `mean_cost_usd` is invocation-only (judge cost is shared infrastructure, not attributable to an arm).
+- **Impact**: None on per-arm cost comparison (judge cost is symmetric). Just clarifies the headline "$3.52 total" vs "$2.86 invocation".
+- **Decision**: Report both explicitly in README. No change.
+
+## A7 — Judge repeat variance exactly 0.000
+
+- **When**: 2026-05-27, Phase E judging.
+- **Description**: The 5 sanity-check repeats (§4.6, same outputs re-judged in a different blind order) produced variance 0.000 — the Sonnet judge at temperature 0 returns identical scores regardless of presentation order.
+- **Impact**: Positive signal (no detectable order bias, fully reproducible judge), but note it reflects temp-0 determinism on identical content rather than independent re-sampling — it does NOT measure the judge's sensitivity to rephrased inputs. Inter-rater calibration (Opus judge) remains a Wave 2 item (§9.3).
+- **Decision**: Reported as-is. No alert (threshold 0.3).

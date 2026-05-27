@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "019e6b63-0cc6-7987-9254-4673b27fa2dd",
+  "n_prompts": 34,
+  "n_arms": 3,
+  "n_rows": 102,
+  "n_failed": 2,
+  "total_cost_usd": 2.8575649999999997,
+  "per_arm": {
+    "A": {
+      "n": 34,
+      "n_ok": 32,
+      "mean_quality": 0.8697058823529413,
+      "ci_quality_95": [
+        0.7996985294117648,
+        0.9270588235294118
+      ],
+      "mean_cost_usd": 0.022390205882352937,
+      "total_cost_usd": 0.7612669999999999,
+      "mean_latency_ms": 51101.05882352941,
+      "mean_tokens_total": 1593.2058823529412,
+      "model_distribution": {
+        "claude-sonnet-4-6": 7,
+        "claude-opus-4-7": 15,
+        "claude-haiku-4-5-20251001": 7,
+        "qwen3:30b": 5
+      }
+    },
+    "B": {
+      "n": 34,
+      "n_ok": 34,
+      "mean_quality": 0.8861764705882353,
+      "ci_quality_95": [
+        0.8379338235294121,
+        0.9312058823529412
+      ],
+      "mean_cost_usd": 0.027991852941176464,
+      "total_cost_usd": 0.9517229999999998,
+      "mean_latency_ms": 27036.441176470587,
+      "mean_tokens_total": 1899.9117647058824,
+      "model_distribution": {
+        "claude-sonnet-4-6": 34
+      }
+    },
+    "C": {
+      "n": 34,
+      "n_ok": 34,
+      "mean_quality": 0.917058823529412,
+      "ci_quality_95": [
+        0.8782352941176473,
+        0.9511764705882356
+      ],
+      "mean_cost_usd": 0.033663970588235295,
+      "total_cost_usd": 1.1445750000000001,
+      "mean_latency_ms": 20264.852941176472,
+      "mean_tokens_total": 1393.5,
+      "model_distribution": {
+        "claude-opus-4-7": 34
+      }
+    }
+  },
+  "pairs": {
+    "A_vs_B": {
+      "quality_cohens_d_paired": -0.06731272546710998,
+      "quality_diff_ci_95": [
+        -0.10088970588235291,
+        0.0667647058823529
+      ],
+      "cost_savings_pct": 0.20011705086458975,
+      "latency_diff_pct": 0.8900808168495897,
+      "criteria": {
+        "quality_ok": true,
+        "cost_ok": false,
+        "latency_ok": false
+      },
+      "pastor_wins": "WEAK (1/3)"
+    },
+    "A_vs_C": {
+      "quality_cohens_d_paired": -0.20096025330238484,
+      "quality_diff_ci_95": [
+        -0.12563235294117647,
+        0.021779411764705853
+      ],
+      "cost_savings_pct": 0.3348911167900751,
+      "latency_diff_pct": 1.521659494488429,
+      "criteria": {
+        "quality_ok": true,
+        "cost_ok": false,
+        "latency_ok": false
+      },
+      "pastor_wins": "WEAK (1/3)"
+    }
+  },
+  "by_pack": {
+    "animation-web": {
+      "A": {
+        "mean_quality": 0.9024999999999999,
+        "mean_cost_usd": 0.0347415,
+        "mean_latency_ms": 93424.125,
+        "n": 8
+      },
+      "B": {
+        "mean_quality": 0.8200000000000001,
+        "mean_cost_usd": 0.03344775,
+        "mean_latency_ms": 30231.75,
+        "n": 8
+      },
+      "C": {
+        "mean_quality": 0.875,
+        "mean_cost_usd": 0.03735375,
+        "mean_latency_ms": 21376.375,
+        "n": 8
+      }
+    },
+    "code-audit": {
+      "A": {
+        "mean_quality": 0.94,
+        "mean_cost_usd": 0.031304375,
+        "mean_latency_ms": 20544.5,
+        "n": 8
+      },
+      "B": {
+        "mean_quality": 0.9275,
+        "mean_cost_usd": 0.026457,
+        "mean_latency_ms": 27877.375,
+        "n": 8
+      },
+      "C": {
+        "mean_quality": 0.975,
+        "mean_cost_usd": 0.034417500000000004,
+        "mean_latency_ms": 23941.375,
+        "n": 8
+      }
+    },
+    "diagram-systems": {
+      "A": {
+        "mean_quality": 0.89,
+        "mean_cost_usd": 0.013390625,
+        "mean_latency_ms": 9788.125,
+        "n": 8
+      },
+      "B": {
+        "mean_quality": 0.8625,
+        "mean_cost_usd": 0.022022624999999997,
+        "mean_latency_ms": 22061.125,
+        "n": 8
+      },
+      "C": {
+        "mean_quality": 0.8775,
+        "mean_cost_usd": 0.034461875,
+        "mean_latency_ms": 18333.625,
+        "n": 8
+      }
+    },
+    "AMBIGUOUS": {
+      "A": {
+        "mean_quality": 0.8216666666666667,
+        "mean_cost_usd": 0.020416666666666666,
+        "mean_latency_ms": 24929.333333333332,
+        "n": 6
+      },
+      "B": {
+        "mean_quality": 0.875,
+        "mean_cost_usd": 0.034513999999999996,
+        "mean_latency_ms": 32625.833333333332,
+        "n": 6
+      },
+      "C": {
+        "mean_quality": 0.9066666666666666,
+        "mean_cost_usd": 0.028373333333333334,
+        "mean_latency_ms": 18656.5,
+        "n": 6
+      }
+    },
+    "GENERAL": {
+      "A": {
+        "mean_quality": 0.6950000000000001,
+        "mean_cost_usd": 0.00081875,
+        "mean_latency_ms": 149451.5,
+        "n": 4
+      },
+      "B": {
+        "mean_quality": 0.9999999999999999,
+        "mean_cost_usd": 0.022305000000000002,
+        "mean_latency_ms": 20530.5,
+        "n": 4
+      },
+      "C": {
+        "mean_quality": 0.98,
+        "mean_cost_usd": 0.0311175,
+        "mean_latency_ms": 16963.75,
+        "n": 4
+      }
+    }
+  },
+  "mis_routing": {
+    "pack_correct_rate": 0.9166666666666666,
+    "pack_correct_n": "22/24",
+    "tier_appropriate_rate": 0.7058823529411765,
+    "would_higher_tier_help_rate": 0.14705882352941177,
+    "instances_to_review": [
+      "P005",
+      "P012",
+      "P018",
+      "P029",
+      "P032",
+      "P034"
+    ]
+  },
+  "judge_reliability": {
+    "repeat_variance_mean": 0,
+    "alert_triggered": false,
+    "n_repeats": 5
+  },
+  "notes": "Paired stats (same 34 prompts/arm). Effect size > p-value for interpretation (§6.2). N=34 small — d<0.3 is noise."
+}
