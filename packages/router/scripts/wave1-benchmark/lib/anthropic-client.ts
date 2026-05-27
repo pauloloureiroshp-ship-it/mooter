@@ -25,6 +25,14 @@ export interface AnthropicCallOpts {
 
 const BACKOFF_MS = [1000, 4000, 16000];
 
+// Opus 4.7 (and later) deprecated the `temperature` parameter — sending it
+// returns 400. We omit it for these models; for Sonnet/Haiku we keep temp=0 for
+// determinism. The run loop also auto-drops temperature on the specific 400 as a
+// belt-and-suspenders for any future model that deprecates it.
+function modelRejectsTemperature(model: string): boolean {
+  return /opus-4-7/.test(model);
+}
+
 let _client: Anthropic | null = null;
 function client(): Anthropic {
   if (_client) return _client;
@@ -40,13 +48,14 @@ export async function callAnthropic(opts: AnthropicCallOpts): Promise<LlmResult>
   const maxTokens = opts.maxTokens ?? 4096;
   const t0 = Date.now();
   let lastErr = "";
+  let sendTemp = !modelRejectsTemperature(opts.model);
 
   for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
     try {
       const msg = await client().messages.create({
         model: opts.model,
         max_tokens: maxTokens,
-        temperature: opts.temperature ?? 0,
+        ...(sendTemp ? { temperature: opts.temperature ?? 0 } : {}),
         ...(opts.system && opts.system.trim().length > 0 ? { system: opts.system } : {}),
         messages: [{ role: "user", content: opts.user }],
       });
@@ -64,6 +73,13 @@ export async function callAnthropic(opts: AnthropicCallOpts): Promise<LlmResult>
       };
     } catch (err) {
       lastErr = err instanceof Error ? err.message : String(err);
+      // Auto-drop temperature on the specific deprecation 400 and retry now
+      // (does not consume a backoff attempt).
+      if (sendTemp && /temperature.*deprecat/i.test(lastErr)) {
+        sendTemp = false;
+        attempt--;
+        continue;
+      }
       if (attempt < BACKOFF_MS.length) await sleep(BACKOFF_MS[attempt]);
     }
   }
