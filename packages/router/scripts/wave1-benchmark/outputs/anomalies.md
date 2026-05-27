@@ -47,9 +47,9 @@
 - **Impact**: None on per-arm cost comparison (judge cost is symmetric). Just clarifies the headline "$3.52 total" vs "$2.86 invocation".
 - **Decision**: Report both explicitly in README. No change.
 
-## A7 — Judge repeat variance exactly 0.000
+## A7 — Judge repeat variance = 0.041 (metric initially mis-reported 0.000 — bug found at pre-push review, fixed)
 
-- **When**: 2026-05-27, Phase E judging.
-- **Description**: The 5 sanity-check repeats (§4.6, same outputs re-judged in a different blind order) produced variance 0.000 — the Sonnet judge at temperature 0 returns identical scores regardless of presentation order.
-- **Impact**: Positive signal (no detectable order bias, fully reproducible judge), but note it reflects temp-0 determinism on identical content rather than independent re-sampling — it does NOT measure the judge's sensitivity to rephrased inputs. Inter-rater calibration (Opus judge) remains a Wave 2 item (§9.3).
-- **Decision**: Reported as-is. No alert (threshold 0.3).
+- **When**: 2026-05-27, Phase E judging + pre-push review.
+- **Description**: The 5 sanity-check repeats (§4.6) re-judge the same outputs in a DIFFERENT blind order to measure judge order-bias. The reliability metric first reported **0.000**, which was a code defect: `summary.ts` read `rep.positionToArm` (camelCase) while the serialized field is `position_to_arm` (snake-case), so the comparison loop skipped every iteration and `mean([])` forced 0. The pre-push final-reviewer caught it. After the one-line fix and recompute (no new API calls — recomputed from the existing JUDGE_LOG), the true value is **repeat_variance_mean = 0.0413** (75 per-dimension diffs).
+- **Impact**: The corrected variance (0.041) is low and well under the 0.3 alert threshold → judge is reliable across presentation orders, **but it is NOT zero** — the earlier "fully reproducible / no order bias" claim was false. Verdict unchanged (no alert). Note: this measures order sensitivity on identical content, not sensitivity to rephrased inputs; inter-rater calibration (Opus judge) remains a Wave 2 item (§9.3).
+- **Decision**: Field-name bug fixed in `summary.ts`; SUMMARY.json + SUMMARY.parquet + README + this entry regenerated with the true 0.041. Logged transparently rather than silently corrected.

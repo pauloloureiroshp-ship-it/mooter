@@ -32,7 +32,7 @@ Judge: Claude Sonnet 4.6, blind (3 anonymised outputs per prompt, seed-randomise
 | **A vs B** | −0.067 | (see SUMMARY) | 20.0% | +89.0% | ✓ / ✗ / ✗ | **WEAK (1/3)** |
 | **A vs C** | −0.201 | (see SUMMARY) | 33.5% | +152.2% | ✓ / ✗ / ✗ | **WEAK (1/3)** |
 
-§1 "Pastor wins" criteria: quality ≥ 0.9× · cost ≤ 0.5× · latency ≤ 1.2×. Pastor meets the **quality** bar against both arms but **not cost (saved 20%, not 50%) nor latency** (slower). Mis-routing: pack-correct **22/24 (91.7%)**, tier-appropriate **70.6%**, would-higher-tier-help **14.7%** (review: P005, P012, P018, P029, P032, P034). Judge repeat-variance **0.000** (no order bias; §A7).
+§1 "Pastor wins" criteria: quality ≥ 0.9× · cost ≤ 0.5× · latency ≤ 1.2×. Pastor meets the **quality** bar against both arms but **not cost (saved 20%, not 50%) nor latency** (slower). Mis-routing: pack-correct **22/24 (91.7%)**, tier-appropriate **70.6%**, would-higher-tier-help **14.7%** (review: P005, P012, P018, P029, P032, P034). Judge repeat-variance **0.041** (low, < 0.3 alert threshold; §A7).
 <!-- NUMBERS:END -->
 
 These are **facts, not verdicts**. N=34 is small (§6.1): effect sizes d<0.3 are statistical noise. Read `SUMMARY.json` for CIs, Cohen's d, per-pack and mis-routing detail.

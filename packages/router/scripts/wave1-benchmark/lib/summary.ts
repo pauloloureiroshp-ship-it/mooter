@@ -159,7 +159,7 @@ export function judgeReliability(
     if (!base) continue;
     for (const pos of ["1", "2", "3"]) {
       // Compare by ARM (orders differ between base and repeat).
-      const arm = rep.positionToArm?.[pos];
+      const arm = rep.position_to_arm?.[pos];
       const basePos = Object.entries(base.position_to_arm).find(([, a]) => a === arm)?.[0];
       if (!arm || !basePos) continue;
       const r1 = rep.scores_by_position[pos];

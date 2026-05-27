@@ -208,7 +208,7 @@
     ]
   },
   "judge_reliability": {
-    "repeat_variance_mean": 0,
+    "repeat_variance_mean": 0.04133333333333334,
     "alert_triggered": false,
     "n_repeats": 5
   },
