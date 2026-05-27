@@ -840,8 +840,92 @@ function buildOk({ provider, response, classification, fallbackChain }) {
   };
 }
 
+// ── Sessão B — manual provider pin (/mooter-<non-anthropic-model>) ──────
+// A pinned dispatch bypasses classification entirely: the user explicitly
+// asked for ONE provider, so we call exactly that wrapper with NO fallback —
+// in particular no silent fallback to Anthropic. Availability is pre-checked so
+// an unusable provider yields a clean `no_quota` error instead of a null call.
+
+const PIN_PROVIDER_KEYS = new Set(['ollama', 'codex_cli', 'openai_api']);
+
+function pinProviderAvailable(providerKey, deps = {}) {
+  if (deps.availability && Object.prototype.hasOwnProperty.call(deps.availability, providerKey)) {
+    return !!deps.availability[providerKey];
+  }
+  try {
+    const det = require('./detect-subscriptions');
+    if (providerKey === 'codex_cli') return !!((det.detectCodexCli && det.detectCodexCli()) || {}).available;
+    if (providerKey === 'ollama')   return !!((det.detectOllama && det.detectOllama()) || {}).available;
+    if (providerKey === 'openai_api') return !!process.env.OPENAI_API_KEY;
+  } catch { /* detector unavailable → unavailable */ }
+  return false;
+}
+
+function defaultPinWrapper(providerKey) {
+  try {
+    if (providerKey === 'ollama')     return require('./providers/ollama-api').callOllama;
+    if (providerKey === 'codex_cli')  return require('./providers/codex-cli').callCodex;
+    if (providerKey === 'openai_api') return require('./providers/openai-api').callOpenAI;
+  } catch { /* wrapper missing */ }
+  return null;
+}
+
+/**
+ * Execute a manually pinned non-Anthropic provider. Returns the same ok-shape
+ * as execute() on success, or `{ ok:false, error:{ code, message, provider } }`.
+ *
+ * @param {{prompt?:string, provider?:string, model?:string|null, options?:object}} input
+ * @returns {Promise<object>}
+ */
+async function executePinned(input = {}) {
+  const { prompt, provider, model, options = {} } = input;
+  const deps = options.__deps || {};
+  const providerKey = String(provider || '').trim().replace(/-/g, '_');
+
+  if (!PIN_PROVIDER_KEYS.has(providerKey)) {
+    return { ok: false, error: { code: 'unknown_provider', message: `unknown provider "${provider}"`, provider: provider || null } };
+  }
+  if (!prompt || typeof prompt !== 'string') {
+    return { ok: false, error: { code: 'no_prompt', message: 'prompt is required', provider: providerKey } };
+  }
+  if (!pinProviderAvailable(providerKey, deps)) {
+    return { ok: false, error: { code: 'no_quota', message: `${providerKey} is not available (no subscription / API key / daemon)`, provider: providerKey } };
+  }
+
+  const wrapper = (deps.providers && deps.providers[providerKey]) || defaultPinWrapper(providerKey);
+  if (typeof wrapper !== 'function') {
+    return { ok: false, error: { code: 'wrapper_missing', message: `no wrapper available for ${providerKey}`, provider: providerKey } };
+  }
+
+  const wrapperOpts = {};
+  const perAttempt = Number(options.timeoutMs) || 0;
+  wrapperOpts.timeoutMs = perAttempt > 0 ? perAttempt : 30_000;
+  if (model) wrapperOpts.model = model;
+
+  let response = null;
+  let threw = null;
+  try {
+    response = await wrapper(prompt, wrapperOpts);
+  } catch (e) {
+    threw = e;
+  }
+  if (threw) {
+    return { ok: false, error: { code: 'wrapper_threw', message: String((threw && threw.message) || threw), provider: providerKey } };
+  }
+  if (!response || !response.ok || !response.text) {
+    return { ok: false, error: { code: 'no_output', message: 'provider returned no usable text', provider: providerKey } };
+  }
+  return buildOk({
+    provider: providerKey,
+    response,
+    classification: { tier: 'pinned', task_category: 'user_pin', recommended_model: model || null },
+    fallbackChain: [providerKey],
+  });
+}
+
 module.exports = {
   execute,
+  executePinned,
   // Test-only exports — used by router-execute.test.js for fine-grained checks
   // without re-implementing internals. Kept on a `_internal` namespace so the
   // public API (just `execute`) stays minimal.
@@ -908,6 +992,30 @@ if (require.main === module) {
       if (!prompt) {
         process.stderr.write('router-execute: no prompt (pass via argv or stdin)\n');
         process.exit(2);
+      }
+
+      // ── Manual provider pin (Sessão B) ──────────────────────────────
+      // --pin-provider=<ollama|codex-cli|openai-api> [--pin-model=<id>]
+      // dispatches to exactly that provider, bypassing classification. The
+      // prompt arrives via argv or (with --prompt-stdin) stdin, both already
+      // resolved above. No fallback — in particular none to Anthropic.
+      const getPinFlag = (name) => {
+        const pref = `--${name}=`;
+        const hit = process.argv.slice(2).find((a) => a.startsWith(pref));
+        return hit ? hit.slice(pref.length) : undefined;
+      };
+      const pinProvider = getPinFlag('pin-provider');
+      if (pinProvider) {
+        const pinModel = getPinFlag('pin-model');
+        const pinPerAttempt = Number(process.env.MOOTER_PER_ATTEMPT_TIMEOUT_MS) || 0;
+        const pinResult = await executePinned({
+          prompt,
+          provider: pinProvider,
+          model: pinModel,
+          options: pinPerAttempt > 0 ? { timeoutMs: pinPerAttempt } : {},
+        });
+        process.stdout.write(JSON.stringify(pinResult) + '\n');
+        process.exit(pinResult && pinResult.error && pinResult.error.code === 'unknown_provider' ? 2 : 0);
       }
 
       // Classification source (in priority order):

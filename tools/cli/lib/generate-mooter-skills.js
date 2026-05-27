@@ -111,7 +111,7 @@ Claude Code's session model is Claude, not ${m.displayName}. The reply from ${m.
 
 ## Instructions for the agent
 
-Run this Bash command, replacing \`<USER PROMPT>\` with the user's prompt verbatim. Then present the \`text\` field of the JSON result as the response (do not summarize unless asked). If \`outcome !== 'ok'\`, present the error and stop.
+Run this Bash command, replacing \`<USER PROMPT>\` with the user's prompt verbatim. The result is a JSON object: when \`ok\` is \`true\`, present its \`text\` field as the response (do not summarize unless asked); when \`ok\` is not \`true\`, present \`error.message\` and stop. No silent fallback to another model.
 
 \`\`\`bash
 node ~/.claude/tools/router/router-execute.js \\

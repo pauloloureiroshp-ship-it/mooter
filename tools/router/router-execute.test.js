@@ -870,3 +870,79 @@ test('CLI: empty prompt exits 2 with a clear stderr message', () => {
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no prompt/i);
 });
+
+// ── Sessão B — manual provider pin (executePinned) ──────────────────────
+
+const { executePinned } = require('./router-execute');
+
+test('pin: ollama available + mocked wrapper → ok with text and model', async () => {
+  const result = await executePinned({
+    prompt: 'hello',
+    provider: 'ollama',
+    model: 'qwen3:30b',
+    options: { __deps: {
+      availability: { ollama: true },
+      providers: { ollama: async (p, o) => ({ ok: true, text: `echo:${p}`, model: o.model }) },
+    } },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider_used, 'ollama');
+  assert.equal(result.model_used, 'qwen3:30b');
+  assert.match(result.text, /echo:hello/);
+  assert.deepEqual(result.fallback_chain, ['ollama']);
+});
+
+test('pin: codex-cli with no subscription → error code no_quota (hyphen normalised)', async () => {
+  const result = await executePinned({
+    prompt: 'hello',
+    provider: 'codex-cli',
+    options: { __deps: { availability: { codex_cli: false } } },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'no_quota');
+  assert.equal(result.error.provider, 'codex_cli');
+});
+
+test('pin: unknown provider → error code unknown_provider', async () => {
+  const result = await executePinned({ prompt: 'hello', provider: 'gemini-flash' });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'unknown_provider');
+});
+
+test('pin: openai-api available + mocked wrapper passes model through → ok', async () => {
+  const result = await executePinned({
+    prompt: 'hi',
+    provider: 'openai-api',
+    model: 'gpt-5.4',
+    options: { __deps: {
+      availability: { openai_api: true },
+      providers: { openai_api: async (p, o) => ({ ok: true, text: 'gpt reply', model: o.model, cost_usd: 0.01 }) },
+    } },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider_used, 'openai_api');
+  assert.equal(result.model_used, 'gpt-5.4');
+  assert.equal(result.cost_usd, 0.01);
+});
+
+test('pin: available but wrapper returns null → error no_output (no silent fallback)', async () => {
+  const result = await executePinned({
+    prompt: 'hello',
+    provider: 'ollama',
+    options: { __deps: {
+      availability: { ollama: true },
+      providers: { ollama: async () => null },
+    } },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'no_output');
+});
+
+test('pin CLI: --pin-provider=invalid exits non-zero', () => {
+  const { spawnSync } = require('node:child_process');
+  const r = spawnSync(process.execPath, [path.join(__dirname, 'router-execute.js'), '--pin-provider=invalid', 'hello'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.notEqual(r.status, 0);
+});
