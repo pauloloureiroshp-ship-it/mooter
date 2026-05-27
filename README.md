@@ -2,18 +2,18 @@
 
 # mooter
 
-### The Claude Code router that knows when to save.
+### The AI router that picks tools, not just models.
 
-**Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · Federated-learning foundation · ~90% cost savings validated on 1,437 real prompts**
+**Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · ~90% cost savings validated on 1,437 real prompts.**
 
 [![Version](https://img.shields.io/badge/version-v0.10.1-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status: Private Beta](https://img.shields.io/badge/status-private%20beta-orange.svg)](#-access)
+[![Wave 1: shipped](https://img.shields.io/badge/Wave%201-shipped%202026--06--03-brightgreen.svg)](docs/wave1-validation.md)
 [![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
 [![Tests](https://img.shields.io/badge/tests-62%2F62%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
-[![CI](https://github.com/pauloloureiroshp-ship-it/frugal/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
+[![CI](https://github.com/pauloloureiroshp-ship-it/mooter/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 
 ---
 
@@ -29,13 +29,11 @@
 
 ---
 
-## 🔒 Access
+## 🟢 Status
 
-**This repository is private.** Access is by invitation only while mooter is in private beta.
+**Public as of Wave 1 (2026-06-03).** mooter is MIT-licensed — clone it, fork it, modify it. It's still early (single-user, opinionated, validated mostly on my own solo-founder workflow), so expect rough edges. Issues and PRs welcome.
 
-If you want to try it, please see **[REQUEST_ACCESS.md](REQUEST_ACCESS.md)** — it's a two-line email. Paulo reviews requests weekly.
-
-Why private? mooter is being validated on real production usage (including my own solo-founder workflow) before it's ready for a wider audience. Source code is shared with trusted testers under the MIT license — you can use it, fork it, modify it — but you need to be let in first. See [NOTICE.md](NOTICE.md) for the full rationale.
+The strategy and the full Pastor (axis-2) build log live in **[docs/strategy/PASTOR.md](docs/strategy/PASTOR.md)** — the single source of truth for the two-axis design. See [NOTICE.md](NOTICE.md) for commercial intent.
 
 ---
 
@@ -70,6 +68,47 @@ mooter doesn't intercept anything. It teaches Claude Code itself when to reach f
 **The result:** Claude Code itself decides, on every prompt, which model is the cheapest capable tool for the job. The decision is explainable (the classifier returns a `reasoning` field), reversible (edit one file to override), and auditable (every decision is logged to `decisions.log`).
 
 And because it's doctrine and not a proxy, **if mooter dies, Claude Code still works**. It falls back to default behaviour. Zero blast radius.
+
+---
+
+## Two-axis routing — *complexity × domain*
+
+Most "routers" answer one question: *which model is cheap enough for this prompt?* That's **axis 1** — complexity → tier (T0–T3). mooter shipped that first.
+
+But the cheapest *capable* answer often needs more than a model — it needs the right **tools**: a skill, an MCP server, a project scaffold, the canonical library for that domain. So mooter adds **axis 2** — domain → **Moo Pack**. The same regex hook that classifies complexity now *also* classifies domain, in parallel, and emits a second hint.
+
+```mermaid
+flowchart TD
+    P["User prompt"] --> H["UserPromptSubmit hook<br/>(pure regex, p99 &lt; 4ms)"]
+    H --> A1["Axis 1 — classify_complexity()<br/>→ tier T0…T3"]
+    H --> A2["Axis 2 — classify_domain()<br/>→ Moo Pack"]
+    A1 --> RH["&lt;router-hint&gt;<br/><b>which MODEL</b>"]
+    A2 --> PH["&lt;pack-hint&gt;<br/><b>which TOOLS</b>"]
+    RH --> D{"Claude Code<br/>decides"}
+    PH --> D
+    D --> M["model:<br/>Ollama · Haiku · Sonnet · Opus"]
+    D --> T["tools:<br/>skills + MCPs + scaffold"]
+```
+
+Both hints are advisory and explainable (each carries a numeric `confidence` and a `reason`). The pack hint only fires above a confidence floor; below it, mooter stays out of your way (`GENERAL`) or asks (`AMBIGUOUS`). Backward-compatible by design — axis 2 never replaces the `<router-hint>`, it sits beside it.
+
+**Wave 1 validation:** 20 real prompts, **recall 20/20 (100%)**, combined hook p99 **3.74 ms** (budget: 60 ms). Full report: **[docs/wave1-validation.md](docs/wave1-validation.md)**.
+
+---
+
+## Moo Packs
+
+A **Moo Pack** is a small, versioned YAML manifest that captures *how to do a class of task well*: the domain signals that identify it, the skills/MCPs it needs, the model floor it shouldn't drop below, the canonical libraries, and a smoke test. When `classify_domain()` matches a prompt to a pack, the `<pack-hint>` tells the session which tools to reach for — and `mooter pack install <name>` wires up any missing MCPs in one shot.
+
+Three seed packs ship with Wave 1:
+
+| Pack | Domain | Model floor | What it wires up |
+|---|---|---|---|
+| [`animation-web`](packs/animation-web/pack.yaml) | Web/UI animation (motion, GSAP, Lottie, parallax) | T2 | `web-artifacts-builder` skill · Vercel MCP · motion.dev/GSAP refs |
+| [`code-audit`](packs/code-audit/pack.yaml) | Security/dependency/coherence audits | T3 | accessibility-review skill · Snyk MCP · audit scaffold |
+| [`diagram-systems`](packs/diagram-systems/pack.yaml) | Diagrams & architecture (Mermaid, C4, ER, D2) | T1 | canvas-design skill · Mermaid/D2 scaffold |
+
+Schema: [`packs/pack.schema.yaml`](packs/pack.schema.yaml). Strategy & roadmap (7 packs by end of Wave Pastor): [`docs/strategy/PASTOR.md`](docs/strategy/PASTOR.md).
 
 ---
 
@@ -223,7 +262,7 @@ Runs every 2 hours in the background, displayed in the statusline as `5h:37% ↺
 
 ## Setup
 
-**TL;DR** (once you have access — see [REQUEST_ACCESS.md](REQUEST_ACCESS.md)):
+**TL;DR**:
 
 ```bash
 # macOS / Linux
@@ -236,8 +275,8 @@ irm https://mooter.ai/install.ps1 | iex
 Or, from a cloned repo:
 
 ```bash
-git clone git@github.com:pauloloureiroshp-ship-it/frugal.git
-cd frugal
+git clone git@github.com:pauloloureiroshp-ship-it/mooter.git
+cd mooter
 bash install.sh           # macOS / Linux
 .\install.ps1             # Windows
 ```
@@ -339,10 +378,12 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 
 | Doc | Purpose |
 |---|---|
+| [docs/strategy/PASTOR.md](docs/strategy/PASTOR.md) | **Two-axis routing SSoT** — Pastor (axis 2 / Moo Packs) strategy & build log |
+| [docs/wave1-validation.md](docs/wave1-validation.md) | Wave 1 live validation report (recall, latency, signals for Wave 2) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Deep dive into the technical design and rationale |
 | [ROADMAP.md](ROADMAP.md) | Version history and what's next |
 | [SETUP.md](INSTALL.md) | Install, configure, verify |
-| [REQUEST_ACCESS.md](REQUEST_ACCESS.md) | How to request access to the private repo |
+| [REQUEST_ACCESS.md](REQUEST_ACCESS.md) | Legacy access note (repo is now public) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | For approved contributors |
 | [SECURITY.md](SECURITY.md) | Vulnerability disclosure policy |
 | [CHANGELOG.md](CHANGELOG.md) | Full version history |

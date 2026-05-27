@@ -3,10 +3,10 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-27 (Claude Code — **Pastor Wave 1 Day 5 FECHADO: CLI `mooter pack {list,show,diff,validate}` — PR #5 → dev, review APPROVE, cli 14/14 + packs 7/7 verde**)
-**Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 295/296 ✅ (1 skip esperado) · Wave-2 router-execute APPROVED ✅
-**Último commit main:** `d44c70c` (docs(strategy): V4 architecture + Master Prompt V3 deliverables) — **PUSHED 2026-05-24**
-**Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. **Wave-2 + closure cycle PUSHED 2026-05-24** (final-reviewer cycle II: 315/316 pass, classify.js byte-identical, executor-loopback opt-in). Ver §40 abaixo.
+**Última sync:** 2026-05-27 (Claude Code — **🟢 PASTOR WAVE 1 SHIPPED: Day 7 fechado — validation recall 20/20 (100%), hook p99 3.74ms, repo `mooter` PÚBLICO, tag `v0.1.0-pastor-wave1`. Two-axis routing entregue.**)
+**Versão:** v0.11 (Codex) + **Pastor Wave 1 (axis 2 / Moo Packs)** · mooter.ai live · Wave 1 recall 20/20 ✅ · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
+**Último commit main:** Day 7 `feat: Wave 1 shipped — Pastor MVP public` (merge `wave1-pastor-day7` → main, final-reviewer gate)
+**Sessão Claude Code:** #42 — Pastor Day 7 (FINAL Wave 1). Validation harness + report (`docs/wave1-validation.md`, recall 20/20 ≥ gate 85%, hook p99 3.74ms ≤ 60ms), README two-axis (Mermaid + Moo Packs), tweet draft, repo público, tag. Notion: [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8). Ver secção Pastor Day 7 abaixo.
 
 ### 🎯 Sessão #41 — 2026-05-27 (Dynamic `/mooter-<model>` A+B LANDED — local-only)
 
@@ -612,6 +612,26 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🟢 Pastor Wave 1 — Day 7 ✅ SHIPPED (2026-05-27) — **WAVE 1 FECHADA**
+
+**Estado:** ✅ **Wave 1 completa e pública.** Day 7 = validação live + repo público (gate de saída / padrão de risco do Paulo accionado).
+
+**Bloco A — Validation:** harness `packages/router/scripts/validate-wave1.ts` (reproduzível) corre 20 prompts reais (6 animation-web · 5 code-audit · 4 diagram-systems · 3 ambíguos · 2 GENERAL, PT-PT+EN). **Recall 20/20 (100%) ≥ gate 17/20 (85%)**. Cobertura: 15 pack específico (≥14), 2 GENERAL, 3 AMBIGUOUS (empates 2-2 corretamente segurados a confidence 0.50). Zero falsos positivos. Latência: `classify_domain` per-call p99 0.015ms; **hook `buildHints` completo p50 3.06ms / p99 3.74ms ≤ 60ms** (steady-state, boot excluído como no hook real). Ratings subjectivos = **pending review** (Paulo não rate ao vivo). Report: `docs/wave1-validation.md`.
+
+**Bloco B — Repo público:** `README.md` reescrito para narrativa two-axis (hero "The AI router that picks tools, not just models" + secção Two-Axis Routing com diagrama **Mermaid** + secção **Moo Packs** linkando os 3 packs + link PASTOR.md SSoT + badge "Wave 1 shipped 2026-06-03" + URLs frugal→mooter + Access→Status público). `gh repo edit pauloloureiroshp-ship-it/mooter --visibility public`. Tweet draft em `docs/launch/wave1-tweet-draft.md` (**NÃO publicado** — HN/cookbook = Wave 4).
+
+**Bloco C — Closure:** `final-reviewer` gate (Opus) antes do merge → commit `feat: Wave 1 shipped — Pastor MVP public` → merge `wave1-pastor-day7` → `main` → tag `v0.1.0-pastor-wave1` → flip público (sinal de conclusão). Notion HQ: [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8).
+
+**Decisões registadas:**
+- **D1 (repo real):** repo renomeado `frugal`→`mooter` (Cowork/Chrome) durante a sessão. URL `pauloloureiroshp-ship-it/mooter`. PASTOR.md §10.7 dizia `mooter-ai/mooter` → usado o real.
+- **D2 (ordenação):** flip público feito **após** merge+tag (§10.7: "público = sinal de conclusão"), para a 1ª impressão pública ser o estado final, não o README antigo.
+- **D3 (latência honesta):** gate p99 ≤ 60ms aplica-se ao hint completo (`buildHints`), não só a `classify_domain` (sub-ms). Reportado separadamente.
+- **D4 (validation set):** 20 prompts redigidos à mão = viés conhecido; Wave 2 deve usar ≥200 prompts reais de `decisions.log` (DoD).
+
+**⏭️ Próxima missão — Wave 2:** ver secção COWORK→CLAUDE CODE abaixo.
+
+---
+
 ### 🐑 Pastor Wave 1 — Day 6 ✅ FECHADO (2026-05-27)
 
 **Estado:** ✅ Day 6 completo. `packResolve()`/`suggestInstallCmd()` endurecidos — já eram módulo DRY partilhado hook↔CLI desde Day 4, **sem refactor necessário**. **5 cenários integration** em `packages/router/tests/pack-resolve.test.ts` (A all-present · B missing-MCP · C missing-skill · D ambíguo 3-way determinístico · E GENERAL) + guard de cobertura do registry. `mcp_install_registry.json` expandido **20 → 27 MCPs** com comandos verificados vs research 2026-05-27 (§2/§8/§9/§12): github/vercel/linear → remotos oficiais (`claude mcp add --transport …`; os pacotes npm bare estavam deprecated/unverified); `snyk mcp` = subcomando da Snyk CLI; `motion-canvas-mcp` flagueado **UNVERIFIED** (não inventado). `<pack-hint>` `suggest_install` agora em **árvore** (`└─` por-item, primary na key line → parser single-line compatível); GENERAL ganha `suggest_search=mooter pack search <keyword>` (§7 cenário E), AMBIGUOUS mantém candidates. Nit Day 5 resolvido: `pack diff` distingue "No dependencies required." de "All dependencies available.". Suites: **router 24 · cli 14 · packs 7 verde · p99 hook ≤ 60ms**. **PR #6** `wave1-pastor-day6` → `dev`, **review gate (Opus) PASS** (0 blocking; 2 nits não-bloqueantes). 3 commits. Notion: [🐑 Pastor Day 6](https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30).
@@ -623,7 +643,21 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 - **D4:** registry source-of-truth = `packages/router/data/` (versionado); `~/.mooter/cache/` continua override de runtime.
 - **D5 (scope guard):** **required-vs-recommended distinction NÃO implementada** — fora do escopo confirmado (§10.6 tasks/DoD + 9-point confirmation não a incluem) e mudaria a shape de `PackResolution` + hint + CLI (scope creep pós-review). Flagueada para Wave 2.
 
-**⏭️ Próxima missão — Day 7 (PASTOR.md §10.7) 🟢 FINAL Wave 1:** validação live (20 prompts reais → `docs/wave1-validation.md`, recall ≥ 17/20 = 85%, p99 ≤ 60ms) + **tornar repo `mooter-ai/mooter` público** (gate de saída Wave 1, padrão de risco do Paulo). README destaca Pastor + Two-Axis (Mermaid). Tweet draft em `docs/launch/`. Notion HQ sub-página Wave 1 SHIPPED. Tag `v0.1.0-pastor-wave1`. **HARD GATE:** sem recall ≥ 85% **não** mergear para `main` — cowork session para tuning. **Nit carry-over → Wave 2:** required-vs-recommended distinction em `packResolve` (hoje uniformes). Pendente imediato: **merge PR #6 → dev** após aprovação/CI.
+**⏭️ Próxima missão — Day 7:** ✅ **FEITO** — ver secção Pastor Day 7 SHIPPED acima.
+
+---
+
+### 🟢 Wave 2 — próxima missão (Pastor §8 Wave 2)
+
+**Wave 1 fechada e pública.** Arranque Wave 2 (master prompt à parte quando o Paulo quiser):
+
+1. **Embedding layer** para `classify_domain` (Qwen3 embeddings + faiss) — confidence contínua, desambigua empates AMBIGUOUS por similaridade semântica (regex hoje é binária: 1.00 ou 0.50).
+2. **Validation set ≥ 200 prompts reais** colhidos de `decisions.log` (não redigidos à mão) — eliminar viés do set Day 7. DoD: recall ≥ 0.85.
+3. **`mooter pack rate`** (feedback loop → trust_score) — fechar ratings subjectivos "pending review".
+4. **+2 packs sementinha** (DoD: 7 total). Candidatos: `data-pipeline`, `api-design`. Cada pack só entra após ≥10 prompts reais.
+5. **Carry-over Day 6:** required-vs-recommended distinction em `packResolve` (hoje uniforme).
+
+Detalhe e sinais completos: `docs/wave1-validation.md` (secção "Sinais para Wave 2") + Notion [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8).
 
 ---
 
@@ -1452,6 +1486,7 @@ Side effects: upsert em D1 `devices` table
 | 🐑 Pastor Day 4 — hook emite <pack-hint> (2026-05-27) | https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3 |
 | 🐑 Pastor Day 5 — CLI mooter pack (2026-05-27) | https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd |
 | 🐑 Pastor Day 6 — pack_resolve + 5 cenários + registry 27 (2026-05-27) | https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30 |
+| 🟢 Wave 1 — SHIPPED (2026-05-27) — validation 20/20 + repo público | https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8 |
 | Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
@@ -1469,7 +1504,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão #40 2026-05-07 — Wave-2 router-execute LANDED + Validation Master Prompt | https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d |
 | Sessão #40-validation 2026-05-07 — Wave-2 Independent Audit (APPROVED_WITH_NOTES) | https://www.notion.so/3596f6e42bc481b9a9e4c80086087885 |
 | Sessão 2026-05-24 — Matriz de modelos 2026 + camada de dados do router | https://www.notion.so/36a6f6e42bc481a886d1d48a412ca1d7 |
-| GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
+| GitHub repo (PÚBLICO desde 2026-05-27) | https://github.com/pauloloureiroshp-ship-it/mooter |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
 | Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |
