@@ -53,3 +53,11 @@ Introduzir um **stack TypeScript mínimo, scoped ao subsistema `packs/`**:
 ## Status
 
 **Proposed.** Aplicado no Day 1; a re-confirmar quando o Day 3 (`classify_domain.ts`) e Day 5 (`pack.ts`) reutilizarem o stack.
+
+## Addendum (Day 4) — `packages/router/` é o 2º workspace TS scoped
+
+O Day 3 introduziu `packages/router/` (`@mooter/router`) como **segundo** workspace TypeScript, separado de `packs/`. Confirma a decisão D acima: em vez de um `package.json` na raiz, cada subsistema tem o seu, com a **mesma** infra mínima (`tsx` + `js-yaml` + `@types/*`, runner nativo `node:test` via `tsx --test tests/*.test.ts`, sem framework, sem build step). O Day 4 adicionou `src/classify_complexity.ts`, `src/pack_resolve.ts`, `src/hooks/inject_context.ts` e `tests/hook-integration.test.ts` a este workspace sem nova dependência nem nova decisão de stack.
+
+Nota de fronteira: `packages/router/` importa o classificador de eixo-1 canónico em `tools/router/classify.js` (CommonJS) via `createRequire` — não o re-implementa (ver `classify_complexity.ts`). O glob `tests/*.test.ts` no script `test` já cobre os ficheiros de teste novos; nenhuma alteração ao `package.json` foi necessária.
+
+Workspaces TS scoped a confirmar como padrão estabelecido: `packs/` (Day 1) e `packages/router/` (Day 3–4). Um eventual terceiro (ex. `packages/cli/` no Day 5) reusa o mesmo stack.
