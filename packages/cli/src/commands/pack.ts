@@ -194,7 +194,14 @@ export function packDiff(name: string, opts: PackCmdOptions = {}): CmdResult {
     lines.push("", "Install missing:");
     for (const cmd of res.suggest_install) lines.push(`  ${cmd}`);
   } else {
-    lines.push("", "All dependencies available.");
+    // Distinguish a pack whose deps are all present from one that declares none:
+    // "available" only means something when there was something to satisfy.
+    const declared =
+      res.available_skills.length +
+      res.available_mcps.length +
+      res.missing_skills.length +
+      res.missing_mcps.length;
+    lines.push("", declared > 0 ? "All dependencies available." : "No dependencies required.");
   }
   return { exitCode, output: lines.join("\n") };
 }
