@@ -1,0 +1,27 @@
+name: diagram-systems
+version: 0.1.0
+description: "Diagrams as code: Mermaid, D2, C4, ER, sequence, mindmap"
+domain_signals:
+  keywords: [diagram, diagrama, flowchart, fluxograma, sequence, sequência, architecture, arquitectura, c4, ER, entity-relationship, mindmap, mermaid, d2]
+  intent_phrases: ["desenha o", "visualiza a arquitectura", "diagrama de", "fluxo de"]
+model_floor: T1                       # Mermaid é trivial
+model_ceiling: T3                     # C4 complexos podem requerer Opus
+skills:
+  recommended: [anthropic-skills:canvas-design]
+repos_canonical:
+  - { name: mermaid, url: https://mermaid.js.org/, license: MIT, note: "Default LLM-friendly; GitHub render nativo" }
+  - { name: d2, url: https://d2lang.com/, license: MPL-2.0, note: "Estética superior; menos familiar a LLMs (mais erros syntax)" }
+  - { name: excalidraw, url: https://excalidraw.com, license: MIT, note: "Hand-drawn aesthetic; whiteboard" }
+prompt_scaffold_path: ./scaffold.md
+validation:
+  smoke_test: "Renderiza no GitHub preview sem erro syntax"
+  acceptance_criteria: ["Mermaid v10+ syntax", "Sem nodes órfãos", "Layout legível < 30 nodes"]
+metadata:
+  author: paulo-loureiro
+  created: 2026-05-27
+  validated_against:
+    skills_version: "2026-05"
+    mcp_registry_snapshot: 2026-05-27
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0

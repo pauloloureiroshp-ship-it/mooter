@@ -1,0 +1,42 @@
+# Mock pack — fixture for packs/tests/schema.test.ts ONLY.
+# Not a real Moo Pack; exercises every field of pack.schema.yaml (required + optional).
+name: example-pack
+version: 0.1.0
+description: Fixture pack exercising the full schema for validation tests
+domain_signals:
+  keywords: [example, fixture, mock, sample]
+  intent_phrases: ["this is an example", "fixture for testing"]
+  file_extensions: [.example, .fixture]
+  negative_keywords: [production, real-pack]
+model_floor: T1
+model_ceiling: T3
+skills:
+  required: [anthropic-skills:web-artifacts-builder]
+  recommended: [anthropic-skills:canvas-design]
+mcps:
+  required: []
+  recommended: [vercel]
+subagents:
+  primary: model-reasoner
+  reviewer: final-reviewer
+repos_canonical:
+  - { name: example-lib, url: https://example.com, license: MIT, note: "Reference only; not real" }
+tools_cli: [npx]
+prompt_scaffold: |
+  You are an example specialist. This scaffold exists only to validate the schema.
+  Honour every field; produce nothing real.
+validation:
+  smoke_test: "Loads as valid YAML and passes the schema validator"
+  acceptance_criteria:
+    - "All required fields present"
+    - "model_ceiling >= model_floor"
+metadata:
+  author: paulo-loureiro
+  created: 2026-05-28
+  validated_against:
+    skills_version: "2026-05"
+    mcp_registry_snapshot: 2026-05-28
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0
+  notion_kb_url: null

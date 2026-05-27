@@ -1,0 +1,142 @@
+{
+  "version": "0.2.0",
+  "updated": "2026-05-27",
+  "note": "Seed registry of common MCP servers and their install commands (Pastor Wave 1, Day 4; hardened Day 6). Source of truth is versioned here; runtime may override at ~/.mooter/cache/mcp_install_registry.json. Keys are lower-case canonical MCP ids matched against pack.yaml mcps.{required,recommended}. Commands verified against official docs / research_best_in_class_2026.md §2/§8/§9/§12 on 2026-05-27. Remote-only official servers use 'claude mcp add --transport http|sse <name> <url>'; stdio servers use the bare npx/uvx/pipx command.",
+  "servers": {
+    "github": {
+      "install": "claude mcp add --transport http github https://api.githubcopilot.com/mcp/ --header \"Authorization: Bearer <github_pat>\"",
+      "transport": "http",
+      "note": "Official GitHub remote MCP (github/github-mcp-server). Needs a fine-grained PAT. Reference stdio server @modelcontextprotocol/server-github is deprecated."
+    },
+    "playwright": {
+      "install": "npx -y @playwright/mcp@latest",
+      "transport": "stdio",
+      "note": "Official Microsoft browser automation + accessibility tree navigation. Requires a browser binary."
+    },
+    "filesystem": {
+      "install": "npx -y @modelcontextprotocol/server-filesystem <allowed_dir>",
+      "transport": "stdio",
+      "note": "Official Anthropic reference server: scoped local filesystem access. Pass allowed directories."
+    },
+    "postgres": {
+      "install": "npx -y @modelcontextprotocol/server-postgres <connection_url>",
+      "transport": "stdio",
+      "note": "Read-only Postgres query + schema inspection. Reference server archived upstream; community forks exist."
+    },
+    "supabase": {
+      "install": "npx -y @supabase/mcp-server-supabase@latest --access-token=<token>",
+      "transport": "stdio",
+      "note": "Official Supabase MCP: tables, migrations, edge functions. Scope with --project-ref / --read-only."
+    },
+    "notion": {
+      "install": "npx -y @notionhq/notion-mcp-server",
+      "transport": "stdio",
+      "note": "Official Notion MCP: pages, databases, search. Remote alt: claude mcp add --transport http notion https://mcp.notion.com/mcp."
+    },
+    "linear": {
+      "install": "claude mcp add --transport sse linear https://mcp.linear.app/sse",
+      "transport": "sse",
+      "note": "Official Linear remote MCP (OAuth): issues, projects, cycles."
+    },
+    "slack": {
+      "install": "npx -y @modelcontextprotocol/server-slack",
+      "transport": "stdio",
+      "note": "Slack channels, messages, search. Reference server (now community). Needs SLACK_BOT_TOKEN + SLACK_TEAM_ID."
+    },
+    "vercel": {
+      "install": "claude mcp add --transport http vercel https://mcp.vercel.com",
+      "transport": "http",
+      "note": "Official Vercel remote MCP (OAuth): deployments, projects, logs. Read-only at launch."
+    },
+    "figma": {
+      "install": "npx -y figma-developer-mcp --stdio",
+      "transport": "stdio",
+      "note": "Framelink Figma MCP: design context, screenshots, code connect. Official alt: Figma Dev Mode MCP at http://127.0.0.1:3845/mcp (Figma desktop, Dev/Full seat)."
+    },
+    "sentry": {
+      "install": "npx -y @sentry/mcp-server@latest --access-token=<token>",
+      "transport": "stdio",
+      "note": "Official Sentry MCP: issues, traces, releases. Remote alt: claude mcp add --transport http sentry https://mcp.sentry.dev/mcp."
+    },
+    "stripe": {
+      "install": "npx -y @stripe/mcp --tools=all --api-key=<sk_test_key>",
+      "transport": "stdio",
+      "note": "Official Stripe MCP: products, prices, payments. Remote alt: claude mcp add --transport http stripe https://mcp.stripe.com."
+    },
+    "snyk-mcp": {
+      "install": "npx -y snyk@latest mcp -t stdio --experimental",
+      "transport": "stdio",
+      "note": "Official Snyk MCP ships inside the Snyk CLI (v1.1296.2+), Early Access (--experimental). Global alt: npm i -g snyk && snyk mcp -t stdio."
+    },
+    "motion-canvas-mcp": {
+      "install": "# motion-canvas-mcp: no published MCP server verified as of 2026-05-27 — author one or animate via the Motion Canvas CLI (https://motioncanvas.io)",
+      "transport": "stdio",
+      "note": "UNVERIFIED. Motion Canvas is a real animation library but no canonical MCP package was confirmed in the 2026-05-27 research. Do not present as copy-paste-ready."
+    },
+    "excel-mcp": {
+      "install": "pipx install excel-mcp-server && excel-mcp-server stdio",
+      "transport": "stdio",
+      "note": "Community Excel MCP (haris-musa/excel-mcp-server): read/write xlsx, formulas, named ranges, no Excel install needed."
+    },
+    "context7": {
+      "install": "npx -y @upstash/context7-mcp@latest",
+      "transport": "stdio",
+      "note": "Up-to-date library documentation lookup (Upstash)."
+    },
+    "puppeteer": {
+      "install": "npx -y @modelcontextprotocol/server-puppeteer",
+      "transport": "stdio",
+      "note": "Headless Chrome automation + screenshots. Reference server archived upstream; prefer playwright."
+    },
+    "google-drive": {
+      "install": "npx -y @modelcontextprotocol/server-gdrive",
+      "transport": "stdio",
+      "note": "Google Drive search + file read. Reference server archived upstream; community forks exist."
+    },
+    "memory": {
+      "install": "npx -y @modelcontextprotocol/server-memory",
+      "transport": "stdio",
+      "note": "Official Anthropic reference server: knowledge-graph persistent memory."
+    },
+    "gitguardian": {
+      "install": "pipx install ggshield && ggshield mcp",
+      "transport": "stdio",
+      "note": "GitGuardian secrets detection, pre-commit + CI. Requires GITGUARDIAN_API_KEY."
+    },
+    "sequential-thinking": {
+      "install": "npx -y @modelcontextprotocol/server-sequential-thinking",
+      "transport": "stdio",
+      "note": "Official Anthropic reference server: structured step-by-step reasoning."
+    },
+    "fetch": {
+      "install": "uvx mcp-server-fetch",
+      "transport": "stdio",
+      "note": "Official Anthropic reference server: fetch a URL and convert to markdown."
+    },
+    "time": {
+      "install": "uvx mcp-server-time",
+      "transport": "stdio",
+      "note": "Official Anthropic reference server: timezone conversions."
+    },
+    "git": {
+      "install": "uvx mcp-server-git --repository <repo_path>",
+      "transport": "stdio",
+      "note": "Official Anthropic reference server: read/search/manipulate a git repo."
+    },
+    "brave-search": {
+      "install": "npx -y @brave/brave-search-mcp-server",
+      "transport": "stdio",
+      "note": "Official Brave Search MCP. Needs BRAVE_API_KEY."
+    },
+    "obsidian": {
+      "install": "npx -y mcp-obsidian",
+      "transport": "stdio",
+      "note": "Community Obsidian MCP (MarkusPfundstein/mcp-obsidian). Requires the Obsidian Local REST API plugin + API key."
+    },
+    "cloudflare": {
+      "install": "claude mcp add --transport sse cloudflare-docs https://docs.mcp.cloudflare.com/sse",
+      "transport": "sse",
+      "note": "Cloudflare ships several official remote MCP servers (docs, bindings, observability, ...). Docs server shown; swap host per product."
+    }
+  }
+}
