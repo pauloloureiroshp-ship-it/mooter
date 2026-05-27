@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# mooter CLI shim (Wave 1 Day 5).
+# tsx-native runtime per ADR 016 — no compile step; runs the TS entry directly.
+# Resolves tsx from packages/cli/node_modules, falling back to npx.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENTRY="$ROOT/packages/cli/src/index.ts"
+TSX="$ROOT/packages/cli/node_modules/.bin/tsx"
+if [[ -x "$TSX" ]]; then
+  exec "$TSX" "$ENTRY" "$@"
+else
+  exec npx --yes tsx "$ENTRY" "$@"
+fi

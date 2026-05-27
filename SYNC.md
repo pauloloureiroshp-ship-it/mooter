@@ -3,7 +3,7 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-27 (Claude Code Windows — **Sessão #41: Dynamic `/mooter-<model>` A+B LANDED + PUSHED — 16 commits em origin/main**)
+**Última sync:** 2026-05-27 (Claude Code — **Pastor Wave 1 Day 5 FECHADO: CLI `mooter pack {list,show,diff,validate}` — PR #5 → dev, review APPROVE, cli 14/14 + packs 7/7 verde**)
 **Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 295/296 ✅ (1 skip esperado) · Wave-2 router-execute APPROVED ✅
 **Último commit main:** `d44c70c` (docs(strategy): V4 architecture + Master Prompt V3 deliverables) — **PUSHED 2026-05-24**
 **Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. **Wave-2 + closure cycle PUSHED 2026-05-24** (final-reviewer cycle II: 315/316 pass, classify.js byte-identical, executor-loopback opt-in). Ver §40 abaixo.
@@ -609,6 +609,23 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 ### Instruções e decisões tomadas no Cowork para a próxima sessão
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
+
+---
+
+### 🐑 Pastor Wave 1 — Day 5 ✅ FECHADO (2026-05-27)
+
+**Estado:** ✅ Day 5 completo. CLI `mooter pack {list,show,diff,validate}` em novo package self-contained `packages/cli` (tsx-native, ADR 016 — sem build step) + shim `bin/mooter`. Cada subcomando: output human (tabular, ✓/✗) + `--json`. `diff` reusa `packResolve()` + `detectEnv()` de `packages/router/src/pack_resolve.ts` (módulo Day 4). `validate` é **determinístico, zero LLM**: schema (via `validatePack` extraído para `packs/validate.ts`, DRY com a suite Day-1) + smoke_test + acceptance_criteria + repos_canonical (name/url/license) + scaffold existence. **Contrato de exit codes: 0 success · 1 error · 2 missing deps (só `diff`).** Suites: **cli 14/14 · packs 7/7 verde**. **PR #5** `wave1-pastor-day5` → `dev`, **review gate (Opus) APPROVE** (0 blocking, 1 nota cosmética). 4 commits. Notion: [🐑 Pastor Day 5](https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd).
+
+**Decisões registadas:**
+- **D1:** `packages/cli` self-contained, **sem npm workspaces** ainda (consolidação adiada para Wave 2 quando router+cli+packs justificarem root workspace).
+- **D2:** `diff` reusa `packResolve()` do Day 4 via import relativo cross-package — validação canónica do módulo.
+- **D3 (desvio flagueado no PR):** **sem `npm run build`** — §10.5 valida com `npm run build`, mas repo é tsx-native (ADR 016, sem root build). Validação via `./bin/mooter` + `tsx --test`. Não-bloqueante, semanticamente equivalente.
+- **D4:** `validate` reusa `validatePack()` extraído para `packs/validate.ts` (extração byte-equivalente, confirmada pelo reviewer).
+- **D5:** `last_validated` ← `metadata.validated_against.mcp_registry_snapshot` · fallback `metadata.created` · senão `—`.
+- **Consolidação de commits (desvio flagueado):** §10.5 listava 1 commit por subcomando; `pack.ts` é um módulo coeso cujo `runPack` despacha os 4 handlers → commits per-subcomando seriam intermediários não-compiláveis. Consolidado num `feat(cli)`.
+- Nit Day 4 resolvido: `docs/strategy/PASTOR.md` §10.4 `scaffold_path` → `scaffold_url` (alinha com §6.1 canónica).
+
+**⏭️ Próxima missão — Day 6 (PASTOR.md §10.6):** endurecer `packResolve()` com 5 cenários integration tests + mensagens de install claras + distinção required vs recommended; suite `pack-resolve.test.ts` (registry já seeded no Day 4). **Não tocar** `inject_context` (Day 4 estável) nem criar os 6 subcomandos Wave-2. Depois: Day 7 (validação real + repo público). Pendente imediato: **merge do PR #5 → dev** após CI/aprovação.
 
 ---
 
