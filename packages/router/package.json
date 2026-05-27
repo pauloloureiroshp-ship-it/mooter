@@ -1,0 +1,16 @@
+{
+  "name": "@mooter/router",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Domain router — axis 2 classify_domain() regex layer (Pastor Wave 1, Day 3). See ADR 015 + 016.",
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.1",
+    "js-yaml": "^4.1.1",
+    "tsx": "^4.22.3"
+  }
+}
