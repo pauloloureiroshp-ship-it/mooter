@@ -1,0 +1,34 @@
+name: code-audit
+version: 0.1.0
+description: "Code security & quality audit: Semgrep SAST, Snyk SCA, GitGuardian secrets"
+domain_signals:
+  keywords: [audit, auditoria, review, security, segurança, vulnerability, lint, coerência, dependency check, secret scan]
+  intent_phrases: ["audita este", "review completo", "verifica segurança", "dependency check", "antes de fazer push"]
+model_floor: T3                       # decisões críticas, Opus default
+model_ceiling: T3
+skills:
+  recommended: [design:accessibility-review, design:design-critique]
+mcps:
+  recommended: [github, sentry]
+subagents:
+  primary: final-reviewer             # Opus + cache
+  reviewer: final-reviewer
+repos_canonical:
+  - { name: semgrep, url: https://semgrep.dev, license: "LGPL-2.1 + SaaS", note: "Best SAST 2026 — 35+ langs GA; outperforms Snyk SAST" }
+  - { name: codeql, url: https://codeql.github.com, license: "Proprietary (free OSS)", note: "Unmatched depth; QL curve alta" }
+  - { name: snyk, url: https://snyk.io, license: SaaS, note: "Best SCA/deps/container/IaC (Forrester Wave Leader Q4 2024)" }
+  - { name: gitguardian, url: https://www.gitguardian.com, license: "SaaS (free tier)", note: "Secrets standard, pre-commit + CI" }
+tools_cli: [semgrep, snyk, ggshield]
+prompt_scaffold_path: ./scaffold.md
+validation:
+  smoke_test: "Corre os 3 scanners em modo CI, falha se algum HIGH/CRITICAL"
+  acceptance_criteria: ["Zero secrets in git history", "Zero CRITICAL Snyk", "Zero HIGH Semgrep custom rules"]
+metadata:
+  author: paulo-loureiro
+  created: 2026-05-27
+  validated_against:
+    skills_version: "2026-05"
+    mcp_registry_snapshot: 2026-05-27
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0
