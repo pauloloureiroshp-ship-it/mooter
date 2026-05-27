@@ -1,0 +1,40 @@
+name: animation-web
+version: 0.1.0
+description: Web animations (React, CSS, scroll-triggered, motion graphics)
+domain_signals:
+  keywords: [animation, animar, animate, motion, transition, transição, scroll-trigger, lottie, parallax, easing, keyframe]
+  intent_phrases: ["fazer animar", "transição suave", "scroll driven", "hero animation", "micro-interaction"]
+  file_extensions: [.tsx, .jsx, .css, .svg, .json]
+  negative_keywords: [server animation, gif compression]
+model_floor: T2
+model_ceiling: T3
+skills:
+  required: [anthropic-skills:web-artifacts-builder]
+  recommended: [anthropic-skills:algorithmic-art]
+mcps:
+  recommended: [vercel]
+subagents:
+  primary: model-reasoner
+  reviewer: final-reviewer        # só se for hero do site
+repos_canonical:
+  - { name: motion, url: https://motion.dev, license: MIT, note: "Default React 2026 — sponsors top-tier" }
+  - { name: gsap, url: https://gsap.com, license: "Proprietary free (Webflow)", note: "Imperativo, melhor para timelines complexos; restrição anti-Webflow-competitor" }
+  - { name: tailwindcss-motion, url: https://github.com/romboHQ/tailwindcss-motion, license: MIT, note: "5KB CSS-only, simple cases" }
+  - { name: theatre-js, url: https://www.theatrejs.com/, license: Apache-2.0, note: "Editor visual para sequências 3D/2D" }
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+validation:
+  smoke_test: "Verifica prefers-reduced-motion honrado; verifica que não há layout thrashing (only transform/opacity)"
+  acceptance_criteria:
+    - "Animação 60fps medida em DevTools"
+    - "prefers-reduced-motion respeitado"
+    - "Bundle delta ≤ 40KB se não estava previamente"
+metadata:
+  author: paulo-loureiro
+  created: 2026-05-27
+  validated_against:
+    skills_version: "2026-05"
+    mcp_registry_snapshot: 2026-05-27
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0
