@@ -6,14 +6,21 @@
 #   echo "your prompt" | ollama_call.sh
 #
 # Env:
-#   ROUTER_OLLAMA_MODEL  default: qwen3:30b
+#   ROUTER_OLLAMA_MODEL  default: qwen2.5-coder:7b (Wave 2 Day 1; see ADR 017)
 #   OLLAMA_HOST          default: http://localhost:11434
 #
 # Output: JSON with .response field, or plain text if --text passed.
 
 set -euo pipefail
 
-MODEL="${ROUTER_OLLAMA_MODEL:-qwen3:30b}"
+# Wave 2 Day 1: default swapped from qwen3:30b → qwen2.5-coder:7b.
+# qwen3:30b is a reasoning MoE that emits long <thinking> chains and caused
+# 2 timeouts + 149s mean latency on GENERAL in the Wave 1 benchmark
+# (REPORT §4 #3). qwen2.5-coder:7b is code-specialised, ~3× faster, and
+# already pulled in the canonical dev environment. Override via env var
+# ROUTER_OLLAMA_MODEL or --model flag for tasks that genuinely need a
+# heavier reasoner.
+MODEL="${ROUTER_OLLAMA_MODEL:-qwen2.5-coder:7b}"
 HOST="${OLLAMA_HOST:-http://localhost:11434}"
 TEXT_ONLY=0
 

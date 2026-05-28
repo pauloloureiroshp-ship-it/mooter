@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lineage-schema-v1.0.0",
+  "title": "Mooter benchmark lineage block",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "event_id",
+    "schema_version",
+    "pastor_version",
+    "commit_sha",
+    "pricing_version",
+    "ollama_version",
+    "anthropic_sdk_version",
+    "node_version",
+    "env_hash",
+    "user_id",
+    "session_id"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "event_id": { "type": "string", "minLength": 1 },
+    "schema_version": { "const": "1.0.0" },
+    "pastor_version": { "type": "string", "minLength": 1 },
+    "commit_sha": { "type": "string", "minLength": 1 },
+    "pricing_version": { "type": "string", "minLength": 1 },
+    "ollama_version": { "type": "string" },
+    "anthropic_sdk_version": { "type": "string" },
+    "node_version": { "type": "string" },
+    "env_hash": { "type": "string", "minLength": 1 },
+    "user_id": { "type": ["string", "null"] },
+    "session_id": { "type": "string", "minLength": 1 }
+  }
+}

@@ -3,10 +3,81 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-27 (Claude Code — **Pastor Wave 1 Day 5 FECHADO: CLI `mooter pack {list,show,diff,validate}` — PR #5 → dev, review APPROVE, cli 14/14 + packs 7/7 verde**)
-**Versão:** v0.11 (Codex Integration) · mooter.ai live · validation 87.5 % ≥ target ✅ · suite 295/296 ✅ (1 skip esperado) · Wave-2 router-execute APPROVED ✅
-**Último commit main:** `d44c70c` (docs(strategy): V4 architecture + Master Prompt V3 deliverables) — **PUSHED 2026-05-24**
-**Sessão Claude Code:** #40 — Design completo + execução de toda a Wave-2 numa sessão. 12 commits atómicos sobre `aa25a2b` (T-01..T-10 + design A). Final-reviewer APPROVED com 2 notas não-blocantes. **Wave-2 + closure cycle PUSHED 2026-05-24** (final-reviewer cycle II: 315/316 pass, classify.js byte-identical, executor-loopback opt-in). Ver §40 abaixo.
+**Última sync:** 2026-05-28 (Claude Code — **🛠 WAVE 2 DAY 1 BOTTLENECK FIXES COMPLETO: 6 commits selectivos, PR #8 aberto para `dev`, NÃO merged. 3 fixes implementados (GENERAL fallback→T2 Sonnet, code-audit floor T2/T3 + 7 escalation_keywords, T0 default qwen3:30b→qwen2.5-coder:7b) + ADR 017 + policy.ts partilhado + sanity 5/5 prompts pos-fix verified. final-reviewer Opus: APPROVE_WITH_NOTES (4 NITs Day 2 backlog). 24/24 router tests green; classify.js byte-identical (P11). Predicted Day 7 re-bench: WEAK 1/3 → MEDIUM/STRONG 2-3/3.**)
+**Versão:** v0.11 (Codex) + **Pastor Wave 1 SHIPPED** + **Wave 2 Day 1 in-PR** · mooter.ai live · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
+**Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
+**Sessão Claude Code:** #44 — Wave 2 Day 1 Bottleneck Fixes. Branch `wave2-day1-fixes` pushed; PR #8 aberto para `dev` (https://github.com/pauloloureiroshp-ship-it/mooter/pull/8). Notion: [🛠 Sessão 2026-05-28 — Wave 2 Day 1](https://www.notion.so/36e6f6e42bc4815c9420fefdea21b65a). Ver secção Wave 2 Day 1 abaixo.
+
+### 🛠 Sessão #44 — 2026-05-28 (Wave 2 Day 1 — Bottleneck Fixes, PR #8 aberto)
+
+**Mandato Paulo:** executar os 3 fixes top-priority do Wave 1 REPORT §8 (KICKOFF em `docs/strategy/WAVE2_DAY1_KICKOFF.md`). Branch `wave2-day1-fixes` a partir de `020e80f` (PR #7 merged). Não tocar `classify.js` (P11 doctrine).
+
+**Outcome:** 6 commits selectivos · PR #8 → `dev` aberto, NÃO merged · final-reviewer (Opus subagent) APPROVE_WITH_NOTES · cost sessão $0.35 (2 sanity runs).
+
+**Fixes implementados:**
+1. **GENERAL fallback** → T2 Sonnet + general-expert scaffold (`policy.applyGeneralFallback`). Resolve §3.5 (qwen3:30b T0 GENERAL: quality −30pp, 2 timeouts).
+2. **code-audit floor T3→T2 + 7 `escalation_keywords`** ("audit completo", "production audit", "vulnerability assessment", "security review for production", "arquitectura de segurança", "complete security audit", "production-grade audit"). Resolve §3.2 (8/8 prompts a Opus → +18% cost).
+3. **T0 default `qwen3:30b` → `qwen2.5-coder:7b`** em `ollama_call.sh` + `models.ts` (benchmark). Resolve §4 #3 (timeouts + 149s GENERAL latency). ADR 017 documenta as 4 alternativas consideradas.
+
+**Design call:** Novo módulo `packages/router/src/policy.ts` consumido por dois callers do pipeline Pastor (hook `inject_context.ts` + benchmark `arm-pastor.ts`). Sem isto, o Day 7 re-bench testaria código diferente do que está em produção. Schema extension (`escalation_keywords` em `pack.schema.yaml` + `PackManifest`) é backward-compat — packs sem o campo continuam válidos.
+
+**Sanity 5/5** (`packages/router/scripts/wave2-day1-sanity/run.ts`):
+
+| Prompt | Pre-fix | Post-fix |
+|---|---|---|
+| P005 GENERAL Vercel edge | T0 qwen3 timeout × 4 | T2 Sonnet 55s + scaffold |
+| P012 animation T3 timeline | T0 qwen3 timeout × 4 | T2 Sonnet 46s |
+| P013 code-audit lint | Opus T3 (forced floor) | Sonnet T2 $0.012 |
+| P018 code-audit "audit completo" | Opus T3 (forced floor) | Opus T3 via keyword escalation |
+| P020 diagram sequence | Haiku T1 | Haiku T1 2.3s (control) |
+
+**Commits (6 selectivos):** `080a7e2` schema · `a280559` code-audit pack · `3d71e41` policy.ts · `6b49ba0` wiring · `f96cedf` T0 swap + ADR 017 · `741e1df` sanity 5 prompts.
+
+**Anomalies (4 — SANITY_REPORT.md):** S1 sanity $0.17 vs <$0.10 esperado (still well below $1 BLOCKER); S2 KICKOFF thresholds recalibrados (Sonnet realistic); S3 P018 prompt rephrased (original tinha leak "arquitectura"+"fluxo de" para diagram-systems → AMBIGUOUS); S4 2 sanity runs total $0.35.
+
+**final-reviewer NITs (Day 2 backlog, non-blocking):**
+1. Adicionar `packages/router/tests/policy.test.ts` (~6 cases).
+2. DRY: importar `maxTier` from `policy.ts` em `inject_context.ts`.
+3. Investigar diagram-systems `intent_phrases` leak (S3 cause).
+4. AMBIGUOUS scaffold "general expert" — REPORT §4 #4 (já planeado Day 2).
+
+**Predicted Day 7 re-bench:** GENERAL quality 0.695 → ~0.95 · code-audit cost −30% · T0 latency −60% · verdict WEAK 1/3 → MEDIUM/STRONG 2-3/3.
+
+**Push status:** ✅ branch pushed, PR #8 aberto. Paulo mergeia para `dev` quando quiser.
+
+**Página Notion:** [🛠 Sessão 2026-05-28 — Wave 2 Day 1](https://www.notion.so/36e6f6e42bc4815c9420fefdea21b65a) · `36e6f6e4-2bc4-815c-9420-fefdea21b65a`
+
+**Próxima missão:** (a) Paulo merge PR #8; (b) Master prompt Wave 2 Day 2 (AMBIGUOUS scaffold + animation-web scaffold compression — REPORT §4 #4 e #5); (c) Day 3-4 embedding layer; (d) Day 4-6 4 packs adicionais; (e) Day 7 full re-benchmark valida fixes.
+
+---
+
+### 🧪 Sessão #43 — 2026-05-27 (Wave 1 Pastor End-to-End Benchmark — local-only)
+
+**Mandato Paulo:** executar o benchmark pre-registado (`docs/benchmarks/wave1-pastor/BENCHMARK_DESIGN.md`) — qualidade + custo + latência end-to-end do Pastor vs baseline (Sonnet always) vs gold (Opus always), 34 prompts × 3 arms + blind judge. Branch `wave1-benchmark` a partir do tag `v0.1.0-pastor-wave1`.
+
+**Outcome (factos, sem interpretação — análise é do Cowork):**
+- **102 rows** (34×3) + 39 judge calls · **$3.52** total ($2.86 invocação + $0.66 judge) · 2 rows FAILED (P005/A, P012/A Ollama T0 timeout).
+- Qualidade: **A(Pastor) 0.870 · B(Sonnet) 0.886 · C(Opus) 0.917**. Cohen's d A_vs_B = −0.067 (negligível).
+- Custo/prompt: A $0.0224 · B $0.0280 · C $0.0337 → Pastor poupa **20% vs baseline** (limiar era 50%) e 33% vs gold.
+- Latência: A 51101ms (inflada por 2 timeouts Ollama) · B 27036ms · C 20265ms → Pastor **+89%** vs baseline.
+- **Veredicto §1: WEAK 1/3** ambos os pares (quality✓ cost✗ latency✗). Causas: floor T3 do code-audit força 15 prompts em Opus; qwen3:30b como T0 é lento. → sinais Wave 2.
+- Mis-routing: pack 22/24 (92%) · tier_appropriate 71% · would_higher_tier_help 15%.
+
+**Infra construída:** harness TS completo em `packages/router/scripts/wave1-benchmark/` (3 arms, blind judge, schema v1.0.0 + lineage UUIDv7, cost via pricing snapshot congelado, Parquet via @dsnp/parquetjs, data lake `~/.mooter/cache/`, 10 queries DuckDB). Deps novas em `packages/router`: `@anthropic-ai/sdk`, `ajv`, `@dsnp/parquetjs`.
+
+**Bugs apanhados (e corrigidos) durante a run:** (1) Opus 4.7 rejeita `temperature` (400) → omitido + auto-retry; (2) WSL `Date.now()` salta para trás → latência negativa → relógio monotónico `performance.now()`; (3) **final-reviewer Opus BLOCKER**: judge-reliability lia `positionToArm` (camelCase) vs `position_to_arm` → variance falsa 0.000; corrigido → real **0.041** (< 0.3, sem alerta). Recompute sem novas chamadas API.
+
+**Decisões metodológicas (documentadas, §3.3 sem rubric pré-registada):** pricing = preços reais verificados 2026-05-27 (Opus 5/25, não o 15/75 stale do design §17.2 — desvio aprovado por Paulo, logged anomalies A1); `would_higher_tier_help` derivado do delta de qualidade do arm gold; correctness determinística sobrepõe o judge onde corre.
+
+**Commits (6, local-only):** `16fe61d` scaffold · `deac2c5` 34 prompts · `6cde7eb` judge+orchestrator · `5458d40` monotonic-clock fix · `2a91ab1` run outputs + README · `5c421b9` judge-reliability blocker fix.
+
+**Push status:** ❌ **NÃO pushed** — Paulo escolheu manter local (resultados não-favoráveis num repo público; P6 do master prompt permite). 6 commits em `wave1-benchmark`.
+
+**Página Notion:** [🧪 Sessão 2026-05-27 — Wave 1 Pastor Benchmark](https://www.notion.so/36e6f6e42bc481a997a3f86dafa46abe) · `36e6f6e4-2bc4-81a9-97a3-f86dafa46abe`
+
+**Próxima missão (Cowork):** analisar `packages/router/scripts/wave1-benchmark/outputs/` (RAW_RESULTS.parquet, SUMMARY.json, JUDGE_LOG, anomalies.md A1–A7) → gerar `docs/benchmarks/wave1-pastor/REPORT.md` com bootstrap CIs, drill-down per-pack, e prioridades Wave 2 (T0 model rápido em vez de qwen3:30b; rever floor T3 do code-audit; parser robusto do judge).
+
+---
 
 ### 🎯 Sessão #41 — 2026-05-27 (Dynamic `/mooter-<model>` A+B LANDED — local-only)
 
@@ -612,6 +683,26 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🟢 Pastor Wave 1 — Day 7 ✅ SHIPPED (2026-05-27) — **WAVE 1 FECHADA**
+
+**Estado:** ✅ **Wave 1 completa e pública.** Day 7 = validação live + repo público (gate de saída / padrão de risco do Paulo accionado).
+
+**Bloco A — Validation:** harness `packages/router/scripts/validate-wave1.ts` (reproduzível) corre 20 prompts reais (6 animation-web · 5 code-audit · 4 diagram-systems · 3 ambíguos · 2 GENERAL, PT-PT+EN). **Recall 20/20 (100%) ≥ gate 17/20 (85%)**. Cobertura: 15 pack específico (≥14), 2 GENERAL, 3 AMBIGUOUS (empates 2-2 corretamente segurados a confidence 0.50). Zero falsos positivos. Latência: `classify_domain` per-call p99 0.015ms; **hook `buildHints` completo p50 3.06ms / p99 3.74ms ≤ 60ms** (steady-state, boot excluído como no hook real). Ratings subjectivos = **pending review** (Paulo não rate ao vivo). Report: `docs/wave1-validation.md`.
+
+**Bloco B — Repo público:** `README.md` reescrito para narrativa two-axis (hero "The AI router that picks tools, not just models" + secção Two-Axis Routing com diagrama **Mermaid** + secção **Moo Packs** linkando os 3 packs + link PASTOR.md SSoT + badge "Wave 1 shipped 2026-06-03" + URLs frugal→mooter + Access→Status público). `gh repo edit pauloloureiroshp-ship-it/mooter --visibility public`. Tweet draft em `docs/launch/wave1-tweet-draft.md` (**NÃO publicado** — HN/cookbook = Wave 4).
+
+**Bloco C — Closure:** `final-reviewer` gate (Opus) antes do merge → commit `feat: Wave 1 shipped — Pastor MVP public` → merge `wave1-pastor-day7` → `main` → tag `v0.1.0-pastor-wave1` → flip público (sinal de conclusão). Notion HQ: [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8).
+
+**Decisões registadas:**
+- **D1 (repo real):** repo renomeado `frugal`→`mooter` (Cowork/Chrome) durante a sessão. URL `pauloloureiroshp-ship-it/mooter`. PASTOR.md §10.7 dizia `mooter-ai/mooter` → usado o real.
+- **D2 (ordenação):** flip público feito **após** merge+tag (§10.7: "público = sinal de conclusão"), para a 1ª impressão pública ser o estado final, não o README antigo.
+- **D3 (latência honesta):** gate p99 ≤ 60ms aplica-se ao hint completo (`buildHints`), não só a `classify_domain` (sub-ms). Reportado separadamente.
+- **D4 (validation set):** 20 prompts redigidos à mão = viés conhecido; Wave 2 deve usar ≥200 prompts reais de `decisions.log` (DoD).
+
+**⏭️ Próxima missão — Wave 2:** ver secção COWORK→CLAUDE CODE abaixo.
+
+---
+
 ### 🐑 Pastor Wave 1 — Day 6 ✅ FECHADO (2026-05-27)
 
 **Estado:** ✅ Day 6 completo. `packResolve()`/`suggestInstallCmd()` endurecidos — já eram módulo DRY partilhado hook↔CLI desde Day 4, **sem refactor necessário**. **5 cenários integration** em `packages/router/tests/pack-resolve.test.ts` (A all-present · B missing-MCP · C missing-skill · D ambíguo 3-way determinístico · E GENERAL) + guard de cobertura do registry. `mcp_install_registry.json` expandido **20 → 27 MCPs** com comandos verificados vs research 2026-05-27 (§2/§8/§9/§12): github/vercel/linear → remotos oficiais (`claude mcp add --transport …`; os pacotes npm bare estavam deprecated/unverified); `snyk mcp` = subcomando da Snyk CLI; `motion-canvas-mcp` flagueado **UNVERIFIED** (não inventado). `<pack-hint>` `suggest_install` agora em **árvore** (`└─` por-item, primary na key line → parser single-line compatível); GENERAL ganha `suggest_search=mooter pack search <keyword>` (§7 cenário E), AMBIGUOUS mantém candidates. Nit Day 5 resolvido: `pack diff` distingue "No dependencies required." de "All dependencies available.". Suites: **router 24 · cli 14 · packs 7 verde · p99 hook ≤ 60ms**. **PR #6** `wave1-pastor-day6` → `dev`, **review gate (Opus) PASS** (0 blocking; 2 nits não-bloqueantes). 3 commits. Notion: [🐑 Pastor Day 6](https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30).
@@ -623,7 +714,21 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 - **D4:** registry source-of-truth = `packages/router/data/` (versionado); `~/.mooter/cache/` continua override de runtime.
 - **D5 (scope guard):** **required-vs-recommended distinction NÃO implementada** — fora do escopo confirmado (§10.6 tasks/DoD + 9-point confirmation não a incluem) e mudaria a shape de `PackResolution` + hint + CLI (scope creep pós-review). Flagueada para Wave 2.
 
-**⏭️ Próxima missão — Day 7 (PASTOR.md §10.7) 🟢 FINAL Wave 1:** validação live (20 prompts reais → `docs/wave1-validation.md`, recall ≥ 17/20 = 85%, p99 ≤ 60ms) + **tornar repo `mooter-ai/mooter` público** (gate de saída Wave 1, padrão de risco do Paulo). README destaca Pastor + Two-Axis (Mermaid). Tweet draft em `docs/launch/`. Notion HQ sub-página Wave 1 SHIPPED. Tag `v0.1.0-pastor-wave1`. **HARD GATE:** sem recall ≥ 85% **não** mergear para `main` — cowork session para tuning. **Nit carry-over → Wave 2:** required-vs-recommended distinction em `packResolve` (hoje uniformes). Pendente imediato: **merge PR #6 → dev** após aprovação/CI.
+**⏭️ Próxima missão — Day 7:** ✅ **FEITO** — ver secção Pastor Day 7 SHIPPED acima.
+
+---
+
+### 🟢 Wave 2 — próxima missão (Pastor §8 Wave 2)
+
+**Wave 1 fechada e pública.** Arranque Wave 2 (master prompt à parte quando o Paulo quiser):
+
+1. **Embedding layer** para `classify_domain` (Qwen3 embeddings + faiss) — confidence contínua, desambigua empates AMBIGUOUS por similaridade semântica (regex hoje é binária: 1.00 ou 0.50).
+2. **Validation set ≥ 200 prompts reais** colhidos de `decisions.log` (não redigidos à mão) — eliminar viés do set Day 7. DoD: recall ≥ 0.85.
+3. **`mooter pack rate`** (feedback loop → trust_score) — fechar ratings subjectivos "pending review".
+4. **+2 packs sementinha** (DoD: 7 total). Candidatos: `data-pipeline`, `api-design`. Cada pack só entra após ≥10 prompts reais.
+5. **Carry-over Day 6:** required-vs-recommended distinction em `packResolve` (hoje uniforme).
+
+Detalhe e sinais completos: `docs/wave1-validation.md` (secção "Sinais para Wave 2") + Notion [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8).
 
 ---
 
@@ -1452,6 +1557,7 @@ Side effects: upsert em D1 `devices` table
 | 🐑 Pastor Day 4 — hook emite <pack-hint> (2026-05-27) | https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3 |
 | 🐑 Pastor Day 5 — CLI mooter pack (2026-05-27) | https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd |
 | 🐑 Pastor Day 6 — pack_resolve + 5 cenários + registry 27 (2026-05-27) | https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30 |
+| 🟢 Wave 1 — SHIPPED (2026-05-27) — validation 20/20 + repo público | https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8 |
 | Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
 | MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
 | Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
@@ -1469,7 +1575,7 @@ Side effects: upsert em D1 `devices` table
 | Sessão #40 2026-05-07 — Wave-2 router-execute LANDED + Validation Master Prompt | https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d |
 | Sessão #40-validation 2026-05-07 — Wave-2 Independent Audit (APPROVED_WITH_NOTES) | https://www.notion.so/3596f6e42bc481b9a9e4c80086087885 |
 | Sessão 2026-05-24 — Matriz de modelos 2026 + camada de dados do router | https://www.notion.so/36a6f6e42bc481a886d1d48a412ca1d7 |
-| GitHub repo (privado) | https://github.com/pauloloureiroshp-ship-it/frugal |
+| GitHub repo (PÚBLICO desde 2026-05-27) | https://github.com/pauloloureiroshp-ship-it/mooter |
 | Landing público | https://mooter.ai |
 | Friends Beta (private) | https://landing-five-azure-16.vercel.app |
 | Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |

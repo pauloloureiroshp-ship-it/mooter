@@ -1,0 +1,13 @@
+{
+  "run_id": "019e6b63-0cc6-7987-9254-4673b27fa2dd",
+  "schema_version": "1.0.0",
+  "pastor_version": "v0.1.0-pastor-wave1",
+  "commit_sha": "1d8a0da",
+  "pricing_version": "pricing-snapshot-2026-05-27",
+  "ollama_version": "0.23.3",
+  "anthropic_sdk_version": "0.99.0",
+  "node_version": "v20.20.2",
+  "env_hash": "fb7c63050dd03c46",
+  "user_id": null,
+  "session_id": "019e6b63-89cd-7856-bf89-faefd4e308d7"
+}

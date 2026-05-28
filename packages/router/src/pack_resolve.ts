@@ -25,6 +25,7 @@ export interface PackManifest {
   pack_id: string;
   model_floor: string; // T0..T3
   model_ceiling: string;
+  escalation_keywords: string[]; // optional in pack.yaml; [] when absent
   skills_required: string[];
   skills_recommended: string[];
   mcps_required: string[];
@@ -93,6 +94,7 @@ export function loadPackManifest(
     pack_id: typeof doc.name === "string" ? doc.name : pack_id,
     model_floor: typeof doc.model_floor === "string" ? doc.model_floor : "T2",
     model_ceiling: typeof doc.model_ceiling === "string" ? doc.model_ceiling : "T3",
+    escalation_keywords: asArr(doc.escalation_keywords),
     skills_required: asArr(skills.required),
     skills_recommended: asArr(skills.recommended),
     mcps_required: asArr(mcps.required),
