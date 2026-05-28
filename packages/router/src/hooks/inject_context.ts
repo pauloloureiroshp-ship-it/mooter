@@ -17,20 +17,25 @@
 // → silent exit 0 with no context. Performance budget: combined p99 ≤ 60ms
 // (see hook-integration.test.ts). Source: PASTOR §6.1, §6.4, §10.4.
 
+import { createHash } from "node:crypto";
+import { hostname, platform, release } from "node:os";
 import { classifyComplexity } from "../classify_complexity.ts";
 import {
   classifyDomainCombined,
   loadPacks,
+  type CombinedDomainClassification,
   type CompiledPack,
   type DomainClassification,
 } from "../classify_domain.ts";
 import type { EmbeddingStore } from "../embedding_store.ts";
+import { eventWriter } from "../event_writer.ts";
 import {
   detectEnv,
   loadPackManifest,
   packResolve,
   type ResolveEnv,
 } from "../pack_resolve.ts";
+import { generateUUIDv7, makeEnvelope, type MooterEvent, type Tier } from "../mooter_event.ts";
 import { applyAmbiguousScaffold, applyGeneralFallback, applyTierEscalation } from "../policy.ts";
 
 // --- NIT 2 (Wave 2 Day 3): single inline_scaffold slot ----------------------
@@ -89,6 +94,45 @@ function renderSuggestInstall(cmds: string[]): string {
   return [`suggest_install=${head}`, ...rest.map((c) => `  └─ ${c}`)].join("\n");
 }
 
+/** Routing-side classifications shared by hint rendering and event writing. */
+export interface HintClassifications {
+  complexity: Awaited<ReturnType<typeof classifyComplexity>>;
+  domain: CombinedDomainClassification;
+}
+
+/**
+ * Compute axis-1 + axis-2 classifications. Pure + injectable: packs/store are
+ * parameters so tests can pin behaviour. Wave 2 Day 4 extracts this from
+ * buildHints so main() can reuse the result for the event_writer payload
+ * without classifying twice.
+ */
+export async function classifyForHints(
+  prompt: string,
+  packs: CompiledPack[] = loadPacks(),
+  store?: EmbeddingStore,
+): Promise<HintClassifications> {
+  // Wave 2 Day 3: classify_domain is now v1 (regex) + v2 (embedding). v2
+  // helps via embedding_store but never silently overrides confident v1; if
+  // Ollama is unreachable, classifyDomainCombined returns v1 with
+  // source="regex_fallback" — the hook keeps emitting hints, unaware.
+  const [complexity, domain] = await Promise.all([
+    classifyComplexity(prompt),
+    classifyDomainCombined(prompt, packs, store),
+  ]);
+  return { complexity, domain };
+}
+
+/** Render the two hint blocks from pre-computed classifications. */
+export function renderHints(
+  c: HintClassifications,
+  env: ResolveEnv,
+  prompt: string,
+): string {
+  const routerHint = renderRouterHint(c.complexity);
+  const packHint = renderPackHint(c.domain, c.complexity, env, prompt);
+  return `${routerHint}\n\n${packHint}`;
+}
+
 /**
  * Build both hint blocks for a prompt. Pure + injectable: packs and env are
  * parameters so tests never touch the real disk. Returns the full context
@@ -100,19 +144,8 @@ export async function buildHints(
   env: ResolveEnv = detectEnv(),
   store?: EmbeddingStore,
 ): Promise<string> {
-  // Wave 2 Day 3: classify_domain is now v1 (regex) + v2 (embedding). v2
-  // helps via embedding_store but never silently overrides confident v1; if
-  // Ollama is unreachable, classifyDomainCombined returns v1 with
-  // source="regex_fallback" — the hook keeps emitting hints, unaware. `store`
-  // is injectable so tests can pin v1-only behaviour with a dead store.
-  const [complexity, domain] = await Promise.all([
-    classifyComplexity(prompt),
-    classifyDomainCombined(prompt, packs, store),
-  ]);
-
-  const routerHint = renderRouterHint(complexity);
-  const packHint = renderPackHint(domain, complexity, env, prompt);
-  return `${routerHint}\n\n${packHint}`;
+  const c = await classifyForHints(prompt, packs, store);
+  return renderHints(c, env, prompt);
 }
 
 function renderRouterHint(c: Awaited<ReturnType<typeof classifyComplexity>>): string {
@@ -253,6 +286,156 @@ function renderPackHint(
   return lines.join("\n");
 }
 
+// --- Wave 2 Day 4: routing-decision event capture -----------------------------
+//
+// One MooterEvent per hook invocation, written best-effort to ~/.mooter/sessions.
+// Day 4 fills routing fields only (axis1, axis2, model_floor/ceiling, escalation);
+// execution fields (tokens_in/out, cost_micros, latency) wire in Wave 2 Day 6
+// post-LLM-call hook. The event still satisfies the schema with nulls.
+
+/** sha256 → 16 hex chars. NEVER store raw prompt text in events. */
+function promptHash16(prompt: string): string {
+  return createHash("sha256").update(prompt, "utf8").digest("hex").slice(0, 16);
+}
+
+/** Rough token estimator — char/4 is a well-known proxy good enough for budgets. */
+function estimateTokens(prompt: string): number {
+  return Math.max(1, Math.ceil(prompt.length / 4));
+}
+
+function readPastorVersion(): string {
+  // package.json version pin overridable via env when the harness wants to
+  // tag a custom build (e.g. nightly). Tests don't exercise main(), so they
+  // never see this branch.
+  return process.env.PASTOR_VERSION ?? "0.1.0";
+}
+
+function readPricingVersion(): string {
+  return process.env.PRICING_VERSION ?? "0.0.0";
+}
+
+/**
+ * Stable per-machine pseudonymous user id. sha256 over host fingerprint —
+ * never any of the prompt content. Salted with a local file so the same
+ * machine yields the same id across runs but a different one if the user
+ * recreates ~/.mooter (e.g. wipes for privacy).
+ */
+function anonUserId(): string {
+  const fp = [hostname(), platform(), release(), process.arch].join("|");
+  return "anon:" + createHash("sha256").update(fp, "utf8").digest("hex").slice(0, 16);
+}
+
+function envHash(): string {
+  const parts = [platform(), release(), process.version];
+  return createHash("sha256").update(parts.join("|"), "utf8").digest("hex").slice(0, 16);
+}
+
+function sessionId(): string {
+  // Harness-supplied session id when available; otherwise generate one per hook
+  // invocation. Wave 2 Day 6 may surface a longer-lived session id when the
+  // post-LLM-call hook lands.
+  const fromEnv =
+    process.env.CLAUDE_SESSION_ID ??
+    process.env.MOOTER_SESSION_ID ??
+    null;
+  if (fromEnv && fromEnv.length >= 8) return fromEnv;
+  return generateUUIDv7();
+}
+
+function tierOrDefault(t: string | undefined | null, fallback: Tier): Tier {
+  return t === "T0" || t === "T1" || t === "T2" || t === "T3" ? t : fallback;
+}
+
+/**
+ * Build a routing-only event from the prompt + classifications + manifest.
+ * Execution + quality fields stay null until Wave 2 Day 6 wires the post-hook.
+ */
+export function buildRoutingEvent(
+  prompt: string,
+  c: HintClassifications,
+): MooterEvent {
+  const recommendedTier = tierOrDefault(c.complexity.tier, "T2");
+
+  // Look up the (optional) per-pack manifest so floor/ceiling/escalation are
+  // captured the same way the pack-hint emits them.
+  const manifest =
+    c.domain.pack_id !== "GENERAL" && c.domain.pack_id !== "AMBIGUOUS"
+      ? loadPackManifest(c.domain.pack_id)
+      : null;
+
+  const flooredTier: Tier = manifest
+    ? (tierIdx(recommendedTier) >= tierIdx(manifest.model_floor)
+        ? recommendedTier
+        : (manifest.model_floor as Tier))
+    : recommendedTier;
+
+  const escalation = manifest
+    ? applyTierEscalation({
+        prompt,
+        pack: {
+          escalation_keywords: manifest.escalation_keywords,
+          model_ceiling: manifest.model_ceiling,
+        },
+        suggested_tier: flooredTier,
+      })
+    : null;
+
+  const escalationApplied = escalation?.applied === true;
+  const escalationReason = escalationApplied ? escalation?.reason ?? null : null;
+
+  const ceiling: Tier = manifest ? (manifest.model_ceiling as Tier) : "T3";
+  const floor: Tier = manifest ? (manifest.model_floor as Tier) : "T0";
+
+  const envelope = makeEnvelope({
+    event_type: "prod",
+    user_id_anon: anonUserId(),
+    session_id: sessionId(),
+    pastor_version: readPastorVersion(),
+    pricing_version: readPricingVersion(),
+    env_hash: envHash(),
+  });
+
+  return {
+    ...envelope,
+    prompt_hash: promptHash16(prompt),
+    prompt_tokens_est: estimateTokens(prompt),
+    axis1_tier_recommended: recommendedTier,
+    axis1_confidence: c.complexity.confidence ?? 0,
+    axis2_pack_id:
+      c.domain.pack_id === "GENERAL" || c.domain.pack_id === "AMBIGUOUS"
+        ? null
+        : c.domain.pack_id,
+    axis2_confidence: c.domain.confidence,
+    axis3_adapter_id: null,
+    axis3_adapter_version: null,
+    model_floor_applied: floor,
+    model_ceiling_applied: ceiling,
+    escalation_triggered: escalationApplied,
+    escalation_reason: escalationReason,
+
+    // Execution fields — wire-in target is Wave 2 Day 6 post-LLM hook.
+    model_actual: null,
+    provider: null,
+    tokens_in: null,
+    tokens_out: null,
+    tokens_cache_hit: null,
+    cost_micros: null,
+    latency_ms_total: null,
+    latency_ms_ttft: null,
+    latency_ms_per_tok: null,
+    error_type: null,
+    retries: null,
+
+    // Quality fields — wire-in target is next-turn detection (Wave 3 D1+).
+    user_continued: null,
+    user_edited_output: null,
+    user_aborted: null,
+    session_outcome: null,
+    rating_thumb: null,
+    rating_comment_anon: null,
+  };
+}
+
 // --- stdin entry point --------------------------------------------------------
 function safeJson(s: string): Record<string, unknown> | null {
   try {
@@ -283,8 +466,19 @@ async function main(): Promise<void> {
   if (!prompt || prompt.length < 4) process.exit(0);
 
   try {
-    const hints = await buildHints(prompt);
-    process.stdout.write(hints + "\n");
+    const packs = loadPacks();
+    const env = detectEnv();
+    const c = await classifyForHints(prompt, packs);
+    process.stdout.write(renderHints(c, env, prompt) + "\n");
+
+    // Fire-and-forget event capture — never block the hook on telemetry. The
+    // writer already swallows I/O failures internally; awaiting only ensures
+    // ordering inside this process.
+    try {
+      await eventWriter.write(buildRoutingEvent(prompt, c));
+    } catch {
+      // best-effort
+    }
   } catch {
     // Never break the turn over a hint — emit nothing.
   }
