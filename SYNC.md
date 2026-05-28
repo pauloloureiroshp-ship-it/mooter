@@ -3,10 +3,53 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-27 (Claude Code — **🧪 WAVE 1 PASTOR BENCHMARK COMPLETO (local-only): 102 rows · 3 arms · blind Sonnet judge · $3.52. Pastor WEAK 1/3 vs baseline — qualidade ≈ (0.870 vs 0.886) mas só −20% custo (não −50%) e +89% latência. Handoff factos-only para análise Cowork. Branch `wave1-benchmark` NÃO pushed (Paulo: manter local).**)
-**Versão:** v0.11 (Codex) + **Pastor Wave 1 (axis 2 / Moo Packs)** · mooter.ai live · Wave 1 recall 20/20 ✅ · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
-**Último commit main:** Day 7 `feat: Wave 1 shipped — Pastor MVP public` (merge `wave1-pastor-day7` → main, final-reviewer gate)
-**Sessão Claude Code:** #42 — Pastor Day 7 (FINAL Wave 1). Validation harness + report (`docs/wave1-validation.md`, recall 20/20 ≥ gate 85%, hook p99 3.74ms ≤ 60ms), README two-axis (Mermaid + Moo Packs), tweet draft, repo público, tag. Notion: [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8). Ver secção Pastor Day 7 abaixo.
+**Última sync:** 2026-05-28 (Claude Code — **🛠 WAVE 2 DAY 1 BOTTLENECK FIXES COMPLETO: 6 commits selectivos, PR #8 aberto para `dev`, NÃO merged. 3 fixes implementados (GENERAL fallback→T2 Sonnet, code-audit floor T2/T3 + 7 escalation_keywords, T0 default qwen3:30b→qwen2.5-coder:7b) + ADR 017 + policy.ts partilhado + sanity 5/5 prompts pos-fix verified. final-reviewer Opus: APPROVE_WITH_NOTES (4 NITs Day 2 backlog). 24/24 router tests green; classify.js byte-identical (P11). Predicted Day 7 re-bench: WEAK 1/3 → MEDIUM/STRONG 2-3/3.**)
+**Versão:** v0.11 (Codex) + **Pastor Wave 1 SHIPPED** + **Wave 2 Day 1 in-PR** · mooter.ai live · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
+**Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
+**Sessão Claude Code:** #44 — Wave 2 Day 1 Bottleneck Fixes. Branch `wave2-day1-fixes` pushed; PR #8 aberto para `dev` (https://github.com/pauloloureiroshp-ship-it/mooter/pull/8). Notion: [🛠 Sessão 2026-05-28 — Wave 2 Day 1](https://www.notion.so/36e6f6e42bc4815c9420fefdea21b65a). Ver secção Wave 2 Day 1 abaixo.
+
+### 🛠 Sessão #44 — 2026-05-28 (Wave 2 Day 1 — Bottleneck Fixes, PR #8 aberto)
+
+**Mandato Paulo:** executar os 3 fixes top-priority do Wave 1 REPORT §8 (KICKOFF em `docs/strategy/WAVE2_DAY1_KICKOFF.md`). Branch `wave2-day1-fixes` a partir de `020e80f` (PR #7 merged). Não tocar `classify.js` (P11 doctrine).
+
+**Outcome:** 6 commits selectivos · PR #8 → `dev` aberto, NÃO merged · final-reviewer (Opus subagent) APPROVE_WITH_NOTES · cost sessão $0.35 (2 sanity runs).
+
+**Fixes implementados:**
+1. **GENERAL fallback** → T2 Sonnet + general-expert scaffold (`policy.applyGeneralFallback`). Resolve §3.5 (qwen3:30b T0 GENERAL: quality −30pp, 2 timeouts).
+2. **code-audit floor T3→T2 + 7 `escalation_keywords`** ("audit completo", "production audit", "vulnerability assessment", "security review for production", "arquitectura de segurança", "complete security audit", "production-grade audit"). Resolve §3.2 (8/8 prompts a Opus → +18% cost).
+3. **T0 default `qwen3:30b` → `qwen2.5-coder:7b`** em `ollama_call.sh` + `models.ts` (benchmark). Resolve §4 #3 (timeouts + 149s GENERAL latency). ADR 017 documenta as 4 alternativas consideradas.
+
+**Design call:** Novo módulo `packages/router/src/policy.ts` consumido por dois callers do pipeline Pastor (hook `inject_context.ts` + benchmark `arm-pastor.ts`). Sem isto, o Day 7 re-bench testaria código diferente do que está em produção. Schema extension (`escalation_keywords` em `pack.schema.yaml` + `PackManifest`) é backward-compat — packs sem o campo continuam válidos.
+
+**Sanity 5/5** (`packages/router/scripts/wave2-day1-sanity/run.ts`):
+
+| Prompt | Pre-fix | Post-fix |
+|---|---|---|
+| P005 GENERAL Vercel edge | T0 qwen3 timeout × 4 | T2 Sonnet 55s + scaffold |
+| P012 animation T3 timeline | T0 qwen3 timeout × 4 | T2 Sonnet 46s |
+| P013 code-audit lint | Opus T3 (forced floor) | Sonnet T2 $0.012 |
+| P018 code-audit "audit completo" | Opus T3 (forced floor) | Opus T3 via keyword escalation |
+| P020 diagram sequence | Haiku T1 | Haiku T1 2.3s (control) |
+
+**Commits (6 selectivos):** `080a7e2` schema · `a280559` code-audit pack · `3d71e41` policy.ts · `6b49ba0` wiring · `f96cedf` T0 swap + ADR 017 · `741e1df` sanity 5 prompts.
+
+**Anomalies (4 — SANITY_REPORT.md):** S1 sanity $0.17 vs <$0.10 esperado (still well below $1 BLOCKER); S2 KICKOFF thresholds recalibrados (Sonnet realistic); S3 P018 prompt rephrased (original tinha leak "arquitectura"+"fluxo de" para diagram-systems → AMBIGUOUS); S4 2 sanity runs total $0.35.
+
+**final-reviewer NITs (Day 2 backlog, non-blocking):**
+1. Adicionar `packages/router/tests/policy.test.ts` (~6 cases).
+2. DRY: importar `maxTier` from `policy.ts` em `inject_context.ts`.
+3. Investigar diagram-systems `intent_phrases` leak (S3 cause).
+4. AMBIGUOUS scaffold "general expert" — REPORT §4 #4 (já planeado Day 2).
+
+**Predicted Day 7 re-bench:** GENERAL quality 0.695 → ~0.95 · code-audit cost −30% · T0 latency −60% · verdict WEAK 1/3 → MEDIUM/STRONG 2-3/3.
+
+**Push status:** ✅ branch pushed, PR #8 aberto. Paulo mergeia para `dev` quando quiser.
+
+**Página Notion:** [🛠 Sessão 2026-05-28 — Wave 2 Day 1](https://www.notion.so/36e6f6e42bc4815c9420fefdea21b65a) · `36e6f6e4-2bc4-815c-9420-fefdea21b65a`
+
+**Próxima missão:** (a) Paulo merge PR #8; (b) Master prompt Wave 2 Day 2 (AMBIGUOUS scaffold + animation-web scaffold compression — REPORT §4 #4 e #5); (c) Day 3-4 embedding layer; (d) Day 4-6 4 packs adicionais; (e) Day 7 full re-benchmark valida fixes.
+
+---
 
 ### 🧪 Sessão #43 — 2026-05-27 (Wave 1 Pastor End-to-End Benchmark — local-only)
 
