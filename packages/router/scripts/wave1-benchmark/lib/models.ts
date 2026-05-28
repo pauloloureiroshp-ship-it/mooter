@@ -7,7 +7,7 @@
 import type { Tier } from "./types.ts";
 
 export const TIER_TO_MODEL: Record<Tier, string> = {
-  T0: "qwen3:30b", // default local reasoning model (present in this env)
+  T0: "qwen2.5-coder:7b", // Wave 2 Day 1 swap — see ADR 017 / REPORT §4 #3
   T1: "claude-haiku-4-5-20251001",
   T2: "claude-sonnet-4-6",
   T3: "claude-opus-4-7",
