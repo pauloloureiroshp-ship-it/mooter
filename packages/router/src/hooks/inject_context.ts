@@ -30,6 +30,7 @@ import {
   packResolve,
   type ResolveEnv,
 } from "../pack_resolve.ts";
+import { applyGeneralFallback, applyTierEscalation } from "../policy.ts";
 
 const TIER_ORDER = ["T0", "T1", "T2", "T3"];
 const tierIdx = (t: string): number => {
@@ -71,7 +72,7 @@ export async function buildHints(
   ]);
 
   const routerHint = renderRouterHint(complexity);
-  const packHint = renderPackHint(domain, complexity, env);
+  const packHint = renderPackHint(domain, complexity, env, prompt);
   return `${routerHint}\n\n${packHint}`;
 }
 
@@ -102,6 +103,7 @@ function renderPackHint(
   domain: DomainClassification,
   complexity: Awaited<ReturnType<typeof classifyComplexity>>,
   env: ResolveEnv,
+  prompt: string,
 ): string {
   const conf = domain.confidence.toFixed(2);
 
@@ -109,9 +111,21 @@ function renderPackHint(
   if (domain.pack_id === "GENERAL" || domain.pack_id === "AMBIGUOUS") {
     const isAmbiguous = domain.pack_id === "AMBIGUOUS";
     const reason = isAmbiguous ? candidateReason(domain) : "no domain signals above threshold";
+
+    // Wave 2 fix #1: GENERAL prompts with a T0/T1 base tier are promoted to T2
+    // (Sonnet) and receive a short general-expert scaffold — avoids the qwen3
+    // quality cliff documented in Wave 1 REPORT §3.5. AMBIGUOUS keeps its own
+    // policy (Wave 2 Day 2 ships the scaffold for it separately).
+    const fallback =
+      !isAmbiguous
+        ? applyGeneralFallback({ pack_id: domain.pack_id, recommended_tier: complexity.tier })
+        : null;
+
     return [
       "<pack-hint>",
       `pack=${domain.pack_id} confidence=${conf} reason="${reason}"`,
+      fallback?.applied ? `final_tier=${fallback.tier} (general-fallback: ${fallback.reason})` : null,
+      fallback?.applied ? `inline_scaffold="${fallback.scaffold}"` : null,
       "skills_invoke=[]",
       "mcps_recommended=[]",
       "mcps_missing=[]",
@@ -142,7 +156,22 @@ function renderPackHint(
   }
 
   const r = packResolve(manifest, env);
-  const floorRespected = tierIdx(complexity.tier) >= tierIdx(manifest.model_floor);
+  const flooredTier = tierIdx(complexity.tier) >= tierIdx(manifest.model_floor)
+    ? complexity.tier
+    : manifest.model_floor;
+  const floorRespected = flooredTier === complexity.tier;
+
+  // Wave 2 fix #2: per-pack keyword escalation. When the prompt contains any of
+  // the pack's escalation_keywords, promote to model_ceiling (typically Opus).
+  // Lets a pack hold a low floor for trivial variants while still routing deep
+  // audits / production-grade reviews to the heavy model.
+  const escalation = applyTierEscalation({
+    prompt,
+    pack: { escalation_keywords: manifest.escalation_keywords, model_ceiling: manifest.model_ceiling },
+    suggested_tier: flooredTier,
+  });
+  const finalTier = escalation.tier;
+
   const subagentPrimary = manifest.subagent_primary || complexity.suggested_subagent;
 
   // classify_domain's reason is "<pack>: <signals> (score, conf)"; the
@@ -155,6 +184,7 @@ function renderPackHint(
     "<pack-hint>",
     `pack=${manifest.pack_id} confidence=${conf} reason="signals: ${signals}"`,
     `model_floor=${manifest.model_floor} (${floorRespected ? "respected" : "raised"})`,
+    escalation.applied ? `final_tier=${finalTier} (escalation: ${escalation.reason})` : null,
     `skills_invoke=${arr(r.skills_invoke)}`,
     `mcps_recommended=${arr(r.available_mcps)}`,
     `mcps_missing=${arr(r.missing_mcps)}`,

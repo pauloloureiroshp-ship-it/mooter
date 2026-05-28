@@ -21,6 +21,7 @@ import {
   packResolve,
   type ResolveEnv,
 } from "../../../src/pack_resolve.ts";
+import { applyGeneralFallback, applyTierEscalation } from "../../../src/policy.ts";
 import { invokeModel } from "./invoke.ts";
 import { TIER_TO_MODEL, maxTier } from "./models.ts";
 import type { ArmInvocation, Tier } from "./types.ts";
@@ -69,11 +70,35 @@ export async function runPastor(prompt: string): Promise<ArmInvocation> {
     const manifest = loadPackManifest(packRouted);
     if (manifest) {
       effectiveTier = maxTier(effectiveTier, manifest.model_floor);
+      // Wave 2 fix #2: per-pack keyword escalation (e.g. code-audit T2 floor
+      // promoted to T3 ceiling when the user types "audit completo").
+      effectiveTier = applyTierEscalation({
+        prompt,
+        pack: {
+          escalation_keywords: manifest.escalation_keywords,
+          model_ceiling: manifest.model_ceiling,
+        },
+        suggested_tier: effectiveTier,
+      }).tier;
       const resolved = packResolve(manifest, env());
       skills = resolved.skills_invoke;
       system = buildSystemPrompt(readScaffold(packRouted), skills);
     } else {
       packRouted = "GENERAL"; // matched by signals but no manifest on disk
+    }
+  }
+
+  // Wave 2 fix #1: GENERAL fallback. Apply AFTER the real-pack branch so a
+  // missing-manifest fallthrough also benefits. AMBIGUOUS keeps its own path
+  // (Wave 2 Day 2 ships a separate scaffold for it).
+  if (packRouted === "GENERAL") {
+    const fb = applyGeneralFallback({
+      pack_id: packRouted,
+      recommended_tier: effectiveTier,
+    });
+    effectiveTier = fb.tier;
+    if (fb.applied && fb.scaffold) {
+      system = fb.scaffold;
     }
   }
 
