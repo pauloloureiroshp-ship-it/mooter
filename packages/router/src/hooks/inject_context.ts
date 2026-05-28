@@ -19,11 +19,12 @@
 
 import { classifyComplexity } from "../classify_complexity.ts";
 import {
-  classifyDomain,
+  classifyDomainCombined,
   loadPacks,
   type CompiledPack,
   type DomainClassification,
 } from "../classify_domain.ts";
+import type { EmbeddingStore } from "../embedding_store.ts";
 import {
   detectEnv,
   loadPackManifest,
@@ -31,6 +32,38 @@ import {
   type ResolveEnv,
 } from "../pack_resolve.ts";
 import { applyAmbiguousScaffold, applyGeneralFallback, applyTierEscalation } from "../policy.ts";
+
+// --- NIT 2 (Wave 2 Day 3): single inline_scaffold slot ----------------------
+// resolveInlineScaffold returns AT MOST ONE scaffold so the render code emits
+// a single `inline_scaffold=` line — never two. AMBIGUOUS is tried first; if
+// it does not apply, GENERAL fallback is tried; otherwise nothing is emitted.
+type InlineScaffold =
+  | { kind: "ambiguous"; scaffold: string }
+  | { kind: "fallback"; scaffold: string; tier: string; reason: string }
+  | null;
+
+export function resolveInlineScaffold(args: {
+  pack_id: string;
+  candidates: string[];
+  recommended_tier: string;
+}): InlineScaffold {
+  const ambig = applyAmbiguousScaffold({ pack_id: args.pack_id, candidates: args.candidates });
+  if (ambig.applied) return { kind: "ambiguous", scaffold: ambig.scaffold };
+
+  const fallback = applyGeneralFallback({
+    pack_id: args.pack_id,
+    recommended_tier: args.recommended_tier,
+  });
+  if (fallback.applied) {
+    return {
+      kind: "fallback",
+      scaffold: fallback.scaffold,
+      tier: fallback.tier,
+      reason: fallback.reason,
+    };
+  }
+  return null;
+}
 
 const TIER_ORDER = ["T0", "T1", "T2", "T3"];
 const tierIdx = (t: string): number => {
@@ -65,10 +98,16 @@ export async function buildHints(
   prompt: string,
   packs: CompiledPack[] = loadPacks(),
   env: ResolveEnv = detectEnv(),
+  store?: EmbeddingStore,
 ): Promise<string> {
+  // Wave 2 Day 3: classify_domain is now v1 (regex) + v2 (embedding). v2
+  // helps via embedding_store but never silently overrides confident v1; if
+  // Ollama is unreachable, classifyDomainCombined returns v1 with
+  // source="regex_fallback" — the hook keeps emitting hints, unaware. `store`
+  // is injectable so tests can pin v1-only behaviour with a dead store.
   const [complexity, domain] = await Promise.all([
     classifyComplexity(prompt),
-    Promise.resolve(classifyDomain(prompt, packs)),
+    classifyDomainCombined(prompt, packs, store),
   ]);
 
   const routerHint = renderRouterHint(complexity);
@@ -112,30 +151,23 @@ function renderPackHint(
     const isAmbiguous = domain.pack_id === "AMBIGUOUS";
     const reason = isAmbiguous ? candidateReason(domain) : "no domain signals above threshold";
 
-    // Wave 2 fix #1: GENERAL prompts with a T0/T1 base tier are promoted to T2
-    // (Sonnet) and receive a short general-expert scaffold — avoids the qwen3
-    // quality cliff documented in Wave 1 REPORT §3.5.
-    const fallback =
-      !isAmbiguous
-        ? applyGeneralFallback({ pack_id: domain.pack_id, recommended_tier: complexity.tier })
-        : null;
-
-    // Wave 2 Day 2: AMBIGUOUS scaffold — instructs the model to ask one
-    // clarifying question (or proceed with the more general approach) before
-    // planning. Tier is not promoted; complexity decides as usual.
-    const ambig = isAmbiguous
-      ? applyAmbiguousScaffold({
-          pack_id: domain.pack_id,
-          candidates: domain.candidates.map((c) => c.pack_id),
-        })
-      : null;
+    // Wave 2 Day 3 NIT 2: a single inline_scaffold slot. resolveInlineScaffold
+    // picks AT MOST ONE scaffold (ambiguous OR fallback) and never both, so the
+    // pack-hint cannot leak two inline_scaffold lines even if the underlying
+    // policy fns ever disagreed.
+    const scaffold = resolveInlineScaffold({
+      pack_id: domain.pack_id,
+      candidates: domain.candidates.map((c) => c.pack_id),
+      recommended_tier: complexity.tier,
+    });
 
     return [
       "<pack-hint>",
       `pack=${domain.pack_id} confidence=${conf} reason="${reason}"`,
-      fallback?.applied ? `final_tier=${fallback.tier} (general-fallback: ${fallback.reason})` : null,
-      fallback?.applied ? `inline_scaffold="${fallback.scaffold}"` : null,
-      ambig?.applied ? `inline_scaffold="${ambig.scaffold}"` : null,
+      scaffold?.kind === "fallback"
+        ? `final_tier=${scaffold.tier} (general-fallback: ${scaffold.reason})`
+        : null,
+      scaffold ? `inline_scaffold="${scaffold.scaffold}"` : null,
       "skills_invoke=[]",
       "mcps_recommended=[]",
       "mcps_missing=[]",

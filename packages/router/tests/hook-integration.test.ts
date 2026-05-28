@@ -21,6 +21,8 @@ import {
   type PackManifest,
   type ResolveEnv,
 } from "../src/pack_resolve.ts";
+import { EmbeddingStore } from "../src/embedding_store.ts";
+import { OllamaClient } from "../src/ollama_client.ts";
 
 const PACKS: CompiledPack[] = loadPacks();
 
@@ -103,10 +105,15 @@ test("S1: single-pack high-confidence — both hints, skills + MCP resolved", as
 // Scenario 2 — ambiguous (multi-pack contention)
 // --------------------------------------------------------------------------
 test("S2: ambiguous — pack=AMBIGUOUS, candidates listed, no skills invoked", async () => {
+  // Wave 2 Day 3: v2 (embedding) may disambiguate this prompt away from
+  // AMBIGUOUS. Pin v1-only with a dead-Ollama store so this scenario still
+  // exercises the v1 AMBIGUOUS contract.
+  const deadStore = new EmbeddingStore(new OllamaClient("http://127.0.0.1:1", 200));
   const out = await buildHints(
     "Review the scroll-trigger animation for security", // anim + audit tie
     PACKS,
     ENV_FULL,
+    deadStore,
   );
   const pack = getBlock(out, "pack-hint");
   assert.ok(getBlock(out, "router-hint"), "router-hint still emitted");
@@ -221,8 +228,14 @@ test("suggestInstallCmd: registry hit yields concrete MCP install", () => {
 
 // --------------------------------------------------------------------------
 // Performance — combined p99 <= 60ms (PASTOR §6.4)
+//
+// Wave 2 Day 3: this budget measures the synchronous hook pipeline (regex v1
+// + render). The v2 (embedding) layer has its own budget (≤ 80ms classify) in
+// embedding-perf.test.ts and adds an HTTP round-trip when active, so we pin
+// the embedding store down for this test to preserve the original contract.
 // --------------------------------------------------------------------------
 test("p99 combined hint latency <= 60ms (warm)", async () => {
+  const deadStore = new EmbeddingStore(new OllamaClient("http://127.0.0.1:1", 200));
   const prompts = [
     "Add a scroll-trigger animation to the hero section",
     "audita este repositório antes de fazer push",
@@ -231,17 +244,18 @@ test("p99 combined hint latency <= 60ms (warm)", async () => {
     "Review the scroll-trigger animation for security",
   ];
   // warm-up (primes classify.js require + regex compilation + pack manifests)
-  for (let i = 0; i < 50; i++) await buildHints(prompts[i % prompts.length], PACKS, ENV_FULL);
+  for (let i = 0; i < 50; i++)
+    await buildHints(prompts[i % prompts.length], PACKS, ENV_FULL, deadStore);
 
   const samples: number[] = [];
   for (let i = 0; i < 500; i++) {
     const t0 = process.hrtime.bigint();
-    await buildHints(prompts[i % prompts.length], PACKS, ENV_FULL);
+    await buildHints(prompts[i % prompts.length], PACKS, ENV_FULL, deadStore);
     samples.push(Number(process.hrtime.bigint() - t0) / 1e6);
   }
   samples.sort((a, b) => a - b);
   const p50 = samples[Math.floor(0.5 * samples.length)];
   const p99 = samples[Math.floor(0.99 * samples.length)];
-  console.log(`\n=== hook latency ===\np50 ${p50.toFixed(3)}ms   p99 ${p99.toFixed(3)}ms\n====================\n`);
-  assert.ok(p99 <= 60, `combined p99 ${p99.toFixed(3)}ms > 60ms`);
+  console.log(`\n=== hook latency (v1-only) ===\np50 ${p50.toFixed(3)}ms   p99 ${p99.toFixed(3)}ms\n==============================\n`);
+  assert.ok(p99 <= 60, `regex-only p99 ${p99.toFixed(3)}ms > 60ms`);
 });

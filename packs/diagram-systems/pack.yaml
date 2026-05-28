@@ -4,6 +4,18 @@ description: "Diagrams as code: Mermaid, D2, C4, ER, sequence, mindmap"
 domain_signals:
   keywords: [diagram, diagrama, flowchart, fluxograma, sequence, sequência, architecture, arquitectura, c4, ER, entity-relationship, mindmap, mermaid, d2]
   intent_phrases: ["desenha o", "visualiza a arquitectura", "diagrama de", "fluxo de"]
+  # Wave 2 Day 3: natural-language prompts used as embedding seeds for axis 2
+  # v2 (nomic-embed-text). Distinct across packs so cosine sim discriminates;
+  # not duplicates of validation prompts (those measure recall independently).
+  embedding_seeds:
+    - "como represento visualmente o flow de aprovação por etapas"
+    - "preciso de uma imagem que mostre como os módulos comunicam entre si"
+    - "modelo entidade-relacionamento de uma loja online básica"
+    - "mapa de transições de estados de uma encomenda"
+    - "esquema visual da pipeline CI/CD do projeto"
+    - "diagrama de classes UML para o domínio de utilizadores"
+    - "topologia de rede entre cliente, gateway e serviços backend"
+    - "swim-lane do processo de onboarding por papel"
 model_floor: T1                       # Mermaid é trivial
 model_ceiling: T3                     # C4 complexos podem requerer Opus
 skills:

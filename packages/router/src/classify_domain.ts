@@ -188,3 +188,104 @@ export function classifyDomain(
 
   return { pack_id, confidence, reason, candidates };
 }
+
+// --- Wave 2 Day 3: combined v1 (regex) + v2 (embedding) classifier ----------
+//
+// v1 (regex, sync above) is high-precision when it hits but low-recall on
+// paraphrases. v2 (embedding, async, see embedding_store.ts) catches semantic
+// matches the regex misses. Combination rules — conservative on purpose so v2
+// can only HELP, never silently override a confident v1 verdict:
+//
+//   1. v1 confident (>= THRESHOLDS.single)        → trust v1 ("regex_confident").
+//      Agreement bonus: if v2 also picks the same pack, +0.10 ("agreement").
+//   2. v1 AMBIGUOUS and v2 picks one of the candidates with strong similarity
+//      (>= EMBED_PROMOTE_SIM)                     → promote to that single pack
+//                                                   ("embedding_disambiguates").
+//   3. v1 GENERAL but v2 has a strong match
+//      (>= EMBED_PROMOTE_SIM)                     → promote to that pack
+//                                                   ("embedding_promotes").
+//   4. v2 unavailable (Ollama down, no seeds, etc.) → return v1 untouched
+//                                                   ("regex_fallback").
+//   5. Otherwise return v1 with source="regex".
+//
+// All branches preserve the existing DomainClassification shape so the hook
+// renderers keep working unchanged.
+
+import type { EmbeddingClassification, EmbeddingStore } from "./embedding_store.ts";
+import { embeddingStore as defaultEmbeddingStore } from "./embedding_store.ts";
+
+/** Similarity threshold above which v2 is "strong enough" to promote v1. */
+export const EMBED_PROMOTE_SIM = 0.55;
+/** Confidence bonus added when v1 and v2 independently picked the same pack. */
+export const AGREEMENT_BONUS = 0.1;
+
+export type CombinedSource =
+  | "regex_confident"
+  | "regex"
+  | "agreement"
+  | "embedding_disambiguates"
+  | "embedding_promotes"
+  | "regex_fallback";
+
+export interface CombinedDomainClassification extends DomainClassification {
+  source: CombinedSource;
+  embedding_similarity?: number; // v2 top-pack similarity when available
+}
+
+/** Combined v1 + v2 classifier. v2 only helps; never overrides confident v1. */
+export async function classifyDomainCombined(
+  prompt: string,
+  packs: CompiledPack[],
+  store: EmbeddingStore = defaultEmbeddingStore,
+): Promise<CombinedDomainClassification> {
+  const v1 = classifyDomain(prompt, packs);
+  const v2: EmbeddingClassification | null = await store.classify(prompt).catch(() => null);
+
+  if (!v2) {
+    return { ...v1, source: "regex_fallback" };
+  }
+
+  // Rule 1: v1 confident — trust it. Agreement bonus when v2 also picks it.
+  if (v1.confidence >= THRESHOLDS.single && v1.pack_id !== "AMBIGUOUS" && v1.pack_id !== "GENERAL") {
+    if (v2.pack_id === v1.pack_id) {
+      return {
+        ...v1,
+        confidence: Math.min(1, v1.confidence + AGREEMENT_BONUS),
+        reason: `${v1.reason} | embedding agrees (sim=${v2.similarity.toFixed(2)})`,
+        source: "agreement",
+        embedding_similarity: v2.similarity,
+      };
+    }
+    return { ...v1, source: "regex_confident", embedding_similarity: v2.similarity };
+  }
+
+  // Rule 2: v1 AMBIGUOUS but v2 picks one of the candidates with strong sim.
+  if (v1.pack_id === "AMBIGUOUS" && v2.similarity >= EMBED_PROMOTE_SIM) {
+    const candidateIds = new Set(v1.candidates.map((c) => c.pack_id));
+    if (candidateIds.has(v2.pack_id)) {
+      return {
+        pack_id: v2.pack_id,
+        confidence: v2.similarity,
+        reason: `${v2.pack_id}: embedding disambiguated (sim=${v2.similarity.toFixed(2)}, was AMBIGUOUS between ${[...candidateIds].join("/")})`,
+        candidates: v1.candidates,
+        source: "embedding_disambiguates",
+        embedding_similarity: v2.similarity,
+      };
+    }
+  }
+
+  // Rule 3: v1 GENERAL but v2 has a strong match — promote.
+  if (v1.pack_id === "GENERAL" && v2.similarity >= EMBED_PROMOTE_SIM) {
+    return {
+      pack_id: v2.pack_id,
+      confidence: v2.similarity,
+      reason: `${v2.pack_id}: embedding promoted from GENERAL (sim=${v2.similarity.toFixed(2)})`,
+      candidates: [{ pack_id: v2.pack_id, score: v2.similarity }],
+      source: "embedding_promotes",
+      embedding_similarity: v2.similarity,
+    };
+  }
+
+  // Rule 5 default — v1 stands.
+  return { ...v1, source: "regex", embedding_similarity: v2.similarity };
+}
