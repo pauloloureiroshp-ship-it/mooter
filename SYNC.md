@@ -3,10 +3,54 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-28 (Claude Code — **🛠 WAVE 2 DAY 1 BOTTLENECK FIXES COMPLETO: 6 commits selectivos, PR #8 aberto para `dev`, NÃO merged. 3 fixes implementados (GENERAL fallback→T2 Sonnet, code-audit floor T2/T3 + 7 escalation_keywords, T0 default qwen3:30b→qwen2.5-coder:7b) + ADR 017 + policy.ts partilhado + sanity 5/5 prompts pos-fix verified. final-reviewer Opus: APPROVE_WITH_NOTES (4 NITs Day 2 backlog). 24/24 router tests green; classify.js byte-identical (P11). Predicted Day 7 re-bench: WEAK 1/3 → MEDIUM/STRONG 2-3/3.**)
-**Versão:** v0.11 (Codex) + **Pastor Wave 1 SHIPPED** + **Wave 2 Day 1 in-PR** · mooter.ai live · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-28 (Claude Code — **🛠 WAVE 2 DAY 2 BUNDLE COMPLETO: PR #9 aberto para `dev`, NÃO merged. 3 sub-features em 1 commit (AMBIGUOUS scaffold via `applyAmbiguousScaffold` + statusline pack/adapter chips + setup state + SessionStart hook + animation-web ceiling T3→T2 como cap real). final-reviewer Opus: APPROVE_WITH_NOTES (4 NITs Day 3 backlog). Router 36/36 + statusline 31/31 verdes. `classify.js` byte-identical (P11). LLM E2E sanity deferred para Day 7 re-bench (cap é determinístico, coberto por `compression.test.ts`).**)
+**Versão:** v0.11 (Codex) + **Pastor Wave 1 SHIPPED** + **Wave 2 Day 1 merged + Day 2 in-PR** · mooter.ai live · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #44 — Wave 2 Day 1 Bottleneck Fixes. Branch `wave2-day1-fixes` pushed; PR #8 aberto para `dev` (https://github.com/pauloloureiroshp-ship-it/mooter/pull/8). Notion: [🛠 Sessão 2026-05-28 — Wave 2 Day 1](https://www.notion.so/36e6f6e42bc4815c9420fefdea21b65a). Ver secção Wave 2 Day 1 abaixo.
+**Sessão Claude Code:** #45 — Wave 2 Day 2 statusline + ambiguous + compression. Branch `wave2-day2-statusline-ambiguous-compression` pushed; PR #9 aberto para `dev` (https://github.com/pauloloureiroshp-ship-it/mooter/pull/9). Notion: [🛠 Sessão 2026-05-28 — Wave 2 Day 2](https://www.notion.so/36e6f6e42bc48162b31bc0d382629374). Ver secção Wave 2 Day 2 abaixo.
+
+### 🛠 Sessão #45 — 2026-05-28 (Wave 2 Day 2 — Statusline + AMBIGUOUS + Compression, PR #9 aberto)
+
+**Mandato Paulo:** 3 sub-features paralelas num único PR para `dev` — AMBIGUOUS scaffold injection, statusline wire (pack + adapter chips + setup state + SessionStart hook), animation-web compression (ceiling T3→T2). Master prompt entregue por Cowork; branch a partir de `dev` actualizado (PR #8 já merged como `095db2e`).
+
+**Outcome:** 1 commit selectivo (`6d3bac2`) · 10 ficheiros (6 M + 4 A) · PR #9 → `dev` aberto, NÃO merged · final-reviewer (Opus subagent) APPROVE_WITH_NOTES · cost sessão $0 (sem LLM E2E).
+
+**Sub-features:**
+1. **AMBIGUOUS scaffold** — `policy.applyAmbiguousScaffold()` (pura, análoga a `applyGeneralFallback`) + wire em `inject_context.ts`. Quando o classifier emite `pack_id=AMBIGUOUS`, o pack-hint ganha `inline_scaffold="Multiple packs match… ask 1 clarifying question…"` que instrui o modelo a desambiguar antes de planear. Sem mudança de tier (complexity decide). 9 cases em `ambiguous.test.ts`.
+2. **Statusline wire** — `tools/router/statusline-multi.js`: novo `readLastDecision()` (lê `~/.mooter/last-decision.json`, writer só vem Day 4), `getAdapterStatus()` placeholder Wave 5 (sempre idle ◌), `renderFromContext` append `· pack: <id>` e `· adapter: ◌` ao proof, estado `empty` renomeado para `setup` (🛠 `mooter setup incomplete — run /mooter init`). `SessionStart.sh` boota tracker idempotently. `STATUSLINE_WIRE.md` documenta merge aditivo via `jq`. 8 cases novos em `statusline-multi.test.js`.
+3. **Animation-web compression** — `pack.yaml` `model_ceiling: T3 → T2` + comment; `scaffold.md` ganha parágrafo bundle-discipline (prefer SVG+CSS sobre JS libs). Crítico: `inject_context.ts` agora trata `model_ceiling` como **cap real** (era advisory) — sem isto a compressão era decorativa. 3 cases em `compression.test.ts`.
+
+**Decisões de design:**
+- **D1 (AMBIGUOUS thresholds intactos):** master prompt sugeriu [0.45, 0.60] + delta ≤ 0.10. Detection actual `top_score / sum(top-3)` ∈ [0.4, 0.6) já existe e 10 tests dependem dela. A peça em falta era o **scaffold**, não a detection.
+- **D2 (statusline single-line):** test `statusline-multi.test.js:100` asserta `!out.includes('\n')`. "Linha 1/3" do master prompt = conceptual; multi-line cross-platform = Day 6. Chips append ao proof.
+- **D3 (ceiling como cap real):** semântica do nome (`ceiling`) ≠ comportamento (apenas escalation target). Adicionado cap explícito; `code-audit` (T3) e `diagram-systems` (T3) não afectados — só `animation-web` (T2) sofre redução.
+- **D4 (E2E sanity deferred):** cap é determinístico, `compression.test.ts` prova que dispara; LLM E2E (P006/P011/P022 em `wave1-benchmark/prompts.jsonl`) cobertos por Day 7 re-bench. Poupa $0.10 + flakiness.
+
+**Tests:**
+- `packages/router/`: 36/36 verde (3 novos `compression.test.ts` + 9 novos `ambiguous.test.ts` + 24 existentes).
+- `tools/router/` (statusline + classify + classify-branches): 62/62 verde.
+- `classify.js` byte-identical com `dev` (P11 ✓).
+
+**Local environment (não no repo):** `~/.claude/settings.json` merged aditivamente via `jq` — `theme: light` preservado; adicionados `statusLine.command` → `node ~/mooter/tools/router/statusline-multi.js` e `hooks.SessionStart` → `~/mooter/tools/router/hooks/SessionStart.sh`. Backup em `~/.claude/settings.json.bak`.
+
+**final-reviewer NITs (Day 3 backlog, non-blocking):**
+1. Assert `model_floor ≤ model_ceiling` no manifest load (defensive vs futuras packs).
+2. Colapsar `fallback?.applied` + `ambig?.applied` num único `inline_scaffold` slot (mutual exclusion estrutural).
+3. Edge-case test: `dataMissing=false` + `proof='—'` (tracker just spun up).
+4. `STATUSLINE_WIRE.md` callout: `jq` merge sobrescreve qualquer custom `statusLine.type/command` que o user tenha pinned.
+
+**Out of scope (próximas sessões):**
+- `~/.mooter/last-decision.json` writer — Wave 2 Day 4 (event-writer).
+- Statusline multi-line cross-platform — Wave 2 Day 6.
+- `mooter init` wizard — Wave 2 Day 6.
+- Adapter loader real (substitui placeholder) — Wave 5.
+
+**Push status:** ✅ branch pushed, PR #9 aberto. Paulo mergeia para `dev` quando quiser.
+
+**Página Notion:** [🛠 Sessão 2026-05-28 — Wave 2 Day 2](https://www.notion.so/36e6f6e42bc48162b31bc0d382629374) · `36e6f6e4-2bc4-8162-b31b-c0d382629374`
+
+**Próxima missão:** (a) Paulo merge PR #9; (b) Master prompt Wave 2 Day 3 (embedding layer começa — Qwen3 embeddings + faiss para `classify_domain`, e/ou 4 NITs Day 3 backlog primeiro); (c) Day 4 event writer (`last-decision.json` consumido pela statusline); (d) Day 6 `mooter init` + multi-line cross-platform; (e) Day 7 full re-benchmark valida fixes Day 1+2.
+
+---
 
 ### 🛠 Sessão #44 — 2026-05-28 (Wave 2 Day 1 — Bottleneck Fixes, PR #8 aberto)
 

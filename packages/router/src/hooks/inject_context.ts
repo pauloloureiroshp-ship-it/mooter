@@ -30,7 +30,7 @@ import {
   packResolve,
   type ResolveEnv,
 } from "../pack_resolve.ts";
-import { applyGeneralFallback, applyTierEscalation } from "../policy.ts";
+import { applyAmbiguousScaffold, applyGeneralFallback, applyTierEscalation } from "../policy.ts";
 
 const TIER_ORDER = ["T0", "T1", "T2", "T3"];
 const tierIdx = (t: string): number => {
@@ -114,18 +114,28 @@ function renderPackHint(
 
     // Wave 2 fix #1: GENERAL prompts with a T0/T1 base tier are promoted to T2
     // (Sonnet) and receive a short general-expert scaffold — avoids the qwen3
-    // quality cliff documented in Wave 1 REPORT §3.5. AMBIGUOUS keeps its own
-    // policy (Wave 2 Day 2 ships the scaffold for it separately).
+    // quality cliff documented in Wave 1 REPORT §3.5.
     const fallback =
       !isAmbiguous
         ? applyGeneralFallback({ pack_id: domain.pack_id, recommended_tier: complexity.tier })
         : null;
+
+    // Wave 2 Day 2: AMBIGUOUS scaffold — instructs the model to ask one
+    // clarifying question (or proceed with the more general approach) before
+    // planning. Tier is not promoted; complexity decides as usual.
+    const ambig = isAmbiguous
+      ? applyAmbiguousScaffold({
+          pack_id: domain.pack_id,
+          candidates: domain.candidates.map((c) => c.pack_id),
+        })
+      : null;
 
     return [
       "<pack-hint>",
       `pack=${domain.pack_id} confidence=${conf} reason="${reason}"`,
       fallback?.applied ? `final_tier=${fallback.tier} (general-fallback: ${fallback.reason})` : null,
       fallback?.applied ? `inline_scaffold="${fallback.scaffold}"` : null,
+      ambig?.applied ? `inline_scaffold="${ambig.scaffold}"` : null,
       "skills_invoke=[]",
       "mcps_recommended=[]",
       "mcps_missing=[]",
@@ -170,7 +180,15 @@ function renderPackHint(
     pack: { escalation_keywords: manifest.escalation_keywords, model_ceiling: manifest.model_ceiling },
     suggested_tier: flooredTier,
   });
-  const finalTier = escalation.tier;
+
+  // Wave 2 Day 2 — enforce model_ceiling as a true upper bound. Previously the
+  // ceiling only served as the escalation target; the YAML semantic ("ceiling")
+  // means "no model above this for this pack" even when axis-1 complexity asks
+  // for it. Concrete effect: animation-web (ceiling T2) caps T3 tasks to T2,
+  // i.e. Sonnet instead of Opus. Packs that want Opus on heavy work keep
+  // ceiling=T3 (e.g. code-audit).
+  const ceilingApplied = tierIdx(escalation.tier) > tierIdx(manifest.model_ceiling);
+  const finalTier = ceilingApplied ? manifest.model_ceiling : escalation.tier;
 
   const subagentPrimary = manifest.subagent_primary || complexity.suggested_subagent;
 
@@ -180,11 +198,18 @@ function renderPackHint(
     ? domain.reason.slice(manifest.pack_id.length + 2)
     : domain.reason;
 
+  const finalTierReason = (() => {
+    const parts: string[] = [];
+    if (escalation.applied) parts.push(`escalation: ${escalation.reason}`);
+    if (ceilingApplied) parts.push(`ceiling-cap: ${escalation.tier}→${manifest.model_ceiling}`);
+    return parts.length ? parts.join("; ") : null;
+  })();
+
   const lines = [
     "<pack-hint>",
     `pack=${manifest.pack_id} confidence=${conf} reason="signals: ${signals}"`,
     `model_floor=${manifest.model_floor} (${floorRespected ? "respected" : "raised"})`,
-    escalation.applied ? `final_tier=${finalTier} (escalation: ${escalation.reason})` : null,
+    finalTierReason ? `final_tier=${finalTier} (${finalTierReason})` : null,
     `skills_invoke=${arr(r.skills_invoke)}`,
     `mcps_recommended=${arr(r.available_mcps)}`,
     `mcps_missing=${arr(r.missing_mcps)}`,

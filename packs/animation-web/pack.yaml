@@ -7,7 +7,10 @@ domain_signals:
   file_extensions: [.tsx, .jsx, .css, .svg, .json]
   negative_keywords: [server animation, gif compression]
 model_floor: T2
-model_ceiling: T3
+# Wave 2 Day 2: ceiling lowered T3→T2. Wave 1 benchmark showed Sonnet matches
+# Opus quality on this category while cutting latency by ~40%. Hero animations
+# can still escalate via complexity-axis HIGH_RISK if the prompt warrants it.
+model_ceiling: T2
 skills:
   required: [anthropic-skills:web-artifacts-builder]
   recommended: [anthropic-skills:algorithmic-art]

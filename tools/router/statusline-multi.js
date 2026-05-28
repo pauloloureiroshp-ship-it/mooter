@@ -51,6 +51,10 @@ const TRACKER_URL   = 'http://127.0.0.1:7821/metrics';
 const TRACKER_TIMEOUT_MS = 250;
 const RECENT_WINDOW = 10; // last N decisions for drift / beast-overkill detection
 
+// Wave 2 Day 2 — last decision sidecar (written by the Pastor hook in Day 4).
+// Until that writer ships, read returns null and the pack chip is silent.
+const LAST_DECISION_PATH = path.join(require('os').homedir(), '.mooter', 'last-decision.json');
+
 // ── Health thresholds (single place to tune) ────────────────────────────
 const TH = {
   ANTH_RED:        15,  // % remaining → red
@@ -85,6 +89,36 @@ function readDecisionsTail() {
     const nl   = text.indexOf('\n');
     return text.slice(nl + 1).split('\n').filter(Boolean);
   } finally { fs.closeSync(fd); }
+}
+
+/**
+ * Read the last pack decision written by the Pastor hook. Returns null when
+ * the file is missing or malformed — that is the steady state until the
+ * Wave 2 Day 4 writer lands.
+ *
+ * Shape: { pack_id: string, candidates?: string[], ts?: string }
+ */
+function readLastDecision() {
+  try {
+    const raw = fs.readFileSync(LAST_DECISION_PATH, 'utf8');
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj.pack_id !== 'string') return null;
+    return {
+      pack_id: obj.pack_id,
+      candidates: Array.isArray(obj.candidates) ? obj.candidates.filter((c) => typeof c === 'string') : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Adapter status — Wave 5 placeholder. Until the LoRA / pack-adapter loader
+ * lands we always report idle so the chip is visible and reserves the slot.
+ * The future implementation will read ~/.mooter/adapter-state.json.
+ */
+function getAdapterStatus() {
+  return { status: 'idle', id: null };
 }
 
 /** Best-effort sync GET with hard timeout. Returns null on any failure. */
@@ -230,11 +264,13 @@ function pickState(ctx) {
     savedPct, savedUsd, todayCost, dataMissing,
   } = ctx;
 
-  // ── Empty (cold start, no classified events yet today) ────────────────
+  // ── Setup incomplete (no decisions, no quota — fresh install) ─────────
+  // Wave 2 Day 2: was a generic "no data yet" empty state; now surfaces the
+  // concrete next step so a clean WSL install knows what to run.
   if (dataMissing && total === 0) {
     return {
-      color:    'empty',
-      headline: 'no data yet — make a request',
+      color:    'setup',
+      headline: 'mooter setup incomplete — run /mooter init',
       proof:    '—',
     };
   }
@@ -375,7 +411,8 @@ const COLOR_GLYPH = {
   green:  '🟢',
   yellow: '🟡',
   red:    '🔴',
-  empty:  '⚪',
+  setup:  '🛠',
+  empty:  '⚪', // legacy — kept for back-compat with consumers; not emitted by pickState.
 };
 
 // ────────────────────────────────────────────────────────────────────────
@@ -385,10 +422,33 @@ const COLOR_GLYPH = {
 /**
  * Pure render function — no I/O. Takes a context object and returns the
  * one-line statusline. Used by tests and by the demo modes.
+ *
+ * Wave 2 Day 2: appends two chips to the proof slot:
+ *   · pack: <id>           (skipped for GENERAL; "AMBIGUOUS (a, b)" otherwise)
+ *   · adapter: ◌ / ◐ / ●    (Wave 5 placeholder — always idle ◌ today)
+ * Setup state suppresses both chips because the user has no router data yet.
  */
 function renderFromContext(ctx) {
   const state = pickState(ctx);
-  return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${state.proof}`;
+  let proof = state.proof;
+  if (state.color !== 'setup') {
+    const chips = proof && proof !== '—' ? [proof] : [];
+    if (ctx && ctx.lastPack && typeof ctx.lastPack.pack_id === 'string') {
+      const pid = ctx.lastPack.pack_id;
+      if (pid === 'AMBIGUOUS' && Array.isArray(ctx.lastPack.candidates) && ctx.lastPack.candidates.length >= 2) {
+        chips.push(`pack: AMBIGUOUS (${ctx.lastPack.candidates.slice(0, 2).join(', ')})`);
+      } else if (pid !== 'GENERAL' && pid !== 'AMBIGUOUS') {
+        chips.push(`pack: ${pid}`);
+      }
+    }
+    if (ctx && ctx.adapter && typeof ctx.adapter.status === 'string') {
+      const glyph = ctx.adapter.status === 'loaded'  ? '●' :
+                    ctx.adapter.status === 'loading' ? '◐' : '◌';
+      chips.push(`adapter: ${glyph}`);
+    }
+    proof = chips.length ? chips.join(' · ') : '—';
+  }
+  return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${proof}`;
 }
 
 async function buildContext() {
@@ -408,6 +468,10 @@ async function buildContext() {
   const savedUsd = metrics && Number.isFinite(Number(metrics.saved)) ? Number(metrics.saved) : null;
   const savedPct = metrics && Number.isFinite(Number(metrics.saved_pct)) ? Number(metrics.saved_pct) : null;
 
+  // Wave 2 Day 2 — pack + adapter sidecars (null-safe; both can be absent).
+  const lastPack = readLastDecision();
+  const adapter  = getAdapterStatus();
+
   // Drift detection: cheap when no baseline exists (returns drift=false
   // immediately). Wrapped in try/catch so a drift module bug never blocks
   // the statusline render.
@@ -421,6 +485,7 @@ async function buildContext() {
     anthRem, codexRem, codexLeft,
     savedUsd, savedPct, todayCost,
     drift,
+    lastPack, adapter,
     dataMissing: !lines.length && !quota.providers,
   };
 }
@@ -505,6 +570,7 @@ module.exports = {
   beastOverkillPct,
   zenUnderkillPct,
   avgConfidence,
+  getAdapterStatus,
   // Demo contexts kept on the export so consumers can render previews.
   DEMO_CONTEXTS,
   TH,

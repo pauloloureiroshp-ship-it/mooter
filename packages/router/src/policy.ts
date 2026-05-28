@@ -80,6 +80,43 @@ export function applyGeneralFallback(args: {
   };
 }
 
+// --- Fix #3: AMBIGUOUS scaffold (Wave 2 Day 2) -------------------------------
+
+/** Scaffold injected when the domain classifier returned `AMBIGUOUS` — i.e. two
+ *  or more packs scored close enough that picking one would be guesswork. The
+ *  scaffold instructs the model to ask one disambiguation question (or proceed
+ *  with the more general approach if the answer is obvious) before planning.
+ *  AMBIGUOUS does not change the tier — complexity decides as usual; the
+ *  scaffold only addresses the domain ambiguity. */
+export const AMBIGUOUS_SCAFFOLD_TEMPLATE =
+  "Multiple packs match this prompt with similar confidence ({candidates}). Before planning, ask the user 1 clarifying question to disambiguate, OR proceed with the more general approach if obvious. Do not assume.";
+
+export interface AmbiguousScaffoldResult {
+  /** Inline scaffold text with candidate packs interpolated; empty when not applicable. */
+  scaffold: string;
+  /** Whether the scaffold was emitted. */
+  applied: boolean;
+}
+
+/**
+ * Build the AMBIGUOUS scaffold. Pure: takes the list of candidate pack ids and
+ * returns the rendered scaffold. Caller decides whether to inject it (typically
+ * only when the pack_id is "AMBIGUOUS" and at least two candidates are present).
+ */
+export function applyAmbiguousScaffold(args: {
+  pack_id: string;
+  candidates: string[];
+}): AmbiguousScaffoldResult {
+  if (args.pack_id !== "AMBIGUOUS" || args.candidates.length < 2) {
+    return { scaffold: "", applied: false };
+  }
+  const list = args.candidates.join(", ");
+  return {
+    scaffold: AMBIGUOUS_SCAFFOLD_TEMPLATE.replace("{candidates}", list),
+    applied: true,
+  };
+}
+
 // --- Fix #2: keyword tier escalation -----------------------------------------
 
 export interface TierEscalationResult {
