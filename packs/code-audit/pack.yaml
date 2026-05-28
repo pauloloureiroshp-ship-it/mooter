@@ -4,8 +4,16 @@ description: "Code security & quality audit: Semgrep SAST, Snyk SCA, GitGuardian
 domain_signals:
   keywords: [audit, auditoria, review, security, segurança, vulnerability, lint, coerência, dependency check, secret scan]
   intent_phrases: ["audita este", "review completo", "verifica segurança", "dependency check", "antes de fazer push"]
-model_floor: T3                       # decisões críticas, Opus default
+model_floor: T2                       # Sonnet por defeito; Opus apenas com keyword
 model_ceiling: T3
+escalation_keywords:
+  - audit completo
+  - production audit
+  - vulnerability assessment
+  - security review for production
+  - arquitectura de segurança
+  - complete security audit
+  - production-grade audit
 skills:
   recommended: [design:accessibility-review, design:design-critique]
 mcps:
