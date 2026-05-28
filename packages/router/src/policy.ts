@@ -173,3 +173,27 @@ export function applyTierEscalation(args: {
       : `keyword "${matched}" matched but tier ${args.suggested_tier} already >= ceiling`,
   };
 }
+
+// --- NIT 1 (Wave 2 Day 3): defensive tier-bounds guard ----------------------
+
+/**
+ * Validate that a pack's tier bounds are well-formed: floor must not exceed
+ * ceiling. Throws with a clear message naming the pack so the misconfiguration
+ * is caught at load time rather than producing silent routing surprises later.
+ *
+ * Missing floor/ceiling are *not* an error — callers default to T0/T3. Pass
+ * the strings as they appear in the manifest (or the defaulted values); the
+ * function only cares about the relative ordering.
+ */
+export function assertTierBounds(args: {
+  pack_id: string;
+  model_floor: string;
+  model_ceiling: string;
+}): void {
+  if (tierIdx(args.model_floor) > tierIdx(args.model_ceiling)) {
+    throw new Error(
+      `Pack '${args.pack_id}' has model_floor=${args.model_floor} > model_ceiling=${args.model_ceiling}. ` +
+        `Fix the pack manifest before loading.`,
+    );
+  }
+}

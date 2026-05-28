@@ -20,6 +20,8 @@ import { buildHints } from "../src/hooks/inject_context.ts";
 import { loadPacks, type CompiledPack } from "../src/classify_domain.ts";
 import { applyAmbiguousScaffold } from "../src/policy.ts";
 import { type ResolveEnv } from "../src/pack_resolve.ts";
+import { EmbeddingStore } from "../src/embedding_store.ts";
+import { OllamaClient } from "../src/ollama_client.ts";
 
 const PACKS: CompiledPack[] = loadPacks();
 const ENV_FULL: ResolveEnv = {
@@ -28,6 +30,13 @@ const ENV_FULL: ResolveEnv = {
   skills_known: true,
   mcps_known: true,
 };
+
+// AMBIGUOUS flow is the v1-only contract: when the embedding classifier (v2)
+// is unavailable, an ambiguous prompt must still surface as AMBIGUOUS with the
+// scaffold and candidates. Tests below pin v2-down via a dead Ollama URL so
+// the test exercises the AMBIGUOUS path deterministically — independent of
+// whether seeds happen to disambiguate this or that prompt today.
+const DEAD_STORE = new EmbeddingStore(new OllamaClient("http://127.0.0.1:1", 500));
 
 function getBlock(out: string, tag: string): string {
   const m = out.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
@@ -48,7 +57,9 @@ const AMBIGUOUS_PROMPTS = [
 
 for (const prompt of AMBIGUOUS_PROMPTS) {
   test(`AMBIGUOUS prompt emits inline_scaffold — "${prompt}"`, async () => {
-    const out = await buildHints(prompt, PACKS, ENV_FULL);
+    // Force v1-only: v2 may legitimately disambiguate some of these prompts
+    // (see "combined classifier disambiguates AMBIGUOUS" below for that case).
+    const out = await buildHints(prompt, PACKS, ENV_FULL, DEAD_STORE);
     const pack = getBlock(out, "pack-hint");
     assert.equal(token(pack, "pack"), "AMBIGUOUS", "pack must be AMBIGUOUS");
     assert.match(pack, /inline_scaffold="[^"]+"/, "inline_scaffold line must be present");
@@ -112,3 +123,51 @@ test("applyAmbiguousScaffold: interpolates candidates into template", () => {
   assert.match(r.scaffold, /animation-web, code-audit, diagram-systems/);
   assert.match(r.scaffold, /clarifying question/);
 });
+
+// Wave 2 Day 3 — combined classifier (v1+v2) DISAMBIGUATES prompts that v1
+// alone flagged as AMBIGUOUS. The hook should then emit a confident pack-hint
+// (no AMBIGUOUS scaffold). Skipped when Ollama is unreachable so CI without
+// Ollama still passes the suite.
+async function ollamaReachable(): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    const res = await fetch(
+      `${process.env.OLLAMA_HOST ?? "http://host.docker.internal:11434"}/api/tags`,
+      { signal: ctrl.signal },
+    );
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+test(
+  "combined classifier disambiguates an AMBIGUOUS prompt via embedding",
+  { timeout: 30_000 },
+  async (t) => {
+    if (!(await ollamaReachable())) return t.skip("Ollama unreachable");
+    // "Review the scroll-trigger animation for security" — v1 sees both
+    // animation-web and code-audit. With v2 the embedding picks one with
+    // strong sim and Rule 2 (embedding_disambiguates) promotes it.
+    const out = await buildHints(
+      "Review the scroll-trigger animation for security",
+      PACKS,
+      ENV_FULL,
+    );
+    const pack = getBlock(out, "pack-hint");
+    const packId = token(pack, "pack");
+    assert.notEqual(packId, "AMBIGUOUS", "embedding should disambiguate");
+    assert.ok(
+      ["animation-web", "code-audit"].includes(packId),
+      `disambiguated pack must be one of the original candidates, got ${packId}`,
+    );
+    // No AMBIGUOUS scaffold leaks when the prompt was disambiguated.
+    assert.doesNotMatch(
+      pack,
+      /inline_scaffold="Multiple packs match/,
+      "AMBIGUOUS scaffold must not appear when v2 disambiguated",
+    );
+  },
+);

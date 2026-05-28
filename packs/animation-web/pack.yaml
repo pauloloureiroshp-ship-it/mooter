@@ -6,6 +6,18 @@ domain_signals:
   intent_phrases: ["fazer animar", "transição suave", "scroll driven", "hero animation", "micro-interaction"]
   file_extensions: [.tsx, .jsx, .css, .svg, .json]
   negative_keywords: [server animation, gif compression]
+  # Wave 2 Day 3: natural-language prompts used as embedding seeds for axis 2
+  # v2 (nomic-embed-text). Distinct across packs so cosine sim discriminates;
+  # not duplicates of validation prompts (those measure recall independently).
+  embedding_seeds:
+    - "queria que o logo aparecesse com movimento subtil quando a página carrega"
+    - "as cards do menu deviam fazer um efeito ondulado ao mostrar"
+    - "como faço o background mudar de cor conforme o utilizador faz scroll"
+    - "drawer lateral que entra da direita com curva natural"
+    - "número de visitantes que conta de 0 até ao valor real durante dois segundos"
+    - "qual a melhor lib para sequências coreografadas em web"
+    - "como evitar jank quando animo opacity em listas longas"
+    - "modal que aparece com bounce subtil, depois descansa"
 model_floor: T2
 # Wave 2 Day 2: ceiling lowered T3→T2. Wave 1 benchmark showed Sonnet matches
 # Opus quality on this category while cutting latency by ~40%. Hero animations
