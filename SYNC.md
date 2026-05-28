@@ -3,10 +3,38 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-27 (Claude Code — **🟢 PASTOR WAVE 1 SHIPPED: Day 7 fechado — validation recall 20/20 (100%), hook p99 3.74ms, repo `mooter` PÚBLICO, tag `v0.1.0-pastor-wave1`. Two-axis routing entregue.**)
+**Última sync:** 2026-05-27 (Claude Code — **🧪 WAVE 1 PASTOR BENCHMARK COMPLETO (local-only): 102 rows · 3 arms · blind Sonnet judge · $3.52. Pastor WEAK 1/3 vs baseline — qualidade ≈ (0.870 vs 0.886) mas só −20% custo (não −50%) e +89% latência. Handoff factos-only para análise Cowork. Branch `wave1-benchmark` NÃO pushed (Paulo: manter local).**)
 **Versão:** v0.11 (Codex) + **Pastor Wave 1 (axis 2 / Moo Packs)** · mooter.ai live · Wave 1 recall 20/20 ✅ · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
 **Último commit main:** Day 7 `feat: Wave 1 shipped — Pastor MVP public` (merge `wave1-pastor-day7` → main, final-reviewer gate)
 **Sessão Claude Code:** #42 — Pastor Day 7 (FINAL Wave 1). Validation harness + report (`docs/wave1-validation.md`, recall 20/20 ≥ gate 85%, hook p99 3.74ms ≤ 60ms), README two-axis (Mermaid + Moo Packs), tweet draft, repo público, tag. Notion: [🟢 Wave 1 SHIPPED](https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8). Ver secção Pastor Day 7 abaixo.
+
+### 🧪 Sessão #43 — 2026-05-27 (Wave 1 Pastor End-to-End Benchmark — local-only)
+
+**Mandato Paulo:** executar o benchmark pre-registado (`docs/benchmarks/wave1-pastor/BENCHMARK_DESIGN.md`) — qualidade + custo + latência end-to-end do Pastor vs baseline (Sonnet always) vs gold (Opus always), 34 prompts × 3 arms + blind judge. Branch `wave1-benchmark` a partir do tag `v0.1.0-pastor-wave1`.
+
+**Outcome (factos, sem interpretação — análise é do Cowork):**
+- **102 rows** (34×3) + 39 judge calls · **$3.52** total ($2.86 invocação + $0.66 judge) · 2 rows FAILED (P005/A, P012/A Ollama T0 timeout).
+- Qualidade: **A(Pastor) 0.870 · B(Sonnet) 0.886 · C(Opus) 0.917**. Cohen's d A_vs_B = −0.067 (negligível).
+- Custo/prompt: A $0.0224 · B $0.0280 · C $0.0337 → Pastor poupa **20% vs baseline** (limiar era 50%) e 33% vs gold.
+- Latência: A 51101ms (inflada por 2 timeouts Ollama) · B 27036ms · C 20265ms → Pastor **+89%** vs baseline.
+- **Veredicto §1: WEAK 1/3** ambos os pares (quality✓ cost✗ latency✗). Causas: floor T3 do code-audit força 15 prompts em Opus; qwen3:30b como T0 é lento. → sinais Wave 2.
+- Mis-routing: pack 22/24 (92%) · tier_appropriate 71% · would_higher_tier_help 15%.
+
+**Infra construída:** harness TS completo em `packages/router/scripts/wave1-benchmark/` (3 arms, blind judge, schema v1.0.0 + lineage UUIDv7, cost via pricing snapshot congelado, Parquet via @dsnp/parquetjs, data lake `~/.mooter/cache/`, 10 queries DuckDB). Deps novas em `packages/router`: `@anthropic-ai/sdk`, `ajv`, `@dsnp/parquetjs`.
+
+**Bugs apanhados (e corrigidos) durante a run:** (1) Opus 4.7 rejeita `temperature` (400) → omitido + auto-retry; (2) WSL `Date.now()` salta para trás → latência negativa → relógio monotónico `performance.now()`; (3) **final-reviewer Opus BLOCKER**: judge-reliability lia `positionToArm` (camelCase) vs `position_to_arm` → variance falsa 0.000; corrigido → real **0.041** (< 0.3, sem alerta). Recompute sem novas chamadas API.
+
+**Decisões metodológicas (documentadas, §3.3 sem rubric pré-registada):** pricing = preços reais verificados 2026-05-27 (Opus 5/25, não o 15/75 stale do design §17.2 — desvio aprovado por Paulo, logged anomalies A1); `would_higher_tier_help` derivado do delta de qualidade do arm gold; correctness determinística sobrepõe o judge onde corre.
+
+**Commits (6, local-only):** `16fe61d` scaffold · `deac2c5` 34 prompts · `6cde7eb` judge+orchestrator · `5458d40` monotonic-clock fix · `2a91ab1` run outputs + README · `5c421b9` judge-reliability blocker fix.
+
+**Push status:** ❌ **NÃO pushed** — Paulo escolheu manter local (resultados não-favoráveis num repo público; P6 do master prompt permite). 6 commits em `wave1-benchmark`.
+
+**Página Notion:** [🧪 Sessão 2026-05-27 — Wave 1 Pastor Benchmark](https://www.notion.so/36e6f6e42bc481a997a3f86dafa46abe) · `36e6f6e4-2bc4-81a9-97a3-f86dafa46abe`
+
+**Próxima missão (Cowork):** analisar `packages/router/scripts/wave1-benchmark/outputs/` (RAW_RESULTS.parquet, SUMMARY.json, JUDGE_LOG, anomalies.md A1–A7) → gerar `docs/benchmarks/wave1-pastor/REPORT.md` com bootstrap CIs, drill-down per-pack, e prioridades Wave 2 (T0 model rápido em vez de qwen3:30b; rever floor T3 do code-audit; parser robusto do judge).
+
+---
 
 ### 🎯 Sessão #41 — 2026-05-27 (Dynamic `/mooter-<model>` A+B LANDED — local-only)
 
