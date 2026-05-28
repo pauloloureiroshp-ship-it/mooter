@@ -24,6 +24,7 @@ const {
   pickState, renderFromContext,
   digest, beastOverkillPct, zenUnderkillPct, avgConfidence,
   computeAnthropicRem, computeCodexRem, computeCodexMessagesLeft,
+  getAdapterStatus,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
 
@@ -48,10 +49,13 @@ test('pickState: red when Anthropic 5h window is critically low', () => {
   assert.match(s.headline, /Codex \(84%\)/);
 });
 
-test('pickState: empty when no data and no quota state', () => {
+test('pickState: setup state when no data and no quota state (Wave 2 Day 2)', () => {
+  // The cold-start branch was renamed empty → setup so a fresh WSL install
+  // sees the concrete next step instead of a generic "no data" message.
   const s = pickState(DEMO_CONTEXTS.empty);
-  assert.equal(s.color, 'empty');
-  assert.match(s.headline, /no data yet/);
+  assert.equal(s.color, 'setup');
+  assert.match(s.headline, /setup incomplete/);
+  assert.match(s.headline, /\/mooter init/);
 });
 
 // ── pickState — priority ordering ───────────────────────────────────────
@@ -98,7 +102,9 @@ test('renderFromContext: prints exactly one line with glyph + headline + proof',
   for (const k of ['green', 'yellow', 'red', 'empty']) {
     const out = renderFromContext(DEMO_CONTEXTS[k]);
     assert.equal(out.includes('\n'), false, `state ${k} produced multiline output`);
-    assert.match(out, /^[🟢🟡🔴⚪]/u, `state ${k} missing color glyph`);
+    // Wave 2 Day 2: setup state uses 🛠 — the empty DEMO context now routes
+    // through the setup branch, so the glyph set grew accordingly.
+    assert.match(out, /^[🟢🟡🔴⚪🛠]/u, `state ${k} missing color glyph`);
     assert.match(out, / │ /, `state ${k} missing separator`);
   }
 });
@@ -270,4 +276,60 @@ test('avgConfidence: returns null when no usable values', () => {
   assert.equal(avgConfidence([]),     null);
   assert.equal(avgConfidence([{}]),   null);
   assert.equal(avgConfidence([{ confidence: 'not-a-number' }]), null);
+});
+
+// ── Wave 2 Day 2 — pack + adapter chips ─────────────────────────────────
+
+test('renderFromContext: appends pack chip when lastPack has a concrete pack id', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, lastPack: { pack_id: 'animation-web', candidates: null } };
+  const out = renderFromContext(ctx);
+  assert.match(out, /· pack: animation-web/, 'pack chip missing');
+});
+
+test('renderFromContext: AMBIGUOUS pack chip lists the top-2 candidates', () => {
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    lastPack: { pack_id: 'AMBIGUOUS', candidates: ['animation-web', 'code-audit', 'diagram-systems'] },
+  };
+  const out = renderFromContext(ctx);
+  assert.match(out, /· pack: AMBIGUOUS \(animation-web, code-audit\)/, 'AMBIGUOUS chip wrong shape');
+});
+
+test('renderFromContext: skips pack chip for GENERAL (no domain match)', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, lastPack: { pack_id: 'GENERAL' } };
+  const out = renderFromContext(ctx);
+  assert.doesNotMatch(out, /· pack:/, 'GENERAL pack chip should be suppressed');
+});
+
+test('renderFromContext: appends idle adapter chip (Wave 5 placeholder)', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, adapter: { status: 'idle' } };
+  const out = renderFromContext(ctx);
+  assert.match(out, /· adapter: ◌/, 'idle adapter chip missing');
+});
+
+test('renderFromContext: adapter chip glyphs follow status', () => {
+  for (const [status, glyph] of [['idle', '◌'], ['loading', '◐'], ['loaded', '●']]) {
+    const out = renderFromContext({ ...DEMO_CONTEXTS.green, adapter: { status } });
+    assert.match(out, new RegExp(`· adapter: ${glyph}`), `status ${status} → glyph ${glyph}`);
+  }
+});
+
+test('renderFromContext: setup state suppresses pack + adapter chips', () => {
+  // While the user has nothing wired the chips would be misleading — the
+  // headline already tells them exactly what to do.
+  const ctx = {
+    ...DEMO_CONTEXTS.empty,
+    lastPack: { pack_id: 'animation-web' }, // would normally render
+    adapter:  { status: 'idle' },           // would normally render
+  };
+  const out = renderFromContext(ctx);
+  assert.doesNotMatch(out, /· pack:/);
+  assert.doesNotMatch(out, /· adapter:/);
+  assert.match(out, /\/mooter init/);
+});
+
+test('getAdapterStatus: always idle today (Wave 5 placeholder)', () => {
+  const a = getAdapterStatus();
+  assert.equal(a.status, 'idle');
+  assert.equal(a.id, null);
 });
