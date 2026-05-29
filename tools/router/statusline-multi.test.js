@@ -58,6 +58,27 @@ test('pickState: setup state when no data and no quota state (Wave 2 Day 2)', ()
   assert.match(s.headline, /\/mooter init/);
 });
 
+test('pickState: tracker online but no decisions yet → not setup, proof "—" (NIT 3 Day 2)', () => {
+  // dataMissing=false means the savings tracker has spun up; total=0 means no
+  // decisions have landed yet. The setup branch must NOT fire (tracker online),
+  // and with nothing to show the proof falls back to the "—" placeholder rather
+  // than a stale number.
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    dataMissing: false,
+    total: 0,
+    last: null,
+    recent: [],
+    anthRem: undefined,
+    savedPct: undefined,
+    savedUsd: undefined,
+  };
+  const s = pickState(ctx);
+  assert.notEqual(s.color, 'setup', 'tracker is online — setup state must not fire');
+  assert.doesNotMatch(s.headline, /setup incomplete/);
+  assert.equal(s.proof, '—', 'no decisions yet → proof placeholder');
+});
+
 // ── pickState — priority ordering ───────────────────────────────────────
 
 test('pickState: RED Anthropic-low beats YELLOW low-savings', () => {
