@@ -10,20 +10,28 @@
 // shell is the only place that writes to stdout / sets the exit code.
 
 import { runPack, PACK_USAGE } from "./commands/pack.ts";
+import { runInit } from "./commands/init.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
 Usage:
+  mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter pack <subcommand> [args] [--json]
 
 ${PACK_USAGE}`;
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     process.stdout.write(TOP_USAGE + "\n");
     return command ? 0 : 1;
+  }
+
+  if (command === "init") {
+    const res = await runInit();
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
   }
 
   if (command === "pack") {
@@ -36,4 +44,4 @@ function main(argv: string[]): number {
   return 1;
 }
 
-process.exit(main(process.argv.slice(2)));
+main(process.argv.slice(2)).then((code) => process.exit(code));

@@ -37,6 +37,22 @@ import {
 } from "../pack_resolve.ts";
 import { generateUUIDv7, makeEnvelope, type MooterEvent, type Tier } from "../mooter_event.ts";
 import { applyAmbiguousScaffold, applyGeneralFallback, applyTierEscalation } from "../policy.ts";
+import {
+  applyExecutionFields,
+  type LlmResponseObservation,
+} from "../execution_fields.ts";
+
+/**
+ * Wave 2 Day 6 post-call entry point. Given the routing draft built pre-call by
+ * buildRoutingEvent and the turn's observed usage, return the completed event
+ * ready for eventWriter.write(). Thin re-export so callers import one module.
+ */
+export function finalizeRoutingEvent(
+  draft: MooterEvent,
+  observation: LlmResponseObservation,
+): MooterEvent {
+  return applyExecutionFields(draft, observation);
+}
 
 // --- NIT 2 (Wave 2 Day 3): single inline_scaffold slot ----------------------
 // resolveInlineScaffold returns AT MOST ONE scaffold so the render code emits
@@ -290,8 +306,16 @@ function renderPackHint(
 //
 // One MooterEvent per hook invocation, written best-effort to ~/.mooter/sessions.
 // Day 4 fills routing fields only (axis1, axis2, model_floor/ceiling, escalation);
-// execution fields (tokens_in/out, cost_micros, latency) wire in Wave 2 Day 6
-// post-LLM-call hook. The event still satisfies the schema with nulls.
+// the event still satisfies the schema with nulls in the execution slots.
+//
+// Wave 2 Day 6: the execution fields (tokens_in/out, cost_micros, latency,
+// error_type) are now filled by applyExecutionFields() in execution_fields.ts.
+// It is re-exported here as finalizeRoutingEvent so the Stop/post-call path has
+// a single entry point: capture the routing draft pre-call, then call
+// finalizeRoutingEvent(draft, observation) once the turn's usage is known. The
+// harness Stop-hook trigger that supplies that observation is not yet plumbed
+// in this repo; the capture itself is complete and covered by
+// execution-fields.test.ts.
 
 /** sha256 → 16 hex chars. NEVER store raw prompt text in events. */
 function promptHash16(prompt: string): string {

@@ -15,6 +15,16 @@ The repo holds the canonical scripts; runtime copies live under `~/.claude/`
 and are kept in sync by `/mooter-update` (see
 `.claude/rules/router-logic.md`).
 
+> ⚠️ **The jq additive merge OVERRIDES any custom `statusLine.type` or
+> `statusLine.command`** you may have pinned in `~/.claude/settings.json`.
+> Sibling keys (theme, hooks, permissions, etc) are preserved. If you have a
+> custom statusLine, back it up before running the merge.
+
+> ℹ️ **SessionStart format.** Newer Claude Code expects `hooks.SessionStart` as
+> an array of matcher objects, not a bare command string. If your settings still
+> use the old string form, run `tools/router/hooks/migrate-settings.sh` once —
+> it backs up to `settings.json.pre-migrate-day6.bak` and converts in place.
+
 ## Pre-flight
 
 Confirm the canonical scripts exist on disk and `node` is on `PATH`:
