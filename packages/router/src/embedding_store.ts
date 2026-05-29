@@ -28,6 +28,15 @@ import { OllamaClient } from "./ollama_client.ts";
 const NON_PACK_DIRS = new Set(["node_modules", "tests", "__mock__"]);
 export const EMBED_MODEL = "nomic-embed-text";
 
+// Wave 2 Day 4 NIT 3: cap concurrent Ollama embed calls during init().
+// At Wave 2 Day 5 the pack set grows to 7 × 8 seeds = 56 embeddings. Firing
+// them all with a single Promise.all overloads the local Ollama instance and
+// can hit socket / OOM limits. Processing in BATCH_SIZE-wide chunks keeps the
+// init bounded while preserving the ≤ 5s budget. 8 is the largest size that
+// stays comfortably inside the RTX 4090 + nomic-embed-text envelope in
+// benchmarks (Day 3 baseline ran at ≤ 24 concurrent, scaled with no loss).
+export const EMBED_BATCH_SIZE = 8;
+
 interface PackEmbeddings {
   pack_id: string;
   vectors: Float32Array[];
@@ -93,6 +102,18 @@ export class EmbeddingStore {
     return this.ready;
   }
 
+  /**
+   * Drop all cached embeddings and re-arm the store. Wave 2 Day 4 NIT 1: test
+   * suites need clean state between cases — the module-level singleton is
+   * shared across files, so a leak would silently change verdicts. Also drops
+   * any in-flight init promise so the next init() runs fresh.
+   */
+  reset(): void {
+    this.store = [];
+    this.ready = false;
+    this.initPromise = null;
+  }
+
   /** Pre-compute seed embeddings for every pack. Safe to call repeatedly. */
   async init(): Promise<void> {
     if (this.ready) return;
@@ -107,12 +128,39 @@ export class EmbeddingStore {
 
   private async doInit(): Promise<void> {
     const packs = loadPackSeeds(this.packsDir);
+
+    // Wave 2 Day 4 NIT 3: flatten (pack × seeds) → flat list, then process in
+    // batches of EMBED_BATCH_SIZE concurrent embed calls. Within a batch we
+    // Promise.all; between batches we await sequentially so the local Ollama
+    // never sees more than BATCH_SIZE in-flight at once.
+    const flat: Array<{ pack_id: string; seed: string }> = [];
+    for (const p of packs) {
+      for (const seed of p.seeds) flat.push({ pack_id: p.pack_id, seed });
+    }
+
+    const vectorsByPack = new Map<string, Float32Array[]>();
+    for (let i = 0; i < flat.length; i += EMBED_BATCH_SIZE) {
+      const batch = flat.slice(i, i + EMBED_BATCH_SIZE);
+      const vecs = await Promise.all(
+        batch.map((b) => this.client.embed(EMBED_MODEL, b.seed)),
+      );
+      batch.forEach((b, idx) => {
+        let list = vectorsByPack.get(b.pack_id);
+        if (!list) {
+          list = [];
+          vectorsByPack.set(b.pack_id, list);
+        }
+        list.push(vecs[idx]!);
+      });
+    }
+
+    // Preserve the original pack order (loadPackSeeds returns dir-listing order).
     const built: PackEmbeddings[] = [];
     for (const p of packs) {
-      const vectors = await Promise.all(
-        p.seeds.map((seed) => this.client.embed(EMBED_MODEL, seed)),
-      );
-      built.push({ pack_id: p.pack_id, vectors });
+      const vectors = vectorsByPack.get(p.pack_id);
+      if (vectors && vectors.length > 0) {
+        built.push({ pack_id: p.pack_id, vectors });
+      }
     }
     this.store = built;
     this.ready = true;

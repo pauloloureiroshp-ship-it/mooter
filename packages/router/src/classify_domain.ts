@@ -8,6 +8,51 @@
 //
 // Source of truth: docs/strategy/PASTOR.md §10.3 (this day) and §3 (two-axis routing).
 // Algorithm + scoring are documented in docs/spec/classify-domain.md.
+//
+// ──────────────────────────────────────────────────────────────────────────────
+// Calibration — axis-2 v2 combined classifier (Wave 2 Day 4 baseline)
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// Current weights (do NOT edit casually — recall test is gated against them):
+//
+//   v1 regex (WEIGHTS, this file):
+//     keyword              =  1.0
+//     intent_phrase        =  1.5
+//     file_extension       =  0.5
+//     negative_keyword     = -2.0
+//
+//   v1 confidence thresholds (THRESHOLDS, this file):
+//     single               =  0.6   (>= single → confident pack)
+//     ambiguous            =  0.4   (in [ambig, single) → AMBIGUOUS with top-3)
+//
+//   v2 combined (this file, below scoring section):
+//     EMBED_PROMOTE_SIM    =  0.55  (cosine sim to promote v1 GENERAL/AMBIG)
+//     AGREEMENT_BONUS      =  0.10  (added when v1 & v2 pick the same pack)
+//
+// When to recalibrate:
+//   - Pack count > 4 (Day 5 grows to 7) → re-sweep EMBED_PROMOTE_SIM; more
+//     packs means the average runner-up similarity rises, so the same
+//     threshold becomes more permissive than intended.
+//   - Seeds per pack > 12 → keyword weight gets diluted by the larger embed
+//     seed pool; consider dropping REGEX_WEIGHT implicit ratio (i.e. raise
+//     intent_phrase / file_extension to keep regex signal competitive).
+//   - recall_combined on the validation set drops below 90% (recall-validation
+//     test enforces this floor; CI failure is the calibration trigger).
+//   - Production misroute rate > 5% sustained over a week (telemetry from
+//     event-writer + rollups, Wave 3 D4 onwards).
+//
+// How to recalibrate:
+//   1. `npm test -- recall-validation.test.ts` — capture current baseline.
+//   2. Grid search:
+//        WEIGHTS.intent_phrase ∈ {1.0, 1.5, 2.0}
+//        EMBED_PROMOTE_SIM    ∈ {0.50, 0.55, 0.60, 0.65, 0.70}
+//        AGREEMENT_BONUS      ∈ {0.05, 0.10, 0.15}
+//      Maximise recall_combined subject to embedding-perf p99 ≤ 80ms.
+//   3. Update the constants in this file (and EMBED_PROMOTE_SIM /
+//      AGREEMENT_BONUS in the combined section below).
+//   4. Re-run the full router test suite (recall + perf + fallback).
+//   5. Document the change in a new ADR (e.g. ADR 019 — Day-N recalibration).
+// ──────────────────────────────────────────────────────────────────────────────
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
