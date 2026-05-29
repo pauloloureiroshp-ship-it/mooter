@@ -154,9 +154,20 @@ console.log("===============================\n");
 // Assertions (DoD)
 // --------------------------------------------------------------------------
 
-test("loads exactly the 3 seed packs", () => {
+test("loads all 7 registry packs (3 seed + Wave 2 Day 5 additions)", () => {
   const ids = PACKS.map((p) => p.pack_id).sort();
-  assert.deepEqual(ids, [ANIM, AUDIT, DIAG].sort());
+  assert.deepEqual(
+    ids,
+    [
+      ANIM,
+      AUDIT,
+      DIAG,
+      "data-spreadsheet",
+      "knowledge-third-brain",
+      "prd-strategy",
+      "voice-tts",
+    ].sort(),
+  );
 });
 
 test("recall >= 0.85 overall on the 30 positives", () => {

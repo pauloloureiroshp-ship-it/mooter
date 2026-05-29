@@ -26,13 +26,23 @@
 //     ambiguous            =  0.4   (in [ambig, single) → AMBIGUOUS with top-3)
 //
 //   v2 combined (this file, below scoring section):
-//     EMBED_PROMOTE_SIM    =  0.55  (cosine sim to promote v1 GENERAL/AMBIG)
+//     EMBED_PROMOTE_SIM    =  0.70  (cosine sim to promote v1 GENERAL/AMBIG)
 //     AGREEMENT_BONUS      =  0.10  (added when v1 & v2 pick the same pack)
 //
+// Wave 2 Day 5 recalibration (2026-05-28, pack set 3 → 7; ADR 018):
+//   EMBED_PROMOTE_SIM raised 0.55 → 0.70. With 7 packs the nearest seed clears
+//   0.55 for almost any prompt, so Rule 3 was promoting EVERY v1 GENERAL/AMBIG
+//   verdict into a pack (general_keep 0/4, ambiguous_keep 0/6 in the sweep —
+//   a precision regression the recall test cannot see, as it excludes those
+//   prompts). 0.70 restores general_keep 3/4 and ambiguous_keep 5/6 while
+//   single-pack recall stays 100% (24/24). 0.75+ starts costing recall.
+//   AGREEMENT_BONUS left at 0.10: it only nudges confidence, never the chosen
+//   pack, so it moves neither recall nor precision (scripts/recalibrate.ts).
+//
 // When to recalibrate:
-//   - Pack count > 4 (Day 5 grows to 7) → re-sweep EMBED_PROMOTE_SIM; more
-//     packs means the average runner-up similarity rises, so the same
-//     threshold becomes more permissive than intended.
+//   - Pack count > 7 → re-sweep EMBED_PROMOTE_SIM; more packs means the average
+//     runner-up similarity rises, so the same threshold becomes more permissive
+//     than intended (this is exactly what drove the Day-5 0.55 → 0.70 bump).
 //   - Seeds per pack > 12 → keyword weight gets diluted by the larger embed
 //     seed pool; consider dropping REGEX_WEIGHT implicit ratio (i.e. raise
 //     intent_phrase / file_extension to keep regex signal competitive).
@@ -259,8 +269,9 @@ export function classifyDomain(
 import type { EmbeddingClassification, EmbeddingStore } from "./embedding_store.ts";
 import { embeddingStore as defaultEmbeddingStore } from "./embedding_store.ts";
 
-/** Similarity threshold above which v2 is "strong enough" to promote v1. */
-export const EMBED_PROMOTE_SIM = 0.55;
+/** Similarity threshold above which v2 is "strong enough" to promote v1.
+ *  Wave 2 Day 5: 0.55 → 0.70 (pack set 3 → 7, ADR 018). See calibration block. */
+export const EMBED_PROMOTE_SIM = 0.7;
 /** Confidence bonus added when v1 and v2 independently picked the same pack. */
 export const AGREEMENT_BONUS = 0.1;
 

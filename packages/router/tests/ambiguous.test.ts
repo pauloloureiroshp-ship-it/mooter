@@ -125,49 +125,41 @@ test("applyAmbiguousScaffold: interpolates candidates into template", () => {
 });
 
 // Wave 2 Day 3 — combined classifier (v1+v2) DISAMBIGUATES prompts that v1
-// alone flagged as AMBIGUOUS. The hook should then emit a confident pack-hint
-// (no AMBIGUOUS scaffold). Skipped when Ollama is unreachable so CI without
-// Ollama still passes the suite.
-async function ollamaReachable(): Promise<boolean> {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 1500);
-    const res = await fetch(
-      `${process.env.OLLAMA_HOST ?? "http://host.docker.internal:11434"}/api/tags`,
-      { signal: ctrl.signal },
-    );
-    clearTimeout(t);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+// alone flagged as AMBIGUOUS, when the embedding similarity clears
+// EMBED_PROMOTE_SIM. The hook then emits a confident pack-hint (no AMBIGUOUS
+// scaffold).
+//
+// Wave 2 Day 5 recalibration (pack set 3 → 7, ADR 018): EMBED_PROMOTE_SIM rose
+// 0.55 → 0.70. With 7 packs the nearest seed clears 0.55 for almost any prompt,
+// so the old threshold over-promoted weak/ambiguous signals into a pack. The
+// two cases below pin the boundary deterministically with a stub store (no
+// Ollama dependency, no flakiness): the same v1-AMBIGUOUS prompt is promoted
+// only when v2 is genuinely strong, and stays AMBIGUOUS when v2 is weak.
+//
+// "Review the scroll-trigger animation for security" → v1 = AMBIGUOUS with
+// candidates {animation-web, code-audit}; the stub controls v2.
+const AMBIG_PROMPT = "Review the scroll-trigger animation for security";
+const stubStore = (pack_id: string, similarity: number) =>
+  ({ classify: async () => ({ pack_id, similarity }) }) as unknown as EmbeddingStore;
 
-test(
-  "combined classifier disambiguates an AMBIGUOUS prompt via embedding",
-  { timeout: 30_000 },
-  async (t) => {
-    if (!(await ollamaReachable())) return t.skip("Ollama unreachable");
-    // "Review the scroll-trigger animation for security" — v1 sees both
-    // animation-web and code-audit. With v2 the embedding picks one with
-    // strong sim and Rule 2 (embedding_disambiguates) promotes it.
-    const out = await buildHints(
-      "Review the scroll-trigger animation for security",
-      PACKS,
-      ENV_FULL,
-    );
-    const pack = getBlock(out, "pack-hint");
-    const packId = token(pack, "pack");
-    assert.notEqual(packId, "AMBIGUOUS", "embedding should disambiguate");
-    assert.ok(
-      ["animation-web", "code-audit"].includes(packId),
-      `disambiguated pack must be one of the original candidates, got ${packId}`,
-    );
-    // No AMBIGUOUS scaffold leaks when the prompt was disambiguated.
-    assert.doesNotMatch(
-      pack,
-      /inline_scaffold="Multiple packs match/,
-      "AMBIGUOUS scaffold must not appear when v2 disambiguated",
-    );
-  },
-);
+test("v2 promotes a v1-AMBIGUOUS prompt when similarity clears EMBED_PROMOTE_SIM (0.70)", async () => {
+  // Strong v2 on a v1 candidate → Rule 2 (embedding_disambiguates) fires.
+  const out = await buildHints(AMBIG_PROMPT, PACKS, ENV_FULL, stubStore("animation-web", 0.82));
+  const pack = getBlock(out, "pack-hint");
+  assert.equal(token(pack, "pack"), "animation-web", "strong v2 must disambiguate to the candidate");
+  assert.doesNotMatch(
+    pack,
+    /inline_scaffold="Multiple packs match/,
+    "AMBIGUOUS scaffold must not appear when v2 disambiguated",
+  );
+});
+
+test("v2 does NOT promote below the recalibrated EMBED_PROMOTE_SIM — stays AMBIGUOUS (Day-5 0.55→0.70)", async () => {
+  // sim 0.60 would have promoted at the old 0.55 threshold; at 0.70 it must
+  // stay AMBIGUOUS so the disambiguation scaffold still ships. This is the
+  // precision guard the Day-5 recalibration buys.
+  const out = await buildHints(AMBIG_PROMPT, PACKS, ENV_FULL, stubStore("animation-web", 0.6));
+  const pack = getBlock(out, "pack-hint");
+  assert.equal(token(pack, "pack"), "AMBIGUOUS", "weak v2 must not over-promote");
+  assert.match(pack, /inline_scaffold="Multiple packs match/, "AMBIGUOUS scaffold must ship");
+});

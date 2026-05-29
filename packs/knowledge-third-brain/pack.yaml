@@ -1,0 +1,38 @@
+name: knowledge-third-brain
+version: 0.1.0
+description: Knowledge management, Notion KB, second brain, knowledge graph
+domain_signals:
+  keywords: [knowledge base, second brain, third brain, notion, obsidian, logseq, zettelkasten, knowledge graph, kb]
+  intent_phrases: ["organize my notes", "build a knowledge base", "query the knowledge graph", "create Notion pages", "sync to Obsidian"]
+  file_extensions: [.md, .org]
+  negative_keywords: [delete kb]
+  # Wave 2 Day 5: natural-language seeds for axis 2 v2 (nomic-embed-text).
+  # Distinct from the other six packs so cosine sim discriminates cleanly.
+  embedding_seeds:
+    - "organize my Notion pages by topic"
+    - "create a knowledge graph from these notes"
+    - "build a second brain system in Obsidian"
+    - "query my Zettelkasten for related ideas"
+    - "summarize all docs about pricing strategy"
+    - "link these orphan notes to the main vault"
+    - "extract entities and relationships from this doc"
+    - "auto-tag notes by domain inference"
+model_floor: T2
+model_ceiling: T3
+skills:
+  recommended: [notion-api, markdown-parser, entity-extraction]
+mcps:
+  recommended: [notion-mcp, obsidian-mcp]
+subagents:
+  primary: model-reasoner
+repos_canonical:
+  - { name: notion-mcp-server, url: https://github.com/makenotion/notion-mcp-server, license: MIT, note: "Official Notion MCP server" }
+  - { name: obsidian-releases, url: https://github.com/obsidianmd/obsidian-releases, license: "MIT (community plugins index)", note: "Obsidian plugin/release registry" }
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+metadata:
+  author: pauloloureiroshp-ship-it
+  created: 2026-05-28
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0
