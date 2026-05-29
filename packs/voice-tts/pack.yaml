@@ -1,0 +1,38 @@
+name: voice-tts
+version: 0.1.0
+description: Text-to-speech, voice synthesis, audio pipeline scripting
+domain_signals:
+  keywords: [tts, text-to-speech, voice, audio, cartesia, elevenlabs, whisper, speech]
+  intent_phrases: ["generate voice", "synthesize speech", "audio pipeline", "voice agent", "transcribe audio"]
+  file_extensions: [.wav, .mp3, .ogg, .flac]
+  negative_keywords: [silent, mute]
+  # Wave 2 Day 5: natural-language seeds for axis 2 v2 (nomic-embed-text).
+  # Distinct from the other six packs so cosine sim discriminates cleanly.
+  embedding_seeds:
+    - "generate voice from text using Cartesia"
+    - "set up a voice agent with ElevenLabs"
+    - "transcribe this audio file with Whisper"
+    - "stream TTS audio in real-time"
+    - "synthesize speech with custom voice cloning"
+    - "build an audio pipeline for podcast generation"
+    - "convert text to natural-sounding speech"
+    - "implement voice activity detection"
+model_floor: T1
+model_ceiling: T2
+skills:
+  recommended: [voice-agent-design, audio-streaming]
+mcps:
+  recommended: [cartesia-tts, groq-whisper]
+subagents:
+  primary: model-reasoner
+repos_canonical:
+  - { name: cartesia-python, url: https://github.com/cartesia-ai/cartesia-python, license: MIT, note: "Cartesia TTS SDK (sonic models)" }
+  - { name: whisper, url: https://github.com/openai/whisper, license: MIT, note: "Reference transcription model" }
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+metadata:
+  author: pauloloureiroshp-ship-it
+  created: 2026-05-28
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0
