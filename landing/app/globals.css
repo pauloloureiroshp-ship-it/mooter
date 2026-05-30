@@ -1,7 +1,7 @@
 /* ============================================================
    Mooter Landing — dark warm palette (Wave 4 Phase A redesign)
    Source of truth: --color-* tokens (IMPLEMENTATION_SPEC §3).
-   Legacy --beige-*/--ink-* aliases point at the dark tokens so
+   Legacy beige/ink aliases point at the dark tokens so
    the existing .page/.band classes render dark automatically.
    ============================================================ */
 
