@@ -1,33 +1,72 @@
 /* ============================================================
-   Mooter Landing — warm beige palette (2026-04-18 redesign)
+   Mooter Landing — dark warm palette (Wave 4 Phase A redesign)
+   Source of truth: --color-* tokens (IMPLEMENTATION_SPEC §3).
+   Legacy beige/ink aliases point at the dark tokens so
+   the existing .page/.band classes render dark automatically.
    ============================================================ */
 
 :root {
-  /* Background — warm parchment */
-  --beige-bg:     #F2ECDF;
-  --beige-bg-2:   #EBE3D1;
-  --beige-card:   #FBF7EE;
-  --beige-card-2: #FFFDF7;
-  --beige-line:   #D9D0BB;
-  --beige-line-2: #C8BCA0;
+  /* Background — warm near-black, NEVER #000 */
+  --color-bg:          #0B0A09;
+  --color-bg-2:        #0F0E0C;
+  --color-surface:     #141311;
+  --color-surface-2:   #1C1A17;
+  --color-border:      #252220;
+  --color-border-light:#302C28;
 
-  /* Typography */
-  --ink:          #1A1613;
-  --ink-2:        #3A332C;
-  --muted-ink:    #6F665A;
-  --faint-ink:    #9A8F7E;
+  /* Text — warm off-white, NEVER #FFF */
+  --color-text:        #F2EDE6;
+  --color-muted:       #7A7168;
+  --color-faint:       #2A2622;
+
+  /* Accent — cow-muzzle pink */
+  --color-accent:      #E8888A;
+  --color-accent-2:    #F2A5A5;
+  --color-accent-08:   rgba(232,136,138,0.08);
+  --color-accent-25:   rgba(232,136,138,0.25);
+
+  /* Functional */
+  --color-green:       #4CAF6A;
+  --color-yellow:      #D4C090;
+
+  /* Tier colors WEB (T2 differs from terminal) */
+  --color-tier-0:      #4CAF6A;
+  --color-tier-1:      #5A9BD4;
+  --color-tier-2:      #A88BD4;
+  --color-tier-3:      #D46A5A;
+  --color-tier-2-term: #D4C090;
+
+  /* In-page TTY mockups */
+  --color-term-bg:     #0d1117;
+  --color-term-border: #30363d;
+  --color-term-header: #161b22;
+  --color-term-fg:     #c9d1d9;
+  --color-term-dim:    #8b949e;
+
+  /* ── Legacy aliases (map old names onto dark tokens) ── */
+  --beige-bg:     var(--color-bg);
+  --beige-bg-2:   var(--color-bg-2);
+  --beige-card:   var(--color-surface);
+  --beige-card-2: var(--color-surface-2);
+  --beige-line:   var(--color-border);
+  --beige-line-2: var(--color-border-light);
+
+  --ink:          var(--color-text);
+  --ink-2:        #D8D1C8;
+  --muted-ink:    var(--color-muted);
+  --faint-ink:    #5A534B;
 
   /* Brand — mooter rose */
-  --rose:         #C25F65;
-  --rose-soft:    #E8888A;
-  --rose-pale:    #F5D7D8;
-  --rose-bg:      #F6E5E0;
+  --rose:         var(--color-accent);
+  --rose-soft:    var(--color-accent-2);
+  --rose-pale:    var(--color-accent-25);
+  --rose-bg:      var(--color-accent-08);
 
-  /* Tier system — adjusted for light bg */
-  --t0-green:     #3D8B5E;
-  --t1-blue:      #3D6FA8;
-  --t2-purple:    #7A5EA8;
-  --t3-red:       #B8523F;
+  /* Tier system — web dark */
+  --t0-green:     var(--color-tier-0);
+  --t1-blue:      var(--color-tier-1);
+  --t2-purple:    var(--color-tier-2);
+  --t3-red:       var(--color-tier-3);
 
   /* Fonts (next/font injects the --font-sans / --font-mono variables) */
   --font:         var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -37,13 +76,24 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
-  background: var(--beige-bg);
-  color: var(--ink);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   line-height: 1.6;
   font-size: 16px;
+  /* Subtle warm noise — terminal vibe, 2% opacity */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><filter id='n'><feTurbulence baseFrequency='0.9'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.9 0 0 0 0.02 0'/></filter><rect width='100' height='100' filter='url(%23n)'/></svg>");
+  background-size: 200px 200px;
 }
+
+/* Mono numbers — always tabular to align */
+.num, code { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Aggressive heading letter-spacing (spec §3) */
+h1 { letter-spacing: -0.04em; }
+h2 { letter-spacing: -0.03em; }
+h3 { letter-spacing: -0.02em; }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
 .mono { font-family: var(--mono); }
