@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import MooterMark from './MooterMark';
 
 const LINKS = [
@@ -32,10 +33,10 @@ export default function NavBar() {
           gap: 20,
         }}
       >
-        <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17 }}>
+        <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17 }}>
           <MooterMark size={26} />
           <span>mooter</span>
-        </a>
+        </Link>
         <div className="nav-links" style={{ display: 'flex', gap: 22, marginLeft: 14 }}>
           {LINKS.map((l) => (
             <a key={l.href} href={l.href} style={{ color: 'var(--color-muted)', fontSize: 14.5, fontWeight: 500 }}>
