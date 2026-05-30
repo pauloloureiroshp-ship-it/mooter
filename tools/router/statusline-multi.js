@@ -76,6 +76,29 @@ function readQuota() {
   catch { return null; }
 }
 
+/**
+ * Read the JSON blob Claude Code pipes to a statusline command on stdin.
+ * Returns null when stdin is a TTY (manual run) or the payload isn't JSON.
+ * Wave 2.5 Day 1 — source of session_id and context-window usage.
+ */
+function readStdinJson() {
+  if (process.stdin.isTTY) return null;
+  try {
+    const data = fs.readFileSync(0, 'utf8');       // fd 0 = stdin
+    if (!data.trim()) return null;
+    return JSON.parse(data);
+  } catch {
+    return null;                                    // not JSON / no stdin
+  }
+}
+
+/** Coerce a context-usage value to an integer 0..100, or null if unusable. */
+function clampPercent(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
 function readDecisionsTail() {
   let fd;
   try { fd = fs.openSync(DECISIONS_LOG, 'r'); }
@@ -121,10 +144,17 @@ function getAdapterStatus() {
   return { status: 'idle', id: null };
 }
 
-/** Best-effort sync GET with hard timeout. Returns null on any failure. */
-function readSavingsSync() {
+/**
+ * Best-effort GET with hard timeout. Returns null on any failure.
+ * Wave 2.5 Day 1 — when `sessionFilter` is set, scopes the request to a single
+ * Claude Code session so saved/turn/alltime reflect this terminal only.
+ */
+function readSavingsSync(sessionFilter) {
+  const url = sessionFilter
+    ? `${TRACKER_URL}?session_id=${encodeURIComponent(sessionFilter)}`
+    : TRACKER_URL;
   return new Promise((resolve) => {
-    const req = http.get(TRACKER_URL, { timeout: TRACKER_TIMEOUT_MS }, (res) => {
+    const req = http.get(url, { timeout: TRACKER_TIMEOUT_MS }, (res) => {
       if (res.statusCode !== 200) { res.resume(); return resolve(null); }
       let body = '';
       res.setEncoding('utf8');
@@ -158,8 +188,14 @@ function isToday(isoTs) {
  *   total:    sum of counts
  *   last:     the most-recent classified event (or null)
  *   recent:   the last RECENT_WINDOW classified events (newest first)
+ *
+ * Wave 2.5 Day 1 — per-terminal isolation: when `sessionFilter` is set, events
+ * tagged with a *different* session_id are skipped so each terminal sees only
+ * its own activity. Legacy events with no session_id always count (backward
+ * compat); MOOTER_STATUSLINE_VIEW=all disables the filter (debug/global view).
  */
-function digest(lines) {
+function digest(lines, options = {}) {
+  const sessionFilter = options.sessionFilter || null;
   const counts = { T0: 0, T1: 0, T2: 0, T3: 0, codex: 0 };
   let total = 0;
   /** @type {any[]} */
@@ -171,6 +207,10 @@ function digest(lines) {
     try { evt = JSON.parse(lines[i]); } catch { continue; }
     if (!evt || evt.event !== 'classified') continue;
     if (evt.source === 'mooter-tester') continue;
+    // Per-session scope: skip other terminals' events, but never drop legacy
+    // events that pre-date session tagging (evt.session_id absent/unknown).
+    if (sessionFilter && evt.session_id && evt.session_id !== 'unknown'
+        && evt.session_id !== sessionFilter) continue;
 
     if (!last) last = evt;
     if (recent.length < RECENT_WINDOW) recent.push(evt);
@@ -262,6 +302,7 @@ function pickState(ctx) {
   const {
     total, last, recent, anthRem, codexRem, codexLeft,
     savedPct, savedUsd, todayCost, dataMissing,
+    ctxPercent, lastTurnCost, alltimeCost,
   } = ctx;
 
   // ── Setup incomplete (no decisions, no quota — fresh install) ─────────
@@ -298,11 +339,21 @@ function pickState(ctx) {
     lastLabel = `${tier} ${tag} ${conf}`;
   }
 
+  // ── Proof chips (Wave 2.5 Day 1) ──────────────────────────────────────
+  // New operational chips: ctx % · Anthropic 5h % · this-turn cost · cumulative
+  // cost. `proofChips` is the label-free form used by the GREEN headline (which
+  // already carries the tier badge); `proof` prepends the tier label and is the
+  // default for every warning state, so a warning never costs the operator
+  // sight of the last decision.
   const proofParts = [];
-  if (lastLabel !== '—') proofParts.push(lastLabel);
+  if (typeof ctxPercent === 'number') proofParts.push(`ctx ${ctxPercent}%`);
   if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h`);
-  if (total) proofParts.push(`${total}t`);
-  const proof = proofParts.join(' · ') || '—';
+  if (typeof lastTurnCost === 'number') proofParts.push(`turn $${lastTurnCost.toFixed(2)}`);
+  if (typeof alltimeCost === 'number') proofParts.push(`alltime $${alltimeCost.toFixed(2)}`);
+  const proofChips = proofParts.join(' · ') || '—';
+  const proof = (lastLabel !== '—')
+    ? [lastLabel, ...proofParts].join(' · ')
+    : proofChips;
 
   // ── RED: Anthropic critically low → forced fallback ───────────────────
   if (typeof anthRem === 'number' && anthRem < TH.ANTH_RED) {
@@ -391,12 +442,13 @@ function pickState(ctx) {
   }
 
   // ── GREEN: default healthy state ──────────────────────────────────────
+  // Wave 2.5 Day 1: the tier badge (T2 sonnet 0.84) moves inline into the
+  // headline; the proof slot carries the operational chips instead.
   if (typeof savedUsd === 'number' && typeof savedPct === 'number') {
-    return {
-      color:    'green',
-      headline: `mooter saved $${savedUsd.toFixed(2)} today (${Math.round(savedPct)}%)`,
-      proof,
-    };
+    const headline = lastLabel !== '—'
+      ? `mooter saved $${savedUsd.toFixed(2)} (${Math.round(savedPct)}%) · ${lastLabel}`
+      : `mooter saved $${savedUsd.toFixed(2)} (${Math.round(savedPct)}%)`;
+    return { color: 'green', headline, proof: proofChips };
   }
 
   // ── GREEN fallback: tracker down but data present ─────────────────────
@@ -407,10 +459,14 @@ function pickState(ctx) {
   };
 }
 
+// Wave 2.5 Day 1 — brand-identity glyphs. 🐮 (Paulo: "emoji vaquinha, não
+// bolinha verde") for healthy, 🐂 (the heavier ox) for warning to echo the
+// CrazyMoo mood metaphor, 🚨 keeps urgency while reading distinct from a plain
+// red dot. Setup keeps the wrench.
 const COLOR_GLYPH = {
-  green:  '🟢',
-  yellow: '🟡',
-  red:    '🔴',
+  green:  '🐮',
+  yellow: '🐂',
+  red:    '🚨',
   setup:  '🛠',
   empty:  '⚪', // legacy — kept for back-compat with consumers; not emitted by pickState.
 };
@@ -431,7 +487,11 @@ const COLOR_GLYPH = {
 function renderFromContext(ctx) {
   const state = pickState(ctx);
   let proof = state.proof;
-  if (state.color !== 'setup') {
+  // Wave 2.5 Day 1 — compact mode: in a narrow terminal (< 100 cols) drop the
+  // secondary pack/adapter chips so the essential headline + cost chips still
+  // fit on one line. The COLUMNS env reflects the host terminal width.
+  const COMPACT = parseInt(process.env.COLUMNS || '120', 10) < 100;
+  if (state.color !== 'setup' && !COMPACT) {
     const chips = proof && proof !== '—' ? [proof] : [];
     if (ctx && ctx.lastPack && typeof ctx.lastPack.pack_id === 'string') {
       const pid = ctx.lastPack.pack_id;
@@ -452,9 +512,23 @@ function renderFromContext(ctx) {
 }
 
 async function buildContext() {
+  // Wave 2.5 Day 1 — Claude Code passes a JSON blob on stdin (session_id +
+  // optional context window usage). Parse it best-effort; absent on a manual
+  // `node statusline-multi.js` run, where stdin is a TTY.
+  const stdinJson = readStdinJson();
+  const ctxPercent = clampPercent(
+    stdinJson && stdinJson.context && stdinJson.context.percent_used
+  );
+
+  // Session scope: prefer the session_id Claude Code just handed us (same value
+  // inject_context.js stamps onto each decision), fall back to the env var.
+  // MOOTER_STATUSLINE_VIEW=all turns the filter off for a global/debug view.
+  const sessionId = (stdinJson && stdinJson.session_id) || process.env.CLAUDE_SESSION_ID || null;
+  const sessionFilter = process.env.MOOTER_STATUSLINE_VIEW === 'all' ? null : sessionId;
+
   const quota = readQuota() || {};
   const lines = readDecisionsTail();
-  const { counts, total, last, recent } = digest(lines);
+  const { counts, total, last, recent } = digest(lines, { sessionFilter });
 
   const anthRem    = computeAnthropicRem(quota);
   const codexRem   = computeCodexRem(quota);
@@ -464,9 +538,13 @@ async function buildContext() {
     ((quota.providers && quota.providers.anthropic && quota.providers.anthropic.today.cost_usd) || 0) +
     ((quota.providers && quota.providers.openai_api && quota.providers.openai_api.today.cost_usd) || 0);
 
-  const metrics = await readSavingsSync();
+  // Scope the tracker query to this terminal's session so the saved/turn/alltime
+  // numbers match the digest. With no session (or global view) we read all-time.
+  const metrics = await readSavingsSync(sessionFilter);
   const savedUsd = metrics && Number.isFinite(Number(metrics.saved)) ? Number(metrics.saved) : null;
   const savedPct = metrics && Number.isFinite(Number(metrics.saved_pct)) ? Number(metrics.saved_pct) : null;
+  const lastTurnCost = metrics && Number.isFinite(Number(metrics.last_turn_cost_usd)) ? Number(metrics.last_turn_cost_usd) : null;
+  const alltimeCost  = metrics && Number.isFinite(Number(metrics.alltime_cost_usd)) ? Number(metrics.alltime_cost_usd) : null;
 
   // Wave 2 Day 2 — pack + adapter sidecars (null-safe; both can be absent).
   const lastPack = readLastDecision();
@@ -484,6 +562,7 @@ async function buildContext() {
     counts, total, last, recent,
     anthRem, codexRem, codexLeft,
     savedUsd, savedPct, todayCost,
+    ctxPercent, lastTurnCost, alltimeCost,
     drift,
     lastPack, adapter,
     dataMissing: !lines.length && !quota.providers,
@@ -571,6 +650,7 @@ module.exports = {
   zenUnderkillPct,
   avgConfidence,
   getAdapterStatus,
+  clampPercent,
   // Demo contexts kept on the export so consumers can render previews.
   DEMO_CONTEXTS,
   TH,
