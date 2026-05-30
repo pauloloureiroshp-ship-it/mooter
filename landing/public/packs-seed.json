@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-05-29",
+  "packs": [
+    {"id": "diagram-systems", "trust": 98, "installs": 247, "min_vram_gb": 6, "domain": "diagram", "savings_pct": 89, "models": ["qwen2.5-coder:7b", "claude-sonnet", "claude-opus"], "summary": "ARCH discussions, system maps, Mermaid generation, ADR drafting"},
+    {"id": "code-audit", "trust": 95, "installs": 198, "min_vram_gb": 4, "domain": "audit", "savings_pct": 76, "models": ["claude-sonnet", "claude-opus"], "summary": "Security review, audit, vulnerability assessment"},
+    {"id": "animation-web", "trust": 87, "installs": 124, "min_vram_gb": 4, "domain": "animation", "savings_pct": 71, "models": ["claude-sonnet", "qwen2.5-coder:7b"], "summary": "Web animation: SVG, CSS animations, JS libs"},
+    {"id": "data-spreadsheet", "trust": 82, "installs": 89, "min_vram_gb": 4, "domain": "data", "savings_pct": 73, "models": ["claude-sonnet", "qwen2.5-coder:7b"], "summary": "Spreadsheet manipulation, data transforms, formulas"},
+    {"id": "prd-strategy", "trust": 79, "installs": 67, "min_vram_gb": 8, "domain": "strategy", "savings_pct": 65, "models": ["claude-sonnet", "claude-opus"], "summary": "PRD writing, product strategy, roadmap drafting"},
+    {"id": "voice-tts", "trust": 76, "installs": 42, "min_vram_gb": 4, "domain": "voice", "savings_pct": 68, "models": ["claude-sonnet"], "summary": "TTS, voice scripting, audio pipeline"},
+    {"id": "knowledge-third-brain", "trust": 73, "installs": 38, "min_vram_gb": 8, "domain": "knowledge", "savings_pct": 71, "models": ["claude-opus", "qwen3:30b"], "summary": "Notion KB, knowledge graph, second brain"}
+  ]
+}
