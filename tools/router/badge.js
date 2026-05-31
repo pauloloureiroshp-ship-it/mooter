@@ -66,7 +66,16 @@ function buildBadge(decision) {
   const model = shortModel(d.recommended_model);
   const conf = Number(d.confidence);
   const confStr = Number.isFinite(conf) ? conf.toFixed(2) : '0.00';
-  return `[${tier}·${model}·${confStr}]`;
+  // Wave 2.6 Day 3 — lead with the centralized Moo glyph (tier + provider):
+  // `[🐂 ☁ sonnet 0.84]`. Wrapped so a missing glyphs module degrades to the
+  // legacy `[tier·model·conf]` form — this feeds the live UserPromptSubmit hook.
+  try {
+    const { glyphFor, providerBucket } = require('./glyphs.js');
+    const glyph = glyphFor({ tier, provider: providerBucket(d.recommended_backend) });
+    return `[${glyph} ${model} ${confStr}]`;
+  } catch {
+    return `[${tier}·${model}·${confStr}]`;
+  }
 }
 
 module.exports = { readPrefs, shortModel, buildBadge, DEFAULT_PREFS };

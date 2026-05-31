@@ -33,16 +33,26 @@ test('shortModel collapses full model ids to short labels', () => {
   assert.equal(shortModel(undefined), 'unknown');
 });
 
-test('buildBadge renders [tier·model·conf] with 2-decimal confidence', () => {
+// Wave 2.6 Day 3 — badge now leads with the centralized Moo glyph (tier +
+// provider) instead of the bare tier code: `[🐂 ☁ sonnet 0.84]`.
+test('buildBadge renders [glyph model conf] with 2-decimal confidence', () => {
   assert.equal(
-    buildBadge({ tier: 'T2', recommended_model: 'claude-sonnet-4-6', confidence: 0.84 }),
-    '[T2·sonnet·0.84]',
+    buildBadge({ tier: 'T2', recommended_model: 'claude-sonnet-4-6', recommended_backend: 'anthropic', confidence: 0.84 }),
+    '[🐂 ☁ sonnet 0.84]',
+  );
+});
+
+test('buildBadge omits provider glyph when backend is absent', () => {
+  assert.equal(
+    buildBadge({ tier: 'T0', recommended_model: 'qwen3:30b', confidence: 0.8 }),
+    '[🐄 ollama 0.80]',
   );
 });
 
 test('buildBadge degrades gracefully on missing fields', () => {
-  assert.equal(buildBadge({}), '[T?·unknown·0.00]');
-  assert.equal(buildBadge({ tier: 'T1', confidence: 'nope' }), '[T1·unknown·0.00]');
+  // Unknown tier → 🐮 fallback glyph; unknown model; 0.00 confidence.
+  assert.equal(buildBadge({}), '[🐮 unknown 0.00]');
+  assert.equal(buildBadge({ tier: 'T1', confidence: 'nope' }), '[🐎 unknown 0.00]');
 });
 
 test('readPrefs returns quiet=true from an explicit prefs path', () => {
@@ -80,7 +90,8 @@ function runHook(prompt, home) {
 test('hook emits <tier-badge> for a confident prompt when not quiet', () => {
   const home = tmpHome(); // no preferences.json → defaults (quiet=false)
   const out = runHook('review the architecture and deploy to production', home);
-  assert.match(out, /<tier-badge>\[T\d·[a-z]+·\d\.\d{2}\]<\/tier-badge>/);
+  // Wave 2.6 Day 3 — badge leads with the Moo glyph: `[🦬 ☁ opus 0.90]`.
+  assert.match(out, /<tier-badge>\[\S+ (\S+ )?[a-z]+ \d\.\d{2}\]<\/tier-badge>/u);
 });
 
 test('hook suppresses <tier-badge> when quiet=true', () => {

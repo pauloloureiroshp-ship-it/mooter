@@ -60,6 +60,122 @@ export interface TrailOptions {
   fetchMetrics?: (sessionId?: string) => Promise<TrackerMetrics | null>;
   /** Pre-supplied event lines (tests); default reads `decisionsLog`. */
   lines?: string[];
+  /** `--evolution`: print the 7d-vs-prev-7d comparison instead of the trail. */
+  evolution?: boolean;
+  /** Override "now" in ms for evolution windowing (tests). */
+  nowMs?: number;
+}
+
+/** A classified event with the fields evolution needs (ts_ms + tier + conf). */
+interface TimedEvent {
+  ts_ms: number;
+  tier?: string;
+  confidence?: number;
+}
+
+interface EvolutionWindow {
+  prompts: number;
+  tierMix: Record<string, number>;
+  avgConf: number | null;
+}
+
+function parseTimedEvents(lines: string[]): TimedEvent[] {
+  const out: TimedEvent[] = [];
+  for (const line of lines) {
+    let e: any;
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!e || e.event !== "classified") continue;
+    if (e.source === "mooter-tester") continue;
+    if (typeof e.ts_ms !== "number") continue;
+    out.push({ ts_ms: e.ts_ms, tier: e.tier, confidence: e.confidence });
+  }
+  return out;
+}
+
+function summarizeWindow(events: TimedEvent[]): EvolutionWindow {
+  const tierMix: Record<string, number> = { T0: 0, T1: 0, T2: 0, T3: 0 };
+  let confSum = 0;
+  let confN = 0;
+  for (const e of events) {
+    if (e.tier && e.tier in tierMix) tierMix[e.tier]++;
+    if (typeof e.confidence === "number") {
+      confSum += e.confidence;
+      confN++;
+    }
+  }
+  return { prompts: events.length, tierMix, avgConf: confN ? confSum / confN : null };
+}
+
+/**
+ * Compare the last 7-day window against the previous 7-day window. Built ONLY
+ * from decisions.log fields that exist (ts_ms · tier · confidence) — prompt
+ * volume, tier distribution, and average confidence. Per-window dollar savings
+ * is deliberately NOT computed here: decisions.log carries no per-event cost
+ * (that lives in the savings-tracker), and fabricating it would violate
+ * provenance. Pure given (events, nowMs).
+ */
+export function buildEvolution(lines: string[], nowMs: number): Record<string, unknown> {
+  const events = parseTimedEvents(lines);
+  const week = 7 * 24 * 3600 * 1000;
+  const last7 = events.filter((e) => e.ts_ms >= nowMs - week);
+  const prev7 = events.filter((e) => e.ts_ms >= nowMs - 2 * week && e.ts_ms < nowMs - week);
+  const a = summarizeWindow(prev7);
+  const b = summarizeWindow(last7);
+  const pct = (from: number, to: number) => (from > 0 ? ((to - from) / from) * 100 : to > 0 ? 100 : 0);
+  return {
+    prev7: a,
+    last7: b,
+    prompts_delta_pct: pct(a.prompts, b.prompts),
+    conf_delta: a.avgConf !== null && b.avgConf !== null ? b.avgConf - a.avgConf : null,
+  };
+}
+
+function mixStr(m: Record<string, number>): string {
+  return `T0:${m.T0} T1:${m.T1} T2:${m.T2} T3:${m.T3}`;
+}
+
+function printEvolutionHuman(evo: Record<string, unknown>): string {
+  const a = evo.prev7 as EvolutionWindow;
+  const b = evo.last7 as EvolutionWindow;
+  const pd = evo.prompts_delta_pct as number;
+  const cd = evo.conf_delta as number | null;
+  const sign = (n: number) => (n >= 0 ? "+" : "");
+  const lines: string[] = [];
+  lines.push("🐮 mooter — evolution (last 7d vs previous 7d)");
+  lines.push("");
+  lines.push("VOLUME");
+  lines.push(`  prompts:   ${a.prompts} → ${b.prompts}   (${sign(pd)}${pd.toFixed(1)}%)`);
+  lines.push("");
+  lines.push("TIER MIX");
+  lines.push(`  prev 7d:   ${mixStr(a.tierMix)}`);
+  lines.push(`  last 7d:   ${mixStr(b.tierMix)}`);
+  lines.push("");
+  lines.push("CONFIDENCE");
+  const af = a.avgConf === null ? "—" : a.avgConf.toFixed(2);
+  const bf = b.avgConf === null ? "—" : b.avgConf.toFixed(2);
+  const cds = cd === null ? "" : `   (${sign(cd)}${cd.toFixed(2)})`;
+  lines.push(`  avg conf:  ${af} → ${bf}${cds}`);
+  lines.push("");
+  lines.push("OPTIMIZATIONS APPLIED");
+  lines.push("  quantization: Q4_K_M (local baseline)");
+  lines.push("  LoRA: ◌ none yet (Adapter Forge ships Wave 5)");
+  lines.push("");
+  lines.push("NOTE");
+  lines.push("  Per-window dollar savings is not shown — decisions.log carries no");
+  lines.push("  per-event cost. Cumulative savings: run `mooter trail`.");
+  return lines.join("\n");
+}
+
+export async function runEvolution(opts: TrailOptions): Promise<CmdResult> {
+  const lines = readLines(opts);
+  const nowMs = opts.nowMs ?? Date.now();
+  const evo = buildEvolution(lines, nowMs);
+  const output = opts.json ? JSON.stringify(evo, null, 2) : printEvolutionHuman(evo);
+  return { exitCode: 0, output };
 }
 
 /** A single traced figure: its value, the formula behind it, and its source. */
@@ -238,6 +354,7 @@ function printTrailHuman(trail: Record<string, unknown>): string {
 }
 
 export async function runTrail(opts: TrailOptions = {}): Promise<CmdResult> {
+  if (opts.evolution) return runEvolution(opts);
   const trail = await buildTrail(opts);
   const output = opts.json ? JSON.stringify(trail, null, 2) : printTrailHuman(trail);
   return { exitCode: 0, output };

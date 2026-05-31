@@ -30,12 +30,14 @@ test('tierMixLast10 ignores unknown/absent tiers and is null-safe', () => {
   assert.equal(tierMixLast10(null), 'last10: T0:0 T1:0 T2:0 T3:0');
 });
 
-test('pickView alternates every 5 ticks', () => {
+test('pickView cycles A→B→C every 5 ticks', () => {
   assert.equal(pickView([], 0), 'A');
   assert.equal(pickView([], 4), 'A');
   assert.equal(pickView([], 5), 'B');
   assert.equal(pickView([], 9), 'B');
-  assert.equal(pickView([], 10), 'A');
+  assert.equal(pickView([], 10), 'C');
+  assert.equal(pickView([], 14), 'C');
+  assert.equal(pickView([], 15), 'A'); // wraps back
 });
 
 test('pickView is robust to non-finite tick counts', () => {

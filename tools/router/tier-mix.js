@@ -22,15 +22,17 @@ function tierMixLast10(events) {
 }
 
 /**
- * Choose the statusline view, alternating A↔B every 5 ticks. The statusline is
- * called roughly once per second, so each view holds for ~5s before flipping.
+ * Choose the statusline view, cycling A→B→C every 5 ticks. The statusline is
+ * called roughly once per second, so each view holds for ~5s before advancing.
+ *   A = cost chips (default) · B = last-10 tier-mix · C = cumulative cost view
+ * Wave 2.6 Day 3 added view C; the cadence stays 5 ticks per view.
  * @param {Array<unknown>} _events  reserved for future content-aware selection
  * @param {number} tickCount
- * @returns {'A'|'B'}
+ * @returns {'A'|'B'|'C'}
  */
 function pickView(_events, tickCount) {
   const n = Number.isFinite(tickCount) ? Math.floor(tickCount) : 0;
-  return Math.floor(n / 5) % 2 === 0 ? 'A' : 'B';
+  return ['A', 'B', 'C'][Math.floor(n / 5) % 3];
 }
 
 module.exports = { tierMixLast10, pickView };
