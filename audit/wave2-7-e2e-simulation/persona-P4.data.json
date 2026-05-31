@@ -1,0 +1,186 @@
+{
+  "persona": "P4",
+  "name": "No-Ollama Edge Linus",
+  "background": "Wants Mooter but no GPU/Ollama local, M1 16GB, TS + Vercel",
+  "generatedAt": "2026-06-03T12:00:00.000Z",
+  "stages": {
+    "wizard": {
+      "exitCode": 0,
+      "durationMs": 40,
+      "ok": true,
+      "output": "init complete · telemetry OFF · 1 pack(s) installed",
+      "profileOk": true,
+      "credentialsOk": true,
+      "consentOk": true,
+      "installedOk": true,
+      "packsDirOk": true,
+      "providersPresent": [
+        "anthropic"
+      ],
+      "hasAnthropic": true,
+      "hasOllama": false,
+      "installedPacks": [
+        "code-audit"
+      ]
+    },
+    "prompts": {
+      "list": [
+        {
+          "text": "change the primary color in tailwind config",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.9,
+          "spawnMs": 93,
+          "correctlyClassified": true
+        },
+        {
+          "text": "explain this Next.js hydration error",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 98,
+          "correctlyClassified": true
+        },
+        {
+          "text": "write a commit message for the deploy fix",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.9,
+          "spawnMs": 82,
+          "correctlyClassified": true
+        },
+        {
+          "text": "why is my Vercel edge function timing out?",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 100,
+          "correctlyClassified": true
+        },
+        {
+          "text": "compare SSR vs ISR for this page",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 96,
+          "correctlyClassified": true
+        },
+        {
+          "text": "rename the api route folder",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.9,
+          "spawnMs": 95,
+          "correctlyClassified": true
+        },
+        {
+          "text": "redesign the data fetching layer for streaming",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 117,
+          "correctlyClassified": true
+        },
+        {
+          "text": "audit the middleware for auth bypass risks",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.9,
+          "spawnMs": 115,
+          "correctlyClassified": true
+        },
+        {
+          "text": "summarize this config file",
+          "expectedTier": "T0",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 109,
+          "correctlyClassified": false
+        },
+        {
+          "text": "I'm deploying to prod, do a pre-deploy review",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 101,
+          "correctlyClassified": true
+        }
+      ],
+      "classificationAccuracy": 0.9,
+      "correctCount": 9,
+      "avgSpawnMs": 101,
+      "note": "spawnMs is classify.js process wall-time incl. node cold-start (~50-100ms) — NOT the in-process hook latency."
+    },
+    "dashboard": {
+      "sectionsPresent": [
+        "MOOS ACTIVE",
+        "SAVINGS",
+        "CONTEXT",
+        "QUOTA",
+        "ADAPTER"
+      ],
+      "allSections": true,
+      "packSectionPresent": false,
+      "loraHonesty": true,
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "frameSample": "┌─ 🐮 Mooter Dashboard · session e2e-P4-s ─────────────────────┐\n│  MOOS ACTIVE                                                 │\n│    ☁ claude-haiku-4-5-20251001   3 calls · conf 0.85        │\n│    ☁ claude-opus-4-6      3 calls · conf 0.75               │\n│    🏠 qwen2.5:3b           2 calls · conf 0.90               │\n│    ☁ claude-sonnet-4-6    2 calls · conf 0.70               │"
+    },
+    "trail": {
+      "fieldCount": 10,
+      "eventCount": 10,
+      "hasFormulasAndSources": true,
+      "lastDecision": "T3 claude-opus-4-6 0.75",
+      "jsonParses": true,
+      "evolutionHonest": true,
+      "evolutionSample": "🐮 mooter — evolution (last 7d vs previous 7d)\n\nVOLUME\n  prompts:   0 → 10   (+100.0%)\n\nTIER MIX\n  prev 7d:   T0:0 T1:0 T2:0 T3:0\n  last 7d:   T0:2 T1:3 T2:2 T3:3"
+    },
+    "mooCard": {
+      "optInRespected": true,
+      "cardEmitted": true,
+      "fieldCount": 6,
+      "loraDisclosed": false,
+      "hyperbole": [],
+      "sample": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.75\n last10    T0:2 T1:3 T2:2 T3:3\n───────────────────────────\n"
+    },
+    "isolation": {
+      "otherSessionEvents": 0,
+      "ok": true
+    },
+    "wizardTransparency": {
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "lineCount": 19
+    }
+  },
+  "gaps": [
+    {
+      "severity": "minor",
+      "description": "Dashboard has no PACK/domain section — installed packs are invisible in the live dashboard for P4 (showcase spec expected one)",
+      "evidence": "5 sections shipped: MOOS ACTIVE, SAVINGS, CONTEXT, QUOTA, ADAPTER; installed=[\"code-audit\"]"
+    },
+    {
+      "severity": "minor",
+      "description": "Moo card omits LoRA/adapter disclosure for P4",
+      "evidence": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.75\n last10    T0:2 T1:3 T2:2 T3:3\n───────────────────"
+    }
+  ],
+  "tempHome": "/tmp/claude-1000/mooter-e2e-P4-reHJ3y",
+  "summary": {
+    "blockers": 0,
+    "major": 0,
+    "minor": 2,
+    "classificationAccuracy": 0.9,
+    "verdict": "READY"
+  }
+}
