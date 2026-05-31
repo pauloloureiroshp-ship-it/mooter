@@ -13,7 +13,7 @@ export default function UnderTheHoodPage() {
     <section style={{ maxWidth: 1080, margin: '0 auto', padding: '72px 40px' }}>
       <Eyebrow>Under the hood</Eyebrow>
       <h1 style={{ fontSize: 'clamp(34px, 5vw, 52px)', fontWeight: 700, margin: '0 0 8px', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-        <CrookOutline size={34} /> Pastor thinks. Mooter routes.
+        <CrookOutline size={34} /> Mooter pastors the Moos.
       </h1>
       <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 640, marginBottom: 48 }}>
         Two ideas make local-first routing work without trading off the answer.

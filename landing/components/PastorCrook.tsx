@@ -1,4 +1,4 @@
-// PastorCrook — the shepherd's-crook mark for Pastor (the routing brain).
+// PastorCrook — the shepherd's-crook mark for Mooter (the routing brain). Component name kept (rename = Wave 3 backlog).
 // 4 variations (IMPLEMENTATION_SPEC §7.5). Reads as a crook, never a candy cane
 // or a question mark. Never rendered larger than the cow mascot.
 
@@ -6,7 +6,7 @@ type CrookProps = { size?: number };
 
 export function CrookOutline({ size = 24 }: CrookProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg" aria-label="Pastor — the shepherd">
+    <svg width={size} height={size} viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg" aria-label="Mooter — the shepherd">
       <path d="M30 95 L30 35" stroke="currentColor" strokeWidth="6" strokeLinecap="round" fill="none" />
       <path d="M30 35 Q30 10, 18 10 Q6 10, 8 22" stroke="currentColor" strokeWidth="6" strokeLinecap="round" fill="none" />
       <circle cx="30" cy="35" r="2" fill="#E8888A" />
@@ -16,7 +16,7 @@ export function CrookOutline({ size = 24 }: CrookProps) {
 
 export function CrookSolid({ size = 24 }: CrookProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg" aria-label="Pastor — the shepherd">
+    <svg width={size} height={size} viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg" aria-label="Mooter — the shepherd">
       <path
         d="M27 95 L27 35 Q27 13, 18 13 Q9 13, 11 22 L5 22 Q2 7, 18 7 Q33 7, 33 35 L33 95 Z"
         fill="currentColor"
@@ -34,7 +34,7 @@ export function CrookAnimated({ size = 24 }: CrookProps) {
         height={size}
         viewBox="0 0 60 100"
         xmlns="http://www.w3.org/2000/svg"
-        aria-label="Pastor — the shepherd"
+        aria-label="Mooter — the shepherd"
         style={{ transformOrigin: '30px 95px', animation: 'crook-sway 3s ease-in-out infinite' }}
       >
         <path d="M30 95 L30 35" stroke="currentColor" strokeWidth="6" strokeLinecap="round" fill="none" />
@@ -48,7 +48,7 @@ export function CrookAnimated({ size = 24 }: CrookProps) {
 
 export function CrookWithCow({ size = 28 }: CrookProps) {
   return (
-    <svg width={size} height={size * 1.4} viewBox="0 0 60 140" xmlns="http://www.w3.org/2000/svg" aria-label="Pastor with the herd">
+    <svg width={size} height={size * 1.4} viewBox="0 0 60 140" xmlns="http://www.w3.org/2000/svg" aria-label="Mooter with the Moos">
       <path d="M30 95 L30 35" stroke="currentColor" strokeWidth="6" strokeLinecap="round" fill="none" />
       <path d="M30 35 Q30 10, 18 10 Q6 10, 8 22" stroke="currentColor" strokeWidth="6" strokeLinecap="round" fill="none" />
       <circle cx="30" cy="35" r="2" fill="#E8888A" />
