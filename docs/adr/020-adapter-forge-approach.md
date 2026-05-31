@@ -2,7 +2,16 @@
 
 ## Status
 
-Proposed (Wave 5 D1, 2026-05-31)
+Accepted (Wave 5 D2, 2026-05-31)
+
+### Implementation history
+- **Wave 5 D1** (`v0.5.0-adapter-foundation`): foundation — manifest v1 + runtime
+  stub + `mooter adapter` CLI + honest disclosures.
+- **Wave 5 D2** (`v0.5.1-forge-validation`): validation pipeline (`validate.ts`),
+  `mooter forge install` (user-provided `.gguf` → signed validated manifest),
+  `mooter forge benchmark` (REAL metrics from the golden set), and a REAL
+  `adapter_selection` (verify signature + gguf → honor, else baseline).
+- **Wave 5 D3+** (planned): optional Docker `unsloth` training integration.
 
 ## Context
 

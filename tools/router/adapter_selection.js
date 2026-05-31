@@ -1,30 +1,63 @@
 'use strict';
 
-// Adapter runtime selection (Wave 5 D1 — Adapter Forge foundation).
+// Adapter runtime selection (Wave 5 D2 — Mooter Forge).
 //
-// D1 is a STUB: getActiveAdapter() ALWAYS returns null (baseline), even if the
-// user manually marked `active_adapter_id` in preferences.json — because D1 ships
-// no validation pipeline yet (that's D2). This is the honest behaviour: we will
-// not pretend to honor an adapter we cannot validate. D2 replaces the body of
-// getActiveAdapter() with: read manifest → verify signature → check base-model
-// match → return the adapter. This module is a SEPARATE layer; it never touches
-// classify.js (P11) or safety_boost.js.
+// D2 is REAL: getActiveAdapter() reads the marked adapter's manifest, verifies its
+// HMAC signature (natural-order payload, matching packages/router adapter_manifest),
+// checks the adapter.gguf exists, and returns the manifest — else falls back to
+// baseline (null) with a warning on tamper. A SEPARATE layer; never touches
+// classify.js (P11) or safety_boost.js. Best-effort: any error → baseline.
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
+
+function mooterHome() {
+  return path.join(os.homedir(), '.mooter');
+}
+
+/** Local HMAC secret (same file consent.ts getLocalSecret persists). */
+function readLocalSecret() {
+  try {
+    return fs.readFileSync(path.join(mooterHome(), '.telemetry_secret'), 'utf8').trim();
+  } catch {
+    return null;
+  }
+}
+
+/** Sync signature verify — payload = manifest WITHOUT `signature` (natural order),
+ * matching adapter_manifest.signManifest. */
+function verifyManifestSignatureSync(manifest, secret) {
+  if (!manifest || !manifest.signature || !secret) return false;
+  const { signature, ...rest } = manifest;
+  const expected = crypto.createHmac('sha256', secret).update(JSON.stringify(rest)).digest('hex');
+  return expected === signature;
+}
 
 /**
- * The active adapter for routing, or null for baseline.
- * @returns {null | { adapter_id: string, name: string, adapter_type: string, quantization: string }}
+ * The active adapter for routing, or null for baseline. D2: load + verify.
+ * @returns {null | object} the validated manifest, or null
  */
 function getActiveAdapter() {
   try {
-    const prefs = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    const prefs = JSON.parse(fs.readFileSync(path.join(mooterHome(), 'preferences.json'), 'utf8'));
     if (!prefs || !prefs.active_adapter_id) return null;
-    // Wave 5 D1: even with active_adapter_id set, return null — no validation
-    // pipeline yet. D2 will load + verify the manifest and return the adapter.
-    return null;
+
+    const dir = path.join(mooterHome(), 'adapters', prefs.active_adapter_id);
+    const manifestPath = path.join(dir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return null;
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const secret = readLocalSecret();
+    if (!verifyManifestSignatureSync(manifest, secret)) {
+      // Tamper or wrong secret — never honor an unverifiable adapter.
+      if (process.env.MOOTER_DEBUG) process.stderr.write('Mooter: active adapter signature invalid — baseline\n');
+      return null;
+    }
+    if (!fs.existsSync(path.join(dir, 'adapter.gguf'))) return null;
+
+    return manifest;
   } catch {
     return null;
   }
@@ -63,4 +96,4 @@ function applyAdapterToDecision(decision, adapter) {
   };
 }
 
-module.exports = { getActiveAdapter, markedAdapterId, applyAdapterToDecision };
+module.exports = { getActiveAdapter, markedAdapterId, applyAdapterToDecision, verifyManifestSignatureSync, readLocalSecret };

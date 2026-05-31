@@ -62,9 +62,14 @@ test("deactivate: clears active_adapter_id", () => {
   assert.equal(prefs.active_adapter_id, undefined);
 });
 
-test("show: found → manifest JSON; not found → exit 1", () => {
+test("show: found → validated view (NIT W5 D1 #1); not found → exit 1", () => {
   const h = home();
-  withManifest(h, { adapter_id: "abc123def456", name: "x", adapter_type: "lora", quantization: "q8_0" });
-  assert.match(runAdapterShow("abc123", { mooterHome: h }).output, /"name": "x"/);
+  // An unsigned manifest with a (would-be) performance number must NOT render perf.
+  withManifest(h, { adapter_id: "abc123def456", name: "x", base_model: "qwen2.5:3b", adapter_type: "lora", quantization: "q8_0", performance: { accuracy_delta: 0.9, benchmark_run_id: "fake" } });
+  const out = runAdapterShow("abc123", { mooterHome: h }).output;
+  assert.match(out, /Adapter: x/);
+  assert.match(out, /signature: ✗ INVALID/, "unsigned manifest flagged");
+  assert.match(out, /performance: ◌ not shown \(manifest not validated\)/, "perf hidden for invalid manifest");
+  assert.ok(!/90\.0% vs baseline/.test(out), "forged perf number never displayed");
   assert.equal(runAdapterShow("nope", { mooterHome: h }).exitCode, 1);
 });

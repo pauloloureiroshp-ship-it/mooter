@@ -18,6 +18,7 @@ import { runHub } from "./commands/hub.ts";
 import { runSync, runSyncReal } from "./commands/sync.ts";
 import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
+import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -28,7 +29,9 @@ Usage:
   mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
   mooter logout                    remove the saved token (sync reverts to dry-run)
   mooter hub                       local activation hub (packs · safety · evolution · telemetry · suggestions)
-  mooter adapter list|show <id>|activate <id>|deactivate   Adapter Forge (foundation · training ships W5 D2)
+  mooter adapter list|show <id>|activate <id>|deactivate   manage installed adapters
+  mooter forge install <path.gguf> --name <n> --base-model <m>   install + validate a user adapter
+  mooter forge benchmark <id>      benchmark an adapter against the golden set (real metrics)
   mooter sync --dry-run            preview the remote-sync payload (zero network · Wave 4 ships real upload)
   mooter sync queue list|show <id>|clear   inspect/clear the local sync queue
   mooter sync audit list|verify    inspect/verify the signed sync audit log
@@ -96,6 +99,29 @@ async function main(argv: string[]): Promise<number> {
     const res = runLogout();
     process.stdout.write(res.output + "\n");
     return res.exitCode;
+  }
+
+  if (command === "forge") {
+    const [sub] = rest;
+    const flag = (name: string) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
+    if (sub === "install") {
+      const res = await runForgeInstall({
+        ggufPath: rest[1] ?? "",
+        name: flag("--name") ?? "adapter",
+        baseModel: flag("--base-model") ?? "qwen2.5:3b",
+        type: (flag("--type") as any) ?? "lora",
+        domain: flag("--domain"),
+      });
+      if (res.output) process.stdout.write(res.output + "\n");
+      return res.exitCode;
+    }
+    if (sub === "benchmark") {
+      const res = await runForgeBenchmark({ id: rest[1] ?? "" });
+      if (res.output) process.stdout.write(res.output + "\n");
+      return res.exitCode;
+    }
+    process.stdout.write("usage: mooter forge install <path.gguf> --name <n> --base-model <m> [--type lora] [--domain d]\n       mooter forge benchmark <id>\n");
+    return 1;
   }
 
   if (command === "adapter") {
