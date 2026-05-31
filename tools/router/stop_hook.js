@@ -123,7 +123,7 @@ function buildMooCard(s, turnCost) {
     if (q) lines.push(` quant     ${q.format} (baseline · ~-${q.reduction_vs_fp16}% vs FP16)`);
   } catch { /* omit quant line */ }
   // Wave 2.8 Ponto #8 — honest adapter line (parity with dashboard ADAPTER).
-  lines.push(' adapter   ◌ baseline · LoRA arrives Wave 5 (Adapter Forge)');
+  lines.push(' adapter   ◌ baseline · forge ships Wave 5 D2 (Adapter Forge foundation)');
   lines.push('───────────────────────────');
   lines.push('');
   return lines.join('\n');

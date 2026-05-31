@@ -246,13 +246,13 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
   out.push(boxRow("    Usage: no per-pack usage data yet", width));
   out.push(boxSep(width));
 
-  // ADAPTER — honest baseline disclosure (Wave 2.8 Ponto #8). No fabricated
-  // LoRA telemetry; real numbers land when Adapter Forge ships in Wave 5.
-  // Kept within the box inner width (lines wrap as separate rows).
-  out.push(boxRow("  ADAPTER · ◌ baseline — no LoRA yet", width));
-  out.push(boxRow("    projects with custom LoRA: 0", width));
-  out.push(boxRow("    packs with custom LoRA: 0", width));
-  out.push(boxRow("    Adapter Forge ships Wave 5 (~Q3 2026)", width));
+  // ADAPTER — honest baseline disclosure. Wave 5 D1 shipped the foundation
+  // (manifest + runtime stub + CLI); the training pipeline ships D2. No
+  // fabricated LoRA telemetry. Kept within the box inner width.
+  out.push(boxRow("  ADAPTER · ◌ baseline", width));
+  out.push(boxRow("    Foundation shipped Wave 5 D1", width));
+  out.push(boxRow("    Training pipeline ships Wave 5 D2", width));
+  out.push(boxRow("    Run `mooter adapter list` to see adapters", width));
   out.push(boxRow("", width));
   out.push(boxRow("  Press q to exit · r to refresh", width));
   out.push(boxBottom(width));

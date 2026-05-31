@@ -1028,6 +1028,19 @@ try {
   }
 } catch { /* safety floor is best-effort — never block the hint */ }
 
+// Wave 5 Day 1 — adapter selection (Adapter Forge foundation). A SEPARATE layer
+// after safety_boost; D1 always resolves to baseline (null) so this only annotates
+// the decision with adapter_applied:false. D2 will return a validated adapter.
+// Best-effort: never blocks the hint, never touches classify.js / safety_boost.js.
+try {
+  const { getActiveAdapter, applyAdapterToDecision } = require('./adapter_selection.js');
+  const annotated = applyAdapterToDecision(decision, getActiveAdapter());
+  decision.adapter_applied = annotated.adapter_applied;
+  decision.adapter_id = annotated.adapter_id;
+  decision.adapter_reason = annotated.adapter_reason;
+  if (annotated.adapter_name) decision.adapter_name = annotated.adapter_name;
+} catch { /* adapter selection best-effort */ }
+
 // Only emit hint when confident enough that it adds value.
 if (decision.confidence < 0.6) process.exit(0);
 
