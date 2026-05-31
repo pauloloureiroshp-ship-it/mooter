@@ -31,7 +31,9 @@
     "backtest.js",
     "env.js",
     "patterns.js",
-    "fx.js"
+    "fx.js",
+    "badge.js",
+    "tier-mix.js"
   ],
   "exclude": [
     "node_modules",

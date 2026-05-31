@@ -508,6 +508,19 @@ function renderFromContext(ctx) {
     }
     proof = chips.length ? chips.join(' · ') : '—';
   }
+  // Wave 2.5 Day 3 — rotating tier-mix view. Every other 5-tick window the green
+  // proof slot shows the last-10 tier distribution instead of the cost chips.
+  // Green-only (warnings/setup keep their diagnostic proof) and best-effort so a
+  // missing module never blocks the render.
+  try {
+    if (state.color === 'green' && Array.isArray(ctx.recent) && ctx.recent.length) {
+      const { pickView, tierMixLast10 } = require('./tier-mix.js');
+      if (pickView(ctx.recent, ctx.tick || 0) === 'B') {
+        const ctxChip = typeof ctx.ctxPercent === 'number' ? ` · ctx ${ctx.ctxPercent}%` : '';
+        proof = `${tierMixLast10(ctx.recent)}${ctxChip}`;
+      }
+    }
+  } catch { /* keep default proof */ }
   return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${proof}`;
 }
 
@@ -525,6 +538,18 @@ async function buildContext() {
   // MOOTER_STATUSLINE_VIEW=all turns the filter off for a global/debug view.
   const sessionId = (stdinJson && stdinJson.session_id) || process.env.CLAUDE_SESSION_ID || null;
   const sessionFilter = process.env.MOOTER_STATUSLINE_VIEW === 'all' ? null : sessionId;
+
+  // Wave 2.5 Day 3 — per-session tick counter (persisted in tmp) drives the
+  // rotating tier-mix view in renderFromContext. Each statusline call bumps it;
+  // a fresh session starts its own file. Best-effort: any read/write failure
+  // leaves tick at 0 (always view A) and never blocks the render.
+  let tick = 0;
+  try {
+    const tickPath = path.join(require('os').tmpdir(), `mooter-statusline-tick-${sessionId || 'global'}`);
+    try { tick = parseInt(fs.readFileSync(tickPath, 'utf8'), 10) || 0; } catch { tick = 0; }
+    tick = (tick + 1) % 1000000;
+    try { fs.writeFileSync(tickPath, String(tick)); } catch { /* ignore */ }
+  } catch { tick = 0; }
 
   const quota = readQuota() || {};
   const lines = readDecisionsTail();
@@ -565,6 +590,7 @@ async function buildContext() {
     ctxPercent, lastTurnCost, alltimeCost,
     drift,
     lastPack, adapter,
+    tick,
     dataMissing: !lines.length && !quota.providers,
   };
 }

@@ -11,11 +11,13 @@
 
 import { runPack, PACK_USAGE } from "./commands/pack.ts";
 import { runInit } from "./commands/init.ts";
+import { runQuiet } from "./commands/quiet.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
+  mooter quiet [--off]             toggle bash-command tier badges (--off re-enables)
   mooter pack <subcommand> [args] [--json]
 
 ${PACK_USAGE}`;
@@ -30,6 +32,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "init") {
     const res = await runInit();
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "quiet") {
+    const res = runQuiet({ off: rest.includes("--off") });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

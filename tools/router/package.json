@@ -6,10 +6,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:watch": "tsc --noEmit -w -p tsconfig.json",
-    "test": "node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" sanitize.test.js env.test.js backtest.test.js classify.test.js classify-branches.test.js classify-retry.test.js quota-tracker.test.js providers/providers.test.js statusline-multi.test.js gsd-statusline-latency.test.js router-execute.mocks.test.js router-execute.harness.test.js router-execute.test.js savings-tracker-me.test.js",
-    "test:cli": "node --test inject_context.test.js ../cli/lib/discover-models.test.js ../cli/lib/generate-mooter-skills.test.js",
+    "test": "node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" sanitize.test.js env.test.js backtest.test.js classify.test.js classify-branches.test.js classify-retry.test.js quota-tracker.test.js providers/providers.test.js statusline-multi.test.js gsd-statusline-latency.test.js router-execute.mocks.test.js router-execute.harness.test.js router-execute.test.js savings-tracker-me.test.js tier-mix.test.js",
+    "test:cli": "node --test inject_context.test.js badge.test.js ../cli/lib/discover-models.test.js ../cli/lib/generate-mooter-skills.test.js",
     "test:coverage": "c8 --reporter=text --reporter=lcov --check-coverage npm test",
-    "lint": "eslint pricing.js fx.js env.js sanitize.js arbiter.js classify.js inject_context.js backtest.js patterns.js shadow-mode.js gpu-probe.js event-builder.js prompt-optimizer.js quota-tracker.js statusline-multi.js providers/codex-cli.js providers/openai-api.js providers/_load-env.js",
+    "lint": "eslint pricing.js fx.js env.js sanitize.js arbiter.js classify.js inject_context.js backtest.js patterns.js shadow-mode.js gpu-probe.js event-builder.js prompt-optimizer.js quota-tracker.js statusline-multi.js badge.js tier-mix.js providers/codex-cli.js providers/openai-api.js providers/_load-env.js",
     "format": "prettier --write pricing.js fx.js env.js sanitize.js patterns.js",
     "format:check": "prettier --check pricing.js fx.js env.js sanitize.js patterns.js"
   },
