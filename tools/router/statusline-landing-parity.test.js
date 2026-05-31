@@ -70,7 +70,7 @@ test('renderTwoLine: quant chip omitted for a cloud Moo', () => {
 // ── Ponto #8 — honest adapter chip ───────────────────────────────────────
 test('renderTwoLine: adapter chip is honest baseline (LoRA Wave 5)', () => {
   const out = withColumns(140, () => renderTwoLine(localState));
-  assert.match(out, /adapter ◌ baseline \(LoRA: Wave 5\)/);
+  assert.match(out, /adapter ◌ baseline \(forge ships D2\)/);
 });
 
 // ── ctx bar in 2-line, plain text in 1-line fallback ─────────────────────

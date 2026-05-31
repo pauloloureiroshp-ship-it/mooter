@@ -5,17 +5,16 @@ import assert from "node:assert/strict";
 
 import { buildDashboard } from "../src/commands/dashboard.ts";
 
-test("dashboard ADAPTER section: honest baseline, no fabricated LoRA telemetry", () => {
+test("dashboard ADAPTER section: honest baseline, foundation/D2 disclosure (W5 D1)", () => {
   const out = buildDashboard({ lines: [], sessionId: "s1", metrics: null });
-  assert.match(out, /ADAPTER · ◌ baseline — no LoRA yet/);
-  assert.match(out, /projects with custom LoRA: 0/);
-  assert.match(out, /packs with custom LoRA: 0/);
-  assert.match(out, /Adapter Forge ships Wave 5/);
+  assert.match(out, /ADAPTER · ◌ baseline/);
+  assert.match(out, /Foundation shipped Wave 5 D1/);
+  assert.match(out, /Training pipeline ships Wave 5 D2/);
+  assert.match(out, /mooter adapter list/);
 });
 
-test("dashboard ADAPTER: zero hyperbole, no invented adapter counts", () => {
+test("dashboard ADAPTER: zero hyperbole, no fabricated adapter data", () => {
   const out = buildDashboard({ lines: [], sessionId: "s1", metrics: null });
   assert.ok(!/revolutionary|magic|AI-powered/i.test(out), "no hyperbole");
-  // counts are honestly zero (baseline) — never a fabricated non-zero
-  assert.ok(/custom LoRA: 0/.test(out));
+  assert.ok(!/\d+% (faster|better|accuracy)/i.test(out), "no fabricated perf numbers");
 });

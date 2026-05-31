@@ -17,6 +17,7 @@ import { runDashboard } from "./commands/dashboard.ts";
 import { runHub } from "./commands/hub.ts";
 import { runSync, runSyncReal } from "./commands/sync.ts";
 import { runLogin, runLogout, authStatus } from "./commands/login.ts";
+import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -27,6 +28,7 @@ Usage:
   mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
   mooter logout                    remove the saved token (sync reverts to dry-run)
   mooter hub                       local activation hub (packs · safety · evolution · telemetry · suggestions)
+  mooter adapter list|show <id>|activate <id>|deactivate   Adapter Forge (foundation · training ships W5 D2)
   mooter sync --dry-run            preview the remote-sync payload (zero network · Wave 4 ships real upload)
   mooter sync queue list|show <id>|clear   inspect/clear the local sync queue
   mooter sync audit list|verify    inspect/verify the signed sync audit log
@@ -93,6 +95,17 @@ async function main(argv: string[]): Promise<number> {
   if (command === "logout") {
     const res = runLogout();
     process.stdout.write(res.output + "\n");
+    return res.exitCode;
+  }
+
+  if (command === "adapter") {
+    const [sub, arg] = rest;
+    const res =
+      sub === "show" ? runAdapterShow(arg ?? "") :
+      sub === "activate" ? runAdapterActivate(arg ?? "") :
+      sub === "deactivate" ? runAdapterDeactivate() :
+      runAdapterList(); // default + "list"
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
 

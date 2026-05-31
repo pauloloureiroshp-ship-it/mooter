@@ -657,8 +657,14 @@ function renderTwoLine(ctx) {
     if (q) quantChip = `quant ${q.format}`;
   } catch { quantChip = null; }
 
-  // Wave 2.8 — adapter chip, honest (Ponto #8). Baseline until Wave 5.
-  let adapterChip = 'adapter ◌ baseline (LoRA: Wave 5)';
+  // Wave 5 D1 — adapter chip, honest. Baseline by default (forge ships D2). If the
+  // user marked an adapter active, show ⏸ (D1 does NOT honor it yet — D2 validates).
+  let adapterChip = 'adapter ◌ baseline (forge ships D2)';
+  try {
+    const { markedAdapterId } = require('./adapter_selection.js');
+    const marked = markedAdapterId();
+    if (marked) adapterChip = `adapter ⏸ ${String(marked).slice(0, 8)} (D2 validates)`;
+  } catch { /* keep baseline */ }
   if (ctx.adapter && typeof ctx.adapter.status === 'string' && ctx.adapter.status !== 'idle' && ctx.adapter.name) {
     const g = ctx.adapter.status === 'loaded' ? '●' : '◐';
     adapterChip = `adapter ${g} ${ctx.adapter.name}`;
