@@ -12,12 +12,14 @@
 import { runPack, PACK_USAGE } from "./commands/pack.ts";
 import { runInit } from "./commands/init.ts";
 import { runQuiet } from "./commands/quiet.ts";
+import { runTrail } from "./commands/trail.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off]             toggle bash-command tier badges (--off re-enables)
+  mooter trail [--session-id <id>] [--json]   provenance of every statusline number
   mooter pack <subcommand> [args] [--json]
 
 ${PACK_USAGE}`;
@@ -38,6 +40,16 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "quiet") {
     const res = runQuiet({ off: rest.includes("--off") });
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "trail") {
+    const sidIdx = rest.indexOf("--session-id");
+    const res = await runTrail({
+      json: rest.includes("--json"),
+      sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
+    });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
