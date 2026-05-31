@@ -3,10 +3,32 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🐮 WAVE 2.6 DAY 2 MERGED — statusline 2-line + `mooter dashboard` TUI em `dev` (`374d271`, PR #21). 2 commits: renderTwoLine+render+truncateChip (fallback 1-line) · dashboard.ts TUI (ANSI raw, zero deps, MOOS·SAVINGS·QUOTA·CONTEXT·ADAPTER). +16 testes (CLI 60/60, statusline 7/7). final-reviewer T3-gate APPROVE (0 blockers). `classify.js` byte-identical (P11). Zero deps pesadas. Custo $0. ⏸ Day 3 (Moo card per-turn + glyph map + evolution) unblocked.**)
-**Versão:** **v0.2.1-polish** (Wave 2.5 SHIPPED) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 + event-writer local · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🎉 WAVE 2.6 CONCLUÍDA — tag `v0.2.2-reveal` em `dev`. 3 Days shipped (PRs #20/#21/#22): D1 rebrand Pastor→Mooter+Moos+GLOSSARY · D2 statusline 2-line + dashboard TUI · D3 Moo card (Stop hook opt-in) + glyph map central + `trail --evolution` + `quiet --moo-card`. final-reviewer T3-gate APPROVE em todos (0 blockers). CLI 70/70. `classify.js` byte-identical (P11) toda a wave. Custo $0. Gate verdict Wave 3: GO.**)
+**Versão:** **v0.2.2-reveal** (Wave 2.6 SHIPPED) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 + event-writer local · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #54 — **Wave 2.6 Day 2 BUILD + GATE + MERGE** (statusline 2-line + `mooter dashboard` TUI). Construído do zero, gated APPROVE, merged → `dev` (`374d271`, PR #21).
+**Sessão Claude Code:** #55 — **Wave 2.6 CLOSURE** (D2 build+merge, D3 build+merge, tag v0.2.2-reveal). Vocabulário Mooter+Moos coerente, statusline rica, dashboard, Moo card + glyphs + evolution. Notion closure: [🎉 Wave 2.6 CLOSURE](https://www.notion.so/3716f6e42bc481f69d51fe5f8c6c4c2d).
+
+### 🎉 Sessão #55 — 2026-05-31 (Wave 2.6 CLOSURE — Day 3 + tag v0.2.2-reveal)
+
+**Mandato Paulo:** "arranque" Day 3 → build das 4 sub-features + closure da wave.
+
+**Outcome Day 3 (PR #22 merged `4f4a690`, 2 commits):**
+- **Moo card per-turn** (`stop_hook.js`) — Stop hook OPT-IN (default OFF via `moo_card_enabled`), wirado em `~/.claude/settings.json`, never-throws. Mostra só campos reais (sem tokens/latency inventados).
+- **Glyph map centralizado** (`glyphs.js`) — SSoT tier/provider/mood glyphs, aplicado em badge (`[🐂 ☁ sonnet 0.84]`) · statusline line-2 · Moo card · dashboard (mirror).
+- **`trail --evolution`** — 7d vs prev 7d (volume/tier-mix/confidence de ts_ms; sem dólares por-janela — decisions.log não tem cost; LoRA declarado honesto) + statusline view C (cumulative, rotação A→B→C).
+- **`quiet --moo-card[-off]`** — toggle persistido independente do badge.
+
+**Tests:** CLI 70/70 · router targeted 75/75. 5 falhas pré-existentes (model-specialists+gemini+TUNED, node≥22) não tocam o código. Custo $0.
+
+**Gate (D3):** final-reviewer APPROVE, 0 blockers. P11 ✓ · Stop hook never-throws ✓ · honestidade proveniência ✓ · mooter_event intacto ✓.
+
+**Nota de processo:** mishap de branch no D3 (commits foram parar ao dev local; recuperados para a branch + `reset --hard origin/dev`, zero perdas).
+
+**Página Notion:** [🎉 Wave 2.6 CLOSURE — v0.2.2-reveal](https://www.notion.so/3716f6e42bc481f69d51fe5f8c6c4c2d) · `3716f6e4-2bc4-81f6-9d51-fe5f8c6c4c2d`
+
+**Próxima missão:** Wave 3 (activation + hub) unblocked — aguarda Cowork compor `WAVE3_D1_KICKOFF.md`. (Nota: existe já `WAVE2_8_*` kickoff de landing parity em dev, composto pelo Cowork.)
+
+### 🐮 Sessão #54 — 2026-05-31 (Wave 2.6 Day 2 — statusline 2-line + dashboard TUI, PR #21 MERGED)
 
 ### 🐮 Sessão #54 — 2026-05-31 (Wave 2.6 Day 2 — statusline 2-line + dashboard TUI, PR #21 MERGED)
 
@@ -869,7 +891,7 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**🐮 Wave 2.6 Day 2 MERGED (2026-05-31) — statusline 2-line + `mooter dashboard` TUI em `dev` (`374d271`, PR #21).** 2-line rica (COLUMNS>=120) com fallback 1-line truncate-safe · dashboard TUI ANSI raw zero-deps. +16 testes (CLI 60/60). final-reviewer APPROVE (0 blockers). **⏸ Day 3 (Moo card per-turn + glyph map + evolution) unblocked — `WAVE2_6_DAY3_KICKOFF.md`.**
+**🎉 Wave 2.6 SHIPPED (2026-05-31) — tag `v0.2.2-reveal` em `dev`.** 3 Days merged (#20/#21/#22): rebrand Pastor→Mooter+Moos+GLOSSARY · statusline 2-line + dashboard TUI · Moo card (Stop hook opt-in) + glyph map central + `trail --evolution` + `quiet --moo-card`. final-reviewer APPROVE em todos (0 blockers). `classify.js` byte-identical (P11). CLI 70/70. Custo $0. **Gate Wave 3: GO — activation + hub unblocked, aguarda `WAVE3_D1_KICKOFF.md`.**
 
 **🐮 Wave 2.6 Day 1 MERGED (2026-05-31) — rebrand Pastor → Mooter+Moos em `dev` (`d8cd3af`, PR #20).** GLOSSARY.md é agora SSoT do vocabulário (Mooter=entity · Moos=collective · "to pastor"=verb). final-reviewer APPROVE_WITH_NOTES (0 blockers). `classify.js` byte-identical (P11). Resíduos "Pastor" = só histórico imutável.
 
