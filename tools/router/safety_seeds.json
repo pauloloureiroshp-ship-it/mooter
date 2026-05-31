@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "purpose": "Canonical architectural prompts that must NOT land on a small local Moo. Golden seed for the Wave 3 D1 safety layer (safety_boost.js) and the safety regression suite. Reinforces MAJ-1/MAJ-2 from the Wave 2.7 audit.",
+    "note": "The embedding_store (axis-2) is DOMAIN-only (pack matching), not tier — so these tier-safety examples live here as a versioned golden set rather than in the embedding seeds. Each entry's expected tier is the floor AFTER safety_boost.",
+    "added_by": "wave3.d1.safety_fix",
+    "version": "1.0"
+  },
+  "seeds": [
+    { "text": "design a sharding strategy for the events table", "expected_min_tier": "T3", "domain": "architecture", "rationale": "MAJ-1 — DB sharding design must reach Opus" },
+    { "text": "design the database schema for a multi-tenant SaaS", "expected_min_tier": "T3", "domain": "architecture", "rationale": "schema design is architecture-grade" },
+    { "text": "redesign the architecture for multi-region failover", "expected_min_tier": "T3", "domain": "architecture", "rationale": "critical redesign" },
+    { "text": "migration plan from Postgres to ClickHouse", "expected_min_tier": "T3", "domain": "architecture", "rationale": "migration strategy" },
+    { "text": "design a distributed transaction protocol for the ledger", "expected_min_tier": "T3", "domain": "architecture", "rationale": "distributed consistency" },
+    { "text": "plan the schema migration for the orders table", "expected_min_tier": "T3", "domain": "architecture", "rationale": "schema migration" },
+    { "text": "design a scalable rate-limiting layer for the API gateway", "expected_min_tier": "T3", "domain": "architecture", "rationale": "scalable system design" },
+    { "text": "run a security audit of the auth flow", "expected_min_tier": "T3", "domain": "security", "rationale": "security audit critical phrase" },
+    { "text": "design a partitioning strategy for time-series metrics", "expected_min_tier": "T3", "domain": "architecture", "rationale": "partitioning design" },
+    { "text": "redesign the architecture to remove the monolith", "expected_min_tier": "T3", "domain": "architecture", "rationale": "architecture redesign" },
+    { "text": "review the auth middleware for security holes", "expected_min_tier": "T2", "domain": "security", "rationale": "review keyword, not a critical phrase → T2 floor" },
+    { "text": "audit the dependencies for known CVEs", "expected_min_tier": "T2", "domain": "security", "rationale": "audit keyword → T2 floor" },
+    { "text": "refactor the payment service for testability", "expected_min_tier": "T2", "domain": "architecture", "rationale": "refactor keyword → T2 floor" },
+    { "text": "review this PR for race conditions in the queue", "expected_min_tier": "T2", "domain": "concurrency", "rationale": "review keyword → T2 floor" }
+  ]
+}

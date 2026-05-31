@@ -821,6 +821,30 @@ if (
   }
 }
 
+// Wave 3 Day 1 — safety boost (fixes MAJ-1/MAJ-2 from the Wave 2.7 audit). A
+// post-classify uplift layer that protects architecture-grade prompts the regex
+// classifier under-tiered (e.g. "design a sharding strategy" → T0). Runs AFTER
+// the arbiter, only ever UPGRADES, and is SKIPPED when the user explicitly pinned
+// a tier (respect intent). classify.js is untouched (P11). Best-effort: a failure
+// here never blocks the hint.
+try {
+  const userPinned = decision.user_override && decision.user_override.honored === true;
+  if (!userPinned) {
+    const { applySafetyBoost } = require('./safety_boost.js');
+    const boosted = applySafetyBoost(decision, prompt);
+    if (boosted.safety_boost_applied) {
+      decision.tier = boosted.tier;
+      decision.recommended_model = boosted.recommended_model;
+      decision.recommended_backend = boosted.recommended_backend;
+      decision.escalation_rule =
+        decision.escalation_rule === 'none' ? 'safety_boost' : `${decision.escalation_rule}+safety_boost`;
+    }
+    decision.safety_boost_applied = boosted.safety_boost_applied;
+    decision.safety_boost_reason = boosted.safety_boost_reason || null;
+    decision.safety_boost_from = boosted.safety_boost_from || null;
+  }
+} catch { /* safety boost is best-effort — never block the hint */ }
+
 // Always log the decision (low-confidence too — useful for tuning).
 // v0.7.2: include ts_ms and session_id so the Stop hook can pair start→end
 // events and the savings-tracker can compute turn-level latency.
@@ -856,6 +880,11 @@ logDecision({
   // v0.8: arbiter outcome (absent when arbiter did not run)
   arbiter_honored: decision.arbiter ? decision.arbiter.honored : null,
   arbiter_previous_tier: decision.arbiter && decision.arbiter.honored ? decision.arbiter.previous_tier : null,
+  // Wave 3 D1: safety-boost telemetry (no mooter_event schema change — these are
+  // extra fields on the decisions.log line, read by `mooter trail --safety`).
+  safety_boost_applied: decision.safety_boost_applied || false,
+  safety_boost_reason: decision.safety_boost_reason || null,
+  safety_boost_from: decision.safety_boost_from || null,
 });
 
 // Write last-subagent state so PostToolUse:Bash can show the correct model
@@ -975,6 +1004,29 @@ if (budget) {
   }
 })();
 // ─────────────────────────────────────────────────────────────────────────
+
+// Wave 3 Day 1 — safety floor. A CRITICAL architectural phrase ("design a
+// sharding strategy", "schema migration", "redesign the architecture", "security
+// audit", …) must reach Opus even under the budget cap or zen mode — never
+// silently send architecture-grade design to a small Moo (the MAJ-1 risk from the
+// W2.7 audit). Mirrors the HIGH_RISK hard-floor doctrine. Keyword-only uplifts
+// still yield to cost controls; only critical-phrase boosts are exempt. The
+// confidence is lifted to 0.85 so the hint actually emits. Best-effort.
+try {
+  if (decision.safety_boost_applied && /^critical_phrase_match/.test(decision.safety_boost_reason || '')) {
+    const ORDER = ['T0', 'T1', 'T2', 'T3'];
+    if (ORDER.indexOf(decision.tier) < ORDER.indexOf('T3')) {
+      decision.tier = 'T3';
+      decision.recommended_model = 'claude-opus-4-6';
+      decision.recommended_backend = 'claude_subagent';
+      decision.max_tier = 'T3';
+      decision.confidence = Math.max(Number(decision.confidence) || 0, 0.85);
+      decision.escalation_rule = (decision.escalation_rule && decision.escalation_rule !== 'none')
+        ? decision.escalation_rule + '+safety_floor'
+        : 'safety_floor';
+    }
+  }
+} catch { /* safety floor is best-effort — never block the hint */ }
 
 // Only emit hint when confident enough that it adds value.
 if (decision.confidence < 0.6) process.exit(0);
