@@ -332,43 +332,25 @@ function installPack(packId: string, srcPacksDir: string, mooterHome: string, in
   return true;
 }
 
-// ── readline-backed IO (real terminal) ────────────────────────────────────────
+// ── IO surface (real terminal) ─────────────────────────────────────────────────
 
+/**
+ * Build the interactive IO. In a TTY we use readline + raw-mode for the hidden
+ * API-key prompt. When stdin is NOT a TTY (pipe mode, e.g.
+ * `echo "y\n2" | mooter init`), readline + setRawMode() crash with
+ * ERR_USE_AFTER_CLOSE once the pipe closes — so we route to a line-buffered
+ * reader and source the API key from MOOTER_ANTHROPIC_KEY (never the pipe, so
+ * keys never land in shell history or process args).
+ */
 function defaultIO(): InitIO {
+  const isTTY = !!(process.stdin as NodeJS.ReadStream & { isTTY?: boolean }).isTTY;
+  if (!isTTY) return makeNonTTYIO();
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return {
     print: (line) => process.stdout.write(line + "\n"),
     ask: (q) => new Promise((res) => rl.question(q, (a) => res(a.trim()))),
-    askHidden: (q) =>
-      new Promise((res) => {
-        process.stdout.write(q);
-        const inp = process.stdin as NodeJS.ReadStream & { isTTY?: boolean };
-        const wasRaw = inp.isTTY ? inp.isRaw : false;
-        if (inp.isTTY && inp.setRawMode) inp.setRawMode(true);
-        let buf = "";
-        const onData = (ch: Buffer) => {
-          const s = ch.toString("utf8");
-          const code = ch[0];
-          // Enter (\n / \r) or EOT (0x04) → submit.
-          if (s === "\n" || s === "\r" || code === 0x04) {
-            if (inp.isTTY && inp.setRawMode) inp.setRawMode(wasRaw ?? false);
-            inp.removeListener("data", onData);
-            process.stdout.write("\n");
-            res(buf.trim());
-          } else if (code === 0x03) {
-            // Ctrl-C → restore the terminal and abort the wizard.
-            if (inp.isTTY && inp.setRawMode) inp.setRawMode(wasRaw ?? false);
-            process.stdout.write("\n");
-            process.exit(130);
-          } else if (code === 0x7f || code === 0x08) {
-            buf = buf.slice(0, -1); // backspace
-          } else {
-            buf += s;
-            process.stdout.write("*");
-          }
-        };
-        inp.on("data", onData);
-      }),
+    askHidden: makeAskHiddenTTY(),
     confirm: (q, defaultYes) =>
       new Promise((res) =>
         rl.question(`${q} [${defaultYes ? "Y/n" : "y/N"}]: `, (a) => {
@@ -377,6 +359,112 @@ function defaultIO(): InitIO {
           res(t === "y" || t === "yes");
         }),
       ),
+  };
+}
+
+/** Masked key entry via raw-mode. Only ever called when stdin is a real TTY. */
+function makeAskHiddenTTY(): (q: string) => Promise<string> {
+  return (q) =>
+    new Promise((res) => {
+      process.stdout.write(q);
+      const inp = process.stdin as NodeJS.ReadStream & { isTTY?: boolean };
+      const wasRaw = inp.isTTY ? inp.isRaw : false;
+      if (inp.isTTY && inp.setRawMode) inp.setRawMode(true);
+      let buf = "";
+      const onData = (ch: Buffer) => {
+        const s = ch.toString("utf8");
+        const code = ch[0];
+        // Enter (\n / \r) or EOT (0x04) → submit.
+        if (s === "\n" || s === "\r" || code === 0x04) {
+          if (inp.isTTY && inp.setRawMode) inp.setRawMode(wasRaw ?? false);
+          inp.removeListener("data", onData);
+          process.stdout.write("\n");
+          res(buf.trim());
+        } else if (code === 0x03) {
+          // Ctrl-C → restore the terminal and abort the wizard.
+          if (inp.isTTY && inp.setRawMode) inp.setRawMode(wasRaw ?? false);
+          process.stdout.write("\n");
+          process.exit(130);
+        } else if (code === 0x7f || code === 0x08) {
+          buf = buf.slice(0, -1); // backspace
+        } else {
+          buf += s;
+          process.stdout.write("*");
+        }
+      };
+      inp.on("data", onData);
+    });
+}
+
+export interface NonTTYIOOptions {
+  /** Stream to read piped answers from (default: process.stdin). */
+  input?: NodeJS.ReadableStream;
+  /** Env to source MOOTER_ANTHROPIC_KEY from (default: process.env). */
+  env?: NodeJS.ProcessEnv;
+  /** Sink for printed lines (default: process.stdout). */
+  print?: (line: string) => void;
+}
+
+/**
+ * Line-buffered IO for non-TTY (pipe) mode. Reads stdin once, then hands out one
+ * line per ask()/confirm(); when the pipe is exhausted, confirm() falls back to
+ * its default and ask() returns "". askHidden() never consumes a piped line —
+ * the API key comes only from MOOTER_ANTHROPIC_KEY, so it can never sit in a pipe.
+ */
+export function makeNonTTYIO(opts: NonTTYIOOptions = {}): InitIO {
+  const input = opts.input ?? process.stdin;
+  const env = opts.env ?? process.env;
+  const print = opts.print ?? ((line: string) => process.stdout.write(line + "\n"));
+
+  let lines: string[] | null = null;
+  let pending: Promise<void> | null = null;
+  const readAll = (): Promise<void> => {
+    if (lines) return Promise.resolve();
+    if (pending) return pending;
+    pending = new Promise<void>((res) => {
+      let buf = "";
+      const onData = (chunk: Buffer | string) => {
+        buf += chunk.toString();
+      };
+      const finish = (text: string) => {
+        input.off("data", onData);
+        input.off("end", onEnd);
+        input.off("error", onError);
+        lines = text.length ? text.split(/\r?\n/) : [];
+        res();
+      };
+      const onEnd = () => finish(buf);
+      // A stdin read error degrades to "no input" → callers fall back to
+      // defaults, never an unhandled rejection.
+      const onError = () => finish(buf);
+      input.on("data", onData);
+      input.on("end", onEnd);
+      input.on("error", onError);
+    });
+    return pending;
+  };
+  const nextLine = async (): Promise<string> => {
+    await readAll();
+    return (lines!.shift() ?? "").trim();
+  };
+
+  return {
+    print,
+    ask: async (q) => {
+      print(q);
+      return nextLine();
+    },
+    askHidden: async (q) => {
+      const key = env.MOOTER_ANTHROPIC_KEY;
+      print(key ? `${q} (read from MOOTER_ANTHROPIC_KEY)` : `${q} (non-TTY, MOOTER_ANTHROPIC_KEY unset — skipped)`);
+      return key ?? "";
+    },
+    confirm: async (q, defaultYes) => {
+      print(`${q} [${defaultYes ? "Y/n" : "y/N"}]`);
+      const ans = (await nextLine()).toLowerCase();
+      if (ans === "") return defaultYes;
+      return ans === "y" || ans === "yes";
+    },
   };
 }
 
@@ -431,6 +519,11 @@ const SUB_BUDGETS: Record<Exclude<AnthropicAccess, "api_key">, { b5h: number; b7
   team: { b5h: 120, b7d: 2000 },
 };
 
+/** Uniform failure message: `✗ <what>` / `Cause:` / `Fix:` across all paths. */
+export function formatError(what: string, cause: string, fix: string): string {
+  return `✗ ${what}\n  Cause: ${cause}\n  Fix:   ${fix}`;
+}
+
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 
 export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
@@ -468,14 +561,33 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
 
     if (access === "api_key") {
       const key = await io.askHidden("  Paste your API key (input hidden): ");
-      io.print("  Validating with test call (1 token)…");
-      const validation = await validateAnthropic(key);
-      if (!validation.valid) {
-        io.print(`  ✗ Validation failed: ${validation.error ?? "invalid key"}`);
-        return { exitCode: 1, output: "init aborted: Anthropic API key validation failed" };
+      if (!key) {
+        // Non-TTY without MOOTER_ANTHROPIC_KEY (or an empty paste): degrade
+        // gracefully rather than validate a blank key. Anthropic stays unset.
+        io.print(
+          formatError(
+            "No Anthropic API key provided",
+            "non-TTY mode and MOOTER_ANTHROPIC_KEY is unset",
+            'set MOOTER_ANTHROPIC_KEY, or run "mooter init" in an interactive terminal',
+          ),
+        );
+        io.print("  ⚠ Continuing without Anthropic — Pastor will route to Ollama T0/T1 only");
+      } else {
+        io.print("  Validating with test call (1 token)…");
+        const validation = await validateAnthropic(key);
+        if (!validation.valid) {
+          io.print(
+            formatError(
+              "Anthropic validation failed",
+              validation.error ?? "API key invalid or revoked",
+              "get a new key at https://console.anthropic.com/keys",
+            ),
+          );
+          return { exitCode: 1, output: "init aborted: Anthropic API key validation failed" };
+        }
+        io.print(`  ✓ Valid (tier: ${validation.tier_detected})`);
+        anthropic = { access, validation };
       }
-      io.print(`  ✓ Valid (tier: ${validation.tier_detected})`);
-      anthropic = { access, validation };
     } else {
       // Browser sub: v1 records the declared tier without an OAuth round-trip.
       const b = SUB_BUDGETS[access];
@@ -516,7 +628,15 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
     );
     if (want) {
       const ok = installPack(f.pack_id, packsDir, mooterHome, installed);
-      io.print(ok ? `    ✓ installed ${f.pack_id}` : `    ✗ ${f.pack_id} source missing`);
+      io.print(
+        ok
+          ? `    ✓ installed ${f.pack_id}`
+          : formatError(
+              `Pack install failed: ${f.pack_id}`,
+              "pack source (pack.yaml) not found in the registry",
+              "check the pack id, or reinstall mooter to restore the bundled registry",
+            ),
+      );
     }
   }
   io.print("  (Install more later with: mooter pack <id>)");
