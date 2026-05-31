@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+// Wave 4 Phase C — new dashboard cards (extend, not replace).
+import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
 
 interface Device {
   device_id: string;
@@ -993,6 +995,8 @@ function OverviewTab({ profile }: { profile: Profile }) {
 
   return (
     <>
+      {/* Wave 4 Phase C — CLI connection status (real device data) */}
+      <CliStatusCard profile={profile} />
       {/* Savings Hero */}
       {decisionsCount > 0 && (
         <div style={{
@@ -1121,6 +1125,9 @@ function OverviewTab({ profile }: { profile: Profile }) {
       <RecommendedModeCard profile={profile} />
       <ProjectContextCard profile={profile} />
       <RecommendationsCard profile={profile} />
+      {/* Wave 4 Phase C — activity note + settings link (no duplication of /settings) */}
+      <ActivityNote />
+      <CliSettingsLink />
     </>
   );
 }
@@ -1715,6 +1722,9 @@ function DecisionsTab({ profile: _profile }: { profile: Profile }) {
     <div style={{ maxWidth: 720 }}>
       <div style={{ marginBottom: 16 }}>
         <h3 style={sectionHeading}>Sync history — {log.length} entries</h3>
+        <p style={{ color: 'var(--muted)', fontSize: '0.78rem', margin: '6px 0 0' }}>
+          ⓘ Synced session snapshots. {PHASE_C.realTimeSync}
+        </p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {log.slice(0, 50).map((row, i) => {
@@ -1837,6 +1847,9 @@ export default function DashboardPage() {
       {tab === 'metrics' && <MetricsTab profile={profile} />}
       {tab === 'howitworks' && <HowItWorksTab profile={profile} />}
       {tab === 'decisions' && <DecisionsTab profile={profile} />}
+
+      {/* Wave 4 Phase C — global honest footer note */}
+      <DashboardFooterNote />
     </div>
   );
 }
