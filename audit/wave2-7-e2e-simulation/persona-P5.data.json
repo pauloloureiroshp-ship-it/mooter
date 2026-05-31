@@ -1,0 +1,191 @@
+{
+  "persona": "P5",
+  "name": "No-Anthropic Edge Sara",
+  "background": "Open-source purist, local-only, no API key, RTX 3090, Go + Docker",
+  "generatedAt": "2026-06-03T12:00:00.000Z",
+  "stages": {
+    "wizard": {
+      "exitCode": 0,
+      "durationMs": 34,
+      "ok": true,
+      "output": "init complete · telemetry OFF · 1 pack(s) installed",
+      "profileOk": true,
+      "credentialsOk": true,
+      "consentOk": true,
+      "installedOk": true,
+      "packsDirOk": true,
+      "providersPresent": [
+        "ollama"
+      ],
+      "hasAnthropic": false,
+      "hasOllama": true,
+      "installedPacks": [
+        "data-spreadsheet"
+      ]
+    },
+    "prompts": {
+      "list": [
+        {
+          "text": "fix the indentation in this Go file",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 116,
+          "correctlyClassified": true
+        },
+        {
+          "text": "explain this Docker build error",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 107,
+          "correctlyClassified": true
+        },
+        {
+          "text": "write a Go doc comment for this struct",
+          "expectedTier": "T1",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5-coder:14b",
+          "confidence": 0.8,
+          "spawnMs": 107,
+          "correctlyClassified": false
+        },
+        {
+          "text": "summarize the docker-compose file",
+          "expectedTier": "T0",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 108,
+          "correctlyClassified": false
+        },
+        {
+          "text": "why does this goroutine leak?",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 107,
+          "correctlyClassified": true
+        },
+        {
+          "text": "compare channels vs sync.Mutex here",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 109,
+          "correctlyClassified": true
+        },
+        {
+          "text": "generate a commit message",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.9,
+          "spawnMs": 87,
+          "correctlyClassified": true
+        },
+        {
+          "text": "rename this package",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.9,
+          "spawnMs": 89,
+          "correctlyClassified": true
+        },
+        {
+          "text": "redesign the worker pool for graceful shutdown",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 106,
+          "correctlyClassified": true
+        },
+        {
+          "text": "audit this Dockerfile for security issues",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.9,
+          "spawnMs": 107,
+          "correctlyClassified": true
+        }
+      ],
+      "classificationAccuracy": 0.8,
+      "correctCount": 8,
+      "avgSpawnMs": 104,
+      "note": "spawnMs is classify.js process wall-time incl. node cold-start (~50-100ms) — NOT the in-process hook latency."
+    },
+    "dashboard": {
+      "sectionsPresent": [
+        "MOOS ACTIVE",
+        "SAVINGS",
+        "CONTEXT",
+        "QUOTA",
+        "ADAPTER"
+      ],
+      "allSections": true,
+      "packSectionPresent": false,
+      "loraHonesty": true,
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "frameSample": "┌─ 🐮 Mooter Dashboard · session e2e-P5-s ─────────────────────┐\n│  MOOS ACTIVE                                                 │\n│    ☁ claude-haiku-4-5-20251001   3 calls · conf 0.90        │\n│    🏠 qwen2.5:3b           2 calls · conf 0.90               │\n│    ☁ claude-sonnet-4-6    2 calls · conf 0.70               │\n│    ☁ claude-opus-4-6      2 calls · conf 0.90               │"
+    },
+    "trail": {
+      "fieldCount": 10,
+      "eventCount": 10,
+      "hasFormulasAndSources": true,
+      "lastDecision": "T3 claude-opus-4-6 0.90",
+      "jsonParses": true,
+      "evolutionHonest": true,
+      "evolutionSample": "🐮 mooter — evolution (last 7d vs previous 7d)\n\nVOLUME\n  prompts:   0 → 10   (+100.0%)\n\nTIER MIX\n  prev 7d:   T0:0 T1:0 T2:0 T3:0\n  last 7d:   T0:3 T1:3 T2:2 T3:2"
+    },
+    "mooCard": {
+      "optInRespected": true,
+      "cardEmitted": true,
+      "fieldCount": 6,
+      "loraDisclosed": false,
+      "hyperbole": [],
+      "sample": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.90\n last10    T0:3 T1:3 T2:2 T3:2\n───────────────────────────\n"
+    },
+    "isolation": {
+      "otherSessionEvents": 0,
+      "ok": true
+    },
+    "wizardTransparency": {
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "lineCount": 16
+    }
+  },
+  "gaps": [
+    {
+      "severity": "major",
+      "description": "Classification accuracy 80% < 90% for P5",
+      "evidence": "\"write a Go doc comment for this struct\" exp=T1 got=T0 | \"summarize the docker-compose file\" exp=T0 got=T1"
+    },
+    {
+      "severity": "minor",
+      "description": "Dashboard has no PACK/domain section — installed packs are invisible in the live dashboard for P5 (showcase spec expected one)",
+      "evidence": "5 sections shipped: MOOS ACTIVE, SAVINGS, CONTEXT, QUOTA, ADAPTER; installed=[\"data-spreadsheet\"]"
+    },
+    {
+      "severity": "minor",
+      "description": "Moo card omits LoRA/adapter disclosure for P5",
+      "evidence": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.90\n last10    T0:3 T1:3 T2:2 T3:2\n───────────────────"
+    }
+  ],
+  "tempHome": "/tmp/claude-1000/mooter-e2e-P5-IWcEsi",
+  "summary": {
+    "blockers": 0,
+    "major": 1,
+    "minor": 2,
+    "classificationAccuracy": 0.8,
+    "verdict": "READY"
+  }
+}

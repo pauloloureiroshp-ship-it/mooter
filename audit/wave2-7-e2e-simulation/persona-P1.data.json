@@ -1,0 +1,187 @@
+{
+  "persona": "P1",
+  "name": "Solo Founder Paula",
+  "background": "Post-exit founder, 1 product, own $$, Next.js + Supabase",
+  "generatedAt": "2026-06-03T12:00:00.000Z",
+  "stages": {
+    "wizard": {
+      "exitCode": 0,
+      "durationMs": 36,
+      "ok": true,
+      "output": "init complete · telemetry OFF · 1 pack(s) installed",
+      "profileOk": true,
+      "credentialsOk": true,
+      "consentOk": true,
+      "installedOk": true,
+      "packsDirOk": true,
+      "providersPresent": [
+        "anthropic",
+        "ollama"
+      ],
+      "hasAnthropic": true,
+      "hasOllama": true,
+      "installedPacks": [
+        "diagram-systems"
+      ]
+    },
+    "prompts": {
+      "list": [
+        {
+          "text": "muda a cor do botão login para azul",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 113,
+          "correctlyClassified": true
+        },
+        {
+          "text": "resume o ficheiro README.md",
+          "expectedTier": "T0",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": -34641,
+          "correctlyClassified": false
+        },
+        {
+          "text": "gera commit message para estas 3 mudanças",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.9,
+          "spawnMs": 94,
+          "correctlyClassified": true
+        },
+        {
+          "text": "explica este erro: TypeError: x is not a function",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 117,
+          "correctlyClassified": true
+        },
+        {
+          "text": "porque é que o websocket reconnect falha às vezes?",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 116,
+          "correctlyClassified": true
+        },
+        {
+          "text": "compara estes 2 patterns: useReducer vs useState",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 110,
+          "correctlyClassified": true
+        },
+        {
+          "text": "redesenha o vault para multi-user architectural re",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.9,
+          "spawnMs": 99,
+          "correctlyClassified": true
+        },
+        {
+          "text": "audit dos hooks deste codebase para race condition",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 97,
+          "correctlyClassified": true
+        },
+        {
+          "text": "lista ficheiros .ts maiores que 500 linhas",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 101,
+          "correctlyClassified": true
+        },
+        {
+          "text": "vou fazer push, faz review pré-merge",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.9,
+          "spawnMs": 93,
+          "correctlyClassified": true
+        }
+      ],
+      "classificationAccuracy": 0.9,
+      "correctCount": 9,
+      "avgSpawnMs": -3370,
+      "note": "spawnMs is classify.js process wall-time incl. node cold-start (~50-100ms) — NOT the in-process hook latency."
+    },
+    "dashboard": {
+      "sectionsPresent": [
+        "MOOS ACTIVE",
+        "SAVINGS",
+        "CONTEXT",
+        "QUOTA",
+        "ADAPTER"
+      ],
+      "allSections": true,
+      "packSectionPresent": false,
+      "loraHonesty": true,
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "frameSample": "┌─ 🐮 Mooter Dashboard · session e2e-P1-s ─────────────────────┐\n│  MOOS ACTIVE                                                 │\n│    ☁ claude-haiku-4-5-20251001   3 calls · conf 0.85        │\n│    ☁ claude-opus-4-6      3 calls · conf 0.90               │\n│    🏠 qwen2.5:3b           2 calls · conf 0.80               │\n│    ☁ claude-sonnet-4-6    2 calls · conf 0.70               │"
+    },
+    "trail": {
+      "fieldCount": 10,
+      "eventCount": 10,
+      "hasFormulasAndSources": true,
+      "lastDecision": "T3 claude-opus-4-6 0.90",
+      "jsonParses": true,
+      "evolutionHonest": true,
+      "evolutionSample": "🐮 mooter — evolution (last 7d vs previous 7d)\n\nVOLUME\n  prompts:   0 → 10   (+100.0%)\n\nTIER MIX\n  prev 7d:   T0:0 T1:0 T2:0 T3:0\n  last 7d:   T0:2 T1:3 T2:2 T3:3"
+    },
+    "mooCard": {
+      "optInRespected": true,
+      "cardEmitted": true,
+      "fieldCount": 6,
+      "loraDisclosed": false,
+      "hyperbole": [],
+      "sample": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.90\n last10    T0:2 T1:3 T2:2 T3:3\n───────────────────────────\n"
+    },
+    "isolation": {
+      "otherSessionEvents": 0,
+      "ok": true
+    },
+    "wizardTransparency": {
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "lineCount": 19
+    }
+  },
+  "gaps": [
+    {
+      "severity": "minor",
+      "description": "Dashboard has no PACK/domain section — installed packs are invisible in the live dashboard for P1 (showcase spec expected one)",
+      "evidence": "5 sections shipped: MOOS ACTIVE, SAVINGS, CONTEXT, QUOTA, ADAPTER; installed=[\"diagram-systems\"]"
+    },
+    {
+      "severity": "minor",
+      "description": "Moo card omits LoRA/adapter disclosure for P1",
+      "evidence": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.90\n last10    T0:2 T1:3 T2:2 T3:3\n───────────────────"
+    }
+  ],
+  "tempHome": "/tmp/claude-1000/mooter-e2e-P1-Dcq0n9",
+  "summary": {
+    "blockers": 0,
+    "major": 0,
+    "minor": 2,
+    "classificationAccuracy": 0.9,
+    "verdict": "READY"
+  }
+}
