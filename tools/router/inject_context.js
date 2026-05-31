@@ -1209,6 +1209,20 @@ const lines = [
   '</router-hint>',
 ].filter(Boolean);
 
+// Wave 2.5 Day 3 — tier badge. A compact [tier·model·conf] marker emitted as a
+// separate block right after the hint so the session can surface it inline.
+// Suppressed when the user has run `mooter quiet`. The hint is already gated to
+// confidence >= 0.6 above (early-exit at line ~980), so the badge inherits that
+// threshold. Best-effort: a missing module or unreadable prefs never blocks the
+// hint — this is the live UserPromptSubmit hook.
+try {
+  const { readPrefs, buildBadge } = require('./badge.js');
+  if (!readPrefs().quiet) {
+    lines.push('');
+    lines.push(`<tier-badge>${buildBadge(decision)}</tier-badge>`);
+  }
+} catch { /* badge is best-effort, never blocks the hint */ }
+
 // Append <optimized-task> when the optimizer produced a reformulation.
 if (optimizedTask) {
   lines.push('');
