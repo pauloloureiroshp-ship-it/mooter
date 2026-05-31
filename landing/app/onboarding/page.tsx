@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
+import { suggestHardware } from './_lib/hardware';
+import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -184,16 +186,8 @@ function probeHardware(): DetectedHw {
     }
   } catch { /* ignore */ }
 
-  // Suggest hw chip value from os + gpu
-  const gpuLower = (gpuName || '').toLowerCase();
-  let suggestedHw: string | null = null;
-  if (os === 'mac') suggestedHw = 'mac_m_series';
-  else if (os === 'windows' && gpuLower.includes('nvidia')) suggestedHw = 'windows_nvidia';
-  else if (os === 'windows' && (gpuLower.includes('amd') || gpuLower.includes('radeon'))) suggestedHw = 'windows_amd';
-  else if (os === 'windows') suggestedHw = 'windows_nvidia';  // best guess
-  else if (os === 'linux' && gpuLower.includes('nvidia')) suggestedHw = 'linux_nvidia';
-  else if (os === 'linux' && (gpuLower.includes('amd') || gpuLower.includes('radeon'))) suggestedHw = 'linux_amd';
-  else if (os === 'linux') suggestedHw = 'linux_nvidia';
+  // Suggest hw chip value from os + gpu (pure, unit-tested in _lib/hardware.ts).
+  const suggestedHw = suggestHardware(os, gpuName);
 
   return { os, cpuCores, gpuName, ramGb, suggestedHw, probed: true };
 }
@@ -218,6 +212,7 @@ export default function OnboardingPage() {
   const [hwConfirmed, setHwConfirmed] = useState(false);
   const [subs, setSubs] = useState<string[]>([]);
   const [budget, setBudget] = useState(30);
+  const [persona, setPersona] = useState<Persona>('other');
   const [saving, setSaving] = useState(false);
   const [cliToken, setCliToken] = useState('');
   const [tokenCopied, setTokenCopied] = useState(false);
@@ -261,6 +256,7 @@ export default function OnboardingPage() {
             email,
             hardware_tier: hw,
             subscriptions: subs,
+            persona,
             frugal_config: config,
             onboarding_completed: true,
             updated_at: new Date().toISOString(),
@@ -546,6 +542,26 @@ export default function OnboardingPage() {
                 </Chip>
               ))}
             </ChipGroup>
+
+            {/* Persona — mirrors the CLI `mooter init` persona step (W3 D2), so a
+                web-onboarded user lands on the same profile shape as a CLI user. */}
+            <FieldLabel>What best describes you?</FieldLabel>
+            <p style={{
+              fontSize: '0.78rem', color: 'var(--muted)',
+              margin: '-6px 0 10px', lineHeight: 1.5,
+            }}>
+              Tunes which packs mooter recommends — you can change it later.
+            </p>
+            <ChipGroup>
+              {PERSONAS.map(p => (
+                <Chip key={p.value} active={persona === p.value} onClick={() => setPersona(p.value)}>
+                  {p.title}
+                </Chip>
+              ))}
+            </ChipGroup>
+            <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '4px 0 0', lineHeight: 1.5 }}>
+              {personaPackHint(persona)}
+            </p>
 
             {/* Savings preview — lights up as user makes selections */}
             {hw && (
