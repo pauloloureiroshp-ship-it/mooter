@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **📡 WAVE 3 DAY 2 ACTIVATION HUB merged — tag `v0.3.1-activation-hub` em `dev` (PR #25, `17795b8`). 5 sub-features 100% local ZERO network: telemetry opt-in HMAC-signed (consent.ts, opt-out default, revoke via quiet --telemetry-off) · `mooter hub` TUI (packs·safety·evolution·telemetry·suggestions determinísticas) · dashboard PACK section (fix W2.7 MIN-1) · persona-aware recommendations (Solo Founder/Senior IC/OSS Maintainer/Other) · `trail --safety --by-keyword` over-boost monitor (NIT W3 D1). P11 + safety_boost intactos (tudo CLI). final-reviewer APPROVE 0 blockers. CLI 106/106. Custo $0. ⏸ PARA — Wave 3 D3 / Wave 4 precisa novo kickoff.**)
-**Versão:** **v0.3.1-activation-hub** (W3 D2) · v0.3.0-safety-fix (W3 D1) · v0.2.8-parity (W2.8) · v0.2.7-audit (W2.7) · v0.2.2-reveal (W2.6) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🔄 WAVE 3 DAY 3 SYNC STUB merged — tag `v0.3.2-sync-stub` em `dev` (PR #26, `873c029`). Contrato de sync remoto (prep Wave 4 CF Workers) SEM network: mooter_sync_event schema v1 (anonimizado, HMAC-signed) · sync queue local review-able · `mooter sync --dry-run` (MOCK POST, bytes_sent=0) · audit log signed user-verificável · schedule spec (consent.sync_schedule + quiet --sync-cadence, NO cron). P11 + safety_boost + mooter_event intactos. ZERO network (teste com global fetch que throws). final-reviewer APPROVE 12/12. CLI 130/130. Custo $0. ⏸ PARA — Wave 3 D4 / Wave 4 transition precisa novo kickoff.**)
+**Versão:** **v0.3.2-sync-stub** (W3 D3) · v0.3.1-activation-hub (W3 D2) · v0.3.0-safety-fix (W3 D1) · v0.2.8-parity (W2.8) · v0.2.7-audit (W2.7) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #58 — **Wave 3 D2 Activation Hub** (autónomo, auto-merge dev). consent HMAC + mooter hub + dashboard PACK + persona-aware + safety over-boost monitor, tag v0.3.1-activation-hub. P11 + safety_boost intactos, ZERO network. Notion: [📡 W3 D2](https://www.notion.so/3716f6e42bc4814ea20fc227de08c0e1).
+**Sessão Claude Code:** #59 — **Wave 3 D3 Sync Stub** (autónomo, auto-merge dev). sync_event schema v1 + queue + dry-run + audit log + schedule spec, tag v0.3.2-sync-stub. ZERO network, P11/safety_boost/mooter_event intactos. Notion: [🔄 W3 D3](https://www.notion.so/3716f6e42bc481019250e28f6b168158).
+
+### 🔄 Sessão #59 — 2026-05-31 (Wave 3 Day 3 — Hub Remote Sync Stub, v0.3.2-sync-stub)
+
+**Mandato Paulo:** executar WAVE3_D3_SYNC_STUB (5 sub-features, ZERO network grep-verified, auto-merge dev, tag v0.3.2-sync-stub).
+
+**Wave 3 D3 (PR #26 merged `873c029`, tag v0.3.2-sync-stub):** contrato de sync remoto para Wave 4 CF Workers, tudo local zero-network. (1) `mooter_sync_event` schema v1 — versionado, anonimizado (gpu→class, nunca modelo), pseudo-id one-way, HMAC-signed + tamper-detect, forbidden-key guard. (2) sync queue local review-able (gate consent absoluto). (3) `mooter sync --dry-run` MOCK POST bytes_sent=0. (4) audit log signed user-verificável. (5) schedule spec (consent.sync_schedule default daily + quiet --sync-cadence, NO cron). Novos: src/sync/{schema,queue,audit}.ts, commands/sync.ts, SYNC_SCHEDULE_SPEC.md. +24 testes (CLI 130/130). final-reviewer APPROVE 12/12 0 blockers.
+
+**Próxima missão:** Wave 3 D4 (quick-wins) OU Wave 4 transition (Phase B/C/D: auth + dashboard cloud + CF Workers backend real — o cliente sync já está pronto) — **PARA aqui, precisa novo kickoff do Cowork.**
 
 ### 📡 Sessão #58 — 2026-05-31 (Wave 3 Day 2 — Activation + Local Hub, v0.3.1-activation-hub)
 
@@ -925,7 +933,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**📡 Wave 3 Day 2 SHIPPED (2026-05-31) — tag `v0.3.1-activation-hub` em `dev` (PR #25).** 5 sub-features 100% local ZERO network: telemetry opt-in HMAC (consent.ts) · `mooter hub` TUI · dashboard PACK section (fix W2.7 MIN-1) · persona-aware recommendations · `trail --safety --by-keyword` over-boost monitor. P11 + safety_boost intactos (tudo CLI). final-reviewer APPROVE 0 blockers. CLI 106/106. **⏸ Wave 3 D3 / Wave 4 precisa novo kickoff.**
+**🔄 Wave 3 Day 3 SHIPPED (2026-05-31) — tag `v0.3.2-sync-stub` em `dev` (PR #26).** Contrato sync remoto p/ Wave 4 CF Workers, ZERO network: mooter_sync_event schema v1 (anonimizado, HMAC) · sync queue local · `mooter sync --dry-run` (MOCK POST) · audit log signed · schedule spec (NO cron). P11 + safety_boost + mooter_event intactos. final-reviewer APPROVE 12/12. CLI 130/130. **⏸ Wave 3 D4 / Wave 4 transition precisa novo kickoff.**
+
+**📡 Wave 3 Day 2 SHIPPED (2026-05-31) — tag `v0.3.1-activation-hub` em `dev` (PR #25).** 5 sub-features 100% local ZERO network: telemetry opt-in HMAC (consent.ts) · `mooter hub` TUI · dashboard PACK section (fix W2.7 MIN-1) · persona-aware recommendations · `trail --safety --by-keyword` over-boost monitor. P11 + safety_boost intactos (tudo CLI). final-reviewer APPROVE 0 blockers. CLI 106/106.
 
 **🛡️ Wave 3 Day 1 SHIPPED (2026-05-31) — tag `v0.3.0-safety-fix` em `dev` (PR #24).** Fix MAJ-1/MAJ-2 do audit W2.7 via `safety_boost.js` (layer post-classify, **classify.js byte-identical P11**): critical phrases → T3, keyword+low-conf → T2, safety floor que vence budget cap/zen. `mooter trail --safety` telemetria. final-reviewer APPROVE 0 blockers. Router 40/40, CLI 78/78.
 
