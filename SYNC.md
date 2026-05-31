@@ -3,10 +3,190 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-28 (Claude Code — **🛠 WAVE 2 DAY 2 BUNDLE COMPLETO: PR #9 aberto para `dev`, NÃO merged. 3 sub-features em 1 commit (AMBIGUOUS scaffold via `applyAmbiguousScaffold` + statusline pack/adapter chips + setup state + SessionStart hook + animation-web ceiling T3→T2 como cap real). final-reviewer Opus: APPROVE_WITH_NOTES (4 NITs Day 3 backlog). Router 36/36 + statusline 31/31 verdes. `classify.js` byte-identical (P11). LLM E2E sanity deferred para Day 7 re-bench (cap é determinístico, coberto por `compression.test.ts`).**)
-**Versão:** v0.11 (Codex) + **Pastor Wave 1 SHIPPED** + **Wave 2 Day 1 merged + Day 2 in-PR** · mooter.ai live · 3 packs sementinha · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🎉 WAVE 2.5 CONCLUÍDA — tag `v0.2.1-polish` em `dev` (`3bb94b8`). 4 Days shipped em continuous mode (PRs #16/#17/#18/#19, todos merged). Gate verdict GO → Wave 3 unblocked. Tests finais: CLI 51/51, router test:cli 37/37, statusline+tier-mix 47/47. Custo Wave 2.5 total $0. final-reviewer T3-gate APPROVE em todos os 4 Days. `classify.js` byte-identical (P11) em toda a wave.**)
+**Versão:** **v0.2.1-polish** (Wave 2.5 SHIPPED) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 + event-writer local · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #45 — Wave 2 Day 2 statusline + ambiguous + compression. Branch `wave2-day2-statusline-ambiguous-compression` pushed; PR #9 aberto para `dev` (https://github.com/pauloloureiroshp-ship-it/mooter/pull/9). Notion: [🛠 Sessão 2026-05-28 — Wave 2 Day 2](https://www.notion.so/36e6f6e42bc48162b31bc0d382629374). Ver secção Wave 2 Day 2 abaixo.
+**Sessão Claude Code:** #52 — **Wave 2.5 CLOSURE** (Days 2→3→4 auto-orquestrados + tag). Day 2 wizard hardening (#17), Day 3 bash attribution + tier mix (#18), Day 4 provenance trail + e2e (#19). Tag `v0.2.1-polish`. Notion closure: [🐮 Wave 2.5 CLOSURE](https://www.notion.so/3716f6e42bc4813aaa58e6ffeb5bb241).
+
+### 🎉 Sessão #52 — 2026-05-31 (Wave 2.5 CLOSURE — Days 2/3/4 + tag v0.2.1-polish)
+
+**Mandato Paulo:** continuous mode — Claude Code auto-orquestra Days 2→3→4 (lê cada `WAVE2_5_DAY{N}_KICKOFF.md` sozinho), pausa só para merge approvals, e executa Closure Protocol após Day 4 merged.
+
+**Outcome (4 PRs merged em `dev`):**
+- **Day 2 (#17 `fbbe1a6`)** — wizard hardening: fix stdin non-TTY (`makeNonTTYIO`, `ERR_USE_AFTER_CLOSE`), edge no-Ollama/no-Anthropic, idempotency 3×, error format `✗`/Cause/Fix. +11 testes.
+- **Day 3 (#18 `bae7dbd`)** — bash attribution: `<tier-badge>[T2·sonnet·0.84]` no hook vivo (`badge.js`), tier-mix view rotativa na statusline (`tier-mix.js`), `mooter quiet`. +17 testes.
+- **Day 4 (#19 `3bb94b8`)** — provenance: `mooter trail` (value+formula+source por número, fontes reais sem inventar schema), e2e fresh-install hermético. +10 testes.
+
+**Gate (em dev):** CLI 51/51 · router test:cli 37/37 · statusline+tier-mix 47/47 · `mooter quiet`/`trail`/`--help` funcionais. **Tag `v0.2.1-polish` aplicada em `3bb94b8` + pushed.**
+
+**Risco mitigado:** `tools/router/inject_context.js` é o mesmo inode que o hook `UserPromptSubmit` activo — toda a lógica nova em `try/catch` que nunca lança + smoke-test e2e do hook antes de cada avanço.
+
+**Invariantes (4 days):** `classify.js` byte-identical (P11); commits selectivos; sempre PR→`dev`; final-reviewer T3-gate em cada Day; PASTOR.md + docs/strategy untracked fora do diff.
+
+**Página Notion:** [🐮 Wave 2.5 CLOSURE — v0.2.1-polish](https://www.notion.so/3716f6e42bc4813aaa58e6ffeb5bb241) · `3716f6e4-2bc4-813a-aa58-e6ffeb5bb241`
+
+**Próxima missão:** Wave 3 (activation + hub) — aguarda Cowork compor `WAVE3_D1_KICKOFF.md`.
+
+### 🐮 Sessão #51 — 2026-05-30 (Wave 2.5 Day 1 — statusline visual upgrade + per-terminal isolation, PR #16 aberto)
+
+**Mandato Paulo:** shippar 6 sub-features num único PR para `dev` — glyph upgrade (🐮/🐂/🚨), headline com tier inline, chip ctx %, per-turn+alltime cost, per-terminal session isolation, compact mode. Manter 1-line (decisão arquitectural).
+
+**Outcome (PR #16, commit `fddcf62`):** `statusline-multi.js` (glyph map, headline enriquecido, chips ctx/turn/alltime, filtro per-session no `digest`, query tracker session-scoped, compact mode, helpers `readStdinJson`/`clampPercent`); `savings-tracker.js` (`+last_turn_cost_usd` `+alltime_cost_usd` em `computeMetrics`; alinhou `computeMetricsForSession` à regra backward-compat — NIT 1); +10 testes em `statusline-multi.test.js` + 6 novos em `statusline-session-isolation.test.js`. 58 verdes.
+
+**Decisão:** `SessionStart.sh` deliberadamente NÃO tocado — `export` num subprocesso de hook não propaga para o processo da statusline; o `session_id` do stdin do Claude Code é a fonte canónica e coincide com `payload.session_id` do `inject_context.js`.
+
+**Invariantes:** `classify.js` byte-identical (P11); `packages/router/src/*` + `packages/cli/src/commands/init.ts` intactos; PASTOR.md + docs/strategy/* fora do diff; sem `git add -A`/`--no-verify`.
+
+**Página Notion:** [🐮 Sessão 2026-05-30 — Wave 2.5 Day 1](https://www.notion.so/3706f6e42bc481f8bca3d34d778dda34) · `3706f6e4-2bc4-81f8-bca3-d34d778dda34`
+
+**Próxima missão:** (a) Paulo merge PR #16 → `dev`; (b) Wave 2.5 Day 2 — wizard hardening (stdin non-TTY fix + edge cases sem Ollama/Anthropic + idempotência); (c) PRs #11/#12/#13/#14/#15 ainda por merge.
+
+### 🛠 Sessão #50 — 2026-05-29/30 (Wave 2 Day 7 gate MEDIUM 2/3 + Wave 4 Phase A landing, PRs #14/#15 abertos)
+
+**Mandato Paulo:** (a) Day 7 — re-benchmark cumulativo Wave 2 (gate, custo real ~$3-5); (b) Wave 4 Phase A — rebuild `landing/` dark theme a partir de `landing/design-handoff/IMPLEMENTATION_SPEC.md` (fonte local verificável, sem fetch externo).
+
+**Outcome Day 7 (PR #14, commit `9083895`):** verdict **MEDIUM 2/3** ambos os pares (quality ✓ latency ✓ cost ✗). Pastor 0.881 quality (+1.1pp), latency 19.6k ms (−62% vs Wave 1), **0 failures** (era 2). Cost gate falha (≤0.5×baseline; Pastor −14.8% vs Sonnet). Fix Day 1 T0 swap qwen2.5-coder:7b validado. $3.66 real. final-reviewer APPROVE. REPORT + 8 outputs + anomalies em `docs/benchmarks/wave2-pastor/`.
+
+**Outcome Phase A (PR #15, commits `141ef89`/`1ccb693`/`10b862b`):** dark tokens `--color-*` em globals.css; 8 surfaces (hero + under-the-hood/packs/packs[id]/compare/methodology/privacy/install); 15 componentes em `landing/components/`; libs `cost-calculator.ts`+`mooter-event.ts`; `packs-seed.json`. tsc+eslint clean. final-reviewer APPROVE 15/15.
+
+**Decisões:** (1) repo sem Tailwind/shadcn (spec assumia) → idioma existente, zero package.json; (2) /setup→redirect /install (onboarding Phase B ainda linka); (3) tag held até merge; (4) WAVE2_CLOSURE só em Notion (markdown-hygiene). Caught: Day 5 já merged (#12, não refeito); rejeitado URL phishing `api.anthropic.com/v1/design/`.
+
+**Invariantes:** `classify.js` byte-identical (P11) em ambos os PRs; packages/router, tools/router, packs/, landing/app/{(app),auth,onboarding,api} intactos; PASTOR.md + docs/strategy/* fora do diff.
+
+**Página Notion:** [🚀 Sessão 2026-05-29/30 — Day 7 + Phase A](https://www.notion.so/3706f6e42bc4814f9f64ca9c0f977707) · `3706f6e4-2bc4-814f-9f64-ca9c0f977707`
+
+**Próxima missão:** (a) Paulo merge PR #14 → push tag `v0.2.0-rc1` + bump `pastor_version` label (anomaly A4) → Wave 3 D1 (slash commands); (b) Paulo merge PR #15 → Vercel preview shareável → Wave 4 Phase B (auth + onboarding 5-step); (c) PRs #11/#12/#13 Wave 2 ainda por merge.
+
+### 🛠 Sessão #49 — 2026-05-29 (Wave 2 Day 6 — mooter init + execution fields + NITs, PR #13 aberto)
+
+**Mandato Paulo:** shippar 3 sub-features num único PR para `dev` — (1) `mooter init` wizard v1 (hardware probe → providers → Anthropic credentials → pack recs → consent); (2) execution-fields wire (tokens/cost/latency/error em `mooter_event`); (3) NITs 3+4 Day 2 + settings migrate + bilingual seeds doc. Slash commands `why/status/rate/override` ficaram Wave 3 D1.
+
+**Outcome:** 1 commit selectivo (`1d18ef8`) · 12 ficheiros (8 novos) · PR #13 → `dev` **NÃO merged** · reviewer Opus T3-gate **APPROVE_WITH_NOTES** (3 NITs todos aplicados) · custo $0 (validator Anthropic injetado/mocked nos testes, sem API call live).
+
+**Decisões de arquitectura:**
+- **Execution capture = função pura** (`applyExecutionFields`), não side-effect no hook. O UserPromptSubmit corre ANTES do LLM call e não vê usage; a captura fica completa+testada e o wire é 1 linha (`finalizeRoutingEvent`) quando a harness expuser turn-usage a um Stop hook.
+- **`cost.ts` vs benchmark `pricing.ts`**: contratos diferentes de propósito — benchmark THROWS em unknown (reproducibilidade), prod event retorna 0 (hook nunca parte o turn). Mesmo frozen snapshot `data/pricing-snapshot-2026-05-27.json`.
+- **Browser sub (Pro/Max/Team)** v1: regista tier declarado sem OAuth round-trip; só API-key faz test call real (1 token). Raw key NUNCA persistida (`credential_ref: keyring`).
+- **Schemas** `~/.mooter/{credentials,profile,consent}.json` com perms 0600 (chmod enforced mesmo se pré-existir). Telemetry default OFF. Re-run idempotente (Set-backed `installed.json`).
+
+**Reviewer NITs aplicados:** (1) `migrate-settings.sh` false-success se jq falhar → if/else + exit 1; (2) test abort-401 também assert credentials+profile ausentes; (3) Ollama probe fallback `host.docker.internal` → `localhost` para bare-metal.
+
+**Invariantes:** `classify.js` byte-identical (P11); `event_writer.ts`+`mooter_event.ts` (Day 4) e `embedding_store.ts`+`classify_domain.ts` (Day 3+5) intactos. Cross-stream protegido (PASTOR.md + docs/strategy/* fora do diff).
+
+**Página Notion:** [🛠 Sessão 2026-05-29 — Wave 2 Day 6](https://www.notion.so/36f6f6e42bc481fea1f6d1de30d142a5) · `36f6f6e4-2bc4-81fe-a1f6-d1de30d142a5`
+
+**Próxima missão:** (a) Paulo merge PRs #11 (Day 4) + #12 (Day 5) + #13 (Day 6) → `dev`; (b) **Day 7** — re-benchmark cumulativo (gate Wave 2, v0.2.0-rc1); (c) Wave 3 D1 — slash commands `/mooter why|status|rate|override`; (d) Wave 3 D3 — OpenAI/Google/Grok credentials; (e) Wave 3 D4 — hub upload + opt-in + live Stop-hook trigger para `finalizeRoutingEvent`.
+
+### 🛠 Sessão #48 — 2026-05-29 (Wave 2 Day 5 — 4 packs adicionais + recalibração EMBED_PROMOTE_SIM, PR #12 aberto)
+
+**Mandato Paulo:** shippar 2 sub-features num único PR para `dev` — (1) 4 packs adicionais (`voice-tts`, `knowledge-third-brain`, `prd-strategy`, `data-spreadsheet`) com `pack.yaml` + `scaffold.md` + 8 embedding_seeds cada; (2) recalibrar `EMBED_PROMOTE_SIM`/`AGREEMENT_BONUS` contra o pack set crescente (3→7) + ADR 018. NITs Day 4 (procedurais) ficaram noise-out.
+
+**Outcome:** 1 commit selectivo (`446a9f1`) · 14 ficheiros (+613/−53) · PR #12 → `dev` aberto, **NÃO merged** · final-reviewer Opus T3-gate **APPROVE** (12/12) · custo Ollama local ($0 embeddings).
+
+**Descoberta-chave:** o brief assumia grid-search sobre `REGEX_WEIGHT`/`EMBED_WEIGHT` via env-vars — **esses pesos não existem**. O classificador combinado é *rule-based*: v1 confiante ganha; v2 só *promove* GENERAL/AMBIGUOUS quando sim ≥ `EMBED_PROMOTE_SIM`. Único knob de accuracy = `EMBED_PROMOTE_SIM`; `AGREEMENT_BONUS` só mexe na confiança (nunca no pack). `recalibrate.ts` + ADR 018 refletem a arquitectura real.
+
+**Recalibração:** `EMBED_PROMOTE_SIM` **0.55 → 0.70**. A 0.55 com 7 packs, todos os prompts GENERAL/AMBIGUOUS eram force-promoted para um pack (general_keep 0/4, ambiguous_keep 0/6). 0.70 → 3/4 e 5/6, single-pack recall mantém **100% (24/24)**. p99 24ms, embed init 0.79s/56 seeds. `general_keep` cap a 0.75 porque P032 ("parse CSV") bate no v1 regex → `data-spreadsheet` (mais correcto que GENERAL).
+
+**Conflito resolvido (via AskUserQuestion):** nenhum threshold > 0.55 mantém o teste Day-3 de disambiguation a passar **e** P004 AMBIGUOUS — irreconciliáveis. Paulo escolheu **0.70 + reescrever o teste** (stub store determinístico cobre os dois lados). Suite router **89/89**, packs schema 7/7. `classify.js` byte-identical (P11); `event_writer.ts`+`mooter_event.ts` intactos (Day 4 frozen).
+
+**Página Notion:** [🛠 Sessão 2026-05-29 — Wave 2 Day 5](https://www.notion.so/36f6f6e42bc48141b671c795760a9d64) · `36f6f6e4-2bc4-8141-b671-c795760a9d64`
+
+**Próxima missão:** (a) Paulo merge PR #11 (Day 4) + PR #12 (Day 5) → `dev`; (b) Day 6 — `mooter init` wizard (5-step) + execution fields wire + slash commands + statusline NITs 3+4; (c) Day 7 — re-benchmark cumulativo (gate Wave 2); (d) backlog — multilingual/EN seeds dos 3 packs originais (seeds PT-PT fazem paráfrases EN out-of-distribution).
+
+---
+
+### 🛠 Sessão #47 — 2026-05-28 (Wave 2 Day 4 — event-writer + Day 3 NITs cleanup, PR #11 aberto)
+
+**Mandato Paulo:** shippar 2 sub-features num único PR para `dev` — (1) 3 NITs do Day 3 review (embeddingStore.reset() + calibração thresholds documentada + batch-embed quando seed count > 24) + (2) mooter_event schema canónico v1 + writer local + retention (events 30d / sessions 90d). NITs 3+4 (statusline edge test + STATUSLINE_WIRE.md callout) continuam diferidos para Day 6. Event upload OFF — Wave 3 D4.
+
+**Outcome:** 1 commit selectivo (`08c1572`) · 9 ficheiros (5 M/A src + 4 A tests) · PR #11 → `dev` aberto, NÃO merged · final-reviewer Opus T3-gate **APPROVE_WITH_NOTES** · cost sessão ~$0 (tudo I/O local, sem LLM E2E).
+
+**Sub-features:**
+1. **NIT 1 — `EmbeddingStore.reset()`** (`embedding_store.ts`). Limpa `store`, `ready`, e `initPromise` em curso. 3 tests novos.
+2. **NIT 2 — Calibration block** (`classify_domain.ts:11-60`). Documento sobre pesos actuais (`WEIGHTS`, `THRESHOLDS`, `EMBED_PROMOTE_SIM=0.55`, `AGREEMENT_BONUS=0.10`), quando recalibrar (Day 5 pack-count, seeds > 12, recall < 90%, misroute > 5%) e como recalibrar (grid search recipe). Comment-only — zero mudança funcional.
+3. **NIT 3 — Batch-embed `BATCH_SIZE=8`** (`embedding_store.ts`). `doInit()` flatten (pack × seeds) → list, `Promise.all` per batch + sequential between batches. Preserva pack-id grouping. Prep para Day 5 pack growth (7 × 8 = 56 embeddings). 3 tests novos.
+4. **`mooter_event.ts`** — schema canónico v1.0.0, 31+ campos: envelope (9: event_id UUIDv7, event_type, timestamp_utc, user_id_anon, session_id, pastor/pricing/env, schema_version) + routing (12) + execution placeholders (11, nullable Day 6) + quality signals (6, nullable Wave 3 D1) + bench (4). UUIDv7 generator RFC ver 7 + variant `10xx`, lex-sortable. `makeEnvelope()` factory. `cost_micros` INTEGER microUSD; `prompt_hash` sha256 truncado 16ch — texto raw NUNCA gravado.
+5. **`event_writer.ts`** — append-only JSONL a `~/.mooter/sessions/<id>.jsonl`, dirs `0o700` / files `0o600`. `rollupDaily(date)` idempotent via dedupe set de `event_id`. `pruneRetention(now)` elimina events > 30d e sessions > 90d. Best-effort: writes engolem erros — telemetry nunca quebra um turn.
+6. **Hook wire** (`inject_context.ts`) — extraídos `classifyForHints` + `renderHints` (kept `buildHints` para backward-compat com 6 scenario tests). `main()` agora classifica uma vez, renderiza hints, e `eventWriter.write(buildRoutingEvent(...))` fire-and-forget por hook. Test path NÃO escreve events.
+
+**Numbers medidos:**
+
+| Metric | Pre-Day-4 | Post-Day-4 | Budget | Status |
+|---|---|---|---|---|
+| Router tests | 56/56 | **78/78** (+22 novos) | all green | ✓ |
+| Hook combined p99 | 18.5 ms | **16.6 ms** | ≤ 60 ms | ✓ |
+| `event_writer.write` p99 | n/a | **< 5 ms** (100 events) | ≤ 5 ms | ✓ |
+| Embedding init() | < 5 s | < 5 s (preserved) | ≤ 5 s | ✓ |
+| Embedding classify() p99 | < 80 ms | < 80 ms (preserved) | ≤ 80 ms | ✓ |
+| `classify.js` byte-identical | hash `95524da` | hash `95524da` | 0 diff (P11) | ✓ |
+
+**Invariantes confirmadas:** classify.js byte-identical (P11) · sem `git add -A` · sem `--no-verify` · embedding layer ainda aditivo (Day 3 contract preserved) · event upload OFF (local-only) · permissions `0o700`/`0o600` em `~/.mooter/` · cost_micros integer · prompt_hash sha256 truncado · PASTOR.md (Cowork stream) + docs/strategy/* untracked **fora** do PR.
+
+**Final-reviewer NITs (Day 5/6 backlog, não-bloqueantes):**
+1. *Defensive double-try* — `main()` wraps `eventWriter.write` em try/catch próprio embora writer já swallow internamente. Defence in depth; opcional drop.
+2. *MOOTER_HOME binding* — `DEFAULT_HOME` avaliado a load-time enquanto constructor re-lê env per call. Documentar one-liner.
+3. *Year-10889 UUIDv7 overflow* — flagged for archaeologists.
+4. *docs/strategy/* untracked files — pertencem a Cowork stream; manter fora do PR (já feito).
+
+**Out of scope (próximas sessões):**
+- **Day 5**: 4 packs adicionais (voice-tts, knowledge-third-brain, prd-strategy, data-spreadsheet) com seeds; recalibrar `EMBED_PROMOTE_SIM` / `AGREEMENT_BONUS` contra pack set maior.
+- **Day 6**: execution-field wire (tokens_in/out, cost_micros, latency) via post-LLM-call hook · slash commands `init`/`why`/`status`/`rate`/`override` · multi-line statusline cross-platform · NITs 3+4 statusline · `mooter init` wizard.
+- **Day 7**: full re-benchmark valida cumulative fixes Day 1+2+3+4.
+- **Wave 3 D1**: feedback explícito (`/rate`) preenche quality fields.
+- **Wave 3 D4**: hub upload + consent flow (events deixam de ser só locais).
+
+**Push status:** ✅ branch pushed, PR #11 OPEN. Paulo aprova squash quando quiser.
+
+**Página Notion:** [🛠 Sessão 2026-05-28 — Wave 2 Day 4](https://www.notion.so/36e6f6e42bc481fb8318e5eb9612e966) · `36e6f6e4-2bc4-81fb-8318-e5eb9612e966`
+
+**Próxima missão:** (a) Paulo merge PR #11 → `dev`; (b) Master prompt Wave 2 Day 5 (4 packs adicionais + recalibração thresholds com pack count crescente); (c) Day 6 execution-field wire + slash commands + `mooter init` + statusline NITs 3+4; (d) Day 7 full re-benchmark.
+
+---
+
+### 🛠 Sessão #46 — 2026-05-28 (Wave 2 Day 3 — Embedding layer + NITs 1+2 cleanup, PR #10 aberto)
+
+**Mandato Paulo:** shippar 2 sub-features num único PR para `dev` — (1) NITs 1+2 do Day 2 review (defensive tier-bounds guard + structural mutual-exclusion no inline_scaffold) + (2) Embedding layer aditivo (`nomic-embed-text` local via Ollama + in-memory cosine-sim, paralelo à regex v1 actual, fallback silencioso). NITs 3+4 (statusline test edge + STATUSLINE_WIRE.md callout) deferidos para Day 6.
+
+**Outcome:** 1 commit selectivo (`3b85a59`) · 16 ficheiros · PR #10 → `dev` aberto, NÃO merged · final-reviewer (Opus 4.7) **APPROVE** · cost sessão ~$0 (embedding local-only).
+
+**Discovery crítica:** ao começar a sessão, o estado em `dev` (working tree) tinha **quase todo o Day 3 já implementado uncommitted** por sessão anterior ou hook automático: NIT 1 (`policy.assertTierBounds` + wire em `pack_resolve.loadPackManifest`), NIT 2 (`resolveInlineScaffold` tagged-union em `inject_context.ts`), `embedding_store.ts`, `ollama_client.ts`, `classifyDomainCombined` (5 rules), 5 ficheiros de test, 24 embedding seeds em 3 packs. Paulo confirmou 4 invariantes: trazer NITs+embedding para a branch nova, **NÃO commitar** `docs/strategy/PASTOR.md` (Cowork stream) + untracked strategy docs (kickoffs/plans/HTML/PPTX), seeds só nos 3 packs reais (não inventar voice-tts/prd-strategy), schema aditivo aos `keywords`/`intent_phrases`/`file_extensions`/`negative_keywords` existentes.
+
+**Sub-features:**
+1. **NIT 1 — `assertTierBounds(manifest)`** (`policy.ts:188-198`). Pack com `model_floor > model_ceiling` agora falha loud em load com mensagem clara nomeando o pack. 6 test cases em `manifest-bounds.test.ts`.
+2. **NIT 2 — `resolveInlineScaffold()` tagged-union** (`inject_context.ts:40-66`). Retorna AT MOST ONE scaffold por construção (tenta AMBIGUOUS primeiro, depois GENERAL fallback, ou null). Render emite **uma única linha `inline_scaffold=`** sempre. 7 test cases em `inline-scaffold-exclusion.test.ts`.
+3. **Embedding layer (axis 2 v2)**: `nomic-embed-text` via Ollama HTTP 768-dim. `OllamaClient` (50 lines, AbortController 2s) + `EmbeddingStore` (161 lines, lazy init, silent-fallback to null on error) + `classifyDomainCombined()` (5 rules). 3 packs × 8 seeds = 24 embeddings (~74 KB). Combined classifier **conservador** — v2 only HELPS (agreement bonus, disambiguate AMBIGUOUS, promote GENERAL com sim ≥ 0.55) e nunca override v1 confident. Quando Ollama unreachable, `source="regex_fallback"` e hook comporta-se identicamente a pre-Day-3.
+
+**Numbers medidos:**
+
+| Metric | Pre-Day-3 (v1) | Post-Day-3 (combined) | Budget | Status |
+|---|---|---|---|---|
+| Recall (24 single-pack prompts) | 91.7% (22/24) | **100% (24/24)** | ≥ 90% | **+8.3pp** ✓ |
+| Hook pipeline p99 | n/a | 18.5ms (regex-only) | ≤ 60ms | ✓ |
+| Embedding init() | n/a | < 5s | ≤ 5s | ✓ |
+| Embedding classify() p99 | n/a | < 80ms | ≤ 80ms | ✓ |
+| Router tests | 36/36 | **56/56** | all green | ✓ |
+| `classify.js` byte-identical | n/a | 0 lines diff | 0 (P11) | ✓ |
+
+**Adaptações de tests (não bugs):** 4 tests Day-2 originalmente failed após o combined classifier porque o embedding **desambígua prompts que antes ficavam AMBIGUOUS** (Rule 2 = feature, não regressão). Adaptados pinando `buildHints(..., DEAD_STORE)` para o AMBIGUOUS contract pré-existente. Novo test `combined classifier disambiguates an AMBIGUOUS prompt via embedding` (gated por `ollamaReachable()` skip) confirma a feature explicitamente.
+
+**Final-reviewer NITs (Day 4 backlog, opcionais):**
+1. Expose `reset()` no `embeddingStore` singleton para test isolation futuro
+2. `EMBED_PROMOTE_SIM=0.55` + `AGREEMENT_BONUS=0.10` são magic constants hand-tuned — derivar de calibration set quando packs crescerem
+3. `OllamaClient.embed` pode batch-embed `input: string[]` para halve init time quando seed count > 24
+
+**Out of scope (próximas sessões):**
+- **Day 4**: event-writer (`~/.mooter/last-decision.json` consumido pela statusline) + 3 NITs do reviewer
+- **Day 5**: 4 packs adicionais (voice-tts, prd-strategy, data-spreadsheet, knowledge-third-brain) com embedding seeds, calibrar `EMBED_PROMOTE_SIM`
+- **Day 6**: NITs 3+4 do Day 2 (statusline edge + STATUSLINE_WIRE callout) + multi-line cross-platform + `mooter init` wizard
+- **Day 7**: Full re-benchmark valida cumulative fixes Day 1+2+3
+
+**Push status:** ✅ branch pushed, PR #10 OPEN/MERGEABLE. Paulo aprova squash quando quiser.
+
+**Página Notion:** [🛠 Sessão 2026-05-28 — Wave 2 Day 3](https://www.notion.so/36e6f6e42bc481e58f4de95c174ff89d) · `36e6f6e4-2bc4-81e5-8f4d-e95c174ff89d`
+
+**Próxima missão:** (a) Paulo merge PR #10 → `dev`; (b) Master prompt Wave 2 Day 4 (event-writer + 3 NITs reviewer); (c) Day 5 4 packs adicionais; (d) Day 6 `mooter init` + multi-line statusline + NITs 3+4; (e) Day 7 full re-benchmark.
+
+---
 
 ### 🛠 Sessão #45 — 2026-05-28 (Wave 2 Day 2 — Statusline + AMBIGUOUS + Compression, PR #9 aberto)
 
@@ -649,6 +829,8 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
+**✅ Wave 2.5 SHIPPED (2026-05-31) — tag `v0.2.1-polish` em `dev` (`3bb94b8`).** 4 Days merged (#16-#19): statusline 🐮 + per-terminal isolation · wizard hardening (stdin non-TTY + edge cases + idempotency) · bash tier-badge + tier-mix view + `mooter quiet` · provenance `mooter trail` + e2e. Tests: CLI 51/51 · router test:cli 37/37 · statusline+tier-mix 47/47. Custo $0. **Wave 3 (activation + hub) unblocked — aguarda `WAVE3_D1_KICKOFF.md`.**
+
 **GATE PASS mantido (2026-04-16):** 88.3% overall · 100% canonical · 96% adversarial · 89/89 tests.
 
 **Telemetry LIVE no hub** (primeira vez desde setup multi-device):
@@ -724,6 +906,14 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 ### Instruções e decisões tomadas no Cowork para a próxima sessão
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
+
+---
+
+### 🎉 Wave 2.5 ✅ FECHADA (2026-05-31) — tag `v0.2.1-polish`
+
+**Estado:** Days 1-4 todos merged em `dev`, gate GO, tag aplicada. Closure Protocol executado (Notion + SYNC + memória). ✅ Lido em sessão #52 — 2026-05-31.
+
+**➡️ Próxima missão — Wave 3 (activation + hub):** aguarda Cowork compor `WAVE3_D1_KICKOFF.md` (mesmo padrão self-contained dos kickoffs Wave 2.5). Wave 3 está **unblocked** — a base (statusline, wizard, attribution, provenance) está sólida e testada.
 
 ---
 
@@ -1597,6 +1787,8 @@ Side effects: upsert em D1 `devices` table
 | Recurso | URL |
 |---------|-----|
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| 🐮 Wave 2.5 CLOSURE — v0.2.1-polish (2026-05-31) | https://www.notion.so/3716f6e42bc4813aaa58e6ffeb5bb241 |
+| 🐮 Sessão 2026-05-30 — Wave 2.5 Day 1 | https://www.notion.so/3706f6e42bc481f8bca3d34d778dda34 |
 | 🐑 Pastor Day 1 — Schema + ADR (2026-05-28) | https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42 |
 | 🐑 Pastor Day 4 — hook emite <pack-hint> (2026-05-27) | https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3 |
 | 🐑 Pastor Day 5 — CLI mooter pack (2026-05-27) | https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd |
