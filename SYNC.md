@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **☁️ WAVE 4 PHASE D SYNC REAL-MODE merged — tag `v0.4.2-cf-backend` em `dev` (PR #29, `e2eb50f`). ADAPTADO (3ª vez greenfield-falso, o maior): o `hub/` JÁ é um backend CF Workers DEPLOYED (D1 mooter-hub live, /api/events, mooter_events, cron) — criar cf-workers/ duplicaria produção. Shippei SÓ o cliente: `mooter sync` real-mode (feature-flag MOOTER_CF_BACKEND_URL, POST W3 D3 events → {url}/v1/events, fetch injectável, audit real-sync bytes>0). hub/ + landing/ INTACTOS, zero cf-workers/. Rota hub /v1/events + dashboard activate DEFERIDOS a kickoff hub-aware. final-reviewer APPROVE 12/12. CLI 144/144. Custo $0. ⏸ PARA — kickoff hub-aware OU Wave 5 (Adapter Forge).**)
-**Versão:** **v0.4.2-cf-backend** (W4 Phase D) · v0.4.1-dashboard-cloud (W4 C) · v0.4.0-auth (W4 B) · v0.3.2-sync-stub (W3 D3) · v0.3.0-safety-fix (W3 D1) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🔧 WAVE 5 D1 ADAPTER FORGE FOUNDATION merged — tag `v0.5.0-adapter-foundation` em `dev` (PR #30, `a96f63b`). Foundation only (training ships D2): ADR 020 (Hybrid — Ollama + Docker opcional, local-first) · adapter_manifest v1 HMAC-signed (regra: sem performance sem benchmark) · adapter_selection.js stub (SEMPRE null em D1, mesmo com active_adapter_id; wired em inject_context.js como layer separado) · `mooter adapter` CLI (honest stubs) · disclosure update (statusline/Moo card/dashboard → "forge ships Wave 5 D2", finalmente substitui "LoRA: Wave 5"). classify.js (P11) + safety_boost + schemas + hub/ + landing/ intactos. ZERO Python deps/external APIs. final-reviewer APPROVE 12/12. CLI 150/150, packages/router 108/108. Custo $0. ⏸ PARA — Wave 5 D2 (mooter forge: user .gguf + validation pipeline).**)
+**Versão:** **v0.5.0-adapter-foundation** (W5 D1) · v0.4.2-cf-backend (W4 D) · v0.4.1-dashboard-cloud (W4 C) · v0.4.0-auth (W4 B) · v0.3.2-sync-stub (W3 D3) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #62 — **Wave 4 Phase D Sync Real-Mode** (autónomo, auto-merge dev). ADAPTADO ao hub/ deployed: só o cliente `mooter sync` real-mode, tag v0.4.2-cf-backend. hub/+landing/ intactos. Notion: [☁️ W4 Phase D](https://www.notion.so/3716f6e42bc481dd8a0bf61f6acb4369).
+**Sessão Claude Code:** #63 — **Wave 5 D1 Adapter Forge Foundation** (autónomo, auto-merge dev). ADR + manifest v1 + runtime stub + CLI + disclosure honesta, tag v0.5.0-adapter-foundation. Greenfield (sem overlap hub). Notion: [🔧 W5 D1](https://www.notion.so/3716f6e42bc481e88988c3a67615a42e).
+
+### 🔧 Sessão #63 — 2026-05-31 (Wave 5 D1 — Adapter Forge Foundation, v0.5.0-adapter-foundation)
+
+**Mandato Paulo:** executar WAVE5_D1_ADAPTER_FORGE_FOUNDATION (5 sub-features foundation). Recon confirmou greenfield no lado adapter (hub router-tuning = classifier regex, não LoRA; sem overlap).
+
+**Wave 5 D1 (PR #30 merged `a96f63b`, tag v0.5.0-adapter-foundation):** ADR 020 (Hybrid Ollama+Docker, local-first, zero Python deps) · adapter_manifest v1 (HMAC, regra honestidade: sem performance sem benchmark) · adapter_selection.js stub (sempre null em D1, wired separado após safety_boost em inject_context.js) · `mooter adapter` CLI honest stubs · disclosure update 3 sítios ("forge ships Wave 5 D2"). Invariantes: classify(P11)/safety_boost/schemas/hub/landing intactos. Zero Python/external. +18 testes (CLI 150, packages/router 108). final-reviewer APPROVE 12/12.
+
+**Próxima missão:** Wave 5 D2 — `mooter forge`: aceitar .gguf user-provided + validation pipeline (validateManifest/verifyManifest + base-model match) + Ollama load + activar adapter_selection real. NIT D2: ligar validateManifest à CLI antes de render perf; ADR Proposed→Accepted. **PARA aqui.**
 
 ### ☁️ Sessão #62 — 2026-05-31 (Wave 4 Phase D — Sync Real-Mode, v0.4.2-cf-backend, ADAPTADO)
 
@@ -957,7 +965,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**☁️ Wave 4 Phase D SHIPPED (2026-05-31) — tag `v0.4.2-cf-backend` em `dev` (PR #29).** ADAPTADO: `hub/` já é backend CF Workers deployed → shippei só o cliente `mooter sync` real-mode (feature-flag, POST W3 D3 events, fetch injectável). hub/+landing/ intactos, zero cf-workers/. Rota hub /v1/events + dashboard activate deferidos a kickoff hub-aware. final-reviewer APPROVE 12/12. CLI 144/144. **⏸ kickoff hub-aware OU Wave 5 (Adapter Forge).**
+**🔧 Wave 5 D1 SHIPPED (2026-05-31) — tag `v0.5.0-adapter-foundation` em `dev` (PR #30).** Adapter Forge foundation: ADR 020 (Hybrid Ollama+Docker) · adapter_manifest v1 HMAC · adapter_selection.js stub (sempre null em D1) · `mooter adapter` CLI honest stubs · disclosure "forge ships Wave 5 D2" (substitui "LoRA: Wave 5"). classify(P11)/safety_boost/schemas/hub/landing intactos. Zero Python deps. final-reviewer APPROVE 12/12. CLI 150/150. **⏸ Wave 5 D2 (mooter forge: user .gguf + validation).**
+
+**☁️ Wave 4 Phase D SHIPPED (2026-05-31) — tag `v0.4.2-cf-backend` em `dev` (PR #29).** ADAPTADO: `hub/` já é backend CF Workers deployed → shippei só o cliente `mooter sync` real-mode (feature-flag, POST W3 D3 events, fetch injectável). hub/+landing/ intactos, zero cf-workers/. Rota hub /v1/events + dashboard activate deferidos a kickoff hub-aware. final-reviewer APPROVE 12/12. CLI 144/144.
 
 **📊 Wave 4 Phase C SHIPPED (2026-05-31) — tag `v0.4.1-dashboard-cloud` em `dev` (PR #28).** ADAPTADO honesto: estende o /dashboard existente (CliStatusCard com dados reais de devices · ActivityNote · CliSettingsLink → /settings existente · disclaimers). Zero mocks fabricados, zero network novo. landing Phase A+B intacto (só 3 ficheiros dashboard). final-reviewer APPROVE 12/12. landing 11/11.
 
