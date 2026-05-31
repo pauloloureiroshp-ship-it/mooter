@@ -26,6 +26,8 @@
 
 **Custo:** $0 (rebrand textual).
 
+**Página Notion:** [🐮 Sessão 2026-05-31 — Wave 2.6 Day 1](https://www.notion.so/3716f6e42bc481e6a8b4c2f3e5ffa1c5) · `3716f6e4-2bc4-81e6-a8b4-c2f3e5ffa1c5`
+
 **Próxima missão:** Wave 2.6 Day 2 — statusline 2-line + mooter dashboard TUI (usa vocab novo). Kickoff: `docs/strategy/WAVE2_6_DAY2_KICKOFF.md`.
 
 ### 🎉 Sessão #52 — 2026-05-31 (Wave 2.5 CLOSURE — Days 2/3/4 + tag v0.2.1-polish)
