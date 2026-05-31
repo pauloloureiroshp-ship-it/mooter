@@ -12,6 +12,7 @@ import { getLocalSecret, type Consent } from "../consent.ts";
 import { SYNC_ENDPOINT, SYNC_SCHEMA_VERSION, type MooterSyncEvent } from "../sync/sync_event_schema.ts";
 import { buildSyncEvents, appendToQueue, listQueue, clearQueue, type BuildSyncOptions } from "../sync/sync_queue.ts";
 import { appendAuditEntry, listAudit, verifyAudit } from "../sync/sync_audit.ts";
+import { readAuth } from "./login.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -31,6 +32,23 @@ export interface SyncOptions {
   profile?: BuildSyncOptions["profile"];
   nowMs?: number;
   secret?: string;
+  // Wave 4 Phase D — real-mode (client only; the backend is the existing hub/,
+  // wired by a future hub-aware kickoff — see WAVE4_PHASE_D note).
+  backendUrl?: string;
+  /** Injected fetch (tests) — defaults to global fetch. */
+  fetchImpl?: (url: string, init: RequestInit) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+}
+
+/** Resolve the backend URL: explicit → env → ~/.mooter/sync-config.json. */
+function resolveBackendUrl(opts: SyncOptions, mooterHome: string): string | null {
+  if (opts.backendUrl) return opts.backendUrl;
+  if (process.env.MOOTER_CF_BACKEND_URL) return process.env.MOOTER_CF_BACKEND_URL;
+  try {
+    const cfg = JSON.parse(readFileSync(join(mooterHome, "sync-config.json"), "utf8"));
+    return typeof cfg.backend_url === "string" ? cfg.backend_url : null;
+  } catch {
+    return null;
+  }
 }
 
 function readConsent(mooterHome: string): Consent | null {
@@ -148,4 +166,75 @@ export function runSync(opts: SyncOptions = {}): CmdResult {
   // bytes_sent = 0 — the zero is the proof that nothing left the machine.
   appendAuditEntry({ kind: "dry-run", events: events.length, bytesSent: 0, nowIso: new Date(nowMs).toISOString() }, secret, mooterHome);
   return { exitCode: 0, output: report };
+}
+
+/**
+ * Wave 4 Phase D — `mooter sync` REAL mode (client only). Feature-flagged: with
+ * no backend URL it falls back to dry-run + a clear warning. When a URL is set,
+ * it requires `mooter login` (auth.json) + consent, builds the SAME W3 D3 events,
+ * POSTs them to `${backendUrl}/v1/events`, and writes a `real-sync` audit entry.
+ *
+ * NOTE: no backend serves /v1/events yet — the deployed backend is `hub/` with a
+ * different (/api/events) contract. Wiring the hub route is a separate hub-aware
+ * task; this ships the client half, ready + testable against an injected fetch.
+ */
+export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
+  const mooterHome = opts.mooterHome ?? mooterHomeDefault();
+  const secret = opts.secret ?? getLocalSecret(mooterHome);
+  const nowMs = opts.nowMs ?? Date.now();
+
+  const backendUrl = resolveBackendUrl(opts, mooterHome);
+  if (!backendUrl) {
+    // Feature flag off → fall back to dry-run, clearly signposted.
+    const dry = runSync({ ...opts, dryRun: true });
+    return {
+      exitCode: dry.exitCode,
+      output: "⚠ Real sync needs MOOTER_CF_BACKEND_URL (or ~/.mooter/sync-config.json). Falling back to dry-run:\n\n" + dry.output,
+    };
+  }
+
+  const auth = readAuth(mooterHome);
+  if (!auth?.access_token) {
+    return { exitCode: 1, output: "✗ Not logged in. Run `mooter login` first." };
+  }
+  const consent = readConsent(mooterHome);
+  if (!consent || consent.telemetry_enabled !== true) {
+    return { exitCode: 1, output: "✗ Telemetry not opted-in. Run `mooter init` to opt-in." };
+  }
+
+  const events = buildSyncEvents({
+    consent, secret, windowStartMs: nowMs - 24 * 3600 * 1000, windowEndMs: nowMs, nowMs,
+    lines: opts.lines, profile: opts.profile ?? readProfile(mooterHome), mooterHome,
+  });
+  if (events.length === 0) {
+    return { exitCode: 0, output: "Nothing to sync in the last 24h." };
+  }
+
+  const bodyStr = JSON.stringify({ events });
+  const doFetch = opts.fetchImpl ?? ((url: string, init: RequestInit) => fetch(url, init) as any);
+  let status = 0;
+  let result: any = {};
+  try {
+    const res = await doFetch(`${backendUrl.replace(/\/$/, "")}/v1/events`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.access_token}`,
+        "Content-Type": "application/json",
+        "X-Mooter-Schema-Version": String(SYNC_SCHEMA_VERSION),
+      },
+      body: bodyStr,
+    });
+    status = res.status;
+    result = await res.json().catch(() => ({}));
+    appendAuditEntry({ kind: "real-sync", events: events.length, bytesSent: bodyStr.length, httpStatus: status, nowIso: new Date(nowMs).toISOString() }, secret, mooterHome);
+    if (res.ok) {
+      const acc = typeof result.accepted === "number" ? result.accepted : events.length;
+      const rej = typeof result.rejected === "number" ? result.rejected : 0;
+      return { exitCode: 0, output: `✓ Synced ${acc} event(s) to ${backendUrl} (rejected: ${rej}).` };
+    }
+    return { exitCode: 1, output: `✗ Sync failed: HTTP ${status} ${result.error ?? ""}`.trim() };
+  } catch (e) {
+    appendAuditEntry({ kind: "real-sync", events: events.length, bytesSent: bodyStr.length, httpStatus: status || null, nowIso: new Date(nowMs).toISOString() }, secret, mooterHome);
+    return { exitCode: 1, output: `✗ Sync error: ${String((e as Error).message)} (audit logged).` };
+  }
 }

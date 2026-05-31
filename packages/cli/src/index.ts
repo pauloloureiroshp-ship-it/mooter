@@ -15,7 +15,7 @@ import { runQuiet } from "./commands/quiet.ts";
 import { runTrail } from "./commands/trail.ts";
 import { runDashboard } from "./commands/dashboard.ts";
 import { runHub } from "./commands/hub.ts";
-import { runSync } from "./commands/sync.ts";
+import { runSync, runSyncReal } from "./commands/sync.ts";
 import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
@@ -98,6 +98,13 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "sync") {
     const [sub, sub2] = rest;
+    const isSub = sub === "queue" || sub === "audit";
+    // Bare `mooter sync` (no subcommand, no --dry-run) → real mode (W4 D, async).
+    if (!isSub && !rest.includes("--dry-run")) {
+      const res = await runSyncReal({});
+      if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+      return res.exitCode;
+    }
     const res = runSync({
       dryRun: rest.includes("--dry-run"),
       queueList: sub === "queue" && (sub2 === "list" || sub2 === undefined),
