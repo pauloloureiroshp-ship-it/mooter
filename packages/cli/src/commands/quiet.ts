@@ -11,6 +11,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { buildConsent, getLocalSecret } from "../consent.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -33,8 +34,13 @@ export interface QuietOptions {
   mooCard?: boolean;
   /** `--moo-card-off` disables the per-turn Moo card. */
   mooCardOff?: boolean;
+  /** `--telemetry-off` revokes telemetry consent (writes consent.json off). */
+  telemetryOff?: boolean;
   /** Override the ~/.mooter root (tests). */
   mooterHome?: string;
+  /** Override "now" + signing secret (tests). */
+  now?: Date;
+  secret?: string;
 }
 
 const DEFAULT_PREFS: Preferences = {
@@ -57,6 +63,16 @@ export function loadPreferences(mooterHome: string): Preferences {
 export function runQuiet(opts: QuietOptions = {}): CmdResult {
   const mooterHome = opts.mooterHome ?? join(homedir(), ".mooter");
   const prefs = loadPreferences(mooterHome);
+
+  // Wave 3 Day 2 — revoke telemetry consent. Rewrites consent.json to the
+  // opted-out state (signature null). Independent of the badge/Moo-card prefs.
+  if (opts.telemetryOff) {
+    mkdirSync(mooterHome, { recursive: true });
+    const secret = opts.secret ?? getLocalSecret(mooterHome);
+    const consent = buildConsent(false, opts.now ?? new Date(), secret);
+    writeFileSync(join(mooterHome, "consent.json"), JSON.stringify(consent, null, 2) + "\n", { mode: 0o600 });
+    return { exitCode: 0, output: "✓ Telemetry disabled (consent revoked)." };
+  }
 
   // Wave 2.6 Day 3 — Moo card toggle. When a --moo-card[-off] flag is present we
   // only touch moo_card_enabled and leave the badge `quiet` state alone (the two

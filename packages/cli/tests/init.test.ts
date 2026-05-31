@@ -100,7 +100,8 @@ test("runInit: writes 3 schemas with 0600, telemetry default OFF", async () => {
 
 test("runInit: telemetry ON when user opts in", async () => {
   const home = tmpHome();
-  const { io } = scriptedIO({ confirm: [true, false, false, false, true], ask: ["2"] });
+  // W3 D2: persona is asked (ask[1]) and telemetry is now y/n/d (ask[2]).
+  const { io } = scriptedIO({ confirm: [true, false, false, false], ask: ["2", "d", "y"] });
   await runInit({ io, mooterHome: home, now: () => FIXED_NOW, probe: async () => fakeProfile() });
   const consent = JSON.parse(readFileSync(join(home, "consent.json"), "utf8"));
   assert.equal(consent.telemetry_enabled, true);

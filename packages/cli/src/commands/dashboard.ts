@@ -21,6 +21,7 @@ import {
   type DecisionEvent,
   type TrackerMetrics,
 } from "./trail.ts";
+import { listInstalledPacks, getActivePack } from "../packs.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -42,6 +43,8 @@ export interface DashboardOptions {
   lines?: string[];
   /** Width of the frame (default 64). */
   width?: number;
+  /** Override the ~/.mooter root (tests / PACK section). */
+  mooterHome?: string;
 }
 
 const DEFAULT_WIDTH = 64;
@@ -134,14 +137,14 @@ export function progressBar(pct: number, width: number): string {
   return `[${"█".repeat(filled)}${"░".repeat(width - filled)}]`;
 }
 
-function boxTop(title: string, width: number): string {
+export function boxTop(title: string, width: number): string {
   const inner = width - 2;
   const label = ` ${title} `;
   const dashes = Math.max(0, inner - 1 - displayWidth(label));
   return `┌─${label}${"─".repeat(dashes)}┐`;
 }
 
-function boxRow(content: string, width: number): string {
+export function boxRow(content: string, width: number): string {
   const inner = width - 2;
   // Trim on display width (emoji = 2 cols) so a wide glyph never overruns.
   let trimmed = content;
@@ -149,11 +152,11 @@ function boxRow(content: string, width: number): string {
   return `│${padToWidth(trimmed, inner)}│`;
 }
 
-function boxSep(width: number): string {
+export function boxSep(width: number): string {
   return `├${"─".repeat(width - 2)}┤`;
 }
 
-function boxBottom(width: number): string {
+export function boxBottom(width: number): string {
   return `└${"─".repeat(width - 2)}┘`;
 }
 
@@ -230,6 +233,17 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
   // CONTEXT — runtime-only; not available outside the live statusline pipe.
   out.push(boxRow("  CONTEXT", width));
   out.push(boxRow("    ctx % — runtime-only (live statusline)", width));
+  out.push(boxSep(width));
+
+  // PACK — fixes W2.7 MIN-1 (packs were invisible on the dashboard). Lists the
+  // installed packs + the active one; usage counts are honestly "no data yet"
+  // (there is no per-pack usage log in this build).
+  const installed = listInstalledPacks(opts.mooterHome);
+  const active = getActivePack(opts.mooterHome);
+  out.push(boxRow("  PACK", width));
+  out.push(boxRow(`    Active: ${active ?? "none"}`, width));
+  out.push(boxRow(`    Installed: ${installed.length} pack${installed.length === 1 ? "" : "s"}${installed.length ? " · " + installed.slice(0, 3).join(", ") + (installed.length > 3 ? ", …" : "") : ""}`, width));
+  out.push(boxRow("    Usage: no per-pack usage data yet", width));
   out.push(boxSep(width));
 
   // ADAPTER — honest baseline disclosure (Wave 2.8 Ponto #8). No fabricated
