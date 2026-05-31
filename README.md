@@ -33,7 +33,7 @@
 
 **Public as of Wave 1 (2026-06-03).** mooter is MIT-licensed — clone it, fork it, modify it. It's still early (single-user, opinionated, validated mostly on my own solo-founder workflow), so expect rough edges. Issues and PRs welcome.
 
-The strategy and the full Pastor (axis-2) build log live in **[docs/strategy/PASTOR.md](docs/strategy/PASTOR.md)** — the single source of truth for the two-axis design. See [NOTICE.md](NOTICE.md) for commercial intent.
+The strategy and the full Mooter (axis-2) build log live in **[docs/strategy/MOOTER_PLAYBOOK.md](docs/strategy/MOOTER_PLAYBOOK.md)** — the single source of truth for the two-axis design. See [NOTICE.md](NOTICE.md) for commercial intent.
 
 ---
 
@@ -108,7 +108,7 @@ Three seed packs ship with Wave 1:
 | [`code-audit`](packs/code-audit/pack.yaml) | Security/dependency/coherence audits | T3 | accessibility-review skill · Snyk MCP · audit scaffold |
 | [`diagram-systems`](packs/diagram-systems/pack.yaml) | Diagrams & architecture (Mermaid, C4, ER, D2) | T1 | canvas-design skill · Mermaid/D2 scaffold |
 
-Schema: [`packs/pack.schema.yaml`](packs/pack.schema.yaml). Strategy & roadmap (7 packs by end of Wave Pastor): [`docs/strategy/PASTOR.md`](docs/strategy/PASTOR.md).
+Schema: [`packs/pack.schema.yaml`](packs/pack.schema.yaml). Strategy & roadmap (7 packs by end of Wave 1): [`docs/strategy/MOOTER_PLAYBOOK.md`](docs/strategy/MOOTER_PLAYBOOK.md).
 
 ---
 
@@ -378,7 +378,8 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 
 | Doc | Purpose |
 |---|---|
-| [docs/strategy/PASTOR.md](docs/strategy/PASTOR.md) | **Two-axis routing SSoT** — Pastor (axis 2 / Moo Packs) strategy & build log |
+| [docs/strategy/MOOTER_PLAYBOOK.md](docs/strategy/MOOTER_PLAYBOOK.md) | **Two-axis routing SSoT** — Mooter (axis 2 / Moo Packs) strategy & build log |
+| [docs/strategy/GLOSSARY.md](docs/strategy/GLOSSARY.md) | **Canonical vocabulary** — Mooter, Moos, to pastor, Moo card, Pack |
 | [docs/wave1-validation.md](docs/wave1-validation.md) | Wave 1 live validation report (recall, latency, signals for Wave 2) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Deep dive into the technical design and rationale |
 | [ROADMAP.md](ROADMAP.md) | Version history and what's next |

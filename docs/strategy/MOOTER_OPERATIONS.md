@@ -1,4 +1,4 @@
-# Pastor — Runbook Operacional
+# Mooter — Runbook Operacional
 
 > Companion do `PASTOR.md`. Este documento responde *como executar*, não *o quê executar*. O PASTOR.md tem a estratégia; este tem os comandos.
 >
@@ -598,8 +598,8 @@ Se durante a execução algo correr mal e quiseres voltar à Cowork para ajustar
 
 | Situação | O que dizer |
 |---|---|
-| Day N falhou DoD | "Day N do Pastor falhou em X. Posso ainda avançar Day N+1 ou tenho de re-fazer?" |
-| Master prompt Day 2-7 incompleto | "Gera-me um Master Prompt Day N zoom-in pronto a colar, para o PASTOR.md" |
+| Day N falhou DoD | "Day N do Mooter falhou em X. Posso ainda avançar Day N+1 ou tenho de re-fazer?" |
+| Master prompt Day 2-7 incompleto | "Gera-me um Master Prompt Day N zoom-in pronto a colar, para o MOOTER_PLAYBOOK.md" |
 | Recall do classifier baixo | "Backtest do classify_domain mostra recall 60%. Diagnóstico?" |
 | Wave 1 fechou — ready para Wave 2 | "Wave 1 fechou OK. Master Prompt Wave 2 Day 1?" |
 | Adapter Forge — dúvida técnica Wave 5 | "Diz-me como escolher base model entre Qwen3-14B e 30B-A3B dado meu setup" |

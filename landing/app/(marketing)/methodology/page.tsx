@@ -92,7 +92,7 @@ export default function MethodologyPage() {
           Cost per prompt on a 34-prompt blind-judged validation set.
         </p>
         {[
-          { name: 'Pastor (mooter)', cost: 0.022, color: 'var(--color-accent)' },
+          { name: 'Mooter', cost: 0.022, color: 'var(--color-accent)' },
           { name: 'Sonnet-only', cost: 0.028, color: 'var(--color-tier-2)' },
           { name: 'Opus-only', cost: 0.034, color: 'var(--color-tier-3)' },
         ].map((b) => (

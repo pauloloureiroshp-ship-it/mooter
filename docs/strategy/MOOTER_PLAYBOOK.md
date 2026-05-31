@@ -1,4 +1,4 @@
-# Mooter v2 — Pastor Alemão (Skill-Pack Router)
+# Mooter v2 — Skill-Pack Router (Two-Axis)
 
 > **Documento canónico** do segundo eixo de routing do Mooter. Companhia a `STRATEGY.md` (visão), `ROUTING.md` (eixo complexidade T0–T3), `MASTER_PROMPT.md` (Phases 0–14 do V3). **Não substitui** nenhum — adiciona o eixo *domínio → Moo Pack*.
 >
@@ -10,7 +10,7 @@
 
 ## TL;DR
 
-O Mooter v1 rotea **modelos** por complexidade (T0–T3). O Mooter v2 — Pastor Alemão — rotea **rebanhos** (Moo Packs) por intenção de domínio, escolhendo simultaneamente o modelo *e* o conjunto óptimo de skills, MCPs, sub-agentes, repos canónicos e prompt scaffolds. O modelo deixa de ser o output principal do classificador e passa a ser **uma das vaquinhas do rebanho**.
+O Mooter v1 rotea **modelos** por complexidade (T0–T3). O Mooter v2 rotea **as Moos** (Moo Packs) por intenção de domínio, escolhendo simultaneamente o modelo *e* o conjunto óptimo de skills, MCPs, sub-agentes, repos canónicos e prompt scaffolds. O modelo deixa de ser o output principal do classificador e passa a ser **uma das Moos**.
 
 A tese cabe numa frase:
 
@@ -22,7 +22,7 @@ Esta wave é **backward-compatible** com tudo o que já existe (`classify.js`, h
 
 ## 1. Tese
 
-| Dimensão | v1 (existe) | v2 Pastor (esta wave) | v2.1 Pastor + Adapter Forge (Wave 5) |
+| Dimensão | v1 (existe) | v2 Mooter (esta wave) | v2.1 Mooter + Adapter Forge (Wave 5) |
 |---|---|---|---|
 | Eixo de routing | Complexidade | Complexidade **+** domínio | Complexidade + domínio **+ especialização** |
 | Output do classifier | Tier T0–T3 | Tier + Pack ID | Tier + Pack ID + Adapter ID |
@@ -30,7 +30,7 @@ Esta wave é **backward-compatible** com tudo o que já existe (`classify.js`, h
 | Decisão sobre skills | Manual | Pack invoca skills | Idem v2 |
 | Decisão sobre MCPs | Tudo ligado sempre | Pack recomenda só necessários | Idem v2 |
 | Decisão sobre pesos | Modelo base sempre | Modelo base sempre | **Adapter LoRA local quando disponível e validado em eval** |
-| Onboarding de tools novos | User descobre manualmente | Pastor sugere instalar | Idem v2 + sugere treino de Project LoRA após N decisões |
+| Onboarding de tools novos | User descobre manualmente | Mooter sugere instalar | Idem v2 + sugere treino de Project LoRA após N decisões |
 | Diferencial competitivo | Router de modelo (saturado) | **Curador automático de stacks** (vazio) | **Switching cost biológico — adapter aprende o teu projecto** |
 
 **Porquê agora**: a research 2026-05-27 confirma três coisas que abrem a janela:
@@ -47,7 +47,7 @@ A research mostra ainda que **Smithery + Composio + PulseMCP estão a evoluir de
 
 Já existe no `~/frugal/`:
 
-| Componente | Path | Estado | Reaproveita-se no Pastor? |
+| Componente | Path | Estado | Reaproveita-se no Mooter? |
 |---|---|---|---|
 | `classify.js` (complexity router) | `tools/router/classify.js` | ✅ produção, v3 fast-paths + cache | ✅ sim — eixo 1 mantém-se |
 | `inject_context.js` (hook) | `tools/router/inject_context.js` | ✅ produção | ✅ sim — passa a emitir `<pack-hint>` |
@@ -65,7 +65,7 @@ Skills/MCPs activos *nesta máquina* (snapshot do system reminder, 2026-05-27):
 - ~20 MCP servers ligados (Canva, Gmail, Microsoft Docs, Notion, Spotify, Box, Linear, Calendar, Context7, Vercel, Figma, Supabase, Atlassian, Intercom, Slack, Asana, etc.)
 - Plugin marketplace (`mcp__plugins__*`) + MCP Registry (`mcp__mcp-registry__*`)
 
-**Conclusão**: a base existe. Pastor é **uma camada adicional**, não um rewrite.
+**Conclusão**: a base existe. Mooter é **uma camada adicional**, não um rewrite.
 
 ---
 
@@ -97,7 +97,7 @@ Os dois eixos são **ortogonais e independentes**:
 - "Resume este log de erros" → T0 + `code-debug`
 - "Audita arquitectura deste repo" → T3 + `code-audit`
 
-O `classify.js` v1 nunca conheceu `animation-web`. Por isso falha o caso 1 (over-routes para T0 por falta de coding signals) e o caso 4 (não distingue audit de coding). **Pastor resolve isto.**
+O `classify.js` v1 nunca conheceu `animation-web`. Por isso falha o caso 1 (over-routes para T0 por falta de coding signals) e o caso 4 (não distingue audit de coding). **Mooter resolve isto.**
 
 ---
 
@@ -396,7 +396,7 @@ validation:
 
 ---
 
-## 6. Mecânica do Pastor
+## 6. Mecânica do Mooter
 
 ### 6.1 Hint v2 (`<router-hint>` + `<pack-hint>`)
 
@@ -501,7 +501,7 @@ metadata:
   notion_kb_url: "https://notion.so/HQ/animation-web-knowledge-base-..."
 ```
 
-O Pastor, ao activar um pack, pode opcionalmente puxar as últimas 3 entries da KB e injectar como contexto (cost ~50 tokens). Isto fecha o ciclo: **research → execução → reflection → research** num único ciclo de produto.
+O Mooter, ao activar um pack, pode opcionalmente puxar as últimas 3 entries da KB e injectar como contexto (cost ~50 tokens). Isto fecha o ciclo: **research → execução → reflection → research** num único ciclo de produto.
 
 Implementação: usa o MCP oficial Notion (já ligado nesta máquina) com tool `notion-fetch`.
 
@@ -603,53 +603,65 @@ User: configura um deploy Vercel com edge functions custom
 
 ## 8. Roadmap longo — 4 waves × 7 dias
 
-### Wave 1 — Foundations (2026-05-28 → 2026-06-03) 🔥
+### Wave 1 — Foundations (2026-05-27) ✅ SHIPPED
 
-| Dia | Entrega | Definition of Done |
+Shippada numa única sessão (~14h) em 2026-05-27. 7 PRs merged, tag `v0.1.0-pastor-wave1`, repo público `pauloloureiroshp-ship-it/mooter`. Benchmark pre-registered 2026-05-27, REPORT.md em main 2026-05-28. Verdict **WEAK 1/3** (quality ✓, cost ✗ +20%, latency ✗ +89%) — 2 bottlenecks raiz identificados, Wave 2 invertida para fixes-first. Detalhes na memória `project_mooter_pastor_wave1_shipped` e em `docs/benchmarks/wave1-pastor/REPORT.md`.
+
+### Wave 2 — Bottleneck fixes + statusline + events + slash commands (2026-05-28 → 2026-06-10)
+
+> **SSoT operacional**: [`docs/strategy/WAVE2_PLAN.md`](./WAVE2_PLAN.md). Tabela abaixo é resumo, plano completo dia-a-dia + Definition of Done + master prompts pointers vivem no WAVE2_PLAN.
+
+| Dia | Entrega | Estado |
 |---|---|---|
-| 1 | `packs/pack.schema.yaml` + spec `<pack-hint>` | YAML schema validado; ADR `docs/adr/015-pastor-eixo-dominio.md` |
-| 2 | 3 packs sementinha: `animation-web`, `code-audit`, `diagram-systems` | Cada pack passa `mooter pack validate` (vai existir Dia 5) |
-| 3 | `classify_domain()` regex layer em `classify.js` | Test suite 50 prompts; recall ≥ 0.85 packs definidos |
-| 4 | `inject_context.js` emite `<pack-hint>` ao lado de `<router-hint>` | Teste e2e: prompt → hint duplo no contexto |
-| 5 | CLI: `mooter pack list/show/diff/validate` | Comandos funcionais, output JSON e human |
-| 6 | `pack_resolve()` — gap analysis + suggest_install | 5 cenários teste (missing skill, missing MCP, all-present, ambíguo, geral) |
-| 7 | Validação manual: 20 prompts reais + PR público | Repo `mooter-ai/mooter` deixa de ser privado |
+| 1 | Bottleneck fixes (GENERAL fallback T2, code-audit floor T2/T3 + escalation keywords, T0 swap qwen2.5-coder:7b) | ✅ PR #8 → dev (sanity 5/5, 24/24 tests) |
+| 2 | AMBIGUOUS scaffold + **statusline wire** (encaixe cedo) + animation-web compression | 🔜 NEXT |
+| 3 | Embedding layer (nomic-embed-text local + faiss) | 🔜 |
+| 4 | Event schema `mooter_event` v1 + writer + retention 30d/90d | 🔜 |
+| 5 | 4 packs adicionais (data-spreadsheet, prd-strategy, voice-tts, knowledge-third-brain) | 🔜 |
+| 6 | Slash commands W2: `/mooter init`, `why`, `status`, `rate`, `override` | 🔜 |
+| 7 | Re-benchmark valida fixes (target STRONG ou MEDIUM 2-3/3) | 🔜 — gate fecho Wave 2 |
+| 8 | Weekly digest local (movido para último, opt-out v0.2.0) | ❄️ |
 
-### Wave 2 — Registry + embeddings (2026-06-04 → 2026-06-10)
+### Wave 2.5 — Activation Polish (2026-05-30 → 2026-06-03) 🔥 EM CURSO
+
+> **SSoT operacional**: [`docs/strategy/WAVE2_5_PLAN.md`](./WAVE2_5_PLAN.md). Surgiu pós-Wave 2 closure baseado em uso real. Endurecimento de statusline + wizard + per-terminal isolation. **Gate para Wave 3** (sem confiança nos números, telemetria opt-in não tem fundação).
+
+| Dia | Entrega | Estado |
+|---|---|---|
+| 1 | Statusline visual upgrade (🐮 vaquinha · headline enriquecido · ctx N% · turn + alltime cost · per-session isolation · compact mode) | 🔜 NEXT |
+| 2 | Wizard hardening (stdin non-TTY fix · edge cases · idempotency) | pending |
+| 3 | Bash command attribution + tier mix breakdown | pending |
+| 4 | Confidence trail + e2e validation + Wave 2.5 closure (tag `v0.2.1-polish`) | pending — gate Wave 3 |
+
+### Wave 3 — Activation + Hub (2026-06-04 → 2026-06-10)
+
+> **Pré-requisito**: Wave 2.5 fechada com tag `v0.2.1-polish`. Sem polish, hub upload pressupõe statusline confiável.
+>
+> **SSoT operacional**: [`docs/strategy/WAVE3_PLAN.md`](./WAVE3_PLAN.md). Foco: activation journey (Momentos 2 e 3 da análise UX/UI) + hub Cloudflare D1 + digest local.
+
+| Dia | Entrega | Notas |
+|---|---|---|
+| 1 | Feedback loop nível 2 (`/mooter rate`, `/mooter why` enrichado, inline guidance turn end) | amostragem 20% rate invite |
+| 2 | Pack discovery (`/mooter pack suggest` + install [Y/n] flow + trust_score local placeholder) | Confirma sempre, nunca auto-install |
+| 3 | Providers expansion no init (OpenAI, Google, Grok) | `mooter init --providers` idempotente |
+| 4 | D1 schema + aggregator + `/mooter share` opt-in | k-anon ≥50 + DP noise ε=1.0 |
+| 5 | Hub Workers endpoints (publish/search/trust) + frugal-hub deploy | `hub.mooter.ai` live |
+| 6 | `/mooter digest` weekly/monthly + daily statusline summary | Re-engagement |
+| 7 | Trust score viz + `/mooter community` + closure tag `v0.3.0-rc1` | Gate Wave 4 |
+
+### Wave 4 — Launch público v0.2.0 + community packs (2026-06-18 → 2026-06-24)
+
+> Pré-requisito: Wave 3 fechou STRONG. Design Phase 3 handoff completo ([`DESIGN_MASTER_PROMPT.md`](./DESIGN_MASTER_PROMPT.md) §17).
 
 | Dia | Entrega |
 |---|---|
-| 1 | Embedding layer (nomic-embed-text local + faiss in-memory) |
-| 2 | 4 packs adicionais: `data-spreadsheet`, `prd-strategy`, `voice-tts`, `knowledge-third-brain` |
-| 3 | Hub endpoints: `POST /api/pack/publish`, `GET /api/pack/search` |
-| 4 | CLI: `mooter pack install/publish/search` |
-| 5 | Statusline + dashboard updates (`/pack/last`, `/pack/stats`) |
-| 6 | Haiku semantic fallback para confidence < 0.6 |
-| 7 | Demo público: vídeo 3min + thread X |
-
-### Wave 3 — Onboarding + Notion KB (2026-06-11 → 2026-06-17)
-
-| Dia | Entrega |
-|---|---|
-| 1 | Onboarding budget-first ganha 4ª pergunta (tipos de tarefa) |
-| 2 | Auto-install packs no fim do onboarding |
-| 3 | `notion_kb_url` integrado — pull last 3 KB entries por pack activado |
-| 4 | `mooter pack rate <name> <0-5>` + feedback loop ao hub |
-| 5 | Pack TTL re-validation: cron semanal verifica skills/MCPs/repos ainda vivos |
-| 6 | Trust score em ranking de search |
-| 7 | Stakeholder update: blog post + Notion HQ + LinkedIn |
-
-### Wave 4 — Launch público + community packs (2026-06-18 → 2026-06-24)
-
-| Dia | Entrega |
-|---|---|
-| 1 | `mooter pack create` scaffold para community contributions |
-| 2 | Pack template repo: `mooter-ai/pack-template` (GitHub) |
-| 3 | Cookbook PR no `anthropics/claude-cookbooks` ("Skill-Pack Router") |
-| 4 | HN submission ("Show HN: Mooter — the AI router that picks tools, not just models") |
-| 5 | Anthropic Startup Program application com Pastor angle |
-| 6 | 10 packs community-sourced no hub (target soft) |
-| 7 | Quarterly Transparency Report Q2 + Notion HQ + close de Wave |
+| 1 | Landing redesign code implementation (Design Phase 3 → repo) |
+| 2 | Onboarding new (5-step inline + web fallback) |
+| 3 | Dashboard new (`/app/dashboard` post-W3 hub data live) |
+| 4 | `mooter pack create` scaffold + template repo `mooter-ai/pack-template` |
+| 5 | Cookbook PR no `anthropics/claude-cookbooks` ("Skill-Pack Router") |
+| 6 | HN submission + Anthropic Startup Program application |
+| 7 | 10 packs community-sourced target (soft) + Quarterly Transparency Report + Wave 4 close |
 
 ### Wave 5 — Adapter Forge (Eixo 3 — Especialização, 2026-06-25 → 2026-07-02) 🛠
 
@@ -1514,7 +1526,7 @@ Ready?
 
 | Risco | Probabilidade | Impacto | Mitigação |
 |---|---|---|---|
-| Pastor vira "more bloat" — utilizadores ignoram pack-hints | Média | Alto | Statusline + sticky hint só se confidence ≥ 0.6; user pode `mooter pack run` sem executar |
+| Mooter vira "more bloat" — utilizadores ignoram pack-hints | Média | Alto | Statusline + sticky hint só se confidence ≥ 0.6; user pode `mooter pack run` sem executar |
 | Sobre-engenharia — 50 packs vazios | Média | Médio | Cada pack só entra no registry após validação em ≥10 prompts reais; trust_score visível |
 | Domain classifier vira "regex hell" | Baixa | Médio | Mesma escada que complexity classifier: regex → embedding → Haiku; cada camada testada |
 | Packs ficam desactualizados (skills/MCPs mudam mensalmente) | Alta | Médio | TTL_days no metadata; cron semanal verifica liveness; hub avisa `mooter pack digest` |
@@ -1641,7 +1653,7 @@ Adapter sem eval **nunca** é activado. O eval roda em três níveis:
 - ⚠️ Project muito polyglot (5+ stacks ao mesmo tempo) — adapter dilui-se, qualidade não justifica custo de treino
 - ⚠️ User sem RTX 4090+ ou equivalente cloud budget — treino fora do hardware tier
 
-Nesses casos: o Pastor continua a routar para cloud sem adapter. Não há shame em isso.
+Nesses casos: o Mooter continua a routar para cloud sem adapter. Não há shame em isso.
 
 ---
 
@@ -1649,16 +1661,16 @@ Nesses casos: o Pastor continua a routar para cloud sem adapter. Não há shame 
 
 ### A. Sinais fortes do research 2026-05-27 (resumo)
 
-1. **Skills Registry oficial Anthropic não existe** — só 17 skills oficiais vs >66k comunitárias. Pastor pode posicionar-se como o ranker canónico Pack→Skill→MCP.
-2. **MCP Registry cobre só ~20%** dos 10k+ servers existentes. Espaço para "qual MCP usar para X em 2026" — função literal do Pastor.
-3. **6 frameworks de orquestração consolidados** (Claude Agent SDK + Strands + LangGraph + OpenAI Agents SDK + CrewAI + AG2). Pastor é **agnóstico** — não substitui, escolhe qual usar.
-4. **Churn alto** (Roo Code morreu 15-Mai-2026, AutoGen em maintenance, OpenAI Swarm substituído). Pastor precisa de health-check semanal — diferenciação clara.
+1. **Skills Registry oficial Anthropic não existe** — só 17 skills oficiais vs >66k comunitárias. Mooter pode posicionar-se como o ranker canónico Pack→Skill→MCP.
+2. **MCP Registry cobre só ~20%** dos 10k+ servers existentes. Espaço para "qual MCP usar para X em 2026" — função literal do Mooter.
+3. **6 frameworks de orquestração consolidados** (Claude Agent SDK + Strands + LangGraph + OpenAI Agents SDK + CrewAI + AG2). Mooter é **agnóstico** — não substitui, escolhe qual usar.
+4. **Churn alto** (Roo Code morreu 15-Mai-2026, AutoGen em maintenance, OpenAI Swarm substituído). Mooter precisa de health-check semanal — diferenciação clara.
 5. **Browser e sandbox são domínios maduros mas fragmentados** por trade-off claro. Tabela de decisão por intent já mapeada; implementação directa.
 6. **Voice TTS tem default claro em 2026** (Cartesia Sonic 3 latency / ElevenLabs Flash realism / Hume Octave emoção). Diferencial 3-5x pricing torna escolha relevante.
 7. **Anthropic publicou skills financeiras Excel + MCP connectors enterprise em Mai-2026** → vertical-specific packs são o futuro. Estruturar por vertical (finance/design/devops/research/content), não só horizontal.
 8. **Ameaça competitiva**: Smithery + Composio + PulseMCP evoluem de catálogos para semi-routers. Janela < 12 meses.
 9. **Padrão "core + extensions"**: 17 skills oficiais + 66k comunitárias. Mooter adopta o mesmo — "Moo Packs oficiais" (10-20 curados) + comunitários (livres, trust signals).
-10. **Mermaid continua default LLM-friendly diagram-as-code** — Pastor gera Mermaid by default; D2 só quando explicit.
+10. **Mermaid continua default LLM-friendly diagram-as-code** — Mooter gera Mermaid by default; D2 só quando explicit.
 
 Fontes completas: [`research_best_in_class_2026.md`](./research_best_in_class_2026.md).
 
@@ -1679,7 +1691,7 @@ Selecção crítica da research (por domínio):
 
 ### C. Glossário
 
-- **Pastor (Alemão)**: o classificador two-axis que orquestra Moo Packs.
+- **Mooter**: o classificador two-axis que orquestra as Moos (Moo Packs).
 - **Moo Pack** (ou "pack"): ficheiro declarativo YAML que define stack (skills + MCPs + agents + repos + scaffold) para uma classe de tarefas.
 - **Pack Manifest**: o ficheiro `pack.yaml` em si.
 - **Pack Hint**: o bloco `<pack-hint>` emitido pelo hook UserPromptSubmit em paralelo com `<router-hint>`.
