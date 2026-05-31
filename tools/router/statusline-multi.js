@@ -524,6 +524,106 @@ function renderFromContext(ctx) {
   return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${proof}`;
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Wave 2.6 Day 2 — 2-line rich statusline (with truncate-safe 1-line fallback)
+// ────────────────────────────────────────────────────────────────────────
+
+const TWO_LINE_THRESHOLD = 120;
+const CHIP_MAX = 30;
+
+// Mood glyph for the local Moos / provider, reused across chips.
+const PROVIDER_GLYPH = { local: '🏠', haiku: '☁', sonnet: '☁', opus: '☁', codex: '⚡', oai: '⚡' };
+
+/**
+ * Truncate a single chip to CHIP_MAX chars (ellipsis) so one oversized field
+ * (e.g. a long pack id) can never blow out the line-1/line-2 structure.
+ */
+function truncateChip(s, max = CHIP_MAX) {
+  if (typeof s !== 'string' || s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
+}
+
+/**
+ * Wave 2.6 Day 2 — rich 2-line layout for wide terminals (COLUMNS >= 120).
+ * Line 1 is the existing colored headline (carries saved$ + tier badge in the
+ * green state). Line 2 carries the full operational detail at once — no
+ * rotation needed because we have the width: Moo mix · local count · ctx ·
+ * 5h quota · turn$ · alltime$ · pack · adapter. Every chip is derived from the
+ * same ctx the 1-line render uses (no invented fields); a chip whose source is
+ * absent is dropped via `.filter(Boolean)`.
+ *
+ * Note: a per-turn token in/out meter is intentionally omitted — buildContext
+ * does not track token counts, and inventing them would violate provenance.
+ */
+function renderTwoLine(ctx) {
+  const state = pickState(ctx);
+  const glyph = COLOR_GLYPH[state.color];
+
+  // Setup state has no router data — degrade to the 1-line so we never print a
+  // half-empty second line on a fresh install.
+  if (state.color === 'setup') return renderFromContext(ctx);
+
+  const line1 = `${glyph} ${state.headline}`;
+
+  // Local-Moo usage count (T0 = local tier) from the per-session tier counts.
+  const localCount = (ctx.counts && Number(ctx.counts.T0)) || 0;
+
+  // Moo mix over the last 10 turns (reuse the canonical formatter; best-effort).
+  let mooMix = null;
+  try {
+    if (Array.isArray(ctx.recent) && ctx.recent.length) {
+      const { tierMixLast10 } = require('./tier-mix.js');
+      mooMix = `🐄 ${tierMixLast10(ctx.recent)}`;
+    }
+  } catch { mooMix = null; }
+
+  // Pack chip — mirror renderFromContext's GENERAL/AMBIGUOUS handling. This is
+  // the one user-controlled (unbounded) chip, so it's the only one we truncate;
+  // the structured chips below have known bounded widths.
+  let packChip = null;
+  if (ctx.lastPack && typeof ctx.lastPack.pack_id === 'string') {
+    const pid = ctx.lastPack.pack_id;
+    if (pid === 'AMBIGUOUS' && Array.isArray(ctx.lastPack.candidates) && ctx.lastPack.candidates.length >= 2) {
+      packChip = truncateChip(`pack: AMBIGUOUS (${ctx.lastPack.candidates.slice(0, 2).join(', ')})`);
+    } else if (pid !== 'GENERAL' && pid !== 'AMBIGUOUS') {
+      packChip = truncateChip(`pack: ${pid}`);
+    }
+  }
+
+  // Adapter chip (Wave 5 placeholder — usually idle ◌).
+  let adapterChip = null;
+  if (ctx.adapter && typeof ctx.adapter.status === 'string') {
+    const g = ctx.adapter.status === 'loaded' ? '●' : ctx.adapter.status === 'loading' ? '◐' : '◌';
+    adapterChip = `adapter: ${g}`;
+  }
+
+  const line2 = [
+    localCount > 0 ? `🏠 local ×${localCount}` : null,
+    mooMix,
+    typeof ctx.ctxPercent === 'number' ? `ctx ${ctx.ctxPercent}%` : null,
+    typeof ctx.anthRem === 'number' ? `${ctx.anthRem}% 5h` : null,
+    typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
+    typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
+    packChip,
+    adapterChip,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  // If line 2 has nothing to show, fall back to the 1-line.
+  return line2 ? `${line1}\n${line2}` : renderFromContext(ctx);
+}
+
+/**
+ * Entry point — picks the 2-line layout on a wide terminal, otherwise the
+ * existing single-line render (already compact-aware for narrow terminals).
+ * COLUMNS reflects the host terminal width; absent → assume narrow (1-line).
+ */
+function render(ctx) {
+  const cols = parseInt(process.env.COLUMNS || '80', 10);
+  return cols >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx) : renderFromContext(ctx);
+}
+
 async function buildContext() {
   // Wave 2.5 Day 1 — Claude Code passes a JSON blob on stdin (session_id +
   // optional context window usage). Parse it best-effort; absent on a manual
@@ -647,12 +747,12 @@ async function main() {
     return;
   }
   if (argv[0] === '--demo' && DEMO_CONTEXTS[argv[1]]) {
-    process.stdout.write(renderFromContext(DEMO_CONTEXTS[argv[1]]) + '\n');
+    process.stdout.write(render(DEMO_CONTEXTS[argv[1]]) + '\n');
     return;
   }
 
   const ctx = await buildContext();
-  process.stdout.write(renderFromContext(ctx) + '\n');
+  process.stdout.write(render(ctx) + '\n');
 }
 
 if (require.main === module) {
@@ -668,6 +768,9 @@ module.exports = {
   // Pure helpers — exported for tests
   pickState,
   renderFromContext,
+  renderTwoLine,
+  render,
+  truncateChip,
   digest,
   computeAnthropicRem,
   computeCodexRem,
