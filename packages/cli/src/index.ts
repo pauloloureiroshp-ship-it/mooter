@@ -65,6 +65,11 @@ async function main(argv: string[]): Promise<number> {
       syncCadence: rest.find((a) => a.startsWith("--sync-cadence="))?.split("=")[1],
       hideChips: rest.filter((a) => a.startsWith("--hide-")).map((a) => a.slice("--hide-".length)),
       showAll: rest.includes("--show-all"),
+      badgeOff: rest.includes("--badge-off"),
+      badgeAlways: rest.includes("--badge-always"),
+      badgeThreshold: rest.some((a) => a.startsWith("--badge-threshold="))
+        ? Number(rest.find((a) => a.startsWith("--badge-threshold="))!.split("=")[1])
+        : undefined,
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;

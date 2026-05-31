@@ -41,6 +41,10 @@ export interface QuietOptions {
   /** Wave 5 D3 — `--hide-<chip>` adds a chip to hidden_chips; `--show-all` clears. */
   hideChips?: string[];
   showAll?: boolean;
+  /** Wave 5 D4 — bash badge controls. */
+  badgeOff?: boolean;
+  badgeAlways?: boolean;
+  badgeThreshold?: number;
   /** Override the ~/.mooter root (tests). */
   mooterHome?: string;
   /** Override "now" + signing secret (tests). */
@@ -68,6 +72,29 @@ export function loadPreferences(mooterHome: string): Preferences {
 export function runQuiet(opts: QuietOptions = {}): CmdResult {
   const mooterHome = opts.mooterHome ?? join(homedir(), ".mooter");
   const prefs = loadPreferences(mooterHome);
+
+  // Wave 5 D4 — bash badge controls. --badge-off suppresses; --badge-always forces
+  // threshold 0 (any confidence); --badge-threshold=X raises the floor. Always-on by default.
+  if (opts.badgeOff || opts.badgeAlways || typeof opts.badgeThreshold === "number") {
+    if (opts.badgeOff) {
+      prefs.badge_off = true;
+    } else {
+      prefs.badge_off = false;
+      if (opts.badgeAlways) prefs.badge_threshold = 0;
+      if (typeof opts.badgeThreshold === "number") {
+        if (!Number.isFinite(opts.badgeThreshold) || opts.badgeThreshold < 0 || opts.badgeThreshold > 1) return { exitCode: 1, output: "✗ --badge-threshold must be 0..1" };
+        prefs.badge_threshold = opts.badgeThreshold;
+      }
+    }
+    mkdirSync(mooterHome, { recursive: true });
+    writeFileSync(join(mooterHome, "preferences.json"), JSON.stringify(prefs, null, 2) + "\n");
+    return {
+      exitCode: 0,
+      output: opts.badgeOff
+        ? "✓ Bash badge disabled (mooter quiet --badge-always to re-enable)."
+        : `✓ Bash badge on (threshold ${prefs.badge_threshold ?? 0}).`,
+    };
+  }
 
   // Wave 5 D3 — statusline chip hide flags. `--hide-<chip>` adds to hidden_chips
   // (valid: vram/quant/ctx/adapter); `--show-all` clears them. Other prefs intact.

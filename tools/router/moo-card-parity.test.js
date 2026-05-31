@@ -25,14 +25,14 @@ test('Moo card: no quant line for a cloud Moo', () => {
   assert.ok(!/quant/.test(card), 'cloud model is not locally quantized');
 });
 
-test('Moo card: honest adapter line in every card (forge ships Wave 5 D2)', () => {
-  assert.match(buildMooCard(localStats, null), /adapter   ◌ baseline · forge ships Wave 5 D2 \(Adapter Forge foundation\)/);
-  assert.match(buildMooCard(cloudStats, null), /adapter   ◌ baseline · forge ships Wave 5 D2/);
+test('Moo card: honest adapter line in every card (baseline + forge install hint)', () => {
+  assert.match(buildMooCard(localStats, null), /adapter   ◌ baseline · add one with `mooter forge install <gguf>`/);
+  assert.match(buildMooCard(cloudStats, null), /adapter   ◌ baseline · add one with `mooter forge install/);
 });
 
 test('Moo card: adapter line keeps the honest disclosure parity (W2.7 MIN-2)', () => {
   // The W2.7 audit flagged the card omitting the adapter disclosure the dashboard
-  // carries; this asserts the card still discloses it (now "forge ships Wave 5 D2").
+  // carries; this asserts the card still discloses the baseline state + how to add one.
   const card = buildMooCard(localStats, null);
-  assert.ok(/forge ships Wave 5 D2/.test(card));
+  assert.ok(/◌ baseline · add one with `mooter forge install/.test(card));
 });

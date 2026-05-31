@@ -32,9 +32,12 @@ function readPrefs(prefsPath) {
       quiet: !!(obj && obj.quiet === true),
       badge_position: (obj && typeof obj.badge_position === 'string') ? obj.badge_position : 'inline',
       statusline_view: (obj && typeof obj.statusline_view === 'string') ? obj.statusline_view : 'auto',
+      // Wave 5 D4 — badge display prefs (always-on by default).
+      badge_off: !!(obj && obj.badge_off === true),
+      badge_threshold: (obj && typeof obj.badge_threshold === 'number') ? obj.badge_threshold : 0,
     };
   } catch {
-    return { quiet: false, badge_position: 'inline', statusline_view: 'auto' };
+    return { quiet: false, badge_position: 'inline', statusline_view: 'auto', badge_off: false, badge_threshold: 0 };
   }
 }
 
@@ -92,13 +95,36 @@ function buildBadge(decision) {
   const confStr = Number.isFinite(conf) ? conf.toFixed(2) : '0.00';
   const saved = estimateBadgeSavings(d);
   const savedChip = saved > 0 ? ` · saved $${saved.toFixed(3)}` : '';
+  // Wave 5 D4 — low-confidence (< 0.5) uses a `?` glyph instead of the tier glyph,
+  // so an always-on badge honestly signals "uncertain tier".
+  const lowConf = Number.isFinite(conf) && conf < 0.5;
+  // Wave 5 D4 — surface a safety boost on the badge: `boosted from T1 · <reason>`.
+  let boostChip = '';
+  if (d.safety_boost_applied && d.safety_boost_from) {
+    const kind = typeof d.safety_boost_reason === 'string' ? d.safety_boost_reason.split(/[:(]/)[0].trim() : 'safety_boost';
+    boostChip = ` boosted from ${d.safety_boost_from} · ${kind}`;
+  }
   try {
     const { glyphFor, providerBucket } = require('./glyphs.js');
-    const glyph = glyphFor({ tier, provider: providerBucket(d.recommended_backend) });
-    return `[${glyph} ${model} ${confStr}${savedChip}]`;
+    const glyph = lowConf ? '?' : glyphFor({ tier, provider: providerBucket(d.recommended_backend) });
+    return `[${glyph} ${model} ${confStr}${savedChip}${boostChip}]`;
   } catch {
-    return `[${tier}·${model}·${confStr}${savedChip}]`;
+    return `[${lowConf ? '?' : tier}·${model}·${confStr}${savedChip}${boostChip}]`;
   }
 }
 
-module.exports = { readPrefs, shortModel, buildBadge, estimateBadgeSavings, DEFAULT_PREFS };
+/**
+ * Wave 5 D4 — badge display mode from prefs. Always-on by default (threshold 0);
+ * `--badge-off` suppresses; `--badge-threshold=X` raises the floor; `--badge-always`
+ * forces 0. The router-hint quality gate (0.6) is separate — this is display only.
+ * @param {Prefs & { badge_off?: boolean, badge_threshold?: number }} prefs
+ */
+function badgeMode(prefs) {
+  const p = prefs || {};
+  return {
+    off: p.badge_off === true,
+    threshold: typeof p.badge_threshold === 'number' ? p.badge_threshold : 0,
+  };
+}
+
+module.exports = { readPrefs, shortModel, buildBadge, estimateBadgeSavings, badgeMode, DEFAULT_PREFS };

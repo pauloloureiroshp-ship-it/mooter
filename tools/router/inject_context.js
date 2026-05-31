@@ -1041,8 +1041,21 @@ try {
   if (annotated.adapter_name) decision.adapter_name = annotated.adapter_name;
 } catch { /* adapter selection best-effort */ }
 
-// Only emit hint when confident enough that it adds value.
-if (decision.confidence < 0.6) process.exit(0);
+// Only emit the full router-hint when confident enough that it adds value (the
+// hint/suggested_answer could be wrong below 0.6). Wave 5 D4: the BADGE is just a
+// display marker, so it stays ALWAYS-ON below 0.6 too (NIT Paulo #4) — emit only
+// the badge, honoring badge prefs (off / threshold), then exit without the hint.
+if (decision.confidence < 0.6) {
+  try {
+    const { readPrefs, buildBadge, badgeMode } = require('./badge.js');
+    const prefs = readPrefs();
+    const mode = badgeMode(prefs);
+    if (!prefs.quiet && !mode.off && decision.confidence >= mode.threshold) {
+      process.stdout.write(`<tier-badge>${buildBadge(decision)}</tier-badge>\n`);
+    }
+  } catch { /* badge is best-effort — never block */ }
+  process.exit(0);
+}
 
 // OPTION A — pre-compute answer via Ollama for confident T0 tasks.
 // Injects <suggested_answer> so Claude can output it verbatim, saving
@@ -1281,8 +1294,9 @@ const lines = [
 // threshold. Best-effort: a missing module or unreadable prefs never blocks the
 // hint — this is the live UserPromptSubmit hook.
 try {
-  const { readPrefs, buildBadge } = require('./badge.js');
-  if (!readPrefs().quiet) {
+  const { readPrefs, buildBadge, badgeMode } = require('./badge.js');
+  const prefs = readPrefs();
+  if (!prefs.quiet && !badgeMode(prefs).off) {
     lines.push('');
     lines.push(`<tier-badge>${buildBadge(decision)}</tier-badge>`);
   }
