@@ -657,18 +657,22 @@ function renderTwoLine(ctx) {
     if (q) quantChip = `quant ${q.format}`;
   } catch { quantChip = null; }
 
-  // Wave 5 D1 — adapter chip, honest. Baseline by default (forge ships D2). If the
-  // user marked an adapter active, show ⏸ (D1 does NOT honor it yet — D2 validates).
+  // Wave 5 D2 — adapter chip, honest. A validated active adapter shows 🔧 {name}
+  // (+perf if benchmarked); a marked-but-unvalidated one shows ⏸; else baseline.
   let adapterChip = 'adapter ◌ baseline (forge ships D2)';
   try {
-    const { markedAdapterId } = require('./adapter_selection.js');
-    const marked = markedAdapterId();
-    if (marked) adapterChip = `adapter ⏸ ${String(marked).slice(0, 8)} (D2 validates)`;
+    const { getActiveAdapter, markedAdapterId } = require('./adapter_selection.js');
+    const active = getActiveAdapter();
+    if (active && active.name) {
+      const perf = active.performance && typeof active.performance.accuracy_delta === 'number'
+        ? ` (${(active.performance.accuracy_delta * 100).toFixed(0)}% acc)`
+        : ' (◌ benchmark pending)';
+      adapterChip = `adapter 🔧 ${active.name}${perf}`;
+    } else {
+      const marked = markedAdapterId();
+      if (marked) adapterChip = `adapter ⏸ ${String(marked).slice(0, 8)} (validating)`;
+    }
   } catch { /* keep baseline */ }
-  if (ctx.adapter && typeof ctx.adapter.status === 'string' && ctx.adapter.status !== 'idle' && ctx.adapter.name) {
-    const g = ctx.adapter.status === 'loaded' ? '●' : '◐';
-    adapterChip = `adapter ${g} ${ctx.adapter.name}`;
-  }
 
   // Wave 2.8 — ctx as a visual bar (Ponto #2) instead of bare "ctx 23%".
   const ctxChip = typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;

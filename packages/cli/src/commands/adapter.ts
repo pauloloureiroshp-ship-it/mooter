@@ -1,15 +1,17 @@
-// `mooter adapter` (Wave 5 D1 — Adapter Forge foundation).
+// `mooter adapter` (Wave 5 D1 foundation; Wave 5 D2 wires real validation).
 //
-// list / show <id> / activate <id> / deactivate — all HONEST stubs in D1: no
-// adapters ship yet and the runtime (`tools/router/adapter_selection.js`) ignores
-// `active_adapter_id` until D2's validation pipeline. Every command says so. The
-// commands read ~/.mooter/adapters/<id>/manifest.json and toggle
-// preferences.json `active_adapter_id`; nothing is fabricated.
+// list / show <id> / activate <id> / deactivate. The commands read
+// ~/.mooter/adapters/<id>/manifest.json and toggle preferences.json
+// `active_adapter_id`. Wave 5 D2: `show` now validates the manifest (signature +
+// structure) BEFORE displaying any `performance` figure (NIT W5 D1 #1), so an
+// unverified manifest can never present a perf number.
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { mooterHomeDefault } from "../packs.ts";
+import { validateManifest, verifyManifest, type AdapterManifestV1 } from "../../../router/src/adapter/adapter_manifest.ts";
+import { getLocalSecret } from "../consent.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -86,9 +88,32 @@ export function runAdapterList(opts: AdapterOptions = {}): CmdResult {
 
 export function runAdapterShow(id: string, opts: AdapterOptions = {}): CmdResult {
   const home = opts.mooterHome ?? mooterHomeDefault();
-  const m = listAdapters(home).find((x) => x.adapter_id === id || x.adapter_id.startsWith(id));
+  const m = listAdapters(home).find((x) => x.adapter_id === id || x.adapter_id.startsWith(id)) as AdapterManifestV1 | undefined;
   if (!m) return { exitCode: 1, output: `adapter not found: ${id}` };
-  return { exitCode: 0, output: JSON.stringify(m, null, 2) };
+
+  // NIT W5 D1 #1 — validate BEFORE rendering performance. A perf figure is only
+  // shown for a structurally-valid, signature-verified manifest; otherwise we say
+  // so rather than display an unverified (possibly forged) accuracy number.
+  const secret = getLocalSecret(home);
+  const structural = validateManifest(m);
+  const sigOk = verifyManifest(m, secret);
+  const valid = structural.valid && sigOk;
+
+  const lines = [
+    `🔧 Adapter: ${m.name}`,
+    `  id: ${m.adapter_id}`,
+    `  base_model: ${m.base_model} · ${m.adapter_type}/${m.quantization}`,
+    `  signature: ${sigOk ? "✓ valid" : "✗ INVALID — do not trust"}`,
+    `  structure: ${structural.valid ? "✓ valid" : "✗ " + structural.errors.join("; ")}`,
+  ];
+  if (valid && m.performance) {
+    lines.push(`  performance: ${(m.performance.accuracy_delta * 100).toFixed(1)}% vs baseline (run ${m.performance.benchmark_run_id})`);
+  } else if (!valid) {
+    lines.push("  performance: ◌ not shown (manifest not validated)");
+  } else {
+    lines.push(`  performance: ◌ not benchmarked yet — run \`mooter forge benchmark ${m.adapter_id.slice(0, 8)}\``);
+  }
+  return { exitCode: 0, output: lines.join("\n") };
 }
 
 export function runAdapterActivate(id: string, opts: AdapterOptions = {}): CmdResult {

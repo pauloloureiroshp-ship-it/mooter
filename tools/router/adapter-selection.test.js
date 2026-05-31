@@ -12,19 +12,76 @@ test('getActiveAdapter: null with no prefs (baseline)', () => {
   assert.equal(getActiveAdapter(), null);
 });
 
-test('getActiveAdapter: STILL null even when active_adapter_id is set (D1 stub)', () => {
-  // Point HOME at a temp dir with a prefs file marking an adapter active.
+test('getActiveAdapter: null when marked but no manifest on disk', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
   fs.mkdirSync(path.join(tmp, '.mooter'), { recursive: true });
   fs.writeFileSync(path.join(tmp, '.mooter', 'preferences.json'), JSON.stringify({ active_adapter_id: 'abc123' }));
   const prevHome = process.env.HOME;
   process.env.HOME = tmp;
   try {
-    assert.equal(getActiveAdapter(), null, 'D1 never honors a marked adapter (no validation pipeline yet)');
-    assert.equal(markedAdapterId(), 'abc123', 'but it CAN report that one was marked');
+    assert.equal(getActiveAdapter(), null, 'marked id with no manifest → baseline');
+    assert.equal(markedAdapterId(), 'abc123', 'but it reports the marked id');
   } finally {
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   }
+});
+
+const crypto = require('node:crypto');
+const { verifyManifestSignatureSync } = require('./adapter_selection.js');
+
+// Sign a manifest the SAME way packages/router adapter_manifest does (natural-order
+// JSON.stringify of the object WITHOUT `signature`).
+function signed(manifest, secret) {
+  const { signature, ...rest } = manifest;
+  return { ...rest, signature: crypto.createHmac('sha256', secret).update(JSON.stringify(rest)).digest('hex') };
+}
+
+function setupAdapter(tmp, id, manifestFields, secret, opts = {}) {
+  fs.mkdirSync(path.join(tmp, '.mooter', 'adapters', id), { recursive: true });
+  fs.writeFileSync(path.join(tmp, '.mooter', '.telemetry_secret'), secret + '\n');
+  fs.writeFileSync(path.join(tmp, '.mooter', 'preferences.json'), JSON.stringify({ active_adapter_id: id }));
+  const manifest = signed({ schema_version: 1, adapter_id: id, name: manifestFields.name, base_model: 'qwen2.5:3b', adapter_type: 'lora', quantization: 'q4_k_m', ...manifestFields }, secret);
+  fs.writeFileSync(path.join(tmp, '.mooter', 'adapters', id, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  if (opts.withGguf !== false) fs.writeFileSync(path.join(tmp, '.mooter', 'adapters', id, 'adapter.gguf'), 'FAKE');
+  return manifest;
+}
+
+function withHome(tmp, fn) {
+  const prev = process.env.HOME;
+  process.env.HOME = tmp;
+  try { return fn(); } finally { if (prev === undefined) delete process.env.HOME; else process.env.HOME = prev; }
+}
+
+test('getActiveAdapter (D2): valid signed manifest + gguf → returns it', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
+  setupAdapter(tmp, 'aaa111', { name: 'diagram-v1' }, 'sec-1');
+  withHome(tmp, () => {
+    const a = getActiveAdapter();
+    assert.ok(a, 'returns the manifest');
+    assert.equal(a.name, 'diagram-v1');
+  });
+});
+
+test('getActiveAdapter (D2): tampered signature → null (never honor)', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
+  const m = setupAdapter(tmp, 'bbb222', { name: 'x' }, 'sec-2');
+  // tamper: change name without re-signing
+  m.name = 'evil';
+  fs.writeFileSync(path.join(tmp, '.mooter', 'adapters', 'bbb222', 'manifest.json'), JSON.stringify(m));
+  withHome(tmp, () => assert.equal(getActiveAdapter(), null, 'tampered manifest → baseline'));
+});
+
+test('getActiveAdapter (D2): missing adapter.gguf → null', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
+  setupAdapter(tmp, 'ccc333', { name: 'x' }, 'sec-3', { withGguf: false });
+  withHome(tmp, () => assert.equal(getActiveAdapter(), null, 'no .gguf → baseline'));
+});
+
+test('verifyManifestSignatureSync: matches the natural-order signing', () => {
+  const m = signed({ schema_version: 1, adapter_id: 'z', name: 'n', base_model: 'b', adapter_type: 'lora', quantization: 'q4_k_m' }, 'k');
+  assert.equal(verifyManifestSignatureSync(m, 'k'), true);
+  assert.equal(verifyManifestSignatureSync(m, 'wrong'), false);
+  assert.equal(verifyManifestSignatureSync({ ...m, name: 'tampered' }, 'k'), false);
 });
 
 test('applyAdapterToDecision: null adapter → baseline annotation', () => {
