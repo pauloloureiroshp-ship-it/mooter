@@ -3,10 +3,16 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🔍 WAVE 2.7 E2E SIMULATION merged — tag `v0.2.7-audit` em `dev` (`e70d730`). 5 personas Hard-Vibe-Coder correram as unidades REAIS hermeticamente ($0) via Dynamic Workflows. 0 blockers · 3 major · 2 minor · scorecard 36/40 · anthropic_ready. Top fix Wave 3: MAJ-1 T3→T0 safety downgrade (sharding-strategy → qwen2.5:3b). Zero código produção tocado. final-reviewer APPROVE_WITH_NOTES (8/8). Pipeline 2.7+2.8 em curso → Wave 2.8 landing parity a seguir.**)
-**Versão:** **v0.2.7-audit** (Wave 2.7 E2E sim) · v0.2.2-reveal (W2.6) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🎯 PIPELINE 2.7+2.8 CONCLUÍDA — tags `v0.2.7-audit` + `v0.2.8-parity` em `dev`. W2.7: E2E simulation 5 personas Dynamic Workflows (audit-only, 0 blockers, 3 major, scorecard 36/40). W2.8: landing parity (PR #23, `ddda94f`) — GPU chip · ctx bar · bash savings · quant Q4_K_M · LoRA honest (8/8 pontos Paulo). final-reviewer APPROVE em ambas. CLI 72/72. classify.js byte-identical (P11). Custo $0. ⏸ PAROU antes da Wave 3 por instrução.**)
+**Versão:** **v0.2.8-parity** (Wave 2.8 landing) · v0.2.7-audit (W2.7 sim) · v0.2.2-reveal (W2.6) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #56 — **Pipeline 2.7+2.8** (autónomo). Wave 2.7 E2E simulation (5 personas Dynamic Workflows, audit-only, tag v0.2.7-audit) merged. Wave 2.8 landing parity a seguir. Notion 2.7: [🔍 Wave 2.7 E2E Simulation](https://www.notion.so/3716f6e42bc4811886c1ea972ad1cd59).
+**Sessão Claude Code:** #56 — **Pipeline 2.7+2.8** (autónomo, auto-merge dev). W2.7 E2E sim (tag v0.2.7-audit) + W2.8 landing parity (tag v0.2.8-parity). Notion: [🔍 W2.7](https://www.notion.so/3716f6e42bc4811886c1ea972ad1cd59) · [🎮 W2.8](https://www.notion.so/3716f6e42bc4811ab832e7ea13c90c67).
+
+### 🎮 Sessão #56b — 2026-05-31 (Wave 2.8 Landing Parity — v0.2.8-parity)
+
+**Wave 2.8 (PR #23 merged `ddda94f`, tag v0.2.8-parity):** 5 sub-features alinham o terminal ao landing mockup. #1 GPU chip (🎮 RTX 4090, lê profile.json) · #2 ctx bar visual ANSI · #5 bash savings no badge (pricing.js, omitido T3) · #7 quant Q4_K_M chip + Moo card (cloud→sem quant) · #8 LoRA honest em 3 sítios (statusline+Moo card+dashboard). Novo `tools/router/quantization.js`. +24 testes (CLI 72/72). final-reviewer APPROVE 0 blockers. P11 ✓. Fecha W2.7 MIN-2 (paridade LoRA do Moo card). **8/8 pontos do Paulo endereçados.** Custo $0. Notion: `3716f6e4-2bc4-811a-b832-e7ea13c90c67`.
+
+**Próxima missão:** Wave 3 (activation + hub) — **pipeline PAROU aqui por instrução do Paulo**. Aguarda decisão para arrancar Wave 3 (considerar fixes W2.7: MAJ-1 T3→T0 safety downgrade primeiro).
 
 ### 🔍 Sessão #56 — 2026-05-31 (Wave 2.7 E2E Simulation — v0.2.7-audit)
 
