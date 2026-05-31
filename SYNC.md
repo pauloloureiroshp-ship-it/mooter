@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🛡️ WAVE 3 DAY 1 SAFETY FIX merged — tag `v0.3.0-safety-fix` em `dev` (PR #24, `a0a2258`). Corrige MAJ-1/MAJ-2 do audit W2.7 SEM tocar classify.js (P11 byte-identical). safety_boost.js layer: critical phrases → T3, keyword+low-conf → T2; safety FLOOR vence budget cap/zen (architecture nunca cai num Moo pequeno). `trail --safety` telemetria. final-reviewer APPROVE 0 blockers. Router 40/40, CLI 78/78. Custo $0. ⏸ PARA — Wave 3 Day 2 (activation hub) precisa novo kickoff.**)
-**Versão:** **v0.3.0-safety-fix** (W3 D1) · v0.2.8-parity (W2.8) · v0.2.7-audit (W2.7) · v0.2.2-reveal (W2.6) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **📡 WAVE 3 DAY 2 ACTIVATION HUB merged — tag `v0.3.1-activation-hub` em `dev` (PR #25, `17795b8`). 5 sub-features 100% local ZERO network: telemetry opt-in HMAC-signed (consent.ts, opt-out default, revoke via quiet --telemetry-off) · `mooter hub` TUI (packs·safety·evolution·telemetry·suggestions determinísticas) · dashboard PACK section (fix W2.7 MIN-1) · persona-aware recommendations (Solo Founder/Senior IC/OSS Maintainer/Other) · `trail --safety --by-keyword` over-boost monitor (NIT W3 D1). P11 + safety_boost intactos (tudo CLI). final-reviewer APPROVE 0 blockers. CLI 106/106. Custo $0. ⏸ PARA — Wave 3 D3 / Wave 4 precisa novo kickoff.**)
+**Versão:** **v0.3.1-activation-hub** (W3 D2) · v0.3.0-safety-fix (W3 D1) · v0.2.8-parity (W2.8) · v0.2.7-audit (W2.7) · v0.2.2-reveal (W2.6) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #57 — **Wave 3 D1 Safety Fix** (autónomo, auto-merge dev). safety_boost layer + golden + regression + trail --safety, tag v0.3.0-safety-fix. P11 preservado. Notion: [🛡️ W3 D1](https://www.notion.so/3716f6e42bc4818781decf25fb1ae5a8).
+**Sessão Claude Code:** #58 — **Wave 3 D2 Activation Hub** (autónomo, auto-merge dev). consent HMAC + mooter hub + dashboard PACK + persona-aware + safety over-boost monitor, tag v0.3.1-activation-hub. P11 + safety_boost intactos, ZERO network. Notion: [📡 W3 D2](https://www.notion.so/3716f6e42bc4814ea20fc227de08c0e1).
+
+### 📡 Sessão #58 — 2026-05-31 (Wave 3 Day 2 — Activation + Local Hub, v0.3.1-activation-hub)
+
+**Mandato Paulo:** executar WAVE3_D2_ACTIVATION_HUB (5 sub-features, P11 + safety_boost critical phrases preserved + ZERO network, auto-merge dev, tag v0.3.1-activation-hub).
+
+**Wave 3 D2 (PR #25 merged `17795b8`, tag v0.3.1-activation-hub):** tudo packages/cli (classify.js/safety_boost.js nem no diff). (1) `consent.ts` telemetry opt-in HMAC-signed user-verificável, opt-out default, prompt_content nunca true, revoke `quiet --telemetry-off` — ZERO network (só prepara o canal). (2) `mooter hub` TUI 5 sections, sugestões determinísticas. (3) dashboard PACK section (fix W2.7 MIN-1, honesto "no usage data"). (4) persona-aware recommendations (4 personas, pesos + bónus, profile.json, backward-compat). (5) `trail --safety --by-keyword` (>30% warn, NIT W3 D1). Novos: consent.ts, packs.ts, hub.ts. +28 testes (CLI 106/106). final-reviewer APPROVE 0 blockers.
+
+**Próxima missão:** Wave 3 D3 (hub remote sync stub) OU Wave 4 transition (auth + dashboard + Cloudflare) — **PARA aqui, precisa novo kickoff do Cowork.**
 
 ### 🛡️ Sessão #57 — 2026-05-31 (Wave 3 Day 1 — Safety Downgrade Fix, v0.3.0-safety-fix)
 
@@ -917,7 +925,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**🛡️ Wave 3 Day 1 SHIPPED (2026-05-31) — tag `v0.3.0-safety-fix` em `dev` (PR #24).** Fix MAJ-1/MAJ-2 do audit W2.7 via `safety_boost.js` (layer post-classify, **classify.js byte-identical P11**): critical phrases → T3, keyword+low-conf → T2, safety floor que vence budget cap/zen. `mooter trail --safety` telemetria. final-reviewer APPROVE 0 blockers. Router 40/40, CLI 78/78. **⏸ Wave 3 Day 2 (activation hub) precisa novo kickoff — pipeline parou aqui.**
+**📡 Wave 3 Day 2 SHIPPED (2026-05-31) — tag `v0.3.1-activation-hub` em `dev` (PR #25).** 5 sub-features 100% local ZERO network: telemetry opt-in HMAC (consent.ts) · `mooter hub` TUI · dashboard PACK section (fix W2.7 MIN-1) · persona-aware recommendations · `trail --safety --by-keyword` over-boost monitor. P11 + safety_boost intactos (tudo CLI). final-reviewer APPROVE 0 blockers. CLI 106/106. **⏸ Wave 3 D3 / Wave 4 precisa novo kickoff.**
+
+**🛡️ Wave 3 Day 1 SHIPPED (2026-05-31) — tag `v0.3.0-safety-fix` em `dev` (PR #24).** Fix MAJ-1/MAJ-2 do audit W2.7 via `safety_boost.js` (layer post-classify, **classify.js byte-identical P11**): critical phrases → T3, keyword+low-conf → T2, safety floor que vence budget cap/zen. `mooter trail --safety` telemetria. final-reviewer APPROVE 0 blockers. Router 40/40, CLI 78/78.
 
 **🎯 Pipeline 2.7+2.8 (2026-05-31):** W2.7 E2E simulation (tag `v0.2.7-audit`, 5 personas, 0 blockers, 3 major) + W2.8 landing parity (tag `v0.2.8-parity`, 8/8 pontos Paulo). final-reviewer APPROVE em ambas.
 
