@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🔧 WAVE 5 D1 ADAPTER FORGE FOUNDATION merged — tag `v0.5.0-adapter-foundation` em `dev` (PR #30, `a96f63b`). Foundation only (training ships D2): ADR 020 (Hybrid — Ollama + Docker opcional, local-first) · adapter_manifest v1 HMAC-signed (regra: sem performance sem benchmark) · adapter_selection.js stub (SEMPRE null em D1, mesmo com active_adapter_id; wired em inject_context.js como layer separado) · `mooter adapter` CLI (honest stubs) · disclosure update (statusline/Moo card/dashboard → "forge ships Wave 5 D2", finalmente substitui "LoRA: Wave 5"). classify.js (P11) + safety_boost + schemas + hub/ + landing/ intactos. ZERO Python deps/external APIs. final-reviewer APPROVE 12/12. CLI 150/150, packages/router 108/108. Custo $0. ⏸ PARA — Wave 5 D2 (mooter forge: user .gguf + validation pipeline).**)
-**Versão:** **v0.5.0-adapter-foundation** (W5 D1) · v0.4.2-cf-backend (W4 D) · v0.4.1-dashboard-cloud (W4 C) · v0.4.0-auth (W4 B) · v0.3.2-sync-stub (W3 D3) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **⚗️ WAVE 5 D2 MOOTER FORGE merged — tag `v0.5.1-forge-validation` em `dev` (PR #31, `6935e30`). Implementa o "F": `validate.ts` (compõe D1 validateManifest+verifyManifest + Ollama check injectável, natural-order signing) · `mooter forge install <gguf>` (user adapter → manifest assinado+validado) · `mooter forge benchmark <id>` (métricas REAIS, inference_speed_factor MEDIDO) · adapter_selection REAL (verify sig + gguf → honra, tamper → baseline) · NIT#1 adapter show valida antes de render perf · NIT#2 ADR 020 Accepted. classify.js (P11) + safety_boost + schemas + adapter_manifest v1 + hub/ + landing/ intactos. ZERO Python/external/Ollama-real-em-testes. final-reviewer APPROVE 12/12. CLI 156/156, packages/router 114/114. Custo $0. ⏸ PARA — Wave 5 D3+ (optional Docker unsloth training).**)
+**Versão:** **v0.5.1-forge-validation** (W5 D2) · v0.5.0-adapter-foundation (W5 D1) · v0.4.2-cf-backend (W4 D) · v0.4.1-dashboard-cloud (W4 C) · v0.4.0-auth (W4 B) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #63 — **Wave 5 D1 Adapter Forge Foundation** (autónomo, auto-merge dev). ADR + manifest v1 + runtime stub + CLI + disclosure honesta, tag v0.5.0-adapter-foundation. Greenfield (sem overlap hub). Notion: [🔧 W5 D1](https://www.notion.so/3716f6e42bc481e88988c3a67615a42e).
+**Sessão Claude Code:** #64 — **Wave 5 D2 Mooter Forge** (autónomo, auto-merge dev). validate + forge install/benchmark + adapter_selection real + 2 NITs, tag v0.5.1-forge-validation. Notion: [⚗️ W5 D2](https://www.notion.so/3716f6e42bc481da8e90f2447933126b).
+
+### ⚗️ Sessão #64 — 2026-05-31 (Wave 5 D2 — Mooter Forge, v0.5.1-forge-validation)
+
+**Mandato Paulo:** executar WAVE5_D2_MOOTER_FORGE (6 sub-features). Recon: greenfield no lado forge; adapter_manifest D1 assina natural-order (o snippet do kickoff usava sorted-keys → alinhei à D1). Ollama indisponível → tudo injectável.
+
+**Wave 5 D2 (PR #31 merged `6935e30`, tag v0.5.1-forge-validation):** `validate.ts` (compõe D1, não duplica) · `mooter forge install` (user .gguf → manifest assinado+validado+copiado) · `mooter forge benchmark` (computeBenchmarkMetrics REAIS + inference_speed_factor MEDIDO por wall-time, resolve NIT da review) · adapter_selection REAL (verifyManifestSignatureSync natural-order + gguf → honra; tamper→null) · NIT#1 (adapter show valida antes de perf) · NIT#2 (ADR Accepted). statusline 🔧/⏸/baseline. Invariantes intactos. +20 testes (CLI 156, packages/router 114). final-reviewer APPROVE 12/12.
+
+**Próxima missão:** Wave 5 D3+ — optional Docker unsloth training (ADR 020 Option D): treinar adapter local a partir dos seed examples de um pack. **PARA aqui, precisa novo kickoff.**
 
 ### 🔧 Sessão #63 — 2026-05-31 (Wave 5 D1 — Adapter Forge Foundation, v0.5.0-adapter-foundation)
 
@@ -965,7 +973,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**🔧 Wave 5 D1 SHIPPED (2026-05-31) — tag `v0.5.0-adapter-foundation` em `dev` (PR #30).** Adapter Forge foundation: ADR 020 (Hybrid Ollama+Docker) · adapter_manifest v1 HMAC · adapter_selection.js stub (sempre null em D1) · `mooter adapter` CLI honest stubs · disclosure "forge ships Wave 5 D2" (substitui "LoRA: Wave 5"). classify(P11)/safety_boost/schemas/hub/landing intactos. Zero Python deps. final-reviewer APPROVE 12/12. CLI 150/150. **⏸ Wave 5 D2 (mooter forge: user .gguf + validation).**
+**⚗️ Wave 5 D2 SHIPPED (2026-05-31) — tag `v0.5.1-forge-validation` em `dev` (PR #31).** Mooter Forge: validate.ts + `mooter forge install/benchmark` (métricas reais, speed medido) + adapter_selection REAL (verify sig + gguf → honra; tamper → baseline) + 2 NITs D1 fechados (show valida antes de perf; ADR Accepted). statusline 🔧 quando activo+válido. classify(P11)/safety_boost/schemas/adapter_manifest v1/hub/landing intactos. Zero Python/external. final-reviewer APPROVE 12/12. CLI 156/156. **⏸ Wave 5 D3+ (Docker unsloth training opcional).**
+
+**🔧 Wave 5 D1 SHIPPED (2026-05-31) — tag `v0.5.0-adapter-foundation` em `dev` (PR #30).** Adapter Forge foundation: ADR 020 (Hybrid Ollama+Docker) · adapter_manifest v1 HMAC · adapter_selection.js stub (sempre null em D1) · `mooter adapter` CLI honest stubs · disclosure "forge ships Wave 5 D2" (substitui "LoRA: Wave 5"). classify(P11)/safety_boost/schemas/hub/landing intactos. Zero Python deps. final-reviewer APPROVE 12/12. CLI 150/150.
 
 **☁️ Wave 4 Phase D SHIPPED (2026-05-31) — tag `v0.4.2-cf-backend` em `dev` (PR #29).** ADAPTADO: `hub/` já é backend CF Workers deployed → shippei só o cliente `mooter sync` real-mode (feature-flag, POST W3 D3 events, fetch injectável). hub/+landing/ intactos, zero cf-workers/. Rota hub /v1/events + dashboard activate deferidos a kickoff hub-aware. final-reviewer APPROVE 12/12. CLI 144/144.
 
