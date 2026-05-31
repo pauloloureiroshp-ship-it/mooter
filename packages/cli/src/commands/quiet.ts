@@ -38,6 +38,9 @@ export interface QuietOptions {
   telemetryOff?: boolean;
   /** `--sync-cadence=<daily|weekly|manual-only>` sets the sync schedule cadence. */
   syncCadence?: string;
+  /** Wave 5 D3 — `--hide-<chip>` adds a chip to hidden_chips; `--show-all` clears. */
+  hideChips?: string[];
+  showAll?: boolean;
   /** Override the ~/.mooter root (tests). */
   mooterHome?: string;
   /** Override "now" + signing secret (tests). */
@@ -65,6 +68,27 @@ export function loadPreferences(mooterHome: string): Preferences {
 export function runQuiet(opts: QuietOptions = {}): CmdResult {
   const mooterHome = opts.mooterHome ?? join(homedir(), ".mooter");
   const prefs = loadPreferences(mooterHome);
+
+  // Wave 5 D3 — statusline chip hide flags. `--hide-<chip>` adds to hidden_chips
+  // (valid: vram/quant/ctx/adapter); `--show-all` clears them. Other prefs intact.
+  if ((opts.hideChips && opts.hideChips.length) || opts.showAll) {
+    const VALID = ["vram", "quant", "ctx", "adapter"];
+    const current = new Set(Array.isArray(prefs.hidden_chips) ? (prefs.hidden_chips as string[]) : []);
+    if (opts.showAll) current.clear();
+    const bad: string[] = [];
+    for (const c of opts.hideChips ?? []) {
+      if (VALID.includes(c)) current.add(c);
+      else bad.push(c);
+    }
+    if (bad.length) return { exitCode: 1, output: `✗ unknown chip(s): ${bad.join(", ")} (valid: ${VALID.join(" ")})` };
+    prefs.hidden_chips = [...current].sort();
+    mkdirSync(mooterHome, { recursive: true });
+    writeFileSync(join(mooterHome, "preferences.json"), JSON.stringify(prefs, null, 2) + "\n");
+    return {
+      exitCode: 0,
+      output: opts.showAll ? "✓ All statusline chips shown." : `✓ Hidden chips: ${prefs.hidden_chips.join(", ") || "(none)"}.`,
+    };
+  }
 
   // Wave 3 Day 2 — revoke telemetry consent. Rewrites consent.json to the
   // opted-out state (signature null). Independent of the badge/Moo-card prefs.
