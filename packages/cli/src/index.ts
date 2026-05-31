@@ -16,6 +16,7 @@ import { runTrail } from "./commands/trail.ts";
 import { runDashboard } from "./commands/dashboard.ts";
 import { runHub } from "./commands/hub.ts";
 import { runSync } from "./commands/sync.ts";
+import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -23,6 +24,8 @@ Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off]   toggle badges / Moo card / telemetry
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]]   provenance / 7d / safety
+  mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
+  mooter logout                    remove the saved token (sync reverts to dry-run)
   mooter hub                       local activation hub (packs · safety · evolution · telemetry · suggestions)
   mooter sync --dry-run            preview the remote-sync payload (zero network · Wave 4 ships real upload)
   mooter sync queue list|show <id>|clear   inspect/clear the local sync queue
@@ -73,6 +76,23 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "hub") {
     const res = await runHub({});
+    return res.exitCode;
+  }
+
+  if (command === "login") {
+    if (rest.includes("--status")) {
+      const res = authStatus();
+      process.stdout.write(res.output + "\n");
+      return res.exitCode;
+    }
+    const res = await runLogin({ manual: rest.includes("--manual") });
+    if (res.output) process.stdout.write(res.output + "\n");
+    return res.exitCode;
+  }
+
+  if (command === "logout") {
+    const res = runLogout();
+    process.stdout.write(res.output + "\n");
     return res.exitCode;
   }
 
