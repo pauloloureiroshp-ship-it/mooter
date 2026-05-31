@@ -3,10 +3,28 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🐮 WAVE 2.6 DAY 1 MERGED — rebrand Pastor → Mooter+Moos em `dev` (`d8cd3af`, PR #20). 4 commits: renames (PASTOR.md→MOOTER_PLAYBOOK.md) · find-replace semântico · landing copy + a11y · GLOSSARY.md (SSoT vocabulário). final-reviewer T3-gate APPROVE_WITH_NOTES (0 blockers). `classify.js` byte-identical (P11). Resíduos "Pastor" = só histórico imutável (ADRs, benchmarks, wave names, commits/Notion passados). Custo $0. ⏸ Day 2 (statusline 2-line + dashboard TUI) unblocked.**)
+**Última sync:** 2026-05-31 (Claude Code — **🐮 WAVE 2.6 DAY 2 MERGED — statusline 2-line + `mooter dashboard` TUI em `dev` (`374d271`, PR #21). 2 commits: renderTwoLine+render+truncateChip (fallback 1-line) · dashboard.ts TUI (ANSI raw, zero deps, MOOS·SAVINGS·QUOTA·CONTEXT·ADAPTER). +16 testes (CLI 60/60, statusline 7/7). final-reviewer T3-gate APPROVE (0 blockers). `classify.js` byte-identical (P11). Zero deps pesadas. Custo $0. ⏸ Day 3 (Moo card per-turn + glyph map + evolution) unblocked.**)
 **Versão:** **v0.2.1-polish** (Wave 2.5 SHIPPED) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 + event-writer local · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #53 — **Wave 2.6 Day 1 GATE + MERGE** (rebrand Pastor → Mooter+Moos). PR #20 já estava committed numa sessão anterior; esta sessão correu final-reviewer T3-gate (APPROVE_WITH_NOTES, 0 blockers), adjudicou resíduos "Pastor" como histórico imutável, e fez merge → `dev` (`d8cd3af`).
+**Sessão Claude Code:** #54 — **Wave 2.6 Day 2 BUILD + GATE + MERGE** (statusline 2-line + `mooter dashboard` TUI). Construído do zero, gated APPROVE, merged → `dev` (`374d271`, PR #21).
+
+### 🐮 Sessão #54 — 2026-05-31 (Wave 2.6 Day 2 — statusline 2-line + dashboard TUI, PR #21 MERGED)
+
+**Mandato Paulo:** "pode arrancar" Day 2 → build completo das 3 sub-features num PR, gate, merge.
+
+**Outcome (PR #21 merged em `dev` `374d271`, 2 commits):**
+- **Statusline 2-line** (`83dbd25`) — `renderTwoLine` (COLUMNS>=120): line1 headline (saved$+tier badge) · line2 chips operacionais (🏠 local Moo count · 🐄 last-10 Moo mix · ctx · 5h quota · turn$ · alltime$ · pack · adapter). `render()` entry escolhe 2-line vs 1-line por largura; setup state + line2 vazia degradam a 1-line. Só o chip `pack` (unbounded) é truncado. `renderFromContext` original intocado.
+- **`mooter dashboard` TUI** (`8fdf834`) — `buildDashboard` core puro (MOOS ACTIVE · SAVINGS · QUOTA · CONTEXT · ADAPTER) lê as mesmas fontes que trail/statusline (reutiliza `decisionsForSession`/`tierMixLast10` de trail.ts). `runDashboard` shell: alternate screen + refresh loop + cleanup robusto (Ctrl+C/SIGTERM/q/exit). `displayWidth()` torna as bordas da caixa emoji-aware. **Zero deps** (ANSI raw).
+
+**Honestidade de proveniência:** sem latency/tokens per-Moo inventados (decisions.log não os tem); tracker offline → "n/a" por campo; ctx% = runtime-only (sinalizado no dashboard).
+
+**Tests:** +16 (statusline 7/7 · dashboard 9/9 · CLI suite 60/60 · router statusline-multi+two-line+tier-mix 54/54). Sanity cost $0.
+
+**Gate final-reviewer (T3):** **APPROVE, 0 blockers.** P11 ✓ · zero deps pesadas ✓ · GLOSSARY vocab ✓ · mooter_event.ts intacto ✓. NITs informativos: suite completa do router precisa node≥22 em CI (`--test-skip-pattern`); 6 falhas pré-existentes (model-specialists + gemini + gsd-latency flake) não tocam o código novo.
+
+**Página Notion:** [🐮 Sessão 2026-05-31 — Wave 2.6 Day 2](https://www.notion.so/3716f6e42bc48198b457ceafb2ef81a2) · `3716f6e4-2bc4-8198-b457-ceafb2ef81a2`
+
+**Próxima missão:** Wave 2.6 Day 3 — Moo card per-turn (Stop hook) + glyph map centralizado + evolution telemetry. Kickoff: `docs/strategy/WAVE2_6_DAY3_KICKOFF.md`.
 
 ### 🐮 Sessão #53 — 2026-05-31 (Wave 2.6 Day 1 — rebrand Pastor → Mooter+Moos, PR #20 GATE + MERGED)
 
@@ -851,7 +869,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**🐮 Wave 2.6 Day 1 MERGED (2026-05-31) — rebrand Pastor → Mooter+Moos em `dev` (`d8cd3af`, PR #20).** GLOSSARY.md é agora SSoT do vocabulário (Mooter=entity · Moos=collective · "to pastor"=verb). final-reviewer APPROVE_WITH_NOTES (0 blockers). `classify.js` byte-identical (P11). Resíduos "Pastor" = só histórico imutável. **⏸ Day 2 (statusline 2-line + dashboard TUI) unblocked — `WAVE2_6_DAY2_KICKOFF.md`.**
+**🐮 Wave 2.6 Day 2 MERGED (2026-05-31) — statusline 2-line + `mooter dashboard` TUI em `dev` (`374d271`, PR #21).** 2-line rica (COLUMNS>=120) com fallback 1-line truncate-safe · dashboard TUI ANSI raw zero-deps. +16 testes (CLI 60/60). final-reviewer APPROVE (0 blockers). **⏸ Day 3 (Moo card per-turn + glyph map + evolution) unblocked — `WAVE2_6_DAY3_KICKOFF.md`.**
+
+**🐮 Wave 2.6 Day 1 MERGED (2026-05-31) — rebrand Pastor → Mooter+Moos em `dev` (`d8cd3af`, PR #20).** GLOSSARY.md é agora SSoT do vocabulário (Mooter=entity · Moos=collective · "to pastor"=verb). final-reviewer APPROVE_WITH_NOTES (0 blockers). `classify.js` byte-identical (P11). Resíduos "Pastor" = só histórico imutável.
 
 **✅ Wave 2.5 SHIPPED (2026-05-31) — tag `v0.2.1-polish` em `dev` (`3bb94b8`).** 4 Days merged (#16-#19): statusline 🐮 + per-terminal isolation · wizard hardening (stdin non-TTY + edge cases + idempotency) · bash tier-badge + tier-mix view + `mooter quiet` · provenance `mooter trail` + e2e. Tests: CLI 51/51 · router test:cli 37/37 · statusline+tier-mix 47/47. Custo $0. **Wave 3 (activation + hub) unblocked — aguarda `WAVE3_D1_KICKOFF.md`.**
 
