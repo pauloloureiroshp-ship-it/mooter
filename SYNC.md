@@ -3,10 +3,20 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🎉 WAVE 2.6 CONCLUÍDA — tag `v0.2.2-reveal` em `dev`. 3 Days shipped (PRs #20/#21/#22): D1 rebrand Pastor→Mooter+Moos+GLOSSARY · D2 statusline 2-line + dashboard TUI · D3 Moo card (Stop hook opt-in) + glyph map central + `trail --evolution` + `quiet --moo-card`. final-reviewer T3-gate APPROVE em todos (0 blockers). CLI 70/70. `classify.js` byte-identical (P11) toda a wave. Custo $0. Gate verdict Wave 3: GO.**)
-**Versão:** **v0.2.2-reveal** (Wave 2.6 SHIPPED) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 + event-writer local · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🔍 WAVE 2.7 E2E SIMULATION merged — tag `v0.2.7-audit` em `dev` (`e70d730`). 5 personas Hard-Vibe-Coder correram as unidades REAIS hermeticamente ($0) via Dynamic Workflows. 0 blockers · 3 major · 2 minor · scorecard 36/40 · anthropic_ready. Top fix Wave 3: MAJ-1 T3→T0 safety downgrade (sharding-strategy → qwen2.5:3b). Zero código produção tocado. final-reviewer APPROVE_WITH_NOTES (8/8). Pipeline 2.7+2.8 em curso → Wave 2.8 landing parity a seguir.**)
+**Versão:** **v0.2.7-audit** (Wave 2.7 E2E sim) · v0.2.2-reveal (W2.6) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #55 — **Wave 2.6 CLOSURE** (D2 build+merge, D3 build+merge, tag v0.2.2-reveal). Vocabulário Mooter+Moos coerente, statusline rica, dashboard, Moo card + glyphs + evolution. Notion closure: [🎉 Wave 2.6 CLOSURE](https://www.notion.so/3716f6e42bc481f69d51fe5f8c6c4c2d).
+**Sessão Claude Code:** #56 — **Pipeline 2.7+2.8** (autónomo). Wave 2.7 E2E simulation (5 personas Dynamic Workflows, audit-only, tag v0.2.7-audit) merged. Wave 2.8 landing parity a seguir. Notion 2.7: [🔍 Wave 2.7 E2E Simulation](https://www.notion.so/3716f6e42bc4811886c1ea972ad1cd59).
+
+### 🔍 Sessão #56 — 2026-05-31 (Wave 2.7 E2E Simulation — v0.2.7-audit)
+
+**Mandato Paulo:** pipeline autónomo 2.7+2.8, auto-merge dev, T3-gate por wave, cap $100, pára antes da Wave 3.
+
+**Wave 2.7 (audit-only, merged `e70d730`, tag v0.2.7-audit):** harness `sim.ts` drive as unidades REAIS (runInit/classify.js/stop_hook/dashboard/trail) hermeticamente a $0. 5 personas paralelas (Dynamic Workflow) + consolidador evidence-gated. **0 blockers · 3 major · 2 minor · scorecard 36/40 · anthropic_ready.** Zero produção tocada. final-reviewer APPROVE_WITH_NOTES (8/8).
+
+**Findings para Wave 3:** MAJ-1 (P2) T3→T0 safety downgrade (sharding → qwen2.5:3b) — top fix · MAJ-2 accuracy <90% na fronteira T0↔T1 · MIN-1 dashboard sem PACK section · MIN-2 Moo card sem linha LoRA. Deliverables: `audit/wave2-7-e2e-simulation/REPORT.md` + persona-P[1-5].md + sim.ts. Notion: `3716f6e4-2bc4-8118-86c1-ea972ad1cd59`.
+
+**Próxima missão:** Wave 2.8 landing parity (em curso nesta sessão).
 
 ### 🎉 Sessão #55 — 2026-05-31 (Wave 2.6 CLOSURE — Day 3 + tag v0.2.2-reveal)
 
