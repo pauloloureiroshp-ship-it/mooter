@@ -22,6 +22,14 @@ export interface ConsentCategories {
   hardware_info: boolean;
 }
 
+export type SyncCadence = "daily" | "weekly" | "manual-only";
+
+export interface SyncSchedule {
+  cadence: SyncCadence;
+  time_of_day: string;
+  timezone: string;
+}
+
 export interface Consent {
   schema_version: string;
   telemetry_enabled: boolean;
@@ -31,6 +39,8 @@ export interface Consent {
   can_revoke: true;
   data_categories: ConsentCategories;
   retention_days: number;
+  /** Wave 3 D3 — sync cadence spec. NO cron is started; this only records intent. */
+  sync_schedule: SyncSchedule;
 }
 
 /**
@@ -97,6 +107,7 @@ export function buildConsent(enabled: boolean, now: Date, secret?: string): Cons
     can_revoke: true,
     data_categories: categories(enabled),
     retention_days: 90,
+    sync_schedule: { cadence: "daily", time_of_day: "03:00", timezone: "local" },
   };
   base.consent_signature = enabled ? signConsent(base, sec) : null;
   return base;
