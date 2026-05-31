@@ -515,9 +515,18 @@ function renderFromContext(ctx) {
   try {
     if (state.color === 'green' && Array.isArray(ctx.recent) && ctx.recent.length) {
       const { pickView, tierMixLast10 } = require('./tier-mix.js');
-      if (pickView(ctx.recent, ctx.tick || 0) === 'B') {
+      const view = pickView(ctx.recent, ctx.tick || 0);
+      if (view === 'B') {
         const ctxChip = typeof ctx.ctxPercent === 'number' ? ` · ctx ${ctx.ctxPercent}%` : '';
         proof = `${tierMixLast10(ctx.recent)}${ctxChip}`;
+      } else if (view === 'C') {
+        // Wave 2.6 Day 3 — view C: cumulative cost. The full 7d-vs-prev-7d
+        // evolution lives in `mooter trail --evolution`; here we surface the
+        // real cumulative figures the ctx already carries.
+        const parts = [];
+        if (typeof ctx.alltimeCost === 'number') parts.push(`alltime $${ctx.alltimeCost.toFixed(2)}`);
+        if (typeof ctx.todayCost === 'number') parts.push(`today $${ctx.todayCost.toFixed(2)}`);
+        if (parts.length) proof = parts.join(' · ');
       }
     }
   } catch { /* keep default proof */ }
@@ -565,6 +574,20 @@ function renderTwoLine(ctx) {
 
   const line1 = `${glyph} ${state.headline}`;
 
+  // Wave 2.6 Day 3 — current Moo glyph from the centralized map (tier + where it
+  // grazes). Best-effort: a missing glyphs module just drops the chip. Also pull
+  // the "home" glyph from the same table so the local-count chip stays in sync.
+  let mooGlyphChip = null;
+  let homeGlyph = '🏠';
+  try {
+    const { glyphFor, providerBucket, PROVIDER_GLYPHS } = require('./glyphs.js');
+    homeGlyph = (PROVIDER_GLYPHS && PROVIDER_GLYPHS.local) || '🏠';
+    if (ctx.last && ctx.last.tier) {
+      const prov = providerBucket((Array.isArray(ctx.last.suggested_providers) && ctx.last.suggested_providers[0]) || '');
+      mooGlyphChip = glyphFor({ tier: ctx.last.tier, provider: prov });
+    }
+  } catch { mooGlyphChip = null; homeGlyph = '🏠'; }
+
   // Local-Moo usage count (T0 = local tier) from the per-session tier counts.
   const localCount = (ctx.counts && Number(ctx.counts.T0)) || 0;
 
@@ -598,7 +621,8 @@ function renderTwoLine(ctx) {
   }
 
   const line2 = [
-    localCount > 0 ? `🏠 local ×${localCount}` : null,
+    mooGlyphChip,
+    localCount > 0 ? `${homeGlyph} local ×${localCount}` : null,
     mooMix,
     typeof ctx.ctxPercent === 'number' ? `ctx ${ctx.ctxPercent}%` : null,
     typeof ctx.anthRem === 'number' ? `${ctx.anthRem}% 5h` : null,

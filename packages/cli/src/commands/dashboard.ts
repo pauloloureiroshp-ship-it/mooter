@@ -70,7 +70,12 @@ interface MooRow {
   lastConf: number | null;
 }
 
-/** Glyph by provider/model family — local Moos graze at home (🏠), cloud is ☁. */
+/**
+ * Glyph by provider/model family — local Moos graze at home (🏠), cloud is ☁.
+ * Mirrors `tools/router/glyphs.js` PROVIDER_GLYPHS (the canonical map); the CLI
+ * stays decoupled from router internals (same boundary as trail.ts ↔ paths.js),
+ * so the values are duplicated deliberately rather than imported across packages.
+ */
 function mooGlyph(model: string): string {
   const m = model.toLowerCase();
   if (m.includes("opus") || m.includes("sonnet") || m.includes("haiku")) return "☁";
