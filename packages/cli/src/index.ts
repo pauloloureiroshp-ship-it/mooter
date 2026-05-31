@@ -20,7 +20,7 @@ const TOP_USAGE = `mooter — pack manager CLI
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off] [--moo-card|--moo-card-off]   toggle bash badges / Moo card
-  mooter trail [--session-id <id>] [--json] [--evolution]   provenance / 7d-vs-prev-7d
+  mooter trail [--session-id <id>] [--json] [--evolution] [--safety]   provenance / 7d / safety boosts
   mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
 
@@ -56,6 +56,7 @@ async function main(argv: string[]): Promise<number> {
       json: rest.includes("--json"),
       sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
       evolution: rest.includes("--evolution"),
+      safety: rest.includes("--safety"),
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;

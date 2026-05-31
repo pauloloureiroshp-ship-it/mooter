@@ -64,6 +64,79 @@ export interface TrailOptions {
   evolution?: boolean;
   /** Override "now" in ms for evolution windowing (tests). */
   nowMs?: number;
+  /** `--safety`: print the safety-boost summary over the last N classified events. */
+  safety?: boolean;
+  /** How many recent classified events to summarize for --safety (default 100). */
+  safetyWindow?: number;
+}
+
+/**
+ * Summarize safety-boost telemetry over the last N classified events from
+ * decisions.log (Wave 3 D1). Counts applications, reasons, and tier upgrades —
+ * all from real logged fields (safety_boost_applied / _reason / _from); never
+ * fabricated. Pure given `lines`.
+ */
+export function buildSafety(lines: string[], windowN = 100): Record<string, unknown> {
+  const events: Array<{ applied: boolean; reason: string | null; from: string | null; to: string }> = [];
+  for (const line of lines) {
+    let e: any;
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!e || e.event !== "classified") continue;
+    if (e.source === "mooter-tester") continue;
+    events.push({
+      applied: e.safety_boost_applied === true,
+      reason: typeof e.safety_boost_reason === "string" ? e.safety_boost_reason : null,
+      from: typeof e.safety_boost_from === "string" ? e.safety_boost_from : null,
+      to: typeof e.tier === "string" ? e.tier : "?",
+    });
+  }
+  const window = events.slice(-windowN);
+  const applied = window.filter((e) => e.applied);
+  const reasons: Record<string, number> = {};
+  const upgrades: Record<string, number> = {};
+  for (const e of applied) {
+    // Normalize the reason to its kind (drop the per-event value after ':' or '(').
+    const kind = e.reason ? e.reason.split(/[:(]/)[0].trim() : "unknown";
+    reasons[kind] = (reasons[kind] || 0) + 1;
+    if (e.from) {
+      const key = `${e.from} → ${e.to}`;
+      upgrades[key] = (upgrades[key] || 0) + 1;
+    }
+  }
+  return { window: window.length, applied: applied.length, reasons, upgrades };
+}
+
+function printSafetyHuman(s: Record<string, unknown>): string {
+  const window = s.window as number;
+  const applied = s.applied as number;
+  const reasons = s.reasons as Record<string, number>;
+  const upgrades = s.upgrades as Record<string, number>;
+  const pct = window > 0 ? Math.round((applied / window) * 100) : 0;
+  const lines: string[] = [];
+  lines.push(`🐮 mooter — safety boosts (last ${window} classified prompts)`);
+  lines.push("");
+  lines.push(`  applied: ${applied} of ${window} (${pct}%)`);
+  if (applied > 0) {
+    lines.push("  reasons:");
+    for (const [k, n] of Object.entries(reasons).sort((a, b) => b[1] - a[1])) lines.push(`    ${k}: ${n}`);
+    lines.push("  upgrades:");
+    for (const [k, n] of Object.entries(upgrades).sort((a, b) => b[1] - a[1])) lines.push(`    ${k}: ${n}`);
+  }
+  lines.push("");
+  lines.push("  Safety boosts protect architecture-grade prompts from a too-small Moo.");
+  lines.push("  Every boost carries an explicit reason (no black-box) — classify.js is untouched.");
+  return lines.join("\n");
+}
+
+export async function runSafety(opts: TrailOptions): Promise<CmdResult> {
+  const lines = readLines(opts);
+  const s = buildSafety(lines, opts.safetyWindow ?? 100);
+  const output = opts.json ? JSON.stringify(s, null, 2) : printSafetyHuman(s);
+  return { exitCode: 0, output };
 }
 
 /** A classified event with the fields evolution needs (ts_ms + tier + conf). */
@@ -354,6 +427,7 @@ function printTrailHuman(trail: Record<string, unknown>): string {
 }
 
 export async function runTrail(opts: TrailOptions = {}): Promise<CmdResult> {
+  if (opts.safety) return runSafety(opts);
   if (opts.evolution) return runEvolution(opts);
   const trail = await buildTrail(opts);
   const output = opts.json ? JSON.stringify(trail, null, 2) : printTrailHuman(trail);
