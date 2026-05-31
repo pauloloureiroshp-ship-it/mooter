@@ -38,7 +38,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   assert.match(lines[0], /saved \$0\.27/, 'line 1 carries the saved headline');
   // line 2 operational chips
   assert.match(lines[1], /🏠 local ×6/, 'line 2 shows local Moo count');
-  assert.match(lines[1], /ctx 23%/, 'line 2 shows ctx');
+  assert.match(lines[1], /ctx \[.*\] 23%/, 'line 2 shows ctx as a visual bar (W2.8)');
   assert.match(lines[1], /100% 5h/, 'line 2 shows quota');
   assert.match(lines[1], /pack: diagram-systems/, 'line 2 shows pack');
 });

@@ -552,6 +552,37 @@ function truncateChip(s, max = CHIP_MAX) {
   return s.slice(0, max - 1) + '…';
 }
 
+// Wave 2.8 Ponto #1 — GPU from ~/.mooter/profile.json. The wizard writes gpu as
+// an object { model, vram_gb } (or absent on a no-GPU machine). Best-effort.
+function readGpuFromProfile() {
+  try {
+    const profile = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'profile.json'), 'utf8'));
+    const g = profile && profile.gpu;
+    if (!g) return null;
+    return typeof g === 'string' ? g : (g.model || null);
+  } catch {
+    return null;
+  }
+}
+
+function formatGpuChip(gpu) {
+  if (!gpu) return null;
+  const compact = String(gpu).replace(/^NVIDIA\s+/i, '').replace(/^Apple\s+/i, '').replace(/^GeForce\s+/i, '');
+  return `🎮 ${compact}`;
+}
+
+// Wave 2.8 Ponto #2 — context window as a 10-char ANSI bar + percent. Green
+// < 50%, yellow < 80%, red ≥ 80%. Used only in the 2-line layout; the compact
+// 1-line render keeps the bare "ctx N%" text.
+function ctxBar(pct) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const width = 10;
+  const filled = Math.round((p / 100) * width);
+  const bar = '█'.repeat(filled) + '░'.repeat(width - filled);
+  const color = p < 50 ? '\x1b[32m' : p < 80 ? '\x1b[33m' : '\x1b[31m';
+  return `ctx [${color}${bar}\x1b[0m] ${p}%`;
+}
+
 /**
  * Wave 2.6 Day 2 — rich 2-line layout for wide terminals (COLUMNS >= 120).
  * Line 1 is the existing colored headline (carries saved$ + tier badge in the
@@ -613,21 +644,39 @@ function renderTwoLine(ctx) {
     }
   }
 
-  // Adapter chip (Wave 5 placeholder — usually idle ◌).
-  let adapterChip = null;
-  if (ctx.adapter && typeof ctx.adapter.status === 'string') {
-    const g = ctx.adapter.status === 'loaded' ? '●' : ctx.adapter.status === 'loading' ? '◐' : '◌';
-    adapterChip = `adapter: ${g}`;
+  // Wave 2.8 — GPU chip from profile.json (Ponto #1). Object form { model, vram_gb }.
+  const gpuChip = formatGpuChip(readGpuFromProfile());
+
+  // Wave 2.8 — quant chip (Ponto #7). Baseline Q4_K_M for the active local Moo;
+  // omitted for cloud models. Best-effort, never blocks the render.
+  let quantChip = null;
+  try {
+    const { detectQuantization } = require('./quantization.js');
+    const model = (ctx.last && ctx.last.suggested_providers && ctx.last.suggested_providers[0]) || (ctx.last && ctx.last.tier === 'T0' ? 'ollama' : '');
+    const q = detectQuantization(model);
+    if (q) quantChip = `quant ${q.format}`;
+  } catch { quantChip = null; }
+
+  // Wave 2.8 — adapter chip, honest (Ponto #8). Baseline until Wave 5.
+  let adapterChip = 'adapter ◌ baseline (LoRA: Wave 5)';
+  if (ctx.adapter && typeof ctx.adapter.status === 'string' && ctx.adapter.status !== 'idle' && ctx.adapter.name) {
+    const g = ctx.adapter.status === 'loaded' ? '●' : '◐';
+    adapterChip = `adapter ${g} ${ctx.adapter.name}`;
   }
+
+  // Wave 2.8 — ctx as a visual bar (Ponto #2) instead of bare "ctx 23%".
+  const ctxChip = typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;
 
   const line2 = [
     mooGlyphChip,
     localCount > 0 ? `${homeGlyph} local ×${localCount}` : null,
     mooMix,
-    typeof ctx.ctxPercent === 'number' ? `ctx ${ctx.ctxPercent}%` : null,
+    gpuChip,
+    ctxChip,
     typeof ctx.anthRem === 'number' ? `${ctx.anthRem}% 5h` : null,
     typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
     typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
+    quantChip,
     packChip,
     adapterChip,
   ]
@@ -795,6 +844,9 @@ module.exports = {
   renderTwoLine,
   render,
   truncateChip,
+  ctxBar,
+  formatGpuChip,
+  readGpuFromProfile,
   digest,
   computeAnthropicRem,
   computeCodexRem,
