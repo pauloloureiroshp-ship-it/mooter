@@ -14,13 +14,15 @@ import { runInit } from "./commands/init.ts";
 import { runQuiet } from "./commands/quiet.ts";
 import { runTrail } from "./commands/trail.ts";
 import { runDashboard } from "./commands/dashboard.ts";
+import { runHub } from "./commands/hub.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
-  mooter quiet [--off] [--moo-card|--moo-card-off]   toggle bash badges / Moo card
-  mooter trail [--session-id <id>] [--json] [--evolution] [--safety]   provenance / 7d / safety boosts
+  mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off]   toggle badges / Moo card / telemetry
+  mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]]   provenance / 7d / safety
+  mooter hub                       local activation hub (packs · safety · evolution · telemetry · suggestions)
   mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
 
@@ -45,6 +47,7 @@ async function main(argv: string[]): Promise<number> {
       off: rest.includes("--off"),
       mooCard: rest.includes("--moo-card"),
       mooCardOff: rest.includes("--moo-card-off"),
+      telemetryOff: rest.includes("--telemetry-off"),
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
@@ -57,8 +60,14 @@ async function main(argv: string[]): Promise<number> {
       sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
       evolution: rest.includes("--evolution"),
       safety: rest.includes("--safety"),
+      byKeyword: rest.includes("--by-keyword"),
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "hub") {
+    const res = await runHub({});
     return res.exitCode;
   }
 

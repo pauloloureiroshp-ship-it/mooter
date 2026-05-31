@@ -68,6 +68,8 @@ export interface TrailOptions {
   safety?: boolean;
   /** How many recent classified events to summarize for --safety (default 100). */
   safetyWindow?: number;
+  /** `--by-keyword`: with --safety, break boost rate down per keyword. */
+  byKeyword?: boolean;
 }
 
 /**
@@ -134,9 +136,82 @@ function printSafetyHuman(s: Record<string, unknown>): string {
 
 export async function runSafety(opts: TrailOptions): Promise<CmdResult> {
   const lines = readLines(opts);
+  if (opts.byKeyword) {
+    const k = buildSafetyByKeyword(lines, opts.safetyWindow ?? 100);
+    const output = opts.json ? JSON.stringify(k, null, 2) : printSafetyByKeywordHuman(k);
+    return { exitCode: 0, output };
+  }
   const s = buildSafety(lines, opts.safetyWindow ?? 100);
   const output = opts.json ? JSON.stringify(s, null, 2) : printSafetyHuman(s);
   return { exitCode: 0, output };
+}
+
+// Mirror of tools/router/safety_boost.js ARCHITECTURAL_KEYWORDS — the CLI stays
+// decoupled from router internals (same boundary as paths.js), so the list is
+// duplicated deliberately rather than imported across packages.
+export const SAFETY_KEYWORDS = [
+  "design", "strategy", "architecture", "architect", "audit", "review",
+  "refactor", "redesign", "migration", "migrate", "sharding", "partitioning",
+  "schema", "consistency", "distributed", "scalability",
+];
+
+const OVERBOOST_THRESHOLD_PCT = 30;
+
+/**
+ * Per-keyword safety-boost rate over the last N classified events. For each
+ * keyword we count how many BOOSTED prompts contained it (from prompt_preview)
+ * vs how many prompts contained it at all — flagging any keyword whose boost
+ * rate exceeds 30% as a possible over-boost (the W3 D1 NIT). Honest: counts come
+ * from real logged prompt_preview, attributed by keyword presence. Pure.
+ */
+export function buildSafetyByKeyword(lines: string[], windowN = 100): Record<string, unknown> {
+  const events: Array<{ applied: boolean; preview: string }> = [];
+  for (const line of lines) {
+    let e: any;
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!e || e.event !== "classified" || e.source === "mooter-tester") continue;
+    events.push({ applied: e.safety_boost_applied === true, preview: String(e.prompt_preview || "").toLowerCase() });
+  }
+  const window = events.slice(-windowN);
+  const byKeyword: Record<string, { seen: number; boosted: number; rate_pct: number; over: boolean }> = {};
+  for (const kw of SAFETY_KEYWORDS) {
+    const seen = window.filter((e) => e.preview.includes(kw));
+    const boosted = seen.filter((e) => e.applied).length;
+    if (seen.length === 0) continue;
+    const rate = Math.round((boosted / seen.length) * 100);
+    byKeyword[kw] = { seen: seen.length, boosted, rate_pct: rate, over: rate > OVERBOOST_THRESHOLD_PCT };
+  }
+  return { window: window.length, threshold_pct: OVERBOOST_THRESHOLD_PCT, by_keyword: byKeyword };
+}
+
+function printSafetyByKeywordHuman(k: Record<string, unknown>): string {
+  const window = k.window as number;
+  const byKeyword = k.by_keyword as Record<string, { seen: number; boosted: number; rate_pct: number; over: boolean }>;
+  const lines: string[] = [];
+  lines.push(`🐮 mooter — safety boosts by keyword (last ${window} classified prompts)`);
+  lines.push("");
+  const entries = Object.entries(byKeyword).sort((a, b) => b[1].boosted - a[1].boosted);
+  if (entries.length === 0) {
+    lines.push("  (no architectural keywords seen in this window)");
+  } else {
+    for (const [kw, v] of entries) {
+      lines.push(`  ${kw.padEnd(14)} ${v.boosted}/${v.seen} boosted (${v.rate_pct}%)`);
+    }
+    lines.push("");
+    const over = entries.filter(([, v]) => v.over);
+    if (over.length === 0) {
+      lines.push(`  ✓ all keyword boost rates within the ${k.threshold_pct}% range`);
+    } else {
+      for (const [kw, v] of over) {
+        lines.push(`  ⚠ possible over-boost: "${kw}" boosted ${v.boosted}/${v.seen} (${v.rate_pct}%) — review safety_seeds.json`);
+      }
+    }
+  }
+  return lines.join("\n");
 }
 
 /** A classified event with the fields evolution needs (ts_ms + tier + conf). */
