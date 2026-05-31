@@ -3,10 +3,20 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🎯 PIPELINE 2.7+2.8 CONCLUÍDA — tags `v0.2.7-audit` + `v0.2.8-parity` em `dev`. W2.7: E2E simulation 5 personas Dynamic Workflows (audit-only, 0 blockers, 3 major, scorecard 36/40). W2.8: landing parity (PR #23, `ddda94f`) — GPU chip · ctx bar · bash savings · quant Q4_K_M · LoRA honest (8/8 pontos Paulo). final-reviewer APPROVE em ambas. CLI 72/72. classify.js byte-identical (P11). Custo $0. ⏸ PAROU antes da Wave 3 por instrução.**)
-**Versão:** **v0.2.8-parity** (Wave 2.8 landing) · v0.2.7-audit (W2.7 sim) · v0.2.2-reveal (W2.6) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🛡️ WAVE 3 DAY 1 SAFETY FIX merged — tag `v0.3.0-safety-fix` em `dev` (PR #24, `a0a2258`). Corrige MAJ-1/MAJ-2 do audit W2.7 SEM tocar classify.js (P11 byte-identical). safety_boost.js layer: critical phrases → T3, keyword+low-conf → T2; safety FLOOR vence budget cap/zen (architecture nunca cai num Moo pequeno). `trail --safety` telemetria. final-reviewer APPROVE 0 blockers. Router 40/40, CLI 78/78. Custo $0. ⏸ PARA — Wave 3 Day 2 (activation hub) precisa novo kickoff.**)
+**Versão:** **v0.3.0-safety-fix** (W3 D1) · v0.2.8-parity (W2.8) · v0.2.7-audit (W2.7) · v0.2.2-reveal (W2.6) · v0.2.1-polish (W2.5) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #56 — **Pipeline 2.7+2.8** (autónomo, auto-merge dev). W2.7 E2E sim (tag v0.2.7-audit) + W2.8 landing parity (tag v0.2.8-parity). Notion: [🔍 W2.7](https://www.notion.so/3716f6e42bc4811886c1ea972ad1cd59) · [🎮 W2.8](https://www.notion.so/3716f6e42bc4811ab832e7ea13c90c67).
+**Sessão Claude Code:** #57 — **Wave 3 D1 Safety Fix** (autónomo, auto-merge dev). safety_boost layer + golden + regression + trail --safety, tag v0.3.0-safety-fix. P11 preservado. Notion: [🛡️ W3 D1](https://www.notion.so/3716f6e42bc4818781decf25fb1ae5a8).
+
+### 🛡️ Sessão #57 — 2026-05-31 (Wave 3 Day 1 — Safety Downgrade Fix, v0.3.0-safety-fix)
+
+**Mandato Paulo:** executar o master prompt WAVE3_D1_SAFETY_FIX (4 sub-features, P11, auto-merge dev, tag v0.3.0-safety-fix).
+
+**Wave 3 D1 (PR #24 merged `a0a2258`, tag v0.3.0-safety-fix):** fix dos 2 majors do W2.7 audit via layer POR CIMA do classify (P11 byte-identical). `safety_boost.js` (critical phrases→T3, keyword+conf<0.9→T2, só upgrades, razão verificável) wired em inject_context.js (skip user pin) + telemetria no decisions.log. **Safety FLOOR** (descoberto no smoke): critical phrases vencem budget cap + zen — senão o budget cap reintroduzia o MAJ-1. `safety_seeds.json` golden + `safety-regression.test.js` (classify real) + `trail --safety`. +43 testes (router 40/40, CLI 78/78). final-reviewer APPROVE 0 blockers. MAJ-1 verificado end-to-end: "design sharding strategy" → T3 [🦬 opus] mesmo sob budget cap.
+
+**Nota honesta:** o embedding_store é domain-only (axis-2), não tier — os tier-safety examples vivem em safety_seeds.json como golden, não injectados no embedding store (adaptação ao real).
+
+**Próxima missão:** Wave 3 Day 2 (activation hub) — **PARA aqui, precisa novo kickoff do Cowork.** Monitorizar over-boost via `mooter trail --safety`.
 
 ### 🎮 Sessão #56b — 2026-05-31 (Wave 2.8 Landing Parity — v0.2.8-parity)
 
@@ -906,6 +916,10 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 ---
 
 ## 🎯 Estado Actual do Projecto
+
+**🛡️ Wave 3 Day 1 SHIPPED (2026-05-31) — tag `v0.3.0-safety-fix` em `dev` (PR #24).** Fix MAJ-1/MAJ-2 do audit W2.7 via `safety_boost.js` (layer post-classify, **classify.js byte-identical P11**): critical phrases → T3, keyword+low-conf → T2, safety floor que vence budget cap/zen. `mooter trail --safety` telemetria. final-reviewer APPROVE 0 blockers. Router 40/40, CLI 78/78. **⏸ Wave 3 Day 2 (activation hub) precisa novo kickoff — pipeline parou aqui.**
+
+**🎯 Pipeline 2.7+2.8 (2026-05-31):** W2.7 E2E simulation (tag `v0.2.7-audit`, 5 personas, 0 blockers, 3 major) + W2.8 landing parity (tag `v0.2.8-parity`, 8/8 pontos Paulo). final-reviewer APPROVE em ambas.
 
 **🎉 Wave 2.6 SHIPPED (2026-05-31) — tag `v0.2.2-reveal` em `dev`.** 3 Days merged (#20/#21/#22): rebrand Pastor→Mooter+Moos+GLOSSARY · statusline 2-line + dashboard TUI · Moo card (Stop hook opt-in) + glyph map central + `trail --evolution` + `quiet --moo-card`. final-reviewer APPROVE em todos (0 blockers). `classify.js` byte-identical (P11). CLI 70/70. Custo $0. **Gate Wave 3: GO — activation + hub unblocked, aguarda `WAVE3_D1_KICKOFF.md`.**
 
