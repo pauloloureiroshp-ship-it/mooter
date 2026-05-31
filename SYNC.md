@@ -3,10 +3,20 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **📟 SPRINT A wave 1/2 — WAVE 5 D3 STATUSLINE V2 merged — tag `v0.5.2-statusline-v2` em `dev` (PR #32). VRAM chip (vram_detect.js live nvidia-smi, graceful null) · quant tooltip (Q4_K_M -72% size ~99% quality, verificável, @COLUMNS≥140) · ctx bar (já era W2.8) · `mooter explain statusline` · `quiet --hide-<chip>`/`--show-all`. classify(P11)+safety_boost+adapter_selection+glyphs+schemas+hub/+landing/ intactos. ZERO inventar. final-reviewer APPROVE 10/10. router 69, CLI 165. Custo $0. ▶ Sprint A continua → Wave 5 D4 (bash badge always-on).**)
-**Versão:** **v0.5.2-statusline-v2** (W5 D3) · v0.5.1-forge-validation (W5 D2) · v0.5.0-adapter-foundation (W5 D1) · v0.4.2-cf-backend (W4 D) · v0.4.0-auth (W4 B) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **✅ SPRINT A CONCLUÍDA (2/2) — WAVE 5 D4 BASH BADGE ALWAYS-ON merged — tag `v0.5.3-bash-badge-always-on` em `dev` (PR #33, merge `6ae473a`). Root cause: o gate `confidence<0.6` suprimia o hint INTEIRO (incl. badge); badge é só display → always-on. Abaixo de 0.6 emite SÓ `<tier-badge>` (sem hint, exit(0) preservado) · `?` glyph low-conf (<0.5, só finite) · `boosted from <tier> · <kind>` chip · `mooter quiet --badge-off|--badge-always|--badge-threshold=X` (validado finite 0..1). stop_hook adapter line → `mooter forge install`. classify(P11)+safety_boost+adapter_selection+glyphs+hub/+landing/ intactos. final-reviewer GO (1 NIT NaN corrigido). router 446 (5 fails pre-existentes), CLI 170. Custo $0. ⏹ PÁRA antes de Sprint B (precisa novo kickoff).**)
+**Versão:** **v0.5.3-bash-badge-always-on** (W5 D4) · v0.5.2-statusline-v2 (W5 D3) · v0.5.1-forge-validation (W5 D2) · v0.5.0-adapter-foundation (W5 D1) · v0.4.2-cf-backend (W4 D) · v0.4.0-auth (W4 B) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #64 — **Wave 5 D2 Mooter Forge** (autónomo, auto-merge dev). validate + forge install/benchmark + adapter_selection real + 2 NITs, tag v0.5.1-forge-validation. Notion: [⚗️ W5 D2](https://www.notion.so/3716f6e42bc481da8e90f2447933126b).
+**Sessão Claude Code:** #65 — **SPRINT A** (autónomo, auto-merge dev): W5 D3 statusline V2 (v0.5.2, PR #32) + W5 D4 bash badge always-on (v0.5.3, PR #33). Notion: [🎯 Sprint A](https://www.notion.so/3716f6e42bc48131b927dedff8d223d5).
+
+### 🎯 Sessão #65 — 2026-05-31 (Sprint A — W5 D3 statusline V2 + W5 D4 bash badge always-on)
+
+**Mandato Paulo:** executar `SPRINT_A_AUTONOMOUS_ORCHESTRATOR.md` — D3→D4 sem pausa, auto-merge dev, gate T3 por wave, tags v0.5.2+v0.5.3, PARAR antes de Sprint B.
+
+**Wave 5 D3 (PR #32, tag v0.5.2-statusline-v2):** VRAM chip (`vram_detect.js` live nvidia-smi/system_profiler, 5s cache, graceful null) · quant tooltip detalhado (`Q4_K_M (-72% size · ~99% quality vs FP16)` @COLUMNS≥140) · `mooter explain statusline` · `quiet --hide-<chip>`/`--show-all` (hidden_chips). ctx bar já era W2.8 (no-op). final-reviewer APPROVE 10/10.
+
+**Wave 5 D4 (PR #33 merge `6ae473a`, tag v0.5.3-bash-badge-always-on):** Root cause — `inject_context.js` gate `confidence<0.6` suprimia o hint INTEIRO incl. badge. Badge é display → always-on. Abaixo de 0.6 emite SÓ `<tier-badge>` (sem hint/suggested_answer, `exit(0)` preservado, honra prefs) · `badge.js` `?` glyph low-conf (<0.5, só `Number.isFinite`) + `boosted from <tier> · <kind>` chip + `badgeMode`/`readPrefs` expõem `badge_off`+`badge_threshold` (default always-on, threshold 0) · `quiet.ts`+`index.ts` `--badge-off|--badge-always|--badge-threshold=X` (validado finite 0..1) · `stop_hook.js` Moo card adapter line → `mooter forge install` (forge shipou D2). Invariantes byte-identical. +14 testes (`badge-always-on.test.js` 9, `quiet-badge.test.ts` 5). final-reviewer GO (1 NIT NaN-threshold corrigido). router 446 (5 pre-existentes), CLI 170.
+
+**Próxima missão:** **Sprint B — NÃO arrancado, precisa novo kickoff explícito do Paulo.** Pendente menor: 2 testes classify pre-existentes a falhar (`model: gemini` assignment, `qwen2.5-coder` specialist) dependem de model-discovery do ambiente.
 
 ### ⚗️ Sessão #64 — 2026-05-31 (Wave 5 D2 — Mooter Forge, v0.5.1-forge-validation)
 
