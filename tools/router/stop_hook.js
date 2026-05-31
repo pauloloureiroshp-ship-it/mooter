@@ -116,6 +116,14 @@ function buildMooCard(s, turnCost) {
     lines.push(` cost      $${turnCost.turn.toFixed(4)} turn${saved}`);
   }
   lines.push(` last10    ${s.tierMix}`);
+  // Wave 2.8 Ponto #7 — quant line for local Moos (omitted for cloud models).
+  try {
+    const { detectQuantization } = require('./quantization.js');
+    const q = detectQuantization(s.model);
+    if (q) lines.push(` quant     ${q.format} (baseline · ~-${q.reduction_vs_fp16}% vs FP16)`);
+  } catch { /* omit quant line */ }
+  // Wave 2.8 Ponto #8 — honest adapter line (parity with dashboard ADAPTER).
+  lines.push(' adapter   ◌ baseline · LoRA arrives Wave 5 (Adapter Forge)');
   lines.push('───────────────────────────');
   lines.push('');
   return lines.join('\n');

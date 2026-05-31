@@ -55,9 +55,33 @@ function shortModel(model) {
 }
 
 /**
- * Build the `[tier·model·conf]` badge from a router decision. Missing/invalid
- * fields degrade to `T?` / `unknown` / `0.00` rather than throwing.
- * @param {{ tier?: string, recommended_model?: unknown, confidence?: unknown }} decision
+ * Estimated savings for this decision vs the naive all-Opus baseline, using the
+ * SAME prompt-length heuristic the savings-tracker uses (no new cost model). An
+ * ESTIMATE (tokens aren't known at classify time); returns 0 for T3 (no saving
+ * vs the T3 default) or when pricing is unavailable. Wave 2.8 Ponto #5.
+ * @param {{ tier?: string, prompt_len?: unknown }} d
+ * @returns {number} USD saved estimate (>= 0)
+ */
+function estimateBadgeSavings(d) {
+  try {
+    if (!d || d.tier === 'T3') return 0;
+    const len = Number(d.prompt_len);
+    if (!Number.isFinite(len) || len <= 0) return 0;
+    const { naiveOpusCost, estimateTurnCost } = require('./pricing.js');
+    const saved = naiveOpusCost(len) - estimateTurnCost(d.tier, len);
+    return saved > 0 ? saved : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Build the tier badge from a router decision. Wave 2.6 D3 led with the Moo
+ * glyph (`[🐂 ☁ sonnet 0.84]`); Wave 2.8 Ponto #5 appends an estimated savings
+ * chip for non-T3 tiers (`[🐂 ☁ sonnet 0.84 · saved $0.034]`). Wrapped so a
+ * missing module degrades to the legacy form — feeds the live UserPromptSubmit
+ * hook. Missing fields degrade to `T?` / `unknown` / `0.00` rather than throwing.
+ * @param {{ tier?: string, recommended_model?: unknown, recommended_backend?: unknown, confidence?: unknown, prompt_len?: unknown }} decision
  * @returns {string}
  */
 function buildBadge(decision) {
@@ -66,16 +90,15 @@ function buildBadge(decision) {
   const model = shortModel(d.recommended_model);
   const conf = Number(d.confidence);
   const confStr = Number.isFinite(conf) ? conf.toFixed(2) : '0.00';
-  // Wave 2.6 Day 3 — lead with the centralized Moo glyph (tier + provider):
-  // `[🐂 ☁ sonnet 0.84]`. Wrapped so a missing glyphs module degrades to the
-  // legacy `[tier·model·conf]` form — this feeds the live UserPromptSubmit hook.
+  const saved = estimateBadgeSavings(d);
+  const savedChip = saved > 0 ? ` · saved $${saved.toFixed(3)}` : '';
   try {
     const { glyphFor, providerBucket } = require('./glyphs.js');
     const glyph = glyphFor({ tier, provider: providerBucket(d.recommended_backend) });
-    return `[${glyph} ${model} ${confStr}]`;
+    return `[${glyph} ${model} ${confStr}${savedChip}]`;
   } catch {
-    return `[${tier}·${model}·${confStr}]`;
+    return `[${tier}·${model}·${confStr}${savedChip}]`;
   }
 }
 
-module.exports = { readPrefs, shortModel, buildBadge, DEFAULT_PREFS };
+module.exports = { readPrefs, shortModel, buildBadge, estimateBadgeSavings, DEFAULT_PREFS };
