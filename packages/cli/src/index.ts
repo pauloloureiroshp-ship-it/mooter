@@ -13,6 +13,7 @@ import { runPack, PACK_USAGE } from "./commands/pack.ts";
 import { runInit } from "./commands/init.ts";
 import { runQuiet } from "./commands/quiet.ts";
 import { runTrail } from "./commands/trail.ts";
+import { runDashboard } from "./commands/dashboard.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -20,6 +21,7 @@ Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off]             toggle bash-command tier badges (--off re-enables)
   mooter trail [--session-id <id>] [--json]   provenance of every statusline number
+  mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
 
 ${PACK_USAGE}`;
@@ -51,6 +53,16 @@ async function main(argv: string[]): Promise<number> {
       sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "dashboard") {
+    const sidIdx = rest.indexOf("--session-id");
+    const refIdx = rest.indexOf("--refresh-ms");
+    const res = await runDashboard({
+      sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
+      refreshMs: refIdx >= 0 ? parseInt(rest[refIdx + 1], 10) : undefined,
+    });
     return res.exitCode;
   }
 
