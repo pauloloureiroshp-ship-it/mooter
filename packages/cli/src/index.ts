@@ -19,12 +19,14 @@ import { runSync, runSyncReal } from "./commands/sync.ts";
 import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
+import { runExplain } from "./commands/explain.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
-  mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off]   toggle badges / Moo card / telemetry
+  mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
+  mooter explain [statusline]      educational guide to each statusline chip
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]]   provenance / 7d / safety
   mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
   mooter logout                    remove the saved token (sync reverts to dry-run)
@@ -61,6 +63,8 @@ async function main(argv: string[]): Promise<number> {
       mooCardOff: rest.includes("--moo-card-off"),
       telemetryOff: rest.includes("--telemetry-off"),
       syncCadence: rest.find((a) => a.startsWith("--sync-cadence="))?.split("=")[1],
+      hideChips: rest.filter((a) => a.startsWith("--hide-")).map((a) => a.slice("--hide-".length)),
+      showAll: rest.includes("--show-all"),
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
@@ -97,6 +101,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "logout") {
     const res = runLogout();
+    process.stdout.write(res.output + "\n");
+    return res.exitCode;
+  }
+
+  if (command === "explain") {
+    const res = runExplain({ topic: rest[0] });
     process.stdout.write(res.output + "\n");
     return res.exitCode;
   }

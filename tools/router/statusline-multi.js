@@ -644,18 +644,35 @@ function renderTwoLine(ctx) {
     }
   }
 
-  // Wave 2.8 — GPU chip from profile.json (Ponto #1). Object form { model, vram_gb }.
-  const gpuChip = formatGpuChip(readGpuFromProfile());
-
-  // Wave 2.8 — quant chip (Ponto #7). Baseline Q4_K_M for the active local Moo;
-  // omitted for cloud models. Best-effort, never blocks the render.
-  let quantChip = null;
+  // Wave 5 D3 — per-chip hide flags (preferences.json hidden_chips: ["vram","quant",...]).
+  let hidden = [];
   try {
-    const { detectQuantization } = require('./quantization.js');
-    const model = (ctx.last && ctx.last.suggested_providers && ctx.last.suggested_providers[0]) || (ctx.last && ctx.last.tier === 'T0' ? 'ollama' : '');
-    const q = detectQuantization(model);
-    if (q) quantChip = `quant ${q.format}`;
-  } catch { quantChip = null; }
+    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    if (Array.isArray(prefs.hidden_chips)) hidden = prefs.hidden_chips;
+  } catch { hidden = []; }
+  const hide = (name) => hidden.includes(name);
+
+  // Wave 2.8 GPU chip + Wave 5 D3 live VRAM. `--hide-vram` drops the VRAM suffix.
+  let gpuChip = formatGpuChip(readGpuFromProfile());
+  if (gpuChip && !hide('vram')) {
+    try {
+      const { getVram, formatVramChip } = require('./vram_detect.js');
+      const v = formatVramChip(getVram());
+      if (v) gpuChip = `${gpuChip} (${v})`;
+    } catch { /* keep model-only chip */ }
+  }
+
+  // Wave 2.8 quant chip + Wave 5 D3 detailed tooltip (wide terminals). Local Moos
+  // only; `--hide-quant` drops it. Best-effort, never blocks the render.
+  let quantChip = null;
+  if (!hide('quant')) {
+    try {
+      const { detectQuantization, formatQuantChipDetailed } = require('./quantization.js');
+      const model = (ctx.last && ctx.last.suggested_providers && ctx.last.suggested_providers[0]) || (ctx.last && ctx.last.tier === 'T0' ? 'ollama' : '');
+      const q = detectQuantization(model);
+      if (q) quantChip = parseInt(process.env.COLUMNS || '120', 10) >= 140 ? formatQuantChipDetailed(q.format) : `quant ${q.format}`;
+    } catch { quantChip = null; }
+  }
 
   // Wave 5 D2 — adapter chip, honest. A validated active adapter shows 🔧 {name}
   // (+perf if benchmarked); a marked-but-unvalidated one shows ⏸; else baseline.
@@ -674,8 +691,8 @@ function renderTwoLine(ctx) {
     }
   } catch { /* keep baseline */ }
 
-  // Wave 2.8 — ctx as a visual bar (Ponto #2) instead of bare "ctx 23%".
-  const ctxChip = typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;
+  // Wave 2.8 ctx visual bar (already shipped W2.8). `--hide-ctx` drops it.
+  const ctxChip = !hide('ctx') && typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;
 
   const line2 = [
     mooGlyphChip,
@@ -688,7 +705,7 @@ function renderTwoLine(ctx) {
     typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
     quantChip,
     packChip,
-    adapterChip,
+    hide('adapter') ? null : adapterChip,
   ]
     .filter(Boolean)
     .join(' · ');
