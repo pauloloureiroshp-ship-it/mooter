@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🔐 WAVE 4 PHASE B AUTH merged — tag `v0.4.0-auth` em `dev` (PR #27, `ee95c0f`). ADAPTADO: o landing já tinha auth Supabase completo (cliente custom + /api/cli-token → 127.0.0.1:7822), por isso shippei SÓ a peça em falta — `mooter login`/`logout`/`--status` ligado ao contrato existente (browser → loopback callback → ~/.mooter/auth.json 0600, guarda user_id_hash não email). landing/ Phase A 100% intacto (zero @supabase/ssr, zero ficheiros landing/ tocados). ZERO external network. final-reviewer APPROVE 0 blockers (confirmou que ADAPTAR foi correcto). CLI 137/137. Custo $0. ⏸ PARA — Wave 4 Phase C/D precisa novo kickoff.**)
-**Versão:** **v0.4.0-auth** (W4 Phase B) · v0.3.2-sync-stub (W3 D3) · v0.3.1-activation-hub (W3 D2) · v0.3.0-safety-fix (W3 D1) · v0.2.8-parity (W2.8) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **📊 WAVE 4 PHASE C DASHBOARD CLOUD merged — tag `v0.4.1-dashboard-cloud` em `dev` (PR #28, `967e2c6`). ADAPTADO honesto: o /dashboard já mostra dados reais (Decisions tab → /api/decisions-log) e /settings já existe, por isso ESTENDI sem duplicar nem mockar. `_phase_c.tsx`: CliStatusCard (dados reais de devices) · ActivityNote (per-tier deferido a W4 D, sem chart fake) · CliSettingsLink (liga ao /settings existente) · disclaimers honestos + footer. landing Phase A+B intacto (só 3 ficheiros dashboard, +223/−0). ZERO mocks fabricados, ZERO network novo. final-reviewer APPROVE 12/12 (endossou adaptar honesto). landing 11/11, tsc limpo. Custo $0. ⏸ PARA — Wave 4 Phase D (CF Workers backend) precisa novo kickoff.**)
+**Versão:** **v0.4.1-dashboard-cloud** (W4 Phase C) · v0.4.0-auth (W4 B) · v0.3.2-sync-stub (W3 D3) · v0.3.1-activation-hub (W3 D2) · v0.3.0-safety-fix (W3 D1) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #60 — **Wave 4 Phase B Auth** (autónomo, auto-merge dev). ADAPTADO ao auth existente: `mooter login` CLI → /api/cli-token, tag v0.4.0-auth. landing/ Phase A intacto. Notion: [🔐 W4 Phase B](https://www.notion.so/3716f6e42bc4813593bcdeefce2bc5b6).
+**Sessão Claude Code:** #61 — **Wave 4 Phase C Dashboard** (autónomo, auto-merge dev). ADAPTADO honesto: estende /dashboard existente (CliStatusCard real + settings link + disclaimers), tag v0.4.1-dashboard-cloud. landing Phase A+B intacto. Notion: [📊 W4 Phase C](https://www.notion.so/3716f6e42bc48129b734c5831f29f636).
+
+### 📊 Sessão #61 — 2026-05-31 (Wave 4 Phase C — Dashboard Cloud, v0.4.1-dashboard-cloud, ADAPTADO honesto)
+
+**Mandato Paulo:** executar WAVE4_PHASE_C_DASHBOARD (5 cards, alguns mock). **Recon revelou** (2ª vez): o /dashboard (1842 linhas, client) já tem DecisionsTab com dados REAIS (/api/decisions-log) e /settings já existe. Mockar fabricaria dados ou duplicaria. **Paulo escolheu adaptar honesto.**
+
+**Wave 4 Phase C (PR #28 merged `967e2c6`, tag v0.4.1-dashboard-cloud):** novo `_phase_c.tsx` (estende, não substitui) — CliStatusCard (dados reais de profile.devices) · ActivityNote (per-tier ships W4 D, sem mock) · CliSettingsLink (liga ao /settings existente) · disclaimer no DecisionsTab + footer honesto. Helpers puros testados (node-env vitest, sem RTL). landing Phase A+B intacto (middleware/me/cli-token/profile/settings byte-identical; só 3 ficheiros dashboard, additive). +6 testes (landing 11/11, tsc limpo). final-reviewer APPROVE 12/12.
+
+**Próxima missão:** Wave 4 Phase D (CF Workers backend — recebe sync events do W3 D3, activa real-time data/per-tier/settings bidireccionais nos cards). **PARA aqui, precisa novo kickoff.** Nota recorrente: kickoffs Wave 4 assumem greenfield; o landing já tem auth+dashboard+settings+APIs — reflectir o existente.
 
 ### 🔐 Sessão #60 — 2026-05-31 (Wave 4 Phase B — Auth, v0.4.0-auth, ADAPTADO)
 
@@ -941,7 +949,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**🔐 Wave 4 Phase B SHIPPED (2026-05-31) — tag `v0.4.0-auth` em `dev` (PR #27).** ADAPTADO ao auth Supabase existente: `mooter login`/`logout`/`--status` CLI ligado ao /api/cli-token existente (loopback → ~/.mooter/auth.json 0600). landing/ Phase A intacto (zero @supabase/ssr). final-reviewer APPROVE 0 blockers. CLI 137/137. **⏸ Wave 4 Phase C/D precisa novo kickoff.** Setup: `WAVE4_PHASE_B_SUPABASE_SETUP.md`.
+**📊 Wave 4 Phase C SHIPPED (2026-05-31) — tag `v0.4.1-dashboard-cloud` em `dev` (PR #28).** ADAPTADO honesto: estende o /dashboard existente (CliStatusCard com dados reais de devices · ActivityNote · CliSettingsLink → /settings existente · disclaimers). Zero mocks fabricados, zero network novo. landing Phase A+B intacto (só 3 ficheiros dashboard). final-reviewer APPROVE 12/12. landing 11/11. **⏸ Wave 4 Phase D (CF Workers backend) precisa novo kickoff.**
+
+**🔐 Wave 4 Phase B SHIPPED (2026-05-31) — tag `v0.4.0-auth` em `dev` (PR #27).** ADAPTADO ao auth Supabase existente: `mooter login`/`logout`/`--status` CLI ligado ao /api/cli-token existente (loopback → ~/.mooter/auth.json 0600). landing/ Phase A intacto (zero @supabase/ssr). final-reviewer APPROVE 0 blockers. CLI 137/137. Setup: `WAVE4_PHASE_B_SUPABASE_SETUP.md`.
 
 **🔄 Wave 3 Day 3 SHIPPED (2026-05-31) — tag `v0.3.2-sync-stub` em `dev` (PR #26).** Contrato sync remoto p/ Wave 4 CF Workers, ZERO network: mooter_sync_event schema v1 (anonimizado, HMAC) · sync queue local · `mooter sync --dry-run` (MOCK POST) · audit log signed · schedule spec (NO cron). P11 + safety_boost + mooter_event intactos. final-reviewer APPROVE 12/12. CLI 130/130.
 
