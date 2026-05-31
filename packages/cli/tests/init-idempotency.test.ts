@@ -65,9 +65,9 @@ test("runInit 3x: no duplicate packs, stable set, profile refresh, consent persi
   });
   const afterRun2 = installedPacks(home);
 
-  // Run 3 — same packs, telemetry ON.
+  // Run 3 — same packs, telemetry ON (W3 D2: persona ask[1], telemetry ask[2]=y).
   await runInit({
-    io: scriptedIO({ confirm: [true, true, true, false, true], ask: ["2"] }),
+    io: scriptedIO({ confirm: [true, true, true, false], ask: ["2", "d", "y"] }),
     mooterHome: home,
     now: () => new Date("2026-05-30T12:00:00.000Z"),
     probe: async () => fakeProfile(),

@@ -35,6 +35,10 @@ import { promisify } from "node:util";
 import { createInterface } from "node:readline";
 import yaml from "js-yaml";
 import { defaultPacksDir } from "../../../router/src/classify_domain.ts";
+import { buildConsent, getLocalSecret, consentDetailsLong } from "../consent.ts";
+
+// Re-export so existing init tests keep importing buildConsent from this module.
+export { buildConsent };
 
 const execFileP = promisify(execFile);
 
@@ -207,18 +211,43 @@ export function providerTierFit(modelCeiling: string, detectedTier: string): num
   return 0.0;
 }
 
+// Wave 3 D2 — persona-aware recommendations. Each persona shifts the scoring
+// weights (and gives a small bonus to a couple of packs that fit how they work).
+// "other"/undefined keeps the original 0.4/0.3/0.3 weights (backward compatible).
+export type Persona = "solo_founder" | "senior_ic" | "oss_maintainer" | "other";
+
+interface PersonaWeights {
+  hardware: number;
+  provider: number;
+  trust: number;
+  bonus: Set<string>;
+}
+
+export const PERSONA_WEIGHTS: Record<Persona, PersonaWeights> = {
+  solo_founder: { hardware: 0.3, provider: 0.4, trust: 0.3, bonus: new Set(["code-audit", "animation-web"]) },
+  senior_ic: { hardware: 0.4, provider: 0.2, trust: 0.4, bonus: new Set(["code-audit", "security-review"]) },
+  oss_maintainer: { hardware: 0.5, provider: 0.2, trust: 0.3, bonus: new Set(["diagram-systems", "refactor"]) },
+  other: { hardware: 0.4, provider: 0.3, trust: 0.3, bonus: new Set() },
+};
+
+const PERSONA_BONUS = 0.05; // additive nudge for a persona's affinity packs
+
 export function recommendPacks(
   packs: Array<{ pack_id: string; model_floor: string; model_ceiling: string }>,
   profile: HardwareProfile,
   detectedTier: string,
+  persona: Persona = "other",
 ): PackFit[] {
+  const w = PERSONA_WEIGHTS[persona] ?? PERSONA_WEIGHTS.other;
   return packs
     .map((pk) => {
       const trust = STATIC_TRUST[pk.pack_id] ?? 70;
+      const bonus = w.bonus.has(pk.pack_id) ? PERSONA_BONUS : 0;
       const fit_score =
-        0.4 * hardwareFit(pk.model_floor, profile) +
-        0.3 * providerTierFit(pk.model_ceiling, detectedTier) +
-        0.3 * (trust / 100);
+        w.hardware * hardwareFit(pk.model_floor, profile) +
+        w.provider * providerTierFit(pk.model_ceiling, detectedTier) +
+        w.trust * (trust / 100) +
+        bonus;
       return {
         pack_id: pk.pack_id,
         fit_score: Math.round(fit_score * 1000) / 1000,
@@ -255,10 +284,10 @@ function discoverPacks(packsDir: string): Array<{ pack_id: string; model_floor: 
 
 // ── Schema builders (pure) ────────────────────────────────────────────────────
 
-export function buildProfile(p: HardwareProfile, now: Date): Record<string, unknown> {
+export function buildProfile(p: HardwareProfile, now: Date, persona?: Persona): Record<string, unknown> {
   const next = new Date(now.getTime());
   next.setUTCDate(next.getUTCDate() + 30);
-  return {
+  const out: Record<string, unknown> = {
     schema_version: "1.0.0",
     os: `${p.os}-${p.os_version}`,
     node_version: p.node_version.replace(/^v/, ""),
@@ -268,6 +297,9 @@ export function buildProfile(p: HardwareProfile, now: Date): Record<string, unkn
     captured_utc: now.toISOString(),
     next_refresh_utc: next.toISOString(),
   };
+  // Wave 3 D2 — persist the persona choice (omitted when not asked, for compat).
+  if (persona) out.persona = persona;
+  return out;
 }
 
 export function buildCredentials(
@@ -298,15 +330,8 @@ export function buildCredentials(
   return { schema_version: "1.0.0", providers };
 }
 
-export function buildConsent(telemetryEnabled: boolean, now: Date): Record<string, unknown> {
-  return {
-    schema_version: "1.0.0",
-    telemetry_enabled: telemetryEnabled,
-    consent_timestamp_utc: now.toISOString(),
-    consent_version: "1.0.0",
-    can_revoke: true,
-  };
-}
+// Wave 3 D2 — consent is now an HMAC-signed audit-trail (see ../consent.ts),
+// imported below and re-exported so existing init tests keep importing it here.
 
 // ── Filesystem write (0600) ───────────────────────────────────────────────────
 
@@ -606,6 +631,18 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
 
   // Step 4 — pack recommendations
   io.print("\nStep 4/5 · Recommended packs (based on your stack)");
+  // Wave 3 D2 — persona-aware refinement. The answer shifts the scoring weights
+  // (see PERSONA_WEIGHTS); a bare Enter / unknown answer keeps the default mix.
+  io.print("  Which best describes you?");
+  io.print("    [a] Solo Founder — own tokens, ROI matters");
+  io.print("    [b] Senior IC — company pays, speed + control");
+  io.print("    [c] OSS Maintainer — big repos, parallelism");
+  io.print("    [d] Other — show me the default mix");
+  const personaAns = (await io.ask("  Persona? [a/b/c/d] (default: d): ")).trim().toLowerCase();
+  const persona: Persona =
+    personaAns === "a" ? "solo_founder" :
+    personaAns === "b" ? "senior_ic" :
+    personaAns === "c" ? "oss_maintainer" : "other";
   const detectedTier = anthropic
     ? anthropic.access === "api_key"
       ? "T3"
@@ -615,7 +652,7 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
     : profile.ollama.available
       ? "T1"
       : "T0";
-  const fits = recommendPacks(discoverPacks(packsDir), profile, detectedTier);
+  const fits = recommendPacks(discoverPacks(packsDir), profile, detectedTier, persona);
   const top3 = fits.slice(0, 3);
   const installed = new Set<string>(loadInstalled(mooterHome));
   if (top3.length === 0) {
@@ -646,19 +683,24 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
     updated_utc: now.toISOString(),
   });
 
-  // Step 5 — telemetry consent
+  // Step 5 — telemetry consent (opt-in, HMAC-signed audit-trail). Default OFF.
   io.print("\nStep 5/5 · Telemetry · privacy-first");
-  io.print("  We collect (aggregated, k-anon ≥50): prompt SHA-256 hash, tier+cost,");
-  io.print("  pack+confidence, latency. We NEVER collect your code, prompts, or responses.");
-  const telemetry = await io.confirm("  Enable telemetry to help mooter improve?", false);
+  io.print("  Categories: tier_distribution · safety_boost_reasons · pack_usage · hardware_info");
+  io.print("  NEVER: your code, prompts, or responses. Signed locally · revoke anytime.");
+  io.print("  ('d' for details · nothing is sent in this build — opt-in only prepares the channel)");
+  const telemetryAns = (await io.ask("  Opt-in to anonymous telemetry? [y/n/d] (default: n): ")).trim().toLowerCase();
+  if (telemetryAns === "d") io.print(consentDetailsLong());
+  const telemetry = telemetryAns === "y" || telemetryAns === "yes";
 
-  // Write the three schemas (0600).
-  writeJson600(join(mooterHome, "profile.json"), buildProfile(profile, now));
+  // Write the schemas (0600). Consent is signed with the machine-local secret so
+  // the user can verify it was not silently flipped (no network involved).
+  const secret = getLocalSecret(mooterHome);
+  writeJson600(join(mooterHome, "profile.json"), buildProfile(profile, now, persona));
   writeJson600(
     join(mooterHome, "credentials.json"),
     buildCredentials(anthropic, profile.ollama, profile.gpu, now),
   );
-  writeJson600(join(mooterHome, "consent.json"), buildConsent(telemetry, now));
+  writeJson600(join(mooterHome, "consent.json"), buildConsent(telemetry, now, secret));
 
   io.print("\n✓ mooter is configured. Run `mooter pack list` to see installed packs.");
   return {
