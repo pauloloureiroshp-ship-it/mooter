@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **📊 WAVE 4 PHASE C DASHBOARD CLOUD merged — tag `v0.4.1-dashboard-cloud` em `dev` (PR #28, `967e2c6`). ADAPTADO honesto: o /dashboard já mostra dados reais (Decisions tab → /api/decisions-log) e /settings já existe, por isso ESTENDI sem duplicar nem mockar. `_phase_c.tsx`: CliStatusCard (dados reais de devices) · ActivityNote (per-tier deferido a W4 D, sem chart fake) · CliSettingsLink (liga ao /settings existente) · disclaimers honestos + footer. landing Phase A+B intacto (só 3 ficheiros dashboard, +223/−0). ZERO mocks fabricados, ZERO network novo. final-reviewer APPROVE 12/12 (endossou adaptar honesto). landing 11/11, tsc limpo. Custo $0. ⏸ PARA — Wave 4 Phase D (CF Workers backend) precisa novo kickoff.**)
-**Versão:** **v0.4.1-dashboard-cloud** (W4 Phase C) · v0.4.0-auth (W4 B) · v0.3.2-sync-stub (W3 D3) · v0.3.1-activation-hub (W3 D2) · v0.3.0-safety-fix (W3 D1) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **☁️ WAVE 4 PHASE D SYNC REAL-MODE merged — tag `v0.4.2-cf-backend` em `dev` (PR #29, `e2eb50f`). ADAPTADO (3ª vez greenfield-falso, o maior): o `hub/` JÁ é um backend CF Workers DEPLOYED (D1 mooter-hub live, /api/events, mooter_events, cron) — criar cf-workers/ duplicaria produção. Shippei SÓ o cliente: `mooter sync` real-mode (feature-flag MOOTER_CF_BACKEND_URL, POST W3 D3 events → {url}/v1/events, fetch injectável, audit real-sync bytes>0). hub/ + landing/ INTACTOS, zero cf-workers/. Rota hub /v1/events + dashboard activate DEFERIDOS a kickoff hub-aware. final-reviewer APPROVE 12/12. CLI 144/144. Custo $0. ⏸ PARA — kickoff hub-aware OU Wave 5 (Adapter Forge).**)
+**Versão:** **v0.4.2-cf-backend** (W4 Phase D) · v0.4.1-dashboard-cloud (W4 C) · v0.4.0-auth (W4 B) · v0.3.2-sync-stub (W3 D3) · v0.3.0-safety-fix (W3 D1) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #61 — **Wave 4 Phase C Dashboard** (autónomo, auto-merge dev). ADAPTADO honesto: estende /dashboard existente (CliStatusCard real + settings link + disclaimers), tag v0.4.1-dashboard-cloud. landing Phase A+B intacto. Notion: [📊 W4 Phase C](https://www.notion.so/3716f6e42bc48129b734c5831f29f636).
+**Sessão Claude Code:** #62 — **Wave 4 Phase D Sync Real-Mode** (autónomo, auto-merge dev). ADAPTADO ao hub/ deployed: só o cliente `mooter sync` real-mode, tag v0.4.2-cf-backend. hub/+landing/ intactos. Notion: [☁️ W4 Phase D](https://www.notion.so/3716f6e42bc481dd8a0bf61f6acb4369).
+
+### ☁️ Sessão #62 — 2026-05-31 (Wave 4 Phase D — Sync Real-Mode, v0.4.2-cf-backend, ADAPTADO)
+
+**Mandato Paulo:** executar WAVE4_PHASE_D_CF_WORKERS (6 sub-features, cf-workers/ greenfield). **Recon (3ª vez):** `hub/` JÁ é um backend CF Workers DEPLOYED (worker frugal-hub, D1 mooter-hub live, routes /api/events+/api/delta+/api/device-heartbeat, migrations 003-009 com mooter_events, cron, R2). Criar cf-workers/ duplicaria/fragmentaria produção. **Paulo escolheu só-cliente.**
+
+**Wave 4 Phase D (PR #29 merged `e2eb50f`, tag v0.4.2-cf-backend):** só a peça-cliente — `runSyncReal` em sync.ts: feature-flag (MOOTER_CF_BACKEND_URL/sync-config.json), sem URL → dry-run fallback, com URL → exige login+consent → POST eventos W3 D3 a {url}/v1/events → audit real-sync (bytes>0). Fetch injectável (testes mock, zero rede). Doc CLOUDFLARE_SETUP reflecte hub/ real + defere rota. hub/+landing/ intactos, zero cf-workers/. +7 testes (CLI 144/144). final-reviewer APPROVE 12/12.
+
+**Próxima missão:** kickoff **hub-aware** (adicionar /v1/events ao hub/ deployed + activar dashboard chart — toca produção) OU **Wave 5 Adapter Forge** (LoRA real). **PARA aqui.** Padrão 3×: kickoffs Wave 4 assumem greenfield; o repo tem auth+dashboard+settings+hub/ deployed — recon-primeiro sempre.
 
 ### 📊 Sessão #61 — 2026-05-31 (Wave 4 Phase C — Dashboard Cloud, v0.4.1-dashboard-cloud, ADAPTADO honesto)
 
@@ -949,7 +957,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**📊 Wave 4 Phase C SHIPPED (2026-05-31) — tag `v0.4.1-dashboard-cloud` em `dev` (PR #28).** ADAPTADO honesto: estende o /dashboard existente (CliStatusCard com dados reais de devices · ActivityNote · CliSettingsLink → /settings existente · disclaimers). Zero mocks fabricados, zero network novo. landing Phase A+B intacto (só 3 ficheiros dashboard). final-reviewer APPROVE 12/12. landing 11/11. **⏸ Wave 4 Phase D (CF Workers backend) precisa novo kickoff.**
+**☁️ Wave 4 Phase D SHIPPED (2026-05-31) — tag `v0.4.2-cf-backend` em `dev` (PR #29).** ADAPTADO: `hub/` já é backend CF Workers deployed → shippei só o cliente `mooter sync` real-mode (feature-flag, POST W3 D3 events, fetch injectável). hub/+landing/ intactos, zero cf-workers/. Rota hub /v1/events + dashboard activate deferidos a kickoff hub-aware. final-reviewer APPROVE 12/12. CLI 144/144. **⏸ kickoff hub-aware OU Wave 5 (Adapter Forge).**
+
+**📊 Wave 4 Phase C SHIPPED (2026-05-31) — tag `v0.4.1-dashboard-cloud` em `dev` (PR #28).** ADAPTADO honesto: estende o /dashboard existente (CliStatusCard com dados reais de devices · ActivityNote · CliSettingsLink → /settings existente · disclaimers). Zero mocks fabricados, zero network novo. landing Phase A+B intacto (só 3 ficheiros dashboard). final-reviewer APPROVE 12/12. landing 11/11.
 
 **🔐 Wave 4 Phase B SHIPPED (2026-05-31) — tag `v0.4.0-auth` em `dev` (PR #27).** ADAPTADO ao auth Supabase existente: `mooter login`/`logout`/`--status` CLI ligado ao /api/cli-token existente (loopback → ~/.mooter/auth.json 0600). landing/ Phase A intacto (zero @supabase/ssr). final-reviewer APPROVE 0 blockers. CLI 137/137. Setup: `WAVE4_PHASE_B_SUPABASE_SETUP.md`.
 
