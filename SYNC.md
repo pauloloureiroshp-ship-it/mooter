@@ -3,10 +3,18 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🔄 WAVE 3 DAY 3 SYNC STUB merged — tag `v0.3.2-sync-stub` em `dev` (PR #26, `873c029`). Contrato de sync remoto (prep Wave 4 CF Workers) SEM network: mooter_sync_event schema v1 (anonimizado, HMAC-signed) · sync queue local review-able · `mooter sync --dry-run` (MOCK POST, bytes_sent=0) · audit log signed user-verificável · schedule spec (consent.sync_schedule + quiet --sync-cadence, NO cron). P11 + safety_boost + mooter_event intactos. ZERO network (teste com global fetch que throws). final-reviewer APPROVE 12/12. CLI 130/130. Custo $0. ⏸ PARA — Wave 3 D4 / Wave 4 transition precisa novo kickoff.**)
-**Versão:** **v0.3.2-sync-stub** (W3 D3) · v0.3.1-activation-hub (W3 D2) · v0.3.0-safety-fix (W3 D1) · v0.2.8-parity (W2.8) · v0.2.7-audit (W2.7) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
+**Última sync:** 2026-05-31 (Claude Code — **🔐 WAVE 4 PHASE B AUTH merged — tag `v0.4.0-auth` em `dev` (PR #27, `ee95c0f`). ADAPTADO: o landing já tinha auth Supabase completo (cliente custom + /api/cli-token → 127.0.0.1:7822), por isso shippei SÓ a peça em falta — `mooter login`/`logout`/`--status` ligado ao contrato existente (browser → loopback callback → ~/.mooter/auth.json 0600, guarda user_id_hash não email). landing/ Phase A 100% intacto (zero @supabase/ssr, zero ficheiros landing/ tocados). ZERO external network. final-reviewer APPROVE 0 blockers (confirmou que ADAPTAR foi correcto). CLI 137/137. Custo $0. ⏸ PARA — Wave 4 Phase C/D precisa novo kickoff.**)
+**Versão:** **v0.4.0-auth** (W4 Phase B) · v0.3.2-sync-stub (W3 D3) · v0.3.1-activation-hub (W3 D2) · v0.3.0-safety-fix (W3 D1) · v0.2.8-parity (W2.8) · Pastor Wave 1 SHIPPED · mooter.ai live · **7 packs** · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #59 — **Wave 3 D3 Sync Stub** (autónomo, auto-merge dev). sync_event schema v1 + queue + dry-run + audit log + schedule spec, tag v0.3.2-sync-stub. ZERO network, P11/safety_boost/mooter_event intactos. Notion: [🔄 W3 D3](https://www.notion.so/3716f6e42bc481019250e28f6b168158).
+**Sessão Claude Code:** #60 — **Wave 4 Phase B Auth** (autónomo, auto-merge dev). ADAPTADO ao auth existente: `mooter login` CLI → /api/cli-token, tag v0.4.0-auth. landing/ Phase A intacto. Notion: [🔐 W4 Phase B](https://www.notion.so/3716f6e42bc4813593bcdeefce2bc5b6).
+
+### 🔐 Sessão #60 — 2026-05-31 (Wave 4 Phase B — Auth, v0.4.0-auth, ADAPTADO)
+
+**Mandato Paulo:** executar WAVE4_PHASE_B_AUTH (5 sub-features Supabase + mooter login). **Recon revelou conflito:** o landing já tem auth Supabase completo (cliente custom, cookies sb-access-token, **/api/cli-token → 127.0.0.1:7822**, middleware, dashboard app/(app)/dashboard). Executar verbatim duplicaria auth + substituiria middleware viva (violaria invariante Phase A). **Paulo escolheu ADAPTAR.**
+
+**Wave 4 Phase B (PR #27 merged `ee95c0f`, tag v0.4.0-auth):** shippado SÓ a peça em falta — `mooter login`/`logout`/`--status` (`packages/cli/src/commands/login.ts`) ligado ao contrato existente: loopback 127.0.0.1:7822 → browser /api/cli-token → ~/.mooter/auth.json 0600 (user_id_hash, não email). Doc `WAVE4_PHASE_B_SUPABASE_SETUP.md` reflecte o sistema REAL. NÃO feito (já existia): @supabase/ssr, páginas auth, middleware, /dashboard, tabela mooter_cli_codes. landing/ Phase A intacto. ZERO external network. +7 testes (CLI 137/137). final-reviewer APPROVE 0 blockers.
+
+**Próxima missão:** Wave 4 Phase C (dashboard cloud) OU Phase D (CF Workers backend — usa auth.json p/ sync REAL; W3 D3 client mantém-se dry-run). **PARA aqui, precisa novo kickoff.** Nota: futuros kickoffs Wave 4 devem reflectir o auth EXISTENTE (não greenfield).
 
 ### 🔄 Sessão #59 — 2026-05-31 (Wave 3 Day 3 — Hub Remote Sync Stub, v0.3.2-sync-stub)
 
@@ -933,7 +941,9 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 
 ## 🎯 Estado Actual do Projecto
 
-**🔄 Wave 3 Day 3 SHIPPED (2026-05-31) — tag `v0.3.2-sync-stub` em `dev` (PR #26).** Contrato sync remoto p/ Wave 4 CF Workers, ZERO network: mooter_sync_event schema v1 (anonimizado, HMAC) · sync queue local · `mooter sync --dry-run` (MOCK POST) · audit log signed · schedule spec (NO cron). P11 + safety_boost + mooter_event intactos. final-reviewer APPROVE 12/12. CLI 130/130. **⏸ Wave 3 D4 / Wave 4 transition precisa novo kickoff.**
+**🔐 Wave 4 Phase B SHIPPED (2026-05-31) — tag `v0.4.0-auth` em `dev` (PR #27).** ADAPTADO ao auth Supabase existente: `mooter login`/`logout`/`--status` CLI ligado ao /api/cli-token existente (loopback → ~/.mooter/auth.json 0600). landing/ Phase A intacto (zero @supabase/ssr). final-reviewer APPROVE 0 blockers. CLI 137/137. **⏸ Wave 4 Phase C/D precisa novo kickoff.** Setup: `WAVE4_PHASE_B_SUPABASE_SETUP.md`.
+
+**🔄 Wave 3 Day 3 SHIPPED (2026-05-31) — tag `v0.3.2-sync-stub` em `dev` (PR #26).** Contrato sync remoto p/ Wave 4 CF Workers, ZERO network: mooter_sync_event schema v1 (anonimizado, HMAC) · sync queue local · `mooter sync --dry-run` (MOCK POST) · audit log signed · schedule spec (NO cron). P11 + safety_boost + mooter_event intactos. final-reviewer APPROVE 12/12. CLI 130/130.
 
 **📡 Wave 3 Day 2 SHIPPED (2026-05-31) — tag `v0.3.1-activation-hub` em `dev` (PR #25).** 5 sub-features 100% local ZERO network: telemetry opt-in HMAC (consent.ts) · `mooter hub` TUI · dashboard PACK section (fix W2.7 MIN-1) · persona-aware recommendations · `trail --safety --by-keyword` over-boost monitor. P11 + safety_boost intactos (tudo CLI). final-reviewer APPROVE 0 blockers. CLI 106/106.
 
