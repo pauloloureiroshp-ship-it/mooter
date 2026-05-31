@@ -96,6 +96,38 @@ export interface InitOptions {
   validateAnthropic?: (key: string) => Promise<AnthropicValidation>;
   /** Pre-seed provider/access answers to keep the v1 flow short in tests. */
   fetchImpl?: typeof fetch;
+  /** Wave 6 D2 — `--from-token=<t>`: pre-fill persona from a web install token. */
+  fromToken?: string;
+  /** Override the landing base URL for token validation (default mooter.ai / env). */
+  landingUrl?: string;
+}
+
+/** Wave 6 D2 — anonymous pre-config carried by a web install token. */
+interface InstallPreConfig {
+  persona?: string;
+  subscription_self_reported?: string;
+  hardware_class?: { gpu_class?: string; ram_class?: string; os_class?: string };
+}
+
+/**
+ * Validate a web install token (read-only — does NOT consume it) and return its
+ * anonymous pre-config, or null on any failure. The CLI still confirms hardware
+ * and provider keys; the token only pre-fills the persona.
+ */
+export async function fetchPreConfigFromToken(
+  token: string,
+  fetchImpl: typeof fetch = fetch,
+  landingUrl?: string,
+): Promise<InstallPreConfig | null> {
+  if (!/^[A-Za-z0-9_-]{32,64}$/.test(token)) return null;
+  const base = landingUrl ?? process.env.MOOTER_LANDING_URL ?? "https://mooter.ai";
+  try {
+    const res = await fetchImpl(`${base}/api/install/validate/${token}`);
+    if (!res.ok) return null;
+    return (await res.json()) as InstallPreConfig;
+  } catch {
+    return null;
+  }
 }
 
 const TIER_ORDER = ["T0", "T1", "T2", "T3"];
@@ -561,6 +593,24 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
 
   mkdirSync(mooterHome, { recursive: true });
 
+  // Wave 6 D2 — if launched with --from-token, validate it (read-only) and
+  // pre-fill the persona so the web-onboarded user skips that prompt. Hardware
+  // and provider keys are still confirmed below (the CLI does precise detection).
+  let prePersona: Persona | null = null;
+  if (opts.fromToken) {
+    const pre = await fetchPreConfigFromToken(opts.fromToken, opts.fetchImpl ?? fetch, opts.landingUrl);
+    if (pre) {
+      prePersona = (["solo_founder", "senior_ic", "oss_maintainer", "other"] as const).includes(
+        pre.persona as Persona,
+      )
+        ? (pre.persona as Persona)
+        : "other";
+      io.print("  ✓ Pre-config from web wizard loaded — persona pre-filled");
+    } else {
+      io.print("  ⚠ Install token invalid or expired — continuing with the full wizard");
+    }
+  }
+
   // Step 1 — hardware
   const profile = await probe();
   renderProbe(profile, io);
@@ -633,16 +683,22 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
   io.print("\nStep 4/5 · Recommended packs (based on your stack)");
   // Wave 3 D2 — persona-aware refinement. The answer shifts the scoring weights
   // (see PERSONA_WEIGHTS); a bare Enter / unknown answer keeps the default mix.
-  io.print("  Which best describes you?");
-  io.print("    [a] Solo Founder — own tokens, ROI matters");
-  io.print("    [b] Senior IC — company pays, speed + control");
-  io.print("    [c] OSS Maintainer — big repos, parallelism");
-  io.print("    [d] Other — show me the default mix");
-  const personaAns = (await io.ask("  Persona? [a/b/c/d] (default: d): ")).trim().toLowerCase();
-  const persona: Persona =
-    personaAns === "a" ? "solo_founder" :
-    personaAns === "b" ? "senior_ic" :
-    personaAns === "c" ? "oss_maintainer" : "other";
+  let persona: Persona;
+  if (prePersona) {
+    persona = prePersona;
+    io.print(`  ✓ Persona ${persona} (from web wizard) — skipping prompt`);
+  } else {
+    io.print("  Which best describes you?");
+    io.print("    [a] Solo Founder — own tokens, ROI matters");
+    io.print("    [b] Senior IC — company pays, speed + control");
+    io.print("    [c] OSS Maintainer — big repos, parallelism");
+    io.print("    [d] Other — show me the default mix");
+    const personaAns = (await io.ask("  Persona? [a/b/c/d] (default: d): ")).trim().toLowerCase();
+    persona =
+      personaAns === "a" ? "solo_founder" :
+      personaAns === "b" ? "senior_ic" :
+      personaAns === "c" ? "oss_maintainer" : "other";
+  }
   const detectedTier = anthropic
     ? anthropic.access === "api_key"
       ? "T3"

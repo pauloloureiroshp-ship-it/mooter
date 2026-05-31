@@ -51,7 +51,8 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (command === "init") {
-    const res = await runInit();
+    const fromTokenArg = rest.find((a) => a.startsWith("--from-token="));
+    const res = await runInit(fromTokenArg ? { fromToken: fromTokenArg.split("=")[1] } : {});
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
