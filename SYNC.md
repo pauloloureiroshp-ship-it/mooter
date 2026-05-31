@@ -3,10 +3,30 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-**Última sync:** 2026-05-31 (Claude Code — **🎉 WAVE 2.5 CONCLUÍDA — tag `v0.2.1-polish` em `dev` (`3bb94b8`). 4 Days shipped em continuous mode (PRs #16/#17/#18/#19, todos merged). Gate verdict GO → Wave 3 unblocked. Tests finais: CLI 51/51, router test:cli 37/37, statusline+tier-mix 47/47. Custo Wave 2.5 total $0. final-reviewer T3-gate APPROVE em todos os 4 Days. `classify.js` byte-identical (P11) em toda a wave.**)
+**Última sync:** 2026-05-31 (Claude Code — **🐮 WAVE 2.6 DAY 1 MERGED — rebrand Pastor → Mooter+Moos em `dev` (`d8cd3af`, PR #20). 4 commits: renames (PASTOR.md→MOOTER_PLAYBOOK.md) · find-replace semântico · landing copy + a11y · GLOSSARY.md (SSoT vocabulário). final-reviewer T3-gate APPROVE_WITH_NOTES (0 blockers). `classify.js` byte-identical (P11). Resíduos "Pastor" = só histórico imutável (ADRs, benchmarks, wave names, commits/Notion passados). Custo $0. ⏸ Day 2 (statusline 2-line + dashboard TUI) unblocked.**)
 **Versão:** **v0.2.1-polish** (Wave 2.5 SHIPPED) · Pastor Wave 1 SHIPPED · Wave 2 Day 1-7 merged · mooter.ai live · **7 packs** + embedding axis-2 v2 + event-writer local · **repo PÚBLICO 2026-05-27**
 **Último commit main:** `020e80f` Wave 1 Pastor Benchmark — REPORT + outputs + REPORT analysis (#7)
-**Sessão Claude Code:** #52 — **Wave 2.5 CLOSURE** (Days 2→3→4 auto-orquestrados + tag). Day 2 wizard hardening (#17), Day 3 bash attribution + tier mix (#18), Day 4 provenance trail + e2e (#19). Tag `v0.2.1-polish`. Notion closure: [🐮 Wave 2.5 CLOSURE](https://www.notion.so/3716f6e42bc4813aaa58e6ffeb5bb241).
+**Sessão Claude Code:** #53 — **Wave 2.6 Day 1 GATE + MERGE** (rebrand Pastor → Mooter+Moos). PR #20 já estava committed numa sessão anterior; esta sessão correu final-reviewer T3-gate (APPROVE_WITH_NOTES, 0 blockers), adjudicou resíduos "Pastor" como histórico imutável, e fez merge → `dev` (`d8cd3af`).
+
+### 🐮 Sessão #53 — 2026-05-31 (Wave 2.6 Day 1 — rebrand Pastor → Mooter+Moos, PR #20 GATE + MERGED)
+
+**Mandato Paulo:** state-check arrancou "Wave 2.6 Day 1"; descoberta de que o trabalho já estava na branch `wave2.6-day1-rebrand-mooter-moos` (PR #20 aberto). Escolha: **final-reviewer + merge**.
+
+**Outcome (PR #20 merged em `dev` `d8cd3af`):**
+- **Renames** (`da9effd`) — `PASTOR.md`→`MOOTER_PLAYBOOK.md` (93% sim), `PASTOR_OPERATIONS.md`→`MOOTER_OPERATIONS.md` (99%), git history preservado via `--follow`.
+- **Find-replace semântico** (`4e865d3`) — "Pastor" (entidade)→"Mooter", colectivo→"Moos", per GLOSSARY.
+- **Landing copy + a11y** (`1d81f5d`) — zero "Pastor" visível ao user; h1 "Mooter pastors the Moos"; aria-labels alinhados.
+- **GLOSSARY.md** (`f7513ec`) — SSoT vocabulário: Mooter (entity) · Moos (collective) · A Moo (individual) · to pastor (verb). Linkado do README.
+
+**Gate final-reviewer (T3):** APPROVE_WITH_NOTES, **0 blockers**. `classify.js` byte-identical (P11) ✓ · `docs/archive/` untouched ✓ · `mooter_event.ts` schema intacto ✓ · variable names .ts/.js não alterados (Wave 3 backlog) ✓ · CI Vercel verde ✓.
+
+**Resíduos "Pastor" adjudicados ACCEPTABLE_AS_HISTORICAL:** ADRs 015/016/017, `docs/benchmarks/wave1-pastor/`+`wave2-pastor/`, e nomes próprios históricos em MOOTER_PLAYBOOK/OPERATIONS ("Wave 1 do Pastor", commits/Notion titles passados). Renomear falsificaria histórico. NIT Wave 3: componente `PastorCrook.tsx` + campo `pastor_version` (identificadores .ts, não visíveis).
+
+**Topologia:** branch bifurcou em `b59191a` (antes de `189a7a1`). Merge 3-way seguro — ficheiros do `189a7a1` (kickoffs W2.6/2.7) sobrevivem; "deletes" do diff two-dot eram artefacto.
+
+**Custo:** $0 (rebrand textual).
+
+**Próxima missão:** Wave 2.6 Day 2 — statusline 2-line + mooter dashboard TUI (usa vocab novo). Kickoff: `docs/strategy/WAVE2_6_DAY2_KICKOFF.md`.
 
 ### 🎉 Sessão #52 — 2026-05-31 (Wave 2.5 CLOSURE — Days 2/3/4 + tag v0.2.1-polish)
 
@@ -828,6 +848,8 @@ Zero conflicts via git — bundled commits (e.g. `0f82b7b`, `6c50cf3`) quando am
 ---
 
 ## 🎯 Estado Actual do Projecto
+
+**🐮 Wave 2.6 Day 1 MERGED (2026-05-31) — rebrand Pastor → Mooter+Moos em `dev` (`d8cd3af`, PR #20).** GLOSSARY.md é agora SSoT do vocabulário (Mooter=entity · Moos=collective · "to pastor"=verb). final-reviewer APPROVE_WITH_NOTES (0 blockers). `classify.js` byte-identical (P11). Resíduos "Pastor" = só histórico imutável. **⏸ Day 2 (statusline 2-line + dashboard TUI) unblocked — `WAVE2_6_DAY2_KICKOFF.md`.**
 
 **✅ Wave 2.5 SHIPPED (2026-05-31) — tag `v0.2.1-polish` em `dev` (`3bb94b8`).** 4 Days merged (#16-#19): statusline 🐮 + per-terminal isolation · wizard hardening (stdin non-TTY + edge cases + idempotency) · bash tier-badge + tier-mix view + `mooter quiet` · provenance `mooter trail` + e2e. Tests: CLI 51/51 · router test:cli 37/37 · statusline+tier-mix 47/47. Custo $0. **Wave 3 (activation + hub) unblocked — aguarda `WAVE3_D1_KICKOFF.md`.**
 
