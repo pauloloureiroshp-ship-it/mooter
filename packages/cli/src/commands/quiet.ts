@@ -36,6 +36,8 @@ export interface QuietOptions {
   mooCardOff?: boolean;
   /** `--telemetry-off` revokes telemetry consent (writes consent.json off). */
   telemetryOff?: boolean;
+  /** `--sync-cadence=<daily|weekly|manual-only>` sets the sync schedule cadence. */
+  syncCadence?: string;
   /** Override the ~/.mooter root (tests). */
   mooterHome?: string;
   /** Override "now" + signing secret (tests). */
@@ -72,6 +74,26 @@ export function runQuiet(opts: QuietOptions = {}): CmdResult {
     const consent = buildConsent(false, opts.now ?? new Date(), secret);
     writeFileSync(join(mooterHome, "consent.json"), JSON.stringify(consent, null, 2) + "\n", { mode: 0o600 });
     return { exitCode: 0, output: "✓ Telemetry disabled (consent revoked)." };
+  }
+
+  // Wave 3 Day 3 — sync cadence (schedule spec only; NO cron is started). Updates
+  // consent.json sync_schedule.cadence, preserving the rest of the consent record.
+  if (opts.syncCadence) {
+    const valid = ["daily", "weekly", "manual-only"];
+    if (!valid.includes(opts.syncCadence)) {
+      return { exitCode: 1, output: `✗ invalid cadence '${opts.syncCadence}' (use: ${valid.join(" | ")})` };
+    }
+    mkdirSync(mooterHome, { recursive: true });
+    let consent: Record<string, unknown> = {};
+    try {
+      consent = JSON.parse(readFileSync(join(mooterHome, "consent.json"), "utf8"));
+    } catch {
+      consent = {};
+    }
+    const sched = (consent.sync_schedule as Record<string, unknown>) ?? { time_of_day: "03:00", timezone: "local" };
+    consent.sync_schedule = { ...sched, cadence: opts.syncCadence };
+    writeFileSync(join(mooterHome, "consent.json"), JSON.stringify(consent, null, 2) + "\n", { mode: 0o600 });
+    return { exitCode: 0, output: `✓ Sync cadence set to ${opts.syncCadence} (no cron started — Wave 4 honours this).` };
   }
 
   // Wave 2.6 Day 3 — Moo card toggle. When a --moo-card[-off] flag is present we
