@@ -138,11 +138,23 @@ export function compilePack(pack_id: string, signals: Partial<DomainSignals>): C
   };
 }
 
-/** Resolve the repo's canonical packs/ directory relative to this module. */
+/** Resolve the canonical packs/ directory.
+ *
+ * Wave 8 (install reliability): bundle-safe. Once esbuild-bundled, the
+ * source-relative path no longer points at the repo, so we honor an explicit
+ * MOOTER_PACKS_DIR first (the install shim sets it to ~/.mooter/packs), then
+ * fall back to source-relative resolution (dev/tsx), then to the install
+ * layout — never throwing at resolution time. */
 export function defaultPacksDir(): string {
-  // packages/router/src/classify_domain.ts -> <repo>/packs
-  const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "..", "packs");
+  if (process.env.MOOTER_PACKS_DIR) return process.env.MOOTER_PACKS_DIR;
+  try {
+    // packages/router/src/classify_domain.ts -> <repo>/packs  (dev/tsx)
+    const here = dirname(fileURLToPath(import.meta.url));
+    return join(here, "..", "..", "..", "packs");
+  } catch {
+    const home = process.env.HOME || process.env.USERPROFILE || ".";
+    return join(home, ".mooter", "packs");
+  }
 }
 
 /**

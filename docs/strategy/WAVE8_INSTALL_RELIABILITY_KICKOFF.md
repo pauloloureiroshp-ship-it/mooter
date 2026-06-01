@@ -2,7 +2,7 @@
 
 > **Status**: KICKOFF / not started. Recon-first (lição 7×). Paulo decides if/when to run.
 >
-> **Naming note**: "Wave 8" already informally referred to the Codex CLI wave ("por último"). This is a *different* Wave 8 — rename to e.g. **Wave 7.5** or **Sprint D** at kickoff to avoid collision.
+> **Naming note (resolved 2026-06-01)**: this IS **Wave 8 — Install Reliability**. The Codex CLI wave (previously informal "Wave 8 — por último") was renumbered to **Wave 10 (future)** to avoid the collision.
 
 ---
 
