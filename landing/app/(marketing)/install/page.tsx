@@ -38,7 +38,11 @@ export default function InstallPage() {
       </div>
 
       <div style={{ marginTop: 36, color: 'var(--color-term-dim)', fontFamily: 'var(--mono)', fontSize: 14 }}>
-        Waiting for mooter to phone home... ●●●○○
+        $ claude <span style={{ color: 'var(--color-text)' }}>&ldquo;rename this variable&rdquo;</span>
+        <div style={{ marginTop: 4 }}>↳ mooter routed to <span style={{ color: 'var(--color-green)' }}>T0 local</span> · saved this call</div>
+        <div style={{ marginTop: 8, fontStyle: 'italic', fontSize: 12 }}>
+          *illustrative — mooter runs entirely in your terminal after install; no sign-in required.
+        </div>
       </div>
       <style>{`@media (max-width: 768px){ .install-cards{ grid-template-columns: 1fr !important; } }`}</style>
     </section>
