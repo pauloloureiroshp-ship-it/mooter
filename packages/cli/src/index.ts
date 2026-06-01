@@ -20,6 +20,7 @@ import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 import { runExplain } from "./commands/explain.ts";
+import { runFeedback } from "./commands/feedback.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -184,6 +185,16 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "pack") {
     const res = runPack(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "feedback") {
+    // `mooter feedback "<message>" [--topic=bug] [--severity=low]`
+    const message = rest.filter((a) => !a.startsWith("--")).join(" ");
+    const topic = rest.find((a) => a.startsWith("--topic="))?.split("=")[1];
+    const severity = rest.find((a) => a.startsWith("--severity="))?.split("=")[1];
+    const res = await runFeedback({ message, topic, severity });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

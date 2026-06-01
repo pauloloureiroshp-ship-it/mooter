@@ -42,7 +42,7 @@ export function isAdminEmail(email: unknown, rawAllowList: unknown, fallback: st
   return effective.includes(e);
 }
 
-export type AdminAction = "view_users_list" | "view_user_detail" | "view_stats" | "export_data";
+export type AdminAction = "view_users_list" | "view_user_detail" | "view_stats" | "view_feedback" | "export_data";
 
 export interface AuditEntry {
   action: AdminAction;

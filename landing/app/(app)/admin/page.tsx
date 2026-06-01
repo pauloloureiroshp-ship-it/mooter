@@ -66,12 +66,14 @@ type AdminStats = {
   devicesPerUser: number;
   hardwareDist: Record<string, number>;
   subDist: Record<string, number>;
+  personaDist: Record<string, number>;
+  signupsByDay: Record<string, number>;
   funnel: FunnelData;
   activity: ActivityItem[];
   users: UserRow[];
 };
 
-type Tab = 'overview' | 'users' | 'devices' | 'health';
+type Tab = 'overview' | 'users' | 'devices' | 'health' | 'feedback';
 type SortKey = 'email' | 'hardware_tier' | 'os_type' | 'decisions' | 'savings_usd' | 'frugal_version' | 'last_sync';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -206,7 +208,14 @@ function HeroCard({ label, value, sub, accent }: { label: string; value: string 
 function OverviewTab({ stats }: { stats: AdminStats }) {
   const maxHw = Math.max(...Object.values(stats.hardwareDist), 1);
   const maxSub = Math.max(...Object.values(stats.subDist), 1);
+  const maxPersona = Math.max(...Object.values(stats.personaDist ?? {}), 1);
   const funnelMax = stats.funnel.signed_up || 1;
+  // Wave 6.5 D2 — activity timeline: last 14 days of signups (chronological).
+  const PERSONA_LABEL: Record<string, string> = {
+    solo_founder: 'Solo Founder', senior_ic: 'Senior IC', oss_maintainer: 'OSS Maintainer', other: 'Other',
+  };
+  const dayEntries = Object.entries(stats.signupsByDay ?? {}).sort((a, b) => a[0].localeCompare(b[0])).slice(-14);
+  const maxDay = Math.max(...dayEntries.map(([, n]) => n), 1);
 
   return (
     <>
@@ -266,6 +275,50 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
           </div>
         </div>
       )}
+
+      {/* Persona distribution (Wave 6.5 D2) */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Persona distribution</h2>
+        {Object.keys(stats.personaDist ?? {}).length === 0 ? (
+          <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: 0 }}>No persona data yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {Object.entries(stats.personaDist).sort((a, b) => b[1] - a[1]).map(([persona, count]) => (
+              <div key={persona} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 120, fontSize: '0.8rem', color: 'var(--muted)', flexShrink: 0 }}>
+                  {PERSONA_LABEL[persona] ?? persona}
+                </span>
+                <Bar value={count} max={maxPersona} color="var(--tier-2)" />
+                <span style={{ fontSize: '0.8rem', minWidth: 70, textAlign: 'right', fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                  {count} ({pct(count, stats.totalUsers)}%)
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Activity timeline — signups per day, last 14d (Wave 6.5 D2) */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Signups — last 14 days</h2>
+        {dayEntries.length === 0 ? (
+          <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: 0 }}>No signups recorded yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {dayEntries.map(([day, count]) => (
+              <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 90, fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                  {day.slice(5)}
+                </span>
+                <Bar value={count} max={maxDay} color="var(--tier-0)" />
+                <span style={{ fontSize: '0.8rem', minWidth: 30, textAlign: 'right', fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Setup funnel */}
       <div style={card}>
@@ -963,11 +1016,95 @@ const secondaryBtnStyle: React.CSSProperties = {
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ── Feedback tab (Wave 6.5 D2) ────────────────────────────────────────────────
+
+type FeedbackRow = {
+  id: string;
+  user_id_hash: string;
+  topic: string | null;
+  severity: string | null;
+  message: string;
+  mooter_version: string | null;
+  hardware_class: Record<string, unknown> | null;
+  status: string;
+  created_at: string;
+};
+
+function FeedbackTab() {
+  const [rows, setRows] = useState<FeedbackRow[] | null>(null);
+  const [error, setError] = useState('');
+  const [topicF, setTopicF] = useState('all');
+  const [sevF, setSevF] = useState('all');
+
+  useEffect(() => {
+    fetch('/api/admin/feedback')
+      .then(r => {
+        if (r.status === 401 || r.status === 403) throw new Error('Access denied — admin only');
+        if (!r.ok) throw new Error('Server error');
+        return r.json();
+      })
+      .then((data: FeedbackRow[]) => setRows(Array.isArray(data) ? data : []))
+      .catch(e => setError(e.message));
+  }, []);
+
+  if (error) return <div style={{ ...card, color: 'var(--tier-3)' }}>{error}</div>;
+  if (!rows) return <div className="dashboard-loading">Loading...</div>;
+
+  const filtered = rows.filter(r =>
+    (topicF === 'all' || (r.topic ?? 'other') === topicF) &&
+    (sevF === 'all' || (r.severity ?? 'low') === sevF),
+  );
+
+  const selStyle: React.CSSProperties = {
+    background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)',
+    borderRadius: 'var(--r-sm)', padding: '6px 10px', fontSize: '0.8rem',
+  };
+
+  return (
+    <div style={card}>
+      <h2 style={sectionHeading}>Feedback ({filtered.length})</h2>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: 0 }}>
+          No feedback yet. Users submit via <code style={{ fontFamily: 'var(--mono)' }}>mooter feedback &quot;…&quot;</code>.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <select style={selStyle} value={topicF} onChange={e => setTopicF(e.target.value)}>
+              {['all', 'bug', 'feature', 'performance', 'docs', 'other'].map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select style={selStyle} value={sevF} onChange={e => setSevF(e.target.value)}>
+              {['all', 'low', 'medium', 'high'].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filtered.map(r => (
+              <div key={r.id} style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', background: 'var(--surface)' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                  <span>{r.created_at?.slice(0, 10)}</span>
+                  {r.topic && <span style={{ color: 'var(--accent)' }}>{r.topic}</span>}
+                  {r.severity && <span>· {r.severity}</span>}
+                  {r.mooter_version && <span>· v{r.mooter_version}</span>}
+                  <span style={{ marginLeft: 'auto' }}>user {r.user_id_hash?.slice(0, 8)}…</span>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                  {r.message.length > 200 ? `${r.message.slice(0, 200)}…` : r.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'users', label: 'Users' },
   { key: 'devices', label: 'Devices' },
   { key: 'health', label: 'Health' },
+  { key: 'feedback', label: 'Feedback' },
 ];
 
 export default function AdminPage() {
@@ -1020,6 +1157,7 @@ export default function AdminPage() {
       {tab === 'users' && <UsersTab stats={stats} />}
       {tab === 'devices' && <DevicesTab stats={stats} />}
       {tab === 'health' && <HealthTab stats={stats} />}
+      {tab === 'feedback' && <FeedbackTab />}
     </div>
   );
 }
