@@ -1,6 +1,6 @@
 {
   "name": "@mooter/cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "mooter CLI — Wave 1 Day 5: `mooter pack {list,show,diff,validate}`. See PASTOR §6.3, §10.5. tsx-native runtime (ADR 016), no build step.",

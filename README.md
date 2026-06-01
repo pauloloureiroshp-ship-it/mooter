@@ -6,7 +6,7 @@
 
 **Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · ~90% cost savings validated on 1,437 real prompts.**
 
-[![Version](https://img.shields.io/badge/version-v0.10.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Wave 1: shipped](https://img.shields.io/badge/Wave%201-shipped%202026--06--03-brightgreen.svg)](docs/wave1-validation.md)
 [![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
@@ -18,7 +18,7 @@
 ---
 
 ```
-⬆ main·a1b2 │ 🐮 mooter v0.10.1 · 🐮 Moo · CrazyMoo · LazyMoo │ [T3] ops arch 2.5s │ qwen 61% · hku 22% · son 13% · ops 4% │ 💰 $12.80 (90%) │ 💻 RTX 4090 61% │ ●●◐○○○
+⬆ main·a1b2 │ 🐮 mooter v1.0 · 🐮 Moo · CrazyMoo · LazyMoo │ [T3] ops arch 2.5s │ qwen 61% · hku 22% · son 13% · ops 4% │ 💰 $12.80 (90%) │ 💻 RTX 4090 61% │ ●●◐○○○
 ```
 
 *Your statusline after a day of work: git · 🐮 brand + mode trio · current tier + classify · tier distribution · savings + budget · GPU · provider availability. No router. No proxy. No extra bill.*
@@ -290,6 +290,31 @@ Requirements:
 
 ---
 
+## Genealogy
+
+Mooter reached **v1.0.0** by converging **two version timelines** that ran in parallel inside this repo. Both sets of git tags are **preserved (never deleted) for provenance** — so `git tag` shows more than the v1.0 headline, and this section explains why.
+
+```
+Timeline 1 — router engine  (origin: "frugal", rebranded → "mooter" 2026-04-14)
+  v0.7.0 … v0.9.4   tags, 2026-04-08→10   landing app + beta (frugal)
+  → v0.8.0 (arbiter) → v0.11.0             routing engine maturity
+                                            (tools/router/)
+
+Timeline 2 — Mooter product waves
+  v0.1.0-pastor-wave1 … v0.6.6   tags, 2026-05-27→31
+  Pastor foundations → reveal/rebrand → safety/activation/sync →
+  auth/dashboard → Adapter Forge → statusline V2 → onboarding/install →
+  admin (privacy + charts + feedback)       (packages/cli/ + landing/)
+
+                    ⬇  converge  ⬇
+            v1.0.0 — single version, all three packages
+            (tools/router/ · packages/cli/ · landing/)
+```
+
+The same numbers (e.g. `v0.6.x`) meant different things on each timeline; v1.0.0 ends that ambiguity. Legacy tags stay for history; the going-forward version is **v1.0.0**.
+
+---
+
 ## Roadmap
 
 See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, and deferred items.
@@ -308,8 +333,8 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 | v0.7.2 | ✅ Released | Turn-latency measurement via Stop hook + ~Opus baseline estimate in statusline + dispatcher architecture analysis |
 | **v0.8.0** | ✅ **Released** | **Haiku arbiter for ambiguous prompts (~17% long tail) — semantic understanding, HIGH_RISK dual-enforced, 56 tests, ~$0.27/mo extra cost for ~95% decision quality** |
 | v0.9.0 | 🟡 Planned | Parallel decomposition execution (arbiter already returns `decomposition` array, wire it to parallel subagent spawns) + arbiter metrics in statusline |
-| v1.0 | 🟡 Planned | Learned classifier (BERT/DeBERTa-small) if corpus justifies it; public launch |
-| v1.0 | 🔵 Planned | Public launch, plugin marketplace, MCP integration |
+| **v1.0.0** | ✅ **Released (Convergence)** | **Unifies the router-engine timeline (v0.7→v0.11) and the Mooter wave timeline (v0.1.0-pastor → v0.6.6) into one version. See [Genealogy](#genealogy). Zero production code changed — version + docs only.** |
+| v1.1+ | 🔵 Planned | Learned classifier (BERT/DeBERTa-small) if corpus justifies it; Adapter Forge Docker auto-training (Wave 5 D3); plugin marketplace; MCP integration |
 
 ---
 
