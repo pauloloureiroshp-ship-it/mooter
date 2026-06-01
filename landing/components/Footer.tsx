@@ -9,7 +9,7 @@ const COLUMNS: { title: string; links: { label: string; href: string; ext?: bool
     title: 'Product',
     links: [
       { label: 'Install', href: '/install' },
-      { label: 'Pack browser', href: '/packs' },
+      { label: 'Packs', href: '/packs' },
       { label: 'Compare', href: '/compare' },
       { label: 'Methodology', href: '/methodology' },
       { label: 'Under the hood', href: '/under-the-hood' },
@@ -123,7 +123,7 @@ export default function Footer() {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <MooterMark size={20} /> © 2026 mooter.ai · MIT License · Open source
           </span>
-          <span style={{ marginLeft: 'auto' }}>Made with ❤️ for vibe coders by Paulo Loureiro &amp; contributors</span>
+          <span style={{ marginLeft: 'auto' }}>Made with ❤️ for vibe coders by Paulo Loureiro &amp; the mooter community</span>
         </div>
       </div>
       <style>{`@media (max-width: 768px){ .footer-cols{ grid-template-columns: repeat(2,1fr) !important; padding:40px 20px !important; } }`}</style>

@@ -82,6 +82,16 @@ export default function HeroTerminal() {
         </div>
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-term-border)' }}>
           <StatuslineCard data={{ tier: s.tier, model: s.tierLabel.split(' ')[0] }} />
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              fontStyle: 'italic',
+              color: 'var(--color-term-dim)',
+            }}
+          >
+            *illustrative — your numbers vary
+          </div>
         </div>
       </TerminalCard>
     </div>
