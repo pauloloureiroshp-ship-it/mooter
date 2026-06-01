@@ -65,7 +65,7 @@ export function runAdapterList(opts: AdapterOptions = {}): CmdResult {
   const lines: string[] = ["🐮 Mooter adapters", ""];
   if (manifests.length === 0) {
     lines.push("  ◌ No adapters installed yet.");
-    lines.push("  ℹ Adapter Forge ships training in Wave 5 D2.");
+    lines.push("  ℹ Install a .gguf adapter with `mooter forge install` (auto-training ships Wave 5 D3).");
     lines.push("  ℹ For now you can place a .gguf adapter + manifest.json in:");
     lines.push("    ~/.mooter/adapters/<id>/");
     lines.push("    See docs/adr/020-adapter-forge-approach.md.");
@@ -132,9 +132,9 @@ export function runAdapterActivate(id: string, opts: AdapterOptions = {}): CmdRe
     exitCode: 0,
     output: [
       `✓ Marked ${id.slice(0, 12)}… as active.`,
-      "⚠ Wave 5 D1 disclaimer: runtime selection is stubbed.",
-      "   The adapter is honored only when Wave 5 D2 ships the validation pipeline.",
-      "   Until then the statusline still shows baseline.",
+      "⚠ Activation marks this adapter active in preferences.",
+      "   It is honored at runtime once installed + validated (`mooter forge install`).",
+      "   An unvalidated or tampered manifest falls back to baseline.",
     ].join("\n"),
   };
 }

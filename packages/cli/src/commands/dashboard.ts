@@ -246,12 +246,12 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
   out.push(boxRow("    Usage: no per-pack usage data yet", width));
   out.push(boxSep(width));
 
-  // ADAPTER — honest baseline disclosure. Wave 5 D1 shipped the foundation
-  // (manifest + runtime stub + CLI); the training pipeline ships D2. No
-  // fabricated LoRA telemetry. Kept within the box inner width.
+  // ADAPTER — honest baseline disclosure. Forge (install + validate) shipped
+  // Wave 5 D2; auto-training ships Wave 5 D3. No fabricated LoRA telemetry.
+  // Kept within the box inner width.
   out.push(boxRow("  ADAPTER · ◌ baseline", width));
-  out.push(boxRow("    Foundation shipped Wave 5 D1", width));
-  out.push(boxRow("    Training pipeline ships Wave 5 D2", width));
+  out.push(boxRow("    Install a .gguf via `mooter forge install`", width));
+  out.push(boxRow("    Auto-training ships Wave 5 D3", width));
   out.push(boxRow("    Run `mooter adapter list` to see adapters", width));
   out.push(boxRow("", width));
   out.push(boxRow("  Press q to exit · r to refresh", width));

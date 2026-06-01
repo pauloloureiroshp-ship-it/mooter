@@ -310,7 +310,7 @@ function printEvolutionHuman(evo: Record<string, unknown>): string {
   lines.push("");
   lines.push("OPTIMIZATIONS APPLIED");
   lines.push("  quantization: Q4_K_M (local baseline)");
-  lines.push("  LoRA: ◌ none yet (Adapter Forge ships Wave 5)");
+  lines.push("  LoRA: ◌ none yet (install your own .gguf via `mooter forge install`)");
   lines.push("");
   lines.push("NOTE");
   lines.push("  Per-window dollar savings is not shown — decisions.log carries no");
