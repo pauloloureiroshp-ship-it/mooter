@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '../../../lib/supabase';
+import { isAdminEmail, buildAuditEntry } from '../../../(app)/admin/_lib/privacy';
+import { getAdminAllowList, ADMIN_EMAIL_FALLBACK, writeAudit } from '../../../(app)/admin/_lib/audit.server';
 
-const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -42,9 +43,12 @@ export async function GET(req: NextRequest) {
   if (!accessToken) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const user = await getUser(accessToken);
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !isAdminEmail(user.email, getAdminAllowList(), ADMIN_EMAIL_FALLBACK)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
+
+  // Best-effort audit (never blocks the response).
+  void writeAudit(accessToken, user.id, buildAuditEntry('view_stats'));
 
   const [profilesRes, devicesRes] = await Promise.all([
     fetch(
