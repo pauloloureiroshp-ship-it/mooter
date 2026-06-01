@@ -29,6 +29,11 @@ domain_signals:                         # required — how classify_domain() mat
 model_floor: T0|T1|T2|T3                # required — minimum recommended tier
 model_ceiling: T0|T1|T2|T3              # required — maximum tier (cost guard); >= model_floor
 
+escalation_keywords: [string]           # optional — when any keyword (case-insensitive
+                                        # substring) is present in the prompt, the
+                                        # resolver promotes the tier to model_ceiling.
+                                        # Backward-compatible: absent or [] = no escalation.
+
 skills:                                 # optional — Anthropic Skill registry names
   required: [string]                    # optional
   recommended: [string]                 # optional

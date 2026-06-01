@@ -4,8 +4,28 @@ description: "Code security & quality audit: Semgrep SAST, Snyk SCA, GitGuardian
 domain_signals:
   keywords: [audit, auditoria, review, security, segurança, vulnerability, lint, coerência, dependency check, secret scan]
   intent_phrases: ["audita este", "review completo", "verifica segurança", "dependency check", "antes de fazer push"]
-model_floor: T3                       # decisões críticas, Opus default
+  # Wave 2 Day 3: natural-language prompts used as embedding seeds for axis 2
+  # v2 (nomic-embed-text). Distinct across packs so cosine sim discriminates;
+  # not duplicates of validation prompts (those measure recall independently).
+  embedding_seeds:
+    - "podes verificar este código para potenciais problemas antes de eu enviar para staging"
+    - "este parser está exposto a injection? quero ter a certeza"
+    - "que riscos vês neste módulo de autenticação"
+    - "checa se há password ou tokens deixados em texto neste ficheiro"
+    - "este middleware valida bem os headers de entrada"
+    - "regista os pontos onde data do utilizador chega sem sanitização"
+    - "OWASP top 10 para este endpoint REST"
+    - "antes de release: spot the smells nesta função crítica"
+model_floor: T2                       # Sonnet por defeito; Opus apenas com keyword
 model_ceiling: T3
+escalation_keywords:
+  - audit completo
+  - production audit
+  - vulnerability assessment
+  - security review for production
+  - arquitectura de segurança
+  - complete security audit
+  - production-grade audit
 skills:
   recommended: [design:accessibility-review, design:design-critique]
 mcps:

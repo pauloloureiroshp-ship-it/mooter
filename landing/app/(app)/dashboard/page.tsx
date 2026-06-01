@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+// Wave 4 Phase C — new dashboard cards (extend, not replace).
+import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
 
 interface Device {
   device_id: string;
@@ -477,7 +479,7 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
       mode: 'auto',
       emoji: '\u26A1',
       title: 'Auto (optimised for Max)',
-      reason: 'Claude Max detected — Opus sem limite. Router usa T0 local quando disponível, T3 Opus para o resto.',
+      reason: 'Claude Max detected — Opus unlimited. Router uses local T0 when available, T3 Opus for the rest.',
       t0_available: hasOllama,
       t3_unlimited: true,
       est_savings_day: hasOllama ? '~$8\u201315/day vs all-Opus' : '~$3\u20138/day vs all-Opus',
@@ -490,7 +492,7 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
       mode: 'zen',
       emoji: '\uD83E\uDDD8',
       title: 'Zen mode',
-      reason: 'API-paid sem GPU local. Cada token custa. Zen mantém tudo em T0/T1 para poupar ao máximo.',
+      reason: 'API-paid with no local GPU. Every token costs. Zen keeps everything in T0/T1 to save as much as possible.',
       t0_available: false,
       t3_unlimited: false,
       est_savings_day: '~$5\u201312/day vs default',
@@ -503,8 +505,8 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
     emoji: '\u26A1',
     title: 'Auto (balanced)',
     reason: hasGpu || hasOllama
-      ? 'GPU/Ollama detectado — T0 local grátis para tarefas simples, T3 só quando importa.'
-      : 'Setup standard — router decide por cada prompt. Adiciona Ollama para poupar mais.',
+      ? 'GPU/Ollama detected — local T0 free for simple tasks, T3 only when it matters.'
+      : 'Standard setup — the Router decides per prompt. Add Ollama to save more.',
     t0_available: hasOllama,
     t3_unlimited: false,
     est_savings_day: hasOllama ? '~$6\u201312/day' : '~$2\u20135/day',
@@ -843,8 +845,8 @@ function getRecommendations(profile: Profile): Recommendation[] {
   if (!hasOllama) {
     recs.push({
       id: 'install-ollama',
-      title: 'Instala Ollama para T0 gratuito',
-      reason: 'Sem Ollama, todas as tarefas simples vão para Haiku/Sonnet pago.',
+      title: 'Install Ollama for free T0',
+      reason: 'Without Ollama, every simple task goes to paid Haiku/Sonnet.',
       action: 'https://ollama.com/download',
       actionType: 'link',
       priority: 'high',
@@ -854,8 +856,8 @@ function getRecommendations(profile: Profile): Recommendation[] {
   if (hasOllama && !cfg.ollama_has_qwen3b) {
     recs.push({
       id: 'pull-qwen3b',
-      title: 'Instala qwen2.5:3b para T0 rápido',
-      reason: 'Modelo recomendado para tarefas T0 (renames, commits, formatação).',
+      title: 'Install qwen2.5:3b for fast T0',
+      reason: 'Recommended model for T0 tasks (renames, commits, formatting).',
       action: 'ollama pull qwen2.5:3b',
       actionType: 'copy',
       priority: 'high',
@@ -867,8 +869,8 @@ function getRecommendations(profile: Profile): Recommendation[] {
   if (hasOllama && hasGpu && !cfg.ollama_has_qwen30b) {
     recs.push({
       id: 'pull-qwen30b',
-      title: 'Instala qwen3:30b para T0-smart',
-      reason: 'O teu GPU aguenta. qwen3:30b faz root cause analysis local — grátis.',
+      title: 'Install qwen3:30b for T0-smart',
+      reason: 'Your GPU can handle it. qwen3:30b runs root-cause analysis locally — free.',
       action: 'ollama pull qwen3:30b',
       actionType: 'copy',
       priority: 'medium',
@@ -878,8 +880,8 @@ function getRecommendations(profile: Profile): Recommendation[] {
   if (decisionsCount > 200) {
     recs.push({
       id: 'run-backtest',
-      title: 'Optimiza o teu router com backtest',
-      reason: `Tens ${decisionsCount} decisões. O backtest vai afinar o classifier para o teu padrão de uso.`,
+      title: 'Optimise your Router with a backtest',
+      reason: `You have ${decisionsCount} decisions. The backtest will tune the classifier to your usage pattern.`,
       action: 'node ~/.claude/tools/router/backtest.js && node ~/.claude/tools/router/update-router.js',
       actionType: 'copy',
       priority: 'medium',
@@ -889,9 +891,9 @@ function getRecommendations(profile: Profile): Recommendation[] {
   if (!hasAnthropicKey && isInstalled(profile)) {
     recs.push({
       id: 'add-anthropic-key',
-      title: 'Adiciona ANTHROPIC_API_KEY',
-      reason: 'Sem a key, T1 (Haiku) não está disponível. O router salta de T0 para T2.',
-      action: 'export ANTHROPIC_API_KEY=sk-ant-... # adiciona ao ~/.zshrc ou ~/.bashrc',
+      title: 'Add ANTHROPIC_API_KEY',
+      reason: 'Without the key, T1 (Haiku) is unavailable. The Router jumps from T0 straight to T2.',
+      action: 'export ANTHROPIC_API_KEY=sk-ant-... # add to ~/.zshrc or ~/.bashrc',
       actionType: 'copy',
       priority: 'medium',
     });
@@ -993,6 +995,8 @@ function OverviewTab({ profile }: { profile: Profile }) {
 
   return (
     <>
+      {/* Wave 4 Phase C — CLI connection status (real device data) */}
+      <CliStatusCard profile={profile} />
       {/* Savings Hero */}
       {decisionsCount > 0 && (
         <div style={{
@@ -1051,7 +1055,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               textTransform: 'uppercase', letterSpacing: '0.08em',
               marginTop: 6, fontWeight: 600,
             }}>
-              Routed away from Opus
+              % saved vs all-Opus
             </div>
           </div>
 
@@ -1121,6 +1125,9 @@ function OverviewTab({ profile }: { profile: Profile }) {
       <RecommendedModeCard profile={profile} />
       <ProjectContextCard profile={profile} />
       <RecommendationsCard profile={profile} />
+      {/* Wave 4 Phase C — activity note + settings link (no duplication of /settings) */}
+      <ActivityNote />
+      <CliSettingsLink />
     </>
   );
 }
@@ -1463,6 +1470,12 @@ function ModelCard({ label, badge, color, cost, tooltip }: {
 }
 
 // ── How it works Tab ─────────────────────────────────────────────────────
+// Canonical routing-pattern count. Mirrors PATTERN_COUNT exported from
+// tools/router/classify.js (HIGH 80 + MED 71 + LOW 16 + TRIVIAL 6). Vercel
+// builds with rootDirectory=landing so the router file can't be imported here;
+// the value is enforced against the source by tools/router/pattern-count.test.js.
+const PATTERN_COUNT = 173;
+
 function HowItWorksTab({ profile }: { profile: Profile }) {
   const { decisionsCount, savingsUsd } = aggregateDevices(profile);
   const config = (profile.frugal_config || {}) as Record<string, unknown>;
@@ -1476,7 +1489,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
   const latestDevice = (profile.devices || [])[0];
   const gpuName = latestDevice?.gpu_name || 'GPU';
   const osType = latestDevice?.os_type || profile.os_type || 'unknown';
-  const frugalVersion = latestDevice?.frugal_version || profile.frugal_version || '0.9';
+  const frugalVersion = latestDevice?.frugal_version || profile.frugal_version || '1.1.0';
 
   const naiveCost = decisionsCount * 0.045;
 
@@ -1489,7 +1502,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
 
   const featurePills = [
     'has_code_block', 'has_file_refs', 'has_error_trace',
-    'lang_detected', 'quality_intent', 'complexity_score', 'risk_level',
+    'is_question', 'has_url', 'lang_detected', 'file_ref_count',
   ];
 
   return (
@@ -1504,7 +1517,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         </h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', lineHeight: 1.6 }}>
           Every prompt you write is classified in under 50ms — before any model sees it.
-          mooter reads 40+ signals, extracts 7 features, and routes to the cheapest model
+          mooter reads {PATTERN_COUNT} signals, extracts 7 features, and routes to the cheapest model
           that can do the job. No guessing. No waste.
         </p>
       </div>
@@ -1531,9 +1544,9 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         </FlowNode>
         <FlowArrow />
 
-        <FlowNode index={2} icon={<LightningIcon />} label="classify.js" badge="< 50ms · zero LLM" highlight tooltip="The router. Pure regex heuristics, no AI involved. Reads 40+ patterns across HIGH_RISK, MED_RISK, LOW_RISK, and TRIVIAL signal buckets. Trained on 230 real decisions from your own usage. Complexity threshold: 0.25.">
+        <FlowNode index={2} icon={<LightningIcon />} label="classify.js" badge="< 50ms · zero LLM" highlight tooltip={`The router. Pure regex heuristics, no AI involved. Reads ${PATTERN_COUNT} patterns across HIGH_RISK, MED_RISK, LOW_RISK, and TRIVIAL signal buckets. Tuned from real usage history. Complexity threshold: 0.25.`}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {['230 samples trained', '40+ patterns', 'SHA-256 cache (30min TTL)'].map(f => (
+            {[`${PATTERN_COUNT} regex patterns`, '4 risk buckets', 'SHA-256 cache (30min TTL)'].map(f => (
               <span key={f} style={{
                 fontSize: '0.7rem', padding: '2px 8px',
                 borderRadius: 'var(--r-full)',
@@ -1715,6 +1728,9 @@ function DecisionsTab({ profile: _profile }: { profile: Profile }) {
     <div style={{ maxWidth: 720 }}>
       <div style={{ marginBottom: 16 }}>
         <h3 style={sectionHeading}>Sync history — {log.length} entries</h3>
+        <p style={{ color: 'var(--muted)', fontSize: '0.78rem', margin: '6px 0 0' }}>
+          ⓘ Synced session snapshots. {PHASE_C.realTimeSync}
+        </p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {log.slice(0, 50).map((row, i) => {
@@ -1837,6 +1853,9 @@ export default function DashboardPage() {
       {tab === 'metrics' && <MetricsTab profile={profile} />}
       {tab === 'howitworks' && <HowItWorksTab profile={profile} />}
       {tab === 'decisions' && <DecisionsTab profile={profile} />}
+
+      {/* Wave 4 Phase C — global honest footer note */}
+      <DashboardFooterNote />
     </div>
   );
 }

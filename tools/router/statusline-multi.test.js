@@ -24,6 +24,7 @@ const {
   pickState, renderFromContext,
   digest, beastOverkillPct, zenUnderkillPct, avgConfidence,
   computeAnthropicRem, computeCodexRem, computeCodexMessagesLeft,
+  getAdapterStatus, clampPercent,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
 
@@ -32,7 +33,9 @@ const {
 test('pickState: green when savings tracker reports healthy figures', () => {
   const s = pickState(DEMO_CONTEXTS.green);
   assert.equal(s.color, 'green');
-  assert.match(s.headline, /saved \$0\.27 today \(89%\)/);
+  // Wave 2.5 D1 — headline dropped "today" and now appends the tier badge.
+  assert.match(s.headline, /saved \$0\.27 \(89%\)/);
+  assert.match(s.headline, /T2 sonnet 0\.84/);
 });
 
 test('pickState: yellow when beast overkill exceeds threshold', () => {
@@ -48,10 +51,34 @@ test('pickState: red when Anthropic 5h window is critically low', () => {
   assert.match(s.headline, /Codex \(84%\)/);
 });
 
-test('pickState: empty when no data and no quota state', () => {
+test('pickState: setup state when no data and no quota state (Wave 2 Day 2)', () => {
+  // The cold-start branch was renamed empty → setup so a fresh WSL install
+  // sees the concrete next step instead of a generic "no data" message.
   const s = pickState(DEMO_CONTEXTS.empty);
-  assert.equal(s.color, 'empty');
-  assert.match(s.headline, /no data yet/);
+  assert.equal(s.color, 'setup');
+  assert.match(s.headline, /setup incomplete/);
+  assert.match(s.headline, /\/mooter init/);
+});
+
+test('pickState: tracker online but no decisions yet → not setup, proof "—" (NIT 3 Day 2)', () => {
+  // dataMissing=false means the savings tracker has spun up; total=0 means no
+  // decisions have landed yet. The setup branch must NOT fire (tracker online),
+  // and with nothing to show the proof falls back to the "—" placeholder rather
+  // than a stale number.
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    dataMissing: false,
+    total: 0,
+    last: null,
+    recent: [],
+    anthRem: undefined,
+    savedPct: undefined,
+    savedUsd: undefined,
+  };
+  const s = pickState(ctx);
+  assert.notEqual(s.color, 'setup', 'tracker is online — setup state must not fire');
+  assert.doesNotMatch(s.headline, /setup incomplete/);
+  assert.equal(s.proof, '—', 'no decisions yet → proof placeholder');
 });
 
 // ── pickState — priority ordering ───────────────────────────────────────
@@ -98,7 +125,9 @@ test('renderFromContext: prints exactly one line with glyph + headline + proof',
   for (const k of ['green', 'yellow', 'red', 'empty']) {
     const out = renderFromContext(DEMO_CONTEXTS[k]);
     assert.equal(out.includes('\n'), false, `state ${k} produced multiline output`);
-    assert.match(out, /^[🟢🟡🔴⚪]/u, `state ${k} missing color glyph`);
+    // Wave 2.5 Day 1: brand glyphs 🐮 / 🐂 / 🚨 replace the traffic-light dots;
+    // setup keeps 🛠 and ⚪ stays for the legacy empty fallback.
+    assert.match(out, /^[🐮🐂🚨⚪🛠]/u, `state ${k} missing color glyph`);
     assert.match(out, / │ /, `state ${k} missing separator`);
   }
 });
@@ -270,4 +299,134 @@ test('avgConfidence: returns null when no usable values', () => {
   assert.equal(avgConfidence([]),     null);
   assert.equal(avgConfidence([{}]),   null);
   assert.equal(avgConfidence([{ confidence: 'not-a-number' }]), null);
+});
+
+// ── Wave 2 Day 2 — pack + adapter chips ─────────────────────────────────
+
+test('renderFromContext: appends pack chip when lastPack has a concrete pack id', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, lastPack: { pack_id: 'animation-web', candidates: null } };
+  const out = renderFromContext(ctx);
+  assert.match(out, /· pack: animation-web/, 'pack chip missing');
+});
+
+test('renderFromContext: AMBIGUOUS pack chip lists the top-2 candidates', () => {
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    lastPack: { pack_id: 'AMBIGUOUS', candidates: ['animation-web', 'code-audit', 'diagram-systems'] },
+  };
+  const out = renderFromContext(ctx);
+  assert.match(out, /· pack: AMBIGUOUS \(animation-web, code-audit\)/, 'AMBIGUOUS chip wrong shape');
+});
+
+test('renderFromContext: skips pack chip for GENERAL (no domain match)', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, lastPack: { pack_id: 'GENERAL' } };
+  const out = renderFromContext(ctx);
+  assert.doesNotMatch(out, /· pack:/, 'GENERAL pack chip should be suppressed');
+});
+
+test('renderFromContext: appends idle adapter chip (Wave 5 placeholder)', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, adapter: { status: 'idle' } };
+  const out = renderFromContext(ctx);
+  assert.match(out, /· adapter: ◌/, 'idle adapter chip missing');
+});
+
+test('renderFromContext: adapter chip glyphs follow status', () => {
+  for (const [status, glyph] of [['idle', '◌'], ['loading', '◐'], ['loaded', '●']]) {
+    const out = renderFromContext({ ...DEMO_CONTEXTS.green, adapter: { status } });
+    assert.match(out, new RegExp(`· adapter: ${glyph}`), `status ${status} → glyph ${glyph}`);
+  }
+});
+
+test('renderFromContext: setup state suppresses pack + adapter chips', () => {
+  // While the user has nothing wired the chips would be misleading — the
+  // headline already tells them exactly what to do.
+  const ctx = {
+    ...DEMO_CONTEXTS.empty,
+    lastPack: { pack_id: 'animation-web' }, // would normally render
+    adapter:  { status: 'idle' },           // would normally render
+  };
+  const out = renderFromContext(ctx);
+  assert.doesNotMatch(out, /· pack:/);
+  assert.doesNotMatch(out, /· adapter:/);
+  assert.match(out, /\/mooter init/);
+});
+
+test('getAdapterStatus: always idle today (Wave 5 placeholder)', () => {
+  const a = getAdapterStatus();
+  assert.equal(a.status, 'idle');
+  assert.equal(a.id, null);
+});
+
+// ── Wave 2.5 Day 1 — glyphs, headline badge, cost/ctx chips, compact ─────
+
+test('renderFromContext: healthy state renders the 🐮 cow glyph', () => {
+  const out = renderFromContext(DEMO_CONTEXTS.green);
+  assert.match(out, /^🐮 /u, 'green should lead with the cow glyph');
+});
+
+test('renderFromContext: warning state renders the 🐂 ox glyph', () => {
+  const out = renderFromContext(DEMO_CONTEXTS.yellow);
+  assert.match(out, /^🐂 /u, 'yellow should lead with the ox glyph');
+});
+
+test('renderFromContext: critical state renders the 🚨 glyph', () => {
+  const out = renderFromContext(DEMO_CONTEXTS.red);
+  assert.match(out, /^🚨 /u, 'red should lead with the siren glyph');
+});
+
+test('pickState: green headline inlines Tier + model + confidence', () => {
+  const s = pickState(DEMO_CONTEXTS.green);
+  assert.equal(s.color, 'green');
+  assert.match(s.headline, /· T2 sonnet 0\.84$/, 'tier badge should close the headline');
+});
+
+test('pickState: ctx % chip rendered when context.percent_used is present', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23 };
+  const s = pickState(ctx);
+  assert.match(s.proof, /ctx 23%/, 'ctx chip missing from proof');
+});
+
+test('pickState: turn + alltime cost chips rendered from tracker metrics', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 };
+  const s = pickState(ctx);
+  assert.match(s.proof, /turn \$0\.04/, 'turn chip missing');
+  assert.match(s.proof, /alltime \$4\.21/, 'alltime chip missing');
+});
+
+test('pickState: full green proof orders ctx · 5h · turn · alltime', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, lastTurnCost: 0.04, alltimeCost: 4.21 };
+  const s = pickState(ctx);
+  assert.equal(s.proof, 'ctx 23% · 42% 5h · turn $0.04 · alltime $4.21');
+});
+
+test('renderFromContext: full mode (COLUMNS=120) shows pack + adapter chips', () => {
+  const prev = process.env.COLUMNS;
+  process.env.COLUMNS = '120';
+  try {
+    const ctx = { ...DEMO_CONTEXTS.green, lastPack: { pack_id: 'animation-web' }, adapter: { status: 'idle' } };
+    const out = renderFromContext(ctx);
+    assert.match(out, /· pack: animation-web/, 'pack chip should show in full mode');
+    assert.match(out, /· adapter: ◌/, 'adapter chip should show in full mode');
+  } finally { if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev; }
+});
+
+test('renderFromContext: compact mode (COLUMNS=80) omits pack + adapter chips', () => {
+  const prev = process.env.COLUMNS;
+  process.env.COLUMNS = '80';
+  try {
+    const ctx = { ...DEMO_CONTEXTS.green, lastPack: { pack_id: 'animation-web' }, adapter: { status: 'idle' } };
+    const out = renderFromContext(ctx);
+    assert.doesNotMatch(out, /· pack:/, 'pack chip must be dropped in compact mode');
+    assert.doesNotMatch(out, /· adapter:/, 'adapter chip must be dropped in compact mode');
+    // …but the essential cost/quota chips stay.
+    assert.match(out, /42% 5h/, 'compact mode must keep the essential 5h chip');
+  } finally { if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev; }
+});
+
+test('clampPercent: rounds and clamps to 0..100, null on garbage', () => {
+  assert.equal(clampPercent(23.4), 23);
+  assert.equal(clampPercent(150), 100);
+  assert.equal(clampPercent(-5), 0);
+  assert.equal(clampPercent('not-a-number'), null);
+  assert.equal(clampPercent(undefined), null);
 });

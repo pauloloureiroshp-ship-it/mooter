@@ -19,12 +19,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { defaultPacksDir } from "./classify_domain.ts";
+import { assertTierBounds } from "./policy.ts";
 
 // --- pack manifest (the slice of pack.yaml packResolve cares about) ---
 export interface PackManifest {
   pack_id: string;
   model_floor: string; // T0..T3
   model_ceiling: string;
+  escalation_keywords: string[]; // optional in pack.yaml; [] when absent
   skills_required: string[];
   skills_recommended: string[];
   mcps_required: string[];
@@ -89,10 +91,15 @@ export function loadPackManifest(
   const subagents = (doc.subagents ?? {}) as Record<string, unknown>;
   const hasScaffold =
     typeof doc.prompt_scaffold_path === "string" || typeof doc.prompt_scaffold === "string";
+  const resolvedPackId = typeof doc.name === "string" ? doc.name : pack_id;
+  const model_floor = typeof doc.model_floor === "string" ? doc.model_floor : "T2";
+  const model_ceiling = typeof doc.model_ceiling === "string" ? doc.model_ceiling : "T3";
+  assertTierBounds({ pack_id: resolvedPackId, model_floor, model_ceiling });
   return {
-    pack_id: typeof doc.name === "string" ? doc.name : pack_id,
-    model_floor: typeof doc.model_floor === "string" ? doc.model_floor : "T2",
-    model_ceiling: typeof doc.model_ceiling === "string" ? doc.model_ceiling : "T3",
+    pack_id: resolvedPackId,
+    model_floor,
+    model_ceiling,
+    escalation_keywords: asArr(doc.escalation_keywords),
     skills_required: asArr(skills.required),
     skills_recommended: asArr(skills.recommended),
     mcps_required: asArr(mcps.required),

@@ -444,6 +444,8 @@ function emptyMetrics() {
     naive_cost: 0,           // Σ naiveOpusCost(prompt_len)
     saved: 0,                // naive - real
     saved_pct: 0,
+    last_turn_cost_usd: 0,   // Wave 2.5 D1 — newest turn estimate (statusline chip)
+    alltime_cost_usd: 0,     // Wave 2.5 D1 — cumulative real spend (session-scoped when filtered)
     avg_saved_per_prompt: 0,
     guaranteed_saved: 0,     // Option A hits × avg Opus turn cost (REAL)
     advisory_saved: 0,       // same as `saved`, kept explicitly for honesty
@@ -481,6 +483,10 @@ function computeMetrics(lines) {
   // Second pass: real cost accounting over classified user prompts.
   m.total_input_tokens = 0;
   m.total_output_tokens = 0;
+  // Wave 2.5 Day 1 — track the most-recent turn's cost so the statusline can
+  // render a `turn $X` chip. Reset on every classified event so it ends the
+  // loop holding the last (newest) turn's estimate.
+  let lastTurnCostUsd = 0;
   for (const line of lines) {
     const e = safeParse(line);
     if (!e || e.event !== 'classified' || !e.tier) continue;
@@ -508,6 +514,7 @@ function computeMetrics(lines) {
     m.real_cost_estimated += realUsd;
     m.cost_by_tier[e.tier] += realUsd;
     m.naive_cost += naiveUsd;
+    lastTurnCostUsd = realUsd;
 
     // Token accounting (estimated): input from prompt_len + base context,
     // output from per-tier average. Same numbers pricing.js uses for cost.
@@ -587,6 +594,12 @@ function computeMetrics(lines) {
   m.avg_saved_per_prompt = round(m.avg_saved_per_prompt, 5);
   m.guaranteed_saved = round(m.guaranteed_saved, 4);
   m.advisory_saved = round(m.advisory_saved, 4);
+
+  // Wave 2.5 Day 1 — cost chips for the statusline. `alltime` is the cumulative
+  // real spend over the lines fed in (session-scoped when called via
+  // computeMetricsForSession); `last_turn` is the newest turn's estimate.
+  m.last_turn_cost_usd = round(lastTurnCostUsd, 4);
+  m.alltime_cost_usd = m.real_cost_estimated;
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     m.cost_by_tier[t] = round(m.cost_by_tier[t], 4);
     m.pct_by_tier[t] = round(m.pct_by_tier[t], 1);
@@ -858,7 +871,11 @@ function computeMetricsForSession(sessionId) {
   const lines = raw.split('\n').filter((l) => l.trim().length > 0);
   const filtered = lines.filter((l) => {
     const e = safeParse(l);
-    return e && e.session_id === sessionId;
+    if (!e) return false;
+    // Wave 2.5 D1 — match the statusline digest's backward-compat rule: legacy
+    // events (no session_id) and the inject_context "unknown" fallback count
+    // under any session, so cost figures and tier counts stay consistent.
+    return e.session_id === sessionId || !e.session_id || e.session_id === 'unknown';
   });
   const m = computeMetrics(filtered);
   m.scope = 'session';

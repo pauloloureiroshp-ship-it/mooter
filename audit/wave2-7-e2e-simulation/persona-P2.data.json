@@ -1,0 +1,192 @@
+{
+  "persona": "P2",
+  "name": "Senior IC Marco",
+  "background": "FAANG eng, company pays, multi-terminal, Python + Postgres, M3 Pro",
+  "generatedAt": "2026-06-03T12:00:00.000Z",
+  "stages": {
+    "wizard": {
+      "exitCode": 0,
+      "durationMs": 38,
+      "ok": true,
+      "output": "init complete · telemetry OFF · 1 pack(s) installed",
+      "profileOk": true,
+      "credentialsOk": true,
+      "consentOk": true,
+      "installedOk": true,
+      "packsDirOk": true,
+      "providersPresent": [
+        "anthropic",
+        "ollama"
+      ],
+      "hasAnthropic": true,
+      "hasOllama": true,
+      "installedPacks": [
+        "diagram-systems"
+      ]
+    },
+    "prompts": {
+      "list": [
+        {
+          "text": "optimize this Postgres query that does a seq scan",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 113,
+          "correctlyClassified": true
+        },
+        {
+          "text": "write a docstring for this function",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 99,
+          "correctlyClassified": true
+        },
+        {
+          "text": "rename variable userId to accountId in this file",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.9,
+          "spawnMs": 85,
+          "correctlyClassified": true
+        },
+        {
+          "text": "why does this async test flake intermittently?",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 98,
+          "correctlyClassified": true
+        },
+        {
+          "text": "generate a pytest fixture for the db connection",
+          "expectedTier": "T1",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 99,
+          "correctlyClassified": false
+        },
+        {
+          "text": "summarize the diff in this PR",
+          "expectedTier": "T0",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 100,
+          "correctlyClassified": false
+        },
+        {
+          "text": "design a sharding strategy for the events table",
+          "expectedTier": "T3",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 102,
+          "correctlyClassified": false
+        },
+        {
+          "text": "explain this stack trace: KeyError 'session'",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 98,
+          "correctlyClassified": true
+        },
+        {
+          "text": "refactor the auth middleware across 5 files",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 100,
+          "correctlyClassified": true
+        },
+        {
+          "text": "format this JSON blob",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.9,
+          "spawnMs": 83,
+          "correctlyClassified": true
+        }
+      ],
+      "classificationAccuracy": 0.7,
+      "correctCount": 7,
+      "avgSpawnMs": 98,
+      "note": "spawnMs is classify.js process wall-time incl. node cold-start (~50-100ms) — NOT the in-process hook latency."
+    },
+    "dashboard": {
+      "sectionsPresent": [
+        "MOOS ACTIVE",
+        "SAVINGS",
+        "CONTEXT",
+        "QUOTA",
+        "ADAPTER"
+      ],
+      "allSections": true,
+      "packSectionPresent": false,
+      "loraHonesty": true,
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "frameSample": "┌─ 🐮 Mooter Dashboard · session e2e-P2-s ─────────────────────┐\n│  MOOS ACTIVE                                                 │\n│    🏠 qwen2.5:3b           4 calls · conf 0.90               │\n│    ☁ claude-haiku-4-5-20251001   3 calls · conf 0.85        │\n│    ☁ claude-sonnet-4-6    2 calls · conf 0.70               │\n│    ☁ claude-opus-4-6      1 calls · conf 0.75               │"
+    },
+    "trail": {
+      "fieldCount": 10,
+      "eventCount": 10,
+      "hasFormulasAndSources": true,
+      "lastDecision": "T0 qwen2.5:3b 0.90",
+      "jsonParses": true,
+      "evolutionHonest": true,
+      "evolutionSample": "🐮 mooter — evolution (last 7d vs previous 7d)\n\nVOLUME\n  prompts:   0 → 10   (+100.0%)\n\nTIER MIX\n  prev 7d:   T0:0 T1:0 T2:0 T3:0\n  last 7d:   T0:4 T1:3 T2:2 T3:1"
+    },
+    "mooCard": {
+      "optInRespected": true,
+      "cardEmitted": true,
+      "fieldCount": 6,
+      "loraDisclosed": false,
+      "hyperbole": [],
+      "sample": "\n─────── 🐮 Moo card ───────\n moo       🐄 ollama (T0)\n confidence 0.90\n last10    T0:4 T1:3 T2:2 T3:1\n───────────────────────────\n"
+    },
+    "isolation": {
+      "otherSessionEvents": 0,
+      "ok": true
+    },
+    "wizardTransparency": {
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "lineCount": 19
+    }
+  },
+  "gaps": [
+    {
+      "severity": "major",
+      "description": "Classification accuracy 70% < 90% for P2",
+      "evidence": "\"generate a pytest fixture for the db connection\" exp=T1 got=T0 | \"summarize the diff in this PR\" exp=T0 got=T1 | \"design a sharding strategy for the events table\" exp=T3 got=T0"
+    },
+    {
+      "severity": "minor",
+      "description": "Dashboard has no PACK/domain section — installed packs are invisible in the live dashboard for P2 (showcase spec expected one)",
+      "evidence": "5 sections shipped: MOOS ACTIVE, SAVINGS, CONTEXT, QUOTA, ADAPTER; installed=[\"diagram-systems\"]"
+    },
+    {
+      "severity": "minor",
+      "description": "Moo card omits LoRA/adapter disclosure for P2",
+      "evidence": "\n─────── 🐮 Moo card ───────\n moo       🐄 ollama (T0)\n confidence 0.90\n last10    T0:4 T1:3 T2:2 T3:1\n─────────────────"
+    }
+  ],
+  "tempHome": "/tmp/claude-1000/mooter-e2e-P2-A8Xrke",
+  "summary": {
+    "blockers": 0,
+    "major": 1,
+    "minor": 2,
+    "classificationAccuracy": 0.7,
+    "verdict": "READY"
+  }
+}

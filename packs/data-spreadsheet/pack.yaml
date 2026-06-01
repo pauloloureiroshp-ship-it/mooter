@@ -1,0 +1,38 @@
+name: data-spreadsheet
+version: 0.1.0
+description: Spreadsheet manipulation, data transforms, CSV/Excel/Sheets workflows
+domain_signals:
+  keywords: [spreadsheet, csv, excel, xlsx, google sheets, pivot, vlookup, dataframe, pandas, polars]
+  intent_phrases: ["manipulate this spreadsheet", "transform the CSV", "build a pivot table", "join these sheets", "calculate aggregates"]
+  file_extensions: [.csv, .xlsx, .xls, .tsv, .parquet]
+  negative_keywords: [delete spreadsheet]
+  # Wave 2 Day 5: natural-language seeds for axis 2 v2 (nomic-embed-text).
+  # Distinct from the other six packs so cosine sim discriminates cleanly.
+  embedding_seeds:
+    - "clean up this messy CSV with mixed delimiters"
+    - "build a pivot table from this Excel sheet"
+    - "join two dataframes on a fuzzy match"
+    - "calculate weekly aggregates with pandas"
+    - "convert this Google Sheet to Parquet"
+    - "remove duplicates and reconcile entries"
+    - "transform wide format to long format"
+    - "validate CSV against a JSON schema"
+model_floor: T1
+model_ceiling: T2
+skills:
+  recommended: [pandas-transforms, excel-formulas, csv-cleanup]
+mcps:
+  recommended: [google-sheets-mcp, excel-mcp]
+subagents:
+  primary: model-reasoner
+repos_canonical:
+  - { name: pandas, url: https://github.com/pandas-dev/pandas, license: BSD-3-Clause, note: "DataFrame library" }
+  - { name: polars, url: https://github.com/pola-rs/polars, license: MIT, note: "Faster lazy DataFrame for > 1M rows" }
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+metadata:
+  author: pauloloureiroshp-ship-it
+  created: 2026-05-28
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0

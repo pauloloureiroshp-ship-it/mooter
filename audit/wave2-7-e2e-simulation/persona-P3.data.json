@@ -1,0 +1,193 @@
+{
+  "persona": "P3",
+  "name": "OSS Maintainer Yuki",
+  "background": "Big repos, refactor heavy, Dynamic Workflows fan, Rust + native, Threadripper",
+  "generatedAt": "2026-06-03T12:00:00.000Z",
+  "stages": {
+    "wizard": {
+      "exitCode": 0,
+      "durationMs": 45,
+      "ok": true,
+      "output": "init complete · telemetry OFF · 2 pack(s) installed",
+      "profileOk": true,
+      "credentialsOk": true,
+      "consentOk": true,
+      "installedOk": true,
+      "packsDirOk": true,
+      "providersPresent": [
+        "anthropic",
+        "ollama"
+      ],
+      "hasAnthropic": true,
+      "hasOllama": true,
+      "installedPacks": [
+        "data-spreadsheet",
+        "diagram-systems"
+      ]
+    },
+    "prompts": {
+      "list": [
+        {
+          "text": "fix this typo in the README",
+          "expectedTier": "T0",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 99,
+          "correctlyClassified": false
+        },
+        {
+          "text": "summarize the open issues for triage",
+          "expectedTier": "T0",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 104,
+          "correctlyClassified": false
+        },
+        {
+          "text": "write a regex to match semver tags",
+          "expectedTier": "T1",
+          "actualTier": "T1",
+          "actualModel": "claude-haiku-4-5-20251001",
+          "confidence": 0.85,
+          "spawnMs": 83,
+          "correctlyClassified": true
+        },
+        {
+          "text": "why does this Rust borrow checker error happen?",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 96,
+          "correctlyClassified": true
+        },
+        {
+          "text": "compare crossbeam vs std::sync::mpsc for this case",
+          "expectedTier": "T2",
+          "actualTier": "T2",
+          "actualModel": "claude-sonnet-4-6",
+          "confidence": 0.7,
+          "spawnMs": 98,
+          "correctlyClassified": true
+        },
+        {
+          "text": "generate a changelog entry for this commit",
+          "expectedTier": "T1",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 102,
+          "correctlyClassified": false
+        },
+        {
+          "text": "redesign the plugin trait system for backwards com",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 101,
+          "correctlyClassified": true
+        },
+        {
+          "text": "audit unsafe blocks in this crate for soundness",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 99,
+          "correctlyClassified": true
+        },
+        {
+          "text": "list functions over 100 lines in src/",
+          "expectedTier": "T0",
+          "actualTier": "T0",
+          "actualModel": "qwen2.5:3b",
+          "confidence": 0.8,
+          "spawnMs": 105,
+          "correctlyClassified": true
+        },
+        {
+          "text": "I'm about to release v2.0, review the breaking cha",
+          "expectedTier": "T3",
+          "actualTier": "T3",
+          "actualModel": "claude-opus-4-6",
+          "confidence": 0.75,
+          "spawnMs": 118,
+          "correctlyClassified": true
+        }
+      ],
+      "classificationAccuracy": 0.7,
+      "correctCount": 7,
+      "avgSpawnMs": 101,
+      "note": "spawnMs is classify.js process wall-time incl. node cold-start (~50-100ms) — NOT the in-process hook latency."
+    },
+    "dashboard": {
+      "sectionsPresent": [
+        "MOOS ACTIVE",
+        "SAVINGS",
+        "CONTEXT",
+        "QUOTA",
+        "ADAPTER"
+      ],
+      "allSections": true,
+      "packSectionPresent": false,
+      "loraHonesty": true,
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "frameSample": "┌─ 🐮 Mooter Dashboard · session e2e-P3-s ─────────────────────┐\n│  MOOS ACTIVE                                                 │\n│    ☁ claude-haiku-4-5-20251001   3 calls · conf 0.85        │\n│    ☁ claude-opus-4-6      3 calls · conf 0.75               │\n│    ☁ claude-sonnet-4-6    2 calls · conf 0.70               │\n│    🏠 qwen2.5:3b           2 calls · conf 0.80               │"
+    },
+    "trail": {
+      "fieldCount": 10,
+      "eventCount": 10,
+      "hasFormulasAndSources": true,
+      "lastDecision": "T3 claude-opus-4-6 0.75",
+      "jsonParses": true,
+      "evolutionHonest": true,
+      "evolutionSample": "🐮 mooter — evolution (last 7d vs previous 7d)\n\nVOLUME\n  prompts:   0 → 10   (+100.0%)\n\nTIER MIX\n  prev 7d:   T0:0 T1:0 T2:0 T3:0\n  last 7d:   T0:2 T1:3 T2:2 T3:3"
+    },
+    "mooCard": {
+      "optInRespected": true,
+      "cardEmitted": true,
+      "fieldCount": 6,
+      "loraDisclosed": false,
+      "hyperbole": [],
+      "sample": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.75\n last10    T0:2 T1:3 T2:2 T3:3\n───────────────────────────\n"
+    },
+    "isolation": {
+      "otherSessionEvents": 0,
+      "ok": true
+    },
+    "wizardTransparency": {
+      "hyperbole": [],
+      "pastorEntity": 0,
+      "lineCount": 20
+    }
+  },
+  "gaps": [
+    {
+      "severity": "major",
+      "description": "Classification accuracy 70% < 90% for P3",
+      "evidence": "\"fix this typo in the README\" exp=T0 got=T1 | \"summarize the open issues for triage\" exp=T0 got=T1 | \"generate a changelog entry for this commit\" exp=T1 got=T0"
+    },
+    {
+      "severity": "minor",
+      "description": "Dashboard has no PACK/domain section — installed packs are invisible in the live dashboard for P3 (showcase spec expected one)",
+      "evidence": "5 sections shipped: MOOS ACTIVE, SAVINGS, CONTEXT, QUOTA, ADAPTER; installed=[\"data-spreadsheet\",\"diagram-systems\"]"
+    },
+    {
+      "severity": "minor",
+      "description": "Moo card omits LoRA/adapter disclosure for P3",
+      "evidence": "\n─────── 🐮 Moo card ───────\n moo       🦬 opus (T3)\n confidence 0.75\n last10    T0:2 T1:3 T2:2 T3:3\n───────────────────"
+    }
+  ],
+  "tempHome": "/tmp/claude-1000/mooter-e2e-P3-PfAU7u",
+  "summary": {
+    "blockers": 0,
+    "major": 1,
+    "minor": 2,
+    "classificationAccuracy": 0.7,
+    "verdict": "READY"
+  }
+}

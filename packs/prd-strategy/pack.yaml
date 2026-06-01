@@ -1,0 +1,35 @@
+name: prd-strategy
+version: 0.1.0
+description: Product requirements docs, strategy decks, roadmap drafting
+domain_signals:
+  keywords: [prd, product requirements, strategy, roadmap, okrs, product spec, jtbd, user story]
+  intent_phrases: ["write a PRD", "draft a roadmap", "product strategy", "user stories for", "OKRs for quarter"]
+  file_extensions: [.md]
+  negative_keywords: [delete prd]
+  # Wave 2 Day 5: natural-language seeds for axis 2 v2 (nomic-embed-text).
+  # Distinct from the other six packs so cosine sim discriminates cleanly.
+  embedding_seeds:
+    - "write a PRD for the new auth flow"
+    - "draft a Q3 roadmap with OKRs"
+    - "create user stories for the onboarding feature"
+    - "outline a product strategy memo for launch"
+    - "convert this feature idea into a spec"
+    - "draft a Jobs-to-be-Done framework analysis"
+    - "write acceptance criteria for this epic"
+    - "outline the success metrics for this launch"
+model_floor: T2
+model_ceiling: T3
+skills:
+  recommended: [prd-template, roadmap-framework, user-story-decomposition]
+mcps:
+  recommended: [linear-mcp, notion-mcp]
+subagents:
+  primary: model-reasoner
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+metadata:
+  author: pauloloureiroshp-ship-it
+  created: 2026-05-28
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0

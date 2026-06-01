@@ -1,6 +1,6 @@
 {
   "name": "mooter-next-landing",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Legacy Next.js landing for mooter — will be deprecated with 301 redirect to mooter.ai.",
   "scripts": {

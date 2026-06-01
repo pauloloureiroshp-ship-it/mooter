@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
+import { suggestHardware } from './_lib/hardware';
+import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -184,16 +186,8 @@ function probeHardware(): DetectedHw {
     }
   } catch { /* ignore */ }
 
-  // Suggest hw chip value from os + gpu
-  const gpuLower = (gpuName || '').toLowerCase();
-  let suggestedHw: string | null = null;
-  if (os === 'mac') suggestedHw = 'mac_m_series';
-  else if (os === 'windows' && gpuLower.includes('nvidia')) suggestedHw = 'windows_nvidia';
-  else if (os === 'windows' && (gpuLower.includes('amd') || gpuLower.includes('radeon'))) suggestedHw = 'windows_amd';
-  else if (os === 'windows') suggestedHw = 'windows_nvidia';  // best guess
-  else if (os === 'linux' && gpuLower.includes('nvidia')) suggestedHw = 'linux_nvidia';
-  else if (os === 'linux' && (gpuLower.includes('amd') || gpuLower.includes('radeon'))) suggestedHw = 'linux_amd';
-  else if (os === 'linux') suggestedHw = 'linux_nvidia';
+  // Suggest hw chip value from os + gpu (pure, unit-tested in _lib/hardware.ts).
+  const suggestedHw = suggestHardware(os, gpuName);
 
   return { os, cpuCores, gpuName, ramGb, suggestedHw, probed: true };
 }
@@ -218,11 +212,14 @@ export default function OnboardingPage() {
   const [hwConfirmed, setHwConfirmed] = useState(false);
   const [subs, setSubs] = useState<string[]>([]);
   const [budget, setBudget] = useState(30);
+  const [persona, setPersona] = useState<Persona>('other');
   const [saving, setSaving] = useState(false);
   const [cliToken, setCliToken] = useState('');
   const [tokenCopied, setTokenCopied] = useState(false);
   const [tokenRevealed, setTokenRevealed] = useState(false);
   const [cmdCopied, setCmdCopied] = useState(false);
+  const [installToken, setInstallToken] = useState('');  // Wave 6 D2 — personalized install URL
+  const [urlCopied, setUrlCopied] = useState(false);
 
   // Auto-seed hardware chip from browser detection, once.
   useEffect(() => {
@@ -261,6 +258,7 @@ export default function OnboardingPage() {
             email,
             hardware_tier: hw,
             subscriptions: subs,
+            persona,
             frugal_config: config,
             onboarding_completed: true,
             updated_at: new Date().toISOString(),
@@ -273,6 +271,23 @@ export default function OnboardingPage() {
         if (tokenRes.ok) {
           const tokenData = await tokenRes.json();
           if (tokenData.token) setCliToken(tokenData.token);
+        }
+      } catch { /* best-effort */ }
+
+      // Wave 6 D2 — mint a personalized install token (anonymous pre-config).
+      try {
+        const instRes = await fetch('/api/install-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            persona,
+            subscription_self_reported: subs[0] ?? 'api-only',
+            hardware_class: { os_class: detected.os, gpu_class: detected.gpuName ?? 'unknown' },
+          }),
+        });
+        if (instRes.ok) {
+          const instData = await instRes.json();
+          if (instData.token) setInstallToken(instData.token);
         }
       } catch { /* best-effort */ }
     } catch {
@@ -547,6 +562,26 @@ export default function OnboardingPage() {
               ))}
             </ChipGroup>
 
+            {/* Persona — mirrors the CLI `mooter init` persona step (W3 D2), so a
+                web-onboarded user lands on the same profile shape as a CLI user. */}
+            <FieldLabel>What best describes you?</FieldLabel>
+            <p style={{
+              fontSize: '0.78rem', color: 'var(--muted)',
+              margin: '-6px 0 10px', lineHeight: 1.5,
+            }}>
+              Tunes which packs mooter recommends — you can change it later.
+            </p>
+            <ChipGroup>
+              {PERSONAS.map(p => (
+                <Chip key={p.value} active={persona === p.value} onClick={() => setPersona(p.value)}>
+                  {p.title}
+                </Chip>
+              ))}
+            </ChipGroup>
+            <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '4px 0 0', lineHeight: 1.5 }}>
+              {personaPackHint(persona)}
+            </p>
+
             {/* Savings preview — lights up as user makes selections */}
             {hw && (
               <div style={{
@@ -734,6 +769,59 @@ export default function OnboardingPage() {
                 </div>
               );
             })()}
+
+            {installToken && (
+              <div style={{
+                marginBottom: 24,
+                padding: 16,
+                border: '1px solid color-mix(in srgb, var(--accent) 24%, var(--border))',
+                borderRadius: 'var(--r-md)',
+                background: 'color-mix(in srgb, var(--accent) 5%, var(--surface))',
+              }}>
+                <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: 'var(--text)', fontWeight: 600 }}>
+                  One-line install — pre-configured for you:
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <code style={{
+                    flex: 1, minWidth: 0,
+                    fontSize: '0.76rem',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    background: 'var(--bg)', padding: '8px 10px',
+                    borderRadius: 'var(--r-sm)', border: '1px solid var(--border)',
+                    fontFamily: 'var(--mono)', color: 'var(--accent)',
+                  }}>
+                    curl https://mooter.ai/i/{installToken} | bash
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`curl https://mooter.ai/i/${installToken} | bash`).catch(() => {});
+                      setUrlCopied(true);
+                      setTimeout(() => setUrlCopied(false), 2000);
+                    }}
+                    style={{
+                      background: urlCopied ? 'var(--tier-0)' : 'var(--accent)',
+                      color: 'var(--cream)', border: 'none', borderRadius: 'var(--r-sm)',
+                      padding: '7px 16px', cursor: 'pointer', fontSize: '0.8rem',
+                      fontWeight: 700, whiteSpace: 'nowrap', fontFamily: 'var(--font)',
+                    }}
+                  >
+                    {urlCopied ? '✓ Copied' : 'Copy'}
+                  </button>
+                </div>
+                <p style={{ margin: '10px 0 0', fontSize: '0.75rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                  ⓘ Token expires in 24h · single-use. Review the script first:{' '}
+                  <code style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>curl … | less</code>
+                </p>
+                <div style={{
+                  marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)',
+                  fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.6,
+                }}>
+                  Pre-config: <span style={{ color: 'var(--text)' }}>{HW_OPTIONS.find(h => h.value === hw)?.label ?? hw}</span>
+                  {' · '}persona <span style={{ color: 'var(--text)' }}>{persona}</span>
+                  {subs.length > 0 && <> · {subs.join(', ')}</>}
+                </div>
+              </div>
+            )}
 
             {cliToken && (
               <div style={{

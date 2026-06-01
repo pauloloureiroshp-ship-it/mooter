@@ -8,6 +8,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [1.0.0] — 2026-05-31 — Convergence release (Wave 7)
+
+**Unifies the two version timelines that had run in parallel** into a single `v1.0.0` across all three packages:
+
+- **Router engine** (`tools/router/`) — `0.11.0 → 1.0.0`. The frugal-origin line (v0.7.0–v0.9.4 tags, Apr 8–10) through the arbiter/quality-intent/sub-tier work (v0.8.0).
+- **CLI + landing** (`packages/cli/`, `landing/`) — `0.1.0 → 1.0.0`. The Mooter "wave/sprint" line (`v0.1.0-pastor-wave1` → `v0.6.6-admin-charts-feedback` tags, May 27–31): Pastor foundations → reveal/rebrand → safety/activation/sync → auth/dashboard → Adapter Forge → statusline V2 → user lifecycle (onboarding + install URL) → admin (privacy + charts + feedback).
+
+### Why
+The same version numbers (e.g. v0.6.x) meant different things on each timeline, which is confusing for a public/Anthropic-facing showcase. v1.0.0 is the single going-forward version.
+
+### Changed
+- `tools/router/package.json`, `packages/cli/package.json`, `landing/package.json` → `1.0.0`.
+- `README.md` headline → Mooter v1.0 + a **Genealogy** section documenting the two converged timelines.
+- `docs/strategy/ANTHROPIC_SHOWCASE_PLAN.md` → v1.0 headline + convergence narrative.
+
+### Preserved (provenance)
+- All legacy tags kept, NOT deleted: frugal `v0.7.0`–`v0.9.4` (+ `algo-v0.9.2`) and Mooter waves `v0.1.0-pastor-wave1`–`v0.6.6-admin-charts-feedback`.
+
+### Invariants
+- **Zero production code touched.** classify.js / safety_boost.js / adapter_selection.js / glyphs.js / hub/ / landing Phases A+B+C+W6+W6.5 byte-identical. Only version metadata + docs changed.
+
+---
+
 ## [Strategy Canonical V1.0] — 2026-05-07 — Single Source of Truth (Cowork night session)
 
 ### Added — Strategy documentation suite (no code changes)

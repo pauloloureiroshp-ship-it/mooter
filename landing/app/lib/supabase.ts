@@ -127,6 +127,39 @@ export async function selectOne<T>(
   }
 }
 
+/**
+ * Call a Postgres RPC (SECURITY DEFINER function) via PostgREST. When an
+ * accessToken is given it is used as the bearer (so `auth.uid()` resolves to
+ * that user); otherwise the anon key is used (for token-bearer functions where
+ * the argument itself is the secret). Returns the parsed JSON, or null on any
+ * failure. Wave 6 D2 — install tokens.
+ */
+export async function rpc<T>(
+  fn: string,
+  args: Record<string, unknown>,
+  accessToken?: string,
+): Promise<T | null> {
+  if (!isConfigured()) return null;
+  try {
+    const res = await fetch(`${URL}/rest/v1/rpc/${fn}`, {
+      method: 'POST',
+      headers: {
+        apikey: KEY,
+        Authorization: `Bearer ${accessToken || KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(args),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text) return null;
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
 /* ─── Auth helpers (magic link via Supabase GoTrue REST) ─── */
 
 /**

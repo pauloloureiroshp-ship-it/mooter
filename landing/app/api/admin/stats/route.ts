@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '../../../lib/supabase';
+import { isAdminEmail, buildAuditEntry } from '../../../(app)/admin/_lib/privacy';
+import { getAdminAllowList, ADMIN_EMAIL_FALLBACK, writeAudit } from '../../../(app)/admin/_lib/audit.server';
 
-const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -13,6 +14,7 @@ interface ProfileRow {
   frugal_version: string | null;
   frugal_config: Record<string, unknown> | null;
   subscriptions: string[] | null;
+  persona: string | null;
   onboarding_completed: boolean;
   install_completed: boolean;
   github_username: string | null;
@@ -42,9 +44,12 @@ export async function GET(req: NextRequest) {
   if (!accessToken) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const user = await getUser(accessToken);
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !isAdminEmail(user.email, getAdminAllowList(), ADMIN_EMAIL_FALLBACK)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
+
+  // Best-effort audit (never blocks the response).
+  void writeAudit(accessToken, user.id, buildAuditEntry('view_stats'));
 
   const [profilesRes, devicesRes] = await Promise.all([
     fetch(
@@ -95,6 +100,8 @@ export async function GET(req: NextRequest) {
   let savingsUsers = 0;
   const hardwareDist: Record<string, number> = {};
   const subDist: Record<string, number> = {};
+  const personaDist: Record<string, number> = {}; // Wave 6.5 D2
+  const signupsByDay: Record<string, number> = {}; // Wave 6.5 D2 — activity timeline
 
   // Funnel counters
   let onboarded = 0;
@@ -134,6 +141,14 @@ export async function GET(req: NextRequest) {
       for (const s of p.subscriptions) {
         subDist[s] = (subDist[s] || 0) + 1;
       }
+    }
+    // Wave 6.5 D2 — persona distribution (persona persisted by W6 onboarding).
+    const persona = p.persona || 'other';
+    personaDist[persona] = (personaDist[persona] || 0) + 1;
+    // Wave 6.5 D2 — signups per day (activity timeline).
+    if (p.created_at) {
+      const day = p.created_at.slice(0, 10);
+      signupsByDay[day] = (signupsByDay[day] || 0) + 1;
     }
 
     // Funnel
@@ -185,6 +200,8 @@ export async function GET(req: NextRequest) {
     devicesPerUser,
     hardwareDist,
     subDist,
+    personaDist,
+    signupsByDay,
     funnel: {
       signed_up: profiles.length,
       onboarded,

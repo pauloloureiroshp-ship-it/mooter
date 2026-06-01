@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { maskEmail } from './_lib/privacy';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,12 +66,14 @@ type AdminStats = {
   devicesPerUser: number;
   hardwareDist: Record<string, number>;
   subDist: Record<string, number>;
+  personaDist: Record<string, number>;
+  signupsByDay: Record<string, number>;
   funnel: FunnelData;
   activity: ActivityItem[];
   users: UserRow[];
 };
 
-type Tab = 'overview' | 'users' | 'devices' | 'health';
+type Tab = 'overview' | 'users' | 'devices' | 'health' | 'feedback';
 type SortKey = 'email' | 'hardware_tier' | 'os_type' | 'decisions' | 'savings_usd' | 'frugal_version' | 'last_sync';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,7 +115,7 @@ function csvExport(users: UserRow[]): void {
   const header = 'email,hardware,os,devices,decisions,savings_usd,version,last_sync,subscriptions';
   const rows = users.map(u =>
     [
-      u.email,
+      maskEmail(u.email),
       u.hardware_tier || '',
       u.os_type || '',
       u.devices.length,
@@ -205,7 +208,14 @@ function HeroCard({ label, value, sub, accent }: { label: string; value: string 
 function OverviewTab({ stats }: { stats: AdminStats }) {
   const maxHw = Math.max(...Object.values(stats.hardwareDist), 1);
   const maxSub = Math.max(...Object.values(stats.subDist), 1);
+  const maxPersona = Math.max(...Object.values(stats.personaDist ?? {}), 1);
   const funnelMax = stats.funnel.signed_up || 1;
+  // Wave 6.5 D2 — activity timeline: last 14 days of signups (chronological).
+  const PERSONA_LABEL: Record<string, string> = {
+    solo_founder: 'Solo Founder', senior_ic: 'Senior IC', oss_maintainer: 'OSS Maintainer', other: 'Other',
+  };
+  const dayEntries = Object.entries(stats.signupsByDay ?? {}).sort((a, b) => a[0].localeCompare(b[0])).slice(-14);
+  const maxDay = Math.max(...dayEntries.map(([, n]) => n), 1);
 
   return (
     <>
@@ -266,6 +276,50 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
         </div>
       )}
 
+      {/* Persona distribution (Wave 6.5 D2) */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Persona distribution</h2>
+        {Object.keys(stats.personaDist ?? {}).length === 0 ? (
+          <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: 0 }}>No persona data yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {Object.entries(stats.personaDist).sort((a, b) => b[1] - a[1]).map(([persona, count]) => (
+              <div key={persona} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 120, fontSize: '0.8rem', color: 'var(--muted)', flexShrink: 0 }}>
+                  {PERSONA_LABEL[persona] ?? persona}
+                </span>
+                <Bar value={count} max={maxPersona} color="var(--tier-2)" />
+                <span style={{ fontSize: '0.8rem', minWidth: 70, textAlign: 'right', fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                  {count} ({pct(count, stats.totalUsers)}%)
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Activity timeline — signups per day, last 14d (Wave 6.5 D2) */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Signups — last 14 days</h2>
+        {dayEntries.length === 0 ? (
+          <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: 0 }}>No signups recorded yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {dayEntries.map(([day, count]) => (
+              <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 90, fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                  {day.slice(5)}
+                </span>
+                <Bar value={count} max={maxDay} color="var(--tier-0)" />
+                <span style={{ fontSize: '0.8rem', minWidth: 30, textAlign: 'right', fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Setup funnel */}
       <div style={card}>
         <h2 style={sectionHeading}>Setup completion funnel</h2>
@@ -308,7 +362,7 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
                 flexWrap: 'wrap',
               }}>
                 <span style={{ color: 'var(--muted)', minWidth: 80, fontFamily: 'var(--mono)' }}>{timeAgo(a.timestamp)}</span>
-                <span style={{ color: 'var(--accent)', flex: 1, minWidth: 180 }}>{a.user_email}</span>
+                <span style={{ color: 'var(--accent)', flex: 1, minWidth: 180 }}>{maskEmail(a.user_email)}</span>
                 <span style={{ color: 'var(--muted)' }}>{a.action}</span>
               </div>
             ))}
@@ -481,7 +535,7 @@ function UserTableRow({ user: u, status: st, isOpen, onToggle }: { user: UserRow
         onClick={onToggle}
         style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
       >
-        <td style={tdStyle}>{u.email}</td>
+        <td style={tdStyle}>{maskEmail(u.email)}</td>
         <td style={{ ...tdStyle, color: 'var(--muted)' }}>{u.hardware_tier?.replace(/_/g, ' ') || '\u2014'}</td>
         <td style={tdStyle}>{u.os_type ? osIcon(u.os_type) : '\u2014'}</td>
         <td style={tdStyle}>{u.devices.length}</td>
@@ -653,7 +707,7 @@ function DevicesTab({ stats }: { stats: AdminStats }) {
             <tbody>
               {filtered.map(d => (
                 <tr key={d.device_id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={tdStyle}>{d.user_email}</td>
+                  <td style={tdStyle}>{maskEmail(d.user_email)}</td>
                   <td style={tdStyle}>{d.device_name || '\u2014'}</td>
                   <td style={tdStyle}>{osIcon(d.os_type)} {d.os_type}</td>
                   <td style={{ ...tdStyle, color: 'var(--muted)' }}>{d.hw_tier?.replace(/_/g, ' ') || '\u2014'}</td>
@@ -722,11 +776,11 @@ function computeAlerts(stats: AdminStats): Alert[] {
   for (const u of stats.users) {
     const cfg = u.frugal_config || {};
     if (cfg.decision_count !== undefined && cfg.decisions_count === undefined) {
-      alerts.push({ severity: 'warning', message: `${u.email}: Legacy field "decision_count" instead of "decisions_count"` });
+      alerts.push({ severity: 'warning', message: `${maskEmail(u.email)}: Legacy field "decision_count" instead of "decisions_count"` });
     }
     for (const d of u.devices) {
       if (!d.last_sync_at) {
-        alerts.push({ severity: 'warning', message: `${u.email}: ${d.device_name || d.device_id} never synced since install` });
+        alerts.push({ severity: 'warning', message: `${maskEmail(u.email)}: ${d.device_name || d.device_id} never synced since install` });
       }
     }
   }
@@ -738,7 +792,7 @@ function computeAlerts(stats: AdminStats): Alert[] {
   else {
     const outdated = stats.users.filter(u => u.frugal_version && u.frugal_version !== latest);
     for (const u of outdated) {
-      alerts.push({ severity: 'warning', message: `${u.email}: outdated version v${u.frugal_version} (latest: v${latest})` });
+      alerts.push({ severity: 'warning', message: `${maskEmail(u.email)}: outdated version v${u.frugal_version} (latest: v${latest})` });
     }
   }
 
@@ -840,7 +894,7 @@ function HealthTab({ stats }: { stats: AdminStats }) {
                   const daysInactive = u.last_sync ? Math.floor((now - Date.parse(u.last_sync)) / (1000 * 60 * 60 * 24)) : Infinity;
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={tdStyle}>{u.email}</td>
+                      <td style={tdStyle}>{maskEmail(u.email)}</td>
                       <td style={{ ...tdStyle, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{u.last_sync ? u.last_sync.slice(0, 10) : 'never'}</td>
                       <td style={{ ...tdStyle, color: daysInactive > 60 ? 'var(--tier-3)' : 'var(--text)' }}>
                         {daysInactive === Infinity ? '\u221E' : daysInactive}
@@ -962,11 +1016,95 @@ const secondaryBtnStyle: React.CSSProperties = {
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ── Feedback tab (Wave 6.5 D2) ────────────────────────────────────────────────
+
+type FeedbackRow = {
+  id: string;
+  user_id_hash: string;
+  topic: string | null;
+  severity: string | null;
+  message: string;
+  mooter_version: string | null;
+  hardware_class: Record<string, unknown> | null;
+  status: string;
+  created_at: string;
+};
+
+function FeedbackTab() {
+  const [rows, setRows] = useState<FeedbackRow[] | null>(null);
+  const [error, setError] = useState('');
+  const [topicF, setTopicF] = useState('all');
+  const [sevF, setSevF] = useState('all');
+
+  useEffect(() => {
+    fetch('/api/admin/feedback')
+      .then(r => {
+        if (r.status === 401 || r.status === 403) throw new Error('Access denied — admin only');
+        if (!r.ok) throw new Error('Server error');
+        return r.json();
+      })
+      .then((data: FeedbackRow[]) => setRows(Array.isArray(data) ? data : []))
+      .catch(e => setError(e.message));
+  }, []);
+
+  if (error) return <div style={{ ...card, color: 'var(--tier-3)' }}>{error}</div>;
+  if (!rows) return <div className="dashboard-loading">Loading...</div>;
+
+  const filtered = rows.filter(r =>
+    (topicF === 'all' || (r.topic ?? 'other') === topicF) &&
+    (sevF === 'all' || (r.severity ?? 'low') === sevF),
+  );
+
+  const selStyle: React.CSSProperties = {
+    background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)',
+    borderRadius: 'var(--r-sm)', padding: '6px 10px', fontSize: '0.8rem',
+  };
+
+  return (
+    <div style={card}>
+      <h2 style={sectionHeading}>Feedback ({filtered.length})</h2>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: '0.82rem', color: 'var(--muted)', margin: 0 }}>
+          No feedback yet. Users submit via <code style={{ fontFamily: 'var(--mono)' }}>mooter feedback &quot;…&quot;</code>.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <select style={selStyle} value={topicF} onChange={e => setTopicF(e.target.value)}>
+              {['all', 'bug', 'feature', 'performance', 'docs', 'other'].map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select style={selStyle} value={sevF} onChange={e => setSevF(e.target.value)}>
+              {['all', 'low', 'medium', 'high'].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filtered.map(r => (
+              <div key={r.id} style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', background: 'var(--surface)' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                  <span>{r.created_at?.slice(0, 10)}</span>
+                  {r.topic && <span style={{ color: 'var(--accent)' }}>{r.topic}</span>}
+                  {r.severity && <span>· {r.severity}</span>}
+                  {r.mooter_version && <span>· v{r.mooter_version}</span>}
+                  <span style={{ marginLeft: 'auto' }}>user {r.user_id_hash?.slice(0, 8)}…</span>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                  {r.message.length > 200 ? `${r.message.slice(0, 200)}…` : r.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'users', label: 'Users' },
   { key: 'devices', label: 'Devices' },
   { key: 'health', label: 'Health' },
+  { key: 'feedback', label: 'Feedback' },
 ];
 
 export default function AdminPage() {
@@ -1019,6 +1157,7 @@ export default function AdminPage() {
       {tab === 'users' && <UsersTab stats={stats} />}
       {tab === 'devices' && <DevicesTab stats={stats} />}
       {tab === 'health' && <HealthTab stats={stats} />}
+      {tab === 'feedback' && <FeedbackTab />}
     </div>
   );
 }

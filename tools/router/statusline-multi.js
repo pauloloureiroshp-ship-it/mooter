@@ -51,6 +51,10 @@ const TRACKER_URL   = 'http://127.0.0.1:7821/metrics';
 const TRACKER_TIMEOUT_MS = 250;
 const RECENT_WINDOW = 10; // last N decisions for drift / beast-overkill detection
 
+// Wave 2 Day 2 — last decision sidecar (written by the Pastor hook in Day 4).
+// Until that writer ships, read returns null and the pack chip is silent.
+const LAST_DECISION_PATH = path.join(require('os').homedir(), '.mooter', 'last-decision.json');
+
 // ── Health thresholds (single place to tune) ────────────────────────────
 const TH = {
   ANTH_RED:        15,  // % remaining → red
@@ -72,6 +76,29 @@ function readQuota() {
   catch { return null; }
 }
 
+/**
+ * Read the JSON blob Claude Code pipes to a statusline command on stdin.
+ * Returns null when stdin is a TTY (manual run) or the payload isn't JSON.
+ * Wave 2.5 Day 1 — source of session_id and context-window usage.
+ */
+function readStdinJson() {
+  if (process.stdin.isTTY) return null;
+  try {
+    const data = fs.readFileSync(0, 'utf8');       // fd 0 = stdin
+    if (!data.trim()) return null;
+    return JSON.parse(data);
+  } catch {
+    return null;                                    // not JSON / no stdin
+  }
+}
+
+/** Coerce a context-usage value to an integer 0..100, or null if unusable. */
+function clampPercent(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
 function readDecisionsTail() {
   let fd;
   try { fd = fs.openSync(DECISIONS_LOG, 'r'); }
@@ -87,10 +114,47 @@ function readDecisionsTail() {
   } finally { fs.closeSync(fd); }
 }
 
-/** Best-effort sync GET with hard timeout. Returns null on any failure. */
-function readSavingsSync() {
+/**
+ * Read the last pack decision written by the Pastor hook. Returns null when
+ * the file is missing or malformed — that is the steady state until the
+ * Wave 2 Day 4 writer lands.
+ *
+ * Shape: { pack_id: string, candidates?: string[], ts?: string }
+ */
+function readLastDecision() {
+  try {
+    const raw = fs.readFileSync(LAST_DECISION_PATH, 'utf8');
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj.pack_id !== 'string') return null;
+    return {
+      pack_id: obj.pack_id,
+      candidates: Array.isArray(obj.candidates) ? obj.candidates.filter((c) => typeof c === 'string') : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Adapter status — Wave 5 placeholder. Until the LoRA / pack-adapter loader
+ * lands we always report idle so the chip is visible and reserves the slot.
+ * The future implementation will read ~/.mooter/adapter-state.json.
+ */
+function getAdapterStatus() {
+  return { status: 'idle', id: null };
+}
+
+/**
+ * Best-effort GET with hard timeout. Returns null on any failure.
+ * Wave 2.5 Day 1 — when `sessionFilter` is set, scopes the request to a single
+ * Claude Code session so saved/turn/alltime reflect this terminal only.
+ */
+function readSavingsSync(sessionFilter) {
+  const url = sessionFilter
+    ? `${TRACKER_URL}?session_id=${encodeURIComponent(sessionFilter)}`
+    : TRACKER_URL;
   return new Promise((resolve) => {
-    const req = http.get(TRACKER_URL, { timeout: TRACKER_TIMEOUT_MS }, (res) => {
+    const req = http.get(url, { timeout: TRACKER_TIMEOUT_MS }, (res) => {
       if (res.statusCode !== 200) { res.resume(); return resolve(null); }
       let body = '';
       res.setEncoding('utf8');
@@ -124,8 +188,14 @@ function isToday(isoTs) {
  *   total:    sum of counts
  *   last:     the most-recent classified event (or null)
  *   recent:   the last RECENT_WINDOW classified events (newest first)
+ *
+ * Wave 2.5 Day 1 — per-terminal isolation: when `sessionFilter` is set, events
+ * tagged with a *different* session_id are skipped so each terminal sees only
+ * its own activity. Legacy events with no session_id always count (backward
+ * compat); MOOTER_STATUSLINE_VIEW=all disables the filter (debug/global view).
  */
-function digest(lines) {
+function digest(lines, options = {}) {
+  const sessionFilter = options.sessionFilter || null;
   const counts = { T0: 0, T1: 0, T2: 0, T3: 0, codex: 0 };
   let total = 0;
   /** @type {any[]} */
@@ -137,6 +207,10 @@ function digest(lines) {
     try { evt = JSON.parse(lines[i]); } catch { continue; }
     if (!evt || evt.event !== 'classified') continue;
     if (evt.source === 'mooter-tester') continue;
+    // Per-session scope: skip other terminals' events, but never drop legacy
+    // events that pre-date session tagging (evt.session_id absent/unknown).
+    if (sessionFilter && evt.session_id && evt.session_id !== 'unknown'
+        && evt.session_id !== sessionFilter) continue;
 
     if (!last) last = evt;
     if (recent.length < RECENT_WINDOW) recent.push(evt);
@@ -228,13 +302,16 @@ function pickState(ctx) {
   const {
     total, last, recent, anthRem, codexRem, codexLeft,
     savedPct, savedUsd, todayCost, dataMissing,
+    ctxPercent, lastTurnCost, alltimeCost,
   } = ctx;
 
-  // ── Empty (cold start, no classified events yet today) ────────────────
+  // ── Setup incomplete (no decisions, no quota — fresh install) ─────────
+  // Wave 2 Day 2: was a generic "no data yet" empty state; now surfaces the
+  // concrete next step so a clean WSL install knows what to run.
   if (dataMissing && total === 0) {
     return {
-      color:    'empty',
-      headline: 'no data yet — make a request',
+      color:    'setup',
+      headline: 'mooter setup incomplete — run /mooter init',
       proof:    '—',
     };
   }
@@ -262,11 +339,21 @@ function pickState(ctx) {
     lastLabel = `${tier} ${tag} ${conf}`;
   }
 
+  // ── Proof chips (Wave 2.5 Day 1) ──────────────────────────────────────
+  // New operational chips: ctx % · Anthropic 5h % · this-turn cost · cumulative
+  // cost. `proofChips` is the label-free form used by the GREEN headline (which
+  // already carries the tier badge); `proof` prepends the tier label and is the
+  // default for every warning state, so a warning never costs the operator
+  // sight of the last decision.
   const proofParts = [];
-  if (lastLabel !== '—') proofParts.push(lastLabel);
+  if (typeof ctxPercent === 'number') proofParts.push(`ctx ${ctxPercent}%`);
   if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h`);
-  if (total) proofParts.push(`${total}t`);
-  const proof = proofParts.join(' · ') || '—';
+  if (typeof lastTurnCost === 'number') proofParts.push(`turn $${lastTurnCost.toFixed(2)}`);
+  if (typeof alltimeCost === 'number') proofParts.push(`alltime $${alltimeCost.toFixed(2)}`);
+  const proofChips = proofParts.join(' · ') || '—';
+  const proof = (lastLabel !== '—')
+    ? [lastLabel, ...proofParts].join(' · ')
+    : proofChips;
 
   // ── RED: Anthropic critically low → forced fallback ───────────────────
   if (typeof anthRem === 'number' && anthRem < TH.ANTH_RED) {
@@ -355,12 +442,13 @@ function pickState(ctx) {
   }
 
   // ── GREEN: default healthy state ──────────────────────────────────────
+  // Wave 2.5 Day 1: the tier badge (T2 sonnet 0.84) moves inline into the
+  // headline; the proof slot carries the operational chips instead.
   if (typeof savedUsd === 'number' && typeof savedPct === 'number') {
-    return {
-      color:    'green',
-      headline: `mooter saved $${savedUsd.toFixed(2)} today (${Math.round(savedPct)}%)`,
-      proof,
-    };
+    const headline = lastLabel !== '—'
+      ? `mooter saved $${savedUsd.toFixed(2)} (${Math.round(savedPct)}%) · ${lastLabel}`
+      : `mooter saved $${savedUsd.toFixed(2)} (${Math.round(savedPct)}%)`;
+    return { color: 'green', headline, proof: proofChips };
   }
 
   // ── GREEN fallback: tracker down but data present ─────────────────────
@@ -371,11 +459,16 @@ function pickState(ctx) {
   };
 }
 
+// Wave 2.5 Day 1 — brand-identity glyphs. 🐮 (Paulo: "emoji vaquinha, não
+// bolinha verde") for healthy, 🐂 (the heavier ox) for warning to echo the
+// CrazyMoo mood metaphor, 🚨 keeps urgency while reading distinct from a plain
+// red dot. Setup keeps the wrench.
 const COLOR_GLYPH = {
-  green:  '🟢',
-  yellow: '🟡',
-  red:    '🔴',
-  empty:  '⚪',
+  green:  '🐮',
+  yellow: '🐂',
+  red:    '🚨',
+  setup:  '🛠',
+  empty:  '⚪', // legacy — kept for back-compat with consumers; not emitted by pickState.
 };
 
 // ────────────────────────────────────────────────────────────────────────
@@ -385,16 +478,282 @@ const COLOR_GLYPH = {
 /**
  * Pure render function — no I/O. Takes a context object and returns the
  * one-line statusline. Used by tests and by the demo modes.
+ *
+ * Wave 2 Day 2: appends two chips to the proof slot:
+ *   · pack: <id>           (skipped for GENERAL; "AMBIGUOUS (a, b)" otherwise)
+ *   · adapter: ◌ / ◐ / ●    (Wave 5 placeholder — always idle ◌ today)
+ * Setup state suppresses both chips because the user has no router data yet.
  */
 function renderFromContext(ctx) {
   const state = pickState(ctx);
-  return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${state.proof}`;
+  let proof = state.proof;
+  // Wave 2.5 Day 1 — compact mode: in a narrow terminal (< 100 cols) drop the
+  // secondary pack/adapter chips so the essential headline + cost chips still
+  // fit on one line. The COLUMNS env reflects the host terminal width.
+  const COMPACT = parseInt(process.env.COLUMNS || '120', 10) < 100;
+  if (state.color !== 'setup' && !COMPACT) {
+    const chips = proof && proof !== '—' ? [proof] : [];
+    if (ctx && ctx.lastPack && typeof ctx.lastPack.pack_id === 'string') {
+      const pid = ctx.lastPack.pack_id;
+      if (pid === 'AMBIGUOUS' && Array.isArray(ctx.lastPack.candidates) && ctx.lastPack.candidates.length >= 2) {
+        chips.push(`pack: AMBIGUOUS (${ctx.lastPack.candidates.slice(0, 2).join(', ')})`);
+      } else if (pid !== 'GENERAL' && pid !== 'AMBIGUOUS') {
+        chips.push(`pack: ${pid}`);
+      }
+    }
+    if (ctx && ctx.adapter && typeof ctx.adapter.status === 'string') {
+      const glyph = ctx.adapter.status === 'loaded'  ? '●' :
+                    ctx.adapter.status === 'loading' ? '◐' : '◌';
+      chips.push(`adapter: ${glyph}`);
+    }
+    proof = chips.length ? chips.join(' · ') : '—';
+  }
+  // Wave 2.5 Day 3 — rotating tier-mix view. Every other 5-tick window the green
+  // proof slot shows the last-10 tier distribution instead of the cost chips.
+  // Green-only (warnings/setup keep their diagnostic proof) and best-effort so a
+  // missing module never blocks the render.
+  try {
+    if (state.color === 'green' && Array.isArray(ctx.recent) && ctx.recent.length) {
+      const { pickView, tierMixLast10 } = require('./tier-mix.js');
+      const view = pickView(ctx.recent, ctx.tick || 0);
+      if (view === 'B') {
+        const ctxChip = typeof ctx.ctxPercent === 'number' ? ` · ctx ${ctx.ctxPercent}%` : '';
+        proof = `${tierMixLast10(ctx.recent)}${ctxChip}`;
+      } else if (view === 'C') {
+        // Wave 2.6 Day 3 — view C: cumulative cost. The full 7d-vs-prev-7d
+        // evolution lives in `mooter trail --evolution`; here we surface the
+        // real cumulative figures the ctx already carries.
+        const parts = [];
+        if (typeof ctx.alltimeCost === 'number') parts.push(`alltime $${ctx.alltimeCost.toFixed(2)}`);
+        if (typeof ctx.todayCost === 'number') parts.push(`today $${ctx.todayCost.toFixed(2)}`);
+        if (parts.length) proof = parts.join(' · ');
+      }
+    }
+  } catch { /* keep default proof */ }
+  return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${proof}`;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Wave 2.6 Day 2 — 2-line rich statusline (with truncate-safe 1-line fallback)
+// ────────────────────────────────────────────────────────────────────────
+
+const TWO_LINE_THRESHOLD = 120;
+const CHIP_MAX = 30;
+
+// Mood glyph for the local Moos / provider, reused across chips.
+const PROVIDER_GLYPH = { local: '🏠', haiku: '☁', sonnet: '☁', opus: '☁', codex: '⚡', oai: '⚡' };
+
+/**
+ * Truncate a single chip to CHIP_MAX chars (ellipsis) so one oversized field
+ * (e.g. a long pack id) can never blow out the line-1/line-2 structure.
+ */
+function truncateChip(s, max = CHIP_MAX) {
+  if (typeof s !== 'string' || s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
+}
+
+// Wave 2.8 Ponto #1 — GPU from ~/.mooter/profile.json. The wizard writes gpu as
+// an object { model, vram_gb } (or absent on a no-GPU machine). Best-effort.
+function readGpuFromProfile() {
+  try {
+    const profile = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'profile.json'), 'utf8'));
+    const g = profile && profile.gpu;
+    if (!g) return null;
+    return typeof g === 'string' ? g : (g.model || null);
+  } catch {
+    return null;
+  }
+}
+
+function formatGpuChip(gpu) {
+  if (!gpu) return null;
+  const compact = String(gpu).replace(/^NVIDIA\s+/i, '').replace(/^Apple\s+/i, '').replace(/^GeForce\s+/i, '');
+  return `🎮 ${compact}`;
+}
+
+// Wave 2.8 Ponto #2 — context window as a 10-char ANSI bar + percent. Green
+// < 50%, yellow < 80%, red ≥ 80%. Used only in the 2-line layout; the compact
+// 1-line render keeps the bare "ctx N%" text.
+function ctxBar(pct) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const width = 10;
+  const filled = Math.round((p / 100) * width);
+  const bar = '█'.repeat(filled) + '░'.repeat(width - filled);
+  const color = p < 50 ? '\x1b[32m' : p < 80 ? '\x1b[33m' : '\x1b[31m';
+  return `ctx [${color}${bar}\x1b[0m] ${p}%`;
+}
+
+/**
+ * Wave 2.6 Day 2 — rich 2-line layout for wide terminals (COLUMNS >= 120).
+ * Line 1 is the existing colored headline (carries saved$ + tier badge in the
+ * green state). Line 2 carries the full operational detail at once — no
+ * rotation needed because we have the width: Moo mix · local count · ctx ·
+ * 5h quota · turn$ · alltime$ · pack · adapter. Every chip is derived from the
+ * same ctx the 1-line render uses (no invented fields); a chip whose source is
+ * absent is dropped via `.filter(Boolean)`.
+ *
+ * Note: a per-turn token in/out meter is intentionally omitted — buildContext
+ * does not track token counts, and inventing them would violate provenance.
+ */
+function renderTwoLine(ctx) {
+  const state = pickState(ctx);
+  const glyph = COLOR_GLYPH[state.color];
+
+  // Setup state has no router data — degrade to the 1-line so we never print a
+  // half-empty second line on a fresh install.
+  if (state.color === 'setup') return renderFromContext(ctx);
+
+  const line1 = `${glyph} ${state.headline}`;
+
+  // Wave 2.6 Day 3 — current Moo glyph from the centralized map (tier + where it
+  // grazes). Best-effort: a missing glyphs module just drops the chip. Also pull
+  // the "home" glyph from the same table so the local-count chip stays in sync.
+  let mooGlyphChip = null;
+  let homeGlyph = '🏠';
+  try {
+    const { glyphFor, providerBucket, PROVIDER_GLYPHS } = require('./glyphs.js');
+    homeGlyph = (PROVIDER_GLYPHS && PROVIDER_GLYPHS.local) || '🏠';
+    if (ctx.last && ctx.last.tier) {
+      const prov = providerBucket((Array.isArray(ctx.last.suggested_providers) && ctx.last.suggested_providers[0]) || '');
+      mooGlyphChip = glyphFor({ tier: ctx.last.tier, provider: prov });
+    }
+  } catch { mooGlyphChip = null; homeGlyph = '🏠'; }
+
+  // Local-Moo usage count (T0 = local tier) from the per-session tier counts.
+  const localCount = (ctx.counts && Number(ctx.counts.T0)) || 0;
+
+  // Moo mix over the last 10 turns (reuse the canonical formatter; best-effort).
+  let mooMix = null;
+  try {
+    if (Array.isArray(ctx.recent) && ctx.recent.length) {
+      const { tierMixLast10 } = require('./tier-mix.js');
+      mooMix = `🐄 ${tierMixLast10(ctx.recent)}`;
+    }
+  } catch { mooMix = null; }
+
+  // Pack chip — mirror renderFromContext's GENERAL/AMBIGUOUS handling. This is
+  // the one user-controlled (unbounded) chip, so it's the only one we truncate;
+  // the structured chips below have known bounded widths.
+  let packChip = null;
+  if (ctx.lastPack && typeof ctx.lastPack.pack_id === 'string') {
+    const pid = ctx.lastPack.pack_id;
+    if (pid === 'AMBIGUOUS' && Array.isArray(ctx.lastPack.candidates) && ctx.lastPack.candidates.length >= 2) {
+      packChip = truncateChip(`pack: AMBIGUOUS (${ctx.lastPack.candidates.slice(0, 2).join(', ')})`);
+    } else if (pid !== 'GENERAL' && pid !== 'AMBIGUOUS') {
+      packChip = truncateChip(`pack: ${pid}`);
+    }
+  }
+
+  // Wave 5 D3 — per-chip hide flags (preferences.json hidden_chips: ["vram","quant",...]).
+  let hidden = [];
+  try {
+    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    if (Array.isArray(prefs.hidden_chips)) hidden = prefs.hidden_chips;
+  } catch { hidden = []; }
+  const hide = (name) => hidden.includes(name);
+
+  // Wave 2.8 GPU chip + Wave 5 D3 live VRAM. `--hide-vram` drops the VRAM suffix.
+  let gpuChip = formatGpuChip(readGpuFromProfile());
+  if (gpuChip && !hide('vram')) {
+    try {
+      const { getVram, formatVramChip } = require('./vram_detect.js');
+      const v = formatVramChip(getVram());
+      if (v) gpuChip = `${gpuChip} (${v})`;
+    } catch { /* keep model-only chip */ }
+  }
+
+  // Wave 2.8 quant chip + Wave 5 D3 detailed tooltip (wide terminals). Local Moos
+  // only; `--hide-quant` drops it. Best-effort, never blocks the render.
+  let quantChip = null;
+  if (!hide('quant')) {
+    try {
+      const { detectQuantization, formatQuantChipDetailed } = require('./quantization.js');
+      const model = (ctx.last && ctx.last.suggested_providers && ctx.last.suggested_providers[0]) || (ctx.last && ctx.last.tier === 'T0' ? 'ollama' : '');
+      const q = detectQuantization(model);
+      if (q) quantChip = parseInt(process.env.COLUMNS || '120', 10) >= 140 ? formatQuantChipDetailed(q.format) : `quant ${q.format}`;
+    } catch { quantChip = null; }
+  }
+
+  // Wave 5 D2 — adapter chip, honest. A validated active adapter shows 🔧 {name}
+  // (+perf if benchmarked); a marked-but-unvalidated one shows ⏸; else baseline.
+  let adapterChip = 'adapter ◌ baseline · install via mooter forge install <gguf>';
+  try {
+    const { getActiveAdapter, markedAdapterId } = require('./adapter_selection.js');
+    const active = getActiveAdapter();
+    if (active && active.name) {
+      const perf = active.performance && typeof active.performance.accuracy_delta === 'number'
+        ? ` (${(active.performance.accuracy_delta * 100).toFixed(0)}% acc)`
+        : ' (◌ benchmark pending)';
+      adapterChip = `adapter 🔧 ${active.name}${perf}`;
+    } else {
+      const marked = markedAdapterId();
+      if (marked) adapterChip = `adapter ⏸ ${String(marked).slice(0, 8)} (validating)`;
+    }
+  } catch { /* keep baseline */ }
+
+  // Wave 2.8 ctx visual bar (already shipped W2.8). `--hide-ctx` drops it.
+  const ctxChip = !hide('ctx') && typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;
+
+  const line2 = [
+    mooGlyphChip,
+    localCount > 0 ? `${homeGlyph} local ×${localCount}` : null,
+    mooMix,
+    gpuChip,
+    ctxChip,
+    typeof ctx.anthRem === 'number' ? `${ctx.anthRem}% 5h` : null,
+    typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
+    typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
+    quantChip,
+    packChip,
+    hide('adapter') ? null : adapterChip,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  // If line 2 has nothing to show, fall back to the 1-line.
+  return line2 ? `${line1}\n${line2}` : renderFromContext(ctx);
+}
+
+/**
+ * Entry point — picks the 2-line layout on a wide terminal, otherwise the
+ * existing single-line render (already compact-aware for narrow terminals).
+ * COLUMNS reflects the host terminal width; absent → assume narrow (1-line).
+ */
+function render(ctx) {
+  const cols = parseInt(process.env.COLUMNS || '80', 10);
+  return cols >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx) : renderFromContext(ctx);
 }
 
 async function buildContext() {
+  // Wave 2.5 Day 1 — Claude Code passes a JSON blob on stdin (session_id +
+  // optional context window usage). Parse it best-effort; absent on a manual
+  // `node statusline-multi.js` run, where stdin is a TTY.
+  const stdinJson = readStdinJson();
+  const ctxPercent = clampPercent(
+    stdinJson && stdinJson.context && stdinJson.context.percent_used
+  );
+
+  // Session scope: prefer the session_id Claude Code just handed us (same value
+  // inject_context.js stamps onto each decision), fall back to the env var.
+  // MOOTER_STATUSLINE_VIEW=all turns the filter off for a global/debug view.
+  const sessionId = (stdinJson && stdinJson.session_id) || process.env.CLAUDE_SESSION_ID || null;
+  const sessionFilter = process.env.MOOTER_STATUSLINE_VIEW === 'all' ? null : sessionId;
+
+  // Wave 2.5 Day 3 — per-session tick counter (persisted in tmp) drives the
+  // rotating tier-mix view in renderFromContext. Each statusline call bumps it;
+  // a fresh session starts its own file. Best-effort: any read/write failure
+  // leaves tick at 0 (always view A) and never blocks the render.
+  let tick = 0;
+  try {
+    const tickPath = path.join(require('os').tmpdir(), `mooter-statusline-tick-${sessionId || 'global'}`);
+    try { tick = parseInt(fs.readFileSync(tickPath, 'utf8'), 10) || 0; } catch { tick = 0; }
+    tick = (tick + 1) % 1000000;
+    try { fs.writeFileSync(tickPath, String(tick)); } catch { /* ignore */ }
+  } catch { tick = 0; }
+
   const quota = readQuota() || {};
   const lines = readDecisionsTail();
-  const { counts, total, last, recent } = digest(lines);
+  const { counts, total, last, recent } = digest(lines, { sessionFilter });
 
   const anthRem    = computeAnthropicRem(quota);
   const codexRem   = computeCodexRem(quota);
@@ -404,9 +763,17 @@ async function buildContext() {
     ((quota.providers && quota.providers.anthropic && quota.providers.anthropic.today.cost_usd) || 0) +
     ((quota.providers && quota.providers.openai_api && quota.providers.openai_api.today.cost_usd) || 0);
 
-  const metrics = await readSavingsSync();
+  // Scope the tracker query to this terminal's session so the saved/turn/alltime
+  // numbers match the digest. With no session (or global view) we read all-time.
+  const metrics = await readSavingsSync(sessionFilter);
   const savedUsd = metrics && Number.isFinite(Number(metrics.saved)) ? Number(metrics.saved) : null;
   const savedPct = metrics && Number.isFinite(Number(metrics.saved_pct)) ? Number(metrics.saved_pct) : null;
+  const lastTurnCost = metrics && Number.isFinite(Number(metrics.last_turn_cost_usd)) ? Number(metrics.last_turn_cost_usd) : null;
+  const alltimeCost  = metrics && Number.isFinite(Number(metrics.alltime_cost_usd)) ? Number(metrics.alltime_cost_usd) : null;
+
+  // Wave 2 Day 2 — pack + adapter sidecars (null-safe; both can be absent).
+  const lastPack = readLastDecision();
+  const adapter  = getAdapterStatus();
 
   // Drift detection: cheap when no baseline exists (returns drift=false
   // immediately). Wrapped in try/catch so a drift module bug never blocks
@@ -420,7 +787,10 @@ async function buildContext() {
     counts, total, last, recent,
     anthRem, codexRem, codexLeft,
     savedUsd, savedPct, todayCost,
+    ctxPercent, lastTurnCost, alltimeCost,
     drift,
+    lastPack, adapter,
+    tick,
     dataMissing: !lines.length && !quota.providers,
   };
 }
@@ -477,12 +847,12 @@ async function main() {
     return;
   }
   if (argv[0] === '--demo' && DEMO_CONTEXTS[argv[1]]) {
-    process.stdout.write(renderFromContext(DEMO_CONTEXTS[argv[1]]) + '\n');
+    process.stdout.write(render(DEMO_CONTEXTS[argv[1]]) + '\n');
     return;
   }
 
   const ctx = await buildContext();
-  process.stdout.write(renderFromContext(ctx) + '\n');
+  process.stdout.write(render(ctx) + '\n');
 }
 
 if (require.main === module) {
@@ -498,6 +868,12 @@ module.exports = {
   // Pure helpers — exported for tests
   pickState,
   renderFromContext,
+  renderTwoLine,
+  render,
+  truncateChip,
+  ctxBar,
+  formatGpuChip,
+  readGpuFromProfile,
   digest,
   computeAnthropicRem,
   computeCodexRem,
@@ -505,6 +881,8 @@ module.exports = {
   beastOverkillPct,
   zenUnderkillPct,
   avgConfidence,
+  getAdapterStatus,
+  clampPercent,
   // Demo contexts kept on the export so consumers can render previews.
   DEMO_CONTEXTS,
   TH,
