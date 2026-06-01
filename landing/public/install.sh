@@ -143,9 +143,29 @@ for h in gsd-statusline.js gsd-turn-end.js frugal-turn-header.js exec-logger.js 
   do_run "rm -f '$ROUTER_DIR/$h'"
 done
 
-# Copy CLI to ~/.mooter/cli/
+# Copy legacy CLI to ~/.mooter/cli/ (installer lifecycle: doctor/update/uninstall
+# + register-hooks/skill-gen). Preserved as-is — the hybrid shim still routes these.
 do_run "cp -R '$SRC_DIR/tools/cli/'* '$MOOTER_CLI_DIR/'"
 do_run "cp '$SRC_DIR/tools/router/version.json' '$MOOTER_DIR/version.json' 2>/dev/null || true"
+
+# ── Wave 8 — v1.0 product CLI (feedback/forge/login/adapter/trail/pack/...) ──
+# Built from source into a self-contained esbuild bundle and shipped alongside
+# the legacy CLI (hybrid). packs/ are copied so `mooter pack`/`init` work too.
+MOOTER_CLI_V1_DIR="$MOOTER_DIR/cli-v1"
+MOOTER_PACKS_DIR_INST="$MOOTER_DIR/packs"
+if command -v npm >/dev/null 2>&1; then
+  say "Building v1.0 CLI bundle (esbuild)..."
+  do_run "mkdir -p '$MOOTER_CLI_V1_DIR' '$MOOTER_PACKS_DIR_INST'"
+  if do_run "cd '$SRC_DIR/packages/cli' && npm install --no-audit --no-fund --silent && npm run build"; then
+    do_run "cp '$SRC_DIR/packages/cli/mooter.js' '$MOOTER_CLI_V1_DIR/mooter.js'"
+    do_run "cp -R '$SRC_DIR/packs/'* '$MOOTER_PACKS_DIR_INST/' 2>/dev/null || true"
+    ok "v1.0 CLI bundle installed (feedback · forge · login · adapter · trail · pack)"
+  else
+    warn "v1.0 bundle build failed — legacy CLI only (feedback/forge unavailable). Re-run with npm available."
+  fi
+else
+  warn "npm not found — v1.0 commands (feedback/forge/...) unavailable; legacy CLI only."
+fi
 
 # Copy agents + skills (best-effort)
 do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/' 2>/dev/null || true"
@@ -170,8 +190,20 @@ say "Installing mooter shim to $LOCAL_BIN/mooter..."
 if [ "$DRY_RUN" = "0" ]; then
   cat > "$SHIM" <<SHIM_EOF
 #!/bin/sh
-# mooter — launcher shim (installed by install.sh)
-exec node "\$HOME/.mooter/cli/mooter.js" "\$@"
+# mooter — launcher shim (installed by install.sh). Wave 8 hybrid dispatch:
+#   v1.0 product commands  → bundled CLI (~/.mooter/cli-v1/mooter.js)
+#   legacy/installer cmds  → legacy CLI  (~/.mooter/cli/mooter.js)
+export MOOTER_PACKS_DIR="\${MOOTER_PACKS_DIR:-\$HOME/.mooter/packs}"
+V1="\$HOME/.mooter/cli-v1/mooter.js"
+LEGACY="\$HOME/.mooter/cli/mooter.js"
+case "\$1" in
+  feedback|forge|login|logout|adapter|trail|quiet|hub|explain|sync|pack|init|dashboard)
+    if [ -f "\$V1" ]; then exec node "\$V1" "\$@"; else exec node "\$LEGACY" "\$@"; fi ;;
+  doctor|update|uninstall|--version|-v|version|help|--help|-h|"")
+    exec node "\$LEGACY" "\$@" ;;
+  *)
+    if [ -f "\$V1" ]; then exec node "\$V1" "\$@"; else exec node "\$LEGACY" "\$@"; fi ;;
+esac
 SHIM_EOF
   chmod +x "$SHIM"
 fi

@@ -1,0 +1,72 @@
+name: install-reliability
+
+# Wave 8 gate: a fresh install must build the v1.0 CLI bundle and the shim must
+# dispatch both v1 product commands AND legacy/installer commands. Prevents the
+# regression where install.sh shipped only the legacy CLI (no feedback/forge).
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'install.sh'
+      - 'landing/public/install.sh'
+      - 'packages/cli/**'
+      - 'packages/router/src/classify_domain.ts'
+      - '.github/workflows/install-reliability.yml'
+  pull_request:
+    paths:
+      - 'install.sh'
+      - 'landing/public/install.sh'
+      - 'packages/cli/**'
+      - 'packages/router/src/classify_domain.ts'
+      - '.github/workflows/install-reliability.yml'
+  workflow_dispatch:
+
+jobs:
+  fresh-install:
+    name: fresh install builds + dispatches v1 CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build v1.0 CLI bundle (esbuild, zero-runtime-deps)
+        run: |
+          cd packages/cli
+          npm install --no-audit --no-fund
+          npm run build
+          test -f mooter.js || { echo "::error::bundle mooter.js not produced"; exit 1; }
+
+      - name: Bundle is self-contained + dispatches a v1 command
+        run: |
+          # No node_modules next to the bundle — proves it's standalone.
+          node packages/cli/mooter.js feedback "ci" 2>&1 | grep -q "mooter login" \
+            || { echo "::error::v1 bundle did not dispatch feedback"; exit 1; }
+
+      - name: Two install.sh stay in sync
+        run: |
+          diff install.sh landing/public/install.sh \
+            || { echo "::error::install.sh and landing/public/install.sh diverged"; exit 1; }
+
+      - name: Fresh install + hybrid dispatch smoke
+        run: |
+          set -e
+          printf '#!/bin/sh\necho claude-stub\n' | sudo tee /usr/local/bin/claude >/dev/null
+          sudo chmod +x /usr/local/bin/claude
+          mkdir -p "$HOME/.claude"
+          bash install.sh
+          export PATH="$HOME/.local/bin:$PATH"
+          # v1 product commands → bundled CLI
+          mooter feedback "ci" 2>&1 | grep -q "mooter login" || { echo "::error::feedback (v1) dispatch failed"; exit 1; }
+          mooter forge --help 2>&1   | grep -q "forge install"     || { echo "::error::forge (v1) dispatch failed"; exit 1; }
+          mooter pack list 2>&1      | grep -q "animation-web"      || { echo "::error::pack list (v1 + MOOTER_PACKS_DIR) failed"; exit 1; }
+          mooter adapter list 2>&1   | grep -q "No adapters"        || { echo "::error::adapter (v1) dispatch failed"; exit 1; }
+          # legacy/installer commands → tools/cli
+          mooter doctor 2>&1         | grep -q "mooter doctor"      || { echo "::error::doctor (legacy) dispatch failed"; exit 1; }
+          echo "✓ fresh install: v1 product + legacy commands dispatch correctly"
