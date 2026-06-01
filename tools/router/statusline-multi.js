@@ -603,7 +603,19 @@ function renderTwoLine(ctx) {
   // half-empty second line on a fresh install.
   if (state.color === 'setup') return renderFromContext(ctx);
 
-  const line1 = `${glyph} ${state.headline}`;
+  let line1 = `${glyph} ${state.headline}`;
+
+  // Wave 10 A.1 — Cinematic: a colored sparkline of the last 10 decisions trails
+  // the headline. Mostly low gray bars (local) with rare tall pink spikes (opus)
+  // tells the routing story at a glance. Best-effort; a missing module or empty
+  // history just drops the chip.
+  try {
+    if (Array.isArray(ctx.recent) && ctx.recent.length) {
+      const { tierSparkline } = require('./sparkline.js');
+      const spark = tierSparkline(ctx.recent);
+      if (spark) line1 = `${line1}  ${spark} last 10`;
+    }
+  } catch { /* keep the bare headline */ }
 
   // Wave 2.6 Day 3 — current Moo glyph from the centralized map (tier + where it
   // grazes). Best-effort: a missing glyphs module just drops the chip. Also pull
@@ -622,14 +634,17 @@ function renderTwoLine(ctx) {
   // Local-Moo usage count (T0 = local tier) from the per-session tier counts.
   const localCount = (ctx.counts && Number(ctx.counts.T0)) || 0;
 
-  // Moo mix over the last 10 turns (reuse the canonical formatter; best-effort).
-  let mooMix = null;
+  // Wave 10 A.1 — Cinematic: replace the verbose "🐄 last10: T0:.. T1:.." text
+  // chip with a visual local-share bar. The line-1 sparkline already carries the
+  // per-decision tier detail, so line 2 shows just the aggregate % that ran
+  // locally. Best-effort; a missing module or empty history drops the chip.
+  let localShareChip = null;
   try {
     if (Array.isArray(ctx.recent) && ctx.recent.length) {
-      const { tierMixLast10 } = require('./tier-mix.js');
-      mooMix = `🐄 ${tierMixLast10(ctx.recent)}`;
+      const { localCloudSplit, localBar } = require('./sparkline.js');
+      localShareChip = localBar(localCloudSplit(ctx.recent).pct);
     }
-  } catch { mooMix = null; }
+  } catch { localShareChip = null; }
 
   // Pack chip — mirror renderFromContext's GENERAL/AMBIGUOUS handling. This is
   // the one user-controlled (unbounded) chip, so it's the only one we truncate;
@@ -697,7 +712,7 @@ function renderTwoLine(ctx) {
   const line2 = [
     mooGlyphChip,
     localCount > 0 ? `${homeGlyph} local ×${localCount}` : null,
-    mooMix,
+    localShareChip,
     gpuChip,
     ctxChip,
     typeof ctx.anthRem === 'number' ? `${ctx.anthRem}% 5h` : null,

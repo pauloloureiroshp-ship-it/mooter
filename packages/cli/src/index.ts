@@ -13,6 +13,7 @@ import { runPack, PACK_USAGE } from "./commands/pack.ts";
 import { runInit } from "./commands/init.ts";
 import { runQuiet } from "./commands/quiet.ts";
 import { runTrail } from "./commands/trail.ts";
+import { runDigest } from "./commands/digest.ts";
 import { runDashboard } from "./commands/dashboard.ts";
 import { runHub } from "./commands/hub.ts";
 import { runSync, runSyncReal } from "./commands/sync.ts";
@@ -29,6 +30,7 @@ Usage:
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter explain [statusline]      educational guide to each statusline chip
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]]   provenance / 7d / safety
+  mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
   mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
   mooter logout                    remove the saved token (sync reverts to dry-run)
   mooter hub                       local activation hub (packs · safety · evolution · telemetry · suggestions)
@@ -85,6 +87,16 @@ async function main(argv: string[]): Promise<number> {
       evolution: rest.includes("--evolution"),
       safety: rest.includes("--safety"),
       byKeyword: rest.includes("--by-keyword"),
+    });
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "digest") {
+    const sidIdx = rest.indexOf("--session-id");
+    const res = await runDigest({
+      json: rest.includes("--json"),
+      sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
