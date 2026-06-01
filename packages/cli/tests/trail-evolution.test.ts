@@ -61,7 +61,7 @@ test("runTrail --evolution: human output declares LoRA honestly (no fake)", asyn
   assert.equal(res.exitCode, 0);
   assert.match(res.output, /evolution \(last 7d vs previous 7d\)/);
   assert.match(res.output, /prompts:   2 → 3/);
-  assert.match(res.output, /LoRA: ◌ none yet \(Adapter Forge ships Wave 5\)/);
+  assert.match(res.output, /LoRA: ◌ none yet \(install your own \.gguf via `mooter forge install`\)/);
   assert.match(res.output, /Per-window dollar savings is not shown/);
 });
 

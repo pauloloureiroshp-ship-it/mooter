@@ -17,11 +17,11 @@ function withManifest(h: string, m: Record<string, unknown>): void {
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(m));
 }
 
-test("list: empty → honest message + 'Wave 5 D2 ships training'", () => {
+test("list: empty → honest message + forge-install hint", () => {
   const res = runAdapterList({ mooterHome: home() });
   assert.equal(res.exitCode, 0);
   assert.match(res.output, /No adapters installed yet/);
-  assert.match(res.output, /Wave 5 D2/);
+  assert.match(res.output, /mooter forge install/);
   assert.match(res.output, /docs\/adr\/020/);
 });
 
@@ -38,8 +38,8 @@ test("activate: writes prefs + honest 'D1 stub' warning", () => {
   const res = runAdapterActivate("deadbeef00112233", { mooterHome: h });
   assert.equal(res.exitCode, 0);
   assert.match(res.output, /Marked deadbeef0011/);
-  assert.match(res.output, /runtime selection is stubbed/);
-  assert.match(res.output, /still shows baseline/);
+  assert.match(res.output, /Activation marks this adapter active/);
+  assert.match(res.output, /falls back to baseline/);
   const prefs = JSON.parse(readFileSync(join(h, "preferences.json"), "utf8"));
   assert.equal(prefs.active_adapter_id, "deadbeef00112233");
 });

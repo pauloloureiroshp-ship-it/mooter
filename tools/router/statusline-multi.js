@@ -676,7 +676,7 @@ function renderTwoLine(ctx) {
 
   // Wave 5 D2 — adapter chip, honest. A validated active adapter shows 🔧 {name}
   // (+perf if benchmarked); a marked-but-unvalidated one shows ⏸; else baseline.
-  let adapterChip = 'adapter ◌ baseline (forge ships D2)';
+  let adapterChip = 'adapter ◌ baseline · install via mooter forge install <gguf>';
   try {
     const { getActiveAdapter, markedAdapterId } = require('./adapter_selection.js');
     const active = getActiveAdapter();

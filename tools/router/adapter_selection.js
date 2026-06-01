@@ -84,7 +84,7 @@ function applyAdapterToDecision(decision, adapter) {
       ...decision,
       adapter_applied: false,
       adapter_id: null,
-      adapter_reason: 'baseline (forge ships Wave 5 D2)',
+      adapter_reason: 'baseline (no adapter installed)',
     };
   }
   return {

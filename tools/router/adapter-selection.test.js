@@ -88,7 +88,7 @@ test('applyAdapterToDecision: null adapter → baseline annotation', () => {
   const d = applyAdapterToDecision({ tier: 'T2' }, null);
   assert.equal(d.adapter_applied, false);
   assert.equal(d.adapter_id, null);
-  assert.match(d.adapter_reason, /baseline \(forge ships Wave 5 D2\)/);
+  assert.match(d.adapter_reason, /baseline \(no adapter installed\)/);
   assert.equal(d.tier, 'T2', 'original decision preserved');
 });
 
