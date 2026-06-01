@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { personaOption } from '../../onboarding/_lib/persona';
 
 interface Device {
   device_id: string;
@@ -24,6 +25,7 @@ interface Profile {
   onboarding_completed: boolean;
   github_username: string | null;
   experience_level: string;
+  persona: string | null;
   devices?: Device[];
 }
 
@@ -134,7 +136,7 @@ export default function SettingsPage() {
             }}>
               {profile.email}
             </div>
-            {profile.experience_level && (
+            {profile.experience_level && profile.experience_level !== 'unknown' && (
               <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 2 }}>
                 {profile.experience_level}
               </div>
@@ -172,6 +174,21 @@ export default function SettingsPage() {
             </span>
           </div>
         )}
+
+        {/* Wave 10 B.2b F-3 — read the real persisted persona (was showing
+            experience_level="unknown"). "Other" is preserved honestly; the CTA
+            re-runs the onboarding persona step rather than fabricating a value. */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '10px 0', borderTop: '1px solid var(--border)',
+          fontSize: '0.85rem',
+        }}>
+          <span style={{ color: 'var(--muted)' }}>Persona</span>
+          <span style={{ display: 'inline-flex', gap: 10, alignItems: 'center' }}>
+            <span style={{ color: 'var(--text)' }}>{personaOption(profile.persona).title}</span>
+            <a href="/onboarding" style={{ color: 'var(--accent)', fontSize: '0.8rem' }}>Change</a>
+          </span>
+        </div>
 
         <button
           onClick={handleLogout}
@@ -284,6 +301,22 @@ export default function SettingsPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Wave 10 B.2b.2 F-10 — settings is read-only by design (per doctrine).
+          Make the boundary explicit so users know where to edit. */}
+      <div style={{
+        ...card,
+        display: 'flex', gap: 10, alignItems: 'flex-start',
+        fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.6,
+      }}>
+        <span aria-hidden="true" style={{ flexShrink: 0 }}>ⓘ</span>
+        <span>
+          Telemetry, sync cadence &amp; adapter are managed in your CLI (
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter quiet --help</code>
+          ). Cloud-side editing ships{' '}
+          <a href="/under-the-hood" style={{ color: 'var(--accent)' }}>Wave 4 Phase D</a>.
+        </span>
       </div>
     </div>
   );

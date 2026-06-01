@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 // Wave 4 Phase C — new dashboard cards (extend, not replace).
 import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
 import DataSourceBadge from '../../_components/DataSourceBadge';
+import { personaOption, personaPackHint } from '../../onboarding/_lib/persona';
 
 interface Device {
   device_id: string;
@@ -32,6 +33,7 @@ interface Profile {
   github_primary_language: string | null;
   github_public_repos_count: number;
   experience_level: string;
+  persona: string | null;
   frugal_config: Record<string, unknown>;
   install_completed: boolean;
   frugal_version: string | null;
@@ -237,6 +239,26 @@ function DevicesTab({ profile }: { profile: Profile }) {
           </div>
         </div>
       ))}
+      {/* Wave 10 B.2b F-6 — actionable reconnect path for stale telemetry
+          (was a dead-end). Manual sync now; live CLI↔cloud ships Wave 4 Phase D. */}
+      <div style={{
+        marginTop: 4, padding: 14,
+        background: 'var(--bg)', borderRadius: 'var(--r-md)',
+        border: '1px dashed var(--border)',
+        fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.6,
+      }}>
+        Numbers look stale? Refresh from your machine:{' '}
+        <code style={{
+          fontFamily: 'var(--mono)', color: 'var(--accent)',
+          background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 'var(--r-sm)',
+        }}>
+          mooter sync
+        </code>
+        <span style={{ display: 'block', marginTop: 6, fontSize: '0.72rem' }}>
+          Real-time CLI↔cloud sync ships Wave 4 Phase D. Stuck? Run{' '}
+          <code style={{ fontFamily: 'var(--mono)' }}>mooter doctor</code> to debug your install.
+        </span>
+      </div>
     </div>
   );
 }
@@ -280,6 +302,27 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
   const legacyCfg = cfgVal(config);
   const hasOllama = latestDevice ? latestDevice.has_ollama : legacyCfg.hasOllama;
   const { decisionsCount } = aggregateDevices(profile);
+
+  // Wave 10 B.2b F-4 — Setup tab was 3 checklist items; surface the real
+  // detected setup so this prime tab earns its space. All honest, no fabrication.
+  const hasAnthropicKey = latestDevice ? latestDevice.has_anthropic_key : legacyCfg.hasAnthropicKey;
+  const hasOpenAI = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('gpt') || s.toLowerCase().includes('openai')) || config.has_openai_key === true;
+  const hasGemini = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('gemini') || s.toLowerCase().includes('google')) || config.has_gemini_key === true;
+  const aiStack = [
+    { name: 'Anthropic', on: hasAnthropicKey },
+    { name: 'Ollama', on: hasOllama },
+    { name: 'OpenAI', on: hasOpenAI },
+    { name: 'Gemini', on: hasGemini },
+  ];
+  const gpuLabel = latestDevice?.gpu_name || null;
+  const setupRows: { label: string; value: string }[] = [
+    { label: 'Hardware', value: [gpuLabel, latestDevice?.os_type ? osLabel(latestDevice.os_type) : null, profile.hardware_tier?.replace(/_/g, ' ')].filter(Boolean).join(' · ') || 'Not detected yet' },
+    { label: 'Persona', value: personaOption(profile.persona).title },
+    { label: 'Recommended packs', value: personaPackHint(profile.persona) },
+    { label: 'Adapter', value: '◌ baseline (none active) — install one with `mooter forge`' },
+  ];
 
   const steps = [
     {
@@ -344,6 +387,36 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
           {!step.done && <TerminalBlock lines={step.terminal} />}
         </div>
       ))}
+
+      {/* Wave 10 B.2b F-4 — "Your setup" detail (hardware · AI stack · packs · adapter). */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Your setup</h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          {aiStack.map(p => (
+            <span key={p.name} className={`status-pill ${p.on ? 'ok' : 'err'}`}>
+              {p.on ? '✓' : '✗'} {p.name}
+            </span>
+          ))}
+        </div>
+        {setupRows.map(r => (
+          <div key={r.label} style={{
+            display: 'flex', justifyContent: 'space-between', gap: 16,
+            padding: '9px 0', borderTop: '1px solid var(--border)',
+            fontSize: '0.82rem',
+          }}>
+            <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{r.label}</span>
+            <span style={{ color: 'var(--text)', textAlign: 'right', fontFamily: 'var(--mono)' }}>{r.value}</span>
+          </div>
+        ))}
+        {!profile.onboarding_completed && (
+          <a href="/onboarding" style={{
+            display: 'inline-block', marginTop: 14, fontSize: '0.82rem',
+            color: 'var(--accent)',
+          }}>
+            Complete onboarding →
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -910,7 +983,29 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
   const [copied, copy] = useCopyButton();
   const recs = getRecommendations(profile);
 
-  if (recs.length === 0) return null;
+  // Wave 10 B.2b.2 F-9 \u2014 state-aware: instead of silently vanishing once a
+  // recommendation is satisfied, confirm what's already in place.
+  if (recs.length === 0) {
+    const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+    const applied = [
+      (cfg.has_ollama === true || cfgVal(cfg).hasOllama) && 'Ollama',
+      cfg.ollama_has_qwen3b === true && 'qwen2.5:3b',
+      cfg.ollama_has_qwen30b === true && 'qwen3:30b',
+    ].filter(Boolean) as string[];
+    if (applied.length === 0) return null;
+    return (
+      <div style={card}>
+        <h2 style={sectionHeading}>Recommendations</h2>
+        <p style={{ margin: '0 0 6px', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>
+          \u2713 Your setup is optimised
+        </p>
+        <p style={{ color: 'var(--muted)', margin: '0 0 8px', fontSize: '0.85rem', lineHeight: 1.6 }}>
+          Installed: {applied.join(' \u00B7 ')}. Verify anytime with{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>ollama ls</code>.
+        </p>
+      </div>
+    );
+  }
 
   const priorityDot = (p: string) => p === 'high' ? '\uD83D\uDD34' : p === 'medium' ? '\uD83D\uDFE1' : '\uD83D\uDFE2';
 
@@ -972,6 +1067,16 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
 }
 
 // ── Overview Tab ─────────────────────────────────────────────────────────
+// Wave 10 B.2b.2 F-7 — nudge when the reported CLI is on an older major line
+// than the current release (e.g. frugal-era v0.9.x vs current v1.x). Display
+// nudge only; we never mutate the telemetry payload.
+const CURRENT_CLI_MAJOR = 1;
+function staleCliVersion(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const major = parseInt(String(v).replace(/^v/, '').split('.')[0] || '', 10);
+  return Number.isFinite(major) && major < CURRENT_CLI_MAJOR ? v : null;
+}
+
 function OverviewTab({ profile }: { profile: Profile }) {
   const { decisionsCount, savingsUsd } = aggregateDevices(profile);
   const allOpusCost = decisionsCount * 0.015;
@@ -996,8 +1101,21 @@ function OverviewTab({ profile }: { profile: Profile }) {
     { label: 'Sync', ok: !!(profile.devices && profile.devices.length > 0) },
   ];
 
+  const staleVersion = staleCliVersion(latestDevice?.frugal_version || profile.frugal_version);
+
   return (
     <>
+      {/* Wave 10 B.2b.2 F-7 — stale-CLI update nudge (display only). */}
+      {staleVersion && (
+        <div style={{
+          marginBottom: 16, padding: '10px 14px',
+          background: 'rgba(212,192,144,0.08)', border: '1px solid var(--yellow)',
+          borderRadius: 'var(--r-md)', fontSize: '0.82rem', color: 'var(--text)',
+        }}>
+          Your CLI is on <span style={{ fontFamily: 'var(--mono)' }}>v{staleVersion}</span> — a newer major is out. Update with{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>bash &lt;(curl -fsSL https://mooter.ai/install.sh)</code>
+        </div>
+      )}
       {/* Wave 4 Phase C — CLI connection status (real device data) */}
       <CliStatusCard profile={profile} />
       {/* Savings Hero */}
@@ -1013,6 +1131,14 @@ function OverviewTab({ profile }: { profile: Profile }) {
           gap: 32,
           alignItems: 'center',
         }}>
+          {/* Wave 10 B.2b F-5 — honesty layer parity with Workflow/Devices tabs:
+              these are the user's own synced numbers, not a demo placeholder. */}
+          <div style={{ width: '100%', marginBottom: -8 }}>
+            <DataSourceBadge
+              source="live"
+              detail={`${(profile.devices || []).length || 1} device${((profile.devices || []).length || 1) === 1 ? '' : 's'}${latestDevice?.last_sync_at ? ` · last sync ${timeAgo(latestDevice.last_sync_at)}` : ''}`}
+            />
+          </div>
           <div>
             <div style={{
               fontSize: '2.5rem', fontWeight: 800,

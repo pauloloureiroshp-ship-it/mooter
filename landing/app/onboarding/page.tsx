@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
-import { suggestHardware } from './_lib/hardware';
+import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
 
 const HW_OPTIONS = [
@@ -399,7 +399,7 @@ export default function OnboardingPage() {
                     <DetectRow label="CPU" value={`${detected.cpuCores}-core`} />
                   )}
                   {detected.gpuName && (
-                    <DetectRow label="GPU" value={detected.gpuName} truncate />
+                    <DetectRow label="GPU" value={formatGpuLabel(detected.gpuName) ?? 'Unknown GPU'} truncate />
                   )}
                   {detected.ramGb && (
                     <DetectRow label="RAM" value={`~${detected.ramGb} GB`} />
