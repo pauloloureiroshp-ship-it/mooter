@@ -1,0 +1,52 @@
+name: landing-test
+
+# Phase C.1 / F-3 — the landing/dashboard/admin vitest suite (incl. the
+# admin email-masking privacy guard and the honesty/Demo-fallback logic)
+# previously ran in NO workflow, while Vercel auto-deploys from `main`.
+# This gates the showcase-facing surface on every PR + push that touches it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/landing-test.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/landing-test.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: landing vitest + typecheck + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+
+      - name: Install landing dependencies
+        working-directory: landing
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck (tsc --noEmit)
+        working-directory: landing
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: landing
+        run: npm run lint
+
+      - name: Test (vitest run)
+        working-directory: landing
+        run: npm run test

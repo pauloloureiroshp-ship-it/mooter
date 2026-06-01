@@ -23,9 +23,16 @@
 import { uuid } from '../lib/anomaly.js';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { heartbeatBodySchema } from '../lib/schemas.js';
-import { insertHeartbeat } from '../lib/db.js';
+import { insertHeartbeat, countRecentHeartbeatsByDevice } from '../lib/db.js';
 
 const MAX_FIELD_LEN = 256;
+
+// Phase C.1 / F-1 — non-breaking ingestion rate limit. install.sh runs heartbeat
+// ~1×/day, live clients infrequently, so 10/min per device_id is generous while
+// capping a flood. Fail-open; no auth added (install.sh is a public script and
+// can't carry a secret), so existing installs keep working unchanged.
+const HEARTBEAT_RATE_LIMIT = 10;
+const HEARTBEAT_RATE_WINDOW_MS = 60000;
 
 function capped(value) {
   if (value == null) return null;
@@ -56,6 +63,19 @@ export async function handleHeartbeat(request, env) {
     return new Response(JSON.stringify({ error: 'validation_failed', issues }), { status: 422 });
   }
   body = parsed.data;
+
+  // F-1 rate limit (fail-open). Enforced when device_id is present.
+  if (body.device_id) {
+    try {
+      const recent = await countRecentHeartbeatsByDevice(env.DB, capped(body.device_id), HEARTBEAT_RATE_WINDOW_MS);
+      if (recent >= HEARTBEAT_RATE_LIMIT) {
+        return new Response(
+          JSON.stringify({ error: 'rate_limited', message: `Too many heartbeats (max ${HEARTBEAT_RATE_LIMIT}/min)` }),
+          { status: 429, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch { /* fail open — never block a legitimate heartbeat on a D1 hiccup */ }
+  }
 
   const id = uuid();
   const receivedAt = new Date().toISOString();

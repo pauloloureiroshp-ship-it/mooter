@@ -151,3 +151,32 @@ export async function countRecentEventsByInstance(db, instanceId, sinceMs) {
   );
   return row && typeof row.cnt === 'number' ? row.cnt : 0;
 }
+
+// Phase C.1 / F-1 — per-source ingestion rate limits for the previously
+// unauthenticated /api/delta and /api/device-heartbeat endpoints. Mirrors
+// countRecentEventsByInstance (D1 COUNT over a recent window). Callers keep
+// the fail-open policy. NOTE: these key on client-supplied identifiers
+// (profile_hash / device_id), so they stop naive floods but not an attacker
+// rotating the key — robust per-IP limiting is tracked as F-1.2 (needs a KV
+// namespace, which the hub does not yet bind).
+export async function countRecentDeltasByProfile(db, profileHash, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 60000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM deltas WHERE profile_hash = ? AND received_at > ?'
+    ).bind(profileHash, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
+
+export async function countRecentHeartbeatsByDevice(db, deviceId, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 60000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM device_heartbeats WHERE device_id = ? AND received_at > ?'
+    ).bind(deviceId, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
