@@ -11,8 +11,15 @@ import { processUnknownModels } from '../lib/model-detect.js';
 import { uuid } from '../lib/anomaly.js';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { deltaBodySchema } from '../lib/schemas.js';
-import { insertDelta } from '../lib/db.js';
+import { insertDelta, countRecentDeltasByProfile } from '../lib/db.js';
 import { errorResponse, classifyException } from '../lib/errors.js';
+
+// Phase C.1 / F-1 — non-breaking ingestion rate limit. Caps deltas per
+// profile_hash in a 60s window so a flood cannot poison community aggregates.
+// Fail-open (a D1 hiccup never blocks legitimate pushes); no auth added, so
+// existing installs (v0.9, Wave 8, current) keep working unchanged.
+const DELTA_RATE_LIMIT = 30;
+const DELTA_RATE_WINDOW_MS = 60000;
 
 async function handleDelta(request, env) {
   if (request.method !== 'POST') {
@@ -38,6 +45,19 @@ async function handleDelta(request, env) {
     return errorResponse('validation_failed', 'validation', { issues });
   }
   body = parsed.data;
+
+  // F-1 rate limit (fail-open). Only enforced when a profile_hash is present;
+  // anonymous deltas without one are still accepted (non-breaking).
+  if (body.profile_hash) {
+    try {
+      const recent = await countRecentDeltasByProfile(env.DB, body.profile_hash, DELTA_RATE_WINDOW_MS);
+      if (recent >= DELTA_RATE_LIMIT) {
+        return errorResponse('rate_limited', 'rate_limited', {
+          message: `Too many deltas (max ${DELTA_RATE_LIMIT}/min)`,
+        });
+      }
+    } catch { /* fail open — never block a legitimate push on a D1 hiccup */ }
+  }
 
   const id = uuid();
   const now = new Date();

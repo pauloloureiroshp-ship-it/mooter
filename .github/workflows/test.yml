@@ -64,6 +64,24 @@ jobs:
       - name: Syntax check classify.js
         run: node -c tools/router/classify.js
 
+      # P11 invariant gate (Phase C.1 / F-2) — classify.js is byte-identical
+      # protected. Any change MUST be intentional (e.g. an update-router TUNED
+      # bump) and committed together with a refreshed checksum. Catches silent
+      # edits the behavioral gold-labels replay can miss.
+      - name: Enforce P11 byte-identical classify.js
+        run: |
+          expected="$(cat tools/router/classify.js.sha256)"
+          actual="$(sha256sum tools/router/classify.js | awk '{print $1}')"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::classify.js changed but tools/router/classify.js.sha256 was not updated."
+            echo "  expected: $expected"
+            echo "  actual:   $actual"
+            echo "  If intentional (e.g. update-router), refresh the checksum:"
+            echo "    sha256sum tools/router/classify.js | awk '{print \$1}' > tools/router/classify.js.sha256"
+            exit 1
+          fi
+          echo "P11 checksum verified: $actual"
+
       - name: Syntax check backtest.js
         run: node -c tools/router/backtest.js
 
