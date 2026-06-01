@@ -302,6 +302,22 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* Wave 10 B.2b.2 F-10 — settings is read-only by design (per doctrine).
+          Make the boundary explicit so users know where to edit. */}
+      <div style={{
+        ...card,
+        display: 'flex', gap: 10, alignItems: 'flex-start',
+        fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.6,
+      }}>
+        <span aria-hidden="true" style={{ flexShrink: 0 }}>ⓘ</span>
+        <span>
+          Telemetry, sync cadence &amp; adapter are managed in your CLI (
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter quiet --help</code>
+          ). Cloud-side editing ships{' '}
+          <a href="/under-the-hood" style={{ color: 'var(--accent)' }}>Wave 4 Phase D</a>.
+        </span>
+      </div>
     </div>
   );
 }

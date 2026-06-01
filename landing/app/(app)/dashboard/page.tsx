@@ -983,7 +983,29 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
   const [copied, copy] = useCopyButton();
   const recs = getRecommendations(profile);
 
-  if (recs.length === 0) return null;
+  // Wave 10 B.2b.2 F-9 \u2014 state-aware: instead of silently vanishing once a
+  // recommendation is satisfied, confirm what's already in place.
+  if (recs.length === 0) {
+    const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
+    const applied = [
+      (cfg.has_ollama === true || cfgVal(cfg).hasOllama) && 'Ollama',
+      cfg.ollama_has_qwen3b === true && 'qwen2.5:3b',
+      cfg.ollama_has_qwen30b === true && 'qwen3:30b',
+    ].filter(Boolean) as string[];
+    if (applied.length === 0) return null;
+    return (
+      <div style={card}>
+        <h2 style={sectionHeading}>Recommendations</h2>
+        <p style={{ margin: '0 0 6px', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>
+          \u2713 Your setup is optimised
+        </p>
+        <p style={{ color: 'var(--muted)', margin: '0 0 8px', fontSize: '0.85rem', lineHeight: 1.6 }}>
+          Installed: {applied.join(' \u00B7 ')}. Verify anytime with{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>ollama ls</code>.
+        </p>
+      </div>
+    );
+  }
 
   const priorityDot = (p: string) => p === 'high' ? '\uD83D\uDD34' : p === 'medium' ? '\uD83D\uDFE1' : '\uD83D\uDFE2';
 
@@ -1045,6 +1067,16 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
 }
 
 // ── Overview Tab ─────────────────────────────────────────────────────────
+// Wave 10 B.2b.2 F-7 — nudge when the reported CLI is on an older major line
+// than the current release (e.g. frugal-era v0.9.x vs current v1.x). Display
+// nudge only; we never mutate the telemetry payload.
+const CURRENT_CLI_MAJOR = 1;
+function staleCliVersion(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const major = parseInt(String(v).replace(/^v/, '').split('.')[0] || '', 10);
+  return Number.isFinite(major) && major < CURRENT_CLI_MAJOR ? v : null;
+}
+
 function OverviewTab({ profile }: { profile: Profile }) {
   const { decisionsCount, savingsUsd } = aggregateDevices(profile);
   const allOpusCost = decisionsCount * 0.015;
@@ -1069,8 +1101,21 @@ function OverviewTab({ profile }: { profile: Profile }) {
     { label: 'Sync', ok: !!(profile.devices && profile.devices.length > 0) },
   ];
 
+  const staleVersion = staleCliVersion(latestDevice?.frugal_version || profile.frugal_version);
+
   return (
     <>
+      {/* Wave 10 B.2b.2 F-7 — stale-CLI update nudge (display only). */}
+      {staleVersion && (
+        <div style={{
+          marginBottom: 16, padding: '10px 14px',
+          background: 'rgba(212,192,144,0.08)', border: '1px solid var(--yellow)',
+          borderRadius: 'var(--r-md)', fontSize: '0.82rem', color: 'var(--text)',
+        }}>
+          Your CLI is on <span style={{ fontFamily: 'var(--mono)' }}>v{staleVersion}</span> — a newer major is out. Update with{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>bash &lt;(curl -fsSL https://mooter.ai/install.sh)</code>
+        </div>
+      )}
       {/* Wave 4 Phase C — CLI connection status (real device data) */}
       <CliStatusCard profile={profile} />
       {/* Savings Hero */}
