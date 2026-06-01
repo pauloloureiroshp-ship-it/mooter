@@ -8,8 +8,10 @@
 
 // Read the hub URL directly (with the canonical fallback) rather than importing
 // the strict env singleton — this keeps the helper decoupled and unit-testable
-// without a fully-populated env. Same precedence as lib/env.ts HUB_URL.
+// without a fully-populated env. Precedence honors the api-conventions rule
+// (MOOTER_HUB_URL first) then the public var the existing lib/env.ts + INFRA use.
 const HUB_URL =
+  process.env.MOOTER_HUB_URL ||
   process.env.NEXT_PUBLIC_MOOTER_HUB_URL ||
   process.env.NEXT_PUBLIC_FRUGAL_HUB_URL ||
   "https://mooter-hub.frugal-hub.workers.dev";
@@ -33,7 +35,7 @@ export interface HubAggregates {
 export async function fetchHubAggregates(): Promise<HubAggregates | null> {
   try {
     const r = await fetch(`${HUB_URL}/aggregate-stats`, {
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(5000),
       // Cache the public aggregate briefly to avoid hammering the hub on every render.
       next: { revalidate: 60 },
     });
