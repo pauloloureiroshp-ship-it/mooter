@@ -37,6 +37,33 @@ export function gpuVendor(gpuName: string | null): "nvidia" | "amd" | "apple" | 
 }
 
 /**
+ * Normalize a raw WebGL UNMASKED_RENDERER string into a human GPU label.
+ * Browsers (esp. Chrome/ANGLE on Windows) report strings like
+ *   "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+ * which is meaningless to a vibe coder. We strip the ANGLE wrapper, the PCI id,
+ * and the Direct3D/vs_/ps_ noise, leaving e.g. "NVIDIA GeForce RTX 4090".
+ * Falls back to a vendor-coarse label rather than ever showing the raw string.
+ */
+export function formatGpuLabel(gpuName: string | null): string | null {
+  if (!gpuName) return null;
+  let s = gpuName.trim();
+  // Unwrap ANGLE (vendor, <renderer>, backend) → take the middle renderer field.
+  const angle = s.match(/^ANGLE\s*\(([^,]+),\s*(.+?)(?:,\s*[^,]*)?\)$/i);
+  if (angle) s = angle[2].trim();
+  // Drop PCI device id "(0x....)" and the Direct3D/OpenGL profile noise.
+  s = s
+    .replace(/\s*\(0x[0-9a-f]+\)/i, "")
+    .replace(/\s+Direct3D\d+.*$/i, "")
+    .replace(/\s+(?:vs|ps)_\d.*$/i, "")
+    .replace(/\s+D3D\d+.*$/i, "")
+    .replace(/\s+OpenGL.*$/i, "")
+    .trim();
+  if (s) return s;
+  const vendor = gpuVendor(gpuName);
+  return vendor === "unknown" ? "Unknown GPU" : `Unknown ${vendor.toUpperCase()} GPU`;
+}
+
+/**
  * Suggest an HW_OPTIONS value from the probed OS + GPU string. Returns null when
  * there is not enough signal (so the wizard asks the user to pick manually).
  * Mirrors the page's previous inline mapping exactly, plus AMD-on-Linux/Windows.

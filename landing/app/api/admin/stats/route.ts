@@ -129,7 +129,11 @@ export async function GET(req: NextRequest) {
 
     if (dc > 0) {
       const allOpus = dc * 0.015;
-      const pctSaved = allOpus > 0 ? (su / allOpus) * 100 : 0;
+      // % saved vs all-Opus, clamped to [0,100] (Wave 9 parity). The CLI's
+      // savings_usd is measured against its own all-Opus baseline, which can
+      // exceed this coarse per-decision estimate — so an unclamped ratio
+      // produced absurd values (e.g. 743%). A user cannot save more than 100%.
+      const pctSaved = allOpus > 0 ? Math.min(100, Math.max(0, (su / allOpus) * 100)) : 0;
       totalSavingsPct += pctSaved;
       savingsUsers++;
     }
