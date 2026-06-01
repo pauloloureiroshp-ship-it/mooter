@@ -361,7 +361,10 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
                 borderBottom: i < stats.activity.length - 1 ? '1px solid var(--border)' : 'none',
                 flexWrap: 'wrap',
               }}>
-                <span style={{ color: 'var(--muted)', minWidth: 80, fontFamily: 'var(--mono)' }}>{timeAgo(a.timestamp)}</span>
+                <span
+                  style={{ color: 'var(--muted)', minWidth: 80, fontFamily: 'var(--mono)', cursor: 'help' }}
+                  title={a.timestamp ? `${a.timestamp.replace('T', ' ').slice(0, 19)} UTC` : ''}
+                >{timeAgo(a.timestamp)}</span>
                 <span style={{ color: 'var(--accent)', flex: 1, minWidth: 180 }}>{maskEmail(a.user_email)}</span>
                 <span style={{ color: 'var(--muted)' }}>{a.action}</span>
               </div>

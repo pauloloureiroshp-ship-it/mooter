@@ -100,6 +100,15 @@ function pageTitle(pathname: string): string {
   return 'Dashboard';
 }
 
+// Wave 10 B.2b.2 F-12 — friendly OS label for the sidebar (telemetry payload
+// keeps the raw os_type; only the display is humanized).
+function osLabel(os: string | null): string {
+  if (os === 'win32') return 'Windows';
+  if (os === 'darwin') return 'macOS';
+  if (os === 'linux') return 'Linux';
+  return os || 'Unknown OS';
+}
+
 // ── Shell Layout ────────────────────────────────────────────────────────────
 
 export default function AppShellLayout({ children }: { children: React.ReactNode }) {
@@ -232,7 +241,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
               gap: 2,
             }}>
               <span style={{ color: 'var(--accent-soft)' }}>{user.gpu_name}</span>
-              <span>{user.os_type} · {user.hw_tier}</span>
+              <span>{osLabel(user.os_type)} · {user.hw_tier}</span>
             </div>
           )}
           <button
