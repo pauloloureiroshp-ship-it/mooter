@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 // Wave 4 Phase C — new dashboard cards (extend, not replace).
 import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
+import DataSourceBadge from '../../_components/DataSourceBadge';
 
 interface Device {
   device_id: string;
@@ -1782,8 +1783,100 @@ function DecisionsTab({ profile: _profile }: { profile: Profile }) {
   );
 }
 
+// ── Workflow Tab (Wave 10 A.5-V2 — Sankey-lite tier flow) ────────────────
+// Renders the community-wide flow of prompts through classify.js into the four
+// tiers, from the hub aggregates (/api/dashboard/aggregates). Honest: shows a
+// "Demo data" badge with an illustrative distribution when the hub is empty.
+// Per-user ("My usage") scope is Phase B.1b (needs a hub redeploy).
+interface AggregatesResp {
+  source: 'live' | 'demo';
+  total_events?: number;
+  unique_instances?: number;
+  tier_distribution?: Record<string, number>;
+  top_categories?: Array<{ category: string; count: number }>;
+  last_updated?: string;
+}
+
+const WF_TIERS = [
+  { key: 'T0', glyph: '🏠', label: 'T0 local', model: 'qwen2.5:3b', color: 'var(--tier-0, #48c068)' },
+  { key: 'T1', glyph: '☁', label: 'T1 haiku', model: 'claude-haiku', color: 'var(--tier-1, #5b8def)' },
+  { key: 'T2', glyph: '☁', label: 'T2 sonnet', model: 'claude-sonnet', color: 'var(--tier-2, #c98a4b)' },
+  { key: 'T3', glyph: '☁', label: 'T3 opus', model: 'claude-opus', color: 'var(--tier-3, #e8888a)' },
+];
+
+// Illustrative distribution shown only with the explicit "Demo data" badge.
+const WF_DEMO_DIST: Record<string, number> = { T0: 0.66, T1: 0.21, T2: 0.1, T3: 0.03 };
+const WF_DEMO_TOTAL = 412;
+
+function WorkflowTab() {
+  const [agg, setAgg] = useState<AggregatesResp | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/dashboard/aggregates')
+      .then((r) => r.json())
+      .then((d: AggregatesResp) => { if (alive) { setAgg(d); setLoaded(true); } })
+      .catch(() => { if (alive) { setAgg({ source: 'demo' }); setLoaded(true); } });
+    return () => { alive = false; };
+  }, []);
+
+  const live = !!agg && agg.source === 'live' && !!agg.tier_distribution;
+  const dist = live ? (agg!.tier_distribution as Record<string, number>) : WF_DEMO_DIST;
+  const total = live ? (agg!.total_events || 0) : WF_DEMO_TOTAL;
+
+  if (!loaded) return <div style={{ color: 'var(--muted)', padding: 20 }}>Loading workflow…</div>;
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text)' }}>Prompt flow</h3>
+        <DataSourceBadge source={live ? 'live' : 'demo'} detail={live ? `${(agg!.unique_instances || 0).toLocaleString('en-US')} devices` : undefined} />
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '8px 0 18px' }}>
+        {total.toLocaleString('en-US')} prompts → <span style={{ fontFamily: 'var(--mono)' }}>classify.js</span> → routed across the four tiers.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {WF_TIERS.map((t) => {
+          const frac = Math.max(0, Math.min(1, Number(dist[t.key]) || 0));
+          const pct = Math.round(frac * 100);
+          const count = Math.round(frac * total);
+          return (
+            <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 132, flexShrink: 0, fontSize: '0.85rem', color: 'var(--text)' }}>
+                <span style={{ marginRight: 6 }}>{t.glyph}</span>{t.label}
+                <span style={{ color: 'var(--muted)', marginLeft: 6, fontFamily: 'var(--mono)', fontSize: '0.75rem' }}>{t.model}</span>
+              </div>
+              <div style={{ flex: 1, height: 18, background: 'var(--surface, rgba(255,255,255,0.04))', borderRadius: 5, overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: t.color, borderRadius: 5, transition: 'width 240ms ease' }} />
+              </div>
+              <div style={{ width: 96, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: 'var(--text)' }}>
+                {count.toLocaleString('en-US')} · {pct}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {live && Array.isArray(agg!.top_categories) && agg!.top_categories.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8 }}>Top task categories</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {agg!.top_categories.slice(0, 8).map((c) => (
+              <span key={c.category} style={{ fontSize: '0.78rem', fontFamily: 'var(--mono)', color: 'var(--text-2, var(--text))', border: '1px solid var(--border, var(--color-border))', borderRadius: 999, padding: '3px 10px' }}>
+                {c.category} · {c.count.toLocaleString('en-US')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────────────────
-type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks' | 'decisions';
+type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks' | 'decisions' | 'workflow';
 
 const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -1791,6 +1884,7 @@ const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'setup', label: 'Setup' },
   { key: 'metrics', label: 'Metrics' },
   { key: 'howitworks', label: 'How it works' },
+  { key: 'workflow', label: 'Workflow' },
   { key: 'decisions', label: 'Decisions' },
 ];
 
@@ -1852,6 +1946,7 @@ export default function DashboardPage() {
       {tab === 'setup' && <SetupGuideTab profile={profile} />}
       {tab === 'metrics' && <MetricsTab profile={profile} />}
       {tab === 'howitworks' && <HowItWorksTab profile={profile} />}
+      {tab === 'workflow' && <WorkflowTab />}
       {tab === 'decisions' && <DecisionsTab profile={profile} />}
 
       {/* Wave 4 Phase C — global honest footer note */}
