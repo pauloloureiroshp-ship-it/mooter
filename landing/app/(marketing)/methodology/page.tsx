@@ -103,6 +103,31 @@ export default function MethodologyPage() {
           </div>
         ))}
       </div>
+
+      {/* Reproduce it yourself */}
+      <div style={{ marginTop: 44, paddingTop: 28, borderTop: '1px solid var(--color-border)' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Reproduce it yourself</h2>
+        <p style={{ color: 'var(--color-muted)', fontSize: 15, marginBottom: 14, maxWidth: 720 }}>
+          The benchmark is pre-registered and open. 34 prompts × 3 arms (mooter, Sonnet-only,
+          Opus-only) with a blind LLM judge — design, prompts, raw rows and per-pack diagnostics
+          all live in the repo. Clone it and run the harness:
+        </p>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 13.5, color: 'var(--color-term-fg)', background: 'var(--color-term-bg)', border: '1px solid var(--color-term-border)', borderRadius: 8, padding: '14px 16px', whiteSpace: 'pre', overflowX: 'auto' }}>
+          {`git clone https://github.com/pauloloureiroshp-ship-it/mooter
+cd mooter/packages/router/scripts/wave1-benchmark
+tsx run.ts            # full run: 34 × 3 arms → outputs/`}
+        </div>
+        <p style={{ color: 'var(--color-muted)', fontSize: 13, marginTop: 12, maxWidth: 720 }}>
+          See <span style={{ fontFamily: 'var(--mono)' }}>wave1-benchmark/README.md</span> +{' '}
+          <span style={{ fontFamily: 'var(--mono)' }}>BENCHMARK_DESIGN.md</span> for the full method,
+          confidence intervals and mis-routing analysis.
+        </p>
+        <p style={{ color: 'var(--color-yellow)', fontSize: 13, marginTop: 12, maxWidth: 720 }}>
+          N=34 is a small set — only medium-to-large effects are detectable. On this cloud-only set
+          mooter matches the quality bar at lower cost per prompt; the larger savings come from
+          routing simple work to free local T0, which this set doesn&apos;t isolate.
+        </p>
+      </div>
       <style>{`@media (max-width: 900px){ .calc-grid{ grid-template-columns: 1fr !important; } }`}</style>
     </section>
   );
