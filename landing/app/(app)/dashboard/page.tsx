@@ -986,6 +986,8 @@ function OverviewTab({ profile }: { profile: Profile }) {
     s.toLowerCase().includes('max') || s.toLowerCase().includes('claude max'));
   const hasOpenAI = profile.subscriptions?.some(s =>
     s.toLowerCase().includes('gpt') || s.toLowerCase().includes('openai')) || config.has_openai_key === true;
+  const hasGemini = profile.subscriptions?.some(s =>
+    s.toLowerCase().includes('gemini') || s.toLowerCase().includes('google')) || config.has_gemini_key === true;
 
   const healthItems = [
     { label: 'Router', ok: decisionsCount > 0 },
@@ -1105,6 +1107,13 @@ function OverviewTab({ profile }: { profile: Profile }) {
             <div style={stackTileName}>OpenAI</div>
             <span className={`status-pill ${hasOpenAI ? 'ok' : 'err'}`} style={{ marginTop: 8 }}>
               {hasOpenAI ? '\u2713 Active' : '\u2717 Inactive'}
+            </span>
+          </div>
+          <div style={stackTile}>
+            <GeminiLogo />
+            <div style={stackTileName}>Google Gemini</div>
+            <span className={`status-pill ${hasGemini ? 'ok' : 'err'}`} style={{ marginTop: 8 }}>
+              {hasGemini ? '\u2713 Active' : '\u2717 Inactive'}
             </span>
           </div>
         </div>
