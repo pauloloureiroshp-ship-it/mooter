@@ -3,6 +3,7 @@ import Footer from '@/components/Footer';
 import { CrookOutline } from '@/components/PastorCrook';
 import HeroTerminal from './_components/HeroTerminal';
 import CommunityPulse from './_components/CommunityPulse';
+import WhyLocalCards from './_components/WhyLocalCards';
 
 const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
 
@@ -59,6 +60,8 @@ export default function Page() {
               <HeroTerminal />
             </div>
           </div>
+
+          <WhyLocalCards />
 
           <CommunityPulse />
         </section>
