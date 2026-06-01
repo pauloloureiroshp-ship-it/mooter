@@ -176,6 +176,11 @@ const MODELS = {
 // with backtest.js. Runtime behavior preserved exactly.
 const { HIGH_RISK, MED_RISK, LOW_RISK, TRIVIAL } = require('./patterns');
 
+// Canonical count of routing regex patterns across the four risk buckets.
+// Single source of truth for any UI that claims a pattern count (e.g. landing
+// dashboard "How it works"). Computed — never hardcoded — so it can't drift.
+const PATTERN_COUNT = HIGH_RISK.length + MED_RISK.length + LOW_RISK.length + TRIVIAL.length;
+
 const FILE_HINT = /\b(\w+\.(ts|tsx|js|jsx|py|go|rs|md|json|yml|yaml|sql|sh|css|html))\b/g;
 const MULTI_FILE = /\bmulti[- ]?(arquivo|file)/i;
 
@@ -1287,7 +1292,7 @@ function classifyWithRetry(prompt) {
   };
 }
 
-module.exports = { classify, classifyWithRetry, normalisePrompt };
+module.exports = { classify, classifyWithRetry, normalisePrompt, PATTERN_COUNT };
 
 // CLI entry — guarded so that `require('./classify')` from runners and tests
 // does not trigger stdin reads or stdout writes. Validation 2026-05-07 found
