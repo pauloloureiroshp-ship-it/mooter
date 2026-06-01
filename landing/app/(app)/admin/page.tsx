@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { maskEmail } from './_lib/privacy';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ function csvExport(users: UserRow[]): void {
   const header = 'email,hardware,os,devices,decisions,savings_usd,version,last_sync,subscriptions';
   const rows = users.map(u =>
     [
-      u.email,
+      maskEmail(u.email),
       u.hardware_tier || '',
       u.os_type || '',
       u.devices.length,
@@ -308,7 +309,7 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
                 flexWrap: 'wrap',
               }}>
                 <span style={{ color: 'var(--muted)', minWidth: 80, fontFamily: 'var(--mono)' }}>{timeAgo(a.timestamp)}</span>
-                <span style={{ color: 'var(--accent)', flex: 1, minWidth: 180 }}>{a.user_email}</span>
+                <span style={{ color: 'var(--accent)', flex: 1, minWidth: 180 }}>{maskEmail(a.user_email)}</span>
                 <span style={{ color: 'var(--muted)' }}>{a.action}</span>
               </div>
             ))}
@@ -481,7 +482,7 @@ function UserTableRow({ user: u, status: st, isOpen, onToggle }: { user: UserRow
         onClick={onToggle}
         style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
       >
-        <td style={tdStyle}>{u.email}</td>
+        <td style={tdStyle}>{maskEmail(u.email)}</td>
         <td style={{ ...tdStyle, color: 'var(--muted)' }}>{u.hardware_tier?.replace(/_/g, ' ') || '\u2014'}</td>
         <td style={tdStyle}>{u.os_type ? osIcon(u.os_type) : '\u2014'}</td>
         <td style={tdStyle}>{u.devices.length}</td>
@@ -653,7 +654,7 @@ function DevicesTab({ stats }: { stats: AdminStats }) {
             <tbody>
               {filtered.map(d => (
                 <tr key={d.device_id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={tdStyle}>{d.user_email}</td>
+                  <td style={tdStyle}>{maskEmail(d.user_email)}</td>
                   <td style={tdStyle}>{d.device_name || '\u2014'}</td>
                   <td style={tdStyle}>{osIcon(d.os_type)} {d.os_type}</td>
                   <td style={{ ...tdStyle, color: 'var(--muted)' }}>{d.hw_tier?.replace(/_/g, ' ') || '\u2014'}</td>
@@ -722,11 +723,11 @@ function computeAlerts(stats: AdminStats): Alert[] {
   for (const u of stats.users) {
     const cfg = u.frugal_config || {};
     if (cfg.decision_count !== undefined && cfg.decisions_count === undefined) {
-      alerts.push({ severity: 'warning', message: `${u.email}: Legacy field "decision_count" instead of "decisions_count"` });
+      alerts.push({ severity: 'warning', message: `${maskEmail(u.email)}: Legacy field "decision_count" instead of "decisions_count"` });
     }
     for (const d of u.devices) {
       if (!d.last_sync_at) {
-        alerts.push({ severity: 'warning', message: `${u.email}: ${d.device_name || d.device_id} never synced since install` });
+        alerts.push({ severity: 'warning', message: `${maskEmail(u.email)}: ${d.device_name || d.device_id} never synced since install` });
       }
     }
   }
@@ -738,7 +739,7 @@ function computeAlerts(stats: AdminStats): Alert[] {
   else {
     const outdated = stats.users.filter(u => u.frugal_version && u.frugal_version !== latest);
     for (const u of outdated) {
-      alerts.push({ severity: 'warning', message: `${u.email}: outdated version v${u.frugal_version} (latest: v${latest})` });
+      alerts.push({ severity: 'warning', message: `${maskEmail(u.email)}: outdated version v${u.frugal_version} (latest: v${latest})` });
     }
   }
 
@@ -840,7 +841,7 @@ function HealthTab({ stats }: { stats: AdminStats }) {
                   const daysInactive = u.last_sync ? Math.floor((now - Date.parse(u.last_sync)) / (1000 * 60 * 60 * 24)) : Infinity;
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={tdStyle}>{u.email}</td>
+                      <td style={tdStyle}>{maskEmail(u.email)}</td>
                       <td style={{ ...tdStyle, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{u.last_sync ? u.last_sync.slice(0, 10) : 'never'}</td>
                       <td style={{ ...tdStyle, color: daysInactive > 60 ? 'var(--tier-3)' : 'var(--text)' }}>
                         {daysInactive === Infinity ? '\u221E' : daysInactive}
