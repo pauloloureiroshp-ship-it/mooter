@@ -1,7 +1,22 @@
 // Wave 6 D1 — hardware-classification lib. node-env vitest; pure logic only.
 
 import { describe, it, expect } from "vitest";
-import { osFromUserAgent, gpuVendor, suggestHardware, ramClass } from "./hardware";
+import { osFromUserAgent, gpuVendor, suggestHardware, ramClass, formatGpuLabel } from "./hardware";
+
+describe("formatGpuLabel (Wave 10 B.2b F-2 — ANGLE normalization)", () => {
+  it("strips the ANGLE wrapper, PCI id and D3D noise", () => {
+    expect(
+      formatGpuLabel("ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ).toBe("NVIDIA GeForce RTX 4090");
+  });
+  it("passes through already-clean names", () => {
+    expect(formatGpuLabel("Apple M3 Max")).toBe("Apple M3 Max");
+  });
+  it("returns null for null and never leaks raw noise on odd input", () => {
+    expect(formatGpuLabel(null)).toBeNull();
+    expect(formatGpuLabel("")).toBeNull();
+  });
+});
 
 describe("osFromUserAgent", () => {
   it("classifies the major OS families", () => {
