@@ -66,22 +66,31 @@ else
   SRC_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null || echo "")"
 fi
 
+# Wave 11 (PUB-STUB) — when piped from curl there's no local checkout, so fetch
+# the now-public repo to a temp dir and install from there. Mirrors the token
+# installer (/i/<token>). Graceful exit if git or network is unavailable.
+REPO_URL="${MOOTER_REPO_URL:-https://github.com/pauloloureiroshp-ship-it/mooter.git}"
 if [ ! -f "$SRC_DIR/tools/router/classify.js" ]; then
-  cat <<MSG
-
-  ${C3}mooter is currently in private friends-beta.${CR}
-
-  To install:
-    1. Request access: ${CB}https://mooter.ai${CR} (or email paulo@mooter.ai)
-    2. Once invited, clone the repo and run this script locally:
-       ${CB}git clone <your-invite-url> mooter${CR}
-       ${CB}cd mooter && bash install.sh${CR}
-
-  The public one-liner (${CD}curl | bash${CR}) will light up when
-  v1.0 ships with signed tarballs. Follow along at mooter.ai.
-
-MSG
-  exit 0
+  if ! command -v git >/dev/null 2>&1; then
+    fail "git not found — install git first, then re-run, or clone manually:"
+    info "  git clone $REPO_URL mooter && cd mooter && bash install.sh"
+    exit 1
+  fi
+  CLONE_PARENT="$(mktemp -d 2>/dev/null || echo "/tmp/mooter-install.$$")"
+  CLEANUP_CLONE="$CLONE_PARENT"
+  trap '[ -n "${CLEANUP_CLONE:-}" ] && rm -rf "$CLEANUP_CLONE" 2>/dev/null || true' EXIT
+  say "Fetching mooter from the public repo..."
+  if do_run "git clone --depth 1 '$REPO_URL' '$CLONE_PARENT/mooter'"; then
+    SRC_DIR="$CLONE_PARENT/mooter"
+  else
+    fail "Couldn't fetch mooter — check your network, or clone manually:"
+    info "  git clone $REPO_URL mooter && cd mooter && bash install.sh"
+    exit 1
+  fi
+  if [ "$DRY_RUN" != "1" ] && [ ! -f "$SRC_DIR/tools/router/classify.js" ]; then
+    fail "Fetched repo is missing the router runtime — please report at https://mooter.ai."
+    exit 1
+  fi
 fi
 
 VERSION="$(node -e "console.log(require('$SRC_DIR/tools/router/version.json').version)" 2>/dev/null || echo "0.10.0")"
@@ -277,8 +286,23 @@ fi
 if command -v ollama >/dev/null 2>&1; then
   ok "Ollama detected"
   if ! ollama list 2>/dev/null | grep -q "qwen2.5:3b"; then
-    say "Pulling qwen2.5:3b (~1.9 GB) — required for T0 tier..."
-    do_run "ollama pull qwen2.5:3b" || warn "Pull failed — retry later: ollama pull qwen2.5:3b"
+    # Wave 11 (D4-5) — consent before a ~1.9 GB download instead of pulling
+    # blindly. Prompt on a real TTY (default yes, 10s timeout → yes). When
+    # non-interactive (curl|bash, CI), default yes too but honor MOOTER_NO_PULL=1.
+    PULL_MODEL=1
+    if [ "${MOOTER_NO_PULL:-0}" = "1" ]; then
+      PULL_MODEL=0
+    elif [ -r /dev/tty ]; then
+      printf "  %s>%s Pull qwen2.5:3b (~1.9 GB) for free local T0 routing? [Y/n] " "$C1" "$CR"
+      ans=""; read -t 10 -r ans < /dev/tty 2>/dev/null || ans=""
+      case "$ans" in [Nn]*) PULL_MODEL=0 ;; esac
+    fi
+    if [ "$PULL_MODEL" = "1" ]; then
+      say "Pulling qwen2.5:3b (~1.9 GB) — enables the T0 (local, free) tier..."
+      do_run "ollama pull qwen2.5:3b" || warn "Pull failed — retry later: ollama pull qwen2.5:3b"
+    else
+      warn "Skipped model pull. Enable T0 later: ollama pull qwen2.5:3b"
+    fi
   else
     ok "qwen2.5:3b ready"
   fi
