@@ -1294,11 +1294,14 @@ const lines = [
 // threshold. Best-effort: a missing module or unreadable prefs never blocks the
 // hint — this is the live UserPromptSubmit hook.
 try {
-  const { readPrefs, buildBadge, badgeMode } = require('./badge.js');
-  const prefs = readPrefs();
-  if (!prefs.quiet && !badgeMode(prefs).off) {
+  // Phase C.1.1 — aliased to avoid a duplicate-identifier clash with the
+  // confidence<0.6 badge block above (TS2300). Runtime is unchanged: both are
+  // block-scoped lazy requires inside their own try (badge is best-effort).
+  const { readPrefs: readBadgePrefs, buildBadge: buildBadgeOutput, badgeMode: resolveBadgeMode } = require('./badge.js');
+  const prefs = readBadgePrefs();
+  if (!prefs.quiet && !resolveBadgeMode(prefs).off) {
     lines.push('');
-    lines.push(`<tier-badge>${buildBadge(decision)}</tier-badge>`);
+    lines.push(`<tier-badge>${buildBadgeOutput(decision)}</tier-badge>`);
   }
 } catch { /* badge is best-effort, never blocks the hint */ }
 
