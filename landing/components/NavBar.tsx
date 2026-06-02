@@ -45,7 +45,7 @@ export default function NavBar() {
           ))}
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a className="nav-signin" href="/auth/sign-in" style={{ color: 'var(--color-text)', fontSize: 14.5, fontWeight: 500 }}>
+          <a className="nav-signin" href="/dashboard" style={{ color: 'var(--color-text)', fontSize: 14.5, fontWeight: 500 }}>
             Sign in with GitHub
           </a>
           <a
