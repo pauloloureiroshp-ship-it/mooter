@@ -124,6 +124,10 @@ export default function Footer() {
             <MooterMark size={20} /> © 2026 mooter.ai · MIT License · Open source
           </span>
           <span style={{ marginLeft: 'auto' }}>Made with ❤️ for vibe coders by Paulo Loureiro &amp; the mooter community</span>
+          {/* Wave 11 (C4) — Anthropic / Claude Code credit. */}
+          <span style={{ width: '100%', textAlign: 'center', color: 'var(--color-muted)', marginTop: 4 }}>
+            Built for Claude Code &amp; made with Claude Code · routes across Anthropic&apos;s Claude models (Opus · Sonnet · Haiku)
+          </span>
         </div>
       </div>
       <style>{`@media (max-width: 768px){ .footer-cols{ grid-template-columns: repeat(2,1fr) !important; padding:40px 20px !important; } }`}</style>
