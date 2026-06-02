@@ -58,7 +58,7 @@ Quality delta (T0 quantized vs FP32):
   qwen3:30b        -1.2pp
   gemma3:12b       -2.4pp
 
-Source: mooter benchmark, 142 prompts, blind judge`}</pre>
+Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
         </Card>
       </div>
 
