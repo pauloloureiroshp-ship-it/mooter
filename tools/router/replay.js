@@ -44,9 +44,15 @@ const classifySrc = fs.readFileSync(CLASSIFY, 'utf8');
 // v0.9 fix: take everything from the first 'use strict' (or start-of-file)
 // up to the async IIFE at the bottom. Strip the IIFE and export classify().
 // This is robust to new helpers being added to classify.js.
-const iifeIdx = classifySrc.search(/\(async \(\) => \{/);
+// Phase C.1.1 — the CLI runner IIFE is now wrapped in
+// `if (require.main === module) { (async () => {...})() }` (guard added
+// 2026-05-07). Slice before that GUARD, not the inner `(async`, otherwise the
+// open `if (...) {` is left dangling and `new Function` throws SyntaxError.
+// Fall back to the bare-IIFE search for older shapes.
+const guardIdx = classifySrc.search(/if \(require\.main === module\) \{/);
+const iifeIdx = guardIdx >= 0 ? guardIdx : classifySrc.search(/\(async \(\) => \{/);
 if (iifeIdx < 0) {
-  console.error('Failed to locate classify.js IIFE — has the file shape changed?');
+  console.error('Failed to locate classify.js CLI guard/IIFE — has the file shape changed?');
   process.exit(2);
 }
 // Strip shebang line — `new Function()` does not accept it.
