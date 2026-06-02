@@ -4,6 +4,7 @@ import { CrookOutline } from '@/components/PastorCrook';
 import HeroTerminal from './_components/HeroTerminal';
 import CommunityPulse from './_components/CommunityPulse';
 import WhyLocalCards from './_components/WhyLocalCards';
+import AuthErrorBanner from './_components/AuthErrorBanner';
 
 const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
 
@@ -13,6 +14,7 @@ export default function Page() {
       <NavBar />
       <main>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '0 40px' }}>
+          <AuthErrorBanner />
           <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', gap: 56, alignItems: 'center', padding: '72px 0 56px' }}>
             {/* Left */}
             <div>
@@ -34,7 +36,11 @@ export default function Page() {
               <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 18, maxWidth: 540 }}>
                 Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
                 But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
-                environment and routes every prompt to the optimal model. Same results. Up to 90% less cost.
+                environment and routes every prompt to the optimal model. Comparable quality on routine tasks,
+                up to 90% less cost on T0-heavy sessions.{' '}
+                <a href="/methodology" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                  See the benchmark *
+                </a>
               </p>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
