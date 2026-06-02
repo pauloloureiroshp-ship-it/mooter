@@ -67,7 +67,7 @@ export default function Footer() {
           <a href="/install" style={{ background: 'var(--color-accent)', color: '#1A0E0E', fontWeight: 600, padding: '13px 22px', borderRadius: 10 }}>
             Install mooter →
           </a>
-          <a href="/auth/sign-in" style={{ border: '1px solid var(--color-border-light)', color: 'var(--color-text)', fontWeight: 600, padding: '13px 22px', borderRadius: 10 }}>
+          <a href="/dashboard" style={{ border: '1px solid var(--color-border-light)', color: 'var(--color-text)', fontWeight: 600, padding: '13px 22px', borderRadius: 10 }}>
             Sign in with GitHub
           </a>
         </div>
