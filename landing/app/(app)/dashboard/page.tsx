@@ -1210,6 +1210,43 @@ function OverviewTab({ profile }: { profile: Profile }) {
         </div>
       )}
 
+      {/* D7 — Savings depth. D7-2 (all-Opus) is REAL; D7-1/D7-3 are honest
+          placeholders until the per-category telemetry pipeline ships (no fabricated data). */}
+      <div style={card}>
+        <h2 style={sectionHeading}>Savings depth</h2>
+        {decisionsCount > 0 ? (
+          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 16 }}>
+            {[
+              { v: `$${savingsUsd.toFixed(2)}`, l: 'you saved', c: 'var(--tier-0)' },
+              { v: `$${allOpusCost.toFixed(2)}`, l: 'all-Opus would cost', c: 'var(--text)' },
+              { v: `$${Math.max(0, allOpusCost - savingsUsd).toFixed(2)}`, l: 'you actually paid (est.)', c: 'var(--text)' },
+              { v: `${savingsPct}%`, l: 'saved vs all-Opus', c: 'var(--tier-0)' },
+            ].map((m) => (
+              <div key={m.l}>
+                <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: 'var(--mono)', color: m.c, lineHeight: 1 }}>{m.v}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{m.l}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 16 }}>Run a few prompts to see your all-Opus comparison.</p>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+          <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', background: 'var(--bg)' }}>
+            <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>Per-task-type savings</div>
+            <p style={{ color: 'var(--muted)', fontSize: '0.78rem', lineHeight: 1.6, margin: 0 }}>
+              Breakdown by renames · commits · debug · refactor ships with the per-category telemetry pipeline (Wave 4 Phase D). Not estimated here — we don&apos;t fabricate numbers.
+            </p>
+          </div>
+          <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', background: 'var(--bg)' }}>
+            <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>Misroute report</div>
+            <p style={{ color: 'var(--muted)', fontSize: '0.78rem', lineHeight: 1.6, margin: 0 }}>
+              Prompts where a higher tier would have helped — ships with the same pipeline. Today: inspect locally with <code style={{ fontFamily: 'var(--mono)' }}>mooter trail</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* AI Stack — 3 columns */}
       <div style={card}>
         <h2 style={sectionHeading}>AI stack</h2>
