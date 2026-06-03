@@ -180,3 +180,46 @@ export async function countRecentHeartbeatsByDevice(db, deviceId, sinceMs) {
   );
   return row && typeof row.cnt === 'number' ? row.cnt : 0;
 }
+
+// ── Feedback (Wave 12 D1-2 — anonymous `mooter feedback`) ──────────────────
+
+const INSERT_FEEDBACK_SQL = `
+  INSERT INTO feedback (
+    id, user_id_hash, content, topic, severity, mooter_version, hw_tier, ip_hash, received_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+/**
+ * Insert a feedback row. Caller is responsible for content/PII validation.
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {Record<string, any>} fb
+ */
+export async function insertFeedback(db, fb) {
+  return db.prepare(INSERT_FEEDBACK_SQL).bind(
+    fb.id, fb.user_id_hash || null, fb.content, fb.topic, fb.severity,
+    fb.mooter_version || null, fb.hw_tier || null, fb.ip_hash || null, fb.received_at
+  ).run();
+}
+
+/** F-1-style rate-limit: count recent feedback rows by ip_hash. Fail-open at the caller. */
+export async function countRecentFeedbackByIp(db, ipHash, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 60000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM feedback WHERE ip_hash = ? AND received_at > ?'
+    ).bind(ipHash, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
+
+/** Admin read: most-recent feedback rows (no PII columns exist on the table). */
+export async function listFeedback(db, limit) {
+  const n = Math.min(Math.max(parseInt(String(limit ?? 200), 10) || 200, 1), 500);
+  const res = /** @type {any} */ (
+    await db.prepare(
+      'SELECT id, user_id_hash, content, topic, severity, mooter_version, hw_tier, received_at FROM feedback ORDER BY received_at DESC LIMIT ?'
+    ).bind(n).all()
+  );
+  return (res && res.results) || [];
+}

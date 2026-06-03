@@ -77,17 +77,20 @@ export interface RunFeedbackOptions {
   version?: string;
   hardwareClass?: Record<string, unknown>;
   mooterHome?: string;
-  landingUrl?: string;
+  hubUrl?: string;
   fetchImpl?: typeof fetch;
 }
 
-/** Send feedback. Requires `mooter login` first. Returns a CmdResult. */
-export async function runFeedback(opts: RunFeedbackOptions): Promise<CmdResult> {
-  const auth = readAuth(opts.mooterHome);
-  if (!auth?.access_token) {
-    return { exitCode: 1, output: "✗ Run `mooter login` first." };
-  }
+// Wave 12 D1-2: feedback ingests on the hub (anonymous by design + F-1
+// rate-limited), NOT the authed Supabase landing endpoint.
+const DEFAULT_HUB_URL = "https://mooter-hub.frugal-hub.workers.dev";
 
+/**
+ * Send feedback. NO login required (Wave 12 D1-2 — anonymous via hub). If the
+ * user happens to be logged in, the pseudonymous user_id_hash rides along;
+ * otherwise it's fully anonymous. Returns a CmdResult.
+ */
+export async function runFeedback(opts: RunFeedbackOptions): Promise<CmdResult> {
   let payload: FeedbackPayload;
   try {
     payload = buildFeedbackPayload(opts);
@@ -99,13 +102,14 @@ export async function runFeedback(opts: RunFeedbackOptions): Promise<CmdResult> 
     return { exitCode: 1, output: "✗ Empty feedback message." };
   }
 
-  const base = opts.landingUrl ?? process.env.MOOTER_LANDING_URL ?? "https://mooter.ai";
+  const auth = readAuth(opts.mooterHome); // optional — null when not logged in
+  const base = opts.hubUrl ?? process.env.MOOTER_HUB_URL ?? DEFAULT_HUB_URL;
   const doFetch = opts.fetchImpl ?? fetch;
   try {
     const res = await doFetch(`${base}/api/feedback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.access_token}` },
-      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, user_id_hash: auth?.user_id_hash ?? null }),
     });
     if (!res.ok) {
       return { exitCode: 1, output: `✗ Feedback failed (HTTP ${res.status}).` };
@@ -113,9 +117,41 @@ export async function runFeedback(opts: RunFeedbackOptions): Promise<CmdResult> 
     const data = (await res.json()) as { id?: string };
     return {
       exitCode: 0,
-      output: `✓ Feedback sent${data.id ? ` (id: ${data.id})` : ""}. Thank you!\nℹ Anonymous · pseudonymous user_id_hash · no PII attached`,
+      output: `✓ Feedback sent${data.id ? ` (id: ${data.id})` : ""}. Thank you!\nℹ Anonymous · no login required · no PII attached`,
     };
   } catch {
-    return { exitCode: 1, output: "✗ Could not reach mooter.ai — check your connection." };
+    return { exitCode: 1, output: "✗ Could not reach the mooter hub — check your connection." };
+  }
+}
+
+export interface RunFeedbackListOptions {
+  hubUrl?: string;
+  adminToken?: string;
+  fetchImpl?: typeof fetch;
+}
+
+/** Admin read: `mooter feedback --list`. Needs MOOTER_ADMIN_TOKEN. */
+export async function runFeedbackList(opts: RunFeedbackListOptions): Promise<CmdResult> {
+  const token = opts.adminToken ?? process.env.MOOTER_ADMIN_TOKEN;
+  if (!token) {
+    return { exitCode: 1, output: "✗ Set MOOTER_ADMIN_TOKEN to read feedback (admin only)." };
+  }
+  const base = opts.hubUrl ?? process.env.MOOTER_HUB_URL ?? DEFAULT_HUB_URL;
+  const doFetch = opts.fetchImpl ?? fetch;
+  try {
+    const res = await doFetch(`${base}/api/feedback-list?limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) return { exitCode: 1, output: "✗ Unauthorized — check MOOTER_ADMIN_TOKEN." };
+    if (!res.ok) return { exitCode: 1, output: `✗ List failed (HTTP ${res.status}).` };
+    const data = (await res.json()) as { feedback?: Array<Record<string, unknown>> };
+    const rows = data.feedback ?? [];
+    if (!rows.length) return { exitCode: 0, output: "No feedback yet." };
+    const lines = rows.map(
+      (r) => `· [${r.topic}/${r.severity}] ${String(r.content)}  (${String(r.received_at).slice(0, 10)})`,
+    );
+    return { exitCode: 0, output: `${rows.length} feedback:\n${lines.join("\n")}` };
+  } catch {
+    return { exitCode: 1, output: "✗ Could not reach the mooter hub." };
   }
 }
