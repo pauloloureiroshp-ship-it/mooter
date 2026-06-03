@@ -336,7 +336,12 @@ function pickState(ctx) {
                      provider0 === 'haiku'      ? 'haiku' :
                      provider0 === 'ollama'     ? 'local' : null;
     const tag = explicit || TIER_DEFAULT_TAG[tier] || tier.toLowerCase();
-    lastLabel = `${tier} ${tag} ${conf}`;
+    // Wave 12 PR-I — T0 is local by definition, so "T0 local" is redundant; drop
+    // the tag there. Confidence gets a "conf" qualifier so the bare number reads
+    // as what it is rather than as noise.
+    lastLabel = (tier === 'T0' && tag === 'local')
+      ? `${tier} · conf ${conf}`
+      : `${tier} ${tag} · conf ${conf}`;
   }
 
   // ── Proof chips (Wave 2.5 Day 1) ──────────────────────────────────────
@@ -445,10 +450,13 @@ function pickState(ctx) {
   // Wave 2.5 Day 1: the tier badge (T2 sonnet 0.84) moves inline into the
   // headline; the proof slot carries the operational chips instead.
   if (typeof savedUsd === 'number' && typeof savedPct === 'number') {
-    const headline = lastLabel !== '—'
-      ? `mooter saved $${savedUsd.toFixed(2)} (${Math.round(savedPct)}%) · ${lastLabel}`
-      : `mooter saved $${savedUsd.toFixed(2)} (${Math.round(savedPct)}%)`;
-    return { color: 'green', headline, proof: proofChips };
+    // Wave 12 PR-I — 🐮 already brands the line, so the word "mooter" is dropped.
+    // "today" names the aggregation window (matches `mooter trail`); "vs all-Opus"
+    // names the baseline the savings % is measured against. The tier label rides
+    // on state.lastLabel so the renderer can sit the sparkline between the outcome
+    // and the tier (outcome → rhythm → tier).
+    const headline = `saved $${savedUsd.toFixed(2)} today (${Math.round(savedPct)}% vs all-Opus)`;
+    return { color: 'green', headline, proof: proofChips, lastLabel };
   }
 
   // ── GREEN fallback: tracker down but data present ─────────────────────
@@ -530,7 +538,14 @@ function renderFromContext(ctx) {
       }
     }
   } catch { /* keep default proof */ }
-  return `${COLOR_GLYPH[state.color]} ${state.headline.padEnd(38)} │ ${proof}`;
+  // Wave 12 PR-I — pickState now exposes the tier label (state.lastLabel)
+  // separately from the green headline so the 2-line view can place the sparkline
+  // ahead of it. The 1-line view has no sparkline, so fold the tier label back
+  // onto the headline here to keep the tier badge visible on narrow terminals.
+  const headlineText = (state.color === 'green' && state.lastLabel && state.lastLabel !== '—')
+    ? `${state.headline} · ${state.lastLabel}`
+    : state.headline;
+  return `${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proof}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -617,22 +632,29 @@ function renderTwoLine(ctx) {
     }
   } catch { /* keep the bare headline */ }
 
-  // Wave 2.6 Day 3 — current Moo glyph from the centralized map (tier + where it
-  // grazes). Best-effort: a missing glyphs module just drops the chip. Also pull
-  // the "home" glyph from the same table so the local-count chip stays in sync.
-  let mooGlyphChip = null;
+  // Wave 12 PR-I — the tier label trails the sparkline on the green headline
+  // (pickState exposes it separately so the rhythm sits ahead of it: brand →
+  // savings → rhythm → tier). Warning states fold their tier context into the
+  // headline/proof already, so this only fires on green.
+  if (state.color === 'green' && state.lastLabel && state.lastLabel !== '—') {
+    line1 = `${line1}  ·  ${state.lastLabel}`;
+  }
+
+  // Wave 12 PR-I — the per-decision Moo glyph that used to open line 2 was a
+  // second cow, redundant with the 🐮 already branding line 1. Dropped. We still
+  // pull the "home" glyph from the same table to keep the local-count chip in sync.
   let homeGlyph = '🏠';
   try {
-    const { glyphFor, providerBucket, PROVIDER_GLYPHS } = require('./glyphs.js');
+    const { PROVIDER_GLYPHS } = require('./glyphs.js');
     homeGlyph = (PROVIDER_GLYPHS && PROVIDER_GLYPHS.local) || '🏠';
-    if (ctx.last && ctx.last.tier) {
-      const prov = providerBucket((Array.isArray(ctx.last.suggested_providers) && ctx.last.suggested_providers[0]) || '');
-      mooGlyphChip = glyphFor({ tier: ctx.last.tier, provider: prov });
-    }
-  } catch { mooGlyphChip = null; homeGlyph = '🏠'; }
+  } catch { homeGlyph = '🏠'; }
 
   // Local-Moo usage count (T0 = local tier) from the per-session tier counts.
   const localCount = (ctx.counts && Number(ctx.counts.T0)) || 0;
+  // Wave 12 PR-I — denominator for the local-count chip ("6/10 local"). Total
+  // classified decisions in the session window; falls back to the local count
+  // itself if the digest carried no total (keeps the ratio sane, never > 1).
+  const sessionTotal = Number(ctx.total) || localCount;
 
   // Wave 10 A.1 — Cinematic: replace the verbose "🐄 last10: T0:.. T1:.." text
   // chip with a visual local-share bar. The line-1 sparkline already carries the
@@ -671,9 +693,16 @@ function renderTwoLine(ctx) {
   let gpuChip = formatGpuChip(readGpuFromProfile());
   if (gpuChip && !hide('vram')) {
     try {
-      const { getVram, formatVramChip } = require('./vram_detect.js');
-      const v = formatVramChip(getVram());
-      if (v) gpuChip = `${gpuChip} (${v})`;
+      // Wave 12 PR-I — VRAM as a single % is more glanceable than raw "5.4GB /
+      // 24GB"; the raw GB pair stays available via `mooter doctor`. Same detector
+      // (vram_detect), same numbers — only the presentation changes. M-series
+      // shared memory reports used_mb = -1, so the % is omitted there rather than
+      // invented.
+      const { getVram } = require('./vram_detect.js');
+      const v = getVram();
+      if (v && Number.isFinite(v.used_mb) && v.used_mb >= 0 && v.total_mb > 0) {
+        gpuChip = `${gpuChip} ${Math.round((v.used_mb / v.total_mb) * 100)}% VRAM`;
+      }
     } catch { /* keep model-only chip */ }
   }
 
@@ -691,7 +720,11 @@ function renderTwoLine(ctx) {
 
   // Wave 5 D2 — adapter chip, honest. A validated active adapter shows 🔧 {name}
   // (+perf if benchmarked); a marked-but-unvalidated one shows ⏸; else baseline.
-  let adapterChip = 'adapter ◌ baseline · install via mooter forge install <gguf>';
+  // Wave 12 PR-I — em-dash reads as "none" (◌ read like an unselected radio).
+  // `mooter forge install` is the shipped command that installs a .gguf adapter
+  // (commands/forge.ts), so the CTA stays — just trimmed of the "install via … <gguf>"
+  // verbosity.
+  let adapterChip = 'adapter — baseline · mooter forge install';
   try {
     const { getActiveAdapter, markedAdapterId } = require('./adapter_selection.js');
     const active = getActiveAdapter();
@@ -710,12 +743,11 @@ function renderTwoLine(ctx) {
   const ctxChip = !hide('ctx') && typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;
 
   const line2 = [
-    mooGlyphChip,
-    localCount > 0 ? `${homeGlyph} local ×${localCount}` : null,
+    localCount > 0 ? `${homeGlyph} ${localCount}/${sessionTotal} local` : null,
     localShareChip,
     gpuChip,
     ctxChip,
-    typeof ctx.anthRem === 'number' ? `${ctx.anthRem}% 5h` : null,
+    typeof ctx.anthRem === 'number' ? `☁ Claude Max ${ctx.anthRem}% · 5h reset` : null,
     typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
     typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
     quantChip,

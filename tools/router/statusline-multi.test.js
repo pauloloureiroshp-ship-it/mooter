@@ -33,9 +33,12 @@ const {
 test('pickState: green when savings tracker reports healthy figures', () => {
   const s = pickState(DEMO_CONTEXTS.green);
   assert.equal(s.color, 'green');
-  // Wave 2.5 D1 — headline dropped "today" and now appends the tier badge.
-  assert.match(s.headline, /saved \$0\.27 \(89%\)/);
-  assert.match(s.headline, /T2 sonnet 0\.84/);
+  // Wave 12 PR-I — headline carries the de-branded saved clause with the "today"
+  // and "vs all-Opus" qualifiers; the tier badge moves to state.lastLabel so the
+  // 2-line renderer can sit the sparkline ahead of it.
+  assert.match(s.headline, /saved \$0\.27 today \(89% vs all-Opus\)/);
+  assert.doesNotMatch(s.headline, /mooter saved/);
+  assert.match(s.lastLabel, /T2 sonnet · conf 0\.84/);
 });
 
 test('pickState: yellow when beast overkill exceeds threshold', () => {
@@ -374,10 +377,13 @@ test('renderFromContext: critical state renders the 🚨 glyph', () => {
   assert.match(out, /^🚨 /u, 'red should lead with the siren glyph');
 });
 
-test('pickState: green headline inlines Tier + model + confidence', () => {
+test('pickState: green exposes Tier + model + confidence on state.lastLabel', () => {
   const s = pickState(DEMO_CONTEXTS.green);
   assert.equal(s.color, 'green');
-  assert.match(s.headline, /· T2 sonnet 0\.84$/, 'tier badge should close the headline');
+  // PR-I — the tier badge is exposed separately (not folded into the headline)
+  // so the 2-line renderer can position the sparkline between outcome and tier.
+  assert.match(s.lastLabel, /^T2 sonnet · conf 0\.84$/, 'tier badge lives on state.lastLabel');
+  assert.doesNotMatch(s.headline, /T2 sonnet/, 'tier badge no longer inlined in the green headline');
 });
 
 test('pickState: ctx % chip rendered when context.percent_used is present', () => {
