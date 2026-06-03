@@ -35,12 +35,26 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   const lines = out.split('\n');
   assert.equal(lines.length, 2, 'wide terminal renders exactly two lines');
   assert.match(lines[0], /🐮/, 'line 1 carries the mood glyph');
-  assert.match(lines[0], /saved \$0\.27/, 'line 1 carries the saved headline');
+  // PR-I line-1 qualifiers + de-branding
+  assert.match(lines[0], /saved \$0\.27 today \(89% vs all-Opus\)/, 'PR-I: saved carries today + baseline qualifiers');
+  assert.doesNotMatch(lines[0], /mooter saved/, 'PR-I: redundant "mooter" word dropped (🐮 already brands)');
+  assert.match(lines[0], /T2 sonnet · conf 0\.84/, 'PR-I: tier shows model family + conf qualifier');
+  // PR-I sparkline sits between the saved outcome and the tier label
+  assert.match(lines[0], /last 10 {2}· {2}T2 sonnet/, 'PR-I: tier label trails the sparkline');
   // line 2 operational chips
-  assert.match(lines[1], /🏠 local ×6/, 'line 2 shows local Moo count');
+  assert.match(lines[1], /^🏠 6\/10 local/, 'PR-I: line 2 leads with N/M local (no redundant second cow)');
+  assert.doesNotMatch(lines[1], /local ×6/, 'PR-I: old ×N local count is gone');
   assert.match(lines[1], /ctx \[.*\] 23%/, 'line 2 shows ctx as a visual bar (W2.8)');
-  assert.match(lines[1], /100% 5h/, 'line 2 shows quota');
+  assert.match(lines[1], /☁ Claude Max 100% · 5h reset/, 'PR-I: quota carries cloud anchor + label');
+  assert.doesNotMatch(lines[1], /\b100% 5h\b/, 'PR-I: bare "100% 5h" replaced by labelled quota');
+  assert.match(lines[1], /adapter — baseline · mooter forge install/, 'PR-I: adapter uses em-dash + shipped forge CTA');
+  assert.doesNotMatch(lines[1], /forge install <gguf>/, 'PR-I: verbose <gguf> CTA trimmed');
   assert.match(lines[1], /pack: diagram-systems/, 'line 2 shows pack');
+  // VRAM, when the host exposes a GPU chip, must read as a % — never the old "GB / GB" pair
+  if (/🎮/.test(lines[1])) {
+    assert.match(lines[1], /🎮[^·]*\d+% VRAM/, 'PR-I: VRAM shown as % when a GPU is present');
+    assert.doesNotMatch(lines[1], /GB \/ /, 'PR-I: raw GB pair removed from the chip');
+  }
 });
 
 test('render: falls back to single line when COLUMNS < 120', () => {
@@ -48,6 +62,10 @@ test('render: falls back to single line when COLUMNS < 120', () => {
   assert.ok(!out.includes('\n'), 'narrow terminal renders a single line');
   assert.match(out, /🐮/);
   assert.match(out, /│/, 'single line keeps the headline │ proof separator');
+  // PR-I: the de-branded "today" headline and the tier badge survive on the narrow line
+  assert.match(out, /saved \$0\.27 today/, 'PR-I: narrow line carries the today qualifier');
+  assert.doesNotMatch(out, /mooter saved/, 'PR-I: narrow line drops the redundant "mooter" word');
+  assert.match(out, /T2 sonnet · conf 0\.84/, 'PR-I: narrow line keeps the tier badge (folded back onto the headline)');
 });
 
 test('render: missing COLUMNS assumes narrow (1-line)', () => {

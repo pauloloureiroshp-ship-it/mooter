@@ -70,7 +70,11 @@ test('renderTwoLine: quant chip omitted for a cloud Moo', () => {
 // ── Ponto #8 — honest adapter chip ───────────────────────────────────────
 test('renderTwoLine: adapter chip is honest baseline (LoRA Wave 5)', () => {
   const out = withColumns(140, () => renderTwoLine(localState));
-  assert.match(out, /adapter ◌ baseline · install via mooter forge install <gguf>/);
+  // PR-I — em-dash reads as "none"; the shipped `mooter forge install` CTA stays
+  // (commands/forge.ts), trimmed of the "install via … <gguf>" verbosity.
+  assert.match(out, /adapter — baseline · mooter forge install/);
+  assert.doesNotMatch(out, /◌ baseline/, 'PR-I: dotted-circle glyph replaced by em-dash');
+  assert.doesNotMatch(out, /forge install <gguf>/, 'PR-I: verbose <gguf> CTA trimmed');
 });
 
 // ── ctx bar in 2-line, plain text in 1-line fallback ─────────────────────

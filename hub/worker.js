@@ -29,6 +29,7 @@ import { handleModels } from './routes/models.js';
 import { handleVersion } from './routes/version.js';
 import { handleSubmitEvents, handleAggregateStats } from './routes/events.js';
 import { handleHeartbeat } from './routes/heartbeat.js';
+import { handleFeedback } from './routes/feedback.js';
 import { runAggregate } from './jobs/aggregate.js';
 import { runGenerate } from './jobs/generate.js';
 import { runNotify } from './jobs/notify.js';
@@ -70,6 +71,10 @@ const handler = {
           break;
         case '/api/device-heartbeat':
           response = await handleHeartbeat(request, env);
+          break;
+        case '/api/feedback':        // POST: anonymous feedback (Wave 12 D1-2)
+        case '/api/feedback-list':   // GET: admin read (FRUGAL_ADMIN_TOKEN)
+          response = await handleFeedback(request, env);
           break;
         case '/api/stats':
           response = await handleStats(request, env);

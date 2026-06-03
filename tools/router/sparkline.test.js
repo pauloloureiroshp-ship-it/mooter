@@ -64,7 +64,7 @@ test('render (wide): line 1 carries the sparkline, line 2 the local-share bar', 
     assert.equal(lines.length, 2);
     assert.match(lines[0], /last 10/, 'line 1 trails the sparkline label');
     assert.match(lines[1], /\d+% local/, 'line 2 shows the local-share bar');
-    assert.match(lines[1], /🏠 local ×6/, 'session local count chip preserved (non-breaking)');
+    assert.match(lines[1], /🏠 6\/10 local/, 'session local count chip carries the N/M denominator (PR-I)');
   } finally {
     if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev;
   }

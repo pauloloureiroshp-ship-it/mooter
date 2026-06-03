@@ -105,7 +105,10 @@ export default async function ComparePage() {
         something wrong, <a href="https://github.com/pauloloureiroshp-ship-it/mooter/issues" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>open an issue</a> and we&apos;ll fix it.
       </p>
       <p style={{ color: 'var(--color-faint, var(--color-muted))', fontSize: 12.5, marginTop: 8 }}>
-        Cursor / Copilot / Cody are AI coding assistants, not LLM routers — mooter complements rather than replaces them.
+        Cursor / Copilot / Cody — and the open-source agents <strong>Cline</strong>, <strong>Aider</strong> and{' '}
+        <strong>Roo Code</strong> — are AI coding assistants/agents, not LLM routers. They decide <em>what to do</em>;
+        mooter decides <em>which model runs each step</em>. It complements them (run mooter under Claude Code while you
+        use any of them elsewhere) rather than replacing them — so this table compares routers, not agents.
       </p>
     </section>
   );
