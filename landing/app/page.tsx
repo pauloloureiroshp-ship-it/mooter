@@ -43,6 +43,14 @@ export default function Page() {
                 </a>
               </p>
 
+              {/* D6 — condensed persona+$ subline (rubric C5) */}
+              <p style={{ color: 'var(--color-text)', fontSize: 15, lineHeight: 1.6, marginTop: 14, maxWidth: 560, fontWeight: 500 }}>
+                For a vibe coder on a Max plan: renames, commits &amp; explains run <strong>local (free)</strong>;
+                debugging &amp; refactors go <strong>cloud</strong> — typically ~30% less on a mixed day, more when
+                local does the heavy lifting.{' '}
+                <a href="/methodology" style={{ color: 'var(--color-accent)' }}>Estimate yours →</a>
+              </p>
+
               <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
                 <a href="/install" style={{ background: 'var(--color-accent)', color: '#1A0E0E', fontWeight: 600, fontSize: 16, padding: '14px 24px', borderRadius: 11 }}>
                   Install mooter →

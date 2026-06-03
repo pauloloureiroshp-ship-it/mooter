@@ -62,6 +62,18 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
         </Card>
       </div>
 
+      {/* 2026 local frontier (D2) */}
+      <div style={{ marginTop: 8, marginBottom: 8 }}>
+        <p style={{ color: 'var(--color-muted)', fontSize: 14.5, lineHeight: 1.7, maxWidth: 780 }}>
+          The local frontier moves fast. As of 2026, notable local-capable coding models include{' '}
+          <strong>Qwen3-Coder-Next</strong> (~58.7% SWE-bench Verified), <strong>GLM-5</strong> (~77.8%),{' '}
+          <strong>DeepSeek V3.2</strong>, and <strong>Llama 4 Scout</strong> (10M-token context). Those are{' '}
+          <em>vendor/community-reported</em> numbers — not mooter benchmarks; check each model card before relying on them.
+          mooter routes T0 to whatever you&apos;ve pulled: the default stays the dependable <code>qwen2.5-coder</code>,
+          and if you pull a stronger model mooter uses it automatically — no config change.
+        </p>
+      </div>
+
       {/* §7.2 LoRA / DoRA */}
       <div className="uth-row" id="forge" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28, alignItems: 'start' }}>
         <div>

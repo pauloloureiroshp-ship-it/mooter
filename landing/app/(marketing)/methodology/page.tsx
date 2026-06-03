@@ -85,6 +85,18 @@ export default function MethodologyPage() {
         </Card>
       </div>
 
+      {/* D6 — concrete persona case (rubric C5) */}
+      <div style={{ marginTop: 40, padding: '20px 24px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--r-lg, 14px)' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>A concrete case</h2>
+        <p style={{ color: 'var(--color-muted)', fontSize: 15, lineHeight: 1.7, maxWidth: 720, margin: 0 }}>
+          <strong>Solo founder, Claude Code Max plan, RTX 4090, ~80 prompts/day, ~8% critical.</strong> Most of the day
+          is renames, commits, small edits and &ldquo;explain this&rdquo; — those route to <strong>T0 local (free)</strong>.
+          The ~8% that&apos;s real debugging or a cross-file refactor goes to <strong>Sonnet/Opus</strong>. Set those inputs
+          in the calculator above to see this profile&apos;s monthly figure — it&apos;s computed from the same per-tier costs
+          as the N=34 benchmark below, not a marketing number. Your mix (and your savings) shift with how much you keep local.
+        </p>
+      </div>
+
       {/* Benchmark proof */}
       <div style={{ marginTop: 56 }}>
         <h2 style={{ fontSize: 26, fontWeight: 600, marginBottom: 6 }}>Benchmark proof</h2>
