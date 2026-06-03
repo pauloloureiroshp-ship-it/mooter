@@ -62,10 +62,13 @@ export type MooterEvent = {
   judge_blind?: boolean;
 };
 
+// Wave 12 PR-I parity — 🐮 brands the line so "mooter" is dropped; saved carries
+// the "today" + "vs all-Opus" qualifiers; tier shows model + "conf"; adapter uses
+// the em-dash "none" + the shipped `mooter forge install` CTA.
 export const STATUSLINE_FORMAT_LINES = [
-  '🐮 mooter saved $X today (Y%)  ·  T{n} {model}  ·  pack: {pack}',
+  '🐮 saved $X today (Y% vs all-Opus)  ·  T{n} {model} · conf {c}  ·  pack: {pack}',
   '   {bar} N% 5h  ·  {bar} N% 7d  ·  ↺ {time}',
-  '   ctx N%  ·  adapter: {id} ◌|●  ·  ${ppt}/turn  ·  alltime ${total}',
+  '   ctx N%  ·  adapter — baseline · mooter forge install  ·  ${ppt}/turn  ·  alltime ${total}',
 ] as const;
 
 export const TIER_COLORS_WEB = {

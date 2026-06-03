@@ -7,6 +7,7 @@ export interface StatuslineData {
   savedPct: string;
   tier: string;
   model: string;
+  conf: string;
   pack: string;
   bar5h: string;
   pct5h: string;
@@ -24,6 +25,7 @@ const DEFAULTS: StatuslineData = {
   savedPct: '89%',
   tier: 'T2',
   model: 'sonnet',
+  conf: '0.84',
   pack: 'diagram-systems',
   bar5h: '▓▓▓▓░░░░░░',
   pct5h: '42% 5h',
@@ -56,9 +58,9 @@ export default function StatuslineCard({ data }: { data?: Partial<StatuslineData
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <MooterMarkTiny size={14} />
         <span>
-          mooter saved <span style={{ color: 'var(--color-green)' }}>{d.savedToday}</span> today ({d.savedPct})
+          saved <span style={{ color: 'var(--color-green)' }}>{d.savedToday}</span> today ({d.savedPct} vs all-Opus)
           {'  ·  '}
-          <span style={{ color: 'var(--color-tier-2-term)' }}>{d.tier} {d.model}</span> ☑{'  ·  '}
+          <span style={{ color: 'var(--color-tier-2-term)' }}>{d.tier} {d.model}</span> · conf {d.conf}{'  ·  '}
           pack: <span style={{ color: 'var(--color-accent-2)' }}>{d.pack}</span>
         </span>
       </div>
@@ -66,7 +68,7 @@ export default function StatuslineCard({ data }: { data?: Partial<StatuslineData
         {`   ${d.bar5h} ${d.pct5h}  ·  ${d.bar7d} ${d.pct7d}  ·  ↺ ${d.resetIn}`}
       </div>
       <div style={{ color: dim }}>
-        {`   ctx ${d.ctxPct}  ·  adapter: ${d.adapterOn ? '●' : '◌'}  ·  ${d.costTurn} turn  ·  alltime ${d.alltime}`}
+        {`   ctx ${d.ctxPct}  ·  ${d.adapterOn ? 'adapter 🔧 active' : 'adapter — baseline · mooter forge install'}  ·  ${d.costTurn} turn  ·  alltime ${d.alltime}`}
       </div>
     </div>
   );
