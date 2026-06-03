@@ -13,7 +13,14 @@ const cards = [
   { icon: '💻', title: 'T0 stays local', body: 'When mooter routes to your local Ollama, your prompt and your code never touch a network.' },
   { icon: '🔒', title: 'Prompts hashed', body: 'We log a SHA-256 hash of each prompt — never the text itself.' },
   { icon: '🤝', title: 'Opt-in telemetry', body: 'Defaults OFF. When you turn it on, only aggregated stats leave.' },
+  { icon: '🚫', title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. No prompt text is ever transmitted — only hashes and counts.' },
   { icon: '📖', title: 'Open source · audit it', body: 'Every line of mooter is on GitHub under MIT. Read the code yourself.' },
+];
+
+// D4 — how mooter differs from cloud routers/proxies on privacy.
+const vsCloud: { head: string; items: string[] }[] = [
+  { head: 'mooter (hook, local-first)', items: ['T0 runs on your machine — prompt never leaves', 'T1–T3 go direct to your own provider key', 'mooter never sees or stores your prompt text'] },
+  { head: 'Cloud routers / proxies (e.g. LiteLLM-as-a-service, OpenRouter)', items: ['Every prompt transits a third-party server', 'That hop can log, cache or train on your text', 'You trust an extra party with your code'] },
 ];
 
 const compliance: { head: string; items: string[] }[] = [
@@ -70,6 +77,21 @@ export default async function PrivacyPage() {
             <a href="/privacy" style={{ color: 'var(--color-accent)', fontSize: 14 }}>Read the security policy →</a>
           </div>
         </Card>
+      </div>
+
+      {/* D4 — privacy vs cloud routers */}
+      <div style={{ marginTop: 36 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>Why a hook beats a cloud router on privacy</h2>
+        <div className="priv-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          {vsCloud.map((c) => (
+            <Card key={c.head} padding={22}>
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>{c.head}</div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.7 }}>
+                {c.items.map((i) => <li key={i}>{i}</li>)}
+              </ul>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {hasPolicy ? (
