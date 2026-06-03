@@ -21,7 +21,7 @@ import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 import { runExplain } from "./commands/explain.ts";
-import { runFeedback } from "./commands/feedback.ts";
+import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -202,7 +202,13 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (command === "feedback") {
-    // `mooter feedback "<message>" [--topic=bug] [--severity=low]`
+    // `mooter feedback "<message>" [--topic=bug] [--severity=low]` (anonymous, no login)
+    // `mooter feedback --list` (admin read, needs MOOTER_ADMIN_TOKEN)
+    if (rest.includes("--list")) {
+      const res = await runFeedbackList({});
+      if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+      return res.exitCode;
+    }
     const message = rest.filter((a) => !a.startsWith("--")).join(" ");
     const topic = rest.find((a) => a.startsWith("--topic="))?.split("=")[1];
     const severity = rest.find((a) => a.startsWith("--severity="))?.split("=")[1];
