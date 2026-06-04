@@ -316,15 +316,7 @@ function LoginHero() {
         {/* Left — auth */}
         <div className="login-hero-left">
           <div style={{ maxWidth: 440 }}>
-            {/* Brand */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
-              <MooterLogo size={32} />
-              <span style={{
-                fontSize: '1.05rem', color: 'var(--text)', fontWeight: 700,
-                fontFamily: 'var(--font-sans), sans-serif', letterSpacing: '-0.02em',
-              }}>mooter</span>
-            </div>
-
+            {/* Brand lives in the NavBar above — no in-hero logo (Wave 15). */}
             {/* Headline */}
             <h1 style={{
               fontSize: 'clamp(2.2rem, 4.5vw, 2.9rem)',
