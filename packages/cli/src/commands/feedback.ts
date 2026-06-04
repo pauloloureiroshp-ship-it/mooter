@@ -130,9 +130,17 @@ export interface RunFeedbackListOptions {
   fetchImpl?: typeof fetch;
 }
 
-/** Admin read: `mooter feedback --list`. Needs MOOTER_ADMIN_TOKEN. */
+/**
+ * Admin read: `mooter feedback --list`. Needs the admin token.
+ * Wave 13.x: `MOOTER_ADMIN_TOKEN` is canonical; `MOOTER_HUB_TOKEN` (legacy alias)
+ * and `FRUGAL_ADMIN_TOKEN` (deprecated) are accepted as fallbacks.
+ */
 export async function runFeedbackList(opts: RunFeedbackListOptions): Promise<CmdResult> {
-  const token = opts.adminToken ?? process.env.MOOTER_ADMIN_TOKEN;
+  const token =
+    opts.adminToken ??
+    process.env.MOOTER_ADMIN_TOKEN ??
+    process.env.MOOTER_HUB_TOKEN ??
+    process.env.FRUGAL_ADMIN_TOKEN;
   if (!token) {
     return { exitCode: 1, output: "✗ Set MOOTER_ADMIN_TOKEN to read feedback (admin only)." };
   }

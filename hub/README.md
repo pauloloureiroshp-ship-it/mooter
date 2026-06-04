@@ -1,13 +1,16 @@
-# frugal-hub — Cloudflare Worker
+# mooter-hub — Cloudflare Worker
 
-Community hub for frugal router telemetry. Receives anonymized deltas, aggregates stats, and generates community router-tuning.
+Community hub for Mooter router telemetry. Receives anonymized deltas, aggregates stats, and generates community router-tuning.
+
+> Canonical Worker is `mooter-hub` (config `wrangler.mooter.toml`), serving `mooter-hub.frugal-hub.workers.dev`. The legacy `frugal-hub` Worker (`wrangler.frugal-legacy.toml`) is deprecated and frozen — see Wave 13.x brand cleanup.
 
 ## Structure
 
 ```
 hub/
-├── worker.js           ← Entry point (Cloudflare Worker)
-├── wrangler.toml       ← Cloudflare config
+├── worker.js                   ← Entry point (Cloudflare Worker)
+├── wrangler.mooter.toml        ← Cloudflare config (CANONICAL — mooter-hub)
+├── wrangler.frugal-legacy.toml ← DEPRECATED legacy config (frugal-hub, frozen)
 ├── routes/
 │   ├── delta.js        ← POST /api/delta — receive anonymized deltas
 │   ├── stats.js        ← GET /api/stats — public aggregate statistics
@@ -30,7 +33,7 @@ hub/
 
 ```bash
 cd hub
-npx wrangler deploy
+npm run deploy   # → wrangler deploy -c wrangler.mooter.toml (canonical mooter-hub)
 ```
 
 ## Environment
@@ -39,7 +42,7 @@ npx wrangler deploy
 - **D1 database:** `mooter-hub` (id `3659b56e`, see `wrangler.mooter.toml`)
 - **R2 bucket:** `mooter-hub-storage`
 - **Account:** (see INFRA.md)
-- **Legacy worker:** `frugal-hub` is still deployed (200 OK as of 2026-05-05) and bound to the same `mooter-hub` D1/R2 — kept alive for any pre-rebrand client that hits `frugal-hub.frugal-hub.workers.dev`. Safe to retire once telemetry confirms zero traffic.
+- **Legacy worker:** `frugal-hub` (config `wrangler.frugal-legacy.toml`) is deprecated as of Wave 13.x (2026-06-04) and frozen on its last deploy — CI no longer targets it. It stays bound to the same `mooter-hub` D1/R2 for any pre-rebrand client that hits `frugal-hub.frugal-hub.workers.dev`. Safe to retire once telemetry confirms zero traffic.
 
 ## Migrations
 
@@ -53,12 +56,12 @@ routes returning 500 errors when they hit tables that don't yet exist.
 
 Recommended sequence when adding a migration:
 ```bash
-# 1. Apply migration to remote D1 (production)
-npx wrangler d1 migrations apply frugal-hub-db --remote
+# 1. Apply migration to remote D1 (production) — canonical mooter-hub DB
+npx wrangler d1 migrations apply mooter-hub --remote -c wrangler.mooter.toml
 # 2. Verify applied
-npx wrangler d1 migrations list frugal-hub-db --remote
+npx wrangler d1 migrations list mooter-hub --remote -c wrangler.mooter.toml
 # 3. Deploy worker
-npx wrangler deploy
+npm run deploy
 ```
 
 Note: `002_frugal_events.sql` is created but not yet applied (scheduled for Sprint 3).
