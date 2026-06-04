@@ -806,10 +806,16 @@ html:has(.app-shell-root) body {
 /* Wave 14 Day 3 (14B-A) — /onboarding adopts the landing's DARK palette for
    brand parity. Onboarding uses the same short --bg/--surface/--accent tokens
    as the app shell, so re-pointing them at the dark (--color-*) values here
-   flips the whole wizard to dark without per-element edits. Dashboard/settings
-   keep .app-shell-root (light parchment) — they migrate in Day 4 (14B-B). */
+   flips the whole page to dark without per-element edits.
+   Day 4 (14B-B) — dashboard + settings opt into the same dark palette via the
+   additional .app-shell-dark modifier (the layout adds it on every non-/admin
+   route). /admin keeps the light .app-shell-root parchment. These body rules
+   come AFTER html:has(.app-shell-root) above so, on an element carrying both
+   classes (dashboard/settings), the dark rule wins by source order. */
 html:has(.onboarding-shell),
-html:has(.onboarding-shell) body {
+html:has(.onboarding-shell) body,
+html:has(.app-shell-dark),
+html:has(.app-shell-dark) body {
   background: #0B0A09;
   color: #F2EDE6;
 }
@@ -849,10 +855,14 @@ html:has(.onboarding-shell) body {
   min-height: 100vh;
 }
 
-/* Wave 14 Day 3 (14B-A) — dark scope for /onboarding. Same token names as
-   .app-shell-root, mapped to the landing's --color-* dark palette so the
-   existing inline-styled wizard renders dark with one className swap. */
-.onboarding-shell {
+/* Wave 14 Day 3/4 — dark scope shared by /onboarding (.onboarding-shell) and
+   the dashboard+settings app shell (.app-shell-dark). Same token names as
+   .app-shell-root, mapped to the landing's --color-* dark palette, so the
+   existing inline-styled pages render dark with no per-element edits. Declared
+   after .app-shell-root, so an element carrying both .app-shell-root and
+   .app-shell-dark resolves these dark tokens (equal specificity → source order). */
+.onboarding-shell,
+.app-shell-dark {
   --bg:           #0B0A09;
   --bg-2:         #0F0E0C;
   --surface:      #141311;

@@ -119,6 +119,11 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Wave 14 Day 4 (14B-B) — dashboard + settings adopt the landing dark palette
+  // via .app-shell-dark (overrides the light .app-shell-root tokens). /admin
+  // stays on the light parchment shell for now.
+  const shellClass = pathname.startsWith('/admin') ? 'app-shell-root' : 'app-shell-root app-shell-dark';
+
   useEffect(() => {
     fetch('/api/me')
       .then(r => r.json())
@@ -142,7 +147,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   // Loading state
   if (loading) {
     return (
-      <div className="app-shell-root" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+      <div className={shellClass} style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
         <div style={{ color: 'var(--muted)', fontSize: '0.9rem', fontFamily: 'var(--font-sans), sans-serif' }}>Loading…</div>
       </div>
     );
@@ -161,7 +166,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   const items = user.is_admin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
 
   return (
-    <div className="app-shell-root" style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className={shellClass} style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
       <aside className={`app-sidebar${sidebarOpen ? ' open' : ''}`}>
         {/* Logo */}
