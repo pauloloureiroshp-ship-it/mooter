@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
 import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
+import { LOCAL_HW, estimateMonthlySavings } from './_lib/estimate';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -28,23 +29,9 @@ const BUDGET_OPTIONS = [
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://mooter.ai/install.sh)';
 const INSTALL_CMD_WIN = 'irm https://mooter.ai/install-windows.ps1 | iex';
 
-// ── Live preview helpers — gives the user a tangible "what you'll get" as
-//    they fill out step 1. Numbers are directional, anchored on real router
-//    accuracy (~88%) and tier cost ratios used in the landing page calculator.
-const LOCAL_HW = new Set(['mac_m_series', 'windows_nvidia', 'windows_amd', 'linux_nvidia', 'linux_amd']);
-
-export function estimateMonthlySavings({ hw, subs, budget }: { hw: string; subs: string[]; budget: number }): string {
-  const hasLocal = LOCAL_HW.has(hw);
-  const hasMax = subs.includes('Claude Max');
-  const effectiveBudget = budget === 999 ? 300 : budget; // "no limit" anchor
-  // Rough mental model: without mooter, users burn ~$120/mo in Opus-only at moderate usage.
-  // With mooter, local deflection + tier routing typically brings that down 70–90%.
-  const floor = hasLocal ? 0.10 : 0.25;
-  const baseline = hasMax ? 120 : Math.max(40, effectiveBudget * 4);
-  const saved = Math.round(baseline * (1 - floor));
-  if (hasLocal) return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only`;
-  return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only (cloud-only routing)`;
-}
+// ── Live preview helpers — gives the user a tangible "what you'll get" as they
+//    fill out step 1. estimateMonthlySavings + LOCAL_HW live in _lib/estimate
+//    (pure, unit-tested; page.tsx may only carry valid Next.js Page exports).
 
 // Ollama recommendations — aligned with the real mooter router.
 //

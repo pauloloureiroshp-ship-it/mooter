@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { estimateMonthlySavings } from './page';
+import { estimateMonthlySavings } from './_lib/estimate';
 
 const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
 const PAGE = read('page.tsx');
