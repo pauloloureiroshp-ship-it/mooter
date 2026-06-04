@@ -803,6 +803,17 @@ html:has(.app-shell-root) body {
   color: #1A1613;
 }
 
+/* Wave 14 Day 3 (14B-A) — /onboarding adopts the landing's DARK palette for
+   brand parity. Onboarding uses the same short --bg/--surface/--accent tokens
+   as the app shell, so re-pointing them at the dark (--color-*) values here
+   flips the whole wizard to dark without per-element edits. Dashboard/settings
+   keep .app-shell-root (light parchment) — they migrate in Day 4 (14B-B). */
+html:has(.onboarding-shell),
+html:has(.onboarding-shell) body {
+  background: #0B0A09;
+  color: #F2EDE6;
+}
+
 .app-shell-root {
   --bg:           #F2ECDF;   /* warm parchment — same as landing */
   --bg-2:         #EBE3D1;   /* sidebar / section band */
@@ -830,6 +841,43 @@ html:has(.app-shell-root) body {
   --r-full:       999px;
 
   /* Aliases for legacy --font / --mono tokens used by existing app components */
+  --font: var(--font-sans, 'Space Grotesk'), sans-serif;
+  --mono: var(--font-mono, 'JetBrains Mono'), monospace;
+
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Wave 14 Day 3 (14B-A) — dark scope for /onboarding. Same token names as
+   .app-shell-root, mapped to the landing's --color-* dark palette so the
+   existing inline-styled wizard renders dark with one className swap. */
+.onboarding-shell {
+  --bg:           #0B0A09;
+  --bg-2:         #0F0E0C;
+  --surface:      #141311;
+  --surface-2:    #1C1A17;
+  --border:       #252220;
+  --border-light: #302C28;
+  --text:         #F2EDE6;
+  --text-2:       #C9C2B8;
+  --muted:        #7A7168;
+  --faint:        #5A5249;
+  --accent:       #E8888A;   /* landing pink (--color-accent) */
+  --accent-soft:  #F2A5A5;
+  --accent-bg:    rgba(232,136,138,0.08);
+  --cream:        #1A0E0E;   /* dark ink as text ON the pink CTA — matches landing Btn */
+  --green:        #4CAF6A;
+  --yellow:       #D4C090;
+  --tier-0:       #4CAF6A;
+  --tier-1:       #5A9BD4;
+  --tier-2:       #A88BD4;
+  --tier-3:       #D46A5A;
+  --r-sm:         6px;
+  --r-md:         10px;
+  --r-lg:         16px;
+  --r-full:       999px;
+
   --font: var(--font-sans, 'Space Grotesk'), sans-serif;
   --mono: var(--font-mono, 'JetBrains Mono'), monospace;
 
