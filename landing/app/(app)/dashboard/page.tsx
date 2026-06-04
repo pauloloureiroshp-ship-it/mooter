@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 // Wave 4 Phase C — new dashboard cards (extend, not replace).
 import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
 import DataSourceBadge from '../../_components/DataSourceBadge';
+import { VersionBadge } from '../../_components/VersionBadge';
+import { formatGpuLabel } from '../../onboarding/_lib/hardware';
+import { heroDataSource, installedOllamaModels, isModelInstalled } from './_state';
 import { personaOption, personaPackHint } from '../../onboarding/_lib/persona';
 
 interface Device {
@@ -13,6 +16,7 @@ interface Device {
   hw_tier: string;
   gpu_name?: string | null;
   gpu_vram_mb?: number | null;
+  ollama_models?: string[] | null;
   has_ollama: boolean;
   has_anthropic_key: boolean;
   frugal_version: string;
@@ -223,7 +227,9 @@ function DevicesTab({ profile }: { profile: Profile }) {
               fontFamily: 'var(--mono)', marginTop: 2,
             }}>
               {osLabel(d.os_type)} · {d.hw_tier?.replace(/_/g, ' ')}
-              {d.frugal_version && ` · v${d.frugal_version}`}
+              {d.frugal_version && (
+                <> · <VersionBadge version={d.frugal_version} lastSync={d.last_sync_at} /></>
+              )}
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -240,7 +246,7 @@ function DevicesTab({ profile }: { profile: Profile }) {
         </div>
       ))}
       {/* Wave 10 B.2b F-6 — actionable reconnect path for stale telemetry
-          (was a dead-end). Manual sync now; live CLI↔cloud ships Wave 4 Phase D. */}
+          (was a dead-end). Manual sync from the user's own machine. */}
       <div style={{
         marginTop: 4, padding: 14,
         background: 'var(--bg)', borderRadius: 'var(--r-md)',
@@ -255,7 +261,7 @@ function DevicesTab({ profile }: { profile: Profile }) {
           mooter sync
         </code>
         <span style={{ display: 'block', marginTop: 6, fontSize: '0.72rem' }}>
-          Real-time CLI↔cloud sync ships Wave 4 Phase D. Stuck? Run{' '}
+          Stuck? Run{' '}
           <code style={{ fontFamily: 'var(--mono)' }}>mooter doctor</code> to debug your install.
         </span>
       </div>
@@ -286,7 +292,7 @@ function TerminalBlock({ lines }: { lines: string[] }) {
             ? 'var(--tier-0)'
             : line.startsWith('\u276F')
               ? 'var(--accent)'
-              : 'var(--cream)',
+              : '#F2ECDF',
         }}>
           {line}
         </div>
@@ -316,7 +322,7 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
     { name: 'OpenAI', on: hasOpenAI },
     { name: 'Gemini', on: hasGemini },
   ];
-  const gpuLabel = latestDevice?.gpu_name || null;
+  const gpuLabel = formatGpuLabel(latestDevice?.gpu_name ?? null);
   const setupRows: { label: string; value: string }[] = [
     { label: 'Hardware', value: [gpuLabel, latestDevice?.os_type ? osLabel(latestDevice.os_type) : null, profile.hardware_tier?.replace(/_/g, ' ')].filter(Boolean).join(' · ') || 'Not detected yet' },
     { label: 'Persona', value: personaOption(profile.persona).title },
@@ -914,6 +920,9 @@ function getRecommendations(profile: Profile): Recommendation[] {
   const hasOllama = latestDevice ? latestDevice.has_ollama : legacyCfg.hasOllama;
   const hasAnthropicKey = latestDevice ? latestDevice.has_anthropic_key : legacyCfg.hasAnthropicKey;
   const { decisionsCount } = aggregateDevices(profile);
+  // Wave 14 Day 2 F-6 — the real source of truth for installed models is the
+  // sync payload (device.ollama_models), not the legacy ollama_has_* booleans.
+  const installed = installedOllamaModels(profile);
   const recs: Recommendation[] = [];
 
   if (!hasOllama) {
@@ -927,7 +936,7 @@ function getRecommendations(profile: Profile): Recommendation[] {
     });
   }
 
-  if (hasOllama && !cfg.ollama_has_qwen3b) {
+  if (hasOllama && !cfg.ollama_has_qwen3b && !isModelInstalled(installed, 'qwen2.5:3b')) {
     recs.push({
       id: 'pull-qwen3b',
       title: 'Install qwen2.5:3b for fast T0',
@@ -940,7 +949,7 @@ function getRecommendations(profile: Profile): Recommendation[] {
 
   const hasGpu = profile.hardware_tier &&
     !['cpu_only', 'cloud', 'other', 'unknown', ''].includes(profile.hardware_tier);
-  if (hasOllama && hasGpu && !cfg.ollama_has_qwen30b) {
+  if (hasOllama && hasGpu && !cfg.ollama_has_qwen30b && !isModelInstalled(installed, 'qwen3:30b')) {
     recs.push({
       id: 'pull-qwen30b',
       title: 'Install qwen3:30b for T0-smart',
@@ -987,11 +996,16 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
   // recommendation is satisfied, confirm what's already in place.
   if (recs.length === 0) {
     const cfg = (profile.frugal_config || {}) as Record<string, unknown>;
-    const applied = [
-      (cfg.has_ollama === true || cfgVal(cfg).hasOllama) && 'Ollama',
+    // Wave 14 Day 2 F-6 — surface what's actually installed (real sync payload
+    // first, legacy config flags as fallback) so the card confirms the setup
+    // instead of silently vanishing.
+    const installed = installedOllamaModels(profile);
+    const applied = [...new Set([
+      ((cfg.has_ollama === true || cfgVal(cfg).hasOllama) || installed.length > 0) && 'Ollama',
+      ...installed,
       cfg.ollama_has_qwen3b === true && 'qwen2.5:3b',
       cfg.ollama_has_qwen30b === true && 'qwen3:30b',
-    ].filter(Boolean) as string[];
+    ].filter(Boolean) as string[])];
     if (applied.length === 0) return null;
     return (
       <div style={card}>
@@ -1067,14 +1081,16 @@ function RecommendationsCard({ profile }: { profile: Profile }) {
 }
 
 // ── Overview Tab ─────────────────────────────────────────────────────────
-// Wave 10 B.2b.2 F-7 — nudge when the reported CLI is on an older major line
-// than the current release (e.g. frugal-era v0.9.x vs current v1.x). Display
-// nudge only; we never mutate the telemetry payload.
-const CURRENT_CLI_MAJOR = 1;
-function staleCliVersion(v: string | null | undefined): string | null {
-  if (!v) return null;
-  const major = parseInt(String(v).replace(/^v/, '').split('.')[0] || '', 10);
-  return Number.isFinite(major) && major < CURRENT_CLI_MAJOR ? v : null;
+// Wave 14 Day 1 F-2 — the reported version + device stats are only as fresh as
+// the last synced heartbeat. When that sync is older than the threshold we nudge
+// the user to re-sync rather than treating stale telemetry (e.g. a long-gone
+// v0.9) as current. Display only — we never mutate the telemetry payload.
+const STALE_SYNC_DAYS = 7;
+function daysSinceSync(iso: string | null | undefined, nowMs: number = Date.now()): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  return Math.floor((nowMs - ms) / 86_400_000);
 }
 
 function OverviewTab({ profile }: { profile: Profile }) {
@@ -1101,19 +1117,22 @@ function OverviewTab({ profile }: { profile: Profile }) {
     { label: 'Sync', ok: !!(profile.devices && profile.devices.length > 0) },
   ];
 
-  const staleVersion = staleCliVersion(latestDevice?.frugal_version || profile.frugal_version);
+  const syncDays = daysSinceSync(latestDevice?.last_sync_at);
+  const syncStale = syncDays != null && syncDays > STALE_SYNC_DAYS;
 
   return (
     <>
-      {/* Wave 10 B.2b.2 F-7 — stale-CLI update nudge (display only). */}
-      {staleVersion && (
+      {/* Wave 14 Day 1 F-2 — stale-sync nudge (display only). The version chip is
+          only as fresh as the last heartbeat, so when sync is old we say so
+          instead of asserting an upgrade state we can't confirm. */}
+      {syncStale && (
         <div style={{
           marginBottom: 16, padding: '10px 14px',
           background: 'rgba(212,192,144,0.08)', border: '1px solid var(--yellow)',
           borderRadius: 'var(--r-md)', fontSize: '0.82rem', color: 'var(--text)',
         }}>
-          Your CLI is on <span style={{ fontFamily: 'var(--mono)' }}>v{staleVersion}</span> — a newer major is out. Update with{' '}
-          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>bash &lt;(curl -fsSL https://mooter.ai/install.sh)</code>
+          Last sync was <span style={{ fontFamily: 'var(--mono)' }}>{syncDays}d</span> ago. Run{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter sync</code> from your CLI to refresh.
         </div>
       )}
       {/* Wave 4 Phase C — CLI connection status (real device data) */}
@@ -1131,13 +1150,21 @@ function OverviewTab({ profile }: { profile: Profile }) {
           gap: 32,
           alignItems: 'center',
         }}>
-          {/* Wave 10 B.2b F-5 — honesty layer parity with Workflow/Devices tabs:
-              these are the user's own synced numbers, not a demo placeholder. */}
+          {/* Wave 14 Day 2 F-4 — these are the user's own synced numbers, but a
+              52-day-old heartbeat is not "Live". The badge now reflects sync age:
+              Live (≤7d) / Outdated (>7d) / Demo (no sync) — stats stay visible. */}
           <div style={{ width: '100%', marginBottom: -8 }}>
-            <DataSourceBadge
-              source="live"
-              detail={`${(profile.devices || []).length || 1} device${((profile.devices || []).length || 1) === 1 ? '' : 's'}${latestDevice?.last_sync_at ? ` · last sync ${timeAgo(latestDevice.last_sync_at)}` : ''}`}
-            />
+            {(() => {
+              const heroSource = heroDataSource(latestDevice?.last_sync_at, decisionsCount > 0);
+              const deviceCount = (profile.devices || []).length || 1;
+              const detail =
+                heroSource === 'demo'
+                  ? 'run `mooter init`'
+                  : heroSource === 'outdated'
+                  ? `last sync ${syncDays}d ago · run \`mooter sync\``
+                  : `${deviceCount} device${deviceCount === 1 ? '' : 's'}${latestDevice?.last_sync_at ? ` · last sync ${timeAgo(latestDevice.last_sync_at)}` : ''}`;
+              return <DataSourceBadge source={heroSource} detail={detail} />;
+            })()}
           </div>
           <div>
             <div style={{
@@ -1201,10 +1228,12 @@ function OverviewTab({ profile }: { profile: Profile }) {
               flexWrap: 'wrap',
               width: '100%',
             }}>
-              {latestDevice.gpu_name && <span>{latestDevice.gpu_name}</span>}
+              {latestDevice.gpu_name && <span>{formatGpuLabel(latestDevice.gpu_name)}</span>}
               {latestDevice.os_type && <span>{osLabel(latestDevice.os_type)}</span>}
               {latestDevice.hw_tier && <span>{latestDevice.hw_tier}</span>}
-              {latestDevice.frugal_version && <span>mooter v{latestDevice.frugal_version}</span>}
+              {latestDevice.frugal_version && (
+                <span>mooter <VersionBadge version={latestDevice.frugal_version} lastSync={latestDevice.last_sync_at} /></span>
+              )}
             </div>
           )}
         </div>
@@ -1235,13 +1264,13 @@ function OverviewTab({ profile }: { profile: Profile }) {
           <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', background: 'var(--bg)' }}>
             <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>Per-task-type savings</div>
             <p style={{ color: 'var(--muted)', fontSize: '0.78rem', lineHeight: 1.6, margin: 0 }}>
-              Breakdown by renames · commits · debug · refactor ships with the per-category telemetry pipeline (Wave 4 Phase D). Not estimated here — we don&apos;t fabricate numbers.
+              Breakdown by renames · commits · debug · refactor is computed locally by your CLI. Run <code style={{ fontFamily: 'var(--mono)' }}>mooter trail</code> to inspect — no fabricated numbers here.
             </p>
           </div>
           <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', background: 'var(--bg)' }}>
             <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>Misroute report</div>
             <p style={{ color: 'var(--muted)', fontSize: '0.78rem', lineHeight: 1.6, margin: 0 }}>
-              Prompts where a higher tier would have helped — ships with the same pipeline. Today: inspect locally with <code style={{ fontFamily: 'var(--mono)' }}>mooter trail</code>.
+              Prompts where a higher tier would have helped — inspect them locally with <code style={{ fontFamily: 'var(--mono)' }}>mooter trail</code>.
             </p>
           </div>
         </div>
@@ -1660,7 +1689,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
   const routedAwayPct = Math.round(t0Pct + t1Pct + t2Pct);
 
   const latestDevice = (profile.devices || [])[0];
-  const gpuName = latestDevice?.gpu_name || 'GPU';
+  const gpuName = formatGpuLabel(latestDevice?.gpu_name ?? null) || 'GPU';
   const osType = latestDevice?.os_type || profile.os_type || 'unknown';
   const frugalVersion = latestDevice?.frugal_version || profile.frugal_version || '1.1.0';
 
@@ -1853,7 +1882,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
             textAlign: 'center', marginTop: 12,
             fontFamily: 'var(--mono)',
           }}>
-            {gpuName} · {osLabel(osType)} · mooter v{frugalVersion}
+            {gpuName} · {osLabel(osType)} · mooter <VersionBadge version={frugalVersion} lastSync={latestDevice?.last_sync_at} />
           </div>
         </div>
       )}

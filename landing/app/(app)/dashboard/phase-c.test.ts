@@ -44,14 +44,18 @@ describe("timeAgoShort", () => {
   });
 });
 
-describe("PHASE_C disclaimers — honest, no fabricated data", () => {
-  it("defers real-time sync + per-tier + settings to Wave 4 Phase D", () => {
-    expect(PHASE_C.realTimeSync).toMatch(/Wave 4 Phase D/);
-    expect(PHASE_C.perTier).toMatch(/Wave 4 Phase D/);
-    expect(PHASE_C.settingsInCli).toMatch(/Wave 4 Phase D/);
+describe("PHASE_C disclaimers — honest, actionable, no stale Wave promises", () => {
+  it("points to actionable CLI commands instead of unshipped 'Wave 4 Phase D'", () => {
+    expect(PHASE_C.realTimeSync).not.toMatch(/Wave 4 Phase D/);
+    expect(PHASE_C.realTimeSync).toMatch(/mooter sync/);
+    expect(PHASE_C.perTier).not.toMatch(/Wave 4 Phase D/);
+    expect(PHASE_C.perTier).toMatch(/mooter trail/);
+    expect(PHASE_C.settingsInCli).not.toMatch(/Wave 4 Phase D/);
+    expect(PHASE_C.settingsInCli).toMatch(/mooter quiet/);
   });
-  it("adapter disclosure stays honest (baseline / Wave 5)", () => {
+  it("adapter disclosure is actionable (forge install), not a stale 'ships Wave 5' promise", () => {
     expect(PHASE_C.adapter).toMatch(/baseline/);
-    expect(PHASE_C.adapter).toMatch(/Wave 5/);
+    expect(PHASE_C.adapter).toMatch(/forge install/);
+    expect(PHASE_C.adapter).not.toMatch(/ships Wave 5/);
   });
 });

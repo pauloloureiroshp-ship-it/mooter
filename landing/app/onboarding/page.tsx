@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
 import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
+import { LOCAL_HW, estimateMonthlySavings } from './_lib/estimate';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -28,23 +29,9 @@ const BUDGET_OPTIONS = [
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://mooter.ai/install.sh)';
 const INSTALL_CMD_WIN = 'irm https://mooter.ai/install-windows.ps1 | iex';
 
-// ── Live preview helpers — gives the user a tangible "what you'll get" as
-//    they fill out step 1. Numbers are directional, anchored on real router
-//    accuracy (~88%) and tier cost ratios used in the landing page calculator.
-const LOCAL_HW = new Set(['mac_m_series', 'windows_nvidia', 'windows_amd', 'linux_nvidia', 'linux_amd']);
-
-function estimateMonthlySavings({ hw, subs, budget }: { hw: string; subs: string[]; budget: number }): string {
-  const hasLocal = LOCAL_HW.has(hw);
-  const hasMax = subs.includes('Claude Max');
-  const effectiveBudget = budget === 999 ? 300 : budget; // "no limit" anchor
-  // Rough mental model: without mooter, users burn ~$120/mo in Opus-only at moderate usage.
-  // With mooter, local deflection + tier routing typically brings that down 70–90%.
-  const floor = hasLocal ? 0.10 : 0.25;
-  const baseline = hasMax ? 120 : Math.max(40, effectiveBudget * 4);
-  const saved = Math.round(baseline * (1 - floor));
-  if (hasLocal) return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only`;
-  return `Save ~$${saved}/mo · ${Math.round((1 - floor) * 100)}% less than Opus-only (cloud-only routing)`;
-}
+// ── Live preview helpers — gives the user a tangible "what you'll get" as they
+//    fill out step 1. estimateMonthlySavings + LOCAL_HW live in _lib/estimate
+//    (pure, unit-tested; page.tsx may only carry valid Next.js Page exports).
 
 // Ollama recommendations — aligned with the real mooter router.
 //
@@ -304,7 +291,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="app-shell-root" style={{
+    <div className="onboarding-shell" style={{
       minHeight: '100vh',
       padding: '48px 20px',
       display: 'flex',
@@ -582,22 +569,25 @@ export default function OnboardingPage() {
               {personaPackHint(persona)}
             </p>
 
-            {/* Savings preview — lights up as user makes selections */}
+            {/* Savings preview — hero "reward moment", lights up as the user
+                makes selections. Gradient + glow mirrors the landing hero. */}
             {hw && (
               <div style={{
                 marginTop: 32,
-                padding: '20px 24px',
-                background: 'color-mix(in srgb, var(--accent) 6%, var(--surface))',
-                border: '1px solid color-mix(in srgb, var(--accent) 24%, var(--border))',
-                borderRadius: 'var(--r-md)',
+                padding: '24px 26px',
+                background: 'linear-gradient(135deg, rgba(232,136,138,0.12) 0%, rgba(232,136,138,0.02) 60%)',
+                border: '1px solid var(--accent-bg)',
+                borderColor: 'rgba(232,136,138,0.25)',
+                borderRadius: 'var(--r-lg)',
+                boxShadow: '0 0 0 1px rgba(232,136,138,0.04), 0 8px 40px -12px rgba(232,136,138,0.35)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 6,
+                gap: 8,
               }}>
-                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--accent-soft)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
                   Estimated impact
                 </div>
-                <div style={{ fontSize: '1.35rem', color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--font)', letterSpacing: '-0.01em' }}>
+                <div style={{ fontSize: '1.7rem', color: 'var(--text)', fontWeight: 800, fontFamily: 'var(--font)', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
                   {estimateMonthlySavings({ hw, subs, budget })}
                 </div>
                 <div style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.5 }}>
@@ -654,7 +644,7 @@ export default function OnboardingPage() {
                 padding: 16,
                 fontFamily: 'var(--mono)',
                 fontSize: '0.8rem',
-                color: 'var(--cream)',
+                color: '#F2ECDF',
                 lineHeight: 1.7,
                 overflowX: 'auto',
               }}>

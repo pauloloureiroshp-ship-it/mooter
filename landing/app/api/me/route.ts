@@ -25,5 +25,8 @@ export async function GET(request: NextRequest) {
     gpu_name: latestDevice?.gpu_name || null,
     os_type: latestDevice?.os_type || profile?.os_type || null,
     frugal_version: latestDevice?.frugal_version || profile?.frugal_version || null,
+    // Wave 14 Day 1 F-2 — let the shell mark the version chip stale when the
+    // last heartbeat is old. Additive field; no schema change.
+    last_sync_at: latestDevice?.last_sync_at || null,
   });
 }
