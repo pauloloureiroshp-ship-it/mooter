@@ -78,7 +78,7 @@ export function VersionBadge({
       }}
       title={
         info.stale && info.daysSince != null
-          ? `Last sync ${info.daysSince}d ago — version may be outdated. Run \`mooter sync\` to refresh.`
+          ? `Last sync ${info.daysSince}d ago — version may be outdated. Preview with \`mooter sync --dry-run\`.`
           : undefined
       }
     >
