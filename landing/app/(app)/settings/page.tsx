@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import { personaOption } from '../../onboarding/_lib/persona';
 import { VersionBadge } from '../../_components/VersionBadge';
+import { formatGpuLabel } from '../../onboarding/_lib/hardware';
 
 interface Device {
   device_id: string;
   device_name: string;
   os_type: string;
   hw_tier: string;
+  gpu_name?: string | null;
   has_ollama: boolean;
   has_anthropic_key: boolean;
   frugal_version: string;
@@ -112,6 +114,17 @@ export default function SettingsPage() {
 
   const devices = profile.devices || [];
 
+  // Wave 14 Day 2 F-7 — show a human hardware label (OS + formatted GPU) from
+  // the latest device's real telemetry, not the raw coarse tier ("windows nvidia").
+  const latestDevice = devices[0];
+  const hardwareLabel =
+    [
+      latestDevice?.os_type ? osLabel(latestDevice.os_type) : null,
+      formatGpuLabel(latestDevice?.gpu_name ?? null),
+    ]
+      .filter(Boolean)
+      .join(' · ') || (profile.hardware_tier ? profile.hardware_tier.replace(/_/g, ' ') : null);
+
   return (
     <div style={{ maxWidth: 640 }}>
       {/* ── Profile ─────────────────────────────────────────────── */}
@@ -163,7 +176,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {profile.hardware_tier && (
+        {hardwareLabel && (
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '10px 0', borderTop: '1px solid var(--border)',
@@ -171,7 +184,7 @@ export default function SettingsPage() {
           }}>
             <span style={{ color: 'var(--muted)' }}>Hardware</span>
             <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>
-              {profile.hardware_tier.replace(/_/g, ' ')}
+              {hardwareLabel}
             </span>
           </div>
         )}

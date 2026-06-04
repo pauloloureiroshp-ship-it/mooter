@@ -34,8 +34,10 @@ describe('B.2b.1 signed-in fixes', () => {
 
   it('F-5 Overview KPI strip carries a DataSourceBadge', () => {
     const src = read('app/(app)/dashboard/page.tsx');
-    // OverviewTab savings hero now includes the badge (component already imported)
-    expect(src).toMatch(/honesty layer parity with Workflow/);
+    // OverviewTab savings hero still carries the badge — Wave 14 Day 2 (F-4) made
+    // it stale-aware (live/outdated/demo) via heroDataSource instead of a hardcoded "live".
+    expect(src).toContain('<DataSourceBadge source={heroSource}');
+    expect(src).toContain('heroDataSource(latestDevice?.last_sync_at');
   });
 
   it('F-6 Devices tab offers a reconnect path (mooter sync) instead of a dead-end', () => {
