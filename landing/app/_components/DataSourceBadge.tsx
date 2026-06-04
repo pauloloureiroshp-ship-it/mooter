@@ -4,14 +4,30 @@
 // visitor never mistakes a placeholder for their real numbers. Reused by the
 // homepage CommunityPulse and the dashboard Workflow tab.
 
+// Wave 14 Day 2 (F-4) — added the "outdated" state so a hero of real-but-stale
+// numbers reads as such (amber) instead of claiming to be "Live" (green) or
+// fabricated ("Demo"). Existing "live"/"demo" callers are unchanged.
 export default function DataSourceBadge({
   source,
   detail,
 }: {
-  source: "live" | "demo";
+  source: "live" | "outdated" | "demo";
   detail?: string;
 }) {
-  const live = source === "live";
+  const GREEN = "var(--color-green, #48c068)";
+  const AMBER = "var(--color-amber, #d4c090)";
+  const MUTED = "var(--color-muted, #9a8f8a)";
+  const accent = source === "live" ? GREEN : source === "outdated" ? AMBER : MUTED;
+
+  const label =
+    source === "live"
+      ? `Live${detail ? ` · ${detail}` : ""}`
+      : source === "outdated"
+      ? `Outdated${detail ? ` · ${detail}` : ""}`
+      : detail
+      ? `Demo · ${detail}`
+      : "Demo data — connect mooter to see real numbers";
+
   return (
     <span
       style={{
@@ -23,8 +39,8 @@ export default function DataSourceBadge({
         letterSpacing: 0.2,
         padding: "3px 9px",
         borderRadius: 999,
-        color: live ? "var(--color-green, #48c068)" : "var(--color-muted, #9a8f8a)",
-        border: `1px solid ${live ? "var(--color-green, #48c068)" : "var(--color-border, #3a302e)"}`,
+        color: accent,
+        border: `1px solid ${source === "demo" ? "var(--color-border, #3a302e)" : accent}`,
         background: "transparent",
       }}
     >
@@ -33,10 +49,10 @@ export default function DataSourceBadge({
           width: 6,
           height: 6,
           borderRadius: "50%",
-          background: live ? "var(--color-green, #48c068)" : "var(--color-muted, #9a8f8a)",
+          background: accent,
         }}
       />
-      {live ? `Live${detail ? ` · ${detail}` : ""}` : "Demo data — connect mooter to see real numbers"}
+      {label}
     </span>
   );
 }
