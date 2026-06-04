@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { env, HUB_URL } from '../lib/env';
+import { VersionBadge } from '../_components/VersionBadge';
 
 const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 
@@ -13,6 +14,7 @@ interface ShellUser {
   gpu_name: string | null;
   os_type: string | null;
   frugal_version: string | null;
+  last_sync_at: string | null;
 }
 
 // ── SVG Icons (inline, no deps) ────────────────────────────────────────────
@@ -129,6 +131,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
             gpu_name: data.gpu_name || null,
             os_type: data.os_type || null,
             frugal_version: data.frugal_version || null,
+            last_sync_at: data.last_sync_at || null,
           });
         }
       })
@@ -272,7 +275,9 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
             fontSize: '0.72rem', color: 'var(--muted)',
             fontFamily: 'var(--font-mono), monospace', letterSpacing: '0.04em',
           }}>
-            {user.frugal_version ? `v${user.frugal_version}` : 'v—'}
+            {user.frugal_version
+              ? <VersionBadge version={user.frugal_version} lastSync={user.last_sync_at} />
+              : 'v—'}
           </span>
         </div>
 
