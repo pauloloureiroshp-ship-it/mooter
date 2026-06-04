@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { generateFrugalConfig } from '../lib/generate-frugal-config';
 import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
@@ -298,15 +299,31 @@ export default function OnboardingPage() {
       justifyContent: 'center',
     }}>
       <div style={{ width: '100%', maxWidth: 560 }}>
-        {/* ── Header / brand ─────────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
-          <OnboardingMooterLogo size={28} />
-          <span style={{
-            fontSize: '1.05rem', fontWeight: 700, letterSpacing: '-0.02em',
-            fontFamily: 'var(--font)', color: 'var(--text)',
-          }}>
-            mooter
-          </span>
+        {/* ── Header / brand + escape nav (Wave 15 F-A3) ───────── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, marginBottom: 32,
+        }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+            <OnboardingMooterLogo size={28} />
+            <span style={{
+              fontSize: '1.05rem', fontWeight: 700, letterSpacing: '-0.02em',
+              fontFamily: 'var(--font)', color: 'var(--text)',
+            }}>
+              mooter
+            </span>
+          </Link>
+          <Link
+            href="/"
+            style={{
+              fontSize: '0.8rem', color: 'var(--muted)',
+              fontFamily: 'var(--font)', textDecoration: 'none',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}
+          >
+            ← Skip for now
+          </Link>
         </div>
 
         {/* ── Progress indicator ─────────────────────────────── */}
