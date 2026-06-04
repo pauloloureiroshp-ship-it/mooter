@@ -14,6 +14,7 @@ const cards = [
   { icon: '🔒', title: 'Prompts hashed', body: 'We log a SHA-256 hash of each prompt — never the text itself.' },
   { icon: '🤝', title: 'Opt-in telemetry', body: 'Defaults OFF. When you turn it on, only aggregated stats leave.' },
   { icon: '🚫', title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. No prompt text is ever transmitted — only hashes and counts.' },
+  { icon: '🐄', title: 'The herd stays on your machine', body: 'The 🐄×N counter and the “Moos that worked” digest are in-process runtime state only — counts and latencies, never prompt text, and none of it is sent anywhere. Tune it with `mooter quiet --verbose|--herd-quiet|--herd-off`; even `verbose` logs file paths, never their contents.' },
   { icon: '📖', title: 'Open source · audit it', body: 'Every line of mooter is on GitHub under MIT. Read the code yourself.' },
 ];
 

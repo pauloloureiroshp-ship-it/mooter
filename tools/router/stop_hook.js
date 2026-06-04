@@ -90,12 +90,42 @@ function shortModel(model) {
 }
 
 /**
+ * Wave 13 "Show the Herd" — the end-of-session Moo tally. Lists every subagent
+ * class that worked, local Moos (🐄) first then cloud agents (☁), with peak
+ * concurrent (shown always, T-4). Latency only for local Moos the tracker
+ * actually measured; cloud rows show their model short-name. No per-Moo cost is
+ * shown — the tracker has no cost data and we never fabricate it.
+ * @param {object|null} snap  subagent_tracker.snapshot() result
+ * @param {{verbosity?:string}} [opts]
+ * @returns {string} the section text (no trailing newline), or '' when empty/silent
+ */
+function buildHerdSection(snap, { verbosity = 'standard' } = {}) {
+  if (verbosity === 'silent') return '';
+  if (!snap || !Array.isArray(snap.cumulative) || !snap.cumulative.length) return '';
+  const peak = Number(snap.peak_concurrent) || 0;
+  const lines = [` Moos that worked the session  (peak concurrent: ${peak})`];
+  // Local Moos first, then cloud; each already count-desc from the snapshot.
+  const rows = snap.cumulative.slice().sort((a, b) => (b.local === a.local ? 0 : b.local ? 1 : -1));
+  for (const r of rows) {
+    const glyph = r.local ? '🐄' : '☁';
+    const name = String(r.agent_name).slice(0, 20).padEnd(20);
+    let detail = '';
+    if (r.local && Number(r.avg_ms) > 0) detail = `avg ${Math.round(Number(r.avg_ms))}ms`;
+    else if (!r.local && r.model) detail = shortModel(r.model);
+    const err = Number(r.errors) > 0 ? ` · ${r.errors}⚠` : '';
+    lines.push(`   ${glyph} ${name} × ${r.count}${detail ? '   ' + detail : ''}${err}`);
+  }
+  return lines.join('\n');
+}
+
+/**
  * Render the Moo card. `turnCost` is an optional `{ turn, saved }` object from
  * the tracker — omitted entirely when null (never faked). Pure given its input.
  * @param {object} s  aggregateLastTurn result
  * @param {{turn:number, saved:number}|null} [turnCost]
+ * @param {{herd?:object|null, verbosity?:string}} [opts]  Wave 13 herd section
  */
-function buildMooCard(s, turnCost) {
+function buildMooCard(s, turnCost, opts = {}) {
   let glyph;
   try {
     const { glyphFor, providerBucket } = require('./glyphs.js');
@@ -124,6 +154,12 @@ function buildMooCard(s, turnCost) {
   } catch { /* omit quant line */ }
   // Wave 2.8 Ponto #8 — honest adapter line (parity with dashboard ADAPTER).
   lines.push(' adapter   ◌ baseline · add one with `mooter forge install <gguf>`');
+  // Wave 13 "Show the Herd" — append the session Moo tally when the tracker has data.
+  const herdSection = opts && opts.herd ? buildHerdSection(opts.herd, { verbosity: opts.verbosity }) : '';
+  if (herdSection) {
+    lines.push('───────────────────────────');
+    lines.push(herdSection);
+  }
   lines.push('───────────────────────────');
   lines.push('');
   return lines.join('\n');
@@ -158,18 +194,39 @@ function readStdin() {
 
 async function main() {
   const prefs = readPrefs();
-  if (!mooCardEnabled(prefs)) return; // opt-in; silent by default
+  const enabled = mooCardEnabled(prefs); // opt-in; silent by default
 
   const stdinJson = await readStdin();
   let sessionId;
   try { sessionId = JSON.parse(stdinJson || '{}').session_id; } catch { /* ignore */ }
   sessionId = sessionId || process.env.CLAUDE_SESSION_ID;
 
-  const stats = aggregateLastTurn(sessionId);
-  if (!stats) return; // nothing to report
+  // Wave 13 — snapshot the herd BEFORE we reset it; Stop is the canonical tally.
+  let herd = null;
+  let verbosity = 'standard';
+  try {
+    verbosity = require('./post_tool_badge.js').herdVisibility(prefs);
+    herd = require('./subagent_tracker.js').snapshot({ session_id: sessionId });
+  } catch { herd = null; }
 
-  const turnCost = await fetchTurnCost(sessionId);
-  process.stdout.write(buildMooCard(stats, turnCost));
+  try {
+    if (enabled) {
+      const stats = aggregateLastTurn(sessionId);
+      if (stats) {
+        const turnCost = await fetchTurnCost(sessionId);
+        process.stdout.write(buildMooCard(stats, turnCost, { herd, verbosity }));
+      } else {
+        // No classified turn this session, but Moos may still have worked —
+        // surface the tally on its own rather than swallowing it.
+        const section = buildHerdSection(herd, { verbosity });
+        if (section) process.stdout.write('\n' + section + '\n');
+      }
+    }
+  } finally {
+    // Always reset per-session herd state at Stop — even when the card is off or
+    // a turn never classified — so counts never leak into the next session.
+    try { require('./subagent_tracker.js').reset({ session_id: sessionId }); } catch { /* ignore */ }
+  }
 }
 
 if (require.main === module) {
@@ -178,4 +235,4 @@ if (require.main === module) {
     .catch(() => process.exit(0)); // hooks never throw
 }
 
-module.exports = { readPrefs, mooCardEnabled, aggregateLastTurn, buildMooCard, shortModel };
+module.exports = { readPrefs, mooCardEnabled, aggregateLastTurn, buildMooCard, shortModel, buildHerdSection };

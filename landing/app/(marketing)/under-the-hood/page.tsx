@@ -181,6 +181,58 @@ Status: in development · expected Q3 2026`}</pre>
         </p>
       </div>
 
+      {/* §7.4 — Familiarity bridge: Claude Dynamic Workflows ↔ Mooter Moos (Wave 13) */}
+      <div style={{ marginTop: 44 }}>
+        <h2 style={{ fontSize: 28, fontWeight: 600, marginBottom: 6 }}>Dynamic Workflows, made visible — the herd 🐄</h2>
+        <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65, maxWidth: 820 }}>
+          Anthropic shipped <strong>Dynamic Workflows</strong> in May 2026: Claude Code spawns up to 16 subagents in
+          parallel (capped at 1000 per run) and fans your prompt across them. It&apos;s a great mental model — and
+          mooter reuses it. The one gap Anthropic names in their own guidance is visibility:{' '}
+          <em>&ldquo;no transparent intermediate output, making it challenging to monitor progress in real time.&rdquo;</em>{' '}
+          The 16 agents in flight are a black box until the final answer lands.
+        </p>
+        <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65, maxWidth: 820, marginTop: 10 }}>
+          A cloud orchestrator can&apos;t stream 16 live subagent logs without saturating your terminal and your bill.
+          A <strong>local</strong> herd can: your GPU is right there, <code>Q4_K_M</code> Moos answer fast enough that the
+          one-liner shows up <em>during</em> the work, and the hook owns the render moment. So mooter inverts the
+          contract — <strong>the cheaper the work, the louder it speaks</strong>.
+        </p>
+        <div style={{ marginTop: 16, overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: 'var(--color-muted)' }}>
+                <th style={{ padding: '8px 10px', fontWeight: 600 }}>Capability</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600 }}>Claude Dynamic Workflows</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600 }}>Mooter Moos 🐄</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ['Spawned per prompt', '✅ up to 16 concurrent', '✅ bounded by your hardware'],
+                ['Subagent count visible during execution', '❌ hidden until final answer', '✅ 🐄×N live in the statusline'],
+                ['Per-agent activity log', '❌ no transparent intermediate output', '✅ one line per spawn (standard verbosity)'],
+                ['Per-agent latency', 'only after completion', '✅ live avg + Stop digest'],
+                ['Where it runs', '☁ Anthropic cloud (Opus 4.8 orchestrator)', 'hybrid — orchestrator stays on Claude Code; workers can be local Moos'],
+                ['Cost per spawn', 'Anthropic billing', '$0 for local Moos (your hardware)'],
+                ['“Peak concurrent” stat', 'not surfaced', '✅ Stop digest: peak concurrent: N'],
+              ].map((r, i) => (
+                <tr key={i} style={{ borderTop: '1px solid var(--color-border)' }}>
+                  <td style={{ padding: '8px 10px' }}>{r[0]}</td>
+                  <td style={{ padding: '8px 10px', color: 'var(--color-muted)' }}>{r[1]}</td>
+                  <td style={{ padding: '8px 10px' }}>{r[2]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.7, marginTop: 12, maxWidth: 820 }}>
+          <strong>Honest scope:</strong> mooter doesn&apos;t replace Dynamic Workflows — the orchestrator stays in
+          Claude Code; Moos are the local workers it can fan to. We don&apos;t claim 1000 concurrent Moos (your effective
+          cap is whatever your GPU holds, not Anthropic&apos;s cloud limit). We made <em>the local side of the same idea
+          visible</em> — that&apos;s it.
+        </p>
+      </div>
+
       <style>{`@media (max-width: 900px){ .uth-row{ grid-template-columns: 1fr !important; } }`}</style>
     </section>
   );
