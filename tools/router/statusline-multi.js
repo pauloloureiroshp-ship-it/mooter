@@ -545,7 +545,8 @@ function renderFromContext(ctx) {
   const headlineText = (state.color === 'green' && state.lastLabel && state.lastLabel !== '—')
     ? `${state.headline} · ${state.lastLabel}`
     : state.headline;
-  return `${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proof}`;
+  // Wave 13 — trail the live 🐄×N herd chip after the headline/proof.
+  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proof}`, ctx);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -557,6 +558,27 @@ const CHIP_MAX = 30;
 
 // Mood glyph for the local Moos / provider, reused across chips.
 const PROVIDER_GLYPH = { local: '🏠', haiku: '☁', sonnet: '☁', opus: '☁', codex: '⚡', oai: '⚡' };
+
+// Wave 13 "Show the Herd" — live subagent counter. `N` is the total herd in
+// flight (the direct answer to Dynamic Workflows' invisible-16 problem); the
+// Stop digest does the local 🐄 vs cloud ☁ breakdown. Shown by default (A.1):
+// an empty herd fades to dim so it reads as baseline, not noise.
+const HERD_DIM = '\x1b[2m';
+const HERD_RESET = '\x1b[0m';
+function herdChip(n, { color = true } = {}) {
+  const count = Number.isFinite(Number(n)) ? Math.max(0, Math.trunc(Number(n))) : 0;
+  const text = `🐄×${count}`;
+  return count === 0 && color ? `${HERD_DIM}${text}${HERD_RESET}` : text;
+}
+
+// Append the herd chip to a rendered line when the context carries a count.
+// No-op when ctx has no herd (keeps existing tests / demo contexts unchanged).
+function appendHerd(line, ctx) {
+  if (ctx && ctx.herd && typeof ctx.herd.active === 'number') {
+    return `${line} · ${herdChip(ctx.herd.active)}`;
+  }
+  return line;
+}
 
 /**
  * Truncate a single chip to CHIP_MAX chars (ellipsis) so one oversized field
@@ -639,6 +661,10 @@ function renderTwoLine(ctx) {
   if (state.color === 'green' && state.lastLabel && state.lastLabel !== '—') {
     line1 = `${line1}  ·  ${state.lastLabel}`;
   }
+
+  // Wave 13 "Show the Herd" — live `🐄×N` count of subagents in flight, trailing
+  // Line 1. Shown by default (A.1); empty herd renders dim.
+  line1 = appendHerd(line1, ctx);
 
   // Wave 12 PR-I — the per-decision Moo glyph that used to open line 2 was a
   // second cow, redundant with the 🐮 already branding line 1. Dropped. We still
@@ -830,6 +856,15 @@ async function buildContext() {
     drift = require('./drift-detector.js').checkDrift();
   } catch { drift = null; }
 
+  // Wave 13 "Show the Herd" — live subagent count from the in-process tracker,
+  // scoped to this session. Best-effort: a missing tracker or unreadable state
+  // file just drops the chip and never blocks the render.
+  let herd = null;
+  try {
+    const snap = require('./subagent_tracker.js').snapshot({ session_id: sessionId });
+    herd = { active: snap.active_count, local: snap.active_local, cloud: snap.active_cloud, peak: snap.peak_concurrent };
+  } catch { herd = null; }
+
   return {
     counts, total, last, recent,
     anthRem, codexRem, codexLeft,
@@ -838,6 +873,7 @@ async function buildContext() {
     drift,
     lastPack, adapter,
     tick,
+    herd,
     dataMissing: !lines.length && !quota.providers,
   };
 }
@@ -918,6 +954,8 @@ module.exports = {
   renderTwoLine,
   render,
   truncateChip,
+  herdChip,
+  appendHerd,
   ctxBar,
   formatGpuChip,
   readGpuFromProfile,

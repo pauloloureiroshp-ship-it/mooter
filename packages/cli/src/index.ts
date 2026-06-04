@@ -28,6 +28,7 @@ const TOP_USAGE = `mooter — pack manager CLI
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
+  mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline]      educational guide to each statusline chip
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]]   provenance / 7d / safety
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -65,6 +66,15 @@ async function main(argv: string[]): Promise<number> {
       off: rest.includes("--off"),
       mooCard: rest.includes("--moo-card"),
       mooCardOff: rest.includes("--moo-card-off"),
+      herdVisibility: rest.includes("--verbose")
+        ? "verbose"
+        : rest.includes("--herd-off")
+          ? "silent"
+          : rest.includes("--herd-quiet")
+            ? "quiet"
+            : rest.includes("--herd-standard")
+              ? "standard"
+              : undefined,
       telemetryOff: rest.includes("--telemetry-off"),
       syncCadence: rest.find((a) => a.startsWith("--sync-cadence="))?.split("=")[1],
       hideChips: rest.filter((a) => a.startsWith("--hide-")).map((a) => a.slice("--hide-".length)),

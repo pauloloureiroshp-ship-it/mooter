@@ -24,6 +24,7 @@ const ROWS: string[][] = [
   ['Per-bash tool badge', '✓ per-call tier', '✗', '✗', '✗', '✗'],
   ['Sparkline (last-10 tier mix)', '✓ inline', '✗', '✗', '✗', '✗'],
   ['End-of-session digest', '✓ mooter digest', '✗', '✗', '✗', '✗'],
+  ['Live local subagent visibility', '✓ 🐄×N live', '✗', '✗', '✗', '✗'],
   ['Cost tracking per-prompt', '✓ real-time', '✗', '✓ in logs', '⚠️ session', '✓ dashboard'],
   ['Open source', '✓ MIT', 'n/a (closed)', '✓ Apache 2', '✓ Apache 2', '✗ (gateway hosted)'],
   ['Free', '✓ forever', 'depends on sub', 'self-host or paid', '✓', '⚠️ markup on API'],
