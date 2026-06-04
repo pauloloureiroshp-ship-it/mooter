@@ -19,6 +19,7 @@ describe('Wave 12 PR-H — dashboard savings depth (D7)', () => {
     const s = read(DASH);
     expect(s).toContain('Per-task-type savings');
     expect(s).toContain('Misroute report');
-    expect(s).toMatch(/don&apos;t fabricate numbers/);
+    // Wave 14 Day 1 reworded the honesty note to an actionable `mooter trail` CTA.
+    expect(s).toMatch(/no fabricated numbers/);
   });
 });

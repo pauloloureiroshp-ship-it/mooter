@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { personaOption } from '../../onboarding/_lib/persona';
+import { VersionBadge } from '../../_components/VersionBadge';
 
 interface Device {
   device_id: string;
@@ -278,7 +279,9 @@ export default function SettingsPage() {
                     fontFamily: 'var(--mono)', marginTop: 2,
                   }}>
                     {osLabel(d.os_type)} · {d.hw_tier?.replace(/_/g, ' ')}
-                    {d.frugal_version && ` · v${d.frugal_version}`}
+                    {d.frugal_version && (
+                      <> · <VersionBadge version={d.frugal_version} lastSync={d.last_sync_at} /></>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -312,10 +315,9 @@ export default function SettingsPage() {
       }}>
         <span aria-hidden="true" style={{ flexShrink: 0 }}>ⓘ</span>
         <span>
-          Telemetry, sync cadence &amp; adapter are managed in your CLI (
-          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter quiet --help</code>
-          ). Cloud-side editing ships{' '}
-          <a href="/under-the-hood" style={{ color: 'var(--accent)' }}>Wave 4 Phase D</a>.
+          Telemetry, sync cadence &amp; adapter are managed in your CLI. Run{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter quiet --help</code>{' '}
+          for options.
         </span>
       </div>
     </div>

@@ -67,10 +67,10 @@ export function timeAgoShort(iso: string | null, nowMs: number = Date.now()): st
 
 // Honest disclaimers reused across the cards (single source so they stay consistent).
 export const PHASE_C = {
-  realTimeSync: "Real-time CLI↔cloud sync ships Wave 4 Phase D (CF Workers backend).",
-  perTier: "Per-tier breakdown (T0–T3) ships Wave 4 Phase D.",
-  settingsInCli: "Telemetry, sync cadence & adapter are managed in your CLI (`mooter quiet --help`); cloud edit ships Wave 4 Phase D.",
-  adapter: "Adapter: ◌ baseline (LoRA ships Wave 5 · Adapter Forge).",
+  realTimeSync: "Showing your last synced session. Run `mooter sync` to refresh.",
+  perTier: "Per-tier breakdown (T0–T3) — run `mooter trail` for the per-tier view of your last session.",
+  settingsInCli: "Telemetry, sync cadence & adapter are managed in your CLI. Run `mooter quiet --help` for options.",
+  adapter: "Adapter: baseline — run `mooter forge install` to activate the LoRA adapter for your stack.",
 } as const;
 
 const cardStyle: React.CSSProperties = {
