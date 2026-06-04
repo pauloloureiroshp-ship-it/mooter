@@ -24,6 +24,8 @@ export interface Preferences {
   statusline_view?: string;
   /** Wave 2.6 Day 3 — Moo card per-turn (Stop hook). Default OFF (opt-in). */
   moo_card_enabled?: boolean;
+  /** Wave 13 — herd visibility level: verbose|standard|quiet|silent. Default standard. */
+  herd_visibility?: string;
   [key: string]: unknown;
 }
 
@@ -34,6 +36,8 @@ export interface QuietOptions {
   mooCard?: boolean;
   /** `--moo-card-off` disables the per-turn Moo card. */
   mooCardOff?: boolean;
+  /** Wave 13 — herd visibility level (verbose|standard|quiet|silent) from --verbose / --herd-*. */
+  herdVisibility?: string;
   /** `--telemetry-off` revokes telemetry consent (writes consent.json off). */
   telemetryOff?: boolean;
   /** `--sync-cadence=<daily|weekly|manual-only>` sets the sync schedule cadence. */
@@ -160,6 +164,26 @@ export function runQuiet(opts: QuietOptions = {}): CmdResult {
         ? "✓ Moo card enabled. Run `mooter quiet --moo-card-off` to disable."
         : "✓ Moo card disabled.",
     };
+  }
+
+  // Wave 13 "Show the Herd" — herd visibility level. Independent toggle that
+  // only touches herd_visibility; the bash badge / Moo-card prefs are untouched.
+  // Env var MOOTER_HERD_VISIBILITY still overrides this at render time.
+  if (opts.herdVisibility) {
+    const VALID = ["verbose", "standard", "quiet", "silent"];
+    if (!VALID.includes(opts.herdVisibility)) {
+      return { exitCode: 1, output: `✗ invalid herd visibility '${opts.herdVisibility}' (use: ${VALID.join(" | ")})` };
+    }
+    prefs.herd_visibility = opts.herdVisibility;
+    mkdirSync(mooterHome, { recursive: true });
+    writeFileSync(join(mooterHome, "preferences.json"), JSON.stringify(prefs, null, 2) + "\n");
+    const msg: Record<string, string> = {
+      verbose: "✓ Herd 🐄 visibility: verbose (per-agent + file paths).",
+      standard: "✓ Herd 🐄 visibility: standard (per-agent one-liner).",
+      quiet: "✓ Herd 🐄 visibility: quiet (closing tally only).",
+      silent: "✓ Herd 🐄 hidden. Run `mooter quiet --herd-standard` to restore.",
+    };
+    return { exitCode: 0, output: msg[opts.herdVisibility] };
   }
 
   prefs.quiet = !opts.off; // bare `quiet` enables quiet mode; `--off` disables it

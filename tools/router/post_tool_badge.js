@@ -95,11 +95,92 @@ function readLastSubagent(statePath) {
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Wave 13 "Show the Herd" — per-agent annotation (standard verbosity)
+// ────────────────────────────────────────────────────────────────────────
+
+// Verbosity ladder. `silent`/`quiet` suppress the per-agent line; `standard`
+// (default) and `verbose` render it. Env var wins, then preferences.json, then
+// the default. Phase 5 surfaces this via `mooter quiet --verbose|--quiet|--herd-off`.
+const HERD_LEVELS = ['silent', 'quiet', 'standard', 'verbose'];
+
+function herdVisibility(prefs) {
+  const env = String(process.env.MOOTER_HERD_VISIBILITY || '').toLowerCase();
+  if (HERD_LEVELS.includes(env)) return env;
+  const p = prefs && String(prefs.herd_visibility || '').toLowerCase();
+  if (HERD_LEVELS.includes(p)) return p;
+  return 'standard';
+}
+
+function herdAnnotationEnabled(verbosity) {
+  return verbosity === 'standard' || verbosity === 'verbose';
+}
+
+/**
+ * One line per agent class (not per file), aggregated. Local agents wear 🐄
+ * (a Moo); cloud agents wear ☁. Latency only shown when the tracker actually
+ * measured it (no invented ms). Verbose adds the tier; file-path logging (still
+ * never prompt text) is the hook's job since only it sees tool_input.
+ * @param {{agent_name?:string,count?:number,avg_ms?:number,local?:boolean,model?:string,tier?:string}} row
+ * @returns {string} indented line, or '' when suppressed / no real data
+ */
+function buildHerdLine(row, { verbosity = 'standard' } = {}) {
+  if (!herdAnnotationEnabled(verbosity)) return '';
+  if (!row || !row.agent_name || !(Number(row.count) >= 1)) return '';
+  const glyph = row.local ? '🐄' : '☁';
+  const parts = [`${glyph} ${row.agent_name} × ${Number(row.count)}`];
+  if (row.model) {
+    const m = shortModel(row.model);
+    parts.push(verbosity === 'verbose' && row.tier ? `${m} ${row.tier}` : m);
+  } else if (verbosity === 'verbose' && row.tier) {
+    parts.push(String(row.tier));
+  }
+  if (Number(row.avg_ms) > 0) parts.push(`avg ${Math.round(Number(row.avg_ms))}ms`);
+  return `   ${parts.join(' · ')}`;
+}
+
+/** Best-effort session id from the PostToolUse stdin payload or env. */
+function readSessionId() {
+  try {
+    if (process.stdin.isTTY) return process.env.CLAUDE_SESSION_ID || null;
+    const raw = fs.readFileSync(0, 'utf8');
+    const j = JSON.parse(raw);
+    return (j && j.session_id) || process.env.CLAUDE_SESSION_ID || null;
+  } catch {
+    return process.env.CLAUDE_SESSION_ID || null;
+  }
+}
+
+/**
+ * Build the herd annotation for the agent class that just completed, reading the
+ * tracker's cumulative snapshot. Best-effort and pure-ish (snapshot is injected
+ * in tests). Returns '' when there is nothing to show.
+ */
+function herdAnnotationFor(agentName, snap, verbosity) {
+  if (!agentName || !snap || !Array.isArray(snap.cumulative)) return '';
+  const row = snap.cumulative.find((r) => r.agent_name === agentName);
+  if (!row) return '';
+  return buildHerdLine(row, { verbosity });
+}
+
 function main() {
   const prefs = readPrefs();
   if (!badgeEnabled(prefs)) return; // suppressed → no output, no pollution
-  const badge = buildPostToolBadge(readLastSubagent());
+  const sub = readLastSubagent();
+  const badge = buildPostToolBadge(sub);
   if (badge) process.stdout.write(badge + '\n');
+
+  // Wave 13 — per-agent herd annotation. Best-effort; a missing tracker, no
+  // session, or quiet/silent verbosity simply prints nothing extra.
+  const verbosity = herdVisibility(prefs);
+  if (!herdAnnotationEnabled(verbosity)) return;
+  try {
+    const sessionId = readSessionId();
+    const snap = require('./subagent_tracker.js').snapshot({ session_id: sessionId });
+    const agentName = sub && sub.subagent && sub.subagent !== 'inline' ? sub.subagent : null;
+    const line = herdAnnotationFor(agentName, snap, verbosity);
+    if (line) process.stdout.write(line + '\n');
+  } catch { /* hooks never throw */ }
 }
 
 if (require.main === module) {
@@ -107,4 +188,8 @@ if (require.main === module) {
   process.exit(0);
 }
 
-module.exports = { readPrefs, badgeEnabled, shortModel, buildPostToolBadge, readLastSubagent };
+module.exports = {
+  readPrefs, badgeEnabled, shortModel, buildPostToolBadge, readLastSubagent,
+  // Wave 13 "Show the Herd"
+  herdVisibility, herdAnnotationEnabled, buildHerdLine, herdAnnotationFor, HERD_LEVELS,
+};
