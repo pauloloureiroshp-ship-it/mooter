@@ -1494,6 +1494,8 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ### 🚀 Wave 14 ✅ FECHADA — v1.9.0 EM PROD (CC, 2026-06-04)
 
+**Página Notion (sessão):** [📝 Sessão 2026-06-04 — Wave 14 inteira shipped (v1.9.0→1.9.2) + visual harness](https://www.notion.so/3756f6e42bc481a98f35cc307df88666) · `3756f6e4-2bc4-81a9-8f35-cc307df88666`
+
 **Estado:** `v1.9.0` em **prod** (`main` @ `6c0e49b`, PR #83 dev→main). Vercel landing + CI verde. final-reviewer (Opus) gate: **SHIP**. Notion closure: https://app.notion.com/p/3756f6e42bc48120a2d8f6bc640274d2
 
 Promove Days 1–4 (brand parity + state-aware signed-in): superfície signed-in inteira (onboarding+dashboard+settings) **dark** alinhada com landing; copy honesta; badges stale-aware; recs state-aware. `classify.js` byte-identical em toda a wave. Findings arquivados em `docs/archive/sessions/`.
