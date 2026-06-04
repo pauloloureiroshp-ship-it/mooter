@@ -253,12 +253,12 @@ function DevicesTab({ profile }: { profile: Profile }) {
         border: '1px dashed var(--border)',
         fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.6,
       }}>
-        Numbers look stale? Refresh from your machine:{' '}
+        Numbers look stale? Preview your latest local data:{' '}
         <code style={{
           fontFamily: 'var(--mono)', color: 'var(--accent)',
           background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 'var(--r-sm)',
         }}>
-          mooter sync
+          mooter sync --dry-run
         </code>
         <span style={{ display: 'block', marginTop: 6, fontSize: '0.72rem' }}>
           Stuck? Run{' '}
@@ -1131,8 +1131,8 @@ function OverviewTab({ profile }: { profile: Profile }) {
           background: 'rgba(212,192,144,0.08)', border: '1px solid var(--yellow)',
           borderRadius: 'var(--r-md)', fontSize: '0.82rem', color: 'var(--text)',
         }}>
-          Last sync was <span style={{ fontFamily: 'var(--mono)' }}>{syncDays}d</span> ago. Run{' '}
-          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter sync</code> from your CLI to refresh.
+          Last sync was <span style={{ fontFamily: 'var(--mono)' }}>{syncDays}d</span> ago. Preview your latest local data with{' '}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter sync --dry-run</code>.
         </div>
       )}
       {/* Wave 4 Phase C — CLI connection status (real device data) */}
@@ -1161,7 +1161,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
                 heroSource === 'demo'
                   ? 'run `mooter init`'
                   : heroSource === 'outdated'
-                  ? `last sync ${syncDays}d ago · run \`mooter sync\``
+                  ? `last sync ${syncDays}d ago · \`mooter sync --dry-run\` to preview`
                   : `${deviceCount} device${deviceCount === 1 ? '' : 's'}${latestDevice?.last_sync_at ? ` · last sync ${timeAgo(latestDevice.last_sync_at)}` : ''}`;
               return <DataSourceBadge source={heroSource} detail={detail} />;
             })()}

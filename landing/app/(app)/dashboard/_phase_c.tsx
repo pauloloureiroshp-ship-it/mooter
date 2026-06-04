@@ -67,7 +67,7 @@ export function timeAgoShort(iso: string | null, nowMs: number = Date.now()): st
 
 // Honest disclaimers reused across the cards (single source so they stay consistent).
 export const PHASE_C = {
-  realTimeSync: "Showing your last synced session. Run `mooter sync` to refresh.",
+  realTimeSync: "Showing your last synced session. Preview your latest local data with `mooter sync --dry-run`.",
   perTier: "Per-tier breakdown (T0–T3) — run `mooter trail` for the per-tier view of your last session.",
   settingsInCli: "Telemetry, sync cadence & adapter are managed in your CLI. Run `mooter quiet --help` for options.",
   adapter: "Adapter: baseline — run `mooter forge install` to activate the LoRA adapter for your stack.",
