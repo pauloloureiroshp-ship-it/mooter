@@ -292,7 +292,7 @@ function TerminalBlock({ lines }: { lines: string[] }) {
             ? 'var(--tier-0)'
             : line.startsWith('\u276F')
               ? 'var(--accent)'
-              : 'var(--cream)',
+              : '#F2ECDF',
         }}>
           {line}
         </div>

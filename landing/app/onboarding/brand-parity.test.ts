@@ -20,9 +20,11 @@ describe('Day 3 — onboarding adopts the landing dark palette (F-1 brand parity
   });
   it('globals.css defines .onboarding-shell with the landing dark tokens', () => {
     expect(GLOBALS).toContain('.onboarding-shell');
-    // dark bg + landing pink accent re-pointed onto the short tokens
-    expect(GLOBALS).toMatch(/\.onboarding-shell\s*\{[\s\S]*--bg:\s*#0B0A09/);
-    expect(GLOBALS).toMatch(/\.onboarding-shell\s*\{[\s\S]*--accent:\s*#E8888A/);
+    // dark bg + landing pink accent re-pointed onto the short tokens. The dark
+    // scope block is shared with .app-shell-dark (Day 4), so match up to the
+    // opening brace tolerantly rather than requiring `.onboarding-shell {`.
+    expect(GLOBALS).toMatch(/\.onboarding-shell[\s\S]*?\{[\s\S]*?--bg:\s*#0B0A09/);
+    expect(GLOBALS).toMatch(/\.onboarding-shell[\s\S]*?\{[\s\S]*?--accent:\s*#E8888A/);
   });
 });
 
