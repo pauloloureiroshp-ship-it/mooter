@@ -22,6 +22,11 @@ describe('Day 4 — app shell goes dark on dashboard/settings, /admin stays ligh
     expect((LAYOUT.match(/className=\{shellClass\}/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
+  it('sidebar GPU label is formatted (not the raw ANGLE string) — caught in the visual pass', () => {
+    expect(LAYOUT).toContain('formatGpuLabel(user.gpu_name)');
+    expect(LAYOUT).not.toContain('>{user.gpu_name}<');
+  });
+
   it('globals.css maps .app-shell-dark to the landing dark tokens', () => {
     expect(GLOBALS).toContain('.app-shell-dark');
     // shares the onboarding dark block (same dark bg + landing pink accent)

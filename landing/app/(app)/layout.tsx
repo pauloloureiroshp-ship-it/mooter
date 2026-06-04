@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { env, HUB_URL } from '../lib/env';
 import { VersionBadge } from '../_components/VersionBadge';
+import { formatGpuLabel } from '../onboarding/_lib/hardware';
 
 const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 
@@ -248,7 +249,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
               flexDirection: 'column',
               gap: 2,
             }}>
-              <span style={{ color: 'var(--accent-soft)' }}>{user.gpu_name}</span>
+              <span style={{ color: 'var(--accent-soft)' }}>{formatGpuLabel(user.gpu_name)}</span>
               <span>{osLabel(user.os_type)} · {user.hw_tier}</span>
             </div>
           )}
