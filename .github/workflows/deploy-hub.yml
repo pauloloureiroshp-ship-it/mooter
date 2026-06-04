@@ -13,8 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Wave 13.x: deployments now target the mooter-hub Worker (the canonical one
+      # CLIs use, serving mooter-hub.frugal-hub.workers.dev) via wrangler.mooter.toml.
+      # The legacy frugal-hub config (wrangler.frugal-legacy.toml) is no longer deployed.
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: hub
+          command: deploy --config wrangler.mooter.toml

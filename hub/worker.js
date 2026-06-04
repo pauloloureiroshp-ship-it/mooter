@@ -73,7 +73,7 @@ const handler = {
           response = await handleHeartbeat(request, env);
           break;
         case '/api/feedback':        // POST: anonymous feedback (Wave 12 D1-2)
-        case '/api/feedback-list':   // GET: admin read (FRUGAL_ADMIN_TOKEN)
+        case '/api/feedback-list':   // GET: admin read (MOOTER_ADMIN_TOKEN, FRUGAL_ADMIN_TOKEN fallback)
           response = await handleFeedback(request, env);
           break;
         case '/api/stats':
@@ -140,7 +140,7 @@ const handler = {
 // Sprint 8.3 — Sentry wrapper.
 //
 // Sentry.withSentry(optionsFn, handler) takes a function that receives the
-// Worker's env binding (including SENTRY_DSN from wrangler.toml [vars]) and
+// Worker's env binding (including SENTRY_DSN from wrangler.mooter.toml [vars]) and
 // returns the init options. When env.SENTRY_DSN is absent/empty, we return
 // `{ enabled: false }` so the SDK fully disables itself — no network calls,
 // no instrumentation overhead. This lets local `wrangler dev` runs work
