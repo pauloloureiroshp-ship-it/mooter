@@ -1,3 +1,8 @@
+# ✅ CANONICAL hub config (Wave 13.x brand cleanup, 2026-06-04).
+# Worker `mooter-hub` serves the client URL mooter-hub.frugal-hub.workers.dev,
+# which every installed CLI is hardcoded against. CI (.github/workflows/deploy-hub.yml)
+# deploys THIS config. The legacy `frugal-hub` Worker (wrangler.frugal-legacy.toml)
+# is deprecated/frozen. Both share the same mooter-hub D1 + R2 bindings.
 name = "mooter-hub"
 main = "worker.js"
 compatibility_date = "2026-04-01"

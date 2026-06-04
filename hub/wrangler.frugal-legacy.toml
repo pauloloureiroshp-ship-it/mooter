@@ -1,3 +1,10 @@
+# ⚠️  DEPRECATED (Wave 13.x brand cleanup, 2026-06-04).
+# This is the LEGACY `frugal-hub` Worker config. The CANONICAL config is
+# `wrangler.mooter.toml` (Worker `mooter-hub`), which serves the client URL
+# mooter-hub.frugal-hub.workers.dev. CI now deploys the canonical Worker.
+# This Worker is frozen on its last deploy; do NOT delete it (legacy clients may
+# still hit its URL) and do NOT deploy to it from CI.
+# See docs/strategy/WAVE13_X_BRAND_CLEANUP_MICROBRIEF.md.
 name = "frugal-hub"
 main = "worker.js"
 compatibility_date = "2026-04-01"

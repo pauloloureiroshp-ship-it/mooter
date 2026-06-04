@@ -104,6 +104,48 @@ test("runFeedbackList needs an admin token", async () => {
   assert.match(res.output, /MOOTER_ADMIN_TOKEN/);
 });
 
+test("runFeedbackList falls back MOOTER_ADMIN_TOKEN → MOOTER_HUB_TOKEN → FRUGAL_ADMIN_TOKEN", async () => {
+  const save = {
+    m: process.env.MOOTER_ADMIN_TOKEN,
+    h: process.env.MOOTER_HUB_TOKEN,
+    f: process.env.FRUGAL_ADMIN_TOKEN,
+  };
+  const capture = () => {
+    let sent = "";
+    const f = (async (_url: string, init: RequestInit) => {
+      sent = (init.headers as Record<string, string>).Authorization;
+      return { ok: true, status: 200, json: async () => ({ feedback: [] }) } as Response;
+    }) as unknown as typeof fetch;
+    return { f, sent: () => sent };
+  };
+  try {
+    // Canonical wins over both fallbacks.
+    delete process.env.MOOTER_HUB_TOKEN; delete process.env.FRUGAL_ADMIN_TOKEN;
+    process.env.MOOTER_ADMIN_TOKEN = "canonical";
+    process.env.MOOTER_HUB_TOKEN = "legacy-alias";
+    process.env.FRUGAL_ADMIN_TOKEN = "frugal";
+    let cap = capture();
+    await runFeedbackList({ hubUrl: "https://hub.test", fetchImpl: cap.f });
+    assert.equal(cap.sent(), "Bearer canonical");
+
+    // No canonical → MOOTER_HUB_TOKEN alias.
+    delete process.env.MOOTER_ADMIN_TOKEN;
+    cap = capture();
+    await runFeedbackList({ hubUrl: "https://hub.test", fetchImpl: cap.f });
+    assert.equal(cap.sent(), "Bearer legacy-alias");
+
+    // Only the deprecated FRUGAL_ADMIN_TOKEN set.
+    delete process.env.MOOTER_HUB_TOKEN;
+    cap = capture();
+    await runFeedbackList({ hubUrl: "https://hub.test", fetchImpl: cap.f });
+    assert.equal(cap.sent(), "Bearer frugal");
+  } finally {
+    if (save.m !== undefined) process.env.MOOTER_ADMIN_TOKEN = save.m; else delete process.env.MOOTER_ADMIN_TOKEN;
+    if (save.h !== undefined) process.env.MOOTER_HUB_TOKEN = save.h; else delete process.env.MOOTER_HUB_TOKEN;
+    if (save.f !== undefined) process.env.FRUGAL_ADMIN_TOKEN = save.f; else delete process.env.FRUGAL_ADMIN_TOKEN;
+  }
+});
+
 test("runFeedbackList sends the admin bearer and renders rows", async () => {
   let sentAuth = "";
   const f = (async (_url: string, init: RequestInit) => {
