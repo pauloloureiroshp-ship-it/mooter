@@ -214,12 +214,17 @@ async function main() {
       const stats = aggregateLastTurn(sessionId);
       if (stats) {
         const turnCost = await fetchTurnCost(sessionId);
-        process.stdout.write(buildMooCard(stats, turnCost, { herd, verbosity }));
+        // Wave 13.1 — emit on stderr, NOT stdout. The Stop digest is purely
+        // visual; on shells that inherit the hook's stdout (WSL/Linux bash), any
+        // stdout line is replayed into the host prompt's input buffer after exit
+        // ("🐮: command not found"). stderr is shown to the user but never fed
+        // back to the shell as input. Same on macOS/Windows. (Day-5 repro, WSL2.)
+        process.stderr.write(buildMooCard(stats, turnCost, { herd, verbosity }));
       } else {
         // No classified turn this session, but Moos may still have worked —
         // surface the tally on its own rather than swallowing it.
         const section = buildHerdSection(herd, { verbosity });
-        if (section) process.stdout.write('\n' + section + '\n');
+        if (section) process.stderr.write('\n' + section + '\n');
       }
     }
   } finally {
