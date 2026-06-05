@@ -93,3 +93,37 @@ test('19.D: per-tier cost via pricing.js, reason grouping, and <0.5s at 100+ dec
   assert.ok(ms < 500, `render took ${ms.toFixed(1)}ms (budget 500ms)`);
   assert.match(out, /CHOICE REASONS/);
 });
+
+// ── Wave 20 (20.F) — per-task breakdown ─────────────────────────────────
+
+test('20.F: per-task breakdown lists each routed call with llm + reason (+via, +tokens)', () => {
+  const records = [
+    { ts: 't', op: 'cross_file_change', tier: 'T3', llm: 'opus', tokens_in: 1200, tokens_out: 3400, reason: 'classify_score=0.90 T3', via: 'model-architect' },
+    { ts: 't', op: 'summarize', tier: 'T0', llm: 'qwen3:30b', tokens_in: 0, tokens_out: 0, reason: 'classify_score=0.85 T0', via: 'local-summarizer' },
+    { ts: 't', op: 'edit', tier: 'T3', reason: 'beast_intent_force_t3', via: 'inline' }, // no llm/tokens
+  ];
+  const lines = sr.buildPerTaskLines(records);
+  assert.match(lines[0], /1\. cross_file_change → opus · 1\.2k→3\.4k \(via model-architect\) · classify_score=0\.90 T3/);
+  assert.match(lines[1], /2\. summarize → qwen3:30b \(via local-summarizer\) · classify_score=0\.85 T0/);
+  assert.ok(!lines[1].includes('k→'), 'no token arrow when the call recorded no tokens');
+  // inline via dropped; missing llm falls back to the tier default (opus for T3).
+  assert.match(lines[2], /3\. edit → opus · beast_intent_force_t3/);
+  assert.ok(!lines[2].includes('(via'), 'inline is not shown as a delegation');
+  // Empty → one honest line, never a fabricated row.
+  assert.deepEqual(sr.buildPerTaskLines([]), ['  (no decisions logged this session)']);
+  // Long sessions cap the display with an honest "showing last N of M" header.
+  const many = Array.from({ length: 40 }, (_, i) => ({ ts: 't', op: `op${i}`, tier: 'T0', llm: 'qwen3:30b', reason: 'r' }));
+  const capped = sr.buildPerTaskLines(many, { limit: 25 });
+  assert.match(capped[0], /showing last 25 of 40 tasks/);
+  assert.equal(capped.length, 26, 'header + 25 rows (no silent truncation)');
+});
+
+test('20.F: buildSessionReport embeds the PER-TASK BREAKDOWN beneath the digest', () => {
+  const out = sr.buildSessionReport(FULL);
+  assert.match(out, /PER-TASK BREAKDOWN/);
+  // FULL.records carry no op/llm → labelled by op default "task" + tier-default llm.
+  assert.match(out, /1\. task → qwen3:30b \(via local-summarizer\) · classify_score=0\.85 T0/);
+  assert.match(out, /3\. task → opus · beast_intent_force_t3/);
+  // The grouped CHOICE REASONS summary is preserved (Wave 19 19.D intact).
+  assert.match(out, /CHOICE REASONS/);
+});

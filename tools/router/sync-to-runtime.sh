@@ -59,6 +59,10 @@ SYNC_FILES=(
   quota-tracker.js
   statusline-multi.js
   token_tracker.js
+  subagent_tracker.js
+  post_tool_badge.js
+  stop_hook.js
+  decisions_v2.js
   providers/_load-env.js
   providers/codex-cli.js
   providers/openai-api.js

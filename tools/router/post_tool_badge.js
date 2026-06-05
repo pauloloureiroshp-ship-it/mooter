@@ -139,15 +139,77 @@ function buildHerdLine(row, { verbosity = 'standard' } = {}) {
   return `   ${parts.join(' · ')}`;
 }
 
-/** Best-effort session id from the PostToolUse stdin payload or env. */
-function readSessionId() {
+// ────────────────────────────────────────────────────────────────────────
+// Wave 20 (20.B) — herd writer. The Wave 13 "Show the Herd" chip read a tracker
+// that was NEVER written at runtime (Day 1 root cause: no SubagentStart/Stop hook
+// is wired). The already-wired PostToolUse fires after every tool — including the
+// Agent/Task tool that spawns a subagent — so we record the spawn HERE, with no
+// settings.json change (shared-config guardrail respected).
+// ────────────────────────────────────────────────────────────────────────
+
+// Map a Claude Code subagent_type → Mooter tier + canonical model, so a recorded
+// spawn lands in the right herd bucket (🐄 local vs ☁ cloud) and the Stop digest
+// can label it. An unknown type records as a cloud agent with no tier — honest:
+// we never guess a tier we can't prove.
+const SUBAGENT_TIER = {
+  'local-summarizer':  { tier: 'T0', model: 'qwen3:30b' },
+  'local-transformer': { tier: 'T0', model: 'qwen3:30b' },
+  'cheap-triage':      { tier: 'T1', model: 'claude-haiku-4-5' },
+  'model-reasoner':    { tier: 'T2', model: 'claude-sonnet-4-6' },
+  'model-architect':   { tier: 'T3', model: 'claude-opus-4-6' },
+  'final-reviewer':    { tier: 'T3', model: 'claude-opus-4-6' },
+};
+
+/** Best-effort parse of the PostToolUse stdin payload (fd 0 is single-use). */
+function readHookPayload() {
   try {
-    if (process.stdin.isTTY) return process.env.CLAUDE_SESSION_ID || null;
+    if (process.stdin.isTTY) return null;
     const raw = fs.readFileSync(0, 'utf8');
-    const j = JSON.parse(raw);
-    return (j && j.session_id) || process.env.CLAUDE_SESSION_ID || null;
+    if (!raw || !raw.trim()) return null;
+    return JSON.parse(raw);
   } catch {
-    return process.env.CLAUDE_SESSION_ID || null;
+    return null;
+  }
+}
+
+/** Session id from the payload, falling back to the env (Day 4.2 dual var). */
+function sessionIdFrom(payload) {
+  return (payload && payload.session_id)
+    || process.env.CLAUDE_SESSION_ID
+    || process.env.CLAUDE_CODE_SESSION_ID
+    || null;
+}
+
+/**
+ * Record a subagent spawn from a PostToolUse payload. The hook fires AFTER the
+ * tool completes, so we trackSpawn then immediately trackComplete (both idempotent
+ * by spawn_id). Trade-off (Day 1 decision): `total spawned` is accurate; `active`
+ * /`peak` are approximate (we never see the in-flight window). Best-effort —
+ * returns the agent name on a recorded spawn (so the caller can annotate it), else
+ * null. NEVER throws (it is on the hook path).
+ * @returns {string|null}
+ */
+function recordSpawn(payload, sessionId) {
+  try {
+    const tool = payload && payload.tool_name;
+    if (tool !== 'Agent' && tool !== 'Task') return null;
+    const input = (payload && payload.tool_input) || {};
+    const agentName = String(input.subagent_type || 'subagent');
+    const spawnId = payload.tool_use_id || (payload.tool_use && payload.tool_use.id) || null;
+    const map = SUBAGENT_TIER[agentName] || { tier: null, model: null };
+    const tracker = require('./subagent_tracker.js');
+    const id = tracker.trackSpawn({
+      agent_name: agentName, tier: map.tier, model: map.model,
+      spawn_id: spawnId, session_id: sessionId,
+    });
+    // PostToolUse is post-completion — settle it now. No duration_ms passed, so the
+    // tracker records ~0ms rather than inventing latency (honesty).
+    tracker.trackComplete(id, {
+      session_id: sessionId, agent_name: agentName, tier: map.tier, model: map.model,
+    });
+    return agentName;
+  } catch {
+    return null; // hooks never throw
   }
 }
 
@@ -165,25 +227,35 @@ function herdAnnotationFor(agentName, snap, verbosity) {
 
 function main() {
   const prefs = readPrefs();
-  if (!badgeEnabled(prefs)) return; // suppressed → no output, no pollution
+
+  // Read the PostToolUse stdin payload ONCE (fd 0 is single-use): it carries the
+  // session id AND, for an Agent/Task tool, the spawn metadata we record.
+  const payload = readHookPayload();
+  const sessionId = sessionIdFrom(payload);
+
+  // Wave 20 (20.B) — record the spawn into the herd tracker BEFORE the badge gate
+  // so the 🐄 statusline chip reflects reality even in quiet mode. Silent +
+  // best-effort; returns the just-spawned agent name (for the annotation below).
+  const spawnedAgent = recordSpawn(payload, sessionId);
+
+  if (!badgeEnabled(prefs)) return; // suppressed → no output, tracking already done
   const sub = readLastSubagent();
   const badge = buildPostToolBadge(sub);
   if (badge) process.stdout.write(badge + '\n');
-
-  // Read the session id once (stdin is single-use) and reuse it below.
-  const sessionId = readSessionId();
 
   // Wave 19 (19.A) — keep the per-tier token cache fresh from the session
   // transcript (real cloud tokens). Best-effort; the statusline reads the cache.
   try { require('./token_tracker.js').syncFromTranscript(sessionId); } catch { /* hooks never throw */ }
 
   // Wave 13 — per-agent herd annotation. Best-effort; a missing tracker, no
-  // session, or quiet/silent verbosity simply prints nothing extra.
+  // session, or quiet/silent verbosity simply prints nothing extra. Wave 20:
+  // prefer the agent we just recorded; fall back to the inline last-subagent.
   const verbosity = herdVisibility(prefs);
   if (!herdAnnotationEnabled(verbosity)) return;
   try {
     const snap = require('./subagent_tracker.js').snapshot({ session_id: sessionId });
-    const agentName = sub && sub.subagent && sub.subagent !== 'inline' ? sub.subagent : null;
+    const agentName = spawnedAgent
+      || (sub && sub.subagent && sub.subagent !== 'inline' ? sub.subagent : null);
     const line = herdAnnotationFor(agentName, snap, verbosity);
     if (line) process.stdout.write(line + '\n');
   } catch { /* hooks never throw */ }
@@ -198,4 +270,6 @@ module.exports = {
   readPrefs, badgeEnabled, shortModel, buildPostToolBadge, readLastSubagent,
   // Wave 13 "Show the Herd"
   herdVisibility, herdAnnotationEnabled, buildHerdLine, herdAnnotationFor, HERD_LEVELS,
+  // Wave 20 (20.B) — herd writer
+  SUBAGENT_TIER, readHookPayload, sessionIdFrom, recordSpawn,
 };

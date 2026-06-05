@@ -593,16 +593,25 @@ const WORKFLOW_CONCURRENCY = 3; // ≥ this many concurrent Moos lights ⚡ work
  * @param {{active:number,total?:number,peak?:number}|null} herd
  * @returns {string|null}
  */
-function buildHerdsChip(herd, { color = useColor() } = {}) {
+function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
   if (!herd || typeof herd.active !== 'number') return null;
   const active = Math.max(0, herd.active | 0);
   const total = Math.max(0, Number(herd.total) || 0);
   const peak = Math.max(0, Number(herd.peak) || 0);
   const body = `🐄 ${active}/${total}/peak${peak}`;
-  const chip = active === 0 ? colorize(ANSI.dim, body, color) : body;
-  return active >= WORKFLOW_CONCURRENCY
-    ? `${chip} · ${colorize(ANSI.yellow, '⚡ workflow', color)}`
-    : chip;
+  let chip = active === 0 ? colorize(ANSI.dim, body, color) : body;
+  if (active >= WORKFLOW_CONCURRENCY) {
+    chip = `${chip} · ${colorize(ANSI.yellow, '⚡ workflow', color)}`;
+  }
+  // Wave 20 (20.E) — subtle live pulse when ≥1 Moo is active. The statusline
+  // re-renders on each Claude Code tick, so alternating the dot per tick reads as
+  // a heartbeat (a Dynamic Workflow running NOW) rather than a static marker. It
+  // TRAILS the whole chip (dim) so it never dims the count nor splits the ⚡ cue.
+  if (active >= 1) {
+    const pulse = (Math.trunc(Number(tick) || 0) % 2 === 0) ? '◉' : '◯';
+    chip = `${chip} ${colorize(ANSI.dim, pulse, color)}`;
+  }
+  return chip;
 }
 function herdChip(n, { color = useColor() } = {}) {
   const count = Number.isFinite(Number(n)) ? Math.max(0, Math.trunc(Number(n))) : 0;
@@ -705,7 +714,37 @@ function buildTokenChip(snap, { color = useColor() } = {}) {
     // T0 green / T1 blue / T2 yellow / T3 red, free→expensive (Wave 19 19.B-1).
     parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}`, color));
   }
-  return `🪙 ${parts.join(' · ')}`;
+  // Wave 20 (20.C) — a single "tkns" unit label on the first tier so the 🪙 chip
+  // reads as token counts, not the 🐄 call counts. One label keeps it compact.
+  const labeled = parts.map((p, i) => (i === 0 ? `${p} tkns` : p));
+  return `🪙 ${labeled.join(' · ')}`;
+}
+
+/**
+ * Wave 20 (20.D) — local share by TOKENS (T0 ÷ all tiers), the honest companion
+ * to the local share by CALLS. A session can be 60% local by call count yet ~0%
+ * by tokens because one Opus turn dwarfs many Ollama calls. Returns null when no
+ * tokens are recorded (chip dropped — never a fake 0%).
+ * @param {{T0,T1,T2,T3}|null} snap
+ * @returns {number|null} percent 0..100, or null when there is no token data
+ */
+function tokensLocalPct(snap) {
+  if (!snap) return null;
+  let local = 0, total = 0;
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    const s = snap[t] || {};
+    const tot = (Number(s.tokens_in) || 0) + (Number(s.tokens_out) || 0);
+    total += tot;
+    if (t === 'T0') local += tot;
+  }
+  if (total <= 0) return null;
+  return (local / total) * 100;
+}
+
+/** Format a local-share percent: sub-10% keeps one decimal (0.1%), else integer. */
+function fmtSharePct(p) {
+  if (!(p > 0)) return '0';
+  return p < 10 ? p.toFixed(1) : String(Math.round(p));
 }
 
 function renderTwoLine(ctx) {
@@ -856,18 +895,31 @@ function renderTwoLine(ctx) {
 
   // Wave 19 (19.A) — 🪙 real tokens per tier. Cache-only snapshot (the PostToolUse
   // hook keeps it fresh), so it never parses the transcript on the render path.
-  // `hidden_chips: ["tokens"]` drops it. Best-effort: any failure → no chip.
-  let tokenChip = null;
-  if (!hide('tokens')) {
-    try { tokenChip = buildTokenChip(require('./token_tracker.js').snapshot(ctx.sessionId)); }
-    catch { tokenChip = null; }
+  // Wave 20 (20.D) — read it ONCE and reuse for the 🏠 dual metric below.
+  // `hidden_chips: ["tokens"]` drops the 🪙 chip. Best-effort: any failure → no chip.
+  let tokSnap = null;
+  try { tokSnap = require('./token_tracker.js').snapshot(ctx.sessionId); } catch { tokSnap = null; }
+  const tokenChip = hide('tokens') ? null : buildTokenChip(tokSnap);
+
+  // Wave 20 (20.D) — dual metric: local share by CALLS and by TOKENS. The calls %
+  // can look reassuring (6/10 local) while the tokens % tells the real cost story
+  // (a single Opus turn dwarfs many Ollama calls). Both shown so neither misleads
+  // on its own; the tokens part is dropped when there is no token data (never a
+  // fabricated 0%).
+  let homeChip = null;
+  if (localCount > 0) {
+    const callsPct = sessionTotal > 0 ? Math.round((localCount / sessionTotal) * 100) : 0;
+    const tlp = tokensLocalPct(tokSnap);
+    const tokPart = tlp === null ? '' : ` · ${fmtSharePct(tlp)}% tokens local`;
+    homeChip = `${homeGlyph} ${localCount}/${sessionTotal} calls (${callsPct}%)${tokPart}`;
   }
 
   // Wave 19 (19.B-5/6) — always-on herd chip (active/total/peak + ⚡ workflow).
-  const herdsChip = hide('herd') ? null : buildHerdsChip(ctx.herd);
+  // Wave 20 (20.E) — pass the render tick so the chip can pulse while Moos work.
+  const herdsChip = hide('herd') ? null : buildHerdsChip(ctx.herd, { tick: ctx.tick });
 
   const line2 = [
-    localCount > 0 ? `${homeGlyph} ${localCount}/${sessionTotal} local` : null,
+    homeChip,
     localShareChip,
     gpuChip,
     ctxChip,
@@ -1068,6 +1120,8 @@ module.exports = {
   ctxBar,
   fmtTokens,
   buildTokenChip,
+  tokensLocalPct,
+  fmtSharePct,
   buildHerdsChip,
   colorize,
   useColor,

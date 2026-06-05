@@ -42,7 +42,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   // PR-I sparkline sits between the saved outcome and the tier label
   assert.match(lines[0], /last 10 {2}· {2}T2 sonnet/, 'PR-I: tier label trails the sparkline');
   // line 2 operational chips
-  assert.match(lines[1], /^🏠 6\/10 local/, 'PR-I: line 2 leads with N/M local (no redundant second cow)');
+  assert.match(lines[1], /^🏠 6\/10 calls \(60%\)/, 'Wave 20 20.D: line 2 leads with N/M calls + local %');
   assert.doesNotMatch(lines[1], /local ×6/, 'PR-I: old ×N local count is gone');
   assert.match(lines[1], /ctx \S+ 23%/, 'line 2 shows ctx as a visual bar (W19 ▰▱ evolution bar)');
   assert.match(lines[1], /☁ Claude Max 100% · 5h reset/, 'PR-I: quota carries cloud anchor + label');

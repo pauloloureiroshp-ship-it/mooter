@@ -230,6 +230,38 @@ function groupReasons(records) {
 }
 
 /**
+ * Wave 20 (20.F) — full per-task breakdown from decisions_v2 (Day 3). One line
+ * per routed task: op → llm · tokens_in→out · (via) · reason. Privacy: there is
+ * NO prompt text in decisions_v2 (whitelisted schema), so each task is labelled by
+ * its op/category — never the prompt. Display is capped (newest-last) with an
+ * honest "showing last N of M" header so a long session never silently truncates.
+ * @param {Array} records decisions_v2 records
+ * @param {{limit?:number}} [opts]
+ * @returns {string[]} indented lines
+ */
+function buildPerTaskLines(records, { limit = 25 } = {}) {
+  const recs = Array.isArray(records) ? records.filter((r) => r && r.tier) : [];
+  if (!recs.length) return ['  (no decisions logged this session)'];
+  const shown = recs.slice(-limit);
+  const startIdx = recs.length - shown.length;
+  const lines = [];
+  if (startIdx > 0) lines.push(`  (showing last ${shown.length} of ${recs.length} tasks)`);
+  let dv2 = null;
+  try { dv2 = require('./decisions_v2.js'); } catch { dv2 = null; }
+  shown.forEach((r, i) => {
+    const n = startIdx + i + 1;
+    const op = String(r.op || 'task');
+    const llm = r.llm || (dv2 ? dv2.shortLlm(undefined, r.tier) : (r.tier || '?'));
+    const tin = Number(r.tokens_in) || 0;
+    const tout = Number(r.tokens_out) || 0;
+    const tok = (tin || tout) ? ` · ${fmtTok(tin)}→${fmtTok(tout)}` : '';
+    const via = r.via && r.via !== 'inline' ? ` (via ${r.via})` : '';
+    lines.push(`  ${n}. ${op} → ${llm}${tok}${via} · ${r.reason || '?'}`);
+  });
+  return lines;
+}
+
+/**
  * Render the full session report. Pure given its inputs (all sources injected),
  * so the integration test drives it without files, a tracker, or a GPU.
  * @param {object} d
@@ -279,6 +311,15 @@ function buildSessionReport(d = {}) {
       const via = g.via ? ` (delegated to ${g.via})` : '';
       lines.push(`  ${g.count}× ${g.tier} → ${g.reason}${via}`);
     }
+  }
+
+  // ── PER-TASK BREAKDOWN (decisions_v2, Day 3 — Wave 20 20.F) ──
+  // CHOICE REASONS above is the aggregate; this is the full per-task trail so the
+  // digest answers "what did each call route to + why", not just the grouped count.
+  if (Array.isArray(d.records) && d.records.length) {
+    lines.push('');
+    lines.push('  PER-TASK BREAKDOWN');
+    for (const l of buildPerTaskLines(d.records)) lines.push(l);
   }
 
   // ── HARDWARE STATE ──
@@ -480,4 +521,6 @@ module.exports = {
   readPrefs, mooCardEnabled, aggregateLastTurn, buildMooCard, shortModel, buildHerdSection,
   // Wave 19 (19.D) — full session report
   sessionReportEnabled, buildSessionReport, groupReasons, gatherReport, fmtTok, fmtDur, tierCost,
+  // Wave 20 (20.F) — per-task breakdown
+  buildPerTaskLines,
 };
