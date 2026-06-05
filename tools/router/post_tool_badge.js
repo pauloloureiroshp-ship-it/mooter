@@ -142,12 +142,12 @@ function buildHerdLine(row, { verbosity = 'standard' } = {}) {
 /** Best-effort session id from the PostToolUse stdin payload or env. */
 function readSessionId() {
   try {
-    if (process.stdin.isTTY) return process.env.CLAUDE_SESSION_ID || null;
+    if (process.stdin.isTTY) return process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || null;
     const raw = fs.readFileSync(0, 'utf8');
     const j = JSON.parse(raw);
-    return (j && j.session_id) || process.env.CLAUDE_SESSION_ID || null;
+    return (j && j.session_id) || process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || null;
   } catch {
-    return process.env.CLAUDE_SESSION_ID || null;
+    return process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || null;
   }
 }
 
