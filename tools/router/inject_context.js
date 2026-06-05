@@ -887,6 +887,12 @@ logDecision({
   safety_boost_from: decision.safety_boost_from || null,
 });
 
+// Wave 19 (19.B) — dual-write a structured per-call record to decisions_v2.jsonl
+// (op/tier/llm/tokens/reason/via). The legacy decisions.log line above is
+// untouched, so every existing reader keeps working; `mooter trail --calls`
+// reads this. Best-effort and metadata-only (zero PII — no prompt/preview).
+try { require('./decisions_v2.js').appendFromDecision(decision); } catch { /* never fail the hook over telemetry */ }
+
 // Write last-subagent state so PostToolUse:Bash can show the correct model
 // instead of always falling back to the parent Opus session model.
 if (decision.suggested_subagent && decision.recommended_model) {

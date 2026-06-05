@@ -165,6 +165,178 @@ function buildMooCard(s, turnCost, opts = {}) {
   return lines.join('\n');
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Wave 19 (19.D) — full session report. Expands the Wave 13 herd tally into a
+// per-tier token + reason + hardware + savings digest, composed from the Day
+// 1-3 + Wave 13 sources. Opt-in (`session_report_enabled`), rendered on stderr
+// (Wave 13.1). Every figure is REAL — token counts from the transcript (Day 1),
+// costs from pricing.js × those real tokens, reasons from decisions_v2 (Day 3).
+// A section whose source is absent is omitted, never fabricated.
+// ────────────────────────────────────────────────────────────────────────
+
+/** True only when the user opted into the full session report (default OFF). */
+function sessionReportEnabled(prefs) {
+  return !!(prefs && prefs.session_report_enabled === true);
+}
+
+const TIER_LABEL = {
+  T0: 'T0 (local ollama)',
+  T1: 'T1 (haiku-4-5)  ',
+  T2: 'T2 (sonnet-4-6) ',
+  T3: 'T3 (opus-4-6)   ',
+};
+
+function fmtTok(n) {
+  const v = Number(n) || 0;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`;
+  return String(Math.round(v));
+}
+
+function fmtDur(ms) {
+  const s = Math.max(0, Math.round((Number(ms) || 0) / 1000));
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
+/** USD for a tier's real token totals, via pricing.js (T0 → $0.00). */
+function tierCost(tier, tin, tout) {
+  try {
+    const { priceTurn, TIER_TO_PRICING_KEY } = require('./pricing.js');
+    return priceTurn(TIER_TO_PRICING_KEY[tier], tin, tout);
+  } catch {
+    return 0;
+  }
+}
+
+/** Group decisions_v2 records by tier+reason, count-desc, with the dominant via. */
+function groupReasons(records) {
+  const groups = new Map();
+  for (const r of records || []) {
+    if (!r || !r.tier) continue;
+    const key = `${r.tier} ${r.reason || '?'}`;
+    const g = groups.get(key) || { tier: r.tier, reason: r.reason || '?', count: 0, vias: {} };
+    g.count += 1;
+    const via = r.via && r.via !== 'inline' ? r.via : null;
+    if (via) g.vias[via] = (g.vias[via] || 0) + 1;
+    groups.set(key, g);
+  }
+  return [...groups.values()]
+    .map((g) => {
+      const top = Object.entries(g.vias).sort((a, b) => b[1] - a[1])[0];
+      return { tier: g.tier, reason: g.reason, count: g.count, via: top ? top[0] : null };
+    })
+    .sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Render the full session report. Pure given its inputs (all sources injected),
+ * so the integration test drives it without files, a tracker, or a GPU.
+ * @param {object} d
+ * @param {object|null} d.tokens   token_tracker.snapshot() — per-tier {calls,tokens_in,tokens_out}
+ * @param {Array}       d.records  decisions_v2 records (Day 3)
+ * @param {object|null} d.hardware {model?, quant?:{format,reduction}, adapter?:{name,trained}, vram?:{pct,usedGb,totalGb}}
+ * @param {object|null} d.herd     subagent_tracker.snapshot()
+ * @param {object|null} d.context  {ctxPct?:number|null, anthRemPct?:number|null}
+ * @param {number}      [d.durationMs]
+ * @returns {string}
+ */
+function buildSessionReport(d = {}) {
+  const tokens = d.tokens || {};
+  const lines = [];
+  lines.push('');
+  lines.push(`🐮 Mooter session report${d.durationMs ? ` — ${fmtDur(d.durationMs)}` : ''}`);
+
+  // ── TOKENS BY TIER (real counts from token_tracker; cost from pricing.js) ──
+  lines.push('');
+  lines.push('  TOKENS BY TIER');
+  let spent = 0;
+  let opusBaseline = 0;
+  let anyTier = false;
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    const s = tokens[t];
+    if (!s) continue;
+    const tin = Number(s.tokens_in) || 0;
+    const tout = Number(s.tokens_out) || 0;
+    const calls = Number(s.calls) || 0;
+    if (calls === 0 && tin + tout === 0) continue;
+    anyTier = true;
+    const cost = tierCost(t, tin, tout);
+    spent += cost;
+    opusBaseline += tierCost('T3', tin, tout); // what these tokens would cost at Opus
+    lines.push(`  ${TIER_LABEL[t]}  ${fmtTok(tin + tout)} tokens · ${calls} calls · $${cost.toFixed(2)}`);
+  }
+  if (!anyTier) lines.push('  (no LLM calls recorded this session)');
+
+  // ── CHOICE REASONS (decisions_v2, Day 3) ──
+  const reasons = groupReasons(d.records);
+  lines.push('');
+  lines.push('  CHOICE REASONS');
+  if (reasons.length === 0) {
+    lines.push('  (no decisions logged this session)');
+  } else {
+    for (const g of reasons.slice(0, 8)) {
+      const via = g.via ? ` (delegated to ${g.via})` : '';
+      lines.push(`  ${g.count}× ${g.tier} → ${g.reason}${via}`);
+    }
+  }
+
+  // ── HARDWARE STATE ──
+  const hw = d.hardware || {};
+  const hwLines = [];
+  if (hw.model || hw.quant) {
+    const q = hw.quant ? ` · Quant ${hw.quant.format}${hw.quant.reduction ? ` (-${hw.quant.reduction}% vs FP16)` : ''}` : '';
+    hwLines.push(`  Model: ${hw.model || 'local'}${q}`);
+  }
+  if (hw.adapter) {
+    const trained = hw.adapter.trained > 0 ? ` · trained on ${hw.adapter.trained} decisions` : '';
+    hwLines.push(`  Adapter: ${hw.adapter.name || 'baseline'}${trained}`);
+  }
+  if (hw.vram && hw.vram.totalGb > 0) {
+    hwLines.push(`  GPU: ${hw.vram.pct}% VRAM (${hw.vram.usedGb.toFixed(1)}/${Math.round(hw.vram.totalGb)} GB)`);
+  }
+  if (hwLines.length) {
+    lines.push('');
+    lines.push('  HARDWARE STATE');
+    lines.push(...hwLines);
+  }
+
+  // ── HERD (Wave 13 + Day 2) ──
+  if (d.herd && Array.isArray(d.herd.cumulative) && d.herd.cumulative.length) {
+    const total = d.herd.cumulative.reduce((n, r) => n + (Number(r.count) || 0), 0);
+    const peak = Number(d.herd.peak_concurrent) || 0;
+    const top = d.herd.cumulative.slice().sort((a, b) => b.count - a.count)[0];
+    lines.push('');
+    lines.push('  HERD');
+    const avg = top && Number(top.avg_ms) > 0 ? ` · ${top.agent_name} avg ${Math.round(top.avg_ms)}ms` : '';
+    lines.push(`  ${total} Moo(s) spawned${avg} · peak concurrent: ${peak}`);
+  }
+
+  // ── CONTEXT ──
+  const ctx = d.context || {};
+  const ctxLines = [];
+  if (typeof ctx.ctxPct === 'number') ctxLines.push(`  Ctx used: ${ctx.ctxPct}%`);
+  if (typeof ctx.anthRemPct === 'number') ctxLines.push(`  Claude Max: ${ctx.anthRemPct}% remaining · 5h reset (local estimate)`);
+  if (ctxLines.length) {
+    lines.push('');
+    lines.push('  CONTEXT');
+    lines.push(...ctxLines);
+  }
+
+  // ── SAVINGS (real tokens × pricing.js; vs an all-Opus baseline) ──
+  if (anyTier) {
+    const saved = Math.max(0, opusBaseline - spent);
+    const pct = opusBaseline > 0 ? Math.round((saved / opusBaseline) * 100) : 0;
+    lines.push('');
+    lines.push('  SAVINGS');
+    lines.push(`  Saved vs all-Opus: $${saved.toFixed(2)} (${pct}% reduction)`);
+    lines.push(`  Total spent: $${spent.toFixed(2)}`);
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
 /** Best-effort tracker read (short timeout). Returns null on any failure. */
 async function fetchTurnCost(sessionId) {
   try {
@@ -192,9 +364,67 @@ function readStdin() {
   });
 }
 
+/**
+ * Collect the 5 report sources for a session. Every source is independently
+ * best-effort — a missing module/file drops that section, never throws.
+ * @returns {object} the `d` payload for buildSessionReport()
+ */
+function gatherReport(sessionId, { herd = null, stdinJson = null } = {}) {
+  const out = { tokens: null, records: [], hardware: {}, herd, context: {}, durationMs: 0 };
+
+  // Day 1 — real per-tier tokens (force a final transcript sync at Stop).
+  try { out.tokens = require('./token_tracker.js').snapshot(sessionId, { sync: true }); } catch { /* none */ }
+
+  // Day 3 — per-call decisions (also derives session duration from first/last ts).
+  try {
+    out.records = require('./decisions_v2.js').readRecords({ limit: 1000 });
+    if (out.records.length >= 2) {
+      const t0 = Date.parse(out.records[0].ts);
+      const t1 = Date.parse(out.records[out.records.length - 1].ts);
+      if (Number.isFinite(t0) && Number.isFinite(t1) && t1 >= t0) out.durationMs = t1 - t0;
+    }
+  } catch { /* none */ }
+
+  // Hardware — local model + quant (Wave 12), adapter + Pastor tune count (Day 2/Tier C), live VRAM (Day 2).
+  try {
+    const model = 'qwen3:30b';
+    out.hardware.model = model;
+    try {
+      const { detectQuantization } = require('./quantization.js');
+      const q = detectQuantization(model);
+      if (q) out.hardware.quant = { format: q.format, reduction: q.reduction_vs_fp16 };
+    } catch { /* omit quant */ }
+    let trained = 0;
+    try { trained = Number(JSON.parse(fs.readFileSync(path.join(routerDir(), 'tuning-state.json'), 'utf8')).sample_size) || 0; } catch { /* 0 */ }
+    let name = 'baseline';
+    try { const a = require('./adapter_selection.js').getActiveAdapter(); if (a && a.name) name = a.name; } catch { /* baseline */ }
+    out.hardware.adapter = { name, trained };
+    try {
+      const live = require('./hardware_live.js').vramSnapshot();
+      if (live && live.totalMb > 0) out.hardware.vram = { pct: live.pct, usedGb: live.usedMb / 1024, totalGb: live.totalMb / 1024 };
+    } catch { /* omit vram */ }
+  } catch { /* omit hardware */ }
+
+  // Context — ctx% from Claude Code stdin; Claude Max 5h from quota-state.json.
+  try {
+    const pu = stdinJson && stdinJson.context && stdinJson.context.percent_used;
+    if (Number.isFinite(Number(pu))) out.context.ctxPct = Math.max(0, Math.min(100, Math.round(Number(pu))));
+  } catch { /* omit ctx */ }
+  try {
+    const quota = JSON.parse(fs.readFileSync(path.join(routerDir(), 'quota-state.json'), 'utf8'));
+    const w = quota && quota.providers && quota.providers.anthropic && quota.providers.anthropic.window_5h;
+    if (w && typeof w.limit === 'number' && w.limit > 0) {
+      out.context.anthRemPct = Math.max(0, Math.min(100, Math.round((1 - (w.tokens_used || 0) / w.limit) * 100)));
+    }
+  } catch { /* omit quota */ }
+
+  return out;
+}
+
 async function main() {
   const prefs = readPrefs();
   const enabled = mooCardEnabled(prefs); // opt-in; silent by default
+  const reportOn = sessionReportEnabled(prefs); // Wave 19 19.D — full report, opt-in
 
   const stdinJson = await readStdin();
   let sessionId;
@@ -210,7 +440,13 @@ async function main() {
   } catch { herd = null; }
 
   try {
-    if (enabled) {
+    if (reportOn) {
+      // Wave 19 (19.D) — full session report supersedes the compact Moo card.
+      let stdinObj = null;
+      try { stdinObj = JSON.parse(stdinJson || '{}'); } catch { /* ignore */ }
+      const d = gatherReport(sessionId, { herd, stdinJson: stdinObj });
+      process.stderr.write(buildSessionReport(d));
+    } else if (enabled) {
       const stats = aggregateLastTurn(sessionId);
       if (stats) {
         const turnCost = await fetchTurnCost(sessionId);
@@ -240,4 +476,8 @@ if (require.main === module) {
     .catch(() => process.exit(0)); // hooks never throw
 }
 
-module.exports = { readPrefs, mooCardEnabled, aggregateLastTurn, buildMooCard, shortModel, buildHerdSection };
+module.exports = {
+  readPrefs, mooCardEnabled, aggregateLastTurn, buildMooCard, shortModel, buildHerdSection,
+  // Wave 19 (19.D) — full session report
+  sessionReportEnabled, buildSessionReport, groupReasons, gatherReport, fmtTok, fmtDur, tierCost,
+};
