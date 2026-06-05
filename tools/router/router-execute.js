@@ -271,7 +271,7 @@ function buildTelemetryRecord({ prompt, classification, result, suggestedProvide
   return {
     ts: new Date().toISOString(),
     event: 'executed',
-    session_id: process.env.CLAUDE_SESSION_ID || null,
+    session_id: process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || null,
     prompt_preview: sanitisedPreview,
     tier: classification.tier || 'unknown',
     task_category: classification.task_category || 'unknown',
