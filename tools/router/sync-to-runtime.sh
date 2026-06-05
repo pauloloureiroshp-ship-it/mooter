@@ -58,9 +58,11 @@ SYNC_FILES=(
   version.json
   quota-tracker.js
   statusline-multi.js
+  token_tracker.js
   providers/_load-env.js
   providers/codex-cli.js
   providers/openai-api.js
+  providers/ollama-api.js
   providers/CODEX_CLI_NOTES.md
   providers/README.md
 )
