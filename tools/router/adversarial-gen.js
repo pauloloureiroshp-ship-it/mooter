@@ -165,7 +165,7 @@ function generateTemplate(n) {
 
 // ── Main ────────────────────────────────────────────────────────
 async function main() {
-  console.log(`frugal — adversarial generator (${mode} mode, ${count} prompts)\n`);
+  console.log(`mooter — adversarial generator (${mode} mode, ${count} prompts)\n`);
 
   let prompts = [];
 

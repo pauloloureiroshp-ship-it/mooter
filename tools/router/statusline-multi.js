@@ -918,11 +918,17 @@ function renderTwoLine(ctx) {
   // suffix is the Pastor loop's real decision count from tuning-state.json
   // (written by update-router.js, Wave 16-18 Tier C). Absent file or
   // sample_size 0 → no suffix; never invent a "+N pp" boost.
+  // Wave 22 (22.F) — read the LIVE decisions corpus count (what the Pastor loop learns
+  // from), not the stale tuning-state.sample_size snapshot (lagged at 8 while the corpus
+  // grew to 188). Fall back to the tuning snapshot only if the corpus is unreadable.
   let tunedCount = 0;
-  try {
-    const ts = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, 'tuning-state.json'), 'utf8'));
-    tunedCount = Number(ts && ts.sample_size) || 0;
-  } catch { tunedCount = 0; }
+  try { tunedCount = require('./decisions_v2.js').recordCount(); } catch { tunedCount = 0; }
+  if (!tunedCount) {
+    try {
+      const ts = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, 'tuning-state.json'), 'utf8'));
+      tunedCount = Number(ts && ts.sample_size) || 0;
+    } catch { tunedCount = 0; }
+  }
   const trained = tunedCount > 0 ? ` · trained on ${tunedCount} decisions` : '';
 
   let adapterChip = `🧬 baseline${trained || ' · mooter forge install'}`;

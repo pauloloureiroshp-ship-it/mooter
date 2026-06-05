@@ -94,7 +94,7 @@ async function pull(options = {}) {
   // 1. Check versions
   const versionResult = await httpGet(HUB_URL + '/api/version');
   if (!versionResult.ok) {
-    if (!quiet) console.log('frugal hub-pull: hub unreachable');
+    if (!quiet) console.log('mooter hub-pull: hub unreachable');
     return { updated: false, error: 'unreachable' };
   }
 
@@ -136,9 +136,9 @@ async function pull(options = {}) {
   markPulled();
 
   if (updates.length > 0 && !quiet) {
-    console.log('frugal hub-pull: updated ' + updates.join(', '));
+    console.log('mooter hub-pull: updated ' + updates.join(', '));
   } else if (!quiet) {
-    console.log('frugal hub-pull: already up to date');
+    console.log('mooter hub-pull: already up to date');
   }
 
   return { updated: updates.length > 0, updates };
@@ -150,7 +150,7 @@ async function main() {
   const quiet = args.includes('--quiet');
 
   if (!shouldPull(force)) {
-    if (!quiet) console.log('frugal hub-pull: cooldown active (last pull < 4h ago). Use --force.');
+    if (!quiet) console.log('mooter hub-pull: cooldown active (last pull < 4h ago). Use --force.');
     process.exit(0);
   }
 

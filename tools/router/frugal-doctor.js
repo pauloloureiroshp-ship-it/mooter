@@ -120,7 +120,7 @@ async function main() {
 
   if (!JSON_MODE) {
     console.log('');
-    console.log(C.bold('  frugal doctor — health check'));
+    console.log(C.bold('  mooter doctor — health check'));
     console.log(C.dim(`  ${os.platform()} · ${os.arch()} · Node ${process.version}`));
   }
 
@@ -522,7 +522,7 @@ async function main() {
     console.log('');
     console.log(`  ${C.dim('Run with --json for machine-readable output.')}`);
     console.log(`  ${C.dim('Run with --fix to attempt automatic fixes (where safe).')}`);
-    console.log(`  ${C.dim('Run with --sync to sync your setup to the frugal dashboard.')}`);
+    console.log(`  ${C.dim('Run with --sync to sync your setup to the mooter dashboard.')}`);
     console.log(`  ${C.dim('Run with --optimize to check OS performance optimizations.')}`);
     console.log('');
   } else {

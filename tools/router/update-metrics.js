@@ -212,7 +212,7 @@ function main() {
   const { corpus_size, by_tier_pct, cost, avg_confidence } = snapshot;
   console.log('');
   console.log('┌─────────────────────────────────────────────────────┐');
-  console.log('│  frugal — metrics-snapshot.json                     │');
+  console.log('│  mooter — metrics-snapshot.json                     │');
   console.log('├─────────────────────────────────────────────────────┤');
   console.log(`│  Corpus (decisions.log):  ${String(corpus_size).padEnd(26)}│`);
   console.log(`│  T0: ${String(by_tier_pct.T0 + '%').padEnd(6)}  T1: ${String(by_tier_pct.T1 + '%').padEnd(6)}  T2: ${String(by_tier_pct.T2 + '%').padEnd(6)}  T3: ${String(by_tier_pct.T3 + '%').padEnd(4)}│`);

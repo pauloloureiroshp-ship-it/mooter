@@ -79,19 +79,18 @@ test('19.B-4: renderTwoLine surfaces the 🧬 LoRA/Pastor chip (baseline stable)
   }
 });
 
-// ── 19.B-5/6 — DEPRECATED by Wave 21 Day 3 (C1.5) ─────────────────────────
-// The always-on herd chip is HIDDEN pending the Wave 22 SubagentStop hook: the
-// outer Agent tool payload doesn't carry agent_type+agent_id, so without a
-// reliable spawn signal the chip would render a false `0/0/peak0`. buildHerdsChip
-// now suppresses (returns ''); these tests assert the suppression instead of the
-// old active/total/peak + ⚡ rendering (preserved for Wave 22 reuse).
-test('19.B-5: herds chip is hidden pending Wave 22 (was active/total/peak, dim when idle)', () => {
-  assert.equal(sl.buildHerdsChip({ active: 0, total: 17, peak: 9 }, { color: true }), '');
-  assert.equal(sl.buildHerdsChip({ active: 2, total: 17, peak: 9 }, { color: true }), '');
-  assert.equal(sl.buildHerdsChip(null), '', 'no herd data → no chip');
+// ── 19.B-5/6 — RESTORED by Wave 22 (22.A) ──────────────────────────────────
+// The always-on herd chip is UNHIDDEN: the native SubagentStop hook now writes the
+// herd file with a reliable per-spawn agent_id signal (Day 0 proved it catches even
+// Read-only subagents the Wave 21 PostToolUse fallback misses). buildHerdsChip renders
+// the real active/total/peak again, dim when idle, ⚡ at ≥3 concurrent.
+test('19.B-5: herds chip renders active/total/peak (Wave 22 unhidden, dim when idle)', () => {
+  assert.ok(sl.buildHerdsChip({ active: 0, total: 17, peak: 9 }, { color: true }).includes('🐄 0/17/peak9'));
+  assert.ok(sl.buildHerdsChip({ active: 2, total: 17, peak: 9 }, { color: true }).includes('🐄 2/17/peak9'));
+  assert.equal(sl.buildHerdsChip(null), null, 'no herd data → no chip');
 });
 
-test('19.B-6: ⚡ workflow mode is hidden pending Wave 22 (was lit at >= 3 concurrent)', () => {
-  assert.equal(sl.buildHerdsChip({ active: 2, total: 5, peak: 2 }, { color: false }), '');
-  assert.equal(sl.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false }), '');
+test('19.B-6: ⚡ workflow mode lights at ≥ 3 concurrent (Wave 22 unhidden)', () => {
+  assert.ok(!sl.buildHerdsChip({ active: 2, total: 5, peak: 2 }, { color: false }).includes('⚡'), 'no ⚡ below 3');
+  assert.ok(sl.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false }).includes('⚡ workflow'), '⚡ at 3');
 });

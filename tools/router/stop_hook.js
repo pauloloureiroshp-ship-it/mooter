@@ -435,8 +435,13 @@ function gatherReport(sessionId, { herd = null, stdinJson = null } = {}) {
       const q = detectQuantization(model);
       if (q) out.hardware.quant = { format: q.format, reduction: q.reduction_vs_fp16 };
     } catch { /* omit quant */ }
+    // Wave 22 (22.F) — live decisions-corpus count (matches the statusline), not the
+    // stale tuning-state.sample_size snapshot. Fall back to the snapshot if unreadable.
     let trained = 0;
-    try { trained = Number(JSON.parse(fs.readFileSync(path.join(routerDir(), 'tuning-state.json'), 'utf8')).sample_size) || 0; } catch { /* 0 */ }
+    try { trained = require('./decisions_v2.js').recordCount(); } catch { /* 0 */ }
+    if (!trained) {
+      try { trained = Number(JSON.parse(fs.readFileSync(path.join(routerDir(), 'tuning-state.json'), 'utf8')).sample_size) || 0; } catch { /* 0 */ }
+    }
     let name = 'baseline';
     try { const a = require('./adapter_selection.js').getActiveAdapter(); if (a && a.name) name = a.name; } catch { /* baseline */ }
     out.hardware.adapter = { name, trained };
