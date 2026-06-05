@@ -95,9 +95,10 @@ test('🪙 chip: only non-zero tiers, compact units, dropped when all zero', () 
     T2: { tokens_in: 20000, tokens_out: 4200 }, // 24.2k
     T3: { tokens_in: 0, tokens_out: 0 },        // dropped
   };
-  assert.equal(buildTokenChip(snap), '🪙 T0:13.3k · T2:24.2k');
-  assert.equal(buildTokenChip({ T0: { tokens_in: 0, tokens_out: 0 } }), null);
-  assert.equal(buildTokenChip(null), null);
+  // color:false → bare text (Wave 19 19.B-1 adds ANSI by default; see its own test).
+  assert.equal(buildTokenChip(snap, { color: false }), '🪙 T0:13.3k · T2:24.2k');
+  assert.equal(buildTokenChip({ T0: { tokens_in: 0, tokens_out: 0 } }, { color: false }), null);
+  assert.equal(buildTokenChip(null, { color: false }), null);
 });
 
 test('modelToTier maps models to tiers and ignores non-T0–T3 models', () => {

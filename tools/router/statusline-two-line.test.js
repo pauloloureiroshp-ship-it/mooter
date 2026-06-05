@@ -44,10 +44,10 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   // line 2 operational chips
   assert.match(lines[1], /^🏠 6\/10 local/, 'PR-I: line 2 leads with N/M local (no redundant second cow)');
   assert.doesNotMatch(lines[1], /local ×6/, 'PR-I: old ×N local count is gone');
-  assert.match(lines[1], /ctx \[.*\] 23%/, 'line 2 shows ctx as a visual bar (W2.8)');
+  assert.match(lines[1], /ctx \S+ 23%/, 'line 2 shows ctx as a visual bar (W19 ▰▱ evolution bar)');
   assert.match(lines[1], /☁ Claude Max 100% · 5h reset/, 'PR-I: quota carries cloud anchor + label');
   assert.doesNotMatch(lines[1], /\b100% 5h\b/, 'PR-I: bare "100% 5h" replaced by labelled quota');
-  assert.match(lines[1], /adapter — baseline · mooter forge install/, 'PR-I: adapter uses em-dash + shipped forge CTA');
+  assert.match(lines[1], /🧬 baseline/, 'W19 19.B-4: adapter chip evolved to 🧬 baseline');
   assert.doesNotMatch(lines[1], /forge install <gguf>/, 'PR-I: verbose <gguf> CTA trimmed');
   assert.match(lines[1], /pack: diagram-systems/, 'line 2 shows pack');
   // VRAM, when the host exposes a GPU chip, must read as a % — never the old "GB / GB" pair
