@@ -38,9 +38,10 @@ test('formatGpuChip: null when no GPU', () => {
 
 // ── Ponto #2 — ctx bar ───────────────────────────────────────────────────
 test('ctxBar: empty at 0%, full at 100%, half at 50%', () => {
-  assert.match(ctxBar(0), /\[.*░░░░░░░░░░.*\] 0%/);
-  assert.match(ctxBar(100), /\[.*██████████.*\] 100%/);
-  assert.match(ctxBar(50), /█████░░░░░/);
+  // Wave 19 (19.B-3) — ▰▱ evolution bar, no surrounding brackets.
+  assert.match(ctxBar(0), /▱▱▱▱▱▱▱▱▱▱.*0%/);
+  assert.match(ctxBar(100), /▰▰▰▰▰▰▰▰▰▰.*100%/);
+  assert.match(ctxBar(50), /▰▰▰▰▰▱▱▱▱▱/);
 });
 
 test('ctxBar: colour green <50, yellow <80, red >=80', () => {
@@ -51,8 +52,8 @@ test('ctxBar: colour green <50, yellow <80, red >=80', () => {
 });
 
 test('ctxBar: clamps out-of-range', () => {
-  assert.match(ctxBar(150), /██████████/);
-  assert.match(ctxBar(-5), /░░░░░░░░░░/);
+  assert.match(ctxBar(150), /▰▰▰▰▰▰▰▰▰▰/);
+  assert.match(ctxBar(-5), /▱▱▱▱▱▱▱▱▱▱/);
 });
 
 // ── Ponto #7 — quant chip ────────────────────────────────────────────────
@@ -72,7 +73,10 @@ test('renderTwoLine: adapter chip is honest baseline (LoRA Wave 5)', () => {
   const out = withColumns(140, () => renderTwoLine(localState));
   // PR-I — em-dash reads as "none"; the shipped `mooter forge install` CTA stays
   // (commands/forge.ts), trimmed of the "install via … <gguf>" verbosity.
-  assert.match(out, /adapter — baseline · mooter forge install/);
+  // Wave 19 (19.B-4) — adapter chip evolved to 🧬; baseline (no adapter) is
+  // stable. The Pastor "trained on N" suffix is runtime-dependent so it is not
+  // asserted here.
+  assert.match(out, /🧬 baseline/);
   assert.doesNotMatch(out, /◌ baseline/, 'PR-I: dotted-circle glyph replaced by em-dash');
   assert.doesNotMatch(out, /forge install <gguf>/, 'PR-I: verbose <gguf> CTA trimmed');
 });
@@ -80,7 +84,7 @@ test('renderTwoLine: adapter chip is honest baseline (LoRA Wave 5)', () => {
 // ── ctx bar in 2-line, plain text in 1-line fallback ─────────────────────
 test('render: ctx bar in 2-line (wide), bare text in 1-line (narrow)', () => {
   const wide = withColumns(140, () => render(localState));
-  assert.match(wide, /ctx \[/, '2-line uses the bar');
+  assert.match(wide, /ctx \S*[▰▱]/, '2-line uses the ▰▱ bar (W19 19.B-3)');
   const narrow = withColumns(100, () => render(localState));
-  assert.ok(!/ctx \[/.test(narrow), '1-line fallback keeps plain ctx text');
+  assert.ok(!/[▰▱]/.test(narrow), '1-line fallback keeps plain ctx text');
 });

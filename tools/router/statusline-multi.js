@@ -571,12 +571,45 @@ const PROVIDER_GLYPH = { local: '🏠', haiku: '☁', sonnet: '☁', opus: '☁'
 // flight (the direct answer to Dynamic Workflows' invisible-16 problem); the
 // Stop digest does the local 🐄 vs cloud ☁ breakdown. Shown by default (A.1):
 // an empty herd fades to dim so it reads as baseline, not noise.
-const HERD_DIM = '\x1b[2m';
-const HERD_RESET = '\x1b[0m';
-function herdChip(n, { color = true } = {}) {
+// Wave 19 (19.B-1) — per-tier ANSI palette + a color gate. Color is ON by
+// default (Claude Code renders the statusline with ANSI even though stdout is a
+// pipe), but honors NO_COLOR / MOOTER_NO_COLOR / TERM=dumb so plain-text
+// terminals and tests fall back to bare text.
+const ANSI = { reset: '\x1b[0m', green: '\x1b[32m', blue: '\x1b[34m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m' };
+const TIER_COLOR = { T0: ANSI.green, T1: ANSI.blue, T2: ANSI.yellow, T3: ANSI.red };
+function useColor() {
+  return !process.env.NO_COLOR && !process.env.MOOTER_NO_COLOR && process.env.TERM !== 'dumb';
+}
+function colorize(code, s, on = useColor()) {
+  return on && code ? `${code}${s}${ANSI.reset}` : String(s);
+}
+
+const WORKFLOW_CONCURRENCY = 3; // ≥ this many concurrent Moos lights ⚡ workflow mode
+
+/**
+ * Wave 19 (19.B-5/6) — always-on herd chip: active / total-spawned / peak.
+ * Dim when idle (0 active) so it reads as baseline, not noise. ⚡ workflow mode
+ * lights at ≥3 concurrent — the live cue that a Dynamic Workflow is running NOW.
+ * @param {{active:number,total?:number,peak?:number}|null} herd
+ * @returns {string|null}
+ */
+function buildHerdsChip(herd, { color = useColor() } = {}) {
+  if (!herd || typeof herd.active !== 'number') return null;
+  const active = Math.max(0, herd.active | 0);
+  const total = Math.max(0, Number(herd.total) || 0);
+  const peak = Math.max(0, Number(herd.peak) || 0);
+  const body = `🐄 ${active}/${total}/peak${peak}`;
+  const chip = active === 0 ? colorize(ANSI.dim, body, color) : body;
+  return active >= WORKFLOW_CONCURRENCY
+    ? `${chip} · ${colorize(ANSI.yellow, '⚡ workflow', color)}`
+    : chip;
+}
+function herdChip(n, { color = useColor() } = {}) {
   const count = Number.isFinite(Number(n)) ? Math.max(0, Math.trunc(Number(n))) : 0;
   const text = `🐄×${count}`;
-  return count === 0 && color ? `${HERD_DIM}${text}${HERD_RESET}` : text;
+  // Wave 19 (19.B-1) — route the idle-dim through the same color gate so
+  // NO_COLOR / TERM=dumb yields plain text here too (was unconditional before).
+  return count === 0 ? colorize(ANSI.dim, text, color) : text;
 }
 
 // Append the herd chip to a rendered line when the context carries a count.
@@ -623,9 +656,10 @@ function ctxBar(pct) {
   const p = Math.max(0, Math.min(100, Math.round(pct)));
   const width = 10;
   const filled = Math.round((p / 100) * width);
-  const bar = '█'.repeat(filled) + '░'.repeat(width - filled);
-  const color = p < 50 ? '\x1b[32m' : p < 80 ? '\x1b[33m' : '\x1b[31m';
-  return `ctx [${color}${bar}\x1b[0m] ${p}%`;
+  // Wave 19 (19.B-3) — ▰▱ "evolution bar" for the Claude session context window.
+  const bar = '▰'.repeat(filled) + '▱'.repeat(width - filled);
+  const code = p < 50 ? ANSI.green : p < 80 ? ANSI.yellow : ANSI.red;
+  return `ctx ${colorize(code, bar)} ${p}%`;
 }
 
 /**
@@ -658,14 +692,15 @@ function fmtTokens(n) {
  * @param {{T0,T1,T2,T3}|null} snap  per-tier {tokens_in,tokens_out,...}
  * @returns {string|null}  e.g. "🪙 T0:13.3k · T2:24.2k"
  */
-function buildTokenChip(snap) {
+function buildTokenChip(snap, { color = useColor() } = {}) {
   if (!snap) return null;
   const parts = [];
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     const s = snap[t];
     if (!s) continue;
     const tot = (Number(s.tokens_in) || 0) + (Number(s.tokens_out) || 0);
-    if (tot > 0) parts.push(`${t}:${fmtTokens(tot)}`);
+    // Wave 19 (19.B-1) — T0 green / T1 blue / T2 yellow / T3 red, free→expensive.
+    if (tot > 0) parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}`, color));
   }
   return parts.length ? `🪙 ${parts.join(' · ')}` : null;
 }
@@ -757,15 +792,14 @@ function renderTwoLine(ctx) {
   let gpuChip = formatGpuChip(readGpuFromProfile());
   if (gpuChip && !hide('vram')) {
     try {
-      // Wave 12 PR-I — VRAM as a single % is more glanceable than raw "5.4GB /
-      // 24GB"; the raw GB pair stays available via `mooter doctor`. Same detector
-      // (vram_detect), same numbers — only the presentation changes. M-series
-      // shared memory reports used_mb = -1, so the % is omitted there rather than
-      // invented.
-      const { getVram } = require('./vram_detect.js');
-      const v = getVram();
-      if (v && Number.isFinite(v.used_mb) && v.used_mb >= 0 && v.total_mb > 0) {
-        gpuChip = `${gpuChip} ${Math.round((v.used_mb / v.total_mb) * 100)}% VRAM`;
+      // Wave 19 (19.B-2) — live VRAM via nvidia-smi, file-cached 5s (each render
+      // is a fresh process, so an in-memory cache would re-spawn every time).
+      // Shows % AND used/total GB. Real reading only — null → fall back to the
+      // model-only chip; M-series shared memory has no discrete %, so it's
+      // omitted rather than invented.
+      const live = require('./hardware_live.js').vramSnapshot();
+      if (live && live.totalMb > 0) {
+        gpuChip = `${gpuChip} ${live.pct}% VRAM (${(live.usedMb / 1024).toFixed(1)}/${Math.round(live.totalMb / 1024)} GB)`;
       }
     } catch { /* keep model-only chip */ }
   }
@@ -788,18 +822,29 @@ function renderTwoLine(ctx) {
   // `mooter forge install` is the shipped command that installs a .gguf adapter
   // (commands/forge.ts), so the CTA stays — just trimmed of the "install via … <gguf>"
   // verbosity.
-  let adapterChip = 'adapter — baseline · mooter forge install';
+  // Wave 19 (19.B-4) — LoRA/Pastor evolution chip (🧬). The "trained on N"
+  // suffix is the Pastor loop's real decision count from tuning-state.json
+  // (written by update-router.js, Wave 16-18 Tier C). Absent file or
+  // sample_size 0 → no suffix; never invent a "+N pp" boost.
+  let tunedCount = 0;
+  try {
+    const ts = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, 'tuning-state.json'), 'utf8'));
+    tunedCount = Number(ts && ts.sample_size) || 0;
+  } catch { tunedCount = 0; }
+  const trained = tunedCount > 0 ? ` · trained on ${tunedCount} decisions` : '';
+
+  let adapterChip = `🧬 baseline${trained || ' · mooter forge install'}`;
   try {
     const { getActiveAdapter, markedAdapterId } = require('./adapter_selection.js');
     const active = getActiveAdapter();
     if (active && active.name) {
       const perf = active.performance && typeof active.performance.accuracy_delta === 'number'
         ? ` (${(active.performance.accuracy_delta * 100).toFixed(0)}% acc)`
-        : ' (◌ benchmark pending)';
-      adapterChip = `adapter 🔧 ${active.name}${perf}`;
+        : '';
+      adapterChip = `🧬 ${active.name}${perf}${trained}`;
     } else {
       const marked = markedAdapterId();
-      if (marked) adapterChip = `adapter ⏸ ${String(marked).slice(0, 8)} (validating)`;
+      if (marked) adapterChip = `🧬 ⏸ ${String(marked).slice(0, 8)} (validating)${trained}`;
     }
   } catch { /* keep baseline */ }
 
@@ -815,6 +860,9 @@ function renderTwoLine(ctx) {
     catch { tokenChip = null; }
   }
 
+  // Wave 19 (19.B-5/6) — always-on herd chip (active/total/peak + ⚡ workflow).
+  const herdsChip = hide('herd') ? null : buildHerdsChip(ctx.herd);
+
   const line2 = [
     localCount > 0 ? `${homeGlyph} ${localCount}/${sessionTotal} local` : null,
     localShareChip,
@@ -824,6 +872,7 @@ function renderTwoLine(ctx) {
     typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
     typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
     tokenChip,
+    herdsChip,
     quantChip,
     packChip,
     hide('adapter') ? null : adapterChip,
@@ -910,7 +959,15 @@ async function buildContext() {
   let herd = null;
   try {
     const snap = require('./subagent_tracker.js').snapshot({ session_id: sessionId });
-    herd = { active: snap.active_count, local: snap.active_local, cloud: snap.active_cloud, peak: snap.peak_concurrent };
+    herd = {
+      active: snap.active_count,
+      local: snap.active_local,
+      cloud: snap.active_cloud,
+      peak: snap.peak_concurrent,
+      // Wave 19 (19.B-5) — total spawned this session = Σ cumulative counts.
+      // Derived here (not added to subagent_tracker.snapshot) to keep the Wave 13 API unchanged.
+      total: Array.isArray(snap.cumulative) ? snap.cumulative.reduce((s, r) => s + (Number(r.count) || 0), 0) : 0,
+    };
   } catch { herd = null; }
 
   return {
@@ -1008,6 +1065,9 @@ module.exports = {
   ctxBar,
   fmtTokens,
   buildTokenChip,
+  buildHerdsChip,
+  colorize,
+  useColor,
   formatGpuChip,
   readGpuFromProfile,
   digest,
