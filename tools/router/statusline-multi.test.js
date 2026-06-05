@@ -404,7 +404,7 @@ test('pickState: turn + alltime cost chips rendered from tracker metrics', () =>
 test('pickState: full green proof orders ctx · 5h · turn · alltime', () => {
   const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.equal(s.proof, 'ctx 23% · 42% 5h · turn $0.04 · alltime $4.21');
+  assert.equal(s.proof, 'ctx 23% · 42% 5h est · turn $0.04 · alltime $4.21');
 });
 
 test('renderFromContext: full mode (COLUMNS=120) shows pack + adapter chips', () => {
