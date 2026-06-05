@@ -358,7 +358,9 @@ function pickState(ctx) {
   // sight of the last decision.
   const proofParts = [];
   if (typeof ctxPercent === 'number') proofParts.push(`ctx ${ctxPercent}%`);
-  if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h`);
+  // Wave 16-18 Day 2 B1 — "est" marks this as a LOCAL estimate (computeAnthropicRem
+  // from quota-state.json, 0 network calls), not Anthropic's authoritative quota.
+  if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
   if (typeof lastTurnCost === 'number') proofParts.push(`turn $${lastTurnCost.toFixed(2)}`);
   if (typeof alltimeCost === 'number') proofParts.push(`alltime $${alltimeCost.toFixed(2)}`);
   const proofChips = proofParts.join(' · ') || '—';

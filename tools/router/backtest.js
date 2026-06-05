@@ -22,7 +22,9 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 
-const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
+// Wave 16-18 Day 2 (Tier C) — MOOTER_ROUTER_DIR override lets pastor-tune.js and
+// the integration test run the loop into a temp dir without touching ~/.claude.
+const ROUTER_DIR = process.env.MOOTER_ROUTER_DIR || path.join(os.homedir(), '.claude', 'tools', 'router');
 // LOG_PATH is overridable via MOOTER_DECISIONS_LOG so test runners can
 // point at a fixture without polluting the real router log. The override
 // matches the same env var consumed by router-execute.js.
