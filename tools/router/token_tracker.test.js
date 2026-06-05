@@ -97,7 +97,7 @@ test('🪙 chip: shows ALL FOUR tiers (incl. zeros), compact units', () => {
   };
   // Wave 19 Day 4.1 — every tier visible; hiding zeros mislead "only uses Opus".
   // color:false → bare text (ANSI on by default; see the 19.B-1 color test).
-  assert.equal(buildTokenChip(snap, { color: false }), '🪙 T0:13.3k · T1:0 · T2:24.2k · T3:0');
+  assert.equal(buildTokenChip(snap, { color: false }), '🪙 T0:13.3k tkns · T1:0 · T2:24.2k · T3:0');
   assert.equal(buildTokenChip(null, { color: false }), null); // no data ≠ all-zero
 });
 
@@ -106,10 +106,10 @@ test('🪙 chip Day 4.1: an all-zero session still renders the full 4-tier chip'
   // A fresh session (snapshot returns zeros, not null) must show every tier at 0
   // — the honest "no spend yet", never a misleading single-tier chip or nothing.
   const zero = { T0: { tokens_in: 0, tokens_out: 0 }, T1: {}, T2: {}, T3: {} };
-  assert.equal(buildTokenChip(zero, { color: false }), '🪙 T0:0 · T1:0 · T2:0 · T3:0');
+  assert.equal(buildTokenChip(zero, { color: false }), '🪙 T0:0 tkns · T1:0 · T2:0 · T3:0');
   // A T3-only session shows the zeros that prove cheaper tiers were available.
   const t3only = { T0: {}, T1: {}, T2: {}, T3: { tokens_in: 2000000, tokens_out: 400000 } };
-  assert.equal(buildTokenChip(t3only, { color: false }), '🪙 T0:0 · T1:0 · T2:0 · T3:2.4M');
+  assert.equal(buildTokenChip(t3only, { color: false }), '🪙 T0:0 tkns · T1:0 · T2:0 · T3:2.4M');
 });
 
 test('modelToTier maps models to tiers and ignores non-T0–T3 models', () => {

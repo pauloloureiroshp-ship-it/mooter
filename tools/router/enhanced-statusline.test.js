@@ -24,7 +24,8 @@ test('19.B-1: token chip colors each tier T0🟢 T1🔵 T2🟡 T3🔴, plain on 
   // Fallback: plain text, no escapes.
   const plain = sl.buildTokenChip(snap, { color: false });
   assert.ok(!plain.includes('\x1b['), 'no ANSI when color disabled');
-  assert.equal(plain, '🪙 T0:1.0k · T1:500 · T2:2.0k · T3:1.0M');
+  // Wave 20 (20.C) — a single "tkns" unit label rides the first tier.
+  assert.equal(plain, '🪙 T0:1.0k tkns · T1:500 · T2:2.0k · T3:1.0M');
   // The line-1 idle herd badge honors the same gate (no leaked dim escape).
   assert.equal(sl.herdChip(0, { color: false }), '🐄×0');
   assert.ok(sl.herdChip(0, { color: true }).includes('\x1b[2m'), 'dim when color on');
