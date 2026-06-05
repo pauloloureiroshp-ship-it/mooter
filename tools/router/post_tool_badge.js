@@ -170,12 +170,18 @@ function main() {
   const badge = buildPostToolBadge(sub);
   if (badge) process.stdout.write(badge + '\n');
 
+  // Read the session id once (stdin is single-use) and reuse it below.
+  const sessionId = readSessionId();
+
+  // Wave 19 (19.A) — keep the per-tier token cache fresh from the session
+  // transcript (real cloud tokens). Best-effort; the statusline reads the cache.
+  try { require('./token_tracker.js').syncFromTranscript(sessionId); } catch { /* hooks never throw */ }
+
   // Wave 13 — per-agent herd annotation. Best-effort; a missing tracker, no
   // session, or quiet/silent verbosity simply prints nothing extra.
   const verbosity = herdVisibility(prefs);
   if (!herdAnnotationEnabled(verbosity)) return;
   try {
-    const sessionId = readSessionId();
     const snap = require('./subagent_tracker.js').snapshot({ session_id: sessionId });
     const agentName = sub && sub.subagent && sub.subagent !== 'inline' ? sub.subagent : null;
     const line = herdAnnotationFor(agentName, snap, verbosity);

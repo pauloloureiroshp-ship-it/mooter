@@ -640,6 +640,36 @@ function ctxBar(pct) {
  * Note: a per-turn token in/out meter is intentionally omitted — buildContext
  * does not track token counts, and inventing them would violate provenance.
  */
+/**
+ * Compact a token count: 1_898_286 → "1.9M", 13_300 → "13.3k", 940 → "940".
+ * Honest rounding — never invents precision the source lacks.
+ */
+function fmtTokens(n) {
+  const v = Number(n) || 0;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`;
+  return String(Math.round(v));
+}
+
+/**
+ * Wave 19 (19.A) — the 🪙 per-tier token chip. Renders only tiers that consumed
+ * real tokens (input+output; cache tokens are excluded from the headline). All
+ * tiers zero → null (chip dropped) so the line stays quiet on a fresh session.
+ * @param {{T0,T1,T2,T3}|null} snap  per-tier {tokens_in,tokens_out,...}
+ * @returns {string|null}  e.g. "🪙 T0:13.3k · T2:24.2k"
+ */
+function buildTokenChip(snap) {
+  if (!snap) return null;
+  const parts = [];
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    const s = snap[t];
+    if (!s) continue;
+    const tot = (Number(s.tokens_in) || 0) + (Number(s.tokens_out) || 0);
+    if (tot > 0) parts.push(`${t}:${fmtTokens(tot)}`);
+  }
+  return parts.length ? `🪙 ${parts.join(' · ')}` : null;
+}
+
 function renderTwoLine(ctx) {
   const state = pickState(ctx);
   const glyph = COLOR_GLYPH[state.color];
@@ -776,6 +806,15 @@ function renderTwoLine(ctx) {
   // Wave 2.8 ctx visual bar (already shipped W2.8). `--hide-ctx` drops it.
   const ctxChip = !hide('ctx') && typeof ctx.ctxPercent === 'number' ? ctxBar(ctx.ctxPercent) : null;
 
+  // Wave 19 (19.A) — 🪙 real tokens per tier. Cache-only snapshot (the PostToolUse
+  // hook keeps it fresh), so it never parses the transcript on the render path.
+  // `hidden_chips: ["tokens"]` drops it. Best-effort: any failure → no chip.
+  let tokenChip = null;
+  if (!hide('tokens')) {
+    try { tokenChip = buildTokenChip(require('./token_tracker.js').snapshot(ctx.sessionId)); }
+    catch { tokenChip = null; }
+  }
+
   const line2 = [
     localCount > 0 ? `${homeGlyph} ${localCount}/${sessionTotal} local` : null,
     localShareChip,
@@ -784,6 +823,7 @@ function renderTwoLine(ctx) {
     typeof ctx.anthRem === 'number' ? `☁ Claude Max ${ctx.anthRem}% · 5h reset` : null,
     typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
     typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
+    tokenChip,
     quantChip,
     packChip,
     hide('adapter') ? null : adapterChip,
@@ -882,6 +922,7 @@ async function buildContext() {
     lastPack, adapter,
     tick,
     herd,
+    sessionId,
     dataMissing: !lines.length && !quota.providers,
   };
 }
@@ -965,6 +1006,8 @@ module.exports = {
   herdChip,
   appendHerd,
   ctxBar,
+  fmtTokens,
+  buildTokenChip,
   formatGpuChip,
   readGpuFromProfile,
   digest,
