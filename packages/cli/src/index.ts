@@ -30,7 +30,7 @@ Usage:
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline]      educational guide to each statusline chip
-  mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]]   provenance / 7d / safety
+  mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
   mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
   mooter logout                    remove the saved token (sync reverts to dry-run)
@@ -97,6 +97,7 @@ async function main(argv: string[]): Promise<number> {
       evolution: rest.includes("--evolution"),
       safety: rest.includes("--safety"),
       byKeyword: rest.includes("--by-keyword"),
+      calls: rest.includes("--calls"),
     });
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
