@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { env, HUB_URL } from '../lib/env';
+import { env } from '../lib/env';
 import { VersionBadge } from '../_components/VersionBadge';
 import { formatGpuLabel } from '../onboarding/_lib/hardware';
+import NavBar from '@/components/NavBar';
 
 const ADMIN_EMAIL = 'paulo.loureiro.shp@gmail.com';
 
@@ -293,36 +294,9 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   );
 }
 
-// ── Login hero — split-screen warm dark ─────────────────────────────────────
-
-type LoginStats = { prompt_count: number; savings_pct: number; savings_usd: number };
-
-function useLoginStats(): LoginStats {
-  const [stats, setStats] = useState<LoginStats>({
-    prompt_count: 1437,
-    savings_pct: 89.9,
-    savings_usd: 6.29,
-  });
-  useEffect(() => {
-    fetch(`${HUB_URL}/api/stats`, { signal: AbortSignal.timeout(3000) })
-      .then(r => r.json())
-      .then(data => {
-        if (data?.prompt_count) {
-          setStats({
-            prompt_count: data.prompt_count,
-            savings_pct: data.avg_savings_pct ?? 89.9,
-            savings_usd: data.total_savings_usd ?? 6.29,
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
-  return stats;
-}
+// ── Login hero — split-screen dark (brand parity with the landing) ──────────
 
 function LoginHero() {
-  const stats = useLoginStats();
-
   const handleLogin = () => {
     const redirectTo = `${window.location.origin}/auth/callback`;
     window.location.href =
@@ -332,24 +306,17 @@ function LoginHero() {
       `&scopes=read:user,public_repo`;
   };
 
-  const fmtNum = (n: number) =>
-    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n));
-
   return (
-    <div className="app-shell-root">
+    // app-shell-root keeps the .login-hero grid CSS; app-shell-dark flips the
+    // tokens to the landing dark palette (Wave 15 F-A1). NavBar gives brand
+    // parity + an escape back to the landing.
+    <div className="app-shell-root app-shell-dark">
+      <NavBar />
       <div className="login-hero">
         {/* Left — auth */}
         <div className="login-hero-left">
           <div style={{ maxWidth: 440 }}>
-            {/* Brand */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
-              <MooterLogo size={32} />
-              <span style={{
-                fontSize: '1.05rem', color: 'var(--text)', fontWeight: 700,
-                fontFamily: 'var(--font-sans), sans-serif', letterSpacing: '-0.02em',
-              }}>mooter</span>
-            </div>
-
+            {/* Brand lives in the NavBar above — no in-hero logo (Wave 15). */}
             {/* Headline */}
             <h1 style={{
               fontSize: 'clamp(2.2rem, 4.5vw, 2.9rem)',
@@ -411,20 +378,9 @@ function LoginHero() {
             }}>
               Free forever · MIT · No credit card
             </p>
-
-            {/* Live stats */}
-            <div style={{
-              display: 'flex', gap: 24, alignItems: 'baseline',
-              marginTop: 48, padding: '16px 0',
-              borderTop: '1px solid var(--border)',
-              flexWrap: 'wrap',
-            }}>
-              <InlineStat value={`${fmtNum(stats.prompt_count)}`} label="prompts" />
-              <div style={{ color: 'var(--faint)' }}>·</div>
-              <InlineStat value={`~${stats.savings_pct.toFixed(0)}%`} label="saved" accent />
-              <div style={{ color: 'var(--faint)' }}>·</div>
-              <InlineStat value={`$${stats.savings_usd.toFixed(2)}`} label="community" />
-            </div>
+            {/* Wave 15 F-A2 — removed the seeded "community" stats. Friends-launch
+                is Paulo's personal launch; real numbers live behind sign-in, not
+                fabricated on the gate. */}
           </div>
         </div>
 
@@ -433,25 +389,6 @@ function LoginHero() {
           <LoginStatuslinePreview />
         </div>
       </div>
-    </div>
-  );
-}
-
-function InlineStat({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
-  return (
-    <div>
-      <div style={{
-        fontSize: '1.1rem', fontWeight: 700,
-        color: accent ? 'var(--accent-soft)' : 'var(--text)',
-        fontFamily: 'var(--font-mono), monospace',
-        letterSpacing: '-0.01em',
-      }}>{value}</div>
-      <div style={{
-        fontSize: '0.64rem', color: 'var(--muted)',
-        textTransform: 'uppercase', letterSpacing: '0.08em',
-        fontFamily: 'var(--font-mono), monospace',
-        marginTop: 2,
-      }}>{label}</div>
     </div>
   );
 }
