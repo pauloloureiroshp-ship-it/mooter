@@ -694,15 +694,18 @@ function fmtTokens(n) {
  */
 function buildTokenChip(snap, { color = useColor() } = {}) {
   if (!snap) return null;
+  // Wave 19 (Day 4.1) — show ALL FOUR tiers, even at 0. Hiding zero tiers made
+  // a session read as "🪙 T3:2.4M" → "Mooter only uses Opus", the exact OPPOSITE
+  // of the transparency promise. The whole point is to show the mix, including
+  // the zeros that prove cheaper tiers were available.
   const parts = [];
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
-    const s = snap[t];
-    if (!s) continue;
+    const s = snap[t] || {};
     const tot = (Number(s.tokens_in) || 0) + (Number(s.tokens_out) || 0);
-    // Wave 19 (19.B-1) — T0 green / T1 blue / T2 yellow / T3 red, free→expensive.
-    if (tot > 0) parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}`, color));
+    // T0 green / T1 blue / T2 yellow / T3 red, free→expensive (Wave 19 19.B-1).
+    parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}`, color));
   }
-  return parts.length ? `🪙 ${parts.join(' · ')}` : null;
+  return `🪙 ${parts.join(' · ')}`;
 }
 
 function renderTwoLine(ctx) {
