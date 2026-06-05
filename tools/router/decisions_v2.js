@@ -91,6 +91,24 @@ function appendFromDecision(d, opts = {}) {
   }
 }
 
+/**
+ * Read v2 records (newest `limit` kept). Skips junk + tierless lines. Returns []
+ * on a missing file. Pure read — never throws. Used by `mooter trail --calls`
+ * and the Stop session report.
+ */
+function readRecords(opts = {}) {
+  let raw;
+  try { raw = fs.readFileSync(opts.logPath || logPath(), 'utf8'); } catch { return []; }
+  const out = [];
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let r;
+    try { r = JSON.parse(line); } catch { continue; }
+    if (r && r.tier) out.push(r);
+  }
+  return opts.limit ? out.slice(-opts.limit) : out;
+}
+
 module.exports = {
   SCHEMA_FIELDS,
   shortLlm,
@@ -98,5 +116,6 @@ module.exports = {
   recordFromDecision,
   sanitize,
   appendFromDecision,
+  readRecords,
   logPath,
 };
