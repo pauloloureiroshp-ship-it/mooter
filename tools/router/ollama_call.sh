@@ -89,7 +89,7 @@ printf '%s' "$RESPONSE" | MODEL="$MODEL" TT_DIR="$SCRIPT_DIR" node -e "
       require(process.env.TT_DIR + '/token_tracker.js').trackCall(
         'T0', j.model || process.env.MODEL,
         Number(j.prompt_eval_count) || 0, Number(j.eval_count) || 0,
-        { sessionId: process.env.CLAUDE_SESSION_ID }
+        { sessionId: process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID }
       );
     } catch (_e) { /* tracker is best-effort */ }
   });
