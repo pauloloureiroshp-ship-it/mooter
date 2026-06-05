@@ -610,10 +610,25 @@ try {
   _prevTier = readLastSessionTier(_sid);
 } catch (_e) {}
 
+// Wave 21 (C2) — classifier-stability normalisation. The regex classifier is
+// byte-sensitive to keywords that bleed in from embedded paths/counts (the
+// "release" in /etc/os-release tipped it to T3 while /etc/hostname stayed T1).
+// We classify (and cache) a CANONICAL form so a family of prompts routes to ONE
+// stable tier; the ORIGINAL `prompt` still feeds the LLM, Option A, the optimiser
+// and the logs. The normaliser re-surfaces genuine risk path tokens (.env, …) so
+// the HIGH_RISK floor is never weakened. Best-effort: any failure falls back to
+// the raw prompt (zero behaviour change).
+let classifyInput = prompt;
+try {
+  const { normalisePrompt } = require('./normalise_prompt.js');
+  const norm = normalisePrompt(prompt);
+  if (norm && norm.length >= 4) classifyInput = norm;
+} catch { /* normaliser best-effort — classify the raw prompt */ }
+
 // Hook cache lookup before spawning classify.js
 let decision = null;
 let cacheHit = false;
-const cachedResult = getClassifyCached(prompt, _prevTier);
+const cachedResult = getClassifyCached(classifyInput, _prevTier);
 if (cachedResult) {
   decision = cachedResult.decision;
   cacheHit = true;
@@ -631,7 +646,9 @@ if (!decision) {
   }
   // v0.10: propagate prevTier to classify.js for short follow-up inheritance
   if (_prevTier) classifyEnv.FRUGAL_PREV_TIER = _prevTier;
-  const res = spawnSync(process.execPath, [classifier, prompt], {
+  // Wave 21 (C2) — classify the normalised form (classifyInput), not the raw
+  // prompt, so a path/count never tips the tier. classify.js is byte-identical.
+  const res = spawnSync(process.execPath, [classifier, classifyInput], {
     encoding: 'utf8',
     timeout: 1500,
     env: classifyEnv,
@@ -648,8 +665,10 @@ if (!decision) {
     process.exit(0);
   }
 
-  // Cache the fresh decision (skipped if user_override detected — handled inside setClassifyCached)
-  setClassifyCached(prompt, decision, null, _prevTier);
+  // Cache the fresh decision under the normalised key (skipped if user_override
+  // detected — handled inside setClassifyCached). Wave 21 (C2): caching on the
+  // canonical form means an entire prompt family shares one entry → identical tier.
+  setClassifyCached(classifyInput, decision, null, _prevTier);
 }
 
 // ── /mooter-<slug> Anthropic pin (Sessão A, 2026-05-27) ────────────────
@@ -1264,6 +1283,14 @@ try {
     }
   }
 } catch { /* never let this break the hint */ }
+
+// Wave 21 (C3) — final coherence pass. After every guardrail (budget cap, zen,
+// safety floor) the tier is the source of truth; reconcile model/backend/subagent
+// to it so the emitted hint + tier-badge never contradict themselves (no more
+// `tier:T0 + opus + model-architect`). Best-effort; tier-authoritative.
+try {
+  require('./hint_coherence.js').coerceHintCoherent(decision, { t0Model: bestOllamaT0() });
+} catch { /* coherence is best-effort — never block the hint */ }
 
 const lines = [
   '<router-hint>',

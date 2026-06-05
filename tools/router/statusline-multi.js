@@ -594,6 +594,14 @@ const WORKFLOW_CONCURRENCY = 3; // ≥ this many concurrent Moos lights ⚡ work
  * @returns {string|null}
  */
 function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
+  // Wave 21 Day 3 (C1.5) — HIDDEN pending Wave 22 SubagentStop hook.
+  // The Day 2 PostToolUse fix correctly detects inner Bash subagents via the
+  // agent_type+agent_id payload, but the outer Agent tool payload does NOT carry
+  // those fields (empirically confirmed by Paulo). Without a reliable spawn signal
+  // the chip would render `🐄 0/0/peak0` — a lie. Suppressing is more honest than
+  // showing a false zero. Native SubagentStop hook (Claude Code v2.1.165) lands in
+  // Wave 22; the full body + recordSpawn writer below are preserved intact for reuse.
+  return '';
   if (!herd || typeof herd.active !== 'number') return null;
   const active = Math.max(0, herd.active | 0);
   const total = Math.max(0, Number(herd.total) || 0);
@@ -747,6 +755,33 @@ function fmtSharePct(p) {
   return p < 10 ? p.toFixed(1) : String(Math.round(p));
 }
 
+/**
+ * Wave 21 (C4) — the 🏠 chip, from a SINGLE source. The Wave 20 chip concatenated
+ * three disagreeing numbers on one line: calls from decisions.log
+ * (`ctx.counts.T0/ctx.total`), a token% from token_tracker, and an ASCII bar from
+ * the sparkline (`localCloudSplit(ctx.recent)`) — e.g. "2/56 calls (4%) · 12%
+ * tokens local · ░░░ 0% local". Here both numbers derive from ONE source: the
+ * token_tracker snapshot (already `_pushed`+`_transcript` reconciled), so the 🏠
+ * chip agrees with the 🪙 chip. No fabricated chip when nothing was recorded.
+ * @param {{T0,T1,T2,T3}|null} tokSnap token_tracker.snapshot()
+ * @param {string} [homeGlyph]
+ * @returns {string|null}
+ */
+function buildLocalChip(tokSnap, homeGlyph = '🏠') {
+  if (!tokSnap) return null;
+  let t0calls = 0, totalCalls = 0;
+  for (const t of ['T0', 'T1', 'T2', 'T3']) {
+    const c = Number(tokSnap[t] && tokSnap[t].calls) || 0;
+    totalCalls += c;
+    if (t === 'T0') t0calls = c;
+  }
+  if (totalCalls <= 0) return null; // nothing recorded → no chip (never a fake 0%)
+  const callsPct = Math.round((t0calls / totalCalls) * 100);
+  const tlp = tokensLocalPct(tokSnap);
+  const tokPart = tlp === null ? '' : ` · ${fmtSharePct(tlp)}% tokens local`;
+  return `${homeGlyph} ${t0calls}/${totalCalls} calls (${callsPct}%)${tokPart}`;
+}
+
 function renderTwoLine(ctx) {
   const state = pickState(ctx);
   const glyph = COLOR_GLYPH[state.color];
@@ -777,9 +812,11 @@ function renderTwoLine(ctx) {
     line1 = `${line1}  ·  ${state.lastLabel}`;
   }
 
-  // Wave 13 "Show the Herd" — live `🐄×N` count of subagents in flight, trailing
-  // Line 1. Shown by default (A.1); empty herd renders dim.
-  line1 = appendHerd(line1, ctx);
+  // Wave 21 (C4 / DoD #3) — the herd used to render TWICE in the two-line layout:
+  // `🐄×N` here on line 1 (appendHerd) AND `🐄 N/M/peakK` on line 2 (buildHerdsChip).
+  // The line-2 chip is strictly richer (active/total/peak + ⚡ workflow), so the
+  // line-1 duplicate is dropped. The one-line layout (renderFromContext) keeps its
+  // appendHerd — it has no buildHerdsChip, so that's its only herd display.
 
   // Wave 12 PR-I — the per-decision Moo glyph that used to open line 2 was a
   // second cow, redundant with the 🐮 already branding line 1. Dropped. We still
@@ -790,24 +827,10 @@ function renderTwoLine(ctx) {
     homeGlyph = (PROVIDER_GLYPHS && PROVIDER_GLYPHS.local) || '🏠';
   } catch { homeGlyph = '🏠'; }
 
-  // Local-Moo usage count (T0 = local tier) from the per-session tier counts.
-  const localCount = (ctx.counts && Number(ctx.counts.T0)) || 0;
-  // Wave 12 PR-I — denominator for the local-count chip ("6/10 local"). Total
-  // classified decisions in the session window; falls back to the local count
-  // itself if the digest carried no total (keeps the ratio sane, never > 1).
-  const sessionTotal = Number(ctx.total) || localCount;
-
-  // Wave 10 A.1 — Cinematic: replace the verbose "🐄 last10: T0:.. T1:.." text
-  // chip with a visual local-share bar. The line-1 sparkline already carries the
-  // per-decision tier detail, so line 2 shows just the aggregate % that ran
-  // locally. Best-effort; a missing module or empty history drops the chip.
-  let localShareChip = null;
-  try {
-    if (Array.isArray(ctx.recent) && ctx.recent.length) {
-      const { localCloudSplit, localBar } = require('./sparkline.js');
-      localShareChip = localBar(localCloudSplit(ctx.recent).pct);
-    }
-  } catch { localShareChip = null; }
+  // Wave 21 (C4) — the line-2 local-share ASCII bar (`░░░ 0% local`) was the third,
+  // disagreeing source of the 🏠 chip and read as a flat 0% even mid-session. It's
+  // dropped; the single-source buildLocalChip above is the honest local metric and
+  // the line-1 sparkline already carries the per-decision tier detail.
 
   // Pack chip — mirror renderFromContext's GENERAL/AMBIGUOUS handling. This is
   // the one user-controlled (unbounded) chip, so it's the only one we truncate;
@@ -901,18 +924,11 @@ function renderTwoLine(ctx) {
   try { tokSnap = require('./token_tracker.js').snapshot(ctx.sessionId); } catch { tokSnap = null; }
   const tokenChip = hide('tokens') ? null : buildTokenChip(tokSnap);
 
-  // Wave 20 (20.D) — dual metric: local share by CALLS and by TOKENS. The calls %
-  // can look reassuring (6/10 local) while the tokens % tells the real cost story
-  // (a single Opus turn dwarfs many Ollama calls). Both shown so neither misleads
-  // on its own; the tokens part is dropped when there is no token data (never a
-  // fabricated 0%).
-  let homeChip = null;
-  if (localCount > 0) {
-    const callsPct = sessionTotal > 0 ? Math.round((localCount / sessionTotal) * 100) : 0;
-    const tlp = tokensLocalPct(tokSnap);
-    const tokPart = tlp === null ? '' : ` · ${fmtSharePct(tlp)}% tokens local`;
-    homeChip = `${homeGlyph} ${localCount}/${sessionTotal} calls (${callsPct}%)${tokPart}`;
-  }
+  // Wave 21 (C4) — single-source 🏠 chip from the token_tracker snapshot (calls +
+  // token% from the SAME reconciled source, agreeing with the 🪙 chip). Replaces
+  // the Wave 20 three-source concat. The misleading ASCII `localShareChip` bar is
+  // dropped from line 2 below.
+  const homeChip = hide('home') ? null : buildLocalChip(tokSnap, homeGlyph);
 
   // Wave 19 (19.B-5/6) — always-on herd chip (active/total/peak + ⚡ workflow).
   // Wave 20 (20.E) — pass the render tick so the chip can pulse while Moos work.
@@ -920,7 +936,6 @@ function renderTwoLine(ctx) {
 
   const line2 = [
     homeChip,
-    localShareChip,
     gpuChip,
     ctxChip,
     typeof ctx.anthRem === 'number' ? `☁ Claude Max ${ctx.anthRem}% · 5h reset` : null,
@@ -1122,6 +1137,7 @@ module.exports = {
   buildTokenChip,
   tokensLocalPct,
   fmtSharePct,
+  buildLocalChip,
   buildHerdsChip,
   colorize,
   useColor,

@@ -79,20 +79,19 @@ test('19.B-4: renderTwoLine surfaces the 🧬 LoRA/Pastor chip (baseline stable)
   }
 });
 
-// ── 19.B-5 — Moos/Herds always-on chip ───────────────────────────────────
-test('19.B-5: herds chip shows active/total/peak, dim when idle', () => {
-  const idle = sl.buildHerdsChip({ active: 0, total: 17, peak: 9 }, { color: true });
-  assert.match(idle, /🐄 0\/17\/peak9/);
-  assert.ok(idle.includes('\x1b[2m'), 'dim when 0 active');
-  const busy = sl.buildHerdsChip({ active: 2, total: 17, peak: 9 }, { color: true });
-  assert.match(busy, /🐄 2\/17\/peak9/);
-  assert.ok(!busy.startsWith('\x1b[2m'), 'not dim when active');
-  assert.equal(sl.buildHerdsChip(null), null, 'no herd data → no chip');
+// ── 19.B-5/6 — DEPRECATED by Wave 21 Day 3 (C1.5) ─────────────────────────
+// The always-on herd chip is HIDDEN pending the Wave 22 SubagentStop hook: the
+// outer Agent tool payload doesn't carry agent_type+agent_id, so without a
+// reliable spawn signal the chip would render a false `0/0/peak0`. buildHerdsChip
+// now suppresses (returns ''); these tests assert the suppression instead of the
+// old active/total/peak + ⚡ rendering (preserved for Wave 22 reuse).
+test('19.B-5: herds chip is hidden pending Wave 22 (was active/total/peak, dim when idle)', () => {
+  assert.equal(sl.buildHerdsChip({ active: 0, total: 17, peak: 9 }, { color: true }), '');
+  assert.equal(sl.buildHerdsChip({ active: 2, total: 17, peak: 9 }, { color: true }), '');
+  assert.equal(sl.buildHerdsChip(null), '', 'no herd data → no chip');
 });
 
-// ── 19.B-6 — concurrent Moos workflow mode (⚡) ──────────────────────────
-test('19.B-6: ⚡ workflow mode lights at >= 3 concurrent, off below', () => {
-  assert.doesNotMatch(sl.buildHerdsChip({ active: 2, total: 5, peak: 2 }, { color: false }), /⚡/);
-  const wf = sl.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false });
-  assert.match(wf, /🐄 3\/9\/peak3 · ⚡ workflow/);
+test('19.B-6: ⚡ workflow mode is hidden pending Wave 22 (was lit at >= 3 concurrent)', () => {
+  assert.equal(sl.buildHerdsChip({ active: 2, total: 5, peak: 2 }, { color: false }), '');
+  assert.equal(sl.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false }), '');
 });

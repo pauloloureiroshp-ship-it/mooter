@@ -20,7 +20,22 @@ const healthyState = {
   lastPack: { pack_id: 'diagram-systems' },
   adapter: { status: 'idle' },
   dataMissing: false,
+  // Wave 21 (C4) — the 🏠 chip is token_tracker-driven; give the fixture a session
+  // so the chip-asserting test below can seed a real token cache for it.
+  sessionId: 'w21-twoline-fixture',
 };
+
+// Wave 21 (C4) — seed a token cache matching the fixture's 6/10 local-by-calls so
+// renderTwoLine's single-source 🏠 chip renders the same "6/10 calls (60%)" it used
+// to derive from ctx.counts. Returns a cleanup fn.
+function seedHomeChipTokens() {
+  const tt = require('./token_tracker.js');
+  const sid = healthyState.sessionId;
+  for (let i = 0; i < 6; i++) tt.trackCall('T0', 'qwen3:30b', 100, 50, { sessionId: sid });
+  for (let i = 0; i < 2; i++) tt.trackCall('T1', 'haiku', 100, 50, { sessionId: sid });
+  for (let i = 0; i < 2; i++) tt.trackCall('T2', 'sonnet', 100, 50, { sessionId: sid });
+  return () => { try { require('fs').rmSync(tt.cachePath(sid), { force: true }); } catch { /* best-effort */ } };
+}
 
 function withColumns(cols, fn) {
   const prev = process.env.COLUMNS;
@@ -31,8 +46,11 @@ function withColumns(cols, fn) {
 }
 
 test('render: 2-line layout when COLUMNS >= 120', () => {
-  const out = withColumns(140, () => render(healthyState));
-  const lines = out.split('\n');
+  const cleanup = seedHomeChipTokens();
+  let out, lines;
+  try {
+    out = withColumns(140, () => render(healthyState));
+    lines = out.split('\n');
   assert.equal(lines.length, 2, 'wide terminal renders exactly two lines');
   assert.match(lines[0], /🐮/, 'line 1 carries the mood glyph');
   // PR-I line-1 qualifiers + de-branding
@@ -54,6 +72,9 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   if (/🎮/.test(lines[1])) {
     assert.match(lines[1], /🎮[^·]*\d+% VRAM/, 'PR-I: VRAM shown as % when a GPU is present');
     assert.doesNotMatch(lines[1], /GB \/ /, 'PR-I: raw GB pair removed from the chip');
+  }
+  } finally {
+    cleanup();
   }
 });
 
