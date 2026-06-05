@@ -108,7 +108,7 @@ function aggregateTranscript(transcriptPath) {
  */
 function trackCall(tier, llm, tokens_in, tokens_out, opts = {}) {
   if (!TIERS.includes(tier)) return;
-  const sessionId = opts.sessionId || process.env.CLAUDE_SESSION_ID || 'unknown';
+  const sessionId = opts.sessionId || process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || 'unknown';
   const cache = readCache(sessionId) || { _pushed: emptyState() };
   if (!cache._pushed) cache._pushed = emptyState();
   cache._pushed[tier].calls += 1;
