@@ -36,7 +36,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   assert.equal(lines.length, 2, 'wide terminal renders exactly two lines');
   assert.match(lines[0], /🐮/, 'line 1 carries the mood glyph');
   // PR-I line-1 qualifiers + de-branding
-  assert.match(lines[0], /saved \$0\.27 today \(89% vs all-Opus\)/, 'PR-I: saved carries today + baseline qualifiers');
+  assert.match(lines[0], /saved \$0\.27 all-time \(89% vs all-Opus\)/, 'B3: saved carries all-time + baseline qualifiers');
   assert.doesNotMatch(lines[0], /mooter saved/, 'PR-I: redundant "mooter" word dropped (🐮 already brands)');
   assert.match(lines[0], /T2 sonnet · conf 0\.84/, 'PR-I: tier shows model family + conf qualifier');
   // PR-I sparkline sits between the saved outcome and the tier label
@@ -63,7 +63,7 @@ test('render: falls back to single line when COLUMNS < 120', () => {
   assert.match(out, /🐮/);
   assert.match(out, /│/, 'single line keeps the headline │ proof separator');
   // PR-I: the de-branded "today" headline and the tier badge survive on the narrow line
-  assert.match(out, /saved \$0\.27 today/, 'PR-I: narrow line carries the today qualifier');
+  assert.match(out, /saved \$0\.27 all-time/, 'B3: narrow line carries the all-time qualifier');
   assert.doesNotMatch(out, /mooter saved/, 'PR-I: narrow line drops the redundant "mooter" word');
   assert.match(out, /T2 sonnet · conf 0\.84/, 'PR-I: narrow line keeps the tier badge (folded back onto the headline)');
 });

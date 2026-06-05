@@ -26,7 +26,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
+// Wave 16-18 Day 2 (Tier C) — MOOTER_ROUTER_DIR override (see backtest.js).
+const ROUTER_DIR = process.env.MOOTER_ROUTER_DIR || path.join(os.homedir(), '.claude', 'tools', 'router');
 const TUNING = path.join(ROUTER_DIR, 'router-tuning.json');
 const TUNING_STATE = path.join(ROUTER_DIR, 'tuning-state.json');
 

@@ -136,11 +136,17 @@ function readLastDecision() {
 }
 
 /**
- * Adapter status — Wave 5 placeholder. Until the LoRA / pack-adapter loader
- * lands we always report idle so the chip is visible and reserves the slot.
- * The future implementation will read ~/.mooter/adapter-state.json.
+ * Adapter status for the 1-line / compact view. Wave 16-18 Day 2 (B2): read the
+ * real adapter state via adapter_selection.getActiveAdapter() — the same source
+ * the 2-line view already uses. Returns idle when no verified adapter is active
+ * (no ~/.mooter/preferences.json, signature invalid, or missing .gguf).
  */
 function getAdapterStatus() {
+  try {
+    const { getActiveAdapter } = require('./adapter_selection.js');
+    const active = getActiveAdapter();
+    if (active) return { status: 'loaded', id: active.id ?? active.name ?? null };
+  } catch { /* fall through to idle */ }
   return { status: 'idle', id: null };
 }
 
@@ -352,7 +358,9 @@ function pickState(ctx) {
   // sight of the last decision.
   const proofParts = [];
   if (typeof ctxPercent === 'number') proofParts.push(`ctx ${ctxPercent}%`);
-  if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h`);
+  // Wave 16-18 Day 2 B1 — "est" marks this as a LOCAL estimate (computeAnthropicRem
+  // from quota-state.json, 0 network calls), not Anthropic's authoritative quota.
+  if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
   if (typeof lastTurnCost === 'number') proofParts.push(`turn $${lastTurnCost.toFixed(2)}`);
   if (typeof alltimeCost === 'number') proofParts.push(`alltime $${alltimeCost.toFixed(2)}`);
   const proofChips = proofParts.join(' · ') || '—';
@@ -432,7 +440,7 @@ function pickState(ctx) {
   if (typeof savedPct === 'number' && total >= 5 && savedPct < TH.SAVINGS_YELLOW) {
     return {
       color:    'yellow',
-      headline: `only ${Math.round(savedPct)}% saved today — check tier mix`,
+      headline: `only ${Math.round(savedPct)}% saved all-time — check tier mix`,
       proof,
     };
   }
@@ -451,11 +459,11 @@ function pickState(ctx) {
   // headline; the proof slot carries the operational chips instead.
   if (typeof savedUsd === 'number' && typeof savedPct === 'number') {
     // Wave 12 PR-I — 🐮 already brands the line, so the word "mooter" is dropped.
-    // "today" names the aggregation window (matches `mooter trail`); "vs all-Opus"
-    // names the baseline the savings % is measured against. The tier label rides
-    // on state.lastLabel so the renderer can sit the sparkline between the outcome
-    // and the tier (outcome → rhythm → tier).
-    const headline = `saved $${savedUsd.toFixed(2)} today (${Math.round(savedPct)}% vs all-Opus)`;
+    // Wave 16-18 Day 2 (B3): "all-time" — verified that savedUsd = metrics.saved
+    // is cumulative over the whole decisions.log (savings-tracker readDecisions +
+    // computeMetrics apply NO date filter), so the old "today" label was wrong.
+    // "vs all-Opus" names the baseline the savings % is measured against.
+    const headline = `saved $${savedUsd.toFixed(2)} all-time (${Math.round(savedPct)}% vs all-Opus)`;
     return { color: 'green', headline, proof: proofChips, lastLabel };
   }
 
