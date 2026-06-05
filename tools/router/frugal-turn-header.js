@@ -223,7 +223,7 @@ function findFreshClassified(sessionId, freshnessWindowMs) {
     }
   } catch { /* non-fatal */ }
 
-  const header = `frugal recommends → ${parts.join(' · ')}`;
+  const header = `mooter → ${parts.join(' · ')}`;
 
   process.stdout.write(JSON.stringify({
     continue: true,

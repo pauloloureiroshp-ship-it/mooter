@@ -438,3 +438,64 @@ test('clampPercent: rounds and clamps to 0..100, null on garbage', () => {
   assert.equal(clampPercent('not-a-number'), null);
   assert.equal(clampPercent(undefined), null);
 });
+
+// ── Wave 20 — token label, dual metric, herd pulse ──────────────────────
+const sl20 = require('./statusline-multi.js');
+
+test('20.C: 🪙 token chip carries a single "tkns" unit label on the first tier', () => {
+  const snap = { T0: { tokens_in: 13300, tokens_out: 0 }, T1: {}, T2: { tokens_in: 24200, tokens_out: 0 }, T3: {} };
+  const chip = sl20.buildTokenChip(snap, { color: false });
+  assert.match(chip, /^🪙 T0:13\.3k tkns · T1:0 · T2:24\.2k · T3:0$/);
+  assert.equal((chip.match(/tkns/g) || []).length, 1, 'unit label appears exactly once, not per tier');
+});
+
+test('20.D: tokensLocalPct — a high call-share can mask a tiny token-share', () => {
+  // 3 cheap local calls vs 1 huge Opus turn: lots of local CALLS, almost no local TOKENS.
+  const snap = { T0: { tokens_in: 300, tokens_out: 200 }, T1: {}, T2: {}, T3: { tokens_in: 400000, tokens_out: 100000 } };
+  const pct = sl20.tokensLocalPct(snap);
+  assert.ok(pct > 0 && pct < 1, `expected sub-1% local by tokens, got ${pct}`);
+  assert.equal(sl20.fmtSharePct(pct), pct.toFixed(1), 'sub-10% keeps one decimal (0.1%)');
+  assert.equal(sl20.fmtSharePct(60), '60', '≥10% rounds to an integer');
+  assert.equal(sl20.tokensLocalPct({ T0: {}, T1: {}, T2: {}, T3: {} }), null, 'no tokens → null, never a fake 0%');
+});
+
+test('20.D: home chip renders calls % AND tokens local % together (integration)', () => {
+  const tt = require('./token_tracker.js');
+  const session = `w20d-${process.pid}-${Date.now()}`;
+  tt.trackCall('T0', 'qwen3:30b', 300, 200, { sessionId: session });  // local, small
+  tt.trackCall('T3', 'opus', 400000, 100000, { sessionId: session });  // cloud, huge
+  const prev = process.env.COLUMNS;
+  process.env.COLUMNS = '160';
+  try {
+    const ctx = {
+      counts: { T0: 6, T1: 0, T2: 0, T3: 4 }, total: 10,
+      last: { tier: 'T0', confidence: 0.8, suggested_providers: ['qwen'] },
+      recent: [{ tier: 'T0' }], savedUsd: 0.2, savedPct: 80, ctxPercent: 20,
+      dataMissing: false, sessionId: session,
+    };
+    const line2 = sl20.renderTwoLine(ctx).split('\n')[1];
+    // Wave 21 (C4) — single-source 🏠 chip: calls AND token% both derive from the
+    // token_tracker snapshot (1 local push + 1 cloud push → 1/2 calls), so the chip
+    // agrees with the 🪙 chip. The honesty juxtaposition survives: 50% of CALLS
+    // local while only 0.1% of TOKENS local (one Opus turn dwarfs many Ollama calls).
+    assert.match(line2, /🏠 1\/2 calls \(50%\)/, 'calls share from the token snapshot');
+    assert.match(line2, /· 0\.1% tokens local/, 'tiny token share exposed alongside it (honesty)');
+  } finally {
+    if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev;
+    require('fs').rmSync(tt.cachePath(session), { force: true });
+  }
+});
+
+// Wave 21 Day 3 (C1.5) — herd chip HIDDEN pending Wave 22 SubagentStop hook, so
+// the 20.E pulse is suppressed along with the rest of the chip. buildHerdsChip
+// now returns '' for every input; the pulse logic is preserved for Wave 22 reuse.
+test('20.E: herd chip pulse is hidden pending Wave 22 (was dim trailing alternating)', () => {
+  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '');
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '');
+});
+
+test('21.D3 buildHerdsChip is hidden pending Wave 22', () => {
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: true, tick: 0 }), '');
+});

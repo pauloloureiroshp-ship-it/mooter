@@ -39,14 +39,17 @@ ensure('UserPromptSubmit', 'inject_context.js', `node "${routerFwd}/inject_conte
 ensure('UserPromptSubmit', 'frugal-turn-header.js', `node "${hooksFwd}/frugal-turn-header.js"`);
 ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
 
-// Matcher migration: existing hooks that reference exec-logger.js or
-// PostToolUse.js with matcher "Bash" need "Bash|Agent|Task" so subagent
-// spawns get tracked.
+// Matcher migration: existing hooks that reference exec-logger.js, PostToolUse.js
+// or post_tool_badge.js with matcher "Bash" need "Bash|Agent|Task" so subagent
+// spawns get tracked. Wave 21 (C1): post_tool_badge.js was MISSING from this list,
+// so the herd tracker hook only ever fired after Bash and never recorded a single
+// subagent spawn (the herd file was never written across 50+ spawns). Adding it
+// here makes the fix reproducible on reinstall / mooter-update.
 if (s.hooks.PostToolUse) {
   for (const h of s.hooks.PostToolUse) {
     if (h.matcher === 'Bash') {
       const json = JSON.stringify(h);
-      if (json.includes('exec-logger.js') || json.includes('PostToolUse.js')) {
+      if (json.includes('exec-logger.js') || json.includes('PostToolUse.js') || json.includes('post_tool_badge.js')) {
         h.matcher = 'Bash|Agent|Task';
         added++;
       }
