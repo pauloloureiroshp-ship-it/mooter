@@ -191,34 +191,27 @@ function sessionIdFrom(payload) {
  */
 function recordSpawn(payload, sessionId) {
   try {
-    const tool = payload && payload.tool_name;
-    if (tool !== 'Agent' && tool !== 'Task') return null;
-    const input = (payload && payload.tool_input) || {};
-    const agentName = String(input.subagent_type || 'subagent');
-    const spawnId = payload.tool_use_id || (payload.tool_use && payload.tool_use.id) || null;
-    const map = SUBAGENT_TIER[agentName] || { tier: null, model: null };
+    if (!payload) return null;
+    // Wave 21 Day 2 discovery: Claude Code v2.1.165 emits PostToolUse for the
+    // subagent's INNER Bash tool calls with agent_id + agent_type top-level —
+    // the outer Agent tool payload does NOT carry subagent_type. The most reliable
+    // spawn signal is `agent_type` — present iff this hook fire is inside a subagent.
+    // Multiple inner Bash tools within the same spawn share agent_id → idempotent.
+    const agentType = payload.agent_type;
+    const agentId = payload.agent_id;
+    if (!agentType || !agentId) return null;
+    const map = SUBAGENT_TIER[agentType] || { tier: null, model: null };
     const tracker = require('./subagent_tracker.js');
     const id = tracker.trackSpawn({
-      agent_name: agentName, tier: map.tier, model: map.model,
-      spawn_id: spawnId, session_id: sessionId,
+      agent_name: agentType, tier: map.tier, model: map.model,
+      spawn_id: agentId, session_id: sessionId,
     });
-    // PostToolUse is post-completion — settle it now. No duration_ms passed, so the
-    // tracker records ~0ms rather than inventing latency (honesty).
     tracker.trackComplete(id, {
-      session_id: sessionId, agent_name: agentName, tier: map.tier, model: map.model,
+      session_id: sessionId, agent_name: agentType, tier: map.tier, model: map.model,
     });
-    // Wave 21 (C1) — persistent guard. The Wave 20 root cause was a SILENT failure
-    // (the herd file was never written and nothing said so). If the write didn't
-    // land, emit ONE non-fatal stderr line (Wave 13.1 fd-2 convention) so the next
-    // failure is diagnosable instead of invisible. Never throws.
-    try {
-      if (!fs.existsSync(tracker.statePath(sessionId))) {
-        process.stderr.write(`[mooter] herd write missed: agent=${agentName} session=${sessionId || 'null'}\n`);
-      }
-    } catch { /* guard is best-effort */ }
-    return agentName;
+    return agentType;
   } catch {
-    return null; // hooks never throw
+    return null;
   }
 }
 
