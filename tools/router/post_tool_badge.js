@@ -207,6 +207,15 @@ function recordSpawn(payload, sessionId) {
     tracker.trackComplete(id, {
       session_id: sessionId, agent_name: agentName, tier: map.tier, model: map.model,
     });
+    // Wave 21 (C1) — persistent guard. The Wave 20 root cause was a SILENT failure
+    // (the herd file was never written and nothing said so). If the write didn't
+    // land, emit ONE non-fatal stderr line (Wave 13.1 fd-2 convention) so the next
+    // failure is diagnosable instead of invisible. Never throws.
+    try {
+      if (!fs.existsSync(tracker.statePath(sessionId))) {
+        process.stderr.write(`[mooter] herd write missed: agent=${agentName} session=${sessionId || 'null'}\n`);
+      }
+    } catch { /* guard is best-effort */ }
     return agentName;
   } catch {
     return null; // hooks never throw

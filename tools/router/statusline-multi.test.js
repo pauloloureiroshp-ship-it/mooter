@@ -474,7 +474,11 @@ test('20.D: home chip renders calls % AND tokens local % together (integration)'
       dataMissing: false, sessionId: session,
     };
     const line2 = sl20.renderTwoLine(ctx).split('\n')[1];
-    assert.match(line2, /🏠 6\/10 calls \(60%\)/, 'calls share shown');
+    // Wave 21 (C4) — single-source 🏠 chip: calls AND token% both derive from the
+    // token_tracker snapshot (1 local push + 1 cloud push → 1/2 calls), so the chip
+    // agrees with the 🪙 chip. The honesty juxtaposition survives: 50% of CALLS
+    // local while only 0.1% of TOKENS local (one Opus turn dwarfs many Ollama calls).
+    assert.match(line2, /🏠 1\/2 calls \(50%\)/, 'calls share from the token snapshot');
     assert.match(line2, /· 0\.1% tokens local/, 'tiny token share exposed alongside it (honesty)');
   } finally {
     if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev;

@@ -47,7 +47,10 @@ test('renderFromContext: chip rides the compact 1-line render', () => {
   assert.ok(out.includes('🐄×2'), `expected chip in: ${out}`);
 });
 
-test('renderTwoLine: chip rides Line 1 (wide terminal)', () => {
+test('renderTwoLine: herd renders once, on Line 2 (Wave 21 C4 / DoD #3)', () => {
+  // Wave 21 (C4) — the herd used to render TWICE in the two-line layout: `🐄×N` on
+  // line 1 (appendHerd) AND `🐄 N/M/peakK` on line 2 (buildHerdsChip). The line-1
+  // duplicate was dropped; the richer line-2 chip is the single herd surface.
   const prevCols = process.env.COLUMNS;
   process.env.COLUMNS = '160';
   try {
@@ -60,8 +63,9 @@ test('renderTwoLine: chip rides Line 1 (wide terminal)', () => {
       herd: { active: 3, local: 2, cloud: 1, peak: 3 },
     };
     const out = renderTwoLine(ctx);
-    const line1 = out.split('\n')[0];
-    assert.ok(line1.includes('🐄×3'), `expected chip on Line 1: ${line1}`);
+    const [line1, line2] = out.split('\n');
+    assert.ok(!line1.includes('🐄'), `Line 1 must NOT carry the herd anymore: ${line1}`);
+    assert.match(line2, /🐄 3\//, `herd renders once, on Line 2: ${line2}`);
   } finally {
     if (prevCols === undefined) delete process.env.COLUMNS;
     else process.env.COLUMNS = prevCols;

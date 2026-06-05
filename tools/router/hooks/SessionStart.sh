@@ -11,6 +11,20 @@
 
 set -uo pipefail
 
+# Wave 21 (C5) — ensure the Stop session-report digest is enabled. The digest code
+# (stop_hook.js buildSessionReport: TOKENS BY TIER / CHOICE REASONS / PER-TASK
+# BREAKDOWN / HERD / SAVINGS) is complete and correct, but it is OPT-IN
+# (`session_report_enabled`, default OFF) and the preferences file was never
+# created — so it never rendered despite the audit expecting it. Self-heal: create
+# a minimal prefs file enabling the report when none exists. Idempotent; the user
+# can disable by editing the file. Runs before the tracker fast-path so it always
+# applies. Silent on failure (a missing digest beats a hook that yells).
+PREFS="${HOME}/.mooter/preferences.json"
+if [ ! -f "$PREFS" ]; then
+  mkdir -p "${HOME}/.mooter" 2>/dev/null || true
+  printf '{\n  "session_report_enabled": true,\n  "herd_visibility": "standard"\n}\n' > "$PREFS" 2>/dev/null || true
+fi
+
 TRACKER_URL="http://127.0.0.1:7821/health"
 TRACKER_SCRIPT="${HOME}/.claude/tools/router/savings-tracker.js"
 
