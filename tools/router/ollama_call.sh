@@ -13,6 +13,10 @@
 
 set -euo pipefail
 
+# Wave 19 (Day 4.1) — resolve this script's dir so we can locate token_tracker.js
+# for the best-effort T0 usage record at the end.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Wave 2 Day 1: default swapped from qwen3:30b → qwen2.5-coder:7b.
 # qwen3:30b is a reasoning MoE that emits long <thinking> chains and caused
 # 2 timeouts + 149s mean latency on GENERAL in the Wave 1 benchmark
@@ -72,3 +76,21 @@ if [ "$TEXT_ONLY" = "1" ]; then
 else
   printf '%s\n' "$RESPONSE"
 fi
+
+# Wave 19 (Day 4.1) — record REAL T0 tokens into the per-tier tracker so the 🪙
+# chip + Stop report reflect local usage (local-summarizer / local-transformer
+# spawn through THIS script, not providers/ollama-api.js). Fire-and-forget AFTER
+# the response is already emitted: any failure is swallowed and never changes
+# this call's output or exit code. Metadata only — no prompt/response text.
+printf '%s' "$RESPONSE" | MODEL="$MODEL" TT_DIR="$SCRIPT_DIR" node -e "
+  let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>{
+    try {
+      const j = JSON.parse(d);
+      require(process.env.TT_DIR + '/token_tracker.js').trackCall(
+        'T0', j.model || process.env.MODEL,
+        Number(j.prompt_eval_count) || 0, Number(j.eval_count) || 0,
+        { sessionId: process.env.CLAUDE_SESSION_ID }
+      );
+    } catch (_e) { /* tracker is best-effort */ }
+  });
+" 2>/dev/null || true

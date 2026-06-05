@@ -124,6 +124,14 @@ async function callOllama(prompt, opts = {}) {
     });
   } catch { /* tracker is best-effort */ }
 
+  // Wave 19 (Day 4.1) — record REAL T0/local tokens into the per-tier tracker.
+  // The module shipped in Day 1 (#102) but was never wired to any executor, so
+  // T0 always read 0 in the 🪙 chip + Stop report. This is the executor path
+  // (router-execute → callOllama). Best-effort, metadata only (no prompt text).
+  try {
+    require('../token_tracker.js').trackCall('T0', model, tokensIn, tokensOut, { sessionId: opts.sessionId });
+  } catch { /* tracker is best-effort */ }
+
   return { ok: true, text, model, tokensIn, tokensOut, costUsd, durationMs };
 }
 
