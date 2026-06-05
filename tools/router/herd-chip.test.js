@@ -65,7 +65,9 @@ test('renderTwoLine: herd renders once, on Line 2 (Wave 21 C4 / DoD #3)', () => 
     const out = renderTwoLine(ctx);
     const [line1, line2] = out.split('\n');
     assert.ok(!line1.includes('🐄'), `Line 1 must NOT carry the herd anymore: ${line1}`);
-    assert.match(line2, /🐄 3\//, `herd renders once, on Line 2: ${line2}`);
+    // Wave 21 Day 3 (C1.5) — herd chip HIDDEN pending Wave 22 SubagentStop hook.
+    // The line-2 surface is now suppressed too, so NEITHER line carries the herd.
+    assert.ok(!line2.includes('🐄'), `Line 2 herd is hidden pending Wave 22: ${line2}`);
   } finally {
     if (prevCols === undefined) delete process.env.COLUMNS;
     else process.env.COLUMNS = prevCols;

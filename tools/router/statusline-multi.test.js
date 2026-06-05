@@ -486,15 +486,16 @@ test('20.D: home chip renders calls % AND tokens local % together (integration)'
   }
 });
 
-test('20.E: herd chip pulses (dim, trailing, alternating) only while ≥1 Moo is active', () => {
-  const idle = sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 });
-  assert.doesNotMatch(idle, /[◉◯]/, 'no pulse when the pasture is idle');
-  const onEven = sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 });
-  const onOdd = sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 });
-  assert.match(onEven, /🐄 1\/5\/peak3 ◉$/, 'even tick → ◉ trailing the chip');
-  assert.match(onOdd, /🐄 1\/5\/peak3 ◯$/, 'odd tick → ◯ (alternation reads as a heartbeat)');
-  assert.notEqual(onEven, onOdd, 'the pulse changes between renders');
-  // The pulse must never split the contiguous ⚡ workflow cue.
-  const wf = sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 });
-  assert.match(wf, /🐄 3\/9\/peak3 · ⚡ workflow ◉$/);
+// Wave 21 Day 3 (C1.5) — herd chip HIDDEN pending Wave 22 SubagentStop hook, so
+// the 20.E pulse is suppressed along with the rest of the chip. buildHerdsChip
+// now returns '' for every input; the pulse logic is preserved for Wave 22 reuse.
+test('20.E: herd chip pulse is hidden pending Wave 22 (was dim trailing alternating)', () => {
+  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '');
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '');
+});
+
+test('21.D3 buildHerdsChip is hidden pending Wave 22', () => {
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: true, tick: 0 }), '');
 });

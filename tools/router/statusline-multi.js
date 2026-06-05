@@ -594,6 +594,14 @@ const WORKFLOW_CONCURRENCY = 3; // ≥ this many concurrent Moos lights ⚡ work
  * @returns {string|null}
  */
 function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
+  // Wave 21 Day 3 (C1.5) — HIDDEN pending Wave 22 SubagentStop hook.
+  // The Day 2 PostToolUse fix correctly detects inner Bash subagents via the
+  // agent_type+agent_id payload, but the outer Agent tool payload does NOT carry
+  // those fields (empirically confirmed by Paulo). Without a reliable spawn signal
+  // the chip would render `🐄 0/0/peak0` — a lie. Suppressing is more honest than
+  // showing a false zero. Native SubagentStop hook (Claude Code v2.1.165) lands in
+  // Wave 22; the full body + recordSpawn writer below are preserved intact for reuse.
+  return '';
   if (!herd || typeof herd.active !== 'number') return null;
   const active = Math.max(0, herd.active | 0);
   const total = Math.max(0, Number(herd.total) || 0);
