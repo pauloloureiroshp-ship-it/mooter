@@ -70,6 +70,26 @@ export interface TrailOptions {
   safetyWindow?: number;
   /** `--by-keyword`: with --safety, break boost rate down per keyword. */
   byKeyword?: boolean;
+  /** `--calls`: print the per-call breakdown from decisions_v2.jsonl (Wave 19 19.B). */
+  calls?: boolean;
+  /** Override the decisions_v2.jsonl path (tests). */
+  decisionsV2Log?: string;
+  /** Pre-supplied v2 lines (tests); default reads `decisionsV2Log`. */
+  v2Lines?: string[];
+  /** How many recent calls to show with --calls (default 50). */
+  callsLimit?: number;
+}
+
+/** A per-call record as written by tools/router/decisions_v2.js. */
+export interface CallRecord {
+  ts?: string;
+  op?: string;
+  tier?: string;
+  llm?: string;
+  tokens_in?: number;
+  tokens_out?: number;
+  reason?: string;
+  via?: string;
 }
 
 /**
@@ -501,7 +521,90 @@ function printTrailHuman(trail: Record<string, unknown>): string {
   return lines.join("\n").trimEnd();
 }
 
+// ── `--calls` — per-call breakdown from decisions_v2.jsonl (Wave 19 19.B) ──
+
+function readV2Lines(opts: TrailOptions): string[] {
+  if (opts.v2Lines) return opts.v2Lines;
+  const path = opts.decisionsV2Log ?? join(routerDir(), "decisions_v2.jsonl");
+  try {
+    return readFileSync(path, "utf8").split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** Parse decisions_v2.jsonl into the last `limit` call records, oldest→newest. Pure. */
+export function buildCalls(lines: string[], limit = 50): CallRecord[] {
+  const out: CallRecord[] = [];
+  for (const line of lines) {
+    let e: any;
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!e || !e.tier) continue;
+    out.push({
+      ts: e.ts,
+      op: e.op,
+      tier: e.tier,
+      llm: e.llm,
+      tokens_in: Number(e.tokens_in) || 0,
+      tokens_out: Number(e.tokens_out) || 0,
+      reason: e.reason,
+      via: e.via,
+    });
+  }
+  return out.slice(-limit);
+}
+
+function fmtTok(n: number): string {
+  const v = Number(n) || 0;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`;
+  return String(v);
+}
+
+export function printCallsHuman(calls: CallRecord[]): string {
+  const lines: string[] = [];
+  lines.push("🐮 mooter — per-call trail (decisions_v2.jsonl)");
+  lines.push(`   ${calls.length} call(s) in scope`);
+  lines.push("");
+  if (calls.length === 0) {
+    lines.push("   (no calls logged yet — decisions_v2.jsonl is written as you route)");
+    return lines.join("\n");
+  }
+  for (const c of calls) {
+    // "MM-DD HH:MM:SS" from the ISO ts (metadata only — no prompt text).
+    const when = String(c.ts ?? "").replace("T", " ").replace(/\.\d+Z?$/, "").slice(5);
+    const io = `${fmtTok(c.tokens_in ?? 0)}→${fmtTok(c.tokens_out ?? 0)}`;
+    lines.push(`${(c.tier ?? "?").padEnd(3)} ${String(c.llm ?? "?").padEnd(10)} ${String(c.op ?? "?").padEnd(18)} ${io.padEnd(13)} via ${c.via ?? "?"}`);
+    lines.push(`${" ".repeat(4)}${when} · ${c.reason ?? ""}`);
+  }
+  const tot: Record<string, { calls: number; tin: number; tout: number }> = {};
+  for (const c of calls) {
+    const k = c.tier ?? "?";
+    tot[k] = tot[k] || { calls: 0, tin: 0, tout: 0 };
+    tot[k].calls++;
+    tot[k].tin += c.tokens_in ?? 0;
+    tot[k].tout += c.tokens_out ?? 0;
+  }
+  lines.push("");
+  lines.push("TOTALS");
+  for (const k of ["T0", "T1", "T2", "T3"]) {
+    if (tot[k]) lines.push(`  ${k}: ${tot[k].calls} call(s) · ${fmtTok(tot[k].tin)}→${fmtTok(tot[k].tout)} tokens`);
+  }
+  return lines.join("\n");
+}
+
+export async function runCalls(opts: TrailOptions): Promise<CmdResult> {
+  const calls = buildCalls(readV2Lines(opts), opts.callsLimit ?? 50);
+  const output = opts.json ? JSON.stringify(calls, null, 2) : printCallsHuman(calls);
+  return { exitCode: 0, output };
+}
+
 export async function runTrail(opts: TrailOptions = {}): Promise<CmdResult> {
+  if (opts.calls) return runCalls(opts);
   if (opts.safety) return runSafety(opts);
   if (opts.evolution) return runEvolution(opts);
   const trail = await buildTrail(opts);
