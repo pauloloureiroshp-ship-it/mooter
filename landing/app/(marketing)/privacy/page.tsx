@@ -75,7 +75,8 @@ export default async function PrivacyPage() {
           ))}
           <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
             <a href="/privacy" style={{ color: 'var(--color-accent)', fontSize: 14 }}>Read the privacy policy →</a>
-            <a href="/privacy" style={{ color: 'var(--color-accent)', fontSize: 14 }}>Read the security policy →</a>
+            {/* Wave 16-18 A3: dropped the "security policy" link (it pointed to /privacy).
+                A real SECURITY.md page is Wave 17+ backlog. */}
           </div>
         </Card>
       </div>

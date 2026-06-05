@@ -16,7 +16,7 @@
 
   /* Text — warm off-white, NEVER #FFF */
   --color-text:        #F2EDE6;
-  --color-muted:       #7A7168;
+  --color-muted:       #8A8076;   /* Wave 16-18 A2: 4.1→~5.1:1 on --color-bg (WCAG AA normal) */
   --color-faint:       #2A2622;
 
   /* Accent — cow-muzzle pink */
@@ -75,6 +75,14 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+
+/* Wave 16-18 Day 2 (A1) — WCAG 2.4.7 focus visibility. Keyboard users get a
+   clear focus ring; pointer users are unaffected (:focus-visible only). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 body {
   background: var(--color-bg);
   color: var(--color-text);
@@ -871,7 +879,7 @@ html:has(.app-shell-dark) body {
   --border-light: #302C28;
   --text:         #F2EDE6;
   --text-2:       #C9C2B8;
-  --muted:        #7A7168;
+  --muted:        #8A8076;   /* Wave 16-18 A2: AA-contrast muted on dark (was #7A7168 ~4.1:1) */
   --faint:        #5A5249;
   --accent:       #E8888A;   /* landing pink (--color-accent) */
   --accent-soft:  #F2A5A5;
