@@ -6,7 +6,7 @@
 
 **Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · ~90% cost savings validated on 1,437 real prompts.**
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v1.15.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Wave 1: shipped](https://img.shields.io/badge/Wave%201-shipped%202026--06--03-brightgreen.svg)](docs/wave1-validation.md)
 [![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
@@ -14,6 +14,7 @@
 [![Tests](https://img.shields.io/badge/tests-62%2F62%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
 [![CI](https://github.com/pauloloureiroshp-ship-it/mooter/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
+[![Sync: live](https://img.shields.io/badge/sync-live-brightgreen.svg)](docs/observability/WAVE26_PROD_TELEMETRY_DAY0.md)
 [![Audited by mooter](https://img.shields.io/badge/audited_by-mooter-brightgreen.svg)](AUDIT_REPORT.md)
 
 ---

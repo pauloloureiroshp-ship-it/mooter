@@ -41,6 +41,24 @@ Our `local-summarizer` subagent is *routed* as T0/local, but when an `ANTHROPIC_
 
 The shipped Q4_K_M local model scored **5.2 /10** accuracy as judged by Haiku. We don't have FP16 weights in our test environment, so we don't publish a fabricated "Q4 vs FP16" delta — we report what we can actually measure.
 
+## Closing the loop (Wave 26, shipped 2026-06-06)
+
+The audit was the diagnosis; Wave 26 was the treatment. We shipped the part that makes the whole thing more than a one-off report: a real CLI→hub sync. `mooter sync` now POSTs your local routing decisions — tier counts, average confidence, coarse hardware class, *never* prompt text — to a Cloudflare Worker backed by D1. The 212 high-quality pairs the audit exported became the corpus for `scripts/train_lora.sh`, a QLoRA 4-bit trainer over `qwen2.5-coder:7b` with a seed-fixed 80/20 split and early stopping. The adapter that's meant to close the 5.2/10 quality gap finally has both the data and the pipeline behind it.
+
+The other half is the Pastor — a pull-based loop that reads your synced decisions back and nudges your setup. It isn't a mock. The first real sync after shipping landed 43 decisions (t0=9, t1=13, t2=1, t3=20) at 0.872 average confidence, and the Pastor computed the rates and fired exactly the hint it should: *"Over 25% of your prompts hit T3 Opus. Consider `complexity_bias: T2` in CLAUDE.md for routine work."* That message was derived in production, from real data, with no human in the loop — the learning loop is live.
+
+We're keeping the same honesty bar we set in the audit. There's no organic external traffic yet — Wave 26 shipped the day before this writeup, so the only client so far is our own test device, and we say so. Coarse hardware classes only, no device fingerprint, no prompt text on the wire. The next milestone isn't a vanity metric; it's the first *external* `mooter sync` producing a hint someone other than us acts on.
+
+## Cost table (audit phase)
+
+| Phase | Tier | Actual | All-Opus | Saved |
+|---|---|---|---|---|
+| 1 Corpus | T0 | $0.00 | $4.44 | $4.44 |
+| 2 Validate | T1 | $1.27 | $6.36 | $5.09 |
+| 3 Insights | T2 | $0.32 | $0.53 | $0.21 |
+| 4 Benchmark | T3 | $0.45 | $0.45 | $0.00 |
+| **Total** | mixed | **$2.04** | **$11.78** | **$9.74 (82.7%)** |
+
 ## Repo
 
-github.com/pauloloureiroshp-ship-it/mooter — see `AUDIT_REPORT.md` and `AUDIT_BENCHMARK.md`.
+github.com/pauloloureiroshp-ship-it/mooter — see `AUDIT_REPORT.md` and `AUDIT_BENCHMARK.md`. Wave 26 shipped as `v1.15.0-pastor-live`.

@@ -1,6 +1,6 @@
 # Tweet thread — DRAFT (Paulo approval required before posting)
 
-1/ We used Mooter to audit Mooter. 372 files of our own codebase, summarized → validated → ranked → reported, by four model tiers. Here's what we found. 🧵
+1/ We used Mooter to audit Mooter — 372 files of our own codebase, summarized → validated → ranked → reported by four model tiers — and then shipped real CLI→hub sync in Wave 26 (live now). Here's what we found. 🧵
 
 2/ Method: T0 (local qwen2.5-coder, $0) summarized every file. T1 (Haiku) validated each summary against the real code. T2 (Sonnet) ranked the issues. T3 (Opus) wrote the report.
 
@@ -12,10 +12,12 @@
 
 6/ Top actionable finding: classify.js local summary catastrophically wrong (score=1) — core routing logic undocumented
 
-7/ Byproduct: 212 high-quality (score≥8) instruction→summary pairs — 560 total tiered — exported for LoRA adapter training. Wave 24 trains on real, self-generated data, tagged by quality.
+7/ Byproduct: 212 high-quality (score≥8) instruction→summary pairs — 560 total tiered — exported for LoRA adapter training. Wave 26 shipped the trainer (`scripts/train_lora.sh`, QLoRA 4-bit on qwen2.5-coder:7b); it trains on real, self-generated data, tagged by quality.
 
 8/ The meta-point: Mooter validated itself on its own code. Synthetic tests tell you the happy path works. Running the tool on the tool tells you the truth.
 
 9/ Try it: mooter.ai
 
 10/ Open source + full report: github.com/pauloloureiroshp-ship-it/mooter — AUDIT_REPORT.md & AUDIT_BENCHMARK.md in the repo.
+
+11/ Wave 26 just shipped — `mooter sync` now talks to the hub for real. Run `mooter init && mooter sync` and your routing decisions land in the community pulse; the Pastor reads them back and nudges your config. First real sync already produced a personalized hint. mooter.ai/dashboard
