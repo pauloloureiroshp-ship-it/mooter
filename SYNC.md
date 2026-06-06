@@ -3,6 +3,20 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-06 (Wave 27 Consolidation — post-ship Wave 26, zero-risk)
+**Estado:** Branch `wave27-consolidation` (de `main` @ `240e4cf` fresh). Consolidação pós-ship sem código de produto (só docs/scripts/audit/CI). Tag esperada pós-merge: `v1.15.1-wave27-consolidation`.
+**Wave 26 ✅ SHIPPED** — `v1.15.0-pastor-live` em `main` (PR #123 merge `240e4cf`): real CLI→hub sync via `/v1/events` + Pastor pull-based + LoRA trainer (`scripts/train_lora.sh`). **Loop verificado vivo em prod** (1 sync_event real → Pastor derivou hint `high_t3`; ver `docs/observability/WAVE26_PROD_TELEMETRY_DAY0.md`).
+**O que a Wave 27 fechou (6 dívidas):**
+- **CI verde** — root cause REAL: teste `wave21-coherence.test.js` C1 divergiu de `recordSpawn` após Wave 21 Day 2 (NÃO era o lockfile Windows que o brief assumia). Fix aditivo aceita ambos os payload shapes. (`412937e`)
+- **Telemetria prod** inspeccionada (Phase B) — loop correcto; 171 anomalias `hub_stale` = false-positives do path `deltas` antigo (issue futuro, toca hub).
+- **LoRA setup** validado (Phase D) — scripts prontos; 1-liner para o Paulo correr no 4090 (overnight, manual).
+- **Marketing** actualizado — TWEET #11 + BLOG "closing the loop" + README badge `Sync: live` + CHANGELOG [1.15.0].
+- **DMs** materializados em `audit/FRIENDS_LAUNCH_DMS.md` (Paulo envia manualmente).
+- **Docs** — Wave 25 kickoff/findings → `docs/archive/sessions/`; este snapshot.
+**Loophole fechado:** "Restaurar copy 'refresh' `mooter sync` quando `/v1/events` shipar" → ✅ `/v1/events` shipou na Wave 26.
+**Premissas do brief refutadas no Day 0** (`docs/strategy/WAVE27_DAY0_FINDINGS.md`): CI não falhava por lockfile; `STRATEGY.md`/`SYNC.md` não apontavam "Wave 26 IN-FLIGHT" (STRATEGY é doc estático sem tag-table → não editado).
+**Próxima missão (Paulo/Cowork — Wave 28):** (1) correr LoRA train manual: `mkdir -p logs && bash scripts/train_lora.sh 2>&1 | tee logs/lora_train_$(date +%Y%m%d_%H%M%S).log`; (2) friends-launch: enviar as 3 DMs de `audit/FRIENDS_LAUNCH_DMS.md`; (3) backlog Wave 28: apontar/aposentar o stale-monitor de `deltas`; criar páginas Notion para Wave 21-26 (IDs ainda por linkar aqui).
+
 ### 🐄 Sessão — 2026-06-05 (Wave 20 Friends Launch Polish — Day 1+2 → PR #112 dev, gate E2E p/ prod)
 **Estado:** Branch `wave20-friends-launch-polish` (Day 1 `db6f5f7` + Day 2 `e3474e9`) → **PR #112 aberto p/ `dev`**. `classify.js` byte-identical (`7b01eb86…87762`); zero PII; zero hub touch. final-reviewer (Sonnet) **PASS** sem findings.
 **Day 2 (`e3474e9`):**

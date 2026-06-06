@@ -8,6 +8,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [1.15.0] — 2026-06-06 — Pastor live (Wave 26)
+
+**Closes the loop: real CLI→hub sync + a pull-based Pastor that learns from it.**
+
+### Added
+- **Real `mooter sync`** — the CLI POSTs routing decisions (tier counts, avg confidence, coarse hardware class; never prompt text) to the Cloudflare Worker `/v1/events`, persisted in D1 (`sync_events`).
+- **Pastor (pull-based)** — reads synced decisions back, computes per-tier rates, and emits a personalized config hint. First production sync (43 decisions, t3_rate 0.465) correctly fired the `high_t3` hint — verified live, no mock. See `docs/observability/WAVE26_PROD_TELEMETRY_DAY0.md`.
+- **LoRA trainer** (`scripts/train_lora.sh` + `train_lora.py`) — QLoRA 4-bit over `qwen2.5-coder:7b` on the 212 score≥8 self-audit pairs; seed-fixed 80/20 split, early stopping, GGUF Q4_K_M export. Trained manually on GPU (not in CI).
+
+### Note
+This entry consolidates the wave timeline from v1.0.0 (Wave 7) through Wave 26. Git tags (`v1.1.x`–`v1.15.0-pastor-live`) are preserved for per-wave provenance; this changelog records the shipped headline capabilities.
+
 ## [1.0.0] — 2026-05-31 — Convergence release (Wave 7)
 
 **Unifies the two version timelines that had run in parallel** into a single `v1.0.0` across all three packages:
