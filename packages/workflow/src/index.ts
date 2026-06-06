@@ -13,7 +13,7 @@ export const PHASES = {
   agent: { phase: "C", done: true },
   pool: { phase: "C", done: true },
   primitives: { phase: "D", done: true },
-  runtime: { phase: "E", done: false },
+  runtime: { phase: "E", done: true },
   state: { phase: "F", done: false },
   writer: { phase: "G", done: false },
   presenter: { phase: "G", done: false },
@@ -62,8 +62,8 @@ export type {
   LogEntry,
 } from "./primitives.ts";
 
-export { runScript, RUNTIME_DEFAULTS } from "./runtime.ts";
-export type { RuntimeOptions } from "./runtime.ts";
+export { runScript, RUNTIME_DEFAULTS, RuntimeError } from "./runtime.ts";
+export type { RuntimeOptions, RuntimeApi } from "./runtime.ts";
 
 export { saveCheckpoint, loadRun, resumeFrom } from "./state.ts";
 export type { RunRecord, CheckpointRecord, RunStatus } from "./state.ts";

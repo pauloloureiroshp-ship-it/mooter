@@ -26,11 +26,11 @@ test("PHASES covers every engine module", () => {
   ]);
 });
 
-test("Phase C+D modules are done; later phases are not", () => {
-  for (const k of ["agent", "pool", "primitives"] as const) {
+test("Phase C-E modules are done; later phases are not", () => {
+  for (const k of ["agent", "pool", "primitives", "runtime"] as const) {
     assert.equal(PHASES[k].done, true, `${k} should be implemented`);
   }
-  for (const k of ["runtime", "state", "writer", "presenter", "tui"] as const) {
+  for (const k of ["state", "writer", "presenter", "tui"] as const) {
     assert.equal(PHASES[k].done, false, `${k} should still be a stub`);
   }
 });
