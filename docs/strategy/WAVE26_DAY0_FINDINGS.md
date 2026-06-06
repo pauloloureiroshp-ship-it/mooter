@@ -59,3 +59,35 @@ Both are independent of the auth/cron forks.
 3. **Deploy (26.C)**: CC prepares; Paulo runs `wrangler deploy` (or provides a scoped token). Confirm.
 
 `classify.js` untouched. No tracker shapes touched. No prod promoted. Nothing built yet — Day 0 gate respected.
+
+---
+
+## Day 1 build status (post-decision: α · pull-Pastor · build G+H now)
+
+| # | Built | Tests |
+|---|---|---|
+| 26.G | `scripts/train_lora.{py,sh}` — QLoRA over the 212 samples, 80/20 holdout, early stop → `mooter-pastor-v1.gguf` for `mooter forge install`. CC prepares; Paulo runs overnight. | data path verified (212 → 170/42); py compile + bash -n clean |
+| 26.H | `tools/router/herd-50-nuclear.test.js` — synthetic 50-subagent stress on the native SubagentStop hook. | **4/4 pass** (peak=50, dispersal, double-fire idempotency, spawn-less capture, malformed reject) |
+| 26.A | CLI `runSyncReal` reconciled to α — login now **optional** (anonymous pseudonym); attaches token only if present; surfaces the Pastor hint. | CLI sync suite **32/32** |
+| 26.B | Hub `POST /v1/events` (`hub/routes/sync_events.js`) — α auth (no secret), per-client rate-limit, Zod `syncWindowSchema` (rejects privacy fields), `INSERT OR IGNORE` idempotent. Migration `011_sync_events.sql`. Wired in `worker.js`. | hub suite **21/21** (incl. 15 new) |
+| 26.D | Pull-based Pastor — `pastor_state` table, recomputed on-ingest, hint returned in the `/v1/events` response (threshold ≥20). **No cron** (Free-plan slots exhausted). | `computePastor` + handler covered |
+| 26.E | **Satisfied by data flow** — `/api/community/pulse` + `/api/dashboard/aggregates` already return `source:"live"` once `total_events>0`; `/aggregate-stats` now merges `sync_events`, so the dashboard goes live the moment a device syncs. The "Demo data" badge is retained as the honest empty-state (Wave 25 finding) — not ripped out. No dashboard code change. |
+| 26.F | `scripts/e2e_sync.sh` — non-destructive (backup/seed/restore) E2E: seed 5 decisions → `mooter sync` → assert hub count rose + pulse live + GET `/v1/events`→405. | bash -n clean; runs against deployed hub |
+
+### Deploy runbook (Paulo — 26.C, the only step CC can't do)
+
+```bash
+cd hub
+npx wrangler d1 migrations apply mooter-hub --remote   # applies 011_sync_events.sql
+npx wrangler deploy -c wrangler.mooter.toml            # ships /v1/events
+# smoke:
+curl -s -o /dev/null -w '%{http_code}\n' https://mooter-hub.frugal-hub.workers.dev/v1/events  # → 405
+bash ../scripts/e2e_sync.sh                            # full loop (needs `mooter init` first)
+```
+
+No new secret required (α uses no server token). `MOOTER_ADMIN_TOKEN` unchanged.
+
+### Still open / deferred to a follow-up
+- Per-decision savings are not derivable from aggregate windows, so `pulse.saved_last_7d` stays from `frugal_events` (0 until a per-decision path exists) — **honestly null/0, never fabricated**.
+- Device-side display of the Pastor hint beyond the one-line `mooter sync` echo (e.g. statusline chip) — small follow-up.
+- `frugal-hub` cron cleanup ("Phase 4") to free a slot if a real-time Pastor cron is ever wanted (pull-based covers v1).

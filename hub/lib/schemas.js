@@ -122,6 +122,61 @@ export const eventSchema = z.object({
 // returns 400 — duplicated here as a belt-and-braces cap).
 export const eventsBatchSchema = z.array(eventSchema).min(1).max(100);
 
+// ── POST /v1/events — aggregate sync windows (Wave 26, auth model α) ─────
+//
+// `mooter sync` emits MooterSyncEvent: ONE coarse 24h window, not per-decision
+// rows. We validate only what we store; unknown future fields pass through but
+// the privacy refine still rejects any window carrying prompt/code text.
+
+const CLIENT_ID_RE = /^[a-f0-9]{8,128}$/;
+
+const SYNC_PRIVACY_FIELDS = ['prompt_content', 'prompt', 'prompt_text', 'prompt_raw', 'file_path', 'stack_trace'];
+
+const tierCountsSchema = z.object({
+  T0: z.number().int().min(0),
+  T1: z.number().int().min(0),
+  T2: z.number().int().min(0),
+  T3: z.number().int().min(0),
+}).partial().passthrough();
+
+export const syncWindowSchema = z.object({
+  schema_version: z.number().int().min(1),
+  event_id: z.string().min(1).max(128),
+  client_id_pseudonymous: z.string().regex(CLIENT_ID_RE, 'client_id_pseudonymous must be 8-128 hex chars'),
+  emitted_at_utc: z.string().min(1),
+  signature: z.object({
+    algo: z.string().optional(),
+    value: z.string().optional(),
+    signed_payload_hash: z.string().optional(),
+  }).passthrough().optional(),
+  tier_distribution: z.object({
+    window_start_utc: z.string().optional(),
+    window_end_utc: z.string().optional(),
+    counts: tierCountsSchema.optional(),
+    avg_confidence: z.number().optional(),
+  }).passthrough().optional(),
+  safety_boost_reasons: z.object({
+    applied: z.number().int().min(0).optional(),
+    total_prompts: z.number().int().min(0).optional(),
+    reasons: z.record(z.number()).optional(),
+  }).passthrough().optional(),
+  pack_usage: z.object({
+    pack_ids: z.array(z.string()).optional(),
+    counts: z.record(z.number()).optional(),
+  }).passthrough().optional(),
+  hardware_info: z.object({
+    os: z.string().optional(),
+    gpu_class: z.string().optional(),
+    ram_class: z.string().optional(),
+    ollama_available: z.boolean().optional(),
+  }).passthrough().optional(),
+}).passthrough().refine(
+  (w) => !SYNC_PRIVACY_FIELDS.some((k) => k in w),
+  { message: `sync window must not contain any privacy field: ${SYNC_PRIVACY_FIELDS.join(', ')}` }
+);
+
+export const syncWindowsBatchSchema = z.array(syncWindowSchema).min(1).max(100);
+
 // ── Export schema set for test harness use ─────────────────────────────
 
 export const schemas = {
@@ -129,4 +184,6 @@ export const schemas = {
   heartbeat: heartbeatBodySchema,
   event: eventSchema,
   eventsBatch: eventsBatchSchema,
+  syncWindow: syncWindowSchema,
+  syncWindowsBatch: syncWindowsBatchSchema,
 };

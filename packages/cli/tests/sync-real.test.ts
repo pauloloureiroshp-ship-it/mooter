@@ -31,10 +31,16 @@ test("no backend URL → falls back to dry-run with a clear warning", async () =
   assert.match(res.output, /MOOTER_CF_BACKEND_URL/);
 });
 
-test("backend set but not logged in → exit 1", async () => {
-  const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: home({ auth: false }), lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl: () => { throw new Error("no"); } });
-  assert.equal(res.exitCode, 1);
-  assert.match(res.output, /Not logged in/);
+test("α: backend set, not logged in → syncs anonymously (no auth header)", async () => {
+  let calledAuth: string | undefined = "unset";
+  const fetchImpl = async (_url: string, init: any) => {
+    calledAuth = init.headers.Authorization;
+    return { ok: true, status: 202, json: async () => ({ accepted: 1, rejected: 0 }) };
+  };
+  const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: home({ auth: false }), lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /Synced 1 event/);
+  assert.equal(calledAuth, undefined, "no Authorization header when anonymous (auth model α)");
 });
 
 test("backend set but telemetry off → exit 1", async () => {
@@ -58,6 +64,15 @@ test("real POST (injected fetch) → 202 success + real-sync audit (no network)"
   const audit = listAudit(h);
   assert.equal(audit.at(-1)!.kind, "real-sync");
   assert.ok(audit.at(-1)!.bytes_sent > 0, "real sync sent bytes (unlike dry-run)");
+});
+
+test("pastor hint in the response is surfaced to the user (26.D)", async () => {
+  const h = home();
+  const fetchImpl = async () => ({ ok: true, status: 202, json: async () => ({ accepted: 1, rejected: 0, pastor_hint: { code: "high_t3", message: "Over 25% of your prompts hit T3 Opus." } }) });
+  const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: h, lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /🐂 Pastor:/);
+  assert.match(res.output, /T3 Opus/);
 });
 
 test("server 401 → graceful exit 1 + audit captures status", async () => {
