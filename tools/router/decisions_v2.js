@@ -109,6 +109,24 @@ function readRecords(opts = {}) {
   return opts.limit ? out.slice(-opts.limit) : out;
 }
 
+/**
+ * Wave 22 (22.F) — live count of decision records the Pastor loop learns from.
+ * The statusline "trained on N decisions" must reflect the real corpus, not the stale
+ * tuning-state.sample_size snapshot (a backtest metric that lagged at 8 while the corpus
+ * grew to 188). Counts non-empty lines (append-only valid jsonl ⇒ matches `wc -l`) so it
+ * stays cheap on the statusline render path. Best-effort; 0 on an unreadable log.
+ */
+function recordCount(opts = {}) {
+  try {
+    const raw = fs.readFileSync(opts.logPath || logPath(), 'utf8');
+    let n = 0;
+    for (const line of raw.split('\n')) if (line.trim()) n += 1;
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
 module.exports = {
   SCHEMA_FIELDS,
   shortLlm,
@@ -117,5 +135,6 @@ module.exports = {
   sanitize,
   appendFromDecision,
   readRecords,
+  recordCount,
   logPath,
 };

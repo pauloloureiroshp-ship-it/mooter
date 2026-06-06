@@ -137,7 +137,7 @@ if (jsonMode) {
   console.log(JSON.stringify(report, null, 2));
 } else {
   console.log('═══════════════════════════════════════');
-  console.log('  frugal — Weekly Evolution Report');
+  console.log('  mooter — Weekly Evolution Report');
   console.log('  ' + report.timestamp.slice(0, 10));
   console.log('═══════════════════════════════════════\n');
 

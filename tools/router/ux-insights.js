@@ -197,7 +197,7 @@ insights.suggestions.push({
 if (jsonMode) {
   console.log(JSON.stringify(insights, null, 2));
 } else {
-  console.log('frugal — UX insights\n');
+  console.log('mooter — UX insights\n');
   console.log(`Period: ${insights.period.first.slice(0, 10)} → ${insights.period.last.slice(0, 10)}`);
   console.log(`Prompts: ${insights.total_prompts}`);
   console.log('');

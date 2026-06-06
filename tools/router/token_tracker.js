@@ -118,6 +118,44 @@ function trackCall(tier, llm, tokens_in, tokens_out, opts = {}) {
   writeCache(sessionId, cache);
 }
 
+/**
+ * Wave 22 (22.B) — capture a finished subagent's REAL wrapper-model tokens.
+ *
+ * Root cause of the ~64% gap (Day 0 finding): a subagent (e.g. local-summarizer)
+ * runs on a cloud wrapper model — Haiku/Sonnet/Opus — and records its `usage` in a
+ * SEPARATE transcript under `…/subagents/agent-<id>.jsonl`. The main `syncFromTranscript`
+ * only reads the PARENT transcript, so those tokens were invisible. The SubagentStop
+ * hook (Wave 22 Path α) hands us `agent_transcript_path`; we aggregate it here.
+ *
+ * Disjoint from the main transcript → pushing into `_pushed` never double-counts the
+ * `_transcript` bucket. Idempotent by `agent_id` via a `_subagent_done` set, so a hook
+ * retry (or a Path-β race) can't inflate counts. snapshot() ignores `_subagent_done`
+ * and the per-tier shape is unchanged (Wave 19 non-negotiable preserved).
+ * @returns {boolean} true iff this call recorded new tokens.
+ */
+function trackSubagentTranscript(sessionId, agentId, transcriptPath, opts = {}) {
+  if (!agentId || !transcriptPath) return false;
+  const sid = opts.sessionId || sessionId || process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || 'unknown';
+  const cache = readCache(sid) || {};
+  if (!cache._subagent_done) cache._subagent_done = {};
+  if (cache._subagent_done[agentId]) return false; // already counted this spawn
+  const agg = aggregateTranscript(transcriptPath); // per-tier {calls, tokens_in, tokens_out}
+  if (!cache._pushed) cache._pushed = emptyState();
+  let any = false;
+  for (const t of TIERS) {
+    if (agg[t].calls > 0 || agg[t].tokens_in > 0 || agg[t].tokens_out > 0) {
+      cache._pushed[t].calls += agg[t].calls;
+      cache._pushed[t].tokens_in += agg[t].tokens_in;
+      cache._pushed[t].tokens_out += agg[t].tokens_out;
+      cache._pushed[t].real = true;
+      any = true;
+    }
+  }
+  cache._subagent_done[agentId] = 1;
+  writeCache(sid, cache);
+  return any;
+}
+
 /** Sync the cloud tiers from the transcript into the cache (mtime-guarded). */
 function syncFromTranscript(sessionId, opts = {}) {
   const tpath = opts.transcriptPath || findTranscript(sessionId, opts.claudeDir);
@@ -158,6 +196,7 @@ module.exports = {
   aggregateTranscript,
   findTranscript,
   trackCall,
+  trackSubagentTranscript,
   syncFromTranscript,
   snapshot,
   cachePath,

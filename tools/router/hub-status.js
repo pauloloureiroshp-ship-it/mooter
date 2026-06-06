@@ -60,7 +60,7 @@ function fileAge(filePath) {
 
 async function main() {
   console.log('');
-  console.log('frugal — hub status');
+  console.log('mooter — hub status');
   console.log('');
 
   // Local state
