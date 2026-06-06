@@ -14,6 +14,7 @@
 [![Tests](https://img.shields.io/badge/tests-62%2F62%20passing-brightgreen.svg)](tools/router/backtest.test.js)
 [![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
 [![CI](https://github.com/pauloloureiroshp-ship-it/mooter/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
+[![Audited by mooter](https://img.shields.io/badge/audited_by-mooter-brightgreen.svg)](AUDIT_REPORT.md)
 
 ---
 

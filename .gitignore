@@ -98,6 +98,8 @@ tools/router/.sentry.json
 
 # Dataset e modelo
 *.jsonl
+# Wave 23 self-audit deliverables are committed artifacts (corpus / validation / LoRA export)
+!audit/*.jsonl
 training-*.json
 model-weights/
 *.onnx

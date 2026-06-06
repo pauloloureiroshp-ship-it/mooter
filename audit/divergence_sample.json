@@ -1,0 +1,44 @@
+{
+  "method": "5 local-summarizer spawns via the Agent tool (routed intent T0/qwen3:30b) — harness subagent_tokens accounting. Same files also summarized by direct local Ollama in the corpus.",
+  "intent_tier": "T0",
+  "intent_model": "qwen3:30b",
+  "exec_tier": "T1",
+  "exec_model": "claude-haiku-4-5-20251001",
+  "evidence": "Phase 0 lastexec + fx.js spawn explicitly logged Ollama-wrong→Haiku-fallback",
+  "samples": [
+    {
+      "path": "tools/router/fx.js",
+      "subagent_tokens": 32751,
+      "note": "Ollama output wrong → fell back to Haiku (captured live)"
+    },
+    {
+      "path": "tools/router/sparkline.js",
+      "subagent_tokens": 31927
+    },
+    {
+      "path": "tools/router/paths.js",
+      "subagent_tokens": 32296
+    },
+    {
+      "path": "hub/lib/errors.js",
+      "subagent_tokens": 32209
+    },
+    {
+      "path": "tools/router/signals.js",
+      "subagent_tokens": 33171
+    }
+  ],
+  "avg_subagent_tokens_haiku_path": 32471,
+  "avg_tokens_ollama_direct": 1743,
+  "token_ratio_haiku_vs_local": 18.6,
+  "per_file_haiku_cost_usd_range": [
+    0.0325,
+    0.0844
+  ],
+  "extrapolated_corpus_haiku_cost_usd_range": [
+    12.08,
+    31.41
+  ],
+  "corpus_local_cost_usd": 0,
+  "honest_note": "The whole 372-file corpus cost $0 on local Ollama. The SAME corpus via the local-summarizer subagent path would have run on cloud Haiku at the cost range above. We promised local; the subagent path silently routes cloud when an API key exists. The statusline divergence chip surfaces this live."
+}
