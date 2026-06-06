@@ -23,6 +23,7 @@ import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 import { runExplain } from "./commands/explain.ts";
 import { runEnvDetect } from "./commands/env-detect.ts";
 import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
+import { runWorkflow } from "./commands/workflow.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -45,6 +46,7 @@ Usage:
   mooter sync audit list|verify    inspect/verify the signed sync audit log
   mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
+  mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
 
 ${PACK_USAGE}`;
 
@@ -232,6 +234,12 @@ async function main(argv: string[]): Promise<number> {
     const topic = rest.find((a) => a.startsWith("--topic="))?.split("=")[1];
     const severity = rest.find((a) => a.startsWith("--severity="))?.split("=")[1];
     const res = await runFeedback({ message, topic, severity });
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "workflow") {
+    const res = await runWorkflow(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
