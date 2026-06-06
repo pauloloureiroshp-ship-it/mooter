@@ -72,7 +72,7 @@ function main() {
 
   if (quiet) process.exit(ok ? 0 : 2);
 
-  console.log('frugal — local model specialists');
+  console.log('mooter — local model specialists');
   console.log('');
   for (const r of report) {
     const mark = r.installed ? '✓' : '○';

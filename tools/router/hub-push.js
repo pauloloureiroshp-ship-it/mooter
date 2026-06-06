@@ -175,7 +175,7 @@ async function main() {
 
   if (!force && !dryRun && !shouldPush()) {
     if (!args.includes('--quiet')) {
-      console.log('frugal hub-push: cooldown active (last push < 24h ago). Use --force to override.');
+      console.log('mooter hub-push: cooldown active (last push < 24h ago). Use --force to override.');
     }
     process.exit(0);
   }
@@ -189,21 +189,21 @@ async function main() {
       timeout: 10000,
     });
     if (r.status !== 0) {
-      console.log('frugal hub-push: backtest --export-delta failed');
+      console.log('mooter hub-push: backtest --export-delta failed');
       process.exit(1);
     }
   }
 
   let delta = readDelta(filePath);
   if (!delta) {
-    console.log(`frugal hub-push: cannot read ${filePath}`);
+    console.log(`mooter hub-push: cannot read ${filePath}`);
     process.exit(1);
   }
 
   delta = enrichDelta(delta);
 
   if (dryRun) {
-    console.log('frugal hub-push [dry-run]: payload that WOULD be sent:');
+    console.log('mooter hub-push [dry-run]: payload that WOULD be sent:');
     console.log(JSON.stringify(delta, null, 2));
     console.log('\nfrugal hub-push [dry-run]: no data was sent. Use without --dry-run to push.');
     process.exit(0);
@@ -212,9 +212,9 @@ async function main() {
   const result = await pushToHub(delta);
   if (result.ok) {
     markPushed();
-    console.log(`frugal hub-push: delta sent successfully (id: ${result.id}, trust: ${result.trust_score})`);
+    console.log(`mooter hub-push: delta sent successfully (id: ${result.id}, trust: ${result.trust_score})`);
   } else {
-    console.log(`frugal hub-push: failed (${result.error || result.status || 'unknown'})`);
+    console.log(`mooter hub-push: failed (${result.error || result.status || 'unknown'})`);
   }
 }
 

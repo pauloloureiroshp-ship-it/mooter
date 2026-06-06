@@ -1599,7 +1599,7 @@ if (require.main === module) {
       fs.writeFileSync(pidPath, String(process.pid));
     } catch { /* non-fatal */ }
     if (process.env.FRUGAL_TRACKER_VERBOSE) {
-      process.stdout.write(`frugal tracker v0.6 listening on http://${HOST}:${PORT} (${CURRENCY})\n`);
+      process.stdout.write(`mooter tracker v0.6 listening on http://${HOST}:${PORT} (${CURRENCY})\n`);
     }
   });
 

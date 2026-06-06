@@ -131,7 +131,7 @@ async function promptBudget(rl) {
 
 async function main() {
   console.log('');
-  console.log('frugal — device + subscription profile setup');
+  console.log('mooter — device + subscription profile setup');
   console.log('');
 
   const hardware = detectHardware();
@@ -188,7 +188,7 @@ async function main() {
   console.log(`Subscription profile: ${SUB_PROFILE_PATH}`);
   console.log(`Device profile:       ${DEVICE_PROFILE_PATH}`);
   console.log('');
-  console.log('frugal is now aware of your hardware, software, subscriptions, and budget.');
+  console.log('mooter is now aware of your hardware, software, subscriptions, and budget.');
   console.log('');
 }
 

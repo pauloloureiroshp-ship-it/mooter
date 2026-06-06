@@ -348,6 +348,9 @@ function pickState(ctx) {
     lastLabel = (tier === 'T0' && tag === 'local')
       ? `${tier} · conf ${conf}`
       : `${tier} ${tag} · conf ${conf}`;
+    // Wave 22 (22.C) — append the real-execution segment (⚠ on divergence) when the
+    // last delegated subagent ran on a different tier than it was routed to.
+    lastLabel += buildExecSegment(ctx.sessionId);
   }
 
   // ── Proof chips (Wave 2.5 Day 1) ──────────────────────────────────────
@@ -594,14 +597,11 @@ const WORKFLOW_CONCURRENCY = 3; // ≥ this many concurrent Moos lights ⚡ work
  * @returns {string|null}
  */
 function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
-  // Wave 21 Day 3 (C1.5) — HIDDEN pending Wave 22 SubagentStop hook.
-  // The Day 2 PostToolUse fix correctly detects inner Bash subagents via the
-  // agent_type+agent_id payload, but the outer Agent tool payload does NOT carry
-  // those fields (empirically confirmed by Paulo). Without a reliable spawn signal
-  // the chip would render `🐄 0/0/peak0` — a lie. Suppressing is more honest than
-  // showing a false zero. Native SubagentStop hook (Claude Code v2.1.165) lands in
-  // Wave 22; the full body + recordSpawn writer below are preserved intact for reuse.
-  return '';
+  // Wave 22 (22.A) — UNHIDDEN. The native SubagentStop hook (subagentstop_hook.js,
+  // Path α) fires once per spawn with a reliable agent_id + agent_type signal — Day 0
+  // proved it catches even Read-only subagents that the Wave 21 Day 2 PostToolUse
+  // fallback misses. The herd file is now written for real, so the chip renders a true
+  // `🐄 N/M/peakK` instead of the suppressed Wave 21 Day 3 (C1.5) `return ''`.
   if (!herd || typeof herd.active !== 'number') return null;
   const active = Math.max(0, herd.active | 0);
   const total = Math.max(0, Number(herd.total) || 0);
@@ -620,6 +620,33 @@ function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
     chip = `${chip} ${colorize(ANSI.dim, pulse, color)}`;
   }
   return chip;
+}
+/**
+ * Wave 22 (22.C) — routed-intent vs real-execution divergence segment, trailing the
+ * last-decision label. The SubagentStop hook (subagentstop_hook.js) records the last
+ * delegated subagent's intended tier (SUBAGENT_TIER) vs the tier it ACTUALLY ran on
+ * (dominant wrapper model). Day 0 proved local-summarizer routes T0/qwen3:30b but
+ * executes on T1/haiku when an API key is present — so we show ` · ⚠ exec T1 haiku · N
+ * calls` on divergence, and a dim ` ✓ exec local` when intent == reality. Best-effort:
+ * no file / unreadable → '' (the label renders exactly as before). Pure given the file.
+ */
+function buildExecSegment(sessionId, { color = useColor() } = {}) {
+  try {
+    const sid = String(sessionId || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '');
+    const p = path.join(require('os').tmpdir(), `mooter-lastexec-${sid}.json`);
+    const e = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!e || !e.exec_tier) return '';
+    const TAG = { T0: 'local', T1: 'haiku', T2: 'sonnet', T3: 'opus' };
+    const execTag = e.exec_tier === 'T0' ? 'local' : (TAG[e.exec_tier] || String(e.exec_tier).toLowerCase());
+    if (e.exec_tier === e.intent_tier) {
+      return ` ${colorize(ANSI.dim, `✓ exec ${execTag}`, color)}`;
+    }
+    const n = Number(e.calls) || 0;
+    const callsPart = n > 0 ? ` · ${n} call${n === 1 ? '' : 's'}` : '';
+    return ` · ${colorize(ANSI.yellow, `⚠ exec ${e.exec_tier} ${execTag}${callsPart}`, color)}`;
+  } catch {
+    return '';
+  }
 }
 function herdChip(n, { color = useColor() } = {}) {
   const count = Number.isFinite(Number(n)) ? Math.max(0, Math.trunc(Number(n))) : 0;
@@ -891,11 +918,17 @@ function renderTwoLine(ctx) {
   // suffix is the Pastor loop's real decision count from tuning-state.json
   // (written by update-router.js, Wave 16-18 Tier C). Absent file or
   // sample_size 0 → no suffix; never invent a "+N pp" boost.
+  // Wave 22 (22.F) — read the LIVE decisions corpus count (what the Pastor loop learns
+  // from), not the stale tuning-state.sample_size snapshot (lagged at 8 while the corpus
+  // grew to 188). Fall back to the tuning snapshot only if the corpus is unreadable.
   let tunedCount = 0;
-  try {
-    const ts = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, 'tuning-state.json'), 'utf8'));
-    tunedCount = Number(ts && ts.sample_size) || 0;
-  } catch { tunedCount = 0; }
+  try { tunedCount = require('./decisions_v2.js').recordCount(); } catch { tunedCount = 0; }
+  if (!tunedCount) {
+    try {
+      const ts = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, 'tuning-state.json'), 'utf8'));
+      tunedCount = Number(ts && ts.sample_size) || 0;
+    } catch { tunedCount = 0; }
+  }
   const trained = tunedCount > 0 ? ` · trained on ${tunedCount} decisions` : '';
 
   let adapterChip = `🧬 baseline${trained || ' · mooter forge install'}`;
@@ -1139,6 +1172,7 @@ module.exports = {
   fmtSharePct,
   buildLocalChip,
   buildHerdsChip,
+  buildExecSegment,
   colorize,
   useColor,
   formatGpuChip,

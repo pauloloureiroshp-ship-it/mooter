@@ -29,7 +29,7 @@ function step(n, msg) {
 
 async function main() {
   console.log('');
-  console.log('  frugal — first-time setup');
+  console.log('  mooter — first-time setup');
   console.log('');
 
   // Step 1: Hardware detection

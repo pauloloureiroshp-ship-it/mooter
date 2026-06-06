@@ -144,7 +144,7 @@ server.on('error', (err) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log('');
-  console.log(C.bold('  frugal login'));
+  console.log(C.bold('  mooter login'));
   console.log('');
   console.log(`  Opening browser... waiting for login ${C.dim('(ctrl+c to cancel)')}`);
   console.log('');

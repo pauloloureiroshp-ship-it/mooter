@@ -486,16 +486,21 @@ test('20.D: home chip renders calls % AND tokens local % together (integration)'
   }
 });
 
-// Wave 21 Day 3 (C1.5) — herd chip HIDDEN pending Wave 22 SubagentStop hook, so
-// the 20.E pulse is suppressed along with the rest of the chip. buildHerdsChip
-// now returns '' for every input; the pulse logic is preserved for Wave 22 reuse.
-test('20.E: herd chip pulse is hidden pending Wave 22 (was dim trailing alternating)', () => {
-  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '');
-  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '');
-  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '');
-  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '');
+// Wave 22 (22.A) — herd chip UNHIDDEN: the native SubagentStop hook now writes the
+// herd file for real (Day 0 proved it fires once per spawn), so the chip renders a true
+// `🐄 N/M/peakK`. The 20.E dim trailing pulse alternates by tick when ≥1 Moo is active.
+test('22.A: herd chip pulse renders (dim trailing, alternating by tick)', () => {
+  // idle (0 active): no pulse, count visible
+  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 0/5/peak3');
+  // active: dim ◉/◯ trails, alternating per tick
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 1/5/peak3 ◉');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '🐄 1/5/peak3 ◯');
+  // ≥3 concurrent lights ⚡ workflow
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '🐄 3/9/peak3 · ⚡ workflow ◉');
 });
 
-test('21.D3 buildHerdsChip is hidden pending Wave 22', () => {
-  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: true, tick: 0 }), '');
+test('22.A buildHerdsChip renders with color (unhidden)', () => {
+  const out = sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: true, tick: 0 });
+  assert.ok(out.includes('🐄 3/9/peak3'), `expected count: ${out}`);
+  assert.ok(out.includes('⚡ workflow'), `expected workflow cue: ${out}`);
 });
