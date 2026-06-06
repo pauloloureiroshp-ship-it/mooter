@@ -1,0 +1,402 @@
+[
+  {
+    "title": "classify.js local summary catastrophically wrong (score=1) — core routing logic undocumented",
+    "category": "Dead code",
+    "severity": "high",
+    "evidence": "tools/router/classify.js",
+    "estimated_fix_effort_minutes": 90,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "_debug_subagentstop_v167.js is empty/vestigial debug artifact checked into router",
+    "category": "Dead code",
+    "severity": "high",
+    "evidence": "tools/router/_debug_subagentstop_v167.js",
+    "estimated_fix_effort_minutes": 5,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "subagentstop_hook.js missing token-aggregation job 22.B and dominant-model extraction from transcript",
+    "category": "Architecture violation",
+    "severity": "high",
+    "evidence": "tools/router/subagentstop_hook.js",
+    "estimated_fix_effort_minutes": 120,
+    "wave_candidate": "Wave 24 honesty"
+  },
+  {
+    "title": "hub/routes/stats.js fabricates require(invariant) and require(./env) — wrong import model in corpus",
+    "category": "Stale docs",
+    "severity": "high",
+    "evidence": "hub/routes/stats.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "FRUGAL_ADMIN_TOKEN and MOOTER_ADMIN_TOKEN dual-token auth in hub — inconsistent secret naming",
+    "category": "Security gap",
+    "severity": "high",
+    "evidence": "docs/strategy/WAVE13_X_DAY1_FINDINGS.md",
+    "estimated_fix_effort_minutes": 60,
+    "wave_candidate": "Wave 24 security"
+  },
+  {
+    "title": "hub/routes/feedback.js imports sanitizeJson from anomaly.js but real import is from sanitize.js",
+    "category": "Architecture violation",
+    "severity": "high",
+    "evidence": "hub/routes/feedback.js",
+    "estimated_fix_effort_minutes": 15,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "frugal-login.js stores auth token at ~/.frugal/auth.token — old branding path, should be ~/.mooter/",
+    "category": "Branding leftover",
+    "severity": "high",
+    "evidence": "tools/router/frugal-login.js",
+    "estimated_fix_effort_minutes": 60,
+    "wave_candidate": "Wave 24 brand cleanup"
+  },
+  {
+    "title": "token_tracker.js missing aggregateTranscript() and file-backed cache for subagent tokens — Wave 22.B gap",
+    "category": "Architecture violation",
+    "severity": "high",
+    "evidence": "tools/router/token_tracker.js",
+    "estimated_fix_effort_minutes": 120,
+    "wave_candidate": "Wave 24 honesty"
+  },
+  {
+    "title": "landing/app/(app)/dashboard/page.tsx summary fabricates non-existent export { default } from ./_phase_c",
+    "category": "Stale docs",
+    "severity": "high",
+    "evidence": "landing/app/(app)/dashboard/page.tsx",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "hub/routes/delta.js missing Zod per-field validation and rate-limit fail-open design from corpus",
+    "category": "Architecture violation",
+    "severity": "high",
+    "evidence": "hub/routes/delta.js",
+    "estimated_fix_effort_minutes": 90,
+    "wave_candidate": "Wave 24 security"
+  },
+  {
+    "title": "hub-events-scheduler.js reads token from ~/.frugal/auth.token — stale path after rebrand to mooter",
+    "category": "Branding leftover",
+    "severity": "high",
+    "evidence": "tools/router/hub-events-scheduler.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 brand cleanup"
+  },
+  {
+    "title": "preflight-audit.js isTokenExpired() JWT logic and B1-B5 block structure undocumented — audit gaps invisible",
+    "category": "Security gap",
+    "severity": "high",
+    "evidence": "tools/audit/preflight-audit.js",
+    "estimated_fix_effort_minutes": 45,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "Four router files retain frugal- prefix (frugal-doctor.js, frugal-login.js, frugal-mode.js, frugal-turn-header.js) — mass rename needed",
+    "category": "Naming inconsistency",
+    "severity": "high",
+    "evidence": "tools/router/frugal-doctor.js",
+    "estimated_fix_effort_minutes": 60,
+    "wave_candidate": "Wave 24 brand cleanup"
+  },
+  {
+    "title": "classify-branches.test.js summary misses 95% of test content: HIGH_RISK, arch, bug, LOW_RISK branches untested per summary",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/classify-branches.test.js",
+    "estimated_fix_effort_minutes": 60,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "badge-savings.test.js summary fabricates missing exports and claims no tests — 5 real tests invisible to corpus",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/badge-savings.test.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "wave22-honesty.test.js references subagentstop_hook.js with wrong module name (subagent_stop_hook.js)",
+    "category": "Naming inconsistency",
+    "severity": "medium",
+    "evidence": "tools/router/wave22-honesty.test.js",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "stop-hook.test.js summary fabricates non-existent exports (buildHerdSection, buildMooCard) — 5 real tests missing from coverage map",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/stop-hook.test.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "glyphs.test.js summary fabricates non-existent exports — 5 glyph tests invisible to coverage tracking",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/glyphs.test.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "patterns.js summary lists only 2 exports — 100+ HIGH_RISK regex patterns (XSS, CSRF, SQL injection, JWT) invisible",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "tools/router/patterns.js",
+    "estimated_fix_effort_minutes": 45,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "pricing.js summary fabricates TypeScript import — full model price map (Anthropic/Google/OpenAI/DeepSeek/Ollama) undocumented",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "tools/router/pricing.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "env.js pick() function has undocumented MOOTER > FRUGAL precedence — migration path for FRUGAL_ variables invisible",
+    "category": "Naming inconsistency",
+    "severity": "medium",
+    "evidence": "tools/router/env.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 brand cleanup"
+  },
+  {
+    "title": "123 strategy docs average score 4.6 with 72 major drift — wave kickoff docs used as reference but systematically stale",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "docs/strategy/",
+    "estimated_fix_effort_minutes": 240,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "ANTHROPIC_SHOWCASE_RUBRIC_V2.md score=2: C1-C5 scoring table (23→25/25) absent from corpus — rubric drift",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "docs/strategy/ANTHROPIC_SHOWCASE_RUBRIC_V2.md",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "PHASE_C_ARCHITECTURE_AUDIT.md F-1 to F-10 security findings missing from summary — critical audit invisible to corpus",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "docs/strategy/PHASE_C_ARCHITECTURE_AUDIT.md",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "SYNC.md wave 22 state (22.A-22.F details, SubagentStop hook discovery) not reflected in corpus summary",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "SYNC.md",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "ARCHITECTURE.md fabricates regex_patterns as standalone module and anthropic_key as dependency — core architecture doc misleads",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "ARCHITECTURE.md",
+    "estimated_fix_effort_minutes": 60,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "hub/.wrangler/dry-run/worker.js summary fabricates @opentelemetry/core dependency — webpack bundle artifact misidentified",
+    "category": "Dead code",
+    "severity": "medium",
+    "evidence": "hub/.wrangler/dry-run/worker.js",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "hub/lib/db.js still inserts to frugal_events table — DB schema naming leftover post-rebrand to mooter",
+    "category": "Branding leftover",
+    "severity": "medium",
+    "evidence": "hub/lib/db.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 brand cleanup"
+  },
+  {
+    "title": "landing/app/(app)/admin/page.tsx missing use client directive and csvExport/maskEmail coverage in corpus",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "landing/app/(app)/admin/page.tsx",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "prompt-optimizer.js missing S2-S5 strategies, OptimizerDecision typedef, and <5ms budget constraint from corpus",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "tools/router/prompt-optimizer.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "post_tool_badge.js summary fabricates automatic invocation — herdAnnotationEnabled and MOOTER_HERD_VISIBILITY undocumented",
+    "category": "Architecture violation",
+    "severity": "medium",
+    "evidence": "tools/router/post_tool_badge.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "confidence-calibrator.js summary claims it adjusts thresholds — code only measures (diagnostic tool misclassified as runtime)",
+    "category": "Duplicate functionality",
+    "severity": "medium",
+    "evidence": "tools/router/confidence-calibrator.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "validate-set.js summary fabricates validate-set.test.js — per-section drift detection (canonical 100%, overall >=85%) undocumented",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/validate-set.js",
+    "estimated_fix_effort_minutes": 45,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "env.test.js summary fabricates module-level exports — schema rejection tests (invalid URLs, out-of-range ports) invisible to coverage map",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/env.test.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "savings-tracker-me.test.js missing aggregateExecution, resetExecutionsAggregate, buildExecutionsBlock test coverage in summary",
+    "category": "Missing tests",
+    "severity": "medium",
+    "evidence": "tools/router/savings-tracker-me.test.js",
+    "estimated_fix_effort_minutes": 30,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "backtest.js summary omits over/under-routing analysis output and router-tuning.json generation — tuning loop invisible",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "tools/router/backtest.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "detect-subscriptions.js missing 5-probe detection logic (Anthropic, Codex, OpenAI, Gemini, Ollama) and --ping flag from corpus",
+    "category": "Stale docs",
+    "severity": "medium",
+    "evidence": "tools/router/detect-subscriptions.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "frugal-turn-header.js UserPromptSubmit hook context and systemMessage channel missing from corpus summary",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "tools/router/frugal-turn-header.js",
+    "estimated_fix_effort_minutes": 15,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "FLOWCHART.md summary fabricates mermaid/fastText/k-NN imports — strategic analysis doc misidentified as executable code",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "docs/strategy/FLOWCHART.md",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "WAVE15_FRIENDS_LAUNCH_AUDIT_FINDINGS.md GO/NO-GO verdict (NO-GO, 3 critical findings) missing from corpus summary",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "docs/strategy/WAVE15_FRIENDS_LAUNCH_AUDIT_FINDINGS.md",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "NOTICE.md summary fabricates API public exports — legal license doc misidentified as technical module",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "NOTICE.md",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "hub/routes/feedback.js F-1-style rate limiting (10/60s per ip_hash) absent from corpus — security control invisible",
+    "category": "Security gap",
+    "severity": "low",
+    "evidence": "hub/routes/feedback.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 security"
+  },
+  {
+    "title": "detect-subscriptions.test.js missing GEMINI_API_KEY / GOOGLE_API_KEY test cases in coverage map",
+    "category": "Missing tests",
+    "severity": "low",
+    "evidence": "tools/router/detect-subscriptions.test.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "vram-detect.test.js missing formatVramChip null and M-series edge case tests from coverage map",
+    "category": "Missing tests",
+    "severity": "low",
+    "evidence": "tools/router/vram-detect.test.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 test coverage"
+  },
+  {
+    "title": "landing/app/(marketing)/methodology/page.tsx use client directive and HARDWARE constant missing from summary",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "landing/app/(marketing)/methodology/page.tsx",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "landing/app/(marketing)/install/InstallCommand.tsx clipboard copy state and 1600ms reset logic missing from summary",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "landing/app/(marketing)/install/InstallCommand.tsx",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "tools/audit/audit_corpus_builder.js CLI interface (scan/run/stats commands) missing from corpus summary",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "tools/audit/audit_corpus_builder.js",
+    "estimated_fix_effort_minutes": 15,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "stress-test.js summary claims no tests — 47 tier-organised test prompts (T0-T3) invisible to corpus",
+    "category": "Inline TODO/FIXME",
+    "severity": "low",
+    "evidence": "tools/router/stress-test.js",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "landing/app/onboarding/page.tsx fabricates React import — recommendOllamaModel logic missing from summary",
+    "category": "Stale docs",
+    "severity": "low",
+    "evidence": "landing/app/onboarding/page.tsx",
+    "estimated_fix_effort_minutes": 10,
+    "wave_candidate": "Wave 24 cleanup"
+  },
+  {
+    "title": "hub/lib/model-detect.js unknown_models dual-type handling (string JSON or array) missing from corpus — edge case invisible",
+    "category": "Architecture violation",
+    "severity": "low",
+    "evidence": "hub/lib/model-detect.js",
+    "estimated_fix_effort_minutes": 20,
+    "wave_candidate": "Wave 24 cleanup"
+  }
+]

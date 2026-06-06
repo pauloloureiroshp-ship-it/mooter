@@ -1,0 +1,8 @@
+{
+  "samples": 560,
+  "samples_high": 212,
+  "samples_good": 348,
+  "high_min": 8,
+  "good_min": 7,
+  "path": "audit/lora_train.jsonl"
+}

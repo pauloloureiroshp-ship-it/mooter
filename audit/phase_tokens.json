@@ -1,0 +1,16 @@
+{
+  "insights": {
+    "tokens_in": 70000,
+    "tokens_out": 7199,
+    "estimated": true,
+    "model": "claude-sonnet-4-6",
+    "note": "subagent total 77199; in/out split estimated"
+  },
+  "benchmark": {
+    "tokens_in": 45000,
+    "tokens_out": 9000,
+    "estimated": true,
+    "model": "claude-opus-4-6",
+    "note": "orchestrator Phase 4 synthesis, estimated"
+  }
+}

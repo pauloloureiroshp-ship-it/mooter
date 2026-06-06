@@ -1,0 +1,25 @@
+{
+  "total_files": 372,
+  "by_tier": {
+    "T0": {
+      "files": 372,
+      "tokens_in": 588540,
+      "tokens_out": 59769
+    }
+  },
+  "by_category": {
+    "root-doc": 16,
+    "strategy": 123,
+    "hub": 22,
+    "landing-app": 30,
+    "landing-components": 15,
+    "audit": 8,
+    "router": 158
+  },
+  "total_tokens_in": 588540,
+  "total_tokens_out": 59769,
+  "total_duration_ms": 480885,
+  "cost_actual_usd": 0,
+  "generated_with": "qwen2.5-coder:7b",
+  "note": "T0 local corpus; cloud-Haiku divergence quantified on a sample in Phase 4."
+}
