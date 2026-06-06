@@ -61,11 +61,14 @@ export function VersionBadge({
   lastSync,
   nowMs,
   style,
+  showUpdateLink = true,
 }: {
   version: string | null | undefined;
   lastSync: Date | string | number | null | undefined;
   nowMs?: number;
   style?: React.CSSProperties;
+  /** When stale, append an actionable "· update" link to /install. */
+  showUpdateLink?: boolean;
 }) {
   const info = versionBadgeInfo(version, lastSync, nowMs);
   if (!info) return null;
@@ -78,11 +81,22 @@ export function VersionBadge({
       }}
       title={
         info.stale && info.daysSince != null
-          ? `Last sync ${info.daysSince}d ago — version may be outdated. Preview with \`mooter sync --dry-run\`.`
+          ? `Last sync ${info.daysSince}d ago — this version reflects your last sync, not necessarily what's installed. Run \`mooter sync\` to refresh.`
           : undefined
       }
     >
       {info.label}
+      {info.stale && showUpdateLink && (
+        <>
+          {' '}
+          <a
+            href="/install"
+            style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'var(--font)' }}
+          >
+            · update
+          </a>
+        </>
+      )}
     </span>
   );
 }
