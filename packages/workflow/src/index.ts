@@ -12,7 +12,7 @@ export const WORKFLOW_ENGINE_VERSION = "0.1.0";
 export const PHASES = {
   agent: { phase: "C", done: true },
   pool: { phase: "C", done: true },
-  primitives: { phase: "D", done: false },
+  primitives: { phase: "D", done: true },
   runtime: { phase: "E", done: false },
   state: { phase: "F", done: false },
   writer: { phase: "G", done: false },
@@ -45,7 +45,22 @@ export type { ToolContext, GrepMatch, ToolName } from "./tools.ts";
 
 export { priceTurn, prices } from "./pricing.ts";
 
-export { parallel, vote, converge, checkpoint, log } from "./primitives.ts";
+export {
+  parallel,
+  vote,
+  converge,
+  checkpoint,
+  log,
+  setSink,
+  getSink,
+  createMemorySink,
+} from "./primitives.ts";
+export type {
+  CheckpointSink,
+  MemorySink,
+  CheckpointEntry,
+  LogEntry,
+} from "./primitives.ts";
 
 export { runScript, RUNTIME_DEFAULTS } from "./runtime.ts";
 export type { RuntimeOptions } from "./runtime.ts";
