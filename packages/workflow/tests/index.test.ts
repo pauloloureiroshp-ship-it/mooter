@@ -12,7 +12,7 @@ test("version is published", () => {
   assert.equal(WORKFLOW_ENGINE_VERSION, "0.1.0");
 });
 
-test("PHASES covers every engine module and none are done yet", () => {
+test("PHASES covers every engine module", () => {
   const keys = Object.keys(PHASES).sort();
   assert.deepEqual(keys, [
     "agent",
@@ -24,7 +24,14 @@ test("PHASES covers every engine module and none are done yet", () => {
     "tui",
     "writer",
   ]);
-  assert.ok(Object.values(PHASES).every((m) => m.done === false));
+});
+
+test("Phase C modules (agent, pool) are done; later phases are not", () => {
+  assert.equal(PHASES.agent.done, true);
+  assert.equal(PHASES.pool.done, true);
+  for (const k of ["primitives", "runtime", "state", "writer", "presenter", "tui"] as const) {
+    assert.equal(PHASES[k].done, false, `${k} should still be a stub`);
+  }
 });
 
 test("isEngineReady() is false while stubs remain", () => {

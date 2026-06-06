@@ -10,8 +10,8 @@ export const WORKFLOW_ENGINE_VERSION = "0.1.0";
 
 /** Per-module implementation status, for `mooter workflow` and tests. */
 export const PHASES = {
-  agent: { phase: "C", done: false },
-  pool: { phase: "C", done: false },
+  agent: { phase: "C", done: true },
+  pool: { phase: "C", done: true },
   primitives: { phase: "D", done: false },
   runtime: { phase: "E", done: false },
   state: { phase: "F", done: false },
@@ -28,11 +28,22 @@ export function isEngineReady(): boolean {
 export { NotImplementedError } from "./_stub.ts";
 export type { Phase } from "./_stub.ts";
 
-export { agent } from "./agent.ts";
+export { agent, inferBackend, AgentError } from "./agent.ts";
 export type { AgentRequest, AgentResult, Backend } from "./agent.ts";
 
-export { AgentPool, detectOptimalConcurrency } from "./pool.ts";
-export type { PoolOptions } from "./pool.ts";
+export {
+  AgentPool,
+  detectOptimalConcurrency,
+  DEFAULT_CONCURRENCY,
+  PER_WORKER_VRAM_MB,
+  MAX_CONCURRENCY,
+} from "./pool.ts";
+export type { PoolOptions, ConcurrencyOptions, Vram, GetVram } from "./pool.ts";
+
+export { readTool, grepTool, globTool, TOOL_REGISTRY } from "./tools.ts";
+export type { ToolContext, GrepMatch, ToolName } from "./tools.ts";
+
+export { priceTurn, prices } from "./pricing.ts";
 
 export { parallel, vote, converge, checkpoint, log } from "./primitives.ts";
 
