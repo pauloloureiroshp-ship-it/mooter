@@ -1079,21 +1079,39 @@ html:has(.app-shell-dark) body {
   color: var(--text-2);
   letter-spacing: 0.04em;
 }
+/* Tooltips are hidden by default and only revealed on hover/focus of their
+   parent flow-node. Without this they all render at once, stacking on top of
+   the cards above them and clipping the body copy (Wave 24 24.A fix). */
 .app-shell-root .flow-tooltip {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(4px);
   background: var(--surface-2);
   color: var(--text-2);
   border: 1px solid var(--border-light);
   border-radius: var(--r-sm);
   padding: 8px 10px;
   font-size: 0.72rem;
+  line-height: 1.5;
   width: max-content;
-  max-width: 240px;
-  z-index: 5;
+  max-width: min(280px, calc(100vw - 48px));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  visibility: hidden;
+  z-index: 20;
   pointer-events: none;
+  transition: opacity 140ms ease, visibility 140ms ease, transform 140ms ease;
+}
+/* Child combinator (not descendant): the model-card row wraps 4 nested
+   .flow-node cards inside an outer .flow-node, so a descendant selector would
+   reveal all 4 tooltips when any one is hovered. `>` scopes the reveal to each
+   card's own direct-child tooltip. */
+.app-shell-root .flow-node:hover > .flow-tooltip,
+.app-shell-root .flow-node:focus-within > .flow-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Tier bar (dashboard metrics) */
