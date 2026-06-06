@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 const cards = [
-  { icon: '💻', title: 'T0 stays local', body: 'When mooter routes to your local Ollama, your prompt and your code never touch a network.' },
+  { icon: '💻', title: 'T0 runs on Ollama, locally', body: 'When mooter executes on your local Ollama, your prompt and code never touch a network. One caveat: with an API key set, some T0-classified tasks run on cloud Haiku for quality — see “Routing vs execution” below.' },
   { icon: '🔒', title: 'Prompts hashed', body: 'We log a SHA-256 hash of each prompt — never the text itself.' },
   { icon: '🤝', title: 'Opt-in telemetry', body: 'Defaults OFF. When you turn it on, only aggregated stats leave.' },
   { icon: '🚫', title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. No prompt text is ever transmitted — only hashes and counts.' },
@@ -94,6 +94,27 @@ export default async function PrivacyPage() {
             </Card>
           ))}
         </div>
+      </div>
+
+      {/* Wave 24 24.C — honest "Routing vs Execution" disclosure. The classifier
+          is 100% local, but the model that runs afterwards can be cloud, and a
+          T0-classified task can still execute on cloud Haiku when an API key is
+          present. We say so plainly rather than implying everything stays local. */}
+      <div style={{ marginTop: 36 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>Routing vs execution — the honest distinction</h2>
+        <Card padding={28}>
+          <p style={{ color: 'var(--color-muted)', fontSize: 14, lineHeight: 1.7, margin: '0 0 12px' }}>
+            mooter has two separate steps, and they have different privacy properties:
+          </p>
+          <ul style={{ margin: '0 0 12px', paddingLeft: 18, color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.8 }}>
+            <li><strong style={{ color: 'var(--color-text, inherit)' }}>Routing (classification)</strong> runs 100% locally. It&apos;s pure regex in <code style={{ fontFamily: 'var(--mono)' }}>classify.js</code> — no AI, no network. Nothing is sent anywhere to decide which model handles your prompt.</li>
+            <li><strong style={{ color: 'var(--color-text, inherit)' }}>Execution (the model call)</strong> then runs either locally (Ollama) or in the cloud (Anthropic), using <em>your own</em> API key — the prompt goes direct to your provider, never through a mooter server.</li>
+            <li><strong style={{ color: 'var(--color-text, inherit)' }}>One honest caveat:</strong> when you have an Anthropic API key configured, some tasks that classify as <code style={{ fontFamily: 'var(--mono)' }}>T0</code> (e.g. summarisation) still execute on cloud Haiku for quality, rather than local Ollama. This is a deliberate quality trade-off — and your CLI&apos;s <strong>divergence chip</strong> surfaces it in real time so you always know when local intent ran in the cloud.</li>
+          </ul>
+          <p style={{ color: 'var(--color-muted)', fontSize: 13, lineHeight: 1.7, margin: 0 }}>
+            Bottom line: mooter never proxies or stores your prompt text. But &ldquo;routed to T0&rdquo; does not always mean &ldquo;stayed on your machine&rdquo; — the divergence chip is how we keep that transparent.
+          </p>
+        </Card>
       </div>
 
       {hasPolicy ? (

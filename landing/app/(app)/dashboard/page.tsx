@@ -1119,20 +1119,62 @@ function OverviewTab({ profile }: { profile: Profile }) {
 
   const syncDays = daysSinceSync(latestDevice?.last_sync_at);
   const syncStale = syncDays != null && syncDays > STALE_SYNC_DAYS;
+  const neverSynced = !(profile.devices && profile.devices.length > 0);
+  const [copied, copy] = useCopyButton();
 
   return (
     <>
-      {/* Wave 14 Day 1 F-2 — stale-sync nudge (display only). The version chip is
-          only as fresh as the last heartbeat, so when sync is old we say so
-          instead of asserting an upgrade state we can't confirm. */}
+      {/* Wave 24 24.B — never-synced empty state. Friends installing for the
+          first time see no numbers; tell them exactly how to populate them
+          instead of an ambiguous $0.00. */}
+      {neverSynced && (
+        <div style={{
+          marginBottom: 20, padding: '20px 24px',
+          background: 'linear-gradient(135deg, rgba(232,136,138,0.10) 0%, rgba(232,136,138,0.03) 100%)',
+          border: '1px solid rgba(232,136,138,0.3)', borderRadius: 'var(--r-lg)',
+        }}>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+            Run your first sync to see your numbers
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
+            mooter tracks your routing locally. Run the command below in your terminal to push your first snapshot to this dashboard.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)', background: 'var(--surface-2)', padding: '6px 10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem' }}>
+              mooter sync
+            </code>
+            <CopyBtn id="empty-sync" text="mooter sync" copied={copied} onCopy={copy} />
+          </div>
+        </div>
+      )}
+      {/* Wave 24 24.B — prominent stale-data banner. The previous nudge was a
+          thin line users skipped; friends concluded the product was abandoned.
+          Now: bold warning + one-click copy + path to update. Display only —
+          we never mutate the telemetry payload. */}
       {syncStale && (
         <div style={{
-          marginBottom: 16, padding: '10px 14px',
-          background: 'rgba(212,192,144,0.08)', border: '1px solid var(--yellow)',
-          borderRadius: 'var(--r-md)', fontSize: '0.82rem', color: 'var(--text)',
+          marginBottom: 20, padding: '16px 20px',
+          background: 'rgba(212,192,144,0.12)', border: '1px solid var(--yellow)',
+          borderRadius: 'var(--r-lg)',
         }}>
-          Last sync was <span style={{ fontFamily: 'var(--mono)' }}>{syncDays}d</span> ago. Preview your latest local data with{' '}
-          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter sync --dry-run</code>.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: '1.1rem' }} aria-hidden>⚠</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
+              This dashboard shows data from {syncDays} days ago
+            </span>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
+            The numbers below are your last synced snapshot, not live. Run <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>mooter sync</code> in your terminal to refresh them.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)', background: 'var(--surface-2)', padding: '6px 10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem' }}>
+              mooter sync
+            </code>
+            <CopyBtn id="stale-sync" text="mooter sync" copied={copied} onCopy={copy} />
+            <a href="/install" style={{ marginLeft: 8, fontSize: '0.8rem', color: 'var(--accent)', textDecoration: 'none' }}>
+              Update mooter →
+            </a>
+          </div>
         </div>
       )}
       {/* Wave 4 Phase C — CLI connection status (real device data) */}
@@ -1166,7 +1208,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               return <DataSourceBadge source={heroSource} detail={detail} />;
             })()}
           </div>
-          <div>
+          <div style={syncStale ? { opacity: 0.5 } : undefined}>
             <div style={{
               fontSize: '2.5rem', fontWeight: 800,
               color: 'var(--tier-0)', lineHeight: 1,
@@ -1182,7 +1224,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               Saved
             </div>
           </div>
-          <div>
+          <div style={syncStale ? { opacity: 0.5 } : undefined}>
             <div style={{
               fontSize: '2.5rem', fontWeight: 800,
               color: 'var(--text)', lineHeight: 1,
@@ -1198,7 +1240,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               Decisions
             </div>
           </div>
-          <div>
+          <div style={syncStale ? { opacity: 0.5 } : undefined}>
             <div style={{
               fontSize: '2.5rem', fontWeight: 800,
               color: 'var(--text)', lineHeight: 1,
@@ -1594,6 +1636,8 @@ function FlowNode({ index, icon, label, badge, tooltip, highlight, children }: {
   return (
     <div
       className="flow-node"
+      tabIndex={0}
+      aria-label={`${label}: ${tooltip}`}
       style={{
         animationDelay: `${index * 0.1}s`,
         border: highlight ? '2px solid var(--accent)' : '1px solid var(--border)',
@@ -1601,6 +1645,8 @@ function FlowNode({ index, icon, label, badge, tooltip, highlight, children }: {
         borderRadius: 'var(--r-md)',
         padding: '16px 20px',
         position: 'relative',
+        cursor: 'help',
+        outline: 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: children ? 10 : 0 }}>
@@ -1641,6 +1687,8 @@ function ModelCard({ label, badge, color, cost, tooltip }: {
   return (
     <div
       className="flow-node"
+      tabIndex={0}
+      aria-label={`${label}: ${tooltip}`}
       style={{
         animationDelay: '0.5s',
         border: `1px solid ${color}44`,
@@ -1650,6 +1698,8 @@ function ModelCard({ label, badge, color, cost, tooltip }: {
         position: 'relative',
         flex: 1,
         minWidth: 140,
+        cursor: 'help',
+        outline: 'none',
       }}
     >
       <div style={{ fontWeight: 700, fontSize: '0.9rem', color, marginBottom: 4 }}>{label}</div>
@@ -1691,7 +1741,6 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
   const latestDevice = (profile.devices || [])[0];
   const gpuName = formatGpuLabel(latestDevice?.gpu_name ?? null) || 'GPU';
   const osType = latestDevice?.os_type || profile.os_type || 'unknown';
-  const frugalVersion = latestDevice?.frugal_version || profile.frugal_version || '1.1.0';
 
   const naiveCost = decisionsCount * 0.045;
 
@@ -1726,12 +1775,12 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
 
       {/* Flow */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-        <FlowNode index={0} icon={<PromptIcon />} label="Your prompt" tooltip="Every message you send in Claude Code passes through mooter before reaching any model. Nothing is sent to any LLM until mooter decides which one.">
+        <FlowNode index={0} icon={<PromptIcon />} label="Your prompt" tooltip="Every message you send in Claude Code passes through mooter's router before any model is chosen. Routing happens 100% locally — nothing is sent anywhere during classification. The model that runs afterwards may be local (Ollama) or cloud (Anthropic), depending on the tier.">
           <div style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>The question you typed</div>
         </FlowNode>
         <FlowArrow />
 
-        <FlowNode index={1} icon={<ChipIcon />} label="Pre-processing" badge="LOCAL · ~1ms" tooltip="mooter normalizes your prompt locally — strips noise, detects language (PT/EN), identifies code blocks, file references, error traces, and URLs. Zero data leaves your machine at this step.">
+        <FlowNode index={1} icon={<ChipIcon />} label="Pre-processing" badge="LOCAL · ~1ms" tooltip="mooter normalizes your prompt locally — strips noise, detects language (PT/EN), identifies code blocks, file references, error traces, and URLs. 100% local: pure regex, no AI, nothing sent anywhere for this step.">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {['language detection', 'code block?', 'file refs', 'error trace?'].map(f => (
               <span key={f} style={{
@@ -1821,7 +1870,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         {/* Model cards */}
         <div className="flow-node" style={{ animationDelay: '0.5s', padding: 0, border: 'none', background: 'transparent' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            <ModelCard label="Ollama" badge="FREE · LOCAL" color="var(--tier-0)" cost="$0.00" tooltip={`Runs entirely on your ${gpuName}. No API calls. No data sent anywhere. mooter warms the model in RAM before you need it so there's no cold-start penalty.`} />
+            <ModelCard label="Ollama" badge="FREE · LOCAL" color="var(--tier-0)" cost="$0.00" tooltip={`Runs entirely on your ${gpuName} — no API calls, the prompt stays on your machine. Note: when you have an Anthropic API key, some tasks that classify as T0 still execute on cloud Haiku for quality. Your terminal's divergence chip shows when local intent runs cloud.`} />
             <ModelCard label="Claude Haiku" badge="API · FAST" color="var(--tier-1)" cost="~$0.001" tooltip="Anthropic's fastest Claude. Used for light code tasks, commit messages, explanations, regex. 40× cheaper than Opus." />
             <ModelCard label="Claude Sonnet" badge="API · BALANCED" color="var(--tier-2)" cost="~$0.01" tooltip="Used for debugging, root cause analysis, comparing approaches. 5× cheaper than Opus with 90% of the capability for most tasks." />
             <ModelCard label="Claude Opus" badge="API · MAXIMUM" color="var(--tier-3)" cost="~$0.15" tooltip={`Reserved for architecture decisions, multi-file refactors, production-critical tasks. mooter only sends here when it has to — your ${t3Pct}% T3 rate means ${routedAwayPct}% of prompts were handled cheaper.`} />
@@ -1882,7 +1931,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
             textAlign: 'center', marginTop: 12,
             fontFamily: 'var(--mono)',
           }}>
-            {gpuName} · {osLabel(osType)} · mooter <VersionBadge version={frugalVersion} lastSync={latestDevice?.last_sync_at} />
+            {gpuName} · {osLabel(osType)}
           </div>
         </div>
       )}

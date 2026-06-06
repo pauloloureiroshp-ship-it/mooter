@@ -21,6 +21,7 @@ import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 import { runExplain } from "./commands/explain.ts";
+import { runEnvDetect } from "./commands/env-detect.ts";
 import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
@@ -30,6 +31,7 @@ Usage:
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline]      educational guide to each statusline chip
+  mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
   mooter login [--manual|--status]   connect this terminal to your mooter.ai account (browser handshake)
@@ -137,6 +139,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "explain") {
     const res = runExplain({ topic: rest[0] });
+    process.stdout.write(res.output + "\n");
+    return res.exitCode;
+  }
+
+  if (command === "env-detect") {
+    const res = runEnvDetect({ json: rest.includes("--json") });
     process.stdout.write(res.output + "\n");
     return res.exitCode;
   }

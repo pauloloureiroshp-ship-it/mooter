@@ -759,6 +759,14 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
   writeJson600(join(mooterHome, "consent.json"), buildConsent(telemetry, now, secret));
 
   io.print("\n✓ mooter is configured. Run `mooter pack list` to see installed packs.");
+  // Wave 24 24.D — onboarding nudge (approach γ). mooter never auto-syncs, so a
+  // fresh install leaves the web dashboard empty until the user runs `mooter
+  // sync` at least once. Tell them explicitly here rather than letting the
+  // dashboard look abandoned.
+  io.print("\nNext step → populate your dashboard:");
+  io.print("  Run `mooter sync` after your next Claude Code session to push your");
+  io.print("  first snapshot to mooter.ai/dashboard. (mooter does not auto-sync —");
+  io.print("  your data stays local until you choose to send aggregated stats.)");
   return {
     exitCode: 0,
     output: `init complete · telemetry ${telemetry ? "ON" : "OFF"} · ${installed.size} pack(s) installed`,
