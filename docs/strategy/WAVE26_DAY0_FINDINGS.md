@@ -87,6 +87,9 @@ bash ../scripts/e2e_sync.sh                            # full loop (needs `moote
 
 No new secret required (α uses no server token). `MOOTER_ADMIN_TOKEN` unchanged.
 
+### Gate
+final-reviewer (Opus): **PASS-WITH-NOTES, no HIGH severity** → brief's merge gate met. MEDIUM #1 (overlapping-window double-count) **fixed** with a success-advancing sync cursor (`~/.mooter/sync-state.json`, advances only on 2xx → disjoint windows). MEDIUM #2 (per-client rate-limit bypass / no body cap) is the accepted α trade-off, identical to the existing `/submit-events`; edge/IP guard tracked post-launch. NITs (`avg_confidence`/`top_categories`/`unique_instances` still frugal-only) documented, non-blocking. Local: hub 21/21 · CLI 33/33 · herd 4/4 · classify sha intact.
+
 ### Still open / deferred to a follow-up
 - Per-decision savings are not derivable from aggregate windows, so `pulse.saved_last_7d` stays from `frugal_events` (0 until a per-decision path exists) — **honestly null/0, never fabricated**.
 - Device-side display of the Pastor hint beyond the one-line `mooter sync` echo (e.g. statusline chip) — small follow-up.
