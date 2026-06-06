@@ -1,0 +1,52 @@
+{
+  "rows": [
+    {
+      "phase": "1 Corpus",
+      "tier": "T0",
+      "model": "qwen2.5-coder:7b",
+      "tokens_in": 588540,
+      "tokens_out": 59769,
+      "cost_actual": 0,
+      "cost_opus_baseline": 4.4369,
+      "saved": 4.4369
+    },
+    {
+      "phase": "2 Validate",
+      "tier": "T1",
+      "model": "claude-haiku-4-5",
+      "tokens_in": 778835,
+      "tokens_out": 98824,
+      "cost_actual": 1.273,
+      "cost_opus_baseline": 6.3648,
+      "saved": 5.0918
+    },
+    {
+      "phase": "3 Insights",
+      "tier": "T2",
+      "model": "claude-sonnet-4-6",
+      "tokens_in": 70000,
+      "tokens_out": 7199,
+      "cost_actual": 0.318,
+      "cost_opus_baseline": 0.53,
+      "saved": 0.212
+    },
+    {
+      "phase": "4 Benchmark",
+      "tier": "T3",
+      "model": "claude-opus-4-6",
+      "tokens_in": 45000,
+      "tokens_out": 9000,
+      "cost_actual": 0.45,
+      "cost_opus_baseline": 0.45,
+      "saved": 0
+    }
+  ],
+  "totals": {
+    "tokens_in": 1482375,
+    "tokens_out": 174792,
+    "cost_actual": 2.041,
+    "cost_opus_baseline": 11.7817,
+    "saved": 9.7407,
+    "saved_pct": 82.7
+  }
+}

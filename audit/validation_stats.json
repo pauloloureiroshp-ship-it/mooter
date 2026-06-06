@@ -1,0 +1,115 @@
+{
+  "total": 372,
+  "histogram": {
+    "none": 9,
+    "minor": 189,
+    "major": 174,
+    "unparsed": 0
+  },
+  "avg_score": 5.2,
+  "scored_files": 372,
+  "top20_highest_drift": [
+    {
+      "path": "tools/router/_debug_subagentstop_v167.js",
+      "score": 0,
+      "drift": "major"
+    },
+    {
+      "path": "tools/router/badge-savings.test.js",
+      "score": 1,
+      "drift": "major"
+    },
+    {
+      "path": "tools/router/classify-branches.test.js",
+      "score": 1,
+      "drift": "major"
+    },
+    {
+      "path": "tools/router/classify.js",
+      "score": 1,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/ANTHROPIC_SHOWCASE_RUBRIC_V1.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/ANTHROPIC_SHOWCASE_RUBRIC_V2.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/DESIGN_MASTER_PROMPT.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/FLOWCHART.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/PHASE_C_ARCHITECTURE_AUDIT.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/SPRINT_C_AUTONOMOUS_ORCHESTRATOR.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE10_PHASE_B2B_FINDINGS.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE11_WARM_INTRO_READINESS_KICKOFF.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE12_DAY1_FINDINGS.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE14_14A_QUALITY_AUDIT_FINDINGS.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE18_ACCESSIBILITY_AUDIT.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE2_6_CONTINUOUS_ORCHESTRATOR.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE2_DAY6_KICKOFF.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE20_FRIENDS_LAUNCH_POLISH_KICKOFF.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE21_DAY1_RECON.md",
+      "score": 2,
+      "drift": "major"
+    },
+    {
+      "path": "docs/strategy/WAVE22_DAY1_FINDINGS.md",
+      "score": 2,
+      "drift": "major"
+    }
+  ],
+  "total_tokens_in": 778835,
+  "total_tokens_out": 98824
+}

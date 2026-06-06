@@ -1,0 +1,43 @@
+{
+  "method": "No FP16 weights available in-env (WSL/CPU, Ollama q4 tags only). We do NOT fabricate a Q4-vs-FP16 number.",
+  "quantized_model": "qwen2.5-coder:7b",
+  "judged_by": "claude-haiku-4-5 (T1 validator)",
+  "accuracy_as_judged": {
+    "avg_score_0_to_10": 5.2,
+    "drift_none_pct": 2.4194,
+    "histogram": {
+      "none": 9,
+      "minor": 189,
+      "major": 174,
+      "unparsed": 0
+    },
+    "scored_files": 372
+  },
+  "size_sensitivity_probe": {
+    "note": "ROUGE-L of the shipped Q4 7b summary vs a Q4 14b summary of the same file. Higher = the small quant tracks the larger model.",
+    "sample_files": 5,
+    "avg_rougeL_7b_vs_14b": 0.2109,
+    "pairs": [
+      {
+        "path": "ARCHITECTURE_PRIVATE.md",
+        "rougeL_7b_vs_14b": 0.2373
+      },
+      {
+        "path": "ARCHITECTURE.md",
+        "rougeL_7b_vs_14b": 0.1216
+      },
+      {
+        "path": "CHANGELOG.md",
+        "rougeL_7b_vs_14b": 0.2373
+      },
+      {
+        "path": "CLAUDE.md",
+        "rougeL_7b_vs_14b": 0.2232
+      },
+      {
+        "path": "CONTRIBUTING.md",
+        "rougeL_7b_vs_14b": 0.2353
+      }
+    ]
+  }
+}
