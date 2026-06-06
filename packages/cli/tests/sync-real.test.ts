@@ -31,10 +31,16 @@ test("no backend URL → falls back to dry-run with a clear warning", async () =
   assert.match(res.output, /MOOTER_CF_BACKEND_URL/);
 });
 
-test("backend set but not logged in → exit 1", async () => {
-  const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: home({ auth: false }), lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl: () => { throw new Error("no"); } });
-  assert.equal(res.exitCode, 1);
-  assert.match(res.output, /Not logged in/);
+test("α: backend set, not logged in → syncs anonymously (no auth header)", async () => {
+  let calledAuth: string | undefined = "unset";
+  const fetchImpl = async (_url: string, init: any) => {
+    calledAuth = init.headers.Authorization;
+    return { ok: true, status: 202, json: async () => ({ accepted: 1, rejected: 0 }) };
+  };
+  const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: home({ auth: false }), lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /Synced 1 event/);
+  assert.equal(calledAuth, undefined, "no Authorization header when anonymous (auth model α)");
 });
 
 test("backend set but telemetry off → exit 1", async () => {
@@ -60,6 +66,15 @@ test("real POST (injected fetch) → 202 success + real-sync audit (no network)"
   assert.ok(audit.at(-1)!.bytes_sent > 0, "real sync sent bytes (unlike dry-run)");
 });
 
+test("pastor hint in the response is surfaced to the user (26.D)", async () => {
+  const h = home();
+  const fetchImpl = async () => ({ ok: true, status: 202, json: async () => ({ accepted: 1, rejected: 0, pastor_hint: { code: "high_t3", message: "Over 25% of your prompts hit T3 Opus." } }) });
+  const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: h, lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /🐂 Pastor:/);
+  assert.match(res.output, /T3 Opus/);
+});
+
 test("server 401 → graceful exit 1 + audit captures status", async () => {
   const h = home();
   const fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({ error: "invalid_token" }) });
@@ -76,6 +91,20 @@ test("fetch throws → graceful exit 1 + audit logged", async () => {
   assert.equal(res.exitCode, 1);
   assert.match(res.output, /Sync error/);
   assert.equal(listAudit(h).at(-1)!.kind, "real-sync");
+});
+
+test("cursor: a 2nd sync does not re-send an already-synced window (no double-count)", async () => {
+  const h = home();
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return { ok: true, status: 202, json: async () => ({ accepted: 1, rejected: 0 }) }; };
+  // 1st sync at NOW with one decision at NOW-0.1d → sends it, advances cursor to NOW.
+  const r1 = await runSyncReal({ backendUrl: "https://b.example", mooterHome: h, lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl });
+  assert.match(r1.output, /Synced 1 event/);
+  // 2nd sync 60s later, SAME lines: window now starts at the cursor (NOW), so the
+  // earlier decision is out of window → nothing to send, no double-count.
+  const r2 = await runSyncReal({ backendUrl: "https://b.example", mooterHome: h, lines: LINES, nowMs: NOW + 60_000, secret: SECRET, fetchImpl });
+  assert.match(r2.output, /Nothing to sync/);
+  assert.equal(calls, 1, "second sync sent nothing (window already covered)");
 });
 
 test("empty window → nothing to sync (no fetch)", async () => {
