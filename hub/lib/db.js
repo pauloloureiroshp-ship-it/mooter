@@ -223,3 +223,113 @@ export async function listFeedback(db, limit) {
   );
   return (res && res.results) || [];
 }
+
+// ── Sync windows (Wave 26 — POST /v1/events, aggregate windows) ─────────
+
+const INSERT_SYNC_EVENT_SQL = `
+  INSERT OR IGNORE INTO sync_events (
+    event_id, client_id, schema_version, emitted_at_utc, window_start_utc, window_end_utc,
+    t0, t1, t2, t3, avg_confidence, safety_applied, safety_total, pack_ids,
+    os, gpu_class, ram_class, ollama_available, sig_value, received_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+/**
+ * Flatten a validated MooterSyncEvent window into a bound INSERT statement.
+ * INSERT OR IGNORE makes re-sync of the same event_id idempotent.
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {Record<string, any>} w
+ * @param {string} receivedAt ISO timestamp
+ */
+export function bindSyncEventInsert(db, w, receivedAt) {
+  const td = w.tier_distribution || {};
+  const counts = td.counts || {};
+  const sb = w.safety_boost_reasons || {};
+  const pu = w.pack_usage || {};
+  const hw = w.hardware_info || {};
+  return db.prepare(INSERT_SYNC_EVENT_SQL).bind(
+    w.event_id, w.client_id_pseudonymous, w.schema_version, w.emitted_at_utc,
+    td.window_start_utc || null, td.window_end_utc || null,
+    Number(counts.T0) || 0, Number(counts.T1) || 0, Number(counts.T2) || 0, Number(counts.T3) || 0,
+    typeof td.avg_confidence === 'number' ? td.avg_confidence : null,
+    typeof sb.applied === 'number' ? sb.applied : null,
+    typeof sb.total_prompts === 'number' ? sb.total_prompts : null,
+    Array.isArray(pu.pack_ids) ? JSON.stringify(pu.pack_ids) : null,
+    hw.os || null, hw.gpu_class || null, hw.ram_class || null,
+    hw.ollama_available === true ? 1 : (hw.ollama_available === false ? 0 : null),
+    (w.signature && w.signature.value) || null,
+    receivedAt
+  );
+}
+
+/** Atomic batch insert of bound sync-window statements. */
+export async function batchInsertSyncEvents(db, batch) {
+  if (!batch.length) return;
+  return db.batch(batch);
+}
+
+/** Rate-limit: count a client's sync windows in the recent window (fail-open at caller). */
+export async function countRecentSyncByClient(db, clientId, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 3600000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM sync_events WHERE client_id = ? AND received_at > ?'
+    ).bind(clientId, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
+
+/**
+ * Community aggregate over sync windows, summed across all clients. Used by
+ * /aggregate-stats to surface real numbers once devices sync. Returns zeros
+ * when the table is empty.
+ */
+export async function getSyncAggregates(db) {
+  const totals = /** @type {any} */ (
+    await db.prepare(`SELECT
+      COUNT(DISTINCT client_id) AS clients,
+      SUM(t0) AS t0, SUM(t1) AS t1, SUM(t2) AS t2, SUM(t3) AS t3,
+      MAX(received_at) AS last_updated
+    FROM sync_events`).first()
+  );
+  const t0 = Number(totals?.t0) || 0, t1 = Number(totals?.t1) || 0,
+        t2 = Number(totals?.t2) || 0, t3 = Number(totals?.t3) || 0;
+  return {
+    clients: Number(totals?.clients) || 0,
+    counts: { T0: t0, T1: t1, T2: t2, T3: t3 },
+    total: t0 + t1 + t2 + t3,
+    last_updated: totals?.last_updated || null,
+  };
+}
+
+// ── Pastor state (Wave 26 26.D — pull-based, no cron) ───────────────────
+
+const UPSERT_PASTOR_SQL = `
+  INSERT INTO pastor_state (client_id, total_decisions, t0_rate, t1_rate, t2_rate, t3_rate, ollama_available, hint, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(client_id) DO UPDATE SET
+    total_decisions = excluded.total_decisions,
+    t0_rate = excluded.t0_rate, t1_rate = excluded.t1_rate,
+    t2_rate = excluded.t2_rate, t3_rate = excluded.t3_rate,
+    ollama_available = excluded.ollama_available,
+    hint = excluded.hint, updated_at = excluded.updated_at
+`;
+
+/** Read a client's current cumulative Pastor row (null if none yet). */
+export async function getPastorState(db, clientId) {
+  return /** @type {any} */ (
+    await db.prepare('SELECT * FROM pastor_state WHERE client_id = ?').bind(clientId).first()
+  );
+}
+
+/** Persist a recomputed Pastor row. */
+export async function upsertPastorState(db, s) {
+  return db.prepare(UPSERT_PASTOR_SQL).bind(
+    s.client_id, s.total_decisions,
+    s.t0_rate, s.t1_rate, s.t2_rate, s.t3_rate,
+    s.ollama_available === true ? 1 : (s.ollama_available === false ? 0 : null),
+    s.hint ? JSON.stringify(s.hint) : null,
+    s.updated_at
+  ).run();
+}

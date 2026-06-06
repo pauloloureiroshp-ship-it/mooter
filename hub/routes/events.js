@@ -11,7 +11,7 @@
 import * as Sentry from '@sentry/cloudflare';
 import { sanitizeJson } from '../lib/sanitize.js';
 import { eventSchema } from '../lib/schemas.js';
-import { bindEventInsert, batchInsertEvents, countRecentEventsByInstance } from '../lib/db.js';
+import { bindEventInsert, batchInsertEvents, countRecentEventsByInstance, getSyncAggregates } from '../lib/db.js';
 import { errorResponse, classifyException } from '../lib/errors.js';
 
 // Max events per instance per hour (5 batches of 100). Exposed for tests.
@@ -153,10 +153,24 @@ export async function handleAggregateStats(request, env) {
       FROM frugal_events WHERE per_decision_savings_usd IS NOT NULL`).first(),
     ]);
 
-    const total = totalRow?.cnt || 0;
-    const tierDist = {};
+    // Wave 26 — merge the aggregate sync windows (POST /v1/events) into the
+    // community totals so the dashboard shows real numbers once devices sync.
+    // frugal_events (per-decision) was never populated in prod; sync_events is
+    // the live path. Fail-safe: if the table is absent (older test DB), the
+    // catch keeps frugal-only behaviour.
+    let sync = { clients: 0, counts: { T0: 0, T1: 0, T2: 0, T3: 0 }, total: 0, last_updated: null };
+    try { sync = await getSyncAggregates(env.DB); } catch { /* frugal-only */ }
+
+    const frugalTotal = totalRow?.cnt || 0;
+    const total = frugalTotal + sync.total;
+    // Combined per-tier counts (frugal decided_tier rows + sync window counts).
+    const tierCounts = { ...sync.counts };
     for (const r of (tierRows?.results || [])) {
-      tierDist[r.decided_tier] = total > 0 ? +(r.cnt / total).toFixed(3) : 0;
+      tierCounts[r.decided_tier] = (tierCounts[r.decided_tier] || 0) + r.cnt;
+    }
+    const tierDist = {};
+    for (const [tier, cnt] of Object.entries(tierCounts)) {
+      tierDist[tier] = total > 0 ? +(cnt / total).toFixed(3) : 0;
     }
     const hwDist = {};
     for (const r of (hwRows?.results || [])) {
@@ -165,7 +179,7 @@ export async function handleAggregateStats(request, env) {
 
     const stats = {
       total_events: total,
-      unique_instances: instancesRow?.cnt || 0,
+      unique_instances: (instancesRow?.cnt || 0) + sync.clients,
       tier_distribution: tierDist,
       avg_confidence: avgConfRow?.avg_conf ? +avgConfRow.avg_conf.toFixed(3) : 0,
       top_categories: (categoryRows?.results || []).map(r => ({

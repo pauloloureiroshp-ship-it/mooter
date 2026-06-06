@@ -197,8 +197,19 @@ function recordSpawn(payload, sessionId) {
     // the outer Agent tool payload does NOT carry subagent_type. The most reliable
     // spawn signal is `agent_type` — present iff this hook fire is inside a subagent.
     // Multiple inner Bash tools within the same spawn share agent_id → idempotent.
-    const agentType = payload.agent_type;
-    const agentId = payload.agent_id;
+    //
+    // Wave 27 (Phase C): also accept the outer Agent/Task PostToolUse shape that
+    // carries the spawn in tool_input.subagent_type (older CC builds + the wave21
+    // C1 contract test). The two shapes are mutually exclusive across CC versions
+    // — current CC never carries subagent_type on the outer payload — so there is
+    // no double-count. tool_use_id is the per-spawn idempotency key for that shape.
+    const agentType = payload.agent_type
+      || ((payload.tool_name === 'Task' || payload.tool_name === 'Agent') && payload.tool_input
+        ? payload.tool_input.subagent_type
+        : null);
+    const agentId = payload.agent_id
+      || payload.tool_use_id
+      || (agentType ? `${sessionId || 'global'}:${agentType}` : null);
     if (!agentType || !agentId) return null;
     const map = SUBAGENT_TIER[agentType] || { tier: null, model: null };
     const tracker = require('./subagent_tracker.js');

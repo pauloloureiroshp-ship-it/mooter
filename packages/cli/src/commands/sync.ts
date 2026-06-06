@@ -5,7 +5,7 @@
 //
 // Subcommands: `--dry-run` · `queue list|show <id>|clear` · `audit list|verify`.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { mooterHomeDefault } from "../packs.ts";
 import { getLocalSecret, type Consent } from "../consent.ts";
@@ -48,6 +48,25 @@ function resolveBackendUrl(opts: SyncOptions, mooterHome: string): string | null
     return typeof cfg.backend_url === "string" ? cfg.backend_url : null;
   } catch {
     return null;
+  }
+}
+
+/** Last successful real-sync timestamp (ms). Advances ONLY on a 2xx so a failed
+ *  sync re-covers its window next time. Makes consecutive syncs disjoint, so the
+ *  hub never double-counts overlapping 24h windows (final-reviewer MEDIUM #1). */
+function readSyncCursorMs(mooterHome: string): number | null {
+  try {
+    const s = JSON.parse(readFileSync(join(mooterHome, "sync-state.json"), "utf8"));
+    return typeof s.last_sync_ms === "number" ? s.last_sync_ms : null;
+  } catch {
+    return null;
+  }
+}
+function writeSyncCursorMs(mooterHome: string, ms: number): void {
+  try {
+    writeFileSync(join(mooterHome, "sync-state.json"), JSON.stringify({ last_sync_ms: ms }) + "\n");
+  } catch {
+    /* best-effort — a missed cursor write only risks re-sending one window */
   }
 }
 
@@ -169,14 +188,18 @@ export function runSync(opts: SyncOptions = {}): CmdResult {
 }
 
 /**
- * Wave 4 Phase D — `mooter sync` REAL mode (client only). Feature-flagged: with
- * no backend URL it falls back to dry-run + a clear warning. When a URL is set,
- * it requires `mooter login` (auth.json) + consent, builds the SAME W3 D3 events,
- * POSTs them to `${backendUrl}/v1/events`, and writes a `real-sync` audit entry.
+ * `mooter sync` REAL mode (client). Feature-flagged: with no backend URL it falls
+ * back to dry-run + a clear warning. When a URL is set, it builds the SAME W3 D3
+ * events, POSTs them to `${backendUrl}/v1/events`, and writes a `real-sync` audit.
  *
- * NOTE: no backend serves /v1/events yet — the deployed backend is `hub/` with a
- * different (/api/events) contract. Wiring the hub route is a separate hub-aware
- * task; this ships the client half, ready + testable against an injected fetch.
+ * Auth model α (Wave 26): sync is ANONYMOUS — the hub identifies the device by the
+ * pseudonymous client id inside the signed payload, so `mooter login` is NOT
+ * required. If the user is logged in we still attach the token (lets a future
+ * per-user view link the data), but its absence no longer blocks sync.
+ *
+ * The hub route `/v1/events` is live as of Wave 26 (hub/routes/sync_events.js):
+ * it stores the aggregate window and returns the device's Pastor hint (26.D),
+ * which we surface here.
  */
 export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
   const mooterHome = opts.mooterHome ?? mooterHomeDefault();
@@ -193,17 +216,20 @@ export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
     };
   }
 
+  // α: login is optional — sync is anonymous (pseudonymous client id). The token
+  // is attached only if present.
   const auth = readAuth(mooterHome);
-  if (!auth?.access_token) {
-    return { exitCode: 1, output: "✗ Not logged in. Run `mooter login` first." };
-  }
   const consent = readConsent(mooterHome);
   if (!consent || consent.telemetry_enabled !== true) {
     return { exitCode: 1, output: "✗ Telemetry not opted-in. Run `mooter init` to opt-in." };
   }
 
+  // Window = (last successful sync … now), clamped to a 24h max so an idle
+  // device never sends an unbounded backlog. Disjoint windows ⇒ no double-count.
+  const cursor = readSyncCursorMs(mooterHome);
+  const windowStartMs = Math.max(nowMs - 24 * 3600 * 1000, cursor ?? 0);
   const events = buildSyncEvents({
-    consent, secret, windowStartMs: nowMs - 24 * 3600 * 1000, windowEndMs: nowMs, nowMs,
+    consent, secret, windowStartMs, windowEndMs: nowMs, nowMs,
     lines: opts.lines, profile: opts.profile ?? readProfile(mooterHome), mooterHome,
   });
   if (events.length === 0) {
@@ -218,7 +244,7 @@ export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
     const res = await doFetch(`${backendUrl.replace(/\/$/, "")}/v1/events`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${auth.access_token}`,
+        ...(auth?.access_token ? { Authorization: `Bearer ${auth.access_token}` } : {}),
         "Content-Type": "application/json",
         "X-Mooter-Schema-Version": String(SYNC_SCHEMA_VERSION),
       },
@@ -228,9 +254,14 @@ export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
     result = await res.json().catch(() => ({}));
     appendAuditEntry({ kind: "real-sync", events: events.length, bytesSent: bodyStr.length, httpStatus: status, nowIso: new Date(nowMs).toISOString() }, secret, mooterHome);
     if (res.ok) {
+      // Advance the cursor ONLY on success so the next sync starts a fresh window.
+      writeSyncCursorMs(mooterHome, nowMs);
       const acc = typeof result.accepted === "number" ? result.accepted : events.length;
       const rej = typeof result.rejected === "number" ? result.rejected : 0;
-      return { exitCode: 0, output: `✓ Synced ${acc} event(s) to ${backendUrl} (rejected: ${rej}).` };
+      const hint = result && result.pastor_hint && result.pastor_hint.message
+        ? `\n🐂 Pastor: ${result.pastor_hint.message}`
+        : "";
+      return { exitCode: 0, output: `✓ Synced ${acc} event(s) to ${backendUrl} (rejected: ${rej}).${hint}` };
     }
     return { exitCode: 1, output: `✗ Sync failed: HTTP ${status} ${result.error ?? ""}`.trim() };
   } catch (e) {
