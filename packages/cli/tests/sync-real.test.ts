@@ -93,6 +93,20 @@ test("fetch throws → graceful exit 1 + audit logged", async () => {
   assert.equal(listAudit(h).at(-1)!.kind, "real-sync");
 });
 
+test("cursor: a 2nd sync does not re-send an already-synced window (no double-count)", async () => {
+  const h = home();
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return { ok: true, status: 202, json: async () => ({ accepted: 1, rejected: 0 }) }; };
+  // 1st sync at NOW with one decision at NOW-0.1d → sends it, advances cursor to NOW.
+  const r1 = await runSyncReal({ backendUrl: "https://b.example", mooterHome: h, lines: LINES, nowMs: NOW, secret: SECRET, fetchImpl });
+  assert.match(r1.output, /Synced 1 event/);
+  // 2nd sync 60s later, SAME lines: window now starts at the cursor (NOW), so the
+  // earlier decision is out of window → nothing to send, no double-count.
+  const r2 = await runSyncReal({ backendUrl: "https://b.example", mooterHome: h, lines: LINES, nowMs: NOW + 60_000, secret: SECRET, fetchImpl });
+  assert.match(r2.output, /Nothing to sync/);
+  assert.equal(calls, 1, "second sync sent nothing (window already covered)");
+});
+
 test("empty window → nothing to sync (no fetch)", async () => {
   const res = await runSyncReal({ backendUrl: "https://b.example", mooterHome: home(), lines: [], nowMs: NOW, secret: SECRET, fetchImpl: () => { throw new Error("must not fetch"); } });
   assert.match(res.output, /Nothing to sync/);

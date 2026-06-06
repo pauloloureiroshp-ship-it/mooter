@@ -5,7 +5,7 @@
 //
 // Subcommands: `--dry-run` · `queue list|show <id>|clear` · `audit list|verify`.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { mooterHomeDefault } from "../packs.ts";
 import { getLocalSecret, type Consent } from "../consent.ts";
@@ -48,6 +48,25 @@ function resolveBackendUrl(opts: SyncOptions, mooterHome: string): string | null
     return typeof cfg.backend_url === "string" ? cfg.backend_url : null;
   } catch {
     return null;
+  }
+}
+
+/** Last successful real-sync timestamp (ms). Advances ONLY on a 2xx so a failed
+ *  sync re-covers its window next time. Makes consecutive syncs disjoint, so the
+ *  hub never double-counts overlapping 24h windows (final-reviewer MEDIUM #1). */
+function readSyncCursorMs(mooterHome: string): number | null {
+  try {
+    const s = JSON.parse(readFileSync(join(mooterHome, "sync-state.json"), "utf8"));
+    return typeof s.last_sync_ms === "number" ? s.last_sync_ms : null;
+  } catch {
+    return null;
+  }
+}
+function writeSyncCursorMs(mooterHome: string, ms: number): void {
+  try {
+    writeFileSync(join(mooterHome, "sync-state.json"), JSON.stringify({ last_sync_ms: ms }) + "\n");
+  } catch {
+    /* best-effort — a missed cursor write only risks re-sending one window */
   }
 }
 
@@ -205,8 +224,12 @@ export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
     return { exitCode: 1, output: "✗ Telemetry not opted-in. Run `mooter init` to opt-in." };
   }
 
+  // Window = (last successful sync … now), clamped to a 24h max so an idle
+  // device never sends an unbounded backlog. Disjoint windows ⇒ no double-count.
+  const cursor = readSyncCursorMs(mooterHome);
+  const windowStartMs = Math.max(nowMs - 24 * 3600 * 1000, cursor ?? 0);
   const events = buildSyncEvents({
-    consent, secret, windowStartMs: nowMs - 24 * 3600 * 1000, windowEndMs: nowMs, nowMs,
+    consent, secret, windowStartMs, windowEndMs: nowMs, nowMs,
     lines: opts.lines, profile: opts.profile ?? readProfile(mooterHome), mooterHome,
   });
   if (events.length === 0) {
@@ -231,6 +254,8 @@ export async function runSyncReal(opts: SyncOptions = {}): Promise<CmdResult> {
     result = await res.json().catch(() => ({}));
     appendAuditEntry({ kind: "real-sync", events: events.length, bytesSent: bodyStr.length, httpStatus: status, nowIso: new Date(nowMs).toISOString() }, secret, mooterHome);
     if (res.ok) {
+      // Advance the cursor ONLY on success so the next sync starts a fresh window.
+      writeSyncCursorMs(mooterHome, nowMs);
       const acc = typeof result.accepted === "number" ? result.accepted : events.length;
       const rej = typeof result.rejected === "number" ? result.rejected : 0;
       const hint = result && result.pastor_hint && result.pastor_hint.message
