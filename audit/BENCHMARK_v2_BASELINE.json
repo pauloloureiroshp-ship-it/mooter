@@ -1,0 +1,6 @@
+{
+  "mlwr": { "T0": 1.0, "T1": 0.0, "T2": 0.0, "T3": 0.0, "overall": 0.0 },
+  "runs": 0,
+  "generatedAt": "2026-06-07",
+  "note": "SEED baseline (Phase F). Replaced by the real Phase L benchmark run (`mooter benchmark run`). runs:0 means the CI gate treats any current result as non-regressing until a real baseline is committed."
+}

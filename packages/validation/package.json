@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/validation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter Validation layer (Wave 30) — L16.2 Bandit Learner (Thompson Sampling) · Adversarial Review · Benchmark v2 (MLWR) · CI regression gate · Threat-model runtime checks · Cost-cap enforcement · Recovery flows. Opt-in, privacy-first, zero proxy. Node builtins only (sqlite via node:sqlite).",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}
