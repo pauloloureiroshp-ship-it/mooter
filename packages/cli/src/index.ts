@@ -30,7 +30,7 @@ import { runSetup } from "./commands/setup.ts";
 import { runEcosystem } from "./commands/ecosystem.ts";
 import { runQuality } from "./commands/quality.ts";
 
-const TOP_USAGE = `mooter — pack manager CLI
+const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
