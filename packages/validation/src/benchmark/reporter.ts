@@ -78,6 +78,10 @@ export function toReport(results: RunResult[], report: MlwrReport, meta: ReportM
     `- total runs: ${results.length}`,
     `- errors/skips: ${errors.length}${errors.length ? ` (${[...new Set(errors.map((e) => (e.error ?? "").split(":")[0]))].join(", ")})` : ""}`,
     ``,
+    `## Interpretation (honest)`,
+    ``,
+    `MLWR here is the **objective floor**: the local model output contains the expected keyword/regex per task. A 100% MLWR means the local model cleared that floor on every task — NOT that it matched cloud quality token-for-token. The bar is permissive by design (keyword presence), so it under-discriminates on T2/T3 where nuance matters. For a quality-parity claim, run the **blinded judge** variant (local vs always-cloud, \`judge.ts\`), which costs cloud calls and separates "mentioned the right thing" from "actually solved it well".`,
+    ``,
   ];
   return lines.filter((l) => l !== "").join("\n") + "\n";
 }

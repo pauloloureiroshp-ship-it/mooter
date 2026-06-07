@@ -1,6 +1,6 @@
 {
-  "mlwr": { "T0": 1.0, "T1": 0.0, "T2": 0.0, "T3": 0.0, "overall": 0.0 },
-  "runs": 0,
+  "mlwr": { "T0": 1, "T1": 1, "T2": 1, "T3": 1, "overall": 1 },
+  "runs": 72,
   "generatedAt": "2026-06-07",
-  "note": "SEED baseline (Phase F). Replaced by the real Phase L benchmark run (`mooter benchmark run`). runs:0 means the CI gate treats any current result as non-regressing until a real baseline is committed."
+  "note": "Real Phase L run: local=qwen3:30b vs Haiku+Sonnet, 24 tasks × 3 models × 1 run. MLWR is the objective keyword/regex floor (permissive). CI gate blocks a >5pp drop from this baseline."
 }
