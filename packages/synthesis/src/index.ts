@@ -71,3 +71,20 @@ export {
 } from "./lora/adapter-registry.ts";
 export { loadAdapter, ollamaReachable, type LoadResult, type LoadReason } from "./lora/lora-loader.ts";
 export { selectAdapterForTask, AUTO_SWAP_ENABLED, type RoutingFeatures } from "./lora/routing-stub.ts";
+
+// L14 — Setup Intelligence
+export {
+  detectSetup,
+  collectRaw,
+  buildProfile,
+  saveProfile,
+  loadProfile,
+  classifyOs,
+  deriveSubscriptionTier,
+  type SetupProfile,
+  type RawDetect,
+  type OsClass,
+  type SubscriptionTier,
+} from "./setup/detect.ts";
+export { explainSetup } from "./setup/explain.ts";
+export { recommendForSetup, recommendationLines, type Recommendation } from "./setup/recommendations.ts";

@@ -18,7 +18,7 @@
 | 6 | Vision + synthesis + arch docs exist | ✅ PASS | `MOOTER_ULTIMATE_VISION.md`, `MOOTER_STRATEGIC_SYNTHESIS.md`, `ARCHITECTURE_V4.md` present |
 | 7 | CF Worker config | ✅ PASS | `hub/wrangler.mooter.toml` → `name = "mooter-hub"` |
 | 8 | packages structure | ✅ PASS | `cli`, `router`, `workflow` present; `synthesis` to be created (new) |
-| 9 | Ollama models available (qwen2.5-coder:7b, qwen3:30b) | ⚠️ **PARTIAL (non-core)** | daemon IS up (`ollama --version`=0, `/api/tags`→`{"models":[]}`); **zero models installed**. (Day-0 `which ollama` missed the binary; `spawnSync` finds it. Corrected during Phase E.) |
+| 9 | Ollama models available (qwen2.5-coder:7b, qwen3:30b) | ✅ **PASS (was partial)** | `ollama list` shows **8 models** incl. qwen2.5-coder:7b + qwen3:30b (pulled mid-session). NB: the `ollama` CLI and a separate empty `localhost:11434` daemon (`/api/tags`→0) are different instances — the CLI path is the live one. Updated during Phase G. |
 | 10 | node/npm toolchain | ✅ PASS | node v20.20.2, npm 10.8.2; deps installed for cli + workflow |
 
 ---

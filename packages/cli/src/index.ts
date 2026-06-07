@@ -26,6 +26,7 @@ import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 import { runWorkflow } from "./commands/workflow.ts";
 import { runCompression } from "./commands/compression.ts";
 import { runLora } from "./commands/lora.ts";
+import { runSetup } from "./commands/setup.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -51,6 +52,7 @@ Usage:
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
   mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
   mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
+  mooter setup <subcommand>        L14 setup intelligence (detect · show · recommend)
 
 ${PACK_USAGE}`;
 
@@ -256,6 +258,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "lora") {
     const res = runLora(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "setup") {
+    const res = await runSetup(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
