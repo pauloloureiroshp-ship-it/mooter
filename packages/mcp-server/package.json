@@ -1,0 +1,18 @@
+{
+  "name": "@mooter/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter MCP server (Wave 30 Phase K) — exposes mooter_status, mooter_dogfood_log, mooter_workflow_create, mooter_ecosystem_recommend, mooter_pastor_hint, mooter_notion_write over the MCP stdio protocol. Zero-dep: hand-rolled newline-delimited JSON-RPC 2.0.",
+  "bin": {
+    "mooter-mcp": "./src/bin.ts"
+  },
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "serve": "../cli/node_modules/.bin/tsx src/bin.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}
