@@ -14,7 +14,7 @@ export const PHASES = {
   pool: { phase: "C", done: true },
   primitives: { phase: "D", done: true },
   runtime: { phase: "E", done: true },
-  state: { phase: "F", done: false },
+  state: { phase: "F", done: true },
   writer: { phase: "G", done: false },
   presenter: { phase: "G", done: false },
   tui: { phase: "H", done: false },
@@ -65,8 +65,29 @@ export type {
 export { runScript, RUNTIME_DEFAULTS, RuntimeError } from "./runtime.ts";
 export type { RuntimeOptions, RuntimeApi } from "./runtime.ts";
 
-export { saveCheckpoint, loadRun, resumeFrom } from "./state.ts";
-export type { RunRecord, CheckpointRecord, RunStatus } from "./state.ts";
+export {
+  WorkflowStore,
+  startRun,
+  finishRun,
+  saveCheckpoint,
+  recordAgent,
+  loadRun,
+  listRuns,
+  resumeFrom,
+  defaultDbPath,
+  closeDefaultStore,
+  createSqliteSink,
+  installSqliteSink,
+} from "./state.ts";
+export type {
+  RunRecord,
+  CheckpointRecord,
+  RunStatus,
+  AgentRecord,
+  StartRunInput,
+  AgentInput,
+  SqliteSinkOptions,
+} from "./state.ts";
 
 export { writeWorkflow } from "./writer.ts";
 export type { WorkflowPlan, PhasePlan } from "./writer.ts";
