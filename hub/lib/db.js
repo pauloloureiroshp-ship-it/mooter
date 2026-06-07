@@ -333,3 +333,97 @@ export async function upsertPastorState(db, s) {
     s.updated_at
   ).run();
 }
+
+// ── Pastor v2 decisions (Wave 29 29.I/29.K — multi-dimensional telemetry) ───
+
+/** @param {any} x → 0/1/null */
+function bool01OrNull(x) {
+  if (x === true || x === 1) return 1;
+  if (x === false || x === 0) return 0;
+  return null;
+}
+const numOrNull = (/** @type {any} */ x) => (typeof x === 'number' ? x : null);
+
+const INSERT_PASTOR_V2_SQL = `
+  INSERT OR IGNORE INTO pastor_v2_decisions (
+    decision_id, device_id, ts,
+    prompt_class, prompt_tokens, prompt_complexity, prompt_language,
+    context_tokens, context_freshness_hours, repo_size_files,
+    hardware_class, has_lora_pastor, subscription_tier,
+    packs_active, providers_active,
+    tier_chosen, model_chosen, classify_confidence, pastor_hint_applied, workflow_engaged,
+    outcome_status, outcome_dwell_ms, outcome_followup_count,
+    tokens_in, tokens_out, cost_usd, latency_first_token_ms, latency_full_ms,
+    doctrine_violations, received_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+/** Bind one validated decision row. INSERT OR IGNORE → idempotent on decision_id. */
+export function bindPastorV2Insert(db, d, receivedAt) {
+  return db.prepare(INSERT_PASTOR_V2_SQL).bind(
+    d.decision_id, d.device_id, d.ts,
+    d.prompt_class ?? null, numOrNull(d.prompt_tokens), numOrNull(d.prompt_complexity), d.prompt_language ?? null,
+    numOrNull(d.context_tokens), numOrNull(d.context_freshness_hours), numOrNull(d.repo_size_files),
+    d.hardware_class ?? null, bool01OrNull(d.has_lora_pastor), d.subscription_tier ?? null,
+    d.packs_active ?? null, d.providers_active ?? null,
+    d.tier_chosen ?? null, d.model_chosen ?? null, numOrNull(d.classify_confidence), bool01OrNull(d.pastor_hint_applied), bool01OrNull(d.workflow_engaged),
+    d.outcome_status ?? null, numOrNull(d.outcome_dwell_ms), numOrNull(d.outcome_followup_count),
+    numOrNull(d.tokens_in), numOrNull(d.tokens_out), numOrNull(d.cost_usd), numOrNull(d.latency_first_token_ms), numOrNull(d.latency_full_ms),
+    typeof d.doctrine_violations === 'number' ? d.doctrine_violations : 0,
+    receivedAt
+  );
+}
+
+/** Atomic batch insert of bound decision statements. */
+export async function batchInsertPastorV2(db, batch) {
+  if (!batch.length) return;
+  return db.batch(batch);
+}
+
+/** Rate-limit: count a device's decisions in the recent window (fail-open at caller). */
+export async function countRecentPastorV2ByDevice(db, deviceId, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 3600000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM pastor_v2_decisions WHERE device_id = ? AND received_at > ?'
+    ).bind(deviceId, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
+
+// ── Device setup profiles (Wave 29 29.K — federated cohort) ─────────────────
+
+const UPSERT_DEVICE_SETUP_SQL = `
+  INSERT INTO device_setup_profiles (
+    device_id, hardware_class, vram_gb, has_npu, os_class, ollama_models_count, subscription_tier, last_updated, received_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(device_id) DO UPDATE SET
+    hardware_class = excluded.hardware_class, vram_gb = excluded.vram_gb,
+    has_npu = excluded.has_npu, os_class = excluded.os_class,
+    ollama_models_count = excluded.ollama_models_count,
+    subscription_tier = excluded.subscription_tier,
+    last_updated = excluded.last_updated, received_at = excluded.received_at
+`;
+
+/** Upsert one device setup profile (opt-in, anonymous). */
+export async function upsertDeviceSetupProfile(db, p, receivedAt) {
+  return db.prepare(UPSERT_DEVICE_SETUP_SQL).bind(
+    p.device_id, p.hardware_class ?? null, numOrNull(p.vram_gb), bool01OrNull(p.has_npu),
+    p.os_class ?? null, numOrNull(p.ollama_models_count), p.subscription_tier ?? null,
+    numOrNull(p.last_updated), receivedAt
+  ).run();
+}
+
+/** Cohort aggregate for the federated route. Returns total + per-hardware_class counts. */
+export async function getDeviceSetupCohort(db) {
+  const total = /** @type {any} */ (
+    await db.prepare('SELECT COUNT(DISTINCT device_id) AS devices FROM device_setup_profiles').first()
+  );
+  const rows = /** @type {any} */ (
+    await db.prepare('SELECT hardware_class, COUNT(*) AS n FROM device_setup_profiles GROUP BY hardware_class').all()
+  );
+  const by_hardware_class = {};
+  for (const r of (rows && rows.results) || []) by_hardware_class[r.hardware_class || 'unknown'] = Number(r.n) || 0;
+  return { devices: Number(total?.devices) || 0, by_hardware_class };
+}

@@ -177,6 +177,80 @@ export const syncWindowSchema = z.object({
 
 export const syncWindowsBatchSchema = z.array(syncWindowSchema).min(1).max(100);
 
+// ── POST /v1/pastor-v2 — multi-dimensional decision telemetry (Wave 29, L16.1) ─
+//
+// FEATURES ONLY — never prompt/response content. The privacy refine rejects any
+// decision carrying a content key; the client-side decision-logger allowlist is
+// the first line of defence, this is the second.
+
+const PASTOR_V2_PRIVACY_FIELDS = [
+  'prompt', 'prompt_text', 'prompt_content', 'prompt_raw', 'content', 'text',
+  'body', 'messages', 'response', 'response_text', 'completion', 'file_path', 'stack_trace',
+];
+
+const bool01 = z.union([z.literal(0), z.literal(1), z.boolean()]);
+
+export const pastorV2DecisionSchema = z.object({
+  decision_id: z.string().min(1).max(128),
+  device_id: z.string().regex(CLIENT_ID_RE, 'device_id must be 8-128 hex chars'),
+  ts: z.number().int().nonnegative(),
+  // Prompt features (class/metrics only)
+  prompt_class: z.string().max(16).optional(),
+  prompt_tokens: z.number().int().nonnegative().nullable().optional(),
+  prompt_complexity: z.number().min(0).max(1).nullable().optional(),
+  prompt_language: z.string().max(16).nullable().optional(),
+  // Context
+  context_tokens: z.number().int().nonnegative().nullable().optional(),
+  context_freshness_hours: z.number().nonnegative().nullable().optional(),
+  repo_size_files: z.number().int().nonnegative().nullable().optional(),
+  // Setup
+  hardware_class: z.string().max(64).nullable().optional(),
+  has_lora_pastor: bool01.nullable().optional(),
+  subscription_tier: z.string().max(32).nullable().optional(),
+  // Ecosystem
+  packs_active: z.string().max(512).nullable().optional(),
+  providers_active: z.string().max(512).nullable().optional(),
+  // Routing
+  tier_chosen: z.string().max(16).nullable().optional(),
+  model_chosen: z.string().max(64).nullable().optional(),
+  classify_confidence: z.number().min(0).max(1).nullable().optional(),
+  pastor_hint_applied: bool01.nullable().optional(),
+  workflow_engaged: bool01.nullable().optional(),
+  // Outcome
+  outcome_status: z.string().max(16).nullable().optional(),
+  outcome_dwell_ms: z.number().int().nonnegative().nullable().optional(),
+  outcome_followup_count: z.number().int().nonnegative().nullable().optional(),
+  // Cost
+  tokens_in: z.number().int().nonnegative().nullable().optional(),
+  tokens_out: z.number().int().nonnegative().nullable().optional(),
+  cost_usd: z.number().nonnegative().nullable().optional(),
+  latency_first_token_ms: z.number().int().nonnegative().nullable().optional(),
+  latency_full_ms: z.number().int().nonnegative().nullable().optional(),
+  // Doctrine
+  doctrine_violations: z.number().int().nonnegative().nullable().optional(),
+}).passthrough().refine(
+  (d) => !PASTOR_V2_PRIVACY_FIELDS.some((k) => k in d),
+  { message: `decision must not contain any privacy field: ${PASTOR_V2_PRIVACY_FIELDS.join(', ')}` },
+);
+
+export const pastorV2DecisionsBatchSchema = z.array(pastorV2DecisionSchema).min(1).max(100);
+
+// ── POST /v1/federated — device setup profile (Wave 29, L14/L15) ────────────
+
+export const deviceSetupProfileSchema = z.object({
+  device_id: z.string().regex(CLIENT_ID_RE, 'device_id must be 8-128 hex chars'),
+  hardware_class: z.string().max(64).optional(),
+  vram_gb: z.number().int().nonnegative().nullable().optional(),
+  has_npu: bool01.nullable().optional(),
+  os_class: z.string().max(32).optional(),
+  ollama_models_count: z.number().int().nonnegative().nullable().optional(),
+  subscription_tier: z.string().max(32).optional(),
+  last_updated: z.number().int().nonnegative().optional(),
+}).passthrough().refine(
+  (p) => !PASTOR_V2_PRIVACY_FIELDS.some((k) => k in p),
+  { message: `setup profile must not contain any privacy field` },
+);
+
 // ── Export schema set for test harness use ─────────────────────────────
 
 export const schemas = {
@@ -186,4 +260,7 @@ export const schemas = {
   eventsBatch: eventsBatchSchema,
   syncWindow: syncWindowSchema,
   syncWindowsBatch: syncWindowsBatchSchema,
+  pastorV2Decision: pastorV2DecisionSchema,
+  pastorV2DecisionsBatch: pastorV2DecisionsBatchSchema,
+  deviceSetupProfile: deviceSetupProfileSchema,
 };

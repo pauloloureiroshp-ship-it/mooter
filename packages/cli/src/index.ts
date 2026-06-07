@@ -24,6 +24,11 @@ import { runExplain } from "./commands/explain.ts";
 import { runEnvDetect } from "./commands/env-detect.ts";
 import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 import { runWorkflow } from "./commands/workflow.ts";
+import { runCompression } from "./commands/compression.ts";
+import { runLora } from "./commands/lora.ts";
+import { runSetup } from "./commands/setup.ts";
+import { runEcosystem } from "./commands/ecosystem.ts";
+import { runQuality } from "./commands/quality.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -47,6 +52,11 @@ Usage:
   mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
+  mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
+  mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
+  mooter setup <subcommand>        L14 setup intelligence (detect · show · recommend)
+  mooter ecosystem <subcommand>    L15 ecosystem catalog (list · recommend · search · info)
+  mooter quality <subcommand>      L16.1 decision telemetry (stats · status · features-only)
 
 ${PACK_USAGE}`;
 
@@ -240,6 +250,36 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "workflow") {
     const res = await runWorkflow(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "compression") {
+    const res = runCompression(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "lora") {
+    const res = runLora(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "setup") {
+    const res = await runSetup(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "ecosystem") {
+    const res = await runEcosystem(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "quality") {
+    const res = runQuality(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

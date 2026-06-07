@@ -1,0 +1,3339 @@
+{
+  "version": 1,
+  "schema": "mooter-ecosystem-catalog/v1",
+  "generated": "2026-06-07",
+  "note": "Wave 29 L15 seed catalog. Curated by category specialists with WebSearch verification; verified=false marks items not independently confirmed. Ranking: compatibility x roi_estimate x pastor_signal (pastor defaults 1.0).",
+  "count": 104,
+  "categories": [
+    "skill",
+    "plugin",
+    "mcp",
+    "pack",
+    "provider"
+  ],
+  "items": [
+    {
+      "id": "anthropic-skill-pdf",
+      "name": "PDF (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill for reading, extracting, splitting and filling PDF forms (text, tables, images, form fields).",
+      "trust_score": 95,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install document-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/pdf",
+      "tags": [
+        "docs",
+        "pdf",
+        "document-processing",
+        "official"
+      ],
+      "attribution": "Anthropic, source-available",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-docx",
+      "name": "DOCX (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that creates and edits Microsoft Word .docx documents; powers Claude.ai document creation.",
+      "trust_score": 95,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install document-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/docx",
+      "tags": [
+        "docs",
+        "word",
+        "document-processing",
+        "official"
+      ],
+      "attribution": "Anthropic, source-available",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-pptx",
+      "name": "PPTX (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that creates and edits PowerPoint .pptx presentations; powers Claude.ai slide generation.",
+      "trust_score": 95,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install document-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/pptx",
+      "tags": [
+        "docs",
+        "powerpoint",
+        "presentations",
+        "official"
+      ],
+      "attribution": "Anthropic, source-available",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-xlsx",
+      "name": "XLSX (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that creates and edits Excel .xlsx spreadsheets with formulas; powers Claude.ai spreadsheet output.",
+      "trust_score": 95,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install document-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/xlsx",
+      "tags": [
+        "data",
+        "excel",
+        "spreadsheets",
+        "official"
+      ],
+      "attribution": "Anthropic, source-available",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-creator",
+      "name": "skill-creator (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic meta-skill that scaffolds new Agent Skills (SKILL.md + frontmatter, scripts, resources) interactively.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/skill-creator",
+      "tags": [
+        "meta",
+        "authoring",
+        "scaffolding",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-mcp-builder",
+      "name": "mcp-builder (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that generates Model Context Protocol (MCP) servers from a description.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/mcp-builder",
+      "tags": [
+        "mcp",
+        "codegen",
+        "developer",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-canvas-design",
+      "name": "canvas-design (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that designs visual art exported to .png and .pdf using structured design philosophies.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/canvas-design",
+      "tags": [
+        "design",
+        "visual",
+        "graphics",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-brand-guidelines",
+      "name": "brand-guidelines (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that applies Anthropic's brand colours and typography to generated artifacts.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/brand-guidelines",
+      "tags": [
+        "design",
+        "branding",
+        "style",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-algorithmic-art",
+      "name": "algorithmic-art (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that generates generative/algorithmic visual art via code.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/algorithmic-art",
+      "tags": [
+        "design",
+        "generative-art",
+        "creative",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-internal-comms",
+      "name": "internal-comms (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that drafts clear internal communications and announcements in a consistent voice.",
+      "trust_score": 86,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/internal-comms",
+      "tags": [
+        "docs",
+        "writing",
+        "communications",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-slack-gif-creator",
+      "name": "slack-gif-creator (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that creates animated GIFs optimised for Slack's size constraints.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/slack-gif-creator",
+      "tags": [
+        "design",
+        "gif",
+        "slack",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-webapp-testing",
+      "name": "webapp-testing (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that tests local web apps with Playwright for UI verification and debugging.",
+      "trust_score": 89,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/webapp-testing",
+      "tags": [
+        "testing",
+        "playwright",
+        "qa",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-frontend-design",
+      "name": "frontend-design (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that produces distinctive, production-grade frontend UIs avoiding generic AI aesthetics.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+      "tags": [
+        "design",
+        "frontend",
+        "ui",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-web-artifacts-builder",
+      "name": "web-artifacts-builder (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that builds complex Claude.ai HTML artifacts with React, Tailwind CSS and shadcn/ui.",
+      "trust_score": 89,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/web-artifacts-builder",
+      "tags": [
+        "design",
+        "artifacts",
+        "react",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-theme-factory",
+      "name": "theme-factory (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that generates cohesive visual themes/design tokens for artifacts and apps.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/theme-factory",
+      "tags": [
+        "design",
+        "theming",
+        "design-tokens",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-doc-coauthoring",
+      "name": "doc-coauthoring (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill for collaborative long-form document co-authoring and structured editing.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install example-skills@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/doc-coauthoring",
+      "tags": [
+        "docs",
+        "writing",
+        "collaboration",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-skill-claude-api",
+      "name": "claude-api (Anthropic Skill)",
+      "category": "skill",
+      "description": "Official Anthropic Agent Skill that provides current Claude API / SDK reference (models, pricing, streaming, tools, caching).",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/skills; /plugin install claude-api@anthropic-agent-skills",
+      "docs_url": "https://code.claude.com/docs/en/skills",
+      "source_url": "https://github.com/anthropics/skills/tree/main/skills/claude-api",
+      "tags": [
+        "docs",
+        "api-reference",
+        "developer",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "caveman",
+      "name": "Caveman",
+      "category": "skill",
+      "description": "Community Claude Code skill that makes the agent reply in terse caveman style, cutting ~65% of output tokens while keeping technical accuracy.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {
+        "token_savings_pct": 65
+      },
+      "install_cmd": "curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | bash",
+      "docs_url": "https://juliusbrussee.github.io/caveman/",
+      "source_url": "https://github.com/JuliusBrussee/caveman",
+      "tags": [
+        "brevity",
+        "token-reduction",
+        "output-compression",
+        "community"
+      ],
+      "attribution": "Julius Brussee, MIT",
+      "verified": true
+    },
+    {
+      "id": "obra-superpowers",
+      "name": "Superpowers",
+      "category": "skill",
+      "description": "Community agentic skills framework (120k+ stars) bundling battle-tested skills: TDD, systematic debugging, planning, subagent-driven dev.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add obra/superpowers-marketplace; /plugin install superpowers@superpowers-marketplace",
+      "docs_url": "https://github.com/obra/superpowers",
+      "source_url": "https://github.com/obra/superpowers",
+      "tags": [
+        "framework",
+        "tdd",
+        "debugging",
+        "workflow",
+        "community"
+      ],
+      "attribution": "Jesse Vincent (obra), MIT",
+      "verified": true
+    },
+    {
+      "id": "supabase-agent-skills",
+      "name": "Supabase Agent Skills",
+      "category": "skill",
+      "description": "Official Supabase Agent Skills teaching coding agents to build correctly on Supabase (RLS, auth, migrations); 100k+ installs.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx skills add https://github.com/supabase/agent-skills",
+      "docs_url": "https://supabase.com/docs/guides/ai-tools/ai-skills",
+      "source_url": "https://github.com/supabase/agent-skills",
+      "tags": [
+        "data",
+        "supabase",
+        "database",
+        "vendor-official"
+      ],
+      "attribution": "Supabase",
+      "verified": true
+    },
+    {
+      "id": "superpowers-tdd",
+      "name": "Superpowers: test-driven-development",
+      "category": "skill",
+      "description": "Standalone Superpowers skill enforcing red/green/refactor TDD: failing test first, minimal code, then refactor.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add obra/superpowers-marketplace; /plugin install superpowers@superpowers-marketplace",
+      "docs_url": "https://github.com/obra/superpowers/tree/main/skills/test-driven-development",
+      "source_url": "https://github.com/obra/superpowers/tree/main/skills/test-driven-development",
+      "tags": [
+        "tdd",
+        "testing",
+        "engineering",
+        "community"
+      ],
+      "attribution": "Jesse Vincent (obra), MIT",
+      "verified": true
+    },
+    {
+      "id": "superpowers-systematic-debugging",
+      "name": "Superpowers: systematic-debugging",
+      "category": "skill",
+      "description": "Standalone Superpowers skill: 4-phase root-cause debugging process (root-cause tracing, defense-in-depth, verification-before-completion).",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add obra/superpowers-marketplace; /plugin install superpowers@superpowers-marketplace",
+      "docs_url": "https://github.com/obra/superpowers/tree/main/skills/systematic-debugging",
+      "source_url": "https://github.com/obra/superpowers/tree/main/skills/systematic-debugging",
+      "tags": [
+        "debugging",
+        "root-cause",
+        "engineering",
+        "community"
+      ],
+      "attribution": "Jesse Vincent (obra), MIT",
+      "verified": true
+    },
+    {
+      "id": "composio-awesome-claude-skills",
+      "name": "ComposioHQ awesome-claude-skills",
+      "category": "skill",
+      "description": "Community curated index of 1000+ production-ready Claude Skills and plugins (ecosystem discovery resource, not a single skill).",
+      "trust_score": 60,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "",
+      "docs_url": "https://github.com/ComposioHQ/awesome-claude-skills",
+      "source_url": "https://github.com/ComposioHQ/awesome-claude-skills",
+      "tags": [
+        "index",
+        "curated-list",
+        "discovery",
+        "community"
+      ],
+      "attribution": "Composio",
+      "verified": true
+    },
+    {
+      "id": "voltagent-awesome-agent-skills",
+      "name": "VoltAgent awesome-agent-skills",
+      "category": "skill",
+      "description": "Community curated collection of 1000+ agent skills from official dev teams and the community (Claude Code, Codex, Gemini, Cursor).",
+      "trust_score": 62,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "",
+      "docs_url": "https://github.com/VoltAgent/awesome-agent-skills",
+      "source_url": "https://github.com/VoltAgent/awesome-agent-skills",
+      "tags": [
+        "index",
+        "curated-list",
+        "discovery",
+        "community"
+      ],
+      "attribution": "VoltAgent",
+      "verified": true
+    },
+    {
+      "id": "claude-plugins-official",
+      "name": "Anthropic Official Plugin Directory (claude-plugins-official)",
+      "category": "plugin",
+      "description": "Anthropic-managed marketplace of curated Claude Code plugins (Anthropic internal + vetted partner plugins), auto-available in Claude Code.",
+      "trust_score": 96,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add anthropics/claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "marketplace",
+        "official",
+        "anthropic",
+        "directory"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "cloudflare-skills",
+      "name": "Cloudflare Skills (cloudflare/skills)",
+      "category": "plugin",
+      "description": "Official Cloudflare marketplace of Agent Skills + MCP servers for building on Workers, Agents SDK, Durable Objects, and the wider Developer Platform.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add cloudflare/skills",
+      "docs_url": "https://github.com/cloudflare/skills",
+      "source_url": "https://github.com/cloudflare/skills",
+      "tags": [
+        "marketplace",
+        "cloudflare",
+        "workers",
+        "skills",
+        "official"
+      ],
+      "attribution": "Cloudflare, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "wshobson-agents",
+      "name": "wshobson/agents",
+      "category": "plugin",
+      "description": "Popular multi-harness plugin marketplace (84 plugins / 192 agents / 156 skills / 102 commands) for Claude Code, Codex CLI, Cursor, OpenCode, and Gemini CLI.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add wshobson/agents",
+      "docs_url": "https://github.com/wshobson/agents",
+      "source_url": "https://github.com/wshobson/agents",
+      "tags": [
+        "marketplace",
+        "agents",
+        "community",
+        "multi-harness"
+      ],
+      "attribution": "wshobson (Will Shobson)",
+      "verified": true
+    },
+    {
+      "id": "davila7-claude-code-templates",
+      "name": "claude-code-templates (davila7)",
+      "category": "plugin",
+      "description": "Open-source CLI + marketplace to configure and monitor Claude Code with 100+ agents, commands, hooks, MCPs, and project templates.",
+      "trust_score": 78,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx claude-code-templates@latest",
+      "docs_url": "https://github.com/davila7/claude-code-templates",
+      "source_url": "https://github.com/davila7/claude-code-templates",
+      "tags": [
+        "marketplace",
+        "cli",
+        "templates",
+        "community",
+        "monitoring"
+      ],
+      "attribution": "Daniel Avila (davila7), MIT",
+      "verified": true
+    },
+    {
+      "id": "secondsky-claude-skills",
+      "name": "claude-skills (secondsky)",
+      "category": "plugin",
+      "description": "Community marketplace of production-ready Claude Code skills for Cloudflare, React, Tailwind v4, and AI SDK integrations.",
+      "trust_score": 52,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add secondsky/claude-skills",
+      "docs_url": "https://github.com/secondsky/claude-skills",
+      "source_url": "https://github.com/secondsky/claude-skills",
+      "tags": [
+        "marketplace",
+        "skills",
+        "cloudflare",
+        "react",
+        "community"
+      ],
+      "attribution": "secondsky",
+      "verified": true
+    },
+    {
+      "id": "jezweb-claude-skills",
+      "name": "claude-skills (jezweb)",
+      "category": "plugin",
+      "description": "Community marketplace of full-stack skills for Claude Code CLI (Cloudflare Workers, Hono, D1/Drizzle, TanStack, React, Tailwind v4).",
+      "trust_score": 48,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add jezweb/claude-skills",
+      "docs_url": "https://github.com/jezweb/claude-skills",
+      "source_url": "https://github.com/jezweb/claude-skills",
+      "tags": [
+        "marketplace",
+        "skills",
+        "cloudflare",
+        "fullstack",
+        "community"
+      ],
+      "attribution": "jezweb (Jeremy Dawes)",
+      "verified": true
+    },
+    {
+      "id": "daymade-claude-code-skills",
+      "name": "claude-code-skills (daymade)",
+      "category": "plugin",
+      "description": "Community Claude Code skills marketplace bundling production workflow skills, including Cloudflare troubleshooting via API-driven evidence gathering.",
+      "trust_score": 42,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add daymade/claude-code-skills",
+      "docs_url": "https://github.com/daymade/claude-code-skills",
+      "source_url": "https://github.com/daymade/claude-code-skills",
+      "tags": [
+        "marketplace",
+        "skills",
+        "community",
+        "workflow"
+      ],
+      "attribution": "daymade",
+      "verified": true
+    },
+    {
+      "id": "anthropic-code-review-plugin",
+      "name": "code-review (Anthropic plugin)",
+      "category": "plugin",
+      "description": "Anthropic-built Claude Code plugin that adds pull-request / diff review tooling and commands.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install code-review@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "anthropic",
+        "code-review",
+        "official",
+        "commands"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-code-simplifier-plugin",
+      "name": "code-simplifier (Anthropic plugin)",
+      "category": "plugin",
+      "description": "Anthropic-built Claude Code plugin focused on refactoring and simplifying code for clarity and reuse.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install code-simplifier@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "anthropic",
+        "refactor",
+        "official",
+        "code-quality"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-commit-commands-plugin",
+      "name": "commit-commands (Anthropic plugin)",
+      "category": "plugin",
+      "description": "Anthropic-built Claude Code plugin providing git commit workflow automation commands.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install commit-commands@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "anthropic",
+        "git",
+        "commands",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-claude-code-setup-plugin",
+      "name": "claude-code-setup (Anthropic plugin)",
+      "category": "plugin",
+      "description": "Anthropic-built Claude Code plugin that scaffolds and configures a project's Claude Code setup (CLAUDE.md, settings, hooks).",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install claude-code-setup@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "anthropic",
+        "setup",
+        "config",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "anthropic-agent-sdk-dev-plugin",
+      "name": "agent-sdk-dev (Anthropic plugin)",
+      "category": "plugin",
+      "description": "Anthropic-built Claude Code plugin with tooling and guidance for developing on the Claude Agent SDK.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install agent-sdk-dev@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "anthropic",
+        "agent-sdk",
+        "developer",
+        "official"
+      ],
+      "attribution": "Anthropic, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "cloudflare-plugin-official",
+      "name": "cloudflare (official-directory plugin)",
+      "category": "plugin",
+      "description": "Cloudflare's plugin in the Anthropic official directory: skills + MCP servers for Workers, bindings, builds, observability, and docs.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install cloudflare@claude-plugins-official",
+      "docs_url": "https://github.com/cloudflare/skills",
+      "source_url": "https://github.com/cloudflare/skills",
+      "tags": [
+        "cloudflare",
+        "workers",
+        "partner",
+        "official"
+      ],
+      "attribution": "Cloudflare, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "context7-plugin",
+      "name": "context7 (Upstash plugin)",
+      "category": "plugin",
+      "description": "Upstash Context7 plugin delivering up-to-date, version-accurate library docs into Claude Code's context to cut hallucinated/outdated APIs.",
+      "trust_score": 82,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install context7@claude-plugins-official",
+      "docs_url": "https://github.com/upstash/context7",
+      "source_url": "https://github.com/upstash/context7",
+      "tags": [
+        "docs",
+        "context",
+        "upstash",
+        "partner",
+        "rag"
+      ],
+      "attribution": "Upstash, MIT",
+      "verified": true
+    },
+    {
+      "id": "chrome-devtools-mcp-plugin",
+      "name": "chrome-devtools-mcp (Chrome DevTools plugin)",
+      "category": "plugin",
+      "description": "Google Chrome DevTools plugin letting Claude Code drive and inspect a live Chrome browser for debugging, automation, and performance traces.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin marketplace add ChromeDevTools/chrome-devtools-mcp",
+      "docs_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "source_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "tags": [
+        "browser",
+        "chrome",
+        "debugging",
+        "performance",
+        "partner"
+      ],
+      "attribution": "Google Chrome DevTools, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "atlassian-plugin-official",
+      "name": "atlassian (official-directory plugin)",
+      "category": "plugin",
+      "description": "Atlassian's official-directory plugin to work with Jira and Confluence from Claude Code.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install atlassian@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "atlassian",
+        "jira",
+        "confluence",
+        "partner",
+        "official"
+      ],
+      "attribution": "Atlassian",
+      "verified": true
+    },
+    {
+      "id": "asana-plugin-official",
+      "name": "asana (official-directory plugin)",
+      "category": "plugin",
+      "description": "Asana's official-directory plugin to create/manage tasks, search projects, and track progress from Claude Code.",
+      "trust_score": 76,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install asana@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "asana",
+        "project-management",
+        "partner",
+        "official"
+      ],
+      "attribution": "Asana",
+      "verified": true
+    },
+    {
+      "id": "datadog-plugin-official",
+      "name": "datadog (official-directory plugin)",
+      "category": "plugin",
+      "description": "Datadog's official-directory plugin for querying observability data (metrics, logs, traces, monitors) from Claude Code.",
+      "trust_score": 78,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install datadog@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "datadog",
+        "observability",
+        "monitoring",
+        "partner",
+        "official"
+      ],
+      "attribution": "Datadog",
+      "verified": true
+    },
+    {
+      "id": "azure-plugin-official",
+      "name": "azure (Microsoft official-directory plugin)",
+      "category": "plugin",
+      "description": "Microsoft's official-directory Azure plugin for interacting with Azure resources and services from Claude Code.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install azure@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "azure",
+        "microsoft",
+        "cloud",
+        "partner",
+        "official"
+      ],
+      "attribution": "Microsoft",
+      "verified": true
+    },
+    {
+      "id": "coderabbit-plugin-official",
+      "name": "coderabbit (official-directory plugin)",
+      "category": "plugin",
+      "description": "CodeRabbit's official-directory plugin bringing AI code-review feedback into the Claude Code workflow.",
+      "trust_score": 70,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-pro",
+          "claude-max",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "/plugin install coderabbit@claude-plugins-official",
+      "docs_url": "https://code.claude.com/docs/en/discover-plugins",
+      "source_url": "https://github.com/anthropics/claude-plugins-official",
+      "tags": [
+        "coderabbit",
+        "code-review",
+        "partner",
+        "official"
+      ],
+      "attribution": "CodeRabbit",
+      "verified": true
+    },
+    {
+      "id": "notion-mcp",
+      "name": "Notion MCP Server",
+      "category": "mcp",
+      "description": "Official Notion MCP server for reading, searching, creating and updating Notion pages and databases.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http notion https://mcp.notion.com/mcp",
+      "docs_url": "https://github.com/makenotion/notion-mcp-server",
+      "source_url": "https://github.com/makenotion/notion-mcp-server",
+      "tags": [
+        "notion",
+        "docs",
+        "knowledge-base",
+        "official",
+        "remote"
+      ],
+      "attribution": "Notion (makenotion), MIT",
+      "verified": true
+    },
+    {
+      "id": "linear-mcp",
+      "name": "Linear MCP Server",
+      "category": "mcp",
+      "description": "Official remote MCP server from Linear for managing issues, projects, cycles and documents.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport sse linear https://mcp.linear.app/sse",
+      "docs_url": "https://linear.app/docs/mcp",
+      "source_url": "https://linear.app/docs/mcp",
+      "tags": [
+        "linear",
+        "issue-tracking",
+        "project-management",
+        "official",
+        "remote"
+      ],
+      "attribution": "Linear",
+      "verified": true
+    },
+    {
+      "id": "supabase-mcp",
+      "name": "Supabase MCP Server",
+      "category": "mcp",
+      "description": "Official Supabase MCP server to manage projects, run SQL, apply migrations and inspect logs.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y @supabase/mcp-server-supabase@latest",
+      "docs_url": "https://github.com/supabase-community/supabase-mcp",
+      "source_url": "https://github.com/supabase-community/supabase-mcp",
+      "tags": [
+        "supabase",
+        "database",
+        "postgres",
+        "backend",
+        "official"
+      ],
+      "attribution": "Supabase, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "vercel-mcp",
+      "name": "Vercel MCP Server",
+      "category": "mcp",
+      "description": "Official Vercel remote MCP server to manage projects, deployments, logs, domains and search docs.",
+      "trust_score": 86,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http vercel https://mcp.vercel.com",
+      "docs_url": "https://vercel.com/docs/agent-resources/vercel-mcp",
+      "source_url": "https://github.com/vercel/vercel-mcp-overview",
+      "tags": [
+        "vercel",
+        "deployment",
+        "hosting",
+        "official",
+        "remote"
+      ],
+      "attribution": "Vercel",
+      "verified": true
+    },
+    {
+      "id": "figma-dev-mode-mcp",
+      "name": "Figma Dev Mode MCP Server",
+      "category": "mcp",
+      "description": "Official Figma Dev Mode MCP server bridging Figma designs and code (design context, screenshots, variables).",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http figma-dev-mode http://127.0.0.1:3845/mcp",
+      "docs_url": "https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Dev-Mode-MCP-Server",
+      "source_url": "https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Dev-Mode-MCP-Server",
+      "tags": [
+        "figma",
+        "design",
+        "design-to-code",
+        "official",
+        "local"
+      ],
+      "attribution": "Figma",
+      "verified": true
+    },
+    {
+      "id": "cloudflare-mcp",
+      "name": "Cloudflare MCP Servers",
+      "category": "mcp",
+      "description": "Official suite of Cloudflare remote MCP servers (docs, Workers bindings, observability, Radar, etc.).",
+      "trust_score": 87,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport sse cloudflare-docs https://docs.mcp.cloudflare.com/sse",
+      "docs_url": "https://developers.cloudflare.com/agents/model-context-protocol/",
+      "source_url": "https://github.com/cloudflare/mcp-server-cloudflare",
+      "tags": [
+        "cloudflare",
+        "workers",
+        "edge",
+        "devops",
+        "official",
+        "remote"
+      ],
+      "attribution": "Cloudflare, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "sentry-mcp",
+      "name": "Sentry MCP Server",
+      "category": "mcp",
+      "description": "Official Sentry MCP server to query issues, errors, traces and project monitoring data via LLMs.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http sentry https://mcp.sentry.dev/mcp",
+      "docs_url": "https://docs.sentry.io/ai/mcp/",
+      "source_url": "https://github.com/getsentry/sentry-mcp",
+      "tags": [
+        "sentry",
+        "observability",
+        "error-tracking",
+        "monitoring",
+        "official",
+        "remote"
+      ],
+      "attribution": "Sentry",
+      "verified": true
+    },
+    {
+      "id": "slack-mcp",
+      "name": "Slack MCP Server (korotovsky)",
+      "category": "mcp",
+      "description": "Popular community Slack MCP server with DMs, group DMs, smart history and stdio/SSE/HTTP transports.",
+      "trust_score": 68,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y slack-mcp-server@latest --transport stdio",
+      "docs_url": "https://github.com/korotovsky/slack-mcp-server",
+      "source_url": "https://github.com/korotovsky/slack-mcp-server",
+      "tags": [
+        "slack",
+        "messaging",
+        "chat",
+        "community"
+      ],
+      "attribution": "Dmitrii Korotovskii (korotovsky), MIT",
+      "verified": true
+    },
+    {
+      "id": "stripe-mcp",
+      "name": "Stripe MCP Server",
+      "category": "mcp",
+      "description": "Official Stripe Agent Toolkit MCP server for customers, products, payments, invoices and balances.",
+      "trust_score": 86,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y @stripe/mcp --tools=all --api-key=YOUR_STRIPE_SECRET_KEY",
+      "docs_url": "https://docs.stripe.com/mcp",
+      "source_url": "https://github.com/stripe/agent-toolkit",
+      "tags": [
+        "stripe",
+        "payments",
+        "billing",
+        "fintech",
+        "official"
+      ],
+      "attribution": "Stripe, MIT",
+      "verified": true
+    },
+    {
+      "id": "context7-mcp",
+      "name": "Context7 MCP Server",
+      "category": "mcp",
+      "description": "Upstash Context7 MCP server delivering up-to-date, version-specific library docs and code examples into context.",
+      "trust_score": 82,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y @upstash/context7-mcp",
+      "docs_url": "https://github.com/upstash/context7",
+      "source_url": "https://github.com/upstash/context7",
+      "tags": [
+        "context7",
+        "documentation",
+        "library-docs",
+        "upstash",
+        "rag"
+      ],
+      "attribution": "Upstash, MIT",
+      "verified": true
+    },
+    {
+      "id": "microsoft-learn-mcp",
+      "name": "Microsoft Learn MCP Server",
+      "category": "mcp",
+      "description": "Official Microsoft Learn MCP server for trusted, real-time Microsoft/Azure docs and code sample search.",
+      "trust_score": 86,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http microsoft-learn https://learn.microsoft.com/api/mcp",
+      "docs_url": "https://learn.microsoft.com/en-us/training/support/mcp",
+      "source_url": "https://github.com/MicrosoftDocs/mcp",
+      "tags": [
+        "microsoft",
+        "azure",
+        "documentation",
+        "official",
+        "remote"
+      ],
+      "attribution": "Microsoft, MIT",
+      "verified": true
+    },
+    {
+      "id": "github-mcp",
+      "name": "GitHub MCP Server",
+      "category": "mcp",
+      "description": "GitHub's official MCP server for repos, issues, pull requests, Actions and code/security insights.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http github https://api.githubcopilot.com/mcp/",
+      "docs_url": "https://github.com/github/github-mcp-server",
+      "source_url": "https://github.com/github/github-mcp-server",
+      "tags": [
+        "github",
+        "git",
+        "repos",
+        "pull-requests",
+        "ci-cd",
+        "official",
+        "remote"
+      ],
+      "attribution": "GitHub, MIT",
+      "verified": true
+    },
+    {
+      "id": "playwright-mcp",
+      "name": "Playwright MCP Server",
+      "category": "mcp",
+      "description": "Microsoft's official Playwright MCP server for browser automation via structured accessibility snapshots.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx @playwright/mcp@latest",
+      "docs_url": "https://github.com/microsoft/playwright-mcp",
+      "source_url": "https://github.com/microsoft/playwright-mcp",
+      "tags": [
+        "playwright",
+        "browser-automation",
+        "testing",
+        "e2e",
+        "official"
+      ],
+      "attribution": "Microsoft, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "filesystem-mcp",
+      "name": "Filesystem MCP Server",
+      "category": "mcp",
+      "description": "Official MCP reference server for secure, sandboxed local file read/write and directory operations.",
+      "trust_score": 90,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y @modelcontextprotocol/server-filesystem /path/to/dir",
+      "docs_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "source_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "tags": [
+        "filesystem",
+        "files",
+        "reference-server",
+        "official",
+        "local"
+      ],
+      "attribution": "Anthropic / Model Context Protocol, MIT",
+      "verified": true
+    },
+    {
+      "id": "fetch-mcp",
+      "name": "Fetch MCP Server",
+      "category": "mcp",
+      "description": "Official MCP reference server that fetches a URL and converts the page to markdown for LLM use.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "uvx mcp-server-fetch",
+      "docs_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "source_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "tags": [
+        "fetch",
+        "web",
+        "markdown",
+        "reference-server",
+        "official"
+      ],
+      "attribution": "Anthropic / Model Context Protocol, MIT",
+      "verified": true
+    },
+    {
+      "id": "git-mcp",
+      "name": "Git MCP Server",
+      "category": "mcp",
+      "description": "Official MCP reference server for reading, searching and manipulating local Git repositories.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "uvx mcp-server-git",
+      "docs_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "source_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "tags": [
+        "git",
+        "version-control",
+        "reference-server",
+        "official",
+        "local"
+      ],
+      "attribution": "Anthropic / Model Context Protocol, MIT",
+      "verified": true
+    },
+    {
+      "id": "memory-mcp",
+      "name": "Memory MCP Server",
+      "category": "mcp",
+      "description": "Official MCP reference server providing a persistent local knowledge-graph memory across sessions.",
+      "trust_score": 86,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y @modelcontextprotocol/server-memory",
+      "docs_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "source_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "tags": [
+        "memory",
+        "knowledge-graph",
+        "persistence",
+        "reference-server",
+        "official"
+      ],
+      "attribution": "Anthropic / Model Context Protocol, MIT",
+      "verified": true
+    },
+    {
+      "id": "sequential-thinking-mcp",
+      "name": "Sequential Thinking MCP Server",
+      "category": "mcp",
+      "description": "Official MCP reference server enabling structured, multi-step reflective reasoning chains.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx -y @modelcontextprotocol/server-sequential-thinking",
+      "docs_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "source_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "tags": [
+        "reasoning",
+        "planning",
+        "reference-server",
+        "official"
+      ],
+      "attribution": "Anthropic / Model Context Protocol, MIT",
+      "verified": true
+    },
+    {
+      "id": "atlassian-mcp",
+      "name": "Atlassian Remote MCP Server",
+      "category": "mcp",
+      "description": "Official Atlassian (Rovo) remote MCP server securely connecting Jira and Confluence to AI agents.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp",
+      "docs_url": "https://www.atlassian.com/platform/remote-mcp-server",
+      "source_url": "https://github.com/atlassian/atlassian-mcp-server",
+      "tags": [
+        "atlassian",
+        "jira",
+        "confluence",
+        "project-management",
+        "official",
+        "remote"
+      ],
+      "attribution": "Atlassian",
+      "verified": true
+    },
+    {
+      "id": "google-workspace-mcp",
+      "name": "Google Workspace MCP Server",
+      "category": "mcp",
+      "description": "Popular community MCP server controlling Gmail, Calendar, Drive, Docs, Sheets, Slides and Tasks via OAuth.",
+      "trust_score": 72,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "uvx workspace-mcp",
+      "docs_url": "https://github.com/taylorwilsdon/google_workspace_mcp",
+      "source_url": "https://github.com/taylorwilsdon/google_workspace_mcp",
+      "tags": [
+        "google",
+        "gmail",
+        "drive",
+        "calendar",
+        "workspace",
+        "community"
+      ],
+      "attribution": "Taylor Wilsdon, MIT",
+      "verified": true
+    },
+    {
+      "id": "canva-mcp",
+      "name": "Canva MCP Server",
+      "category": "mcp",
+      "description": "Official Canva remote MCP server for design creation/editing, assets, brand, export and comments.",
+      "trust_score": 82,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http canva https://mcp.canva.com/mcp",
+      "docs_url": "https://www.canva.dev/docs/mcp/",
+      "source_url": "https://www.canva.dev/docs/mcp/",
+      "tags": [
+        "canva",
+        "design",
+        "graphics",
+        "official",
+        "remote"
+      ],
+      "attribution": "Canva",
+      "verified": true
+    },
+    {
+      "id": "huggingface-mcp",
+      "name": "Hugging Face MCP Server",
+      "category": "mcp",
+      "description": "Official Hugging Face MCP server to search models, datasets, Spaces, papers and run Gradio MCP tools.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "claude mcp add --transport http hf https://huggingface.co/mcp -H \"Authorization: Bearer YOUR_HF_TOKEN\"",
+      "docs_url": "https://huggingface.co/docs/hub/hf-mcp-server",
+      "source_url": "https://github.com/huggingface/hf-mcp-server",
+      "tags": [
+        "huggingface",
+        "models",
+        "datasets",
+        "ml",
+        "official",
+        "remote"
+      ],
+      "attribution": "Hugging Face, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "firecrawl-mcp",
+      "name": "Firecrawl MCP Server",
+      "category": "mcp",
+      "description": "Official Firecrawl MCP server adding web scraping, crawling and search to LLM clients.",
+      "trust_score": 78,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "env FIRECRAWL_API_KEY=fc-YOUR_API_KEY npx -y firecrawl-mcp",
+      "docs_url": "https://github.com/mendableai/firecrawl-mcp-server",
+      "source_url": "https://github.com/mendableai/firecrawl-mcp-server",
+      "tags": [
+        "firecrawl",
+        "web-scraping",
+        "crawling",
+        "search",
+        "official"
+      ],
+      "attribution": "Firecrawl (Mendable), MIT",
+      "verified": true
+    },
+    {
+      "id": "chrome-devtools-mcp",
+      "name": "Chrome DevTools MCP Server",
+      "category": "mcp",
+      "description": "Google's official Chrome DevTools MCP server giving coding agents browser debugging and performance access.",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npx chrome-devtools-mcp@latest",
+      "docs_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "source_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "tags": [
+        "chrome",
+        "devtools",
+        "browser",
+        "debugging",
+        "performance",
+        "official"
+      ],
+      "attribution": "Google / Chrome DevTools, Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "pack-animation-web",
+      "name": "Mooter Pack: animation-web",
+      "category": "pack",
+      "description": "Web-animation domain pack (React/CSS/scroll-triggered/motion) that raises the model floor to Sonnet and injects Motion/GSAP scaffolds.",
+      "trust_score": 50,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install animation-web",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/animation-web",
+      "tags": [
+        "animation",
+        "react",
+        "css",
+        "motion",
+        "frontend",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-code-audit",
+      "name": "Mooter Pack: code-audit",
+      "category": "pack",
+      "description": "Security & quality audit pack (Semgrep/Snyk/GitGuardian scaffolds) that routes to an Opus reviewer and recommends the GitHub and Sentry MCP servers.",
+      "trust_score": 52,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install code-audit",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/code-audit",
+      "tags": [
+        "security",
+        "audit",
+        "sast",
+        "code-review",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-data-spreadsheet",
+      "name": "Mooter Pack: data-spreadsheet",
+      "category": "pack",
+      "description": "Spreadsheet and data-transform pack for CSV/Excel/Sheets workflows with pandas/polars scaffolds; defaults to a T1 tier.",
+      "trust_score": 46,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install data-spreadsheet",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/data-spreadsheet",
+      "tags": [
+        "spreadsheet",
+        "csv",
+        "excel",
+        "pandas",
+        "polars",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-diagram-systems",
+      "name": "Mooter Pack: diagram-systems",
+      "category": "pack",
+      "description": "Diagrams-as-code pack (Mermaid/D2/C4/ER/sequence) with render smoke-tests; floor T1, ceiling T3 for complex C4.",
+      "trust_score": 50,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install diagram-systems",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/diagram-systems",
+      "tags": [
+        "diagrams",
+        "mermaid",
+        "d2",
+        "c4",
+        "architecture",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-knowledge-third-brain",
+      "name": "Mooter Pack: knowledge-third-brain",
+      "category": "pack",
+      "description": "Knowledge-management pack for Notion/Obsidian/Logseq KBs, Zettelkasten and knowledge-graph workflows; recommends Notion and Obsidian MCP.",
+      "trust_score": 45,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install knowledge-third-brain",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/knowledge-third-brain",
+      "tags": [
+        "knowledge-base",
+        "notion",
+        "obsidian",
+        "second-brain",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-prd-strategy",
+      "name": "Mooter Pack: prd-strategy",
+      "category": "pack",
+      "description": "Product-strategy pack for PRDs, roadmaps, OKRs and user stories; recommends the Linear and Notion MCP servers.",
+      "trust_score": 45,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install prd-strategy",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/prd-strategy",
+      "tags": [
+        "prd",
+        "product",
+        "roadmap",
+        "okr",
+        "strategy",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-voice-tts",
+      "name": "Mooter Pack: voice-tts",
+      "category": "pack",
+      "description": "Voice/TTS pack for speech synthesis and audio pipelines (Cartesia/ElevenLabs/Whisper) with audio-streaming scaffolds.",
+      "trust_score": 44,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install voice-tts",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packs/voice-tts",
+      "tags": [
+        "tts",
+        "voice",
+        "audio",
+        "whisper",
+        "speech",
+        "domain-pack"
+      ],
+      "attribution": "Paulo Loureiro (Mooter)",
+      "verified": true
+    },
+    {
+      "id": "pack-caveman",
+      "name": "Mooter Pack: caveman",
+      "category": "pack",
+      "description": "Roadmap pack bundling Julius Brussee's Caveman skill for terse Claude output (~8% session token savings), wired into Pastor's accept-rate learning loop.",
+      "trust_score": 48,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {
+        "token_savings_pct": 8
+      },
+      "install_cmd": "mooter pack install caveman",
+      "docs_url": "https://juliusbrussee.github.io/caveman/",
+      "source_url": "https://github.com/JuliusBrussee/caveman",
+      "tags": [
+        "token-savings",
+        "prompt-compression",
+        "caveman",
+        "skill-bundle",
+        "roadmap"
+      ],
+      "attribution": "Julius Brussee — Caveman skill (MIT); Mooter pack wrapper by Paulo Loureiro",
+      "verified": false
+    },
+    {
+      "id": "pack-vault-sync",
+      "name": "Mooter Pack: vault-sync",
+      "category": "pack",
+      "description": "Roadmap Obsidian-bridge pack bundling kepano/obsidian-skills (Steph Ango) for vault-aware Markdown, Bases and Canvas workflows.",
+      "trust_score": 45,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install vault-sync",
+      "docs_url": "https://github.com/kepano/obsidian-skills",
+      "source_url": "https://github.com/kepano/obsidian-skills",
+      "tags": [
+        "obsidian",
+        "vault",
+        "knowledge",
+        "skill-bundle",
+        "roadmap"
+      ],
+      "attribution": "Steph Ango (kepano) — obsidian-skills; Mooter pack wrapper by Paulo Loureiro",
+      "verified": false
+    },
+    {
+      "id": "pack-snapdragon-nopu",
+      "name": "Mooter Pack: snapdragon-nopu",
+      "category": "pack",
+      "description": "Roadmap NPU-offload pack for Snapdragon X Elite laptops, routing local inference to the Qualcomm Hexagon NPU.",
+      "trust_score": 32,
+      "compatibility": {
+        "hardware": [
+          "npu"
+        ],
+        "os": [
+          "windows",
+          "linux"
+        ],
+        "subscription": [
+          "any"
+        ],
+        "requires_npu": true
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install snapdragon-nopu",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "tags": [
+        "npu",
+        "snapdragon",
+        "hexagon",
+        "local-inference",
+        "roadmap"
+      ],
+      "attribution": "Mooter (Paulo Loureiro)",
+      "verified": false
+    },
+    {
+      "id": "pack-turboquant",
+      "name": "Mooter Pack: turboquant",
+      "category": "pack",
+      "description": "Roadmap KV-cache quantization pack (TurboQuant) aimed at running many more concurrent local Ollama workers; pending upstream llama.cpp shipping.",
+      "trust_score": 30,
+      "compatibility": {
+        "hardware": [
+          "gpu-high",
+          "gpu-mid"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install turboquant",
+      "docs_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "tags": [
+        "kv-cache",
+        "quantization",
+        "local-inference",
+        "ollama",
+        "roadmap"
+      ],
+      "attribution": "Upstream: Google Research (TurboQuant) + llama.cpp community; Mooter pack wrapper by Paulo Loureiro",
+      "verified": false
+    },
+    {
+      "id": "pack-nextjs-fullstack",
+      "name": "Mooter Pack: nextjs-fullstack",
+      "category": "pack",
+      "description": "Proposed full-stack web pack for Next.js + Vercel app scaffolding and deploy workflows (recommends the Vercel MCP). Proposed seed, not yet shipped.",
+      "trust_score": 33,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install nextjs-fullstack",
+      "docs_url": "https://mooter.ai",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "tags": [
+        "nextjs",
+        "vercel",
+        "fullstack",
+        "web",
+        "proposed"
+      ],
+      "attribution": "Mooter (Paulo Loureiro)",
+      "verified": false
+    },
+    {
+      "id": "pack-sql-analytics",
+      "name": "Mooter Pack: sql-analytics",
+      "category": "pack",
+      "description": "Proposed analytics pack for text-to-SQL and DuckDB/dbt query and warehouse workflows. Proposed seed, not yet shipped.",
+      "trust_score": 32,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install sql-analytics",
+      "docs_url": "https://mooter.ai",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "tags": [
+        "sql",
+        "analytics",
+        "text-to-sql",
+        "duckdb",
+        "proposed"
+      ],
+      "attribution": "Mooter (Paulo Loureiro)",
+      "verified": false
+    },
+    {
+      "id": "pack-infra-iac",
+      "name": "Mooter Pack: infra-iac",
+      "category": "pack",
+      "description": "Proposed infrastructure-as-code pack for Terraform/Pulumi/Cloudflare provisioning workflows (recommends the Cloudflare MCP). Proposed seed, not yet shipped.",
+      "trust_score": 31,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "any"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "mooter pack install infra-iac",
+      "docs_url": "https://mooter.ai",
+      "source_url": "https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/packs/README.md",
+      "tags": [
+        "iac",
+        "terraform",
+        "pulumi",
+        "cloudflare",
+        "infra",
+        "proposed"
+      ],
+      "attribution": "Mooter (Paulo Loureiro)",
+      "verified": false
+    },
+    {
+      "id": "anthropic-claude-opus",
+      "name": "Anthropic Claude Opus",
+      "category": "provider",
+      "description": "Anthropic's most capable Claude model family (Opus 4.x); Mooter's default high-tier (T3) for architecture and critical refactors.",
+      "trust_score": 96,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-max",
+          "claude-pro",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npm install @anthropic-ai/sdk",
+      "docs_url": "https://docs.anthropic.com/en/docs/about-claude/models/overview",
+      "source_url": "https://www.anthropic.com/claude",
+      "tags": [
+        "llm",
+        "anthropic",
+        "cloud",
+        "frontier",
+        "reasoning",
+        "T3"
+      ],
+      "attribution": "Anthropic — proprietary",
+      "verified": true
+    },
+    {
+      "id": "anthropic-claude-sonnet",
+      "name": "Anthropic Claude Sonnet",
+      "category": "provider",
+      "description": "Balanced Claude model family (Sonnet 4.x); Mooter's mid-tier (T2) for bug hunts, technical plans and 2-3 way comparisons.",
+      "trust_score": 95,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-max",
+          "claude-pro",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npm install @anthropic-ai/sdk",
+      "docs_url": "https://docs.anthropic.com/en/docs/about-claude/models/overview",
+      "source_url": "https://www.anthropic.com/claude",
+      "tags": [
+        "llm",
+        "anthropic",
+        "cloud",
+        "reasoning",
+        "T2"
+      ],
+      "attribution": "Anthropic — proprietary",
+      "verified": true
+    },
+    {
+      "id": "anthropic-claude-haiku",
+      "name": "Anthropic Claude Haiku",
+      "category": "provider",
+      "description": "Fast, low-cost Claude model family (Haiku 4.x); Mooter's cheap-triage tier (T1) for commit messages, docstrings and regex.",
+      "trust_score": 94,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "claude-max",
+          "claude-pro",
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "npm install @anthropic-ai/sdk",
+      "docs_url": "https://docs.anthropic.com/en/docs/about-claude/models/overview",
+      "source_url": "https://www.anthropic.com/claude",
+      "tags": [
+        "llm",
+        "anthropic",
+        "cloud",
+        "fast",
+        "cheap",
+        "T1"
+      ],
+      "attribution": "Anthropic — proprietary",
+      "verified": true
+    },
+    {
+      "id": "openai-gpt-5",
+      "name": "OpenAI GPT-5",
+      "category": "provider",
+      "description": "OpenAI's GPT-5 family (5.1/5.2/5.5) with adaptive reasoning and prompt caching; routable as an alternative cloud frontier provider.",
+      "trust_score": 92,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "pip install openai",
+      "docs_url": "https://platform.openai.com/docs/models",
+      "source_url": "https://openai.com/api/",
+      "tags": [
+        "llm",
+        "openai",
+        "cloud",
+        "frontier",
+        "reasoning"
+      ],
+      "attribution": "OpenAI — proprietary",
+      "verified": true
+    },
+    {
+      "id": "google-gemini",
+      "name": "Google Gemini",
+      "category": "provider",
+      "description": "Google's Gemini family (3 Flash / 3.5 Flash, Pro) with long context and multimodal input; routable cloud provider.",
+      "trust_score": 92,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "pip install google-genai",
+      "docs_url": "https://ai.google.dev/gemini-api/docs",
+      "source_url": "https://ai.google.dev/",
+      "tags": [
+        "llm",
+        "google",
+        "cloud",
+        "multimodal",
+        "long-context"
+      ],
+      "attribution": "Google — proprietary",
+      "verified": true
+    },
+    {
+      "id": "deepseek-v4",
+      "name": "DeepSeek V4",
+      "category": "provider",
+      "description": "DeepSeek V4 (V4-Pro/Flash) MoE with 1M-token context, MIT open-weights on Hugging Face; strong open frontier model routable via API.",
+      "trust_score": 82,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "",
+      "docs_url": "https://api-docs.deepseek.com/",
+      "source_url": "https://huggingface.co/deepseek-ai",
+      "tags": [
+        "llm",
+        "deepseek",
+        "open-weights",
+        "mit",
+        "moe",
+        "frontier"
+      ],
+      "attribution": "DeepSeek — MIT",
+      "verified": true
+    },
+    {
+      "id": "glm-4-5",
+      "name": "GLM-4.5 (Z.ai)",
+      "category": "provider",
+      "description": "Z.ai (Zhipu) GLM-4.5 355B-A32B MoE, MIT open-weights, tuned for agents/coding/long-context; routable via API or self-host.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "",
+      "docs_url": "https://huggingface.co/zai-org/GLM-4.5",
+      "source_url": "https://huggingface.co/zai-org/GLM-4.5",
+      "tags": [
+        "llm",
+        "glm",
+        "zhipu",
+        "open-weights",
+        "mit",
+        "agents"
+      ],
+      "attribution": "Z.ai (Zhipu AI) — MIT",
+      "verified": true
+    },
+    {
+      "id": "arctic-text2sql-r1",
+      "name": "Snowflake Arctic-Text2SQL-R1-7B",
+      "category": "provider",
+      "description": "7B Text-to-SQL specialist (GRPO-trained) topping BIRD; converts natural language to executable SQL, self-hostable.",
+      "trust_score": 72,
+      "compatibility": {
+        "hardware": [
+          "gpu-low",
+          "gpu-mid",
+          "apple-silicon",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 8
+      },
+      "roi_estimate": {},
+      "install_cmd": "huggingface-cli download Snowflake/Arctic-Text2SQL-R1-7B",
+      "docs_url": "https://huggingface.co/Snowflake/Arctic-Text2SQL-R1-7B",
+      "source_url": "https://huggingface.co/Snowflake/Arctic-Text2SQL-R1-7B",
+      "tags": [
+        "llm",
+        "text2sql",
+        "specialist",
+        "snowflake",
+        "sql",
+        "local"
+      ],
+      "attribution": "Snowflake — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "amalia-pt-pt",
+      "name": "AMÁLIA (European Portuguese)",
+      "category": "provider",
+      "description": "Portugal's open LLM focused on European Portuguese (pt-PT), PRR-funded consortium model; pt-PT language specialist.",
+      "trust_score": 55,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "",
+      "docs_url": "https://huggingface.co/amalia-llm",
+      "source_url": "https://github.com/AMALIA-LLM/AMALIA",
+      "tags": [
+        "llm",
+        "portuguese",
+        "pt-pt",
+        "open-source",
+        "specialist",
+        "language"
+      ],
+      "attribution": "AMÁLIA Project (NOVA/IST/UC/UP/UMinho/FCT) — open source",
+      "verified": true
+    },
+    {
+      "id": "sabia-3",
+      "name": "Sabiá-3 (Maritaca AI)",
+      "category": "provider",
+      "description": "Maritaca AI's flagship Brazilian Portuguese (pt-BR) LLM, GPT-4o-class on Brazilian exams; routable via API.",
+      "trust_score": 70,
+      "compatibility": {
+        "hardware": [
+          "any"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "byok"
+        ]
+      },
+      "roi_estimate": {},
+      "install_cmd": "pip install maritalk",
+      "docs_url": "https://docs.maritaca.ai/",
+      "source_url": "https://www.maritaca.ai/",
+      "tags": [
+        "llm",
+        "portuguese",
+        "pt-br",
+        "maritaca",
+        "specialist",
+        "cloud"
+      ],
+      "attribution": "Maritaca AI — proprietary",
+      "verified": true
+    },
+    {
+      "id": "qwen3",
+      "name": "Qwen3 (Alibaba)",
+      "category": "provider",
+      "description": "Alibaba Qwen3 dense/MoE family with hybrid thinking mode; strong general local model served by Ollama.",
+      "trust_score": 86,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull qwen3",
+      "docs_url": "https://ollama.com/library/qwen3",
+      "source_url": "https://huggingface.co/Qwen",
+      "tags": [
+        "llm",
+        "qwen",
+        "alibaba",
+        "local",
+        "ollama",
+        "apache-2.0"
+      ],
+      "attribution": "Alibaba Qwen — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "qwen2-5-coder",
+      "name": "Qwen2.5-Coder",
+      "category": "provider",
+      "description": "Alibaba code-specialist model; local coding/completion assistant routable via Ollama (Mooter's default local coder).",
+      "trust_score": 85,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull qwen2.5-coder",
+      "docs_url": "https://ollama.com/library/qwen2.5-coder",
+      "source_url": "https://huggingface.co/Qwen",
+      "tags": [
+        "llm",
+        "qwen",
+        "code",
+        "local",
+        "ollama",
+        "apache-2.0"
+      ],
+      "attribution": "Alibaba Qwen — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "gemma3",
+      "name": "Gemma 3 (Google)",
+      "category": "provider",
+      "description": "Google's open Gemma 3 multimodal models (1B-27B), 128K context, 140+ languages; local via Ollama.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 4
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull gemma3",
+      "docs_url": "https://ollama.com/library/gemma3",
+      "source_url": "https://ai.google.dev/gemma",
+      "tags": [
+        "llm",
+        "gemma",
+        "google",
+        "local",
+        "multimodal",
+        "ollama"
+      ],
+      "attribution": "Google — Gemma Terms of Use",
+      "verified": true
+    },
+    {
+      "id": "llama3-3",
+      "name": "Meta Llama 3.3",
+      "category": "provider",
+      "description": "Meta's Llama 3.3 70B instruction-tuned model; high-quality open local model served by Ollama.",
+      "trust_score": 88,
+      "compatibility": {
+        "hardware": [
+          "gpu-high",
+          "gpu-mid",
+          "apple-silicon"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 48
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull llama3.3",
+      "docs_url": "https://ollama.com/library/llama3.3",
+      "source_url": "https://huggingface.co/meta-llama",
+      "tags": [
+        "llm",
+        "llama",
+        "meta",
+        "local",
+        "ollama"
+      ],
+      "attribution": "Meta — Llama 3.3 Community License",
+      "verified": true
+    },
+    {
+      "id": "mistral-7b",
+      "name": "Mistral 7B",
+      "category": "provider",
+      "description": "Mistral AI's Apache-2.0 7B model; efficient local general-purpose model routable via Ollama.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull mistral",
+      "docs_url": "https://ollama.com/library/mistral",
+      "source_url": "https://mistral.ai/",
+      "tags": [
+        "llm",
+        "mistral",
+        "local",
+        "ollama",
+        "apache-2.0"
+      ],
+      "attribution": "Mistral AI — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "deepseek-r1",
+      "name": "DeepSeek-R1 (distilled)",
+      "category": "provider",
+      "description": "DeepSeek-R1 reasoning models incl. distilled 1.5B-70B variants, MIT; local reasoning model via Ollama.",
+      "trust_score": 84,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull deepseek-r1",
+      "docs_url": "https://ollama.com/library/deepseek-r1",
+      "source_url": "https://huggingface.co/deepseek-ai",
+      "tags": [
+        "llm",
+        "deepseek",
+        "reasoning",
+        "local",
+        "ollama",
+        "mit"
+      ],
+      "attribution": "DeepSeek — MIT",
+      "verified": true
+    },
+    {
+      "id": "phi4",
+      "name": "Microsoft Phi-4",
+      "category": "provider",
+      "description": "Microsoft's 14B Phi-4 model, strong at reasoning/math for its size; MIT, local via Ollama.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 10
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull phi4",
+      "docs_url": "https://ollama.com/library/phi4",
+      "source_url": "https://huggingface.co/microsoft/phi-4",
+      "tags": [
+        "llm",
+        "phi",
+        "microsoft",
+        "local",
+        "ollama",
+        "mit"
+      ],
+      "attribution": "Microsoft — MIT",
+      "verified": true
+    },
+    {
+      "id": "gpt-oss",
+      "name": "OpenAI gpt-oss",
+      "category": "provider",
+      "description": "OpenAI's open-weight gpt-oss models (20B/120B), Apache-2.0; local frontier-style model served by Ollama.",
+      "trust_score": 82,
+      "compatibility": {
+        "hardware": [
+          "gpu-mid",
+          "gpu-high",
+          "apple-silicon"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 16
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull gpt-oss",
+      "docs_url": "https://ollama.com/library/gpt-oss",
+      "source_url": "https://huggingface.co/openai/gpt-oss-20b",
+      "tags": [
+        "llm",
+        "openai",
+        "open-weights",
+        "local",
+        "ollama",
+        "apache-2.0"
+      ],
+      "attribution": "OpenAI — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "codellama",
+      "name": "Code Llama (Meta)",
+      "category": "provider",
+      "description": "Meta's Code Llama family for code generation and infilling; local coding model via Ollama.",
+      "trust_score": 76,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull codellama",
+      "docs_url": "https://ollama.com/library/codellama",
+      "source_url": "https://huggingface.co/meta-llama",
+      "tags": [
+        "llm",
+        "code",
+        "llama",
+        "meta",
+        "local",
+        "ollama"
+      ],
+      "attribution": "Meta — Llama Community License",
+      "verified": true
+    },
+    {
+      "id": "llava",
+      "name": "LLaVA",
+      "category": "provider",
+      "description": "Open multimodal (vision+language) model; local image-understanding assistant served by Ollama.",
+      "trust_score": 74,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 6
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull llava",
+      "docs_url": "https://ollama.com/library/llava",
+      "source_url": "https://llava-vl.github.io/",
+      "tags": [
+        "llm",
+        "multimodal",
+        "vision",
+        "local",
+        "ollama"
+      ],
+      "attribution": "LLaVA team — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "mixtral",
+      "name": "Mixtral 8x7B (Mistral AI)",
+      "category": "provider",
+      "description": "Mistral AI's sparse MoE (8x7B) model, Apache-2.0; high-throughput local model via Ollama.",
+      "trust_score": 80,
+      "compatibility": {
+        "hardware": [
+          "gpu-high",
+          "gpu-mid",
+          "apple-silicon"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 28
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull mixtral",
+      "docs_url": "https://ollama.com/library/mixtral",
+      "source_url": "https://mistral.ai/",
+      "tags": [
+        "llm",
+        "mixtral",
+        "moe",
+        "mistral",
+        "local",
+        "ollama",
+        "apache-2.0"
+      ],
+      "attribution": "Mistral AI — Apache-2.0",
+      "verified": true
+    },
+    {
+      "id": "starcoder2",
+      "name": "StarCoder2 (BigCode)",
+      "category": "provider",
+      "description": "BigCode's open code model (3B/7B/15B) trained on The Stack v2; local code completion via Ollama.",
+      "trust_score": 72,
+      "compatibility": {
+        "hardware": [
+          "apple-silicon",
+          "gpu-low",
+          "gpu-mid",
+          "cpu-only"
+        ],
+        "os": [
+          "any"
+        ],
+        "subscription": [
+          "none"
+        ],
+        "min_vram_gb": 4
+      },
+      "roi_estimate": {},
+      "install_cmd": "ollama pull starcoder2",
+      "docs_url": "https://ollama.com/library/starcoder2",
+      "source_url": "https://huggingface.co/bigcode",
+      "tags": [
+        "llm",
+        "code",
+        "starcoder",
+        "bigcode",
+        "local",
+        "ollama"
+      ],
+      "attribution": "BigCode — BigCode OpenRAIL-M",
+      "verified": true
+    }
+  ]
+}

@@ -984,7 +984,34 @@ function renderTwoLine(ctx) {
     .join(' · ');
 
   // If line 2 has nothing to show, fall back to the 1-line.
-  return line2 ? `${line1}\n${line2}` : renderFromContext(ctx);
+  if (!line2) return renderFromContext(ctx);
+  // Wave 29 (29.J) — opt-in line 3 (synthesis chips). Default OFF → lines 1-2 are
+  // byte-for-byte unchanged. Enable via preferences.json {"statusline_line3":true}
+  // or MOOTER_STATUSLINE_LINE3=1. Defensive: any failure → no line 3.
+  const line3 = buildLine3();
+  return line3 ? `${line1}\n${line2}\n${line3}` : `${line1}\n${line2}`;
+}
+
+// Wave 29 (29.J) — assemble the opt-in line-3 synthesis chips (compression ·
+// setup · ecosystem). Each helper returns null when its layer is inactive, and
+// any throw is swallowed so the statusline can never be broken by line 3.
+function buildLine3() {
+  let on = process.env.MOOTER_STATUSLINE_LINE3 === '1';
+  if (!on) {
+    try {
+      const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+      on = prefs.statusline_line3 === true;
+    } catch { on = false; }
+  }
+  if (!on) return null;
+  const chips = [];
+  for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js']) {
+    try {
+      const c = require(mod).statusLine();
+      if (c) chips.push(c);
+    } catch { /* skip a broken chip, never break the statusline */ }
+  }
+  return chips.length ? chips.join(' · ') : null;
 }
 
 /**
