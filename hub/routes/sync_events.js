@@ -144,5 +144,10 @@ export async function handleSyncEvents(request, env) {
     rejected: rejectionReasons.length,
     rejection_reasons: rejectionReasons,
     pastor_hint: pastorHint,
+    // Wave 28: the pull surface now carries workflow hints alongside the Pastor
+    // routing hint. Empty until the workflow engine accumulates patterns — the
+    // field exists so clients can rely on its shape. Pastor's own logic is
+    // untouched; this is plumbing, not a new Pastor signal.
+    workflow_hints: [],
   }), { status: 202, headers: { 'Content-Type': 'application/json' } });
 }

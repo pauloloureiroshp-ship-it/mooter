@@ -26,17 +26,14 @@ test("PHASES covers every engine module", () => {
   ]);
 });
 
-test("Phase C-G modules are done; later phases are not", () => {
-  for (const k of ["agent", "pool", "primitives", "runtime", "state", "writer", "presenter"] as const) {
+test("every engine module is implemented (Phase F-H landed)", () => {
+  for (const k of Object.keys(PHASES) as Array<keyof typeof PHASES>) {
     assert.equal(PHASES[k].done, true, `${k} should be implemented`);
-  }
-  for (const k of ["tui"] as const) {
-    assert.equal(PHASES[k].done, false, `${k} should still be a stub`);
   }
 });
 
-test("isEngineReady() is false while stubs remain", () => {
-  assert.equal(isEngineReady(), false);
+test("isEngineReady() is true once every module is implemented", () => {
+  assert.equal(isEngineReady(), true);
 });
 
 test("NotImplementedError is re-exported and carries its phase", () => {

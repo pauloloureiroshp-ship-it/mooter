@@ -17,7 +17,7 @@ export const PHASES = {
   state: { phase: "F", done: true },
   writer: { phase: "G", done: true },
   presenter: { phase: "G", done: true },
-  tui: { phase: "H", done: false },
+  tui: { phase: "H", done: true },
 } as const;
 
 /** True once every module's stub has been replaced by a real implementation. */
@@ -104,5 +104,13 @@ export type { WorkflowPlan, PhasePlan, WriteOptions } from "./writer.ts";
 export { presentPlan, renderPlan } from "./presenter.ts";
 export type { PresentDecision, PresentOptions } from "./presenter.ts";
 
-export { watch } from "./tui.ts";
+export { watch, renderProgress } from "./tui.ts";
 export type { WatchOptions } from "./tui.ts";
+
+export {
+  updateActiveRun,
+  clearActiveRun,
+  readActiveRun,
+  activePointerPath,
+} from "./active.ts";
+export type { ActiveRunSnapshot } from "./active.ts";
