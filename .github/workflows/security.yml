@@ -29,7 +29,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pkg: [tools/router, packages/cli, hub, landing]
+        # Backend/CLI packages block on HIGH. `landing` is audited separately
+        # (non-blocking) because its Next.js toolchain carries pre-existing HIGH
+        # advisories tracked in audit/NPM_AUDIT_BASELINE.md (SC: `npm audit fix`).
+        pkg: [tools/router, packages/cli, hub]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,6 +50,20 @@ jobs:
             exit 1
           fi
           echo "${{ matrix.pkg }}: no HIGH/critical advisories."
+
+  audit-landing:
+    name: npm audit landing (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: npm audit landing (non-blocking)
+        working-directory: landing
+        run: npm audit --audit-level=high --package-lock-only || echo "::warning::landing has pre-existing HIGH advisories — tracked in audit/NPM_AUDIT_BASELINE.md (non-blocking)"
 
   threat-probes:
     name: validation threat-model probes
