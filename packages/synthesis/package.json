@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/synthesis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter Synthesis layer (Wave 29) — L12 LLMLingua compression · L13 LoRA hot-swap foundation · L14 Setup Intelligence · L15 Ecosystem Awareness · L16.1 Prompt Quality telemetry. Opt-in, privacy-first, zero proxy. Uses only Node builtins (no native deps).",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}
