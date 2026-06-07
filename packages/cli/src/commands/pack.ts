@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import yaml from "js-yaml";
 import { defaultPacksDir } from "../../../router/src/classify_domain.ts";
+import { mooterPath, readJsonSafe, writeJson, appendJsonl } from "../../../synthesis/src/index.ts";
 import {
   loadPackManifest,
   packResolve,
@@ -23,10 +24,12 @@ import {
 import { validatePack } from "../../../../packs/validate.ts";
 
 export const PACK_USAGE = `Pack subcommands:
-  mooter pack list                 list installed packs
-  mooter pack show <name>          show pack.yaml + scaffold
+  mooter pack list                 list available packs
+  mooter pack show|info <name>     show pack.yaml + scaffold (info shows attribution)
   mooter pack diff <name>          gap: skills/MCPs present vs required
   mooter pack validate <name>      schema + presence checks (deterministic)
+  mooter pack install <name>       install a pack (records + Pastor accept signal)
+  mooter pack uninstall <name>     remove an installed pack
 
 Flags:
   --json                           machine-readable output (all subcommands)`;
@@ -315,6 +318,69 @@ export function packValidate(name: string, opts: PackCmdOptions = {}): CmdResult
   return { exitCode: allPass ? 0 : 1, output: lines.join("\n") };
 }
 
+// --- install / uninstall (Wave 29 29.C) --------------------------------------
+//
+// Tracks installed packs in ~/.mooter/installed_packs.json and emits a Pastor
+// acceptance signal (~/.mooter/pack_signals.jsonl) on each install/uninstall so
+// the routing loop can learn whether a pack's style gets accepted.
+
+interface InstalledPack {
+  name: string;
+  installed_at: string;
+}
+interface InstalledRegistry {
+  packs: InstalledPack[];
+}
+
+function installedRegistryPath(): string {
+  return mooterPath("installed_packs.json");
+}
+function readInstalled(): InstalledRegistry {
+  const reg = readJsonSafe<InstalledRegistry>(installedRegistryPath(), { packs: [] });
+  return Array.isArray(reg.packs) ? reg : { packs: [] };
+}
+function packAttribution(name: string): string | null {
+  try {
+    const doc = yaml.load(readFileSync(join(defaultPacksDir(), name, "pack.yaml"), "utf8")) as Record<string, unknown>;
+    const meta = (doc?.metadata ?? {}) as Record<string, unknown>;
+    return typeof meta.author === "string" ? meta.author : null;
+  } catch {
+    return null;
+  }
+}
+
+function packInstall(name: string, opts: { json: boolean }): CmdResult {
+  const dir = join(defaultPacksDir(), name);
+  if (!existsSync(join(dir, "pack.yaml"))) {
+    return { exitCode: 1, output: opts.json ? JSON.stringify({ pack: name, installed: false, error: "not_found" }) : `${NO} pack '${name}' not found` };
+  }
+  const reg = readInstalled();
+  if (reg.packs.some((p) => p.name === name)) {
+    return { exitCode: 0, output: opts.json ? JSON.stringify({ pack: name, installed: true, already: true }) : `${OK} ${name} already installed` };
+  }
+  const installed_at = new Date().toISOString();
+  reg.packs.push({ name, installed_at });
+  writeJson(installedRegistryPath(), reg);
+  appendJsonl(mooterPath("pack_signals.jsonl"), { ts: installed_at, pack: name, event: "install" });
+  if (opts.json) return { exitCode: 0, output: JSON.stringify({ pack: name, installed: true }) };
+  const attr = packAttribution(name);
+  const lines = [`${OK} installed ${name}`];
+  if (attr) lines.push(`  attribution: ${attr}`);
+  lines.push("  pastor: install signal logged (acceptance tracking enabled)");
+  return { exitCode: 0, output: lines.join("\n") };
+}
+
+function packUninstall(name: string, opts: { json: boolean }): CmdResult {
+  const reg = readInstalled();
+  if (!reg.packs.some((p) => p.name === name)) {
+    return { exitCode: 1, output: opts.json ? JSON.stringify({ pack: name, installed: false, error: "not_installed" }) : `${NO} ${name} is not installed` };
+  }
+  reg.packs = reg.packs.filter((p) => p.name !== name);
+  writeJson(installedRegistryPath(), reg);
+  appendJsonl(mooterPath("pack_signals.jsonl"), { ts: new Date().toISOString(), pack: name, event: "uninstall" });
+  return { exitCode: 0, output: opts.json ? JSON.stringify({ pack: name, installed: false }) : `${OK} uninstalled ${name}` };
+}
+
 // --- dispatch ----------------------------------------------------------------
 export function runPack(argv: string[]): CmdResult {
   const json = argv.includes("--json");
@@ -325,7 +391,8 @@ export function runPack(argv: string[]): CmdResult {
     case "list":
       return packList({ json });
     case "show":
-      if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack show <name>` };
+    case "info":
+      if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack ${sub} <name>` };
       return packShow(name, { json });
     case "diff":
       if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack diff <name>` };
@@ -333,6 +400,12 @@ export function runPack(argv: string[]): CmdResult {
     case "validate":
       if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack validate <name>` };
       return packValidate(name, { json });
+    case "install":
+      if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack install <name>` };
+      return packInstall(name, { json });
+    case "uninstall":
+      if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack uninstall <name>` };
+      return packUninstall(name, { json });
     default:
       return { exitCode: 1, output: `${NO} unknown pack subcommand '${sub ?? ""}'\n\n${PACK_USAGE}` };
   }

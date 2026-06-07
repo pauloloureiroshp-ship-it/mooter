@@ -1,0 +1,41 @@
+name: caveman
+version: 0.1.0
+description: "Terse high-signal output; drop filler for ~8% token savings (Caveman by Julius Brussee, MIT)"
+domain_signals:
+  keywords: [caveman, terse, brevity, concise, brief, token-save, minimal]
+  intent_phrases: ["be terse", "caveman mode", "drop the filler", "keep it short", "minimal tokens"]
+  file_extensions: []
+  negative_keywords: [verbose, explain in detail, elaborate]
+  embedding_seeds:
+    - "answer as tersely as possible, no filler"
+    - "caveman style: short words, no fluff"
+    - "give me the minimal high-signal answer"
+    - "cut every unnecessary word from the reply"
+    - "respond in the fewest tokens that stay correct"
+    - "no preamble, no summary, just the answer"
+    - "brevity over politeness in this reply"
+    - "compress the output, keep the facts"
+model_floor: T0
+model_ceiling: T3
+skills:
+  recommended: [caveman]
+mcps:
+  recommended: []
+subagents:
+  primary: cheap-triage
+repos_canonical:
+  - { name: caveman, url: https://github.com/juliusbrussee/caveman, license: MIT, note: "Original Caveman skill by Julius Brussee (~51k stars). Bundled with attribution." }
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+validation:
+  smoke_test: "Enable caveman; verify a verbose prompt's reply drops filler while keeping paths/code/errors verbatim"
+  acceptance_criteria:
+    - "Output token count drops vs baseline on a verbose prompt"
+    - "Identifiers, file paths, commands and error messages preserved verbatim"
+    - "Max users: default OFF; Pro/none: default ON (subscription-aware)"
+metadata:
+  author: "Julius Brussee (original skill) · bundled by Mooter"
+  created: 2026-06-07
+  ttl_days: 365
+  trust_score: 0.7
+  usage_count: 0
