@@ -20,3 +20,5 @@ export * from "./benchmark/runner.ts";
 export * from "./benchmark/mlwr.ts";
 export * from "./benchmark/judge.ts";
 export * from "./benchmark/reporter.ts";
+export * from "./recovery/error-catalog.ts";
+export * from "./recovery/auto-recover.ts";
