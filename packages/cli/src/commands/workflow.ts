@@ -14,6 +14,9 @@
 // hardcodes a URL.
 
 import type { CmdResult } from "./trail.ts";
+// Type-only import: erased at build (esbuild/tsx drop it), so it does NOT pull
+// the engine — or its native deps — into the zero-runtime-deps CLI bundle.
+import type { AgentRequest } from "../../../workflow/src/agent.ts";
 
 const KNOWN_SUBCOMMANDS = ["create", "list", "watch", "run", "stop", "resume"] as const;
 
@@ -63,9 +66,15 @@ function err(message: string): CmdResult {
   return { exitCode: 1, output: `${message}\n\n${WORKFLOW_USAGE}` };
 }
 
-// Lazy engine loader — only reached once a subcommand has valid args.
+// Lazy engine loader — only reached once a subcommand has valid args. The
+// specifier is assembled at runtime so esbuild does NOT bundle the engine (it
+// pulls native deps — isolated-vm, better-sqlite3 — that the zero-runtime-deps
+// CLI bundle must not contain). Resolves under a tsx source checkout, where the
+// workflow command is supported; in the shipped bundle it throws and
+// runWorkflow() reports it cleanly.
+const ENGINE_SPECIFIER = ["..", "..", "..", "workflow", "src", "index.ts"].join("/");
 async function engine() {
-  return import("../../../workflow/src/index.ts");
+  return import(ENGINE_SPECIFIER);
 }
 
 // ── host-side file gathering for --target ─────────────────────────────────────
@@ -161,7 +170,7 @@ async function dispatchRun(rest: string[]): Promise<CmdResult> {
 
   let agentsDone = 0;
   const api = {
-    agent: async (req: Parameters<typeof eng.agent>[0]) => {
+    agent: async (req: AgentRequest) => {
       const res = await eng.agent(req);
       store.recordAgent(runId, {
         label: req.model,
@@ -300,20 +309,35 @@ export async function runWorkflow(args: string[]): Promise<CmdResult> {
     return { exitCode: 1, output: `mooter workflow: unknown subcommand '${sub}'\n\n${WORKFLOW_USAGE}` };
   }
 
-  switch (sub) {
-    case "run":
-      return dispatchRun(rest);
-    case "list":
-      return dispatchList();
-    case "watch":
-      return dispatchWatch(rest);
-    case "resume":
-      return dispatchResume(rest);
-    case "create":
-      return dispatchCreate(rest);
-    case "stop":
-      return { exitCode: 0, output: "mooter workflow stop: runs are synchronous in this MVP; Ctrl-C cancels. Cross-session state is in ~/.mooter/workflows/state.db." };
-    default:
-      return err(`mooter workflow: '${sub}' is not wired yet`);
+  // `stop` needs no engine; handle it before any import.
+  if (sub === "stop") {
+    return { exitCode: 0, output: "mooter workflow stop: runs are synchronous in this MVP; Ctrl-C cancels. Cross-session state is in ~/.mooter/workflows/state.db." };
+  }
+
+  try {
+    switch (sub) {
+      case "run":
+        return await dispatchRun(rest);
+      case "list":
+        return await dispatchList();
+      case "watch":
+        return await dispatchWatch(rest);
+      case "resume":
+        return await dispatchResume(rest);
+      case "create":
+        return await dispatchCreate(rest);
+      default:
+        return err(`mooter workflow: '${sub}' is not wired yet`);
+    }
+  } catch (e) {
+    // Most likely the engine couldn't be loaded (shipped bundle has no native
+    // deps). Report it cleanly rather than crashing the CLI.
+    return {
+      exitCode: 1,
+      output:
+        `mooter workflow: the engine is unavailable in this build.\n` +
+        `  Run from a source checkout with the engine's native deps built (isolated-vm, better-sqlite3).\n` +
+        `  (${(e as Error).message})`,
+    };
   }
 }
