@@ -16,6 +16,8 @@ import {
   detectSetup,
   loadProfile,
   saveProfile,
+  mooterPath,
+  writeJson,
   type SetupProfile,
   type CatalogCategory,
 } from "../../../synthesis/src/index.ts";
@@ -68,6 +70,8 @@ export async function runEcosystem(args: string[]): Promise<CmdResult> {
     const profile = await ensureProfile();
     const limit = Number(flagValue(rest, "--limit") ?? "5");
     const recs = recommend(profile, catalog.items, { limit: Number.isFinite(limit) ? limit : 5 });
+    // Cache the count for the statusline line-3 chip (cheap read; no render-time ranking).
+    try { writeJson(mooterPath("ecosystem", "reco_count.json"), { count: recs.length, generated_at: new Date().toISOString() }); } catch { /* non-fatal */ }
     if (json) return { exitCode: 0, output: JSON.stringify(recs, null, 2) };
     const lines = [`🐮 Top ${recs.length} recommendations for your setup (${profile.hardware.hardware_class} · ${profile.subscriptions.subscription_tier})`, "─────────────────────────────────────────"];
     recs.forEach((r, n) => {
