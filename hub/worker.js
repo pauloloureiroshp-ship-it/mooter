@@ -29,6 +29,7 @@ import { handleModels } from './routes/models.js';
 import { handleVersion } from './routes/version.js';
 import { handleSubmitEvents, handleAggregateStats } from './routes/events.js';
 import { handleSyncEvents } from './routes/sync_events.js';
+import { handleWorkflows } from './routes/workflows.js';
 import { handleHeartbeat } from './routes/heartbeat.js';
 import { handleFeedback } from './routes/feedback.js';
 import { runAggregate } from './jobs/aggregate.js';
@@ -91,6 +92,9 @@ const handler = {
           break;
         case '/v1/events':
           response = await handleSyncEvents(request, env);
+          break;
+        case '/v1/workflows':
+          response = await handleWorkflows(request, env);
           break;
         case '/aggregate-stats':
           response = await handleAggregateStats(request, env);
