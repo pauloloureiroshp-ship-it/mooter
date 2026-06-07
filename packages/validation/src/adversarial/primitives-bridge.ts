@@ -1,17 +1,44 @@
-// Bridge between adversarial review and the Wave 28 Workflow Engine primitives
-// (Wave 30 Phase H). Non-invasive: imports the workflow CheckpointSink/log
-// primitive and records each review verdict so an adversarial pass slots in as
-// a workflow phase between local workers and the cloud synthesis step.
+// Bridge between adversarial review and the Wave 28 Workflow Engine (Wave 30
+// Phase H). Records each review verdict to a CheckpointSink so an adversarial
+// pass slots in as a workflow phase between local workers and cloud synthesis.
 //
-// The Workflow Engine package is NOT modified — we only consume its exported
-// primitives.
+// The sink interface below is STRUCTURALLY IDENTICAL to the Wave 28
+// `workflow/src/primitives.ts` CheckpointSink — a workflow MemorySink (or the
+// engine's SQLite sink) satisfies it and can be passed straight in. We define
+// it locally rather than import the workflow package so the validation layer
+// stays Node-builtins-only (importing workflow pulls native/heavy transitive
+// deps like p-limit/better-sqlite3 that must not leak into this hot-path
+// package or the CLI bundle). The workflow package is NOT modified.
 
-import {
-  createMemorySink,
-  type CheckpointSink,
-} from "../../../workflow/src/primitives.ts";
 import { review, type LlmCaller, type Lens, type ReviewTarget, type ReviewResult } from "./reviewer.ts";
 import { vote, type VoteResult, type VoteOptions } from "./voter.ts";
+
+/** Structurally identical to the Wave 28 workflow CheckpointSink. */
+export interface CheckpointSink {
+  saveCheckpoint(name: string, data: unknown): void | Promise<void>;
+  log(message: string, metadata?: Record<string, unknown>): void | Promise<void>;
+}
+
+export interface MemorySink extends CheckpointSink {
+  readonly checkpoints: Array<{ name: string; data: unknown }>;
+  readonly logs: Array<{ message: string; metadata?: Record<string, unknown> }>;
+}
+
+/** In-memory sink (default + test double). A workflow MemorySink also satisfies CheckpointSink. */
+export function createMemorySink(): MemorySink {
+  const checkpoints: Array<{ name: string; data: unknown }> = [];
+  const logs: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  return {
+    checkpoints,
+    logs,
+    saveCheckpoint(name, data) {
+      checkpoints.push({ name, data });
+    },
+    log(message, metadata) {
+      logs.push({ message, metadata });
+    },
+  };
+}
 
 export interface TargetVerdict {
   target: ReviewTarget;
