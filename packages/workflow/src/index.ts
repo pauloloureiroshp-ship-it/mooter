@@ -15,8 +15,8 @@ export const PHASES = {
   primitives: { phase: "D", done: true },
   runtime: { phase: "E", done: true },
   state: { phase: "F", done: true },
-  writer: { phase: "G", done: false },
-  presenter: { phase: "G", done: false },
+  writer: { phase: "G", done: true },
+  presenter: { phase: "G", done: true },
   tui: { phase: "H", done: false },
 } as const;
 
@@ -89,10 +89,19 @@ export type {
   SqliteSinkOptions,
 } from "./state.ts";
 
-export { writeWorkflow } from "./writer.ts";
-export type { WorkflowPlan, PhasePlan } from "./writer.ts";
+export {
+  writeWorkflow,
+  parsePlan,
+  extractJson,
+  countAgentCalls,
+  assertCompiles,
+  WriterError,
+  WRITER_SYSTEM_PROMPT,
+  DEFAULT_WRITER_MODEL,
+} from "./writer.ts";
+export type { WorkflowPlan, PhasePlan, WriteOptions } from "./writer.ts";
 
-export { presentPlan } from "./presenter.ts";
+export { presentPlan, renderPlan } from "./presenter.ts";
 export type { PresentDecision, PresentOptions } from "./presenter.ts";
 
 export { watch } from "./tui.ts";
