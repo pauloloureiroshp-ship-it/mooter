@@ -27,6 +27,7 @@ import { runWorkflow } from "./commands/workflow.ts";
 import { runCompression } from "./commands/compression.ts";
 import { runLora } from "./commands/lora.ts";
 import { runSetup } from "./commands/setup.ts";
+import { runEcosystem } from "./commands/ecosystem.ts";
 
 const TOP_USAGE = `mooter — pack manager CLI
 
@@ -53,6 +54,7 @@ Usage:
   mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
   mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
   mooter setup <subcommand>        L14 setup intelligence (detect · show · recommend)
+  mooter ecosystem <subcommand>    L15 ecosystem catalog (list · recommend · search · info)
 
 ${PACK_USAGE}`;
 
@@ -264,6 +266,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "setup") {
     const res = await runSetup(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "ecosystem") {
+    const res = await runEcosystem(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

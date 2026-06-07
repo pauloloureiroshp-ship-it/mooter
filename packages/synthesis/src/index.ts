@@ -88,3 +88,30 @@ export {
 } from "./setup/detect.ts";
 export { explainSetup } from "./setup/explain.ts";
 export { recommendForSetup, recommendationLines, type Recommendation } from "./setup/recommendations.ts";
+
+// L15 — Ecosystem Awareness
+export {
+  loadCatalog,
+  getCatalogItem,
+  searchCatalog,
+  type Catalog,
+  type CatalogItem,
+  type CatalogCategory,
+  type CatalogCompatibility,
+  type CatalogRoi,
+} from "./ecosystem/catalog.ts";
+export {
+  recommend,
+  compatibilityScore,
+  roiValue,
+  type RankedRecommendation,
+  type RecommendOptions,
+} from "./ecosystem/recommend.ts";
+export {
+  trackRoi,
+  readRoiEntries,
+  summariseRoi,
+  getRoiSummary,
+  type RoiEntry,
+  type RoiSummary,
+} from "./ecosystem/roi-tracker.ts";
