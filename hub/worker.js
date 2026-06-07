@@ -30,6 +30,8 @@ import { handleVersion } from './routes/version.js';
 import { handleSubmitEvents, handleAggregateStats } from './routes/events.js';
 import { handleSyncEvents } from './routes/sync_events.js';
 import { handleWorkflows } from './routes/workflows.js';
+import { handlePastorV2 } from './routes/pastor-v2.js';
+import { handleFederated } from './routes/federated.js';
 import { handleHeartbeat } from './routes/heartbeat.js';
 import { handleFeedback } from './routes/feedback.js';
 import { runAggregate } from './jobs/aggregate.js';
@@ -95,6 +97,12 @@ const handler = {
           break;
         case '/v1/workflows':
           response = await handleWorkflows(request, env);
+          break;
+        case '/v1/pastor-v2':
+          response = await handlePastorV2(request, env);
+          break;
+        case '/v1/federated':
+          response = await handleFederated(request, env);
           break;
         case '/aggregate-stats':
           response = await handleAggregateStats(request, env);
