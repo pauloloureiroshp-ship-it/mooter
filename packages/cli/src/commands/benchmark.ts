@@ -11,6 +11,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CmdResult } from "./trail.ts";
+import { mooterPath } from "../../../synthesis/src/config.ts";
 import {
   loadTasks,
   makeOllamaModel,
@@ -102,10 +103,14 @@ export async function runBenchmarkCmd(args: string[]): Promise<CmdResult> {
   writeFileSync(join(auditDir, "BENCHMARK_v2_RESULTS.jsonl"), toResultsJsonl(results) + "\n");
   writeFileSync(join(auditDir, "BENCHMARK_v2_REPORT.md"), toReport(results, mlwr, meta));
   writeFileSync(join(auditDir, "BENCHMARK_v2_CHART.json"), JSON.stringify(toChartSpec(mlwr.mlwr), null, 2) + "\n");
-  writeFileSync(
-    join(auditDir, "BENCHMARK_v2_CURRENT.json"),
-    JSON.stringify({ mlwr: mlwr.mlwr, runs: results.length, generatedAt, note: `local=${localId}; ${meta.models.length} models` }, null, 2) + "\n",
-  );
+  const snapshot = { mlwr: mlwr.mlwr, runs: results.length, generatedAt, note: `local=${localId}; ${meta.models.length} models` };
+  writeFileSync(join(auditDir, "BENCHMARK_v2_CURRENT.json"), JSON.stringify(snapshot, null, 2) + "\n");
+  // Also cache for the statusline line-3 MLWR chip (Phase N).
+  try {
+    writeFileSync(mooterPath("mlwr_snapshot.json"), JSON.stringify(snapshot, null, 2) + "\n");
+  } catch {
+    /* statusline cache is best-effort */
+  }
 
   const pct = (x: number): string => `${Math.round(x * 1000) / 10}%`;
   const lines = [
