@@ -1532,6 +1532,22 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐮 Wave 29 ✅ SHIPPED — v1.17.0-synthesis-ultimate EM PROD (CC autonomous, 2026-06-07)
+
+**Página Notion:** [🐮 Sessão 2026-06-07 — Wave 29 Synthesis Ultimate](https://app.notion.com/p/3786f6e42bc4814faccdf420be764525) · `3786f6e4-2bc4-814f-accd-f420be764525`
+
+**Estado:** `v1.17.0-synthesis-ultimate` em **prod** (`main` @ `3e79ebe`, PR #129 wave29→main; dev sincronizado). 6 melhorias multiplicativas + 3 vectores Paulo num merge atómico. Novo package `@mooter/synthesis` (puro TS). final-reviewer (Opus): **SHIP**, 0 HIGH, 8/8 doctrine. CI verde. classify.js sha `7b01eb86…87762` intacta (pré-PR, pós-merge, CI). 345 baseline + 74 testes novos.
+
+**Shipped:** L12 LLMLingua compression (opt-in) · L13 LoRA foundation (stub null→Wave 31) · L14 Setup Intelligence (`mooter setup detect/show/recommend`, reusa router probes) · L15 Ecosystem (104-item catalog, `mooter ecosystem`) · L16.1 features-only telemetry (migration 013) · Caveman pack (Julius Brussee MIT, `mooter pack install/uninstall`) · DeepSeek V4 T2 (BYOK advisory) · hub `/v1/pastor-v2`+`/v1/federated`+migration 014 · statusline line 3 opt-in (linhas 1-2 intactas) · ARCHITECTURE_V5.
+
+**⚠️ Pendente Paulo (único):** aplicar migrations remotas D1 + deploy hub (routes dão `db_error` gracioso até lá):
+`cd hub && npx wrangler d1 migrations apply mooter-hub --remote --config wrangler.mooter.toml && npx wrangler deploy -c wrangler.mooter.toml`
+Footgun Wave 28: se `migrations apply` falhar, usar `npx wrangler d1 execute mooter-hub --remote --file=migrations/013_pastor_v2_decisions.sql` (depois 014). NÃO auto-corrido (prod deploy + footgun = decisão Paulo).
+
+**Próxima missão:** Wave 30 — Bandit learner L16.2 (Thompson) + ROI attribution + adversarial review.
+
+---
+
 ### 👋 Wave 15 ✅ FECHADA — v1.9.3 EM PROD (Friends-Launch, CC, 2026-06-05)
 
 **Página Notion:** [👋 Wave 15 FECHADA — v1.9.3 EM PROD](https://www.notion.so/3766f6e42bc4817596e2f4642825733d) · `3766f6e4-2bc4-8175-96e2-f4642825733d`
