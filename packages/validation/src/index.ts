@@ -12,3 +12,5 @@ export * from "./adversarial/reviewer.ts";
 export * from "./adversarial/voter.ts";
 export * from "./adversarial/primitives-bridge.ts";
 export * from "./threat-model/runtime-checks.ts";
+export * from "./cost-cap/limits-config.ts";
+export * from "./cost-cap/limits-enforcer.ts";
