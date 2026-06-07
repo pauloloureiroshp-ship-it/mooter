@@ -47,6 +47,11 @@ export interface RuntimeOptions {
   memoryLimitMb?: number;
   /** run_id this script executes under (for checkpoints). */
   runId?: string;
+  /** Read-only input data made available to the script as the global `INPUT`
+   *  (deep-copied across the boundary as JSON — must be JSON-serialisable). This
+   *  is how the host hands pre-gathered material (e.g. file contents it Read)
+   *  into the sandbox, which has no filesystem of its own. */
+  input?: unknown;
   /** Host bridges (agent/checkpoint/log). Defaults to real implementations. */
   api?: RuntimeApi;
   /** Host-side AgentPool cap for bridged agent() calls (default: VRAM auto). */
@@ -68,6 +73,9 @@ function __call(ref, args) { return ref.apply(undefined, args, __OPTS); }
 const agent = (req) => __call(__host_agent, [JSON.stringify(req || {})]).then(function (s) { return JSON.parse(s); });
 const checkpoint = (name, data) => __call(__host_checkpoint, [String(name), JSON.stringify(data === undefined ? null : data)]);
 const log = (message, metadata) => __call(__host_log, [String(message), JSON.stringify(metadata === undefined ? null : metadata)]);
+
+const INPUT = JSON.parse(typeof __INPUT_JSON === 'string' ? __INPUT_JSON : 'null');
+globalThis.INPUT = INPUT;
 
 const parallel = async (items, fn, options) => {
   options = options || {};
@@ -157,6 +165,7 @@ export async function runScript(script: string, options: RuntimeOptions = {}): P
     await jail.set("__host_agent", hostAgent);
     await jail.set("__host_checkpoint", hostCheckpoint);
     await jail.set("__host_log", hostLog);
+    await jail.set("__INPUT_JSON", JSON.stringify(options.input ?? null));
 
     await (await isolate.compileScript(BOOTSTRAP)).run(context);
 

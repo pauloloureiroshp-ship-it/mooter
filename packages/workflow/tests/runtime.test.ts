@@ -137,6 +137,19 @@ test("in-isolate parallel + bare globals work over bridged agent", async () => {
   assert.equal(m.calls.length, 3);
 });
 
+test("INPUT global exposes host-provided read-only data", async () => {
+  const out = await runScript(
+    `return INPUT.files.map((f) => f.path);`,
+    { timeoutMs: 2000, input: { files: [{ path: "a.ts" }, { path: "b.ts" }] } },
+  );
+  assert.deepEqual(out, ["a.ts", "b.ts"]);
+});
+
+test("INPUT defaults to null when no input is given", async () => {
+  const out = await runScript("return INPUT;", { timeoutMs: 2000 });
+  assert.equal(out, null);
+});
+
 test("e2e in-sandbox: parallel → vote → checkpoint (bridged)", async () => {
   const m = mockApi();
   const out = await runScript(
