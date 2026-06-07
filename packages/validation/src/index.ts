@@ -11,3 +11,4 @@ export * from "./bandit/bandit.ts";
 export * from "./adversarial/reviewer.ts";
 export * from "./adversarial/voter.ts";
 export * from "./adversarial/primitives-bridge.ts";
+export * from "./threat-model/runtime-checks.ts";
