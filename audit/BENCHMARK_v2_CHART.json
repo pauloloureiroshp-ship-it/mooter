@@ -1,0 +1,42 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Mooter MLWR by tier",
+  "data": {
+    "values": [
+      {
+        "tier": "T0",
+        "mlwr": 100
+      },
+      {
+        "tier": "T1",
+        "mlwr": 100
+      },
+      {
+        "tier": "T2",
+        "mlwr": 100
+      },
+      {
+        "tier": "T3",
+        "mlwr": 100
+      }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": {
+      "field": "tier",
+      "type": "ordinal"
+    },
+    "y": {
+      "field": "mlwr",
+      "type": "quantitative",
+      "title": "MLWR %",
+      "scale": {
+        "domain": [
+          0,
+          100
+        ]
+      }
+    }
+  }
+}

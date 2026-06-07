@@ -30,8 +30,11 @@ export default function Page() {
               </h1>
 
               <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 600, marginTop: 18, color: 'var(--color-text)' }}>
-                The AI shepherd for your Claude Code.
+                Your LLM router. Local-first. Learns forever.
               </h2>
+              <p style={{ fontSize: 15, fontWeight: 500, marginTop: 6, color: 'var(--color-muted)' }}>
+                The AI shepherd for your Claude Code.
+              </p>
 
               <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 18, maxWidth: 540 }}>
                 Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.

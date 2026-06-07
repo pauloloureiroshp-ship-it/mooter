@@ -1,0 +1,25 @@
+{
+  "name": "mooter",
+  "version": "0.1.0",
+  "description": "Mooter MCP server — wave status, dogfood logging, workflow creation, ecosystem recommendations, Pastor hints, and Notion auto-write.",
+  "transport": "stdio",
+  "protocolVersion": "2024-11-05",
+  "install": {
+    "claudeCode": {
+      "mcpServers": {
+        "mooter": {
+          "command": "mooter",
+          "args": ["mcp", "serve"]
+        }
+      }
+    }
+  },
+  "tools": [
+    "mooter_status",
+    "mooter_dogfood_log",
+    "mooter_workflow_create",
+    "mooter_ecosystem_recommend",
+    "mooter_pastor_hint",
+    "mooter_notion_write"
+  ]
+}

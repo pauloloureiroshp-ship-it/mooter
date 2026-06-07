@@ -1,0 +1,82 @@
+name: security
+
+# Wave 30 Phase I — supply-chain gate. Blocks merge on any HIGH/critical npm
+# advisory; moderates are tracked (audit/NPM_AUDIT_BASELINE.md), not blocking.
+# Also runs the validation package's threat-model runtime probes.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - 'packages/**'
+      - 'hub/**'
+      - 'tools/router/**'
+      - '.github/workflows/security.yml'
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit (block on HIGH)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Backend/CLI packages block on HIGH. `landing` is audited separately
+        # (non-blocking) because its Next.js toolchain carries pre-existing HIGH
+        # advisories tracked in audit/NPM_AUDIT_BASELINE.md (SC: `npm audit fix`).
+        pkg: [tools/router, packages/cli, hub]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: npm audit (HIGH+ from lockfile)
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          set +e
+          npm audit --audit-level=high --package-lock-only
+          code=$?
+          set -e
+          if [ "$code" != "0" ]; then
+            echo "::error::HIGH/critical vulnerability in ${{ matrix.pkg }} (npm audit exit $code)"
+            exit 1
+          fi
+          echo "${{ matrix.pkg }}: no HIGH/critical advisories."
+
+  audit-landing:
+    name: npm audit landing (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: npm audit landing (non-blocking)
+        working-directory: landing
+        run: npm audit --audit-level=high --package-lock-only || echo "::warning::landing has pre-existing HIGH advisories — tracked in audit/NPM_AUDIT_BASELINE.md (non-blocking)"
+
+  threat-probes:
+    name: validation threat-model probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install toolchain (tsx via @mooter/cli)
+        working-directory: packages/cli
+        run: npm ci --no-audit --no-fund
+      - name: Run validation tests (incl. threat-model probes)
+        working-directory: packages/validation
+        run: npm test

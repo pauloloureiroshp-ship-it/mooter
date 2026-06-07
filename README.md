@@ -2,7 +2,9 @@
 
 # mooter
 
-### The AI router that picks tools, not just models.
+### Your LLM router. Local-first. Learns forever.
+
+The AI router that picks tools, not just models.
 
 **Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · ~90% cost savings validated on 1,437 real prompts.**
 

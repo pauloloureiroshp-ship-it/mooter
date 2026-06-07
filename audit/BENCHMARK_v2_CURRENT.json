@@ -1,0 +1,12 @@
+{
+  "mlwr": {
+    "T0": 1,
+    "T1": 1,
+    "T2": 1,
+    "T3": 1,
+    "overall": 1
+  },
+  "runs": 72,
+  "generatedAt": "2026-06-07T16:46:59Z",
+  "note": "local=qwen3:30b; 3 models"
+}

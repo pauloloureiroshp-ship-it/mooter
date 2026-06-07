@@ -29,8 +29,12 @@ import { runLora } from "./commands/lora.ts";
 import { runSetup } from "./commands/setup.ts";
 import { runEcosystem } from "./commands/ecosystem.ts";
 import { runQuality } from "./commands/quality.ts";
+import { runWave } from "./commands/wave.ts";
+import { runDogfood } from "./commands/dogfood.ts";
+import { runMcp } from "./commands/mcp.ts";
+import { runBenchmarkCmd } from "./commands/benchmark.ts";
 
-const TOP_USAGE = `mooter — pack manager CLI
+const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
@@ -57,6 +61,10 @@ Usage:
   mooter setup <subcommand>        L14 setup intelligence (detect · show · recommend)
   mooter ecosystem <subcommand>    L15 ecosystem catalog (list · recommend · search · info)
   mooter quality <subcommand>      L16.1 decision telemetry (stats · status · features-only)
+  mooter wave <subcommand>         wave lifecycle (start · status · phase · ship · sha-gate)
+  mooter dogfood <subcommand>      log friction while dogfooding (log · digest · list)
+  mooter mcp <subcommand>          Mooter MCP server (serve · list · install)
+  mooter benchmark run             run the Showcase Benchmark v2 (MLWR · local + cloud)
 
 ${PACK_USAGE}`;
 
@@ -280,6 +288,30 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "quality") {
     const res = runQuality(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "wave") {
+    const res = runWave(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "dogfood") {
+    const res = runDogfood(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "mcp") {
+    const res = await runMcp(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "benchmark") {
+    const res = await runBenchmarkCmd(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
