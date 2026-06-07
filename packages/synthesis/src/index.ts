@@ -55,3 +55,19 @@ export {
   appendJsonl,
   type Preferences,
 } from "./config.ts";
+
+// L13 — LoRA hot-swap foundation (infra only)
+export {
+  loadRegistry,
+  listAdapters,
+  getAdapter,
+  registerAdapter,
+  removeAdapter,
+  isMaterialised,
+  DEFAULT_ADAPTERS,
+  CURRENT_WAVE,
+  type LoraAdapter,
+  type AdapterRegistry,
+} from "./lora/adapter-registry.ts";
+export { loadAdapter, ollamaReachable, type LoadResult, type LoadReason } from "./lora/lora-loader.ts";
+export { selectAdapterForTask, AUTO_SWAP_ENABLED, type RoutingFeatures } from "./lora/routing-stub.ts";

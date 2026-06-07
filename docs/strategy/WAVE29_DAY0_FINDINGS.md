@@ -18,7 +18,7 @@
 | 6 | Vision + synthesis + arch docs exist | ✅ PASS | `MOOTER_ULTIMATE_VISION.md`, `MOOTER_STRATEGIC_SYNTHESIS.md`, `ARCHITECTURE_V4.md` present |
 | 7 | CF Worker config | ✅ PASS | `hub/wrangler.mooter.toml` → `name = "mooter-hub"` |
 | 8 | packages structure | ✅ PASS | `cli`, `router`, `workflow` present; `synthesis` to be created (new) |
-| 9 | Ollama models available (qwen2.5-coder:7b, qwen3:30b) | ⚠️ **FAIL (non-core)** | daemon not reachable on `localhost:11434`; no `ollama` binary in PATH |
+| 9 | Ollama models available (qwen2.5-coder:7b, qwen3:30b) | ⚠️ **PARTIAL (non-core)** | daemon IS up (`ollama --version`=0, `/api/tags`→`{"models":[]}`); **zero models installed**. (Day-0 `which ollama` missed the binary; `spawnSync` finds it. Corrected during Phase E.) |
 | 10 | node/npm toolchain | ✅ PASS | node v20.20.2, npm 10.8.2; deps installed for cli + workflow |
 
 ---
@@ -31,7 +31,7 @@
 - **L13 LoRA** — `routing-stub.ts` returns `null` by design (no auto-swap until Wave 31); `lora-loader.ts` surfaces a clear "Ollama unreachable" error on manual `load`.
 - **L14 Setup / L15 Ecosystem / L16.1 telemetry** — zero Ollama dependency (hardware detect, catalog JSON, D1 schema + logger).
 
-**Impact:** the *live e2e demo with FREE local workers* (Wave-28-style fan-out) cannot be exercised this session. Paulo can run it once Ollama is up. All deliverables build, test, and demo (in degraded/dry-run mode) without it.
+**Impact:** the *live e2e demo with FREE local workers* (Wave-28-style fan-out) cannot be exercised this session — the Ollama daemon is up but has **no models** (`ollama pull qwen2.5-coder:7b` needed). Paulo can run the live demo after pulling a model. All deliverables build, test, and demo (in degraded/dry-run mode) without it.
 
 **Decision:** proceed. Design every runtime feature with explicit "backend absent" handling and assert that path in tests.
 
