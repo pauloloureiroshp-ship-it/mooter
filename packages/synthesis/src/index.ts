@@ -115,3 +115,17 @@ export {
   type RoiEntry,
   type RoiSummary,
 } from "./ecosystem/roi-tracker.ts";
+
+// L16.1 — Prompt Quality decision telemetry
+export {
+  logDecision,
+  readDecisions,
+  aggregateStats,
+  assertNoPromptContent,
+  sanitizeRecord,
+  DECISION_COLUMNS,
+  FORBIDDEN_KEYS,
+  type DecisionRecord,
+  type DecisionStats,
+} from "./quality/decision-logger.ts";
+export { selectArm, BANDIT_ENABLED, type BanditContext, type BanditArm } from "./quality/bandit-stub.ts";
