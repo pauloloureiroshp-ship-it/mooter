@@ -26,10 +26,12 @@ export is **blocked** and reports the violation rather than emitting it.
 
 ## `mooter data delete-all` — local erasure
 
-Wipes everything under `~/.mooter` (and the router `decisions.log`). It is
-**destructive and irreversible**, so it requires `--confirm`; without it you get a
-dry-run listing of exactly what would be removed. It never touches anything outside
-`~/.mooter`.
+Wipes everything under `~/.mooter` **plus the router decisions log**
+(`~/.claude/tools/router/decisions.log`, or `$MOOTER_CLAUDE_DIR`) — that log is
+the other place your routing history lives, so a true erasure must include it. It
+is **destructive and irreversible**, so it requires `--confirm`; without it you get
+a dry-run listing of exactly what would be removed. Those are the only two locations
+touched — one directory (`~/.mooter`) and one explicit, disclosed file.
 
 ## `mooter data forget-me` — erasure on the hub
 
