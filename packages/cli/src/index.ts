@@ -34,6 +34,7 @@ import { runDogfood } from "./commands/dogfood.ts";
 import { runMcp } from "./commands/mcp.ts";
 import { runBenchmarkCmd } from "./commands/benchmark.ts";
 import { runPastor } from "./commands/pastor.ts";
+import { runStatusline } from "./commands/statusline.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
@@ -42,6 +43,7 @@ Usage:
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline]      educational guide to each statusline chip
+  mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -233,6 +235,12 @@ async function main(argv: string[]): Promise<number> {
       sessionId: sidIdx >= 0 ? rest[sidIdx + 1] : undefined,
       refreshMs: refIdx >= 0 ? parseInt(rest[refIdx + 1], 10) : undefined,
     });
+    return res.exitCode;
+  }
+
+  if (command === "statusline") {
+    const res = runStatusline(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
 

@@ -809,7 +809,7 @@ function buildLocalChip(tokSnap, homeGlyph = '🏠') {
   return `${homeGlyph} ${t0calls}/${totalCalls} calls (${callsPct}%)${tokPart}`;
 }
 
-function renderTwoLine(ctx) {
+function renderTwoLine(ctx, opts = {}) {
   const state = pickState(ctx);
   const glyph = COLOR_GLYPH[state.color];
 
@@ -988,15 +988,18 @@ function renderTwoLine(ctx) {
   // Wave 29 (29.J) — opt-in line 3 (synthesis chips). Default OFF → lines 1-2 are
   // byte-for-byte unchanged. Enable via preferences.json {"statusline_line3":true}
   // or MOOTER_STATUSLINE_LINE3=1. Defensive: any failure → no line 3.
-  const line3 = buildLine3();
+  const line3 = buildLine3(opts.forceLine3);
   return line3 ? `${line1}\n${line2}\n${line3}` : `${line1}\n${line2}`;
 }
 
 // Wave 29 (29.J) — assemble the opt-in line-3 synthesis chips (compression ·
 // setup · ecosystem). Each helper returns null when its layer is inactive, and
 // any throw is swallowed so the statusline can never be broken by line 3.
-function buildLine3() {
-  let on = process.env.MOOTER_STATUSLINE_LINE3 === '1';
+function buildLine3(force) {
+  // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
+  // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
+  if (force === false) return null;
+  let on = force === true || process.env.MOOTER_STATUSLINE_LINE3 === '1';
   if (!on) {
     try {
       const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
@@ -1021,6 +1024,22 @@ function buildLine3() {
  * COLUMNS reflects the host terminal width; absent → assume narrow (1-line).
  */
 function render(ctx) {
+  // Wave 32 (Phase B) — an explicitly pinned mode (env or preferences.json)
+  // overrides the adaptive layout. With no mode pinned this is a no-op and the
+  // width-based default below runs byte-for-byte as before. Best-effort: any
+  // failure in the modes module falls through to the legacy default.
+  try {
+    const modes = require('./statusline-modes.js');
+    const mode = modes.readMode();
+    if (mode) {
+      const out = modes.renderForMode(mode, ctx, {
+        renderFromContext,
+        renderTwoLine,
+        helpers: { colorize, useColor, ANSI, COLOR_GLYPH },
+      });
+      if (out !== null && out !== undefined) return out;
+    }
+  } catch { /* fall through to adaptive default */ }
   const cols = parseInt(process.env.COLUMNS || '80', 10);
   return cols >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx) : renderFromContext(ctx);
 }
