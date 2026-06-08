@@ -381,6 +381,12 @@ export async function insertDecisionsSnapshot(
 /**
  * Redirect to GitHub OAuth via Supabase GoTrue.
  * Call from the browser (client-side only).
+ *
+ * Privacy-first scopes (Wave 33.7): `read:user user:email` only. We dropped
+ * `public_repo` — it grants *write* access to public repos, far more than the
+ * read-only persona inference below ever needs. Public repo *metadata* is still
+ * readable from the user's token without any repo scope (it's public data), so
+ * getGitHubProfile keeps working with no functional loss. We never read code.
  */
 export function signInWithGitHub() {
   const redirectTo = `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`;
@@ -388,15 +394,17 @@ export function signInWithGitHub() {
     `${SUPABASE_URL}/auth/v1/authorize` +
     `?provider=github` +
     `&redirect_to=${encodeURIComponent(redirectTo)}` +
-    `&scopes=read:user,public_repo`;
+    `&scopes=read:user,user:email`;
 }
 
 /**
  * Fetch GitHub profile metadata from the GitHub API.
- * Only reads public repo metadata — NEVER code or private repos.
+ * Only reads PUBLIC repo metadata (names/languages) — NEVER code, never private
+ * repos. Works with the minimal `read:user user:email` scope: the /user/repos
+ * endpoint returns only public repos when no repo scope is granted.
  */
 export async function getGitHubProfile(accessToken: string) {
-  const repos = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+  const repos = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&visibility=public', {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(10000),
   }).then(r => r.json());
