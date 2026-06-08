@@ -39,6 +39,7 @@ import { runEffort } from "./commands/effort.ts";
 import { runSessions } from "./commands/sessions.ts";
 import { runTurboquant } from "./commands/turboquant.ts";
 import { runMinimax } from "./commands/minimax.ts";
+import { runMonitor } from "./commands/monitor.ts";
 import { runStatus } from "./commands/status.ts";
 import { runData } from "./commands/data.ts";
 import { runQuant, runVector } from "./commands/quant-vector.ts";
@@ -62,6 +63,7 @@ Usage:
   mooter backend [status|install vllm [--eagle3]|uninstall vllm]   opt-in vLLM backend (default Ollama; --eagle3 = speculative decoding)
   mooter turboquant [status|build [--run]|enable|disable]   opt-in 3-bit KV cache (EXPERIMENTAL, build-from-source)
   mooter minimax-m3 [check|status|install [--run]]   watch + install MiniMax M3 weights when released
+  mooter monitor [providers|status|enable|disable]   opt-in arbitrage monitor (public status pages; advisory only)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -282,6 +284,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "minimax-m3") {
     const res = await runMinimax(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "monitor") {
+    const res = await runMonitor(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
