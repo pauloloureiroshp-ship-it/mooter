@@ -18,6 +18,10 @@ import {
   emitSkill,
   type RouteRequestResult,
 } from "../../../synthesis/src/index.ts";
+import { buildTrainWatch, type TrainStep, type TaskScore } from "../../../transparency/src/index.ts";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export const PASTOR_USAGE = `mooter pastor — per-task LoRA adapter routing + distillation (Wave 31)
 
@@ -25,6 +29,7 @@ export const PASTOR_USAGE = `mooter pastor — per-task LoRA adapter routing + d
   mooter pastor route "<prompt>"     preview which adapter LORAUTER routes to (no side effects)
   mooter pastor distill [--from <log>] [--name <n>]   distil learned routing → .skill.md
   mooter pastor train-status         overnight LoRA training status
+  mooter pastor train-watch          TensorBoard-like local view (loss curve · per-task scores)
   mooter pastor state                active adapter + usage summary
 
 Flags: --json (machine-readable, all subcommands)`;
@@ -114,6 +119,33 @@ export function runPastor(args: string[]): CmdResult {
         `  routes:     ${s.total_routes} recorded`,
       ].join("\n"),
     };
+  }
+
+  if (sub === "train-watch") {
+    // Wave 32 (Phase F) — TensorBoard-like local view. Reads the basic status
+    // (Wave 31 train-status.json) + an OPTIONAL train-metrics.json (loss curve /
+    // per-task scores) the trainer may write. Absent metrics → honest fallback.
+    const st = trainStatus();
+    let metrics: { steps?: TrainStep[]; per_task?: TaskScore[]; total_steps?: number; eta_sec?: number } = {};
+    try {
+      metrics = JSON.parse(readFileSync(join(homedir(), ".mooter", "pastor", "train-metrics.json"), "utf8"));
+    } catch { /* no metrics file — honest fallback below */ }
+    const registryTasks = listTaskAdapters().map((a) => a.task_type ?? a.name).filter(Boolean) as string[];
+    const view = {
+      phase: st.phase,
+      adapter: st.adapter,
+      taskType: st.task_type,
+      samples: st.samples,
+      startedAt: st.started_at,
+      finishedAt: st.finished_at,
+      steps: metrics.steps,
+      perTask: metrics.per_task,
+      totalSteps: metrics.total_steps,
+      etaSec: metrics.eta_sec,
+      registryTasks,
+    };
+    if (json) return { exitCode: 0, output: JSON.stringify(view, null, 2) };
+    return { exitCode: 0, output: buildTrainWatch(view) };
   }
 
   return { exitCode: 1, output: `mooter pastor: unknown subcommand '${sub}'\n\n${PASTOR_USAGE}` };

@@ -17,6 +17,8 @@ import type { CmdResult } from "./trail.ts";
 // Type-only import: erased at build (esbuild/tsx drop it), so it does NOT pull
 // the engine — or its native deps — into the zero-runtime-deps CLI bundle.
 import type { AgentRequest } from "../../../workflow/src/agent.ts";
+// Wave 32 (Phase E) — pure TUI render + external control plane (no native deps).
+import { buildWorkflowWatch, readControl, setRunControl, setAgentControl } from "../../../transparency/src/index.ts";
 
 const KNOWN_SUBCOMMANDS = ["create", "list", "watch", "run", "stop", "resume"] as const;
 
@@ -25,7 +27,9 @@ export const WORKFLOW_USAGE = `mooter workflow — local-first dynamic workflow 
 Usage:
   mooter workflow create "<task>"   write a workflow (Opus, 1 call) → plan → save
   mooter workflow list              list recent runs
-  mooter workflow watch <run_id>    progress view for a run
+  mooter workflow watch <run_id>    Ralph-style Mission Control (live agents · cost · controls)
+      --pause | --resume | --kill   write a run control intent (scriptable)
+      --kill-agent <label>          mark one agent for kill
   mooter workflow run <name>        run a saved/example workflow
       --target <path>               feed a directory's files to the workflow as INPUT
       --dry-run                     resolve + compile-check the script, don't execute
@@ -227,13 +231,91 @@ async function dispatchList(): Promise<CmdResult> {
   }
 }
 
+// Wave 32 (Phase E) — Ralph-style Mission Control. Read-only over the Wave 28
+// run store (loadRun + resumeFrom, public getters) with an EXTERNAL control
+// plane (~/.mooter/workflow-control/<run>.json) — the engine itself is INTOCADO.
+function buildWatchView(store: any, runId: string) {
+  const run = store.loadRun(runId);
+  if (!run) return null;
+  const checkpoints = store.resumeFrom(runId) as { name: string; ts: number }[];
+  return {
+    runId,
+    status: run.status as string,
+    workflowName: run.workflow_name,
+    numTotal: run.num_agents_total,
+    numLocal: run.num_agents_local,
+    numCloud: run.num_agents_cloud,
+    actualCostUsd: run.actual_cost_usd,
+    agents: checkpoints.map((c) => ({ label: c.name })),
+    checkpoints,
+    control: readControl(runId),
+  };
+}
+
 async function dispatchWatch(rest: string[]): Promise<CmdResult> {
-  const { positional } = parseArgs(rest);
+  const { positional, flags } = parseArgs(rest);
   const runId = positional[0];
   if (!runId) return err("mooter workflow watch: a run_id is required");
+
+  // ── Control-plane flags (no engine needed; scriptable + testable) ──────────
+  if (flags.pause) { setRunControl(runId, "paused"); return { exitCode: 0, output: `⏸ pause intent written for ${runId} (enforced when the run polls the control file)` }; }
+  if (flags.resume) { setRunControl(runId, "running"); return { exitCode: 0, output: `▶ resume intent written for ${runId}` }; }
+  if (flags.kill) { setRunControl(runId, "kill"); return { exitCode: 0, output: `✗ kill intent written for ${runId}` }; }
+  if (typeof flags["kill-agent"] === "string") {
+    setAgentControl(runId, flags["kill-agent"], "kill");
+    return { exitCode: 0, output: `✗ kill intent written for agent '${flags["kill-agent"]}' in ${runId}` };
+  }
+
   const eng = await engine();
-  await eng.watch({ runId, once: !process.stdout.isTTY });
-  return { exitCode: 0, output: "" };
+  const store = new eng.WorkflowStore(eng.defaultDbPath());
+  try {
+    const view = buildWatchView(store, runId);
+    if (!view) return { exitCode: 1, output: `mooter workflow watch: no run '${runId}'` };
+
+    // Non-TTY (piped / CI): render one frame and return.
+    if (!process.stdout.isTTY) {
+      return { exitCode: 0, output: buildWorkflowWatch(view) };
+    }
+
+    // Interactive Mission Control: alternate screen + live re-render + controls.
+    await new Promise<void>((resolve) => {
+      let interval: ReturnType<typeof setInterval> | null = null;
+      let done = false;
+      const restore = () => {
+        if (interval) clearInterval(interval);
+        try { process.stdin.setRawMode?.(false); process.stdin.pause(); } catch { /* ignore */ }
+        process.stdout.write("\x1b[?25h\x1b[?1049l");
+      };
+      const finish = () => {
+        if (done) return; done = true; restore();
+        process.off("SIGINT", finish); process.off("SIGTERM", finish); process.off("exit", restore);
+        resolve();
+      };
+      const render = () => {
+        const v = buildWatchView(store, runId) ?? view;
+        process.stdout.write("\x1b[H" + buildWorkflowWatch(v) + "\n");
+      };
+      process.stdout.write("\x1b[?1049h\x1b[?25l");
+      process.on("exit", restore); process.on("SIGINT", finish); process.on("SIGTERM", finish);
+      try {
+        process.stdin.setRawMode?.(true);
+        process.stdin.resume();
+        process.stdin.on("data", (d: Buffer) => {
+          const k = d.toString();
+          if (k === "q" || k === "\x03") return finish();
+          if (k === "p") setRunControl(runId, "paused");
+          else if (k === "r") setRunControl(runId, "running");
+          else if (k === "k") setRunControl(runId, "kill");
+          render();
+        });
+      } catch { /* non-TTY fallback: interval still ticks */ }
+      render();
+      interval = setInterval(render, 1000);
+    });
+    return { exitCode: 0, output: "" };
+  } finally {
+    store.close();
+  }
 }
 
 async function dispatchResume(rest: string[]): Promise<CmdResult> {

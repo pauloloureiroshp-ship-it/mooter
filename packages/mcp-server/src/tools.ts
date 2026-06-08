@@ -14,6 +14,10 @@ import { mooterPath, appendJsonl, readJsonSafe } from "../../synthesis/src/confi
 import { buildEntry, dogfoodPath, countToday } from "../../cli/src/commands/dogfood.ts";
 import { loadCatalog, recommend, loadProfile, routeRequest, listTaskAdapters } from "../../synthesis/src/index.ts";
 import { sync as obsidianSync, primaryVault as obsidianPrimaryVault } from "../../../packs/obsidian-vault-sync/pack.ts";
+// Wave 32 — new tool deps (pure TS, no native deps → safe in the stdio bundle).
+import { getEffort, setEffort, isEffortMode, MODE_NAMES } from "../../effort/src/index.ts";
+import { readControl, setRunControl, setAgentControl } from "../../transparency/src/index.ts";
+import { buildExport } from "../../data-rights/src/index.ts";
 
 export interface ToolContext {
   fetchImpl?: typeof fetch;
@@ -293,6 +297,70 @@ const obsidianSyncTool: McpTool = {
   },
 };
 
+// ─── Wave 32 tools ────────────────────────────────────────────────────────────
+
+const effortSetTool: McpTool = {
+  name: "mooter_effort_set",
+  description: "Set the session-wide effort mode (low/default/high/ultramoo) or read the current one. ultramoo flips 8 frugality sub-systems; classify.js tier floors always win.",
+  inputSchema: { type: "object", properties: { mode: { type: "string", enum: [...MODE_NAMES] } } },
+  async handler(args) {
+    const mode = typeof args.mode === "string" ? args.mode : "";
+    if (!mode) return JSON.stringify(getEffort(), null, 2);
+    if (!isEffortMode(mode)) return JSON.stringify({ error: `unknown mode '${mode}'`, valid: MODE_NAMES });
+    return JSON.stringify(setEffort(mode), null, 2);
+  },
+};
+
+const ultramooToggleTool: McpTool = {
+  name: "mooter_ultramoo_toggle",
+  description: "Toggle Ultramoo mode: ON sets effort=ultramoo (max frugality), OFF reverts to default. Returns the resulting config.",
+  inputSchema: { type: "object", properties: { on: { type: "boolean" } } },
+  async handler(args) {
+    const target = args.on === undefined ? getEffort().mode !== "ultramoo" : !!args.on;
+    return JSON.stringify(setEffort(target ? "ultramoo" : "default"), null, 2);
+  },
+};
+
+const workflowWatchTool: McpTool = {
+  name: "mooter_workflow_watch",
+  description: "Read or set a workflow's control intent (pause/resume/kill, or kill one agent). The cooperating runner enforces it on its next poll. Returns the current control state.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      run_id: { type: "string" },
+      control: { type: "string", enum: ["running", "paused", "kill"] },
+      kill_agent: { type: "string" },
+    },
+    required: ["run_id"],
+  },
+  async handler(args) {
+    const runId = String(args.run_id || "");
+    if (!runId) return JSON.stringify({ error: "run_id required" });
+    if (typeof args.kill_agent === "string" && args.kill_agent) {
+      return JSON.stringify(setAgentControl(runId, args.kill_agent, "kill"), null, 2);
+    }
+    if (typeof args.control === "string") {
+      return JSON.stringify(setRunControl(runId, args.control as "running" | "paused" | "kill"), null, 2);
+    }
+    return JSON.stringify(readControl(runId), null, 2);
+  },
+};
+
+const dataExportTool: McpTool = {
+  name: "mooter_data_export",
+  description: "GDPR: produce a portable JSON export of this machine's local Mooter data, with credentials/secrets redacted. Refuses (returns an error) if the privacy audit detects a leak.",
+  inputSchema: { type: "object", properties: {} },
+  async handler() {
+    let knownSecrets: string[] = [];
+    try {
+      knownSecrets = [readFileSync(mooterPath(".telemetry_secret"), "utf8").trim()].filter(Boolean);
+    } catch { /* no secret */ }
+    const r = buildExport({ knownSecrets });
+    if (!r.clean) return JSON.stringify({ error: "export blocked by privacy audit", violations: r.audit });
+    return r.json;
+  },
+};
+
 export function buildRegistry(): McpTool[] {
   return [
     statusTool,
@@ -303,6 +371,11 @@ export function buildRegistry(): McpTool[] {
     notionTool,
     pastorAdapterSuggestTool,
     obsidianSyncTool,
+    // Wave 32
+    effortSetTool,
+    ultramooToggleTool,
+    workflowWatchTool,
+    dataExportTool,
   ];
 }
 
