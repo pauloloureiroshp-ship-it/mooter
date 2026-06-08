@@ -33,6 +33,7 @@ import { runWave } from "./commands/wave.ts";
 import { runDogfood } from "./commands/dogfood.ts";
 import { runMcp } from "./commands/mcp.ts";
 import { runBenchmarkCmd } from "./commands/benchmark.ts";
+import { runPastor } from "./commands/pastor.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
@@ -58,6 +59,7 @@ Usage:
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
   mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
   mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
+  mooter pastor <subcommand>       Pastor v2 per-task adapter routing + distill (adapters · route · distill · state)
   mooter setup <subcommand>        L14 setup intelligence (detect · show · recommend)
   mooter ecosystem <subcommand>    L15 ecosystem catalog (list · recommend · search · info)
   mooter quality <subcommand>      L16.1 decision telemetry (stats · status · features-only)
@@ -270,6 +272,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "lora") {
     const res = runLora(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "pastor") {
+    const res = runPastor(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

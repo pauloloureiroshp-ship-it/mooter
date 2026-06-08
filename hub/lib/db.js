@@ -392,6 +392,46 @@ export async function countRecentPastorV2ByDevice(db, deviceId, sinceMs) {
   return row && typeof row.cnt === 'number' ? row.cnt : 0;
 }
 
+// ── Pastor adapters (Wave 31 — per-task LoRA adapter usage) ─────────────────
+
+const UPSERT_PASTOR_ADAPTER_SQL = `
+  INSERT INTO pastor_adapters (
+    adapter_id, device_id, adapter_name, task_type, usage_count, avg_score, first_used, last_used, received_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(adapter_id) DO UPDATE SET
+    adapter_name = excluded.adapter_name, task_type = excluded.task_type,
+    usage_count = excluded.usage_count, avg_score = excluded.avg_score,
+    last_used = excluded.last_used, received_at = excluded.received_at
+`;
+
+/** Bind one validated adapter-usage row. Upsert on adapter_id (one per device+adapter). */
+export function bindPastorAdapterInsert(db, a, receivedAt) {
+  return db.prepare(UPSERT_PASTOR_ADAPTER_SQL).bind(
+    a.adapter_id, a.device_id, a.adapter_name, a.task_type ?? null,
+    typeof a.usage_count === 'number' ? a.usage_count : 0,
+    numOrNull(a.avg_score), numOrNull(a.first_used), numOrNull(a.last_used),
+    receivedAt
+  );
+}
+
+/** Atomic batch upsert of bound adapter statements. */
+export async function batchInsertPastorAdapters(db, batch) {
+  if (!batch.length) return;
+  return db.batch(batch);
+}
+
+/** Rate-limit: count a device's adapter rows in the recent window (fail-open at caller). */
+export async function countRecentPastorAdaptersByDevice(db, deviceId, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 3600000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM pastor_adapters WHERE device_id = ? AND received_at > ?'
+    ).bind(deviceId, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
+
 // ── Device setup profiles (Wave 29 29.K — federated cohort) ─────────────────
 
 const UPSERT_DEVICE_SETUP_SQL = `

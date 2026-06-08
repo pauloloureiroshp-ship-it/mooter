@@ -78,6 +78,8 @@ test("loadAdapter: no_path when registered but not materialised", () => {
 });
 
 test("loadAdapter: deferred when materialised but wave_ready > current", () => {
+  // Wave 31 advanced CURRENT_WAVE 29→31, so a "future" adapter must target a wave
+  // beyond the current one. The contract under test is unchanged: wave_ready > current → deferred.
   const file = join(home, "adapter.gguf");
   writeFileSync(file, "stub");
   registerAdapter({
@@ -87,11 +89,11 @@ test("loadAdapter: deferred when materialised but wave_ready > current", () => {
     task_tags: ["routing"],
     trained_on: "global",
     registered_at: "2026-06-07T00:00:00.000Z",
-    wave_ready: 31,
+    wave_ready: 33,
   });
   const r = loadAdapter("future-lora", { spawn: ollamaUp });
   assert.equal(r.reason, "deferred");
-  assert.equal(r.wave_ready, 31);
+  assert.equal(r.wave_ready, 33);
   assert.equal(r.loaded, false);
 });
 

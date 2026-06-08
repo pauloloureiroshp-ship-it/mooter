@@ -251,6 +251,24 @@ export const deviceSetupProfileSchema = z.object({
   { message: `setup profile must not contain any privacy field` },
 );
 
+// ── POST /v1/pastor-adapters — per-task LoRA adapter usage (Wave 31) ─────────
+// FEATURES ONLY: which adapter, how often, avg confidence. No content keys.
+export const pastorAdapterSchema = z.object({
+  adapter_id: z.string().min(1).max(128),
+  device_id: z.string().regex(CLIENT_ID_RE, 'device_id must be 8-128 hex chars'),
+  adapter_name: z.string().min(1).max(64),
+  task_type: z.string().max(32).nullable().optional(),
+  usage_count: z.number().int().nonnegative().max(1_000_000),
+  avg_score: z.number().min(0).max(1).nullable().optional(),
+  first_used: z.number().int().nonnegative().nullable().optional(),
+  last_used: z.number().int().nonnegative().nullable().optional(),
+}).passthrough().refine(
+  (d) => !PASTOR_V2_PRIVACY_FIELDS.some((k) => k in d),
+  { message: `adapter row must not contain any privacy field: ${PASTOR_V2_PRIVACY_FIELDS.join(', ')}` },
+);
+
+export const pastorAdaptersBatchSchema = z.array(pastorAdapterSchema).min(1).max(100);
+
 // ── Export schema set for test harness use ─────────────────────────────
 
 export const schemas = {
@@ -263,4 +281,6 @@ export const schemas = {
   pastorV2Decision: pastorV2DecisionSchema,
   pastorV2DecisionsBatch: pastorV2DecisionsBatchSchema,
   deviceSetupProfile: deviceSetupProfileSchema,
+  pastorAdapter: pastorAdapterSchema,
+  pastorAdaptersBatch: pastorAdaptersBatchSchema,
 };
