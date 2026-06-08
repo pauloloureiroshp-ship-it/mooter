@@ -1,0 +1,54 @@
+{
+  "wave": "33.5",
+  "tag": "v1.21.1-historic-spawn-orchestrator",
+  "generated": "2026-06-08",
+  "note": "Feature flags + content sections for CC Design to consume when redesigning the Wave 33.5 routes. Scaffold pages live at landing/app/(marketing)/{spawn,sessions,security,changelog}. /compare and /install already exist (do not recreate).",
+  "positioning": "The only local-first orchestrator in 2026 that spawns sandboxed agents by default, watches every session, forecasts quota, and learns forever.",
+  "routes": [
+    {
+      "path": "/spawn",
+      "status": "scaffolded",
+      "title": "Spawn agents — local-first, by default",
+      "hero": "mooter spawn \"fix bug in Hero.tsx\"",
+      "sections": ["pipeline (classify → worktree → sandbox → run)", "the 4 layers", "no --no-sandbox", "spawn-test proof"],
+      "proof": "real bubblewrap 0.6.1; CVE-2025-59528 scenario blocked"
+    },
+    {
+      "path": "/sessions",
+      "status": "scaffolded",
+      "title": "Cross-session intelligence",
+      "hero": "mooter sessions watch",
+      "sections": ["live board", "5h quota forecast (honest, estimated)", "handoff", "Pastor cross-session aggregate"]
+    },
+    {
+      "path": "/security",
+      "status": "scaffolded",
+      "title": "Sandbox security — 4 layers",
+      "hero": "mooter security spawn-test",
+      "sections": ["CVE-2025-59528 lesson", "network/filesystem/secrets/config", "audit + spawn-test"]
+    },
+    {
+      "path": "/changelog",
+      "status": "scaffolded",
+      "title": "Changelog",
+      "sections": ["v1.21.1 Historic entry", "prior waves"]
+    },
+    { "path": "/compare", "status": "exists", "note": "extend the existing comparison table with the 9-dimension Wave 33.5 row set" },
+    { "path": "/install", "status": "exists", "note": "add the wizard + mooter doctor health-check copy" }
+  ],
+  "comparison_dimensions": [
+    "spawn agents (default)",
+    "local-first",
+    "cross-session $",
+    "5h quota forecast",
+    "Pastor learning",
+    "4-layer sandbox",
+    "intent-based UX",
+    "install wizard",
+    "multiplexer plugins"
+  ],
+  "constraints": {
+    "do_not_touch": ["existing landing routes outside the 4 new scaffolds", "classify.js"],
+    "tone": "honest > forced; label estimates as estimates; no fabricated metrics"
+  }
+}
