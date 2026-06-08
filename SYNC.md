@@ -3,6 +3,12 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-08 (Wave 32 Transparency + Performance — SHIPPED v1.20.0)
+**Estado:** ✅ **SHIPPED prod `main` @ `32d0c9c`**, tag `v1.20.0-transparency-performance`. 17 fases A–N autónomas (ultracode+dangerous), 15 commits, ~150 testes novos, classify.js sha `7b01eb86` intacta, final-reviewer **SHIP 0-HIGH/3-LOW**, bundle limpo.
+**Entregue:** 4 statusline modes (mini/compact/full/didactic, ≤10ms, default byte-idêntico) · inline token tracker · dashboard/workflow-watch/pastor-train-watch TUIs · 8 `/moo-*` slash skills · ultramoo effort (8 sub-systems, advisory — tier floors ganham) · vLLM opt-in + Multi-LoRA (tier preservado) · GDPR export/delete-all/forget-me · hub migration 017 + `/v1/transparency` + `/v1/forget-me` · MCP 8→12. 4 packages novos: transparency/effort/data-rights/vllm-backend.
+**Notion:** [Sessão Wave 32](https://app.notion.com/p/3796f6e42bc48110a2b8ec4b622a8e55) (ID `3796f6e4-2bc4-8110-a2b8-ec4b622a8e55`).
+**Próxima missão (Paulo):** (1) **Hub deploy + migration 017** — `cd hub && npx wrangler d1 execute mooter-hub --remote -c wrangler.mooter.toml --file migrations/017_transparency_events.sql && npx wrangler deploy -c wrangler.mooter.toml` (rotas opt-in → sem breakage se adiado; migration 016 ainda pendente também). (2) LoRA train manual + vLLM install opt-in (`mooter backend install vllm --run`, precisa GPU box). **Wave 33:** TurboQuant + Speculative + MiniMax M3 (quando llama.cpp shipping).
+
 ### 🧠 Sessão — 2026-06-08 (Wave 31 Pastor v2 LORAUTER — SHIPPED v1.19.0)
 **Estado:** ✅ **SHIPPED prod `main` @ `eb57bda`** (PR #132), tag `v1.19.0-pastor-v2`. 11 fases A–L autónomas (ultracode+dangerous), 6 commits.
 **Novo:** LORAUTER real (`packages/synthesis/src/lora/routing-lorauter.ts`) substitui o Wave 29 stub — routing determinístico TF-IDF + cosine + relative-confidence (threshold 0.7), **sem LLM na decisão**. 6 per-task adapters (coding-frontend/backend/data, prose-pt-pt/en, baseline). Pastor layer (per-task-router, pastor-state, feedback-incorporator, trainer-stub). Distillation `mooter pastor distill`→`.skill.md` (demo real: 657 decisões → T3 48%/T1 32%/T0 18%/T2 2%). Obsidian pack `packs/obsidian-vault-sync/` (bidirecional, WSL-aware). 2 MCP tools (6→8). Hub `/v1/pastor-adapters` + migration 016. Statusline 🧠 chip.
