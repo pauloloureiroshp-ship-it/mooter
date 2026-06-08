@@ -1,0 +1,67 @@
+name: Version Sync
+
+# Keeps tools/router/version.json in sync with release tags so `mooter --version`
+# and install.sh never drift behind the shipped tag (root cause: version.json sat
+# at 1.6.0 while tags reached 1.21.x). On a `vX.Y.Z[-suffix]` tag push, derive the
+# semver core (strip leading `v` and any `-suffix`) and write it back to the
+# default branch. Self-guarding: commits with [skip ci] and only when changed.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Derive semver core from tag
+        id: ver
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CORE="${TAG#v}"        # strip leading v
+          CORE="${CORE%%-*}"     # strip first -suffix onward
+          if ! printf '%s' "$CORE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag '$TAG' does not yield a clean semver core ('$CORE') — skipping." >&2
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=$CORE" >> "$GITHUB_OUTPUT"
+
+      - name: Update version.json
+        if: steps.ver.outputs.skip != '1'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = "tools/router/version.json";
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            const v = process.env.VERSION;
+            const today = new Date().toISOString().slice(0, 10);
+            if (j.version === v) { console.log("version.json already " + v + " — no change"); process.exit(0); }
+            j.version = v;
+            j.released = today;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+            console.log("Bumped version.json → " + v);
+          '
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+
+      - name: Commit back if changed
+        if: steps.ver.outputs.skip != '1'
+        run: |
+          if git diff --quiet -- tools/router/version.json; then
+            echo "No version.json change to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tools/router/version.json
+          git commit -m "chore(release): sync version.json → ${{ steps.ver.outputs.version }} [skip ci]"
+          git push origin HEAD:main
