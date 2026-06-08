@@ -35,6 +35,8 @@ import { runMcp } from "./commands/mcp.ts";
 import { runBenchmarkCmd } from "./commands/benchmark.ts";
 import { runPastor } from "./commands/pastor.ts";
 import { runStatusline } from "./commands/statusline.ts";
+import { runEffort } from "./commands/effort.ts";
+import { runStatus } from "./commands/status.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
@@ -45,6 +47,8 @@ Usage:
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline]      educational guide to each statusline chip
   mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
+  mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
+  mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -241,6 +245,18 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "statusline") {
     const res = runStatusline(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "effort") {
+    const res = runEffort(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "status") {
+    const res = runStatus(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

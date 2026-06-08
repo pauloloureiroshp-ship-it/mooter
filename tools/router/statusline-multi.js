@@ -1009,7 +1009,8 @@ function buildLine3(force) {
   if (!on) return null;
   const chips = [];
   for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
-    './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js']) {
+    './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
+    './effort-status.js']) {
     try {
       const c = require(mod).statusLine();
       if (c) chips.push(c);
