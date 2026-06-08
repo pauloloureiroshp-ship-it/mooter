@@ -42,6 +42,8 @@ import { runConductor } from "../../worktree-conductor/src/commands.ts";
 import { runSpawn } from "../../spawn-orchestrator/src/commands.ts";
 import { runSecurity } from "./commands/security.ts";
 import { runIntent, resolveIntent } from "./commands/intent.ts";
+import { runDoctor } from "./commands/doctor.ts";
+import { runUninstall } from "./commands/uninstall.ts";
 import { runTurboquant } from "./commands/turboquant.ts";
 import { runMinimax } from "./commands/minimax.ts";
 import { runMonitor } from "./commands/monitor.ts";
@@ -66,6 +68,8 @@ Usage:
   mooter spawn <task> [--cloud|--local] | spawn <list|watch|kill|logs|artifacts>   sandboxed local-first agents
   mooter security <audit [--json]|spawn-test>   4-layer sandbox audit + synthetic CVE escape test
   mooter intent "<what you want>" [--run] | intent --palette   natural-language → command
+  mooter doctor [--json]           health check (classify sha · sandbox · Ollama · multiplexers)
+  mooter uninstall [--keep-data|--full] [--confirm]   remove Mooter (safe by default)
   mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
   mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
   mooter quant status [--json]     local model quantization (real Ollama data)
@@ -307,6 +311,18 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "security") {
     const res = runSecurity(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "doctor") {
+    const res = runDoctor(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "uninstall") {
+    const res = runUninstall(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
