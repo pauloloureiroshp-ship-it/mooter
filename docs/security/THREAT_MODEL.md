@@ -82,3 +82,27 @@ Assets: `~/.mooter/*` (auth token, telemetry secret, state, bandit posteriors), 
 ## Residual risk
 
 No HIGH-severity dependency vulnerabilities at baseline. The two High-rated *vectors* (hub token, sandbox escape) are mitigated by file perms + isolated-vm respectively; both now have runtime probes / CI gates. Re-review each wave that touches `hub/`, `packages/workflow/`, or the LoRA/federated paths.
+
+---
+
+## Wave 33.5 — `mooter spawn` (agent spawning) threat model
+
+**Scope addition:** local agent processes spawned by `mooter spawn`, each in an
+isolated git worktree inside a 4-layer bubblewrap/Seatbelt sandbox.
+
+| # | Vector | Severity | Mitigation | Status |
+|---|--------|----------|------------|--------|
+| 8 | Agent reads developer secrets (`~/.ssh`, keys) | High | L2 tmpfs mask over secret dirs (read empty); L3 clearenv+whitelist | 🟢 proven by `spawn-test` |
+| 9 | Agent writes outside its worktree (backdoor) | High | L2 `--ro-bind / /`; worktree is the only writable mount | 🟢 proven by `spawn-test` |
+| 10 | `ANTHROPIC_API_KEY` leaks into a local (Ollama) spawn | High | L3 whitelist excludes provider keys for local mode | 🟢 proven (`KEY=EMPTY`) |
+| 11 | Sandbox escape (CVE-2025-59528 class) | Critical | bubblewrap namespaces; `mooter security spawn-test` synthetic check | 🟢 gated |
+| 12 | Config tamper (settings.json hook injection) | High | L4 config read-only under sandbox root | 🟢 by design |
+| 13 | Per-domain egress not filtered (local/cloud) | Medium | only policy `none` isolates net; allowlist captured, proxy = later wave | 🟡 documented limitation |
+| 14 | Fork bomb / runaway spawns | High | max-concurrent cap (default 4); `mooter spawn kill --graceful` | 🟡 partial |
+
+**Verification:** `mooter security audit` (host readiness per layer) +
+`mooter security spawn-test` (real bwrap escape attempt). See
+[SANDBOX_LAYERS.md](./SANDBOX_LAYERS.md) and [CVE_RESPONSE.md](./CVE_RESPONSE.md).
+
+**Re-review trigger:** any wave touching `packages/spawn-orchestrator/` or the
+sandbox argv builder.
