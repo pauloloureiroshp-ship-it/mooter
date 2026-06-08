@@ -5,12 +5,13 @@
  * Opt-in line-3 chip naming the current terminal/worktree, e.g. `🪟 wave33_5-historic`.
  * Resolution chain (first hit wins), all cheap enough for the ≤10ms render budget
  * (env reads + at most one small file read — NO git subprocess):
- *   1. preferences.json `terminal_label`  (set via `mooter terminal label <name>`)
- *   2. $TMUX_PANE_TITLE                    (tmux)
- *   3. $ZELLIJ_SESSION_NAME                (Zellij)
- *   4. $WEZTERM_PANE → pane-N             (WezTerm)
- *   5. git branch via .git/HEAD walk-up    (worktree-aware, file read only)
- *   6. directory basename
+ *   1. $MOOTER_TERMINAL_NAME                (explicit per-terminal env var) — Wave 33.6
+ *   2. preferences.json `terminal_label`  (set via `mooter terminal label <name>`)
+ *   3. $TMUX_PANE_TITLE                    (tmux)
+ *   4. $ZELLIJ_SESSION_NAME                (Zellij)
+ *   5. $WEZTERM_PANE → pane-N             (WezTerm)
+ *   6. git branch via .git/HEAD walk-up    (worktree-aware, file read only)
+ *   7. directory basename
  *
  * `hidden_chips: ["terminal-name"]` drops it. Best-effort: any failure → ''.
  */
@@ -64,6 +65,8 @@ function gitBranch(startCwd) {
 
 /** Pure resolver (env/cwd injected) → { name, source }. */
 function resolveLabel({ env, cwd, override }) {
+  const envName = clean(env.MOOTER_TERMINAL_NAME);
+  if (envName) return { name: envName, source: 'env' };
   const ov = clean(override);
   if (ov) return { name: ov, source: 'override' };
   const tmux = clean(env.TMUX_PANE_TITLE);
