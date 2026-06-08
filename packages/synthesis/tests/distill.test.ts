@@ -38,6 +38,13 @@ test("parseDecisions keeps classified events, drops tester + non-json", () => {
   assert.ok(events.every((e) => e.event === "classified" && e.source !== "mooter-tester"));
 });
 
+test("parseDecisions tolerates bare 'null' and non-object JSON lines (real-log regression)", () => {
+  const tricky = ["null", "42", '"a string"', "[]", SAMPLE.split("\n")[0]].join("\n");
+  const events = parseDecisions(tricky); // must not throw on JSON.parse('null') → null
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event, "classified");
+});
+
 test("extractPatterns aggregates by (category, tier) with counts + avg confidence", () => {
   const p = extractPatterns(parseDecisions(SAMPLE));
   assert.equal(p.total, 3);

@@ -107,3 +107,34 @@ test('pastor chip: label/hint or null', () => {
   assert.equal(pastor.buildPastorChip({ label: 'try local for refactors' }), '💡 try local for refactors');
   assert.equal(pastor.buildPastorChip({}), null);
 });
+
+// ── pastor adapter chip (Wave 31) ───────────────────────────────────────────────
+test('pastor adapter chip: registered + active type', () => {
+  assert.equal(pastor.buildAdapterChip(null), null);
+  assert.equal(pastor.buildAdapterChip({ registered: 0 }), null);
+  assert.equal(pastor.buildAdapterChip({ registered: 6 }), '🧠 pastor: 6 adapters');
+  assert.equal(
+    pastor.buildAdapterChip({ registered: 6, active_type: 'coding-frontend' }),
+    '🧠 pastor: 6 adapters · frontend active',
+  );
+  assert.equal(
+    pastor.buildAdapterChip({ registered: 1, active_type: 'prose-pt-pt' }),
+    '🧠 pastor: 1 adapter · pt-pt active',
+  );
+});
+
+test('pastor statusLine prefers the adapter chip over the hint', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-pastor-chip-'));
+  const prev = process.env.MOOTER_HOME;
+  process.env.MOOTER_HOME = home;
+  try {
+    fs.mkdirSync(path.join(home, 'pastor'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'pastor', 'adapters-active.json'), JSON.stringify({ registered: 5, active_type: 'coding-data' }));
+    fs.writeFileSync(path.join(home, 'pastor-hint.json'), JSON.stringify({ label: 'ignored when adapters present' }));
+    assert.equal(pastor.statusLine(), '🧠 pastor: 5 adapters · data active');
+  } finally {
+    if (prev === undefined) delete process.env.MOOTER_HOME;
+    else process.env.MOOTER_HOME = prev;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
