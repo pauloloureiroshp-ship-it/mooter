@@ -47,6 +47,20 @@ fail() { printf "  %s[XX]%s %s\n" "$C4" "$CR" "$*"; }
 info() { printf "  %s%s%s\n" "$CD" "$*" "$CR"; }
 do_run() { if [ "$DRY_RUN" = "1" ]; then echo "  [dry-run] $*"; else eval "$@"; fi; }
 
+# Best-effort total physical RAM in whole GB. Echoes an integer, or "" when it
+# can't be determined (we never block on it — it only drives a soft warning).
+total_ram_gb() {
+  if [ "$IS_MAC" = "1" ]; then
+    _b="$(sysctl -n hw.memsize 2>/dev/null || echo "")"
+    [ -n "$_b" ] && echo $(( _b / 1024 / 1024 / 1024 )) || echo ""
+  elif [ -r /proc/meminfo ]; then
+    _kb="$(awk '/^MemTotal:/{print $2; exit}' /proc/meminfo 2>/dev/null || echo "")"
+    [ -n "$_kb" ] && echo $(( _kb / 1024 / 1024 )) || echo ""
+  else
+    echo ""
+  fi
+}
+
 # ── Paths ───────────────────────────────────────────────────────────────
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 ROUTER_DIR="$CLAUDE_DIR/tools/router"
@@ -57,6 +71,11 @@ MOOTER_ENV="$MOOTER_DIR/env"
 LOCAL_BIN="$HOME/.local/bin"
 SHIM="$LOCAL_BIN/mooter"
 DEVICE_DIR="$HOME/.frugal"
+
+# Platform flag — set once, reused throughout (RAM probe, Homebrew PATH, git
+# hint, ~/.zshrc seeding). The friendly "Platform:" line and the Windows guard
+# live in the prereq section below; this is just the boolean.
+if [ "$(uname -s)" = "Darwin" ]; then IS_MAC=1; else IS_MAC=0; fi
 
 # Determine SRC_DIR. When piped from curl, we can't rely on $0 — we detect that
 # and clone/download the repo to a temp dir.
@@ -73,6 +92,9 @@ REPO_URL="${MOOTER_REPO_URL:-https://github.com/pauloloureiroshp-ship-it/mooter.
 if [ ! -f "$SRC_DIR/tools/router/classify.js" ]; then
   if ! command -v git >/dev/null 2>&1; then
     fail "git not found — install git first, then re-run, or clone manually:"
+    if [ "$IS_MAC" = "1" ]; then
+      info "  On macOS: xcode-select --install   (installs git + Command Line Tools)"
+    fi
     info "  git clone $REPO_URL mooter && cd mooter && bash install.sh"
     exit 1
   fi
@@ -104,7 +126,8 @@ echo ""
 # ── Prereq checks ───────────────────────────────────────────────────────
 OS="$(uname -s)"
 case "$OS" in
-  Darwin|Linux) ok "Platform: $OS" ;;
+  Darwin) ok "Platform: macOS ($(uname -m))" ;;
+  Linux)  ok "Platform: Linux ($(uname -m))" ;;
   *) fail "This script is for macOS/Linux. Windows: run install.ps1 instead."; exit 3 ;;
 esac
 
@@ -248,7 +271,7 @@ if [ "$NO_PATH" = "0" ]; then
   # On macOS, ~/.zshrc may not exist on a fresh install (zsh is default
   # shell since Catalina but the file isn't created until customised).
   # Create an empty one so PATH injection lands somewhere persistent.
-  if [ "$(uname -s)" = "Darwin" ] && [ ! -f "$HOME/.zshrc" ]; then
+  if [ "$IS_MAC" = "1" ] && [ ! -f "$HOME/.zshrc" ]; then
     if [ "$DRY_RUN" = "0" ]; then touch "$HOME/.zshrc"; fi
   fi
   # Only inject into profiles that actually exist.
@@ -283,9 +306,29 @@ if [ ! -f "$DEVICE_DIR/device.id" ]; then
 fi
 
 # ── Ollama (optional, non-blocking) ─────────────────────────────────────
+# macOS: Homebrew installs to /opt/homebrew/bin (Apple Silicon) or /usr/local/bin
+# (Intel). A non-interactive `curl | bash` shell frequently lacks these on PATH,
+# so Ollama can be installed yet invisible to `command -v`. Probe and adopt it.
+if [ "$IS_MAC" = "1" ]; then
+  for _bp in /opt/homebrew/bin /usr/local/bin; do
+    if [ -x "$_bp/ollama" ]; then
+      case ":$PATH:" in *":$_bp:"*) ;; *) PATH="$_bp:$PATH" ;; esac
+    fi
+  done
+fi
+
 if command -v ollama >/dev/null 2>&1; then
   ok "Ollama detected"
   if ! ollama list 2>/dev/null | grep -q "qwen2.5:3b"; then
+    # Pre-flight: warn (never block) when RAM is tight for the local tier. The
+    # model pulled is qwen2.5:3b (~1.9 GB on disk, ~4 GB resident) — NOT the
+    # retired qwen3:30b. ~8 GB total leaves comfortable headroom beside Claude
+    # Code; below that it still runs, just slower.
+    RAM_GB="$(total_ram_gb)"
+    if [ -n "$RAM_GB" ] && [ "$RAM_GB" -lt 8 ]; then
+      warn "Detected ${RAM_GB} GB RAM — qwen2.5:3b runs in ~4 GB but leaves little"
+      info "  headroom alongside Claude Code. It will work; expect some slowness."
+    fi
     # Wave 11 (D4-5) — consent before a ~1.9 GB download instead of pulling
     # blindly. Prompt on a real TTY (default yes, 10s timeout → yes). When
     # non-interactive (curl|bash, CI), default yes too but honor MOOTER_NO_PULL=1.

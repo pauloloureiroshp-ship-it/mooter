@@ -10,6 +10,7 @@ on:
     paths:
       - 'install.sh'
       - 'landing/public/install.sh'
+      - 'tests/install-mac-smoke.sh'
       - 'packages/cli/**'
       - 'packages/router/src/classify_domain.ts'
       - '.github/workflows/install-reliability.yml'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'install.sh'
       - 'landing/public/install.sh'
+      - 'tests/install-mac-smoke.sh'
       - 'packages/cli/**'
       - 'packages/router/src/classify_domain.ts'
       - '.github/workflows/install-reliability.yml'
@@ -35,6 +37,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # Wave 33.10: macOS install-path smoke. Runs on ubuntu too — its static
+      # sections (parse, two-copies sync, real-model guard, macOS code markers)
+      # are OS-agnostic; the dry-run + RAM probe use the Linux fallback path.
+      # Darwin-only assertions self-skip. Fast, no npm needed.
+      - name: macOS install-path smoke (static + dry-run)
+        run: bash tests/install-mac-smoke.sh
 
       - name: Build v1.0 CLI bundle (esbuild, zero-runtime-deps)
         run: |
