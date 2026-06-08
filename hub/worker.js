@@ -31,6 +31,7 @@ import { handleSubmitEvents, handleAggregateStats } from './routes/events.js';
 import { handleSyncEvents } from './routes/sync_events.js';
 import { handleWorkflows } from './routes/workflows.js';
 import { handlePastorV2 } from './routes/pastor-v2.js';
+import { handlePastorAdapters } from './routes/pastor-adapters.js';
 import { handleFederated } from './routes/federated.js';
 import { handleWaveStatus } from './routes/wave-status.js';
 import { handleHeartbeat } from './routes/heartbeat.js';
@@ -101,6 +102,9 @@ const handler = {
           break;
         case '/v1/pastor-v2':
           response = await handlePastorV2(request, env);
+          break;
+        case '/v1/pastor-adapters':
+          response = await handlePastorAdapters(request, env);
           break;
         case '/v1/federated':
           response = await handleFederated(request, env);
