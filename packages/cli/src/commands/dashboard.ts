@@ -344,7 +344,11 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
   const runs = opts.workflowRuns ?? [];
   out.push(boxRow("  WORKFLOWS (recent)", width));
   if (runs.length === 0) {
-    out.push(boxRow("    (no workflow runs yet — `mooter workflow create`)", width));
+    // Wave 33 (C.2) — the widget always renders; empty is the steady state. Make
+    // the empty case point at both the create and the live-watch commands so it
+    // never reads as "missing" (validation had mistaken empty for absent).
+    out.push(boxRow("    none yet · start: `mooter workflow create`", width));
+    out.push(boxRow("    live mission control: `mooter workflow watch <run_id>`", width));
   } else {
     for (const r of runs.slice(0, 3)) {
       const task = (r.task ?? "").slice(0, 28);

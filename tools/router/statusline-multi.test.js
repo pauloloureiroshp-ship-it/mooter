@@ -21,7 +21,7 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
 const {
-  pickState, renderFromContext, renderTwoLine,
+  pickState, renderFromContext, renderTwoLine, render,
   digest, beastOverkillPct, zenUnderkillPct, avgConfidence,
   computeAnthropicRem, computeCodexRem, computeCodexMessagesLeft,
   getAdapterStatus, clampPercent, formatSessionAge,
@@ -415,6 +415,24 @@ test('formatSessionAge: <60min → Nm, <24h → NhNm, ≥24h → NdNh', () => {
   assert.equal(formatSessionAge(0), '0m');
   assert.equal(formatSessionAge(-5), '0m');
   assert.equal(formatSessionAge(NaN), '0m');
+});
+
+// Wave 33 (C.1) — narrow terminals (<120) get a compact GPU chip on the single
+// line, never the wide "VRAM (x/y GB)" chip. Hardware-tolerant: only asserts the
+// FORM when a GPU profile happens to exist on the test machine.
+test('C.1: narrow render is single-line and uses the compact GPU form', () => {
+  const prev = process.env.COLUMNS;
+  process.env.COLUMNS = '90';
+  try {
+    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }).split('\n');
+    assert.equal(lines.length, 1, 'narrow terminal renders a single line');
+    if (/🎮/.test(lines[0])) {
+      assert.ok(!/VRAM \(/.test(lines[0]), 'narrow GPU chip is compact, not the wide VRAM chip');
+    }
+  } finally {
+    if (prev === undefined) delete process.env.COLUMNS;
+    else process.env.COLUMNS = prev;
+  }
 });
 
 // Wave 33 (A.2) — the ⏱️ chip is gated to explicit modes (opts.forceLine3 is a

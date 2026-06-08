@@ -556,8 +556,14 @@ function renderFromContext(ctx) {
   const headlineText = (state.color === 'green' && state.lastLabel && state.lastLabel !== '—')
     ? `${state.headline} · ${state.lastLabel}`
     : state.headline;
+  // Wave 33 (C.1) — on narrow terminals (< 120 cols) the wide 2-line VRAM chip
+  // never shows, so the GPU was invisible. Prepend a breakpoint-sized GPU chip to
+  // the proof here. The wide path keeps its full VRAM chip on line 2 (unchanged).
+  const narrowCols = parseInt(process.env.COLUMNS || '80', 10);
+  const gpuNarrow = narrowCols < TWO_LINE_THRESHOLD ? buildNarrowGpuChip(narrowCols) : null;
+  const proofOut = gpuNarrow ? (proof && proof !== '—' ? `${gpuNarrow} · ${proof}` : gpuNarrow) : proof;
   // Wave 13 — trail the live 🐄×N herd chip after the headline/proof.
-  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proof}`, ctx);
+  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proofOut}`, ctx);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -691,6 +697,31 @@ function formatGpuChip(gpu) {
   if (!gpu) return null;
   const compact = String(gpu).replace(/^NVIDIA\s+/i, '').replace(/^Apple\s+/i, '').replace(/^GeForce\s+/i, '');
   return `🎮 ${compact}`;
+}
+
+// Wave 33 (C.1) — GPU chip for NARROW terminals (< 120 cols), where the wide
+// 2-line VRAM chip never renders. Three breakpoints: < 100 → ultra-compact
+// "🎮 RTX4090 50%"; 100-119 → "🎮 RTX 4090 12.1/24GB". Respects the existing
+// `hidden_chips: ["vram"]` opt-out. Best-effort: any failure → null (no chip).
+function buildNarrowGpuChip(cols) {
+  try {
+    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    if (Array.isArray(prefs.hidden_chips) && prefs.hidden_chips.includes('vram')) return null;
+  } catch { /* no prefs → show */ }
+  const base = formatGpuChip(readGpuFromProfile()); // "🎮 RTX 4090" or null
+  if (!base) return null;
+  let live = null;
+  try { live = require('./hardware_live.js').vramSnapshot(); } catch { live = null; }
+  if (cols < 100) {
+    const model = base.replace('🎮 ', '').replace(/\s+/g, '');
+    const pct = live && live.totalMb > 0 ? ` ${live.pct}%` : '';
+    return `🎮 ${model}${pct}`;
+  }
+  // 100-119 — medium: model + used/total GB (no inner spaces to stay tight).
+  if (live && live.totalMb > 0) {
+    return `${base} ${(live.usedMb / 1024).toFixed(1)}/${Math.round(live.totalMb / 1024)}GB`;
+  }
+  return base;
 }
 
 // Wave 2.8 Ponto #2 — context window as a 10-char ANSI bar + percent. Green

@@ -40,6 +40,7 @@ import { runSessions } from "./commands/sessions.ts";
 import { runTurboquant } from "./commands/turboquant.ts";
 import { runMinimax } from "./commands/minimax.ts";
 import { runMonitor } from "./commands/monitor.ts";
+import { runPricingUpdate } from "./commands/pricing.ts";
 import { runStatus } from "./commands/status.ts";
 import { runData } from "./commands/data.ts";
 import { runQuant, runVector } from "./commands/quant-vector.ts";
@@ -64,6 +65,7 @@ Usage:
   mooter turboquant [status|build [--run]|enable|disable]   opt-in 3-bit KV cache (EXPERIMENTAL, build-from-source)
   mooter minimax-m3 [check|status|install [--run]]   watch + install MiniMax M3 weights when released
   mooter monitor [providers|status|enable|disable]   opt-in arbitrage monitor (public status pages; advisory only)
+  mooter pricing-update [--show]   pull latest model pricing from the hub into a local cache
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -290,6 +292,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "monitor") {
     const res = await runMonitor(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "pricing-update") {
+    const res = await runPricingUpdate(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
