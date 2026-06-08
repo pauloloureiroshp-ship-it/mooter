@@ -46,15 +46,24 @@ test("ping → empty result", async () => {
   assert.deepEqual(r!.result, {});
 });
 
-test("tools/list returns all 12 tools with inputSchema", async () => {
+test("tools/list returns all 16 tools with inputSchema", async () => {
   const r = await handleRequest(req("tools/list"), registry);
   const tools = (r!.result as { tools: Array<{ name: string; inputSchema: unknown }> }).tools;
-  assert.equal(tools.length, 12); // Wave 32 added effort_set, ultramoo_toggle, workflow_watch, data_export
+  assert.equal(tools.length, 16); // Wave 33.5 A.4 added 4 sessions-orchestrator tools
   assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOL_NAMES].sort());
   for (const t of tools) assert.ok(t.inputSchema);
   assert.ok(TOOL_NAMES.includes("mooter_pastor_adapter_suggest"));
   assert.ok(TOOL_NAMES.includes("mooter_obsidian_sync"));
-  for (const n of ["mooter_effort_set", "mooter_ultramoo_toggle", "mooter_workflow_watch", "mooter_data_export"]) {
+  for (const n of [
+    "mooter_effort_set",
+    "mooter_ultramoo_toggle",
+    "mooter_workflow_watch",
+    "mooter_data_export",
+    "mooter_sessions_list",
+    "mooter_sessions_quota_forecast",
+    "mooter_sessions_handoff",
+    "mooter_sessions_pastor_aggregate",
+  ]) {
     assert.ok(TOOL_NAMES.includes(n), `${n} registered`);
   }
 });

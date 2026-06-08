@@ -15,6 +15,10 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+// Wave 33.5 Block A — the new subcommands (watch/show/diff/quota/worktrees/kill/
+// focus/export) live in @mooter/sessions-orchestrator; `list` stays here intact.
+import { runSessionsExtended } from "../../../sessions-orchestrator/src/commands.ts";
+
 export interface CmdResult {
   exitCode: number;
   output: string;
@@ -136,7 +140,8 @@ function estSaved(rec: TierRec): number {
 export function runSessions(args: string[], opts: SessionsOptions = {}): CmdResult {
   const sub = args[0] ?? "list";
   if (sub !== "list") {
-    return { exitCode: 1, output: "usage: mooter sessions list [--limit N]" };
+    // Delegate every non-list subcommand to the orchestrator package.
+    return runSessionsExtended(args, { home: opts.home, cwd: opts.cwd, now: opts.now });
   }
 
   const li = args.indexOf("--limit");
