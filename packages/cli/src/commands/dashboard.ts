@@ -277,7 +277,7 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
     const pct = typeof metrics.saved_pct === "number" ? `${Math.round(metrics.saved_pct)}%` : "n/a";
     const turn = typeof metrics.last_turn_cost_usd === "number" ? `$${metrics.last_turn_cost_usd.toFixed(2)}` : "n/a";
     const all = typeof metrics.alltime_cost_usd === "number" ? `$${metrics.alltime_cost_usd.toFixed(2)}` : "n/a";
-    out.push(boxRow(`    saved ${saved} (${pct}) · turn ${turn} · alltime ${all}`, width));
+    out.push(boxRow(`    saved ${saved} (${pct}) · this prompt ${turn} · session ${all}`, width));
   } else {
     out.push(boxRow("    (savings-tracker offline — no live cost figures)", width));
   }

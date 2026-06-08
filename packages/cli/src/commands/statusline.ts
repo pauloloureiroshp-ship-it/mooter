@@ -59,27 +59,57 @@ function findStatuslineScript(): string | null {
 function usage(): string {
   const lines = MODES.map((m) => `    ${m.padEnd(9)} ${DESCRIPTIONS[m]}`).join("\n");
   return (
-    "usage: mooter statusline mode <mini|compact|full|didactic|auto>\n" +
+    "usage: mooter statusline mode <mini|compact|full|didactic|auto|legacy>\n" +
+    "       mooter statusline mode --preview <mode>   (render without persisting)\n" +
     "       mooter statusline show\n\n" +
     "  modes:\n" +
     lines +
-    "\n    auto      adaptive — picks layout from terminal width (default)"
+    "\n    auto      adaptive — picks layout from terminal width (default)" +
+    "\n    legacy    alias for auto — the byte-identical default layout"
   );
+}
+
+/** Render a demo line in `mode` via the real statusline script, without persisting. */
+function previewMode(mode: string): CmdResult {
+  if (mode !== "auto" && mode !== "legacy" && !(MODES as readonly string[]).includes(mode)) {
+    return { exitCode: 1, output: `unknown mode '${mode}'\n\n${usage()}` };
+  }
+  const script = findStatuslineScript();
+  if (!script) {
+    // The mode is valid; we just can't locate the renderer to draw a live demo.
+    return { exitCode: 0, output: `preview · ${mode}: (live preview unavailable — statusline script not found)` };
+  }
+  const env = { ...process.env };
+  if (mode !== "auto" && mode !== "legacy") env.MOOTER_STATUSLINE_MODE = mode;
+  else delete env.MOOTER_STATUSLINE_MODE;
+  const r = spawnSync("node", [script, "--demo", "green"], { env, encoding: "utf8", timeout: 4000 });
+  const preview = r.status === 0 && r.stdout ? r.stdout.trimEnd() : "(preview unavailable)";
+  return {
+    exitCode: 0,
+    output: `preview · ${mode} (demo · green, NOT persisted):\n${preview}`,
+  };
 }
 
 export function runStatusline(args: string[]): CmdResult {
   const [sub, value] = args;
 
   if (sub === "mode") {
-    if (!value) {
+    if (!value || value === "--help" || value === "-h") {
       const cur = (readPrefs().statusline_mode as string) || "auto";
-      return { exitCode: 1, output: `current mode: ${cur}\n\n${usage()}` };
+      return { exitCode: value ? 0 : 1, output: `current mode: ${cur}\n\n${usage()}` };
     }
-    if (value === "auto") {
+    // Wave 33 (A.1) — preview a mode without persisting: `mode --preview <mode>`.
+    if (value === "--preview") {
+      const target = args[2];
+      if (!target) return { exitCode: 1, output: `usage: mooter statusline mode --preview <mode>` };
+      return previewMode(target);
+    }
+    // `auto` and its alias `legacy` both remove the pin → adaptive default.
+    if (value === "auto" || value === "legacy") {
       const prefs = readPrefs();
       delete prefs.statusline_mode;
       writePrefs(prefs);
-      return { exitCode: 0, output: "statusline mode → auto (adaptive width-based default restored)" };
+      return { exitCode: 0, output: `statusline mode → ${value} (adaptive width-based default restored)` };
     }
     if (!(MODES as readonly string[]).includes(value)) {
       return { exitCode: 1, output: `unknown mode '${value}'\n\n${usage()}` };

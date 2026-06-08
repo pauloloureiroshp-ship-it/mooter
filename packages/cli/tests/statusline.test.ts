@@ -69,3 +69,46 @@ test("bare command prints usage", () => {
     assert.match(r.output, /usage: mooter statusline/);
   });
 });
+
+// Wave 33 (A.1) — `legacy` is an alias for `auto`: removes the pin.
+test("mode legacy removes the key (alias for auto)", () => {
+  withHome(() => {
+    const prefsPath = join(process.env.HOME!, ".mooter", "preferences.json");
+    runStatusline(["mode", "full"]);
+    const r = runStatusline(["mode", "legacy"]);
+    assert.strictEqual(r.exitCode, 0);
+    assert.match(r.output, /legacy/);
+    const prefs = JSON.parse(readFileSync(prefsPath, "utf8"));
+    assert.ok(!("statusline_mode" in prefs), "legacy deletes statusline_mode");
+  });
+});
+
+// Wave 33 (A.1) — `--preview <mode>` never persists.
+test("mode --preview does not persist the mode", () => {
+  withHome(() => {
+    const prefsPath = join(process.env.HOME!, ".mooter", "preferences.json");
+    writeFileSync(prefsPath, JSON.stringify({ quiet: true }));
+    const r = runStatusline(["mode", "--preview", "compact"]);
+    assert.strictEqual(r.exitCode, 0);
+    assert.match(r.output, /preview · compact/);
+    const prefs = JSON.parse(readFileSync(prefsPath, "utf8"));
+    assert.ok(!("statusline_mode" in prefs), "--preview must not write statusline_mode");
+  });
+});
+
+test("mode --preview rejects an unknown mode", () => {
+  withHome(() => {
+    const r = runStatusline(["mode", "--preview", "warp-drive"]);
+    assert.strictEqual(r.exitCode, 1);
+    assert.match(r.output, /unknown mode/);
+  });
+});
+
+test("mode --help prints usage with exit 0", () => {
+  withHome(() => {
+    const r = runStatusline(["mode", "--help"]);
+    assert.strictEqual(r.exitCode, 0);
+    assert.match(r.output, /usage: mooter statusline/);
+    assert.match(r.output, /legacy/);
+  });
+});
