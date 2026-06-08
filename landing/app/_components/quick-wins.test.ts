@@ -24,9 +24,12 @@ describe('B.2a quick wins', () => {
     expect(src).toContain("label: 'Packs'");
   });
 
-  it('#15 footer signing references the mooter community, not bare "contributors"', () => {
+  it('#15 footer signing is honest single-founder attribution, not bare "contributors"', () => {
+    // Wave 33.7 — single-founder MIT framing supersedes the earlier "& the
+    // mooter community" line (there is one founder, Paulo). Still never the
+    // bare "& contributors" form.
     const src = read('components/Footer.tsx');
-    expect(src).toContain('the mooter community');
+    expect(src).toContain('Crafted by Paulo Loureiro');
     expect(src).not.toMatch(/by Paulo Loureiro &amp; contributors/);
   });
 });

@@ -61,11 +61,11 @@ export default function Footer() {
           Moo<span style={{ color: 'var(--color-accent)' }}>?</span>
         </div>
         <p style={{ color: 'var(--color-muted)', marginTop: 18, fontSize: 17 }}>
-          Stop overpaying for AI. Start shepherding your stack.
+          Stop overpaying for AI. Start routing every prompt smart.
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, flexWrap: 'wrap' }}>
           <a href="/install" style={{ background: 'var(--color-accent)', color: '#1A0E0E', fontWeight: 600, padding: '13px 22px', borderRadius: 10 }}>
-            Install mooter →
+            Install in 30s →
           </a>
           <a href="/dashboard" style={{ border: '1px solid var(--color-border-light)', color: 'var(--color-text)', fontWeight: 600, padding: '13px 22px', borderRadius: 10 }}>
             Sign in with GitHub
@@ -123,7 +123,7 @@ export default function Footer() {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <MooterMark size={20} /> © 2026 mooter.ai · MIT License · Open source
           </span>
-          <span style={{ marginLeft: 'auto' }}>Made with ❤️ for vibe coders by Paulo Loureiro &amp; the mooter community</span>
+          <span style={{ marginLeft: 'auto' }}>Crafted by Paulo Loureiro in São Paulo / Lisbon · single founder, MIT licensed</span>
           {/* Wave 11 (C4) — Anthropic / Claude Code credit. */}
           <span style={{ width: '100%', textAlign: 'center', color: 'var(--color-muted)', marginTop: 4 }}>
             Built for Claude Code &amp; made with Claude Code · routes across Anthropic&apos;s Claude models (Opus · Sonnet · Haiku)

@@ -7,10 +7,16 @@ const root = join(__dirname, '..', '..');
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
 
 describe('Wave 11 PR-A landing', () => {
-  it('D1-1 hero drops banned "Same results" and cites the benchmark', () => {
+  it('D1-1 hero drops banned "Same results", uses honest real numbers, cites the benchmark', () => {
+    // Wave 33.7 — the old "up to 90% less cost on T0-heavy sessions" claim was
+    // replaced with the author's real measured number (47% across 658 calls),
+    // transparently caveated as one machine, not a community average. The
+    // "Same results" over-claim stays banned.
     const src = read('app/page.tsx');
     expect(src).not.toContain('Same results');
-    expect(src).toContain('up to 90% less cost on T0-heavy sessions');
+    expect(src).not.toContain('up to 90% less cost');
+    expect(src).toContain('47% saved vs all-Opus');
+    expect(src).toContain('not a community average');
     expect(src).toContain('href="/methodology"');
   });
 

@@ -303,7 +303,8 @@ function LoginHero() {
       `${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/authorize` +
       `?provider=github` +
       `&redirect_to=${encodeURIComponent(redirectTo)}` +
-      `&scopes=read:user,public_repo`;
+      // Privacy-first (Wave 33.7): minimal scopes, no public_repo write grant.
+      `&scopes=read:user,user:email`;
   };
 
   return (
@@ -337,7 +338,9 @@ function LoginHero() {
               maxWidth: 420,
               margin: '0 0 36px',
             }}>
-              Sign in to see your savings, manage your setup, and track every routing decision mooter makes on your behalf.
+              Sign in only for federated wisdom and cross-device sync. Mooter
+              works fully offline without an account — sign-in just lets your
+              savings and routing history follow you across machines.
             </p>
 
             {/* GitHub CTA */}
@@ -377,6 +380,17 @@ function LoginHero() {
               letterSpacing: '0.04em',
             }}>
               Free forever · MIT · No credit card
+            </p>
+            <p style={{
+              color: 'var(--muted)',
+              fontSize: '0.72rem',
+              marginTop: 8,
+              lineHeight: 1.5,
+              maxWidth: 360,
+              fontFamily: 'var(--font-mono), monospace',
+            }}>
+              🔒 GitHub scopes: <code>read:user user:email</code> only. We never
+              read your code or private repos.
             </p>
             {/* Wave 15 F-A2 — removed the seeded "community" stats. Friends-launch
                 is Paulo's personal launch; real numbers live behind sign-in, not

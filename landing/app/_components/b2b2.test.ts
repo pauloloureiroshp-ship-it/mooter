@@ -11,7 +11,11 @@ describe('B.2b.2 signed-in polish', () => {
   it('F-7 dashboard nudges users to re-sync when telemetry is stale (Wave 14 F-2)', () => {
     const src = read('app/(app)/dashboard/page.tsx');
     expect(src).toContain('syncStale');
-    expect(src).toContain('Last sync was');
+    // Wave 24 24.B reworded the nudge from "Last sync was …" to a bolder
+    // "This dashboard shows data from {n} days ago" banner. Feature unchanged;
+    // assertion updated to the live copy so the contract still verifies the
+    // stale-telemetry re-sync nudge exists.
+    expect(src).toContain('This dashboard shows data from');
     expect(src).toContain('mooter sync');
     // The stale "newer major is out" nag was removed in Wave 14 Day 1.
     expect(src).not.toContain('a newer major is out');
