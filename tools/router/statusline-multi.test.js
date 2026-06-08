@@ -36,7 +36,7 @@ test('pickState: green when savings tracker reports healthy figures', () => {
   // Wave 12 PR-I — headline carries the de-branded saved clause with the "today"
   // and "vs all-Opus" qualifiers; the tier badge moves to state.lastLabel so the
   // 2-line renderer can sit the sparkline ahead of it.
-  assert.match(s.headline, /saved \$0\.27 all-time \(89% vs all-Opus\)/);
+  assert.match(s.headline, /saved \$0\.27 all-time·local \(89% vs all-Opus\)/);
   assert.doesNotMatch(s.headline, /mooter saved/);
   assert.match(s.lastLabel, /T2 sonnet · conf 0\.84/);
 });

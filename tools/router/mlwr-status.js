@@ -28,15 +28,24 @@ function buildMlwrChip(snap) {
   return `📊 MLWR ${pct}% local`;
 }
 
+// Wave 33.8 Block G — empty-state message. When no snapshot exists the chip was
+// silent, leaving "what is MLWR?" unanswered and the user with no nudge. Render
+// a calm call-to-action instead so the chip teaches + invites the one command
+// that gives it data. Pure so it can be unit-tested without a home dir.
+function emptyMlwrChip() {
+  return '📊 MLWR · run benchmark';
+}
+
 function statusLine() {
   try {
-    return buildMlwrChip(readJson(path.join(mooterHome(), 'mlwr_snapshot.json')));
+    const chip = buildMlwrChip(readJson(path.join(mooterHome(), 'mlwr_snapshot.json')));
+    return chip || emptyMlwrChip();
   } catch {
     return null;
   }
 }
 
-module.exports = { buildMlwrChip, statusLine };
+module.exports = { buildMlwrChip, emptyMlwrChip, statusLine };
 
 if (require.main === module) {
   const s = statusLine();

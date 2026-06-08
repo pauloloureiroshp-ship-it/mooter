@@ -91,6 +91,7 @@ Usage:
   mooter sync --dry-run            preview the remote-sync payload (zero network · Wave 4 ships real upload)
   mooter sync queue list|show <id>|clear   inspect/clear the local sync queue
   mooter sync audit list|verify    inspect/verify the signed sync audit log
+  mooter sync --rebuild-stats      refresh hub cross-device stats cache (used by doctor)
   mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
@@ -244,6 +245,14 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "sync") {
     const [sub, sub2] = rest;
+    // Wave 33.8 Block A — refresh the hub-dashboard cache used by `mooter doctor`'s
+    // stats-sync check and the statusline reconcile.
+    if (rest.includes("--rebuild-stats")) {
+      const { rebuildStats } = await import("./commands/stats-reconcile.ts");
+      const res = await rebuildStats({});
+      if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+      return res.exitCode;
+    }
     const isSub = sub === "queue" || sub === "audit";
     // Bare `mooter sync` (no subcommand, no --dry-run) → real mode (W4 D, async).
     if (!isSub && !rest.includes("--dry-run")) {
