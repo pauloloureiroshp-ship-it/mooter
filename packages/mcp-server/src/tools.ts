@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import { summarize, EXPECTED_CLASSIFY_SHA } from "../../synthesis/src/state/central-state.ts";
 import { mooterPath, appendJsonl, readJsonSafe } from "../../synthesis/src/config.ts";
 import { buildEntry, dogfoodPath, countToday } from "../../cli/src/commands/dogfood.ts";
-import { loadCatalog, recommend, loadProfile } from "../../synthesis/src/index.ts";
+import { loadCatalog, recommend, loadProfile, routeRequest, listTaskAdapters } from "../../synthesis/src/index.ts";
+import { sync as obsidianSync, primaryVault as obsidianPrimaryVault } from "../../../packs/obsidian-vault-sync/pack.ts";
 
 export interface ToolContext {
   fetchImpl?: typeof fetch;
@@ -223,8 +224,86 @@ const notionTool: McpTool = {
   },
 };
 
+// ── Wave 31 — Pastor v2 adapter suggestion + Obsidian sync ───────────────────
+
+const pastorAdapterSuggestTool: McpTool = {
+  name: "mooter_pastor_adapter_suggest",
+  description:
+    "Deterministically suggest which per-task LoRA adapter (LORAUTER) fits a prompt. No LLM, no side effects (dry-run). The classifier tier is never changed.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string", description: "the task prompt to route" },
+      tier: { type: "string", description: "optional classifier tier (T0..T3); passed through unchanged" },
+    },
+    required: ["prompt"],
+  },
+  async handler(args) {
+    const prompt = String(args.prompt ?? "").trim();
+    if (!prompt) return "error: prompt is required";
+    const tier = args.tier ? String(args.tier) : undefined;
+    const d = routeRequest({ prompt, classify: tier ? { tier } : undefined, dryRun: true });
+    return JSON.stringify(
+      {
+        adapter: d.adapter,
+        task_type: d.task_type,
+        matched: d.matched,
+        confidence: Math.round(d.confidence * 1000) / 1000,
+        threshold: d.threshold,
+        tier: d.tier,
+        detected_lang: d.detected_lang,
+        top_scores: d.scores.slice(0, 3).map((s) => ({ task_type: s.task_type, confidence: Math.round(s.confidence * 1000) / 1000 })),
+        reason: d.reason,
+      },
+      null,
+      2,
+    );
+  },
+};
+
+const obsidianSyncTool: McpTool = {
+  name: "mooter_obsidian_sync",
+  description:
+    "Sync the obsidian-vault-sync pack: write Pastor learnings to <vault>/Mooter/ and import <vault>/Mooter/preferences.md. Local-only, features-only.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      dry_run: { type: "boolean", description: "when true, only report the detected vault without writing" },
+    },
+  },
+  async handler(args) {
+    const vault = obsidianPrimaryVault();
+    if (!vault) return "no Obsidian vault detected — set MOOTER_VAULT or open a vault in Obsidian first";
+    if (args.dry_run === true) {
+      return JSON.stringify({ dryRun: true, vault: vault.path, johnny_decimal: vault.johnny_decimal }, null, 2);
+    }
+    const date = new Date().toISOString().slice(0, 10);
+    const res = obsidianSync({ date, vault });
+    return JSON.stringify(
+      {
+        ok: res.ok,
+        vault: res.vault,
+        wrote: res.write?.path,
+        imported: res.read?.written_to ?? null,
+        read_reason: res.read?.ok ? undefined : res.read?.reason,
+      },
+      null,
+      2,
+    );
+  },
+};
+
 export function buildRegistry(): McpTool[] {
-  return [statusTool, dogfoodTool, workflowTool, ecosystemTool, pastorTool, notionTool];
+  return [
+    statusTool,
+    dogfoodTool,
+    workflowTool,
+    ecosystemTool,
+    pastorTool,
+    notionTool,
+    pastorAdapterSuggestTool,
+    obsidianSyncTool,
+  ];
 }
 
 export const TOOL_NAMES = buildRegistry().map((t) => t.name);

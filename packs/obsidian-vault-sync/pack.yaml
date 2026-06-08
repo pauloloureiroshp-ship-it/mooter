@@ -1,0 +1,40 @@
+name: obsidian-vault-sync
+version: 0.1.0
+description: "Bidirectional Obsidian bridge: Pastor learnings → vault notes, vault preferences → Pastor priors"
+domain_signals:
+  keywords: [obsidian, vault, note, notes, markdown, knowledge, second-brain, zettelkasten, johnny-decimal]
+  intent_phrases: ["sync my vault", "write to obsidian", "update my notes", "read my preferences", "knowledge base"]
+  file_extensions: [.md]
+  negative_keywords: [delete vault, wipe notes]
+  embedding_seeds:
+    - "sync what Mooter learned into my Obsidian vault"
+    - "write the routing learnings to my notes folder"
+    - "read my preferences from the vault and apply them"
+    - "keep my second brain in sync with the router"
+    - "export pastor decisions to markdown in obsidian"
+    - "let me steer Mooter from a note in my vault"
+    - "bidirectional bridge between my notes and the router"
+    - "update my knowledge base with today's adapter usage"
+model_floor: T0
+model_ceiling: T2
+skills:
+  recommended: []
+mcps:
+  recommended: []
+subagents:
+  primary: local-summarizer
+repos_canonical:
+  - { name: obsidian, url: https://obsidian.md, license: "Proprietary (free for personal use)", note: "Target app — local-first markdown knowledge base" }
+tools_cli: []
+prompt_scaffold_path: ./scaffold.md
+validation:
+  smoke_test: "Install the pack against a vault with .obsidian/; run sync; verify Mooter/learnings-<date>.md appears and preferences.md is imported to vault-priors.json"
+  acceptance_criteria:
+    - "Vault auto-detected via .obsidian/ presence (native + WSL /mnt/c paths)"
+    - "Pastor learnings written to <vault>/Mooter/ (features only, no prompt content)"
+    - "preferences.md parsed into ~/.mooter/pastor/vault-priors.json"
+    - "Non-destructive: uninstall never deletes the user's vault notes"
+metadata:
+  author: "Mooter (Wave 31 Pastor v2)"
+  created: 2026-06-07
+  ttl_days: 365

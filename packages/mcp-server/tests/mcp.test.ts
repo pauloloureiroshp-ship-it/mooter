@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -46,12 +46,52 @@ test("ping → empty result", async () => {
   assert.deepEqual(r!.result, {});
 });
 
-test("tools/list returns all 6 tools with inputSchema", async () => {
+test("tools/list returns all 8 tools with inputSchema", async () => {
   const r = await handleRequest(req("tools/list"), registry);
   const tools = (r!.result as { tools: Array<{ name: string; inputSchema: unknown }> }).tools;
-  assert.equal(tools.length, 6);
+  assert.equal(tools.length, 8); // Wave 31 added pastor_adapter_suggest + obsidian_sync
   assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOL_NAMES].sort());
   for (const t of tools) assert.ok(t.inputSchema);
+  assert.ok(TOOL_NAMES.includes("mooter_pastor_adapter_suggest"));
+  assert.ok(TOOL_NAMES.includes("mooter_obsidian_sync"));
+});
+
+test("tools/call mooter_pastor_adapter_suggest routes a frontend prompt (no tier change)", async () => {
+  await withTempHome(async () => {
+    const r = await handleRequest(
+      req("tools/call", {
+        name: "mooter_pastor_adapter_suggest",
+        arguments: { prompt: "muda a cor do botão React no componente Button.tsx e ajusta o layout css", tier: "T2" },
+      }),
+      registry,
+    );
+    const obj = JSON.parse((r!.result as { content: Array<{ text: string }> }).content[0].text);
+    assert.equal(obj.task_type, "coding-frontend");
+    assert.equal(obj.matched, true);
+    assert.equal(obj.tier, "T2"); // doctrine: tier passed through unchanged
+  });
+});
+
+test("tools/call mooter_obsidian_sync dry-run reports the detected vault", async () => {
+  await withTempHome(async () => {
+    const prevVault = process.env.MOOTER_VAULT;
+    // Make MOOTER_HOME itself a vault (has .obsidian/) and pin it explicitly so the
+    // detector returns it FIRST regardless of any real vault on the host (hermetic).
+    mkdirSync(join(process.env.MOOTER_HOME!, ".obsidian"), { recursive: true });
+    process.env.MOOTER_VAULT = process.env.MOOTER_HOME!;
+    try {
+      const r = await handleRequest(
+        req("tools/call", { name: "mooter_obsidian_sync", arguments: { dry_run: true } }),
+        registry,
+      );
+      const obj = JSON.parse((r!.result as { content: Array<{ text: string }> }).content[0].text);
+      assert.equal(obj.dryRun, true);
+      assert.equal(obj.vault, process.env.MOOTER_HOME);
+    } finally {
+      if (prevVault === undefined) delete process.env.MOOTER_VAULT;
+      else process.env.MOOTER_VAULT = prevVault;
+    }
+  });
 });
 
 test("tools/call mooter_status reports classify sha (intact in-repo)", async () => {

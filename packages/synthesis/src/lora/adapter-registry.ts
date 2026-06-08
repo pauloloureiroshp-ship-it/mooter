@@ -74,7 +74,8 @@ const LEGACY_PASTOR: LoraAdapter = {
   description: "Mooter Pastor routing adapter (Wave 23 carry). Superseded by the per-task set in Wave 31.",
   registered_at: REGISTERED_AT,
   wave_ready: 31,
-  task_type: "baseline",
+  // No task_type → stays a legacy catalog entry (in `mooter lora list`), not a
+  // per-task adapter, so `mooter pastor adapters` shows exactly the six canonical types.
   version: "1.0.0",
 };
 
