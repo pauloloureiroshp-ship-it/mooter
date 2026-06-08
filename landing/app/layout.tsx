@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { Space_Grotesk, JetBrains_Mono, Caveat } from 'next/font/google';
 import './globals.css';
+import CmdKPalette from './_components/CmdKPalette';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -13,6 +14,14 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '700'],
   variable: '--font-mono',
+  display: 'swap',
+});
+
+// Wave 33.9 — handwritten accent for the Conductor showcase annotation.
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['400', '600'],
+  variable: '--font-caveat',
   display: 'swap',
 });
 
@@ -75,7 +84,7 @@ const jsonLd = {
       description: DESCRIPTION,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS, Windows, Linux',
-      softwareVersion: '1.21.2',
+      softwareVersion: '1.21.5',
       license: 'https://opensource.org/licenses/MIT',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       author: { '@id': 'https://mooter.ai/#paulo' },
@@ -100,7 +109,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${caveat.variable}`}>
       <head>
         <script
           type="application/ld+json"
@@ -109,7 +118,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Plausible analytics — privacy-first, no cookies, GDPR-compliant */}
         <script defer data-domain="mooter.ai" src="https://plausible.io/js/script.js" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CmdKPalette />
+      </body>
     </html>
   );
 }

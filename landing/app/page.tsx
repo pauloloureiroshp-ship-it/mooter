@@ -2,6 +2,7 @@ import NavBar from '@/components/NavBar';
 import Footer from '@/components/Footer';
 import { CrookOutline } from '@/components/PastorCrook';
 import HeroTerminal from './_components/HeroTerminal';
+import PulseStrip from './_components/PulseStrip';
 import CommunityPulse from './_components/CommunityPulse';
 import WhyLocalCards from './_components/WhyLocalCards';
 import AuthErrorBanner from './_components/AuthErrorBanner';
@@ -20,7 +21,7 @@ export default function Page() {
             <div>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-muted)', border: '1px solid var(--color-border)', borderRadius: 999, padding: '5px 12px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-green)' }} />
-                Open source · MIT · v1.21.2 · classify.js unchanged 17 waves
+                Open source · MIT · v1.21.5 · classify.js unchanged 19 waves
               </span>
 
               <h1 className="hero-h1" style={{ fontSize: 'clamp(56px, 13vw, 168px)', fontWeight: 700, lineHeight: 0.92, margin: '22px 0 0', display: 'inline-flex', alignItems: 'flex-start', gap: 8 }}>
@@ -77,6 +78,8 @@ export default function Page() {
               <HeroTerminal />
             </div>
           </div>
+
+          <PulseStrip />
 
           <WhyLocalCards />
 

@@ -22,7 +22,9 @@
   /* Accent — cow-muzzle pink */
   --color-accent:      #E8888A;
   --color-accent-2:    #F2A5A5;
+  --color-accent-06:   rgba(232,136,138,0.06);
   --color-accent-08:   rgba(232,136,138,0.08);
+  --color-accent-12:   rgba(232,136,138,0.12);
   --color-accent-25:   rgba(232,136,138,0.25);
 
   /* Functional */
@@ -770,6 +772,24 @@ h3 { font-size: 20px; line-height: 1.3; }
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
+}
+/* Wave 33.9 visual migration — Conductor heartbeat / session pulse / workflow spinner */
+@keyframes mheart {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(0.82); }
+}
+@keyframes mpulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.7); }
+}
+@keyframes mspin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* Respect users who prefer reduced motion — freeze the decorative loops. */
+@media (prefers-reduced-motion: reduce) {
+  .mheart-dot, .mpulse-dot { animation: none !important; }
+  .mspin { animation: none !important; }
 }
 
 /* ── Responsive ───────────────────────────────────────────── */
