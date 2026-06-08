@@ -57,7 +57,7 @@ Usage:
   mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
   mooter quant status [--json]     local model quantization (real Ollama data)
   mooter vector status [--json]    embedding model dims/quant (real Ollama data)
-  mooter backend [status|install vllm|uninstall vllm]   opt-in vLLM backend (default Ollama)
+  mooter backend [status|install vllm [--eagle3]|uninstall vllm]   opt-in vLLM backend (default Ollama; --eagle3 = speculative decoding)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)

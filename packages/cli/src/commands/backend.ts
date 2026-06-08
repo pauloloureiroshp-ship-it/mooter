@@ -69,13 +69,20 @@ export async function runBackend(args: string[], deps: { probe?: ProbeFns; fetch
   }
 
   if (sub === "install") {
-    if (target !== "vllm") return { exitCode: 1, output: "usage: mooter backend install vllm [--run]" };
-    const r = install(probe, { run, exec: (cmd) => { spawnSync("bash", ["-lc", cmd], { stdio: "inherit" }); } });
+    if (target !== "vllm") return { exitCode: 1, output: "usage: mooter backend install vllm [--run] [--eagle3]" };
+    // Wave 33 (B.2) — `--eagle3` opts into speculative decoding. Draft override
+    // via `--draft <model>`. GPU headroom is unknown from the CLI probe, so
+    // planEagle3 proceeds optimistically (vLLM errors at launch if truly short).
+    const eagle3 = args.includes("--eagle3");
+    const draftIdx = args.indexOf("--draft");
+    const draftModel = draftIdx >= 0 ? args[draftIdx + 1] : undefined;
+    const r = install(probe, { run, eagle3, draftModel, exec: (cmd) => { spawnSync("bash", ["-lc", cmd], { stdio: "inherit" }); } });
     if (r.installed) setVllmEnabled(true);
     const planText = r.plan.ready
       ? `prereqs OK (GPU ✓). Plan:\n${r.plan.steps.map((s) => `  $ ${s}`).join("\n")}`
       : `prereqs MISSING: ${r.plan.prereqs.missing.join(", ")}`;
-    return { exitCode: r.plan.ready ? 0 : 1, output: `${r.message}\n${planText}` };
+    const eagleText = r.plan.eagle3.requested ? `\nEAGLE-3: ${r.plan.eagle3.note}` : "";
+    return { exitCode: r.plan.ready ? 0 : 1, output: `${r.message}\n${planText}${eagleText}` };
   }
 
   if (sub === "uninstall") {

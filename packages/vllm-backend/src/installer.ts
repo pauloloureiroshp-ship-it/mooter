@@ -29,10 +29,84 @@ export interface InstallPlan {
   port: number;
   ready: boolean; // true when prereqs are satisfied
   prereqs: Prereqs;
+  /** Wave 33 (B.2) — resolved EAGLE-3 plan (always present; .enabled gates it). */
+  eagle3: Eagle3Plan;
 }
 
 export const VLLM_PORT = 8000;
 export const VENV_PATH = ".venv-vllm";
+
+// Wave 33 (B.2) — EAGLE-3 speculative decoding. vLLM supports a draft model that
+// proposes tokens the target verifies in parallel (2–2.5× steady-state tokens/s).
+// It costs ~10% extra VRAM for the draft weights, so we gate it on a headroom
+// check and FALL BACK to plain vLLM when the GPU can't spare it (never block the
+// install). No EAGLE-3 head ships for qwen2.5-coder yet, so the draft model is
+// configurable and defaults to a published Qwen draft; an honest note is surfaced.
+export const DEFAULT_EAGLE3_DRAFT = "yuhuili/EAGLE3-Qwen2.5-Coder-7B";
+export const DEFAULT_SPECULATIVE_TOKENS = 5;
+/** Fraction of total VRAM the draft model is assumed to need. */
+export const EAGLE3_VRAM_HEADROOM = 0.1;
+
+export interface Eagle3Options {
+  /** Opt into EAGLE-3 speculative decoding. */
+  eagle3?: boolean;
+  /** Draft model id (HF). Defaults to a published Qwen-Coder EAGLE-3 head. */
+  draftModel?: string;
+  /** Tokens the draft proposes per step. */
+  numSpeculativeTokens?: number;
+  /** Total GPU memory in GB, when known — used for the headroom check. */
+  gpuTotalGb?: number;
+  /** GPU memory already in use in GB, when known. */
+  gpuUsedGb?: number;
+}
+
+export interface Eagle3Plan {
+  requested: boolean;
+  /** true when EAGLE-3 will actually be enabled (requested AND headroom OK). */
+  enabled: boolean;
+  draftModel: string;
+  numSpeculativeTokens: number;
+  /** server-launch flags to append; empty when not enabled. */
+  flags: string[];
+  note: string;
+}
+
+/**
+ * Resolve whether EAGLE-3 can be enabled given the requested options and the
+ * known GPU memory. Pure: never throws, always returns a plan with an honest
+ * note. When headroom is unknown we proceed optimistically (vLLM itself will
+ * error at launch if memory is truly insufficient — we don't pretend to know).
+ */
+export function planEagle3(opts: Eagle3Options = {}): Eagle3Plan {
+  const draftModel = opts.draftModel ?? DEFAULT_EAGLE3_DRAFT;
+  const numSpeculativeTokens = opts.numSpeculativeTokens ?? DEFAULT_SPECULATIVE_TOKENS;
+  if (!opts.eagle3) {
+    return { requested: false, enabled: false, draftModel, numSpeculativeTokens, flags: [], note: "EAGLE-3 not requested." };
+  }
+  // Headroom check, only when we actually know the numbers.
+  if (typeof opts.gpuTotalGb === "number" && typeof opts.gpuUsedGb === "number") {
+    const free = opts.gpuTotalGb - opts.gpuUsedGb;
+    const needed = opts.gpuTotalGb * EAGLE3_VRAM_HEADROOM;
+    if (free < needed) {
+      return {
+        requested: true,
+        enabled: false,
+        draftModel,
+        numSpeculativeTokens,
+        flags: [],
+        note: `EAGLE-3 needs ~${needed.toFixed(1)}GB free VRAM for the draft model; only ${free.toFixed(1)}GB free. Falling back to plain vLLM.`,
+      };
+    }
+  }
+  return {
+    requested: true,
+    enabled: true,
+    draftModel,
+    numSpeculativeTokens,
+    flags: [`--speculative-model ${draftModel}`, `--num-speculative-tokens ${numSpeculativeTokens}`],
+    note: `EAGLE-3 enabled with draft ${draftModel} (${numSpeculativeTokens} speculative tokens). Verify the draft exists for your base model; no EAGLE-3 head ships for qwen2.5-coder by default.`,
+  };
+}
 
 export function detectPrereqs(probe: ProbeFns): Prereqs {
   const nvidiaSmi = probe.hasNvidiaGpu();
@@ -46,20 +120,28 @@ export function detectPrereqs(probe: ProbeFns): Prereqs {
   return { nvidiaSmi, cuda, python3, pip, missing };
 }
 
-export function planInstall(probe: ProbeFns, opts: { venvPath?: string; port?: number } = {}): InstallPlan {
+export function planInstall(
+  probe: ProbeFns,
+  opts: { venvPath?: string; port?: number } & Eagle3Options = {},
+): InstallPlan {
   const prereqs = detectPrereqs(probe);
   const venvPath = opts.venvPath ?? VENV_PATH;
   const port = opts.port ?? VLLM_PORT;
+  const eagle3 = planEagle3(opts);
+  const launch =
+    `${venvPath}/bin/python -m vllm.entrypoints.openai.api_server --port ${port} --enable-lora` +
+    (eagle3.enabled ? " " + eagle3.flags.join(" ") : "");
   return {
     venvPath,
     port,
     ready: prereqs.missing.length === 0,
     prereqs,
+    eagle3,
     steps: [
       `python3 -m venv ${venvPath}`,
       `${venvPath}/bin/pip install --upgrade pip`,
       `${venvPath}/bin/pip install vllm`,
-      `${venvPath}/bin/python -m vllm.entrypoints.openai.api_server --port ${port} --enable-lora`,
+      launch,
     ],
   };
 }
@@ -76,9 +158,10 @@ export interface InstallResult {
  */
 export function install(
   probe: ProbeFns,
-  opts: { run?: boolean; venvPath?: string; port?: number; exec?: (cmd: string) => void } = {},
+  opts: { run?: boolean; venvPath?: string; port?: number; exec?: (cmd: string) => void } & Eagle3Options = {},
 ): InstallResult {
   const plan = planInstall(probe, opts);
+  const eagleNote = plan.eagle3.requested ? ` ${plan.eagle3.note}` : "";
   if (!plan.ready) {
     return {
       installed: false,
@@ -87,10 +170,10 @@ export function install(
     };
   }
   if (!opts.run) {
-    return { installed: false, plan, message: "dry-run — prerequisites OK. Re-run with --run to install vLLM in " + plan.venvPath };
+    return { installed: false, plan, message: "dry-run — prerequisites OK. Re-run with --run to install vLLM in " + plan.venvPath + eagleNote };
   }
   const exec = opts.exec;
   if (!exec) return { installed: false, plan, message: "no executor provided (internal)" };
   for (const step of plan.steps.slice(0, 3)) exec(step); // venv + pip upgrade + install (not the server launch)
-  return { installed: true, plan, message: `vLLM installed in ${plan.venvPath}. Start it with: mooter backend status` };
+  return { installed: true, plan, message: `vLLM installed in ${plan.venvPath}.${eagleNote} Start it with: mooter backend status` };
 }
