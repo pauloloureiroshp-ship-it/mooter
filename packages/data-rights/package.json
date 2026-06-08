@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/data-rights",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter GDPR data rights (Wave 32) — export (portable JSON dump) · delete-all (local wipe) · forget-me (hub k-anonymity erasure). Privacy-first: credentials/secrets are redacted from exports; a privacy-audit verifies no PII leaks. Pure TS, Node builtins, all I/O injectable.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}

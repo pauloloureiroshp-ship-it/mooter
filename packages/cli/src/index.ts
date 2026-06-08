@@ -37,6 +37,7 @@ import { runPastor } from "./commands/pastor.ts";
 import { runStatusline } from "./commands/statusline.ts";
 import { runEffort } from "./commands/effort.ts";
 import { runStatus } from "./commands/status.ts";
+import { runData } from "./commands/data.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
@@ -49,6 +50,7 @@ Usage:
   mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
   mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
+  mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -257,6 +259,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "status") {
     const res = runStatus(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "data") {
+    const res = await runData(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
