@@ -22,6 +22,7 @@ import {
   type TrackerMetrics,
 } from "./trail.ts";
 import { listInstalledPacks, getActivePack } from "../packs.ts";
+import { listTaskAdapters } from "../../../synthesis/src/lora/adapter-registry.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -45,6 +46,15 @@ export interface DashboardOptions {
   width?: number;
   /** Override the ~/.mooter root (tests / PACK section). */
   mooterHome?: string;
+  // Wave 32 (Phase D) — injectable data for the 4 added widgets (tests bypass I/O).
+  /** Pastor v2 task adapters; default reads the synthesis registry. */
+  pastorAdapters?: { type: string; name: string }[];
+  /** Hardware profile; default reads ~/.mooter/profile.json. `null` → unknown. */
+  hardware?: { gpu?: string; vramGb?: number; ramGb?: number; cpuCores?: number } | null;
+  /** Recent workflow runs; default empty (runDashboard fills via workflow state). */
+  workflowRuns?: { runId: string; status: string; task?: string }[];
+  /** Cost-cap limits; default parses ~/.mooter/limits.toml. */
+  limits?: Record<string, string | number> | null;
 }
 
 const DEFAULT_WIDTH = 64;
@@ -182,6 +192,55 @@ function loadQuota(opts: DashboardOptions): Quota {
   }
 }
 
+function mooterHomeDir(opts: DashboardOptions): string {
+  return opts.mooterHome ?? join(homedir(), ".mooter");
+}
+
+/** Wave 32 (Phase D) — hardware from ~/.mooter/profile.json (best-effort). */
+function loadHardware(opts: DashboardOptions): DashboardOptions["hardware"] {
+  if (opts.hardware !== undefined) return opts.hardware;
+  try {
+    const p = JSON.parse(readFileSync(join(mooterHomeDir(opts), "profile.json"), "utf8"));
+    return {
+      gpu: p?.gpu?.model,
+      vramGb: p?.gpu?.vram_gb,
+      ramGb: p?.ram_gb,
+      cpuCores: p?.cpu_cores,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Wave 32 (Phase D) — minimal TOML key=value reader for limits.toml (no dep). */
+function loadLimits(opts: DashboardOptions): Record<string, string | number> | null {
+  if (opts.limits !== undefined) return opts.limits;
+  try {
+    const txt = readFileSync(join(mooterHomeDir(opts), "limits.toml"), "utf8");
+    const out: Record<string, string | number> = {};
+    for (const line of txt.split("\n")) {
+      const m = line.match(/^\s*([a-z0-9_]+)\s*=\s*(.+?)\s*(?:#.*)?$/i);
+      if (m && !line.trim().startsWith("#")) {
+        const v = m[2].replace(/^["']|["']$/g, "");
+        out[m[1]] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;
+      }
+    }
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Wave 32 (Phase D) — Pastor v2 task adapters from the synthesis registry. */
+function loadPastorAdapters(opts: DashboardOptions): { type: string; name: string }[] {
+  if (opts.pastorAdapters) return opts.pastorAdapters;
+  try {
+    return listTaskAdapters().map((a: any) => ({ type: a.task_type ?? a.type ?? "task", name: a.name ?? a.id ?? "adapter" }));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Build the dashboard frame as a string. Pure given its inputs (events + metrics
  * + quota are all injectable), so tests render it with no I/O.
@@ -253,8 +312,64 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
   out.push(boxRow("    Install a .gguf via `mooter forge install`", width));
   out.push(boxRow("    Auto-training ships Wave 5 D3", width));
   out.push(boxRow("    Run `mooter adapter list` to see adapters", width));
-  out.push(boxRow("", width));
-  out.push(boxRow("  Press q to exit · r to refresh", width));
+  out.push(boxSep(width));
+
+  // PASTOR v2 — per-task LoRA routing adapters (Wave 31 registry). Honest:
+  // counts the adapters the router can select; "trained" status lives in
+  // `mooter pastor state`, not fabricated here.
+  const pastor = loadPastorAdapters(opts);
+  out.push(boxRow("  PASTOR v2 (per-task routing)", width));
+  if (pastor.length === 0) {
+    out.push(boxRow("    (no task adapters registered)", width));
+  } else {
+    out.push(boxRow(`    ${pastor.length} task adapters · ${pastor.slice(0, 4).map((p) => p.type).join(", ")}${pastor.length > 4 ? ", …" : ""}`, width));
+    out.push(boxRow("    Route: `mooter pastor route <task>` · state: `mooter pastor state`", width));
+  }
+  out.push(boxSep(width));
+
+  // HARDWARE — from the setup profile (GPU / VRAM / RAM / cores). Drives which
+  // local models fit; null when no profile captured yet.
+  const hw = loadHardware(opts);
+  out.push(boxRow("  HARDWARE", width));
+  if (hw && (hw.gpu || hw.ramGb)) {
+    out.push(boxRow(`    GPU: ${hw.gpu ?? "none"}${hw.vramGb ? ` · ${hw.vramGb} GB VRAM` : ""}`, width));
+    out.push(boxRow(`    RAM: ${hw.ramGb ?? "?"} GB · CPU: ${hw.cpuCores ?? "?"} cores`, width));
+  } else {
+    out.push(boxRow("    (no profile yet — run `mooter setup detect`)", width));
+  }
+  out.push(boxSep(width));
+
+  // WORKFLOWS — recent local-first workflow runs (Wave 28 engine). Empty is the
+  // steady state; runDashboard fills this from the workflow run store.
+  const runs = opts.workflowRuns ?? [];
+  out.push(boxRow("  WORKFLOWS (recent)", width));
+  if (runs.length === 0) {
+    out.push(boxRow("    (no workflow runs yet — `mooter workflow create`)", width));
+  } else {
+    for (const r of runs.slice(0, 3)) {
+      const task = (r.task ?? "").slice(0, 28);
+      out.push(boxRow(`    ${r.status.padEnd(9)} ${r.runId.slice(0, 10)} ${task}`, width));
+    }
+    out.push(boxRow("    Watch live: `mooter workflow watch <run_id>`", width));
+  }
+  out.push(boxSep(width));
+
+  // LIMITS — cost-cap guardrails (Wave 30 limits.toml). Shows the ceilings the
+  // bandit/ultramoo modes respect; null when no limits file exists.
+  const limits = loadLimits(opts);
+  out.push(boxRow("  LIMITS (cost-cap)", width));
+  if (limits) {
+    const wf = limits.max_workflow_cost_usd;
+    const ses = limits.max_session_cost_usd;
+    const t3 = limits.max_t3_calls_per_5min;
+    out.push(boxRow(`    workflow ≤ $${wf ?? "?"} · session ≤ $${ses ?? "?"}`, width));
+    out.push(boxRow(`    T3 ≤ ${t3 ?? "?"}/5min · concurrent ≤ ${limits.max_concurrent_workflows ?? "?"}`, width));
+  } else {
+    out.push(boxRow("    (no limits.toml — defaults apply)", width));
+  }
+  out.push(boxSep(width));
+
+  out.push(boxRow("  Press q to exit · r to refresh · w to watch a workflow", width));
   out.push(boxBottom(width));
 
   return out.join("\n");
@@ -268,7 +383,23 @@ export async function runDashboard(opts: DashboardOptions = {}): Promise<CmdResu
   const refreshMs = opts.refreshMs ?? 1000;
   const metrics =
     opts.metrics !== undefined ? opts.metrics : await (opts.fetchMetrics ?? defaultFetchMetrics)(opts.sessionId);
-  const frameOpts: DashboardOptions = { ...opts, metrics };
+
+  // Wave 32 (Phase D) — best-effort recent workflow runs from the Wave 28 store.
+  // Lazy + guarded: an absent/empty DB just yields no rows (steady state).
+  let workflowRuns = opts.workflowRuns;
+  if (workflowRuns === undefined) {
+    try {
+      const { listRuns } = await import("../../../workflow/src/state.ts");
+      workflowRuns = listRuns(5).map((r: any) => ({
+        runId: r.run_id ?? r.runId ?? "?",
+        status: r.status ?? "?",
+        task: r.task ?? r.description,
+      }));
+    } catch {
+      workflowRuns = [];
+    }
+  }
+  const frameOpts: DashboardOptions = { ...opts, metrics, workflowRuns };
 
   return new Promise<CmdResult>((resolve) => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -313,7 +444,7 @@ export async function runDashboard(opts: DashboardOptions = {}): Promise<CmdResu
       process.stdin.on("data", (data: Buffer) => {
         const key = data.toString();
         if (key === "q" || key === "\x03") finish(); // q or Ctrl+C
-        else if (key === "r") render(); // force refresh
+        else if (key === "r" || key === "w") render(); // refresh (w: re-pulls workflow rows next tick)
       });
     } catch {
       /* non-TTY: render once below, the interval still ticks */

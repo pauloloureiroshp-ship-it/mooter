@@ -29,14 +29,33 @@ import { runLora } from "./commands/lora.ts";
 import { runSetup } from "./commands/setup.ts";
 import { runEcosystem } from "./commands/ecosystem.ts";
 import { runQuality } from "./commands/quality.ts";
+import { runWave } from "./commands/wave.ts";
+import { runDogfood } from "./commands/dogfood.ts";
+import { runMcp } from "./commands/mcp.ts";
+import { runBenchmarkCmd } from "./commands/benchmark.ts";
+import { runPastor } from "./commands/pastor.ts";
+import { runStatusline } from "./commands/statusline.ts";
+import { runEffort } from "./commands/effort.ts";
+import { runStatus } from "./commands/status.ts";
+import { runData } from "./commands/data.ts";
+import { runQuant, runVector } from "./commands/quant-vector.ts";
+import { runBackend } from "./commands/backend.ts";
+import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
-const TOP_USAGE = `mooter — pack manager CLI
+const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
 Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline]      educational guide to each statusline chip
+  mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
+  mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
+  mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
+  mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
+  mooter quant status [--json]     local model quantization (real Ollama data)
+  mooter vector status [--json]    embedding model dims/quant (real Ollama data)
+  mooter backend [status|install vllm|uninstall vllm]   opt-in vLLM backend (default Ollama)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -54,9 +73,14 @@ Usage:
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
   mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
   mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
+  mooter pastor <subcommand>       Pastor v2 per-task adapter routing + distill (adapters · route · distill · state)
   mooter setup <subcommand>        L14 setup intelligence (detect · show · recommend)
   mooter ecosystem <subcommand>    L15 ecosystem catalog (list · recommend · search · info)
   mooter quality <subcommand>      L16.1 decision telemetry (stats · status · features-only)
+  mooter wave <subcommand>         wave lifecycle (start · status · phase · ship · sha-gate)
+  mooter dogfood <subcommand>      log friction while dogfooding (log · digest · list)
+  mooter mcp <subcommand>          Mooter MCP server (serve · list · install)
+  mooter benchmark run             run the Showcase Benchmark v2 (MLWR · local + cloud)
 
 ${PACK_USAGE}`;
 
@@ -226,6 +250,48 @@ async function main(argv: string[]): Promise<number> {
     return res.exitCode;
   }
 
+  if (command === "statusline") {
+    const res = runStatusline(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "effort") {
+    const res = runEffort(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "status") {
+    const res = runStatus(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "data") {
+    const res = await runData(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "quant") {
+    const res = await runQuant(rest.filter((a) => a !== "status"));
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "vector") {
+    const res = await runVector(rest.filter((a) => a !== "status"));
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "backend") {
+    const res = await runBackend(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
   if (command === "pack") {
     const res = runPack(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
@@ -266,6 +332,12 @@ async function main(argv: string[]): Promise<number> {
     return res.exitCode;
   }
 
+  if (command === "pastor") {
+    const res = runPastor(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
   if (command === "setup") {
     const res = await runSetup(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
@@ -284,8 +356,41 @@ async function main(argv: string[]): Promise<number> {
     return res.exitCode;
   }
 
+  if (command === "wave") {
+    const res = runWave(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "dogfood") {
+    const res = runDogfood(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "mcp") {
+    const res = await runMcp(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "benchmark") {
+    const res = await runBenchmarkCmd(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
   process.stderr.write(`mooter: unknown command '${command}'\n\n${TOP_USAGE}\n`);
   return 1;
 }
 
-main(process.argv.slice(2)).then((code) => process.exit(code));
+// Wave 32 (Phase C) — inline token-tracker prefix. OPT-IN via MOOTER_INLINE_TRACKER=1.
+// Emitted to STDERR so command stdout stays byte-stable (tests/pipes unaffected).
+// A pure-local CLI op calls no model → honestly [T0 🏠 local Nms · 0 tok · $0].
+const __inlineTimer = startTimer();
+main(process.argv.slice(2)).then((code) => {
+  if (inlineTrackerEnabled()) {
+    process.stderr.write(buildCommandPrefix({ ms: __inlineTimer() }) + "\n");
+  }
+  process.exit(code);
+});

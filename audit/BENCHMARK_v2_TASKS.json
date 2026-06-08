@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "note": "Mooter Showcase Benchmark v2 — 24 tasks across 8 segments, tier-labelled. `check` grades the routed model output objectively (regex) so MLWR needs no judge where possible; subjective tasks fall back to an LLM judge.",
+  "tasks": [
+    { "id": "T0-rename-1", "segment": "trivial-edit", "tier": "T0", "prompt": "Rename the variable `usr` to `currentUser` in this snippet and return only the code:\n\nfunction greet(usr){ return 'hi ' + usr.name }", "check": { "kind": "regex-present", "pattern": "currentUser" } },
+    { "id": "T0-color-1", "segment": "trivial-edit", "tier": "T0", "prompt": "Change this CSS color from red to blue. Return only the CSS:\n\n.btn { color: red; }", "check": { "kind": "regex-present", "pattern": "blue" } },
+    { "id": "T0-json-1", "segment": "trivial-edit", "tier": "T0", "prompt": "Convert this to valid JSON (return only JSON): name = Ana, age = 30, active = true", "check": { "kind": "regex-present", "pattern": "\"name\"\\s*:\\s*\"Ana\"" } },
+
+    { "id": "T0-sum-1", "segment": "summarize-extract", "tier": "T0", "prompt": "Summarise in one sentence: The router classifies each prompt by complexity and domain, then sends it to the cheapest model that can do the job well, defaulting to local inference.", "check": { "kind": "contains-any", "any": ["router", "cheap", "local", "model"] } },
+    { "id": "T0-extract-1", "segment": "summarize-extract", "tier": "T0", "prompt": "Extract the email and return only it: Contact us at support@mooter.ai for help.", "check": { "kind": "regex-present", "pattern": "support@mooter\\.ai" } },
+    { "id": "T0-list-1", "segment": "summarize-extract", "tier": "T0", "prompt": "List the three nouns in this sentence as a comma-separated line: The dog chased the ball across the park.", "check": { "kind": "contains-any", "any": ["dog", "ball", "park"] } },
+
+    { "id": "T1-commit-1", "segment": "commit-docstring", "tier": "T1", "prompt": "Write a conventional-commit message (one line) for: added rate limiting to the login endpoint. Return only the message.", "check": { "kind": "regex-present", "pattern": "^(feat|fix|chore|refactor|perf)" } },
+    { "id": "T1-docstring-1", "segment": "commit-docstring", "tier": "T1", "prompt": "Write a one-line JSDoc summary for: function debounce(fn, ms){...}. Return only the comment.", "check": { "kind": "regex-present", "pattern": "/\\*\\*|debounce|delay" } },
+    { "id": "T1-regex-1", "segment": "commit-docstring", "tier": "T1", "prompt": "Give a regex that matches a US zip code (5 digits, optional -4). Return only the regex.", "check": { "kind": "regex-present", "pattern": "\\\\d|[0-9]" } },
+
+    { "id": "T1-err-1", "segment": "explain-error", "tier": "T1", "prompt": "Explain in one sentence what causes: TypeError: Cannot read properties of undefined (reading 'map').", "check": { "kind": "contains-any", "any": ["undefined", "null", "not defined", "array"] } },
+    { "id": "T1-err-2", "segment": "explain-error", "tier": "T1", "prompt": "In one sentence, what does 'ECONNREFUSED 127.0.0.1:5432' usually mean?", "check": { "kind": "contains-any", "any": ["postgres", "database", "not running", "refused", "port", "server"] } },
+    { "id": "T1-err-3", "segment": "explain-error", "tier": "T1", "prompt": "One sentence: what triggers a React 'Maximum update depth exceeded' warning?", "check": { "kind": "contains-any", "any": ["setState", "render", "loop", "infinite", "effect"] } },
+
+    { "id": "T2-bug-1", "segment": "bug-investigation", "tier": "T2", "prompt": "A WebSocket reconnect sometimes fires twice on flaky networks, creating duplicate connections. Give the most likely root cause and a fix.", "check": { "kind": "contains-any", "any": ["debounce", "guard", "flag", "already", "cleanup", "once", "state"] } },
+    { "id": "T2-bug-2", "segment": "bug-investigation", "tier": "T2", "prompt": "Users report a list re-rendering on every keystroke even when data didn't change. Likely cause and fix in React?", "check": { "kind": "contains-any", "any": ["memo", "useMemo", "useCallback", "key", "reference", "identity"] } },
+    { "id": "T2-bug-3", "segment": "bug-investigation", "tier": "T2", "prompt": "An async function occasionally returns stale data under load. What concurrency bug is most likely and how do you fix it?", "check": { "kind": "contains-any", "any": ["race", "await", "lock", "mutex", "cache", "stale", "order"] } },
+
+    { "id": "T2-refactor-1", "segment": "refactor-plan", "tier": "T2", "prompt": "Outline a 3-step plan to extract a 400-line God-component into smaller pieces without breaking behaviour.", "check": { "kind": "contains-any", "any": ["extract", "test", "props", "hook", "component", "step"] } },
+    { "id": "T2-refactor-2", "segment": "refactor-plan", "tier": "T2", "prompt": "Plan how to migrate a callback-based API to async/await incrementally. Give the key steps.", "check": { "kind": "contains-any", "any": ["promisify", "wrap", "async", "await", "incremental", "step"] } },
+    { "id": "T2-refactor-3", "segment": "refactor-plan", "tier": "T2", "prompt": "Propose how to add a caching layer to a slow read path while keeping correctness. Key decisions?", "check": { "kind": "contains-any", "any": ["invalidat", "ttl", "key", "stale", "cache", "consistency"] } },
+
+    { "id": "T3-arch-1", "segment": "architecture", "tier": "T3", "prompt": "Design a multi-user vault for a CLI tool that currently stores one user's secrets in a local file. Cover auth, isolation, and migration. Be concrete about trade-offs.", "check": { "kind": "contains-any", "any": ["encrypt", "isolation", "auth", "migration", "tenant", "key"] } },
+    { "id": "T3-arch-2", "segment": "architecture", "tier": "T3", "prompt": "Design a cross-session resumable workflow engine that fans out to local workers and uses one cloud synthesis call. Cover state, idempotency, and failure recovery.", "check": { "kind": "contains-any", "any": ["checkpoint", "idempot", "state", "resume", "queue", "recovery"] } },
+    { "id": "T3-arch-3", "segment": "architecture", "tier": "T3", "prompt": "You must add a learned router (bandit) without ever letting it override a hard safety classifier. Design the guardrail and the learning loop.", "check": { "kind": "contains-any", "any": ["floor", "guardrail", "reward", "posterior", "constraint", "never"] } },
+
+    { "id": "T3-sec-1", "segment": "security-audit", "tier": "T3", "prompt": "Audit this Express handler before push:\n\napp.get('/user', (req,res)=>{ const id=req.query.id; db.query(\"SELECT * FROM users WHERE id = \"+id, (e,rows)=>res.json(rows)); });\n\nWhat is wrong and how do you fix it?", "check": { "kind": "regex-present", "pattern": "sql\\s*injection|parameteri|prepared|placeholder" } },
+    { "id": "T3-sec-2", "segment": "security-audit", "tier": "T3", "prompt": "Review this auth check for vulnerabilities:\n\nif (req.headers.token == process.env.ADMIN_TOKEN) { grantAdmin(); }\n\nWhat is wrong and how do you fix it?", "check": { "kind": "contains-any", "any": ["timing", "constant", "===", "compare", "strict", "secret"] } },
+    { "id": "T3-sec-3", "segment": "security-audit", "tier": "T3", "prompt": "A web app reflects `req.query.q` directly into the HTML response. What vulnerability is this and what is the fix?", "check": { "kind": "contains-any", "any": ["xss", "escape", "sanitiz", "encode", "cross-site"] } }
+  ]
+}

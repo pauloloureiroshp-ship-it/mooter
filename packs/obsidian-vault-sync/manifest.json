@@ -1,0 +1,29 @@
+{
+  "name": "obsidian-vault-sync",
+  "version": "0.1.0",
+  "kind": "bridge",
+  "description": "Bidirectional Obsidian vault bridge for Mooter Pastor v2 (Wave 31).",
+  "capabilities": {
+    "write": {
+      "target": "<vault>/Mooter/learnings-<date>.md",
+      "source": "~/.mooter/pastor/adapters-active.json",
+      "privacy": "features-only"
+    },
+    "read": {
+      "source": "<vault>/Mooter/preferences.md",
+      "target": "~/.mooter/pastor/vault-priors.json",
+      "keys": ["preferred_lang", "prefer_adapter", "avoid_adapter", "autoswap"]
+    }
+  },
+  "detection": {
+    "marker": ".obsidian/",
+    "roots": ["$MOOTER_VAULT", "$HOME/Documents/*", "/mnt/c/Users/*/Documents/*", "$HOME/*"]
+  },
+  "lifecycle": {
+    "install": "seed <vault>/Mooter/ with README + starter preferences (idempotent)",
+    "uninstall": "non-destructive — never deletes vault notes",
+    "sync": "write learnings + read preferences"
+  },
+  "entry": "./pack.ts",
+  "author": "Mooter (Wave 31 Pastor v2)"
+}

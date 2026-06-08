@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/vllm-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter vLLM backend (Wave 32) — OPT-IN high-throughput local serving (16.6× concurrent vs Ollama) + Multi-LoRA (6 adapters concurrent, hot-swap). Detects CUDA/prereqs and refuses gracefully when absent; default backend stays Ollama. Multi-LoRA selection delegates to the Wave 31 LORAUTER. Pure TS, all I/O injectable.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}

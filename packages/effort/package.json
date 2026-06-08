@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/effort",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter Effort modes (Wave 32) — low / default / high / ultramoo. Ultramoo flips 8 sub-systems (LLMLingua · Caveman · LORAUTER · Multi-LoRA · workflow auto · stricter cost cap · hard local bias · statusline chip) session-wide. Advisory flags only — classify.js tier guardrail always wins. Pure TS, Node builtins.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}

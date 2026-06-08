@@ -22,6 +22,13 @@ import {
   type ResolveEnv,
 } from "../../../router/src/pack_resolve.ts";
 import { validatePack } from "../../../../packs/validate.ts";
+import {
+  install as obsidianInstall,
+  sync as obsidianSync,
+  primaryVault as obsidianPrimaryVault,
+} from "../../../../packs/obsidian-vault-sync/pack.ts";
+
+const OBSIDIAN_PACK = "obsidian-vault-sync";
 
 export const PACK_USAGE = `Pack subcommands:
   mooter pack list                 list available packs
@@ -30,6 +37,7 @@ export const PACK_USAGE = `Pack subcommands:
   mooter pack validate <name>      schema + presence checks (deterministic)
   mooter pack install <name>       install a pack (records + Pastor accept signal)
   mooter pack uninstall <name>     remove an installed pack
+  mooter pack sync [name]          sync the obsidian-vault-sync pack (learnings ↔ preferences)
 
 Flags:
   --json                           machine-readable output (all subcommands)`;
@@ -362,11 +370,20 @@ function packInstall(name: string, opts: { json: boolean }): CmdResult {
   reg.packs.push({ name, installed_at });
   writeJson(installedRegistryPath(), reg);
   appendJsonl(mooterPath("pack_signals.jsonl"), { ts: installed_at, pack: name, event: "install" });
+  // Obsidian pack seeds the vault's Mooter/ folder on install (non-destructive).
+  let obsidianNote: string | null = null;
+  if (name === OBSIDIAN_PACK) {
+    const r = obsidianInstall();
+    obsidianNote = r.ok
+      ? `  vault: seeded ${r.vault}/Mooter/ (${r.created.length} file${r.created.length === 1 ? "" : "s"})`
+      : `  vault: ${r.reason}`;
+  }
   if (opts.json) return { exitCode: 0, output: JSON.stringify({ pack: name, installed: true }) };
   const attr = packAttribution(name);
   const lines = [`${OK} installed ${name}`];
   if (attr) lines.push(`  attribution: ${attr}`);
   lines.push("  pastor: install signal logged (acceptance tracking enabled)");
+  if (obsidianNote) lines.push(obsidianNote);
   return { exitCode: 0, output: lines.join("\n") };
 }
 
@@ -379,6 +396,26 @@ function packUninstall(name: string, opts: { json: boolean }): CmdResult {
   writeJson(installedRegistryPath(), reg);
   appendJsonl(mooterPath("pack_signals.jsonl"), { ts: new Date().toISOString(), pack: name, event: "uninstall" });
   return { exitCode: 0, output: opts.json ? JSON.stringify({ pack: name, installed: false }) : `${OK} uninstalled ${name}` };
+}
+
+// --- sync (Wave 31 — obsidian-vault-sync) ------------------------------------
+function packSync(name: string | undefined, opts: { json: boolean }): CmdResult {
+  const pack = name ?? OBSIDIAN_PACK;
+  if (pack !== OBSIDIAN_PACK) {
+    return { exitCode: 1, output: `${NO} 'mooter pack sync' supports '${OBSIDIAN_PACK}' (got '${pack}')` };
+  }
+  const date = new Date().toISOString().slice(0, 10);
+  const res = obsidianSync({ date });
+  if (opts.json) return { exitCode: res.ok ? 0 : 1, output: JSON.stringify(res, null, 2) };
+  if (!res.ok) {
+    const vault = obsidianPrimaryVault();
+    const hint = vault ? "" : "\n  (set MOOTER_VAULT to your vault path, or open a vault in Obsidian first)";
+    return { exitCode: 1, output: `${NO} sync: ${res.reason}${hint}` };
+  }
+  const lines = [`${OK} synced ${OBSIDIAN_PACK} · vault ${res.vault}`];
+  if (res.write?.ok) lines.push(`  wrote ${res.write.path}`);
+  lines.push(res.read?.ok ? `  imported preferences → ${res.read.written_to}` : `  preferences: ${res.read?.reason ?? "none"}`);
+  return { exitCode: 0, output: lines.join("\n") };
 }
 
 // --- dispatch ----------------------------------------------------------------
@@ -406,6 +443,8 @@ export function runPack(argv: string[]): CmdResult {
     case "uninstall":
       if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack uninstall <name>` };
       return packUninstall(name, { json });
+    case "sync":
+      return packSync(name, { json });
     default:
       return { exitCode: 1, output: `${NO} unknown pack subcommand '${sub ?? ""}'\n\n${PACK_USAGE}` };
   }
