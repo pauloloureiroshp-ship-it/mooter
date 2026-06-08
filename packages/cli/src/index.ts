@@ -36,6 +36,7 @@ import { runBenchmarkCmd } from "./commands/benchmark.ts";
 import { runPastor } from "./commands/pastor.ts";
 import { runStatusline } from "./commands/statusline.ts";
 import { runEffort } from "./commands/effort.ts";
+import { runSessions } from "./commands/sessions.ts";
 import { runStatus } from "./commands/status.ts";
 import { runData } from "./commands/data.ts";
 import { runQuant, runVector } from "./commands/quant-vector.ts";
@@ -51,6 +52,7 @@ Usage:
   mooter explain [statusline]      educational guide to each statusline chip
   mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
+  mooter sessions list [--limit N] Claude Code sessions: age · prompts · tier mix · ~saved
   mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
   mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
   mooter quant status [--json]     local model quantization (real Ollama data)
@@ -258,6 +260,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "effort") {
     const res = runEffort(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "sessions") {
+    const res = runSessions(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
