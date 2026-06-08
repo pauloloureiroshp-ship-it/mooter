@@ -76,6 +76,29 @@ test("routeRequest dryRun does not persist state or telemetry", () => {
   assert.ok(!existsSync(join(home, "pastor", "routes.jsonl")));
 });
 
+test("routeRequest: feedback bias drops a matched winner below threshold → baseline", () => {
+  const prompt = "muda a cor do botão React no componente Button.tsx e ajusta o layout css";
+  // Baseline (no feedback) matches coding-frontend.
+  assert.equal(routeRequest({ prompt, dryRun: true }).task_type, "coding-frontend");
+  // Heavy rejection pulls the bias down enough to drop below the 0.7 threshold.
+  for (let i = 0; i < 20; i++) recordFeedback("coding-frontend", false);
+  const r = routeRequest({ prompt, dryRun: true });
+  assert.equal(r.matched, false);
+  assert.equal(r.task_type, "baseline");
+  assert.equal(r.biased, true);
+});
+
+test("routeRequest: feedback bias elevates a sub-threshold specialist (accurate reason)", () => {
+  const prompt = "fix the button"; // one mild frontend signal → base confidence < 0.7
+  assert.equal(routeRequest({ prompt, dryRun: true }).matched, false); // baseline without feedback
+  for (let i = 0; i < 10; i++) recordFeedback("coding-frontend", true);
+  const r = routeRequest({ prompt, dryRun: true });
+  assert.equal(r.matched, true);
+  assert.equal(r.task_type, "coding-frontend");
+  assert.match(r.reason, /elevated/); // not the stale "…→ baseline" string
+  assert.ok(!/→ baseline/.test(r.reason));
+});
+
 // ── pastor state ──────────────────────────────────────────────────────────────
 
 test("recordRoute updates rolling average confidence", () => {

@@ -67,6 +67,13 @@ export function routeRequest(input: RouteRequestInput): RouteRequestResult {
 
   if (top && top.confidence >= base.threshold) {
     biased = top.adapter !== base.adapter;
+    // Build an accurate reason: don't prepend base.reason (which says "…→ baseline")
+    // when feedback ELEVATED a previously-unmatched decision over the threshold.
+    const reason = !base.matched
+      ? `feedback bias elevated ${top.task_type} above threshold (${top.confidence.toFixed(2)})`
+      : biased
+        ? `${base.reason}; feedback bias re-routed to ${top.task_type} (${top.confidence.toFixed(2)})`
+        : base.reason;
     decision = {
       ...base,
       scores: biasedScores,
@@ -74,9 +81,7 @@ export function routeRequest(input: RouteRequestInput): RouteRequestResult {
       task_type: top.task_type,
       confidence: top.confidence,
       matched: true,
-      reason: biased
-        ? `${base.reason}; feedback bias re-routed to ${top.task_type} (${top.confidence.toFixed(2)})`
-        : base.reason,
+      reason,
     };
   } else if (base.matched && (!top || top.confidence < base.threshold)) {
     // Feedback pulled the previous winner below threshold → fall back to baseline.

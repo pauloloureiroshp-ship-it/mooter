@@ -98,7 +98,11 @@ export function extractPatterns(events: ClassifiedEvent[]): DistilledPatterns {
 
   const patterns: RoutingPattern[] = [...groups.entries()]
     .map(([key, g]) => {
-      const [task_category, tier] = key.split(" ");
+      // Split on the LAST space: the tier is always a single token, but an
+      // externally-sourced task_category could contain spaces.
+      const sp = key.lastIndexOf(" ");
+      const task_category = key.slice(0, sp);
+      const tier = key.slice(sp + 1);
       return {
         task_category,
         tier,

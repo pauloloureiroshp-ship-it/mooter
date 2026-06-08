@@ -5,7 +5,7 @@
 
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { mooterPath } from "../config.ts";
 import { parseDecisions, extractPatterns, type DistilledPatterns } from "./pattern-extractor.ts";
 import { generateSkillMarkdown, type SkillMeta } from "./markdown-generator.ts";
@@ -78,9 +78,10 @@ export function emitSkill(opts: EmitOptions = {}): EmitResult {
   return { ok: true, path: outPath, markdown, patterns };
 }
 
-// Dir-safe raw-text write (mirrors config.writeJson's mkdir behaviour).
+// Dir-safe raw-text write (mirrors config.writeJson's mkdir behaviour). Uses
+// node:path dirname so a bare filename resolves to "." instead of a truncated dir.
 function writeSkillFile(path: string, content: string): void {
-  const dir = path.slice(0, path.lastIndexOf("/"));
-  if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const dir = dirname(path);
+  if (dir && dir !== "." && !existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(path, content, "utf8");
 }
