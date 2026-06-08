@@ -77,7 +77,13 @@ export async function runBackend(args: string[], deps: { probe?: ProbeFns; fetch
     const draftIdx = args.indexOf("--draft");
     const draftModel = draftIdx >= 0 ? args[draftIdx + 1] : undefined;
     const r = install(probe, { run, eagle3, draftModel, exec: (cmd) => { spawnSync("bash", ["-lc", cmd], { stdio: "inherit" }); } });
-    if (r.installed) setVllmEnabled(true);
+    if (r.installed) {
+      setVllmEnabled(true);
+      // Wave 33 (B.2) — persist the EAGLE-3 flag so the ⚡ statusline chip reflects it.
+      const p = readPrefs();
+      p.vllm_eagle3 = r.plan.eagle3.enabled;
+      writePrefs(p);
+    }
     const planText = r.plan.ready
       ? `prereqs OK (GPU ✓). Plan:\n${r.plan.steps.map((s) => `  $ ${s}`).join("\n")}`
       : `prereqs MISSING: ${r.plan.prereqs.missing.join(", ")}`;
