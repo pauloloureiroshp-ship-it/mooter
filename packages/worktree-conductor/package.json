@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/worktree-conductor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter Worktree Conductor (Wave 33.5 Block H) — local-first orchestration across terminals/worktrees: atomic filesystem lock manager, session heartbeats, a serial intent queue (Sequencer), and dead-session auto-recovery. Prevents cross-session races (concurrent git push / tag / hub deploy / Notion write). No daemon, no network; all state under ~/.mooter/orchestration. I/O injectable for tests.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}

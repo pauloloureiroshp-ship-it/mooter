@@ -13,6 +13,7 @@ import { forecastQuota, renderQuota } from "./quota.ts";
 import { listWorktrees } from "./worktrees.ts";
 import { aggregateCrossSession, renderAggregate } from "./aggregator.ts";
 import { renderDashboard } from "./tui.ts";
+import { status as conductorStatus, renderConductorPanel } from "../../worktree-conductor/src/index.ts";
 import type { SessionInfo } from "./types.ts";
 
 export interface CmdResult {
@@ -114,7 +115,18 @@ export function runExport(opts: SessionsCmdOptions = {}): CmdResult {
 export function runWatchFrame(opts: SessionsCmdOptions = {}): CmdResult {
   const state = buildState(opts);
   const agg = aggregateCrossSession({ home: opts.home, now: opts.now });
-  return { exitCode: 0, output: renderDashboard(state, agg, { now: opts.now }) };
+  // Block H.7 — graft the Conductor panel onto the frame (best-effort: an empty
+  // orchestration dir just yields an empty panel; any failure drops it).
+  const extraPanels: string[] = [];
+  try {
+    const st = conductorStatus({ home: opts.home, now: opts.now });
+    if (st.locks.length || st.queue.length || st.liveSessions.length) {
+      extraPanels.push(renderConductorPanel(st));
+    }
+  } catch {
+    /* conductor unavailable → no panel */
+  }
+  return { exitCode: 0, output: renderDashboard(state, agg, { now: opts.now, extraPanels }) };
 }
 
 export function runFocus(id: string, opts: SessionsCmdOptions = {}): CmdResult {
