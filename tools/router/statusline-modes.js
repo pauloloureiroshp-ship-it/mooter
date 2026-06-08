@@ -127,7 +127,12 @@ function renderDidactic(ctx, helpers = {}) {
   const herd = ctx.herd && typeof ctx.herd.active === 'number' && ctx.herd.active > 0
     ? `; ${ctx.herd.active} local worker${ctx.herd.active === 1 ? '' : 's'} running now`
     : '';
-  const l4 = `   ${anth}${herd}.`;
+  // Wave 33 (A.2) — session age, when the transcript birth time is known.
+  const fmtAge = helpers.formatSessionAge;
+  const sess = typeof ctx.sessionAge === 'number' && fmtAge
+    ? `; this session has run ${fmtAge(ctx.sessionAge)}`
+    : '';
+  const l4 = `   ${anth}${herd}${sess}.`;
 
   // Line 5 — the actionable takeaway.
   let takeaway;

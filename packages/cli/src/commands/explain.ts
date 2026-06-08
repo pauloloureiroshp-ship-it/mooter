@@ -26,15 +26,27 @@ Line 2 (current state · wide terminals only, COLUMNS ≥ 120):
      ↳ GPU + live VRAM used/total (nvidia-smi; omitted if unavailable)
   ctx [██░░░░░░░░] 23%
      ↳ context window used in the current Claude Code session
-  100% 5h
+  ☁ Claude Max 100% · 5h reset
      ↳ Anthropic quota remaining (5h window)
+  ⏱️ session 2h47m
+     ↳ how long this Claude Code session has run (explicit modes only)
+  this prompt $0.04 · session $4.21
+     ↳ cost of the latest prompt · cumulative cost this session
   quant Q4_K_M (-72% size · ~99% quality vs FP16)
      ↳ local model quantization (smaller file, ~same quality)
   adapter ◌ baseline
      ↳ no LoRA adapter active (run \`mooter forge install\` to add one)
 
+Statusline modes (mooter statusline mode <name>):
+  mini      1 line  — headline only
+  compact   2 lines — headline + operational chips
+  full      3 lines — compact + synthesis chips
+  didactic  5 lines — plain-language, explains every number
+  auto      adaptive — picks layout from terminal width (default)
+  Preview without saving: mooter statusline mode --preview <name>
+
 To hide any chip:  mooter quiet --hide-<chip>
-Available:         --hide-vram · --hide-quant · --hide-ctx · --hide-adapter
+Available:         --hide-vram · --hide-quant · --hide-ctx · --hide-adapter · --hide-session-timer
 Re-enable all:     mooter quiet --show-all`;
 
 export function runExplain(opts: { topic?: string } = {}): CmdResult {

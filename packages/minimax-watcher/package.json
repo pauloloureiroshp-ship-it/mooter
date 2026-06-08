@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/minimax-watcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter MiniMax M3 watcher (Wave 33) — polls HuggingFace for MiniMax-M3-GGUF weights (not released as of 2026-06-08; expected ~June 10-11) and offers an opt-in Ollama install once they land. Poll is rate-safe (1/15min). All I/O injectable; no weights bundled.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}

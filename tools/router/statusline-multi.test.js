@@ -21,10 +21,10 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
 const {
-  pickState, renderFromContext,
+  pickState, renderFromContext, renderTwoLine, render,
   digest, beastOverkillPct, zenUnderkillPct, avgConfidence,
   computeAnthropicRem, computeCodexRem, computeCodexMessagesLeft,
-  getAdapterStatus, clampPercent,
+  getAdapterStatus, clampPercent, formatSessionAge,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
 
@@ -394,17 +394,55 @@ test('pickState: ctx % chip rendered when context.percent_used is present', () =
   assert.match(s.proof, /ctx 23%/, 'ctx chip missing from proof');
 });
 
-test('pickState: turn + alltime cost chips rendered from tracker metrics', () => {
+test('pickState: this-prompt + session cost chips rendered from tracker metrics', () => {
   const ctx = { ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.match(s.proof, /turn \$0\.04/, 'turn chip missing');
-  assert.match(s.proof, /alltime \$4\.21/, 'alltime chip missing');
+  assert.match(s.proof, /this prompt \$0\.04/, 'this-prompt chip missing');
+  assert.match(s.proof, /session \$4\.21/, 'session chip missing');
 });
 
-test('pickState: full green proof orders ctx · 5h · turn · alltime', () => {
+test('pickState: full green proof orders ctx · 5h · this prompt · session', () => {
   const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.equal(s.proof, 'ctx 23% · 42% 5h est · turn $0.04 · alltime $4.21');
+  assert.equal(s.proof, 'ctx 23% · 42% 5h est · this prompt $0.04 · session $4.21');
+});
+
+// Wave 33 (A.2) — session-age formatter buckets.
+test('formatSessionAge: <60min → Nm, <24h → NhNm, ≥24h → NdNh', () => {
+  assert.equal(formatSessionAge(47 * 60000), '47m');
+  assert.equal(formatSessionAge(2 * 3600000 + 47 * 60000), '2h47m');
+  assert.equal(formatSessionAge(2 * 86400000 + 4 * 3600000), '2d4h');
+  assert.equal(formatSessionAge(0), '0m');
+  assert.equal(formatSessionAge(-5), '0m');
+  assert.equal(formatSessionAge(NaN), '0m');
+});
+
+// Wave 33 (C.1) — narrow terminals (<120) get a compact GPU chip on the single
+// line, never the wide "VRAM (x/y GB)" chip. Hardware-tolerant: only asserts the
+// FORM when a GPU profile happens to exist on the test machine.
+test('C.1: narrow render is single-line and uses the compact GPU form', () => {
+  const prev = process.env.COLUMNS;
+  process.env.COLUMNS = '90';
+  try {
+    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }).split('\n');
+    assert.equal(lines.length, 1, 'narrow terminal renders a single line');
+    if (/🎮/.test(lines[0])) {
+      assert.ok(!/VRAM \(/.test(lines[0]), 'narrow GPU chip is compact, not the wide VRAM chip');
+    }
+  } finally {
+    if (prev === undefined) delete process.env.COLUMNS;
+    else process.env.COLUMNS = prev;
+  }
+});
+
+// Wave 33 (A.2) — the ⏱️ chip is gated to explicit modes (opts.forceLine3 is a
+// boolean) so the adaptive default stays byte-identical.
+test('renderTwoLine: session timer appears only when an explicit mode is pinned', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, sessionAge: 2 * 3600000 + 47 * 60000 };
+  const adaptive = renderTwoLine(ctx);                      // no opts → adaptive default
+  const explicit = renderTwoLine(ctx, { forceLine3: false }); // compact mode
+  assert.ok(!/⏱️ session/.test(adaptive), 'adaptive default must not show the session timer');
+  assert.match(explicit, /⏱️ session 2h47m/, 'explicit mode shows the session timer');
 });
 
 test('renderFromContext: full mode (COLUMNS=120) shows pack + adapter chips', () => {

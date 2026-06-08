@@ -233,6 +233,39 @@ Status: in development · expected Q3 2026`}</pre>
         </p>
       </div>
 
+      {/* §7.5 — Wave 33 differentiation: opt-in performance backends, honest scope */}
+      <div style={{ marginTop: 44 }}>
+        <h2 style={{ fontSize: 28, fontWeight: 600, marginBottom: 6 }}>Newer, faster local backends — opt-in, never default</h2>
+        <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65, maxWidth: 820 }}>
+          The local-first path with the frozen classifier is what runs out of the box. On top of it, mooter ships
+          three performance backends you can turn on when your hardware supports them — each is <strong>opt-in</strong>,
+          and each falls back gracefully when it can&apos;t help.
+        </p>
+        <ul style={{ color: 'var(--color-muted)', fontSize: 15.5, lineHeight: 1.7, maxWidth: 820, marginTop: 12 }}>
+          <li>
+            <strong>3-bit KV cache (TurboQuant).</strong> Google DeepMind&apos;s TurboQuant (ICLR 2026, arXiv:2504.19874)
+            shrinks the KV cache <strong>3.6–5.2×</strong> (model-dependent). It&apos;s <em>experimental</em> and built from
+            source — mainline llama.cpp hasn&apos;t merged it — so mooter wraps the build and stays on stock inference until
+            you enable it.
+          </li>
+          <li style={{ marginTop: 8 }}>
+            <strong>Speculative decoding (EAGLE-3) via vLLM.</strong> A draft model proposes tokens the target verifies in
+            parallel — <strong>2–2.5× faster</strong> on a GPU. mooter checks VRAM headroom first and falls back to plain
+            vLLM when it&apos;s short.
+          </li>
+          <li style={{ marginTop: 8 }}>
+            <strong>MiniMax M3, ready on day one.</strong> The weights aren&apos;t public yet (expected ~June 11, 2026). A
+            watcher polls HuggingFace and offers a one-command Ollama install the moment they land — nothing downloads until
+            you say so.
+          </li>
+        </ul>
+        <p style={{ color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.7, marginTop: 12, maxWidth: 820 }}>
+          <strong>Honest scope:</strong> none of these are on by default, and none of them change which <em>tier</em> a
+          prompt gets — <code>classify.js</code> still decides that, and its logic has been byte-frozen for 12 consecutive
+          releases. They make the local side faster and lighter; the routing you trust is unchanged.
+        </p>
+      </div>
+
       <style>{`@media (max-width: 900px){ .uth-row{ grid-template-columns: 1fr !important; } }`}</style>
     </section>
   );

@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/arbitrage-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter arbitrage monitor (Wave 33 L11) — OPT-IN. Polls PUBLIC provider status pages (statuspage.io JSON) for incident/degradation signals and writes ~/.mooter/arbitrage_state.json. Produces an ADVISORY within-tier bias only; classify.js tier floors always win (never a tier override). NEVER sends prompts anywhere — status pages only. All I/O injectable.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}

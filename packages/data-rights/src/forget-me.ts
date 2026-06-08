@@ -61,7 +61,9 @@ export async function forgetMe(opts: {
     return { ok: false, status: 0, queued: false, message: "no device id found — nothing was ever synced from this machine" };
   }
   const secret = readSecret(home);
-  const ts = opts.now ?? 0;
+  // Wave 33 (A.4) — real wall-clock when not injected, so the HMAC ts varies per
+  // request and replay protection is meaningful (was always 0 in production).
+  const ts = opts.now ?? Date.now();
   const signature = secret ? signForget(deviceId, ts, secret) : "";
   const hub = (opts.hubUrl ?? DEFAULT_HUB).replace(/\/$/, "");
   const doFetch = opts.fetchImpl ?? fetch;

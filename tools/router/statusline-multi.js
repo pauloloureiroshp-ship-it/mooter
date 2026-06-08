@@ -364,8 +364,8 @@ function pickState(ctx) {
   // Wave 16-18 Day 2 B1 — "est" marks this as a LOCAL estimate (computeAnthropicRem
   // from quota-state.json, 0 network calls), not Anthropic's authoritative quota.
   if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
-  if (typeof lastTurnCost === 'number') proofParts.push(`turn $${lastTurnCost.toFixed(2)}`);
-  if (typeof alltimeCost === 'number') proofParts.push(`alltime $${alltimeCost.toFixed(2)}`);
+  if (typeof lastTurnCost === 'number') proofParts.push(`this prompt $${lastTurnCost.toFixed(2)}`);
+  if (typeof alltimeCost === 'number') proofParts.push(`session $${alltimeCost.toFixed(2)}`);
   const proofChips = proofParts.join(' · ') || '—';
   const proof = (lastLabel !== '—')
     ? [lastLabel, ...proofParts].join(' · ')
@@ -543,7 +543,7 @@ function renderFromContext(ctx) {
         // evolution lives in `mooter trail --evolution`; here we surface the
         // real cumulative figures the ctx already carries.
         const parts = [];
-        if (typeof ctx.alltimeCost === 'number') parts.push(`alltime $${ctx.alltimeCost.toFixed(2)}`);
+        if (typeof ctx.alltimeCost === 'number') parts.push(`session $${ctx.alltimeCost.toFixed(2)}`);
         if (typeof ctx.todayCost === 'number') parts.push(`today $${ctx.todayCost.toFixed(2)}`);
         if (parts.length) proof = parts.join(' · ');
       }
@@ -556,8 +556,14 @@ function renderFromContext(ctx) {
   const headlineText = (state.color === 'green' && state.lastLabel && state.lastLabel !== '—')
     ? `${state.headline} · ${state.lastLabel}`
     : state.headline;
+  // Wave 33 (C.1) — on narrow terminals (< 120 cols) the wide 2-line VRAM chip
+  // never shows, so the GPU was invisible. Prepend a breakpoint-sized GPU chip to
+  // the proof here. The wide path keeps its full VRAM chip on line 2 (unchanged).
+  const narrowCols = parseInt(process.env.COLUMNS || '80', 10);
+  const gpuNarrow = narrowCols < TWO_LINE_THRESHOLD ? buildNarrowGpuChip(narrowCols) : null;
+  const proofOut = gpuNarrow ? (proof && proof !== '—' ? `${gpuNarrow} · ${proof}` : gpuNarrow) : proof;
   // Wave 13 — trail the live 🐄×N herd chip after the headline/proof.
-  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proof}`, ctx);
+  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proofOut}`, ctx);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -693,6 +699,31 @@ function formatGpuChip(gpu) {
   return `🎮 ${compact}`;
 }
 
+// Wave 33 (C.1) — GPU chip for NARROW terminals (< 120 cols), where the wide
+// 2-line VRAM chip never renders. Three breakpoints: < 100 → ultra-compact
+// "🎮 RTX4090 50%"; 100-119 → "🎮 RTX 4090 12.1/24GB". Respects the existing
+// `hidden_chips: ["vram"]` opt-out. Best-effort: any failure → null (no chip).
+function buildNarrowGpuChip(cols) {
+  try {
+    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    if (Array.isArray(prefs.hidden_chips) && prefs.hidden_chips.includes('vram')) return null;
+  } catch { /* no prefs → show */ }
+  const base = formatGpuChip(readGpuFromProfile()); // "🎮 RTX 4090" or null
+  if (!base) return null;
+  let live = null;
+  try { live = require('./hardware_live.js').vramSnapshot(); } catch { live = null; }
+  if (cols < 100) {
+    const model = base.replace('🎮 ', '').replace(/\s+/g, '');
+    const pct = live && live.totalMb > 0 ? ` ${live.pct}%` : '';
+    return `🎮 ${model}${pct}`;
+  }
+  // 100-119 — medium: model + used/total GB (no inner spaces to stay tight).
+  if (live && live.totalMb > 0) {
+    return `${base} ${(live.usedMb / 1024).toFixed(1)}/${Math.round(live.totalMb / 1024)}GB`;
+  }
+  return base;
+}
+
 // Wave 2.8 Ponto #2 — context window as a 10-char ANSI bar + percent. Green
 // < 50%, yellow < 80%, red ≥ 80%. Used only in the 2-line layout; the compact
 // 1-line render keeps the bare "ctx N%" text.
@@ -807,6 +838,18 @@ function buildLocalChip(tokSnap, homeGlyph = '🏠') {
   const tlp = tokensLocalPct(tokSnap);
   const tokPart = tlp === null ? '' : ` · ${fmtSharePct(tlp)}% tokens local`;
   return `${homeGlyph} ${t0calls}/${totalCalls} calls (${callsPct}%)${tokPart}`;
+}
+
+// Wave 33 (A.2) — humanize a session age in ms. <60min → "47m"; <24h →
+// "2h47m"; ≥24h → "2d4h". Pure formatter; the source (transcript birth time)
+// is read once per render in buildContext.
+function formatSessionAge(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '0m';
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const totalHr = Math.floor(totalMin / 60);
+  if (totalHr < 24) return `${totalHr}h${totalMin % 60}m`;
+  return `${Math.floor(totalHr / 24)}d${totalHr % 24}h`;
 }
 
 function renderTwoLine(ctx, opts = {}) {
@@ -967,13 +1010,24 @@ function renderTwoLine(ctx, opts = {}) {
   // Wave 20 (20.E) — pass the render tick so the chip can pulse while Moos work.
   const herdsChip = hide('herd') ? null : buildHerdsChip(ctx.herd, { tick: ctx.tick });
 
+  // Wave 33 (A.2) — ⏱️ session timer chip. ONLY shown when an explicit mode
+  // (compact/full) is pinned — `opts.forceLine3` is a boolean then. The adaptive
+  // width-based default (render() calls renderTwoLine(ctx) with no opts) stays
+  // byte-identical. `hidden_chips: ["session-timer"]` drops it.
+  const explicitMode = typeof opts.forceLine3 === 'boolean';
+  const sessionTimerChip =
+    explicitMode && !hide('session-timer') && typeof ctx.sessionAge === 'number'
+      ? `⏱️ session ${formatSessionAge(ctx.sessionAge)}`
+      : null;
+
   const line2 = [
     homeChip,
     gpuChip,
     ctxChip,
     typeof ctx.anthRem === 'number' ? `☁ Claude Max ${ctx.anthRem}% · 5h reset` : null,
-    typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
-    typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
+    sessionTimerChip,
+    typeof ctx.lastTurnCost === 'number' ? `this prompt $${ctx.lastTurnCost.toFixed(2)}` : null,
+    typeof ctx.alltimeCost === 'number' ? `session $${ctx.alltimeCost.toFixed(2)}` : null,
     tokenChip,
     herdsChip,
     quantChip,
@@ -1010,7 +1064,8 @@ function buildLine3(force) {
   const chips = [];
   for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
     './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
-    './effort-status.js', './quant-status.js', './vector-status.js']) {
+    './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
+    './eagle3-status.js', './minimax-status.js', './arbitrage-status.js']) {
     try {
       const c = require(mod).statusLine();
       if (c) chips.push(c);
@@ -1036,7 +1091,7 @@ function render(ctx) {
       const out = modes.renderForMode(mode, ctx, {
         renderFromContext,
         renderTwoLine,
-        helpers: { colorize, useColor, ANSI, COLOR_GLYPH },
+        helpers: { colorize, useColor, ANSI, COLOR_GLYPH, formatSessionAge },
       });
       if (out !== null && out !== undefined) return out;
     }
@@ -1059,6 +1114,20 @@ async function buildContext() {
   // MOOTER_STATUSLINE_VIEW=all turns the filter off for a global/debug view.
   const sessionId = (stdinJson && stdinJson.session_id) || process.env.CLAUDE_SESSION_ID || null;
   const sessionFilter = process.env.MOOTER_STATUSLINE_VIEW === 'all' ? null : sessionId;
+
+  // Wave 33 (A.2) — session age = now − transcript file birth time. Claude Code
+  // passes `transcript_path` on stdin; its creation time marks session start.
+  // One statSync per render (~sub-ms). Best-effort: no path / unreadable → null
+  // (chip silently absent). Never throws on the render path.
+  let sessionAge = null;
+  try {
+    const tp = stdinJson && stdinJson.transcript_path;
+    if (tp && fs.existsSync(tp)) {
+      const st = fs.statSync(tp);
+      const birth = st.birthtimeMs > 0 ? st.birthtimeMs : st.ctimeMs;
+      if (birth > 0) sessionAge = Date.now() - birth;
+    }
+  } catch { sessionAge = null; }
 
   // Wave 2.5 Day 3 — per-session tick counter (persisted in tmp) drives the
   // rotating tier-mix view in renderFromContext. Each statusline call bumps it;
@@ -1131,6 +1200,7 @@ async function buildContext() {
     tick,
     herd,
     sessionId,
+    sessionAge,
     dataMissing: !lines.length && !quota.providers,
   };
 }
@@ -1146,6 +1216,7 @@ const DEMO_CONTEXTS = {
     recent:  Array(10).fill({ tier: 'T2', confidence: 0.82 }),
     anthRem: 42, codexRem: 88, codexLeft: 132,
     savedUsd: 0.27, savedPct: 89, todayCost: 0.04, dataMissing: false,
+    sessionAge: 2 * 3600000 + 47 * 60000, // 2h47m — A.2 demo
   },
   yellow: {
     counts: { T0: 1, T1: 0, T2: 1, T3: 10, codex: 0 }, total: 12,
@@ -1224,6 +1295,7 @@ module.exports = {
   colorize,
   useColor,
   formatGpuChip,
+  formatSessionAge,
   readGpuFromProfile,
   digest,
   computeAnthropicRem,

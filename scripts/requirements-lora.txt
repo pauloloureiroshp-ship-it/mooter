@@ -1,0 +1,19 @@
+# Mooter Pastor LoRA training stack — pinned 2026-06-08 (Wave 33 A.5).
+#
+# Supersedes the old unsloth==2025.5.1 / transformers>=4.43,<4.46 set, which no
+# longer resolves: unsloth 2025.5.1 capped transformers <4.46, conflicting with
+# the rest of the modern stack. Day 0 web research (PyPI + unsloth pyproject):
+#   - unsloth 2026.6.1 pins transformers >=4.51.3,<=5.5.0 minus a known-broken
+#     exclusion list (4.52.x, 4.53.0, 4.54.0, 4.55.x, 4.57.0/4/5, 5.0.0, 5.1.0).
+#   - transformers 4.56.0 clears every "!=" exclusion in that window.
+#
+# GPU-only (CUDA): torch/bitsandbytes wheels are resolved by unsloth for the
+# local CUDA. Paulo runs the real train overnight on the RTX 4090; CI/dev only
+# dry-runs resolution (`pip install --dry-run -r requirements-lora.txt`).
+unsloth==2026.6.1
+transformers==4.56.0
+peft>=0.18.0
+trl>=0.18.2,<=0.24.0
+accelerate>=0.34.1
+bitsandbytes>=0.45.5,!=0.46.0,!=0.48.0
+datasets>=2.19

@@ -59,7 +59,10 @@ test("Workflows widget lists recent runs and watch hint", () => {
 
 test("Workflows widget honest when empty", () => {
   const out = buildDashboard({ ...BASE, workflowRuns: [] });
-  assert.match(out, /no workflow runs yet/);
+  // Wave 33 (C.2) — empty state points at both create + live-watch commands.
+  assert.match(out, /none yet/);
+  assert.match(out, /workflow create/);
+  assert.match(out, /workflow watch/);
 });
 
 test("Limits widget shows cost-cap ceilings", () => {
