@@ -38,6 +38,7 @@ import { runStatusline } from "./commands/statusline.ts";
 import { runEffort } from "./commands/effort.ts";
 import { runStatus } from "./commands/status.ts";
 import { runData } from "./commands/data.ts";
+import { runQuant, runVector } from "./commands/quant-vector.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
@@ -51,6 +52,8 @@ Usage:
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
   mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
   mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
+  mooter quant status [--json]     local model quantization (real Ollama data)
+  mooter vector status [--json]    embedding model dims/quant (real Ollama data)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -265,6 +268,18 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "data") {
     const res = await runData(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "quant") {
+    const res = await runQuant(rest.filter((a) => a !== "status"));
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "vector") {
+    const res = await runVector(rest.filter((a) => a !== "status"));
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
