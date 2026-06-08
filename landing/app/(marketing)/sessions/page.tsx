@@ -20,7 +20,7 @@ export default function SessionsPage() {
         <li><code>mooter sessions quota</code> — honest 5-hour usage forecast (a local rate projection, not a server quota).</li>
         <li><code>mooter sessions handoff &lt;id&gt;</code> — context summary so another session can pick up the thread; no prompt text leaves the machine.</li>
       </ul>
-      <p>It also feeds the Pastor a cross-session view, so routing advice reflects everything you do — not just this terminal.</p>
+      <p>It also gives the routing intelligence a cross-session view, so routing advice reflects everything you do — not just this terminal.</p>
     </main>
   );
 }

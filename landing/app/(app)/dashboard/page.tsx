@@ -2145,7 +2145,7 @@ function WorkflowTab() {
           {ScopeToggle}
           {scope === 'community'
             ? <DataSourceBadge source={live ? 'live' : 'demo'} detail={live ? `${(agg!.unique_instances || 0).toLocaleString('en-US')} devices` : undefined} />
-            : userLive ? <DataSourceBadge source="live" detail={`${(userAgg!.devices_active || 0).toLocaleString('en-US')} of your devices`} /> : null}
+            : userLive ? <DataSourceBadge source={'live'} detail={`${(userAgg!.devices_active || 0).toLocaleString('en-US')} of your devices`} /> : null}
         </div>
       </div>
 

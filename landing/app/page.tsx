@@ -20,7 +20,7 @@ export default function Page() {
             <div>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-muted)', border: '1px solid var(--color-border)', borderRadius: 999, padding: '5px 12px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-green)' }} />
-                Open source · MIT · Free forever
+                Open source · MIT · v1.21.2 · classify.js unchanged 17 waves
               </span>
 
               <h1 className="hero-h1" style={{ fontSize: 'clamp(56px, 13vw, 168px)', fontWeight: 700, lineHeight: 0.92, margin: '22px 0 0', display: 'inline-flex', alignItems: 'flex-start', gap: 8 }}>
@@ -30,17 +30,17 @@ export default function Page() {
               </h1>
 
               <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 600, marginTop: 18, color: 'var(--color-text)' }}>
-                Your LLM router. Local-first. Learns forever.
+                The router for Claude Code. Local-first. Learns forever.
               </h2>
               <p style={{ fontSize: 15, fontWeight: 500, marginTop: 6, color: 'var(--color-muted)' }}>
-                The AI shepherd for your Claude Code.
+                Spawns agents safely by default.
               </p>
 
               <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 18, maxWidth: 540 }}>
                 Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
                 But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
-                environment and routes every prompt to the optimal model. Comparable quality on routine tasks,
-                up to 90% less cost on T0-heavy sessions.{' '}
+                environment and routes every prompt to the optimal model. Comparable quality on routine tasks, a fraction of the spend —{' '}
+                <strong style={{ color: 'var(--color-text)' }}>47% saved vs all-Opus across the author&apos;s own 658 routed calls</strong>. Real data, not a community average.{' '}
                 <a href="/methodology" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   See the benchmark *
                 </a>
@@ -56,7 +56,7 @@ export default function Page() {
 
               <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
                 <a href="/install" style={{ background: 'var(--color-accent)', color: '#1A0E0E', fontWeight: 600, fontSize: 16, padding: '14px 24px', borderRadius: 11 }}>
-                  Install mooter →
+                  Install in 30s →
                 </a>
                 <a href="/dashboard" style={{ border: '1px solid var(--color-border-light)', color: 'var(--color-text)', fontWeight: 600, fontSize: 16, padding: '14px 24px', borderRadius: 11 }}>
                   Sign in with GitHub

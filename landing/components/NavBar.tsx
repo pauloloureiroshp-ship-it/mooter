@@ -59,7 +59,7 @@ export default function NavBar() {
               borderRadius: 10,
             }}
           >
-            Install mooter →
+            Install in 30s →
           </a>
         </div>
       </nav>
