@@ -1065,7 +1065,9 @@ function buildLine3(force) {
   for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
     './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
     './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
-    './eagle3-status.js', './minimax-status.js', './arbitrage-status.js']) {
+    './eagle3-status.js', './minimax-status.js', './arbitrage-status.js',
+    // Wave 33.5 Block A — terminal-name (A.7) + workflow-progress dots (A.6).
+    './terminal-name-status.js', './workflow-progress-status.js']) {
     try {
       const c = require(mod).statusLine();
       if (c) chips.push(c);

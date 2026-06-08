@@ -1,0 +1,15 @@
+{
+  "name": "@mooter/sessions-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mooter Sessions Orchestrator (Wave 33.5 Block A) — cross-session intelligence over local Claude Code transcripts: discovery, quota forecast, git-worktree mapping, cross-session Pastor aggregation, and statusline context (workflow-progress + terminal-name chips). All read-only/local-first; no network. I/O injectable for tests.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}
