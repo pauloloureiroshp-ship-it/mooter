@@ -41,6 +41,7 @@ import { runTerminal } from "./commands/terminal.ts";
 import { runConductor } from "../../worktree-conductor/src/commands.ts";
 import { runSpawn } from "../../spawn-orchestrator/src/commands.ts";
 import { runSecurity } from "./commands/security.ts";
+import { runIntent, resolveIntent } from "./commands/intent.ts";
 import { runTurboquant } from "./commands/turboquant.ts";
 import { runMinimax } from "./commands/minimax.ts";
 import { runMonitor } from "./commands/monitor.ts";
@@ -64,6 +65,7 @@ Usage:
   mooter conductor <status|lock|unlock|queue|heartbeats|locks|history|reap>   serialize ops across terminals
   mooter spawn <task> [--cloud|--local] | spawn <list|watch|kill|logs|artifacts>   sandboxed local-first agents
   mooter security <audit [--json]|spawn-test>   4-layer sandbox audit + synthetic CVE escape test
+  mooter intent "<what you want>" [--run] | intent --palette   natural-language → command
   mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
   mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
   mooter quant status [--json]     local model quantization (real Ollama data)
@@ -305,6 +307,20 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "security") {
     const res = runSecurity(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "intent") {
+    // --run resolves the phrase then re-dispatches to the resolved command, so the
+    // user sees the resolution AND it executes in one go (transparency preserved).
+    if (rest.includes("--run")) {
+      const phrase = rest.filter((a) => !a.startsWith("--")).join(" ").trim();
+      const resolved = resolveIntent(phrase);
+      process.stdout.write(`→ mooter ${resolved.command.join(" ")}\n`);
+      return main(resolved.command);
+    }
+    const res = runIntent(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
