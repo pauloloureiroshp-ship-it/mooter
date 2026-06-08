@@ -39,6 +39,7 @@ import { runEffort } from "./commands/effort.ts";
 import { runSessions } from "./commands/sessions.ts";
 import { runTerminal } from "./commands/terminal.ts";
 import { runConductor } from "../../worktree-conductor/src/commands.ts";
+import { runSpawn } from "../../spawn-orchestrator/src/commands.ts";
 import { runTurboquant } from "./commands/turboquant.ts";
 import { runMinimax } from "./commands/minimax.ts";
 import { runMonitor } from "./commands/monitor.ts";
@@ -60,6 +61,7 @@ Usage:
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
   mooter sessions <list|watch|show|diff|quota|worktrees|focus|kill|export>   cross-session intelligence
   mooter conductor <status|lock|unlock|queue|heartbeats|locks|history|reap>   serialize ops across terminals
+  mooter spawn <task> [--cloud|--local] | spawn <list|watch|kill|logs|artifacts>   sandboxed local-first agents
   mooter status [--didactic]       one-shot snapshot (effort · Pastor · adapters)
   mooter data <export|delete-all|forget-me> [--confirm]   GDPR data rights (export/erase)
   mooter quant status [--json]     local model quantization (real Ollama data)
@@ -289,6 +291,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "conductor") {
     const res = runConductor(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "spawn") {
+    const res = await runSpawn(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
