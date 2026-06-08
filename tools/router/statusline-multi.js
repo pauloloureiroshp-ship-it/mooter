@@ -1069,7 +1069,9 @@ function buildLine3(force) {
     // Wave 33.5 Block A — terminal-name (A.7) + workflow-progress dots (A.6).
     './terminal-name-status.js', './workflow-progress-status.js',
     // Wave 33.5 Block B.5 — 🐝 active spawns.
-    './spawns-status.js']) {
+    './spawns-status.js',
+    // Wave 33.6 Block P6 — 🔒 conductor lock count.
+    './conductor-status.js']) {
     try {
       const c = require(mod).statusLine();
       if (c) chips.push(c);

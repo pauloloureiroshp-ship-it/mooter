@@ -1,7 +1,8 @@
 {
-  "version": "1.6.0",
-  "released": "2026-06-02",
+  "version": "1.21.2",
+  "released": "2026-06-08",
   "channel": "beta",
   "minNodeVersion": "18.0.0",
-  "homepage": "https://mooter.ai"
+  "homepage": "https://mooter.ai",
+  "_comment": "Single source of truth for `mooter --version` and install.sh. Kept in sync with release tags by .github/workflows/version-sync.yml on tag push — do not let it drift."
 }
