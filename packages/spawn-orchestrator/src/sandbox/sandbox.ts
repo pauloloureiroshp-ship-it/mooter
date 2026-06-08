@@ -19,15 +19,15 @@ export interface BuildConfigInput {
   home?: string;
 }
 
-/** Secret dirs masked from every spawn. */
-function defaultBlockedPaths(home: string): string[] {
-  return [
-    join(home, ".ssh"),
-    join(home, ".gnupg"),
-    join(home, ".aws"),
-    join(home, ".config", "gcloud"),
-    join(home, ".npmrc"),
-  ];
+/**
+ * Extra DIRECTORIES to mask beyond the wholesale $HOME tmpfs. Empty by default:
+ * the home mask already covers every in-$HOME credential store, and the read-only
+ * root makes system secrets (/etc/shadow) unreadable to a non-root spawn anyway.
+ * NOTE: entries MUST be directories — `--tmpfs` over a file errors out and breaks
+ * the whole sandbox. Paths under $HOME are filtered by the builder (redundant).
+ */
+function defaultBlockedPaths(_home: string): string[] {
+  return [];
 }
 
 /** Env names always safe to forward (no secrets). */
@@ -51,6 +51,7 @@ export function buildSandboxConfig(input: BuildConfigInput): SandboxConfig {
     network,
     allowedDomains,
     worktreePath: input.worktreePath,
+    homeDir: home,
     readOnlyPaths: ["/usr", "/bin", "/lib", "/etc"],
     blockedPaths: defaultBlockedPaths(home),
     envWhitelist,

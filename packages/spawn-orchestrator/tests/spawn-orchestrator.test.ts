@@ -34,12 +34,17 @@ test("detectSandbox: linux→bubblewrap, darwin→seatbelt, other→none", () =>
 test("buildBwrapArgs enforces the 4 layers in argv", () => {
   const cfg = buildSandboxConfig({ worktreePath: "/wt", mode: "local", tier: "T0", home: "/home/u" });
   const args = buildBwrapArgs(cfg, { existingBlockedPaths: ["/home/u/.ssh"], env: {} });
+  const s = args.join(" ");
   // L1 — local keeps net (no --unshare-net); none would add it
   assert.ok(!args.includes("--unshare-net"));
-  // L2 — ro root + single writable worktree + masked secret
-  assert.ok(args.join(" ").includes("--ro-bind / /"));
-  assert.ok(args.join(" ").includes("--bind /wt /wt"));
-  assert.ok(args.join(" ").includes("--tmpfs /home/u/.ssh"));
+  // L2 — ro root + WHOLESALE home mask + single writable worktree (re-exposed after)
+  assert.ok(s.includes("--ro-bind / /"));
+  assert.ok(s.includes("--tmpfs /home/u"), "whole $HOME masked");
+  assert.ok(s.includes("--bind /wt /wt"));
+  // a blocked path UNDER the home mask must NOT be double-masked (would error)
+  assert.ok(!s.includes("--tmpfs /home/u/.ssh"));
+  // the home mask must come BEFORE the worktree bind (so the worktree survives it)
+  assert.ok(s.indexOf("--tmpfs /home/u") < s.indexOf("--bind /wt /wt"));
   // L3 — clearenv present
   assert.ok(args.includes("--clearenv"));
   // none-policy adds --unshare-net

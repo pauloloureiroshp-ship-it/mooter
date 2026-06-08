@@ -7,8 +7,8 @@
 //   4. ANTHROPIC_API_KEY does NOT leak into a LOCAL spawn
 // Returns a structured verdict; reused by `mooter security spawn-test`.
 
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
@@ -43,47 +43,80 @@ export function runSandboxEscapeTest(): SecurityVerdict {
     return { available: false, pass: false, checks: [], hint: sb.hint };
   }
 
-  const home = mkdtempSync(join(tmpdir(), "moo-sec-home-"));
-  mkdirSync(join(home, ".ssh"), { recursive: true });
-  writeFileSync(join(home, ".ssh", "id_rsa"), "SECRET-PRIVATE-KEY");
-  const parent = mkdtempSync(join(tmpdir(), "moo-sec-parent-"));
-  const worktree = mkdtempSync(join(tmpdir(), "moo-sec-wt-"));
+  // CRITICAL: fixtures must live OUTSIDE /tmp. The sandbox masks /tmp wholesale
+  // (`--tmpfs /tmp`), so a secret placed there reads empty for the WRONG reason
+  // and gives false assurance. We root the fake $HOME under the REAL home dir so
+  // the ONLY thing masking it is the home-tmpfs we are actually testing. (We never
+  // touch the real credential files — only fakes inside this throwaway dir.)
+  const home = mkdtempSync(join(homedir(), ".mooter-sectest-"));
+  try {
+    // Seed credential stores an agent would target — the exact ones the reviewer
+    // showed leaking before the wholesale home mask.
+    const secrets: Array<[string, string]> = [
+      [join(home, ".ssh", "id_rsa"), "SECRET-SSH-KEY"],
+      [join(home, ".claude", ".credentials.json"), "SECRET-CLAUDE-OAUTH"],
+      [join(home, ".mooter", ".telemetry_secret"), "SECRET-TELEMETRY-HMAC"],
+      [join(home, ".config", "gh", "hosts.yml"), "oauth_token: gho_SECRET"],
+    ];
+    for (const [p, body] of secrets) {
+      mkdirSync(join(p, ".."), { recursive: true });
+      writeFileSync(p, body);
+    }
+    const worktree = join(home, "wt");
+    mkdirSync(worktree, { recursive: true });
 
-  const cfg = buildSandboxConfig({ worktreePath: worktree, mode: "local", tier: "T0", home });
-  const env = { ...process.env, ANTHROPIC_API_KEY: "sk-should-not-leak" };
-  const run = (cmd: string[]) => runIn(assembleBwrap({ config: cfg, command: cmd, sourceEnv: env }));
+    const cfg = buildSandboxConfig({ worktreePath: worktree, mode: "local", tier: "T0", home });
+    const env = { ...process.env, ANTHROPIC_API_KEY: "sk-should-not-leak" };
+    const run = (cmd: string[]) => runIn(assembleBwrap({ config: cfg, command: cmd, sourceEnv: env }));
 
-  const checks: SecurityCheck[] = [];
+    const checks: SecurityCheck[] = [];
 
-  run(["sh", "-c", `echo ok > ${join(worktree, "f.txt")}`]);
-  checks.push({
-    name: "L2 write inside worktree allowed",
-    pass: existsSync(join(worktree, "f.txt")),
-    detail: "worktree is the single writable mount",
-  });
+    run(["sh", "-c", `echo ok > ${join(worktree, "f.txt")}`]);
+    checks.push({
+      name: "L2 write inside worktree allowed",
+      pass: existsSync(join(worktree, "f.txt")),
+      detail: "worktree is the single writable mount (re-exposed over the home mask)",
+    });
 
-  const ssh = run(["sh", "-c", `cat ${join(home, ".ssh", "id_rsa")} 2>&1`]);
-  checks.push({
-    name: "L2 secret (~/.ssh) read blocked",
-    pass: !ssh.includes("SECRET-PRIVATE-KEY"),
-    detail: "masked by an empty tmpfs",
-  });
+    // Every seeded secret must read back empty (home masked wholesale).
+    let allSecretsBlocked = true;
+    const leaked: string[] = [];
+    for (const [p, body] of secrets) {
+      const got = run(["sh", "-c", `cat ${p} 2>&1`]);
+      if (got.includes(body)) {
+        allSecretsBlocked = false;
+        leaked.push(p.replace(home, "~"));
+      }
+    }
+    checks.push({
+      name: "L2 ALL credential stores blocked (~/.ssh, ~/.claude, ~/.mooter, ~/.config/gh)",
+      pass: allSecretsBlocked,
+      detail: allSecretsBlocked ? "whole-$HOME tmpfs mask holds" : `LEAKED: ${leaked.join(", ")}`,
+    });
 
-  run(["sh", "-c", `echo x > ${join(parent, "hack.txt")} 2>&1`]);
-  checks.push({
-    name: "L2 write outside worktree blocked",
-    pass: !existsSync(join(parent, "hack.txt")),
-    detail: "read-only root; no escape to parent",
-  });
+    // Write to a real read-only system path (NOT /tmp) → must fail (ro-root).
+    run(["sh", "-c", `echo x > /etc/moo-sectest-hack 2>&1`]);
+    checks.push({
+      name: "L2 write outside worktree blocked",
+      pass: !existsSync("/etc/moo-sectest-hack"),
+      detail: "read-only root; no escape to the host filesystem",
+    });
 
-  const key = run(["sh", "-c", "printf KEY=%s ${ANTHROPIC_API_KEY:-EMPTY}"]);
-  checks.push({
-    name: "L3 ANTHROPIC_API_KEY not leaked to local spawn",
-    pass: key.includes("KEY=EMPTY"),
-    detail: "clearenv + whitelist excludes provider keys for local mode",
-  });
+    const key = run(["sh", "-c", "printf KEY=%s ${ANTHROPIC_API_KEY:-EMPTY}"]);
+    checks.push({
+      name: "L3 ANTHROPIC_API_KEY not leaked to local spawn",
+      pass: key.includes("KEY=EMPTY"),
+      detail: "clearenv + whitelist excludes provider keys for local mode",
+    });
 
-  return { available: true, pass: checks.every((c) => c.pass), checks };
+    return { available: true, pass: checks.every((c) => c.pass), checks };
+  } finally {
+    try {
+      rmSync(home, { recursive: true, force: true });
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
 }
 
 export function renderVerdict(v: SecurityVerdict): string {

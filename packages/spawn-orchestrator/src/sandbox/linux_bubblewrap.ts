@@ -4,9 +4,11 @@
 //   L1 network — `--unshare-net` for policy "none" (full egress block). "local"/
 //                "cloud" keep host net (per-domain allowlisting needs a proxy;
 //                tracked honestly as a known limitation — NOT silently allowed).
-//   L2 filesystem — `--ro-bind / /` (whole root read-only) + a single writable
-//                `--bind <worktree>` + an empty `--tmpfs` mask over each blocked
-//                secret dir (so ~/.ssh etc. are unreadable from inside).
+//   L2 filesystem — `--ro-bind / /` (whole root read-only) + an empty `--tmpfs`
+//                mask over the ENTIRE `$HOME` (fail-closed: every dotfile/credential
+//                store — ~/.claude, ~/.mooter, ~/.config/gh, ~/.ssh, project .env
+//                outside the worktree — reads back empty) + a single writable
+//                `--bind <worktree>` re-exposed AFTER the home mask.
 //   L3 secrets — `--clearenv` then `--setenv` only the whitelisted vars.
 //   L4 config — config files are read-only by virtue of the ro-root and the
 //                worktree being the ONLY writable mount.
@@ -45,13 +47,21 @@ export function buildBwrapArgs(cfg: SandboxConfig, ctx: BwrapBuildContext): stri
   a.push("--proc", "/proc");
   a.push("--tmpfs", "/tmp");
 
-  // The single writable mount: the spawn's worktree.
-  a.push("--bind", cfg.worktreePath, cfg.worktreePath);
+  // Mask the ENTIRE home wholesale (fail-closed) — this covers every credential
+  // store under $HOME, not just an enumerated few. Done BEFORE the worktree bind
+  // so the worktree (which lives under ~/.mooter/spawns) can be re-exposed on top.
+  if (cfg.homeDir && cfg.homeDir !== "/") a.push("--tmpfs", cfg.homeDir);
 
-  // Mask each existing blocked secret dir with an empty tmpfs (unreadable).
+  // Belt-and-suspenders: mask any extra blocked paths that are NOT already under
+  // the home mask (masking a path inside the home tmpfs would fail — it no longer
+  // exists). Today all defaults live under $HOME, so this is usually empty.
+  const homePrefix = cfg.homeDir.endsWith("/") ? cfg.homeDir : cfg.homeDir + "/";
   for (const p of ctx.existingBlockedPaths) {
-    a.push("--tmpfs", p);
+    if (!p.startsWith(homePrefix) && p !== cfg.homeDir) a.push("--tmpfs", p);
   }
+
+  // The single writable mount: the spawn's worktree (re-exposed over the home mask).
+  a.push("--bind", cfg.worktreePath, cfg.worktreePath);
 
   // L3 — secrets: drop the entire host env, then inject only the whitelist.
   a.push("--clearenv");

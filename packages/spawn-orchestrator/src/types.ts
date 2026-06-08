@@ -10,8 +10,9 @@ export interface SandboxConfig {
   allowedDomains: string[]; // captured for the future per-domain proxy
   // Layer 2 — filesystem boundaries.
   worktreePath: string; // the single writable mount
+  homeDir: string; // the user's $HOME — masked WHOLESALE (fail-closed), worktree re-exposed
   readOnlyPaths: string[]; // mounted read-only (informational; root is ro by default)
-  blockedPaths: string[]; // masked with an empty tmpfs (e.g. ~/.ssh, ~/.gnupg)
+  blockedPaths: string[]; // extra non-$HOME paths to mask (belt-and-suspenders)
   // Layer 3 — secrets scoping.
   envWhitelist: string[]; // only these env vars reach the child
   // Layer 4 — config protection.

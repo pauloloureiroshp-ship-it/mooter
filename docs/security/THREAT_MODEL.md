@@ -92,7 +92,7 @@ isolated git worktree inside a 4-layer bubblewrap/Seatbelt sandbox.
 
 | # | Vector | Severity | Mitigation | Status |
 |---|--------|----------|------------|--------|
-| 8 | Agent reads developer secrets (`~/.ssh`, keys) | High | L2 tmpfs mask over secret dirs (read empty); L3 clearenv+whitelist | 🟢 proven by `spawn-test` |
+| 8 | Agent reads developer secrets (`~/.ssh`, `~/.claude`, `~/.mooter`, gh token, .env) | High | L2 **wholesale `$HOME` tmpfs mask** (fail-closed, not an enumerated denylist) + L3 clearenv+whitelist | 🟢 proven by `spawn-test` (all stores blocked) |
 | 9 | Agent writes outside its worktree (backdoor) | High | L2 `--ro-bind / /`; worktree is the only writable mount | 🟢 proven by `spawn-test` |
 | 10 | `ANTHROPIC_API_KEY` leaks into a local (Ollama) spawn | High | L3 whitelist excludes provider keys for local mode | 🟢 proven (`KEY=EMPTY`) |
 | 11 | Sandbox escape (CVE-2025-59528 class) | Critical | bubblewrap namespaces; `mooter security spawn-test` synthetic check | 🟢 gated |

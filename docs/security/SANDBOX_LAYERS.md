@@ -18,10 +18,15 @@ Implementation: `packages/spawn-orchestrator/src/sandbox/`.
 
 ## Layer 2 — Filesystem boundary
 - `--ro-bind / /` — the entire host root is **read-only**.
-- `--bind <worktree> <worktree>` — the spawn's git worktree is the **single
-  writable mount**. A spawn cannot write to the parent repo, `$HOME`, or `/`.
-- `--tmpfs` masks over secret dirs (`~/.ssh`, `~/.gnupg`, `~/.aws`,
-  `~/.config/gcloud`, `~/.npmrc`) — they read back **empty** inside the sandbox.
+- `--tmpfs $HOME` — the **entire home directory** is masked wholesale (fail-closed):
+  every credential store under `$HOME` reads back **empty** — `~/.ssh`, `~/.gnupg`,
+  **`~/.claude/.credentials.json`** (OAuth token), **`~/.mooter/.telemetry_secret`**,
+  **`~/.config/gh/hosts.yml`** (GitHub token), and any project `.env` outside the
+  worktree. This is an allowlist-by-construction, not an enumerated denylist — a
+  new credential file added tomorrow is masked automatically.
+- `--bind <worktree> <worktree>` — applied **after** the home mask, the spawn's git
+  worktree is re-exposed as the **single writable mount**. A spawn cannot write to
+  the parent repo, the rest of `$HOME`, or `/`.
 - `--dev /dev`, `--proc /proc`, `--tmpfs /tmp` give a minimal working environment.
 
 ## Layer 3 — Secrets scoping
@@ -41,6 +46,10 @@ Implementation: `packages/spawn-orchestrator/src/sandbox/`.
 mooter security audit          # host readiness, per layer
 mooter security spawn-test     # REAL bwrap escape test (CVE-2025-59528 scenario)
 ```
-The escape test creates a fake `~/.ssh/id_rsa`, a parent file, and a worktree,
-then asserts: write-inside succeeds · secret read blocked · parent write blocked ·
-provider key not leaked. All four must pass.
+The escape test seeds fake credential stores (`~/.ssh/id_rsa`,
+`~/.claude/.credentials.json`, `~/.mooter/.telemetry_secret`,
+`~/.config/gh/hosts.yml`) **under the real `$HOME`** — crucially NOT under `/tmp`,
+which the sandbox masks wholesale and would otherwise give a false pass — then
+asserts: write-inside succeeds · **all** credential stores read blocked · write
+outside the worktree blocked (real read-only root) · provider key not leaked. All
+four must pass on every release.
