@@ -3,6 +3,16 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🧠 Sessão — 2026-06-08 (Wave 31 Pastor v2 LORAUTER — SHIPPED v1.19.0)
+**Estado:** ✅ **SHIPPED prod `main` @ `eb57bda`** (PR #132), tag `v1.19.0-pastor-v2`. 11 fases A–L autónomas (ultracode+dangerous), 6 commits.
+**Novo:** LORAUTER real (`packages/synthesis/src/lora/routing-lorauter.ts`) substitui o Wave 29 stub — routing determinístico TF-IDF + cosine + relative-confidence (threshold 0.7), **sem LLM na decisão**. 6 per-task adapters (coding-frontend/backend/data, prose-pt-pt/en, baseline). Pastor layer (per-task-router, pastor-state, feedback-incorporator, trainer-stub). Distillation `mooter pastor distill`→`.skill.md` (demo real: 657 decisões → T3 48%/T1 32%/T0 18%/T2 2%). Obsidian pack `packs/obsidian-vault-sync/` (bidirecional, WSL-aware). 2 MCP tools (6→8). Hub `/v1/pastor-adapters` + migration 016. Statusline 🧠 chip.
+**Doutrina (final-reviewer SHIP 0-HIGH):** classify.js sha `7b01eb86…87762` INTACTA (verificada em main pós-merge) · LORAUTER opt-in (default off → contrato Wave 29 preservado) · **tier do classify.js é guardrail duro** (LORAUTER só enviesa adapter dentro do tier) · telemetria features-only + k-anon ≥50 · Wave 28-30 intocados · statusline linhas 1-2 byte-idênticas. Tests ~70 novos (synthesis 90 · cli 238 · packs 20 · mcp 13 · hub 63 · line-3 11). CI verde.
+**Lições:** Write tool deixou 3 NUL bytes (espaços 0x20→0x00 corrompidos) em pattern-extractor.ts — `grep $'\x00'` é no-op, usar `tr -cd '\000'|wc -c`. Demo com dados reais apanhou crash `JSON.parse('null')` que o sample unitário não tinha.
+**Notion:** [Sessão Wave 31](https://app.notion.com/p/3796f6e42bc4816c9a93c57151519440) (ID `3796f6e4-2bc4-816c-9a93-c57151519440`).
+**Próxima missão (Paulo):** (1) **Hub deploy + migration 016** — `cd hub && npx wrangler d1 execute mooter-hub --remote -c wrangler.mooter.toml --file migrations/016_pastor_adapters.sql && npx wrangler deploy -c wrangler.mooter.toml` (route é opt-in → sem breakage se adiado). (2) LoRA train overnight (`train_lora.sh`; adapters registados mas `path:""` não materializados). **Wave 32:** TurboQuant + Edge inference + GDPR export/delete.
+
+---
+
 ### 🐮 Sessão — 2026-06-07 (Wave 30 Mega Synthesis — SHIPPED v1.18.0)
 **Estado:** ✅ **SHIPPED prod `main` @ `ea6e6e6`** (PR #131), tag `v1.18.0-mega-synthesis`. 15 fases A–O autónomas (ultracode+dangerous), 19 commits.
 **Mission aplicada (B6d):** *"Your LLM router. Local-first. Learns forever."* → README + landing hero + CLI banner.
