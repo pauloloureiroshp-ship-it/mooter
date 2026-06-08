@@ -32,7 +32,9 @@ export async function handleUserDashboard(request, env) {
   // Reject anything that isn't a 16-char lowercase hex hash. Defends against
   // SQL injection (we still parameterize) and accidental raw-id leakage.
   if (!HASH_RE.test(userHash)) {
-    return errorResponse('invalid_user_hash', 'validation_error', {
+    // 'validation' → 422 (see hub/lib/errors.js CATEGORY map). An unknown
+    // category key falls through to internal/500, so use the exact key.
+    return errorResponse('invalid_user_hash', 'validation', {
       message: 'user_hash must be a 16-char hex string (SHA256(user_id)[:16])',
     });
   }
