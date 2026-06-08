@@ -5,3 +5,4 @@ export * from "./token-tracker/tracker.ts";
 export * from "./tui/box.ts";
 export * from "./workflow-watch/control.ts";
 export * from "./workflow-watch/render.ts";
+export * from "./pastor-train-watch/render.ts";
