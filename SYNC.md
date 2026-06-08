@@ -3,6 +3,15 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-08 (Wave 33.8 Statusline 2.0 — MERGED to main, v1.21.4)
+**Estado:** ✅ **SHIPPED prod `main` (pushed `48fe446`)**, tag `v1.21.4-statusline-2.0` (pushed). feat `3deca63`. Ultracode + dangerous-autonomous. final-reviewer (Opus) **SHIP-WITH-NITS 0-HIGH/0-MED/3-LOW** (1 nit hardened). Todo em `tools/router/` + `packages/cli/` — engines Wave 28-33.7 **INTOCADOS** (Day-0 catch: `packages/` congelado, `tools/router/` não). classify.js sha `7b01eb86…87762` INTACTA (18→19 waves). landing/ + landing-v12-deploy/ intactos.
+**8 blocks (honest):** **A** `mooter doctor` check stats local↔hub + `mooter sync --rebuild-stats` (`stats-reconcile.ts`) — $0-local vs $25.95-hub NÃO é bug (log local vs agregado cross-device). **B** chip `🪟 name (N active)` só ≥2 heartbeats Conductor (solo=byte-identical). **C** chip wf `🔒 git+notion` via `workflow-locks-bridge.js` host-side (sem editar @mooter/workflow congelado; runner-auto-lock+TUI deferred). **D** dedupe RTX: `setup-status` prefere `hw_tier` (gpu-high) sobre model id (dup vs Line 2 🎮). **E** `user-status.js` → `👤 user <hash8>` de auth.json (**só hash opaco, ZERO GitHub handle** → privacy, silent logged-out; `--hide-user`). **F** Line 1 `T3 opus-4.6` (recommended_model logado) + Line 2 🪙 annota tiers c/ modelo (Opção B, 4-tier macro mantido). **G** MLWR empty → `📊 MLWR · run benchmark`. **H** Line 1 `saved $X all-time·local`.
+**Doutrina:** +16 router tests (`wave33_8-statusline2.test.js`) + +9 CLI (`stats-reconcile.test.ts`) green (clean HOME = CI). Stage selectivo (excluiu 5 deletions pré-existentes + junk). version.json → 1.21.4 via version-sync.yml on tag.
+**Deliverable:** `docs/strategy/WAVE33_8_DAY0_RECON.md`. **Notion:** [Sessão Wave 33.8](https://app.notion.com/p/3796f6e42bc481ab98daedf34f982d94) (ID `3796f6e4-2bc4-81ab-98da-edf34f982d94`).
+**Próxima missão (Paulo):** verificar CI green no push `48fe446` (test.yml + version-sync). Nada mais bloqueante (sem migration/hub-deploy esta wave). Candidatos: Block C profundo (un-freeze @mooter/workflow → runner-auto-lock + TUI workflow IDs) ou Wave 33.9 sub-tiers Opção A.
+
+---
+
 ### 🐮 Sessão — 2026-06-08 (Wave 33.7 Landing Enhance — MERGED to main, v1.21.3)
 **Estado:** ✅ **SHIPPED prod `main` (pushed `8ed2725`)**, tag `v1.21.3-landing-enhance` (pushed). 5 commits (Day 0 recon + blocks A/B+C/D/E). final-reviewer (Opus) **SHIP 0-HIGH/0-MED**. Enhance-in-place no `landing/` existente (Next.js 15, CSS hand-rolled, NÃO Tailwind) — sem rebuild.
 **Day 0 refutou 2 premissas:** (1) OAuth já estava todo wired → Block A reduzido a *apertar scopes*; (2) **migration 008 já liga users↔devices anonimamente via `user_id_hash` (SHA256(user_id)[:16])** → kickoff's Block C raw-`user_id` `user_device_links` table **RECUSADA** (regressão de privacidade).
