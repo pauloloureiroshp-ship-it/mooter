@@ -60,17 +60,96 @@ export {
 export {
   loadRegistry,
   listAdapters,
+  listTaskAdapters,
   getAdapter,
+  getTaskAdapter,
   registerAdapter,
   removeAdapter,
   isMaterialised,
   DEFAULT_ADAPTERS,
+  TASK_ADAPTERS,
+  TASK_ADAPTER_TYPES,
   CURRENT_WAVE,
   type LoraAdapter,
   type AdapterRegistry,
+  type TaskType,
 } from "./lora/adapter-registry.ts";
-export { loadAdapter, ollamaReachable, type LoadResult, type LoadReason } from "./lora/lora-loader.ts";
-export { selectAdapterForTask, AUTO_SWAP_ENABLED, type RoutingFeatures } from "./lora/routing-stub.ts";
+export {
+  loadAdapter,
+  ollamaReachable,
+  hotSwapAdapter,
+  swappedModelTag,
+  type LoadResult,
+  type LoadReason,
+  type SwapResult,
+  type SwapReason,
+  type SwapOptions,
+} from "./lora/lora-loader.ts";
+// Wave 31 — LORAUTER real per-task router (replaces routing-stub.ts).
+export {
+  selectAdapterForTask,
+  routeAdapter,
+  autoSwapEnabled,
+  tokenize,
+  cosineSimilarity,
+  buildIdf,
+  extractFileExts,
+  detectLang,
+  AUTO_SWAP_ENABLED,
+  ROUTE_THRESHOLD,
+  BASELINE_PRIOR,
+  type RoutingFeatures,
+  type RouteDecision,
+  type AdapterScore,
+} from "./lora/routing-lorauter.ts";
+
+// Pastor v2 — per-task routing layer (Wave 31)
+export {
+  routeRequest,
+  type ClassifyDecision,
+  type RouteRequestInput,
+  type RouteRequestResult,
+} from "./pastor/per-task-router.ts";
+export {
+  loadPastorState,
+  savePastorState,
+  recordRoute,
+  summarizePastor,
+  pastorStatePath,
+  emptyPastorState,
+  type PastorState,
+  type PastorSummary,
+  type AdapterUsage,
+} from "./pastor/pastor-state.ts";
+export {
+  loadFeedback,
+  recordFeedback,
+  adapterBias,
+  applyFeedbackBias,
+  feedbackStatePath,
+  BIAS_MIN,
+  BIAS_MAX,
+  type FeedbackState,
+} from "./pastor/feedback-incorporator.ts";
+export {
+  trainSpec,
+  trainStatus,
+  trainStatusPath,
+  type TrainSpec,
+  type TrainStatus,
+  type TrainPhase,
+} from "./pastor/adapter-trainer-stub.ts";
+
+// Knowledge distillation — Pastor learnings → installable skill (Wave 31)
+export {
+  parseDecisions,
+  extractPatterns,
+  type ClassifiedEvent,
+  type RoutingPattern,
+  type DistilledPatterns,
+} from "./distill/pattern-extractor.ts";
+export { generateSkillMarkdown, type SkillMeta } from "./distill/markdown-generator.ts";
+export { emitSkill, defaultDecisionsLog, type EmitOptions, type EmitResult } from "./distill/skill-emitter.ts";
 
 // L14 — Setup Intelligence
 export {
