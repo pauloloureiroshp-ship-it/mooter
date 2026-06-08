@@ -9,7 +9,7 @@
 **6 blocks:** P2 p-limit bundled no v1 CLI (fresh-install build falhava — p-limit só em workflow/node_modules) · P1 version.json 1.6.0→1.21.2 + `.github/workflows/version-sync.yml` (tag→semver auto-bump, `[skip ci]`, rebase-before-push) · P5 chip terminal-name honra `$MOOTER_TERMINAL_NAME` (prioridade #1) · P3 `conductor-status.js` chip lock-count (TTL-stale aware, ≤10ms) · P6 wire na line-3 + test `wave33_5_6-statusline-chips.test.js` (8/8).
 **Doutrina:** classify.js sha `7b01eb86…87762` INTACTA pré+mid+pós-merge (16 waves, confirmada até pelo v1 doctor) · Wave 28-33.5 source packages INTOCADOS (só `packages/cli/package.json` devDep p-limit) · statusline budget preservado · 5 "falhas" de teste pré-existentes (env-COLUMNS, idênticas em main).
 **Deliverable:** `docs/strategy/WAVE33_6_DAY0_RECON.md` (10 pontos + decisões).
-**Notion:** (a criar esta sessão).
+**Notion:** [Sessão Wave 33.6](https://app.notion.com/p/3796f6e42bc4818b8437d80a045a3d60) (ID `3796f6e4-2bc4-818b-8437-d80a045a3d60`).
 **Próxima missão (Paulo):** **Wave 33.7/34 = Phase 2 landing re-briefada contra `landing/` existente** (enhance-in-place: confirmar/ligar GitHub OAuth na auth Supabase já existente, wire dashboard per-user via JWT, SEO/Lighthouse, deploy via Vercel `landing`, hub migration 018 user-link). **NÃO rebuild.** Redesign visual Tailwind/shadcn = wave de design separada se quiseres. (Carry Wave 33.5: `/mooter-update` sync módulos statusline · conductor hooks settings.json · DMs v10.)
 
 ### 🐮 Sessão — 2026-06-08 (Wave 33.5 Historic — MERGED to main, v1.21.1)
