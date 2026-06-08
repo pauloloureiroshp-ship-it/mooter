@@ -35,6 +35,7 @@ import { runMcp } from "./commands/mcp.ts";
 import { runBenchmarkCmd } from "./commands/benchmark.ts";
 import { runPastor } from "./commands/pastor.ts";
 import { runStatusline } from "./commands/statusline.ts";
+import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
@@ -336,4 +337,13 @@ async function main(argv: string[]): Promise<number> {
   return 1;
 }
 
-main(process.argv.slice(2)).then((code) => process.exit(code));
+// Wave 32 (Phase C) — inline token-tracker prefix. OPT-IN via MOOTER_INLINE_TRACKER=1.
+// Emitted to STDERR so command stdout stays byte-stable (tests/pipes unaffected).
+// A pure-local CLI op calls no model → honestly [T0 🏠 local Nms · 0 tok · $0].
+const __inlineTimer = startTimer();
+main(process.argv.slice(2)).then((code) => {
+  if (inlineTrackerEnabled()) {
+    process.stderr.write(buildCommandPrefix({ ms: __inlineTimer() }) + "\n");
+  }
+  process.exit(code);
+});
