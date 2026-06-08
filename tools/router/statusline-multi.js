@@ -341,7 +341,13 @@ function pickState(ctx) {
                      provider0 === 'sonnet'     ? 'sonnet' :
                      provider0 === 'haiku'      ? 'haiku' :
                      provider0 === 'ollama'     ? 'local' : null;
-    const tag = explicit || TIER_DEFAULT_TAG[tier] || tier.toLowerCase();
+    // Wave 33.8 Block F (Opção B) — show the EXACT routed model, not just "opus".
+    // `recommended_model` (logged per decision, e.g. "claude-opus-4-6") collapses
+    // the 4-tier macro's hidden variability Paulo flagged (Q11): "opus" → "opus-4.6".
+    // Cloud tiers only — T0 stays "local" by definition (and byte-identical, so the
+    // pre-Block-F test fixtures with no recommended_model are unaffected).
+    const modelTag = tier !== 'T0' ? shortModelTag(last.recommended_model) : null;
+    const tag = modelTag || explicit || TIER_DEFAULT_TAG[tier] || tier.toLowerCase();
     // Wave 12 PR-I — T0 is local by definition, so "T0 local" is redundant; drop
     // the tag there. Confidence gets a "conf" qualifier so the bare number reads
     // as what it is rather than as noise.
@@ -443,7 +449,7 @@ function pickState(ctx) {
   if (typeof savedPct === 'number' && total >= 5 && savedPct < TH.SAVINGS_YELLOW) {
     return {
       color:    'yellow',
-      headline: `only ${Math.round(savedPct)}% saved all-time — check tier mix`,
+      headline: `only ${Math.round(savedPct)}% saved all-time·local — check tier mix`,
       proof,
     };
   }
@@ -466,7 +472,11 @@ function pickState(ctx) {
     // is cumulative over the whole decisions.log (savings-tracker readDecisions +
     // computeMetrics apply NO date filter), so the old "today" label was wrong.
     // "vs all-Opus" names the baseline the savings % is measured against.
-    const headline = `saved $${savedUsd.toFixed(2)} all-time (${Math.round(savedPct)}% vs all-Opus)`;
+    // Wave 33.8 Block H — qualify it "·local": this is THIS MACHINE's decisions.log,
+    // not the user's cross-device total. That total lives on the hub/dashboard, so a
+    // fresh box reading "$0.00 all-time·local" next to the landing's "$25.95" is no
+    // longer a phantom bug — it's two honestly-scoped numbers (see Block A reconcile).
+    const headline = `saved $${savedUsd.toFixed(2)} all-time·local (${Math.round(savedPct)}% vs all-Opus)`;
     return { color: 'green', headline, proof: proofChips, lastLabel };
   }
 
@@ -761,24 +771,53 @@ function fmtTokens(n) {
 }
 
 /**
+ * Wave 33.8 Block F — short, version-bearing model tag for the Line 1 tier badge.
+ * "claude-opus-4-6" → "opus-4.6"; "claude-haiku-4-5" → "haiku-4.5"; a local model
+ * like "qwen3:30b" passes through unchanged. Returns null for anything that does
+ * not look like a known model id, so the caller falls back to its existing tag.
+ * @param {string|undefined} rm  the per-decision recommended_model
+ * @returns {string|null}
+ */
+function shortModelTag(rm) {
+  if (typeof rm !== 'string' || !rm.trim()) return null;
+  const m = rm.trim().replace(/^claude-/, '');
+  // opus-4-6 → opus-4.6 ; sonnet-4-6 → sonnet-4.6 ; haiku-4-5 → haiku-4.5 (keep any [suffix]).
+  const cloud = m.match(/^(opus|sonnet|haiku)-(\d+)-(\d+)(.*)$/);
+  if (cloud) return `${cloud[1]}-${cloud[2]}.${cloud[3]}${cloud[4] || ''}`;
+  // Local Ollama ids (qwen3:30b, gemma3:12b, …) — already short; show verbatim.
+  if (/^[a-z0-9][\w.:-]*$/i.test(m) && m.length <= 24) return m;
+  return null;
+}
+
+// Wave 33.8 Block F — per-tier short model names for the 🪙 token chip annotation.
+// Derived from the router's TIER_TO_PRICING_KEY (pricing.js) so the statusline and
+// the cost engine name the same models. T0 is "local" (the active Ollama model
+// varies per task; the quant chip already names it precisely).
+const TIER_MODEL_TAG = { T0: 'local', T1: 'haiku-4.5', T2: 'sonnet-4.6', T3: 'opus-4.6' };
+
+/**
  * Wave 19 (19.A) — the 🪙 per-tier token chip. Renders only tiers that consumed
  * real tokens (input+output; cache tokens are excluded from the headline). All
  * tiers zero → null (chip dropped) so the line stays quiet on a fresh session.
  * @param {{T0,T1,T2,T3}|null} snap  per-tier {tokens_in,tokens_out,...}
  * @returns {string|null}  e.g. "🪙 T0:13.3k · T2:24.2k"
  */
-function buildTokenChip(snap, { color = useColor() } = {}) {
+function buildTokenChip(snap, { color = useColor(), models = false } = {}) {
   if (!snap) return null;
   // Wave 19 (Day 4.1) — show ALL FOUR tiers, even at 0. Hiding zero tiers made
   // a session read as "🪙 T3:2.4M" → "Mooter only uses Opus", the exact OPPOSITE
   // of the transparency promise. The whole point is to show the mix, including
   // the zeros that prove cheaper tiers were available.
+  // Wave 33.8 Block F — `models:true` annotates each NON-ZERO tier with the model
+  // that processed its tokens (e.g. "T3:263.8k (opus-4.6)"), surfacing the cost
+  // variability the bare tier hides (Q11). Default off → byte-identical to before.
   const parts = [];
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     const s = snap[t] || {};
     const tot = (Number(s.tokens_in) || 0) + (Number(s.tokens_out) || 0);
+    const tag = models && tot > 0 ? ` (${TIER_MODEL_TAG[t]})` : '';
     // T0 green / T1 blue / T2 yellow / T3 red, free→expensive (Wave 19 19.B-1).
-    parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}`, color));
+    parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}${tag}`, color));
   }
   // Wave 20 (20.C) — a single "tkns" unit label on the first tier so the 🪙 chip
   // reads as token counts, not the 🐄 call counts. One label keeps it compact.
@@ -998,7 +1037,7 @@ function renderTwoLine(ctx, opts = {}) {
   // `hidden_chips: ["tokens"]` drops the 🪙 chip. Best-effort: any failure → no chip.
   let tokSnap = null;
   try { tokSnap = require('./token_tracker.js').snapshot(ctx.sessionId); } catch { tokSnap = null; }
-  const tokenChip = hide('tokens') ? null : buildTokenChip(tokSnap);
+  const tokenChip = hide('tokens') ? null : buildTokenChip(tokSnap, { models: true });
 
   // Wave 21 (C4) — single-source 🏠 chip from the token_tracker snapshot (calls +
   // token% from the SAME reconciled source, agreeing with the 🪙 chip). Replaces
@@ -1071,7 +1110,9 @@ function buildLine3(force) {
     // Wave 33.5 Block B.5 — 🐝 active spawns.
     './spawns-status.js',
     // Wave 33.6 Block P6 — 🔒 conductor lock count.
-    './conductor-status.js']) {
+    './conductor-status.js',
+    // Wave 33.8 Block E — 👤 signed-in identity (opaque hash, silent logged-out).
+    './user-status.js']) {
     try {
       const c = require(mod).statusLine();
       if (c) chips.push(c);

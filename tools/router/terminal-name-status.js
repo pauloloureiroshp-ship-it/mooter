@@ -13,6 +13,11 @@
  *   6. git branch via .git/HEAD walk-up    (worktree-aware, file read only)
  *   7. directory basename
  *
+ * Wave 33.8 Block B — cross-terminal visibility. When ≥2 Conductor heartbeats
+ * are live, append `(N active)` so a glance answers "how many Mooter terminals
+ * are running right now" without opening the sessions TUI. Solo (N≤1) → output
+ * is byte-identical to before (no suffix), preserving every existing snapshot.
+ *
  * `hidden_chips: ["terminal-name"]` drops it. Best-effort: any failure → ''.
  */
 'use strict';
@@ -20,6 +25,46 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+// A heartbeat is considered live if refreshed within this window. The Conductor
+// (Wave 33.5) rewrites heartbeats periodically; a stale file means a dead/exited
+// terminal we must not count. 90s tolerates a slow refresh cadence.
+const HEARTBEAT_LIVE_MS = 90000;
+
+function mooterHome() {
+  return process.env.MOOTER_HOME && process.env.MOOTER_HOME.length > 0
+    ? process.env.MOOTER_HOME
+    : path.join(os.homedir(), '.mooter');
+}
+
+/**
+ * Pure: count live sessions from an array of parsed heartbeat objects.
+ * Live = has a numeric last_heartbeat_ms within HEARTBEAT_LIVE_MS of `now`.
+ * Returns 0 on any non-array / empty input.
+ */
+function countLiveSessions(heartbeats, now) {
+  if (!Array.isArray(heartbeats)) return 0;
+  let n = 0;
+  for (const hb of heartbeats) {
+    const ms = hb && Number(hb.last_heartbeat_ms);
+    if (Number.isFinite(ms) && now - ms <= HEARTBEAT_LIVE_MS && now - ms >= -HEARTBEAT_LIVE_MS) n += 1;
+  }
+  return n;
+}
+
+/** Read + parse heartbeat files (best-effort, capped). Returns []. */
+function readHeartbeats(dir) {
+  try {
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).slice(0, 64);
+    const out = [];
+    for (const f of files) {
+      try { out.push(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))); } catch { /* skip */ }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 function clean(s) {
   if (typeof s !== 'string') return null;
@@ -88,10 +133,19 @@ function statusLine() {
     cwd: process.cwd(),
     override: p.terminal_label,
   });
-  return `🪟 ${name}`;
+  // Block B — append the live-session count only when ≥2 terminals are active,
+  // so the common solo case stays byte-identical. Hidden via `--hide-sessions-count`.
+  let suffix = '';
+  if (!(Array.isArray(p.hidden_chips) && p.hidden_chips.includes('sessions-count'))) {
+    try {
+      const n = countLiveSessions(readHeartbeats(path.join(mooterHome(), 'orchestration', 'heartbeats')), Date.now());
+      if (n >= 2) suffix = ` (${n} active)`;
+    } catch { /* best-effort: no suffix */ }
+  }
+  return `🪟 ${name}${suffix}`;
 }
 
-module.exports = { resolveLabel, gitBranch, statusLine };
+module.exports = { resolveLabel, gitBranch, countLiveSessions, readHeartbeats, statusLine, HEARTBEAT_LIVE_MS };
 
 if (require.main === module) {
   const out = statusLine();

@@ -23,7 +23,12 @@ function readJson(p) {
 /** Pure: build the setup chip from a profile + installed-packs registry. */
 function buildSetupChip(profile, installed) {
   if (!profile || !profile.hardware) return null;
-  const hc = profile.hardware.hardware_class || profile.hardware.hw_tier || 'setup';
+  // Wave 33.8 Block D — prefer the hardware *tier/class* (e.g. "gpu-high") over the
+  // specific model id ("nvidia-rtx-4090"): the latter duplicates Line 2's
+  // `🎮 RTX 4090 …VRAM` chip. Line 3 now carries the class, Line 2 the model+VRAM —
+  // distinct info, no redundancy. Falls back to hardware_class when no tier exists
+  // (older profiles), keeping the chip non-empty + the existing fixtures green.
+  const hc = profile.hardware.hw_tier || profile.hardware.hardware_class || 'setup';
   const sub = (profile.subscriptions && profile.subscriptions.subscription_tier) || 'none';
   const n = installed && Array.isArray(installed.packs) ? installed.packs.length : 0;
   return `🔧 ${hc} · ${sub}${n > 0 ? ` · ${n} pack${n > 1 ? 's' : ''}` : ''}`;

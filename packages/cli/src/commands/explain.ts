@@ -46,7 +46,7 @@ Statusline modes (mooter statusline mode <name>):
   Preview without saving: mooter statusline mode --preview <name>
 
 To hide any chip:  mooter quiet --hide-<chip>
-Available:         --hide-vram · --hide-quant · --hide-ctx · --hide-adapter · --hide-session-timer
+Available:         --hide-vram · --hide-quant · --hide-ctx · --hide-adapter · --hide-session-timer · --hide-user · --hide-sessions-count
 Re-enable all:     mooter quiet --show-all`;
 
 export function runExplain(opts: { topic?: string } = {}): CmdResult {

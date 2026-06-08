@@ -103,7 +103,8 @@ export function runQuiet(opts: QuietOptions = {}): CmdResult {
   // Wave 5 D3 — statusline chip hide flags. `--hide-<chip>` adds to hidden_chips
   // (valid: vram/quant/ctx/adapter); `--show-all` clears them. Other prefs intact.
   if ((opts.hideChips && opts.hideChips.length) || opts.showAll) {
-    const VALID = ["vram", "quant", "ctx", "adapter", "session-timer"];
+    // Wave 33.8 — `user` (Block E) + `sessions-count` (Block B) join the hideable set.
+    const VALID = ["vram", "quant", "ctx", "adapter", "session-timer", "user", "sessions-count"];
     const current = new Set(Array.isArray(prefs.hidden_chips) ? (prefs.hidden_chips as string[]) : []);
     if (opts.showAll) current.clear();
     const bad: string[] = [];

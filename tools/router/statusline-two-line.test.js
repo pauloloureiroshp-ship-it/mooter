@@ -54,7 +54,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   assert.equal(lines.length, 2, 'wide terminal renders exactly two lines');
   assert.match(lines[0], /🐮/, 'line 1 carries the mood glyph');
   // PR-I line-1 qualifiers + de-branding
-  assert.match(lines[0], /saved \$0\.27 all-time \(89% vs all-Opus\)/, 'B3: saved carries all-time + baseline qualifiers');
+  assert.match(lines[0], /saved \$0\.27 all-time·local \(89% vs all-Opus\)/, 'B3: saved carries all-time·local + baseline qualifiers');
   assert.doesNotMatch(lines[0], /mooter saved/, 'PR-I: redundant "mooter" word dropped (🐮 already brands)');
   assert.match(lines[0], /T2 sonnet · conf 0\.84/, 'PR-I: tier shows model family + conf qualifier');
   // PR-I sparkline sits between the saved outcome and the tier label

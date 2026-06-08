@@ -12,6 +12,14 @@
  * Hot path: a single best-effort JSON read, no subprocess. Any failure → ''.
  * Token count is rendered only if the pointer carries one (it does not today) —
  * never fabricated.
+ *
+ * Wave 33.8 Block C — Conductor ↔ Workflow join. When the active-run pointer
+ * carries `locks_held: string[]` (stamped by the host runner via
+ * workflow-locks-bridge.js), append `🔒 git+notion` so one chip shows BOTH the
+ * run's progress AND the dangerous resources it currently holds — the gap Paulo
+ * flagged (Q6/Q9). Absent today → nothing shown (honest; never fabricated). The
+ * deeper "runner auto-acquires the Conductor lock" lives in @mooter/workflow,
+ * which is frozen (Wave 28-33.7) — see WAVE33_8_DAY0_RECON.md §Plano Block C.
  */
 'use strict';
 
@@ -59,7 +67,18 @@ function buildWorkflowProgressChip(snap, now, tick) {
   const id = String(snap.run_id || snap.workflow_name || 'wf').slice(0, 8);
   const dots = progressDots(done, total, 7, tick);
   const tok = Number.isFinite(snap.tokens) && snap.tokens > 0 ? ` · ${(snap.tokens / 1000).toFixed(1)}k tk` : '';
-  return `🔄 wf-${id} ${done}/${total}${dots ? ' ' + dots : ''}${tok}`;
+  const locks = buildLocksSegment(snap.locks_held);
+  return `🔄 wf-${id} ${done}/${total}${dots ? ' ' + dots : ''}${locks}${tok}`;
+}
+
+/** Pure: render the held-locks segment, e.g. ` 🔒 git+notion`. '' when none. */
+function buildLocksSegment(held) {
+  if (!Array.isArray(held)) return '';
+  const names = held
+    .filter((r) => typeof r === 'string' && r.trim().length)
+    .map((r) => r.trim());
+  if (!names.length) return '';
+  return ` 🔒 ${names.join('+')}`;
 }
 
 function statusLine() {
@@ -76,7 +95,7 @@ function statusLine() {
   return buildWorkflowProgressChip(snap, Date.now(), tick);
 }
 
-module.exports = { buildWorkflowProgressChip, progressDots, statusLine, STALE_MS };
+module.exports = { buildWorkflowProgressChip, buildLocksSegment, progressDots, statusLine, STALE_MS };
 
 if (require.main === module) {
   const out = statusLine();

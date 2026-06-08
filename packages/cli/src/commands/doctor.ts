@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import { EXPECTED_CLASSIFY_SHA } from "../../../synthesis/src/state/central-state.ts";
 import { detectSandbox } from "../../../spawn-orchestrator/src/index.ts";
+import { reconcileStats, type ReconcileResult } from "./stats-reconcile.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -35,6 +36,8 @@ export interface DoctorProbes {
   ollamaUp?: () => boolean;
   /** Override classify.js path resolution. */
   classifyPath?: string | null;
+  /** Override the stats reconcile (tests). Returns null to skip the check. */
+  statsReconcile?: () => ReconcileResult | null;
 }
 
 function defaultWhich(bin: string): boolean {
@@ -128,6 +131,20 @@ export function runDoctorChecks(probes: DoctorProbes = {}): Check[] {
       ? { name: "multiplexers detected", level: "ok", detail: muxes.join(", ") }
       : { name: "multiplexers detected", level: "warn", detail: "none (Zellij/tmux/WezTerm) — sessions still work, no pane integration" },
   );
+
+  // 6 — Wave 33.8 Block A: statusline (local) vs hub (cross-device) stats sanity.
+  // A divergence here is the thing that made "$0.00 all-time·local" look like a bug
+  // next to the landing's real total. `unknown` (never synced) maps to warn so the
+  // user gets the actionable hint; a legitimate multi-device gap is `warn` but says
+  // so plainly; aligned numbers are `ok`.
+  const recon = (probes.statsReconcile ?? (() => reconcileStats({ mooterHome: join(home, ".mooter") })))();
+  if (recon) {
+    checks.push({
+      name: "stats sync (local↔hub)",
+      level: recon.level === "ok" ? "ok" : "warn",
+      detail: recon.detail,
+    });
+  }
 
   return checks;
 }
