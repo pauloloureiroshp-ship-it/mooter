@@ -5,6 +5,14 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const accessToken = searchParams.get('access_token');
+  const oauthError = searchParams.get('error'); // e.g. access_denied when the user declines on GitHub
+
+  // Wave 44 — provider returned an error in the query (code-flow denial/cancel).
+  // Forward a reason so the banner can be specific instead of generic.
+  if (oauthError) {
+    const reason = oauthError === 'access_denied' ? 'denied' : 'failed';
+    return NextResponse.redirect(new URL(`/?auth=error&reason=${reason}`, request.url));
+  }
 
   // Code flow (PKCE / authorization_code)
   if (code) {
@@ -52,6 +60,7 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams(hash);
   const access_token = params.get('access_token');
   const refresh_token = params.get('refresh_token');
+  const oauthErr = params.get('error');
   const isCli = sessionStorage.getItem('cli_login') === '1';
   if (access_token) {
     fetch('/auth/token', {
@@ -66,10 +75,10 @@ export async function GET(request: NextRequest) {
         } else {
           window.location.replace('/onboarding');
         }
-      } else window.location.replace('/?auth=error');
-    }).catch(() => window.location.replace('/?auth=error'));
+      } else window.location.replace('/?auth=error&reason=failed');
+    }).catch(() => window.location.replace('/?auth=error&reason=network'));
   } else {
-    window.location.replace('/?auth=error');
+    window.location.replace(oauthErr === 'access_denied' ? '/?auth=error&reason=denied' : '/?auth=error&reason=failed');
   }
 </script>
 <p>Signing in…</p>
@@ -82,5 +91,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.redirect(new URL('/?auth=error', request.url));
+  return NextResponse.redirect(new URL('/?auth=error&reason=failed', request.url));
 }

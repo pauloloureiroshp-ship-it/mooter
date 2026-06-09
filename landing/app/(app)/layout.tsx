@@ -297,7 +297,11 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
 // ── Login hero — split-screen dark (brand parity with the landing) ──────────
 
 function LoginHero() {
+  // Wave 44 — in-flight state: GitHub OAuth is a full-page redirect, so without
+  // feedback the button looks dead for the second before the browser navigates.
+  const [loading, setLoading] = useState(false);
   const handleLogin = () => {
+    setLoading(true);
     const redirectTo = `${window.location.origin}/auth/callback`;
     window.location.href =
       `${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/authorize` +
@@ -346,6 +350,8 @@ function LoginHero() {
             {/* GitHub CTA */}
             <button
               onClick={handleLogin}
+              disabled={loading}
+              aria-busy={loading}
               style={{
                 width: '100%',
                 maxWidth: 360,
@@ -361,15 +367,16 @@ function LoginHero() {
                 fontSize: '0.95rem',
                 fontWeight: 600,
                 fontFamily: 'var(--font-sans), sans-serif',
-                cursor: 'pointer',
+                cursor: loading ? 'progress' : 'pointer',
+                opacity: loading ? 0.7 : 1,
                 transition: 'all 150ms ease',
                 boxShadow: '0 12px 32px -8px rgba(194,95,101,0.4)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#a54e54'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)'; }}
+              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#a54e54'; }}
+              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
             >
               <GitHubIcon size={18} />
-              Continue with GitHub
+              {loading ? 'Connecting to GitHub…' : 'Continue with GitHub'}
             </button>
 
             <p style={{
