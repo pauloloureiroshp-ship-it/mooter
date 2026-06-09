@@ -14,9 +14,19 @@
 // per-event cost (that lives only as an aggregate in the tracker), so a per-tier
 // breakdown would be fabricated. The honest split is by COUNT, with the dollar
 // totals coming from the tracker.
+//
+// Wave 34.5 (Bug C) — subagent visibility. The digest used to count ONLY
+// top-level prompts (decisions.log "classified" events from UserPromptSubmit),
+// so a session that fanned its work out to Mooter subagents (local-summarizer,
+// cheap-triage, …) showed an unchanged tier mix — the delegation was invisible.
+// We now also fold in the session's recorded subagent dispatches (the herd
+// state the SubagentStop hook writes via subagent_tracker.js) so the tier
+// breakdown reflects delegated routing too. Top-level "prompts" and "delegated"
+// dispatches are reported as distinct counts — never conflated, never inflated
+// beyond what the tracker actually recorded.
 
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CmdResult, TrailOptions, TrackerMetrics } from "./trail.ts";
 
@@ -61,6 +71,35 @@ function readLines(opts: TrailOptions): string[] {
   }
 }
 
+/** Sanitize a session id into the same tmp-file token subagent_tracker.js uses. */
+function sanitizeSession(sessionId?: string): string {
+  const s = sessionId == null ? "" : String(sessionId);
+  return s.replace(/[^\w-]/g, "").slice(0, 96) || "global";
+}
+
+/** Read the session's recorded subagent dispatches from the herd state file the
+ *  SubagentStop hook maintains (subagent_tracker.js). Best-effort: returns [] if
+ *  there is no session, no file, or it is unreadable — never throws, never guesses. */
+export function readSubagentDispatches(sessionId?: string): SubagentDispatch[] {
+  if (!sessionId) return [];
+  const file = join(tmpdir(), `mooter-herd-${sanitizeSession(sessionId)}.json`);
+  try {
+    const state = JSON.parse(readFileSync(file, "utf8"));
+    const cumulative = state && typeof state.cumulative === "object" ? state.cumulative : {};
+    const out: SubagentDispatch[] = [];
+    for (const [agent, v] of Object.entries(cumulative)) {
+      if (agent === "__done_ids" || !v || typeof v !== "object") continue;
+      const rec = v as { count?: number; tier?: string | null; model?: string | null; local?: boolean };
+      const count = Math.max(0, Math.floor(Number(rec.count) || 0));
+      if (!count) continue;
+      out.push({ tier: rec.tier ?? null, model: rec.model ?? null, count, local: !!rec.local });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 function sessionEvents(lines: string[], sessionId?: string): DigestEvent[] {
   const out: DigestEvent[] = [];
   for (const line of lines) {
@@ -84,8 +123,19 @@ export interface DigestTier {
   model: string;
 }
 
+/** One agent class's dispatch tally for the session, as recorded by the
+ *  SubagentStop hook (subagent_tracker.js cumulative). */
+export interface SubagentDispatch {
+  tier?: string | null;
+  model?: string | null;
+  count: number;
+  local?: boolean;
+}
+
 export interface Digest {
   prompts: number;
+  /** Subagent dispatches folded into the tier mix this session (Wave 34.5 Bug C). */
+  delegated: number;
   durationMs: number | null;
   tiers: DigestTier[];
   spent: number | null;
@@ -94,16 +144,24 @@ export interface Digest {
   localTasks: Array<{ preview: string; model: string; tier: string; ms: number | null }>;
 }
 
-/** Build the digest object from session events + optional tracker metrics. Pure. */
-export function buildDigest(events: DigestEvent[], metrics: TrackerMetrics | null): Digest {
+/** Build the digest object from session events + optional tracker metrics. Pure.
+ *  `subagents` (optional) folds the session's recorded subagent dispatches into
+ *  the per-tier mix so delegated routing is visible (Wave 34.5 Bug C). */
+export function buildDigest(
+  events: DigestEvent[],
+  metrics: TrackerMetrics | null,
+  subagents: SubagentDispatch[] = [],
+): Digest {
   const counts: Record<string, number> = { T0: 0, T1: 0, T2: 0, T3: 0 };
   const models: Record<string, Record<string, number>> = { T0: {}, T1: {}, T2: {}, T3: {} };
   let firstTs: number | null = null;
   let lastTs: number | null = null;
+  let topLevel = 0;
   for (const e of events) {
     const t = e.tier;
     if (t && t in counts) {
       counts[t]++;
+      topLevel++;
       const sm = shortModel(e.recommended_model);
       if (sm) models[t][sm] = (models[t][sm] || 0) + 1;
     }
@@ -112,6 +170,22 @@ export function buildDigest(events: DigestEvent[], metrics: TrackerMetrics | nul
       if (lastTs === null || e.ts_ms > lastTs) lastTs = e.ts_ms;
     }
   }
+
+  // Fold in delegated subagent dispatches. Tier precedence: explicit recorded
+  // tier → local agents collapse to T0 → otherwise skip (never guess a cloud tier).
+  let delegated = 0;
+  for (const s of subagents) {
+    const c = Math.max(0, Math.floor(Number(s.count) || 0));
+    if (!c) continue;
+    let t = s.tier ? String(s.tier).toUpperCase() : "";
+    if (!(t in counts)) t = s.local ? "T0" : "";
+    if (!(t in counts)) continue;
+    counts[t] += c;
+    delegated += c;
+    const sm = shortModel(s.model) || (t === "T0" ? "local" : "");
+    if (sm) models[t][sm] = (models[t][sm] || 0) + c;
+  }
+
   const total = counts.T0 + counts.T1 + counts.T2 + counts.T3;
   const tiers: DigestTier[] = TIER_ORDER.filter((t) => counts[t] > 0).map((t) => {
     const topModel =
@@ -133,7 +207,8 @@ export function buildDigest(events: DigestEvent[], metrics: TrackerMetrics | nul
     }));
 
   return {
-    prompts: total,
+    prompts: topLevel,
+    delegated,
     durationMs: firstTs !== null && lastTs !== null ? lastTs - firstTs : null,
     tiers,
     spent: metrics && typeof metrics.alltime_cost_usd === "number" ? metrics.alltime_cost_usd : null,
@@ -163,7 +238,8 @@ function truncate(s: string, max = 36): string {
 export function printDigestHuman(d: Digest): string {
   const lines: string[] = [];
   const dur = fmtDuration(d.durationMs);
-  const head = [`${d.prompts} prompts`, dur, d.saved !== null ? `saved $${d.saved.toFixed(2)}${d.savedPct !== null ? ` (${d.savedPct}%)` : ""}` : null]
+  const promptsLabel = `${d.prompts} prompts${d.delegated ? ` + ${d.delegated} delegated` : ""}`;
+  const head = [promptsLabel, dur, d.saved !== null ? `saved $${d.saved.toFixed(2)}${d.savedPct !== null ? ` (${d.savedPct}%)` : ""}` : null]
     .filter(Boolean)
     .join(" · ");
   lines.push("");
@@ -214,12 +290,15 @@ async function defaultFetchMetrics(sessionId?: string): Promise<TrackerMetrics |
   }
 }
 
-export async function runDigest(opts: TrailOptions = {}): Promise<CmdResult> {
+export async function runDigest(
+  opts: TrailOptions & { subagents?: SubagentDispatch[] } = {},
+): Promise<CmdResult> {
   const sessionId = opts.sessionId ?? process.env.CLAUDE_SESSION_ID;
   const events = sessionEvents(readLines(opts), sessionId);
   const metrics =
     opts.metrics !== undefined ? opts.metrics : await (opts.fetchMetrics ?? defaultFetchMetrics)(sessionId);
-  const digest = buildDigest(events, metrics);
+  const subagents = opts.subagents !== undefined ? opts.subagents : readSubagentDispatches(sessionId);
+  const digest = buildDigest(events, metrics, subagents);
   const output = opts.json ? JSON.stringify(digest, null, 2) : printDigestHuman(digest);
   return { exitCode: 0, output };
 }
