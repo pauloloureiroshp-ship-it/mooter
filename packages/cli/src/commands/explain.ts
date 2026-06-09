@@ -73,8 +73,8 @@ const CHIPS: ChipExplainer[] = [
   {
     names: ["saved", "savings"],
     title: "🐮 mooter saved $X (Y%)",
-    what: "Your cumulative savings this session, in dollars and as a percentage. Mooter compares what you actually spent (each prompt routed to the cheapest model that fits — Ollama, Haiku, Sonnet, or Opus) against a baseline where every prompt had gone to Opus (all-T3). The difference is the saving. It is an advisory estimate from token-cost models, not a billed figure, and it is floored at $0 (a rare short prompt can estimate above baseline).",
-    interpret: "Higher is better. The % is savings vs all-Opus, so 78% means you paid ~22% of the all-Opus cost. It climbs as more prompts route to local/cheap tiers.",
+    what: "Your cumulative savings this session, in dollars and as a percentage. Mooter compares what you actually spent (each prompt routed to the cheapest model that fits — Ollama, Haiku, Sonnet, or Opus) against a baseline where every prompt had gone to Opus (all-T3). The difference is the saving. It is an advisory estimate from token-cost models, not a billed figure, and it is floored at $0 (a rare short prompt can estimate above baseline). Work that Mooter delegates to subagents (local-summarizer, cheap-triage, …) counts too — those dispatches are folded into the tier mix you see in `mooter digest`.",
+    interpret: "Higher is better. The % is savings vs all-Opus, so 78% means you paid ~22% of the all-Opus cost. It climbs as more prompts route to local/cheap tiers. If it reads near 0% on a heavy session, the likely cause is that the orchestrator did the work inline on Opus instead of delegating it — extended-thinking / high-effort modes lean that way, so there is genuinely less to save. Delegating cheap work to subagents is what moves this number.",
     example: "saved $0.20 (78%) → you spent ~$0.06 where all-Opus would have been ~$0.28.",
   },
   {

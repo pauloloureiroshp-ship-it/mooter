@@ -89,3 +89,52 @@ test("runDigest --json returns the structured digest", async () => {
   assert.equal(parsed.prompts, 1);
   assert.equal(parsed.tiers[0].tier, "T0");
 });
+
+// Wave 34.5 (Bug C) — subagent dispatches fold into the tier mix.
+test("buildDigest folds subagent dispatches into tier counts (delegated visible)", () => {
+  const lines = [ev("T3"), ev("T3")]; // 2 top-level Opus prompts
+  const subagents = [
+    { tier: "T0", model: "qwen2.5:3b", count: 4, local: true },
+    { tier: "T1", model: "claude-haiku-4-5", count: 2, local: false },
+  ];
+  const d = buildDigest(events(lines), null, subagents);
+  assert.equal(d.prompts, 2, "top-level prompts unchanged");
+  assert.equal(d.delegated, 6, "4 + 2 delegated dispatches");
+  const t0 = d.tiers.find((t) => t.tier === "T0")!;
+  assert.equal(t0.count, 4, "T0 reflects the 4 local dispatches");
+  assert.equal(t0.model, "qwen2.5");
+  // MLWR-style locality: T0+T1 should now be the majority (6 of 8), not 0%.
+  const t1 = d.tiers.find((t) => t.tier === "T1")!;
+  assert.equal(t0.pct + t1.pct, 75, "delegation moves the cheap-tier share to 75%");
+});
+
+test("buildDigest collapses a local subagent with no tier to T0, skips unknown cloud", () => {
+  const d = buildDigest(events([ev("T2")]), null, [
+    { count: 3, local: true }, // local, no tier → T0
+    { count: 5, local: false }, // cloud, no tier → skipped (never guessed)
+  ]);
+  assert.equal(d.delegated, 3, "only the local, attributable dispatch counts");
+  assert.equal(d.tiers.find((t) => t.tier === "T0")!.count, 3);
+  assert.equal(d.prompts, 1);
+});
+
+test("printDigestHuman header shows the delegated count when present", () => {
+  const out = printDigestHuman(buildDigest(events([ev("T3")]), null, [{ tier: "T0", count: 4, local: true }]));
+  assert.match(out, /1 prompts \+ 4 delegated/);
+  // No subagents → no "delegated" noise.
+  const plain = printDigestHuman(buildDigest(events([ev("T3")]), null));
+  assert.doesNotMatch(plain, /delegated/);
+});
+
+test("runDigest accepts injected subagents (no herd file IO in tests)", async () => {
+  const res = await runDigest({
+    lines: [ev("T3")],
+    metrics: null,
+    sessionId: "s1",
+    json: true,
+    subagents: [{ tier: "T0", count: 2, local: true }],
+  });
+  const parsed = JSON.parse(res.output);
+  assert.equal(parsed.delegated, 2);
+  assert.equal(parsed.prompts, 1);
+});

@@ -70,6 +70,43 @@ function err(message: string): CmdResult {
   return { exitCode: 1, output: `${message}\n\n${WORKFLOW_USAGE}` };
 }
 
+// Wave 34.5 (Bug B) — turn a failed engine load into a precise, actionable
+// message instead of the old one-size-fits-all "unavailable in this build".
+// Validation (Wave 33-VAL) found `mooter workflow` dead in the shipped npm
+// bundle: the engine package ships only in a source checkout, and even there its
+// native deps (isolated-vm, better-sqlite3) must be built. This classifier reads
+// the thrown error and tells the user exactly which case they hit + how to fix
+// it. Pure (string in → string out) so it's unit-tested without the engine.
+export function describeEngineError(e: unknown): string {
+  const msg = (e instanceof Error ? e.message : String(e)) || "";
+  const code = (e as { code?: string } | null)?.code || "";
+  const mentions = (dep: string) => new RegExp(dep.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(msg);
+
+  // Engine package present but a native dependency failed to load/build.
+  if (mentions("isolated-vm") || mentions("better-sqlite3")) {
+    const dep = mentions("isolated-vm") ? "isolated-vm" : "better-sqlite3";
+    return (
+      `mooter workflow: the engine's native dependency '${dep}' isn't built.\n` +
+      `  Fix (from a source checkout):  cd packages/workflow && npm install\n` +
+      `  ${dep} compiles native code, so you need a C++ toolchain` +
+      ` (Linux: build-essential · macOS: xcode-select --install).`
+    );
+  }
+
+  // Engine package not resolvable at all — the shipped npm bundle omits it.
+  if (code === "ERR_MODULE_NOT_FOUND" || /cannot find (module|package)|workflow[\\/]src[\\/]index/i.test(msg)) {
+    return (
+      `mooter workflow: the workflow engine isn't included in this install.\n` +
+      `  It ships only in a source checkout where its native deps can be built.\n` +
+      `  Quick start:  git clone <repo> && cd mooter/packages/workflow && npm install\n` +
+      `  Then run mooter from that checkout (npm run build in packages/cli).`
+    );
+  }
+
+  // Anything else — surface the real error, don't pretend to diagnose it.
+  return `mooter workflow: the engine could not start.\n  (${msg})`;
+}
+
 // Lazy engine loader — only reached once a subcommand has valid args. The
 // specifier is assembled at runtime so esbuild does NOT bundle the engine (it
 // pulls native deps — isolated-vm, better-sqlite3 — that the zero-runtime-deps
@@ -413,13 +450,7 @@ export async function runWorkflow(args: string[]): Promise<CmdResult> {
     }
   } catch (e) {
     // Most likely the engine couldn't be loaded (shipped bundle has no native
-    // deps). Report it cleanly rather than crashing the CLI.
-    return {
-      exitCode: 1,
-      output:
-        `mooter workflow: the engine is unavailable in this build.\n` +
-        `  Run from a source checkout with the engine's native deps built (isolated-vm, better-sqlite3).\n` +
-        `  (${(e as Error).message})`,
-    };
+    // deps). Report it cleanly + actionably rather than crashing the CLI.
+    return { exitCode: 1, output: describeEngineError(e) };
   }
 }

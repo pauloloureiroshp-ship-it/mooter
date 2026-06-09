@@ -70,3 +70,11 @@ test("explain unknown still lists chips so the user can recover", () => {
   assert.match(res.output, /Available topics: statusline/);
   assert.match(res.output, /saved/);
 });
+
+// Wave 34.5 (Bug D) — honest caveat: delegated work counts; inline-Opus reads low.
+test("explain saved: honest about delegation + inline-Opus reducing savings", () => {
+  const out = runExplain({ topic: "saved" }).output;
+  assert.match(out, /delegat/i, "explains delegated subagent work counts");
+  assert.match(out, /inline|extended-thinking|high-effort/i, "explains why it can read near 0%");
+  assert.ok(!/revolutionary|magic|guaranteed/i.test(out), "no hyperbole");
+});
