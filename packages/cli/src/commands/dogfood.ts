@@ -172,12 +172,18 @@ export function runDogfood(args: string[]): CmdResult {
       .join(" ")
       .trim();
     if (!text) return { exitCode: 1, output: 'usage: mooter dogfood log "<friction description>"' };
+    const badSeverity =
+      severity !== undefined &&
+      !["low", "med", "medium", "high"].includes(severity.toLowerCase());
     const entry = buildEntry(text, { severity });
     appendJsonl(dogfoodPath(), entry);
     const today = countToday();
     if (json) return { exitCode: 0, output: JSON.stringify(entry, null, 2) };
     const where = entry.wave ? ` · wave ${entry.wave} phase ${entry.phase}` : "";
-    return { exitCode: 0, output: `🍖 logged [${entry.severity}]${where} · ${today} today` };
+    const warn = badSeverity
+      ? `\n⚠ unknown severity '${severity}' → logged as low (use low|med|high)`
+      : "";
+    return { exitCode: 0, output: `🍖 logged [${entry.severity}]${where} · ${today} today${warn}` };
   }
 
   if (sub === "digest") {
@@ -211,5 +217,8 @@ export function runDogfood(args: string[]): CmdResult {
     };
   }
 
-  return { exitCode: 1, output: `mooter dogfood: unknown subcommand '${sub}'` };
+  return {
+    exitCode: 1,
+    output: `mooter dogfood: unknown subcommand '${sub}' (try: log | digest | list | --help)`,
+  };
 }

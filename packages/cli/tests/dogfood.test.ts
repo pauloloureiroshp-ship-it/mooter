@@ -106,3 +106,31 @@ test("log returns JSON entry with --json", () => {
     assert.equal(e.severity, "low");
   });
 });
+
+test("log warns when severity is unrecognized but still records it as low", () => {
+  withTempHome(() => {
+    const r = runDogfood(["log", "app crashed", "--severity", "critical"]);
+    assert.equal(r.exitCode, 0);
+    assert.match(r.output, /unknown severity 'critical'/);
+    assert.match(r.output, /logged \[low\]/);
+    assert.equal(loadEntries()[0].severity, "low");
+  });
+});
+
+test("log --json stays pure JSON even with an unrecognized severity", () => {
+  withTempHome(() => {
+    const r = runDogfood(["log", "app crashed", "--severity", "critical", "--json"]);
+    assert.equal(r.exitCode, 0);
+    const e = JSON.parse(r.output); // must not throw — no warning text leaked into JSON
+    assert.equal(e.severity, "low");
+  });
+});
+
+test("unknown subcommand exits 1 and hints at valid subcommands", () => {
+  withTempHome(() => {
+    const r = runDogfood(["lst"]);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.output, /unknown subcommand 'lst'/);
+    assert.match(r.output, /--help/);
+  });
+});
