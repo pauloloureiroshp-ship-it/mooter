@@ -15,8 +15,8 @@ const assert = require('node:assert');
 test('Block G: MLWR chip falls back to a run-benchmark nudge when no snapshot', () => {
   const mlwr = require('./mlwr-status.js');
   assert.equal(mlwr.buildMlwrChip(null), null, 'pure builder still returns null for no data');
-  assert.equal(mlwr.emptyMlwrChip(), '📊 MLWR · run benchmark');
-  assert.equal(mlwr.buildMlwrChip({ mlwr: { overall: 1 } }), '📊 MLWR 100% local');
+  assert.equal(mlwr.emptyMlwrChip(), '📊 local routes · run benchmark');
+  assert.equal(mlwr.buildMlwrChip({ mlwr: { overall: 1 } }), '📊 local routes 100%');
 });
 
 // ── Block E — user identity chip (opaque hash, never a fabricated handle) ─────

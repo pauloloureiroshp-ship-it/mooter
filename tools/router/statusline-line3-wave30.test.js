@@ -79,26 +79,27 @@ test('dogfood statusLine reads dogfood.jsonl', () => {
 // ── mlwr chip ─────────────────────────────────────────────────────────────────
 test('mlwr chip: overall % from snapshot', () => {
   assert.equal(mlwr.buildMlwrChip(null), null);
-  assert.equal(mlwr.buildMlwrChip({ mlwr: { overall: 1 } }), '📊 MLWR 100% local');
-  assert.equal(mlwr.buildMlwrChip({ mlwr: { overall: 0.68 } }), '📊 MLWR 68% local');
+  assert.equal(mlwr.buildMlwrChip({ mlwr: { overall: 1 } }), '📊 local routes 100%');
+  assert.equal(mlwr.buildMlwrChip({ mlwr: { overall: 0.68 } }), '📊 local routes 68%');
 });
 test('mlwr statusLine reads mlwr_snapshot.json', () => {
-  assert.equal(mlwr.statusLine(), null);
+  // No snapshot → empty-state nudge (Wave 33.8 Block G; was the pre-empty-state null).
+  assert.equal(mlwr.statusLine(), '📊 local routes · run benchmark');
   write('mlwr_snapshot.json', JSON.stringify({ mlwr: { overall: 0.9 } }));
-  assert.equal(mlwr.statusLine(), '📊 MLWR 90% local');
+  assert.equal(mlwr.statusLine(), '📊 local routes 90%');
 });
 
 // ── limits chip ───────────────────────────────────────────────────────────────
 test('limits chip: status object wins, else config presence', () => {
   assert.equal(limits.buildLimitsChip(null, false), null);
-  assert.equal(limits.buildLimitsChip(null, true), '🔒 limits OK');
-  assert.equal(limits.buildLimitsChip({ ok: true }, true), '🔒 limits OK');
-  assert.equal(limits.buildLimitsChip({ ok: false }, true), '🔓 limits HIT');
+  assert.equal(limits.buildLimitsChip(null, true), '🔒 cost-cap OK');
+  assert.equal(limits.buildLimitsChip({ ok: true }, true), '🔒 cost-cap OK');
+  assert.equal(limits.buildLimitsChip({ ok: false }, true), '🔓 cost-cap HIT');
 });
 test('limits statusLine: limits.toml presence yields OK', () => {
   assert.equal(limits.statusLine(), null);
   write('limits.toml', '[limits]\n');
-  assert.equal(limits.statusLine(), '🔒 limits OK');
+  assert.equal(limits.statusLine(), '🔒 cost-cap OK');
 });
 
 // ── pastor chip ───────────────────────────────────────────────────────────────

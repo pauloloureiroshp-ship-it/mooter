@@ -66,7 +66,7 @@ test('render (wide): line 1 carries the sparkline, line 2 the per-session chips'
     // Wave 21 dropped the ASCII "% local" bar from line 2; Wave 33 renamed the
     // cost chips. Assert the per-session economics line 2 actually carries now.
     assert.match(lines[1], /ctx.*23%/, 'line 2 shows the ctx bar');
-    assert.match(lines[1], /this prompt \$0\.01 · session \$4\.21/, 'line 2 shows the renamed per-session cost chips');
+    assert.match(lines[1], /📝 \$0\.01 this turn · \$4\.21 all-time/, 'W48 1.6: cost chip grouped + "session"→"all-time" mislabel fixed');
   } finally {
     if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev;
   }
