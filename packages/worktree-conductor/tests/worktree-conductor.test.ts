@@ -146,6 +146,50 @@ test("runConductor auto-lock/auto-unlock are non-blocking (exit 0) and detect in
   assert.strictEqual(runConductor(["auto-unlock", "--cmd", "git tag v9"], opts).exitCode, 0);
 });
 
+test("Wave 34.5.A: conductor status counts each live session that invokes the CLI", () => {
+  const h = home();
+  delete process.env.CLAUDE_SESSION_ID;
+  // two concurrent sessions each run a (read-only) conductor command
+  runConductor(["status"], { home: h, now: NOW, sessionId: "ccA", terminalName: "wave34", cwd: "/a" });
+  runConductor(["status"], { home: h, now: NOW, sessionId: "ccB", terminalName: "wave33", cwd: "/b" });
+  const st = status({ home: h, now: NOW });
+  assert.strictEqual(st.liveSessions.length, 2, "both invoking sessions must be live");
+  assert.deepStrictEqual(st.liveSessions.map((s) => s.session_id).sort(), ["ccA", "ccB"]);
+});
+
+test("Wave 34.5.A: a crashed session goes stale, is not counted live, and is reaped", () => {
+  const h = home();
+  delete process.env.CLAUDE_SESSION_ID;
+  // session last touched the conductor long ago (crashed, never refreshed)
+  runConductor(["status"], { home: h, now: NOW - STALE_MS - 5000, sessionId: "ccDead", cwd: "/d" });
+  // a live session now
+  runConductor(["status"], { home: h, now: NOW, sessionId: "ccLive", cwd: "/l" });
+  const st = status({ home: h, now: NOW });
+  assert.strictEqual(st.liveSessions.length, 1);
+  assert.strictEqual(st.liveSessions[0].session_id, "ccLive");
+  assert.strictEqual(st.staleSessions.length, 1);
+  // reap drops the dead one (the reaping session stays live)
+  const reaped = runConductor(["reap"], { home: h, now: NOW, sessionId: "ccLive", cwd: "/l" });
+  assert.ok(reaped.output.includes("reaped 1"), reaped.output);
+  assert.strictEqual(status({ home: h, now: NOW }).staleSessions.length, 0);
+});
+
+test("Wave 34.5.A: no real session id → no phantom heartbeat is written", () => {
+  const h = home();
+  delete process.env.CLAUDE_SESSION_ID; // ad-hoc shell, owner() resolves to "unknown"
+  runConductor(["status"], { home: h, now: NOW, cwd: "/x" });
+  assert.strictEqual(status({ home: h, now: NOW }).liveSessions.length, 0);
+});
+
+test("Wave 34.5.A: `stop` clears and does not resurrect the heartbeat", () => {
+  const h = home();
+  delete process.env.CLAUDE_SESSION_ID;
+  runConductor(["beat"], { home: h, now: NOW, sessionId: "ccS", cwd: "/s" });
+  assert.strictEqual(status({ home: h, now: NOW }).liveSessions.length, 1);
+  runConductor(["stop"], { home: h, now: NOW, sessionId: "ccS", cwd: "/s" });
+  assert.strictEqual(status({ home: h, now: NOW }).liveSessions.length, 0, "stop must not self-beat");
+});
+
 test("forceRelease logs a REAPED op", () => {
   const h = home();
   tryAcquire("notion", { sessionId: "dead" }, { home: h, now: NOW - 120000, ttlSeconds: 60 });

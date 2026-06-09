@@ -35,6 +35,42 @@ function owner(opts: ConductorCmdOptions) {
   };
 }
 
+/**
+ * Realise the documented "writer called … on each conductor CLI invocation" rule
+ * (see heartbeat.ts) that was never wired up: every conductor command run from a
+ * live session refreshes that session's heartbeat, so `status` always counts the
+ * live caller — plus any other session that touched the conductor within
+ * STALE_MS. Without this, the heartbeats dir stayed empty unless a session ran
+ * `beat` explicitly, so `conductor status` reported 0 live sessions even with
+ * concurrent Claude Code sessions active (the Wave 34.5.A bug).
+ *
+ * Guards: skip when there is no real session id (so ad-hoc shells never create a
+ * phantom "unknown" heartbeat) and for `stop`/`beat` — the former is clearing
+ * this session's heartbeat on purpose, the latter writes its own below.
+ * Best-effort: a heartbeat write must never wedge a conductor command.
+ */
+function refreshOwnHeartbeat(sub: string, opts: ConductorCmdOptions): void {
+  if (sub === "stop" || sub === "beat") return;
+  const sessionId = opts.sessionId ?? process.env.CLAUDE_SESSION_ID;
+  if (!sessionId || sessionId === "unknown") return;
+  const o = owner(opts);
+  try {
+    writeHeartbeat(
+      {
+        sessionId: o.sessionId,
+        terminalName: o.terminalName,
+        worktreePath: opts.cwd ?? process.cwd(),
+        intent: "active",
+        activeLocks: listLocks(opts.home).filter((l) => l.acquired_by === o.sessionId).map((l) => l.resource),
+        pid: o.pid,
+      },
+      { home: opts.home, now: opts.now },
+    );
+  } catch {
+    /* best-effort: heartbeat I/O must never break a conductor command */
+  }
+}
+
 function flag(args: string[], name: string): string | null {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] ?? null : null;
@@ -46,6 +82,10 @@ export function runConductor(args: string[], opts: ConductorCmdOptions = {}): Cm
   const home = opts.home;
   const now = opts.now;
   const cwd = opts.cwd ?? process.cwd();
+
+  // A live session that talks to the conductor is, by definition, live — record
+  // it so `status` counts concurrent sessions correctly (Wave 34.5.A fix).
+  refreshOwnHeartbeat(sub, opts);
 
   switch (sub) {
     case "status": {
