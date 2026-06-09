@@ -199,7 +199,7 @@ export function runDogfood(args: string[]): CmdResult {
 
   mooter dogfood log "<friction>" [--severity low|med|high] [--json]
   mooter dogfood digest [--days N] [--json]
-  mooter dogfood digest --weekly [--send]        7d markdown digest (email-ready)
+  mooter dogfood digest --weekly [--send]        7d markdown digest (--send → stdout; pipe to mail)
   mooter dogfood digest --install-cron           show the weekly cron line (dry-run)
   mooter dogfood list [--limit N] [--json]`,
     };

@@ -32,11 +32,15 @@ interface Rule {
 // Friend-facing phrases (Wave 41) are mostly PT-PT — the tests cover both. Packs
 // is first so "install a pack" routes to `pack install`, not spawn-task's "add".
 const RULES: Rule[] = [
-  { name: "packs", test: /\bpacks?\b/i, build: (p) => /\b(instal\w*|add|adicion\w*|enable|activ\w*|get|quero|want)\b/i.test(p) ? ["pack", "install"] : ["pack", "list"], confidence: 0.85 },
+  // spawn-task is first so "fix the pack loader bug" / "rename the packs dir" spawn a
+  // fix rather than opening the pack list. packs only catches noun phrases below it.
   { name: "spawn-task", test: /\b(fix|bug|implement|refactor|rename|add|write|migrate|update)\b/i, build: (p) => ["spawn", p], confidence: 0.9 },
+  { name: "packs", test: /\bpacks?\b/i, build: (p) => /\b(instal\w*|adicion\w*|enable|activ\w*|get|quero|want)\b/i.test(p) ? ["pack", "install"] : ["pack", "list"], confidence: 0.85 },
   { name: "security", test: /\b(secur|sandbox|audit|escape|cve|safe)\b/i, build: () => ["security", "audit"], confidence: 0.85 },
   { name: "conductor", test: /\b(lock|conduct|race|serialize|queue|deadlock)\b/i, build: () => ["conductor", "status"], confidence: 0.8 },
-  { name: "explain", test: /\b(explain|classif\w*|why.*(tier|opus|route|model)|debug.*rout\w*|rout\w*.*debug|how.*rout\w*|router)\b/i, build: () => ["explain", "classify"], confidence: 0.75 },
+  // explain requires an explicit debug/why context — a bare "router" must not steal
+  // "install the router plugin" (→ init) or "router status" (→ status).
+  { name: "explain", test: /\b(explain|classif\w*|why.*(tier|opus|route|model)|debug.*rout\w*|rout\w*.*debug)\b/i, build: () => ["explain", "classify"], confidence: 0.75 },
   { name: "doctor", test: /\b(doctor|diagnos\w*|broken|health|n[aã]o funciona|not work\w*|isn.?t work\w*)\b/i, build: () => ["doctor"], confidence: 0.75 },
   { name: "quota", test: /\b(quota|5h|limit|how much.*left|budget)\b/i, build: () => ["sessions", "quota"], confidence: 0.8 },
   { name: "savings", test: /\b(save|saved|saving|cost|spent|how much|poup\w*|gast\w*|economi\w*)\b/i, build: () => ["dashboard"], confidence: 0.75 },

@@ -36,6 +36,12 @@ test("resolveIntent: Wave 41 additions do not regress existing routes", () => {
   assert.deepStrictEqual(resolveIntent("install the zellij plugin").command, ["init"]);
   // sessions unaffected
   assert.deepStrictEqual(resolveIntent("show me my sessions").command, ["sessions", "watch"]);
+  // spawn-task wins over packs when a do-work verb is present (reviewer probe)
+  assert.deepStrictEqual(resolveIntent("fix the pack loader bug").command, ["spawn", "fix the pack loader bug"]);
+  assert.strictEqual(resolveIntent("rename the packs directory").rule, "spawn-task");
+  // a bare "router" must NOT route to explain (reviewer probe)
+  assert.deepStrictEqual(resolveIntent("install the router plugin").command, ["init"]);
+  assert.deepStrictEqual(resolveIntent("show me the router status").command, ["status"]);
 });
 
 test("resolveIntent: empty → help, gibberish → fallback help", () => {
