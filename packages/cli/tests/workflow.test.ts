@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runWorkflow, WORKFLOW_USAGE } from "../src/commands/workflow.ts";
+import { runWorkflow, WORKFLOW_USAGE, describeEngineError } from "../src/commands/workflow.ts";
 
 test("no args → usage, exit 0", async () => {
   const res = await runWorkflow([]);
@@ -51,4 +51,31 @@ test("stop reports the MVP semantics without importing the engine", async () => 
   const res = await runWorkflow(["stop", "r1"]);
   assert.equal(res.exitCode, 0);
   assert.match(res.output, /synchronous|state\.db/);
+});
+
+// Wave 34.5 (Bug B) — engine-load failures map to precise, actionable messages.
+test("describeEngineError: missing native dep names the dep + the build command", () => {
+  const out = describeEngineError(new Error("Cannot find module 'isolated-vm'"));
+  assert.match(out, /isolated-vm/);
+  assert.match(out, /cd packages\/workflow && npm install/);
+  assert.match(out, /C\+\+ toolchain|build-essential|xcode-select/);
+});
+
+test("describeEngineError: better-sqlite3 build failure is named specifically", () => {
+  const out = describeEngineError(new Error("better-sqlite3 was compiled against a different Node.js version"));
+  assert.match(out, /better-sqlite3/);
+  assert.match(out, /npm install/);
+});
+
+test("describeEngineError: absent engine package → source-checkout guidance", () => {
+  const e = Object.assign(new Error("Cannot find package '@mooter/workflow'"), { code: "ERR_MODULE_NOT_FOUND" });
+  const out = describeEngineError(e);
+  assert.match(out, /isn't included in this install/);
+  assert.match(out, /git clone/);
+});
+
+test("describeEngineError: unknown failure surfaces the real message, no fake diagnosis", () => {
+  const out = describeEngineError(new Error("EACCES: permission denied"));
+  assert.match(out, /could not start/);
+  assert.match(out, /EACCES: permission denied/);
 });
