@@ -16,6 +16,28 @@ test("resolveIntent: nouns map to dashboards", () => {
   assert.deepStrictEqual(resolveIntent("install the zellij plugin").command, ["init"]);
 });
 
+test("resolveIntent: friend-facing PT-PT phrases (Wave 41)", () => {
+  // savings → dashboard (not sessions watch)
+  assert.deepStrictEqual(resolveIntent("o que poupei hoje?").command, ["dashboard"]);
+  assert.deepStrictEqual(resolveIntent("how much have I saved").command, ["dashboard"]);
+  // packs: noun-only → list, install verb → install
+  assert.deepStrictEqual(resolveIntent("que packs tenho?").command, ["pack", "list"]);
+  assert.deepStrictEqual(resolveIntent("instalo este pack como?").command, ["pack", "install"]);
+  // router debug → explain classify
+  assert.deepStrictEqual(resolveIntent("como faço debug ao router?").command, ["explain", "classify"]);
+  // doctor
+  assert.deepStrictEqual(resolveIntent("o mooter não funciona").command, ["doctor"]);
+});
+
+test("resolveIntent: Wave 41 additions do not regress existing routes", () => {
+  // quota still wins over savings for "how much ... left"
+  assert.deepStrictEqual(resolveIntent("how much quota is left").command, ["sessions", "quota"]);
+  // install plugin unaffected (no 'pack' keyword)
+  assert.deepStrictEqual(resolveIntent("install the zellij plugin").command, ["init"]);
+  // sessions unaffected
+  assert.deepStrictEqual(resolveIntent("show me my sessions").command, ["sessions", "watch"]);
+});
+
 test("resolveIntent: empty → help, gibberish → fallback help", () => {
   assert.strictEqual(resolveIntent("").rule, "empty");
   assert.deepStrictEqual(resolveIntent("asdfqwer").command, ["help"]);

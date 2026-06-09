@@ -29,12 +29,17 @@ interface Rule {
 
 // Order matters: the most specific verbs (do-work → spawn) are matched before the
 // broad nouns so "fix the sessions bug" spawns rather than opening the dashboard.
+// Friend-facing phrases (Wave 41) are mostly PT-PT — the tests cover both. Packs
+// is first so "install a pack" routes to `pack install`, not spawn-task's "add".
 const RULES: Rule[] = [
+  { name: "packs", test: /\bpacks?\b/i, build: (p) => /\b(instal\w*|add|adicion\w*|enable|activ\w*|get|quero|want)\b/i.test(p) ? ["pack", "install"] : ["pack", "list"], confidence: 0.85 },
   { name: "spawn-task", test: /\b(fix|bug|implement|refactor|rename|add|write|migrate|update)\b/i, build: (p) => ["spawn", p], confidence: 0.9 },
   { name: "security", test: /\b(secur|sandbox|audit|escape|cve|safe)\b/i, build: () => ["security", "audit"], confidence: 0.85 },
   { name: "conductor", test: /\b(lock|conduct|race|serialize|queue|deadlock)\b/i, build: () => ["conductor", "status"], confidence: 0.8 },
+  { name: "explain", test: /\b(explain|classif\w*|why.*(tier|opus|route|model)|debug.*rout\w*|rout\w*.*debug|how.*rout\w*|router)\b/i, build: () => ["explain", "classify"], confidence: 0.75 },
+  { name: "doctor", test: /\b(doctor|diagnos\w*|broken|health|n[aã]o funciona|not work\w*|isn.?t work\w*)\b/i, build: () => ["doctor"], confidence: 0.75 },
   { name: "quota", test: /\b(quota|5h|limit|how much.*left|budget)\b/i, build: () => ["sessions", "quota"], confidence: 0.8 },
-  { name: "savings", test: /\b(save|saved|saving|cost|spent|how much)\b/i, build: () => ["sessions", "watch"], confidence: 0.7 },
+  { name: "savings", test: /\b(save|saved|saving|cost|spent|how much|poup\w*|gast\w*|economi\w*)\b/i, build: () => ["dashboard"], confidence: 0.75 },
   { name: "sessions", test: /\b(session|sessions|terminals?|what.*running|across)\b/i, build: () => ["sessions", "watch"], confidence: 0.8 },
   { name: "spawn-list", test: /\b(spawn|agent|herd|workers?)\b/i, build: () => ["spawn", "list"], confidence: 0.75 },
   { name: "install", test: /\b(install|plugin|zellij|tmux|wezterm|setup|init)\b/i, build: () => ["init"], confidence: 0.7 },
@@ -83,7 +88,7 @@ export function runIntent(args: string[], opts: IntentOptions = {}): CmdResult {
   if (!phrase) {
     return {
       exitCode: 0,
-      output: `🐮 Mooter · what do you want to do?\n\n  mooter intent "fix bug in Hero.tsx"\n  mooter intent "show me my sessions"\n  mooter intent --palette\n\n(Type an intent; Mooter shows the resolved command before running it.)`,
+      output: `🐮 Mooter · what do you want to do?\n\n  mooter intent "o que poupei hoje?"      → dashboard\n  mooter intent "que packs tenho?"        → pack list\n  mooter intent "fix bug in Hero.tsx"     → spawn\n  mooter intent --palette\n\n(Type an intent; Mooter shows the resolved command before running it.)`,
     };
   }
   let resolved = resolveIntent(phrase);
