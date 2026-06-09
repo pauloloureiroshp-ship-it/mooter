@@ -278,6 +278,13 @@ export function buildDashboard(opts: DashboardOptions = {}): string {
     const turn = typeof metrics.last_turn_cost_usd === "number" ? `$${metrics.last_turn_cost_usd.toFixed(2)}` : "n/a";
     const all = typeof metrics.alltime_cost_usd === "number" ? `$${metrics.alltime_cost_usd.toFixed(2)}` : "n/a";
     out.push(boxRow(`    saved ${saved} (${pct}) · this prompt ${turn} · session ${all}`, width));
+    // Wave 33.17 — rolling 7-day trend, distinct from the cumulative all-time
+    // figure. Rendered only when the tracker reports it (older trackers omit it).
+    if (typeof metrics.saved_7d === "number") {
+      const wk = `$${metrics.saved_7d.toFixed(2)}`;
+      const wkPct = typeof metrics.saved_7d_pct === "number" ? `${Math.round(metrics.saved_7d_pct)}%` : "n/a";
+      out.push(boxRow(`    🐮 7d ${wk} (${wkPct} vs all-Opus)`, width));
+    }
   } else {
     out.push(boxRow("    (savings-tracker offline — no live cost figures)", width));
   }
