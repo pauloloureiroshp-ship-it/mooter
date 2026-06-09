@@ -1,50 +1,64 @@
 import type { Metadata } from 'next';
+import { REPO, FALLBACK, toEntries, type Entry } from './_lib';
 
 export const metadata: Metadata = {
   title: 'Changelog | Mooter',
-  description: 'What shipped, wave by wave.',
+  description: 'What shipped, wave by wave — pulled live from GitHub releases.',
 };
 
-// Wave 33.5 Block G.1 — changelog (scaffold; CC Design will redesign).
-const ENTRIES: { version: string; date: string; headline: string; items: string[] }[] = [
-  {
-    version: 'v1.21.1 — Historic',
-    date: '2026-06-08',
-    headline: 'Spawn agents default + orchestration + security framework',
-    items: [
-      'Spawn agents local-first by default, isolated in a 4-layer bubblewrap sandbox (no --no-sandbox).',
-      'Cross-session intelligence: mooter sessions watch/quota/handoff across all projects.',
-      'Worktree Conductor: atomic locks + heartbeats serialize git push/tag/deploy across terminals.',
-      'Security framework: mooter security audit + spawn-test (real CVE-2025-59528 escape test).',
-      'Intent-based UX: mooter intent "<phrase>" resolves to a command, shown before it runs.',
-      'mooter doctor health check; 16 MCP tools; classify.js doctrine sha intact.',
-    ],
-  },
-  {
-    version: 'v1.21.0',
-    date: '2026-06-08',
-    headline: 'Polish + TurboQuant + EAGLE-3 + MiniMax + Arbitrage',
-    items: ['Opt-in performance backends; statusline polish; mooter sessions list; mooter pricing-update.'],
-  },
-];
+// ISR: revalidate hourly so the page self-updates as releases ship (Wave 42.B).
+export const revalidate = 3600;
 
-export default function ChangelogPage() {
+async function loadEntries(): Promise<Entry[]> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
+      headers: { Accept: 'application/vnd.github+json' },
+      next: { revalidate },
+    });
+    if (!res.ok) return FALLBACK;
+    const entries = toEntries(await res.json());
+    return entries.length ? entries : FALLBACK;
+  } catch {
+    return FALLBACK;
+  }
+}
+
+export default async function ChangelogPage() {
+  const entries = await loadEntries();
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 prose">
       <h1>Changelog</h1>
-      {ENTRIES.map((e) => (
+      <p style={{ opacity: 0.7 }}>
+        Every release, pulled live from{' '}
+        <a href={`https://github.com/${REPO}/releases`} target="_blank" rel="noopener noreferrer">
+          GitHub
+        </a>
+        .
+      </p>
+      {entries.map((e) => (
         <section key={e.version}>
           <h2>
-            {e.version} <span style={{ opacity: 0.6, fontWeight: 400 }}>· {e.date}</span>
+            {e.url ? (
+              <a href={e.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                {e.version}
+              </a>
+            ) : (
+              e.version
+            )}{' '}
+            {e.date && <span style={{ opacity: 0.6, fontWeight: 400 }}>· {e.date}</span>}
           </h2>
-          <p>
-            <strong>{e.headline}</strong>
-          </p>
-          <ul>
-            {e.items.map((it, i) => (
-              <li key={i}>{it}</li>
-            ))}
-          </ul>
+          {e.headline && (
+            <p>
+              <strong>{e.headline}</strong>
+            </p>
+          )}
+          {e.items.length > 0 && (
+            <ul>
+              {e.items.map((it, i) => (
+                <li key={i}>{it}</li>
+              ))}
+            </ul>
+          )}
         </section>
       ))}
     </main>
