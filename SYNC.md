@@ -1607,6 +1607,27 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐮 Maratona Waves 33.11/33.12/33.13 ✅ (CC autonomous, 2026-06-08 madrugada) — local main + tags, **push pendente Paulo**
+
+**Página Notion:** [🐮 Sessão 2026-06-08 madrugada — Waves 33.11/33.12/33.13 SHIPPED + Friends prep](https://app.notion.com/p/37a6f6e42bc4815a956ff21a8052b535) · `37a6f6e4-2bc4-815a-956f-f21a8052b535`
+
+**Estado:** low-risk maratona, zero-touch prod. `classify.js` sha `7b01eb8623a0b8fc` **INTACT** pré+pós cada wave. Packages Wave 28–33.x intocados. `main` local avançou 2 commits + 2 tags; **push NÃO auto-corrido** (outward-facing = decisão Paulo).
+
+- **33.11 `v1.21.7-quiet-cleanup`** (`afb9bcf`): Block A — restaurados 16 staged files orfãos em `~/frugal` ao HEAD `049a092` (eram um **revert de prod meio-feito**: deletavam landing pages live + rollback `version.json` 1.21.5→1.21.4, NÃO cruft Wave 33.9; Paulo decidiu discard→match HEAD). Block B — `mooter dogfood log` UX polish (warn em severity inválida + hint subcommand) +3 testes (11/11 verde). final-reviewer Opus **SHIP** (0H/0M/1L).
+- **33.12 `v1.21.8-lora-deps-unblock`** (`24d97e2`): Day 0 refutou a premissa — deps já desbloqueadas na Wave 33 A.5 (unsloth 2026.6.1 + transformers 4.56.0, re-verificados via PyPI/pyproject). Net-new = `docs/strategy/LORA_TRAINING_RUNBOOK.md`. final-reviewer Opus **SHIP** (0 nits). Doc-only.
+- **33.13** (doc-only, sem tag, branch `docs/wave33_13-friends-prep`): `audit/FRIENDS_LAUNCH_DMS_v12.md` (3 DMs por perfil: técnico/curioso/vibe coder) + Notion master + este update SYNC.
+
+**⚠️ Pendente Paulo:**
+1. `git -C ~/frugal push origin main --tags` (tags v1.21.7 + v1.21.8).
+2. Merge branch `docs/wave33_13-friends-prep` (doc-only).
+3. **Smoke Mac real** (carry-over Wave 33.10 `v1.21.6-dogfood-mac`, gated no teu commit/tag).
+4. **Enviar 3 DMs** — `audit/FRIENDS_LAUNCH_DMS_v12.md`.
+5. **LoRA train overnight** no RTX 4090 — `docs/strategy/LORA_TRAINING_RUNBOOK.md`.
+
+**Próxima sessão candidatos:** Wave 34 audit fan-out · OU Hub migration 017 · OU Tailwind v4 redesign.
+
+---
+
 ### 🐮 Wave 29 ✅ SHIPPED — v1.17.0-synthesis-ultimate EM PROD (CC autonomous, 2026-06-07)
 
 **Página Notion:** [🐮 Sessão 2026-06-07 — Wave 29 Synthesis Ultimate](https://app.notion.com/p/3786f6e42bc4814faccdf420be764525) · `3786f6e4-2bc4-814f-accd-f420be764525`
