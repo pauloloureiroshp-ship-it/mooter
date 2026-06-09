@@ -53,7 +53,7 @@ test("explain <chip>: aliases resolve to the canonical chip", () => {
 test("explain list: lists every deep-divable chip", () => {
   const res = runExplain({ topic: "list" });
   assert.equal(res.exitCode, 0);
-  for (const chip of ["saved", "tier", "vram", "ctx", "quota", "adapter", "mlwr", "user", "sessions"]) {
+  for (const chip of ["saved", "tier", "vram", "ctx", "quota", "adapter", "local-routes", "user", "sessions", "embed", "agents", "cost-cap", "tiers"]) {
     assert.match(res.output, new RegExp(`\\b${chip}\\b`), `list mentions ${chip}`);
   }
 });
