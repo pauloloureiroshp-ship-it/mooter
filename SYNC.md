@@ -3,6 +3,20 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-09 (Wave 41-46 — Friends Activation Mega)
+**Estado:** ✅ PR **#143** aberto (branch `feat/wave41_46-friends-activation`), gated em Paulo merge+tag `v1.24.0-friends-activation`. **Day 0 refutou 3 de 4 premissas** (honest > forced). classify.js sha `7b01eb86…` **INTACTA** pré+pós cada phase; engine pkgs 28-34.5 intocados excepto os 2 CLI files permitidos; **CLI 351/351 · landing 146/146**, builds clean; final-reviewer Opus **SHIP-WITH-NITS** 0-HIGH (2 MED de rule-ordering corrigidos + 4 probe tests).
+**Deliverables:** **P1 (W41) intent** — comando já existia (W33.5) → ENHANCED com regras friend PT-PT (`packs`, `savings→dashboard`, `explain/router-debug`, `doctor`). **P2 (W42.A) dashboard SKIPPED** — "minimalista" refutado (2303 linhas/6 tabs); único gap (MLWR time-trend) precisa `recharts` = guardrail+scope. **P3 (W42.B) changelog** — existia mas hardcoded+stale (v1.21.1) → REBUILT ISR (revalidate 3600) fetch GitHub releases API público, filtra v1.x.y, render plain-text-safe (sem dangerouslySetInnerHTML), FALLBACK curado. **P4 (W46) dogfood** — `digest --weekly` (markdown) + `--install-cron` (DRY-RUN, nunca muta crontab) + `--send` (stdout). **Conflation flagged:** `dogfood digest`=friction dev, não savings; friend habit digest devia apontar a `mooter digest` (follow-up).
+**Próxima missão (Paulo):** (1) rever/merge **PR #143** → main + tag `v1.24.0-friends-activation`; (2) Friends DMs Task #218 (manual); (3) opcional: weekly cron em `mooter digest` p/ habit real de savings; (4) LoRA train · Mac smoke. Report: `~/frugal/WAVE41_46_REPORT.md`. [Notion](https://app.notion.com/p/37a6f6e42bc4813f9aeed779a2d58c4b).
+
+---
+
+### 🐮 Sessão — 2026-06-09 (Wave 34.5 — Bug Trinity B/C/D)
+**Estado:** ✅ PR **#142** aberto (branch `fix/wave34_5-bugfix-trinity`), gated em Paulo merge+tag `v1.23.0-bugfix-trinity`. Bugs do dogfood validation Wave 33-VAL. classify.js sha `7b01eb86…` **INTACTA**; só `packages/cli/src/commands/{workflow,digest,explain}.ts`+tests; frozen engine packages intocados; **344/344** tests (335+9); final-reviewer Opus **SHIP** 0-HIGH/0-MED/3-LOW.
+**Fixes:** **C (HIGH, o bug real)** `mooter digest` agora conta subagent dispatches (herd state do SubagentStop hook) no tier mix — delegação era invisível (`prompts` vs `delegated` distintos, savings $ continua do tracker = não inflacionável). **B (MED)** `describeEngineError()` — mensagem accionável para `mooter workflow` no npm bundle (engine só corre em source checkout c/ native deps). **D (CRITICAL→re-scoped)** Day-0 **refutou** "ultracode bypass" (sintoma = gap do Bug C; hook não detecta thinking-flag nem força delegação) → caveat honesto em `mooter explain saved` em vez de detector falso.
+**Próxima missão (Paulo):** (1) rever/merge **PR #142** → main + tag `v1.23.0-bugfix-trinity`; (2) Friends DMs Task #218 (caveats agora defensáveis); (3) LoRA train · Mac smoke. Report: `~/frugal/WAVE34_5_REPORT.md`.
+
+---
+
 ### 🐮 Sessão — 2026-06-09 (Mega Overnight — Waves 33.15→44, v1.21.10 + audit fan-out)
 **Estado:** ✅ Maratona overnight 8 fases. Plan-mode interrompeu o fluxo autónomo → Paulo aprovou plano refinado (hybrid: auto-merge CLI waves, PR-only para landing prod + vault brief; eu crio beta tags, Paulo aplica `v1.22.0`). classify.js sha `7b01eb86…87762` **INTACTA** (verificada pré+pós cada wave). Packages 28-34 congelados exceto ficheiros novos sancionados. Cada merge com gate final-reviewer (Opus).
 **Shipped (auto-merge main):** 33.15 docs benchmark live (`f12d470` #134) · **33.17 dashboard chip 7-day savings** (`v1.21.9`, `88c11d6` #135, SHIP 0H/0M) · **40 `mooter explain <chip>` deep dives** (`v1.21.10`, `cbcfa31` #136, SHIP 0H/0M) · **34 `mooter audit fan-out`** (merged `5c3a7fc` #139, **UNTAGGED → Paulo aplica `v1.22.0`**, SHIP 0H/0M). 33.16 cleanup worktrees bench A/B (local).

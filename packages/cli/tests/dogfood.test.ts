@@ -13,6 +13,8 @@ import {
   countToday,
   loadEntries,
   runDogfood,
+  weeklyMarkdown,
+  weeklyCronPlan,
 } from "../src/commands/dogfood.ts";
 
 function withTempHome<T>(fn: () => T): T {
@@ -134,3 +136,49 @@ test("unknown subcommand exits 1 and hints at valid subcommands", () => {
     assert.match(r.output, /--help/);
   });
 });
+
+// ── Wave 46 — weekly digest + cron ───────────────────────────────────────────
+test("weeklyMarkdown: empty window → honest 'not enough data yet'", () => {
+  const now = new Date("2026-06-09T12:00:00Z");
+  const d = digest([], now, 7);
+  const md = weeklyMarkdown(d, now);
+  assert.match(md, /weekly digest/i);
+  assert.match(md, /Not enough data yet/i);
+});
+
+test("weeklyMarkdown: with entries → markdown with counts, tags, recent", () => {
+  const now = new Date("2026-06-09T12:00:00Z");
+  const entries = [
+    { ts: "2026-06-08T10:00:00Z", text: "router slow #perf", tags: ["perf"], severity: "high" as const, phase: null, wave: null },
+    { ts: "2026-06-07T10:00:00Z", text: "typo in help #docs", tags: ["docs"], severity: "low" as const, phase: null, wave: null },
+  ];
+  const d = digest(entries, now, 7);
+  const md = weeklyMarkdown(d, now);
+  assert.match(md, /\*\*2\*\* items logged this week/);
+  assert.match(md, /High: 1/);
+  assert.match(md, /#perf/);
+  assert.match(md, /Recent friction/);
+});
+
+test("weeklyCronPlan: posix install never mutates crontab (dry-run line)", () => {
+  const plan = weeklyCronPlan("linux");
+  assert.equal(plan.schedule, "0 9 * * 1");
+  assert.match(plan.command, /dogfood digest --weekly --send/);
+  assert.match(plan.install, /crontab -/);
+  const win = weeklyCronPlan("win32");
+  assert.match(win.install, /schtasks/i);
+});
+
+test("runDogfood digest --install-cron is a dry-run (shows, installs nothing)", () => {
+  const r = runDogfood(["digest", "--install-cron"]);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /dry-run/i);
+  assert.match(r.output, /0 9 \* \* 1/);
+});
+
+test("runDogfood digest --weekly emits markdown digest", () =>
+  withTempHome(() => {
+    const r = runDogfood(["digest", "--weekly"]);
+    assert.equal(r.exitCode, 0);
+    assert.match(r.output, /weekly digest/i);
+  }));

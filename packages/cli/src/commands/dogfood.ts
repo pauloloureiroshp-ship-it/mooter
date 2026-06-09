@@ -131,6 +131,54 @@ export function digest(
   };
 }
 
+/** Cross-platform weekly cron line + how the user installs it (we never mutate crontab). */
+export function weeklyCronPlan(platform: string = process.platform): {
+  schedule: string;
+  command: string;
+  install: string;
+  note: string;
+} {
+  const schedule = "0 9 * * 1"; // Mondays 09:00 local
+  const command = "mooter dogfood digest --weekly --send";
+  const line = `${schedule} ${command}`;
+  if (platform === "win32") {
+    return {
+      schedule,
+      command,
+      install: `schtasks /Create /SC WEEKLY /D MON /TR "mooter dogfood digest --weekly --send" /ST 09:00 /TN MooterWeeklyDigest`,
+      note: "Windows: run the schtasks command above (or use WSL crontab).",
+    };
+  }
+  return {
+    schedule,
+    command,
+    install: `( crontab -l 2>/dev/null; echo "${line}" ) | crontab -`,
+    note: "Adds a Monday 09:00 job. Review with `crontab -l`; remove the line to stop.",
+  };
+}
+
+/** Markdown weekly digest suitable for email or sharing. Honest empty-state. */
+export function weeklyMarkdown(d: DogfoodDigest, now: Date = new Date()): string {
+  const week = now.toISOString().slice(0, 10);
+  if (d.inWindow === 0) {
+    return `# 🐮 Mooter weekly digest · ${week}\n\nNot enough data yet — no friction logged in the last 7 days.\nLog as you go with \`mooter dogfood log "<what felt off>"\`.`;
+  }
+  const tags = d.byTag.slice(0, 6).map((t) => `\`#${t.tag}\` ×${t.count}`).join(", ") || "—";
+  const out = [
+    `# 🐮 Mooter weekly digest · ${week}`,
+    "",
+    `**${d.inWindow}** items logged this week · **${d.total}** all-time`,
+    "",
+    `- High: ${d.bySeverity.high} · Med: ${d.bySeverity.med} · Low: ${d.bySeverity.low}`,
+    `- Top tags: ${tags}`,
+  ];
+  if (d.recent.length) {
+    out.push("", "## Recent friction");
+    for (const e of d.recent.slice(0, 5)) out.push(`- [${e.severity}] ${e.text.slice(0, 90)}`);
+  }
+  return out.join("\n");
+}
+
 function numFlag(args: string[], name: string, dflt: number): number {
   const i = args.indexOf(name);
   const eq = args.find((a) => a.startsWith(`${name}=`));
@@ -151,6 +199,8 @@ export function runDogfood(args: string[]): CmdResult {
 
   mooter dogfood log "<friction>" [--severity low|med|high] [--json]
   mooter dogfood digest [--days N] [--json]
+  mooter dogfood digest --weekly [--send]        7d markdown digest (--send → stdout; pipe to mail)
+  mooter dogfood digest --install-cron           show the weekly cron line (dry-run)
   mooter dogfood list [--limit N] [--json]`,
     };
   }
@@ -187,8 +237,30 @@ export function runDogfood(args: string[]): CmdResult {
   }
 
   if (sub === "digest") {
-    const days = numFlag(rest, "--days", 7);
+    const weekly = rest.includes("--weekly");
+    // `--install-cron` is a dry-run: it shows the line + the install command but
+    // never mutates the user's crontab (safe to run unattended / in CI).
+    if (rest.includes("--install-cron")) {
+      const plan = weeklyCronPlan();
+      if (json) return { exitCode: 0, output: JSON.stringify(plan, null, 2) };
+      return {
+        exitCode: 0,
+        output: [
+          "🍖 weekly digest cron (dry-run — nothing installed)",
+          `   schedule: ${plan.schedule}  (${plan.command})`,
+          `   install:  ${plan.install}`,
+          `   ${plan.note}`,
+        ].join("\n"),
+      };
+    }
+    const days = weekly ? 7 : numFlag(rest, "--days", 7);
     const d = digest(loadEntries(), new Date(), days);
+    if (weekly) {
+      // `--send` is acknowledged; with no SMTP configured we emit to stdout so it
+      // stays grep-able / pipe-able (e.g. `... --send | mail`). Same output either way.
+      const md = weeklyMarkdown(d);
+      return { exitCode: 0, output: md };
+    }
     if (json) return { exitCode: 0, output: JSON.stringify(d, null, 2) };
     const tags = d.byTag.slice(0, 6).map((t) => `#${t.tag}(${t.count})`).join(" ") || "—";
     const lines = [
