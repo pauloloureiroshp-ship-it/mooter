@@ -78,3 +78,33 @@ test("explain saved: honest about delegation + inline-Opus reducing savings", ()
   assert.match(out, /inline|extended-thinking|high-effort/i, "explains why it can read near 0%");
   assert.ok(!/revolutionary|magic|guaranteed/i.test(out), "no hyperbole");
 });
+
+// Wave 49 (Phase 1) — Anthropic-aligned honesty: dedicated confidence + uncertainty.
+test("explain confidence: dedicated topic explains the 0-1 route confidence + ⚠", () => {
+  const res = runExplain({ topic: "confidence" });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /mooter explain — confidence/);
+  assert.match(res.output, /0\.60|<0\.60/, "names the low-confidence threshold");
+  assert.match(res.output, /⚠/, "mentions the in-line warning marker");
+  assert.match(res.output, /pin a tier|@haiku|force T3/i, "tells the user how to act on low confidence");
+  assert.ok(!/revolutionary|magic|guaranteed/i.test(res.output), "no hyperbole");
+});
+
+test("explain conf: alias resolves to the confidence explainer", () => {
+  assert.match(runExplain({ topic: "conf" }).output, /mooter explain — confidence/);
+});
+
+test("explain uncertainty: metacognition topic is honest, not a correctness claim", () => {
+  const out = runExplain({ topic: "uncertainty" }).output;
+  assert.match(out, /mooter explain — uncertainty/);
+  assert.match(out, /metacognition/i);
+  assert.match(out, /not a correctness guarantee/i, "explicitly disclaims correctness");
+  assert.match(out, /declining to bluff|feature, not a failure/i);
+});
+
+test("explain list: includes the new confidence + uncertainty topics", () => {
+  const out = runExplain({ topic: "list" }).output;
+  for (const chip of ["confidence", "uncertainty"]) {
+    assert.match(out, new RegExp(`\\b${chip}\\b`), `list mentions ${chip}`);
+  }
+});

@@ -78,11 +78,25 @@ const CHIPS: ChipExplainer[] = [
     example: "saved $0.31 (47%) → ~47% less than all-Opus across 658 real routed calls (measured, advisory).",
   },
   {
-    names: ["tier", "model", "confidence"],
+    names: ["tier", "model"],
     title: "T2 sonnet 0.65",
     what: "The routing decision for the current prompt: the tier, the model it maps to, and the classifier's confidence (0-1). Tiers are T0 (Ollama, local, free), T1 (Haiku), T2 (Sonnet), and T3 (Opus). The tier comes from classify.js reading your prompt's signals; the Opus orchestrator can still override it when a guardrail (e.g. ARCH_SIGNALS) fires.",
     interpret: "Low confidence (<0.6) means the classifier was unsure — the arbiter or guardrails may step in. A T3/opus on architecture work is correct, not waste.",
     example: "T2 sonnet 0.65 → routed to Sonnet with moderate confidence; fine for a bug investigation.",
+  },
+  {
+    names: ["confidence", "conf"],
+    title: "conf 0.84  (how sure Mooter is about the route)",
+    what: "How sure classify.js is about the tier it picked for THIS prompt, on a 0-1 scale. It is derived from how strongly the prompt's signals matched a known routing pattern — it is not a prediction that the answer will be correct, but a measure of whether the chosen tier is the right place to spend. High confidence means the prompt looked unambiguous (clear architecture signals → T3, a clear file-op → T0). Low confidence means the signals were mixed, and the Haiku arbiter or a guardrail may step in to decide.",
+    interpret: "High (>0.80) = confident routing, act normally. Medium (0.60-0.80) = reasonable, but worth a glance at the output. Low (<0.60) = uncertain — the statusline marks the decision with ⚠ and you may want to pin a tier explicitly (add an architecture signal to force T3, or `@haiku` to force cheap). Three low-confidence routes in a row flips the headline red ('router miscalibrated').",
+    example: "conf 0.84 → confident about the tier; T2 sonnet ⚠ conf 0.42 → uncertain, verify the output or pin a tier.",
+  },
+  {
+    names: ["uncertainty", "metacognition"],
+    title: "🤔 uncertainty signalling",
+    what: "Mooter's local subagents are asked to flag what they are NOT sure about rather than answer with false confidence. When a local route returns with low self-assessed confidence, the task either escalates to a higher tier or the uncertainty is surfaced so you can verify before acting. This mirrors a metacognition principle Anthropic emphasises: a model that knows what it does not know is safer than one that always sounds sure. It is honest signalling, not a correctness guarantee.",
+    interpret: "An uncertainty flag is a feature, not a failure — it is Mooter declining to bluff. Treat a flagged area (e.g. pricing, a version number) as 'verify this part'. No flag means the route was confident; it does not mean the answer is provably correct.",
+    example: "🤔 uncertainty: pricing → a local route was unsure about a pricing figure; double-check that number before relying on it.",
   },
   {
     names: ["local", "moos", "moo", "herd"],
