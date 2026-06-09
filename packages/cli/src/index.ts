@@ -21,6 +21,7 @@ import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 import { runExplain } from "./commands/explain.ts";
+import { runAudit } from "./commands/audit.ts";
 import { runEnvDetect } from "./commands/env-detect.ts";
 import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 import { runWorkflow } from "./commands/workflow.ts";
@@ -61,6 +62,7 @@ Usage:
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline|<chip>|list]  guide to the statusline; deep-dive a chip (e.g. explain saved)
+  mooter audit fan-out [--facets <csv>] [--max-cost 0] [--json]  parallel local-first codebase audit → audit/fan_out_<ts>.md
   mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
   mooter sessions <list|watch|show|diff|quota|worktrees|focus|kill|export>   cross-session intelligence
@@ -206,6 +208,12 @@ async function main(argv: string[]): Promise<number> {
   if (command === "env-detect") {
     const res = runEnvDetect({ json: rest.includes("--json") });
     process.stdout.write(res.output + "\n");
+    return res.exitCode;
+  }
+
+  if (command === "audit") {
+    const res = await runAudit(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
 
