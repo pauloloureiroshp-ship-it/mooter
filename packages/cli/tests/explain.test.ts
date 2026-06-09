@@ -31,3 +31,42 @@ test("explain: no hyperbole, honest about omitted VRAM", () => {
   assert.ok(!/revolutionary|magic|AI-powered/i.test(out));
   assert.match(out, /omitted if unavailable/);
 });
+
+// Wave 40 — per-chip deep dives.
+test("explain <chip>: deep dive renders What/How/Example for a chip", () => {
+  const res = runExplain({ topic: "saved" });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /mooter explain — saved/);
+  assert.match(res.output, /What it is:/);
+  assert.match(res.output, /How to read it:/);
+  assert.match(res.output, /Example:/);
+  assert.match(res.output, /all-T3 \(Opus\) baseline|all-Opus/);
+});
+
+test("explain <chip>: aliases resolve to the canonical chip", () => {
+  // 'gpu' and 'rtx' are aliases of the vram chip; 'lora' → adapter.
+  assert.match(runExplain({ topic: "gpu" }).output, /mooter explain — vram/);
+  assert.match(runExplain({ topic: "rtx" }).output, /mooter explain — vram/);
+  assert.match(runExplain({ topic: "lora" }).output, /mooter explain — adapter/);
+});
+
+test("explain list: lists every deep-divable chip", () => {
+  const res = runExplain({ topic: "list" });
+  assert.equal(res.exitCode, 0);
+  for (const chip of ["saved", "tier", "vram", "ctx", "quota", "adapter", "mlwr", "user", "sessions"]) {
+    assert.match(res.output, new RegExp(`\\b${chip}\\b`), `list mentions ${chip}`);
+  }
+});
+
+test("explain <chip>: privacy + honesty in the user-hash explainer", () => {
+  const out = runExplain({ topic: "user" }).output;
+  assert.match(out, /NOT your GitHub handle/);
+  assert.ok(!/revolutionary|magic/i.test(out));
+});
+
+test("explain unknown still lists chips so the user can recover", () => {
+  const res = runExplain({ topic: "zzz" });
+  assert.equal(res.exitCode, 1);
+  assert.match(res.output, /Available topics: statusline/);
+  assert.match(res.output, /saved/);
+});

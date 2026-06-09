@@ -60,7 +60,7 @@ Usage:
   mooter init                      onboarding wizard (hardware, providers, packs, consent)
   mooter quiet [--off] [--moo-card|--moo-card-off] [--telemetry-off] [--hide-<chip>|--show-all]   toggles
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
-  mooter explain [statusline]      educational guide to each statusline chip
+  mooter explain [statusline|<chip>|list]  guide to the statusline; deep-dive a chip (e.g. explain saved)
   mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
   mooter sessions <list|watch|show|diff|quota|worktrees|focus|kill|export>   cross-session intelligence
