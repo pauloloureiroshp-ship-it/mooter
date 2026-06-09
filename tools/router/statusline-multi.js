@@ -62,6 +62,7 @@ const TH = {
   CODEX_LOW:       20,  // % remaining → "falling to" copy
   SAVINGS_YELLOW:  30,  // saved% below this → yellow
   CONFIDENCE_LOW:  0.5, // avg confidence of last 3 → red drift
+  CONFIDENCE_WARN: 0.60, // single decision below this → ⚠ in-line marker (Wave 49)
   BEAST_OVERKILL_PCT: 40, // % of last 10 turns where beast forced T3 over a T0/T1 baseline
   ZEN_UNDERKILL_PCT:  40, // % of last 10 turns where zen capped T1 on a complex task
   ZEN_COMPLEXITY_HI:  0.5, // prompt_complexity_score above which zen-cap is wasteful
@@ -351,9 +352,16 @@ function pickState(ctx) {
     // Wave 12 PR-I — T0 is local by definition, so "T0 local" is redundant; drop
     // the tag there. Confidence gets a "conf" qualifier so the bare number reads
     // as what it is rather than as noise.
+    // Wave 49 (Phase 1, Anthropic-aligned honesty) — a single low-confidence route
+    // (<0.60) is marked ⚠ so the operator sees the uncertainty in-line and can pin
+    // a tier or verify, rather than only learning about it once three-in-a-row trip
+    // the red "router miscalibrated" headline. Honest metacognition, not noise: the
+    // marker is omitted whenever confidence is healthy or unknown.
+    const lowConf = Number.isFinite(last.confidence) && last.confidence < TH.CONFIDENCE_WARN;
+    const confTok = lowConf ? `⚠ conf ${conf}` : `conf ${conf}`;
     lastLabel = (tier === 'T0' && tag === 'local')
-      ? `${tier} · conf ${conf}`
-      : `${tier} ${tag} · conf ${conf}`;
+      ? `${tier} · ${confTok}`
+      : `${tier} ${tag} · ${confTok}`;
     // Wave 22 (22.C) — append the real-execution segment (⚠ on divergence) when the
     // last delegated subagent ran on a different tier than it was routed to.
     lastLabel += buildExecSegment(ctx.sessionId);

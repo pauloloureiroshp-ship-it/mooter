@@ -542,3 +542,19 @@ test('22.A buildHerdsChip renders with color (unhidden)', () => {
   assert.ok(out.includes('🐄 agents 3 active · 9 spawned · peak 3'), `expected count: ${out}`);
   assert.ok(out.includes('⚡ workflow'), `expected workflow cue: ${out}`);
 });
+
+// Wave 49 (Phase 1) — Anthropic-aligned honesty: a single low-confidence route (<0.60)
+// is marked ⚠ in-line so the operator sees the uncertainty without waiting for the
+// three-in-a-row red headline. Healthy/unknown confidence carries no marker.
+test('49: low-confidence (<0.60) last decision gets ⚠ marker in lastLabel', () => {
+  const lo = { tier: 'T2', recommended_model: 'claude-sonnet-4-6', confidence: 0.42, suggested_providers: ['sonnet'] };
+  const st = pickState({ total: 1000, last: lo, recent: [lo], savedPct: 50, savedUsd: 0.3 });
+  assert.match(st.lastLabel, /⚠ conf 0\.42/, `expected ⚠ marker: ${st.lastLabel}`);
+});
+
+test('49: healthy confidence (>=0.60) carries no ⚠ marker', () => {
+  const hi = { tier: 'T2', recommended_model: 'claude-sonnet-4-6', confidence: 0.88, suggested_providers: ['sonnet'] };
+  const st = pickState({ total: 1000, last: hi, recent: [hi], savedPct: 50, savedUsd: 0.3 });
+  assert.match(st.lastLabel, /conf 0\.88/);
+  assert.ok(!/⚠/.test(st.lastLabel), `no marker expected: ${st.lastLabel}`);
+});
