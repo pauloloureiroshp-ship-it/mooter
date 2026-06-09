@@ -3,6 +3,16 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-09 (Mega Overnight — Waves 33.15→44, v1.21.10 + audit fan-out)
+**Estado:** ✅ Maratona overnight 8 fases. Plan-mode interrompeu o fluxo autónomo → Paulo aprovou plano refinado (hybrid: auto-merge CLI waves, PR-only para landing prod + vault brief; eu crio beta tags, Paulo aplica `v1.22.0`). classify.js sha `7b01eb86…87762` **INTACTA** (verificada pré+pós cada wave). Packages 28-34 congelados exceto ficheiros novos sancionados. Cada merge com gate final-reviewer (Opus).
+**Shipped (auto-merge main):** 33.15 docs benchmark live (`f12d470` #134) · **33.17 dashboard chip 7-day savings** (`v1.21.9`, `88c11d6` #135, SHIP 0H/0M) · **40 `mooter explain <chip>` deep dives** (`v1.21.10`, `cbcfa31` #136, SHIP 0H/0M) · **34 `mooter audit fan-out`** (merged `5c3a7fc` #139, **UNTAGGED → Paulo aplica `v1.22.0`**, SHIP 0H/0M). 33.16 cleanup worktrees bench A/B (local).
+**Honest skips/PR-only:** **35 Hub migration 017 = JÁ APLICADA** (Wave 33.7; verifiquei com SELECT read-only no D1 remoto — `transparency_events`+`forget_me_requests` existem) → sem migration, sem tag. **44 OAuth polish** (button loading state + error banner reason-aware denied/network/failed derivado no callback) → **PR #138 STAGED** (landing prod, Paulo merge+deploy; tag `v1.21.11` pós-merge). **39 multi-user vault sync foundation** → **PR #140 BRIEF only** (identity=user_id_hash, owner_hash WHERE, content-addressed shared adapters, immutable-blob+mutable-pointer, L15 home/L13 validate, Phase A-D).
+**Day-0 refutou:** savings em `decisions.log` (ts_ms), não `savings.json` → 7d reusa computeMetrics filtrado (zero drift) · landing é `landing/app/` GitHub-only (sem Google/magic-link) · audit fan-out **self-contained** (sem import @mooter/workflow — native deps + createRequire partem o bundle CLI, lição CI #128). e2e real: facet `packages` local $0 11.3s, finding válido.
+**Gates:** packages/cli **335/335** + build green · landing **139/139** + next build green · tools/router savings tests green. version.json `1.21.10` (auto via version-sync on tag).
+**Report:** `MEGA_NIGHT_REPORT.md` (raiz, não-commitado). **Próxima missão (Paulo):** (1) aplicar tag **`v1.22.0`** em main HEAD `5c3a7fc` (audit fan-out); (2) rever/merge/deploy **PR #138** (Wave 44 landing); (3) ler/greenlight **PR #140** (Wave 39 brief); (4) Friends DMs Task #218 (manual); (5) LoRA train quando quiseres.
+
+---
+
 ### 🐮 Sessão — 2026-06-08 (Wave 33.9 Visual Migration — MERGED to main, v1.21.5)
 **Estado:** ✅ **SHIPPED prod `main` (push `436199f..9ee01ff`)**, tag `v1.21.5-visual-migration` (pushed). feat `9ee01ff`. Ultracode + dangerous-autonomous, **git worktree isolado** `mooter-wave33_9` (sessão Wave 33.8 em `frugal/` nunca tocada). final-reviewer (Opus) **SHIP** — 1 HIGH + 1 MED de honestidade corrigidos in-wave. classify.js sha `7b01eb86…87762` **INTACTA (19 waves)**. `packages/**` + `landing-v12-deploy/` (canvas source) INTOCADOS.
 **Day-0 honesto:** landing já estava muito mais migrado que o kickoff assumia (Got Moo? + terminal live-routing + HUD 3-linhas já em prod desde Wave 33.7). Net-new real = C/D/E/F; A/B = polish/verify. Deliverable `docs/strategy/WAVE33_9_DAY0_RECON.md`.
