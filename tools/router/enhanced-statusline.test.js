@@ -85,8 +85,8 @@ test('19.B-4: renderTwoLine surfaces the 🧬 LoRA/Pastor chip (baseline stable)
 // Read-only subagents the Wave 21 PostToolUse fallback misses). buildHerdsChip renders
 // the real active/total/peak again, dim when idle, ⚡ at ≥3 concurrent.
 test('19.B-5: herds chip renders active/total/peak (Wave 22 unhidden, dim when idle)', () => {
-  assert.ok(sl.buildHerdsChip({ active: 0, total: 17, peak: 9 }, { color: true }).includes('🐄 0/17/peak9'));
-  assert.ok(sl.buildHerdsChip({ active: 2, total: 17, peak: 9 }, { color: true }).includes('🐄 2/17/peak9'));
+  assert.ok(sl.buildHerdsChip({ active: 0, total: 17, peak: 9 }, { color: true }).includes('🐄 agents 0 active · 17 spawned · peak 9'));
+  assert.ok(sl.buildHerdsChip({ active: 2, total: 17, peak: 9 }, { color: true }).includes('🐄 agents 2 active · 17 spawned · peak 9'));
   assert.equal(sl.buildHerdsChip(null), null, 'no herd data → no chip');
 });
 

@@ -24,10 +24,22 @@ function readJson(p) {
 
 /** Pure: build the limits chip from a status object + whether limits.toml exists. */
 function buildLimitsChip(status, configured) {
+  // Wave 48 (1.5) — "limits OK" was vague. This chip is Mooter's own COST-CAP
+  // (the spend ceiling in limits.toml) — NOT the Anthropic/Claude Max quota,
+  // which is the separate `☁ Claude Max %` chip. Relabel to "cost-cap" and show
+  // the live $spend/$cap when the enforcer recorded it.
   if (status && typeof status.ok === 'boolean') {
-    return status.ok ? '🔒 limits OK' : '🔓 limits HIT';
+    if (status.ok) {
+      const spend = Number(status.sessionSpend);
+      const cap = Number(status.sessionCap);
+      if (Number.isFinite(spend) && Number.isFinite(cap) && cap > 0) {
+        return `🔒 cost-cap $${spend.toFixed(2)}/$${cap.toFixed(2)}`;
+      }
+      return '🔒 cost-cap OK';
+    }
+    return '🔓 cost-cap HIT';
   }
-  return configured ? '🔒 limits OK' : null;
+  return configured ? '🔒 cost-cap OK' : null;
 }
 
 function statusLine() {

@@ -1631,6 +1631,16 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐮 Wave 48 Statusline Honest ✅ (CC autonomous, 2026-06-10) — **PR #144, merge pendente Paulo**
+
+**Página Notion:** [🐮 Sessão 2026-06-10 — Wave 48 Statusline Honest (PR #144)](https://app.notion.com/p/37a6f6e42bc4814ea33ecccca51b3d5d) · `37a6f6e4-2bc4-814e-a33e-cccca51b3d5d`
+
+**Estado:** 7/8 chips de statusline relabeled honest (MLWR→local routes · limits→cost-cap · this prompt/session→`📝 turn/all-time` **mislabel FIX** · Claude Max usage bar · agents labels · embed/ctx glyphs). Day 0 apanhou o brief a inventar pricing (Opus=$5/$25, NÃO $15/$20) + 2 claims Fable 5 unsourced. `explain`: novos embed/agents/cost-cap/tiers + pricing autoritativo + saved 78%→47%. classify.js sha `7b01eb86…` **INTACT** (Tier 5 Fable + local mirror **deferidos Wave 49**). statusline 165/165 · CLI 351/351 · final-reviewer SHIP-WITH-NITS 0-HIGH/0-MED.
+
+**Pendente Paulo:** merge PR #144 + tag `v1.25.0-statusline-honest` · `/mooter-update` sync módulos statusline host-side · decidir precedência item 1.2 (terminal-name) · **Wave 49** = Tier 5 Fable (sourced+sha-approved) + local mirror feasibility + Pastor re-train.
+
+---
+
 ### 🐮 Maratona Waves 33.11/33.12/33.13 ✅ (CC autonomous, 2026-06-08 madrugada) — local main + tags, **push pendente Paulo**
 
 **Página Notion:** [🐮 Sessão 2026-06-08 madrugada — Waves 33.11/33.12/33.13 SHIPPED + Friends prep](https://app.notion.com/p/37a6f6e42bc4815a956ff21a8052b535) · `37a6f6e4-2bc4-815a-956f-f21a8052b535`

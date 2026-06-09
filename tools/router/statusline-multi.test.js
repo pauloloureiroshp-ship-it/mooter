@@ -397,14 +397,14 @@ test('pickState: ctx % chip rendered when context.percent_used is present', () =
 test('pickState: this-prompt + session cost chips rendered from tracker metrics', () => {
   const ctx = { ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.match(s.proof, /this prompt \$0\.04/, 'this-prompt chip missing');
-  assert.match(s.proof, /session \$4\.21/, 'session chip missing');
+  assert.match(s.proof, /\$0\.04 this turn/, 'this-turn chip missing');
+  assert.match(s.proof, /\$4\.21 all-time/, 'all-time chip missing');
 });
 
-test('pickState: full green proof orders ctx · 5h · this prompt · session', () => {
+test('pickState: full green proof orders ctx · 5h · this turn · all-time', () => {
   const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.equal(s.proof, 'ctx 23% · 42% 5h est · this prompt $0.04 · session $4.21');
+  assert.equal(s.proof, 'ctx 23% · 42% 5h est · $0.04 this turn · $4.21 all-time');
 });
 
 // Wave 33 (A.2) — session-age formatter buckets.
@@ -529,16 +529,16 @@ test('20.D: home chip renders calls % AND tokens local % together (integration)'
 // `🐄 N/M/peakK`. The 20.E dim trailing pulse alternates by tick when ≥1 Moo is active.
 test('22.A: herd chip pulse renders (dim trailing, alternating by tick)', () => {
   // idle (0 active): no pulse, count visible
-  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 0/5/peak3');
+  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 agents 0 active · 5 spawned · peak 3');
   // active: dim ◉/◯ trails, alternating per tick
-  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 1/5/peak3 ◉');
-  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '🐄 1/5/peak3 ◯');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 agents 1 active · 5 spawned · peak 3 ◉');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '🐄 agents 1 active · 5 spawned · peak 3 ◯');
   // ≥3 concurrent lights ⚡ workflow
-  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '🐄 3/9/peak3 · ⚡ workflow ◉');
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '🐄 agents 3 active · 9 spawned · peak 3 · ⚡ workflow ◉');
 });
 
 test('22.A buildHerdsChip renders with color (unhidden)', () => {
   const out = sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: true, tick: 0 });
-  assert.ok(out.includes('🐄 3/9/peak3'), `expected count: ${out}`);
+  assert.ok(out.includes('🐄 agents 3 active · 9 spawned · peak 3'), `expected count: ${out}`);
   assert.ok(out.includes('⚡ workflow'), `expected workflow cue: ${out}`);
 });

@@ -370,8 +370,9 @@ function pickState(ctx) {
   // Wave 16-18 Day 2 B1 — "est" marks this as a LOCAL estimate (computeAnthropicRem
   // from quota-state.json, 0 network calls), not Anthropic's authoritative quota.
   if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
-  if (typeof lastTurnCost === 'number') proofParts.push(`this prompt $${lastTurnCost.toFixed(2)}`);
-  if (typeof alltimeCost === 'number') proofParts.push(`session $${alltimeCost.toFixed(2)}`);
+  if (typeof lastTurnCost === 'number') proofParts.push(`$${lastTurnCost.toFixed(2)} this turn`);
+  // Wave 48 (1.6) — `alltimeCost` is all-time spend; was mislabeled "session $".
+  if (typeof alltimeCost === 'number') proofParts.push(`$${alltimeCost.toFixed(2)} all-time`);
   const proofChips = proofParts.join(' · ') || '—';
   const proof = (lastLabel !== '—')
     ? [lastLabel, ...proofParts].join(' · ')
@@ -553,7 +554,7 @@ function renderFromContext(ctx) {
         // evolution lives in `mooter trail --evolution`; here we surface the
         // real cumulative figures the ctx already carries.
         const parts = [];
-        if (typeof ctx.alltimeCost === 'number') parts.push(`session $${ctx.alltimeCost.toFixed(2)}`);
+        if (typeof ctx.alltimeCost === 'number') parts.push(`$${ctx.alltimeCost.toFixed(2)} all-time`);
         if (typeof ctx.todayCost === 'number') parts.push(`today $${ctx.todayCost.toFixed(2)}`);
         if (parts.length) proof = parts.join(' · ');
       }
@@ -622,7 +623,10 @@ function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
   const active = Math.max(0, herd.active | 0);
   const total = Math.max(0, Number(herd.total) || 0);
   const peak = Math.max(0, Number(herd.peak) || 0);
-  const body = `🐄 ${active}/${total}/peak${peak}`;
+  // Wave 48 (1.7) — `0/0/peak0` was indecipherable. Label the three numbers by
+  // their true meaning: live sub-agents now · total spawned this session · peak
+  // concurrency. (No "queued" counter exists — don't invent one.)
+  const body = `🐄 agents ${active} active · ${total} spawned · peak ${peak}`;
   let chip = active === 0 ? colorize(ANSI.dim, body, color) : body;
   if (active >= WORKFLOW_CONCURRENCY) {
     chip = `${chip} · ${colorize(ANSI.yellow, '⚡ workflow', color)}`;
@@ -744,7 +748,19 @@ function ctxBar(pct) {
   // Wave 19 (19.B-3) — ▰▱ "evolution bar" for the Claude session context window.
   const bar = '▰'.repeat(filled) + '▱'.repeat(width - filled);
   const code = p < 50 ? ANSI.green : p < 80 ? ANSI.yellow : ANSI.red;
-  return `ctx ${colorize(code, bar)} ${p}%`;
+  // Wave 48 (1.1) — 📚 glyph so the Claude context-window chip is recognizable
+  // at a glance (was a bare `ctx ▰▱ 16%` that read as noise).
+  return `📚 ctx ${colorize(code, bar)} ${p}%`;
+}
+
+// Wave 48 (1.8) — 10-char usage bar for the ☁ Claude Max chip. `pct` is the
+// share to FILL (e.g. remaining %). Pure, no color (the chip is on line 2 which
+// stays plain). e.g. pctBar(42) → "[▓▓▓▓░░░░░░]".
+function pctBar(pct) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const width = 10;
+  const filled = Math.round((p / 100) * width);
+  return `[${'▓'.repeat(filled)}${'░'.repeat(width - filled)}]`;
 }
 
 /**
@@ -1063,10 +1079,17 @@ function renderTwoLine(ctx, opts = {}) {
     homeChip,
     gpuChip,
     ctxChip,
-    typeof ctx.anthRem === 'number' ? `☁ Claude Max ${ctx.anthRem}% · 5h reset` : null,
+    typeof ctx.anthRem === 'number' ? `☁ Claude Max ${pctBar(ctx.anthRem)} ${ctx.anthRem}% left · 5h reset` : null,
     sessionTimerChip,
-    typeof ctx.lastTurnCost === 'number' ? `this prompt $${ctx.lastTurnCost.toFixed(2)}` : null,
-    typeof ctx.alltimeCost === 'number' ? `session $${ctx.alltimeCost.toFixed(2)}` : null,
+    // Wave 48 (1.6) — group the two cost figures under one 📝 chip and FIX the
+    // mislabel: `alltimeCost` was rendered as "session $" (it is all-time spend,
+    // not this session) — the exact "this prompt vs session" confusion Paulo hit.
+    (typeof ctx.lastTurnCost === 'number' || typeof ctx.alltimeCost === 'number')
+      ? '📝 ' + [
+          typeof ctx.lastTurnCost === 'number' ? `$${ctx.lastTurnCost.toFixed(2)} this turn` : null,
+          typeof ctx.alltimeCost === 'number' ? `$${ctx.alltimeCost.toFixed(2)} all-time` : null,
+        ].filter(Boolean).join(' · ')
+      : null,
     tokenChip,
     herdsChip,
     quantChip,
