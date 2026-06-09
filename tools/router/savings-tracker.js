@@ -835,11 +835,13 @@ function handleMetrics(req, res) {
   if (sessionId) {
     const metrics = computeMetricsForSession(sessionId);
     metrics.executions = buildExecutionsBlock();
+    attachWindowMetrics(metrics);
     send(res, 200, JSON.stringify(metrics));
     return;
   }
   const { metrics } = readDecisions();
   metrics.executions = buildExecutionsBlock();
+  attachWindowMetrics(metrics);
   send(res, 200, JSON.stringify(metrics));
 }
 
@@ -881,6 +883,43 @@ function computeMetricsForSession(sessionId) {
   m.scope = 'session';
   m.session_id = sessionId;
   return m;
+}
+
+// Wave 33.17 — rolling time-window metrics (e.g. the last 7 days). Reuses the
+// SAME computeMetrics() pipeline over lines filtered by ts_ms, so a windowed
+// savings figure can never drift from the all-time one. `linesOverride` lets
+// tests inject decisions without an on-disk log. Global (all sessions) on
+// purpose: a "recent savings trend" spans every terminal, not one session.
+function computeMetricsWindow(sinceMs, linesOverride) {
+  let lines = linesOverride;
+  if (!lines) {
+    let raw = '';
+    try { raw = fs.readFileSync(LOG_PATH, 'utf8'); } catch { return emptyMetrics(); }
+    lines = raw.split('\n').filter((l) => l.trim().length > 0);
+  }
+  const filtered = lines.filter((l) => {
+    const e = safeParse(l);
+    if (!e) return false;
+    const ts = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+    return ts >= sinceMs;
+  });
+  const m = computeMetrics(filtered);
+  m.scope = 'window';
+  m.window_since_ms = sinceMs;
+  return m;
+}
+
+// Attach the rolling 7-day savings window to a metrics object (mutates +
+// returns it). Best-effort: any failure leaves the all-time figures intact.
+function attachWindowMetrics(metrics) {
+  try {
+    const wk = computeMetricsWindow(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    metrics.saved_7d = wk.saved;
+    metrics.saved_7d_pct = wk.saved_pct;
+    metrics.cost_7d = wk.real_cost_estimated;
+    metrics.prompts_7d = wk.prompts;
+  } catch { /* non-fatal — all-time figures still render */ }
+  return metrics;
 }
 
 function handleReal(_req, res) {
@@ -1642,6 +1681,7 @@ if (require.main === module) {
 // Exported for unit tests (required from backtest.test.js)
 module.exports = {
   computeMetrics,
+  computeMetricsWindow,
   readRealBudget,
   isSystemPrompt,
   emptyMetrics,

@@ -48,6 +48,22 @@ test("buildDashboard: renders all sections with a boxed frame", () => {
   assert.ok(rows[rows.length - 1].startsWith("└"), "bottom border");
 });
 
+test("buildDashboard: renders the 7d savings chip when present, omits when absent", () => {
+  const withWk = buildDashboard({
+    lines: LINES,
+    sessionId: "sess-1",
+    metrics: { saved: 0.27, saved_pct: 89, saved_7d: 0.12, saved_7d_pct: 74 },
+  });
+  assert.match(withWk, /7d \$0\.12 \(74% vs all-Opus\)/);
+
+  const without = buildDashboard({
+    lines: LINES,
+    sessionId: "sess-1",
+    metrics: { saved: 0.27, saved_pct: 89 },
+  });
+  assert.ok(!/7d \$/.test(without), "no 7d row when saved_7d is absent");
+});
+
 test("buildDashboard: shows Moo rows aggregated by model, busiest first", () => {
   const out = buildDashboard({ lines: LINES, sessionId: "sess-1", metrics: null });
   assert.match(out, /🏠 qwen3:7b/, "local Moo with home glyph");
