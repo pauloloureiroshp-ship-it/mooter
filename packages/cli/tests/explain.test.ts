@@ -108,3 +108,23 @@ test("explain list: includes the new confidence + uncertainty topics", () => {
     assert.match(out, new RegExp(`\\b${chip}\\b`), `list mentions ${chip}`);
   }
 });
+
+// Wave 49 (Phase 7) — Tier 5 Fable is documented as opt-in only, with correct pricing.
+test("explain tiers: T5 Fable is opt-in only, $10/$50, never auto-routed", () => {
+  const out = runExplain({ topic: "tiers" }).output;
+  assert.match(out, /T5\s+Fable 5/);
+  assert.match(out, /\$10 \/ \$50/, "correct Fable pricing");
+  assert.match(out, /opt-in ONLY|never auto-routed/i, "honest: not auto-routed");
+  assert.match(out, /no T4/i, "explains the tier-number gap honestly");
+  // pricing for the other tiers stays correct (Opus $5/$25, not fabricated)
+  assert.match(out, /Opus 4\.6 \/ 4\.8\s+\$5 \/ \$25/);
+});
+
+// Wave 49 (Phase 3) — vision is honest about having NO local model today.
+test("explain vision: honest that there is no local vision path yet", () => {
+  const out = runExplain({ topic: "vision" }).output;
+  assert.match(out, /mooter explain — vision/);
+  assert.match(out, /does NOT run a local vision model|no \$0 local vision|cloud-only/i);
+  assert.match(out, /@fable/, "points to the opt-in frontier route");
+  assert.ok(!/revolutionary|magic|best-in-class/i.test(out), "no hyperbole");
+});
