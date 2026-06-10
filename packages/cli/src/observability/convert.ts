@@ -15,9 +15,10 @@
 // Pure node built-ins (fs, crypto) — zero dependencies, no SDK.
 
 import { readFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+import { spanId as deriveSpanId, traceId as deriveTraceId } from "./span-id.ts";
 
 // ---------------------------------------------------------------------------
 // decisions.log location + raw parsing
@@ -66,7 +67,7 @@ export function readDecisionsTail(path: string, n = 100): RawDecision[] {
 // pricing (USD per million tokens, input/output) — same authoritative table
 // the CLI already publishes in `mooter explain tiers` (src/commands/explain.ts).
 
-const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
+export const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   T0: { input: 0, output: 0 }, // local Ollama
   T1: { input: 1, output: 5 }, // Haiku 4.5
   T2: { input: 3, output: 15 }, // Sonnet 4.6
@@ -110,10 +111,6 @@ export interface OtlpPayload {
 
 const str = (key: string, v: string): OtlpAttribute => ({ key, value: { stringValue: v } });
 const dbl = (key: string, v: number): OtlpAttribute => ({ key, value: { doubleValue: v } });
-
-function hexId(bytes: number): string {
-  return randomBytes(bytes).toString("hex");
-}
 
 function startNanos(d: RawDecision): number {
   if (typeof d.ts_ms === "number" && Number.isFinite(d.ts_ms)) return d.ts_ms * 1e6;
@@ -175,8 +172,10 @@ export function decisionToSpan(d: RawDecision): OtlpSpan {
   // tokens absent → cost/savings attributes omitted entirely (never fabricated)
 
   return {
-    traceId: hexId(16),
-    spanId: hexId(8),
+    // Deterministic ids (Phase 2.E): the same decision always yields the same
+    // span id, so `mooter feedback span <id>` scores join back to this span.
+    traceId: deriveTraceId(d),
+    spanId: deriveSpanId(d),
     name: "mooter.route",
     kind: 1, // SPAN_KIND_INTERNAL
     startTimeUnixNano: String(start),
