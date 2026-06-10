@@ -37,7 +37,8 @@ import { runBenchmarkCmd } from "./commands/benchmark.ts";
 import { runPastor } from "./commands/pastor.ts";
 import { runStatusline } from "./commands/statusline.ts";
 import { runEffort } from "./commands/effort.ts";
-import { runSessions } from "./commands/sessions.ts";
+import { runSessionsAsync } from "./commands/sessions.ts";
+import { runSessionSummary } from "./commands/session-summary.ts";
 import { runTerminal } from "./commands/terminal.ts";
 import { runConductor } from "../../worktree-conductor/src/commands.ts";
 import { runSpawn } from "../../spawn-orchestrator/src/commands.ts";
@@ -68,9 +69,11 @@ Usage:
   mooter quiet [--verbose|--herd-standard|--herd-quiet|--herd-off]   herd 🐄 visibility level
   mooter explain [statusline|<chip>|list]  guide to the statusline; deep-dive a chip (e.g. explain saved)
   mooter audit fan-out [--facets <csv>] [--max-cost 0] [--json]  parallel local-first codebase audit → audit/fan_out_<ts>.md
-  mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline layout (or show)
+  mooter statusline mode <mini|compact|full|didactic|auto>   pin the statusline content mode (or show)
+  mooter statusline layout <narrow|medium|wide|auto>   pin the responsive width layout (auto = detect)
   mooter effort [set <low|default|high|ultramoo>|show|reset]   session-wide effort mode (ultramoo = max frugality)
-  mooter sessions <list|watch|show|diff|quota|worktrees|focus|kill|export>   cross-session intelligence
+  mooter sessions <list|watch|show|diff|quota|worktrees|tmux-attach|notify|wait|focus|kill|export>   cross-session intelligence
+  mooter session-summary [--session <id>] [--json] [--out <file>] [--notion]   rich end-of-session report (honest cost rules)
   mooter conductor <status|lock|unlock|queue|heartbeats|locks|history|reap>   serialize ops across terminals
   mooter spawn <task> [--cloud|--local] | spawn <list|watch|kill|logs|artifacts>   sandboxed local-first agents
   mooter security <audit [--json]|spawn-test|summary>   4-layer sandbox audit + synthetic CVE escape test + honest summary
@@ -313,7 +316,13 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (command === "sessions") {
-    const res = runSessions(rest);
+    const res = await runSessionsAsync(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "session-summary") {
+    const res = runSessionSummary(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

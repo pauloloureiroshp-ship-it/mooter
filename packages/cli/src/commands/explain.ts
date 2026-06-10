@@ -28,8 +28,9 @@ Line 2 (current state · wide terminals only, COLUMNS ≥ 120):
      ↳ GPU + live VRAM used/total (nvidia-smi; omitted if unavailable)
   📚 ctx ▰▰▱▱▱▱▱▱▱▱ 23%
      ↳ context window used in the current Claude Code session
-  ☁ Claude Max [▓▓▓▓▓▓▓▓▓▓] 100% left · 5h reset
-     ↳ Anthropic quota remaining (5h window), as a usage bar
+  ☁ Claude Max [▓▓▓▓░░░░░░] · 2h13m/5h · ~63% est
+     ↳ ESTIMATED Anthropic 5h-window usage from local counting — \`est\` is
+       deliberate (no real-time quota API); \`quota ?\` = no fresh local data
   ⏱️ session 2h47m
      ↳ how long this Claude Code session has run (explicit modes only)
   📝 $0.04 this turn · $4.21 all-time
@@ -127,11 +128,11 @@ const CHIPS: ChipExplainer[] = [
     example: "ctx 23% → plenty of room; no need to compact yet.",
   },
   {
-    names: ["quota", "claude-max", "max", "5h", "reset"],
-    title: "☁ Claude Max [▓▓▓▓▓▓▓▓▓▓] 100% left · 5h reset",
-    what: "Your remaining Anthropic quota for the rolling 5-hour window, drawn as a 10-block usage bar plus when it resets. The bar fills proportional to the quota you have LEFT (so a full bar = full headroom). It reflects your subscription's usage allowance, not a dollar balance, and is separate from Mooter's own cost-cap (`mooter explain cost-cap`).",
-    interpret: "A full bar (100% left) means full headroom. As it empties, lean on local/cheaper tiers (or wait for the reset) to avoid hitting the cap mid-task.",
-    example: "☁ Claude Max [▓▓▓▓░░░░░░] 42% left · 5h reset → under half your 5h window remains.",
+    names: ["quota", "claude-max", "max", "5h", "reset", "est"],
+    title: "☁ Claude Max [▓▓▓▓░░░░░░] · 2h13m/5h · ~63% est",
+    what: "Mooter's ESTIMATE of your Anthropic usage in the rolling 5-hour window: the time left until the window resets (2h13m of 5h) and the share of the window already used (~63%). The `est` marker is deliberate and load-bearing: Claude Code exposes NO real-time quota API (GitHub issue anthropics/claude-code#44328), so there is no authoritative number to show. Mooter counts tokens locally into quota-state.json as prompts route, and the 5h window resets are likewise INFERRED locally from observed activity — never confirmed by Anthropic. When the local state is missing or stale (no update for over 6 hours), the chip reads `quota ?` instead of pretending the window is full. It reflects your subscription's usage allowance, not a dollar balance, and is separate from Mooter's own cost-cap (`mooter explain cost-cap`).",
+    interpret: "Treat the percentage as directional, not exact — it can drift from Anthropic's real meter, because tokens spent outside Mooter's view (other tools, other machines, server-side overhead) are never counted locally, and the inferred reset time can lag the real one. Color follows usage: green under 70% used = headroom; yellow 70-90% = pace yourself; red over 90% = lean on local/cheaper tiers or wait for the reset. `quota ?` means 'Mooter does not know' — that is honesty, not breakage; it clears once fresh routing activity updates quota-state.json.",
+    example: "☁ Max · 2h13m/5h · ~63% est → by local count, ~63% of the 5h window is used and ~2h13m remain until the inferred reset. `quota ?` → no fresh local data; the real quota is unknown.",
   },
   {
     names: ["session-timer", "timer", "session-time"],
