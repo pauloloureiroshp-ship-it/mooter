@@ -72,6 +72,13 @@ interface ChipExplainer {
 // data source behind it. No hyperbole.
 const CHIPS: ChipExplainer[] = [
   {
+    names: ["bench", "mooterbench"],
+    title: "🧪 bench ?  (or e.g. \"60% acc (50 wf, n=1)\" once a RESULTS.json exists)",
+    what: "MooterBench's routing accuracy: the share of a synthetic workflow set whose tier the classifier (classify.js) labelled the same as a hand-curated gold label. The dataset is 50 representative coding workflows across 15 categories (Apache-2.0, in packages/mooter-bench). The opt-in 🧪 chip reads a RESULTS.json; the benchmark is stdout-only today and does NOT yet persist that file, so when it is absent or older than 30 days the chip reads `🧪 bench ?` rather than showing a number. The 60% figure documented in the README is a recorded snapshot, not live data.",
+    interpret: "Higher is better, but read it with the caveats: SYNTHETIC accuracy on a small (N=50), single-cohort (n=1, one machine) set — not real-world routing accuracy, and per-category numbers are noisy where a category has only 1-3 workflows. `?` is not a failure; it means there is no fresh results file to read.",
+    example: "Recorded README snapshot (NOT live): 60% acc (50 wf, n=1) = 30/50 workflows routed to the gold tier on the reference dataset. The live chip shows `🧪 bench ?` until you re-run `cd packages/mooter-bench && npm run bench -- --json` and persist a RESULTS.json.",
+  },
+  {
     names: ["saved", "savings"],
     title: "🐮 mooter saved $X (Y%)",
     what: "Your cumulative savings this session, in dollars and as a percentage. Mooter compares what you actually spent (each prompt routed to the cheapest model that fits — Ollama, Haiku, Sonnet, or Opus) against a baseline where every prompt had gone to Opus (all-T3). The difference is the saving. It is an advisory estimate from token-cost models, not a billed figure, and it is floored at $0 (a rare short prompt can estimate above baseline). Work that Mooter delegates to subagents (local-summarizer, cheap-triage, …) counts too — those dispatches are folded into the tier mix you see in `mooter digest`.",

@@ -26,6 +26,11 @@ export function observationsDir(home: string = homedir()): string {
   return join(home, ".mooter", "fable-observations");
 }
 
+/** Wave 53 (I) — CCA-F audit export dir (sibling of the observations dir). */
+export function ccafDir(home: string = homedir()): string {
+  return join(home, ".mooter", "cca-f");
+}
+
 /** Read config, merging over defaults; corrupt/missing file → defaults. */
 export function readConfig(home: string = homedir()): FableObserveConfig {
   const base = defaultConfig();

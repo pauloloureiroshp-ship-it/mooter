@@ -1203,14 +1203,14 @@ function renderTwoLine(ctx, opts = {}) {
   // Wave 29 (29.J) — opt-in line 3 (synthesis chips). Default OFF → lines 1-2 are
   // byte-for-byte unchanged. Enable via preferences.json {"statusline_line3":true}
   // or MOOTER_STATUSLINE_LINE3=1. Defensive: any failure → no line 3.
-  const line3 = buildLine3(opts.forceLine3);
+  const line3 = buildLine3(opts.forceLine3, ctx.sessionId);
   return line3 ? `${line1}\n${line2}\n${line3}` : `${line1}\n${line2}`;
 }
 
 // Wave 29 (29.J) — assemble the opt-in line-3 synthesis chips (compression ·
 // setup · ecosystem). Each helper returns null when its layer is inactive, and
 // any throw is swallowed so the statusline can never be broken by line 3.
-function buildLine3(force) {
+function buildLine3(force, selfSessionId) {
   // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
   // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
   if (force === false) return null;
@@ -1223,6 +1223,8 @@ function buildLine3(force) {
   }
   if (!on) return null;
   const chips = [];
+  // Wave 53 — modules that need the current session id (to scope / self-exclude).
+  const SESSION_AWARE = new Set(['./sessions-status.js', './agent-focus-status.js']);
   for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
     './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
     './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
@@ -1231,12 +1233,25 @@ function buildLine3(force) {
     './terminal-name-status.js', './workflow-progress-status.js',
     // Wave 33.5 Block B.5 — 🐝 active spawns.
     './spawns-status.js',
+    // Wave 53 Phase B.3 — 🤖 live subagent focus (identity · model · duration).
+    './agent-focus-status.js',
     // Wave 33.6 Block P6 — 🔒 conductor lock count.
     './conductor-status.js',
+    // Wave 53 Phase A′ — ⇄ cross-session sister visibility (heartbeats).
+    './sessions-status.js',
     // Wave 33.8 Block E — 👤 signed-in identity (opaque hash, silent logged-out).
-    './user-status.js']) {
+    './user-status.js',
+    // Wave 53 Phase B.5 — user-pluggable segment (~/.mooter/statusline/custom.js).
+    './custom-status.js',
+    // Wave 53 Phase H.1 — 🧪 MooterBench accuracy (opt-IN; `?` when no results).
+    './bench-status.js']) {
     try {
-      const c = require(mod).statusLine();
+      // Wave 53 — SESSION_AWARE modules take the current session id; the others'
+      // statusLine() ignores extra args, but dogfood-status takes a positional
+      // `now`, so the session id is passed only to the aware set.
+      const c = SESSION_AWARE.has(mod)
+        ? require(mod).statusLine(selfSessionId)
+        : require(mod).statusLine();
       if (c) chips.push(c);
     } catch { /* skip a broken chip, never break the statusline */ }
   }
