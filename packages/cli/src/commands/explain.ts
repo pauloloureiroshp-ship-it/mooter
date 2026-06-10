@@ -205,10 +205,17 @@ const CHIPS: ChipExplainer[] = [
   },
   {
     names: ["tiers", "tier-system", "pricing"],
-    title: "Mooter tier system (T0–T3)",
-    what: "The routing tiers and what each costs per million tokens (input / output, authoritative Anthropic pricing):\n    T0  Ollama local      $0           file ops · transforms · summaries · OCR\n    T1  Haiku 4.5         $1 / $5      cheap triage · commit msgs · regex\n    T2  Sonnet 4.6        $3 / $15     investigation · root-cause · reasoning\n    T3  Opus 4.6 / 4.8    $5 / $25     architecture · multi-file · critical (default heavy tier)\n  Frontier (not yet a routed tier): Claude Fable 5 — $10 / $50 — reserved for a future wave.",
-    interpret: "Most prompts land in T0/T1 (cheap) or T3 (architecture). T2 is the RAREST tier in real usage (~7-8%) — the mid reasoning zone is genuinely narrow, not a bug. Mooter defaults to the cheapest tier that fits and escalates only when signals demand it.",
-    example: "A 'fix this typo' prompt → T0 ($0); 'redesign the vault for multi-user' → T3 (Opus).",
+    title: "Mooter tier system (T0–T3 · T5 opt-in)",
+    what: "The routing tiers and what each costs per million tokens (input / output, authoritative Anthropic pricing):\n    T0  Ollama local      $0           file ops · transforms · summaries · OCR\n    T1  Haiku 4.5         $1 / $5      cheap triage · commit msgs · regex\n    T2  Sonnet 4.6        $3 / $15     investigation · root-cause · reasoning\n    T3  Opus 4.6 / 4.8    $5 / $25     architecture · multi-file · critical (default heavy tier)\n    T5  Fable 5          $10 / $50     frontier — opt-in ONLY (\"@fable\"), never auto-routed\n  (There is no T4 — Opus 4.8 shares T3 with 4.6; the exact model shows on the statusline.)",
+    interpret: "Most prompts land in T0/T1 (cheap) or T3 (architecture). T2 is the RAREST tier in real usage (~7-8%) — the mid reasoning zone is genuinely narrow, not a bug. T5 (Fable 5) is the frontier tier and is the ONLY tier the classifier never picks on its own: because it is the most expensive, you reach it deliberately with an explicit override. Mooter defaults to the cheapest tier that fits and escalates only when signals demand it.",
+    example: "A 'fix this typo' prompt → T0 ($0); 'redesign the vault for multi-user' → T3 (Opus); '@fable analyse this dense chart' → T5 (Fable, opt-in).",
+  },
+  {
+    names: ["vision", "multimodal", "image", "ocr"],
+    title: "🖼️ vision (multimodal)",
+    what: "How Mooter handles image/vision tasks (OCR, screenshots, charts, screenshot→code). Honest current state: Mooter does NOT run a local vision model by default — no Qwen2.5-VL or similar is installed, so there is no $0 local vision path yet. Vision work therefore routes to a frontier cloud model. The classifier does not auto-detect images; you opt in.",
+    interpret: "For a vision task, pin the frontier tier explicitly — '@fable' (T5, Fable 5 has vision support) — or use your own cloud setup. A local vision tier (Qwen2.5-VL, ~6GB VRAM, zero API cost) is a planned addition; until it ships, this stays cloud-only and is not claimed as local.",
+    example: "'@fable read the text in this screenshot' → T5 Fable (frontier vision). There is no local OCR path today.",
   },
 ];
 

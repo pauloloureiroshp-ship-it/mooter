@@ -53,6 +53,7 @@ import { runStatus } from "./commands/status.ts";
 import { runData } from "./commands/data.ts";
 import { runQuant, runVector } from "./commands/quant-vector.ts";
 import { runBackend } from "./commands/backend.ts";
+import { runLocalModels } from "./commands/local-models.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
@@ -408,6 +409,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "backend") {
     const res = await runBackend(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "local-models") {
+    const res = await runLocalModels(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

@@ -174,3 +174,28 @@ test('classify output: has tier, confidence, task_category', () => {
   assert.ok(typeof r.confidence === 'number' && r.confidence >= 0 && r.confidence <= 1);
   assert.ok(typeof r.task_category === 'string' && r.task_category.length > 0);
 });
+
+// ── Wave 49 (Phase 7) — Tier 5 Fable, opt-in only ──────────────────────
+test('T5: "@fable" override pins Tier 5 Fable with fable provider', () => {
+  const r = classify('@fable redesign the auth system');
+  assert.equal(r.tier, 'T5');
+  assert.equal(r.recommended_model, 'claude-fable-5');
+  assert.deepEqual(r.suggested_providers, ['fable']);
+  assert.ok(r.user_override && r.user_override.honored === true);
+});
+
+test('T5: "usa fable" (PT-PT) also reaches Tier 5', () => {
+  assert.equal(classify('usa fable para isto').tier, 'T5');
+});
+
+test('T5: the classifier NEVER auto-routes to T5 without an override', () => {
+  for (const p of ['fix this typo', 'redesign the vault for multi-user', 'deploy to production and run the migration', 'analyse this dense chart please']) {
+    assert.notEqual(classify(p).tier, 'T5', `auto-routed to T5 for: ${p}`);
+  }
+});
+
+test('T5: "@fable" on a high-risk prompt is honored (upgrade, not a downgrade)', () => {
+  const r = classify('@fable deploy to production now');
+  assert.equal(r.tier, 'T5');
+  assert.ok(r.user_override && r.user_override.honored === true);
+});
