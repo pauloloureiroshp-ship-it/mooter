@@ -25,18 +25,29 @@ function readJson(p) {
 function buildMlwrChip(snap) {
   if (!snap || !snap.mlwr || typeof snap.mlwr.overall !== 'number') return null;
   const pct = Math.round(snap.mlwr.overall * 100);
-  return `📊 MLWR ${pct}% local`;
+  // Wave 48 (1.4) — "MLWR" was an opaque acronym (Mooter Local Win Rate). Relabel
+  // to plain "local routes %" so a friend reads it without a glossary.
+  return `📊 local routes ${pct}%`;
+}
+
+// Wave 33.8 Block G — empty-state message. When no snapshot exists the chip was
+// silent, leaving "what is MLWR?" unanswered and the user with no nudge. Render
+// a calm call-to-action instead so the chip teaches + invites the one command
+// that gives it data. Pure so it can be unit-tested without a home dir.
+function emptyMlwrChip() {
+  return '📊 local routes · run benchmark';
 }
 
 function statusLine() {
   try {
-    return buildMlwrChip(readJson(path.join(mooterHome(), 'mlwr_snapshot.json')));
+    const chip = buildMlwrChip(readJson(path.join(mooterHome(), 'mlwr_snapshot.json')));
+    return chip || emptyMlwrChip();
   } catch {
     return null;
   }
 }
 
-module.exports = { buildMlwrChip, statusLine };
+module.exports = { buildMlwrChip, emptyMlwrChip, statusLine };
 
 if (require.main === module) {
   const s = statusLine();

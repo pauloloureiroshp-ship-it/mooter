@@ -54,7 +54,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   assert.equal(lines.length, 2, 'wide terminal renders exactly two lines');
   assert.match(lines[0], /🐮/, 'line 1 carries the mood glyph');
   // PR-I line-1 qualifiers + de-branding
-  assert.match(lines[0], /saved \$0\.27 all-time \(89% vs all-Opus\)/, 'B3: saved carries all-time + baseline qualifiers');
+  assert.match(lines[0], /saved \$0\.27 all-time·local \(89% vs all-Opus\)/, 'B3: saved carries all-time·local + baseline qualifiers');
   assert.doesNotMatch(lines[0], /mooter saved/, 'PR-I: redundant "mooter" word dropped (🐮 already brands)');
   assert.match(lines[0], /T2 sonnet · conf 0\.84/, 'PR-I: tier shows model family + conf qualifier');
   // PR-I sparkline sits between the saved outcome and the tier label
@@ -63,7 +63,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   assert.match(lines[1], /^🏠 6\/10 calls \(60%\)/, 'Wave 20 20.D: line 2 leads with N/M calls + local %');
   assert.doesNotMatch(lines[1], /local ×6/, 'PR-I: old ×N local count is gone');
   assert.match(lines[1], /ctx \S+ 23%/, 'line 2 shows ctx as a visual bar (W19 ▰▱ evolution bar)');
-  assert.match(lines[1], /☁ Claude Max 100% · 5h reset/, 'PR-I: quota carries cloud anchor + label');
+  assert.match(lines[1], /☁ Claude Max \[▓+\] 100% left · 5h reset/, 'W48 1.8: quota carries usage bar + "left" label');
   assert.doesNotMatch(lines[1], /\b100% 5h\b/, 'PR-I: bare "100% 5h" replaced by labelled quota');
   assert.match(lines[1], /🧬 baseline/, 'W19 19.B-4: adapter chip evolved to 🧬 baseline');
   assert.doesNotMatch(lines[1], /forge install <gguf>/, 'PR-I: verbose <gguf> CTA trimmed');

@@ -37,6 +37,8 @@ import { handleWaveStatus } from './routes/wave-status.js';
 import { handleTransparency, handleForgetMe } from './routes/transparency.js';
 import { handleHeartbeat } from './routes/heartbeat.js';
 import { handleFeedback } from './routes/feedback.js';
+import { handlePricing } from './routes/pricing.js';
+import { handleUserDashboard } from './routes/user-dashboard.js';
 import { runAggregate } from './jobs/aggregate.js';
 import { runGenerate } from './jobs/generate.js';
 import { runNotify } from './jobs/notify.js';
@@ -119,8 +121,14 @@ const handler = {
         case '/v1/forget-me':
           response = await handleForgetMe(request, env);
           break;
+        case '/v1/pricing':
+          response = await handlePricing(request, env);
+          break;
         case '/aggregate-stats':
           response = await handleAggregateStats(request, env);
+          break;
+        case '/v1/user/dashboard':   // GET: per-user aggregates by anonymous user_hash (Wave 33.7)
+          response = await handleUserDashboard(request, env);
           break;
         case '/health':
           response = new Response(JSON.stringify({ ok: true, ts: new Date().toISOString() }), {

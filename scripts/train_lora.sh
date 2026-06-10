@@ -36,13 +36,10 @@ source "$VENV_DIR/bin/activate"
 
 echo "▶ Installing pinned training stack (first run only; cached after)…"
 pip install --quiet --upgrade pip
-# unsloth pulls a matching torch/transformers/trl/peft set for the local CUDA.
-pip install --quiet \
-  "unsloth==2025.5.1" \
-  "trl==0.8.6" \
-  "transformers>=4.43,<4.46" \
-  "datasets>=2.19" \
-  "peft>=0.11"
+# Wave 33 (A.5) — pins live in scripts/requirements-lora.txt (unsloth 2026.6.1 +
+# transformers 4.56.0). unsloth pulls a matching torch/bitsandbytes for the local
+# CUDA. The old inline unsloth==2025.5.1 set no longer resolves.
+pip install --quiet -r "$REPO_ROOT/scripts/requirements-lora.txt"
 
 echo "▶ Training…"
 python3 "$REPO_ROOT/scripts/train_lora.py" "$@"

@@ -21,10 +21,10 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
 const {
-  pickState, renderFromContext,
+  pickState, renderFromContext, renderTwoLine, render,
   digest, beastOverkillPct, zenUnderkillPct, avgConfidence,
   computeAnthropicRem, computeCodexRem, computeCodexMessagesLeft,
-  getAdapterStatus, clampPercent,
+  getAdapterStatus, clampPercent, formatSessionAge,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
 
@@ -36,7 +36,7 @@ test('pickState: green when savings tracker reports healthy figures', () => {
   // Wave 12 PR-I — headline carries the de-branded saved clause with the "today"
   // and "vs all-Opus" qualifiers; the tier badge moves to state.lastLabel so the
   // 2-line renderer can sit the sparkline ahead of it.
-  assert.match(s.headline, /saved \$0\.27 all-time \(89% vs all-Opus\)/);
+  assert.match(s.headline, /saved \$0\.27 all-time·local \(89% vs all-Opus\)/);
   assert.doesNotMatch(s.headline, /mooter saved/);
   assert.match(s.lastLabel, /T2 sonnet · conf 0\.84/);
 });
@@ -394,17 +394,55 @@ test('pickState: ctx % chip rendered when context.percent_used is present', () =
   assert.match(s.proof, /ctx 23%/, 'ctx chip missing from proof');
 });
 
-test('pickState: turn + alltime cost chips rendered from tracker metrics', () => {
+test('pickState: this-prompt + session cost chips rendered from tracker metrics', () => {
   const ctx = { ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.match(s.proof, /turn \$0\.04/, 'turn chip missing');
-  assert.match(s.proof, /alltime \$4\.21/, 'alltime chip missing');
+  assert.match(s.proof, /\$0\.04 this turn/, 'this-turn chip missing');
+  assert.match(s.proof, /\$4\.21 all-time/, 'all-time chip missing');
 });
 
-test('pickState: full green proof orders ctx · 5h · turn · alltime', () => {
+test('pickState: full green proof orders ctx · 5h · this turn · all-time', () => {
   const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, lastTurnCost: 0.04, alltimeCost: 4.21 };
   const s = pickState(ctx);
-  assert.equal(s.proof, 'ctx 23% · 42% 5h est · turn $0.04 · alltime $4.21');
+  assert.equal(s.proof, 'ctx 23% · 42% 5h est · $0.04 this turn · $4.21 all-time');
+});
+
+// Wave 33 (A.2) — session-age formatter buckets.
+test('formatSessionAge: <60min → Nm, <24h → NhNm, ≥24h → NdNh', () => {
+  assert.equal(formatSessionAge(47 * 60000), '47m');
+  assert.equal(formatSessionAge(2 * 3600000 + 47 * 60000), '2h47m');
+  assert.equal(formatSessionAge(2 * 86400000 + 4 * 3600000), '2d4h');
+  assert.equal(formatSessionAge(0), '0m');
+  assert.equal(formatSessionAge(-5), '0m');
+  assert.equal(formatSessionAge(NaN), '0m');
+});
+
+// Wave 33 (C.1) — narrow terminals (<120) get a compact GPU chip on the single
+// line, never the wide "VRAM (x/y GB)" chip. Hardware-tolerant: only asserts the
+// FORM when a GPU profile happens to exist on the test machine.
+test('C.1: narrow render is single-line and uses the compact GPU form', () => {
+  const prev = process.env.COLUMNS;
+  process.env.COLUMNS = '90';
+  try {
+    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }).split('\n');
+    assert.equal(lines.length, 1, 'narrow terminal renders a single line');
+    if (/🎮/.test(lines[0])) {
+      assert.ok(!/VRAM \(/.test(lines[0]), 'narrow GPU chip is compact, not the wide VRAM chip');
+    }
+  } finally {
+    if (prev === undefined) delete process.env.COLUMNS;
+    else process.env.COLUMNS = prev;
+  }
+});
+
+// Wave 33 (A.2) — the ⏱️ chip is gated to explicit modes (opts.forceLine3 is a
+// boolean) so the adaptive default stays byte-identical.
+test('renderTwoLine: session timer appears only when an explicit mode is pinned', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, ctxPercent: 23, sessionAge: 2 * 3600000 + 47 * 60000 };
+  const adaptive = renderTwoLine(ctx);                      // no opts → adaptive default
+  const explicit = renderTwoLine(ctx, { forceLine3: false }); // compact mode
+  assert.ok(!/⏱️ session/.test(adaptive), 'adaptive default must not show the session timer');
+  assert.match(explicit, /⏱️ session 2h47m/, 'explicit mode shows the session timer');
 });
 
 test('renderFromContext: full mode (COLUMNS=120) shows pack + adapter chips', () => {
@@ -491,16 +529,32 @@ test('20.D: home chip renders calls % AND tokens local % together (integration)'
 // `🐄 N/M/peakK`. The 20.E dim trailing pulse alternates by tick when ≥1 Moo is active.
 test('22.A: herd chip pulse renders (dim trailing, alternating by tick)', () => {
   // idle (0 active): no pulse, count visible
-  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 0/5/peak3');
+  assert.equal(sl20.buildHerdsChip({ active: 0, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 agents 0 active · 5 spawned · peak 3');
   // active: dim ◉/◯ trails, alternating per tick
-  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 1/5/peak3 ◉');
-  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '🐄 1/5/peak3 ◯');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 0 }), '🐄 agents 1 active · 5 spawned · peak 3 ◉');
+  assert.equal(sl20.buildHerdsChip({ active: 1, total: 5, peak: 3 }, { color: false, tick: 1 }), '🐄 agents 1 active · 5 spawned · peak 3 ◯');
   // ≥3 concurrent lights ⚡ workflow
-  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '🐄 3/9/peak3 · ⚡ workflow ◉');
+  assert.equal(sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: false, tick: 0 }), '🐄 agents 3 active · 9 spawned · peak 3 · ⚡ workflow ◉');
 });
 
 test('22.A buildHerdsChip renders with color (unhidden)', () => {
   const out = sl20.buildHerdsChip({ active: 3, total: 9, peak: 3 }, { color: true, tick: 0 });
-  assert.ok(out.includes('🐄 3/9/peak3'), `expected count: ${out}`);
+  assert.ok(out.includes('🐄 agents 3 active · 9 spawned · peak 3'), `expected count: ${out}`);
   assert.ok(out.includes('⚡ workflow'), `expected workflow cue: ${out}`);
+});
+
+// Wave 49 (Phase 1) — Anthropic-aligned honesty: a single low-confidence route (<0.60)
+// is marked ⚠ in-line so the operator sees the uncertainty without waiting for the
+// three-in-a-row red headline. Healthy/unknown confidence carries no marker.
+test('49: low-confidence (<0.60) last decision gets ⚠ marker in lastLabel', () => {
+  const lo = { tier: 'T2', recommended_model: 'claude-sonnet-4-6', confidence: 0.42, suggested_providers: ['sonnet'] };
+  const st = pickState({ total: 1000, last: lo, recent: [lo], savedPct: 50, savedUsd: 0.3 });
+  assert.match(st.lastLabel, /⚠ conf 0\.42/, `expected ⚠ marker: ${st.lastLabel}`);
+});
+
+test('49: healthy confidence (>=0.60) carries no ⚠ marker', () => {
+  const hi = { tier: 'T2', recommended_model: 'claude-sonnet-4-6', confidence: 0.88, suggested_providers: ['sonnet'] };
+  const st = pickState({ total: 1000, last: hi, recent: [hi], savedPct: 50, savedUsd: 0.3 });
+  assert.match(st.lastLabel, /conf 0\.88/);
+  assert.ok(!/⚠/.test(st.lastLabel), `no marker expected: ${st.lastLabel}`);
 });

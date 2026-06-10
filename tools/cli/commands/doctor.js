@@ -36,6 +36,37 @@ function check(name, fn, { fix } = {}) {
   }
 }
 
+// Wave 33.6 (P4) — compose the v1 bundle's spawn/runtime health (classify.js
+// doctrine sha · spawn sandbox backend · Ollama · multiplexer) as an advisory
+// sub-section, instead of rerouting `doctor` to v1 (which would drop the 10
+// install-integrity checks above). Non-fatal: absent/erroring v1 bundle → skip
+// silently, and v1 results never change this command's exit code.
+function appendV1Health() {
+  try {
+    const v1 = path.join(paths.mooter, 'cli-v1', 'mooter.js');
+    if (!fs.existsSync(v1)) return;
+    let raw;
+    try {
+      raw = execSync(`node ${JSON.stringify(v1)} doctor --json`, { stdio: ['ignore', 'pipe', 'ignore'], timeout: 8000 }).toString();
+    } catch (e) {
+      // v1 doctor exits 1 when it has a fail-level check; its JSON is still on stdout.
+      raw = e && e.stdout ? e.stdout.toString() : '';
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.checks) || parsed.checks.length === 0) return;
+    console.log('');
+    console.log('  ' + color.dim('spawn & runtime health (Wave 33.5+)'));
+    for (const c of parsed.checks) {
+      const label = `${c.name}${c.detail ? ` ${color.dim('(' + c.detail + ')')}` : ''}`;
+      if (c.level === 'ok') ok(label);
+      else if (c.level === 'warn') warn(label);
+      else fail(label); // advisory: shown, but not counted into results/exit code
+    }
+  } catch {
+    /* any failure (v1 missing, bad JSON, timeout) → skip; legacy doctor never regresses */
+  }
+}
+
 function versionGte(v, min) {
   const a = v.replace(/^v/, '').split('.').map(Number);
   const b = min.split('.').map(Number);
@@ -146,6 +177,8 @@ function run() {
       detail: `${anthropicCount} Anthropic + ${nonAnthropicCount} non-Anthropic = ${total} total, ${removed.length} removed`,
     };
   });
+
+  appendV1Health();
 
   console.log('  ' + color.dim('-'.repeat(60)));
   const pass = results.filter((r) => r.status === 'pass').length;

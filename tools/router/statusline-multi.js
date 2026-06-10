@@ -62,6 +62,7 @@ const TH = {
   CODEX_LOW:       20,  // % remaining → "falling to" copy
   SAVINGS_YELLOW:  30,  // saved% below this → yellow
   CONFIDENCE_LOW:  0.5, // avg confidence of last 3 → red drift
+  CONFIDENCE_WARN: 0.60, // single decision below this → ⚠ in-line marker (Wave 49)
   BEAST_OVERKILL_PCT: 40, // % of last 10 turns where beast forced T3 over a T0/T1 baseline
   ZEN_UNDERKILL_PCT:  40, // % of last 10 turns where zen capped T1 on a complex task
   ZEN_COMPLEXITY_HI:  0.5, // prompt_complexity_score above which zen-cap is wasteful
@@ -341,13 +342,26 @@ function pickState(ctx) {
                      provider0 === 'sonnet'     ? 'sonnet' :
                      provider0 === 'haiku'      ? 'haiku' :
                      provider0 === 'ollama'     ? 'local' : null;
-    const tag = explicit || TIER_DEFAULT_TAG[tier] || tier.toLowerCase();
+    // Wave 33.8 Block F (Opção B) — show the EXACT routed model, not just "opus".
+    // `recommended_model` (logged per decision, e.g. "claude-opus-4-6") collapses
+    // the 4-tier macro's hidden variability Paulo flagged (Q11): "opus" → "opus-4.6".
+    // Cloud tiers only — T0 stays "local" by definition (and byte-identical, so the
+    // pre-Block-F test fixtures with no recommended_model are unaffected).
+    const modelTag = tier !== 'T0' ? shortModelTag(last.recommended_model) : null;
+    const tag = modelTag || explicit || TIER_DEFAULT_TAG[tier] || tier.toLowerCase();
     // Wave 12 PR-I — T0 is local by definition, so "T0 local" is redundant; drop
     // the tag there. Confidence gets a "conf" qualifier so the bare number reads
     // as what it is rather than as noise.
+    // Wave 49 (Phase 1, Anthropic-aligned honesty) — a single low-confidence route
+    // (<0.60) is marked ⚠ so the operator sees the uncertainty in-line and can pin
+    // a tier or verify, rather than only learning about it once three-in-a-row trip
+    // the red "router miscalibrated" headline. Honest metacognition, not noise: the
+    // marker is omitted whenever confidence is healthy or unknown.
+    const lowConf = Number.isFinite(last.confidence) && last.confidence < TH.CONFIDENCE_WARN;
+    const confTok = lowConf ? `⚠ conf ${conf}` : `conf ${conf}`;
     lastLabel = (tier === 'T0' && tag === 'local')
-      ? `${tier} · conf ${conf}`
-      : `${tier} ${tag} · conf ${conf}`;
+      ? `${tier} · ${confTok}`
+      : `${tier} ${tag} · ${confTok}`;
     // Wave 22 (22.C) — append the real-execution segment (⚠ on divergence) when the
     // last delegated subagent ran on a different tier than it was routed to.
     lastLabel += buildExecSegment(ctx.sessionId);
@@ -364,8 +378,9 @@ function pickState(ctx) {
   // Wave 16-18 Day 2 B1 — "est" marks this as a LOCAL estimate (computeAnthropicRem
   // from quota-state.json, 0 network calls), not Anthropic's authoritative quota.
   if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
-  if (typeof lastTurnCost === 'number') proofParts.push(`turn $${lastTurnCost.toFixed(2)}`);
-  if (typeof alltimeCost === 'number') proofParts.push(`alltime $${alltimeCost.toFixed(2)}`);
+  if (typeof lastTurnCost === 'number') proofParts.push(`$${lastTurnCost.toFixed(2)} this turn`);
+  // Wave 48 (1.6) — `alltimeCost` is all-time spend; was mislabeled "session $".
+  if (typeof alltimeCost === 'number') proofParts.push(`$${alltimeCost.toFixed(2)} all-time`);
   const proofChips = proofParts.join(' · ') || '—';
   const proof = (lastLabel !== '—')
     ? [lastLabel, ...proofParts].join(' · ')
@@ -443,7 +458,7 @@ function pickState(ctx) {
   if (typeof savedPct === 'number' && total >= 5 && savedPct < TH.SAVINGS_YELLOW) {
     return {
       color:    'yellow',
-      headline: `only ${Math.round(savedPct)}% saved all-time — check tier mix`,
+      headline: `only ${Math.round(savedPct)}% saved all-time·local — check tier mix`,
       proof,
     };
   }
@@ -466,7 +481,11 @@ function pickState(ctx) {
     // is cumulative over the whole decisions.log (savings-tracker readDecisions +
     // computeMetrics apply NO date filter), so the old "today" label was wrong.
     // "vs all-Opus" names the baseline the savings % is measured against.
-    const headline = `saved $${savedUsd.toFixed(2)} all-time (${Math.round(savedPct)}% vs all-Opus)`;
+    // Wave 33.8 Block H — qualify it "·local": this is THIS MACHINE's decisions.log,
+    // not the user's cross-device total. That total lives on the hub/dashboard, so a
+    // fresh box reading "$0.00 all-time·local" next to the landing's "$25.95" is no
+    // longer a phantom bug — it's two honestly-scoped numbers (see Block A reconcile).
+    const headline = `saved $${savedUsd.toFixed(2)} all-time·local (${Math.round(savedPct)}% vs all-Opus)`;
     return { color: 'green', headline, proof: proofChips, lastLabel };
   }
 
@@ -543,7 +562,7 @@ function renderFromContext(ctx) {
         // evolution lives in `mooter trail --evolution`; here we surface the
         // real cumulative figures the ctx already carries.
         const parts = [];
-        if (typeof ctx.alltimeCost === 'number') parts.push(`alltime $${ctx.alltimeCost.toFixed(2)}`);
+        if (typeof ctx.alltimeCost === 'number') parts.push(`$${ctx.alltimeCost.toFixed(2)} all-time`);
         if (typeof ctx.todayCost === 'number') parts.push(`today $${ctx.todayCost.toFixed(2)}`);
         if (parts.length) proof = parts.join(' · ');
       }
@@ -556,8 +575,14 @@ function renderFromContext(ctx) {
   const headlineText = (state.color === 'green' && state.lastLabel && state.lastLabel !== '—')
     ? `${state.headline} · ${state.lastLabel}`
     : state.headline;
+  // Wave 33 (C.1) — on narrow terminals (< 120 cols) the wide 2-line VRAM chip
+  // never shows, so the GPU was invisible. Prepend a breakpoint-sized GPU chip to
+  // the proof here. The wide path keeps its full VRAM chip on line 2 (unchanged).
+  const narrowCols = parseInt(process.env.COLUMNS || '80', 10);
+  const gpuNarrow = narrowCols < TWO_LINE_THRESHOLD ? buildNarrowGpuChip(narrowCols) : null;
+  const proofOut = gpuNarrow ? (proof && proof !== '—' ? `${gpuNarrow} · ${proof}` : gpuNarrow) : proof;
   // Wave 13 — trail the live 🐄×N herd chip after the headline/proof.
-  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proof}`, ctx);
+  return appendHerd(`${COLOR_GLYPH[state.color]} ${headlineText.padEnd(38)} │ ${proofOut}`, ctx);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -606,7 +631,10 @@ function buildHerdsChip(herd, { color = useColor(), tick = 0 } = {}) {
   const active = Math.max(0, herd.active | 0);
   const total = Math.max(0, Number(herd.total) || 0);
   const peak = Math.max(0, Number(herd.peak) || 0);
-  const body = `🐄 ${active}/${total}/peak${peak}`;
+  // Wave 48 (1.7) — `0/0/peak0` was indecipherable. Label the three numbers by
+  // their true meaning: live sub-agents now · total spawned this session · peak
+  // concurrency. (No "queued" counter exists — don't invent one.)
+  const body = `🐄 agents ${active} active · ${total} spawned · peak ${peak}`;
   let chip = active === 0 ? colorize(ANSI.dim, body, color) : body;
   if (active >= WORKFLOW_CONCURRENCY) {
     chip = `${chip} · ${colorize(ANSI.yellow, '⚡ workflow', color)}`;
@@ -693,6 +721,31 @@ function formatGpuChip(gpu) {
   return `🎮 ${compact}`;
 }
 
+// Wave 33 (C.1) — GPU chip for NARROW terminals (< 120 cols), where the wide
+// 2-line VRAM chip never renders. Three breakpoints: < 100 → ultra-compact
+// "🎮 RTX4090 50%"; 100-119 → "🎮 RTX 4090 12.1/24GB". Respects the existing
+// `hidden_chips: ["vram"]` opt-out. Best-effort: any failure → null (no chip).
+function buildNarrowGpuChip(cols) {
+  try {
+    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    if (Array.isArray(prefs.hidden_chips) && prefs.hidden_chips.includes('vram')) return null;
+  } catch { /* no prefs → show */ }
+  const base = formatGpuChip(readGpuFromProfile()); // "🎮 RTX 4090" or null
+  if (!base) return null;
+  let live = null;
+  try { live = require('./hardware_live.js').vramSnapshot(); } catch { live = null; }
+  if (cols < 100) {
+    const model = base.replace('🎮 ', '').replace(/\s+/g, '');
+    const pct = live && live.totalMb > 0 ? ` ${live.pct}%` : '';
+    return `🎮 ${model}${pct}`;
+  }
+  // 100-119 — medium: model + used/total GB (no inner spaces to stay tight).
+  if (live && live.totalMb > 0) {
+    return `${base} ${(live.usedMb / 1024).toFixed(1)}/${Math.round(live.totalMb / 1024)}GB`;
+  }
+  return base;
+}
+
 // Wave 2.8 Ponto #2 — context window as a 10-char ANSI bar + percent. Green
 // < 50%, yellow < 80%, red ≥ 80%. Used only in the 2-line layout; the compact
 // 1-line render keeps the bare "ctx N%" text.
@@ -703,7 +756,19 @@ function ctxBar(pct) {
   // Wave 19 (19.B-3) — ▰▱ "evolution bar" for the Claude session context window.
   const bar = '▰'.repeat(filled) + '▱'.repeat(width - filled);
   const code = p < 50 ? ANSI.green : p < 80 ? ANSI.yellow : ANSI.red;
-  return `ctx ${colorize(code, bar)} ${p}%`;
+  // Wave 48 (1.1) — 📚 glyph so the Claude context-window chip is recognizable
+  // at a glance (was a bare `ctx ▰▱ 16%` that read as noise).
+  return `📚 ctx ${colorize(code, bar)} ${p}%`;
+}
+
+// Wave 48 (1.8) — 10-char usage bar for the ☁ Claude Max chip. `pct` is the
+// share to FILL (e.g. remaining %). Pure, no color (the chip is on line 2 which
+// stays plain). e.g. pctBar(42) → "[▓▓▓▓░░░░░░]".
+function pctBar(pct) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const width = 10;
+  const filled = Math.round((p / 100) * width);
+  return `[${'▓'.repeat(filled)}${'░'.repeat(width - filled)}]`;
 }
 
 /**
@@ -730,24 +795,53 @@ function fmtTokens(n) {
 }
 
 /**
+ * Wave 33.8 Block F — short, version-bearing model tag for the Line 1 tier badge.
+ * "claude-opus-4-6" → "opus-4.6"; "claude-haiku-4-5" → "haiku-4.5"; a local model
+ * like "qwen3:30b" passes through unchanged. Returns null for anything that does
+ * not look like a known model id, so the caller falls back to its existing tag.
+ * @param {string|undefined} rm  the per-decision recommended_model
+ * @returns {string|null}
+ */
+function shortModelTag(rm) {
+  if (typeof rm !== 'string' || !rm.trim()) return null;
+  const m = rm.trim().replace(/^claude-/, '');
+  // opus-4-6 → opus-4.6 ; sonnet-4-6 → sonnet-4.6 ; haiku-4-5 → haiku-4.5 (keep any [suffix]).
+  const cloud = m.match(/^(opus|sonnet|haiku)-(\d+)-(\d+)(.*)$/);
+  if (cloud) return `${cloud[1]}-${cloud[2]}.${cloud[3]}${cloud[4] || ''}`;
+  // Local Ollama ids (qwen3:30b, gemma3:12b, …) — already short; show verbatim.
+  if (/^[a-z0-9][\w.:-]*$/i.test(m) && m.length <= 24) return m;
+  return null;
+}
+
+// Wave 33.8 Block F — per-tier short model names for the 🪙 token chip annotation.
+// Derived from the router's TIER_TO_PRICING_KEY (pricing.js) so the statusline and
+// the cost engine name the same models. T0 is "local" (the active Ollama model
+// varies per task; the quant chip already names it precisely).
+const TIER_MODEL_TAG = { T0: 'local', T1: 'haiku-4.5', T2: 'sonnet-4.6', T3: 'opus-4.6' };
+
+/**
  * Wave 19 (19.A) — the 🪙 per-tier token chip. Renders only tiers that consumed
  * real tokens (input+output; cache tokens are excluded from the headline). All
  * tiers zero → null (chip dropped) so the line stays quiet on a fresh session.
  * @param {{T0,T1,T2,T3}|null} snap  per-tier {tokens_in,tokens_out,...}
  * @returns {string|null}  e.g. "🪙 T0:13.3k · T2:24.2k"
  */
-function buildTokenChip(snap, { color = useColor() } = {}) {
+function buildTokenChip(snap, { color = useColor(), models = false } = {}) {
   if (!snap) return null;
   // Wave 19 (Day 4.1) — show ALL FOUR tiers, even at 0. Hiding zero tiers made
   // a session read as "🪙 T3:2.4M" → "Mooter only uses Opus", the exact OPPOSITE
   // of the transparency promise. The whole point is to show the mix, including
   // the zeros that prove cheaper tiers were available.
+  // Wave 33.8 Block F — `models:true` annotates each NON-ZERO tier with the model
+  // that processed its tokens (e.g. "T3:263.8k (opus-4.6)"), surfacing the cost
+  // variability the bare tier hides (Q11). Default off → byte-identical to before.
   const parts = [];
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     const s = snap[t] || {};
     const tot = (Number(s.tokens_in) || 0) + (Number(s.tokens_out) || 0);
+    const tag = models && tot > 0 ? ` (${TIER_MODEL_TAG[t]})` : '';
     // T0 green / T1 blue / T2 yellow / T3 red, free→expensive (Wave 19 19.B-1).
-    parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}`, color));
+    parts.push(colorize(TIER_COLOR[t], `${t}:${fmtTokens(tot)}${tag}`, color));
   }
   // Wave 20 (20.C) — a single "tkns" unit label on the first tier so the 🪙 chip
   // reads as token counts, not the 🐄 call counts. One label keeps it compact.
@@ -807,6 +901,18 @@ function buildLocalChip(tokSnap, homeGlyph = '🏠') {
   const tlp = tokensLocalPct(tokSnap);
   const tokPart = tlp === null ? '' : ` · ${fmtSharePct(tlp)}% tokens local`;
   return `${homeGlyph} ${t0calls}/${totalCalls} calls (${callsPct}%)${tokPart}`;
+}
+
+// Wave 33 (A.2) — humanize a session age in ms. <60min → "47m"; <24h →
+// "2h47m"; ≥24h → "2d4h". Pure formatter; the source (transcript birth time)
+// is read once per render in buildContext.
+function formatSessionAge(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '0m';
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const totalHr = Math.floor(totalMin / 60);
+  if (totalHr < 24) return `${totalHr}h${totalMin % 60}m`;
+  return `${Math.floor(totalHr / 24)}d${totalHr % 24}h`;
 }
 
 function renderTwoLine(ctx, opts = {}) {
@@ -955,7 +1061,7 @@ function renderTwoLine(ctx, opts = {}) {
   // `hidden_chips: ["tokens"]` drops the 🪙 chip. Best-effort: any failure → no chip.
   let tokSnap = null;
   try { tokSnap = require('./token_tracker.js').snapshot(ctx.sessionId); } catch { tokSnap = null; }
-  const tokenChip = hide('tokens') ? null : buildTokenChip(tokSnap);
+  const tokenChip = hide('tokens') ? null : buildTokenChip(tokSnap, { models: true });
 
   // Wave 21 (C4) — single-source 🏠 chip from the token_tracker snapshot (calls +
   // token% from the SAME reconciled source, agreeing with the 🪙 chip). Replaces
@@ -967,13 +1073,31 @@ function renderTwoLine(ctx, opts = {}) {
   // Wave 20 (20.E) — pass the render tick so the chip can pulse while Moos work.
   const herdsChip = hide('herd') ? null : buildHerdsChip(ctx.herd, { tick: ctx.tick });
 
+  // Wave 33 (A.2) — ⏱️ session timer chip. ONLY shown when an explicit mode
+  // (compact/full) is pinned — `opts.forceLine3` is a boolean then. The adaptive
+  // width-based default (render() calls renderTwoLine(ctx) with no opts) stays
+  // byte-identical. `hidden_chips: ["session-timer"]` drops it.
+  const explicitMode = typeof opts.forceLine3 === 'boolean';
+  const sessionTimerChip =
+    explicitMode && !hide('session-timer') && typeof ctx.sessionAge === 'number'
+      ? `⏱️ session ${formatSessionAge(ctx.sessionAge)}`
+      : null;
+
   const line2 = [
     homeChip,
     gpuChip,
     ctxChip,
-    typeof ctx.anthRem === 'number' ? `☁ Claude Max ${ctx.anthRem}% · 5h reset` : null,
-    typeof ctx.lastTurnCost === 'number' ? `turn $${ctx.lastTurnCost.toFixed(2)}` : null,
-    typeof ctx.alltimeCost === 'number' ? `alltime $${ctx.alltimeCost.toFixed(2)}` : null,
+    typeof ctx.anthRem === 'number' ? `☁ Claude Max ${pctBar(ctx.anthRem)} ${ctx.anthRem}% left · 5h reset` : null,
+    sessionTimerChip,
+    // Wave 48 (1.6) — group the two cost figures under one 📝 chip and FIX the
+    // mislabel: `alltimeCost` was rendered as "session $" (it is all-time spend,
+    // not this session) — the exact "this prompt vs session" confusion Paulo hit.
+    (typeof ctx.lastTurnCost === 'number' || typeof ctx.alltimeCost === 'number')
+      ? '📝 ' + [
+          typeof ctx.lastTurnCost === 'number' ? `$${ctx.lastTurnCost.toFixed(2)} this turn` : null,
+          typeof ctx.alltimeCost === 'number' ? `$${ctx.alltimeCost.toFixed(2)} all-time` : null,
+        ].filter(Boolean).join(' · ')
+      : null,
     tokenChip,
     herdsChip,
     quantChip,
@@ -1010,7 +1134,16 @@ function buildLine3(force) {
   const chips = [];
   for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
     './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
-    './effort-status.js', './quant-status.js', './vector-status.js']) {
+    './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
+    './eagle3-status.js', './minimax-status.js', './arbitrage-status.js',
+    // Wave 33.5 Block A — terminal-name (A.7) + workflow-progress dots (A.6).
+    './terminal-name-status.js', './workflow-progress-status.js',
+    // Wave 33.5 Block B.5 — 🐝 active spawns.
+    './spawns-status.js',
+    // Wave 33.6 Block P6 — 🔒 conductor lock count.
+    './conductor-status.js',
+    // Wave 33.8 Block E — 👤 signed-in identity (opaque hash, silent logged-out).
+    './user-status.js']) {
     try {
       const c = require(mod).statusLine();
       if (c) chips.push(c);
@@ -1036,7 +1169,7 @@ function render(ctx) {
       const out = modes.renderForMode(mode, ctx, {
         renderFromContext,
         renderTwoLine,
-        helpers: { colorize, useColor, ANSI, COLOR_GLYPH },
+        helpers: { colorize, useColor, ANSI, COLOR_GLYPH, formatSessionAge },
       });
       if (out !== null && out !== undefined) return out;
     }
@@ -1059,6 +1192,20 @@ async function buildContext() {
   // MOOTER_STATUSLINE_VIEW=all turns the filter off for a global/debug view.
   const sessionId = (stdinJson && stdinJson.session_id) || process.env.CLAUDE_SESSION_ID || null;
   const sessionFilter = process.env.MOOTER_STATUSLINE_VIEW === 'all' ? null : sessionId;
+
+  // Wave 33 (A.2) — session age = now − transcript file birth time. Claude Code
+  // passes `transcript_path` on stdin; its creation time marks session start.
+  // One statSync per render (~sub-ms). Best-effort: no path / unreadable → null
+  // (chip silently absent). Never throws on the render path.
+  let sessionAge = null;
+  try {
+    const tp = stdinJson && stdinJson.transcript_path;
+    if (tp && fs.existsSync(tp)) {
+      const st = fs.statSync(tp);
+      const birth = st.birthtimeMs > 0 ? st.birthtimeMs : st.ctimeMs;
+      if (birth > 0) sessionAge = Date.now() - birth;
+    }
+  } catch { sessionAge = null; }
 
   // Wave 2.5 Day 3 — per-session tick counter (persisted in tmp) drives the
   // rotating tier-mix view in renderFromContext. Each statusline call bumps it;
@@ -1131,6 +1278,7 @@ async function buildContext() {
     tick,
     herd,
     sessionId,
+    sessionAge,
     dataMissing: !lines.length && !quota.providers,
   };
 }
@@ -1146,6 +1294,7 @@ const DEMO_CONTEXTS = {
     recent:  Array(10).fill({ tier: 'T2', confidence: 0.82 }),
     anthRem: 42, codexRem: 88, codexLeft: 132,
     savedUsd: 0.27, savedPct: 89, todayCost: 0.04, dataMissing: false,
+    sessionAge: 2 * 3600000 + 47 * 60000, // 2h47m — A.2 demo
   },
   yellow: {
     counts: { T0: 1, T1: 0, T2: 1, T3: 10, codex: 0 }, total: 12,
@@ -1224,6 +1373,7 @@ module.exports = {
   colorize,
   useColor,
   formatGpuChip,
+  formatSessionAge,
   readGpuFromProfile,
   digest,
   computeAnthropicRem,

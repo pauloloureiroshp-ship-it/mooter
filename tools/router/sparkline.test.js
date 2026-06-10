@@ -46,7 +46,7 @@ test('localBar: 10-cell fill proportional to pct', () => {
   assert.equal(localBar(150), '██████████ 100% local', 'clamps over 100');
 });
 
-test('render (wide): line 1 carries the sparkline, line 2 the local-share bar', () => {
+test('render (wide): line 1 carries the sparkline, line 2 the per-session chips', () => {
   const ctx = {
     counts: { T0: 6, T1: 2, T2: 2, T3: 0 }, total: 10,
     last: { tier: 'T2', confidence: 0.84, suggested_providers: ['sonnet'] },
@@ -63,8 +63,10 @@ test('render (wide): line 1 carries the sparkline, line 2 the local-share bar', 
     const lines = render(ctx).split('\n');
     assert.equal(lines.length, 2);
     assert.match(lines[0], /last 10/, 'line 1 trails the sparkline label');
-    assert.match(lines[1], /\d+% local/, 'line 2 shows the local-share bar');
-    assert.match(lines[1], /🏠 6\/10 calls \(60%\)/, 'session local count chip carries the N/M denominator + calls % (Wave 20 20.D)');
+    // Wave 21 dropped the ASCII "% local" bar from line 2; Wave 33 renamed the
+    // cost chips. Assert the per-session economics line 2 actually carries now.
+    assert.match(lines[1], /ctx.*23%/, 'line 2 shows the ctx bar');
+    assert.match(lines[1], /📝 \$0\.01 this turn · \$4\.21 all-time/, 'W48 1.6: cost chip grouped + "session"→"all-time" mislabel fixed');
   } finally {
     if (prev === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prev;
   }

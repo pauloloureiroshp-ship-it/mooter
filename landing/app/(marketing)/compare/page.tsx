@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import Eyebrow from '@/components/Eyebrow';
+import MultiSessionTable from './MultiSessionTable';
 
 export const metadata: Metadata = {
   title: 'How mooter compares',
@@ -55,6 +56,15 @@ export default async function ComparePage() {
       <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 640, marginBottom: 32 }}>
         We&apos;re not the only LLM router. We are the one built for Claude Code.
       </p>
+
+      {/* Primary: the multi-session field (agents & orchestrators) — Wave 33.9 */}
+      <MultiSessionTable />
+
+      {/* Secondary: vs other LLM routers / proxies */}
+      <Eyebrow>vs other routers</Eyebrow>
+      <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 700, letterSpacing: '-0.02em', margin: '8px 0 16px' }}>
+        And against the routers and proxies
+      </h2>
 
       <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 880 }}>

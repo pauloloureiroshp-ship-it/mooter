@@ -47,3 +47,38 @@ export async function fetchHubAggregates(): Promise<HubAggregates | null> {
     return null;
   }
 }
+
+export interface UserDashboard {
+  scope: "user";
+  source: "live" | "empty";
+  total_calls: number;
+  saved_usd?: number;
+  saved_avg_per_call_usd?: number;
+  tier_distribution?: Record<string, number>;
+  top_categories?: Array<{ category: string; count: number }>;
+  devices_active?: number;
+  last_active_at?: string | null;
+  last_updated?: string;
+}
+
+/**
+ * Fetch per-user aggregates from the hub (Wave 33.7). `userHash` is the
+ * anonymous SHA256(user_id)[:16] — the hub never sees the raw id/JWT. Returns
+ * null on any failure so the caller renders an honest empty/error state instead
+ * of fabricated numbers. NEVER cached (private data).
+ */
+export async function fetchUserDashboard(userHash: string): Promise<UserDashboard | null> {
+  if (!/^[0-9a-f]{16}$/.test(userHash)) return null;
+  try {
+    const r = await fetch(`${HUB_URL}/v1/user/dashboard?user_hash=${userHash}`, {
+      signal: AbortSignal.timeout(5000),
+      cache: "no-store",
+    });
+    if (!r.ok) return null;
+    const d = (await r.json()) as Partial<UserDashboard>;
+    if (d == null || typeof d.total_calls !== "number") return null;
+    return d as UserDashboard;
+  } catch {
+    return null;
+  }
+}

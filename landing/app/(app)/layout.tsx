@@ -297,13 +297,18 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
 // ── Login hero — split-screen dark (brand parity with the landing) ──────────
 
 function LoginHero() {
+  // Wave 44 — in-flight state: GitHub OAuth is a full-page redirect, so without
+  // feedback the button looks dead for the second before the browser navigates.
+  const [loading, setLoading] = useState(false);
   const handleLogin = () => {
+    setLoading(true);
     const redirectTo = `${window.location.origin}/auth/callback`;
     window.location.href =
       `${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/authorize` +
       `?provider=github` +
       `&redirect_to=${encodeURIComponent(redirectTo)}` +
-      `&scopes=read:user,public_repo`;
+      // Privacy-first (Wave 33.7): minimal scopes, no public_repo write grant.
+      `&scopes=read:user,user:email`;
   };
 
   return (
@@ -337,12 +342,16 @@ function LoginHero() {
               maxWidth: 420,
               margin: '0 0 36px',
             }}>
-              Sign in to see your savings, manage your setup, and track every routing decision mooter makes on your behalf.
+              Sign in only for federated wisdom and cross-device sync. Mooter
+              works fully offline without an account — sign-in just lets your
+              savings and routing history follow you across machines.
             </p>
 
             {/* GitHub CTA */}
             <button
               onClick={handleLogin}
+              disabled={loading}
+              aria-busy={loading}
               style={{
                 width: '100%',
                 maxWidth: 360,
@@ -358,15 +367,16 @@ function LoginHero() {
                 fontSize: '0.95rem',
                 fontWeight: 600,
                 fontFamily: 'var(--font-sans), sans-serif',
-                cursor: 'pointer',
+                cursor: loading ? 'progress' : 'pointer',
+                opacity: loading ? 0.7 : 1,
                 transition: 'all 150ms ease',
                 boxShadow: '0 12px 32px -8px rgba(194,95,101,0.4)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#a54e54'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)'; }}
+              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#a54e54'; }}
+              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
             >
               <GitHubIcon size={18} />
-              Continue with GitHub
+              {loading ? 'Connecting to GitHub…' : 'Continue with GitHub'}
             </button>
 
             <p style={{
@@ -377,6 +387,17 @@ function LoginHero() {
               letterSpacing: '0.04em',
             }}>
               Free forever · MIT · No credit card
+            </p>
+            <p style={{
+              color: 'var(--muted)',
+              fontSize: '0.72rem',
+              marginTop: 8,
+              lineHeight: 1.5,
+              maxWidth: 360,
+              fontFamily: 'var(--font-mono), monospace',
+            }}>
+              🔒 GitHub scopes: <code>read:user user:email</code> only. We never
+              read your code or private repos.
             </p>
             {/* Wave 15 F-A2 — removed the seeded "community" stats. Friends-launch
                 is Paulo's personal launch; real numbers live behind sign-in, not

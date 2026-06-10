@@ -61,7 +61,9 @@ function writeControl(runId: string, state: ControlState, home = homedir()): voi
 export function setRunControl(runId: string, run: RunControl, opts: { home?: string; now?: number } = {}): ControlState {
   const home = opts.home ?? homedir();
   const cur = readControl(runId, home);
-  const next: ControlState = { ...cur, run, ts: opts.now ?? 0 };
+  // Wave 33 (A.4) — real wall-clock when not injected, so the control file's ts
+  // is usable for staleness/ordering (was always 0 on the production path).
+  const next: ControlState = { ...cur, run, ts: opts.now ?? Date.now() };
   writeControl(runId, next, home);
   return next;
 }
@@ -76,7 +78,7 @@ export function setAgentControl(
   const home = opts.home ?? homedir();
   const cur = readControl(runId, home);
   const agents = { ...cur.agents, [label]: control };
-  const next: ControlState = { ...cur, agents, ts: opts.now ?? 0 };
+  const next: ControlState = { ...cur, agents, ts: opts.now ?? Date.now() };
   writeControl(runId, next, home);
   return next;
 }

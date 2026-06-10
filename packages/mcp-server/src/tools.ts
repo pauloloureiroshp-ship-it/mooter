@@ -18,6 +18,12 @@ import { sync as obsidianSync, primaryVault as obsidianPrimaryVault } from "../.
 import { getEffort, setEffort, isEffortMode, MODE_NAMES } from "../../effort/src/index.ts";
 import { readControl, setRunControl, setAgentControl } from "../../transparency/src/index.ts";
 import { buildExport } from "../../data-rights/src/index.ts";
+// Wave 33.5 Block A.4 — sessions orchestrator (pure TS, local-first).
+import {
+  buildState,
+  forecastQuota,
+  aggregateCrossSession,
+} from "../../sessions-orchestrator/src/index.ts";
 
 export interface ToolContext {
   fetchImpl?: typeof fetch;
@@ -361,6 +367,102 @@ const dataExportTool: McpTool = {
   },
 };
 
+// ─── Wave 33.5 Block A.4 — sessions orchestrator tools ───────────────────────
+
+const sessionsListTool: McpTool = {
+  name: "mooter_sessions_list",
+  description:
+    "List Claude Code sessions across ALL local projects: age, prompts, tier mix, ~saved (estimated), branch/worktree, active workflow. Read-only, local-first.",
+  inputSchema: {
+    type: "object",
+    properties: { limit: { type: "number", description: "max sessions (default 12)" } },
+  },
+  async handler(args) {
+    const limit = Number.isFinite(args.limit as number) ? Math.max(1, Number(args.limit)) : 12;
+    const state = buildState();
+    return JSON.stringify(
+      {
+        generatedAtMs: state.generatedAtMs,
+        count: state.sessions.length,
+        sessions: state.sessions.slice(0, limit).map((s) => ({
+          sessionId: s.sessionId,
+          live: s.live,
+          ageMs: s.ageMs,
+          prompts: s.prompts,
+          tiers: s.tiers,
+          estSavedUsd: Math.round(s.estSavedUsd * 100) / 100,
+          branch: s.branch,
+          workflow: s.workflow,
+        })),
+      },
+      null,
+      2,
+    );
+  },
+};
+
+const sessionsQuotaTool: McpTool = {
+  name: "mooter_sessions_quota_forecast",
+  description:
+    "Estimate the trailing 5h cloud-call usage from the local decisions.log (rate projection, NOT a server quota). Returns cloud calls in window, observed rate, projection, and window reset.",
+  inputSchema: {
+    type: "object",
+    properties: { windowHours: { type: "number", description: "window size (default 5)" } },
+  },
+  async handler(args) {
+    const windowHours = Number.isFinite(args.windowHours as number) ? Number(args.windowHours) : 5;
+    return JSON.stringify(forecastQuota({ windowHours }), null, 2);
+  },
+};
+
+const sessionsHandoffTool: McpTool = {
+  name: "mooter_sessions_handoff",
+  description:
+    "Produce a handoff summary for a session id (prefix ok): branch, prompts, tier mix, ~saved, transcript path — so another session/agent can pick up its context. No prompt text leaves the machine.",
+  inputSchema: {
+    type: "object",
+    properties: { sessionId: { type: "string", description: "session id or unique prefix" } },
+    required: ["sessionId"],
+  },
+  async handler(args) {
+    const id = String(args.sessionId ?? "").trim();
+    if (!id) return "error: sessionId is required";
+    const state = buildState();
+    const exact = state.sessions.find((s) => s.sessionId === id);
+    const pref = exact ? [exact] : state.sessions.filter((s) => s.sessionId.startsWith(id));
+    if (pref.length !== 1) return `error: ${pref.length === 0 ? "not found" : "ambiguous prefix"}: ${id}`;
+    const s = pref[0];
+    return JSON.stringify(
+      {
+        sessionId: s.sessionId,
+        branch: s.branch,
+        worktreePath: s.worktreePath,
+        prompts: s.prompts,
+        tiers: s.tiers,
+        estSavedUsd: Math.round(s.estSavedUsd * 100) / 100,
+        workflow: s.workflow,
+        transcriptPath: s.transcriptPath,
+      },
+      null,
+      2,
+    );
+  },
+};
+
+const sessionsPastorAggregateTool: McpTool = {
+  name: "mooter_sessions_pastor_aggregate",
+  description:
+    "Aggregate classified decisions across ALL local sessions into a per-task-category modal-tier signal (ADVISORY — never overrides classify.js or a tier floor). Returns category histograms with cross-session support.",
+  inputSchema: {
+    type: "object",
+    properties: { minSupport: { type: "number", description: "drop categories below N decisions (default 3)" } },
+  },
+  async handler(args) {
+    const minSupport = Number.isFinite(args.minSupport as number) ? Number(args.minSupport) : 3;
+    return JSON.stringify(aggregateCrossSession({ minSupport }), null, 2);
+  },
+};
+
 export function buildRegistry(): McpTool[] {
   return [
     statusTool,
@@ -376,6 +478,11 @@ export function buildRegistry(): McpTool[] {
     ultramooToggleTool,
     workflowWatchTool,
     dataExportTool,
+    // Wave 33.5 Block A.4
+    sessionsListTool,
+    sessionsQuotaTool,
+    sessionsHandoffTool,
+    sessionsPastorAggregateTool,
   ];
 }
 

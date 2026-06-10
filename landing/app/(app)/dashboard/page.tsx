@@ -2037,7 +2037,8 @@ function DecisionsTab({ profile: _profile }: { profile: Profile }) {
 // Renders the community-wide flow of prompts through classify.js into the four
 // tiers, from the hub aggregates (/api/dashboard/aggregates). Honest: shows a
 // "Demo data" badge with an illustrative distribution when the hub is empty.
-// Per-user ("My usage") scope is Phase B.1b (needs a hub redeploy).
+// Wave 33.7: a "My usage" toggle fetches per-user aggregates (?scope=user) over
+// the anonymous user_id_hash — honest empty/sign-in states, never fabricated.
 interface AggregatesResp {
   source: 'live' | 'demo';
   total_events?: number;
@@ -2058,9 +2059,25 @@ const WF_TIERS = [
 const WF_DEMO_DIST: Record<string, number> = { T0: 0.66, T1: 0.21, T2: 0.1, T3: 0.03 };
 const WF_DEMO_TOTAL = 412;
 
+// Per-user response (Wave 33.7 — /api/dashboard/aggregates?scope=user).
+interface UserAggResp {
+  scope: 'user';
+  source: 'live' | 'empty' | 'unauthenticated';
+  total_calls?: number;
+  saved_usd?: number;
+  tier_distribution?: Record<string, number>;
+  top_categories?: Array<{ category: string; count: number }>;
+  devices_active?: number;
+  last_active_at?: string | null;
+}
+
 function WorkflowTab() {
   const [agg, setAgg] = useState<AggregatesResp | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Wave 33.7 — "My usage" per-user scope toggle.
+  const [scope, setScope] = useState<'community' | 'user'>('community');
+  const [userAgg, setUserAgg] = useState<UserAggResp | null>(null);
+  const [userLoaded, setUserLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -2071,18 +2088,91 @@ function WorkflowTab() {
     return () => { alive = false; };
   }, []);
 
-  const live = !!agg && agg.source === 'live' && !!agg.tier_distribution;
-  const dist = live ? (agg!.tier_distribution as Record<string, number>) : WF_DEMO_DIST;
-  const total = live ? (agg!.total_events || 0) : WF_DEMO_TOTAL;
+  // Lazily fetch per-user data the first time the "My usage" tab is opened.
+  useEffect(() => {
+    if (scope !== 'user' || userLoaded) return;
+    let alive = true;
+    fetch('/api/dashboard/aggregates?scope=user')
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d: d as UserAggResp })))
+      .then(({ d }) => { if (alive) { setUserAgg(d); setUserLoaded(true); } })
+      .catch(() => { if (alive) { setUserAgg({ scope: 'user', source: 'empty' }); setUserLoaded(true); } });
+    return () => { alive = false; };
+  }, [scope, userLoaded]);
+
+  const userLive = !!userAgg && userAgg.source === 'live' && (userAgg.total_calls || 0) > 0;
+  const live = scope === 'community'
+    ? (!!agg && agg.source === 'live' && !!agg.tier_distribution)
+    : userLive;
+  const dist = scope === 'community'
+    ? (live ? (agg!.tier_distribution as Record<string, number>) : WF_DEMO_DIST)
+    : (userLive ? (userAgg!.tier_distribution as Record<string, number>) : WF_DEMO_DIST);
+  const total = scope === 'community'
+    ? (live ? (agg!.total_events || 0) : WF_DEMO_TOTAL)
+    : (userLive ? (userAgg!.total_calls || 0) : 0);
 
   if (!loaded) return <div style={{ color: 'var(--muted)', padding: 20 }}>Loading workflow…</div>;
+
+  // Honest per-user states: signed-out and empty don't fabricate a distribution.
+  const userPending = scope === 'user' && !userLoaded;
+  const userUnauth = scope === 'user' && userAgg?.source === 'unauthenticated';
+  const userEmpty = scope === 'user' && userLoaded && !userLive && !userUnauth;
+
+  const ScopeToggle = (
+    <div style={{ display: 'inline-flex', gap: 4, background: 'var(--surface, rgba(255,255,255,0.04))', borderRadius: 8, padding: 3 }}>
+      {(['community', 'user'] as const).map((s) => (
+        <button
+          key={s}
+          onClick={() => setScope(s)}
+          style={{
+            border: 'none', cursor: 'pointer', padding: '4px 12px', borderRadius: 6,
+            fontSize: '0.78rem', fontWeight: 600,
+            background: scope === s ? 'var(--accent)' : 'transparent',
+            color: scope === s ? 'var(--cream)' : 'var(--muted)',
+            transition: 'all 120ms ease',
+          }}
+        >
+          {s === 'community' ? 'Community' : 'My usage'}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div style={card}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text)' }}>Prompt flow</h3>
-        <DataSourceBadge source={live ? 'live' : 'demo'} detail={live ? `${(agg!.unique_instances || 0).toLocaleString('en-US')} devices` : undefined} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {ScopeToggle}
+          {scope === 'community'
+            ? <DataSourceBadge source={live ? 'live' : 'demo'} detail={live ? `${(agg!.unique_instances || 0).toLocaleString('en-US')} devices` : undefined} />
+            : userLive ? <DataSourceBadge source={'live'} detail={`${(userAgg!.devices_active || 0).toLocaleString('en-US')} of your devices`} /> : null}
+        </div>
       </div>
+
+      {userPending && (
+        <div style={{ color: 'var(--muted)', padding: '18px 0' }}>Asking the cow about your numbers…</div>
+      )}
+      {userUnauth && (
+        <div style={{ color: 'var(--muted)', padding: '14px 0', fontSize: '0.9rem' }}>
+          Sign in to see your own routing — your numbers stay private to your account.
+        </div>
+      )}
+      {userEmpty && (
+        <div style={{ color: 'var(--muted)', padding: '14px 0', fontSize: '0.9rem', lineHeight: 1.6 }}>
+          No routed calls linked to your account yet. Run{' '}
+          <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>mooter sync</span>{' '}
+          in a logged-in terminal to populate this — your data, your machine.
+        </div>
+      )}
+      {scope === 'user' && userLive && (
+        <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '8px 0 0' }}>
+          <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>{(userAgg!.total_calls || 0).toLocaleString('en-US')}</span> calls routed
+          {typeof userAgg!.saved_usd === 'number' && (
+            <> · <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>${(userAgg!.saved_usd).toFixed(2)}</span> saved vs all-Opus</>
+          )}
+        </p>
+      )}
+      {!(userPending || userUnauth || userEmpty) && (<>
       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '8px 0 18px' }}>
         {total.toLocaleString('en-US')} prompts → <span style={{ fontFamily: 'var(--mono)' }}>classify.js</span> → routed across the four tiers.
       </p>
@@ -2108,19 +2198,26 @@ function WorkflowTab() {
           );
         })}
       </div>
+      </>)}
 
-      {live && Array.isArray(agg!.top_categories) && agg!.top_categories.length > 0 && (
-        <div style={{ marginTop: 22 }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8 }}>Top task categories</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {agg!.top_categories.slice(0, 8).map((c) => (
-              <span key={c.category} style={{ fontSize: '0.78rem', fontFamily: 'var(--mono)', color: 'var(--text-2, var(--text))', border: '1px solid var(--border, var(--color-border))', borderRadius: 999, padding: '3px 10px' }}>
-                {c.category} · {c.count.toLocaleString('en-US')}
-              </span>
-            ))}
+      {(() => {
+        const cats = scope === 'community'
+          ? (live && Array.isArray(agg?.top_categories) ? agg!.top_categories : null)
+          : (userLive && Array.isArray(userAgg?.top_categories) ? userAgg!.top_categories : null);
+        if (!cats || cats.length === 0) return null;
+        return (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8 }}>Top task categories</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {cats.slice(0, 8).map((c) => (
+                <span key={c.category} style={{ fontSize: '0.78rem', fontFamily: 'var(--mono)', color: 'var(--text-2, var(--text))', border: '1px solid var(--border, var(--color-border))', borderRadius: 999, padding: '3px 10px' }}>
+                  {c.category} · {c.count.toLocaleString('en-US')}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

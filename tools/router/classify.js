@@ -170,6 +170,8 @@ const MODELS = {
   haiku: process.env.ROUTER_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
   sonnet: 'claude-sonnet-4-6',
   opus: 'claude-opus-4-6',
+  // Wave 49 (Phase 7) — Tier 5 frontier model. Opt-in only (see USER_OVERRIDE_MODELS).
+  fable: 'claude-fable-5',
 };
 
 // v0.7: pattern lists moved to patterns.js — single source of truth shared
@@ -219,6 +221,12 @@ const USER_OVERRIDE_MODELS = {
   'gpt-4': { tier: 'T2', model: 'gpt-4o',             backend: 'openai',          label: 'GPT-4o' },
   'gpt-4o':{ tier: 'T2', model: 'gpt-4o',             backend: 'openai',          label: 'GPT-4o' },
   claude:  { tier: 'T3', model: 'claude-opus-4-6',    backend: 'claude_subagent', label: 'Opus' }, // bare "claude" → opus
+  // Wave 49 (Phase 7) — Tier 5 frontier. Fable 5 is the most expensive tier ($10/$50
+  // per M) and is NOT auto-routed by the classifier — it is reachable ONLY by explicit
+  // user override ("@fable", "usa fable", "with fable"). As the highest tier it counts
+  // as an upgrade, so it is honored even on high-risk prompts (escalating is safe).
+  fable:   { tier: 'T5', model: 'claude-fable-5',     backend: 'claude_subagent', label: 'Fable 5' },
+  fable5:  { tier: 'T5', model: 'claude-fable-5',     backend: 'claude_subagent', label: 'Fable 5' },
 };
 
 // Build a flat alternation regex of all model keywords for matching.
@@ -978,6 +986,9 @@ function classify(prompt) {
     T1: { recommended_backend: t1Backend, recommended_model: t1Model, suggested_subagent: t1Subagent },
     T2: { recommended_backend: t2Backend, recommended_model: t2Model, suggested_subagent: t2Subagent },
     T3: { recommended_backend: t3Backend, recommended_model: t3Model, suggested_subagent: t3Subagent },
+    // Wave 49 (Phase 7) — defensive: the classifier never emits T5 itself, but keep the
+    // map total so an override-pinned T5 (or future code) resolves a backend, not undefined.
+    T5: { recommended_backend: 'claude_subagent', recommended_model: MODELS.fable, suggested_subagent: 'model-architect' },
   }[tier];
 
   const promptFeatures = extractPromptFeatures(p);
@@ -1010,7 +1021,9 @@ function classify(prompt) {
   // turn the user doesn't want than route a deploy to Ollama.
   const override = detectUserOverride(p);
   if (override) {
-    const TIER_ORDER_LOCAL = ['T0', 'T1', 'T2', 'T3'];
+    // Wave 49 (Phase 7) — T5 (Fable) appended as the highest rank so an explicit
+    // "@fable" override resolves as an upgrade (targetIdx 4 > any classifier tier).
+    const TIER_ORDER_LOCAL = ['T0', 'T1', 'T2', 'T3', 'T5'];
     const currentIdx = TIER_ORDER_LOCAL.indexOf(/** @type {string} */ (result.tier));
 
     if (override.kind === 'negative') {
@@ -1095,7 +1108,11 @@ function classify(prompt) {
 
   // MD Enrichment — apply Router Context overrides from project CLAUDE.md
   const ctx = readRouterContext();
-  const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
+  // Wave 49 (Phase 7) — T5 included so an honored "@fable" pin (the highest tier)
+  // is never accidentally demoted by a complexity_bias/sensitive_patterns floor:
+  // its index (4) sits above every floor, so the `current < floor` / `current < 2`
+  // demotion guards correctly do nothing.
+  const TIER_ORDER = ['T0', 'T1', 'T2', 'T3', 'T5'];
 
   if (ctx.complexity_bias && TIER_ORDER.includes(ctx.complexity_bias)) {
     const floor = TIER_ORDER.indexOf(ctx.complexity_bias);
@@ -1120,7 +1137,9 @@ function classify(prompt) {
     }
   }
 
-  if (ctx.fast_patterns) {
+  if (ctx.fast_patterns && result.tier !== 'T5') {
+    // Wave 49 (Phase 7) — an explicit "@fable" T5 pin is deliberate frontier opt-in;
+    // a project fast_pattern must not silently demote it to local T0.
     const patterns = ctx.fast_patterns.split(',').map((/** @type {string} */ s) => s.trim().replace(/^["']|["']$/g, ''));
     for (const pat of patterns) {
       if (pat && p.toLowerCase().includes(pat.toLowerCase())) {
@@ -1176,6 +1195,7 @@ const DEFAULT_PROVIDERS_BY_TIER = {
   T1: ['haiku'],
   T2: ['sonnet'],
   T3: ['opus'],
+  T5: ['fable'], // Wave 49 (Phase 7) — opt-in frontier tier
 };
 
 const ANTHROPIC_LOW_QUOTA_THRESHOLD = 0.25; // <25% remaining = "low"
@@ -1220,6 +1240,10 @@ function getSuggestedProviders(tier, opts = {}) {
       }
       return out;
     }
+    case 'T5':
+      // Wave 49 (Phase 7) — Tier 5 frontier (Fable 5), opt-in only. No cheaper
+      // fallback is inserted: the user explicitly asked for the frontier model.
+      return ['fable'];
     case 'T3':
     default:
       // Architecture / critical work always stays on Opus. We never insert

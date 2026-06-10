@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { Space_Grotesk, JetBrains_Mono, Caveat } from 'next/font/google';
 import './globals.css';
+import CmdKPalette from './_components/CmdKPalette';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -16,55 +17,99 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
+// Wave 33.9 — handwritten accent for the Conductor showcase annotation.
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['400', '600'],
+  variable: '--font-caveat',
+  display: 'swap',
+});
+
 export const viewport: Viewport = {
   themeColor: '#0B0A09',
   width: 'device-width',
   initialScale: 1,
 };
 
+// Wave 33.7 — honest numbers only. The hero/PulseStrip real data is 47% saved
+// vs all-Opus across the author's own 658 routed calls. No inflated "~90%", no
+// "1,437 prompts", and NO fabricated aggregateRating (single-founder MIT project
+// with zero collected reviews — a fake rating is both dishonest and a Google
+// rich-result violation).
+const DESCRIPTION =
+  'The router for Claude Code. Local-first, learns forever, spawns agents safely by default. Routes prompts across Ollama, Haiku, Sonnet and Opus — same results, a fraction of the spend, zero code changes.';
+
 export const metadata: Metadata = {
-  title: 'mooter — Route smarter. Ship faster.',
-  description:
-    'The right model, every prompt. Automatically. Mooter routes Claude Code prompts across Ollama, Haiku, Sonnet and Opus — saving ~90% on AI costs with zero code changes.',
+  title: 'mooter — The router for Claude Code',
+  description: DESCRIPTION,
+  authors: [{ name: 'Paulo Loureiro', url: 'https://github.com/pauloloureiroshp-ship-it/mooter' }],
+  creator: 'Paulo Loureiro',
+  keywords: ['Claude Code', 'LLM router', 'Ollama', 'local-first', 'AI cost savings', 'Anthropic', 'Opus', 'Sonnet', 'Haiku'],
   icons: {
     icon: '/mooter-logo.svg',
     shortcut: '/mooter-logo.svg',
+    apple: '/mooter-logo.svg',
   },
+  manifest: '/manifest.webmanifest',
   metadataBase: new URL('https://mooter.ai'),
   alternates: {
     canonical: 'https://mooter.ai',
   },
   openGraph: {
-    title: 'mooter — Route smarter. Ship faster.',
-    description: '~90% cost savings on Claude Code prompts. Validated on 1,437 real developer prompts.',
+    title: 'mooter — The router for Claude Code',
+    description: '47% saved vs all-Opus across 658 routed calls — real data from the author’s own machine, not a community average. Open source · MIT.',
     type: 'website',
     url: 'https://mooter.ai',
     siteName: 'mooter',
-    images: [{ url: '/api/og?savings=90.2%25', width: 1200, height: 630, alt: 'mooter — Route smarter. Ship faster.' }],
+    images: [{ url: '/api/og?savings=47%25', width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'mooter — Route smarter. Ship faster.',
-    description: '~90% cost savings on Claude Code prompts. Zero proxy. Just a hook.',
-    images: ['/api/og?savings=90.2%25'],
+    title: 'mooter — The router for Claude Code',
+    description: '47% saved vs all-Opus across 658 routed calls. Real data. Zero proxy. Just a hook. MIT.',
+    images: ['/api/og?savings=47%25'],
   },
 };
 
+// Structured data (Wave 33.7): SoftwareApplication + WebSite + the founder as a
+// Person, linked via @graph. Honest — no aggregateRating, no review counts.
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'mooter',
-  url: 'https://mooter.ai',
-  description: 'Claude Code hook-based LLM router that saves ~90% on AI costs via automatic tier routing across Ollama, Haiku, Sonnet and Opus.',
-  applicationCategory: 'DeveloperApplication',
-  operatingSystem: 'macOS, Windows, Linux',
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-  aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.9', reviewCount: '1437' },
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      '@id': 'https://mooter.ai/#app',
+      name: 'mooter',
+      url: 'https://mooter.ai',
+      description: DESCRIPTION,
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'macOS, Windows, Linux',
+      softwareVersion: '1.21.5',
+      license: 'https://opensource.org/licenses/MIT',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      author: { '@id': 'https://mooter.ai/#paulo' },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': 'https://mooter.ai/#website',
+      url: 'https://mooter.ai',
+      name: 'mooter',
+      description: 'The router for Claude Code. Local-first. Learns forever.',
+      publisher: { '@id': 'https://mooter.ai/#paulo' },
+    },
+    {
+      '@type': 'Person',
+      '@id': 'https://mooter.ai/#paulo',
+      name: 'Paulo Loureiro',
+      url: 'https://github.com/pauloloureiroshp-ship-it',
+      jobTitle: 'Creator of mooter',
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${caveat.variable}`}>
       <head>
         <script
           type="application/ld+json"
@@ -73,7 +118,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Plausible analytics — privacy-first, no cookies, GDPR-compliant */}
         <script defer data-domain="mooter.ai" src="https://plausible.io/js/script.js" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CmdKPalette />
+      </body>
     </html>
   );
 }

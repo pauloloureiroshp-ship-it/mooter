@@ -31,3 +31,100 @@ test("explain: no hyperbole, honest about omitted VRAM", () => {
   assert.ok(!/revolutionary|magic|AI-powered/i.test(out));
   assert.match(out, /omitted if unavailable/);
 });
+
+// Wave 40 — per-chip deep dives.
+test("explain <chip>: deep dive renders What/How/Example for a chip", () => {
+  const res = runExplain({ topic: "saved" });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /mooter explain — saved/);
+  assert.match(res.output, /What it is:/);
+  assert.match(res.output, /How to read it:/);
+  assert.match(res.output, /Example:/);
+  assert.match(res.output, /all-T3 \(Opus\) baseline|all-Opus/);
+});
+
+test("explain <chip>: aliases resolve to the canonical chip", () => {
+  // 'gpu' and 'rtx' are aliases of the vram chip; 'lora' → adapter.
+  assert.match(runExplain({ topic: "gpu" }).output, /mooter explain — vram/);
+  assert.match(runExplain({ topic: "rtx" }).output, /mooter explain — vram/);
+  assert.match(runExplain({ topic: "lora" }).output, /mooter explain — adapter/);
+});
+
+test("explain list: lists every deep-divable chip", () => {
+  const res = runExplain({ topic: "list" });
+  assert.equal(res.exitCode, 0);
+  for (const chip of ["saved", "tier", "vram", "ctx", "quota", "adapter", "local-routes", "user", "sessions", "embed", "agents", "cost-cap", "tiers"]) {
+    assert.match(res.output, new RegExp(`\\b${chip}\\b`), `list mentions ${chip}`);
+  }
+});
+
+test("explain <chip>: privacy + honesty in the user-hash explainer", () => {
+  const out = runExplain({ topic: "user" }).output;
+  assert.match(out, /NOT your GitHub handle/);
+  assert.ok(!/revolutionary|magic/i.test(out));
+});
+
+test("explain unknown still lists chips so the user can recover", () => {
+  const res = runExplain({ topic: "zzz" });
+  assert.equal(res.exitCode, 1);
+  assert.match(res.output, /Available topics: statusline/);
+  assert.match(res.output, /saved/);
+});
+
+// Wave 34.5 (Bug D) — honest caveat: delegated work counts; inline-Opus reads low.
+test("explain saved: honest about delegation + inline-Opus reducing savings", () => {
+  const out = runExplain({ topic: "saved" }).output;
+  assert.match(out, /delegat/i, "explains delegated subagent work counts");
+  assert.match(out, /inline|extended-thinking|high-effort/i, "explains why it can read near 0%");
+  assert.ok(!/revolutionary|magic|guaranteed/i.test(out), "no hyperbole");
+});
+
+// Wave 49 (Phase 1) — Anthropic-aligned honesty: dedicated confidence + uncertainty.
+test("explain confidence: dedicated topic explains the 0-1 route confidence + ⚠", () => {
+  const res = runExplain({ topic: "confidence" });
+  assert.equal(res.exitCode, 0);
+  assert.match(res.output, /mooter explain — confidence/);
+  assert.match(res.output, /0\.60|<0\.60/, "names the low-confidence threshold");
+  assert.match(res.output, /⚠/, "mentions the in-line warning marker");
+  assert.match(res.output, /pin a tier|@haiku|force T3/i, "tells the user how to act on low confidence");
+  assert.ok(!/revolutionary|magic|guaranteed/i.test(res.output), "no hyperbole");
+});
+
+test("explain conf: alias resolves to the confidence explainer", () => {
+  assert.match(runExplain({ topic: "conf" }).output, /mooter explain — confidence/);
+});
+
+test("explain uncertainty: metacognition topic is honest, not a correctness claim", () => {
+  const out = runExplain({ topic: "uncertainty" }).output;
+  assert.match(out, /mooter explain — uncertainty/);
+  assert.match(out, /metacognition/i);
+  assert.match(out, /not a correctness guarantee/i, "explicitly disclaims correctness");
+  assert.match(out, /declining to bluff|feature, not a failure/i);
+});
+
+test("explain list: includes the new confidence + uncertainty topics", () => {
+  const out = runExplain({ topic: "list" }).output;
+  for (const chip of ["confidence", "uncertainty"]) {
+    assert.match(out, new RegExp(`\\b${chip}\\b`), `list mentions ${chip}`);
+  }
+});
+
+// Wave 49 (Phase 7) — Tier 5 Fable is documented as opt-in only, with correct pricing.
+test("explain tiers: T5 Fable is opt-in only, $10/$50, never auto-routed", () => {
+  const out = runExplain({ topic: "tiers" }).output;
+  assert.match(out, /T5\s+Fable 5/);
+  assert.match(out, /\$10 \/ \$50/, "correct Fable pricing");
+  assert.match(out, /opt-in ONLY|never auto-routed/i, "honest: not auto-routed");
+  assert.match(out, /no T4/i, "explains the tier-number gap honestly");
+  // pricing for the other tiers stays correct (Opus $5/$25, not fabricated)
+  assert.match(out, /Opus 4\.6 \/ 4\.8\s+\$5 \/ \$25/);
+});
+
+// Wave 49 (Phase 3) — vision is honest about having NO local model today.
+test("explain vision: honest that there is no local vision path yet", () => {
+  const out = runExplain({ topic: "vision" }).output;
+  assert.match(out, /mooter explain — vision/);
+  assert.match(out, /does NOT run a local vision model|no \$0 local vision|cloud-only/i);
+  assert.match(out, /@fable/, "points to the opt-in frontier route");
+  assert.ok(!/revolutionary|magic|best-in-class/i.test(out), "no hyperbole");
+});

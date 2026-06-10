@@ -42,6 +42,11 @@ export interface TrackerMetrics {
   saved_pct?: number;
   last_turn_cost_usd?: number;
   alltime_cost_usd?: number;
+  // Wave 33.17 — rolling 7-day savings window (global, all sessions).
+  saved_7d?: number;
+  saved_7d_pct?: number;
+  cost_7d?: number;
+  prompts_7d?: number;
 }
 
 export interface TrailOptions {

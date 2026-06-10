@@ -20,8 +20,9 @@ Then Paulo runs:
     mooter forge install mooter-pastor-v1.gguf \
         --base-model qwen2.5-coder:7b --name mooter-pastor-v1
 
-Deps (installed by scripts/train_lora.sh): unsloth, trl, transformers, datasets,
-torch (CUDA). See that wrapper for the exact pinned environment.
+Deps: pinned in scripts/requirements-lora.txt (unsloth 2026.6.1 + transformers
+4.56.0 + trl/peft/accelerate/bitsandbytes), installed by scripts/train_lora.sh.
+torch (CUDA) is resolved by unsloth for the local GPU.
 """
 
 from __future__ import annotations

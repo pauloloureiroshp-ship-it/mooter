@@ -3,6 +3,84 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-09 (Wave 41-46 — Friends Activation Mega)
+**Estado:** ✅ PR **#143** aberto (branch `feat/wave41_46-friends-activation`), gated em Paulo merge+tag `v1.24.0-friends-activation`. **Day 0 refutou 3 de 4 premissas** (honest > forced). classify.js sha `7b01eb86…` **INTACTA** pré+pós cada phase; engine pkgs 28-34.5 intocados excepto os 2 CLI files permitidos; **CLI 351/351 · landing 146/146**, builds clean; final-reviewer Opus **SHIP-WITH-NITS** 0-HIGH (2 MED de rule-ordering corrigidos + 4 probe tests).
+**Deliverables:** **P1 (W41) intent** — comando já existia (W33.5) → ENHANCED com regras friend PT-PT (`packs`, `savings→dashboard`, `explain/router-debug`, `doctor`). **P2 (W42.A) dashboard SKIPPED** — "minimalista" refutado (2303 linhas/6 tabs); único gap (MLWR time-trend) precisa `recharts` = guardrail+scope. **P3 (W42.B) changelog** — existia mas hardcoded+stale (v1.21.1) → REBUILT ISR (revalidate 3600) fetch GitHub releases API público, filtra v1.x.y, render plain-text-safe (sem dangerouslySetInnerHTML), FALLBACK curado. **P4 (W46) dogfood** — `digest --weekly` (markdown) + `--install-cron` (DRY-RUN, nunca muta crontab) + `--send` (stdout). **Conflation flagged:** `dogfood digest`=friction dev, não savings; friend habit digest devia apontar a `mooter digest` (follow-up).
+**Próxima missão (Paulo):** (1) rever/merge **PR #143** → main + tag `v1.24.0-friends-activation`; (2) Friends DMs Task #218 (manual); (3) opcional: weekly cron em `mooter digest` p/ habit real de savings; (4) LoRA train · Mac smoke. Report: `~/frugal/WAVE41_46_REPORT.md`. [Notion](https://app.notion.com/p/37a6f6e42bc4813f9aeed779a2d58c4b).
+
+---
+
+### 🐮 Sessão — 2026-06-09 (Wave 34.5 — Bug Trinity B/C/D)
+**Estado:** ✅ PR **#142** aberto (branch `fix/wave34_5-bugfix-trinity`), gated em Paulo merge+tag `v1.23.0-bugfix-trinity`. Bugs do dogfood validation Wave 33-VAL. classify.js sha `7b01eb86…` **INTACTA**; só `packages/cli/src/commands/{workflow,digest,explain}.ts`+tests; frozen engine packages intocados; **344/344** tests (335+9); final-reviewer Opus **SHIP** 0-HIGH/0-MED/3-LOW.
+**Fixes:** **C (HIGH, o bug real)** `mooter digest` agora conta subagent dispatches (herd state do SubagentStop hook) no tier mix — delegação era invisível (`prompts` vs `delegated` distintos, savings $ continua do tracker = não inflacionável). **B (MED)** `describeEngineError()` — mensagem accionável para `mooter workflow` no npm bundle (engine só corre em source checkout c/ native deps). **D (CRITICAL→re-scoped)** Day-0 **refutou** "ultracode bypass" (sintoma = gap do Bug C; hook não detecta thinking-flag nem força delegação) → caveat honesto em `mooter explain saved` em vez de detector falso.
+**Próxima missão (Paulo):** (1) rever/merge **PR #142** → main + tag `v1.23.0-bugfix-trinity`; (2) Friends DMs Task #218 (caveats agora defensáveis); (3) LoRA train · Mac smoke. Report: `~/frugal/WAVE34_5_REPORT.md`.
+
+---
+
+### 🐮 Sessão — 2026-06-09 (Mega Overnight — Waves 33.15→44, v1.21.10 + audit fan-out)
+**Estado:** ✅ Maratona overnight 8 fases. Plan-mode interrompeu o fluxo autónomo → Paulo aprovou plano refinado (hybrid: auto-merge CLI waves, PR-only para landing prod + vault brief; eu crio beta tags, Paulo aplica `v1.22.0`). classify.js sha `7b01eb86…87762` **INTACTA** (verificada pré+pós cada wave). Packages 28-34 congelados exceto ficheiros novos sancionados. Cada merge com gate final-reviewer (Opus).
+**Shipped (auto-merge main):** 33.15 docs benchmark live (`f12d470` #134) · **33.17 dashboard chip 7-day savings** (`v1.21.9`, `88c11d6` #135, SHIP 0H/0M) · **40 `mooter explain <chip>` deep dives** (`v1.21.10`, `cbcfa31` #136, SHIP 0H/0M) · **34 `mooter audit fan-out`** (merged `5c3a7fc` #139, **UNTAGGED → Paulo aplica `v1.22.0`**, SHIP 0H/0M). 33.16 cleanup worktrees bench A/B (local).
+**Honest skips/PR-only:** **35 Hub migration 017 = JÁ APLICADA** (Wave 33.7; verifiquei com SELECT read-only no D1 remoto — `transparency_events`+`forget_me_requests` existem) → sem migration, sem tag. **44 OAuth polish** (button loading state + error banner reason-aware denied/network/failed derivado no callback) → **PR #138 STAGED** (landing prod, Paulo merge+deploy; tag `v1.21.11` pós-merge). **39 multi-user vault sync foundation** → **PR #140 BRIEF only** (identity=user_id_hash, owner_hash WHERE, content-addressed shared adapters, immutable-blob+mutable-pointer, L15 home/L13 validate, Phase A-D).
+**Day-0 refutou:** savings em `decisions.log` (ts_ms), não `savings.json` → 7d reusa computeMetrics filtrado (zero drift) · landing é `landing/app/` GitHub-only (sem Google/magic-link) · audit fan-out **self-contained** (sem import @mooter/workflow — native deps + createRequire partem o bundle CLI, lição CI #128). e2e real: facet `packages` local $0 11.3s, finding válido.
+**Gates:** packages/cli **335/335** + build green · landing **139/139** + next build green · tools/router savings tests green. version.json `1.21.10` (auto via version-sync on tag).
+**Report:** `MEGA_NIGHT_REPORT.md` (raiz, não-commitado). **Próxima missão (Paulo):** (1) aplicar tag **`v1.22.0`** em main HEAD `5c3a7fc` (audit fan-out); (2) rever/merge/deploy **PR #138** (Wave 44 landing); (3) ler/greenlight **PR #140** (Wave 39 brief); (4) Friends DMs Task #218 (manual); (5) LoRA train quando quiseres.
+
+---
+
+### 🐮 Sessão — 2026-06-08 (Wave 33.9 Visual Migration — MERGED to main, v1.21.5)
+**Estado:** ✅ **SHIPPED prod `main` (push `436199f..9ee01ff`)**, tag `v1.21.5-visual-migration` (pushed). feat `9ee01ff`. Ultracode + dangerous-autonomous, **git worktree isolado** `mooter-wave33_9` (sessão Wave 33.8 em `frugal/` nunca tocada). final-reviewer (Opus) **SHIP** — 1 HIGH + 1 MED de honestidade corrigidos in-wave. classify.js sha `7b01eb86…87762` **INTACTA (19 waves)**. `packages/**` + `landing-v12-deploy/` (canvas source) INTOCADOS.
+**Day-0 honesto:** landing já estava muito mais migrado que o kickoff assumia (Got Moo? + terminal live-routing + HUD 3-linhas já em prod desde Wave 33.7). Net-new real = C/D/E/F; A/B = polish/verify. Deliverable `docs/strategy/WAVE33_9_DAY0_RECON.md`.
+**6 blocks (carry fiel do canvas sobre Next.js 15, tokens `--color-*` preservados):** **Foundation** tokens accent-06/12 + keyframes mspin/mheart/mpulse (reduced-motion) + Caveat next/font + CmdK no root layout + NavBar +Conductor/+Workflow. **A** badge honesto v1.21.5·19 waves + jsonLd. **B** HeroTerminal kept (já honesto, rotativo T0–T3). **C** `PulseStrip.tsx` NOVO — reais 658/$25.95/47%/3 (≠ CommunityPulse herd). **D** `compare/MultiSessionTable.tsx` NOVO — 11×8 scores derivados in-code (mooter 11/11, Cursor Bg 4, Codex 4, Agent Teams 3, Termdock 2, Composio/Conductor/Antigravity 1) + CVE-2025-59528; routers table mantida abaixo. **E** `/conductor` (server, CSS anim) + `/workflow` (`WorkflowChip` client) NOVAS — MiniTerm trio, lock-state, Caveat annotation, two-bills $0.45 vs $0.0028 (160×). **F** `CmdKPalette.tsx` NOVO via lib `cmdk@1.1.1`, modos marketing/app, ⌘K global, hint chip, toast, dialog a11y.
+**Doutrina:** rebase limpo sobre Wave 33.8 (race Conductor: origin/main avançou `9dd9916→436199f` durante a sessão; 33.8 = router/cli ortogonal a landing/). Gates: tsc clean · eslint clean · **135/135 vitest** · `next build` **46/46**. Diff confinado a `landing/**`+`docs/strategy/**`. +cmdk dep.
+**Notion:** [Sessão Wave 33.9](https://app.notion.com/p/3796f6e42bc481cda50ad016658a0378) (ID `3796f6e4-2bc4-81cd-a50a-d016658a0378`).
+**Próxima missão (Paulo):** (1) confirmar Vercel `landing` deploy READY + smoke prod em mooter.ai (`/`, `/compare`, `/conductor`, `/workflow`, ⌘K palette). (2) Lighthouse 90+ desktop+mobile no preview (não corrível em WSL headless). **Wave 33.10 candidato:** Tailwind v4 + shadcn full migration (visual refresh continuation).
+
+---
+
+### 🐮 Sessão — 2026-06-08 (Wave 33.8 Statusline 2.0 — MERGED to main, v1.21.4)
+**Estado:** ✅ **SHIPPED prod `main` (pushed `48fe446`)**, tag `v1.21.4-statusline-2.0` (pushed). feat `3deca63`. Ultracode + dangerous-autonomous. final-reviewer (Opus) **SHIP-WITH-NITS 0-HIGH/0-MED/3-LOW** (1 nit hardened). Todo em `tools/router/` + `packages/cli/` — engines Wave 28-33.7 **INTOCADOS** (Day-0 catch: `packages/` congelado, `tools/router/` não). classify.js sha `7b01eb86…87762` INTACTA (18→19 waves). landing/ + landing-v12-deploy/ intactos.
+**8 blocks (honest):** **A** `mooter doctor` check stats local↔hub + `mooter sync --rebuild-stats` (`stats-reconcile.ts`) — $0-local vs $25.95-hub NÃO é bug (log local vs agregado cross-device). **B** chip `🪟 name (N active)` só ≥2 heartbeats Conductor (solo=byte-identical). **C** chip wf `🔒 git+notion` via `workflow-locks-bridge.js` host-side (sem editar @mooter/workflow congelado; runner-auto-lock+TUI deferred). **D** dedupe RTX: `setup-status` prefere `hw_tier` (gpu-high) sobre model id (dup vs Line 2 🎮). **E** `user-status.js` → `👤 user <hash8>` de auth.json (**só hash opaco, ZERO GitHub handle** → privacy, silent logged-out; `--hide-user`). **F** Line 1 `T3 opus-4.6` (recommended_model logado) + Line 2 🪙 annota tiers c/ modelo (Opção B, 4-tier macro mantido). **G** MLWR empty → `📊 MLWR · run benchmark`. **H** Line 1 `saved $X all-time·local`.
+**Doutrina:** +16 router tests (`wave33_8-statusline2.test.js`) + +9 CLI (`stats-reconcile.test.ts`) green (clean HOME = CI). Stage selectivo (excluiu 5 deletions pré-existentes + junk). version.json → 1.21.4 via version-sync.yml on tag.
+**Deliverable:** `docs/strategy/WAVE33_8_DAY0_RECON.md`. **Notion:** [Sessão Wave 33.8](https://app.notion.com/p/3796f6e42bc481ab98daedf34f982d94) (ID `3796f6e4-2bc4-81ab-98da-edf34f982d94`).
+**Próxima missão (Paulo):** verificar CI green no push `48fe446` (test.yml + version-sync). Nada mais bloqueante (sem migration/hub-deploy esta wave). Candidatos: Block C profundo (un-freeze @mooter/workflow → runner-auto-lock + TUI workflow IDs) ou Wave 33.9 sub-tiers Opção A.
+
+---
+
+### 🐮 Sessão — 2026-06-08 (Wave 33.7 Landing Enhance — MERGED to main, v1.21.3)
+**Estado:** ✅ **SHIPPED prod `main` (pushed `8ed2725`)**, tag `v1.21.3-landing-enhance` (pushed). 5 commits (Day 0 recon + blocks A/B+C/D/E). final-reviewer (Opus) **SHIP 0-HIGH/0-MED**. Enhance-in-place no `landing/` existente (Next.js 15, CSS hand-rolled, NÃO Tailwind) — sem rebuild.
+**Day 0 refutou 2 premissas:** (1) OAuth já estava todo wired → Block A reduzido a *apertar scopes*; (2) **migration 008 já liga users↔devices anonimamente via `user_id_hash` (SHA256(user_id)[:16])** → kickoff's Block C raw-`user_id` `user_device_links` table **RECUSADA** (regressão de privacidade).
+**6 blocks:** **A** privacy: drop `public_repo` (write grant!) → `read:user,user:email` nos 2 call sites; `getGitHubProfile` pin `&visibility=public`; LoginHero copy offline-first. **B+C**: hub `GET /v1/user/dashboard?user_hash=<16hex>` GROUP BY `user_id_hash` (hub nunca vê raw id/JWT); landing `/api/dashboard/aggregates?scope=user` deriva user do cookie `sb-access-token`; dashboard WorkflowTab toggle Community/My-usage com estados honestos; migration **018=índice aditivo só**. **D** SEO honesto: **REMOVIDO aggregateRating fabricado 4.9/1437** + "~90%" inflado; JSON-LD @graph+Person; sitemap 2→11; PWA manifest; reduced-motion. **E** copy real **47%/658** ("author's own machine, not a community average"), scrub shepherd/Pastor, footer single-founder.
+**Doutrina:** classify.js sha `7b01eb86…87762` INTACTA pré+pós-merge (17 waves) · `packages/` + `landing-v12-deploy/` INTOCADOS · 135/135 landing + 74/74 hub tests · tsc/eslint-0-err/next-build clean.
+**Deliverable:** `docs/strategy/WAVE33_7_DAY0_RECON.md`.
+**Notion:** [Sessão Wave 33.7](https://app.notion.com/p/3796f6e42bc4814bba94f70dbbb07551) (ID `3796f6e4-2bc4-814b-ba94-f70dbbb07551`).
+**Feito autonomamente nesta sessão (wrangler autenticado como Paulo):** ✅ migration 018 aplicada ao D1 remoto (`changes:1`, 20 tabelas intactas, índice aditivo) · ✅ hub worker deployed (Version `0a2679ae`, `/v1/user/dashboard` live: hash válido→200 honest-empty, inválido→422, `/aggregate-stats` sem regressão) · ✅ Vercel `landing` auto-deploy do push main — **mooter.ai LIVE com Wave 33.7** (sitemap 11 rotas, manifest 200, hero mostra real "47% saved vs all-Opus"). Fix follow-up `f1cae8d` (invalid-hash 500→422). **Próxima missão (Paulo — genuinamente externo):** (1) Supabase Studio: confirmar GitHub provider + scopes `read:user user:email` (só dashboard; auth de prod funciona → provavelmente já ativo); (2) friends-launch 3 DMs com https://mooter.ai (Task #218). _(Dashboard per-user dá vazio honesto até um `mooter sync` logged-in popular `frugal_events.user_id_hash`.)_ Wave 33.8 = redesign Tailwind+shadcn (separada).
+
+---
+
+### 🐮 Sessão — 2026-06-08 (Wave 33.6 Polish — MERGED to main, v1.21.2)
+**Estado:** ✅ **SHIPPED prod `main` (pushed `563b4c7`)**, tag `v1.21.2-polish` (pushed). 9 commits (Day 0 recon + 6 polish blocks P1-P6 + version-sync fix + recon doc). final-reviewer (Opus) **SHIP 0-HIGH/0-MED/2-LOW**.
+**Scope reduzido a Phase 1 polish** — Day 0 recon refutou 2 premissas do kickoff → escalado → Paulo decidiu: **(a) Phase 2 (production landing) DIFERIDA** para wave própria: o kickoff assumia greenfield mas `landing/` já é **Next.js 15 + React 19 + Supabase auth + dashboard real (`fetchHubAggregates`) + ~30 API routes** a servir mooter.ai em prod (Vercel project `landing`, CSS hand-rolled `--color-*`, não Tailwind); rebuild destruiria a app viva. **(b) P4 composto, não rerotado**: v1 doctor/uninstall não são "richer", são de escopo diferente (legacy = 10 install-integrity checks; v1 = sha/sandbox/ollama) → legacy `mooter doctor` agora anexa secção advisory "spawn & runtime health (Wave 33.5+)".
+**6 blocks:** P2 p-limit bundled no v1 CLI (fresh-install build falhava — p-limit só em workflow/node_modules) · P1 version.json 1.6.0→1.21.2 + `.github/workflows/version-sync.yml` (tag→semver auto-bump, `[skip ci]`, rebase-before-push) · P5 chip terminal-name honra `$MOOTER_TERMINAL_NAME` (prioridade #1) · P3 `conductor-status.js` chip lock-count (TTL-stale aware, ≤10ms) · P6 wire na line-3 + test `wave33_5_6-statusline-chips.test.js` (8/8).
+**Doutrina:** classify.js sha `7b01eb86…87762` INTACTA pré+mid+pós-merge (16 waves, confirmada até pelo v1 doctor) · Wave 28-33.5 source packages INTOCADOS (só `packages/cli/package.json` devDep p-limit) · statusline budget preservado · 5 "falhas" de teste pré-existentes (env-COLUMNS, idênticas em main).
+**Deliverable:** `docs/strategy/WAVE33_6_DAY0_RECON.md` (10 pontos + decisões).
+**Notion:** [Sessão Wave 33.6](https://app.notion.com/p/3796f6e42bc4818b8437d80a045a3d60) (ID `3796f6e4-2bc4-818b-8437-d80a045a3d60`).
+**Próxima missão (Paulo):** **Wave 33.7/34 = Phase 2 landing re-briefada contra `landing/` existente** (enhance-in-place: confirmar/ligar GitHub OAuth na auth Supabase já existente, wire dashboard per-user via JWT, SEO/Lighthouse, deploy via Vercel `landing`, hub migration 018 user-link). **NÃO rebuild.** Redesign visual Tailwind/shadcn = wave de design separada se quiseres. (Carry Wave 33.5: `/mooter-update` sync módulos statusline · conductor hooks settings.json · DMs v10.)
+
+### 🐮 Sessão — 2026-06-08 (Wave 33.5 Historic — MERGED to main, v1.21.1)
+**Estado:** ✅ **SHIPPED prod `main` (pushed `4c9bc54`)**, tag `v1.21.1-historic-spawn-orchestrator` (pushed). 9 commits (Day 0 + 8 blocos + fix HIGH). final-reviewer (Opus) **SHIP** após corrigir 1 HIGH.
+**Novo:** Mooter passa de router a **orchestrator local-first**. `@mooter/sessions-orchestrator` (cross-session · quota 5h · worktrees · Pastor aggregator · 9 `mooter sessions` cmds · 4 MCP tools→16 · 2 chips opt-in · `mooter terminal label`). `@mooter/worktree-conductor` (locks atómicos O_EXCL · heartbeat · queue · auto-recovery nunca-rouba-vivo · `mooter conductor` 10 cmds · race test PASS). **HISTORIC** `@mooter/spawn-orchestrator` (`mooter spawn` local-first default · sandbox 4-layer bwrap · sem `--no-sandbox`). `mooter security audit`/`spawn-test` + docs/security. `mooter intent` resolver. `mooter doctor`+`uninstall`. Marketing (tweets/blog/DMs v10/demo) + 4 rotas landing (/spawn /sessions /security /changelog) + design-spec JSON.
+**HIGH (final-reviewer):** sandbox vazava credenciais (`~/.claude/.credentials.json`, `~/.mooter/.telemetry_secret`, `~/.config/gh`) — só mascarava 5 dirs sob `--ro-bind / /`; smoke dava falso-positivo (fixtures em /tmp). Fix fail-closed: `--tmpfs $HOME` wholesale + re-bind worktree; spawn-test honesto. Re-reviewed → SHIP.
+**Doutrina:** classify.js sha `7b01eb86…87762` INTACTA pré+pós-merge (14 waves) · Wave 28-33 packages INTOCADOS · 361 testes 0-fail · bundle 631KB · statusline default byte-identical.
+**Notion:** [Sessão Wave 33.5](https://app.notion.com/p/3796f6e42bc48194ab36fed09bebf8a9) (ID `3796f6e4-2bc4-8194-ab36-fed09bebf8a9`).
+**Próxima missão (Paulo):** (1) `/mooter-update` para sincronizar os 3 módulos statusline novos (`terminal-name-status.js`, `workflow-progress-status.js`, `spawns-status.js`) → `~/.claude/tools/router/` (chips opt-in line 3 só renderizam live após sync; buildLine3 é safe-catch). (2) Wire conductor hooks (PreToolUse/PostToolUse auto-lock) em `settings.json` (config partilhada → confirmar). (3) Enviar DMs v10 · gravar asciinema · CC Design consome `landing/design-spec/wave33_5_pages.json`. **Wave 34:** Zellij/tmux/WezTerm plugins + browser bridge + per-domain egress proxy.
+
+### 🐮 Sessão — 2026-06-08 (Wave 33 Ultimate — MERGED to main, v1.21.0)
+**Estado:** ✅ **SHIPPED prod `main` (pushed `0688f81`)**, tag `v1.21.0-ultimate-polish-turboquant` (no remote). 13 commits (Day 0 + Blocks A-E). final-reviewer **SHIP 0-HIGH/0-MED/2-LOW**.
+**Novo:** Block A polish (statusline `mode --preview`/`legacy`/`--help` · ⏱️ session timer só em modos explícitos → default byte-idêntico · rename `turn`→"this prompt"/`alltime`→"session" · 3 LOW fixes `opts.now ?? 0`→`Date.now()` · LoRA deps unsloth 2026.6.1 · `mooter sessions list`). Block B opt-in/experimental: NEW pkgs `@mooter/turboquant-backend` (3-bit KV source-build, 3.6-5.2×), `@mooter/minimax-watcher` (HF poll; weights NÃO lançados), `@mooter/arbitrage-monitor` (L11, só status pages públicas, ADVISORY within-tier) + `@mooter/vllm-backend` EAGLE-3. 4 chips line-3. Block C: narrow GPU 3 breakpoints · workflow copy · hub `GET /v1/pricing` + `mooter pricing-update`. Block D/E: DMs v9 (PT-PT/BR/EN) · onboarding audit · e2e (PASS 9/0) · tweets/blog/landing §7.5.
+**Doutrina (SHIP 0-HIGH):** classify.js sha `7b01eb86…87762` INTACTA pré+pós-merge (13 waves) · session timer NUNCA no default adaptativo · arbitrage NUNCA muda o tier (só within-tier advisory) · MiniMax M3 não reivindicado disponível · Wave 28-32 engine pkgs (workflow/validation/mcp-server/synthesis/effort) **ZERO mudanças**. ~570 tests verdes · bundle 552KB.
+**Notion:** [Sessão Wave 33](https://app.notion.com/p/3796f6e42bc481cc8a41d3594da336ce) (ID `3796f6e4-2bc4-81cc-8a41-d3594da336ce`).
+**Próxima missão (Paulo):** (1) **Hub deploy** `/v1/pricing` — `cd hub && npx wrangler deploy -c wrangler.mooter.toml`. (2) LoRA train + TurboQuant build no RTX 4090 (overnight). (3) Enviar 3 DMs de `audit/FRIENDS_LAUNCH_DMS_v9.md`. **Wave 34:** LLMLingua hardening + federated + auto-update pricing cron.
+
 ### 🧠 Sessão — 2026-06-08 (Wave 31 Pastor v2 LORAUTER — SHIPPED v1.19.0)
 **Estado:** ✅ **SHIPPED prod `main` @ `eb57bda`** (PR #132), tag `v1.19.0-pastor-v2`. 11 fases A–L autónomas (ultracode+dangerous), 6 commits.
 **Novo:** LORAUTER real (`packages/synthesis/src/lora/routing-lorauter.ts`) substitui o Wave 29 stub — routing determinístico TF-IDF + cosine + relative-confidence (threshold 0.7), **sem LLM na decisão**. 6 per-task adapters (coding-frontend/backend/data, prose-pt-pt/en, baseline). Pastor layer (per-task-router, pastor-state, feedback-incorporator, trainer-stub). Distillation `mooter pastor distill`→`.skill.md` (demo real: 657 decisões → T3 48%/T1 32%/T0 18%/T2 2%). Obsidian pack `packs/obsidian-vault-sync/` (bidirecional, WSL-aware). 2 MCP tools (6→8). Hub `/v1/pastor-adapters` + migration 016. Statusline 🧠 chip.
@@ -1550,6 +1628,37 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 ### Instruções e decisões tomadas no Cowork para a próxima sessão
 > Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
 > Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
+
+---
+
+### 🐮 Wave 48 Statusline Honest ✅ (CC autonomous, 2026-06-10) — **PR #144, merge pendente Paulo**
+
+**Página Notion:** [🐮 Sessão 2026-06-10 — Wave 48 Statusline Honest (PR #144)](https://app.notion.com/p/37a6f6e42bc4814ea33ecccca51b3d5d) · `37a6f6e4-2bc4-814e-a33e-cccca51b3d5d`
+
+**Estado:** 7/8 chips de statusline relabeled honest (MLWR→local routes · limits→cost-cap · this prompt/session→`📝 turn/all-time` **mislabel FIX** · Claude Max usage bar · agents labels · embed/ctx glyphs). Day 0 apanhou o brief a inventar pricing (Opus=$5/$25, NÃO $15/$20) + 2 claims Fable 5 unsourced. `explain`: novos embed/agents/cost-cap/tiers + pricing autoritativo + saved 78%→47%. classify.js sha `7b01eb86…` **INTACT** (Tier 5 Fable + local mirror **deferidos Wave 49**). statusline 165/165 · CLI 351/351 · final-reviewer SHIP-WITH-NITS 0-HIGH/0-MED.
+
+**Pendente Paulo:** merge PR #144 + tag `v1.25.0-statusline-honest` · `/mooter-update` sync módulos statusline host-side · decidir precedência item 1.2 (terminal-name) · **Wave 49** = Tier 5 Fable (sourced+sha-approved) + local mirror feasibility + Pastor re-train.
+
+---
+
+### 🐮 Maratona Waves 33.11/33.12/33.13 ✅ (CC autonomous, 2026-06-08 madrugada) — local main + tags, **push pendente Paulo**
+
+**Página Notion:** [🐮 Sessão 2026-06-08 madrugada — Waves 33.11/33.12/33.13 SHIPPED + Friends prep](https://app.notion.com/p/37a6f6e42bc4815a956ff21a8052b535) · `37a6f6e4-2bc4-815a-956f-f21a8052b535`
+
+**Estado:** low-risk maratona, zero-touch prod. `classify.js` sha `7b01eb8623a0b8fc` **INTACT** pré+pós cada wave. Packages Wave 28–33.x intocados. `main` local avançou 2 commits + 2 tags; **push NÃO auto-corrido** (outward-facing = decisão Paulo).
+
+- **33.11 `v1.21.7-quiet-cleanup`** (`afb9bcf`): Block A — restaurados 16 staged files orfãos em `~/frugal` ao HEAD `049a092` (eram um **revert de prod meio-feito**: deletavam landing pages live + rollback `version.json` 1.21.5→1.21.4, NÃO cruft Wave 33.9; Paulo decidiu discard→match HEAD). Block B — `mooter dogfood log` UX polish (warn em severity inválida + hint subcommand) +3 testes (11/11 verde). final-reviewer Opus **SHIP** (0H/0M/1L).
+- **33.12 `v1.21.8-lora-deps-unblock`** (`24d97e2`): Day 0 refutou a premissa — deps já desbloqueadas na Wave 33 A.5 (unsloth 2026.6.1 + transformers 4.56.0, re-verificados via PyPI/pyproject). Net-new = `docs/strategy/LORA_TRAINING_RUNBOOK.md`. final-reviewer Opus **SHIP** (0 nits). Doc-only.
+- **33.13** (doc-only, sem tag, branch `docs/wave33_13-friends-prep`): `audit/FRIENDS_LAUNCH_DMS_v12.md` (3 DMs por perfil: técnico/curioso/vibe coder) + Notion master + este update SYNC.
+
+**⚠️ Pendente Paulo:**
+1. `git -C ~/frugal push origin main --tags` (tags v1.21.7 + v1.21.8).
+2. Merge branch `docs/wave33_13-friends-prep` (doc-only).
+3. **Smoke Mac real** (carry-over Wave 33.10 `v1.21.6-dogfood-mac`, gated no teu commit/tag).
+4. **Enviar 3 DMs** — `audit/FRIENDS_LAUNCH_DMS_v12.md`.
+5. **LoRA train overnight** no RTX 4090 — `docs/strategy/LORA_TRAINING_RUNBOOK.md`.
+
+**Próxima sessão candidatos:** Wave 34 audit fan-out · OU Hub migration 017 · OU Tailwind v4 redesign.
 
 ---
 

@@ -5,8 +5,9 @@ const LINKS = [
   { label: 'How', href: '/under-the-hood' },
   { label: 'Packs', href: '/packs' },
   { label: 'Compare', href: '/compare' },
+  { label: 'Conductor', href: '/conductor' },
+  { label: 'Workflow', href: '/workflow' },
   { label: 'Methodology', href: '/methodology' },
-  { label: 'Privacy', href: '/privacy' },
 ];
 
 // NavBar — sticky top nav (IMPLEMENTATION_SPEC §5.1). SSR-safe, no client state.
@@ -59,7 +60,7 @@ export default function NavBar() {
               borderRadius: 10,
             }}
           >
-            Install mooter →
+            Install in 30s →
           </a>
         </div>
       </nav>

@@ -13,8 +13,11 @@ function statusLine() {
     const snap = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'cache', 'vector-snapshot.json'), 'utf8'));
     const m = Array.isArray(snap.models) && snap.models[0];
     if (!m) return '';
-    const dims = typeof m.dims === 'number' ? ` · ${m.dims}d` : '';
-    return `🧭 ${String(m.name).replace(/:.*/, '')}${dims}`;
+    // Wave 48 (1.3) — `nomic-embed-text · 768d` was cryptic. Label it as the
+    // Pastor's embedding model + drop the `-embed-text` suffix → `🧭 embed nomic 768d`.
+    const dims = typeof m.dims === 'number' ? ` ${m.dims}d` : '';
+    const short = String(m.name).replace(/:.*/, '').replace(/-embed(-text)?$/, '');
+    return `🧭 embed ${short}${dims}`;
   } catch {
     return '';
   }
