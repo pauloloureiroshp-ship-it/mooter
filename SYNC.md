@@ -1631,6 +1631,22 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐮 Wave Mega 50-51 Fable ✅ (CC autonomous em **claude-fable-5**, 2026-06-10) — **5 PRs stacked #147→#151, merge pendente Paulo**
+
+**Página Notion:** [🐮 Sessão 2026-06-10 — Wave Mega 50-51 Fable](https://app.notion.com/p/37b6f6e42bc48144863ec173a61a3ff4) · `37b6f6e4-2bc4-8144-863e-c173a61a3ff4`
+
+**Estado:** 6/6 phases shipped. final-reviewer Opus **SHIP 0-HIGH/0-MED** no diff completo. classify.js sha `427d8c0b…` INTACT em todos os gates. CLI 362→**451/451** · mcp-server 27/27 · mooter-bench 15/15 · router 68/68. Fable 5 verificado Day 0: $10/$50 per M, **free no Max até 22 Jun** (orchestrator + 12 subagents desta sessão = $0 usage credits).
+
+- **#147** Phase 1: `mooter observability` OTLP zero-dep · **MooterBench** Apache-2.0 (run real: 60% acc, 100% completion, 62.4% savings est) · MCP 16→20 tools → tag `v1.28.0-deferred-shipped`
+- **#148** Phase 2: cascade advisory (T4 REFUTADO — ladder pinned por testes) · `why-not-fable` · span_id feedback + `pastor learn-from-spans` · `/mooter` skill · security summary + Veracode 45% verificado + 🔒 chip → `v1.29.0-vibe-foundation`
+- **#149** Phase 3: CLAUDE.md **313→47** (arquivo verbatim) · **AGENTS.md** · CLAUDE.local.md.template · 5 skills · 5 hooks unwired (HOOKS_GUIDE) · WORKSPACE_ORGANIZATION + AUTO_RESEARCH_LOOP → (mesmo v1.29.0)
+- **#150** Phase 4: quota honesto `~N% est`/`quota ?` (cita #44328) · statusline responsivo narrow/medium/wide · `sessions worktrees/tmux-attach/notify/wait` · `mooter session-summary` rich → `v1.30.0-session-intel`
+- **#151** Phase 5 ⭐: **Fable observation loop** — `fable-observe` (hash-only default, 8 subcmds) · `pastor train-on-fable` (features-only) · `replicate-test` · report público com **12 observações REAIS desta sessão** (11/12 parallel_spawn — Fable é dispatcher, esse é o alvo de treino do Pastor) → `v1.31.0-fable-observation`
+
+**⚠️ Pendente Paulo:** 1) merge #147→#151 em ordem + tags sequenciais · 2) tag `v1.27.0-anthropic-aligned` (Wave 49) nunca foi pushed — version.json está 1.25.0 · 3) wiring opt-in (hooks/slash-commands/cron) · 4) MCP Registry (npm publish primeiro) · 5) Friends DM v15 · 6) LoRA retrain RTX 4090.
+
+---
+
 ### 🐮 Wave 48 Statusline Honest ✅ (CC autonomous, 2026-06-10) — **PR #144, merge pendente Paulo**
 
 **Página Notion:** [🐮 Sessão 2026-06-10 — Wave 48 Statusline Honest (PR #144)](https://app.notion.com/p/37a6f6e42bc4814ea33ecccca51b3d5d) · `37a6f6e4-2bc4-814e-a33e-cccca51b3d5d`
