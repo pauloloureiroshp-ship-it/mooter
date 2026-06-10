@@ -1,0 +1,16 @@
+{
+  "name": "@mooter/bench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "MooterBench — open, reproducible routing benchmark for the Mooter local-first LLM router. Inspired by Anthropic's Bloom: open methodology, honest metrics.",
+  "scripts": {
+    "bench": "tsx src/run.ts",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.3",
+    "typescript": "^5.5.0"
+  }
+}
