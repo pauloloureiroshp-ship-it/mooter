@@ -108,3 +108,5 @@ model-weights/
 
 # Wave 8 — esbuild CLI bundle (built on install / CI, not committed)
 packages/cli/mooter.js
+# personal Claude Code preferences (per-dev)
+CLAUDE.local.md
