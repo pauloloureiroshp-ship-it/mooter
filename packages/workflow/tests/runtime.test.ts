@@ -150,6 +150,82 @@ test("INPUT defaults to null when no input is given", async () => {
   assert.equal(out, null);
 });
 
+// ── Phase 1 fan-out/fan-in (Wave 52) ──────────────────────────────────────────
+
+// A host agent that tracks peak concurrency so we can observe fan-out width.
+function concurrencyProbeApi() {
+  let active = 0;
+  let peak = 0;
+  return {
+    peak: () => peak,
+    api: {
+      agent: async (req: AgentRequest): Promise<AgentResult> => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((r) => setTimeout(r, 10));
+        active -= 1;
+        return {
+          result: `echo:${req.prompt}`,
+          tokens_in: 0,
+          tokens_out: 0,
+          latency_ms: 0,
+          cost_usd: 0,
+          model: req.model,
+          backend: "ollama" as const,
+        };
+      },
+    },
+  };
+}
+
+test("in-isolate parallel default fan-out width follows the host pool concurrency", async () => {
+  const p = concurrencyProbeApi();
+  const out = await runScript(
+    `const rs = await parallel([1,2,3,4,5,6,7,8,9,10,11,12], async (n) => {
+       const r = await agent({ model: 'm', prompt: 'p' + n });
+       return r.result;
+     });
+     return rs.length;`,
+    { timeoutMs: 5000, api: p.api, poolConcurrency: 6 },
+  );
+  assert.equal(out, 12);
+  // Old hardcoded default capped in-isolate workers at 4; now it tracks the pool (6).
+  assert.equal(p.peak(), 6);
+});
+
+test("in-isolate parallel still honours an explicit concurrency option", async () => {
+  const p = concurrencyProbeApi();
+  await runScript(
+    `return await parallel([1,2,3,4,5,6], async (n) => {
+       const r = await agent({ model: 'm', prompt: 'p' + n });
+       return r.result;
+     }, { concurrency: 1 });`,
+    { timeoutMs: 5000, api: p.api, poolConcurrency: 6 },
+  );
+  assert.equal(p.peak(), 1);
+});
+
+test("in-isolate parallel(settle:true) captures per-item errors as null", async () => {
+  const m = mockApi();
+  const out = await runScript(
+    `return await parallel([1,2,3], async (n) => {
+       if (n === 2) throw new Error('boom');
+       return n * 10;
+     }, { settle: true });`,
+    { timeoutMs: 5000, api: m.api },
+  );
+  assert.deepEqual(out, [10, null, 30]);
+});
+
+test("in-isolate parallel without settle rejects on the first item error (contract)", async () => {
+  await assert.rejects(
+    runScript(`return await parallel([1,2], async () => { throw new Error('x'); });`, {
+      timeoutMs: 5000,
+    }),
+    (e: unknown) => e instanceof RuntimeError,
+  );
+});
+
 test("e2e in-sandbox: parallel → vote → checkpoint (bridged)", async () => {
   const m = mockApi();
   const out = await runScript(
