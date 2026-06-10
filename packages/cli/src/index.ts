@@ -42,6 +42,7 @@ import { runTerminal } from "./commands/terminal.ts";
 import { runConductor } from "../../worktree-conductor/src/commands.ts";
 import { runSpawn } from "../../spawn-orchestrator/src/commands.ts";
 import { runSecurity } from "./commands/security.ts";
+import { runSlashCommands } from "./commands/slash-commands.ts";
 import { runIntent, resolveIntent } from "./commands/intent.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { runUninstall } from "./commands/uninstall.ts";
@@ -55,6 +56,8 @@ import { runQuant, runVector } from "./commands/quant-vector.ts";
 import { runBackend } from "./commands/backend.ts";
 import { runLocalModels } from "./commands/local-models.ts";
 import { runObservability } from "./commands/observability.ts";
+import { runFeedbackSpan, runFeedbackSpans } from "./commands/span-feedback.ts";
+import { runWhyNotFable } from "./commands/why-not-fable.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
@@ -70,7 +73,8 @@ Usage:
   mooter sessions <list|watch|show|diff|quota|worktrees|focus|kill|export>   cross-session intelligence
   mooter conductor <status|lock|unlock|queue|heartbeats|locks|history|reap>   serialize ops across terminals
   mooter spawn <task> [--cloud|--local] | spawn <list|watch|kill|logs|artifacts>   sandboxed local-first agents
-  mooter security <audit [--json]|spawn-test>   4-layer sandbox audit + synthetic CVE escape test
+  mooter security <audit [--json]|spawn-test|summary>   4-layer sandbox audit + synthetic CVE escape test + honest summary
+  mooter slash-commands <install [--dry-run]|status>   install the /mooter Claude Code skill
   mooter intent "<what you want>" [--run] | intent --palette   natural-language → command
   mooter doctor [--json]           health check (classify sha · sandbox · Ollama · multiplexers)
   mooter uninstall [--keep-data|--full] [--confirm]   remove Mooter (safe by default)
@@ -84,6 +88,9 @@ Usage:
   mooter monitor [providers|status|enable|disable]   opt-in arbitrage monitor (public status pages; advisory only)
   mooter pricing-update [--show]   pull latest model pricing from the hub into a local cache
   mooter observability <status|enable|disable|export [--last N] [--dry-run]|export-config>   opt-in OTLP span export of routing decisions
+  mooter feedback span <span_id> <1-5> [--note "..."]   score one routing span (LOCAL only — never sent to the hub)
+  mooter feedback spans [--last N]  list recent routing decisions with their span ids
+  mooter why-not-fable [--last N]   per-decision honesty: why T5 (Fable 5, @fable opt-in only) was not used
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -335,6 +342,12 @@ async function main(argv: string[]): Promise<number> {
     return res.exitCode;
   }
 
+  if (command === "slash-commands") {
+    const res = runSlashCommands(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
   if (command === "doctor") {
     const res = runDoctor(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
@@ -436,6 +449,26 @@ async function main(argv: string[]): Promise<number> {
   if (command === "feedback") {
     // `mooter feedback "<message>" [--topic=bug] [--severity=low]` (anonymous, no login)
     // `mooter feedback --list` (admin read, needs MOOTER_ADMIN_TOKEN)
+    // `mooter feedback span <id> <1-5> [--note "..."]` + `mooter feedback spans [--last N]`
+    //   — Phase 2.E span scoring: LOCAL ONLY (~/.mooter/span-feedback.jsonl), never the hub.
+    if (rest[0] === "span") {
+      const noteIdx = rest.indexOf("--note");
+      const res = runFeedbackSpan({
+        spanIdArg: rest[1] ?? "",
+        scoreArg: rest[2] ?? "",
+        note: noteIdx >= 0 ? rest[noteIdx + 1] : undefined,
+      });
+      if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+      return res.exitCode;
+    }
+    if (rest[0] === "spans") {
+      const lastIdx = rest.indexOf("--last");
+      const res = runFeedbackSpans({
+        last: lastIdx >= 0 ? Number.parseInt(rest[lastIdx + 1] ?? "", 10) : undefined,
+      });
+      if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+      return res.exitCode;
+    }
     if (rest.includes("--list")) {
       const res = await runFeedbackList({});
       if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
@@ -445,6 +478,12 @@ async function main(argv: string[]): Promise<number> {
     const topic = rest.find((a) => a.startsWith("--topic="))?.split("=")[1];
     const severity = rest.find((a) => a.startsWith("--severity="))?.split("=")[1];
     const res = await runFeedback({ message, topic, severity });
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "why-not-fable") {
+    const res = runWhyNotFable(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

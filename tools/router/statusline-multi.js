@@ -903,6 +903,29 @@ function buildLocalChip(tokSnap, homeGlyph = '🏠') {
   return `${homeGlyph} ${t0calls}/${totalCalls} calls (${callsPct}%)${tokPart}`;
 }
 
+// Wave Mega 50-51 (2.D) — 🔒 spawn-sandbox proof chip. Renders ONLY when the
+// host can actually enforce the `mooter spawn` 4-layer sandbox (bwrap on Linux,
+// Seatbelt on macOS) or when ~/.mooter carries an explicit sandbox-capable
+// marker. Detection is fixed-path fs.existsSync stats only (<5ms, no exec, no
+// PATH walk) and degrades silently — any failure means no chip, never an error.
+const SANDBOX_BIN_PATHS = ['/usr/bin/bwrap', '/usr/local/bin/bwrap', '/bin/bwrap'];
+function sandboxCapable() {
+  try {
+    for (const p of SANDBOX_BIN_PATHS) {
+      if (fs.existsSync(p)) return true;
+    }
+    if (process.platform === 'darwin' && fs.existsSync('/usr/bin/sandbox-exec')) return true;
+    // Explicit marker (e.g. a non-standard bwrap install verified by `mooter security audit`).
+    if (fs.existsSync(path.join(require('os').homedir(), '.mooter', 'sandbox-capable'))) return true;
+  } catch { /* degrade silently */ }
+  return false;
+}
+function buildSandboxChip(capable = sandboxCapable()) {
+  // Honest by omission: an UNAVAILABLE sandbox renders nothing — we never show
+  // an "open lock" that could read as a scary (or fake) security state.
+  return capable ? '🔒 sandbox' : null;
+}
+
 // Wave 33 (A.2) — humanize a session age in ms. <60min → "47m"; <24h →
 // "2h47m"; ≥24h → "2d4h". Pure formatter; the source (transcript birth time)
 // is read once per render in buildContext.
@@ -1100,6 +1123,8 @@ function renderTwoLine(ctx, opts = {}) {
       : null,
     tokenChip,
     herdsChip,
+    // Wave Mega 50-51 (2.D) — 🔒 only when the spawn sandbox is enforceable.
+    hide('sandbox') ? null : buildSandboxChip(),
     quantChip,
     packChip,
     hide('adapter') ? null : adapterChip,
@@ -1370,6 +1395,8 @@ module.exports = {
   buildLocalChip,
   buildHerdsChip,
   buildExecSegment,
+  sandboxCapable,
+  buildSandboxChip,
   colorize,
   useColor,
   formatGpuChip,

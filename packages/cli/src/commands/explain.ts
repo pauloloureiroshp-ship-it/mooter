@@ -211,6 +211,13 @@ const CHIPS: ChipExplainer[] = [
     example: "A 'fix this typo' prompt → T0 ($0); 'redesign the vault for multi-user' → T3 (Opus); '@fable analyse this dense chart' → T5 (Fable, opt-in).",
   },
   {
+    names: ["cascade", "cascading", "fallback", "escalation"],
+    title: "🪜 cascading fallback (advisory)",
+    what: "An ADVISORY layer that watches for quality-floor breaches on a routed prompt and, when one fires, suggests re-running one rung up the real ladder: T0 (local Ollama) → T1 (Haiku) → T2 (Sonnet) → T3 (Opus). Three signals breach the floor: a refusal pattern in the response (e.g. \"I can't help with…\"), classifier confidence below 0.6, or 2+ tool failures. It recommends — it NEVER mutates routing: classify.js (frozen, sha CI-enforced) remains the only thing that picks tiers, and your prompts are never silently re-sent.",
+    interpret: "An escalation suggestion means the cheap tier likely wasn't enough for THAT prompt — re-run it yourself at the suggested tier if you agree. The ladder tops out at T3 (Opus): there is no T4, and T5 (Fable 5, $10/$50 per Mtok) is user-opt-in ONLY — the advisory never auto-suggests crossing into the paid frontier; you reach it by typing @fable. See `mooter why-not-fable` for the per-decision cost comparison.",
+    example: "T1 route returns \"I am unable to…\" → advisory: quality floor breached, consider re-running at T2 (advisory only — classify.js routing is unchanged).",
+  },
+  {
     names: ["vision", "multimodal", "image", "ocr"],
     title: "🖼️ vision (multimodal)",
     what: "How Mooter handles image/vision tasks (OCR, screenshots, charts, screenshot→code). Honest current state: Mooter does NOT run a local vision model by default — no Qwen2.5-VL or similar is installed, so there is no $0 local vision path yet. Vision work therefore routes to a frontier cloud model. The classifier does not auto-detect images; you opt in.",

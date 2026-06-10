@@ -1,8 +1,10 @@
 // Wave 33.5 Block D.2/D.3 — `mooter security audit` + `mooter security spawn-test`.
+// Wave Mega 50-51 (2.D) — + `mooter security summary` (one-screen honest summary).
 //
 // audit      — interactive 4-layer readiness check (network/fs/secrets/config)
 // audit --json  — machine-readable
 // spawn-test — runs the REAL synthetic CVE-2025-59528 sandbox-escape test
+// summary    — sandbox layers + what is NOT protected, on one screen
 //
 // The 4-layer enforcement itself lives in @mooter/spawn-orchestrator; this is the
 // operator-facing surface that reports whether the host can enforce each layer.
@@ -65,6 +67,34 @@ export function runSecurity(args: string[], opts: { env?: NodeJS.ProcessEnv; hom
   const home = opts.home ?? homedir();
   const sub = args[0] ?? "audit";
 
+  if (sub === "summary") {
+    const sb = detectSandbox();
+    const backendLine = sb.available
+      ? `Backend: ${sb.backend} (available on ${sb.platform})`
+      : `Backend: NONE available on ${sb.platform} — \`mooter spawn\` refuses to run unsandboxed. ${sb.hint}`;
+    const out = [
+      "🛡️ Mooter spawn sandbox — honest one-screen summary",
+      "",
+      backendLine,
+      "",
+      "What the 4 layers enforce (local `mooter spawn` agents only):",
+      "  1. Network egress    — spawned local agents run with no network (--unshare-net).",
+      "  2. Filesystem        — read-only root + ONE writable worktree mount; $HOME is masked (tmpfs), so ~/.claude credentials are invisible.",
+      "  3. Secrets scoping   — provider API keys are stripped from the local spawn env.",
+      "  4. Config protection — Claude/Mooter config stays read-only inside the sandbox.",
+      "",
+      "What is NOT protected — be clear about this:",
+      "  • Your MAIN Claude Code session is not sandboxed — only `mooter spawn` local agents are.",
+      "  • Cloud tiers (T1–T3, T5) still send your prompt + context to the provider; a sandbox cannot change that.",
+      "  • Code you accept and run yourself executes with YOUR privileges, outside any sandbox.",
+      "  • Kernel/host escapes, prompt injection in your own session, and supply-chain risk in deps are out of scope.",
+      "",
+      "Verify, don't trust: `mooter security audit` (readiness) · `mooter security spawn-test` (real escape attempt).",
+      "Positioning + sources: docs/SECURITY_COMPETITIVE_ADVANTAGE.md",
+    ];
+    return { exitCode: 0, output: out.join("\n") };
+  }
+
   if (sub === "spawn-test") {
     const verdict = runSandboxEscapeTest();
     return { exitCode: verdict.available ? (verdict.pass ? 0 : 1) : 0, output: renderVerdict(verdict) };
@@ -92,5 +122,5 @@ export function runSecurity(args: string[], opts: { env?: NodeJS.ProcessEnv; hom
     return { exitCode: fails ? 1 : 0, output: out.join("\n") };
   }
 
-  return { exitCode: 1, output: "usage: mooter security <audit [--json]|spawn-test>" };
+  return { exitCode: 1, output: "usage: mooter security <audit [--json]|spawn-test|summary>" };
 }
