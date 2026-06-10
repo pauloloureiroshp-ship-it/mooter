@@ -59,6 +59,7 @@ import { runLocalModels } from "./commands/local-models.ts";
 import { runObservability } from "./commands/observability.ts";
 import { runFeedbackSpan, runFeedbackSpans } from "./commands/span-feedback.ts";
 import { runWhyNotFable } from "./commands/why-not-fable.ts";
+import { runFableObserve } from "./commands/fable-observe.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
@@ -94,6 +95,7 @@ Usage:
   mooter feedback span <span_id> <1-5> [--note "..."]   score one routing span (LOCAL only — never sent to the hub)
   mooter feedback spans [--last N]  list recent routing decisions with their span ids
   mooter why-not-fable [--last N]   per-decision honesty: why T5 (Fable 5, @fable opt-in only) was not used
+  mooter fable-observe <status|enable [--store-prompts]|disable|log --json '<obs>'|last [N]|pattern <task_type>|stats>   Fable 5 observation loop (opt-in · hash-only by default)
   mooter env-detect [--json]       show this machine's OS, GPU, hw_tier and sync identity
   mooter trail [--session-id <id>] [--json] [--evolution] [--safety [--by-keyword]] [--calls]   provenance / 7d / safety / per-call
   mooter digest [--session-id <id>] [--json]   end-of-session tier-mix digest (where local did the heavy lifting)
@@ -493,6 +495,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "why-not-fable") {
     const res = runWhyNotFable(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "fable-observe") {
+    const res = await runFableObserve(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
