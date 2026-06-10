@@ -4,8 +4,10 @@
 // (synthesis/cli) — the MCP server is a thin protocol adapter, not new logic.
 // Handlers return a plain string (rendered as MCP text content).
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -463,6 +465,302 @@ const sessionsPastorAggregateTool: McpTool = {
   },
 };
 
+// ─── Wave 50-51 Phase 1.C — router/savings/tier/session tools ────────────────
+
+/** Same decisions.log resolution as packages/cli digest/trail (routerDir()). */
+function decisionsLogPath(): string {
+  const claudeDir =
+    process.env.MOOTER_CLAUDE_DIR || process.env.FRUGAL_CLAUDE_DIR || join(homedir(), ".claude");
+  return join(claudeDir, "tools", "router", "decisions.log");
+}
+
+interface ClassifiedEvent {
+  event?: string;
+  source?: string;
+  session_id?: string;
+  ts_ms?: number;
+  tier?: string;
+  recommended_model?: string;
+}
+
+/** Parse decisions.log "classified" events (skips mooter-tester, same as digest). */
+function readClassifiedEvents(): ClassifiedEvent[] {
+  let lines: string[];
+  try {
+    lines = readFileSync(decisionsLogPath(), "utf8").split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+  const out: ClassifiedEvent[] = [];
+  for (const line of lines) {
+    let e: ClassifiedEvent;
+    try {
+      e = JSON.parse(line) as ClassifiedEvent;
+    } catch {
+      continue;
+    }
+    if (!e || e.event !== "classified" || e.source === "mooter-tester") continue;
+    out.push(e);
+  }
+  return out;
+}
+
+function countByTier(events: ClassifiedEvent[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const e of events) {
+    const t = typeof e.tier === "string" && /^T\d$/.test(e.tier) ? e.tier : null;
+    if (t) counts[t] = (counts[t] || 0) + 1;
+  }
+  return counts;
+}
+
+interface TrackerMetricsLike {
+  saved?: number;
+  saved_pct?: number;
+  alltime_cost_usd?: number;
+  saved_7d?: number;
+  saved_7d_pct?: number;
+  cost_7d?: number;
+  prompts_7d?: number;
+}
+
+/** Fetch the local savings-tracker /metrics (same source as `mooter digest`).
+ *  Best-effort: null when the tracker is offline — figures are never invented. */
+async function fetchTrackerMetrics(ctx: ToolContext): Promise<TrackerMetricsLike | null> {
+  const doFetch = ctx.fetchImpl ?? fetch;
+  try {
+    const res = await doFetch("http://127.0.0.1:7821/metrics", { signal: AbortSignal.timeout(400) });
+    if (!res.ok) return null;
+    return (await res.json()) as TrackerMetricsLike;
+  } catch {
+    return null;
+  }
+}
+
+const routeQueryTool: McpTool = {
+  name: "mooter_route_query",
+  description:
+    "Run the REAL frozen classifier (tools/router/classify.js, spawned read-only) on a prompt. Returns tier, recommended model/backend, confidence, and a one-line rationale. Never modifies the classifier.",
+  inputSchema: {
+    type: "object",
+    properties: { prompt: { type: "string", description: "the prompt to classify" } },
+    required: ["prompt"],
+  },
+  async handler(args) {
+    const prompt = String(args.prompt ?? "").trim();
+    if (!prompt) return JSON.stringify({ error: "invalid_input", detail: "prompt is required" });
+    const classifyPath = findRepoFile("tools/router/classify.js");
+    if (!classifyPath) {
+      return JSON.stringify({
+        error: "classifier_unavailable",
+        detail: "tools/router/classify.js not found from this working directory",
+      });
+    }
+    let raw: string;
+    try {
+      raw = execFileSync(process.execPath, [classifyPath, prompt], {
+        encoding: "utf8",
+        timeout: 15_000,
+        maxBuffer: 1024 * 1024,
+      });
+    } catch (e) {
+      return JSON.stringify({
+        error: "classifier_spawn_failed",
+        detail: String((e as Error).message || e).slice(0, 300),
+      });
+    }
+    let d: Record<string, unknown>;
+    try {
+      d = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return JSON.stringify({ error: "classifier_output_unparseable", detail: raw.slice(0, 300) });
+    }
+    return JSON.stringify(
+      {
+        tier: d.tier ?? null,
+        recommended_model: d.recommended_model ?? null,
+        recommended_backend: d.recommended_backend ?? null,
+        suggested_subagent: d.suggested_subagent ?? null,
+        confidence: typeof d.confidence === "number" ? d.confidence : null,
+        rationale: `${d.tier} → ${d.recommended_model} via ${d.recommended_backend} (confidence ${d.confidence}); ${d.reasoning || "no reasoning emitted"}`,
+      },
+      null,
+      2,
+    );
+  },
+};
+
+const getSavingsTool: McpTool = {
+  name: "mooter_get_savings",
+  description:
+    "Honest savings figures from the SAME sources as `mooter digest`: decision counts from decisions.log + dollar totals from the local savings-tracker /metrics. Returns an explicit empty-state when there is no data — numbers are never invented.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      period: { type: "string", enum: ["today", "all"], description: "default all" },
+    },
+  },
+  async handler(args, ctx) {
+    const period = args.period === "today" ? "today" : "all";
+    let events = readClassifiedEvents();
+    if (period === "today") {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      events = events.filter((e) => typeof e.ts_ms === "number" && e.ts_ms >= start.getTime());
+    }
+    const metrics = await fetchTrackerMetrics(ctx);
+    if (events.length === 0 && !metrics) {
+      return JSON.stringify(
+        {
+          period,
+          prompts: 0,
+          tiers: {},
+          tracker: null,
+          note: "no data yet — no classified decisions in decisions.log and the savings-tracker is offline",
+        },
+        null,
+        2,
+      );
+    }
+    return JSON.stringify(
+      {
+        period,
+        prompts: events.length,
+        tiers: countByTier(events),
+        tracker: metrics
+          ? {
+              savedUsd: typeof metrics.saved === "number" ? metrics.saved : null,
+              savedPct: typeof metrics.saved_pct === "number" ? Math.round(metrics.saved_pct) : null,
+              spentUsd: typeof metrics.alltime_cost_usd === "number" ? metrics.alltime_cost_usd : null,
+              saved7dUsd: typeof metrics.saved_7d === "number" ? metrics.saved_7d : null,
+            }
+          : null,
+        note: metrics
+          ? "decision counts ← decisions.log · dollar figures ← savings-tracker aggregates (tracker has no per-day dollar split; 'today' filters counts only)"
+          : "savings-tracker offline — dollar totals unavailable (counts above are real, from decisions.log)",
+      },
+      null,
+      2,
+    );
+  },
+};
+
+/** 2026-06 list pricing, USD per million tokens (input / output). */
+const TIER_INFO: Record<
+  string,
+  | {
+      exists: true;
+      model: string;
+      pricingPerMTok: { input: number; output: number };
+      description: string;
+      typicalTasks: string[];
+      optInOnly?: boolean;
+    }
+  | { exists: false; note: string }
+> = {
+  T0: {
+    exists: true,
+    model: "Ollama local (qwen2.5 family)",
+    pricingPerMTok: { input: 0, output: 0 },
+    description: "Local tier — free, runs on your own hardware via Ollama.",
+    typicalTasks: ["file summaries", "format transforms", "data extraction", "translations"],
+  },
+  T1: {
+    exists: true,
+    model: "Haiku 4.5",
+    pricingPerMTok: { input: 1, output: 5 },
+    description: "Cheap cloud triage tier.",
+    typicalTasks: ["commit messages", "docstrings", "regex", "error explanations", "trivial tests"],
+  },
+  T2: {
+    exists: true,
+    model: "Sonnet 4.6",
+    pricingPerMTok: { input: 3, output: 15 },
+    description: "Mid reasoning tier — the rarest in real usage (~7-8%).",
+    typicalTasks: ["bug investigation", "root cause", "technical plans", "comparing approaches"],
+  },
+  T3: {
+    exists: true,
+    model: "Opus 4.6",
+    pricingPerMTok: { input: 5, output: 25 },
+    description: "Default heavy tier (Opus 4.8 shares T3 with 4.6).",
+    typicalTasks: ["architecture", "multi-file refactors", "tradeoff decisions", "prod/CI/migrations", "pre-merge review"],
+  },
+  T4: {
+    exists: false,
+    note: "There is no T4 in Mooter — Opus 4.8 shares T3 with Opus 4.6. Valid tiers: T0, T1, T2, T3, and opt-in T5.",
+  },
+  T5: {
+    exists: true,
+    model: "Fable 5",
+    pricingPerMTok: { input: 10, output: 50 },
+    description:
+      "Frontier tier — OPT-IN ONLY (explicit '@fable' override). The classifier NEVER auto-routes to T5 because it is the most expensive tier; you reach it deliberately.",
+    typicalTasks: ["frontier reasoning on explicit request", "vision tasks ('@fable read this chart')"],
+    optInOnly: true,
+  },
+};
+
+const explainTierTool: McpTool = {
+  name: "mooter_explain_tier",
+  description:
+    "Explain a Mooter routing tier (T0–T5): description, typical tasks, model, and 2026-06 list pricing per million tokens. T5 (Fable 5) is opt-in only and never auto-routed; T4 does not exist.",
+  inputSchema: {
+    type: "object",
+    properties: { tier: { type: "string", enum: ["T0", "T1", "T2", "T3", "T4", "T5"] } },
+    required: ["tier"],
+  },
+  async handler(args) {
+    const tier = String(args.tier ?? "").toUpperCase();
+    const info = TIER_INFO[tier];
+    if (!info) {
+      return JSON.stringify({ error: "unknown_tier", detail: `'${args.tier}' — valid: T0..T5`, validTiers: Object.keys(TIER_INFO) });
+    }
+    return JSON.stringify(
+      { tier, pricingNote: "2026-06 list pricing, USD per million tokens (input/output)", ...info },
+      null,
+      2,
+    );
+  },
+};
+
+const sessionSummaryTool: McpTool = {
+  name: "mooter_session_summary",
+  description:
+    "Summary of the current Mooter session state: effort mode, recent decision counts by tier (tail of decisions.log), and savings figures from the local tracker. Self-contained, local-first, read-only.",
+  inputSchema: {
+    type: "object",
+    properties: { window: { type: "number", description: "tail size of decisions.log to count (default 50)" } },
+  },
+  async handler(args, ctx) {
+    const window = Number.isFinite(args.window as number) && Number(args.window) > 0 ? Math.floor(Number(args.window)) : 50;
+    const all = readClassifiedEvents();
+    const tail = all.slice(-window);
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const today = all.filter((e) => typeof e.ts_ms === "number" && e.ts_ms >= start.getTime());
+    const metrics = await fetchTrackerMetrics(ctx);
+    return JSON.stringify(
+      {
+        effortMode: getEffort().mode,
+        sessionId: process.env.CLAUDE_SESSION_ID ?? null,
+        recentDecisions: { window, total: tail.length, byTier: countByTier(tail) },
+        decisionsToday: today.length,
+        savings: metrics
+          ? {
+              savedUsd: typeof metrics.saved === "number" ? metrics.saved : null,
+              savedPct: typeof metrics.saved_pct === "number" ? Math.round(metrics.saved_pct) : null,
+              scope: "savings-tracker aggregate (no per-day dollar breakdown exists; decisionsToday is a count, not dollars)",
+            }
+          : null,
+        note: metrics ? undefined : "savings-tracker offline — savings figures unavailable",
+      },
+      null,
+      2,
+    );
+  },
+};
+
 export function buildRegistry(): McpTool[] {
   return [
     statusTool,
@@ -483,6 +781,11 @@ export function buildRegistry(): McpTool[] {
     sessionsQuotaTool,
     sessionsHandoffTool,
     sessionsPastorAggregateTool,
+    // Wave 50-51 Phase 1.C
+    routeQueryTool,
+    getSavingsTool,
+    explainTierTool,
+    sessionSummaryTool,
   ];
 }
 
