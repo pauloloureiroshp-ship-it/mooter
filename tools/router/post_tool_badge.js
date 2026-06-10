@@ -50,6 +50,35 @@ function badgeEnabled(prefs) {
   return true;
 }
 
+/** Wave 53 (C.2) — opt-in (default off): append the routed tier's token total. */
+function tokensEnabled(prefs) {
+  return !!(prefs && prefs.post_tool_tokens === true);
+}
+
+/** Compact token count: 940 · 1.3k · 12k. */
+function fmtTokens(n) {
+  const v = Number(n) || 0;
+  if (v >= 1000) { const k = v / 1000; return (k >= 10 ? Math.round(k) : k.toFixed(1)) + 'k'; }
+  return String(v);
+}
+
+/**
+ * Honest token segment for the badge. CC does NOT attribute tokens to a single
+ * tool_use — `usage` is reported per assistant MESSAGE (which may bundle several
+ * Bash calls), and the PostToolUse payload carries no usage — so a per-command
+ * figure is impossible. We therefore show only the routed tier's REAL cumulative
+ * session total (Σ), or an explicit `tokens?` when there is no real data for that
+ * tier yet (e.g. a T4/T5 tier the tracker does not aggregate). Never fabricated.
+ * @param {Object|null} snap token_tracker.snapshot() result ({T0,T1,T2,T3})
+ * @param {string|undefined} tier e.g. 'T2'
+ */
+function tokenSegment(snap, tier) {
+  const t = tier && snap ? snap[tier] : null;
+  const real = t ? (Number(t.tokens_in) || 0) + (Number(t.tokens_out) || 0) : 0;
+  if (!real) return ' · tokens?';
+  return ` · Σ${tier} ${fmtTokens(real)}`;
+}
+
 function shortModel(model) {
   const m = String(model || '').toLowerCase();
   if (m.includes('opus')) return 'opus';
@@ -253,12 +282,17 @@ function main() {
 
   if (!badgeEnabled(prefs)) return; // suppressed → no output, tracking already done
   const sub = readLastSubagent();
-  const badge = buildPostToolBadge(sub);
-  if (badge) process.stdout.write(badge + '\n');
+  let line = buildPostToolBadge(sub);
 
   // Wave 19 (19.A) — keep the per-tier token cache fresh from the session
-  // transcript (real cloud tokens). Best-effort; the statusline reads the cache.
-  try { require('./token_tracker.js').syncFromTranscript(sessionId); } catch { /* hooks never throw */ }
+  // transcript (real cloud tokens); the statusline reads the cache. Wave 53 (C.2)
+  // — snapshot({sync}) refreshes that cache AND lets the badge append the routed
+  // tier's REAL cumulative total when the opt-in post_tool_tokens pref is set.
+  let tokSnap = null;
+  try { tokSnap = require('./token_tracker.js').snapshot(sessionId, { sync: true }); } catch { /* hooks never throw */ }
+  if (line && tokensEnabled(prefs)) line += tokenSegment(tokSnap, sub && sub.tier);
+
+  if (line) process.stdout.write(line + '\n');
 
   // Wave 13 — per-agent herd annotation. Best-effort; a missing tracker, no
   // session, or quiet/silent verbosity simply prints nothing extra. Wave 20:
@@ -281,6 +315,8 @@ if (require.main === module) {
 
 module.exports = {
   readPrefs, badgeEnabled, shortModel, buildPostToolBadge, readLastSubagent,
+  // Wave 53 (C.2) — opt-in cumulative token segment
+  tokensEnabled, fmtTokens, tokenSegment,
   // Wave 13 "Show the Herd"
   herdVisibility, herdAnnotationEnabled, buildHerdLine, herdAnnotationFor, HERD_LEVELS,
   // Wave 20 (20.B) — herd writer

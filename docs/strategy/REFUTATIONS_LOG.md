@@ -1,0 +1,93 @@
+# Wave 53 — Refutations Log
+
+> Metacognition: o sistema reconhece e corrige os seus próprios pressupostos. Cada entrada = assunção do brief → realidade verificada → acção → linha da Doutrina V4.
+> Companhia: [[WAVE53_DAY0_RECON.md]] · [[WAVE53_BRIEF_V3.md]].
+
+> **Nota de proveniência (honestidade):** o Paulo pediu "R1–R5 do meu V2". Nenhum ficheiro V2 com lista R1–R5 existe no disco, e o *Unified Master Prompt* recebido não contém uma lista R1–R5 literal (`grep -rliE "wave.?53|R1.*R5|refuta" docs/ .planning/ prompts/` → nada relevante). Para não fabricar refutações anteriores (Doctrine V4 #5 — *No fabrication*), este log é construído a partir da **evidência Day-0 verificada** (9-agent adversarial, `file:line`), que de qualquer forma supera uma lista não-verificada.
+
+---
+
+## 2026-06-10 — Wave 53 Phase A (Cross-Session) · P5
+
+**Assumption (Cowork brief):** "Conductor não vê sessões em worktrees diferentes" → criar `packages/cli/src/conductor/discovery.ts` com um `HeartbeatRecord` novo que escaneia heartbeats home-level e grava `worktree_path`.
+**Reality (CC Day-0 recon):** Já implementado e **testado**. `worktree-conductor/src/heartbeat.ts:listHeartbeats()` faz `readdirSync(heartbeatsDir(home))` sobre o dir global; o tipo `Heartbeat` já tem `worktree_path` (`types.ts:19`); `conductor.status()` agrega live/stale (`conductor.ts:49-59`); teste prova 2 cwds distintos em `status().liveSessions` (`tests/worktree-conductor.test.ts:149-158`).
+**Action:** REWRITE Phase A.1 — reutilizar `listHeartbeats()`/`status()` + tipo `Heartbeat`; **não** criar discovery.ts nem HeartbeatRecord. O trabalho novo é só a apresentação CLI/statusline.
+**Doctrine V4 line:** "Honest > Forced" · "Zero side scope creep".
+
+## 2026-06-10 — Wave 53 Phase A · HeartbeatRecord inventado
+
+**Assumption (Cowork brief):** `HeartbeatRecord` inclui `model_active`, `tier_active`, `calls_total`, `tokens_total`, `saved_usd`, `saved_pct`, `last_decision`; mockup `mooter sessions discover` mostra `opus-4.6 T3 57 calls $0.33 saved` por sister.
+**Reality (CC Day-0 recon):** O `Heartbeat` real (`types.ts:16-27`) tem só `session_id, terminal_name, worktree_path, branch, intent, last_heartbeat(_ms), active_locks, pending_intents, pid`. **Zero** campos de modelo/tier/tokens/savings.
+**Action:** O chip cross-session mostra **apenas campos reais** (branch, terminal_name, idade vs `STALE_MS=30000`). Nunca fabricar modelo/tokens/$ por sister. Se essa info for desejada, é uma extensão futura ao schema (Wave 54+), não esta wave.
+**Doctrine V4 line:** "No fabrication" · "Honest > Forced".
+
+## 2026-06-10 — Wave 53 Phase H · P6
+
+**Assumption (Cowork brief):** `packages/mooter-bench/RESULTS.json` existe com accuracy data, criado por Wave Mega P1; chip H.1 e `mooter explain bench` citam 60%.
+**Reality (CC Day-0 recon):** Ficheiro ausente. Bench é **stdout-only** (`run.ts:192-211`, 0 `writeFile`). O "60.0%" do README é snapshot escrito à mão (`README.md:42-72`). Wave Mega Day-0 confirma ausência (`WAVE_MEGA_DAY0_RECON.md:21`).
+**Action:** Shipar fallback `?`/empty (precedente honesto `explain.ts:168-170` para o chip MLWR). Persistir RESULTS.json (writeFile em `run.ts`) ou invocar bench live = **Wave 53.x / 55**, fora de scope (Decisão 4).
+**Doctrine V4 line:** "No fabrication".
+
+## 2026-06-10 — Wave 53 Phase E · P3
+
+**Assumption (Cowork brief):** Mooter tem 8 comandos `/moo-*` que se aliasam para paridade CC (`/agents → /moo-agents`, etc.).
+**Reality (CC Day-0 recon):** Existem 8 skills `/moo-*` (test-locked "no stragglers", `moo-skills.test.js:11,38-41`) mas são `workflow/effort/herd/dashboard/status/distill/pack/help` — **nenhuma** é agents/memory/init. `moo-agents|moo-memory|moo-init` → 0 hits. Aliasar apontaria para comandos inexistentes.
+**Action:** Phase E **aditiva** — criar `moo-agents/moo-memory/moo-init` à imagem das 8 (SKILL.md, name==dir, desc>20 chars); **actualizar** `moo-skills.test.js` EXPECTED 8→11 + assert "no stragglers" (Decisão 2). **Não** sombrear os nomes nativos `/agents //memory //init` do CC (collision risk — CC é dono).
+**Doctrine V4 line:** "Honest > Forced" · "Refutações são VALIOSAS".
+
+## 2026-06-10 — Wave 53 Phase E · /plan
+
+**Assumption (Cowork brief):** `/plan` é slash command CC a espelhar.
+**Reality (CC Day-0 recon):** `/plan` **não existe** como slash command — Plan Mode em CC é Shift+Tab / `ExitPlanMode` tool.
+**Action:** Remover `/plan` da matriz de paridade. Manter `/agents //memory //init //mcp //skills //compact //clear //help` (Decisão EXTRA).
+**Doctrine V4 line:** "No fabrication".
+
+## 2026-06-10 — Wave 53 Phase C · P2
+
+**Assumption (Cowork brief):** Bash não mostra modelo + tokens em tempo real → adicionar hook PreToolUse `mooter route-hint` a `~/.claude/settings.json`.
+**Reality (CC Day-0 recon):** Modelo+tier **já** são mostrados por Bash (`post_tool_badge.js` PostToolUse, ex. `🐂 ☁ sonnet T2 · via model-architect`). Só **tokens** faltam. `route-hint` não existe; PreToolUse corre *antes* do comando (nunca sabe tokens reais); settings.json já tem hook Bash (duplicaria o badge).
+**Action:** Restringir a **tokens-only** dentro de `post_tool_badge.js`; **não** mexer em `~/.claude/settings.json` (config partilhada → T3/ask-first). Se tokens não forem expostos por tool_use de Bash no transcript → shipar `tokens?` honest fallback (Decisão 3).
+**Doctrine V4 line:** "No fabrication" · guardrail config-partilhada.
+
+## 2026-06-10 — Wave 53 Phase I · cca-f naming
+
+**Assumption (Cowork brief):** export CCA-F vive em `packages/cli/src/cca-f/schema.ts`.
+**Reality (CC Day-0 recon):** Token `cca-f` → 0 hits em `cli/src`. O subsistema real é **`fable-observe`** (`packages/cli/src/fable-observe/schema.ts` já existe).
+**Action:** Extender `fable-observe` (export em `packages/cli/src/fable-observe/cca-f-export.ts`); **não** criar árvore `cca-f` paralela (Decisão 5). `~/.mooter/cca-f/` ausente → criar como recurso novo.
+**Doctrine V4 line:** "Match existing naming" · "Zero side scope creep".
+
+## 2026-06-10 — Wave 53 Paths · PATH-phaseA-C-I-files
+
+**Assumption (Cowork brief):** novo código aterra em `packages/cli/src/{conductor,sessions,wrappers,cca-f}/`.
+**Reality (CC Day-0 recon):** Nenhum desses dirs existe. `cli/src/` = `audit/ cascading/ commands/ fable-observe/ observability/ sync/`. Conductor/sessions vivem em packages irmãos (`worktree-conductor`, `sessions-orchestrator`). `wrappers/` é greenfield total. `mooter route-hint` não existe.
+**Action:** Re-mapear cada phase para paths reais (ver [[WAVE53_BRIEF_V3.md]]). Tratar `~/.mooter/sessions/` e `~/.mooter/cca-f/` como recursos a criar.
+**Doctrine V4 line:** "Honest > Forced".
+
+## 2026-06-10 — Wave 53 Phase F · version bump target
+
+**Assumption (Cowork brief):** bump `packages/cli/package.json` → 1.34.0.
+**Reality (CC Day-0 recon):** Esse ficheiro é id estático de workspace (`1.0.0`). Source-of-truth = `tools/router/version.json` (1.33.0), auto-bumped por `.github/workflows/version-sync.yml` no push da tag.
+**Action:** Bump via tag `v1.34.0` (CI escreve version.json) ou editar só `tools/router/version.json`; entrada `[1.34.0]` no `CHANGELOG.md`. **Não** tocar package.json. Binário instalado (v1.21.4) é stale, não reflecte o worktree.
+**Doctrine V4 line:** "No fabrication" · "classify.js sha sagrada / release hygiene".
+
+## 2026-06-10 — Wave 53 Recon tooling · binário stale
+
+**Assumption (Cowork brief):** recon via `mooter --help` / `mooter conductor sessions list --all-worktrees` reflecte o worktree.
+**Reality (CC Day-0 recon):** Binário instalado = v1.21.4 (beta) ≠ worktree (produto 1.33.0). `mooter conductor` nem tem subcommand `sessions` (verbos: `status|lock|unlock|queue|heartbeats|locks|history|reap|beat|stop`). `/moo-*` count via `--help` = 0 (enganador).
+**Action:** Todos os verdicts baseados em SOURCE do worktree, nunca no binário global.
+**Doctrine V4 line:** "Honest > Forced".
+
+---
+
+## Decisões do Paulo (2026-06-10) — greenlit
+
+| # | Decisão |
+|---|---|
+| 1 | Proceder Wave 53 **re-scoped**; CC produz `WAVE53_BRIEF_V3.md` (mais limpo que Cowork re-emitir). |
+| 2 | Phase E **aditiva**: criar `moo-agents/moo-memory/moo-init`; update `moo-skills.test.js` → EXPECTED 11 + assert. **Não** sombrear nativos CC. |
+| 3 | Phase C **tokens-only** em `post_tool_badge.js`; **não** mexer settings.json; `tokens?` honest fallback se indisponível. |
+| 4 | Phase H fallback `?` agora; writeFile ao bench → Wave 53.x/55, **não** scope creep. |
+| 5 | Phase I **extender `fable-observe`** (`cca-f-export.ts`); não criar árvore cca-f. |
+| EXTRA | Remover `/plan` da parity matrix (Shift+Tab, não slash). Manter `/agents //memory //init //mcp //skills //compact //clear //help`. |
+
+**Doctrine V4 status: 9/9 ✅.**

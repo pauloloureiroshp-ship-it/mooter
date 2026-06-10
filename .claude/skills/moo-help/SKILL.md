@@ -24,6 +24,9 @@ Show the Mooter command menu and current state.
 | `/moo-status` | One-shot plain-language status |
 | `/moo-distill` | Export learned routing as an installable skill |
 | `/moo-pack <action>` | Manage packs (list/show/diff/validate) |
+| `/moo-agents` | Mooter subagent roster + live orchestration status (CC-parity for /agents) |
+| `/moo-memory` | Memory layers: project + global CLAUDE.md + MEMORY.md (CC-parity for /memory) |
+| `/moo-init` | Bootstrap Mooter config via `mooter init` (CC-parity for /init) |
 | `/moo-help` | This menu |
 
 ## Do this
