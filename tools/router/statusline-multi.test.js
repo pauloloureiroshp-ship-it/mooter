@@ -585,3 +585,167 @@ test('50: sandboxCapable file-stat detection stays under 5ms', () => {
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
   assert.ok(ms < 5, `sandboxCapable took ${ms.toFixed(2)}ms (budget 5ms)`);
 });
+
+// ── Wave Mega 50-51 (4.A) — honest Claude Max quota chip ───────────────────
+// No real-time quota API exists (anthropics/claude-code#44328) — every figure
+// is a LOCAL estimate, so the chip must carry `est` when data is fresh and the
+// literal `quota ?` when it is missing/stale, never a fake 100%.
+const {
+  summarizeQuotaWindow, formatQuotaChip, fmtWindowRemain,
+  detectWidth, layoutForWidth, resolveLayout, layoutChips,
+  truncateToWidth, renderNarrow,
+} = require('./statusline-multi.js');
+
+test('50-51 4.A: quota chip = remaining window time + ~% est marker from real quota-state fields', () => {
+  const now = Date.parse('2026-06-09T12:00:00Z');
+  const quota = {
+    last_updated: '2026-06-09T11:30:00.000Z', // fresh (30min old)
+    providers: { anthropic: { window_5h: {
+      tokens_used: 126000, limit: 200000, reset_at: '2026-06-09T14:13:30.000Z',
+    } } },
+  };
+  const info = summarizeQuotaWindow(quota, now);
+  assert.equal(info.ok, true);
+  assert.equal(info.usedPct, 63);
+  assert.equal(formatQuotaChip(info, { color: false }), 'Max · 2h13m/5h · ~63% est');
+});
+
+test('50-51 4.A: missing or stale (>6h) quota data renders the honest `quota ?`', () => {
+  // Missing entirely.
+  assert.equal(formatQuotaChip(summarizeQuotaWindow(null)), 'quota ?');
+  assert.equal(formatQuotaChip(summarizeQuotaWindow({})), 'quota ?');
+  // Stale: last_updated 7h ago — tokens_used 0 would have read as a fake 100% left.
+  const now = Date.parse('2026-06-09T12:00:00Z');
+  const stale = {
+    last_updated: '2026-06-09T05:00:00.000Z',
+    providers: { anthropic: { window_5h: { tokens_used: 0, limit: 200000, reset_at: '2026-06-09T14:00:00.000Z' } } },
+  };
+  assert.equal(formatQuotaChip(summarizeQuotaWindow(stale, now)), 'quota ?');
+});
+
+test('50-51 4.A: pickState proof carries the est-marked chip and drops the bare % form', () => {
+  const ctx = {
+    ...DEMO_CONTEXTS.green,
+    quotaWindow: { ok: true, usedPct: 63, remainMs: (2 * 60 + 13) * 60000 },
+  };
+  const s = pickState(ctx);
+  assert.match(s.proof, /Max · 2h13m\/5h · ~63% est/, `proof: ${s.proof}`);
+  assert.doesNotMatch(s.proof, /42% 5h est/, 'legacy bare-percent chip must be replaced, not duplicated');
+  // Unknown window → honest `quota ?` in the proof, never a fake 100%.
+  const s2 = pickState({ ...DEMO_CONTEXTS.green, quotaWindow: { ok: false } });
+  assert.match(s2.proof, /quota \?/, `proof: ${s2.proof}`);
+});
+
+test('50-51 4.A: usage color thresholds — green <70, yellow 70-90, red >90 (% used)', () => {
+  const chip = (usedPct) => formatQuotaChip({ ok: true, usedPct, remainMs: 60000 }, { color: true });
+  assert.ok(chip(42).includes('\x1b[32m'), 'under 70% used → green');
+  assert.ok(chip(75).includes('\x1b[33m'), '70-90% used → yellow');
+  assert.ok(chip(95).includes('\x1b[31m'), 'over 90% used → red');
+  assert.equal(fmtWindowRemain(47 * 60000), '47m');
+  assert.equal(fmtWindowRemain(0), '0m');
+});
+
+// ── Wave Mega 50-51 (4.B) — responsive layouts ─────────────────────────────
+
+const PRIORITY_CHIPS = [
+  { text: '🐮 saved $0.27 all-time·local', priority: 'primary' },
+  { text: 'Max · 2h13m/5h · ~63% est',     priority: 'quota' },
+  { text: 'T2 sonnet · conf 0.84',         priority: 'tier' },
+  { text: '(2 active)',                    priority: 'sessions' },
+  { text: '🔒 sandbox',                    priority: 'sandbox' },
+];
+
+test('50-51 4.B: layoutChips drops lowest-priority chips first as width shrinks', () => {
+  // Ample width → everything survives, original order preserved.
+  assert.deepEqual(layoutChips(PRIORITY_CHIPS, 500).map((c) => c.priority),
+    ['primary', 'quota', 'tier', 'sessions', 'sandbox']);
+  // Tight width → sandbox goes first, then sessions; quota/tier outlive both.
+  assert.deepEqual(layoutChips(PRIORITY_CHIPS, 90).map((c) => c.priority),
+    ['primary', 'quota', 'tier']);
+  // Tighter still → only primary + quota.
+  assert.deepEqual(layoutChips(PRIORITY_CHIPS, 65).map((c) => c.priority),
+    ['primary', 'quota']);
+  // The primary state sentence is NEVER dropped, even at absurd widths.
+  assert.deepEqual(layoutChips(PRIORITY_CHIPS, 5).map((c) => c.priority), ['primary']);
+});
+
+test('50-51 4.B: narrow layout renders exactly 1 truncated line (proofs dropped)', () => {
+  const out = renderNarrow({ ...DEMO_CONTEXTS.green }, 40);
+  assert.equal(out.includes('\n'), false, 'narrow is one line');
+  assert.match(out, /^🐮/u, 'primary state glyph survives');
+  assert.ok(out.length <= 40, `truncated to width (got ${out.length})`);
+  assert.ok(out.endsWith('…'), 'over-width headline gets an ellipsis');
+  assert.doesNotMatch(out, /this turn|all-time \(/, 'proof chips dropped at narrow');
+});
+
+test('50-51 4.B: COLUMNS env honored when not a TTY; TTY columns win; default 100', () => {
+  assert.equal(detectWidth({ isTTY: false }, { COLUMNS: '72' }), 72);
+  assert.equal(detectWidth({ isTTY: true, columns: 150 }, { COLUMNS: '72' }), 150);
+  assert.equal(detectWidth({ isTTY: false }, {}), 100);
+  assert.equal(detectWidth({ isTTY: false }, { COLUMNS: 'garbage' }), 100);
+  assert.equal(layoutForWidth(79), 'narrow');
+  assert.equal(layoutForWidth(80), 'medium');
+  assert.equal(layoutForWidth(120), 'medium');
+  assert.equal(layoutForWidth(121), 'wide');
+});
+
+test('50-51 4.B: explicit statusline_layout preference overrides width detection', () => {
+  assert.equal(resolveLayout({ pref: 'narrow', width: 200 }), 'narrow');
+  assert.equal(resolveLayout({ pref: 'wide', width: 60 }), 'wide');
+  assert.equal(resolveLayout({ pref: 'medium', width: 60 }), 'medium');
+  // auto / absent → detection decides.
+  assert.equal(resolveLayout({ pref: null, width: 60 }), 'narrow');
+  assert.equal(resolveLayout({ pref: null, width: 100 }), 'medium');
+  assert.equal(resolveLayout({ pref: null, width: 140 }), 'wide');
+});
+
+test('50-51 4.B: render() honors MOOTER_STATUSLINE_LAYOUT=narrow → 1 line even on a wide terminal', () => {
+  const prevL = process.env.MOOTER_STATUSLINE_LAYOUT;
+  const prevC = process.env.COLUMNS;
+  process.env.MOOTER_STATUSLINE_LAYOUT = 'narrow';
+  process.env.COLUMNS = '200';
+  try {
+    const out = render({ ...DEMO_CONTEXTS.green });
+    assert.equal(out.split('\n').length, 1, 'pinned narrow renders one line');
+  } finally {
+    if (prevL === undefined) delete process.env.MOOTER_STATUSLINE_LAYOUT; else process.env.MOOTER_STATUSLINE_LAYOUT = prevL;
+    if (prevC === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prevC;
+  }
+});
+
+test('50-51 4.B: wide layout keeps all line-2 chips (no truncation) incl. the quota chip', () => {
+  const prevL = process.env.MOOTER_STATUSLINE_LAYOUT;
+  const prevC = process.env.COLUMNS;
+  process.env.MOOTER_STATUSLINE_LAYOUT = 'wide';
+  process.env.COLUMNS = '60'; // would be narrow by width — the pin must win
+  try {
+    const ctx = {
+      ...DEMO_CONTEXTS.green,
+      ctxPercent: 23,
+      quotaWindow: { ok: true, usedPct: 63, remainMs: (2 * 60 + 13) * 60000 },
+    };
+    const lines = render(ctx).split('\n');
+    assert.ok(lines.length >= 2, 'wide renders the 2-line layout');
+    assert.match(lines[1], /🧬/, 'adapter chip kept on line 2');
+    assert.match(lines[1], /☁ Claude Max \[/, 'quota chip kept with its usage bar');
+    assert.match(lines[1], /~63% est/, 'est marker present at wide');
+  } finally {
+    if (prevL === undefined) delete process.env.MOOTER_STATUSLINE_LAYOUT; else process.env.MOOTER_STATUSLINE_LAYOUT = prevL;
+    if (prevC === undefined) delete process.env.COLUMNS; else process.env.COLUMNS = prevC;
+  }
+});
+
+test('50-51 4.B: truncateToWidth leaves fitting (even colored) strings untouched', () => {
+  assert.equal(truncateToWidth('short', 80), 'short');
+  const colored = '\x1b[32mok\x1b[0m';
+  assert.equal(truncateToWidth(colored, 80), colored, 'ANSI does not count against width');
+  assert.equal(truncateToWidth('abcdefghij', 5), 'abcd…');
+});
+
+test('50-51 4.B: width detection + layout resolution stay well under 1ms', () => {
+  resolveLayout(); // warm the prefs read once
+  const t0 = process.hrtime.bigint();
+  resolveLayout({ width: detectWidth() });
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(ms < 1, `resolveLayout took ${ms.toFixed(3)}ms (budget 1ms)`);
+});
