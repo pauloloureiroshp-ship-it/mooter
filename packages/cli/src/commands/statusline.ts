@@ -1,13 +1,16 @@
 // `mooter statusline` — Wave 32 (Phase B): pick one of four explicit statusline
-// modes, or preview the current one.
+// modes, or preview the current one. Wave Mega 50-51 (4.B): pin a responsive
+// width layout (mode picks CONTENT, layout picks SHAPE).
 //
 //   mooter statusline mode <mini|compact|full|didactic|auto>
+//   mooter statusline layout <narrow|medium|wide|auto>
 //   mooter statusline show
 //
 // The mode persists to ~/.mooter/preferences.json (key `statusline_mode`), the
-// same file statusline-multi.js / statusline-modes.js read at render time.
-// `auto` removes the key, restoring the adaptive width-based default. Writing is
-// a merge so unrelated prefs (statusline_line3, hidden_chips …) are preserved.
+// layout to the same file (key `statusline_layout`) — the same file
+// statusline-multi.js / statusline-modes.js read at render time. `auto` removes
+// the key, restoring the adaptive width-based default. Writing is a merge so
+// unrelated prefs (statusline_line3, hidden_chips …) are preserved.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -21,6 +24,17 @@ export interface CmdResult {
 
 const MODES = ["mini", "compact", "full", "didactic"] as const;
 type Mode = (typeof MODES)[number];
+
+// Wave Mega 50-51 (4.B) — responsive width layouts. Breakpoints (auto):
+// narrow < 80 cols · medium 80-120 · wide > 120.
+const LAYOUTS = ["narrow", "medium", "wide"] as const;
+type Layout = (typeof LAYOUTS)[number];
+
+const LAYOUT_DESCRIPTIONS: Record<Layout, string> = {
+  narrow: "1 line — primary state only, truncated to width (auto when < 80 cols)",
+  medium: "primary + proof chips — the classic layout (auto at 80-120 cols)",
+  wide: "full multi-line with all chips, no truncation (auto when > 120 cols)",
+};
 
 const DESCRIPTIONS: Record<Mode, string> = {
   mini: "1 line — headline only (savings + tier badge)",
@@ -58,14 +72,19 @@ function findStatuslineScript(): string | null {
 
 function usage(): string {
   const lines = MODES.map((m) => `    ${m.padEnd(9)} ${DESCRIPTIONS[m]}`).join("\n");
+  const layoutLines = LAYOUTS.map((l) => `    ${l.padEnd(9)} ${LAYOUT_DESCRIPTIONS[l]}`).join("\n");
   return (
     "usage: mooter statusline mode <mini|compact|full|didactic|auto|legacy>\n" +
     "       mooter statusline mode --preview <mode>   (render without persisting)\n" +
+    "       mooter statusline layout <narrow|medium|wide|auto>\n" +
     "       mooter statusline show\n\n" +
-    "  modes:\n" +
+    "  modes (what content is shown):\n" +
     lines +
     "\n    auto      adaptive — picks layout from terminal width (default)" +
-    "\n    legacy    alias for auto — the byte-identical default layout"
+    "\n    legacy    alias for auto — the byte-identical default layout\n\n" +
+    "  layouts (how the content is shaped — mode picks content, layout picks shape):\n" +
+    layoutLines +
+    "\n    auto      detect from terminal width (default)"
   );
 }
 
@@ -123,8 +142,34 @@ export function runStatusline(args: string[]): CmdResult {
     };
   }
 
+  // Wave Mega 50-51 (4.B) — `mooter statusline layout <narrow|medium|wide|auto>`.
+  // Persists `statusline_layout`; `auto` removes the key (width detection rules).
+  if (sub === "layout") {
+    if (!value || value === "--help" || value === "-h") {
+      const cur = (readPrefs().statusline_layout as string) || "auto";
+      return { exitCode: value ? 0 : 1, output: `current layout: ${cur}\n\n${usage()}` };
+    }
+    if (value === "auto") {
+      const prefs = readPrefs();
+      delete prefs.statusline_layout;
+      writePrefs(prefs);
+      return { exitCode: 0, output: "statusline layout → auto (width detection restored: narrow <80 · medium 80-120 · wide >120 cols)" };
+    }
+    if (!(LAYOUTS as readonly string[]).includes(value)) {
+      return { exitCode: 1, output: `unknown layout '${value}'\n\n${usage()}` };
+    }
+    const prefs = readPrefs();
+    prefs.statusline_layout = value;
+    writePrefs(prefs);
+    return {
+      exitCode: 0,
+      output: `statusline layout → ${value}\n  ${LAYOUT_DESCRIPTIONS[value as Layout]}`,
+    };
+  }
+
   if (sub === "show") {
     const cur = (readPrefs().statusline_mode as string) || "auto";
+    const curLayout = (readPrefs().statusline_layout as string) || "auto";
     const script = findStatuslineScript();
     let preview = "";
     if (script) {
@@ -144,6 +189,7 @@ export function runStatusline(args: string[]): CmdResult {
       output:
         `statusline mode: ${cur}\n` +
         MODES.map((m) => `  ${m === cur ? "→" : " "} ${m.padEnd(9)} ${DESCRIPTIONS[m]}`).join("\n") +
+        `\nstatusline layout: ${curLayout}` +
         preview,
     };
   }
