@@ -558,3 +558,30 @@ test('49: healthy confidence (>=0.60) carries no ⚠ marker', () => {
   assert.match(st.lastLabel, /conf 0\.88/);
   assert.ok(!/⚠/.test(st.lastLabel), `no marker expected: ${st.lastLabel}`);
 });
+
+// ── Wave Mega 50-51 (2.D) — 🔒 spawn-sandbox proof chip ────────────────────
+// The chip renders ONLY when the host can enforce the spawn sandbox; when it
+// cannot, it renders NOTHING (no "open lock" scare state). Detection is pure
+// file-stat (no exec) and degrades silently.
+const { sandboxCapable, buildSandboxChip } = require('./statusline-multi.js');
+
+test('50: buildSandboxChip renders 🔒 sandbox when capable', () => {
+  assert.equal(buildSandboxChip(true), '🔒 sandbox');
+});
+
+test('50: buildSandboxChip renders nothing (null) when not capable', () => {
+  assert.equal(buildSandboxChip(false), null);
+});
+
+test('50: sandboxCapable returns a boolean and never throws', () => {
+  const v = sandboxCapable();
+  assert.equal(typeof v, 'boolean');
+});
+
+test('50: sandboxCapable file-stat detection stays under 5ms', () => {
+  sandboxCapable(); // warm fs cache once
+  const t0 = process.hrtime.bigint();
+  sandboxCapable();
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(ms < 5, `sandboxCapable took ${ms.toFixed(2)}ms (budget 5ms)`);
+});
