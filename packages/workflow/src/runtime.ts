@@ -79,11 +79,19 @@ globalThis.INPUT = INPUT;
 
 const parallel = async (items, fn, options) => {
   options = options || {};
-  const concurrency = Math.max(1, options.concurrency || 4);
+  // Default fan-out width follows the host AgentPool (VRAM-derived), so a 4090
+  // host fans 8-wide and a small host fans 2-wide — instead of a fixed 4 that
+  // under-utilised big hosts and over-queued small ones. Explicit concurrency wins.
+  const concurrency = Math.max(1, options.concurrency || globalThis.__POOL_CONCURRENCY || 4);
+  const settle = options.settle === true; // opt-in: failed items become null (default still rejects)
   const results = new Array(items.length);
   let i = 0;
   async function worker() {
-    while (i < items.length) { const idx = i++; results[idx] = await fn(items[idx], idx); }
+    while (i < items.length) {
+      const idx = i++;
+      if (settle) { try { results[idx] = await fn(items[idx], idx); } catch (e) { results[idx] = null; } }
+      else { results[idx] = await fn(items[idx], idx); }
+    }
   }
   const workers = [];
   const n = Math.min(concurrency, items.length);
@@ -166,6 +174,7 @@ export async function runScript(script: string, options: RuntimeOptions = {}): P
     await jail.set("__host_checkpoint", hostCheckpoint);
     await jail.set("__host_log", hostLog);
     await jail.set("__INPUT_JSON", JSON.stringify(options.input ?? null));
+    await jail.set("__POOL_CONCURRENCY", pool.concurrency);
 
     await (await isolate.compileScript(BOOTSTRAP)).run(context);
 
