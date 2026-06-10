@@ -31,6 +31,22 @@ export function ccafDir(home: string = homedir()): string {
   return join(home, ".mooter", "cca-f");
 }
 
+/**
+ * Wave 54 — per-run CCA-F audit dir: ~/.mooter/cca-f/audit/<session_id>/.
+ * NOTE (refutes the Wave 54 brief): the brief's `~/.mooter/fable-observe/audit/`
+ * path does not exist — `fable-observe` is the SOURCE folder, never a runtime dir.
+ * Audit runs live under the real ccafDir() tree.
+ */
+export function ccafAuditDir(home: string = homedir(), sessionId?: string): string {
+  const base = join(ccafDir(home), "audit");
+  return sessionId ? join(base, sessionId) : base;
+}
+
+/** Wave 54 — Pastor training-sample staging dir (features-only; manual retrain). */
+export function pastorTrainingDir(home: string = homedir()): string {
+  return join(home, ".mooter", "pastor", "training_data");
+}
+
 /** Read config, merging over defaults; corrupt/missing file → defaults. */
 export function readConfig(home: string = homedir()): FableObserveConfig {
   const base = defaultConfig();
