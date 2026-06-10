@@ -19,6 +19,7 @@ import {
   type RouteRequestResult,
 } from "../../../synthesis/src/index.ts";
 import { buildTrainWatch, type TrainStep, type TaskScore } from "../../../transparency/src/index.ts";
+import { learnFromSpans } from "./span-feedback.ts";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -31,6 +32,7 @@ export const PASTOR_USAGE = `mooter pastor — per-task LoRA adapter routing + d
   mooter pastor train-status         overnight LoRA training status
   mooter pastor train-watch          TensorBoard-like local view (loss curve · per-task scores)
   mooter pastor state                active adapter + usage summary
+  mooter pastor learn-from-spans     join span scores with decisions → training features (no adapter state touched)
 
 Flags: --json (machine-readable, all subcommands)`;
 
@@ -146,6 +148,13 @@ export function runPastor(args: string[]): CmdResult {
     };
     if (json) return { exitCode: 0, output: JSON.stringify(view, null, 2) };
     return { exitCode: 0, output: buildTrainWatch(view) };
+  }
+
+  if (sub === "learn-from-spans") {
+    // Wave Mega 50-51 Phase 2.E — joins ~/.mooter/span-feedback.jsonl with
+    // decisions.log by span_id and writes the FEATURES-ONLY training file
+    // ~/.mooter/pastor/span-training.jsonl. Never touches adapter/LoRA state.
+    return learnFromSpans({});
   }
 
   return { exitCode: 1, output: `mooter pastor: unknown subcommand '${sub}'\n\n${PASTOR_USAGE}` };
