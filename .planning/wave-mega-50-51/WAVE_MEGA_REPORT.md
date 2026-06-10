@@ -47,7 +47,7 @@ Report público: `docs/strategy/FABLE_OBSERVATION_RESULTS_2026-06-11.md` (com se
 ## Pendente Paulo
 
 1. **Merge PRs #147→#151 em ordem** (cada um independente em conteúdo; stacked em git) + tags acima.
-2. Push do tag `v1.27.0-anthropic-aligned` em falta (Wave 49) OU deixar o version-sync acertar no próximo tag.
+2. ~~Push do tag v1.27.0~~ **RESOLVIDO entretanto**: tag `v1.27.0-anthropic-aligned` confirmada no remote e version-sync correu (`53b39ef`, origin/main version.json=1.27.0). A stack baseia-se em `341b0a9` (1 commit atrás, só version.json) — merge limpo, sem rebase.
 3. Wiring manual opt-in: hooks (`docs/foundation/HOOKS_GUIDE.md`), `mooter slash-commands install`, cron `pastor train-on-fable --install-cron --yes`.
 4. MCP Registry submission manual (`docs/MCP_REGISTRY_SUBMISSION.md` — blocker: package é private, npm publish primeiro).
 5. Friends DM v15 — proposta no brief; Paulo decide envio.

@@ -1643,7 +1643,7 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 - **#150** Phase 4: quota honesto `~N% est`/`quota ?` (cita #44328) · statusline responsivo narrow/medium/wide · `sessions worktrees/tmux-attach/notify/wait` · `mooter session-summary` rich → `v1.30.0-session-intel`
 - **#151** Phase 5 ⭐: **Fable observation loop** — `fable-observe` (hash-only default, 8 subcmds) · `pastor train-on-fable` (features-only) · `replicate-test` · report público com **12 observações REAIS desta sessão** (11/12 parallel_spawn — Fable é dispatcher, esse é o alvo de treino do Pastor) → `v1.31.0-fable-observation`
 
-**⚠️ Pendente Paulo:** 1) merge #147→#151 em ordem + tags sequenciais · 2) tag `v1.27.0-anthropic-aligned` (Wave 49) nunca foi pushed — version.json está 1.25.0 · 3) wiring opt-in (hooks/slash-commands/cron) · 4) MCP Registry (npm publish primeiro) · 5) Friends DM v15 · 6) LoRA retrain RTX 4090.
+**⚠️ Pendente Paulo:** 1) merge #147→#151 em ordem + tags sequenciais · 2) ~~tag v1.27.0~~ RESOLVIDO: tag no remote + version-sync correu (`53b39ef`, main version.json=1.27.0; stack 1 commit atrás só em version.json → merge limpo) · 3) wiring opt-in (hooks/slash-commands/cron) · 4) MCP Registry (npm publish primeiro) · 5) Friends DM v15 · 6) LoRA retrain RTX 4090.
 
 ---
 
