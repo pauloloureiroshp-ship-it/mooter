@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * savings-tracker.js — frugal savings HTTP server (v0.6, token-aware)
+ * savings-tracker.js — mooter savings HTTP server (v0.6, token-aware)
  *
  * Reads ~/.claude/tools/router/decisions.log (JSONL) and exposes metrics
  * on http://127.0.0.1:7821.
@@ -21,7 +21,7 @@
  *      (Ollama's answer was emitted verbatim). The legacy tier-based
  *      estimate is still reported as "advisory_saved" with a clear tag.
  *
- *   4. Currency is pluggable. Set FRUGAL_CURRENCY=BRL (or EUR, GBP) and
+ *   4. Currency is pluggable. Set MOOTER_CURRENCY=BRL (or EUR, GBP) and
  *      every money field is returned in both USD and the target. The
  *      statusline reads `in_<ccy>` fields directly.
  *
@@ -98,7 +98,7 @@ const EXECUTIONS_AGGREGATE = {
   actual_cost_usd: 0,
 };
 
-const CURRENCY = (process.env.FRUGAL_CURRENCY || 'USD').toUpperCase();
+const CURRENCY = (process.env.MOOTER_CURRENCY || process.env.FRUGAL_CURRENCY || 'USD').toUpperCase();
 
 // Tier → human-readable model label (for pct_by_model in the statusline).
 const TIER_TO_MODEL = {
@@ -1198,7 +1198,7 @@ function handleSummary(_req, res) {
     return `${label.padEnd(14)} ${usdStr}`;
   };
   const txt = [
-    `frugal — savings summary (v0.6 token-estimated)`,
+    `mooter — savings summary (v0.6 token-estimated)`,
     ``,
     `Currency:     ${CURRENCY}`,
     `Prompts:      ${m.prompts}  (${m.system_prompts_filtered} system filtered)`,
@@ -1312,24 +1312,24 @@ function handleOptimizerStats(_req, res) {
 // ── /me — per-user aggregations (Wave-1.5 task #3) ─────────────────────────
 //
 // Filters decisions.log by user_id_hash when one is available. When the local
-// install is anonymous (no ~/.frugal/user.hash) we treat every entry as
+// install is anonymous (no ~/.mooter/user.hash) we treat every entry as
 // belonging to "this user", which is the correct semantics for a single-user
 // machine.
-const USER_HASH_PATH_FRUGAL = path.join(os.homedir(), '.frugal', 'user.hash');
-const DEVICE_ID_PATH_FRUGAL = path.join(os.homedir(), '.frugal', 'device.id');
+const identity = require('./identity');
+const USER_HASH_PATH = identity.USER_HASH_PATH;
 const MOOTER_MODE_PATH = path.join(ROUTER_DIR, '.mooter-mode.json');
-const BUDGET_CONFIG_PATH = path.join(os.homedir(), '.frugal', 'budget-config.json');
+const BUDGET_CONFIG_PATH = identity.BUDGET_CONFIG_PATH;
 
 function readUserIdHash() {
   try {
-    const raw = fs.readFileSync(USER_HASH_PATH_FRUGAL, 'utf8').trim();
+    const raw = fs.readFileSync(USER_HASH_PATH, 'utf8').trim();
     if (/^[a-f0-9]{16}$/.test(raw)) return raw;
   } catch { /* anonymous install */ }
   return null;
 }
 
 function readDeviceId() {
-  try { return fs.readFileSync(DEVICE_ID_PATH_FRUGAL, 'utf8').trim(); } catch { return null; }
+  return identity.readDeviceId();
 }
 
 function aggregateForUser(userHash) {
@@ -1637,7 +1637,7 @@ if (require.main === module) {
       const pidPath = path.join(ROUTER_DIR, '.tracker.pid');
       fs.writeFileSync(pidPath, String(process.pid));
     } catch { /* non-fatal */ }
-    if (process.env.FRUGAL_TRACKER_VERBOSE) {
+    if (process.env.MOOTER_TRACKER_VERBOSE || process.env.FRUGAL_TRACKER_VERBOSE) {
       process.stdout.write(`mooter tracker v0.6 listening on http://${HOST}:${PORT} (${CURRENCY})\n`);
     }
   });

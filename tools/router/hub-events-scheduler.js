@@ -7,7 +7,7 @@
  * `backtest.js --export-events` then `hub-submit-events.js`. State and
  * locking persisted in ~/.claude/tools/router/.last-events-push.json.
  *
- * Bearer token is sourced from ~/.frugal/auth.token (frugal-login.js).
+ * Bearer token is sourced from ~/.mooter/auth.token (mooter-login.js).
  *
  * Flags:
  *   --threshold <n>   Override new-events threshold (default 50).
@@ -31,7 +31,7 @@ const HOME = os.homedir();
 const ROUTER_DIR = path.join(HOME, '.claude', 'tools', 'router');
 const STATE_PATH = path.join(ROUTER_DIR, '.last-events-push.json');
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
-const TOKEN_PATH = path.join(HOME, '.frugal', 'auth.token');
+const TOKEN_PATH = require('./identity').AUTH_TOKEN_PATH;
 const EXPORT_PATH = path.join(ROUTER_DIR, 'events-export.json');
 // Sibling scripts live next to this file regardless of where the runtime
 // state directory is. This keeps the scheduler functional even when the
@@ -139,7 +139,7 @@ function main() {
 
   const token = readToken();
   if (!token) {
-    process.stderr.write('hub-events-scheduler: no auth token at ~/.frugal/auth.token — run `node frugal-login.js`\n');
+    process.stderr.write('hub-events-scheduler: no auth token at ~/.mooter/auth.token — run `node mooter-login.js`\n');
     process.exit(2);
   }
 

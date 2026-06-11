@@ -24,7 +24,6 @@ async function run() {
   console.log(`  ${color.magenta('mooter init')} ${color.dim('— first-run setup wizard')}`);
   console.log('');
 
-  if (!fs.existsSync(paths.frugal)) fs.mkdirSync(paths.frugal, { recursive: true });
   if (!fs.existsSync(paths.mooter)) fs.mkdirSync(paths.mooter, { recursive: true });
 
   if (!fs.existsSync(paths.deviceId)) {

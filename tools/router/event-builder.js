@@ -61,7 +61,7 @@ const ALLOWED_FIELDS = new Set([
 ]);
 
 // 16-hex stable hash of the authenticated Supabase user_id. Persisted by
-// frugal-login.js after GitHub OAuth; absent for anonymous installs.
+// mooter-login.js after GitHub OAuth; absent for anonymous installs.
 const USER_HASH_PATH = path.join(os.homedir(), '.frugal', 'user.hash');
 const USER_HASH_RE = /^[a-f0-9]{16}$/;
 
