@@ -91,3 +91,55 @@
 | EXTRA | Remover `/plan` da parity matrix (Shift+Tab, não slash). Manter `/agents //memory //init //mcp //skills //compact //clear //help`. |
 
 **Doctrine V4 status: 9/9 ✅.**
+
+---
+
+# Wave 55 V3 — Refutations Log (Product + Audit)
+
+> Companion: [[WAVE55_DAY0_RECON.md]] · [[MAC_INCONSISTENCIES_RECON.md]]. Same
+> format: brief assumption → verified reality → action → Doctrine V4 line.
+
+## 2026-06-11 — Wave 55 Phase B · P2 (legacy chips "dropped")
+
+**Assumption (kickoff):** Wave 53 reorganized the statusline and **dropped** the
+tier breakdown (token counts), VRAM, Ollama model+quant, embed model, GPU mode,
+and user chips → Phase B must *restore* them.
+**Reality (CC Day-0, verified against the live render `statusline-multi.js --demo
+green` + source):** 4 of 6 are present, not dropped — `🪙 T0:N tkns · T1 · T2 · T3`
+(granular tier breakdown) renders today; `🎮 …VRAM` exists, **gated on a GPU
+profile**; `🔧 gpu-high` renders (`setup-status.js:34`); `👤 user <hash8>` renders
+(`user-status.js`) as an **opaque hash by the Wave 33.8 privacy decision**. Only
+the Ollama model-name+quant and the embed (nomic) model genuinely lack a chip.
+The reason they don't *show* on the Mac is missing data (no GPU profile / no
+`auth.json`), not a regression.
+**Action:** Phase B **re-scoped** — do NOT "restore dropped chips" (they exist) and
+do NOT add a cleartext `paulo-XXXX` user label (that regresses privacy). Instead
+ship a **mode selector** (`mooter statusline mode <minimal|standard|extended|
+legacy>`) + a dense **`extended` mode** that surfaces the existing (gated) chips
+opt-in, default byte-identical. The two genuinely-missing chips are an optional
+add only if their data source exists.
+**Doctrine V4 line:** "Honest > Forced" · "No fabrication" · "Statusline default
+byte-idêntico".
+
+## 2026-06-11 — Wave 55 Phase A.6 · macOS-alignment fixes DEFERRED to Wave 55.1
+
+**Assumption (addendum A.6):** after the cross-platform recon, CC applies the
+"common fixes" for the macOS inconsistencies in this wave.
+**Reality (CC recon, `MAC_INCONSISTENCIES_RECON.md`):** every genuinely
+macOS-specific fix (B1 digest column pad, B2 chip-collapse budget, B3/B4
+truncation) is an **emoji display-width** problem that needs a `string-width`
+dependency the repo does not have, plus a rewrite of shared layout math, plus a
+real Apple-Silicon screenshot to verify. The only dependency-free item (D1,
+`sessions.ts` POSIX-separator) is actually a *Windows* bug, tangential to the Mac
+statusline scope. Bundling a new dep + shared-render rewrite blind (no Mac in the
+CC env) is exactly the high-blast-radius move Doctrine V4 #3 warns against.
+**Action (honest call, as Paulo asked):** **DEFER** the alignment cluster
+(B1–B4, C1) **and** D1 to a focused **Wave 55.1 cross-platform patch** — one
+`string-width` dependency decision + Mac visual verification, done together. This
+wave ships the dependency-free Mac wins that ARE in the kickoff's Phase A scope:
+the cross-platform rendering doc (A.1), the Mac smoke-test doc (A.2), and the
+`MOOTER_GLYPH_MODE=ascii` glyph fallback (A.4).
+**Doctrine V4 line:** "Honest > Forced" · "Zero scope creep" · "Refutações são
+valiosas".
+
+**Wave 55 Doctrine V4 status: refutations logged, Honest > Forced upheld.**
