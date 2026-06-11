@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Mooter for VS Code — Mockup Cockpit + Launcher</title>
+<style>
+  :root{
+    --bg:#1e1e1e; --sidebar:#252526; --panel:#252526; --border:#3c3c3c;
+    --fg:#cccccc; --fg-dim:#8a8a8a; --fg-faint:#6a6a6a;
+    --accent:#0078d4; --moo-green:#4ec97a; --moo-green-dim:rgba(78,201,122,.12);
+    --t0:#4ec97a; --t1:#56b6c2; --t2:#c8a24a; --t3:#d46a6a; --t5:#b07ad4;
+    --statusbar:#16825d; --activity:#333333; --input:#3c3c3c;
+    --card:#2d2d30; --card-hover:#34343a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font:13px/1.5 -apple-system,'Segoe UI',sans-serif;background:#111;color:var(--fg);padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .hint{color:var(--fg-dim);font-size:12px}
+  .window{width:1180px;max-width:100%;height:740px;background:var(--bg);border-radius:8px;overflow:hidden;border:1px solid var(--border);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .titlebar{height:34px;background:#323233;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:12px;color:var(--fg-dim);flex:none}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .titlebar .title{flex:1;text-align:center}
+  .main{flex:1;display:flex;min-height:0}
+  /* Activity bar */
+  .activity{width:48px;background:var(--activity);display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px;flex:none}
+  .act-ic{width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:19px;color:#858585;cursor:pointer;position:relative}
+  .act-ic.on{color:#fff}
+  .act-ic.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:#fff}
+  /* Editor fake */
+  .editor{flex:1;background:var(--bg);padding:18px 22px;font:12px/1.7 'SF Mono',Menlo,monospace;color:#6a9955;overflow:hidden;border-right:1px solid var(--border)}
+  .editor .ln{color:#858585;display:inline-block;width:26px}
+  .editor .kw{color:#569cd6}.editor .fn{color:#dcdcaa}.editor .str{color:#ce9178}.editor .tx{color:#d4d4d4}
+  /* Mooter panel */
+  .panel{width:400px;background:var(--panel);display:flex;flex-direction:column;flex:none}
+  .p-head{padding:10px 14px 0;border-bottom:1px solid var(--border)}
+  .p-title{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .p-title .logo{font-size:16px}
+  .p-title b{font-size:13px;font-weight:600}
+  .p-title .beta{font-size:9px;background:var(--moo-green-dim);color:var(--moo-green);padding:1px 6px;border-radius:8px;letter-spacing:.5px}
+  .p-title .hist{margin-left:auto;color:var(--fg-dim);font-size:14px;cursor:pointer}
+  .tabs{display:flex;gap:2px}
+  .tab{padding:6px 12px;font-size:12px;color:var(--fg-dim);cursor:pointer;border-bottom:2px solid transparent}
+  .tab.on{color:#fff;border-bottom-color:var(--moo-green)}
+  .tab:hover{color:#fff}
+  .p-body{flex:1;overflow-y:auto;padding:14px}
+  .view{display:none}.view.on{display:block}
+  /* Cockpit */
+  .hero{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
+  .hero .lbl{font-size:11px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.8px}
+  .hero .big{font-size:30px;font-weight:700;color:var(--moo-green);margin:2px 0}
+  .hero .sub{font-size:12px;color:var(--fg-dim)}
+  .hero .sub b{color:var(--fg)}
+  .row3{display:flex;gap:8px;margin-bottom:12px}
+  .mini{flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+  .mini .v{font-size:16px;font-weight:600}
+  .mini .k{font-size:10px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.5px}
+  .bars{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+  .bars h4{font-size:11px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+  .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11px}
+  .bar-row .tag{width:64px;color:var(--fg-dim)}
+  .bar-track{flex:1;height:7px;background:#1a1a1a;border-radius:4px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:4px}
+  .bar-row .pct{width:34px;text-align:right;color:var(--fg-dim)}
+  .mode{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px}
+  .mode .m-lbl{font-size:12px}
+  .mode .m-lbl small{display:block;color:var(--fg-dim);font-size:11px}
+  .seg{margin-left:auto;display:flex;background:#1a1a1a;border-radius:6px;padding:2px}
+  .seg span{padding:4px 10px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--fg-dim)}
+  .seg span.on{background:var(--moo-green-dim);color:var(--moo-green)}
+  .launch{width:100%;background:var(--moo-green);color:#0d2417;border:none;border-radius:6px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .launch:hover{filter:brightness(1.08)}
+  .launch-sub{text-align:center;font-size:11px;color:var(--fg-faint);margin-top:8px}
+  /* Decisions */
+  .dec{background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;cursor:pointer}
+  .dec:hover{background:var(--card-hover)}
+  .dec-top{display:flex;align-items:center;gap:8px;padding:10px 12px}
+  .chip{font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;flex:none}
+  .c0{background:rgba(78,201,122,.15);color:var(--t0)}.c1{background:rgba(86,182,194,.15);color:var(--t1)}
+  .c2{background:rgba(200,162,74,.15);color:var(--t2)}.c3{background:rgba(212,106,106,.15);color:var(--t3)}
+  .dec-prompt{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}
+  .dec-save{font-size:11px;color:var(--moo-green);flex:none}
+  .dec-meta{font-size:10px;color:var(--fg-faint);flex:none}
+  .dec-detail{display:none;border-top:1px solid var(--border);padding:10px 12px;font-size:11px;color:var(--fg-dim);background:#222}
+  .dec.open .dec-detail{display:block}
+  .dec-detail b{color:var(--fg)}
+  .why{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .why span{background:#1a1a1a;border:1px solid var(--border);padding:2px 8px;border-radius:9px;font-size:10px}
+  /* Packs / Doctor */
+  .pk{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:11px 12px;margin-bottom:8px}
+  .pk .ic{font-size:16px}.pk .nm{font-size:12px;flex:1}.pk .nm small{display:block;color:var(--fg-dim);font-size:11px}
+  .badge-on{font-size:10px;color:var(--moo-green);background:var(--moo-green-dim);padding:2px 8px;border-radius:9px}
+  .badge-off{font-size:10px;color:var(--fg-faint);background:#1a1a1a;padding:2px 8px;border-radius:9px}
+  .dr{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);font-size:12px}
+  .dr:last-child{border-bottom:none}
+  .dr .st{flex:none}.dr .what{flex:1}.dr .what small{display:block;color:var(--fg-dim);font-size:11px}
+  .fixbtn{font-size:10px;background:var(--input);border:1px solid var(--border);color:var(--fg);padding:3px 9px;border-radius:5px;cursor:pointer}
+  .fixbtn:hover{background:#4a4a4a}
+  .drwrap{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  /* Status bar */
+  .statusbar{height:24px;background:var(--statusbar);display:flex;align-items:center;padding:0 12px;font-size:11.5px;color:#fff;gap:16px;flex:none}
+  .statusbar .right{margin-left:auto;display:flex;gap:14px}
+  .sb-moo{background:rgba(0,0,0,.18);padding:1px 8px;border-radius:3px;cursor:pointer}
+  .pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--moo-green);margin-right:5px;animation:pu 2s infinite}
+  @keyframes pu{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</head>
+<body>
+<div class="hint">Mockup interactivo — clica nas tabs do painel e nas decisões para expandir. Layout espelha a gramática da extensão Claude Code; identidade é Mooter.</div>
+<div class="window">
+  <div class="titlebar">
+    <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+    <span class="title">mooter — Visual Studio Code</span>
+  </div>
+  <div class="main">
+    <div class="activity">
+      <div class="act-ic">📁</div><div class="act-ic">🔍</div><div class="act-ic">⎇</div><div class="act-ic">▷</div><div class="act-ic">✱</div>
+      <div class="act-ic on" title="Mooter">🐄</div>
+    </div>
+    <div class="editor">
+      <div><span class="ln">1</span><span class="kw">import</span><span class="tx"> { classify } </span><span class="kw">from</span><span class="str"> './router/classify'</span></div>
+      <div><span class="ln">2</span></div>
+      <div><span class="ln">3</span><span class="tx">// Two-axis routing: complexity → tier, domain → pack</span></div>
+      <div><span class="ln">4</span><span class="kw">export function</span> <span class="fn">route</span><span class="tx">(prompt: string) {</span></div>
+      <div><span class="ln">5</span><span class="tx">  </span><span class="kw">const</span><span class="tx"> tier = </span><span class="fn">classify</span><span class="tx">(prompt)</span></div>
+      <div><span class="ln">6</span><span class="tx">  </span><span class="kw">return</span><span class="tx"> { tier, hint: </span><span class="fn">buildHint</span><span class="tx">(tier) }</span></div>
+      <div><span class="ln">7</span><span class="tx">}</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head">
+        <div class="p-title">
+          <span class="logo">🐄</span><b>Mooter</b><span class="beta">COCKPIT</span>
+          <span class="hist" title="Histórico">🕘</span>
+        </div>
+        <div class="tabs">
+          <div class="tab on" data-v="cockpit">Cockpit</div>
+          <div class="tab" data-v="decisions">Decisions</div>
+          <div class="tab" data-v="packs">Packs</div>
+          <div class="tab" data-v="doctor">Doctor</div>
+        </div>
+      </div>
+      <div class="p-body">
+
+        <!-- COCKPIT -->
+        <div class="view on" id="v-cockpit">
+          <div class="hero">
+            <div class="lbl">Poupança hoje</div>
+            <div class="big">$4.31</div>
+            <div class="sub">vs all-Opus · <b>52%</b> abaixo · 23 prompts roteados</div>
+          </div>
+          <div class="row3">
+            <div class="mini"><div class="v">$25.95</div><div class="k">Total</div></div>
+            <div class="mini"><div class="v">658</div><div class="k">Prompts</div></div>
+            <div class="mini"><div class="v">47%</div><div class="k">Saved</div></div>
+          </div>
+          <div class="bars">
+            <h4>Distribuição de tiers · hoje</h4>
+            <div class="bar-row"><span class="tag">T0 🐄 local</span><div class="bar-track"><div class="bar-fill" style="width:46%;background:var(--t0)"></div></div><span class="pct">46%</span></div>
+            <div class="bar-row"><span class="tag">T1 haiku</span><div class="bar-track"><div class="bar-fill" style="width:13%;background:var(--t1)"></div></div><span class="pct">13%</span></div>
+            <div class="bar-row"><span class="tag">T2 sonnet</span><div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--t2)"></div></div><span class="pct">30%</span></div>
+            <div class="bar-row"><span class="tag">T3 opus</span><div class="bar-track"><div class="bar-fill" style="width:11%;background:var(--t3)"></div></div><span class="pct">11%</span></div>
+          </div>
+          <div class="mode">
+            <div class="m-lbl">Modo<br><small>aplica-se à próxima sessão</small></div>
+            <div class="seg" id="modeSeg"><span>🔥 beast</span><span class="on">⚖️ auto</span><span>🧘 zen</span></div>
+          </div>
+          <button class="launch" onclick="this.textContent='✓ A abrir Claude Code…';setTimeout(()=>this.innerHTML='✱&nbsp; New Claude Code session',1500)">✱&nbsp; New Claude Code session</button>
+          <div class="launch-sub">abre via Claude Code extension · hints Mooter activos</div>
+        </div>
+
+        <!-- DECISIONS -->
+        <div class="view" id="v-decisions">
+          <div class="dec">
+            <div class="dec-top"><span class="chip c2">T2</span><span class="dec-prompt">refactor auth middleware to support refresh tokens</span><span class="dec-save">-$0.42</span><span class="dec-meta">2m</span></div>
+            <div class="dec-detail">Roteado para <b>sonnet</b> em vez de opus. Confidence <b>0.87</b>.
+              <div class="why"><span>code-edit signal</span><span>multi-file scope</span><span>no HIGH_RISK</span><span>pack: code-audit</span></div>
+            </div>
+          </div>
+          <div class="dec">
+            <div class="dec-top"><span class="chip c0">T0</span><span class="dec-prompt">what does this regex do?</span><span class="dec-save">-$0.09</span><span class="dec-meta">9m</span></div>
+            <div class="dec-detail">Roteado para <b>qwen2.5-coder:14b (local)</b>. Confidence <b>0.93</b>.
+              <div class="why"><span>explain-only intent</span><span>single snippet</span><span>privacy: local ok</span></div>
+            </div>
+          </div>
+          <div class="dec">
+            <div class="dec-top"><span class="chip c3">T3</span><span class="dec-prompt">drop legacy_users table since nothing reads it</span><span class="dec-save">floor</span><span class="dec-meta">14m</span></div>
+            <div class="dec-detail">Escalado para <b>opus</b> — <b>HIGH_RISK floor</b>: operação destrutiva disfarçada de rotina.
+              <div class="why"><span>⚠️ destructive-db</span><span>disguised pattern</span><span>doctrine: bazuca</span></div>
+            </div>
+          </div>
+          <div class="dec">
+            <div class="dec-top"><span class="chip c1">T1</span><span class="dec-prompt">rename variable across 3 files</span><span class="dec-save">-$0.31</span><span class="dec-meta">22m</span></div>
+            <div class="dec-detail">Roteado para <b>haiku</b>. Confidence <b>0.74</b>.
+              <div class="why"><span>mechanical edit</span><span>low ambiguity</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PACKS -->
+        <div class="view" id="v-packs">
+          <div class="pk"><span class="ic">🔍</span><div class="nm">code-audit<small>activo neste workspace</small></div><span class="badge-on">ACTIVE</span></div>
+          <div class="pk"><span class="ic">🎬</span><div class="nm">animation-web<small>instalado</small></div><span class="badge-off">idle</span></div>
+          <div class="pk"><span class="ic">🗺</span><div class="nm">diagram-systems<small>instalado</small></div><span class="badge-off">idle</span></div>
+          <div class="pk"><span class="ic">🧠</span><div class="nm">knowledge-third-brain<small>instalado</small></div><span class="badge-off">idle</span></div>
+        </div>
+
+        <!-- DOCTOR -->
+        <div class="view" id="v-doctor">
+          <div class="drwrap">
+            <div class="dr"><span class="st">✅</span><div class="what">Runtime instalado<div></div><small>~/.claude/tools/router · 201 scripts</small></div></div>
+            <div class="dr"><span class="st">✅</span><div class="what">Hook registado<small>UserPromptSubmit · inject_context.js</small></div></div>
+            <div class="dr"><span class="st">✅</span><div class="what">Ollama<small>4 modelos · brew service ON</small></div></div>
+            <div class="dr"><span class="st">🟡</span><div class="what">Hub sync<small>último push há 3 dias</small></div><button class="fixbtn">mooter sync</button></div>
+            <div class="dr"><span class="st">🟡</span><div class="what">Login<small>auth token ausente (opt-in)</small></div><button class="fixbtn">mooter login</button></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">
+    <span>⎇ main</span><span>⚠ 0 ✗ 0</span>
+    <div class="right">
+      <span class="sb-moo"><span class="pulse"></span>🐄 T2 · sonnet · $4.31↓ hoje</span>
+      <span>✱ Claude Code</span><span>TypeScript</span>
+    </div>
+  </div>
+</div>
+<div class="hint">Status bar: item Mooter ao lado do ✱ Claude Code — coexistência, não substituição.</div>
+<script>
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('v-'+t.dataset.v).classList.add('on');
+  }));
+  document.querySelectorAll('.dec').forEach(d=>d.addEventListener('click',()=>d.classList.toggle('open')));
+  document.querySelectorAll('#modeSeg span').forEach(s=>s.addEventListener('click',()=>{
+    document.querySelectorAll('#modeSeg span').forEach(x=>x.classList.remove('on'));s.classList.add('on');
+  }));
+</script>
+</body>
+</html>
