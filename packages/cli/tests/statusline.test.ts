@@ -10,14 +10,20 @@ import { runStatusline } from "../src/commands/statusline.ts";
 
 function withHome<T>(fn: () => T): T {
   const prev = process.env.HOME;
+  const prevUP = process.env.USERPROFILE;
   const home = mkdtempSync(join(tmpdir(), "mooter-sl-"));
   mkdirSync(join(home, ".mooter"), { recursive: true });
   process.env.HOME = home;
+  // os.homedir() (used by statusline.ts) reads USERPROFILE on Windows, HOME on
+  // POSIX — set both so these tests never touch Paulo's real ~/.mooter on Windows.
+  process.env.USERPROFILE = home;
   try {
     return fn();
   } finally {
     if (prev === undefined) delete process.env.HOME;
     else process.env.HOME = prev;
+    if (prevUP === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = prevUP;
   }
 }
 
@@ -80,6 +86,26 @@ test("mode legacy removes the key (alias for auto)", () => {
     assert.match(r.output, /legacy/);
     const prefs = JSON.parse(readFileSync(prefsPath, "utf8"));
     assert.ok(!("statusline_mode" in prefs), "legacy deletes statusline_mode");
+  });
+});
+
+// Wave 55 (Phase B) — friendly aliases map onto the canonical modes (no parallel
+// mode system; P2 found the "dropped" chips were never dropped).
+test("mode aliases minimal/standard/extended map to mini/compact/full", () => {
+  withHome(() => {
+    const prefsPath = join(process.env.HOME!, ".mooter", "preferences.json");
+    const pairs: ReadonlyArray<readonly [string, string]> = [
+      ["minimal", "mini"],
+      ["standard", "compact"],
+      ["extended", "full"],
+    ];
+    for (const [alias, canonical] of pairs) {
+      const r = runStatusline(["mode", alias]);
+      assert.strictEqual(r.exitCode, 0, `${alias} accepted`);
+      assert.match(r.output, new RegExp(`= ${canonical}`), `${alias} notes the canonical mode`);
+      const prefs = JSON.parse(readFileSync(prefsPath, "utf8"));
+      assert.strictEqual(prefs.statusline_mode, canonical, `${alias} persists ${canonical}`);
+    }
   });
 });
 
