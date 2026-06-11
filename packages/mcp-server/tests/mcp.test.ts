@@ -46,10 +46,10 @@ test("ping → empty result", async () => {
   assert.deepEqual(r!.result, {});
 });
 
-test("tools/list returns all 16 tools with inputSchema", async () => {
+test("tools/list returns all 20 tools with inputSchema", async () => {
   const r = await handleRequest(req("tools/list"), registry);
   const tools = (r!.result as { tools: Array<{ name: string; inputSchema: unknown }> }).tools;
-  assert.equal(tools.length, 16); // Wave 33.5 A.4 added 4 sessions-orchestrator tools
+  assert.equal(tools.length, 20); // Wave 50-51 1.C added route_query/get_savings/explain_tier/session_summary
   assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOL_NAMES].sort());
   for (const t of tools) assert.ok(t.inputSchema);
   assert.ok(TOOL_NAMES.includes("mooter_pastor_adapter_suggest"));
@@ -63,6 +63,10 @@ test("tools/list returns all 16 tools with inputSchema", async () => {
     "mooter_sessions_quota_forecast",
     "mooter_sessions_handoff",
     "mooter_sessions_pastor_aggregate",
+    "mooter_route_query",
+    "mooter_get_savings",
+    "mooter_explain_tier",
+    "mooter_session_summary",
   ]) {
     assert.ok(TOOL_NAMES.includes(n), `${n} registered`);
   }

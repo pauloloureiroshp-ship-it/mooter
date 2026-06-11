@@ -1,0 +1,33 @@
+# CLAUDE.local.md — personal per-developer preferences (TEMPLATE)
+#
+# Copy this file to `CLAUDE.local.md` (same directory) and fill in your own values.
+# `CLAUDE.local.md` is gitignored — it never leaves your machine.
+#
+# Precedence (later overrides/refines earlier, for YOUR sessions only):
+#   1. ~/.claude/CLAUDE.md      — your global personal doctrine (all projects)
+#   2. ./CLAUDE.md              — this repo's project instructions (shared, committed)
+#   3. ./CLAUDE.local.md        — your personal overrides for THIS repo (gitignored)
+
+## Language preference
+
+<!-- Example (Paulo):
+- Conversation in PT-PT (Portugal). Code, identifiers, and commit messages in English.
+-->
+
+## Personal model / routing overrides
+
+<!-- Example (Paulo):
+- Honor `@fable` only when I type it explicitly — never suggest escalating to T5.
+- Prefer local Ollama (T0) aggressively for summaries/extractions; I pay per Opus token.
+- Pre-push / pre-merge: always run the final-reviewer gate, no exceptions.
+-->
+
+## Local machine quirks
+
+<!-- Example (Paulo, Windows + WSL2):
+- Repo lives on the Windows mount: /mnt/c/Users/Paulo Loureiro/frugal (slow I/O — avoid
+  recursive scans of node_modules; quote paths, they contain a space).
+- ~/mooter is a symlink to the same repo (not a separate clone).
+- Ollama runs on the Windows host: OLLAMA_HOST=http://localhost:11434
+- GPU: RTX 4090 (hw_tier gpu-high); LoRA training runs natively on Windows, not in WSL.
+-->

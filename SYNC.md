@@ -3,6 +3,11 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🐮 Sessão — 2026-06-10 (Wave 53 — Local CC Mirror + Anthropic Pride)
+**Estado:** ✅ PR **#156** aberto (branch `wave53-local-cc-mirror`, squash→`dev`), gated em Paulo merge+tag `v1.34.0-local-cc-mirror`. **Day 0 (9-agent adversarial) refutou P5/P6 + paths das fases** (honest > forced); STOP→re-scope, 5 decisões greenlit. `classify.js` sha `427d8c0b…` **INTACTA** · `settings.json` intocado · statusline default byte-idêntica · tudo novo opt-in. final-reviewer Opus **SHIP 0-HIGH** (1 MED pré-existente: statusline test-isolation leak via `~/.mooter/preferences.json statusline_mode:full`; 8 LOW polidos). **Tests: 56/56 JS + 8/8 TS (tsx).**
+**Deliverables:** **A′** sessions chip (reusa worktree-conductor heartbeats; campos reais, sem fabricar model/tokens) · **B** agent-focus + custom-status (B.1 burn ADIADO honesto, B.4 já-coberto) · **C** Bash tokens opt-in em `post_tool_badge.js` (`Σ`/`tokens?`, **sem** settings.json) · **D** `EMOJI_GUIDE.md` + `emoji_lint.js` (denylist anti-hype; `💎` mantido = glyph de modelo) · **E** 3 skills CC-parity aditivas (`moo-agents/memory/init`; `moo-skills.test` 8→11; sem shadow de nativos) · **H** bench chip `?` fallback + `explain bench` (anti-fabricação) · **I** `mooter cca-f export` em `fable-observe` (campos reais, privacy ≤50 hash-default) · **G** `ANTHROPIC_ALIGNMENT_V2.md`.
+**Próxima missão (Paulo):** (1) rever/merge **PR #156** → `dev` (squash) + tag `v1.34.0-local-cc-mirror`; (2) Wave 54 = CCA-F audit harness overnight (consome o `cca-f export`). Backlog não-bloqueante: B.1 burn-rate real · persistir `RESULTS.json` do bench · HOME-isolar `render()` (statusline test leak). Docs: `docs/strategy/WAVE53_DAY0_RECON.md` · `REFUTATIONS_LOG.md` · `WAVE53_BRIEF_V3.md` · `ANTHROPIC_ALIGNMENT_V2.md`. [Notion](https://app.notion.com/p/37b6f6e42bc481f1a204c813a3341baa).
+
 ### 🐮 Sessão — 2026-06-09 (Wave 41-46 — Friends Activation Mega)
 **Estado:** ✅ PR **#143** aberto (branch `feat/wave41_46-friends-activation`), gated em Paulo merge+tag `v1.24.0-friends-activation`. **Day 0 refutou 3 de 4 premissas** (honest > forced). classify.js sha `7b01eb86…` **INTACTA** pré+pós cada phase; engine pkgs 28-34.5 intocados excepto os 2 CLI files permitidos; **CLI 351/351 · landing 146/146**, builds clean; final-reviewer Opus **SHIP-WITH-NITS** 0-HIGH (2 MED de rule-ordering corrigidos + 4 probe tests).
 **Deliverables:** **P1 (W41) intent** — comando já existia (W33.5) → ENHANCED com regras friend PT-PT (`packs`, `savings→dashboard`, `explain/router-debug`, `doctor`). **P2 (W42.A) dashboard SKIPPED** — "minimalista" refutado (2303 linhas/6 tabs); único gap (MLWR time-trend) precisa `recharts` = guardrail+scope. **P3 (W42.B) changelog** — existia mas hardcoded+stale (v1.21.1) → REBUILT ISR (revalidate 3600) fetch GitHub releases API público, filtra v1.x.y, render plain-text-safe (sem dangerouslySetInnerHTML), FALLBACK curado. **P4 (W46) dogfood** — `digest --weekly` (markdown) + `--install-cron` (DRY-RUN, nunca muta crontab) + `--send` (stdout). **Conflation flagged:** `dogfood digest`=friction dev, não savings; friend habit digest devia apontar a `mooter digest` (follow-up).
@@ -1631,6 +1636,22 @@ Landing → signup OAuth → captura perfil (hw+sw+subs+budget) →
 
 ---
 
+### 🐮 Wave Mega 50-51 Fable ✅ (CC autonomous em **claude-fable-5**, 2026-06-10) — **5 PRs stacked #147→#151, merge pendente Paulo**
+
+**Página Notion:** [🐮 Sessão 2026-06-10 — Wave Mega 50-51 Fable](https://app.notion.com/p/37b6f6e42bc48144863ec173a61a3ff4) · `37b6f6e4-2bc4-8144-863e-c173a61a3ff4`
+
+**Estado:** 6/6 phases shipped. final-reviewer Opus **SHIP 0-HIGH/0-MED** no diff completo. classify.js sha `427d8c0b…` INTACT em todos os gates. CLI 362→**451/451** · mcp-server 27/27 · mooter-bench 15/15 · router 68/68. Fable 5 verificado Day 0: $10/$50 per M, **free no Max até 22 Jun** (orchestrator + 12 subagents desta sessão = $0 usage credits).
+
+- **#147** Phase 1: `mooter observability` OTLP zero-dep · **MooterBench** Apache-2.0 (run real: 60% acc, 100% completion, 62.4% savings est) · MCP 16→20 tools → tag `v1.28.0-deferred-shipped`
+- **#148** Phase 2: cascade advisory (T4 REFUTADO — ladder pinned por testes) · `why-not-fable` · span_id feedback + `pastor learn-from-spans` · `/mooter` skill · security summary + Veracode 45% verificado + 🔒 chip → `v1.29.0-vibe-foundation`
+- **#149** Phase 3: CLAUDE.md **313→47** (arquivo verbatim) · **AGENTS.md** · CLAUDE.local.md.template · 5 skills · 5 hooks unwired (HOOKS_GUIDE) · WORKSPACE_ORGANIZATION + AUTO_RESEARCH_LOOP → (mesmo v1.29.0)
+- **#150** Phase 4: quota honesto `~N% est`/`quota ?` (cita #44328) · statusline responsivo narrow/medium/wide · `sessions worktrees/tmux-attach/notify/wait` · `mooter session-summary` rich → `v1.30.0-session-intel`
+- **#151** Phase 5 ⭐: **Fable observation loop** — `fable-observe` (hash-only default, 8 subcmds) · `pastor train-on-fable` (features-only) · `replicate-test` · report público com **12 observações REAIS desta sessão** (11/12 parallel_spawn — Fable é dispatcher, esse é o alvo de treino do Pastor) → `v1.31.0-fable-observation`
+
+**⚠️ Pendente Paulo:** 1) merge #147→#151 em ordem + tags sequenciais · 2) ~~tag v1.27.0~~ RESOLVIDO: tag no remote + version-sync correu (`53b39ef`, main version.json=1.27.0; stack 1 commit atrás só em version.json → merge limpo) · 3) wiring opt-in (hooks/slash-commands/cron) · 4) MCP Registry (npm publish primeiro) · 5) Friends DM v15 · 6) LoRA retrain RTX 4090.
+
+---
+
 ### 🐮 Wave 48 Statusline Honest ✅ (CC autonomous, 2026-06-10) — **PR #144, merge pendente Paulo**
 
 **Página Notion:** [🐮 Sessão 2026-06-10 — Wave 48 Statusline Honest (PR #144)](https://app.notion.com/p/37a6f6e42bc4814ea33ecccca51b3d5d) · `37a6f6e4-2bc4-814e-a33e-cccca51b3d5d`
@@ -2665,3 +2686,11 @@ Side effects: upsert em D1 `devices` table
 ---
 
 *Cowork Mac working surface: `~/Documents/Claude/Projects/Mooter.ai (macOS)/` com logs, dumps, mapa operacional HTML, e este SYNC.md.*
+
+---
+## 📥 COWORK → CLAUDE CODE — 2026-06-11 (reconciliação dev↔main)
+**Estado:** 🟡 Por ler
+- ✅ dev↔main reconciliado pelo Cowork: main já continha a Wave 52 (byte-idêntica) — todos os conflitos resolvidos para main; únicos commits novos do dev = Kill Frugal + product P0s + docs (preservados)
+- ✅ VS Code ext F0 PASS · Kill Frugal W1-W3 em prod no Mac · heartbeat restaurado (1º real da história) · npm installer e2e validado
+- 🔜 Ler: docs/rebrand/{RECONCILE-BRIEF,KILL-FRUGAL-MASTERPROMPT}, packages/vscode-extension/docs/, docs/community/GOOD-FIRST-ISSUES.md
+- ⚠️ packs WIP (_packhint_entry.ts) continua unstaged no Mac — terminar antes de mais waves

@@ -8,6 +8,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [1.34.0] — 2026-06-10 — Local CC Mirror + Anthropic Pride (Wave 53)
+
+**Mooter as a local Claude Code mirror + honesty layer. Every new surface is opt-in, the statusline default is byte-identical, and `classify.js` (sha `427d8c0b…`) is untouched.**
+
+### Added
+- **Cross-session statusline chip** (`tools/router/sessions-status.js`) — `⇄ N sisters (branch · age)` from the existing worktree-conductor heartbeats; real fields only (no fabricated model/tokens/cost). Self-excluded; opt-out via `hidden_chips`.
+- **Agent-focus chip** (`agent-focus-status.js`) — `🤖 <agent> (<model>, <dur>)` from the real subagent_tracker.
+- **Pluggable statusline segment** (`custom-status.js`) — user-defined `~/.mooter/statusline/custom.js`, sandboxed (try/catch + clamp).
+- **Opt-in per-Bash token segment** (`post_tool_badge.js`, `post_tool_tokens` pref) — cumulative routed-tier total (`ΣT2 12k`) or honest `tokens?`. Per-command tokens are not exposed by Claude Code (usage is per assistant message).
+- **Emoji canonical guide + linter** (`docs/EMOJI_GUIDE.md`, `tools/lint/emoji_lint.js`) — anti-hyperbole denylist with a `MOOTER_EMOJI_STRICT=1` CI gate.
+- **Slash CC-parity skills** — `/moo-agents`, `/moo-memory`, `/moo-init` (additive; they do not shadow Claude Code's native commands).
+- **Bench evidence chip** (`bench-status.js`) + `mooter explain bench` — opt-in; reads a real `RESULTS.json`, shows `🧪 bench ?` when absent/stale (anti-fabrication).
+- **`mooter cca-f export`** (`packages/cli/src/fable-observe/cca-f-export.ts`) — CCA-F audit JSONL from the Fable observation log; privacy ≤50-char preview (hash-only by default), no fabricated token/cost fields.
+
+### Notes
+- Day-0 recon (9-agent adversarial) refuted several brief premises before any code; see `docs/strategy/{WAVE53_DAY0_RECON,REFUTATIONS_LOG,WAVE53_BRIEF_V3,ANTHROPIC_ALIGNMENT_V2}.md`.
+- Statusline lines 1–2 remain byte-identical by default; all new chips are opt-in.
+
 ## [1.15.0] — 2026-06-06 — Pastor live (Wave 26)
 
 **Closes the loop: real CLI→hub sync + a pull-based Pastor that learns from it.**

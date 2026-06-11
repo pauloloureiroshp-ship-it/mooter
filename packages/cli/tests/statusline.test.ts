@@ -112,3 +112,59 @@ test("mode --help prints usage with exit 0", () => {
     assert.match(r.output, /legacy/);
   });
 });
+
+// Wave Mega 50-51 (4.B) — `mooter statusline layout <narrow|medium|wide|auto>`
+// persists the responsive layout pin (mode picks content, layout picks shape).
+
+test("layout set persists statusline_layout to preferences.json and merges", () => {
+  withHome(() => {
+    const prefsPath = join(process.env.HOME!, ".mooter", "preferences.json");
+    writeFileSync(prefsPath, JSON.stringify({ quiet: true, statusline_mode: "full" }));
+    const r = runStatusline(["layout", "narrow"]);
+    assert.strictEqual(r.exitCode, 0);
+    assert.match(r.output, /statusline layout → narrow/);
+    const prefs = JSON.parse(readFileSync(prefsPath, "utf8"));
+    assert.strictEqual(prefs.statusline_layout, "narrow");
+    assert.strictEqual(prefs.quiet, true, "unrelated keys preserved");
+    assert.strictEqual(prefs.statusline_mode, "full", "mode pin preserved — layout composes with mode");
+  });
+});
+
+test("layout auto removes the key (width detection restored)", () => {
+  withHome(() => {
+    const prefsPath = join(process.env.HOME!, ".mooter", "preferences.json");
+    runStatusline(["layout", "wide"]);
+    const r = runStatusline(["layout", "auto"]);
+    assert.strictEqual(r.exitCode, 0);
+    assert.match(r.output, /auto/);
+    const prefs = JSON.parse(readFileSync(prefsPath, "utf8"));
+    assert.ok(!("statusline_layout" in prefs), "auto deletes statusline_layout");
+  });
+});
+
+test("unknown layout is rejected with usage", () => {
+  withHome(() => {
+    const r = runStatusline(["layout", "ultra-wide-galaxy"]);
+    assert.strictEqual(r.exitCode, 1);
+    assert.match(r.output, /unknown layout/);
+    assert.match(r.output, /narrow\|medium\|wide\|auto/);
+  });
+});
+
+test("usage text documents the layout subcommand and its composition rule", () => {
+  withHome(() => {
+    const r = runStatusline([]);
+    assert.strictEqual(r.exitCode, 1);
+    assert.match(r.output, /statusline layout <narrow\|medium\|wide\|auto>/);
+    assert.match(r.output, /mode picks content, layout picks shape/);
+  });
+});
+
+test("show reports the current layout alongside the mode", () => {
+  withHome(() => {
+    runStatusline(["layout", "wide"]);
+    const r = runStatusline(["show"]);
+    assert.strictEqual(r.exitCode, 0);
+    assert.match(r.output, /statusline layout: wide/);
+  });
+});

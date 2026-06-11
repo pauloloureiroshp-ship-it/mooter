@@ -1,0 +1,356 @@
+{
+  "$schema_note": "MooterBench dataset v0.1.0 — 50 representative coding workflows. expected_tier follows the Mooter routing doctrine: T0 trivial/local, T1 cheap codegen/triage, T2 reasoning/bug-hunt, T3 architecture/multi-file/high-risk. Labels are author-judgment gold labels, not ground truth.",
+  "version": "0.1.0",
+  "workflows": [
+    {
+      "id": "wf-001",
+      "prompt": "change the login button color from green to blue in LoginForm.tsx",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Single-file cosmetic change, one className/CSS edit, zero reasoning needed."
+    },
+    {
+      "id": "wf-002",
+      "prompt": "fix the typo in the README: 'recieve' should be 'receive'",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "One-word typo fix in one file."
+    },
+    {
+      "id": "wf-003",
+      "prompt": "rename the variable userId to accountId in utils/session.ts",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Mechanical single-file rename, find-and-replace level."
+    },
+    {
+      "id": "wf-004",
+      "prompt": "bump the copyright year in the footer component to 2026",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "One-line text edit in one component."
+    },
+    {
+      "id": "wf-005",
+      "prompt": "add a placeholder text 'Search projects...' to the search input in Navbar.tsx",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Single attribute addition in a single file."
+    },
+    {
+      "id": "wf-006",
+      "prompt": "remove the console.log on line 42 of src/api/client.ts",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Delete one known line in one file, no judgment required."
+    },
+    {
+      "id": "wf-007",
+      "prompt": "summarize what src/llm/router.ts does in a few bullet points",
+      "category": "summarize",
+      "expected_tier": "T0",
+      "rationale": "Pure summarization of a single file — local model territory."
+    },
+    {
+      "id": "wf-008",
+      "prompt": "give me a quick summary of this changelog so I know what changed since v2.1",
+      "category": "summarize",
+      "expected_tier": "T0",
+      "rationale": "Read-and-condense over provided text, no code generation."
+    },
+    {
+      "id": "wf-009",
+      "prompt": "read these three config files and tell me in one paragraph what each one is for",
+      "category": "summarize",
+      "expected_tier": "T0",
+      "rationale": "Extraction/summarization fan-out, parallelizable on a local model."
+    },
+    {
+      "id": "wf-010",
+      "prompt": "extract all the environment variable names referenced in docker-compose.yml into a list",
+      "category": "summarize",
+      "expected_tier": "T0",
+      "rationale": "Mechanical extraction from one file, zero reasoning."
+    },
+    {
+      "id": "wf-011",
+      "prompt": "compare these two function implementations and tell me which lines differ",
+      "category": "summarize",
+      "expected_tier": "T0",
+      "rationale": "Snippet comparison/diff narration — local summarizer task."
+    },
+    {
+      "id": "wf-012",
+      "prompt": "convert this JSON config to YAML, keeping the comments as YAML comments",
+      "category": "format-transform",
+      "expected_tier": "T0",
+      "rationale": "Pure format transform, deterministic, no design decisions."
+    },
+    {
+      "id": "wf-013",
+      "prompt": "turn this markdown table of endpoints into a CSV",
+      "category": "format-transform",
+      "expected_tier": "T0",
+      "rationale": "Mechanical table reshaping, local transformer task."
+    },
+    {
+      "id": "wf-014",
+      "prompt": "reformat this SQL query so each clause is on its own line",
+      "category": "format-transform",
+      "expected_tier": "T0",
+      "rationale": "Whitespace-only restructuring of provided text."
+    },
+    {
+      "id": "wf-015",
+      "prompt": "translate the user-facing strings in this locale file from English to Portuguese",
+      "category": "format-transform",
+      "expected_tier": "T0",
+      "rationale": "Translation transform over provided strings, no code logic."
+    },
+    {
+      "id": "wf-016",
+      "prompt": "write a commit message for these staged changes: added retry logic to the fetch wrapper and bumped the timeout to 30s",
+      "category": "commit-msg",
+      "expected_tier": "T1",
+      "rationale": "Commit message generation — canonical cheap-triage task."
+    },
+    {
+      "id": "wf-017",
+      "prompt": "generate a conventional-commits style message for a fix that stops the date picker from crashing on null input",
+      "category": "commit-msg",
+      "expected_tier": "T1",
+      "rationale": "Short templated text generation, no codebase reasoning."
+    },
+    {
+      "id": "wf-018",
+      "prompt": "draft a one-line commit message and a 3-bullet body for this refactor of the pagination helper",
+      "category": "commit-msg",
+      "expected_tier": "T1",
+      "rationale": "Cheap structured prose from a described diff."
+    },
+    {
+      "id": "wf-019",
+      "prompt": "write a regex that matches ISO 8601 dates like 2026-06-09T14:30:00Z but rejects dates without the timezone suffix",
+      "category": "regex",
+      "expected_tier": "T1",
+      "rationale": "Self-contained regex generation with clear spec — cheap codegen."
+    },
+    {
+      "id": "wf-020",
+      "prompt": "give me a regex to validate semver strings including pre-release tags like 1.2.3-beta.1",
+      "category": "regex",
+      "expected_tier": "T1",
+      "rationale": "Well-specified pattern generation, no project context needed."
+    },
+    {
+      "id": "wf-021",
+      "prompt": "write a regex for the log parser that captures the timestamp, level, and message from lines like '2026-06-09 12:00:01 ERROR failed to connect'",
+      "category": "regex",
+      "expected_tier": "T1",
+      "rationale": "Capture-group regex from an example line — triage-level codegen."
+    },
+    {
+      "id": "wf-022",
+      "prompt": "add a docstring to the parseRetryAfter function explaining its parameters and return value",
+      "category": "docs",
+      "expected_tier": "T1",
+      "rationale": "Docstring generation for one function — cheap, local-context."
+    },
+    {
+      "id": "wf-023",
+      "prompt": "write JSDoc comments for the three exported functions in utils/currency.ts",
+      "category": "docs",
+      "expected_tier": "T1",
+      "rationale": "Mechanical documentation of small known surface."
+    },
+    {
+      "id": "wf-024",
+      "prompt": "update the usage section of the README to show the new --json flag on the export command",
+      "category": "docs",
+      "expected_tier": "T1",
+      "rationale": "Small focused doc edit from a described feature."
+    },
+    {
+      "id": "wf-025",
+      "prompt": "explain this error: TypeError: Cannot read properties of undefined (reading 'map') at ProductList.render",
+      "category": "explain-error",
+      "expected_tier": "T1",
+      "rationale": "Single common error explained in a sentence or two — triage."
+    },
+    {
+      "id": "wf-026",
+      "prompt": "what does 'EADDRINUSE: address already in use :::3000' mean and how do I fix it?",
+      "category": "explain-error",
+      "expected_tier": "T1",
+      "rationale": "Well-known error with a stock answer, no investigation needed."
+    },
+    {
+      "id": "wf-027",
+      "prompt": "write a unit test for the slugify helper that covers spaces, accents, and consecutive dashes",
+      "category": "test-gen",
+      "expected_tier": "T1",
+      "rationale": "Trivial unit test for a pure function with stated cases."
+    },
+    {
+      "id": "wf-028",
+      "prompt": "the websocket connection drops every few minutes in production but reconnect only works sometimes — figure out why",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Intermittent bug, needs hypothesis-driven root-cause reasoning."
+    },
+    {
+      "id": "wf-029",
+      "prompt": "users report the cart total is off by one cent on some orders; trace where the rounding goes wrong",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Numeric bug hunt across the money path — real reasoning."
+    },
+    {
+      "id": "wf-030",
+      "prompt": "this race condition only shows up under load: two workers sometimes process the same queue job. find the root cause",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Concurrency root-cause analysis, classic T2 reasoner work."
+    },
+    {
+      "id": "wf-031",
+      "prompt": "the nightly ETL job silently writes zero rows about once a week with no errors in the logs. investigate",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Silent intermittent failure needs systematic investigation."
+    },
+    {
+      "id": "wf-032",
+      "prompt": "memory usage climbs steadily in the image-resize service until the pod is OOM-killed; find the leak",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Leak diagnosis requires tracing allocation paths and lifecycle."
+    },
+    {
+      "id": "wf-033",
+      "prompt": "why does the login flow work in Chrome but redirect-loop in Safari? dig into the cookie/session handling",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Cross-browser behavioral bug, needs targeted hypothesis testing."
+    },
+    {
+      "id": "wf-034",
+      "prompt": "our search endpoint p95 latency doubled after last week's deploy with no obvious slow query; profile and explain what regressed",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Performance regression analysis across code and deploy diff."
+    },
+    {
+      "id": "wf-035",
+      "prompt": "compare Drizzle and Prisma for our Cloudflare Workers + D1 stack and recommend one with reasoning",
+      "category": "dependency",
+      "expected_tier": "T2",
+      "rationale": "Two-option technical comparison with tradeoffs — reasoner tier."
+    },
+    {
+      "id": "wf-036",
+      "prompt": "should we replace moment.js with date-fns or Temporal? lay out migration effort and bundle impact for each",
+      "category": "dependency",
+      "expected_tier": "T2",
+      "rationale": "Comparative analysis with migration-effort estimation."
+    },
+    {
+      "id": "wf-037",
+      "prompt": "evaluate whether upgrading from Express 4 to 5 breaks any of our middleware, and list what needs changing",
+      "category": "dependency",
+      "expected_tier": "T2",
+      "rationale": "Upgrade-impact analysis across the middleware surface."
+    },
+    {
+      "id": "wf-038",
+      "prompt": "pick a queue library for delayed jobs on our Node monolith — BullMQ vs bee-queue vs pg-boss — and justify the choice",
+      "category": "dependency",
+      "expected_tier": "T2",
+      "rationale": "Three-way tradeoff comparison tied to our infra constraints."
+    },
+    {
+      "id": "wf-039",
+      "prompt": "design and write an integration test suite for the checkout flow covering payment failure, retry, and idempotency",
+      "category": "test-gen",
+      "expected_tier": "T2",
+      "rationale": "Test design needs failure-mode reasoning, not boilerplate."
+    },
+    {
+      "id": "wf-040",
+      "prompt": "write property-based tests for the rate limiter that prove no more than N requests pass per window under concurrent access",
+      "category": "test-gen",
+      "expected_tier": "T2",
+      "rationale": "Property-based concurrency testing requires invariant reasoning."
+    },
+    {
+      "id": "wf-041",
+      "prompt": "redesign the vault module so it supports multi-user workspaces with per-user encryption keys",
+      "category": "architecture",
+      "expected_tier": "T3",
+      "rationale": "Core architecture redesign touching security model — top tier."
+    },
+    {
+      "id": "wf-042",
+      "prompt": "what do you think about moving session state out of the monolith into a separate auth service? sketch the architecture",
+      "category": "architecture",
+      "expected_tier": "T3",
+      "rationale": "Service-boundary architecture decision with systemic tradeoffs."
+    },
+    {
+      "id": "wf-043",
+      "prompt": "design a migration path from our single-region Postgres to a multi-region setup with acceptable failover semantics",
+      "category": "architecture",
+      "expected_tier": "T3",
+      "rationale": "High-stakes data architecture with availability tradeoffs."
+    },
+    {
+      "id": "wf-044",
+      "prompt": "refactor the error handling across the api/, services/, and workers/ directories to use the new Result type consistently",
+      "category": "refactor-multi-file",
+      "expected_tier": "T3",
+      "rationale": "Cross-cutting refactor over many files — doctrine forces T3."
+    },
+    {
+      "id": "wf-045",
+      "prompt": "extract the shared validation logic duplicated across five route handlers into a middleware layer without changing behavior",
+      "category": "refactor-multi-file",
+      "expected_tier": "T3",
+      "rationale": "Multi-file behavior-preserving refactor, >3 files affected."
+    },
+    {
+      "id": "wf-046",
+      "prompt": "split the 2000-line orders.ts module into cohesive submodules and update every import site across the app",
+      "category": "refactor-multi-file",
+      "expected_tier": "T3",
+      "rationale": "Large structural refactor rippling through the whole codebase."
+    },
+    {
+      "id": "wf-047",
+      "prompt": "I'm about to merge the payments branch into main — review the full diff for correctness and risk first",
+      "category": "pre-merge-review",
+      "expected_tier": "T3",
+      "rationale": "Pre-merge gate on payment code — never skip, never downgrade."
+    },
+    {
+      "id": "wf-048",
+      "prompt": "ready to push the release branch for v3.0 — do a final review of the changes before I tag it",
+      "category": "pre-merge-review",
+      "expected_tier": "T3",
+      "rationale": "Pre-release review gate, doctrine mandates top-tier reviewer."
+    },
+    {
+      "id": "wf-049",
+      "prompt": "update the GitHub Actions workflow to add a deploy-to-production job gated on the test matrix passing",
+      "category": "ci-config",
+      "expected_tier": "T3",
+      "rationale": "CI/CD pipeline change with production deploy — high blast radius."
+    },
+    {
+      "id": "wf-050",
+      "prompt": "audit the file upload endpoint for path traversal and unrestricted file type vulnerabilities and patch what you find",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "Security audit + fix on an attack surface — forces top tier."
+    }
+  ]
+}

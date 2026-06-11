@@ -41,4 +41,25 @@ test("security with an unknown subcommand shows usage", () => {
   const r = runSecurity(["bogus"], { env: {} as NodeJS.ProcessEnv, home: fakeHome(false) });
   assert.strictEqual(r.exitCode, 1);
   assert.ok(r.output.includes("usage"));
+  assert.ok(r.output.includes("summary"), "usage should mention the summary subcommand");
+});
+
+// Wave Mega 50-51 (2.D) — `mooter security summary`.
+test("security summary: one-screen honest summary with layers AND non-protections", () => {
+  const r = runSecurity(["summary"], { env: {} as NodeJS.ProcessEnv, home: fakeHome(false) });
+  assert.strictEqual(r.exitCode, 0);
+  assert.ok(r.output.includes("4 layers"), r.output);
+  assert.ok(r.output.includes("Network egress"));
+  assert.ok(r.output.includes("NOT protected"), "must state what the sandbox does NOT cover");
+  assert.ok(r.output.includes("MAIN Claude Code session is not sandboxed"));
+  assert.ok(r.output.includes("Cloud tiers"), "must be honest that cloud calls leave the machine");
+  // One screen: keep it tight.
+  assert.ok(r.output.split("\n").length <= 25, `summary too long: ${r.output.split("\n").length} lines`);
+});
+
+test("security summary: points to verification commands, not blind trust", () => {
+  const r = runSecurity(["summary"], { env: {} as NodeJS.ProcessEnv, home: fakeHome(false) });
+  assert.ok(r.output.includes("mooter security audit"));
+  assert.ok(r.output.includes("mooter security spawn-test"));
+  assert.ok(r.output.includes("docs/SECURITY_COMPETITIVE_ADVANTAGE.md"));
 });

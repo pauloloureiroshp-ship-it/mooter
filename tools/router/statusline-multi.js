@@ -257,6 +257,61 @@ function computeCodexMessagesLeft(quota) {
   return Math.max(0, c.window_5h.limit - (c.window_5h.messages_used || 0));
 }
 
+// ── Wave Mega 50-51 (4.A) — honest Claude Max quota window ──────────────
+// Claude Code exposes NO real-time quota API (anthropics/claude-code#44328):
+// every "% left/used" figure is an ESTIMATE from local token counting in
+// quota-state.json, never an authoritative number. The chip says so — `est`
+// marks the estimate, and missing/stale data renders an honest `quota ?`
+// instead of a fake 100%. The 5h window resets are inferred locally too.
+const QUOTA_STALE_MS    = 6 * 3600 * 1000; // last_updated older than this → unknown
+const QUOTA_USED_YELLOW = 70;              // % used ≥ this → yellow
+const QUOTA_USED_RED    = 90;              // % used > this → red
+
+/**
+ * Distill quota-state.json's anthropic window into a display summary. Only
+ * fields that actually exist in the file are read (window_5h.tokens_used /
+ * .limit / .reset_at + top-level last_updated) — nothing is invented.
+ * @returns {{ok:false}|{ok:true, usedPct:number, remainMs:number|null}}
+ */
+function summarizeQuotaWindow(quota, nowMs = Date.now()) {
+  try {
+    const a = quota && quota.providers && quota.providers.anthropic;
+    const w = a && a.window_5h;
+    if (!w || !(Number(w.limit) > 0)) return { ok: false };
+    const updated = Date.parse(quota.last_updated || '');
+    if (!Number.isFinite(updated) || nowMs - updated > QUOTA_STALE_MS) return { ok: false };
+    const usedPct = Math.max(0, Math.min(100, Math.round(((Number(w.tokens_used) || 0) / Number(w.limit)) * 100)));
+    const resetAt = Date.parse(w.reset_at || '');
+    const remainMs = Number.isFinite(resetAt) ? Math.max(0, resetAt - nowMs) : null;
+    return { ok: true, usedPct, remainMs };
+  } catch { return { ok: false }; }
+}
+
+/** "2h13m" / "47m" — remaining time in the rolling window. */
+function fmtWindowRemain(ms) {
+  const totalMin = Math.floor(Math.max(0, Number(ms) || 0) / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h${m}m` : `${m}m`;
+}
+
+/**
+ * Render the honest quota chip: `Max · 2h13m/5h · ~63% est` (bar=true prepends
+ * the Wave 48 usage bar for the 2-line layout: `Claude Max [▓▓▓░░…] · …`).
+ * Unknown/stale window → the literal `quota ?`. Color follows usage: green
+ * <70% used, yellow 70-90%, red >90% (same ANSI palette as the other chips).
+ */
+function formatQuotaChip(info, { color = useColor(), bar = false } = {}) {
+  if (!info || !info.ok) return 'quota ?';
+  const code = info.usedPct < QUOTA_USED_YELLOW ? ANSI.green
+             : info.usedPct <= QUOTA_USED_RED   ? ANSI.yellow
+             : ANSI.red;
+  const pct = colorize(code, `~${info.usedPct}% est`, color);
+  const remain = info.remainMs === null ? null : `${fmtWindowRemain(info.remainMs)}/5h`;
+  const head = bar ? `Claude Max ${pctBar(100 - info.usedPct)}` : 'Max';
+  return [head, remain, pct].filter(Boolean).join(' · ');
+}
+
 function avgConfidence(events) {
   const xs = events
     .map((e) => Number(e && e.confidence))
@@ -377,7 +432,13 @@ function pickState(ctx) {
   if (typeof ctxPercent === 'number') proofParts.push(`ctx ${ctxPercent}%`);
   // Wave 16-18 Day 2 B1 — "est" marks this as a LOCAL estimate (computeAnthropicRem
   // from quota-state.json, 0 network calls), not Anthropic's authoritative quota.
-  if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
+  // Wave Mega 50-51 (4.A) — when buildContext supplies the full window summary
+  // (ctx.quotaWindow), the honest chip replaces the bare percent: remaining
+  // window time + `~N% est` when fresh data exists, the literal `quota ?` when
+  // the local count is missing/stale (>6h) — never a fake 100%. Contexts without
+  // quotaWindow (legacy tests/demos) keep the Wave 16-18 form unchanged.
+  if (ctx.quotaWindow) proofParts.push(formatQuotaChip(ctx.quotaWindow, { color: false }));
+  else if (typeof anthRem === 'number') proofParts.push(`${anthRem}% 5h est`);
   if (typeof lastTurnCost === 'number') proofParts.push(`$${lastTurnCost.toFixed(2)} this turn`);
   // Wave 48 (1.6) — `alltimeCost` is all-time spend; was mislabeled "session $".
   if (typeof alltimeCost === 'number') proofParts.push(`$${alltimeCost.toFixed(2)} all-time`);
@@ -903,6 +964,29 @@ function buildLocalChip(tokSnap, homeGlyph = '🏠') {
   return `${homeGlyph} ${t0calls}/${totalCalls} calls (${callsPct}%)${tokPart}`;
 }
 
+// Wave Mega 50-51 (2.D) — 🔒 spawn-sandbox proof chip. Renders ONLY when the
+// host can actually enforce the `mooter spawn` 4-layer sandbox (bwrap on Linux,
+// Seatbelt on macOS) or when ~/.mooter carries an explicit sandbox-capable
+// marker. Detection is fixed-path fs.existsSync stats only (<5ms, no exec, no
+// PATH walk) and degrades silently — any failure means no chip, never an error.
+const SANDBOX_BIN_PATHS = ['/usr/bin/bwrap', '/usr/local/bin/bwrap', '/bin/bwrap'];
+function sandboxCapable() {
+  try {
+    for (const p of SANDBOX_BIN_PATHS) {
+      if (fs.existsSync(p)) return true;
+    }
+    if (process.platform === 'darwin' && fs.existsSync('/usr/bin/sandbox-exec')) return true;
+    // Explicit marker (e.g. a non-standard bwrap install verified by `mooter security audit`).
+    if (fs.existsSync(path.join(require('os').homedir(), '.mooter', 'sandbox-capable'))) return true;
+  } catch { /* degrade silently */ }
+  return false;
+}
+function buildSandboxChip(capable = sandboxCapable()) {
+  // Honest by omission: an UNAVAILABLE sandbox renders nothing — we never show
+  // an "open lock" that could read as a scary (or fake) security state.
+  return capable ? '🔒 sandbox' : null;
+}
+
 // Wave 33 (A.2) — humanize a session age in ms. <60min → "47m"; <24h →
 // "2h47m"; ≥24h → "2d4h". Pure formatter; the source (transcript birth time)
 // is read once per render in buildContext.
@@ -1087,7 +1171,12 @@ function renderTwoLine(ctx, opts = {}) {
     homeChip,
     gpuChip,
     ctxChip,
-    typeof ctx.anthRem === 'number' ? `☁ Claude Max ${pctBar(ctx.anthRem)} ${ctx.anthRem}% left · 5h reset` : null,
+    // Wave Mega 50-51 (4.A) — honest quota chip when the window summary exists
+    // (`☁ Claude Max [▓▓▓░░…] · 2h13m/5h · ~63% est`, or `☁ quota ?` when the
+    // local count is missing/stale). Legacy ctx (no quotaWindow) keeps Wave 48.
+    ctx.quotaWindow
+      ? `☁ ${formatQuotaChip(ctx.quotaWindow, { bar: true })}`
+      : (typeof ctx.anthRem === 'number' ? `☁ Claude Max ${pctBar(ctx.anthRem)} ${ctx.anthRem}% left · 5h reset` : null),
     sessionTimerChip,
     // Wave 48 (1.6) — group the two cost figures under one 📝 chip and FIX the
     // mislabel: `alltimeCost` was rendered as "session $" (it is all-time spend,
@@ -1100,6 +1189,8 @@ function renderTwoLine(ctx, opts = {}) {
       : null,
     tokenChip,
     herdsChip,
+    // Wave Mega 50-51 (2.D) — 🔒 only when the spawn sandbox is enforceable.
+    hide('sandbox') ? null : buildSandboxChip(),
     quantChip,
     packChip,
     hide('adapter') ? null : adapterChip,
@@ -1112,14 +1203,14 @@ function renderTwoLine(ctx, opts = {}) {
   // Wave 29 (29.J) — opt-in line 3 (synthesis chips). Default OFF → lines 1-2 are
   // byte-for-byte unchanged. Enable via preferences.json {"statusline_line3":true}
   // or MOOTER_STATUSLINE_LINE3=1. Defensive: any failure → no line 3.
-  const line3 = buildLine3(opts.forceLine3);
+  const line3 = buildLine3(opts.forceLine3, ctx.sessionId);
   return line3 ? `${line1}\n${line2}\n${line3}` : `${line1}\n${line2}`;
 }
 
 // Wave 29 (29.J) — assemble the opt-in line-3 synthesis chips (compression ·
 // setup · ecosystem). Each helper returns null when its layer is inactive, and
 // any throw is swallowed so the statusline can never be broken by line 3.
-function buildLine3(force) {
+function buildLine3(force, selfSessionId) {
   // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
   // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
   if (force === false) return null;
@@ -1132,6 +1223,8 @@ function buildLine3(force) {
   }
   if (!on) return null;
   const chips = [];
+  // Wave 53 — modules that need the current session id (to scope / self-exclude).
+  const SESSION_AWARE = new Set(['./sessions-status.js', './agent-focus-status.js']);
   for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
     './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
     './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
@@ -1140,28 +1233,156 @@ function buildLine3(force) {
     './terminal-name-status.js', './workflow-progress-status.js',
     // Wave 33.5 Block B.5 — 🐝 active spawns.
     './spawns-status.js',
+    // Wave 53 Phase B.3 — 🤖 live subagent focus (identity · model · duration).
+    './agent-focus-status.js',
     // Wave 33.6 Block P6 — 🔒 conductor lock count.
     './conductor-status.js',
+    // Wave 53 Phase A′ — ⇄ cross-session sister visibility (heartbeats).
+    './sessions-status.js',
     // Wave 33.8 Block E — 👤 signed-in identity (opaque hash, silent logged-out).
-    './user-status.js']) {
+    './user-status.js',
+    // Wave 53 Phase B.5 — user-pluggable segment (~/.mooter/statusline/custom.js).
+    './custom-status.js',
+    // Wave 53 Phase H.1 — 🧪 MooterBench accuracy (opt-IN; `?` when no results).
+    './bench-status.js']) {
     try {
-      const c = require(mod).statusLine();
+      // Wave 53 — SESSION_AWARE modules take the current session id; the others'
+      // statusLine() ignores extra args, but dogfood-status takes a positional
+      // `now`, so the session id is passed only to the aware set.
+      const c = SESSION_AWARE.has(mod)
+        ? require(mod).statusLine(selfSessionId)
+        : require(mod).statusLine();
       if (c) chips.push(c);
     } catch { /* skip a broken chip, never break the statusline */ }
   }
   return chips.length ? chips.join(' · ') : null;
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Wave Mega 50-51 (4.B) — responsive layouts (narrow / medium / wide)
+// ────────────────────────────────────────────────────────────────────────
+// Mode picks CONTENT (mini/compact/full/didactic, Wave 32); width picks the
+// LAYOUT. Named breakpoints, an explicit `statusline_layout` preference that
+// overrides detection, and a pure priority-based chip collapse (layoutChips).
+// Everything here is plain arithmetic + at most one small prefs read — well
+// under the file's <10ms budget.
+
+const LAYOUT_NARROW_BELOW  = 80;  // width < 80   → narrow (1 line, primary only)
+const LAYOUT_WIDE_ABOVE    = 120; // width > 120  → wide;  80..120 → medium
+const LAYOUT_DEFAULT_WIDTH = 100; // no TTY + no COLUMNS → assume medium
+
+const VALID_LAYOUTS = ['narrow', 'medium', 'wide'];
+
+// Ordered chip priority — index 0 (the primary state sentence) is dropped LAST.
+const CHIP_PRIORITY = ['primary', 'quota', 'tier', 'savings', 'sessions', 'sandbox', 'extra'];
+
 /**
- * Entry point — picks the 2-line layout on a wide terminal, otherwise the
- * existing single-line render (already compact-aware for narrow terminals).
- * COLUMNS reflects the host terminal width; absent → assume narrow (1-line).
+ * Terminal width: process.stdout.columns when a TTY, else the COLUMNS env,
+ * else LAYOUT_DEFAULT_WIDTH. Injectable for tests; zero I/O.
+ */
+function detectWidth(stdout = process.stdout, env = process.env) {
+  if (stdout && stdout.isTTY && Number(stdout.columns) > 0) return Number(stdout.columns);
+  const c = parseInt((env && env.COLUMNS) || '', 10);
+  if (Number.isFinite(c) && c > 0) return c;
+  return LAYOUT_DEFAULT_WIDTH;
+}
+
+/** Map a width to a layout via the named breakpoints. */
+function layoutForWidth(width) {
+  if (width < LAYOUT_NARROW_BELOW) return 'narrow';
+  if (width > LAYOUT_WIDE_ABOVE) return 'wide';
+  return 'medium';
+}
+
+/**
+ * Explicit layout preference: env MOOTER_STATUSLINE_LAYOUT, then
+ * ~/.mooter/preferences.json `statusline_layout`. "auto"/absent → null
+ * (the caller falls back to width detection). Best-effort, never throws.
+ */
+function readLayoutPref(env = process.env) {
+  const e = env && env.MOOTER_STATUSLINE_LAYOUT;
+  if (VALID_LAYOUTS.includes(e)) return e;
+  if (e === 'auto') return null;
+  try {
+    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    const l = prefs && prefs.statusline_layout;
+    if (VALID_LAYOUTS.includes(l)) return l;
+  } catch { /* no pref */ }
+  return null;
+}
+
+/** Explicit pref wins; otherwise the detected width decides. */
+function resolveLayout({ pref = readLayoutPref(), width = detectWidth() } = {}) {
+  if (VALID_LAYOUTS.includes(pref)) return pref;
+  return layoutForWidth(width);
+}
+
+/**
+ * Pure priority-based chip collapse. `chips` is [{ text, priority }] where
+ * priority is one of CHIP_PRIORITY (unknown → treated as lowest). While the
+ * ' · '-joined line exceeds `width`, the lowest-priority chip is dropped
+ * (ties → right-most first). The primary chip is never dropped. Original
+ * order is preserved among the survivors. No I/O, no env reads.
+ */
+function layoutChips(chips, width) {
+  const items = (Array.isArray(chips) ? chips : [])
+    .filter((c) => c && typeof c.text === 'string' && c.text.length > 0);
+  const rank = (c) => {
+    const i = CHIP_PRIORITY.indexOf(c.priority);
+    return i === -1 ? CHIP_PRIORITY.length : i;
+  };
+  const lineLen = (xs) => xs.reduce((n, c, i) => n + c.text.length + (i > 0 ? 3 : 0), 0);
+  const kept = items.slice();
+  while (kept.length > 1 && lineLen(kept) > width) {
+    let worst = 0;
+    for (let i = 1; i < kept.length; i++) {
+      if (rank(kept[i]) >= rank(kept[worst])) worst = i;
+    }
+    kept.splice(worst, 1);
+  }
+  return kept;
+}
+
+/** ANSI-aware truncation: untouched when it fits, plain-text ellipsis when not. */
+function truncateToWidth(s, width) {
+  const plain = String(s).replace(/\x1b\[[0-9;]*m/g, '');
+  if (plain.length <= width) return s;
+  return plain.slice(0, Math.max(1, width - 1)) + '…';
+}
+
+/**
+ * Narrow layout: ONE line — the primary state sentence, plus the quota chip
+ * only if it still fits (layoutChips drops it first), truncated to width.
+ * Proof chips are dropped entirely: at <80 cols they were unreadable noise.
+ */
+function renderNarrow(ctx, width = detectWidth()) {
+  const state = pickState(ctx);
+  const chips = [{ text: `${COLOR_GLYPH[state.color]} ${state.headline}`, priority: 'primary' }];
+  if (ctx && ctx.quotaWindow) {
+    chips.push({ text: formatQuotaChip(ctx.quotaWindow, { color: false }), priority: 'quota' });
+  }
+  const kept = layoutChips(chips, width);
+  return truncateToWidth(kept.map((c) => c.text).join(' · '), width);
+}
+
+/** Post-process a mode's CONTENT through the width LAYOUT (narrow → 1 line). */
+function applyLayout(out, layout, width = detectWidth()) {
+  if (layout !== 'narrow') return out; // medium/wide: the mode's lines stand
+  return truncateToWidth(String(out).split('\n')[0], width);
+}
+
+/**
+ * Entry point — Wave Mega 50-51 (4.B): a pinned statusline_mode still picks the
+ * CONTENT (Wave 32, unchanged); the resolved layout (explicit preference or
+ * width detection) picks the SHAPE. With no mode and no layout pin, the
+ * medium path is the legacy width-based default, byte-for-byte.
  */
 function render(ctx) {
+  const width = detectWidth();
+  const layout = resolveLayout({ width });
   // Wave 32 (Phase B) — an explicitly pinned mode (env or preferences.json)
-  // overrides the adaptive layout. With no mode pinned this is a no-op and the
-  // width-based default below runs byte-for-byte as before. Best-effort: any
-  // failure in the modes module falls through to the legacy default.
+  // overrides the adaptive layout. Best-effort: any failure in the modes
+  // module falls through to the adaptive default.
   try {
     const modes = require('./statusline-modes.js');
     const mode = modes.readMode();
@@ -1171,11 +1392,13 @@ function render(ctx) {
         renderTwoLine,
         helpers: { colorize, useColor, ANSI, COLOR_GLYPH, formatSessionAge },
       });
-      if (out !== null && out !== undefined) return out;
+      if (out !== null && out !== undefined) return applyLayout(out, layout, width);
     }
   } catch { /* fall through to adaptive default */ }
-  const cols = parseInt(process.env.COLUMNS || '80', 10);
-  return cols >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx) : renderFromContext(ctx);
+  if (layout === 'narrow') return renderNarrow(ctx, width);
+  if (layout === 'wide') return renderTwoLine(ctx);
+  // medium — the pre-50-51 behavior preserved (2 lines only at the threshold).
+  return width >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx) : renderFromContext(ctx);
 }
 
 async function buildContext() {
@@ -1226,6 +1449,9 @@ async function buildContext() {
   const anthRem    = computeAnthropicRem(quota);
   const codexRem   = computeCodexRem(quota);
   const codexLeft  = computeCodexMessagesLeft(quota);
+  // Wave Mega 50-51 (4.A) — honest window summary for the quota chip. Always
+  // set: {ok:false} (missing/stale → `quota ?`) is itself the honest signal.
+  const quotaWindow = summarizeQuotaWindow(quota);
 
   const todayCost =
     ((quota.providers && quota.providers.anthropic && quota.providers.anthropic.today.cost_usd) || 0) +
@@ -1270,7 +1496,7 @@ async function buildContext() {
 
   return {
     counts, total, last, recent,
-    anthRem, codexRem, codexLeft,
+    anthRem, codexRem, codexLeft, quotaWindow,
     savedUsd, savedPct, todayCost,
     ctxPercent, lastTurnCost, alltimeCost,
     drift,
@@ -1330,8 +1556,10 @@ const DEMO_CONTEXTS = {
 async function main() {
   const argv = process.argv.slice(2);
   if (argv[0] === '--mock') {
+    // Wave Mega 50-51 (4.B) — mock now goes through render() so the responsive
+    // layout (narrow/medium/wide from real width detection) is what you preview.
     for (const k of ['green', 'yellow', 'red', 'empty']) {
-      process.stdout.write(renderFromContext(DEMO_CONTEXTS[k]) + '\n');
+      process.stdout.write(render(DEMO_CONTEXTS[k]) + '\n');
     }
     return;
   }
@@ -1370,6 +1598,22 @@ module.exports = {
   buildLocalChip,
   buildHerdsChip,
   buildExecSegment,
+  sandboxCapable,
+  buildSandboxChip,
+  // Wave Mega 50-51 (4.A) — honest quota chip helpers.
+  summarizeQuotaWindow,
+  fmtWindowRemain,
+  formatQuotaChip,
+  // Wave Mega 50-51 (4.B) — responsive layout helpers.
+  detectWidth,
+  layoutForWidth,
+  readLayoutPref,
+  resolveLayout,
+  layoutChips,
+  truncateToWidth,
+  renderNarrow,
+  applyLayout,
+  CHIP_PRIORITY,
   colorize,
   useColor,
   formatGpuChip,
