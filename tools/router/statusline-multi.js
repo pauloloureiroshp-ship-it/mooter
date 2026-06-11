@@ -1214,7 +1214,10 @@ function buildLine3(force, selfSessionId) {
   // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
   // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
   if (force === false) return null;
-  let on = force === true || process.env.MOOTER_STATUSLINE_LINE3 === '1';
+  // Wave 55 (Phase J) — opting into the 🔥 burn chip via env also surfaces line 3
+  // so the chip is visible without separately flipping statusline_line3.
+  let on = force === true || process.env.MOOTER_STATUSLINE_LINE3 === '1'
+    || process.env.MOOTER_STATUSLINE_BURN === '1';
   if (!on) {
     try {
       const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
@@ -1244,7 +1247,10 @@ function buildLine3(force, selfSessionId) {
     // Wave 53 Phase B.5 — user-pluggable segment (~/.mooter/statusline/custom.js).
     './custom-status.js',
     // Wave 53 Phase H.1 — 🧪 MooterBench accuracy (opt-IN; `?` when no results).
-    './bench-status.js']) {
+    './bench-status.js',
+    // Wave 55 Phase J — 🔥 burn-rate $/h (opt-IN via statusline_chips.burn_rate
+    // or MOOTER_STATUSLINE_BURN=1; trailing-60min real spend, pricing.js SSOT).
+    './burn-rate-status.js']) {
     try {
       // Wave 53 — SESSION_AWARE modules take the current session id; the others'
       // statusLine() ignores extra args, but dogfood-status takes a positional
