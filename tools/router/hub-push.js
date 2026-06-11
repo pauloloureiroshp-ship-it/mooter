@@ -92,13 +92,8 @@ function enrichDelta(delta) {
   // MP-18: Anonymous profile hash (SHA256 of device_id — never sends device_id directly)
   try {
     const { createHash } = require('crypto');
-    let deviceId;
-    try {
-      deviceId = fs.readFileSync(path.join(os.homedir(), '.mooter', 'device.id'), 'utf8').trim();
-    } catch {
-      deviceId = fs.readFileSync(path.join(os.homedir(), '.frugal', 'device.id'), 'utf8').trim();
-    }
-    delta.profile_hash = createHash('sha256').update(deviceId).digest('hex').slice(0, 16);
+    const deviceId = require('./identity').readDeviceId();
+    if (deviceId) delta.profile_hash = createHash('sha256').update(deviceId).digest('hex').slice(0, 16);
   } catch { /* non-fatal */ }
 
   // Ensure required fields

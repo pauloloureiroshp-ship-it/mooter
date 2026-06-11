@@ -147,7 +147,7 @@ do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/' 2>/dev/null || true"
 do_run "cp '$SRC_DIR/tools/router/'*.json '$ROUTER_DIR/' 2>/dev/null || true"
 
 # Hooks live under ~/.claude/hooks/ (not ~/.claude/tools/router/).
-for h in gsd-statusline.js gsd-turn-end.js frugal-turn-header.js exec-logger.js PostToolUse.js; do
+for h in gsd-statusline.js gsd-turn-end.js mooter-turn-header.js frugal-turn-header.js exec-logger.js PostToolUse.js; do
   [ -f "$SRC_DIR/tools/router/$h" ] && do_run "cp '$SRC_DIR/tools/router/$h' '$HOOKS_DIR/$h'"
   do_run "rm -f '$ROUTER_DIR/$h'"
 done

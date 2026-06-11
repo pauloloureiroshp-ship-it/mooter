@@ -173,10 +173,7 @@ async function main() {
   const deviceProfile = {
     version: '1.0',
     updated_at: new Date().toISOString(),
-    device_id: (() => {
-      const p = path.join(os.homedir(), '.frugal', 'device.id');
-      try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; }
-    })(),
+    device_id: require('./identity').readDeviceId(),
     hardware,
     software,
     subscriptions,

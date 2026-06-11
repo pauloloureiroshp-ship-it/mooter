@@ -307,7 +307,7 @@ function autoSync() {
   try { fs.writeFileSync(COUNTER_PATH, String(count)); } catch { /* best-effort */ }
 
   if (count % SYNC_INTERVAL === 0 && fs.existsSync(AUTH_TOKEN_PATH)) {
-    const doctorPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'frugal-doctor.js');
+    const doctorPath = path.join(os.homedir(), '.claude', 'tools', 'router', 'mooter-doctor.js');
     if (fs.existsSync(doctorPath)) {
       try {
         const child = spawn('node', [doctorPath, '--sync', '--silent'], {
