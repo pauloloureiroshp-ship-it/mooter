@@ -1250,7 +1250,10 @@ function buildLine3(force, selfSessionId) {
     './bench-status.js',
     // Wave 55 Phase J — 🔥 burn-rate $/h (opt-IN via statusline_chips.burn_rate
     // or MOOTER_STATUSLINE_BURN=1; trailing-60min real spend, pricing.js SSOT).
-    './burn-rate-status.js']) {
+    './burn-rate-status.js',
+    // Wave 55 Phase C.4 — 📜 CCA-F audit pass-rate (opt-IN via statusline_chips.cca_f
+    // or MOOTER_STATUSLINE_CCAF=1; reads latest ~/.mooter/cca-f/audit report, `?` until run).
+    './cca-f-status.js']) {
     try {
       // Wave 53 — SESSION_AWARE modules take the current session id; the others'
       // statusLine() ignores extra args, but dogfood-status takes a positional
