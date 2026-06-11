@@ -1,0 +1,30 @@
+name: 🐄 Routing miss
+description: Mooter sent a prompt to the wrong tier (too weak or too strong)
+labels: [routing-miss]
+body:
+  - type: input
+    id: prompt
+    attributes:
+      label: Prompt (redact anything private)
+      placeholder: "refactor the auth middleware to add refresh tokens"
+    validations: { required: true }
+  - type: dropdown
+    id: got
+    attributes:
+      label: Tier Mooter chose
+      options: [T0 (local), T1 (Haiku), T2 (Sonnet), T3 (Opus)]
+    validations: { required: true }
+  - type: dropdown
+    id: expected
+    attributes:
+      label: Tier you expected
+      options: [T0 (local), T1 (Haiku), T2 (Sonnet), T3 (Opus)]
+    validations: { required: true }
+  - type: textarea
+    id: why
+    attributes:
+      label: Why (what did the chosen model get wrong / waste?)
+  - type: input
+    id: version
+    attributes:
+      label: mooter --version

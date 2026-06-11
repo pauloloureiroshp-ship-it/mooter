@@ -1,6 +1,6 @@
 ---
 name: Question
-about: Ask how frugal works, or whether it supports something
+about: Ask how mooter works, or whether it supports something
 title: "[q] "
 labels: question
 assignees: pauloloureiroshp-ship-it

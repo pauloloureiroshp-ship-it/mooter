@@ -1,5 +1,5 @@
 <!--
-Thanks for contributing to frugal!
+Thanks for contributing to mooter!
 
 Before you open this PR, make sure you have read CONTRIBUTING.md — especially
 the section on the doctrine and HIGH_RISK list, which require sign-off BEFORE

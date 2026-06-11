@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in frugal is broken or misbehaving
+about: Something in mooter is broken or misbehaving
 title: "[bug] "
 labels: bug
 assignees: pauloloureiroshp-ship-it
@@ -39,7 +39,7 @@ node ~/.claude/tools/router/classify.js "your exact prompt here"
 - **OS:** <!-- Windows 11 / macOS 14 / Ubuntu 22.04 / ... -->
 - **Node version:** <!-- `node --version` -->
 - **Claude Code version:** <!-- bottom of your statusline -->
-- **frugal version:** <!-- see CHANGELOG, or `git log --oneline -1` -->
+- **mooter version:** <!-- `mooter --version`, or `git log --oneline -1` -->
 - **Relevant env vars:** <!-- `ANTHROPIC_API_KEY` set? `ROUTER_OLLAMA_MODEL`? -->
 
 ## Current tuning state (if relevant)
