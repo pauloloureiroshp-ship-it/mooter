@@ -53,7 +53,8 @@ Verified against the live `statusline-multi.js` render (`--demo green`, line-3 f
 the two genuinely-missing ones. See REFUTATIONS_LOG.
 
 ### P3 — "Wave 54 CCA-F audit not yet run" — **TRUE**
-`~/.mooter/fable-observe/audit/` is absent. Phase C ships setup + a **dry-run**;
+`~/.mooter/fable-observe/audit/` is absent. Phase C ships setup + a **free dry-run
+equivalent** (the stubbed-deps harness suite — there is no `--dry-run` flag);
 the real 60q overnight run stays Paulo's (GPU + Claude Max quota). Phase C.4 chip
 uses the honest `?` fallback until a real report exists.
 

@@ -1214,10 +1214,12 @@ function buildLine3(force, selfSessionId) {
   // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
   // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
   if (force === false) return null;
-  // Wave 55 (Phase J) — opting into the 🔥 burn chip via env also surfaces line 3
-  // so the chip is visible without separately flipping statusline_line3.
+  // Wave 55 (Phase J/C) — opting into the 🔥 burn or 📜 cca-f chip via env also
+  // surfaces line 3 so the chip is visible without separately flipping
+  // statusline_line3 (parity between the two env opt-ins).
   let on = force === true || process.env.MOOTER_STATUSLINE_LINE3 === '1'
-    || process.env.MOOTER_STATUSLINE_BURN === '1';
+    || process.env.MOOTER_STATUSLINE_BURN === '1'
+    || process.env.MOOTER_STATUSLINE_CCAF === '1';
   if (!on) {
     try {
       const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
