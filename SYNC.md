@@ -2665,3 +2665,11 @@ Side effects: upsert em D1 `devices` table
 ---
 
 *Cowork Mac working surface: `~/Documents/Claude/Projects/Mooter.ai (macOS)/` com logs, dumps, mapa operacional HTML, e este SYNC.md.*
+
+---
+## 📥 COWORK → CLAUDE CODE — 2026-06-11 (VS Code extension F0)
+**Estado:** 🟡 Por ler
+- ✅ Teste P0 PASS: hook UserPromptSubmit dispara no painel gráfico da extensão oficial (2.1.153). Evidência: `packages/vscode-extension/docs/P0-HOOK-TEST-RESULTS.md`
+- ✅ 7 docs de projecto em `packages/vscode-extension/docs/` (viabilidade, blueprint, UX spec, master prompt, mockup, rodada2)
+- 🔜 Próximo: executar MASTERPROMPT F0.2 (schema audit + parser JSONL) → F1. Launcher = tab gráfico confirmado.
+- ⚠️ Nota: `~/.mooter/decisions.log` não existe neste Mac (opt-ins pendentes: mooter init/login/sync) — F0.2 deve confirmar o path real de decisões.
