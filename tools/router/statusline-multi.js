@@ -1390,6 +1390,18 @@ function applyLayout(out, layout, width = detectWidth()) {
  * medium path is the legacy width-based default, byte-for-byte.
  */
 function render(ctx, opts = {}) {
+  const out = renderResolved(ctx, opts);
+  // Wave 55 (Phase A.4) — opt-in ASCII glyph fallback (MOOTER_GLYPH_MODE=ascii)
+  // for terminals/fonts that render the bovine emoji poorly. Default (env unset)
+  // → byte-identical; any glyphs.js failure degrades to the emoji output.
+  try {
+    const g = require('./glyphs.js');
+    if (g.asciiGlyphs(opts.env)) return g.toAscii(out);
+  } catch { /* keep emoji */ }
+  return out;
+}
+
+function renderResolved(ctx, opts = {}) {
   const width = detectWidth();
   const layout = resolveLayout({ width, env: opts.env, home: opts.home });
   // Wave 32 (Phase B) — an explicitly pinned mode (env or preferences.json)

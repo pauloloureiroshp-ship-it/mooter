@@ -81,4 +81,57 @@ function moodGlyph(mood) {
   return MOOD_GLYPHS[mood] || MOOD_GLYPHS.healthy;
 }
 
-module.exports = { TIER_GLYPHS, PROVIDER_GLYPHS, MOOD_GLYPHS, glyphFor, providerBucket, moodGlyph };
+// ── Wave 55 (Phase A.4) — ASCII glyph fallback ──────────────────────────────
+// Some terminals/fonts (notably a few macOS setups) render the bovine emoji as
+// tofu or at the wrong cell width. `MOOTER_GLYPH_MODE=ascii` opts into a plain
+// transcription. Default (env unset) is byte-identical — nothing here runs.
+//
+// Box-drawing/block/geometric glyphs (│ · ▰▱▓░█ and the ▁-▇ sparkline) are NOT
+// touched: they render 1-cell consistently everywhere and are the line's
+// structure, not its iconography. We only fold the emoji that misrender.
+const ASCII_GLYPHS = {
+  // mood (headline)
+  '🐮': '[M]', '🐂': '[!]', '🚨': '[X]', '🛠': '[~]', '⚪': '[o]',
+  // tier Moos
+  '🐃': 'T0+', '🐄': 'T0', '🐎': 'T1', '🦬': 'T3',
+  // providers
+  '🏠': 'local', '☁': 'cloud', '⚡': 'max',
+  // chips
+  '🪙': '$', '🧬': 'adapter', '🎮': 'GPU', '📊': 'stat', '🔧': 'setup',
+  '👤': 'user', '🔥': 'burn', '🧪': 'bench', '📜': 'audit', '🐝': 'spawn',
+  '🔒': 'lock', '🪟': 'win', '🤖': 'agent', '🧠': 'mem', '💎': 'model',
+  '🐺': 'herd', '🧭': 'nav', '🪜': 'ladder', '🖼': 'img', '📚': 'packs',
+  '⏱': 'time', '⇄': 'sync', '🐄': 'T0',
+};
+
+// Strip any emoji we didn't explicitly map, so ascii mode never leaves a
+// half-rendered glyph. Ranges deliberately EXCLUDE U+2500–25FF (box/block/
+// geometric — the bars and separators we keep).
+const LEFTOVER_EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{FE0F}\u{200D}]/gu;
+
+/**
+ * Transcribe Mooter's emoji glyphs to ASCII tokens. Pure; ANSI codes and
+ * box/block glyphs pass through untouched. Wave 55 (Phase A.4).
+ * @param {string} str
+ * @returns {string}
+ */
+function toAscii(str) {
+  if (typeof str !== 'string') return str;
+  let out = str;
+  for (const [emoji, ascii] of Object.entries(ASCII_GLYPHS)) {
+    if (out.includes(emoji)) out = out.split(emoji).join(ascii);
+  }
+  out = out.replace(LEFTOVER_EMOJI, '');
+  // collapse spaces a removed glyph may have doubled, but preserve newlines
+  return out.replace(/[^\S\n]{2,}/g, ' ').replace(/[^\S\n]+\n/g, '\n');
+}
+
+/** True when the ASCII glyph fallback is opted in. */
+function asciiGlyphs(env) {
+  return (env || process.env).MOOTER_GLYPH_MODE === 'ascii';
+}
+
+module.exports = {
+  TIER_GLYPHS, PROVIDER_GLYPHS, MOOD_GLYPHS, glyphFor, providerBucket, moodGlyph,
+  ASCII_GLYPHS, toAscii, asciiGlyphs,
+};
