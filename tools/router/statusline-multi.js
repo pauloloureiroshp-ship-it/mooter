@@ -1299,21 +1299,27 @@ function layoutForWidth(width) {
  * ~/.mooter/preferences.json `statusline_layout`. "auto"/absent → null
  * (the caller falls back to width detection). Best-effort, never throws.
  */
-function readLayoutPref(env = process.env) {
+function readLayoutPref(env = process.env, home = require('os').homedir()) {
   const e = env && env.MOOTER_STATUSLINE_LAYOUT;
   if (VALID_LAYOUTS.includes(e)) return e;
   if (e === 'auto') return null;
   try {
-    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    const prefs = JSON.parse(fs.readFileSync(path.join(home, '.mooter', 'preferences.json'), 'utf8'));
     const l = prefs && prefs.statusline_layout;
     if (VALID_LAYOUTS.includes(l)) return l;
   } catch { /* no pref */ }
   return null;
 }
 
-/** Explicit pref wins; otherwise the detected width decides. */
-function resolveLayout({ pref = readLayoutPref(), width = detectWidth() } = {}) {
-  if (VALID_LAYOUTS.includes(pref)) return pref;
+/**
+ * Explicit pref wins; otherwise the detected width decides.
+ * Wave 55 (Phase H) — `{home, env}` flow to the preferences read so render()
+ * can be HOME-isolated for tests; `pref` is still passable explicitly (incl.
+ * `null` → "no pref, use width") for the resolveLayout unit tests.
+ */
+function resolveLayout({ pref, width = detectWidth(), env = process.env, home } = {}) {
+  const p = pref !== undefined ? pref : readLayoutPref(env, home);
+  if (VALID_LAYOUTS.includes(p)) return p;
   return layoutForWidth(width);
 }
 
@@ -1377,15 +1383,18 @@ function applyLayout(out, layout, width = detectWidth()) {
  * width detection) picks the SHAPE. With no mode and no layout pin, the
  * medium path is the legacy width-based default, byte-for-byte.
  */
-function render(ctx) {
+function render(ctx, opts = {}) {
   const width = detectWidth();
-  const layout = resolveLayout({ width });
+  const layout = resolveLayout({ width, env: opts.env, home: opts.home });
   // Wave 32 (Phase B) — an explicitly pinned mode (env or preferences.json)
   // overrides the adaptive layout. Best-effort: any failure in the modes
   // module falls through to the adaptive default.
+  // Wave 55 (Phase H) — `opts.home`/`opts.env` flow to the mode/layout pref
+  // reads so render() is HOME-isolatable (test hermeticity). No opts → real
+  // ~/.mooter + process.env, byte-identical to the legacy path.
   try {
     const modes = require('./statusline-modes.js');
-    const mode = modes.readMode();
+    const mode = modes.readMode({ home: opts.home, env: opts.env });
     if (mode) {
       const out = modes.renderForMode(mode, ctx, {
         renderFromContext,
@@ -1558,8 +1567,12 @@ async function main() {
   if (argv[0] === '--mock') {
     // Wave Mega 50-51 (4.B) — mock now goes through render() so the responsive
     // layout (narrow/medium/wide from real width detection) is what you preview.
+    // Wave 55 (Phase H) — `--mock --home <path>` reads the mode/layout pin from
+    // an isolated HOME, so a preview can ignore your real ~/.mooter pins.
+    const homeIdx = argv.indexOf('--home');
+    const home = homeIdx !== -1 ? argv[homeIdx + 1] : undefined;
     for (const k of ['green', 'yellow', 'red', 'empty']) {
-      process.stdout.write(render(DEMO_CONTEXTS[k]) + '\n');
+      process.stdout.write(render(DEMO_CONTEXTS[k], { home }) + '\n');
     }
     return;
   }

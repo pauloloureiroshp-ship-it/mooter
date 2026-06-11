@@ -17,8 +17,10 @@
 
 'use strict';
 
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert   = require('node:assert/strict');
+const os       = require('node:os');
+const path     = require('node:path');
 
 const {
   pickState, renderFromContext, renderTwoLine, render,
@@ -27,6 +29,11 @@ const {
   getAdapterStatus, clampPercent, formatSessionAge,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
+
+// Wave 55 (Phase H) — hermetic HOME for the adaptive-layout render() tests, so a
+// dev's ~/.mooter/preferences.json {statusline_mode} pin can't force line-3.
+const CLEAN_HOME = require('node:fs').mkdtempSync(path.join(os.tmpdir(), 'mooter-sl-multi-'));
+after(() => { try { require('node:fs').rmSync(CLEAN_HOME, { recursive: true, force: true }); } catch { /* best-effort */ } });
 
 // ── pickState — primary states ──────────────────────────────────────────
 
@@ -424,7 +431,7 @@ test('C.1: narrow render is single-line and uses the compact GPU form', () => {
   const prev = process.env.COLUMNS;
   process.env.COLUMNS = '90';
   try {
-    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }).split('\n');
+    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }, { home: CLEAN_HOME }).split('\n');
     assert.equal(lines.length, 1, 'narrow terminal renders a single line');
     if (/🎮/.test(lines[0])) {
       assert.ok(!/VRAM \(/.test(lines[0]), 'narrow GPU chip is compact, not the wide VRAM chip');
