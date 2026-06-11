@@ -40,11 +40,17 @@ function optedIn(p) {
 
 /** Candidate RESULTS.json locations: runtime home first, dev checkout second. */
 function resultsPaths() {
-  const home = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
-  return [
-    path.join(home, 'bench', 'RESULTS.json'),
-    path.resolve(__dirname, '..', '..', 'packages', 'mooter-bench', 'RESULTS.json'),
-  ];
+  const explicitHome = process.env.MOOTER_HOME;
+  const home = explicitHome || path.join(os.homedir(), '.mooter');
+  const paths = [path.join(home, 'bench', 'RESULTS.json')];
+  // Wave 55 (Phase G) — the dev-checkout fallback exists so the chip can read a
+  // locally-generated bench when running from the repo with no runtime home. But
+  // an EXPLICIT MOOTER_HOME means "read results only from here": skip the repo
+  // checkout so an isolated/test home can't leak the repo's RESULTS.json.
+  if (!explicitHome) {
+    paths.push(path.resolve(__dirname, '..', '..', 'packages', 'mooter-bench', 'RESULTS.json'));
+  }
+  return paths;
 }
 
 function readResults() {

@@ -9,7 +9,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -152,6 +152,43 @@ function renderReport(
   return lines.join("\n");
 }
 
+/**
+ * Persist RESULTS.json so the line-3 `🧪 bench` chip (tools/router/bench-status.js)
+ * can read a REAL number instead of the honest `?` fallback. Wave 55 (Phase G).
+ *
+ * Written to the PACKAGE ROOT (PKG_DIR), which is exactly the dev-checkout path
+ * bench-status.js probes: `packages/mooter-bench/RESULTS.json`. The field names
+ * here are the ones that reader actually consumes — `generated_at` (freshness,
+ * NOT `timestamp`), `total` (the wf count), and numeric `cohorts` (the n=). A
+ * mismatched key would leave the chip stuck on `🧪 bench ?`.
+ */
+export function writeResults(
+  report: ScoreReport,
+  savings: SavingsEstimate,
+  meta: { sha256: string; dataset: string },
+  pkgDir = PKG_DIR,
+): string {
+  const resultsPath = join(pkgDir, "RESULTS.json");
+  const payload = {
+    generated_at: new Date().toISOString(),
+    accuracy: report.accuracy, // 0..1 — bench-status accepts fractional or %
+    total: report.total, // → "(N wf)"
+    completion: report.completion_rate,
+    cohorts: 1, // → "n=1"
+    cohort_label: "paulo-n=1",
+    est_savings_pct: Number(savings.saved_pct.toFixed(1)),
+    classifier_sha256: meta.sha256,
+    dataset: meta.dataset,
+    honest_caveats: [
+      "Synthetic author-judgment dataset, not production traces",
+      "Single cohort (N=1)",
+      "Savings are list-price estimates on an assumed token profile, not measured billing",
+    ],
+  };
+  writeFileSync(resultsPath, JSON.stringify(payload, null, 2) + "\n");
+  return resultsPath;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -188,6 +225,11 @@ export function main(argv = process.argv.slice(2)): number {
     dataset: datasetPath,
     date: new Date().toISOString().slice(0, 10),
   };
+
+  // Wave 55 (Phase G) — persist RESULTS.json for the bench chip. The notice goes
+  // to stderr so `--json` stdout stays a clean, pipeable JSON document.
+  const resultsPath = writeResults(report, savings, meta);
+  process.stderr.write(`📄 Results written to ${resultsPath}\n`);
 
   if (jsonMode) {
     console.log(
