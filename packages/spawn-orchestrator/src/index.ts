@@ -11,3 +11,5 @@ export * from "./pipeline.ts";
 export * from "./chip.ts";
 export * from "./security-test.ts";
 export * from "./commands.ts";
+export * from "./multiplexer-bridge.ts";
+export * from "./fanout.ts";
