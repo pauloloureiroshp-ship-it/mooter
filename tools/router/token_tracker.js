@@ -119,6 +119,53 @@ function trackCall(tier, llm, tokens_in, tokens_out, opts = {}) {
 }
 
 /**
+ * Wave 58 (C) — derive the dominant tier + the real model string a subagent ran
+ * on, from its own transcript. The wrapper records one `message.model` per
+ * assistant row; an agent may emit rows on more than one model (rare), so we pick
+ * the tier with the most tokens and the model string seen most often within it.
+ * Reuses modelToTier() (single source of truth). No fabrication: when the
+ * transcript carries no recognised tier, returns null model/tier — the caller
+ * stores what it really saw, never an invented one.
+ * @returns {{tier:(string|null), model:(string|null)}}
+ */
+function dominantAgentTier(transcriptPath) {
+  let raw;
+  try { raw = fs.readFileSync(transcriptPath, 'utf8'); } catch { return { tier: null, model: null }; }
+  const tierTokens = {};         // tier → total tokens (volume vote)
+  const tierModels = {};         // tier → { model: count }
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let row;
+    try { row = JSON.parse(line); } catch { continue; }
+    const msg = row && row.message;
+    if (!msg || row.type !== 'assistant') continue;
+    const tier = modelToTier(msg.model);
+    if (!tier) continue;
+    const u = msg.usage || {};
+    const vol = (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0);
+    if (vol === 0) continue;
+    tierTokens[tier] = (tierTokens[tier] || 0) + vol;
+    const mdl = String(msg.model || '').trim();
+    if (mdl) {
+      if (!tierModels[tier]) tierModels[tier] = {};
+      tierModels[tier][mdl] = (tierModels[tier][mdl] || 0) + 1;
+    }
+  }
+  let bestTier = null;
+  let bestVol = -1;
+  for (const t of Object.keys(tierTokens)) {
+    if (tierTokens[t] > bestVol) { bestVol = tierTokens[t]; bestTier = t; }
+  }
+  if (!bestTier) return { tier: null, model: null };
+  let bestModel = null;
+  let bestModelCount = -1;
+  for (const [m, c] of Object.entries(tierModels[bestTier] || {})) {
+    if (c > bestModelCount) { bestModelCount = c; bestModel = m; }
+  }
+  return { tier: bestTier, model: bestModel };
+}
+
+/**
  * Wave 22 (22.B) — capture a finished subagent's REAL wrapper-model tokens.
  *
  * Root cause of the ~64% gap (Day 0 finding): a subagent (e.g. local-summarizer)
@@ -131,6 +178,14 @@ function trackCall(tier, llm, tokens_in, tokens_out, opts = {}) {
  * `_transcript` bucket. Idempotent by `agent_id` via a `_subagent_done` set, so a hook
  * retry (or a Path-β race) can't inflate counts. snapshot() ignores `_subagent_done`
  * and the per-tier shape is unchanged (Wave 19 non-negotiable preserved).
+ *
+ * Wave 58 (C) — ADDITIVE per-agent bucket: at the same `agent_id` dedup point we
+ * also accumulate into `_by_agent`, keyed by agent NAME (opts.agentName, falling
+ * back to agentId when the hook does not pass one). Each record holds
+ * {calls, tokens_in, tokens_out, tier, model} where tier/model are the REAL
+ * dominant values from the transcript (dominantAgentTier). This is strictly
+ * additive — the per-tier `_pushed` buckets and the snapshot() shape are
+ * untouched (Wave 19 + Wave 22 non-negotiables preserved).
  * @returns {boolean} true iff this call recorded new tokens.
  */
 function trackSubagentTranscript(sessionId, agentId, transcriptPath, opts = {}) {
@@ -142,14 +197,33 @@ function trackSubagentTranscript(sessionId, agentId, transcriptPath, opts = {}) 
   const agg = aggregateTranscript(transcriptPath); // per-tier {calls, tokens_in, tokens_out}
   if (!cache._pushed) cache._pushed = emptyState();
   let any = false;
+  let aCalls = 0;
+  let aTin = 0;
+  let aTout = 0;
   for (const t of TIERS) {
     if (agg[t].calls > 0 || agg[t].tokens_in > 0 || agg[t].tokens_out > 0) {
       cache._pushed[t].calls += agg[t].calls;
       cache._pushed[t].tokens_in += agg[t].tokens_in;
       cache._pushed[t].tokens_out += agg[t].tokens_out;
       cache._pushed[t].real = true;
+      aCalls += agg[t].calls;
+      aTin += agg[t].tokens_in;
+      aTout += agg[t].tokens_out;
       any = true;
     }
+  }
+  // ── Wave 58 (C) additive per-agent bucket (same dedup gate) ──────────────────
+  if (any) {
+    if (!cache._by_agent) cache._by_agent = {};
+    const name = String(opts.agentName || agentId).trim() || agentId;
+    const { tier, model } = dominantAgentTier(transcriptPath);
+    const rec = cache._by_agent[name] || { calls: 0, tokens_in: 0, tokens_out: 0, tier: null, model: null };
+    rec.calls += aCalls;
+    rec.tokens_in += aTin;
+    rec.tokens_out += aTout;
+    if (tier) rec.tier = tier;     // keep the real value; never overwrite with null
+    if (model) rec.model = model;  // never fabricate — only what the transcript showed
+    cache._by_agent[name] = rec;
   }
   cache._subagent_done[agentId] = 1;
   writeCache(sid, cache);
@@ -190,14 +264,41 @@ function snapshot(sessionId, opts = {}) {
   return merged;
 }
 
+/**
+ * Wave 58 (C) — per-AGENT snapshot (additive sibling of snapshot()). Returns the
+ * `_by_agent` map { <agent_name>: {calls, tokens_in, tokens_out, tier, model} }
+ * accumulated by trackSubagentTranscript. **Cache-only / fast** — never parses a
+ * transcript, safe to call from the statusline every render. Returns {} when the
+ * session has no recorded subagent spend (honest empty, never a fabricated row).
+ * @returns {Object<string,{calls:number,tokens_in:number,tokens_out:number,tier:(string|null),model:(string|null)}>}
+ */
+function snapshotByAgent(sessionId) {
+  const cache = readCache(sessionId) || {};
+  const byAgent = cache._by_agent;
+  if (!byAgent || typeof byAgent !== 'object') return {};
+  const out = {};
+  for (const [name, r] of Object.entries(byAgent)) {
+    out[name] = {
+      calls: Number(r && r.calls) || 0,
+      tokens_in: Number(r && r.tokens_in) || 0,
+      tokens_out: Number(r && r.tokens_out) || 0,
+      tier: (r && r.tier) || null,
+      model: (r && r.model) || null,
+    };
+  }
+  return out;
+}
+
 module.exports = {
   TIERS,
   modelToTier,
   aggregateTranscript,
+  dominantAgentTier,
   findTranscript,
   trackCall,
   trackSubagentTranscript,
   syncFromTranscript,
   snapshot,
+  snapshotByAgent,
   cachePath,
 };
