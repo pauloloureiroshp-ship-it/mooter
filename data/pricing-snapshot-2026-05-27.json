@@ -7,14 +7,79 @@
     "Standard (global) base-input + output pricing per MTok. No prompt caching, no batch, no fast-mode, no data-residency multipliers applied in this benchmark.",
     "DEVIATION FROM DESIGN: BENCHMARK_DESIGN.md §17.2 and MASTER_PROMPT.md §4-A.2 hardcoded stale prices (Opus $15/$75 = deprecated Opus 4.1/4; Haiku $0.80/$4 = retired Haiku 3.5). Verified real 2026-05-27 prices used instead, per P7 (pricing.js is source of truth) and §4-A.2 ('alinhar primeiro'). Approved by Paulo at Phase 2. Logged in anomalies.md.",
     "Opus 4.7 uses a NEW TOKENIZER (~35% more tokens for same text vs prior models). Cost is priced on actual API usage so it stays correct, but raw token-count comparisons across arms are NOT apples-to-apples — see limitations.",
-    "Ollama local models cost $0 (electricity not accounted)."
+    "Ollama local models cost $0 (electricity not accounted).",
+    "Wave 58 Phase Seed (2026-06-12): added pending entries for models without in-repo price sources. These have input_per_mtok/output_per_mtok = null and pricing_status = 'pending'. computeCostMicros returns 0 (not NaN) for all pending models — the null guard in cost.ts already handles missing price entries. Prices must be supplied via 'mooter price-update' before these models can be accurately costed."
   ],
   "models": {
     "claude-opus-4-7": { "input_per_mtok": 5.00, "output_per_mtok": 25.00, "tier": "T3" },
     "claude-sonnet-4-6": { "input_per_mtok": 3.00, "output_per_mtok": 15.00, "tier": "T2" },
-    "claude-haiku-4-5": { "input_per_mtok": 1.00, "output_per_mtok": 5.00, "tier": "T1" }
+    "claude-haiku-4-5": { "input_per_mtok": 1.00, "output_per_mtok": 5.00, "tier": "T1" },
+    "claude-opus-4-6": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T3",
+      "pricing_status": "pending",
+      "pricing_note": "No in-repo source for Opus 4.6 pricing as of 2026-06-12; supply via mooter price-update. Likely same tier as Opus 4.7 ($5/$25) but not confirmed."
+    },
+    "claude-opus-4-8": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T3",
+      "pricing_status": "pending",
+      "pricing_note": "No in-repo source for Opus 4.8 pricing as of 2026-06-12; supply via mooter price-update."
+    },
+    "claude-fable-5": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T5",
+      "pricing_status": "pending",
+      "pricing_note": "Fable (Mythos) is opt-in only via @fable; pricing not publicly listed as of 2026-06-12. Supply via mooter price-update."
+    },
+    "gpt-5": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T3",
+      "pricing_status": "pending",
+      "pricing_note": "OpenAI GPT-5 pricing not tracked in this repo; supply via mooter price-update."
+    },
+    "gpt-5-3-codex": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T3",
+      "pricing_status": "pending",
+      "pricing_note": "OpenAI Codex / GPT-5.3 pricing not tracked in this repo; supply via mooter price-update."
+    },
+    "gpt-oss": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T2",
+      "pricing_status": "pending",
+      "pricing_note": "OpenAI OSS pricing not tracked in this repo; supply via mooter price-update."
+    },
+    "gemini-3.1-pro": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T3",
+      "pricing_status": "pending",
+      "pricing_note": "Google Gemini 3.1 Pro pricing not tracked in this repo; supply via mooter price-update."
+    },
+    "deepseek-v3.2": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T2",
+      "pricing_status": "pending",
+      "pricing_note": "DeepSeek V3.2 pricing not tracked in this repo; supply via mooter price-update."
+    },
+    "minimax": {
+      "input_per_mtok": null,
+      "output_per_mtok": null,
+      "tier": "T2",
+      "pricing_status": "pending",
+      "pricing_note": "MiniMax pricing not tracked in this repo; supply via mooter price-update."
+    }
   },
   "ollama_local_cost_usd": 0.0,
-  "ollama_models": ["qwen3:30b", "qwen2.5:3b", "qwen2.5-coder:14b", "qwen2.5-coder:7b", "deepseek-r1:7b", "gemma3:12b", "gemma4:e4b"],
+  "ollama_models": ["qwen3:30b", "qwen2.5:3b", "qwen2.5-coder:14b", "qwen2.5-coder:7b", "deepseek-r1:7b", "gemma3:12b", "gemma4:e4b", "qwen3.6"],
+  "local_models_free": ["qwen3-30b", "qwen3.6"],
   "pricing_js_sha256": "d772dc9f95e4218b06a346483b107a218836e6115c219f559455d8599c82ff52"
 }
