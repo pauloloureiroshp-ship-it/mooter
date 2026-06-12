@@ -2,10 +2,16 @@
 /**
  * matrix-status.js — Wave 58 A.13 (matrix coverage chip).
  *
- * OPT-IN line-3 chip showing the Wave 58 model × category specialization matrix
- * coverage, e.g. `🎯 Matrix: 14 mod × 24 cat · 13/336 measured · refreshed 1d ago`.
- * Off unless `statusline_chips.matrix: true` in ~/.mooter/preferences.json OR
- * env `MOOTER_STATUSLINE_MATRIX=1`.
+ * DEFAULT-ON line-3 chip showing the Wave 58 model × category specialization
+ * matrix coverage, e.g. `🎯 Matrix: 14 mod × 24 cat · 13/336 measured · refreshed 1d ago`.
+ *
+ * Wave 58 A.5 — this chip is shown by DEFAULT (the matrix is the headline Wave 58
+ * artifact). It is HIDDEN only when the user explicitly opts out via any of:
+ *   - env `MOOTER_STATUSLINE_MATRIX=0`
+ *   - `statusline_chips.matrix === false` in ~/.mooter/preferences.json
+ *   - `hidden_chips` includes "matrix"
+ * The affirmative opt-ins (`MOOTER_STATUSLINE_MATRIX=1`, `statusline_chips.matrix:
+ * true`) still work but are now redundant. Every other modular chip stays opt-IN.
  *
  * Anti-fabrication (Doctrine V4 #5): when the seed file cannot be read, or the
  * `as_of` date is absent/unparseable, the chip shows `🎯 Matrix: ?` — never an
@@ -71,10 +77,19 @@ function prefs() {
   }
 }
 
-/** Opt-IN gate: env MOOTER_STATUSLINE_MATRIX=1 OR statusline_chips.matrix === true. */
+/**
+ * DEFAULT-ON gate (Wave 58 A.5): the matrix chip shows unless explicitly hidden.
+ * Returns false ONLY when the user opts out via env MOOTER_STATUSLINE_MATRIX=0,
+ * statusline_chips.matrix === false, or hidden_chips includes "matrix". The
+ * affirmative env =1 short-circuits to true (lets a user force-show even if a
+ * stray hidden_chips entry exists). Otherwise: visible.
+ */
 function optedIn(p) {
-  if (process.env.MOOTER_STATUSLINE_MATRIX === '1') return true;
-  return !!(p && p.statusline_chips && p.statusline_chips.matrix === true);
+  if (process.env.MOOTER_STATUSLINE_MATRIX === '1') return true;   // explicit force-show
+  if (process.env.MOOTER_STATUSLINE_MATRIX === '0') return false;  // explicit hide
+  if (p && p.statusline_chips && p.statusline_chips.matrix === false) return false;
+  if (p && Array.isArray(p.hidden_chips) && p.hidden_chips.includes('matrix')) return false;
+  return true; // default-ON
 }
 
 // ── Seed + overrides loading ──────────────────────────────────────────────────
