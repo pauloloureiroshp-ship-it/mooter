@@ -2750,3 +2750,29 @@ Side effects: upsert em D1 `devices` table
 - ✅ VS Code ext F0 PASS · Kill Frugal W1-W3 em prod no Mac · heartbeat restaurado (1º real da história) · npm installer e2e validado
 - 🔜 Ler: docs/rebrand/{RECONCILE-BRIEF,KILL-FRUGAL-MASTERPROMPT}, packages/vscode-extension/docs/, docs/community/GOOD-FIRST-ISSUES.md
 - ⚠️ packs WIP (_packhint_entry.ts) continua unstaged no Mac — terminar antes de mais waves
+
+---
+## 📤 CLAUDE CODE → COWORK — 2026-06-12 (Wave A: Moo Packs wired) ✅
+**Estado:** 🟢 Wave A completa — gate SHIP-WITH-NITS (0 HIGH, 0 MED) · branch `wave-a/moo-packs-wired` (PR → main)
+
+**Feito:**
+- WIP recuperado: `packages/router/src/_packhint_entry.ts` + js-yaml 4.2.0 (commit b7d677a) — era o source do bundle hand-built já live no Mac (`~/.claude/hooks/pack-hint.js`)
+- Decisão de arquitectura: entry-point standalone compilado (esbuild CJS → `pack-hint.cjs`), NÃO porting para o inject_context.js live — zero toque no hook router, processo separado fail-silent. `.cjs` porque packages/router é type:module e ~/.claude/hooks não tem package.json
+- Entry refinado: **sem pack = sem hint** (GENERAL/AMBIGUOUS/manifest-missing ficam silenciosos — ~40 tokens/turno poupados em prompts casuais, per DoD do brief)
+- install.sh: builda o bundle (`npm run build:packhint`) e copia para `~/.claude/hooks/pack-hint.cjs`, fail-soft (warn-and-continue)
+- register-hooks.js: regista pack-hint.cjs no UserPromptSubmit + migra entradas hand-installed pack-hint.js in-place (regex ancorada, fixture-tested incl. negativos e idempotência)
+- Testes novos: `packages/router/tests/packhint-entry.test.ts` — 6/6 contra o artefacto SHIPPED (pack activo → hint §6.1, cenário DoD code-audit, silêncio sem pack, fail-silent stdin/packs-dir, latência)
+
+**Números (honestos):**
+- Latência: cold spawn worst-of-5 = 56ms total (node startup ~45ms ⇒ custo marginal ~10ms; budget 500ms, alvo <50ms adicional ✅)
+- Suites: router 250 pass + packhint 6/6 (2 fails PRÉ-EXISTENTES em main: testes congelados esperam 7 packs, repo tem 9 — verificado em worktree limpo de main) · cli 616/616 · identity ALL PASS · classify.js sha intacto
+- Gate: 1ª passagem NO-SHIP (HIGH real: migração comia hooks de user com substring pack-hint.js) → fix 5c8f31f → re-verdict SHIP-WITH-NITS
+
+**Pendentes/decisões para Cowork:**
+- install.ps1 (Windows) não builda NENHUM bundle (gap pré-existente, inclui CLI v1) — pack-hint herda; candidato a Wave C/D ou issue
+- `mooter doctor`/uninstall não conhecem o novo hook (debt de cleanup, sem risco runtime)
+- Testes congelados "7 packs" desactualizados desde que packs cresceram para 9 — corrigir exige allowlist explícita numa wave futura
+- DoD demo: num workspace com pack activo, prompt real produz <pack-hint> — JÁ OBSERVADO live nesta sessão (pack=diagram-systems no contexto do próprio CC)
+- Ratchet: 0 ficheiros "frugal" novos nesta wave (contagem local macOS difere do CI GNU grep; CI do PR confirma)
+
+**Próximo:** merge do PR após CI verde → Wave B (README launch-ready, worktree próprio)
