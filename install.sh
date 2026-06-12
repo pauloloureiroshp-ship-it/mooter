@@ -318,6 +318,17 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
   warn "ANTHROPIC_API_KEY not set — T1 will use subagent fallback (still works)."
 fi
 
+# ── Fleet heartbeat (fail-silent, anonymous — device_id only, no PII) ───
+# Confirms install success so mooter.ai fleet counters reflect reality.
+# Endpoint live since 2026-04; this call was lost in a refactor — restored
+# 2026-06-11 (Cowork). Runs in background; never blocks or fails the install.
+HUB_URL="${MOOTER_HUB_URL:-${FRUGAL_HUB_URL:-https://mooter-hub.frugal-hub.workers.dev}}"
+DEVICE_ID_HB="$(cat "$HOME/.mooter/device.id" 2>/dev/null || cat "$HOME/.frugal/device.id" 2>/dev/null || echo unknown)"
+( curl -s -m 5 -X POST "$HUB_URL/api/device-heartbeat" \
+    -H 'Content-Type: application/json' \
+    -d "{\"device_id\":\"$DEVICE_ID_HB\",\"setup_version\":\"install.sh@v$VERSION\",\"event\":\"install_ok\",\"platform\":\"$(uname -s)\",\"node_version\":\"$NODE_VER\",\"ts\":\"$(date -u +%FT%TZ)\"}" \
+    >/dev/null 2>&1 & ) 2>/dev/null
+
 # ── Post-install ────────────────────────────────────────────────────────
 echo ""
 echo "  ${C2}mooter v${VERSION} installed.${CR}"

@@ -1,7 +1,7 @@
 {
   "name": "@mooter/cli",
-  "version": "0.0.2",
-  "description": "Reserved for mooter — intelligent model routing for Claude Code (https://mooter.ai). Currently private friends-beta.",
+  "version": "0.1.0",
+  "description": "mooter — intelligent model routing for Claude Code. Routes every prompt to the cheapest capable model (local Ollama / Haiku / Sonnet / Opus). Hook, not proxy. MIT.",
   "keywords": [
     "llm",
     "router",
@@ -20,7 +20,7 @@
   "author": "Paulo Loureiro <paulo@mooter.ai>",
   "main": "index.js",
   "bin": {
-    "mooter-cli-stub": "index.js"
+    "mooter-install": "index.js"
   },
   "files": [
     "index.js",
