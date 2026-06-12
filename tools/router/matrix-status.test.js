@@ -186,20 +186,63 @@ test('buildMatrixChip: uses provided now for age calculation', () => {
 
 // ── optedIn ───────────────────────────────────────────────────────────────────
 
-test('optedIn: requires statusline_chips.matrix === true', () => {
-  assert.equal(optedIn({ statusline_chips: { matrix: true } }), true);
-  assert.equal(optedIn({ statusline_chips: { matrix: false } }), false);
-  assert.equal(optedIn({ statusline_chips: {} }), false);
-  assert.equal(optedIn({}), false);
-  assert.equal(optedIn(null), false);
-  assert.equal(optedIn(undefined), false);
+// Wave 58 A.5 — matrix is now DEFAULT-ON: visible unless explicitly hidden.
+test('optedIn: DEFAULT-ON — empty/absent prefs → visible', () => {
+  const prev = process.env.MOOTER_STATUSLINE_MATRIX;
+  delete process.env.MOOTER_STATUSLINE_MATRIX;
+  try {
+    assert.equal(optedIn({}), true);
+    assert.equal(optedIn(null), true);
+    assert.equal(optedIn(undefined), true);
+    assert.equal(optedIn({ statusline_chips: {} }), true);
+    // The affirmative opt-in still works (now redundant).
+    assert.equal(optedIn({ statusline_chips: { matrix: true } }), true);
+  } finally {
+    if (prev === undefined) delete process.env.MOOTER_STATUSLINE_MATRIX;
+    else process.env.MOOTER_STATUSLINE_MATRIX = prev;
+  }
 });
 
-test('optedIn: MOOTER_STATUSLINE_MATRIX=1 env overrides prefs', () => {
+test('optedIn: hidden when statusline_chips.matrix === false', () => {
+  const prev = process.env.MOOTER_STATUSLINE_MATRIX;
+  delete process.env.MOOTER_STATUSLINE_MATRIX;
+  try {
+    assert.equal(optedIn({ statusline_chips: { matrix: false } }), false);
+  } finally {
+    if (prev === undefined) delete process.env.MOOTER_STATUSLINE_MATRIX;
+    else process.env.MOOTER_STATUSLINE_MATRIX = prev;
+  }
+});
+
+test('optedIn: hidden when hidden_chips includes "matrix"', () => {
+  const prev = process.env.MOOTER_STATUSLINE_MATRIX;
+  delete process.env.MOOTER_STATUSLINE_MATRIX;
+  try {
+    assert.equal(optedIn({ hidden_chips: ['matrix'] }), false);
+    assert.equal(optedIn({ hidden_chips: ['other'] }), true); // unrelated entry → still visible
+  } finally {
+    if (prev === undefined) delete process.env.MOOTER_STATUSLINE_MATRIX;
+    else process.env.MOOTER_STATUSLINE_MATRIX = prev;
+  }
+});
+
+test('optedIn: MOOTER_STATUSLINE_MATRIX=0 explicitly hides', () => {
+  const prev = process.env.MOOTER_STATUSLINE_MATRIX;
+  process.env.MOOTER_STATUSLINE_MATRIX = '0';
+  try {
+    assert.equal(optedIn({}), false);
+    assert.equal(optedIn({ statusline_chips: { matrix: true } }), false); // env=0 hides even if prefs opt-in
+  } finally {
+    if (prev === undefined) delete process.env.MOOTER_STATUSLINE_MATRIX;
+    else process.env.MOOTER_STATUSLINE_MATRIX = prev;
+  }
+});
+
+test('optedIn: MOOTER_STATUSLINE_MATRIX=1 force-shows even with hidden_chips', () => {
   const prev = process.env.MOOTER_STATUSLINE_MATRIX;
   process.env.MOOTER_STATUSLINE_MATRIX = '1';
   try {
-    assert.equal(optedIn({}), true);
+    assert.equal(optedIn({ hidden_chips: ['matrix'] }), true);
     assert.equal(optedIn(null), true);
   } finally {
     if (prev === undefined) delete process.env.MOOTER_STATUSLINE_MATRIX;

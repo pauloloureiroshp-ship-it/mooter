@@ -2163,6 +2163,40 @@ function renderMultiLine({
   return rows.join('\n');
 }
 
+// Wave 58 A.5 — modular chips appended to the WIRED statusline.
+//
+// buildStatusline()'s return value is left BYTE-IDENTICAL; the composed chip
+// line is appended only here, at the stdout boundary. With default/empty
+// preferences the ONLY visible new content is the 🎯 matrix chip (default-ON);
+// every other DEFAULT_ELIGIBLE chip (agent-focus, conductor, sessions, bench,
+// cca-f, agents-progress) stays silent until the user opts in (its
+// statusLine() → ''). The always-on line-3-only chips (mlwr, terminal-name, …)
+// are NOT in the default set — they appear only when the user has the legacy
+// line-3 opt-in (statusline_line3 / MOOTER_STATUSLINE_LINE3=1), mirroring the
+// behaviour statusline-multi.js#buildLine3() always had.
+//
+// The composer is lazy-required and fully wrapped: any failure (missing module,
+// throwing chip) yields the unchanged base statusline. Chips are cheap file
+// reads, so this stays inside the 500ms render budget (gsd-statusline-latency.test.js).
+function lineGateOn() {
+  if (process.env.MOOTER_STATUSLINE_LINE3 === '1'
+    || process.env.MOOTER_STATUSLINE_BURN === '1'
+    || process.env.MOOTER_STATUSLINE_CCAF === '1') return true;
+  try {
+    const p = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    return p && p.statusline_line3 === true;
+  } catch { return false; }
+}
+
+function appendModularChips(base, data) {
+  try {
+    const session = (data && data.session_id) || '';
+    const chipLine = require('./chip-composer.js').composeChips(session, { lineGateOn: lineGateOn() });
+    if (chipLine) return `${base}\n${chipLine}`;
+  } catch { /* never let a chip break the wired statusline */ }
+  return base;
+}
+
 // Mock entry point — bypass stdin so `MOOTER_MOCK=1 node gsd-statusline.js`
 // produces a full statusline without needing a JSON pipe.
 if (process.env.MOOTER_MOCK === '1') {
@@ -2175,7 +2209,7 @@ if (process.env.MOOTER_MOCK === '1') {
   try {
     // v6.5 — every line including the last must be \n-terminated for
     // Claude Code to render multi-line statusline correctly.
-    process.stdout.write(buildStatusline(mockData) + '\n');
+    process.stdout.write(appendModularChips(buildStatusline(mockData), mockData) + '\n');
   } catch (e) {
     process.stderr.write(`mock error: ${e && e.message}\n`);
   }
@@ -2196,7 +2230,7 @@ process.stdin.on('end', () => {
     // v6.5 — trailing \n required: Claude Code parses statusline stdout
     // line-by-line, and without a trailing newline the last row is
     // sometimes dropped or treated as a continuation of the previous one.
-    process.stdout.write(buildStatusline(data) + '\n');
+    process.stdout.write(appendModularChips(buildStatusline(data), data) + '\n');
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
   }
