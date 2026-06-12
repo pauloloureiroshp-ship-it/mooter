@@ -44,6 +44,7 @@ class DataService {
       trail: doDeep ? trail : prev.trail,
       security: doDeep ? security : prev.security,
       spans: doDeep ? spans : prev.spans,
+      herd: doDeep ? extra.herd() : prev.herd,
       claudeCli: fs.existsSync(path.join(require('os').homedir(), '.local', 'bin', 'claude')),
       decisions: data_.readDecisions(),
     };
@@ -128,6 +129,7 @@ function project(s) {
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
+    herd: s.herd,
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -225,6 +227,8 @@ function getHtml() {
   .scorebar{height:8px;background:var(--vscode-input-background);border-radius:4px;overflow:hidden;margin:8px 0 4px}
   .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),#e5c07b 50%,var(--g));border-radius:4px}
   input[type=number]{width:90px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:5px 8px;font:12px var(--vscode-font-family)}
+  .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
+  .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
@@ -232,7 +236,7 @@ function getHtml() {
 <div class="tabs">
   <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div>
   <div class="tab" data-v="install">Install</div><div class="tab" data-v="models">Models</div>
-  <div class="tab" data-v="insights">Insights</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
+  <div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="insights">Insights</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
   <div class="tab" data-v="doctor">Doctor</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
@@ -240,6 +244,7 @@ function getHtml() {
 <div class="view" id="v-setup"><div class="empty">…</div></div>
 <div class="view" id="v-install"><div class="empty">…</div></div>
 <div class="view" id="v-models"><div class="empty">…</div></div>
+<div class="view" id="v-herd"><div class="empty">…</div></div>
 <div class="view" id="v-insights"><div class="empty">…</div></div>
 <div class="view" id="v-decisions"><div class="empty">No decisions yet</div></div>
 <div class="view" id="v-terminal"><div class="empty">…</div></div>
@@ -347,6 +352,26 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-models .mo').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
   document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
   wireButtons($('#v-models'));
+
+  // ── 🐄 HERD: dynamic workflow live (run · swimlanes · tokens via×llm · sessions)
+  const h=s.herd||{};const run=h.run||null;const mx=h.matrix||{llms:[],rows:[]};
+  const fmtk=(n)=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
+  const runHtml=run&&run.status?'<div class="card hero"><div class="lbl">Live run · '+esc(run.status)+'</div><div class="big" style="font-size:20px">🤖 '+esc(run.agents_done!=null?run.agents_done:'?')+'/'+esc(run.agents_total!=null?run.agents_total:'?')+(run.tokens?' · ↓'+fmtk(run.tokens)+' tok':'')+'</div>'+(h.current&&h.current.agent_name?'<div class="sub">current: <b>'+esc(h.current.agent_name)+'</b></div>':'')+'</div>'
+    :'<div class="card"><div class="lbl">Live run</div><div class="sub" style="margin-top:6px">🤖 no run active — spawn one:</div><button class="sm" data-a="term:mooter spawn \'audit this repo\' --local" style="margin-top:6px">mooter spawn →</button></div>';
+  const spawnIcon=(st)=>/run|active|progress/i.test(st)?'<span class="pulse"></span>':(/done|ok|success|complete/i.test(st)?'✓ ':(/fail|error/i.test(st)?'<span style="color:var(--t3)">✗ </span>':'⏸ '));
+  const spawnsHtml=(h.spawns&&h.spawns.length)?h.spawns.map(sp=>'<div class="dr"><div class="w">'+spawnIcon(sp.status)+esc(sp.task)+'<small>'+esc(sp.status)+(sp.model?' · '+esc(sp.model):'')+(sp.started?' · '+esc(String(sp.started).slice(11,16)):'')+'</small></div></div>').join('')
+    :'<div class="sub" style="margin-top:5px">'+(h.spawns===null?'no spawns yet — agents appear here when the herd works':'—')+'</div>';
+  let mxHtml='';
+  if(mx.rows.length){mxHtml='<table class="mx"><tr><th>agent</th>'+mx.llms.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr>'+
+    mx.rows.map(r=>'<tr><td title="'+esc(r.via)+'">'+esc(r.via)+'</td>'+r.cells.map(c=>'<td'+(c?' title="'+c.n+' decisions"':'')+'>'+(c?fmtk(c.tok):'—')+'</td>').join('')+'</tr>').join('')+'</table>';}
+  else mxHtml='<div class="sub" style="margin-top:5px">no v2 decisions yet</div>';
+  const sessHtml=(h.sessions&&h.sessions.length)?h.sessions.map(x=>'<div class="dr"><div class="w">'+(x.live?'<span class="pulse"></span>':'⚪ ')+esc(x.name||'?')+'<small>'+esc(x.branch||'')+(x.intent?' · "'+esc(x.intent)+'"':'')+'</small></div></div>').join('')
+    :'<div class="sub" style="margin-top:5px">no live sessions (heartbeats)</div>';
+  $('#v-herd').innerHTML=runHtml+
+    '<div class="card"><div class="lbl">Moo agents (spawns)</div>'+spawnsHtml+'</div>'+
+    '<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>'+
+    '<div class="card"><div class="lbl">Sessions (live terminals)</div>'+sessHtml+'</div>';
+  wireButtons($('#v-herd'));
 
   // ── INSIGHTS (telemetria total — req: quant, LoRA, per-prompt)
   const ins=s.insights||{};const qa=ins.quantAll||[];

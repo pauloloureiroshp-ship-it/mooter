@@ -193,6 +193,78 @@ function insights(decisions) {
   };
 }
 
-module.exports = { insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
+
+// ── v0.6 Herd: agents, workflow run, tokens by LLM × agent ──────────────
+const V2_LOG = path.join(ROUTER, 'decisions_v2.jsonl');
+
+function parseV2(text, maxN = 400) {
+  const out = [];
+  for (const line of String(text || '').split('\n')) {
+    if (!line.trim()) continue;
+    try { const j = JSON.parse(line); if (j && j.llm) out.push(j); } catch { /* tolerate */ }
+  }
+  return out.slice(-maxN);
+}
+
+// The literal ask: tokens per LLM per Moo agent. Pivot of decisions_v2.
+function herdMatrix(rows) {
+  const cells = {}; const llms = new Set(); const vias = new Set();
+  for (const r of rows || []) {
+    const via = String(r.via || 'inline'); const llm = String(r.llm || '?');
+    vias.add(via); llms.add(llm);
+    const k = via + '\u0000' + llm;
+    if (!cells[k]) cells[k] = { n: 0, tok: 0 };
+    cells[k].n++; cells[k].tok += (Number(r.tokens_in) || 0) + (Number(r.tokens_out) || 0);
+  }
+  const llmList = [...llms].slice(0, 4);
+  const viaList = [...vias].sort((a, b) => {
+    const sum = (v) => llmList.reduce((acc, l) => acc + ((cells[v + '\u0000' + l] || {}).tok || 0), 0);
+    return sum(b) - sum(a);
+  }).slice(0, 6);
+  return { llms: llmList, vias: viaList, cell: (v, l) => cells[v + '\u0000' + l] || null };
+}
+function matrixForUi(rows) {
+  const m = herdMatrix(rows);
+  return { llms: m.llms, rows: m.vias.map((v) => ({ via: v, cells: m.llms.map((l) => m.cell(v, l)) })) };
+}
+
+function readSpawns(maxN = 8) {
+  const root = path.join(MOOTER_HOME, 'spawns');
+  try {
+    return fs.readdirSync(root).map((id) => {
+      const st = readJson(path.join(root, id, 'state.json')) || {};
+      return { id, status: st.status || st.state || '?', task: String(st.task || st.prompt || id).slice(0, 60),
+        model: st.model || st.llm || null, started: st.started_at || st.created_at || null };
+    }).sort((a, b) => String(b.started).localeCompare(String(a.started))).slice(0, maxN);
+  } catch { return null; }
+}
+function readHeartbeats() {
+  const dir = path.join(MOOTER_HOME, 'orchestration', 'heartbeats');
+  try {
+    const now = Date.now();
+    return fs.readdirSync(dir).slice(0, 32).map((f) => readJson(path.join(dir, f))).filter(Boolean)
+      .map((h) => ({ name: h.terminal_name || h.session_id, branch: h.branch, intent: h.intent,
+        live: now - (h.last_heartbeat_ms || 0) < 30000 })).slice(0, 8);
+  } catch { return null; }
+}
+function herd() {
+  let v2 = [];
+  try {
+    const stat = fs.statSync(V2_LOG); const start = Math.max(0, stat.size - 128 * 1024);
+    const fd = fs.openSync(V2_LOG, 'r'); const buf = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    v2 = parseV2(buf.toString('utf8'));
+  } catch { /* absent */ }
+  return {
+    run: readJson(path.join(MOOTER_HOME, 'workflows', 'active-run.json')),
+    current: readJson(path.join(ROUTER, 'last-subagent.json')),
+    spawns: readSpawns(),
+    sessions: readHeartbeats(),
+    matrix: matrixForUi(v2),
+    v2count: v2.length,
+  };
+}
+
+module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks };

@@ -105,3 +105,18 @@ test('parseSpanIds: defensive hex extraction', () => {
   assert.equal(m.length, 2);
   assert.equal(m[0].id, 'a1b2c3d4e5f6');
 });
+
+// ── v0.6 Herd fixtures (real decisions_v2 line) ──
+test('parseV2 + herdMatrix: real line, pivot via×llm', () => {
+  const L1 = '{"ts":"2026-06-11T19:24:14.291Z","op":"architecture_or_critical","tier":"T3","llm":"opus","tokens_in":1200,"tokens_out":8400,"reason":"none","via":"model-architect"}';
+  const L2 = '{"ts":"x","op":"trivial_local","tier":"T0","llm":"qwen","tokens_in":300,"tokens_out":900,"via":"inline"}';
+  const rows = x.parseV2(L1 + '\n' + 'garbage\n' + L2);
+  assert.equal(rows.length, 2);
+  const m = x.matrixForUi(rows);
+  assert.ok(m.llms.includes('opus') && m.llms.includes('qwen'));
+  const arch = m.rows.find((r) => r.via === 'model-architect');
+  const cell = arch.cells[m.llms.indexOf('opus')];
+  assert.equal(cell.tok, 9600);
+  assert.equal(cell.n, 1);
+  assert.equal(m.rows[0].via, 'model-architect');
+});
