@@ -1227,46 +1227,17 @@ function buildLine3(force, selfSessionId) {
     } catch { on = false; }
   }
   if (!on) return null;
-  const chips = [];
-  // Wave 53 — modules that need the current session id (to scope / self-exclude).
-  const SESSION_AWARE = new Set(['./sessions-status.js', './agent-focus-status.js']);
-  for (const mod of ['./compression-status.js', './setup-status.js', './ecosystem-status.js',
-    './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
-    './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
-    './eagle3-status.js', './minimax-status.js', './arbitrage-status.js',
-    // Wave 33.5 Block A — terminal-name (A.7) + workflow-progress dots (A.6).
-    './terminal-name-status.js', './workflow-progress-status.js',
-    // Wave 33.5 Block B.5 — 🐝 active spawns.
-    './spawns-status.js',
-    // Wave 53 Phase B.3 — 🤖 live subagent focus (identity · model · duration).
-    './agent-focus-status.js',
-    // Wave 33.6 Block P6 — 🔒 conductor lock count.
-    './conductor-status.js',
-    // Wave 53 Phase A′ — ⇄ cross-session sister visibility (heartbeats).
-    './sessions-status.js',
-    // Wave 33.8 Block E — 👤 signed-in identity (opaque hash, silent logged-out).
-    './user-status.js',
-    // Wave 53 Phase B.5 — user-pluggable segment (~/.mooter/statusline/custom.js).
-    './custom-status.js',
-    // Wave 53 Phase H.1 — 🧪 MooterBench accuracy (opt-IN; `?` when no results).
-    './bench-status.js',
-    // Wave 55 Phase J — 🔥 burn-rate $/h (opt-IN via statusline_chips.burn_rate
-    // or MOOTER_STATUSLINE_BURN=1; trailing-60min real spend, pricing.js SSOT).
-    './burn-rate-status.js',
-    // Wave 55 Phase C.4 — 📜 CCA-F audit pass-rate (opt-IN via statusline_chips.cca_f
-    // or MOOTER_STATUSLINE_CCAF=1; reads latest ~/.mooter/cca-f/audit report, `?` until run).
-    './cca-f-status.js']) {
-    try {
-      // Wave 53 — SESSION_AWARE modules take the current session id; the others'
-      // statusLine() ignores extra args, but dogfood-status takes a positional
-      // `now`, so the session id is passed only to the aware set.
-      const c = SESSION_AWARE.has(mod)
-        ? require(mod).statusLine(selfSessionId)
-        : require(mod).statusLine();
-      if (c) chips.push(c);
-    } catch { /* skip a broken chip, never break the statusline */ }
+  // Wave 58 A.5 — the chip module list + SESSION_AWARE handling now live in the
+  // shared chip-composer.js so the WIRED statusline (gsd-statusline.js) renders
+  // the exact same chip set. We reach here only with the line-3 opt-in ON, so we
+  // ask for the FULL list (lineGateOn:true) — byte-identical to the old loop.
+  // Lazy-required so this file's load cost is unchanged when line 3 is off; any
+  // failure → no line 3.
+  try {
+    return require('./chip-composer.js').composeChips(selfSessionId, { lineGateOn: true });
+  } catch {
+    return null;
   }
-  return chips.length ? chips.join(' · ') : null;
 }
 
 // ────────────────────────────────────────────────────────────────────────
