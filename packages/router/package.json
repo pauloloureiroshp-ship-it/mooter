@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Domain router — axis 2 classify_domain() regex layer (Pastor Wave 1, Day 3). See ADR 015 + 016.",
   "scripts": {
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "build:packhint": "esbuild src/_packhint_entry.ts --bundle --platform=node --format=cjs --target=node18 --outfile=pack-hint.cjs --log-level=warning"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
@@ -13,6 +14,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.1",
     "ajv": "^8.20.0",
+    "esbuild": "^0.28.0",
     "js-yaml": "^4.2.0",
     "tsx": "^4.22.3"
   }

@@ -48,6 +48,18 @@ for (const entry of (s.hooks.UserPromptSubmit || [])) {
   }
 }
 ensure('UserPromptSubmit', 'mooter-turn-header.js', `node "${hooksFwd}/mooter-turn-header.js"`);
+
+// Wave A (Moo Packs wired): migrate any hand-installed pack-hint.js entry to
+// the shipped .cjs bundle in place, then ensure the canonical hook exists.
+for (const entry of (s.hooks.UserPromptSubmit || [])) {
+  for (const h of (entry.hooks || [])) {
+    if (h.command && h.command.includes('pack-hint.js')) {
+      h.command = `node "${hooksFwd}/pack-hint.cjs"`;
+      added++;
+    }
+  }
+}
+ensure('UserPromptSubmit', 'pack-hint.cjs', `node "${hooksFwd}/pack-hint.cjs"`);
 ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
 
 // Matcher migration: existing hooks that reference exec-logger.js, PostToolUse.js
