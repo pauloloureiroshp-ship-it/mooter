@@ -172,6 +172,17 @@ if command -v npm >/dev/null 2>&1; then
   else
     warn "v1.0 bundle build failed — legacy CLI only (feedback/forge unavailable). Re-run with npm available."
   fi
+
+  # ── Wave A — pack-hint hook (axis-2 domain packs) ──────────────────────
+  # Standalone fail-silent emitter: reads the prompt on stdin, emits
+  # <pack-hint> only when a pack matches. Bundled from packages/router.
+  say "Building pack-hint hook bundle (esbuild)..."
+  if do_run "cd '$SRC_DIR/packages/router' && npm install --no-audit --no-fund --silent && npm run build:packhint"; then
+    do_run "cp '$SRC_DIR/packages/router/pack-hint.cjs' '$HOOKS_DIR/pack-hint.cjs'"
+    ok "pack-hint hook installed (Moo Packs wired)"
+  else
+    warn "pack-hint build failed — packs install but <pack-hint> won't be emitted. Re-run installer to retry."
+  fi
 else
   warn "npm not found — v1.0 commands (feedback/forge/...) unavailable; legacy CLI only."
 fi

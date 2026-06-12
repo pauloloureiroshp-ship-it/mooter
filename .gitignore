@@ -108,5 +108,7 @@ model-weights/
 
 # Wave 8 — esbuild CLI bundle (built on install / CI, not committed)
 packages/cli/mooter.js
+# Wave A — esbuild pack-hint hook bundle (built on install / CI, not committed)
+packages/router/pack-hint.cjs
 # personal Claude Code preferences (per-dev)
 CLAUDE.local.md
