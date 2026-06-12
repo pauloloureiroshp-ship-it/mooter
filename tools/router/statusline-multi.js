@@ -1214,7 +1214,12 @@ function buildLine3(force, selfSessionId) {
   // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
   // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
   if (force === false) return null;
-  let on = force === true || process.env.MOOTER_STATUSLINE_LINE3 === '1';
+  // Wave 55 (Phase J/C) — opting into the 🔥 burn or 📜 cca-f chip via env also
+  // surfaces line 3 so the chip is visible without separately flipping
+  // statusline_line3 (parity between the two env opt-ins).
+  let on = force === true || process.env.MOOTER_STATUSLINE_LINE3 === '1'
+    || process.env.MOOTER_STATUSLINE_BURN === '1'
+    || process.env.MOOTER_STATUSLINE_CCAF === '1';
   if (!on) {
     try {
       const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
@@ -1244,7 +1249,13 @@ function buildLine3(force, selfSessionId) {
     // Wave 53 Phase B.5 — user-pluggable segment (~/.mooter/statusline/custom.js).
     './custom-status.js',
     // Wave 53 Phase H.1 — 🧪 MooterBench accuracy (opt-IN; `?` when no results).
-    './bench-status.js']) {
+    './bench-status.js',
+    // Wave 55 Phase J — 🔥 burn-rate $/h (opt-IN via statusline_chips.burn_rate
+    // or MOOTER_STATUSLINE_BURN=1; trailing-60min real spend, pricing.js SSOT).
+    './burn-rate-status.js',
+    // Wave 55 Phase C.4 — 📜 CCA-F audit pass-rate (opt-IN via statusline_chips.cca_f
+    // or MOOTER_STATUSLINE_CCAF=1; reads latest ~/.mooter/cca-f/audit report, `?` until run).
+    './cca-f-status.js']) {
     try {
       // Wave 53 — SESSION_AWARE modules take the current session id; the others'
       // statusLine() ignores extra args, but dogfood-status takes a positional
@@ -1299,21 +1310,27 @@ function layoutForWidth(width) {
  * ~/.mooter/preferences.json `statusline_layout`. "auto"/absent → null
  * (the caller falls back to width detection). Best-effort, never throws.
  */
-function readLayoutPref(env = process.env) {
+function readLayoutPref(env = process.env, home = require('os').homedir()) {
   const e = env && env.MOOTER_STATUSLINE_LAYOUT;
   if (VALID_LAYOUTS.includes(e)) return e;
   if (e === 'auto') return null;
   try {
-    const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    const prefs = JSON.parse(fs.readFileSync(path.join(home, '.mooter', 'preferences.json'), 'utf8'));
     const l = prefs && prefs.statusline_layout;
     if (VALID_LAYOUTS.includes(l)) return l;
   } catch { /* no pref */ }
   return null;
 }
 
-/** Explicit pref wins; otherwise the detected width decides. */
-function resolveLayout({ pref = readLayoutPref(), width = detectWidth() } = {}) {
-  if (VALID_LAYOUTS.includes(pref)) return pref;
+/**
+ * Explicit pref wins; otherwise the detected width decides.
+ * Wave 55 (Phase H) — `{home, env}` flow to the preferences read so render()
+ * can be HOME-isolated for tests; `pref` is still passable explicitly (incl.
+ * `null` → "no pref, use width") for the resolveLayout unit tests.
+ */
+function resolveLayout({ pref, width = detectWidth(), env = process.env, home } = {}) {
+  const p = pref !== undefined ? pref : readLayoutPref(env, home);
+  if (VALID_LAYOUTS.includes(p)) return p;
   return layoutForWidth(width);
 }
 
@@ -1345,6 +1362,7 @@ function layoutChips(chips, width) {
 
 /** ANSI-aware truncation: untouched when it fits, plain-text ellipsis when not. */
 function truncateToWidth(s, width) {
+  // eslint-disable-next-line no-control-regex -- intentional: strip ANSI SGR (ESC[…m) to measure display width
   const plain = String(s).replace(/\x1b\[[0-9;]*m/g, '');
   if (plain.length <= width) return s;
   return plain.slice(0, Math.max(1, width - 1)) + '…';
@@ -1377,15 +1395,30 @@ function applyLayout(out, layout, width = detectWidth()) {
  * width detection) picks the SHAPE. With no mode and no layout pin, the
  * medium path is the legacy width-based default, byte-for-byte.
  */
-function render(ctx) {
+function render(ctx, opts = {}) {
+  const out = renderResolved(ctx, opts);
+  // Wave 55 (Phase A.4) — opt-in ASCII glyph fallback (MOOTER_GLYPH_MODE=ascii)
+  // for terminals/fonts that render the bovine emoji poorly. Default (env unset)
+  // → byte-identical; any glyphs.js failure degrades to the emoji output.
+  try {
+    const g = require('./glyphs.js');
+    if (g.asciiGlyphs(opts.env)) return g.toAscii(out);
+  } catch { /* keep emoji */ }
+  return out;
+}
+
+function renderResolved(ctx, opts = {}) {
   const width = detectWidth();
-  const layout = resolveLayout({ width });
+  const layout = resolveLayout({ width, env: opts.env, home: opts.home });
   // Wave 32 (Phase B) — an explicitly pinned mode (env or preferences.json)
   // overrides the adaptive layout. Best-effort: any failure in the modes
   // module falls through to the adaptive default.
+  // Wave 55 (Phase H) — `opts.home`/`opts.env` flow to the mode/layout pref
+  // reads so render() is HOME-isolatable (test hermeticity). No opts → real
+  // ~/.mooter + process.env, byte-identical to the legacy path.
   try {
     const modes = require('./statusline-modes.js');
-    const mode = modes.readMode();
+    const mode = modes.readMode({ home: opts.home, env: opts.env });
     if (mode) {
       const out = modes.renderForMode(mode, ctx, {
         renderFromContext,
@@ -1558,8 +1591,12 @@ async function main() {
   if (argv[0] === '--mock') {
     // Wave Mega 50-51 (4.B) — mock now goes through render() so the responsive
     // layout (narrow/medium/wide from real width detection) is what you preview.
+    // Wave 55 (Phase H) — `--mock --home <path>` reads the mode/layout pin from
+    // an isolated HOME, so a preview can ignore your real ~/.mooter pins.
+    const homeIdx = argv.indexOf('--home');
+    const home = homeIdx !== -1 ? argv[homeIdx + 1] : undefined;
     for (const k of ['green', 'yellow', 'red', 'empty']) {
-      process.stdout.write(render(DEMO_CONTEXTS[k]) + '\n');
+      process.stdout.write(render(DEMO_CONTEXTS[k], { home }) + '\n');
     }
     return;
   }

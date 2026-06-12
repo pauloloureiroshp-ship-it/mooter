@@ -74,9 +74,16 @@ const CHIPS: ChipExplainer[] = [
   {
     names: ["bench", "mooterbench"],
     title: "🧪 bench ?  (or e.g. \"60% acc (50 wf, n=1)\" once a RESULTS.json exists)",
-    what: "MooterBench's routing accuracy: the share of a synthetic workflow set whose tier the classifier (classify.js) labelled the same as a hand-curated gold label. The dataset is 50 representative coding workflows across 15 categories (Apache-2.0, in packages/mooter-bench). The opt-in 🧪 chip reads a RESULTS.json; the benchmark is stdout-only today and does NOT yet persist that file, so when it is absent or older than 30 days the chip reads `🧪 bench ?` rather than showing a number. The 60% figure documented in the README is a recorded snapshot, not live data.",
+    what: "MooterBench's routing accuracy: the share of a synthetic workflow set whose tier the classifier (classify.js) labelled the same as a hand-curated gold label. The dataset is 50 representative coding workflows across 15 categories (Apache-2.0, in packages/mooter-bench). The opt-in 🧪 chip reads a RESULTS.json; the benchmark now persists that file on each run (Wave 55), so when it is absent (never run) or older than 30 days the chip reads `🧪 bench ?` rather than showing a number. The 60% figure documented in the README is a recorded snapshot, not live data.",
     interpret: "Higher is better, but read it with the caveats: SYNTHETIC accuracy on a small (N=50), single-cohort (n=1, one machine) set — not real-world routing accuracy, and per-category numbers are noisy where a category has only 1-3 workflows. `?` is not a failure; it means there is no fresh results file to read.",
-    example: "Recorded README snapshot (NOT live): 60% acc (50 wf, n=1) = 30/50 workflows routed to the gold tier on the reference dataset. The live chip shows `🧪 bench ?` until you re-run `cd packages/mooter-bench && npm run bench -- --json` and persist a RESULTS.json.",
+    example: "60% acc (50 wf, n=1) = 30/50 workflows routed to the gold tier on the reference dataset. The chip shows `🧪 bench ?` until you run `cd packages/mooter-bench && npm run bench`, which writes RESULTS.json.",
+  },
+  {
+    names: ["cca-f", "ccaf", "audit"],
+    title: "📜 cca-f ?  (or e.g. \"78% pass (60q, n=1)\" once an audit has run)",
+    what: "The pass rate of the latest CCA-F audit — Mooter's self-administered, deterministic 60-question harness (Wave 54) that routes each question on local Ollama, resolves it, and has a Sonnet self-judge grade the answer. It is NOT the official Anthropic Claude Certified Architect exam; it is an internal, reproducible (same --seed ⇒ same questions) confidence check. The opt-in 📜 chip reads the newest ~/.mooter/cca-f/audit/<session>/report.json; when no audit has run, or the latest is stale (>30 days) or malformed, it shows `📜 cca-f ?` rather than a number.",
+    interpret: "Higher is better, with caveats: SINGLE cohort (n=1, your machine), a Sonnet self-judge (not a human grader), and a synthetic question set — directional confidence, not a certification. `?` means no fresh audit exists; run `mooter cca-f audit --seed 42` (needs Ollama + Claude Max; ~4-6h for the full 60q).",
+    example: "78% pass (60q, n=1) = 47/60 questions the Sonnet judge graded as passing on the seed-42 set. The live chip stays `📜 cca-f ?` until the first run.",
   },
   {
     names: ["saved", "savings"],

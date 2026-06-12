@@ -25,6 +25,16 @@ export interface CmdResult {
 const MODES = ["mini", "compact", "full", "didactic"] as const;
 type Mode = (typeof MODES)[number];
 
+// Wave 55 (Phase B) — friendly aliases for the kickoff's vocabulary. These map
+// onto the EXISTING modes rather than forking a parallel system: the Day-0 recon
+// (P2) found the "dropped" chips were never dropped, so the dense view the brief
+// wants is already `full`/`didactic`. `legacy` is handled separately (= auto).
+const MODE_ALIASES: Record<string, Mode> = {
+  minimal: "mini",
+  standard: "compact",
+  extended: "full",
+};
+
 // Wave Mega 50-51 (4.B) — responsive width layouts. Breakpoints (auto):
 // narrow < 80 cols · medium 80-120 · wide > 120.
 const LAYOUTS = ["narrow", "medium", "wide"] as const;
@@ -81,7 +91,8 @@ function usage(): string {
     "  modes (what content is shown):\n" +
     lines +
     "\n    auto      adaptive — picks layout from terminal width (default)" +
-    "\n    legacy    alias for auto — the byte-identical default layout\n\n" +
+    "\n    legacy    alias for auto — the byte-identical default layout" +
+    "\n    aliases   minimal=mini · standard=compact · extended=full\n\n" +
     "  layouts (how the content is shaped — mode picks content, layout picks shape):\n" +
     layoutLines +
     "\n    auto      detect from terminal width (default)"
@@ -90,7 +101,8 @@ function usage(): string {
 
 /** Render a demo line in `mode` via the real statusline script, without persisting. */
 function previewMode(mode: string): CmdResult {
-  if (mode !== "auto" && mode !== "legacy" && !(MODES as readonly string[]).includes(mode)) {
+  const resolved = MODE_ALIASES[mode] ?? mode;
+  if (resolved !== "auto" && resolved !== "legacy" && !(MODES as readonly string[]).includes(resolved)) {
     return { exitCode: 1, output: `unknown mode '${mode}'\n\n${usage()}` };
   }
   const script = findStatuslineScript();
@@ -99,7 +111,7 @@ function previewMode(mode: string): CmdResult {
     return { exitCode: 0, output: `preview · ${mode}: (live preview unavailable — statusline script not found)` };
   }
   const env = { ...process.env };
-  if (mode !== "auto" && mode !== "legacy") env.MOOTER_STATUSLINE_MODE = mode;
+  if (resolved !== "auto" && resolved !== "legacy") env.MOOTER_STATUSLINE_MODE = resolved;
   else delete env.MOOTER_STATUSLINE_MODE;
   const r = spawnSync("node", [script, "--demo", "green"], { env, encoding: "utf8", timeout: 4000 });
   const preview = r.status === 0 && r.stdout ? r.stdout.trimEnd() : "(preview unavailable)";
@@ -130,15 +142,19 @@ export function runStatusline(args: string[]): CmdResult {
       writePrefs(prefs);
       return { exitCode: 0, output: `statusline mode → ${value} (adaptive width-based default restored)` };
     }
-    if (!(MODES as readonly string[]).includes(value)) {
+    // Wave 55 (Phase B) — resolve a friendly alias (minimal/standard/extended)
+    // onto its canonical mode before validating/persisting.
+    const resolved = MODE_ALIASES[value] ?? value;
+    if (!(MODES as readonly string[]).includes(resolved)) {
       return { exitCode: 1, output: `unknown mode '${value}'\n\n${usage()}` };
     }
     const prefs = readPrefs();
-    prefs.statusline_mode = value;
+    prefs.statusline_mode = resolved;
     writePrefs(prefs);
+    const aliasNote = resolved !== value ? ` (= ${resolved})` : "";
     return {
       exitCode: 0,
-      output: `statusline mode → ${value}\n  ${DESCRIPTIONS[value as Mode]}`,
+      output: `statusline mode → ${value}${aliasNote}\n  ${DESCRIPTIONS[resolved as Mode]}`,
     };
   }
 

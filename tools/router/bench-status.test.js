@@ -60,8 +60,13 @@ test('statusLine: silent unless opted in, `?` when opted in without results', ()
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-bench-'));
   const prevMH = process.env.MOOTER_HOME;
   const prevHome = process.env.HOME;
+  const prevUP = process.env.USERPROFILE;
   process.env.MOOTER_HOME = dir;
+  // os.homedir() (used by prefs()) reads USERPROFILE on Windows and HOME on
+  // POSIX — set both so the opt-in write below is seen cross-platform. Without
+  // USERPROFILE this test passed in CI (Linux) but failed locally on Windows.
   process.env.HOME = dir;
+  process.env.USERPROFILE = dir;
   try {
     fs.mkdirSync(path.join(dir, '.mooter'), { recursive: true });
     // not opted in → silent
@@ -76,5 +81,6 @@ test('statusLine: silent unless opted in, `?` when opted in without results', ()
   } finally {
     if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
+    if (prevUP === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevUP;
   }
 });

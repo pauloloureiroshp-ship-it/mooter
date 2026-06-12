@@ -17,8 +17,10 @@
 
 'use strict';
 
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert   = require('node:assert/strict');
+const os       = require('node:os');
+const path     = require('node:path');
 
 const {
   pickState, renderFromContext, renderTwoLine, render,
@@ -27,6 +29,11 @@ const {
   getAdapterStatus, clampPercent, formatSessionAge,
   DEMO_CONTEXTS,
 } = require('./statusline-multi.js');
+
+// Wave 55 (Phase H) — hermetic HOME for the adaptive-layout render() tests, so a
+// dev's ~/.mooter/preferences.json {statusline_mode} pin can't force line-3.
+const CLEAN_HOME = require('node:fs').mkdtempSync(path.join(os.tmpdir(), 'mooter-sl-multi-'));
+after(() => { try { require('node:fs').rmSync(CLEAN_HOME, { recursive: true, force: true }); } catch { /* best-effort */ } });
 
 // ── pickState — primary states ──────────────────────────────────────────
 
@@ -417,6 +424,16 @@ test('formatSessionAge: <60min → Nm, <24h → NhNm, ≥24h → NdNh', () => {
   assert.equal(formatSessionAge(NaN), '0m');
 });
 
+// Wave 55 (Phase A.4) — MOOTER_GLYPH_MODE=ascii folds emoji to ASCII; default keeps them.
+test('render: ascii glyph mode strips emoji; default preserves them', () => {
+  const ctx = { ...DEMO_CONTEXTS.green };
+  const ascii = render(ctx, { env: { MOOTER_GLYPH_MODE: 'ascii' }, home: CLEAN_HOME });
+  assert.ok(!/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(ascii), 'no emoji in ascii mode');
+  assert.match(ascii, /\[M\]/, 'mood glyph folded to [M]');
+  const def = render(ctx, { home: CLEAN_HOME });
+  assert.match(def, /🐮/, 'default keeps the bovine emoji');
+});
+
 // Wave 33 (C.1) — narrow terminals (<120) get a compact GPU chip on the single
 // line, never the wide "VRAM (x/y GB)" chip. Hardware-tolerant: only asserts the
 // FORM when a GPU profile happens to exist on the test machine.
@@ -424,7 +441,7 @@ test('C.1: narrow render is single-line and uses the compact GPU form', () => {
   const prev = process.env.COLUMNS;
   process.env.COLUMNS = '90';
   try {
-    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }).split('\n');
+    const lines = render({ ...DEMO_CONTEXTS.green, lastTurnCost: 0.04, alltimeCost: 4.21 }, { home: CLEAN_HOME }).split('\n');
     assert.equal(lines.length, 1, 'narrow terminal renders a single line');
     if (/🎮/.test(lines[0])) {
       assert.ok(!/VRAM \(/.test(lines[0]), 'narrow GPU chip is compact, not the wide VRAM chip');

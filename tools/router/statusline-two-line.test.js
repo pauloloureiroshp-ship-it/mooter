@@ -4,10 +4,20 @@
 // snapshot harness, so these are structural assertions on the rendered frame
 // rather than serialized snapshots.
 
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert   = require('node:assert/strict');
+const os       = require('node:os');
+const fs       = require('node:fs');
+const path     = require('node:path');
 
 const { render, renderTwoLine, truncateChip } = require('./statusline-multi.js');
+
+// Wave 55 (Phase H) — hermetic HOME: an empty temp dir with no
+// .mooter/preferences.json, so a dev's pinned statusline_mode/layout can't leak
+// in and force line-3, breaking the adaptive-layout assertions below. render()
+// reads its mode/layout pins from this HOME instead of the real ~/.mooter.
+const CLEAN_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sl-two-line-'));
+after(() => { try { fs.rmSync(CLEAN_HOME, { recursive: true, force: true }); } catch { /* best-effort */ } });
 
 // A healthy, fully-populated context so line 2 carries every operational chip.
 const healthyState = {
@@ -49,7 +59,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
   const cleanup = seedHomeChipTokens();
   let out, lines;
   try {
-    out = withColumns(140, () => render(healthyState));
+    out = withColumns(140, () => render(healthyState, { home: CLEAN_HOME }));
     lines = out.split('\n');
   assert.equal(lines.length, 2, 'wide terminal renders exactly two lines');
   assert.match(lines[0], /🐮/, 'line 1 carries the mood glyph');
@@ -79,7 +89,7 @@ test('render: 2-line layout when COLUMNS >= 120', () => {
 });
 
 test('render: falls back to single line when COLUMNS < 120', () => {
-  const out = withColumns(100, () => render(healthyState));
+  const out = withColumns(100, () => render(healthyState, { home: CLEAN_HOME }));
   assert.ok(!out.includes('\n'), 'narrow terminal renders a single line');
   assert.match(out, /🐮/);
   assert.match(out, /│/, 'single line keeps the headline │ proof separator');
@@ -93,7 +103,7 @@ test('render: missing COLUMNS assumes narrow (1-line)', () => {
   const prev = process.env.COLUMNS;
   delete process.env.COLUMNS;
   try {
-    const out = render(healthyState);
+    const out = render(healthyState, { home: CLEAN_HOME });
     assert.ok(!out.includes('\n'), 'no COLUMNS → conservative single line');
   } finally {
     if (prev !== undefined) process.env.COLUMNS = prev;

@@ -49,3 +49,26 @@ test('TIER_GLYPHS: all four tiers present + heavy variant', () => {
     assert.ok(TIER_GLYPHS[k].length > 0);
   }
 });
+
+// Wave 55 (Phase A.4) — ASCII glyph fallback.
+const { toAscii, asciiGlyphs } = require('./glyphs.js');
+
+test('toAscii: maps mood/provider glyphs, strips unmapped emoji, keeps structure', () => {
+  assert.equal(toAscii('🐮 saved'), '[M] saved');
+  assert.equal(toAscii('🐂 warn'), '[!] warn');
+  assert.equal(toAscii('☁ Claude · 🪙 T0:0'), 'cloud Claude · $ T0:0', 'provider+chip mapped, · and bars kept');
+  // an unmapped emoji is stripped, never left half-rendered
+  assert.ok(!/[\u{1F000}-\u{1FAFF}]/u.test(toAscii('🥳 party')), 'unmapped emoji removed');
+  // box-drawing / block bars are preserved (structure, not iconography)
+  assert.equal(toAscii('[▓▓░░] │ ▅▅'), '[▓▓░░] │ ▅▅');
+  // non-strings pass through
+  assert.equal(toAscii(null), null);
+  // newlines preserved
+  assert.equal(toAscii('🐮 a\n☁ b'), '[M] a\ncloud b');
+});
+
+test('asciiGlyphs: reads MOOTER_GLYPH_MODE from the given env', () => {
+  assert.equal(asciiGlyphs({ MOOTER_GLYPH_MODE: 'ascii' }), true);
+  assert.equal(asciiGlyphs({ MOOTER_GLYPH_MODE: 'emoji' }), false);
+  assert.equal(asciiGlyphs({}), false);
+});

@@ -31,20 +31,30 @@ const os   = require('os');
 
 const VALID_MODES = ['mini', 'compact', 'full', 'didactic'];
 
-function prefsPath() {
-  return path.join(os.homedir(), '.mooter', 'preferences.json');
+function prefsPath(home = os.homedir()) {
+  return path.join(home, '.mooter', 'preferences.json');
 }
 
 /**
  * Resolve the pinned statusline mode, or null for the adaptive default.
  * Best-effort: any read/parse failure → null (default behavior, never throws).
+ *
+ * Wave 55 (Phase H) — accepts an optional `{ home, env }` override so render()
+ * and tests can read the mode pin from an isolated HOME instead of the real
+ * ~/.mooter. This is the test-isolation fix: without it, a dev's
+ * preferences.json `{statusline_mode:"full"}` leaks into the adaptive-layout
+ * tests and forces line-3, failing them. Defaults preserve legacy behavior.
+ *
+ * @param {{home?: string, env?: NodeJS.ProcessEnv}} [opts]
  * @returns {('mini'|'compact'|'full'|'didactic')|null}
  */
-function readMode() {
-  const env = process.env.MOOTER_STATUSLINE_MODE;
-  if (env && VALID_MODES.includes(env)) return env;
+function readMode(opts = {}) {
+  const env  = opts.env  || process.env;
+  const home = opts.home || os.homedir();
+  const pinned = env.MOOTER_STATUSLINE_MODE;
+  if (pinned && VALID_MODES.includes(pinned)) return pinned;
   try {
-    const prefs = JSON.parse(fs.readFileSync(prefsPath(), 'utf8'));
+    const prefs = JSON.parse(fs.readFileSync(prefsPath(home), 'utf8'));
     const m = prefs && prefs.statusline_mode;
     if (typeof m === 'string' && VALID_MODES.includes(m)) return m;
   } catch { /* fall through */ }

@@ -57,6 +57,24 @@ df -h .
 Expected: an NVIDIA card with ≥16 GB, CUDA 12.x, Python 3.10–3.12, and
 `212 samples score>=8` (or close — the corpus is the source of truth).
 
+### Free the GPU before an overnight run (Wave 55)
+
+QLoRA on the 7B base peaks around **~22 GB** on the 4090, so leave headroom —
+**target ≥18 GB free** before you start. The two things that silently hold VRAM:
+
+```bash
+# 1. Pause Ollama so it isn't holding a model resident in VRAM overnight
+ollama stop                       # or: stop the Ollama service/tray app
+
+# 2. Close other GPU consumers (browser hardware-accel, games, video editors),
+#    then confirm what's actually free:
+nvidia-smi --query-gpu=memory.free,memory.used --format=csv,noheader
+```
+
+If free VRAM is < 18 GB after this, either close more apps or run with a smaller
+batch (`--batch-size 1 --grad-accum 8`, see §6 OOM). Training restarts Ollama on
+its own the next time the router needs a local model — pausing it is safe.
+
 ---
 
 ## 3. Dependency resolution (dry-run — no GPU needed)
