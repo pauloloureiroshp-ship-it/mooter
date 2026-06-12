@@ -84,3 +84,24 @@ test('httpJson: non-JSON body → null', async () => {
   assert.equal(r, null);
   srv.close();
 });
+
+// ── v0.4 parser fixtures (real CLI output 2026-06-12) ──
+const x = require('./host-extra.js');
+test('parseEffort: real output', () => {
+  assert.equal(x.parseEffort('🐮 effort: default\n  LLMLingua compression ... off'), 'default');
+  assert.equal(x.parseEffort('🐮 effort: ultramoo'), 'ultramoo');
+  assert.equal(x.parseEffort('garbage'), null);
+});
+test('parseIntent: real output', () => {
+  const r = x.parseIntent('→ resolved to: mooter help\n   (rule: fallback, confidence 0.30)');
+  assert.equal(r.cmd, 'mooter help');
+  assert.equal(r.conf, 0.3);
+  assert.equal(r.rule, 'fallback');
+  assert.equal(x.parseIntent('no match here'), null);
+});
+test('parseSpanIds: defensive hex extraction', () => {
+  const out = 'span a1b2c3d4e5f6 · T0 · rename variable\nno id line\nspan 99887766-aaaa · T3 · drop table';
+  const m = x.parseSpanIds(out);
+  assert.equal(m.length, 2);
+  assert.equal(m[0].id, 'a1b2c3d4e5f6');
+});

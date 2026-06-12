@@ -20,8 +20,8 @@ class DataService {
     const p = trackerPort();
     const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me')];
     const doDeep = deep || this.tick % 3 === 1;
-    if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus());
-    const [metrics, last, health, me, ollama, sline, slash] = await Promise.all(jobs);
+    if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
+    const [metrics, last, health, me, ollama, sline, slash, effort, whynot, trail, security, spans] = await Promise.all(jobs);
     const prev = this.snapshot;
     this.snapshot = {
       at: Date.now(),
@@ -39,6 +39,11 @@ class DataService {
       ollama: doDeep ? ollama : prev.ollama,
       statuslineHtml: doDeep ? sline : prev.statuslineHtml,
       slash: doDeep ? slash : prev.slash,
+      effort: doDeep ? effort : prev.effort,
+      whynot: doDeep ? whynot : prev.whynot,
+      trail: doDeep ? trail : prev.trail,
+      security: doDeep ? security : prev.security,
+      spans: doDeep ? spans : prev.spans,
       claudeCli: fs.existsSync(path.join(require('os').homedir(), '.local', 'bin', 'claude')),
       decisions: data_.readDecisions(),
     };
@@ -98,6 +103,15 @@ class CockpitProvider {
         this.data.refresh(true);
       }
       if (m.cmd === 'pull') runInTerminal('ollama pull ' + String(m.arg || '').replace(/[^a-zA-Z0-9:._-]/g, ''));
+      if (m.cmd === 'effort') { await extra.effortSet(m.arg); this.data.refresh(true); }
+      if (m.cmd === 'rate') {
+        const r = await extra.rateSpan(m.arg && m.arg.id, m.arg && m.arg.n);
+        vscode.window.setStatusBarMessage(r.ok ? '🐮 feedback saved — the Pastor learns' : '🐮 could not save feedback', 3500);
+      }
+      if (m.cmd === 'intent') {
+        const res = await extra.intentResolve(m.arg);
+        try { view.webview.postMessage({ type: 'intent', res }); } catch {}
+      }
     });
     this.data.refresh(true);
   }
@@ -112,6 +126,7 @@ function project(s) {
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
     sub, device: s.device, hw: s.hw, quant: s.quant, prefs: s.prefs,
     budget: s.budget, packs: s.packs,
+    effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
     slashCmds: extra.SLASH_CMDS,
@@ -147,7 +162,10 @@ function getHtml() {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
-  :root{--g:#4EC97A;--r:#C25F65;--ink:#0B0A09;--gdim:rgba(78,201,122,.14);--rdim:rgba(194,95,101,.13)}
+  /* Official mooter design system — landing/app/globals.css verbatim (v0.4) */
+  :root{--g:#4CAF6A;--r:#E8888A;--r2:#F2A5A5;--ink:#0B0A09;--surface:#141311;--surface2:#1C1A17;
+    --btext:#F2EDE6;--bmuted:#8A8076;--gdim:rgba(76,175,106,.14);--rdim:rgba(232,136,138,.12);
+    --t0:#4CAF6A;--t1:#5A9BD4;--t2:#A88BD4;--t3:#D46A5A;--ttybg:#0d1117;--ttyhd:#161b22}
   body{font:13px var(--vscode-font-family);color:var(--vscode-foreground);padding:0 10px 12px;margin:0}
   .brand{display:flex;align-items:center;gap:7px;margin:8px -10px 0;padding:2px 12px 9px;border-bottom:1px solid var(--vscode-widget-border)}
   .brand b{color:var(--r);font-size:13.5px}.brand .proj{font-size:11px;color:var(--vscode-descriptionForeground);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -159,8 +177,14 @@ function getHtml() {
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--g)}
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
-  .hero{background:linear-gradient(160deg,var(--ink),#142019);border:1px solid var(--g);color:#fff}
-  .hero .lbl{color:#9fb8a8}.hero .sub{color:#c9d6cd}.hero .sub b{color:#fff}
+  .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
+  .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
+  .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
+  .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
+  .intentwrap{display:flex;gap:6px;margin:0 0 10px}
+  .intentwrap input{flex:1;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 10px;font:12px var(--vscode-font-family)}
+  .intentres{font-size:11px;color:var(--vscode-descriptionForeground);margin:-4px 0 8px;display:none}
+  .intentres b{color:var(--g)}
   .lbl{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--vscode-descriptionForeground)}
   .big{font-size:27px;font-weight:700;color:var(--g);font-variant-numeric:tabular-nums}
   .sub{font-size:12px;color:var(--vscode-descriptionForeground)}.sub b{color:var(--vscode-foreground)}
@@ -177,7 +201,7 @@ function getHtml() {
   .dec:hover{background:var(--vscode-list-hoverBackground)}
   .dtop{display:flex;align-items:center;gap:7px;padding:7px 9px}
   .chip{font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;flex:none;border:1px solid}
-  .T0{color:var(--g);border-color:var(--g)}.T1{color:#61afef;border-color:#61afef}.T2{color:#e5c07b;border-color:#e5c07b}.T3{color:var(--r);border-color:var(--r)}
+  .T0{color:var(--t0);border-color:var(--t0)}.T1{color:var(--t1);border-color:var(--t1)}.T2{color:var(--t2);border-color:var(--t2)}.T3{color:var(--t3);border-color:var(--t3)}
   .prev{flex:1;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family)}
   .meta{font-size:10px;color:var(--vscode-descriptionForeground)}
   .ddet{display:none;border-top:1px solid var(--vscode-widget-border);padding:7px 9px;font-size:11px;color:var(--vscode-descriptionForeground)}
@@ -209,6 +233,7 @@ function getHtml() {
   <div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
   <div class="tab" data-v="doctor">Doctor</div>
 </div>
+<div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="v-cockpit"><div class="empty">Connecting to mooter…</div></div>
 <div class="view" id="v-setup"><div class="empty">…</div></div>
 <div class="view" id="v-install"><div class="empty">…</div></div>
@@ -221,9 +246,12 @@ const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
 function goTab(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.v===name));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+name));}
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>goTab(t.dataset.v));
 $('#scoreBadge').onclick=()=>goTab('cockpit');
+const inI=$('#intentIn'),inG=$('#intentGo'),inR=$('#intentRes');
+function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';inR.textContent='🐮 thinking…';send('intent',v);}
+inG.onclick=intentAsk; inI.addEventListener('keydown',e=>{if(e.key==='Enter')intentAsk();});
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function tc(d){const c={T0:0,T1:0,T2:0,T3:0};for(const x of d)if(c[x.tier]!=null)c[x.tier]++;return c;}
-const TCOL={T0:'var(--g)',T1:'#61afef',T2:'#e5c07b',T3:'var(--r)'};
+const TCOL={T0:'var(--t0)',T1:'var(--t1)',T2:'var(--t2)',T3:'var(--t3)'};
 const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
@@ -234,6 +262,11 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else send(a,b.dataset.x);
 });}
 window.addEventListener('message',(e)=>{
+  if(e.data.type==='intent'){const r=e.data.res;
+    if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
+      document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
+    else inR.textContent='🐮 could not resolve — try the Terminal tab';
+    return;}
   if(e.data.type!=='snapshot')return;const s=e.data.s;
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
@@ -255,7 +288,7 @@ window.addEventListener('message',(e)=>{
   const pend=(score.checks||[]).filter(c=>!c.ok);
   const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
-  $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Saved vs all-Opus</div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+'</div></div>'+
+  $('#v-cockpit').innerHTML='<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+'</div></div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
@@ -295,6 +328,10 @@ window.addEventListener('message',(e)=>{
     '<div class="mo'+(s.mode==='auto'?' on':'')+'" data-m="auto">🐮 Moo<small>automatic · balanced</small></div>'+
     '<div class="mo'+(s.mode==='beast'?' on':'')+'" data-m="beast">🐂 CrazyMoo<small>best model · Fable 5*</small></div></div>'+
     '<div class="sub" style="margin-top:7px">*CrazyMoo uses the strongest available rung — <b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus.</div></div>'+
+    '<div class="card"><div class="lbl">Effort — how hard the Moo tries to save</div><div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">'+
+    ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--g);color:var(--g)':'')+'" data-eff="'+l+'">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
+    '</div><div class="sub" style="margin-top:6px">ultramoo = max frugality (compression + caveman prose)</div></div>'+
+    (s.whynot?'<div class="card"><div class="lbl">Why not Fable 5? — per-decision honesty</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.whynot)+'</div></div>':'')+
     '<div class="card"><div class="lbl">🧬 Engine intelligence</div>'+
     '<div class="kv"><span>Quantization</span><span>'+(q?esc(q.name+' · '+q.quant+(q.sizeGb?' · '+q.sizeGb+'GB':'')):'no snapshot — run mooter quant status')+'</span></div>'+
     '<div class="kv"><span>LoRA adapter</span><span>'+esc(adapter)+'</span></div>'+
@@ -303,11 +340,19 @@ window.addEventListener('message',(e)=>{
     '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
   document.querySelectorAll('#v-models .mo').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
+  document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
   wireButtons($('#v-models'));
 
   // ── DECISIONS
-  if(decs.length){$('#v-decisions').innerHTML=decs.map(d=>'<div class="dec"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div><div class="ddet">model <b>'+esc(d.model)+'</b> · '+esc(d.cat)+' · conf <b>'+esc(d.conf)+'</b>'+(d.rule&&d.rule!=='none'?' · rule <b>'+esc(d.rule)+'</b>':'')+'</div></div>').join('');
-    document.querySelectorAll('.dec').forEach(el=>el.onclick=()=>el.classList.toggle('open'));}
+  const spans=s.spans||[];
+  function spanFor(d){const p=(d.preview||'').slice(0,28);if(!p)return null;const hit=spans.find(x=>x.line.includes(p.slice(0,20)));return hit?hit.id:null;}
+  if(decs.length){$('#v-decisions').innerHTML=decs.map((d,i)=>{const sid=spanFor(d);
+    return '<div class="dec"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div>'+
+    '<div class="ddet">model <b>'+esc(d.model)+'</b> · '+esc(d.cat)+' · conf <b>'+esc(d.conf)+'</b>'+(d.rule&&d.rule!=='none'?' · rule <b>'+esc(d.rule)+'</b>':'')+
+    (sid?'<span class="stars" data-sid="'+esc(sid)+'">'+[1,2,3,4,5].map(n=>'<span data-n="'+n+'">★</span>').join('')+'</span>':'')+'</div></div>';}).join('');
+    document.querySelectorAll('.dec').forEach(el=>el.onclick=(ev)=>{if(ev.target.closest('.stars'))return;el.classList.toggle('open');});
+    document.querySelectorAll('.stars span').forEach(st=>st.onclick=()=>{const w=st.parentElement;const n=+st.dataset.n;
+      w.querySelectorAll('span').forEach(x=>x.classList.toggle('on',+x.dataset.n<=n));send('rate',{id:w.dataset.sid,n});});}
 
   // ── TERMINAL (req 2)
   $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">renderer warming up…</span>')+'</div></div>'+
@@ -323,6 +368,7 @@ window.addEventListener('message',(e)=>{
     '<div class="card"><div class="lbl">/mooter sub-commands ('+(sl.installed?'installed':'NOT installed')+')</div><div style="margin-top:6px">'+
     (s.slashCmds||[]).map(c=>'<span class="pill'+(sl.installed?' ok':'')+'">/'+esc(c)+'</span>').join('')+'</div>'+
     '<button class="sm" data-a="slashInstall" style="margin-top:7px">'+(sl.installed?'Update skill':'Install /mooter skill')+'</button></div>'+
+    (s.security?'<div class="card"><div class="lbl">🛡️ Sandbox security (4-layer)</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.security)+'</div></div>':'')+
     '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1">Full doctor →</button><button data-a="refresh" style="flex:1">Refresh</button></div>';
   wireButtons($('#v-doctor'));
 });

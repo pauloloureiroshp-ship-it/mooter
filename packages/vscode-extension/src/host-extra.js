@@ -11,7 +11,11 @@ const { httpJson } = require('./data.js');
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
 const MODE_FILE = path.join(ROUTER, '.mooter-mode.json');
 const SUB_PROFILE = path.join(ROUTER, 'subscription-profile.json');
-const MOOTER_CLI = path.join(os.homedir(), '.mooter', 'cli', 'mooter.js');
+const CLI_CANDIDATES = [
+  path.join(os.homedir(), '.mooter', 'cli-v1', 'mooter.js'),
+  path.join(os.homedir(), '.mooter', 'cli', 'mooter.js'),
+];
+const MOOTER_CLI = CLI_CANDIDATES.find((p) => { try { return fs.existsSync(p); } catch { return false; } }) || CLI_CANDIDATES[1];
 
 function execNode(script, args = [], timeoutMs = 6000) {
   return new Promise((resolve) => {
@@ -122,5 +126,48 @@ function mooterScore(ctx) {
   return { pct: Math.round((100 * done) / checks.length), done, total: checks.length, checks };
 }
 
+// ── v0.4 'Brand & Brain' services ───────────────────────────────────────
+function cli(args, timeoutMs = 8000) { return execNode(MOOTER_CLI, args, timeoutMs); }
+
+// Pure parsers (fixture-tested) — formats locked against real CLI output 2026-06-12.
+function parseEffort(out) { const m = String(out).match(/effort:\s*(\w+)/); return m ? m[1] : null; }
+function parseIntent(out) {
+  const cmd = (String(out).match(/resolved to:\s*(.+)/) || [])[1];
+  const conf = (String(out).match(/confidence\s*([0-9.]+)/) || [])[1];
+  const rule = (String(out).match(/rule:\s*([\w-]+)/) || [])[1];
+  return cmd ? { cmd: cmd.trim(), conf: conf ? Number(conf) : null, rule: rule || null } : null;
+}
+function parseSpanIds(out) {
+  const map = [];
+  for (const line of String(out).split('\n')) {
+    const id = (line.match(/\b([a-f0-9]{8}[a-f0-9-]*)\b/) || [])[1];
+    if (id) map.push({ id, line: line.trim().slice(0, 140) });
+  }
+  return map;
+}
+
+async function effortGet() { const r = await cli(['effort', 'show'], 6000); return parseEffort(r.out); }
+function effortSet(level) {
+  if (!['low', 'default', 'high', 'ultramoo'].includes(level)) return Promise.resolve({ ok: false });
+  return cli(['effort', 'set', level], 8000);
+}
+async function whyNotFable() { const r = await cli(['why-not-fable', '--last', '5'], 9000); return (r.out || '').trim().slice(0, 900) || null; }
+async function trailJson() { const r = await cli(['trail', '--json'], 9000); try { return JSON.parse(r.out); } catch { return null; } }
+async function securitySummary() { const r = await cli(['security', 'summary'], 9000); return (r.out || '').trim().slice(0, 700) || null; }
+async function feedbackSpans() { const r = await cli(['feedback', 'spans', '--last', '40'], 9000); return parseSpanIds(r.out || ''); }
+function rateSpan(spanId, n) {
+  const id = String(spanId).replace(/[^a-f0-9-]/g, '');
+  const v = Math.max(1, Math.min(5, Number(n) || 0));
+  if (!id || !v) return Promise.resolve({ ok: false });
+  return cli(['feedback', 'span', id, String(v)], 8000);
+}
+async function intentResolve(text) {
+  const t = String(text || '').slice(0, 200);
+  if (!t.trim()) return null;
+  const r = await cli(['intent', t], 9000);
+  return parseIntent(r.out || '');
+}
+
 module.exports = { execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
+  parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks };
