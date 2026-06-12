@@ -21,10 +21,13 @@ import { runLogin, runLogout, authStatus } from "./commands/login.ts";
 import { runAdapterList, runAdapterShow, runAdapterActivate, runAdapterDeactivate } from "./commands/adapter.ts";
 import { runForgeInstall, runForgeBenchmark } from "./commands/forge.ts";
 import { runExplain } from "./commands/explain.ts";
+import { runExplainAgent } from "./commands/explain-agent.ts";
 import { runAudit } from "./commands/audit.ts";
 import { runEnvDetect } from "./commands/env-detect.ts";
 import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 import { runWorkflow } from "./commands/workflow.ts";
+import { runWorkflows } from "./commands/workflows.ts";
+import { runAgents } from "./commands/agents.ts";
 import { runCompression } from "./commands/compression.ts";
 import { runLora } from "./commands/lora.ts";
 import { runSetup } from "./commands/setup.ts";
@@ -34,6 +37,8 @@ import { runWave } from "./commands/wave.ts";
 import { runDogfood } from "./commands/dogfood.ts";
 import { runMcp } from "./commands/mcp.ts";
 import { runBenchmarkCmd } from "./commands/benchmark.ts";
+import { runMatrix } from "./commands/matrix.ts";
+import { runRouteAdaptive } from "./commands/route-adaptive.ts";
 import { runPastor } from "./commands/pastor.ts";
 import { runStatusline } from "./commands/statusline.ts";
 import { runEffort } from "./commands/effort.ts";
@@ -63,6 +68,7 @@ import { runFableObserve } from "./commands/fable-observe.ts";
 import { runCcaFExport } from "./fable-observe/cca-f-export.ts";
 import { runCcaFAudit } from "./fable-observe/cca-f-audit-cmd.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
+import { runCostPerf, runBenchmarks } from "./commands/cost-perf.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
@@ -116,6 +122,8 @@ Usage:
   mooter dashboard [--refresh-ms <ms>] [--session-id <id>]   live TUI of the Mooter's state
   mooter pack <subcommand> [args] [--json]
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
+  mooter workflows [<name>] [--tail] [--json]   CC-native /workflows mirror — list running + completed runs
+  mooter agents [stats] [--running] [--workflow <name>] [--json]   interactive list of live/recent sub-agents (per-LLM emoji); stats = avg duration per agent type
   mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
   mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
   mooter pastor <subcommand>       Pastor v2 per-task adapter routing + distill (adapters · route · distill · state)
@@ -126,6 +134,10 @@ Usage:
   mooter dogfood <subcommand>      log friction while dogfooding (log · digest · list)
   mooter mcp <subcommand>          Mooter MCP server (serve · list · install)
   mooter benchmark run             run the Showcase Benchmark v2 (MLWR · local + cloud)
+  mooter cost-perf report [--last <Nd>] [--json]   cost/perf journal: per-category breakdown + drift + Pareto
+  mooter benchmarks refresh [--json]               re-read benchmark seed + overrides, report cell counts
+  mooter benchmarks list [--model <m>] [--category <c>] [--json]   show seeded benchmark cells + coverage
+  mooter route adaptive "<task>" [--category <cat>] [--min-confidence 0.75] [--max-attempts 3] [--dry-run] [--json]   Fable-5-inspired adaptive escalation (judge-scored, escalates on low confidence)
 
 ${PACK_USAGE}`;
 
@@ -219,6 +231,12 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (command === "explain") {
+    // Wave 58 A.11 — `mooter explain agent <task>` subcommand.
+    if (rest[0] === "agent") {
+      const res = await runExplainAgent(rest.slice(1));
+      if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+      return res.exitCode;
+    }
     const res = runExplain({ topic: rest[0] });
     process.stdout.write(res.output + "\n");
     return res.exitCode;
@@ -521,6 +539,25 @@ async function main(argv: string[]): Promise<number> {
     return res.exitCode;
   }
 
+  if (command === "workflows") {
+    const res = await runWorkflows(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "agents") {
+    const sub = rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined;
+    const wfIdx = rest.indexOf("--workflow");
+    const res = await runAgents({
+      sub,
+      running: rest.includes("--running"),
+      workflow: wfIdx >= 0 ? rest[wfIdx + 1] : undefined,
+      json: rest.includes("--json"),
+    });
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
   if (command === "compression") {
     const res = runCompression(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
@@ -577,6 +614,30 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "benchmark") {
     const res = await runBenchmarkCmd(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "matrix") {
+    const res = await runMatrix(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "cost-perf") {
+    const res = await runCostPerf(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "benchmarks") {
+    const res = await runBenchmarks(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "route") {
+    const res = await runRouteAdaptive(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
