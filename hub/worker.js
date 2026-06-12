@@ -39,6 +39,9 @@ import { handleHeartbeat } from './routes/heartbeat.js';
 import { handleFeedback } from './routes/feedback.js';
 import { handlePricing } from './routes/pricing.js';
 import { handleUserDashboard } from './routes/user-dashboard.js';
+import { handleAdminUsers } from './routes/admin_users.js';
+import { adminUserDetail } from './routes/admin_user_detail.js';
+import { handleAdminCohort } from './routes/admin_cohort.js';
 import { runAggregate } from './jobs/aggregate.js';
 import { runGenerate } from './jobs/generate.js';
 import { runNotify } from './jobs/notify.js';
@@ -74,6 +77,15 @@ const handler = {
 
     let response;
     try {
+      // Dynamic admin route: GET /v1/admin/user/<hash> (Wave 56). The 16-hex
+      // segment is variable, so it cannot be an exact switch case. Registered
+      // BEFORE the switch so it is not shadowed by any broader /v1/admin path.
+      // The handler validates /^[a-f0-9]{16}$/ and returns 400 on a malformed
+      // segment, so worker.js only needs the prefix test (no query strings here).
+      if (request.method === 'GET' && path.startsWith('/v1/admin/user/')) {
+        const hash = path.slice('/v1/admin/user/'.length);
+        response = await adminUserDetail(request, env, hash);
+      } else
       switch (path) {
         case '/api/delta':
           response = await handleDelta(request, env);
@@ -129,6 +141,12 @@ const handler = {
           break;
         case '/v1/user/dashboard':   // GET: per-user aggregates by anonymous user_hash (Wave 33.7)
           response = await handleUserDashboard(request, env);
+          break;
+        case '/v1/admin/users':   // GET: paginated per-user roll-up of frugal_events (Wave 56, anonymous user_id_hash only)
+          response = await handleAdminUsers(request, env);
+          break;
+        case '/v1/admin/cohort-metrics':   // GET: aggregate cohort engagement metrics (Wave 56; ?period=7d|30d parsed in handler)
+          response = await handleAdminCohort(request, env);
           break;
         case '/health':
           response = new Response(JSON.stringify({ ok: true, ts: new Date().toISOString() }), {
