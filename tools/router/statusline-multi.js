@@ -1362,6 +1362,7 @@ function layoutChips(chips, width) {
 
 /** ANSI-aware truncation: untouched when it fits, plain-text ellipsis when not. */
 function truncateToWidth(s, width) {
+  // eslint-disable-next-line no-control-regex -- intentional: strip ANSI SGR (ESC[…m) to measure display width
   const plain = String(s).replace(/\x1b\[[0-9;]*m/g, '');
   if (plain.length <= width) return s;
   return plain.slice(0, Math.max(1, width - 1)) + '…';
