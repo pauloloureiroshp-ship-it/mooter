@@ -142,4 +142,21 @@ the cross-platform rendering doc (A.1), the Mac smoke-test doc (A.2), and the
 **Doctrine V4 line:** "Honest > Forced" · "Zero scope creep" · "Refutações são
 valiosas".
 
-**Wave 55 Doctrine V4 status: refutations logged, Honest > Forced upheld.**
+## 2026-06-11 — Wave 55 audit · R6 (repo visibility)
+
+**R6 (Wave 55 audit):** repo público 2026-04-07 → 2 meses exposed. Doctrine V4
+sintetiza: "0 forks/stars = exposição mínima, mas viola Paulo mandate". Decisão
+Opção A: stay public + Wave 55.1 install refactor. Privatize decision deferred.
+
+**Evidence:** `gh repo view` → `{isPrivate:false, visibility:PUBLIC}`; forks 0 ·
+stars 0 · watchers 0; created 2026-04-07. Pre-push **secrets scan** (full history)
+→ ✅ CLEAN, no real secret values — only the public-by-design Supabase **anon**
+key, env-var-name references, `wrangler secret put` commands, and well-known
+dummies (AWS `AKIAIOSFODNN7EXAMPLE`, jwt.io example, sequential `ghp_` dummy).
+service_role key never committed. See [[WAVE55_SECRETS_SCAN_2026-06-11.md]] ·
+[[../audit/E2E_SMOKE_AUDIT_REPORT_2026-06-11.md]] §3.
+**Action:** push Wave 55 (public-safe); Wave 55.1 = refactor `install.sh` off
+`git clone` → `npm install -g @mooter/cli` / R2 tarball; privatize once shipped.
+**Doctrine V4 line:** "Honest > Forced" · "Refutações são valiosas".
+
+**Wave 55 Doctrine V4 status: refutations logged (R6 incl.), Honest > Forced upheld.**
