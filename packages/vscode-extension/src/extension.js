@@ -30,6 +30,12 @@ class DataService {
       metrics, last, me,
       mode: extra.readMode(),
       sub: extra.readSubProfile(),
+      device: extra.deviceProfile(),
+      hw: extra.hwCapability(),
+      quant: extra.quantSnapshot(),
+      prefs: extra.preferences(),
+      budget: extra.readBudget(),
+      packs: extra.installedPacks(),
       ollama: doDeep ? ollama : prev.ollama,
       statuslineHtml: doDeep ? sline : prev.statuslineHtml,
       slash: doDeep ? slash : prev.slash,
@@ -86,6 +92,12 @@ class CockpitProvider {
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal('mooter slash-commands install'); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
+      if (m.cmd === 'budget') {
+        const r = extra.writeBudget(m.arg);
+        if (r.ok) vscode.window.setStatusBarMessage('🐮 budget set: $' + r.value + '/month', 4000);
+        this.data.refresh(true);
+      }
+      if (m.cmd === 'pull') runInTerminal('ollama pull ' + String(m.arg || '').replace(/[^a-zA-Z0-9:._-]/g, ''));
     });
     this.data.refresh(true);
   }
@@ -93,10 +105,16 @@ class CockpitProvider {
 
 function project(s) {
   const base = data_.publicSnapshot(s);
+  const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown', raw: s.sub } : null;
+  const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
   return Object.assign(base, {
     mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash,
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
-    sub: s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown' } : null,
+    sub, device: s.device, hw: s.hw, quant: s.quant, prefs: s.prefs,
+    budget: s.budget, packs: s.packs,
+    projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
+    score: extra.mooterScore(ctx),
+    slashCmds: extra.SLASH_CMDS,
   });
 }
 
@@ -123,18 +141,21 @@ function deactivate() {}
 module.exports = { activate, deactivate };
 
 // ───────────────────────── webview ─────────────────────────
+// ───────────────────────── webview v0.3 ─────────────────────────
 function getHtml() {
   const nonce = String(Math.random()).slice(2);
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
-  :root{--g:#4EC97A;--r:#C25F65;--ink:#0B0A09;--gdim:rgba(78,201,122,.14)}
+  :root{--g:#4EC97A;--r:#C25F65;--ink:#0B0A09;--gdim:rgba(78,201,122,.14);--rdim:rgba(194,95,101,.13)}
   body{font:13px var(--vscode-font-family);color:var(--vscode-foreground);padding:0 10px 12px;margin:0}
-  .brand{display:flex;align-items:center;gap:7px;margin:8px -10px 0;padding:2px 12px 8px;border-bottom:1px solid var(--vscode-widget-border)}
-  .brand .moo{font-size:15px}.brand b{color:var(--r);font-size:13.5px;letter-spacing:.3px}
-  .brand .mode{margin-left:auto;font-size:10px;color:var(--g);background:var(--gdim);padding:2px 8px;border-radius:8px}
+  .brand{display:flex;align-items:center;gap:7px;margin:8px -10px 0;padding:2px 12px 9px;border-bottom:1px solid var(--vscode-widget-border)}
+  .brand b{color:var(--r);font-size:13.5px}.brand .proj{font-size:11px;color:var(--vscode-descriptionForeground);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brand .right{margin-left:auto;display:flex;gap:5px;align-items:center}
+  .badge{font-size:10px;padding:2px 8px;border-radius:8px}
+  .b-mode{color:var(--g);background:var(--gdim)}.b-score{color:var(--ink);background:var(--g);font-weight:700;cursor:pointer}
   .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
-  .tab{padding:5px 9px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
+  .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--g)}
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
@@ -150,7 +171,7 @@ function getHtml() {
   .bar .f{height:100%}.bar .p{width:56px;text-align:right;color:var(--vscode-descriptionForeground)}
   button{font-family:inherit;cursor:pointer;border-radius:5px;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);padding:5px 10px;font-size:11.5px}
   button.go{width:100%;background:var(--g);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
-  button.go:hover{filter:brightness(1.08)}
+  button.go:hover{filter:brightness(1.08)}button.sm{padding:3px 9px;font-size:10.5px}
   .hint{text-align:center;font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:6px}
   .dec{border:1px solid var(--vscode-widget-border);border-radius:5px;margin-bottom:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
   .dec:hover{background:var(--vscode-list-hoverBackground)}
@@ -164,103 +185,146 @@ function getHtml() {
   .empty{text-align:center;padding:26px 8px;color:var(--vscode-descriptionForeground);font-size:12px}
   .dr{display:flex;gap:8px;padding:7px 4px;border-bottom:1px solid var(--vscode-widget-border);font-size:12px;align-items:center}
   .dr:last-child{border:none}.dr .w{flex:1}.dr small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px}
-  .seg{display:inline-flex;background:var(--vscode-input-background);border-radius:6px;padding:2px;gap:1px}
-  .seg span{padding:4px 11px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground)}
-  .seg span.on{background:var(--gdim);color:var(--g);font-weight:600}
+  .seg{display:flex;background:var(--vscode-input-background);border-radius:7px;padding:3px;gap:2px}
+  .seg .mo{flex:1;padding:7px 4px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground);text-align:center;border:1px solid transparent}
+  .seg .mo.on{background:var(--gdim);color:var(--g);font-weight:700;border-color:var(--g)}
+  .seg .mo small{display:block;font-size:9px;font-weight:400;margin-top:1px}
   .pill{display:inline-block;font-size:10.5px;border:1px solid var(--vscode-widget-border);border-radius:9px;padding:2px 9px;margin:2px 3px 2px 0}
+  .pill.ok{border-color:var(--g);color:var(--g)}.pill.warn{border-color:#e5c07b;color:#e5c07b}
   .term{background:var(--ink);border-radius:7px;padding:10px 12px;font:11.5px var(--vscode-editor-font-family);color:#ddd;overflow-x:auto;white-space:pre;line-height:1.7}
   .wstep{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--vscode-widget-border)}
   .wstep:last-child{border:none}.wstep .n{width:20px;height:20px;border-radius:50%;background:var(--gdim);color:var(--g);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
   .wstep.done .n{background:var(--g);color:var(--ink)}
   .wstep .w{flex:1;font-size:12px}.wstep small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px;margin-top:1px}
+  .scorebar{height:8px;background:var(--vscode-input-background);border-radius:4px;overflow:hidden;margin:8px 0 4px}
+  .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),#e5c07b 50%,var(--g));border-radius:4px}
+  input[type=number]{width:90px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:5px 8px;font:12px var(--vscode-font-family)}
+  .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
 </style></head><body>
-<div class="brand"><span class="moo">🐮</span><b>mooter</b><span style="font-size:10.5px;color:var(--vscode-descriptionForeground)">cockpit</span><span class="mode" id="modeBadge">auto</span></div>
+<div class="brand"><span>🐮</span><b>mooter</b><span class="proj" id="proj">—</span>
+  <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="metrics">Metrics</div>
-  <div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="models">Models</div>
-  <div class="tab" data-v="terminal">Terminal</div><div class="tab" data-v="doctor">Doctor</div>
+  <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div>
+  <div class="tab" data-v="install">Install</div><div class="tab" data-v="models">Models</div>
+  <div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
+  <div class="tab" data-v="doctor">Doctor</div>
 </div>
 <div class="view on" id="v-cockpit"><div class="empty">Connecting to mooter…</div></div>
-<div class="view" id="v-metrics"><div class="empty">…</div></div>
-<div class="view" id="v-decisions"><div class="empty">No decisions yet</div></div>
+<div class="view" id="v-setup"><div class="empty">…</div></div>
+<div class="view" id="v-install"><div class="empty">…</div></div>
 <div class="view" id="v-models"><div class="empty">…</div></div>
+<div class="view" id="v-decisions"><div class="empty">No decisions yet</div></div>
 <div class="view" id="v-terminal"><div class="empty">…</div></div>
 <div class="view" id="v-doctor"><div class="empty">…</div></div>
 <script nonce="${nonce}">
-const vsapi=acquireVsCodeApi();const $=(s)=>document.querySelector(s);
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));t.classList.add('on');$('#v-'+t.dataset.v).classList.add('on');});
+const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
+function goTab(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.v===name));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+name));}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>goTab(t.dataset.v));
+$('#scoreBadge').onclick=()=>goTab('cockpit');
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function tc(d){const c={T0:0,T1:0,T2:0,T3:0};for(const x of d)if(c[x.tier]!=null)c[x.tier]++;return c;}
 const TCOL={T0:'var(--g)',T1:'#61afef',T2:'#e5c07b',T3:'var(--r)'};
+const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
+function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
+  const a=b.dataset.a;
+  if(a.startsWith('term:'))send('term',a.slice(5));
+  else if(a.startsWith('pull:'))send('pull',a.slice(5));
+  else if(a.startsWith('tab:'))goTab(a.slice(4));
+  else send(a,b.dataset.x);
+});}
 window.addEventListener('message',(e)=>{
   if(e.data.type!=='snapshot')return;const s=e.data.s;
-  $('#modeBadge').textContent=s.mode||'auto';
-  const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];
+  const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
+  $('#proj').textContent='· '+(s.projectName||'—');
+  $('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
+  $('#scoreBadge').textContent=score.pct+'%';
 
-  // ── WIZARD (substitui o Cockpit quando o engine falta) — req 3
+  // WIZARD quando engine falta
   if(!s.runtimeInstalled){
-    const steps=[
-      {ok:s.claudeCli,t:'Claude Code CLI',d:s.claudeCli?'detected':'install Claude Code first',btn:null},
-      {ok:false,t:'mooter engine',d:'one command — local routing + savings tracker',btn:['Install engine','install']},
-      {ok:s.ollama&&s.ollama.length>0,t:'Ollama (free local tier)',d:s.ollama?((s.ollama||[]).length+' models ready'):'optional — enables T0 free routing',btn:['ollama.com →','term','open https://ollama.com/download']},
-      {ok:false,t:'First routed prompt',d:'launch a session — savings start counting',btn:null}];
-    $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Setup wizard</div><div class="sub" style="margin-top:6px">Same flow as mooter.ai/onboarding — 4 steps, ~90 seconds.</div></div><div class="card">'+
-      steps.map((st,i)=>'<div class="wstep'+(st.ok?' done':'')+'"><div class="n">'+(st.ok?'✓':i+1)+'</div><div class="w">'+esc(st.t)+'<small>'+esc(st.d)+'</small></div>'+(st.btn?'<button data-a="'+st.btn[1]+'" data-x="'+esc(st.btn[2]||'')+'">'+esc(st.btn[0])+'</button>':'')+'</div>').join('')+'</div>';
-    document.querySelectorAll('#v-cockpit button').forEach(b=>b.onclick=()=>send(b.dataset.a,b.dataset.x||undefined));
-  } else {
-    // ── COCKPIT — req 1 (brand) + req 6 light
-    const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
-    let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
-    $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Saved vs all-Opus</div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' · <i>tracker offline</i>')+'</div></div>'+
-      '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
-      '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
-      '<button class="go" id="go">✱&nbsp; New Claude Code session</button><div class="hint">mooter hints active · mode '+esc(s.mode)+'</div>';
-    document.getElementById('go').onclick=()=>send('launch');
+    $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Setup wizard</div><div class="sub" style="margin-top:6px">Same flow as mooter.ai/onboarding.</div></div><div class="card">'+
+      [{ok:s.claudeCli,t:'Claude Code CLI',d:s.claudeCli?'detected':'install Claude Code first'},
+       {ok:false,t:'mooter engine',d:'one command — local routing + savings',b:['Install engine','install']},
+       {ok:(s.ollama||[]).length>0,t:'Ollama (free T0)',d:'optional',b:['ollama.com →','term:open https://ollama.com/download']},
+       {ok:false,t:'First routed prompt',d:'launch a session'}]
+      .map((st,i)=>'<div class="wstep'+(st.ok?' done':'')+'"><div class="n">'+(st.ok?'✓':i+1)+'</div><div class="w">'+esc(st.t)+'<small>'+esc(st.d)+'</small></div>'+(st.b?'<button data-a="'+st.b[1]+'">'+esc(st.b[0])+'</button>':'')+'</div>').join('')+'</div>';
+    wireButtons($('#v-cockpit'));return;
   }
 
-  // ── METRICS — req 6
-  const cbt=m.cost_by_tier||{};const pbt=m.pct_by_tier||{};const bym=m.by_model||{};
-  let mb='';for(const t of['T0','T1','T2','T3'])mb+='<div class="bar"><span class="t">'+t+'</span><div class="tr"><div class="f" style="width:'+(pbt[t]||0)+'%;background:'+TCOL[t]+'"></div></div><span class="p">$'+((cbt[t]||0).toFixed(2))+'</span></div>';
-  let models='';for(const k in bym)if(bym[k])models+='<span class="pill">'+esc(k)+' · '+bym[k]+'</span>';
-  const cats=(me.top_categories||[]).slice(0,4).map(c=>'<span class="pill">'+esc(c.category)+' · '+c.count+'</span>').join('');
-  $('#v-metrics').innerHTML='<div class="card hero"><div class="lbl">Why mooter is worth it</div><div class="big">'+(m.saved_pct||0)+'%</div><div class="sub">of an all-Opus bill, gone. <b>$'+(m.saved||0).toFixed(2)+'</b> kept across <b>'+(m.prompts||0)+'</b> prompts — '+(pbt.T0||0)+'% ran <b>free</b> on local hardware.</div></div>'+
-    '<div class="card"><div class="lbl">Cost by tier (real $)</div>'+mb+'</div>'+
-    '<div class="card"><div class="lbl">Model usage</div>'+(models||'<span class="sub">—</span>')+'</div>'+
-    '<div class="card"><div class="lbl">Top categories · 30d</div>'+(cats||'<span class="sub">—</span>')+'</div>'+
-    '<div class="card"><div class="lbl">30-day pulse</div><div class="sub">prompts 30d <b>'+(me.prompts_30d!=null?me.prompts_30d:'—')+'</b> · peak hours UTC <b>'+esc((me.peak_hours_utc||[]).join(', ')||'—')+'</b></div></div>';
+  // ── COCKPIT: hero + score + next actions (req 7,12)
+  const pend=(score.checks||[]).filter(c=>!c.ok);
+  const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
+  let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
+  $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Saved vs all-Opus</div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+'</div></div>'+
+    '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
+    (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
+    '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
+    '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
+    '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
+  wireButtons($('#v-cockpit'));
+
+  // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
+  const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};
+  const bud=(s.budget&&s.budget.monthly_budget_usd)||0;
+  const kv=(k,v)=>'<div class="kv"><span>'+esc(k)+'</span><span>'+(v==null||v===''?'<i style="color:var(--r)">missing</i>':esc(v))+'</span></div>';
+  $('#v-setup').innerHTML=
+    '<div class="card"><div class="lbl">🎮 Hardware</div>'+kv('GPU',hw.name||hwd.gpu||null)+kv('VRAM',hw.vram_mb?(hw.vram_mb/1024).toFixed(0)+' GB':null)+kv('Tier',hw.hw_tier||hwd.hw_tier)+kv('RAM',hwd.ram_gb?hwd.ram_gb+' GB':null)+kv('CPU cores',hwd.cpu_cores)+kv('Platform',(hwd.platform||'')+(hwd.arch?'/'+hwd.arch:''))+
+      (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
+    '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',sw.ollama_installed!=null?(sw.ollama_installed?'yes':'no'):((s.ollama||[]).length?'running':'offline'))+'</div>'+
+    '<div class="card"><div class="lbl">🔑 Subscriptions</div>'+kv('Anthropic',subs.anthropic||(s.sub&&s.sub.profile))+kv('OpenAI',subs.openai)+kv('Gemini',subs.gemini)+kv('Ollama',subs.ollama)+'<div class="sub" style="margin-top:5px">keys & tiers drive T1-T3 budgets</div></div>'+
+    '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>';
+  const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>send('budget',bi.value);
+  wireButtons($('#v-setup'));
+
+  // ── INSTALL: recomendados p/ hardware + packs (req 4)
+  const have=new Set((s.ollama||[]).map(x=>x.name.split(':')[0]+':'+(x.name.split(':')[1]||'')));
+  const avail=(hw.t0_models_available||[]).slice(0,8);
+  const reco=hw.recommended_t0;
+  $('#v-install').innerHTML='<div class="card"><div class="lbl">Local models — matched to your '+esc(hw.name||'hardware')+'</div>'+
+    (avail.length?avail.map(x=>{const inst=(s.ollama||[]).some(o=>o.name.startsWith(x.model.split(':')[0]));
+      return '<div class="dr"><span>'+(x.can_run?'✅':'⛔')+'</span><div class="w">'+esc(x.model)+(x.model===reco?' <span class="pill ok">recommended</span>':'')+'<small>'+(x.can_run?'fits your VRAM':'too big for this GPU')+'</small></div>'+(inst?'<span class="pill ok">installed</span>':(x.can_run?'<button class="sm" data-a="pull:'+esc(x.model)+'">pull</button>':''))+'</div>';}).join(''):
+      '<div class="sub">no hardware probe yet — run Detect in Setup</div>')+'</div>'+
+    '<div class="card"><div class="lbl">Moo Packs</div><div class="sub" style="margin:6px 0">'+(s.packs?Object.keys(s.packs).map(p=>'<span class="pill ok">'+esc(p)+'</span>').join(''):'none installed')+'</div><button class="sm" data-a="term:mooter pack list">Browse packs →</button></div>';
+  wireButtons($('#v-install'));
+
+  // ── MODELS: Moo trio + quant/LoRA (req 5,6)
+  const q=(s.quant&&s.quant.models&&s.quant.models[0])||null;
+  const adapter=(s.prefs&&s.prefs.adapter)||'baseline';
+  $('#v-models').innerHTML='<div class="card"><div class="lbl">Who routes your prompts</div><div class="seg" style="margin-top:8px">'+
+    '<div class="mo'+(s.mode==='zen'?' on':'')+'" data-m="zen">🐄 LazyMoo<small>local-first · conserve</small></div>'+
+    '<div class="mo'+(s.mode==='auto'?' on':'')+'" data-m="auto">🐮 Moo<small>automatic · balanced</small></div>'+
+    '<div class="mo'+(s.mode==='beast'?' on':'')+'" data-m="beast">🐂 CrazyMoo<small>best model · Fable 5*</small></div></div>'+
+    '<div class="sub" style="margin-top:7px">*CrazyMoo uses the strongest available rung — <b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus.</div></div>'+
+    '<div class="card"><div class="lbl">🧬 Engine intelligence</div>'+
+    '<div class="kv"><span>Quantization</span><span>'+(q?esc(q.name+' · '+q.quant+(q.sizeGb?' · '+q.sizeGb+'GB':'')):'no snapshot — run mooter quant status')+'</span></div>'+
+    '<div class="kv"><span>LoRA adapter</span><span>'+esc(adapter)+'</span></div>'+
+    '<div class="kv"><span>Evolution</span><span>trained on '+esc((m.prompts||0))+' routed decisions</span></div>'+
+    '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px">Refresh quant</button> <button class="sm" data-a="term:mooter forge install">Forge adapter →</button></div>'+
+    '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
+    '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
+  document.querySelectorAll('#v-models .mo').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
+  wireButtons($('#v-models'));
 
   // ── DECISIONS
   if(decs.length){$('#v-decisions').innerHTML=decs.map(d=>'<div class="dec"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div><div class="ddet">model <b>'+esc(d.model)+'</b> · '+esc(d.cat)+' · conf <b>'+esc(d.conf)+'</b>'+(d.rule&&d.rule!=='none'?' · rule <b>'+esc(d.rule)+'</b>':'')+'</div></div>').join('');
     document.querySelectorAll('.dec').forEach(el=>el.onclick=()=>el.classList.toggle('open'));}
 
-  // ── MODELS — req 5
-  const oll=s.ollama;const sub=s.sub;
-  $('#v-models').innerHTML='<div class="card"><div class="lbl">Routing mode</div><div style="margin:8px 0 4px"><span class="seg" id="modeSeg"><span data-m="beast"'+(s.mode==='beast'?' class="on"':'')+'>🐂 beast</span><span data-m="auto"'+(s.mode==='auto'?' class="on"':'')+'>⚖️ auto</span><span data-m="zen"'+(s.mode==='zen'?' class="on"':'')+'>🐄 zen</span></span></div><div class="sub">beast = all-power (cloud máx) · auto = mooter decides · zen = conserve (local first)</div></div>'+
-    '<div class="card"><div class="lbl">Subscription (cloud tiers)</div><div class="sub" style="margin-top:6px">'+(sub?'<span class="pill" style="border-color:var(--g);color:var(--g)">'+esc(sub.profile)+'</span> drives T1-T3 budgets':'not configured — run setup-profile')+'</div></div>'+
-    '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+(oll===null?'<span class="sub">Ollama offline — <i>free tier disabled</i></span>':((oll||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">no models — ollama pull qwen2.5:3b</span>'))+'</div></div>';
-  const seg=document.getElementById('modeSeg');if(seg)seg.querySelectorAll('span[data-m]').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
-
-  // ── TERMINAL — req 2 (paridade Win/Mac)
+  // ── TERMINAL (req 2)
   $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">renderer warming up…</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">mooter commands → integrated terminal</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">'+
-    ['mooter doctor','mooter savings','mooter sessions list','mooter why-not-fable','mooter statusline mode didactic','mooter sync'].map(c=>'<button data-c="'+esc(c)+'">'+esc(c.replace('mooter ',''))+'</button>').join('')+
+    ['mooter doctor','mooter savings','mooter sessions list','mooter why-not-fable','mooter quant status','mooter sync'].map(c=>'<button data-a="term:'+esc(c)+'">'+esc(c.replace('mooter ',''))+'</button>').join('')+
     '</div><div class="hint">identical on macOS and Windows — the CLI is the contract</div></div>';
-  document.querySelectorAll('#v-terminal button').forEach(b=>b.onclick=()=>send('term',b.dataset.c));
+  wireButtons($('#v-terminal'));
 
-  // ── DOCTOR + SLASH — req 4
-  const ok=(b)=>b?'✅':(b===null?'🟡':'❌');
-  const sl=s.slash||{};
+  // ── DOCTOR + 10 slash (req 10)
+  const ok=(b)=>b?'✅':(b===null?'🟡':'❌');const sl=s.slash||{};
   $('#v-doctor').innerHTML='<div class="card">'+
-    '<div class="dr"><span>'+ok(s.runtimeInstalled)+'</span><div class="w">Routing engine<small>~/.claude/tools/router</small></div></div>'+
-    '<div class="dr"><span>'+ok(s.trackerUp)+'</span><div class="w">Savings tracker<small>/health</small></div></div>'+
-    '<div class="dr"><span>'+ok(s.ollama===null?false:(s.ollama||[]).length>0)+'</span><div class="w">Ollama / T0<small>'+(s.ollama?(s.ollama.length+' models'):'offline')+'</small></div></div>'+
-    '<div class="dr"><span>'+ok(decs.length>0)+'</span><div class="w">Decisions flowing<small>'+decs.length+' recent</small></div></div></div>'+
-    '<div class="card"><div class="lbl">Slash commands (/mooter in Claude Code)</div><div class="dr" style="border:none"><span>'+ok(sl.installed)+'</span><div class="w">'+(sl.installed?'/mooter skill installed':'not installed')+'<small>route · savings · explain · tier · bench</small></div><button id="slashBtn">'+(sl.installed?'Update':'Install')+'</button></div></div>'+
-    '<div style="display:flex;gap:6px"><button data-c="mooter doctor" style="flex:1">Full doctor →</button><button id="rfsh" style="flex:1">Refresh</button></div>';
-  const sb=document.getElementById('slashBtn');if(sb)sb.onclick=()=>send('slashInstall');
-  const rf=document.getElementById('rfsh');if(rf)rf.onclick=()=>send('refresh');
-  document.querySelectorAll('#v-doctor button[data-c]').forEach(b=>b.onclick=()=>send('term',b.dataset.c));
+    (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+'</div>'+(c.ok?'':'<button class="sm" data-a="'+esc(c.fix)+'">fix</button>')+'</div>').join('')+'</div>'+
+    '<div class="card"><div class="lbl">/mooter sub-commands ('+(sl.installed?'installed':'NOT installed')+')</div><div style="margin-top:6px">'+
+    (s.slashCmds||[]).map(c=>'<span class="pill'+(sl.installed?' ok':'')+'">/'+esc(c)+'</span>').join('')+'</div>'+
+    '<button class="sm" data-a="slashInstall" style="margin-top:7px">'+(sl.installed?'Update skill':'Install /mooter skill')+'</button></div>'+
+    '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1">Full doctor →</button><button data-a="refresh" style="flex:1">Refresh</button></div>';
+  wireButtons($('#v-doctor'));
 });
 send('refresh');
 </script></body></html>`;

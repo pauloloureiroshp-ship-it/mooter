@@ -76,4 +76,51 @@ async function slashStatus() {
   return { installed: t.includes('installed') && !t.includes('not installed'), raw: r.out.trim().slice(0, 300) };
 }
 
-module.exports = { execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER };
+// ── v0.3 services ───────────────────────────────────────────────────────
+function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
+
+const MOOTER_HOME = path.join(os.homedir(), '.mooter');
+function deviceProfile() { return readJson(path.join(ROUTER, 'device-profile.json')); }
+function hwCapability() { return readJson(path.join(ROUTER, 'hw-capability.json')); }
+function quantSnapshot() { return readJson(path.join(MOOTER_HOME, 'cache', 'quant-snapshot.json')); }
+function preferences() { return readJson(path.join(MOOTER_HOME, 'preferences.json')); }
+function installedPacks() { return readJson(path.join(MOOTER_HOME, 'installed_packs.json')); }
+
+const BUDGET_PATHS = [path.join(MOOTER_HOME, 'budget-config.json'), path.join(os.homedir(), '.frugal', 'budget-config.json')];
+function readBudget() { for (const p of BUDGET_PATHS) { const j = readJson(p); if (j) return j; } return null; }
+function writeBudget(usd) {
+  const n = Math.max(0, Math.min(10000, Number(usd) || 0));
+  const p = BUDGET_PATHS[0];
+  try {
+    const cur = readJson(p) || {};
+    if (fs.existsSync(p)) fs.copyFileSync(p, p + '.bak');
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    cur.monthly_budget_usd = n;
+    cur.updated_at = new Date().toISOString();
+    cur.updated_by = 'vscode-cockpit';
+    fs.writeFileSync(p, JSON.stringify(cur, null, 2));
+    return { ok: true, value: n };
+  } catch { return { ok: false }; }
+}
+
+// The 10 slash sub-commands from the canonical /mooter SKILL template.
+const SLASH_CMDS = ['route', 'savings', 'explain', 'digest', 'local', 'why-not-fable', 'tier', 'mcp', 'vision', 'bench'];
+
+// Mooter Score — 8 equally-weighted setup checks (explainable, req 12).
+function mooterScore(ctx) {
+  const checks = [
+    { k: 'engine',  t: 'Routing engine installed',        ok: !!ctx.runtimeInstalled, fix: 'install' },
+    { k: 'tracker', t: 'Savings tracker running',         ok: !!ctx.trackerUp,        fix: 'term:mooter doctor' },
+    { k: 'ollama',  t: 'Ollama online (free T0 tier)',    ok: Array.isArray(ctx.ollama) && ctx.ollama.length > 0, fix: 'term:open https://ollama.com/download' },
+    { k: 'reco',    t: 'Recommended model for your GPU',  ok: !!(ctx.hw && ctx.ollama && ctx.ollama.some((m) => m.name.startsWith(String(ctx.hw.recommended_t0 || '').split(':')[0]))), fix: 'pull-reco' },
+    { k: 'sub',     t: 'Subscription profile configured', ok: !!(ctx.sub && ctx.sub.profile && ctx.sub.profile !== 'unknown'), fix: 'term:mooter init' },
+    { k: 'budget',  t: 'Monthly budget set',              ok: !!(ctx.budget && ctx.budget.monthly_budget_usd > 0), fix: 'tab:setup' },
+    { k: 'slash',   t: '/mooter slash commands',          ok: !!(ctx.slash && ctx.slash.installed), fix: 'slashInstall' },
+    { k: 'packs',   t: 'At least one Moo Pack installed', ok: !!(installedPacks() && Object.keys(installedPacks() || {}).length > 0), fix: 'term:mooter pack list' },
+  ];
+  const done = checks.filter((c) => c.ok).length;
+  return { pct: Math.round((100 * done) / checks.length), done, total: checks.length, checks };
+}
+
+module.exports = { execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
+  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks };
