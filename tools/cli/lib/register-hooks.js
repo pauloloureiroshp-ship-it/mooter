@@ -36,7 +36,18 @@ const ensure = (key, needle, command) => {
 };
 
 ensure('UserPromptSubmit', 'inject_context.js', `node "${routerFwd}/inject_context.js"`);
-ensure('UserPromptSubmit', 'frugal-turn-header.js', `node "${hooksFwd}/frugal-turn-header.js"`);
+
+// Kill Frugal W3: migrate any legacy frugal-turn-header entry in place, then
+// ensure the canonical mooter-turn-header hook exists.
+for (const entry of (s.hooks.UserPromptSubmit || [])) {
+  for (const h of (entry.hooks || [])) {
+    if (h.command && h.command.includes('frugal-turn-header.js')) {
+      h.command = h.command.split('frugal-turn-header.js').join('mooter-turn-header.js');
+      added++;
+    }
+  }
+}
+ensure('UserPromptSubmit', 'mooter-turn-header.js', `node "${hooksFwd}/mooter-turn-header.js"`);
 ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
 
 // Matcher migration: existing hooks that reference exec-logger.js, PostToolUse.js

@@ -1,0 +1,178 @@
+==== FRUGAL AUDIT 2026-06-11T19:34:16Z ====
+
+########## 1. REPO ~/mooter — contagem por área (excl. .git, node_modules, CHANGELOG, docs históricos) ##########
+TOTAL ficheiros com 'frugal' (case-insensitive):
+     378
+--- por directório top-level ---
+ 148 docs
+  70 tools
+  26 packages
+  26 hub
+  25 landing
+  20 .planning
+   9 audit
+   8 .claude
+   6 dashboard
+   4 .github
+   4 .evolution
+   2 vscode-extension
+   2 tests
+   2 .vscode
+   1 uninstall.sh
+   1 scripts
+   1 reports
+   1 install.sh
+   1 install.ps1
+   1 install-legacy.sh
+   1 install-legacy.ps1
+   1 frugal.code-workspace
+   1 TERMINAL-CONTRACT.md
+   1 SYNC.md
+   1 SECURITY.md
+   1 ROADMAP.md
+   1 REQUEST_ACCESS.md
+   1 README.md
+   1 PRIVACY.md
+   1 NOTICE.md
+   1 MEMORY.md
+   1 LOOP.md
+   1 INFRA.md
+   1 CONTRIBUTING.md
+   1 CLAUDE.md
+   1 CHANGELOG.md
+   1 AUDIT_REPORT.md
+   1 ARCHITECTURE.md
+   1 .mcp.json
+   1 .gitignore
+--- top 40 ficheiros com mais ocorrências ---
+./docs/archive/master-prompts-2026-04/ROADMAP_MASTER_V2.md:110
+./docs/archive/2026-04-reports/CHANGELOG_SESSIONS.md:95
+./docs/archive/master-prompts-2026-04/MOOTER_REBRAND_MASTER_PROMPT.md:87
+./docs/archive/master-prompts-2026-04/STATUSLINE_REDESIGN_MASTER_PROMPT.md:81
+./docs/archive/master-prompts-2026-04/FRUGAL_OS_MASTER_PROMPT.md:72
+./docs/archive/2026-04-reports/MASTER_ARCHITECTURE.md:69
+./docs/archive/master-prompts-2026-04/FRIENDS_MASTER_PROMPT.md:62
+./docs/archive/master-prompts-2026-04/MP-21-intelligence-platform-v2.md:56
+./SYNC.md:56
+./docs/archive/master-prompts-2026-04/DATA_INFRASTRUCTURE_MASTER_PROMPT_V2.md:55
+./docs/strategy/WAVE13_X_BRAND_CLEANUP_MICROBRIEF.md:53
+./docs/archive/2026-04-reports/CURRENT-STATE.md:53
+./audit/validation.jsonl:47
+./INFRA.md:47
+./docs/viz/architecture-diagram.html:45
+./docs/archive/master-prompts-2026-04/MOOTER_LANDING_CLAUDECODE.md:37
+./docs/archive/master-prompts-2026-04/E2E_MVP_MASTER_PROMPT.md:37
+./docs/archive/sessions/WAVE25_COMPLETE_HONESTY_KICKOFF.md:36
+./audit/corpus.jsonl:35
+./docs/archive/strategy-iterations-2026-05/MASTER_PROMPT_V1.md:34
+./install-legacy.sh:33
+./docs/viz/frugal-flowmap.html:33
+./docs/archive/audits/AUDIT-MOOTER-2026-04-19.md:33
+./docs/archive/master-prompts-2026-04/MP-18-metrics-coherence.md:32
+./docs/archive/master-prompts-2026-04/LANDING_V10_MASTER_PROMPT.md:32
+./docs/archive/master-prompts-2026-04/AUDIT_MASTER_PROMPT.md:32
+./docs/archive/master-prompts-2026-04/MACBOOK_SETUP_PROMPT.md:31
+./docs/archive/master-prompts-2026-04/DATA_INFRASTRUCTURE_MASTER_PROMPT.md:31
+./vscode-extension/extension.js:28
+./docs/strategy/MOOTER_PLAYBOOK.md:28
+./docs/archive/master-prompts-2026-04/MP-19-backlog-windows-fixes.md:26
+./hub/migrations/009_converge_schema.sql:25
+./docs/archive/2026-04-reports/PRD-setup-wizard.md:25
+./docs/archive/2026-04-reports/KNOWLEDGE_BASE.md:25
+./tools/audit/preflight-audit.js:24
+./docs/archive/master-prompts-2026-04/MP-20-savings-transparency.md:24
+./docs/archive/master-prompts-2026-04/MP-16-gpu-metrics-transparency.md:24
+./CHANGELOG.md:24
+./install-legacy.ps1:23
+./docs/viz/frugal-vision-map.html:23
+--- ocorrências em código vivo (src, tools, packages, scripts) vs docs ---
+tools: 70 ficheiros
+packages: 26 ficheiros
+scripts: 1 ficheiros
+landing: 25 ficheiros
+docs: 148 ficheiros
+--- nomes de ficheiros/dirs contendo frugal ---
+./landing/app/lib/generate-frugal-config.ts
+./landing/public/frugal-logo.svg
+./tools/router/frugal-turn-header.js
+./tools/router/frugal-doctor.js
+./tools/router/frugal-login.js
+./tools/router/frugal-mode.js
+./docs/archive/master-prompts-2026-04/FRUGAL_OS_MASTER_PROMPT.md
+./docs/archive/frugal-skills-pre-rename-2026-04-14
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-hello
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-doctor
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-status
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-zen
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-auto
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-savings
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-update
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-summary
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-dashboard
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-beast
+./docs/archive/frugal-skills-pre-rename-2026-04-14/frugal-route
+./docs/viz/frugal-vision-map.html
+./docs/viz/frugal-system-map.html
+./docs/viz/frugal-flowmap.html
+./docs/reports/FRUGAL_ROUTING_TEST.md
+./docs/reports/FRUGAL_EXPERIENCE_REPORT.md
+./hub/migrations/002_frugal_events.sql
+./hub/wrangler.frugal-legacy.toml
+./frugal.code-workspace
+
+########## 2. RUNTIME ~/.claude/tools/router ##########
+      49
+/Users/paulomirandaloureiro/.claude/tools/router/frugal-doctor.js:19
+/Users/paulomirandaloureiro/.claude/tools/router/inject_context.js:18
+/Users/paulomirandaloureiro/.claude/tools/router/env.test.js:15
+/Users/paulomirandaloureiro/.claude/tools/router/savings-tracker.js:13
+/Users/paulomirandaloureiro/.claude/tools/router/frugal-login.js:13
+/Users/paulomirandaloureiro/.claude/tools/router/env.js:13
+/Users/paulomirandaloureiro/.claude/tools/router/mooter-tester-focus.json:12
+/Users/paulomirandaloureiro/.claude/tools/router/event-builder.js:12
+/Users/paulomirandaloureiro/.claude/tools/router/validation-set.json:9
+/Users/paulomirandaloureiro/.claude/tools/router/backtest.js:8
+/Users/paulomirandaloureiro/.claude/tools/router/auto-sync.js:8
+/Users/paulomirandaloureiro/.claude/tools/router/paths.js:7
+/Users/paulomirandaloureiro/.claude/tools/router/budget-engine.js:5
+/Users/paulomirandaloureiro/.claude/tools/router/wave22-honesty.test.js:4
+/Users/paulomirandaloureiro/.claude/tools/router/hub-submit-events.js:4
+
+########## 3. ~/.frugal (legado) e ~/.mooter ##########
+total 8
+drwxr-xr-x@  3 paulomirandaloureiro  staff    96 Jun 10 15:23 .
+drwxr-x---+ 46 paulomirandaloureiro  staff  1472 Jun 11 16:34 ..
+-rw-r--r--@  1 paulomirandaloureiro  staff    37 Jun 10 15:23 device.id
+/Users/paulomirandaloureiro/.mooter/cli/lib/paths.js
+/Users/paulomirandaloureiro/.mooter/cli/lib/register-hooks.js
+/Users/paulomirandaloureiro/.mooter/cli/commands/init.js
+/Users/paulomirandaloureiro/.mooter/cli/commands/uninstall.js
+/Users/paulomirandaloureiro/.mooter/env
+/Users/paulomirandaloureiro/.mooter/cli-v1/mooter.js
+
+########## 4. Configs e ambiente ##########
+            "command": "node \"/Users/paulomirandaloureiro/.claude/hooks/frugal-turn-header.js\"",
+.zshrc: limpo
+LaunchAgents: limpo
+.local/bin: limpo
+
+########## 5. Tracker :7821 (branding no output) ##########
+frugal — savings summary (v0.6 token-estimated)
+
+Currency:     USD
+       0
+
+########## 6. Git: remotes e branches ##########
+origin	https://github.com/pauloloureiroshp-ship-it/mooter.git (fetch)
+origin	https://github.com/pauloloureiroshp-ship-it/mooter.git (push)
+/Users/paulomirandaloureiro/frugal.OLD-frugal-clone-20260610-152211
+/Users/paulomirandaloureiro/frugal.OLD-frugal-clone-20260610-152211
+/Users/paulomirandaloureiro/mooter.OLD-frugal-clone-20260610-152211
+/Users/paulomirandaloureiro/mooter.OLD-frugal-clone-20260610-152211
+
+########## 7. Hub (infra pública) ##########
+URL actual: mooter-hub.frugal-hub.workers.dev (subdomain workers.dev = 'frugal-hub')
+{"period":"last_7_days","generated_at":"2026-06-11T19:34:26.536Z","prompt_count":4,"user_count":1,"total_savings_usd":0,"prompt_count_7d":4,"user_count_7d":1,"total_savings_usd_7d":0,"avg_savings_pct":null,"totals":{"deltas":4,"prompts":4,"avg_trust":0.288},"hw_distribution":[{"hw_tier":"apple-silic
+teste mooter-hub.mooter-hub.workers.dev:
+000
+==== AUDIT DONE ====

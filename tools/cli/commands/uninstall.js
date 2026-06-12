@@ -24,7 +24,7 @@ async function run(args) {
   console.log('    - ~/.claude/tools/router/                (routing scripts)');
   console.log('    - ~/.claude/hooks/ mooter-specific hooks (keeps Claude Code hooks)');
   console.log('    - ~/.mooter/                             (binary + data)');
-  console.log('    - ~/.frugal/                             (device.id + config)');
+  console.log('    - ~/.mooter/                             (device.id + config)');
   console.log('    - ~/.local/bin/mooter                    (shim)');
   console.log('');
   console.log('  Will keep:');
@@ -50,7 +50,7 @@ async function run(args) {
         for (const key of Object.keys(stripped.hooks)) {
           stripped.hooks[key] = (stripped.hooks[key] || []).filter((h) => {
             const json = JSON.stringify(h);
-            return !['inject_context.js', 'frugal-turn-header.js', 'gsd-turn-end.js', 'gsd-statusline.js', 'exec-logger.js', 'mooter'].some((needle) =>
+            return !['inject_context.js', 'mooter-turn-header.js', 'frugal-turn-header.js', 'gsd-turn-end.js', 'gsd-statusline.js', 'exec-logger.js', 'mooter'].some((needle) =>
               json.includes(needle),
             );
           });
@@ -64,7 +64,7 @@ async function run(args) {
     warn('Could not parse settings.json: ' + e.message);
   }
 
-  const toRemove = [paths.router, paths.mooter, paths.frugal];
+  const toRemove = [paths.router, paths.mooter, paths.legacyFrugal];
   for (const p of toRemove) {
     if (fs.existsSync(p)) {
       fs.rmSync(p, { recursive: true, force: true });
@@ -72,7 +72,7 @@ async function run(args) {
     }
   }
 
-  const mooterHooks = ['frugal-turn-header.js', 'gsd-turn-end.js', 'exec-logger.js', 'gsd-statusline.js', 'PostToolUse.js'];
+  const mooterHooks = ['mooter-turn-header.js', 'frugal-turn-header.js', 'gsd-turn-end.js', 'exec-logger.js', 'gsd-statusline.js', 'PostToolUse.js'];
   for (const h of mooterHooks) {
     const p = path.join(paths.hooks, h);
     if (fs.existsSync(p)) fs.rmSync(p, { force: true });

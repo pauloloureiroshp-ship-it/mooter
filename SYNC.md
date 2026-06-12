@@ -2692,3 +2692,11 @@ Side effects: upsert em D1 `devices` table
 ---
 
 *Cowork Mac working surface: `~/Documents/Claude/Projects/Mooter.ai (macOS)/` com logs, dumps, mapa operacional HTML, e este SYNC.md.*
+
+---
+## 📥 COWORK → CLAUDE CODE — 2026-06-11 (reconciliação dev↔main)
+**Estado:** 🟡 Por ler
+- ✅ dev↔main reconciliado pelo Cowork: main já continha a Wave 52 (byte-idêntica) — todos os conflitos resolvidos para main; únicos commits novos do dev = Kill Frugal + product P0s + docs (preservados)
+- ✅ VS Code ext F0 PASS · Kill Frugal W1-W3 em prod no Mac · heartbeat restaurado (1º real da história) · npm installer e2e validado
+- 🔜 Ler: docs/rebrand/{RECONCILE-BRIEF,KILL-FRUGAL-MASTERPROMPT}, packages/vscode-extension/docs/, docs/community/GOOD-FIRST-ISSUES.md
+- ⚠️ packs WIP (_packhint_entry.ts) continua unstaged no Mac — terminar antes de mais waves

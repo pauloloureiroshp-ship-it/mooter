@@ -19,10 +19,11 @@ const https = require('https');
 const http = require('http');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
-const FRUGAL_DIR = path.join(os.homedir(), '.frugal');
-const LAST_SYNC_PATH = path.join(FRUGAL_DIR, '.last-sync');
-const TOKEN_PATH = path.join(FRUGAL_DIR, 'auth.token');
-const DEVICE_ID_PATH = path.join(FRUGAL_DIR, 'device.id');
+const identity = require('./identity');
+const MOOTER_DIR = identity.MOOTER_DIR;
+const LAST_SYNC_PATH = identity.LAST_SYNC_PATH;
+const TOKEN_PATH = identity.AUTH_TOKEN_PATH;
+const DEVICE_ID_PATH = identity.DEVICE_ID_PATH;
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 const LANDING_URL = process.env.MOOTER_LANDING_URL
@@ -54,7 +55,7 @@ function shouldSync() {
 
 function markSynced() {
   try {
-    fs.mkdirSync(FRUGAL_DIR, { recursive: true });
+    fs.mkdirSync(MOOTER_DIR, { recursive: true });
     fs.writeFileSync(LAST_SYNC_PATH, String(Date.now()));
   } catch { /* non-fatal */ }
 }

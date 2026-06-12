@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# uninstall.sh — frugal uninstaller
+# uninstall.sh — DEPRECATED legacy uninstaller (Kill Frugal, 2026-06-11).
+# Known-stale: looks for frugal-install-* backups that modern installs never
+# create, and can leave orphaned hooks. Use the official path instead:
+#   mooter uninstall
 # Rollback clean. Always preserves decisions.log.
+echo "⚠️  DEPRECATED: prefer 'mooter uninstall'. Continuing in 5s (Ctrl+C to abort)..." >&2
+sleep 5
 #
 # Flag: --force (skip confirmation)
 #

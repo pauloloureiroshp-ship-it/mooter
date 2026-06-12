@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { generateFrugalConfig } from '../lib/generate-frugal-config';
+import { generateFrugalConfig } from '../lib/generate-mooter-config';
 import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
 import { LOCAL_HW, estimateMonthlySavings } from './_lib/estimate';

@@ -27,7 +27,7 @@ const { spawnSync, execFile } = require('child_process');
 // v0.7 feature flag — set FRUGAL_V07_DISABLE=1 to revert to v0.6.1 behaviour
 // (no hook cache, sync budget fetch, no quality intent bypass). Useful as a
 // kill-switch if anything regresses.
-const V07_DISABLED = process.env.FRUGAL_V07_DISABLE === '1';
+const V07_DISABLED = process.env.MOOTER_V07_DISABLE === '1' || process.env.FRUGAL_V07_DISABLE === '1';
 
 // frugal savings-tracker + Ollama warmup — auto-start if pid file is stale.
 // v0.7: pid-file check replaces the fire-and-forget HTTP GET /health socket
@@ -538,7 +538,7 @@ function bestOllamaT0() {
   try {
     const pushScript = path.join(ROUTER_DIR, 'hub-submit-events.js');
     if (!fs.existsSync(pushScript)) return;
-    if (!process.env.FRUGAL_SUBMIT_TOKEN) return;
+    if (!process.env.MOOTER_SUBMIT_TOKEN && !process.env.FRUGAL_SUBMIT_TOKEN) return;
     const lastPushPath = path.join(ROUTER_DIR, '.last-submit.json');
     try {
       const stat = fs.statSync(lastPushPath);
