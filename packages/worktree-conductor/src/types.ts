@@ -12,8 +12,19 @@ export interface LockFile {
   pid: number;
 }
 
+/** One timed phase within an agent task, for per-agent time tracking (A.10). */
+export interface HeartbeatPhase {
+  phase_name: string;
+  started_ms: number;
+  completed_ms?: number;
+  tokens_in?: number;
+  tokens_out?: number;
+  cost_usd?: number;
+}
+
 /** A session heartbeat, at ~/.mooter/orchestration/heartbeats/<session-id>.json */
 export interface Heartbeat {
+  // Wave 33.5 core fields — MUST NOT be removed or renamed (Wave 33.5 + tests rely on them)
   session_id: string;
   terminal_name: string;
   worktree_path: string;
@@ -24,6 +35,12 @@ export interface Heartbeat {
   active_locks: string[];
   pending_intents: string[];
   pid: number;
+  // A.10 optional per-agent time-tracking fields (Wave 58 batch 3, additive only)
+  task_category?: string;
+  phases?: HeartbeatPhase[];
+  current_phase?: number;
+  estimated_total_duration_ms?: number;
+  actual_total_duration_ms?: number;
 }
 
 /** A queued serial intent (Sequencer). */

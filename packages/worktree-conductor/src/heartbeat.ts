@@ -9,7 +9,7 @@ import { writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync } from "nod
 import { join } from "node:path";
 
 import { heartbeatsDir } from "./paths.ts";
-import type { Heartbeat } from "./types.ts";
+import type { Heartbeat, HeartbeatPhase } from "./types.ts";
 
 export const STALE_MS = 30000;
 
@@ -27,6 +27,12 @@ export interface WriteHeartbeatInput {
   activeLocks?: string[];
   pendingIntents?: string[];
   pid?: number;
+  // A.10 optional per-agent time-tracking fields (Wave 58 batch 3)
+  taskCategory?: string;
+  phases?: HeartbeatPhase[];
+  currentPhase?: number;
+  estimatedTotalDurationMs?: number;
+  actualTotalDurationMs?: number;
 }
 
 export function writeHeartbeat(input: WriteHeartbeatInput, opts: { home?: string; now?: number } = {}): Heartbeat {
@@ -43,6 +49,13 @@ export function writeHeartbeat(input: WriteHeartbeatInput, opts: { home?: string
     pending_intents: input.pendingIntents ?? [],
     pid: input.pid ?? 0,
   };
+  // A.10: persist optional per-agent time-tracking fields only when provided,
+  // so omitting them yields byte-identical output to the Wave 33.5 schema.
+  if (input.taskCategory !== undefined) hb.task_category = input.taskCategory;
+  if (input.phases !== undefined) hb.phases = input.phases;
+  if (input.currentPhase !== undefined) hb.current_phase = input.currentPhase;
+  if (input.estimatedTotalDurationMs !== undefined) hb.estimated_total_duration_ms = input.estimatedTotalDurationMs;
+  if (input.actualTotalDurationMs !== undefined) hb.actual_total_duration_ms = input.actualTotalDurationMs;
   mkdirSync(heartbeatsDir(opts.home), { recursive: true });
   writeFileSync(hbPath(input.sessionId, opts.home), JSON.stringify(hb));
   return hb;
