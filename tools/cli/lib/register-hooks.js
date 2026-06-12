@@ -51,10 +51,12 @@ ensure('UserPromptSubmit', 'mooter-turn-header.js', `node "${hooksFwd}/mooter-tu
 
 // Wave A (Moo Packs wired): migrate any hand-installed pack-hint.js entry to
 // the shipped .cjs bundle in place, then ensure the canonical hook exists.
+// Anchored ([/"]pack-hint.js") so pack-hint.json / *-pack-hint.js never
+// false-positive, and token-swapped so the rest of the command is preserved.
 for (const entry of (s.hooks.UserPromptSubmit || [])) {
   for (const h of (entry.hooks || [])) {
-    if (h.command && h.command.includes('pack-hint.js')) {
-      h.command = `node "${hooksFwd}/pack-hint.cjs"`;
+    if (h.command && /[\/"]pack-hint\.js"/.test(h.command)) {
+      h.command = h.command.split('pack-hint.js').join('pack-hint.cjs');
       added++;
     }
   }
