@@ -2709,6 +2709,7 @@ Side effects: upsert em D1 `devices` table
 | Recurso | URL |
 |---------|-----|
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| 🐄 Sessão 2026-06-12 — Wave A: Moo Packs wired | https://app.notion.com/p/37d6f6e42bc481cfb007e041499ae0ad |
 | 🐮 Wave 2.5 CLOSURE — v0.2.1-polish (2026-05-31) | https://www.notion.so/3716f6e42bc4813aaa58e6ffeb5bb241 |
 | 🐮 Sessão 2026-05-30 — Wave 2.5 Day 1 | https://www.notion.so/3706f6e42bc481f8bca3d34d778dda34 |
 | 🐑 Pastor Day 1 — Schema + ADR (2026-05-28) | https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42 |
