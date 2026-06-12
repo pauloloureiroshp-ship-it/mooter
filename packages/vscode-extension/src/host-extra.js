@@ -168,6 +168,31 @@ async function intentResolve(text) {
   return parseIntent(r.out || '');
 }
 
-module.exports = { execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
+
+// ── v0.5 telemetry/insights ─────────────────────────────────────────────
+function countLines(p) { try { return fs.readFileSync(p, 'utf8').split('\n').filter(Boolean).length; } catch { return null; } }
+function countFiles(dir) { try { return fs.readdirSync(dir).length; } catch { return null; } }
+function mtime(p) { try { return fs.statSync(p).mtime.toISOString(); } catch { return null; } }
+
+function insights(decisions) {
+  const ds = decisions || [];
+  const cacheHits = ds.filter((d) => d.cache_hit === true).length;
+  const confs = ds.map((d) => Number(d.confidence)).filter((n) => !isNaN(n));
+  const half = Math.floor(confs.length / 2);
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const confNow = avg(confs.slice(0, half || 1));   // newest half (list is newest-first)
+  const confPrev = avg(confs.slice(half));
+  return {
+    cacheRate: ds.length ? Math.round((100 * cacheHits) / ds.length) : null,
+    confNow: confNow != null ? +confNow.toFixed(2) : null,
+    confPrev: confPrev != null ? +confPrev.toFixed(2) : null,
+    fableObs: countFiles(path.join(MOOTER_HOME, 'fable-observations')),
+    trainingLines: countLines(path.join(MOOTER_HOME, 'pastor', 'fable-training.jsonl')),
+    lastHubPush: mtime(path.join(ROUTER, '.last-hub-push')),
+    quantAll: (quantSnapshot() || {}).models || null,
+  };
+}
+
+module.exports = { insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks };

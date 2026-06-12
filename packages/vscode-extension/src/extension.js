@@ -127,6 +127,8 @@ function project(s) {
     sub, device: s.device, hw: s.hw, quant: s.quant, prefs: s.prefs,
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
+    insights: extra.insights(s.decisions),
+    paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
     slashCmds: extra.SLASH_CMDS,
@@ -225,12 +227,12 @@ function getHtml() {
   input[type=number]{width:90px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:5px 8px;font:12px var(--vscode-font-family)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
 </style></head><body>
-<div class="brand"><span>🐮</span><b>mooter</b><span class="proj" id="proj">—</span>
+<div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
   <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div>
   <div class="tab" data-v="install">Install</div><div class="tab" data-v="models">Models</div>
-  <div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
+  <div class="tab" data-v="insights">Insights</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
   <div class="tab" data-v="doctor">Doctor</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
@@ -238,6 +240,7 @@ function getHtml() {
 <div class="view" id="v-setup"><div class="empty">…</div></div>
 <div class="view" id="v-install"><div class="empty">…</div></div>
 <div class="view" id="v-models"><div class="empty">…</div></div>
+<div class="view" id="v-insights"><div class="empty">…</div></div>
 <div class="view" id="v-decisions"><div class="empty">No decisions yet</div></div>
 <div class="view" id="v-terminal"><div class="empty">…</div></div>
 <div class="view" id="v-doctor"><div class="empty">…</div></div>
@@ -270,6 +273,8 @@ window.addEventListener('message',(e)=>{
   if(e.data.type!=='snapshot')return;const s=e.data.s;
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
+  const pr=s.paired||{};
+  $('#pair').innerHTML=pr.ok?'<span title="paired with Claude Code '+esc(pr.version)+'" style="color:var(--g)">✕ ✱ Claude Code ✓</span>':'<span title="Claude Code extension not found" style="color:var(--t3)">✕ ✱ not paired</span>';
   $('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
   $('#scoreBadge').textContent=score.pct+'%';
 
@@ -342,6 +347,21 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-models .mo').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
   document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
   wireButtons($('#v-models'));
+
+  // ── INSIGHTS (telemetria total — req: quant, LoRA, per-prompt)
+  const ins=s.insights||{};const qa=ins.quantAll||[];
+  const confDelta=(ins.confNow!=null&&ins.confPrev!=null)?(ins.confNow-ins.confPrev):null;
+  $('#v-insights').innerHTML=
+    '<div class="card hero"><div class="lbl">Routing intelligence</div><div class="big">'+(ins.cacheRate!=null?ins.cacheRate+'%':'—')+'</div><div class="sub">classifier cache-hit rate · confidence <b>'+(ins.confNow!=null?ins.confNow:'—')+'</b>'+(confDelta!=null?' <span style="color:'+(confDelta>=0?'var(--g)':'var(--t3)')+'">'+(confDelta>=0?'▲':'▼')+Math.abs(confDelta).toFixed(2)+'</span> vs previous window':'')+'</div></div>'+
+    '<div class="card"><div class="lbl">📦 Quantization (all local models)</div>'+(qa.length?qa.map(q=>'<div class="kv"><span>'+esc(q.name)+'</span><span>'+esc(q.quant||'?')+(q.sizeGb?' · '+q.sizeGb+'GB':'')+'</span></div>').join(''):'<div class="sub" style="margin-top:5px">no snapshot — <button class="sm" data-a="term:mooter quant status">run quant status</button></div>')+'</div>'+
+    '<div class="card"><div class="lbl">🧬 LoRA / Pastor evolution</div>'+
+    '<div class="kv"><span>Adapter</span><span>'+esc((s.prefs&&s.prefs.adapter)||'baseline')+'</span></div>'+
+    '<div class="kv"><span>Fable observations</span><span>'+(ins.fableObs!=null?ins.fableObs:'off — opt-in')+'</span></div>'+
+    '<div class="kv"><span>Training corpus</span><span>'+(ins.trainingLines!=null?ins.trainingLines+' examples':'—')+'</span></div>'+
+    '<div class="kv"><span>Hub sync</span><span>'+(ins.lastHubPush?esc(ins.lastHubPush.slice(0,16).replace('T',' ')):'never')+'</span></div>'+
+    '<button class="sm" data-a="term:mooter fable-observe stats" style="margin-top:6px">fable stats</button> <button class="sm" data-a="term:mooter forge install">forge adapter →</button></div>'+
+    '<div class="card"><div class="lbl">Per-prompt evolution (newest first)</div>'+decs.slice(0,8).map(d=>'<div class="kv"><span style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((d.preview||'').slice(0,42))+'</span><span><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span> conf '+esc(d.conf)+'</span></div>').join('')+'</div>';
+  wireButtons($('#v-insights'));
 
   // ── DECISIONS
   const spans=s.spans||[];
