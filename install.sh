@@ -183,8 +183,7 @@ if command -v npm >/dev/null 2>&1; then
   # Standalone fail-silent emitter: reads the prompt on stdin, emits
   # <pack-hint> only when a pack matches. Bundled from packages/router.
   say "Building pack-hint hook bundle (esbuild)..."
-  if do_run "cd '$SRC_DIR/packages/router' && npm install --no-audit --no-fund --silent && npm run build:packhint"; then
-    do_run "cp '$SRC_DIR/packages/router/pack-hint.cjs' '$HOOKS_DIR/pack-hint.cjs'"
+  if do_run "cd '$SRC_DIR/packages/router' && npm install --no-audit --no-fund --silent && npm run build:packhint && cp pack-hint.cjs '$HOOKS_DIR/pack-hint.cjs'"; then
     ok "pack-hint hook installed (Moo Packs wired)"
   else
     warn "pack-hint build failed — packs install but <pack-hint> won't be emitted. Re-run installer to retry."
