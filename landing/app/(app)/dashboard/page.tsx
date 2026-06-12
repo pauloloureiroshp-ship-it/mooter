@@ -8,6 +8,8 @@ import { VersionBadge } from '../../_components/VersionBadge';
 import { formatGpuLabel } from '../../onboarding/_lib/hardware';
 import { heroDataSource, installedOllamaModels, isModelInstalled } from './_state';
 import { personaOption, personaPackHint } from '../../onboarding/_lib/persona';
+// Wave 58 batch 4 (A.13) — admin-only specialization-matrix panel.
+import { MatrixPanel } from './_matrix_panel';
 
 interface Device {
   device_id: string;
@@ -2223,9 +2225,12 @@ function WorkflowTab() {
 }
 
 // ── Main Dashboard ───────────────────────────────────────────────────────
-type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks' | 'decisions' | 'workflow';
+type DashTab = 'overview' | 'devices' | 'setup' | 'metrics' | 'howitworks' | 'decisions' | 'workflow' | 'matrix';
 
-const DASH_TABS: { key: DashTab; label: string }[] = [
+// Wave 58 batch 4 (A.13) — the matrix tab is admin-only (adminOnly: true). It is
+// appended to the base tabs only when the admin probe succeeds; the /api/admin/matrix
+// route is the real server-side enforcement (403 for non-admins).
+const DASH_TABS: { key: DashTab; label: string; adminOnly?: boolean }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'devices', label: 'Devices' },
   { key: 'setup', label: 'Setup' },
@@ -2233,12 +2238,17 @@ const DASH_TABS: { key: DashTab; label: string }[] = [
   { key: 'howitworks', label: 'How it works' },
   { key: 'workflow', label: 'Workflow' },
   { key: 'decisions', label: 'Decisions' },
+  { key: 'matrix', label: 'Matrix', adminOnly: true },
 ];
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<DashTab>('overview');
+  // Wave 58 batch 4 (A.13) — admin probe gates the matrix tab. We never expose
+  // the allow-list client-side; a HEAD-equivalent GET to the admin matrix route
+  // returns 200 only for admins (403 otherwise), and that is the gate.
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     fetch('/api/me')
@@ -2253,6 +2263,13 @@ export default function DashboardPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    // Best-effort admin detection — only reveals the tab; the route enforces auth.
+    fetch('/api/admin/matrix')
+      .then((r) => { if (r.ok) setIsAdmin(true); })
+      .catch(() => {});
   }, []);
 
   if (loading) {
@@ -2276,7 +2293,7 @@ export default function DashboardPage() {
     <div style={{ maxWidth: 880 }}>
       {/* Tabs */}
       <div className="app-tabs">
-        {DASH_TABS.map(t => (
+        {DASH_TABS.filter(t => !t.adminOnly || isAdmin).map(t => (
           <button
             key={t.key}
             className={`app-tab${tab === t.key ? ' active' : ''}`}
@@ -2295,6 +2312,8 @@ export default function DashboardPage() {
       {tab === 'howitworks' && <HowItWorksTab profile={profile} />}
       {tab === 'workflow' && <WorkflowTab />}
       {tab === 'decisions' && <DecisionsTab profile={profile} />}
+      {/* Wave 58 batch 4 (A.13) — admin-only matrix panel */}
+      {tab === 'matrix' && isAdmin && <MatrixPanel />}
 
       {/* Wave 4 Phase C — global honest footer note */}
       <DashboardFooterNote />
