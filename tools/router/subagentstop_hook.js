@@ -151,6 +151,33 @@ function handle(payload) {
     }
   } catch { /* hooks never throw */ }
 
+  // Wave 58 (A.9) — best-effort cost/perf journal. Uses ONLY data already in
+  // hand (agent, tier/model, real transcript tokens, real duration). Wrapped so
+  // a failure here can NEVER break the hook or alter its existing behaviour/output.
+  try {
+    if (payload.agent_transcript_path) {
+      const tt = require('./token_tracker.js');
+      const agg = tt.aggregateTranscript(payload.agent_transcript_path); // per-tier {calls,tokens_in,tokens_out}
+      const execTier = (tier && agg && agg[tier] && (agg[tier].tokens_in || agg[tier].tokens_out)) ? tier : null;
+      // Prefer the routed tier's tokens; else fall back to whichever tier actually has tokens.
+      let useTier = execTier;
+      if (!useTier && agg) {
+        for (const t of ['T3', 'T2', 'T1', 'T0']) {
+          if (agg[t] && (agg[t].tokens_in || agg[t].tokens_out)) { useTier = t; break; }
+        }
+      }
+      const bucket = useTier && agg ? agg[useTier] : null;
+      require('./cost-perf-tracker.js').appendCostPerf({
+        task_category: agentType,
+        model_chosen: model,
+        agent_name: agentType,
+        actual_tokens_in: bucket ? bucket.tokens_in : null,
+        actual_tokens_out: bucket ? bucket.tokens_out : null,
+        actual_duration_ms: dur != null ? dur : null,
+      });
+    }
+  } catch { /* hooks never throw */ }
+
   // 22.C — record routed-intent vs real-execution for the statusline divergence chip.
   try {
     if (payload.agent_transcript_path) {
