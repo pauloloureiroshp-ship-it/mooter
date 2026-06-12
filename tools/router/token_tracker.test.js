@@ -122,3 +122,114 @@ test('modelToTier maps models to tiers and ignores non-T0–T3 models', () => {
   assert.equal(tt.modelToTier('gemini-2.0'), null);
   assert.equal(tt.modelToTier(''), null);
 });
+
+// ── Wave 58 (C): additive per-agent bucket ───────────────────────────────────
+
+function writeAgentTranscript(p, model, rows) {
+  const lines = rows.map((r) => JSON.stringify({
+    type: 'assistant', message: { model, usage: { input_tokens: r[0], output_tokens: r[1] } },
+  }));
+  fs.writeFileSync(p, lines.join('\n') + '\n');
+}
+
+test('snapshotByAgent: per-agent bucket records real tokens + dominant tier/model', () => {
+  const sid = `tt-ba-${process.pid}`;
+  const tA = path.join(os.tmpdir(), `tt-ba-A-${process.pid}.jsonl`);
+  const tB = path.join(os.tmpdir(), `tt-ba-B-${process.pid}.jsonl`);
+  cleanup(sid, tA);
+  try { fs.unlinkSync(tB); } catch { /* gone */ }
+  // local-summarizer wrapped by Haiku; model-reasoner wrapped by Sonnet.
+  writeAgentTranscript(tA, 'claude-haiku-4-5-20251001', [[3, 2], [5, 90]]);
+  writeAgentTranscript(tB, 'claude-sonnet-4-6', [[400, 100]]);
+  try {
+    tt.trackSubagentTranscript(sid, 'agent-A1', tA, { agentName: 'local-summarizer' });
+    tt.trackSubagentTranscript(sid, 'agent-B1', tB, { agentName: 'model-reasoner' });
+
+    const ba = tt.snapshotByAgent(sid);
+    assert.deepEqual(Object.keys(ba).sort(), ['local-summarizer', 'model-reasoner']);
+
+    assert.equal(ba['local-summarizer'].calls, 2);
+    assert.equal(ba['local-summarizer'].tokens_in, 8);
+    assert.equal(ba['local-summarizer'].tokens_out, 92);
+    assert.equal(ba['local-summarizer'].tier, 'T1');
+    assert.equal(ba['local-summarizer'].model, 'claude-haiku-4-5-20251001');
+
+    assert.equal(ba['model-reasoner'].calls, 1);
+    assert.equal(ba['model-reasoner'].tokens_in, 400);
+    assert.equal(ba['model-reasoner'].tokens_out, 100);
+    assert.equal(ba['model-reasoner'].tier, 'T2');
+    assert.equal(ba['model-reasoner'].model, 'claude-sonnet-4-6');
+
+    // Per-TIER snapshot stays byte-identical in SHAPE + correct totals (additive).
+    const snap = tt.snapshot(sid);
+    assert.deepEqual(Object.keys(snap).sort(), ['T0', 'T1', 'T2', 'T3']);
+    assert.equal(snap.T1.tokens_in + snap.T1.tokens_out, 100);
+    assert.equal(snap.T2.tokens_in + snap.T2.tokens_out, 500);
+  } finally {
+    cleanup(sid, tA);
+    try { fs.unlinkSync(tB); } catch { /* gone */ }
+  }
+});
+
+test('snapshotByAgent: same agent name across spawns accumulates; dedup by agent_id holds', () => {
+  const sid = `tt-ba-dedup-${process.pid}`;
+  const t1 = path.join(os.tmpdir(), `tt-ba-d1-${process.pid}.jsonl`);
+  cleanup(sid, t1);
+  writeAgentTranscript(t1, 'claude-haiku-4-5', [[10, 20]]);
+  try {
+    assert.equal(tt.trackSubagentTranscript(sid, 'spawn-1', t1, { agentName: 'cheap-triage' }), true);
+    // Second DISTINCT spawn of the same agent name → accumulate.
+    assert.equal(tt.trackSubagentTranscript(sid, 'spawn-2', t1, { agentName: 'cheap-triage' }), true);
+    // Re-fire of spawn-1 (hook retry) → no double-count.
+    assert.equal(tt.trackSubagentTranscript(sid, 'spawn-1', t1, { agentName: 'cheap-triage' }), false);
+
+    const ba = tt.snapshotByAgent(sid);
+    assert.equal(ba['cheap-triage'].calls, 2, 'two distinct spawns counted once each');
+    assert.equal(ba['cheap-triage'].tokens_in, 20);
+    assert.equal(ba['cheap-triage'].tokens_out, 40);
+  } finally {
+    cleanup(sid, t1);
+  }
+});
+
+test('snapshotByAgent: agentName falls back to agentId when not supplied', () => {
+  const sid = `tt-ba-fallback-${process.pid}`;
+  const t1 = path.join(os.tmpdir(), `tt-ba-f1-${process.pid}.jsonl`);
+  cleanup(sid, t1);
+  writeAgentTranscript(t1, 'claude-opus-4-8', [[100, 50]]);
+  try {
+    tt.trackSubagentTranscript(sid, 'agent-XYZ', t1); // no opts.agentName
+    const ba = tt.snapshotByAgent(sid);
+    assert.equal(ba['agent-XYZ'].tier, 'T3');
+    assert.equal(ba['agent-XYZ'].tokens_out, 50);
+  } finally {
+    cleanup(sid, t1);
+  }
+});
+
+test('snapshotByAgent: empty session → {} (no fabricated rows)', () => {
+  const sid = `tt-ba-empty-${process.pid}`;
+  cleanup(sid);
+  try {
+    assert.deepEqual(tt.snapshotByAgent(sid), {});
+  } finally {
+    cleanup(sid);
+  }
+});
+
+test('dominantAgentTier: picks the tier with the most tokens; honest null when none', () => {
+  const tmix = path.join(os.tmpdir(), `tt-dom-${process.pid}.jsonl`);
+  // Sonnet=500 tokens vs Haiku=10 → Sonnet (T2) dominates.
+  fs.writeFileSync(tmix, [
+    JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-4-6', usage: { input_tokens: 400, output_tokens: 100 } } }),
+    JSON.stringify({ type: 'assistant', message: { model: 'claude-haiku-4-5', usage: { input_tokens: 5, output_tokens: 5 } } }),
+  ].join('\n') + '\n');
+  try {
+    const dom = tt.dominantAgentTier(tmix);
+    assert.equal(dom.tier, 'T2');
+    assert.equal(dom.model, 'claude-sonnet-4-6');
+  } finally {
+    try { fs.unlinkSync(tmix); } catch { /* gone */ }
+  }
+  assert.deepEqual(tt.dominantAgentTier('/no/such/transcript.jsonl'), { tier: null, model: null });
+});

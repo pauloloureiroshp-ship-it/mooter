@@ -15,6 +15,9 @@ tier — local Ollama first, cloud only when it earns its cost. Mission:
   `427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f`
 - **Frozen engine packages**: `packages/*` shipped in waves 28-34.5 stay untouched unless the
   current wave brief explicitly allowlists specific files.
+  Wave 58 allowlisted **additions** to `packages/router/src/` (new files only — no existing
+  engine file is modified): `specialization-matrix.ts`, `decide-agent.ts`, `task-categories.ts`,
+  `adaptive-learner.ts`, `tes-calculator.ts`, `benchmark-fetcher.ts`, `fable-5-routing.ts`.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-PT in conversation, English in code** and identifiers.

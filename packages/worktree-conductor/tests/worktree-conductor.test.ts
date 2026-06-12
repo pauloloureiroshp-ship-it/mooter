@@ -1,12 +1,15 @@
 // Wave 33.5 Block H — @mooter/worktree-conductor tests.
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+const _require = createRequire(import.meta.url);
+
 import { tryAcquire, release, listLocks, isStale, readLock } from "../src/locks.ts";
-import { writeHeartbeat, listHeartbeats, isHeartbeatStale, reapStaleHeartbeats, STALE_MS } from "../src/heartbeat.ts";
+import { writeHeartbeat, readHeartbeat, listHeartbeats, isHeartbeatStale, reapStaleHeartbeats, STALE_MS } from "../src/heartbeat.ts";
 import { enqueue, pending, head, markDone } from "../src/queue.ts";
 import { detectShellIntent, detectMcpIntent, repoResource } from "../src/intent.ts";
 import { acquireWithRecovery, status, forceRelease } from "../src/conductor.ts";
@@ -195,4 +198,114 @@ test("forceRelease logs a REAPED op", () => {
   tryAcquire("notion", { sessionId: "dead" }, { home: h, now: NOW - 120000, ttlSeconds: 60 });
   assert.strictEqual(forceRelease("notion", "rescuer", { home: h, now: NOW }), true);
   assert.strictEqual(readLock("notion", h), null);
+});
+
+// ---------------------------------------------------------------------------
+// A.10 — optional per-agent time-tracking fields (Wave 58 batch 3)
+// ---------------------------------------------------------------------------
+
+test("A.10: omitting optional fields yields byte-identical output to Wave 33.5 schema", () => {
+  const h = home();
+  const hb = writeHeartbeat({ sessionId: "baseline", terminalName: "t1", pid: 42 }, { home: h, now: NOW });
+  // None of the A.10 fields must appear in the returned object
+  assert.strictEqual(hb.task_category, undefined);
+  assert.strictEqual(hb.phases, undefined);
+  assert.strictEqual(hb.current_phase, undefined);
+  assert.strictEqual(hb.estimated_total_duration_ms, undefined);
+  assert.strictEqual(hb.actual_total_duration_ms, undefined);
+  // The serialized JSON must also lack those keys
+  const raw = JSON.parse(readFileSync(
+    join(h, "orchestration", "heartbeats", "baseline.json"), "utf8"
+  ));
+  assert.strictEqual(raw.task_category, undefined);
+  assert.strictEqual(raw.phases, undefined);
+  assert.strictEqual(raw.current_phase, undefined);
+  assert.strictEqual(raw.estimated_total_duration_ms, undefined);
+  assert.strictEqual(raw.actual_total_duration_ms, undefined);
+  // Core fields must still be present
+  assert.strictEqual(raw.session_id, "baseline");
+  assert.strictEqual(raw.pid, 42);
+});
+
+test("A.10: taskCategory is persisted and round-trips through readHeartbeat", () => {
+  const h = home();
+  const hb = writeHeartbeat(
+    { sessionId: "cat-test", taskCategory: "coding.frontend" },
+    { home: h, now: NOW }
+  );
+  assert.strictEqual(hb.task_category, "coding.frontend");
+  const read = readHeartbeat("cat-test", h);
+  assert.ok(read !== null);
+  assert.strictEqual(read!.task_category, "coding.frontend");
+  // Other A.10 fields absent when not provided
+  assert.strictEqual(read!.phases, undefined);
+});
+
+test("A.10: phases array with full HeartbeatPhase fields round-trips", () => {
+  const h = home();
+  const phases = [
+    { phase_name: "plan", started_ms: NOW, completed_ms: NOW + 1000, tokens_in: 500, tokens_out: 200, cost_usd: 0.002 },
+    { phase_name: "implement", started_ms: NOW + 1000 },
+  ];
+  const hb = writeHeartbeat(
+    { sessionId: "phase-test", phases, currentPhase: 1 },
+    { home: h, now: NOW }
+  );
+  assert.strictEqual(hb.current_phase, 1);
+  assert.strictEqual(hb.phases!.length, 2);
+  assert.strictEqual(hb.phases![0].phase_name, "plan");
+  assert.strictEqual(hb.phases![0].cost_usd, 0.002);
+  assert.strictEqual(hb.phases![1].completed_ms, undefined);
+  const read = readHeartbeat("phase-test", h);
+  assert.ok(read !== null);
+  assert.deepStrictEqual(read!.phases, phases);
+  assert.strictEqual(read!.current_phase, 1);
+});
+
+test("A.10: duration estimates persist and are independently optional", () => {
+  const h = home();
+  const hb = writeHeartbeat(
+    { sessionId: "dur-test", estimatedTotalDurationMs: 60000, actualTotalDurationMs: 58000 },
+    { home: h, now: NOW }
+  );
+  assert.strictEqual(hb.estimated_total_duration_ms, 60000);
+  assert.strictEqual(hb.actual_total_duration_ms, 58000);
+  const read = readHeartbeat("dur-test", h);
+  assert.strictEqual(read!.estimated_total_duration_ms, 60000);
+  assert.strictEqual(read!.actual_total_duration_ms, 58000);
+  // estimated only — actual absent
+  const h2 = home();
+  const hb2 = writeHeartbeat(
+    { sessionId: "dur-partial", estimatedTotalDurationMs: 30000 },
+    { home: h2, now: NOW }
+  );
+  assert.strictEqual(hb2.estimated_total_duration_ms, 30000);
+  assert.strictEqual(hb2.actual_total_duration_ms, undefined);
+});
+
+test("A.10: sessions-status.js buildSessionsChip tolerates heartbeats with extra A.10 fields", () => {
+  // sessions-status.js is a CommonJS module; use createRequire to load it from ESM.
+  const { buildSessionsChip } = _require("../../../tools/router/sessions-status.js");
+  const heartbeats = [
+    {
+      session_id: "sister",
+      terminal_name: "wave58",
+      worktree_path: "/x/wave58",
+      branch: "wave58-agents",
+      intent: "build",
+      last_heartbeat: new Date(NOW).toISOString(),
+      last_heartbeat_ms: NOW,
+      active_locks: [],
+      pending_intents: [],
+      pid: 9999,
+      // A.10 extra fields — must not crash the chip renderer
+      task_category: "coding.backend",
+      phases: [{ phase_name: "implement", started_ms: NOW }],
+      current_phase: 0,
+      estimated_total_duration_ms: 120000,
+    },
+  ];
+  const chip = buildSessionsChip(heartbeats, { selfSessionId: "self", now: NOW });
+  assert.ok(typeof chip === "string", "chip must be a string");
+  assert.ok(chip.includes("sister") || chip.includes("wave58"), `chip: ${chip}`);
 });

@@ -48,6 +48,31 @@ Mooter shows **provider** + **per-model brand glyph**, not a flat tier-colour sc
 
 > **💎 is a model glyph, not hype.** It is the brand emoji of a local T0 model in `model-profile.json` (and is rendered by `frugal-turn-header.js`, `gsd-statusline.js`, …). It is therefore **excluded** from the forbidden list below. See [[REFUTATIONS_LOG.md]].
 
+## LLM family glyphs (Wave 58 A.4)
+Canonical per-LLM family glyphs defined in [`tools/router/llm-emoji-map.js`](../tools/router/llm-emoji-map.js). These are **allowed** — they carry semantic meaning (provider identity) and are never used as hype or decoration.
+
+| Emoji | Family | Color | Covers |
+|---|---|---|---|
+| 🐮 | Mooter (native local) | pink | `mooter-*`, `mooter:*` |
+| ✨ | Claude (Anthropic) | amber | `claude-*`, `anthropic/*`, `us.anthropic.*` |
+| 🌟 | Claude Fable (T5 opt-in) | gold | `*fable*`, `claude-fable-*` |
+| 🟢 | OpenAI / Codex / GPT | green | `gpt-*`, `o1-*`, `o3-*`, `o4-*`, `codex-*`, `openai/*` |
+| 💎 | Google Gemini | blue | `gemini-*`, `google/gemini-*`, `models/gemini-*` |
+| 🦙 | Ollama / llama.cpp / vLLM | tan | `qwen*`, `llama*`, `mistral*`, `phi*`, `gemma*`, `deepseek*`, `mixtral*`, `*.gguf`, … |
+| 🤖 | Unknown / generic | gray | anything unrecognised — honest fallback, never fabricated |
+
+## Status-indicator glyphs (Wave 58 A.4)
+Model-agnostic task-state indicators defined in [`tools/router/llm-emoji-map.js`](../tools/router/llm-emoji-map.js) (`statusEmoji(state)`). Allowed as information-bearing status signals.
+
+| Emoji | State | Notes |
+|---|---|---|
+| 💭 | thinking | Model is generating / reasoning |
+| 🛠 | executing | Tool call / action in progress (see also Maintenance above) |
+| ⏳ | waiting | Awaiting external input or result |
+| ❄️ | queued | Task frozen / not yet started (see also Paused above) |
+| ✅ | complete | Task finished successfully |
+| ❌ | error | Task failed |
+
 ## Agents / orchestration
 | Emoji | Meaning |
 |---|---|

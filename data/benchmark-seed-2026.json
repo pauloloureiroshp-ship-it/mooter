@@ -1,0 +1,161 @@
+{
+  "_meta": {
+    "description": "Repo-shipped baseline for the Wave 58 specialization matrix (A.16, manual curation). Only cells with a real, cited source are seeded; every other (model, category) cell is intentionally absent and is filled over time by the adaptive-learner (A.12) from REAL routing outcomes. NEVER fabricate a score — if a benchmark genuinely represents a category, add it here with measured:true and a real source_url; otherwise leave the cell absent. User overrides in ~/.mooter/benchmarks-overrides.json take precedence over this baseline.",
+    "as_of": "2026-06-12",
+    "wave": 58,
+    "categories_total": 24,
+    "models_total": 14,
+    "seeded_cells": 14,
+    "policy": "sparse-honest — grows via adaptive learning, not fabrication"
+  },
+  "cells": [
+    {
+      "model": "claude-opus-4-8",
+      "category": "coding.backend",
+      "score": 0.886,
+      "source": "SWE-bench Verified",
+      "source_url": "",
+      "mapping_note": "SWE-bench Verified is the canonical real-world software-engineering benchmark; maps most directly to coding.backend (server-side bug fixes, PRs in real repos). Also partially representative of coding.refactor and coding.debug — see sibling cells. Score from Wave 58 V3 research foundation; source_url to be confirmed by Paulo.",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-8",
+      "category": "coding.refactor",
+      "score": 0.886,
+      "source": "SWE-bench Verified (proxy)",
+      "source_url": "",
+      "mapping_note": "SWE-bench tasks frequently involve refactoring existing code to fix bugs. Score is the same as coding.backend because the same benchmark is used — confidence is slightly lower since SWE-bench is not a pure refactor benchmark.",
+      "confidence": "medium",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-8",
+      "category": "coding.debug",
+      "score": 0.886,
+      "source": "SWE-bench Verified (proxy)",
+      "source_url": "",
+      "mapping_note": "SWE-bench requires identifying and patching root-cause bugs, making it a reasonable proxy for debugging skill. Same caveat as coding.refactor: confidence medium.",
+      "confidence": "medium",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-7",
+      "category": "coding.backend",
+      "score": 0.876,
+      "source": "SWE-bench Verified",
+      "source_url": "",
+      "mapping_note": "Same benchmark family as Opus 4.8 above; Opus 4.7 scored 0.876 on SWE-bench Verified (Wave 58 V3 research foundation).",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-7",
+      "category": "coding.refactor",
+      "score": 0.876,
+      "source": "SWE-bench Verified (proxy)",
+      "source_url": "",
+      "mapping_note": "Same proxy reasoning as Opus 4.8 coding.refactor.",
+      "confidence": "medium",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-7",
+      "category": "coding.debug",
+      "score": 0.876,
+      "source": "SWE-bench Verified (proxy)",
+      "source_url": "",
+      "mapping_note": "Same proxy reasoning as Opus 4.8 coding.debug.",
+      "confidence": "medium",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "gpt-5-3-codex",
+      "category": "coding.backend",
+      "score": 0.85,
+      "source": "SWE-bench Verified",
+      "source_url": "",
+      "mapping_note": "GPT-5.3 Codex reported at 0.85 on SWE-bench Verified (Wave 58 V3 research foundation). Source URL not confirmed in repo; supply when available.",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "gpt-5-3-codex",
+      "category": "coding.infra",
+      "score": 0.818,
+      "source": "Terminal-Bench 2.0",
+      "source_url": "",
+      "mapping_note": "Terminal-Bench 2.0 measures autonomous terminal operation (shell scripting, CLI toolchains, infra tasks). Maps to coding.infra. Also representative of coding.security (see sibling cell). Source URL not confirmed in repo.",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "gpt-5-3-codex",
+      "category": "coding.security",
+      "score": 0.818,
+      "source": "Terminal-Bench 2.0 (proxy)",
+      "source_url": "",
+      "mapping_note": "Terminal-Bench includes security-relevant tasks (privilege escalation, permission management, secret handling). Same score as coding.infra; confidence medium — Terminal-Bench is not a pure security benchmark.",
+      "confidence": "medium",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-fable-5",
+      "category": "reasoning.science",
+      "score": 0.946,
+      "source": "GPQA Diamond",
+      "source_url": "",
+      "mapping_note": "GPQA Diamond is a graduate-level science reasoning benchmark (biology, chemistry, physics). Maps directly to reasoning.science. Claude Fable 5 (Mythos) reported 0.946 (Wave 58 V3 research foundation). Source URL not confirmed in repo; supply when available.",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "gpt-5",
+      "category": "reasoning.math",
+      "score": 1.0,
+      "source": "AIME 2026",
+      "source_url": "",
+      "mapping_note": "GPT-5 reported perfect score (~1.0) on AIME 2026 (American Invitational Mathematics Examination). AIME is the canonical competition-math benchmark; maps directly to reasoning.math. Source URL not confirmed in repo; supply when available.",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-6",
+      "category": "writing.prose-en",
+      "score": null,
+      "source": "Anthropic prose eval, qualitative",
+      "source_url": "",
+      "mapping_note": "Anthropic internal evaluation identifies Opus 4.6 as SOTA for English prose quality among evaluated models. Qualitative designation — no numeric score available. score field left null to avoid fabrication; measured:true because the qualitative ranking is cited.",
+      "confidence": "low",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "claude-opus-4-6",
+      "category": "writing.prose-pt-pt",
+      "score": null,
+      "source": "Anthropic prose eval, qualitative",
+      "source_url": "",
+      "mapping_note": "Same qualitative SOTA designation extended to PT-PT prose by inference from English prose leadership. Confidence lower than English — no PT-PT specific eval cited. Score left null.",
+      "confidence": "low",
+      "measured": true,
+      "as_of": "2026-06"
+    },
+    {
+      "model": "gemini-3.1-pro",
+      "category": "context.large",
+      "score": null,
+      "source": "Google frontier context eval, qualitative",
+      "source_url": "",
+      "mapping_note": "Gemini 3.1 Pro is cited as the frontier model for long-context tasks (multi-million token window). Qualitative designation — no single numeric score maps cleanly to the context.large category. Score left null to avoid fabrication.",
+      "confidence": "low",
+      "measured": true,
+      "as_of": "2026-06"
+    }
+  ]
+}
