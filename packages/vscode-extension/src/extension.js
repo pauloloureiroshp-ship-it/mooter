@@ -267,6 +267,7 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   if(a.startsWith('term:'))send('term',a.slice(5));
   else if(a.startsWith('pull:'))send('pull',a.slice(5));
   else if(a.startsWith('tab:'))goTab(a.slice(4));
+  else if(a==='spawnDemo')send('term','mooter spawn "audit this repo" --local');
   else send(a,b.dataset.x);
 });}
 window.addEventListener('message',(e)=>{
@@ -357,7 +358,7 @@ window.addEventListener('message',(e)=>{
   const h=s.herd||{};const run=h.run||null;const mx=h.matrix||{llms:[],rows:[]};
   const fmtk=(n)=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
   const runHtml=run&&run.status?'<div class="card hero"><div class="lbl">Live run · '+esc(run.status)+'</div><div class="big" style="font-size:20px">🤖 '+esc(run.agents_done!=null?run.agents_done:'?')+'/'+esc(run.agents_total!=null?run.agents_total:'?')+(run.tokens?' · ↓'+fmtk(run.tokens)+' tok':'')+'</div>'+(h.current&&h.current.agent_name?'<div class="sub">current: <b>'+esc(h.current.agent_name)+'</b></div>':'')+'</div>'
-    :'<div class="card"><div class="lbl">Live run</div><div class="sub" style="margin-top:6px">🤖 no run active — spawn one:</div><button class="sm" data-a="term:mooter spawn \'audit this repo\' --local" style="margin-top:6px">mooter spawn →</button></div>';
+    :'<div class="card"><div class="lbl">Live run</div><div class="sub" style="margin-top:6px">🤖 no run active — spawn one:</div><button class="sm" data-a="spawnDemo" style="margin-top:6px">mooter spawn →</button></div>';
   const spawnIcon=(st)=>/run|active|progress/i.test(st)?'<span class="pulse"></span>':(/done|ok|success|complete/i.test(st)?'✓ ':(/fail|error/i.test(st)?'<span style="color:var(--t3)">✗ </span>':'⏸ '));
   const spawnsHtml=(h.spawns&&h.spawns.length)?h.spawns.map(sp=>'<div class="dr"><div class="w">'+spawnIcon(sp.status)+esc(sp.task)+'<small>'+esc(sp.status)+(sp.model?' · '+esc(sp.model):'')+(sp.started?' · '+esc(String(sp.started).slice(11,16)):'')+'</small></div></div>').join('')
     :'<div class="sub" style="margin-top:5px">'+(h.spawns===null?'no spawns yet — agents appear here when the herd works':'—')+'</div>';
