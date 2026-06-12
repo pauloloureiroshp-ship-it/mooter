@@ -9,47 +9,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const http = require('http');
-
-const DECISIONS_LOG = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
-const RUNTIME_HOOK = path.join(os.homedir(), '.claude', 'tools', 'router', 'inject_context.js');
-
-// ── tiny utils ──────────────────────────────────────────────────────────
-function trackerPort() {
-  return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821);
-}
-function httpJson(pathname, timeoutMs = 2500) {
-  return new Promise((resolve) => {
-    const req = http.get({ host: '127.0.0.1', port: trackerPort(), path: pathname, timeout: timeoutMs }, (res) => {
-      let body = '';
-      res.on('data', (c) => (body += c));
-      res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
-    });
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-  });
-}
-
-// Tail the last N parsed "classified" entries without reading the whole file.
-function readDecisions(maxN = 80) {
-  try {
-    const stat = fs.statSync(DECISIONS_LOG);
-    const start = Math.max(0, stat.size - 256 * 1024); // last 256KB is plenty
-    const fd = fs.openSync(DECISIONS_LOG, 'r');
-    const buf = Buffer.alloc(stat.size - start);
-    fs.readSync(fd, buf, 0, buf.length, start);
-    fs.closeSync(fd);
-    const out = [];
-    for (const line of buf.toString('utf8').split('\n')) {
-      if (!line.trim()) continue;
-      try {
-        const j = JSON.parse(line);
-        if (j.event === 'classified') out.push(j);
-      } catch { /* tolerate partial first line / garbage */ }
-    }
-    return out.slice(-maxN).reverse(); // newest first
-  } catch { return []; }
-}
+const data_ = require('./data.js');
 
 // ── DataService: one snapshot object, pushed to whoever listens ─────────
 class DataService {
@@ -57,14 +17,14 @@ class DataService {
   onUpdate(fn) { this.listeners.add(fn); return { dispose: () => this.listeners.delete(fn) }; }
   async refresh() {
     const [metrics, last, health] = await Promise.all([
-      httpJson('/metrics'), httpJson('/last'), httpJson('/health'),
+      data_.httpJson(trackerPort(), '/metrics'), data_.httpJson(trackerPort(), '/last'), data_.httpJson(trackerPort(), '/health'),
     ]);
     this.snapshot = {
       at: Date.now(),
-      runtimeInstalled: fs.existsSync(RUNTIME_HOOK),
+      runtimeInstalled: data_.runtimeInstalled(),
       trackerUp: !!(health && health.ok),
       metrics, last,
-      decisions: readDecisions(),
+      decisions: data_.readDecisions(),
     };
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* listener bugs never kill the service */ } }
   }
@@ -72,7 +32,7 @@ class DataService {
     this.refresh();
     this.timer = setInterval(() => this.refresh(), 7000);
     try {
-      this.watcher = fs.watch(path.dirname(DECISIONS_LOG), { persistent: false }, (_e, f) => {
+      this.watcher = fs.watch(path.dirname(data_.DECISIONS_LOG), { persistent: false }, (_e, f) => {
         if (f === 'decisions.log') this.refresh();
       });
     } catch { /* dir may not exist yet — poll covers it */ }
@@ -89,8 +49,7 @@ function makeStatusBar(ctx, data) {
     if (!vscode.workspace.getConfiguration('mooter').get('statusBar.enabled', true)) { item.hide(); return; }
     if (!s.runtimeInstalled) { item.text = '🐮 mooter: setup'; item.tooltip = 'mooter engine not installed — click to open the cockpit'; item.show(); return; }
     const tier = (s.last && s.last.tier) || (s.decisions[0] && s.decisions[0].tier) || '—';
-    const saved = s.metrics ? `$${(s.metrics.saved || 0).toFixed(2)}↓` : '';
-    item.text = `🐮 ${tier}${saved ? ' · ' + saved : ''}`;
+    item.text = data_.statusBarText(s);
     const lastModel = (s.last && s.last.model_full) || (s.decisions[0] && s.decisions[0].recommended_model) || 'n/a';
     const conf = (s.last && s.last.confidence) || (s.decisions[0] && s.decisions[0].confidence) || '';
     item.tooltip = new vscode.MarkdownString(
@@ -110,7 +69,7 @@ class CockpitProvider {
     this.view = view;
     view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.ctx.extensionUri, 'media')] };
     view.webview.html = getCockpitHtml(view.webview);
-    const sub = this.data.onUpdate((s) => { try { view.webview.postMessage({ type: 'snapshot', s: publicSnapshot(s) }); } catch {} });
+    const sub = this.data.onUpdate((s) => { try { view.webview.postMessage({ type: 'snapshot', s: data_.publicSnapshot(s) }); } catch {} });
     view.onDidDispose(() => sub.dispose());
     view.webview.onDidReceiveMessage(async (m) => {
       if (m && m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
@@ -123,18 +82,6 @@ class CockpitProvider {
     this.data.refresh();
   }
 }
-function publicSnapshot(s) {
-  return {
-    runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp,
-    metrics: s.metrics, last: s.last,
-    decisions: (s.decisions || []).slice(0, 40).map((d) => ({
-      ts: d.ts, tier: d.tier, cat: d.task_category, model: d.recommended_model,
-      conf: d.confidence, preview: (d.prompt_preview || '').slice(0, 90),
-      rule: d.escalation_rule,
-    })),
-  };
-}
-
 // ── Launcher (P0-validated path: official URI handler) ─────────────────
 async function newSession() {
   const ext = vscode.extensions.getExtension('anthropic.claude-code');

@@ -1,0 +1,86 @@
+// data.test.js — backend audit suite (node --test). Fixtures = REAL log lines (F0).
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs'); const os = require('os'); const path = require('path');
+const http = require('http');
+const d = require('./data.js');
+
+const REAL_LINE = '{"ts":"2026-06-11T19:24:14.289Z","ts_ms":1781205854290,"event":"classified","session_id":"validate-test","prompt_len":50,"prompt_preview":"refactor the auth middleware to add refresh tokens","tier":"T3","task_category":"architecture_or_critical","recommended_backend":"claude_subagent","recommended_model":"claude-opus-4-6","confidence":0.75,"escalation_rule":"none","quality_intent":false,"cache_hit":false}';
+
+test('parseDecisions: real line parses with all UI fields', () => {
+  const r = d.parseDecisions(REAL_LINE);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].tier, 'T3');
+  assert.equal(r[0].task_category, 'architecture_or_critical');
+  assert.equal(r[0].confidence, 0.75);
+});
+
+test('parseDecisions: garbage, partial lines, other events tolerated', () => {
+  const text = ['NOT JSON{{{', '{"event":"other","x":1}', REAL_LINE, '{"truncated...', ''].join('\n');
+  const r = d.parseDecisions(text);
+  assert.equal(r.length, 1);
+});
+
+test('parseDecisions: newest-first ordering + maxN cap', () => {
+  const lines = [];
+  for (let i = 0; i < 100; i++) lines.push(JSON.stringify({ event: 'classified', tier: 'T0', n: i }));
+  const r = d.parseDecisions(lines.join('\n'), 40);
+  assert.equal(r.length, 40);
+  assert.equal(r[0].n, 99); // newest first
+});
+
+test('readDecisions: missing file → [] (never throws)', () => {
+  assert.deepEqual(d.readDecisions(10, '/nonexistent/decisions.log'), []);
+});
+
+test('readDecisions: tail window on a big file (>256KB)', () => {
+  const p = path.join(os.tmpdir(), 'big-decisions.log');
+  const filler = JSON.stringify({ event: 'classified', tier: 'T0', pad: 'x'.repeat(400) }) + '\n';
+  fs.writeFileSync(p, filler.repeat(1200)); // ~480KB
+  const last = JSON.stringify({ event: 'classified', tier: 'T3', marker: 'END' }) + '\n';
+  fs.appendFileSync(p, last);
+  const r = d.readDecisions(5, p);
+  assert.equal(r[0].marker, 'END');
+  fs.unlinkSync(p);
+});
+
+test('publicSnapshot: caps preview at 90 chars, 40 items, only UI fields', () => {
+  const s = { runtimeInstalled: true, decisions: Array.from({ length: 60 }, (_, i) => ({ tier: 'T0', prompt_preview: 'p'.repeat(300), secret_field: 'leak', ts: 't' + i })) };
+  const p = d.publicSnapshot(s);
+  assert.equal(p.decisions.length, 40);
+  assert.equal(p.decisions[0].preview.length, 90);
+  assert.equal(p.decisions[0].secret_field, undefined); // no leaking extra fields
+});
+
+test('statusBarText: setup / normal / no-metrics', () => {
+  assert.equal(d.statusBarText({ runtimeInstalled: false }), '🐮 mooter: setup');
+  assert.equal(d.statusBarText({ runtimeInstalled: true, last: { tier: 'T2' }, metrics: { saved: 1.5839 } }), '🐮 T2 · $1.58↓');
+  assert.equal(d.statusBarText({ runtimeInstalled: true, decisions: [{ tier: 'T0' }] }), '🐮 T0');
+});
+
+test('tierCounts: counts only known tiers', () => {
+  const c = d.tierCounts([{ tier: 'T0' }, { tier: 'T0' }, { tier: 'T3' }, { tier: 'T9' }, {}]);
+  assert.deepEqual(c, { T0: 2, T1: 0, T2: 0, T3: 1 });
+});
+
+test('httpJson: tracker down → null (never throws/hangs)', async () => {
+  const r = await d.httpJson(59999, '/metrics', 300);
+  assert.equal(r, null);
+});
+
+test('httpJson: live mock server → parsed JSON', async () => {
+  const srv = http.createServer((_q, res) => { res.end('{"ok":true,"saved":1.49}'); });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+  const r = await d.httpJson(srv.address().port, '/metrics');
+  assert.equal(r.saved, 1.49);
+  srv.close();
+});
+
+test('httpJson: non-JSON body → null', async () => {
+  const srv = http.createServer((_q, res) => { res.end('frugal — savings summary'); });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+  const r = await d.httpJson(srv.address().port, '/summary');
+  assert.equal(r, null);
+  srv.close();
+});

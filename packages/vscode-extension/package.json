@@ -2,7 +2,7 @@
   "name": "mooter-cockpit",
   "displayName": "Mooter — Cost Cockpit for Claude Code",
   "description": "See what your Claude Code routing saves you — live decisions, tier distribution, counterfactual savings. The cockpit for the mooter router. Not affiliated with Anthropic.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "mooter",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/pauloloureiroshp-ship-it/mooter" },
@@ -12,6 +12,7 @@
   "keywords": ["claude", "claude-code", "router", "cost", "ollama"],
   "icon": "media/icon.png",
   "main": "./src/extension.js",
+  "scripts": { "test": "node --test src/data.test.js" },
   "activationEvents": ["onStartupFinished"],
   "contributes": {
     "viewsContainers": {
