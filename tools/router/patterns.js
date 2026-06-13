@@ -1,5 +1,5 @@
 /**
- * patterns.js — single source of truth for frugal's classification regexes.
+ * patterns.js — single source of truth for mooter's classification regexes.
  *
  * Before v0.7: HIGH_RISK lived inline in classify.js AND HIGH_RISK_MARKERS
  * lived inline in backtest.js. Both had to be updated in lockstep — the

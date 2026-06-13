@@ -49,7 +49,7 @@ const { spawnSync } = require('child_process');
 // the old rules are invalidated automatically.
 const ARBITER_SYSTEM_PROMPT_VERSION = 2;
 
-const ARBITER_SYSTEM_PROMPT = `You are the routing arbiter for frugal, a cost-aware Claude Code router.
+const ARBITER_SYSTEM_PROMPT = `You are the routing arbiter for mooter, a cost-aware Claude Code router.
 Given a user prompt, pick the minimum-viable tier and the correct subagent.
 Respond with ONE line of JSON, no preamble, no markdown.
 

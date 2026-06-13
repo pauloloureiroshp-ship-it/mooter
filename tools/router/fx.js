@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * fx.js — USD foreign exchange cache for frugal.
+ * fx.js — USD foreign exchange cache for mooter.
  *
  * Used by savings-tracker.js to expose cost in BRL (or any supported
  * currency) alongside USD. Cache is refreshed at most once per 24h and

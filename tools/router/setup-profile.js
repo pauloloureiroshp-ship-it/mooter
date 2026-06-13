@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * setup-profile.js — interactive device + subscription profile setup for frugal.
+ * setup-profile.js — interactive device + subscription profile setup for mooter.
  *
  * Captures four dimensions required for customised install + algorithm learning:
  *   1. Hardware (auto-detected): platform, arch, CPU, RAM, hw_tier
