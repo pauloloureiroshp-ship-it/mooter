@@ -73,7 +73,12 @@ const DEFAULT_ELIGIBLE = [
 const CHIP_MODULES = [
   './compression-status.js', './setup-status.js', './ecosystem-status.js',
   './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
-  './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
+  './effort-status.js', './quant-status.js', './vector-status.js',
+  // Wave 58.2 — 🎮 GPU/VRAM chip (reads gpu-probe's hw-capability.json cache;
+  // self-gates to '' on CPU-only / no cache). The one Wave-Mega dense-line
+  // segment that had no chip. Dense-line only (here), never in DEFAULT_ELIGIBLE.
+  './gpu-status.js',
+  './turboquant-status.js',
   './eagle3-status.js', './minimax-status.js', './arbitrage-status.js',
   // Wave 33.5 Block A — terminal-name (A.7) + workflow-progress dots (A.6).
   './terminal-name-status.js', './workflow-progress-status.js',
