@@ -19,16 +19,28 @@
 
 'use strict';
 
-const { z } = require('zod');
+// zod is a SOFT dependency. It is declared in this package's package.json and
+// present in the repo, but the synced runtime copy at ~/.claude/tools/router/
+// has no node_modules (/mooter-update syncs .js files, not deps). A hard
+// `require('zod')` there crashes every consumer (e.g. hub-pull.js → "Cannot
+// find module 'zod'"). So we require it best-effort: when present we get full
+// schema validation; when absent we fall back to a defaults-applying reader
+// (validateless()) that returns the same typed shape so getHubUrl()/getLandingUrl()
+// and friends keep working. Behaviour is byte-identical when zod is installed.
+let z = null;
+try { ({ z } = require('zod')); } catch { /* slim runtime without node_modules */ }
 
 const DEFAULT_HUB_URL = 'https://mooter-hub.frugal-hub.workers.dev';
 const DEFAULT_LANDING_URL = 'https://mooter.ai';
 
+const LOG_LEVELS = ['silent', 'error', 'warn', 'info', 'debug'];
+
 // ── Schema ──────────────────────────────────────────────────────────────
 // Each field has a sensible default so the router runs out-of-the-box.
 // The operator can override via MOOTER_* or legacy FRUGAL_* vars.
+// Null when zod is unavailable — see validateless() for the fallback path.
 
-const envSchema = z.object({
+const envSchema = z ? z.object({
   hub_url:     z.string().url().default(DEFAULT_HUB_URL),
   landing_url: z.string().url().default(DEFAULT_LANDING_URL),
   // Optional — when set, savings-tracker initialises Sentry in Node runtime.
@@ -38,7 +50,29 @@ const envSchema = z.object({
   tracker_port: z.coerce.number().int().min(1024).max(49151).default(7821),
   // Log level — controls how verbose the router is in its own logs.
   log_level:   z.enum(['silent', 'error', 'warn', 'info', 'debug']).default('info'),
-});
+}) : null;
+
+/**
+ * Zod-free fallback: apply the same defaults + coercion the schema would,
+ * but never throw. Bad user values silently fall back to the default (same
+ * net effect as tryEnv()'s second pass). Used only when zod is unavailable.
+ * @param {Record<string, unknown>} raw
+ * @returns {RouterEnv}
+ */
+function validateless(raw) {
+  const isUrl = (v) => {
+    if (typeof v !== 'string' || !v) return false;
+    try { new URL(v); return true; } catch { return false; }
+  };
+  const port = Number(raw.tracker_port);
+  return /** @type {any} */ ({
+    hub_url:      isUrl(raw.hub_url) ? raw.hub_url : DEFAULT_HUB_URL,
+    landing_url:  isUrl(raw.landing_url) ? raw.landing_url : DEFAULT_LANDING_URL,
+    sentry_dsn:   isUrl(raw.sentry_dsn) ? raw.sentry_dsn : undefined,
+    tracker_port: Number.isInteger(port) && port >= 1024 && port <= 49151 ? port : 7821,
+    log_level:    LOG_LEVELS.includes(/** @type {any} */ (raw.log_level)) ? raw.log_level : 'info',
+  });
+}
 
 /** @typedef {z.infer<typeof envSchema>} RouterEnv */
 
@@ -78,6 +112,7 @@ function collect() {
  * @returns {RouterEnv}
  */
 function requireEnv() {
+  if (!envSchema) return validateless(collect());
   return envSchema.parse(collect());
 }
 
@@ -91,6 +126,7 @@ function requireEnv() {
  * @returns {{ ok: true, value: RouterEnv } | { ok: false, value: RouterEnv, error: string }}
  */
 function tryEnv() {
+  if (!envSchema) return { ok: true, value: validateless(collect()) };
   const result = envSchema.safeParse(collect());
   if (result.success) {
     return { ok: true, value: result.data };
