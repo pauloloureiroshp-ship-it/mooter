@@ -248,7 +248,7 @@ function renderReport(analysis) {
   rows.push(top);
 
   // Title
-  const title = `${C.bold}${C.cyan}frugal model manager${C.reset}`;
+  const title = `${C.bold}${C.cyan}mooter model manager${C.reset}`;
   const titlePad = ' '.repeat(Math.max(0, BOX_W - 2 - 20));
   rows.push(`│ ${title}${titlePad} │`);
   rows.push(line());

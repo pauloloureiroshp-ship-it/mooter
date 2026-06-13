@@ -1,7 +1,7 @@
 /**
  * stats.js — GET /api/stats
  *
- * Returns aggregated public statistics about the frugal community.
+ * Returns aggregated public statistics about the mooter community.
  * No PII, no individual deltas — only aggregate numbers.
  */
 

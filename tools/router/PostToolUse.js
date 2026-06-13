@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Frugal model indicator — fires AFTER each Bash tool call.
+// Mooter model indicator — fires AFTER each Bash tool call.
 // Renders as: ⎿ PostToolUse says: 🔴 claude-opus-4-6
 // Source: transcript JSONL last assistant message.model (accurate per-call).
 // Fallback: decisions.log router recommendation.

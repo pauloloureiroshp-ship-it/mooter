@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * onboarding.js — first-run experience for frugal.
+ * onboarding.js — first-run experience for mooter.
  *
  * Detects hardware, asks about subscriptions, fetches community config,
  * and shows a summary of expected savings. Called automatically by

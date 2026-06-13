@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * prompt-optimizer.js — heuristic prompt reformatter for the frugal router.
+ * prompt-optimizer.js — heuristic prompt reformatter for the mooter router.
  *
  * Called by inject_context.js after classify.js, before <router-hint> emission.
  * Produces a dense, tier-aware reformulation of the user prompt that the model

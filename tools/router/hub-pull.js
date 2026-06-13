@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * hub-pull.js — fetches latest router-tuning and model-catalog from frugal-hub.
+ * hub-pull.js — fetches latest router-tuning and model-catalog from the mooter hub.
  *
  * Called on session startup by inject_context.js (non-blocking) or manually.
  * Downloads silently to ~/.claude/tools/router/ if a newer version exists.
