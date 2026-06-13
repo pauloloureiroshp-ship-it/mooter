@@ -18,5 +18,10 @@
   },
   "devDependencies": {
     "wrangler": "^4.83.0"
+  },
+  "_overrides_rationale": "Wave 58.3 — esbuild ^0.28.1 clears the 0.17.0-0.28.0 advisory (GHSA-gv7w-rqvm-qjhr, GHSA-g7r4-m6w7-qqqr); ws ^8.21.0 clears 8.0.0-8.20.0 (GHSA-58qx-3vcg-4xpx). Both reach the tree only via wrangler/miniflare dev tooling, not the deployed worker. Verified wrangler deploy --dry-run still bundles.",
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "ws": "^8.21.0"
   }
 }
