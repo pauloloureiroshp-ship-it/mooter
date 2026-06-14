@@ -1193,6 +1193,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
           flexWrap: 'wrap',
           gap: 32,
           alignItems: 'center',
+          animation: 'fadeIn 0.5s ease both',
         }}>
           {/* Wave 14 Day 2 F-4 — these are the user's own synced numbers, but a
               52-day-old heartbeat is not "Live". The badge now reflects sync age:
@@ -1216,7 +1217,9 @@ function OverviewTab({ profile }: { profile: Profile }) {
               color: 'var(--tier-0)', lineHeight: 1,
               fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
             }}>
-              ${savingsUsd.toFixed(2)}
+              {/* Wave 60 — animate the real synced value in (count-up); the final
+                  rendered number is exactly savingsUsd.toFixed(2), unchanged. */}
+              <AnimatedCounter value={savingsUsd} prefix="$" decimals={2} />
             </div>
             <div style={{
               fontSize: '0.72rem', color: 'var(--muted)',
@@ -1232,7 +1235,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               color: 'var(--text)', lineHeight: 1,
               fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
             }}>
-              {decisionsCount}
+              <AnimatedCounter value={decisionsCount} decimals={0} />
             </div>
             <div style={{
               fontSize: '0.72rem', color: 'var(--muted)',
@@ -1248,7 +1251,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
               color: 'var(--text)', lineHeight: 1,
               fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
             }}>
-              {savingsPct}%
+              <AnimatedCounter value={savingsPct} decimals={0} suffix="%" />
             </div>
             <div style={{
               fontSize: '0.72rem', color: 'var(--muted)',
@@ -1280,6 +1283,34 @@ function OverviewTab({ profile }: { profile: Profile }) {
               )}
             </div>
           )}
+
+          {/* Wave 60 — local models actually reported by your sync payload (real,
+              deduped via installedOllamaModels; never fabricated pack names). */}
+          {(() => {
+            const models = installedOllamaModels(profile);
+            if (models.length === 0) return null;
+            return (
+              <div style={{ width: '100%', paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <div style={{
+                  fontSize: '0.66rem', color: 'var(--muted)', textTransform: 'uppercase',
+                  letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8,
+                }}>
+                  Local models · {models.length}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {models.map(m => (
+                    <span key={m} style={{
+                      fontFamily: 'var(--mono)', fontSize: '0.72rem', color: 'var(--accent)',
+                      background: 'rgba(232,136,138,0.08)', border: '1px solid rgba(232,136,138,0.25)',
+                      borderRadius: 'var(--r-sm)', padding: '4px 10px',
+                    }}>
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

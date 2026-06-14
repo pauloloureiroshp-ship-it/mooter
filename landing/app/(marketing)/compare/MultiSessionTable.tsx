@@ -1,4 +1,7 @@
 import Card from '@/components/Card';
+import MonoNum from '@/components/MonoNum';
+import versionInfo from '../../version.json';
+import RevealOnView from './RevealOnView';
 
 // MultiSessionTable — the "multi-session field" comparison (Wave 33.9, carried
 // from landing-v12-deploy/mooter-v1-iter1.jsx CompareArtboard). 11 capabilities
@@ -9,7 +12,7 @@ import Card from '@/components/Card';
 type Kind = 'y' | 'n' | 'p' | 'cve';
 
 const TOOLS: { name: string; sub: string; highlight?: boolean }[] = [
-  { name: 'mooter', sub: 'v1.21.5', highlight: true },
+  { name: 'mooter', sub: `v${versionInfo.version}`, highlight: true },
   { name: 'Composio AO', sub: 'agent os' },
   { name: 'Conductor', sub: 'orchestr.' },
   { name: 'Cursor Bg', sub: 'bg agents' },
@@ -45,6 +48,10 @@ const ICON: Record<Kind, { c: string; g: string }> = {
 export default function MultiSessionTable() {
   // Derive each column's score from its 'y' cells — the table stays consistent.
   const scores = TOOLS.map((_, col) => ROWS.filter((r) => r.cells[col] === 'y').length);
+  // Summary chips are derived from the same scores array (col 0 = mooter), so the
+  // headline numbers can never drift from the matrix. No hardcoded metrics.
+  const mooterScore = scores[0];
+  const runnerUpScore = Math.max(...scores.slice(1));
 
   return (
     <div style={{ marginBottom: 56 }}>
@@ -56,9 +63,10 @@ export default function MultiSessionTable() {
         Each tool does <em>something</em> well — none of the others does all eleven.
       </p>
 
-      <div style={{ overflowX: 'auto' }}>
-        <Card padding={0} style={{ overflow: 'hidden', minWidth: 880 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+      <RevealOnView>
+      <Card padding={0} style={{ overflow: 'hidden' }}>
+        <div className="m-scroll-x" style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 880 }}>
             <colgroup>
               <col style={{ width: '30%' }} />
               {TOOLS.map((t, i) => (
@@ -140,8 +148,9 @@ export default function MultiSessionTable() {
               </tr>
             </tbody>
           </table>
-        </Card>
-      </div>
+        </div>
+      </Card>
+      </RevealOnView>
 
       <div style={{ marginTop: 20, display: 'flex', gap: 22, fontSize: 12, color: 'var(--color-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
         <span><span style={{ color: 'var(--color-green)', fontWeight: 700 }}>✓</span> full</span>
@@ -159,6 +168,7 @@ export default function MultiSessionTable() {
         pain points of multi-session Claude Code workflows. Scores are counted from the cells above — got a cell wrong?{' '}
         <a href="https://github.com/pauloloureiroshp-ship-it/mooter/issues" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', fontStyle: 'normal' }}>open an issue →</a>
       </div>
+      <RevealOnView delay={80}>
       <div style={{ marginTop: 18, padding: '16px 20px', background: 'var(--color-accent-06)', border: '1px solid var(--color-accent-25)', borderRadius: 12, maxWidth: 900 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-accent)' }}>honest &gt; inflated</span>
@@ -169,7 +179,21 @@ export default function MultiSessionTable() {
           savings, 5h quota forecast, cross-session routing learning, orchestration locks across terminals, and the
           workflow-visibility statusline chip — and it is the only stack that ships all 11 in one tool.
         </p>
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+            mooter score <MonoNum color="var(--color-accent)" style={{ fontWeight: 700 }}>{mooterScore}</MonoNum>
+            <span style={{ color: 'var(--color-muted)' }}> / {ROWS.length}</span>
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+            next best <MonoNum color="var(--color-text)" style={{ fontWeight: 700 }}>{runnerUpScore}</MonoNum>
+            <span style={{ color: 'var(--color-muted)' }}> / {ROWS.length}</span>
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+            counted live from the cells above, not hardcoded
+          </span>
+        </div>
       </div>
+      </RevealOnView>
     </div>
   );
 }
