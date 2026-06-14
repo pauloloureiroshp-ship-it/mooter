@@ -253,8 +253,10 @@ function getHtml() {
   /* Score badge = labelled "Score N/8" (never a bare %). Theme-aware neutral; green only at full. */
   .b-score{color:var(--vscode-badge-foreground);background:var(--vscode-badge-background);font-weight:700;cursor:pointer}
   .b-score.full{color:var(--ink);background:var(--g)}
-  .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
-  .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
+  /* ≤5 tabs, never wrap (SPEC §6): scroll horizontally on a narrow sidebar instead of wrapping. */
+  .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px;white-space:nowrap}
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--g)}
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
@@ -265,7 +267,9 @@ function getHtml() {
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
-  .intentwrap{display:flex;gap:6px;margin:0 0 10px}
+  /* Global hero interaction (SPEC §7): one command bar, sticky at the top of the webview. */
+  .intentwrap{display:flex;gap:6px;margin:0 0 4px;position:sticky;top:0;z-index:5;background:var(--vscode-sideBar-background,var(--vscode-editorWidget-background));padding:6px 0}
+  .intenthint{font-size:9.5px;color:var(--vscode-descriptionForeground);margin:0 2px 10px;line-height:1.5}
   .intentwrap input{flex:1;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 10px;font:12px var(--vscode-font-family)}
   .intentres{font-size:11px;color:var(--vscode-descriptionForeground);margin:-4px 0 8px;display:none}
   .intentres b{color:var(--g)}
@@ -319,6 +323,7 @@ function getHtml() {
   <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
+<div class="intenthint">try: 'why did my last prompt use Opus?' · 'pull the best local model' · 'show my savings'</div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
 <div class="view" id="view-setup"><div id="v-setup"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Install</div><div id="v-install"></div><div class="lbl" style="margin:14px 2px 6px">Models</div><div id="v-models"></div></div>
 <div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
@@ -417,7 +422,8 @@ window.addEventListener('message',(e)=>{
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};
   const bud=(s.budget&&s.budget.monthly_budget_usd)||0;
-  const kv=(k,v)=>'<div class="kv"><span>'+esc(k)+'</span><span>'+(v==null||v===''?'<i style="color:var(--r)">missing</i>':esc(v))+'</span></div>';
+  // Unset = a neutral "to-do", never a red "missing" that reads as an error (SPEC §6 / P6).
+  const kv=(k,v)=>'<div class="kv"><span>'+esc(k)+'</span><span>'+(v==null||v===''?'<span style="color:var(--vscode-descriptionForeground)">— not set</span>':esc(v))+'</span></div>';
   $('#v-setup').innerHTML=
     '<div class="card"><div class="lbl">🎮 Hardware</div>'+kv('GPU',hw.name||hwd.gpu||null)+kv('VRAM',hw.vram_mb?(hw.vram_mb/1024).toFixed(0)+' GB':null)+kv('Tier',hw.hw_tier||hwd.hw_tier)+kv('RAM',hwd.ram_gb?hwd.ram_gb+' GB':null)+kv('CPU cores',hwd.cpu_cores)+kv('Platform',(hwd.platform||'')+(hwd.arch?'/'+hwd.arch:''))+
       (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
@@ -506,6 +512,7 @@ window.addEventListener('message',(e)=>{
     document.querySelectorAll('.dec').forEach(el=>{const tog=()=>{const open=el.classList.toggle('open');const k=el.dataset.key;if(open)openDecs.add(k);else openDecs.delete(k);};el.onclick=(ev)=>{if(ev.target.closest('.stars'))return;tog();};el.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('.stars')){e.preventDefault();tog();}});});
     document.querySelectorAll('.stars span').forEach(st=>st.onclick=()=>{const w=st.parentElement;const n=+st.dataset.n;
       w.querySelectorAll('span').forEach(x=>x.classList.toggle('on',+x.dataset.n<=n));send('rate',{id:w.dataset.sid,n});});}
+  else{$('#v-decisions').innerHTML='<div class="empty">No decisions yet — every routed prompt lands here.<br><button class="sm" data-a="launch" style="margin-top:8px">Start a routed session</button></div>';wireButtons($('#v-decisions'));}
 
   // ── TERMINAL (req 2)
   $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">renderer warming up…</span>')+'</div></div>'+
