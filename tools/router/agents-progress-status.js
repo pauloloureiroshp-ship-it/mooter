@@ -121,9 +121,14 @@ function fmtTokens(n) {
 
 const clean = (s) => (typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : '');
 
+/** The named active subagent records (filters out nameless / garbage entries). */
+function activeNamed(snap) {
+  return (snap && Array.isArray(snap.active) ? snap.active : []).filter((a) => a && clean(a.agent_name));
+}
+
 /** The longest-running active subagent (oldest started_at), or null. */
 function currentAgent(snap) {
-  const active = (snap && Array.isArray(snap.active) ? snap.active : []).filter((a) => a && clean(a.agent_name));
+  const active = activeNamed(snap);
   if (active.length === 0) return null;
   return active.slice().sort((a, b) => (a.started_at || 0) - (b.started_at || 0))[0];
 }
@@ -151,6 +156,13 @@ function buildAgentsProgressChip(wf, snap, now = Date.now()) {
     // Running but no agent counts published yet — show the run without a count.
     parts.push('running');
   }
+
+  // Wave 58.4 Block C — how many subagents are in flight RIGHT NOW (real count
+  // from subagent_tracker.active). Shown only when ≥2: a single in-flight agent
+  // is already named by the trailing `current:` segment, so a "1 running" badge
+  // would be noise. Honest: 0/1 → omitted, never fabricated.
+  const running = activeNamed(snap).length;
+  if (running >= 2) parts.push(`${running} running`);
 
   // Elapsed comes from the run pointer's ts; if absent, fall back to the current
   // agent's started_at. Only rendered when we have a real start instant.
@@ -200,6 +212,7 @@ module.exports = {
   buildAgentsProgressChip,
   readActiveWorkflow,
   currentAgent,
+  activeNamed,
   fmtElapsed,
   fmtTokens,
   optedIn,

@@ -1707,6 +1707,11 @@ function buildStatusline(data) {
   // v6.9 — all three modes always visible; only the active one gets emoji + color.
   //   Inactive modes render as dim plain text. Makes modes discoverable and
   //   removes ambiguity about which mode is active at a glance.
+  // Wave 58.4 Block E (Q2) — REVIEWED and DELIBERATELY KEPT. The brief proposed
+  //   hiding/collapsing the inactive modes to reduce "redundancy", but that would
+  //   reverse the v6.9 discoverability decision above. Paulo's gate decision
+  //   (2026-06-13): keep all three visible, inactive ones dim. NO code change —
+  //   this comment is the decision record. See docs/strategy/WAVE58_4_DAY0_RECON.md §A.4.
   const modeMoo   = routerMode.mode === null    ? `${BOLD}🐮 Moo${RESET}`              : `${DIM}Moo${RESET}`;
   const modeCrazy = routerMode.mode === 'beast' ? `${DANGER}${BOLD}🐂 CrazyMoo${RESET}` : `${DIM}CrazyMoo${RESET}`;
   const modeLazy  = routerMode.mode === 'zen'   ? `${HEALTHY}${BOLD}🐄 LazyMoo${RESET}`  : `${DIM}LazyMoo${RESET}`;
