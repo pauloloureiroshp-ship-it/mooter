@@ -1,4 +1,7 @@
-// mooter-cockpit v0.8.0 — extension host
+// mooter-cockpit v0.9.0 — extension host
+// v0.9.0 (2026-06-14, Windows-test feedback): mode-switch promoted to the Cockpit
+//   (segment + clickable header badge); model-picker for the next prompt (clipboard
+//   bridge → /pin command); 9 tabs consolidated to 5 (Cockpit/Setup/Herd/Decisions/Doctor).
 // v0.8.0 (2026-06-14): publish-perfect + cross-platform —
 //   · external links via env.openExternal (Windows/Linux safe, no macOS `open`)
 //   · Claude Code CLI detection no longer assumes a Unix path
@@ -145,6 +148,7 @@ class CockpitProvider {
       if (m.cmd === 'refresh') this.data.refresh(true);
       if (m.cmd === 'term') runInTerminal(m.arg || 'mooter doctor');
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
+      if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal('mooter slash-commands install'); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -284,31 +288,29 @@ function getHtml() {
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div>
-  <div class="tab" data-v="install">Install</div><div class="tab" data-v="models">Models</div>
-  <div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="insights">Insights</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="terminal">Terminal</div>
-  <div class="tab" data-v="doctor">Doctor</div>
+  <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
-<div class="view on" id="v-cockpit"><div class="empty">Connecting to mooter…</div></div>
-<div class="view" id="v-setup"><div class="empty">…</div></div>
-<div class="view" id="v-install"><div class="empty">…</div></div>
-<div class="view" id="v-models"><div class="empty">…</div></div>
-<div class="view" id="v-herd"><div class="empty">…</div></div>
-<div class="view" id="v-insights"><div class="empty">…</div></div>
-<div class="view" id="v-decisions"><div class="empty">No decisions yet</div></div>
-<div class="view" id="v-terminal"><div class="empty">…</div></div>
-<div class="view" id="v-doctor"><div class="empty">…</div></div>
+<div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
+<div class="view" id="view-setup"><div id="v-setup"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Install</div><div id="v-install"></div><div class="lbl" style="margin:14px 2px 6px">Models</div><div id="v-models"></div></div>
+<div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
+<div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
+<div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
-function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+name));}
+function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));}
 (function(){const tl=document.querySelector('.tabs');if(tl)tl.setAttribute('role','tablist');
   const tabs=[...document.querySelectorAll('.tab')];
   document.querySelectorAll('.view').forEach(v=>v.setAttribute('role','tabpanel'));
-  tabs.forEach((t,i)=>{const on=t.classList.contains('on');t.setAttribute('role','tab');t.setAttribute('aria-controls','v-'+t.dataset.v);t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;
+  tabs.forEach((t,i)=>{const on=t.classList.contains('on');t.setAttribute('role','tab');t.setAttribute('aria-controls','view-'+t.dataset.v);t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
+let curMode='auto';const MORDER=['zen','auto','beast'];
+$('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
+$('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
+$('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
+$('#modeBadge').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#modeBadge').onclick();}});
 const inI=$('#intentIn'),inG=$('#intentGo'),inR=$('#intentRes');
 function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';inR.textContent='🐮 thinking…';send('intent',v);}
 inG.onclick=intentAsk; inI.addEventListener('keydown',e=>{if(e.key==='Enter')intentAsk();});
@@ -316,6 +318,8 @@ function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','
 function tc(d){const c={T0:0,T1:0,T2:0,T3:0};for(const x of d)if(c[x.tier]!=null)c[x.tier]++;return c;}
 const TCOL={T0:'var(--t0)',T1:'var(--t1)',T2:'var(--t2)',T3:'var(--t3)'};
 const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
+const PIN_LOCAL={'qwen3:30b':'mooter-qwen3-30b','qwen2.5:3b':'mooter-qwen2-5-3b','qwen2.5-coder:7b':'mooter-qwen2-5-coder-7b','qwen2.5-coder:14b':'mooter-qwen2-5-coder-14b','gemma3:12b':'mooter-gemma3-12b','gemma4:e4b':'mooter-gemma4-e4b','deepseek-r1:7b':'mooter-deepseek-r1-7b'};
+const PIN_CLOUD={Haiku:'mooter-haiku-4-5',Sonnet:'mooter-sonnet-4-6','Opus 4.7':'mooter-opus-4-7'};
 const openDecs=new Set();// decision keys (ts) the user expanded — must survive the periodic re-render
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
@@ -338,7 +342,7 @@ window.addEventListener('message',(e)=>{
   $('#proj').textContent='· '+(s.projectName||'—');
   const pr=s.paired||{};
   $('#pair').innerHTML=pr.ok?'<span title="paired with Claude Code '+esc(pr.version)+'" style="color:var(--g)">✕ ✱ Claude Code ✓</span>':'<span title="Claude Code extension not found" style="color:var(--t3)">✕ ✱ not paired</span>';
-  $('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
+  curMode=s.mode||'auto';$('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
   $('#scoreBadge').textContent=score.pct+'%';
 
   // WIZARD quando engine falta
@@ -356,13 +360,23 @@ window.addEventListener('message',(e)=>{
   const pend=(score.checks||[]).filter(c=>!c.ok);
   const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
-  $('#v-cockpit').innerHTML='<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
+  const installed=(s.ollama||[]).map(x=>x.name);
+  let pinOpts='<option value="">🐮 Auto — let Moo decide</option>';
+  const locals=installed.filter(n=>PIN_LOCAL[n]);
+  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="/'+PIN_LOCAL[n]+'">'+esc(n)+'</option>').join('')+'</optgroup>';
+  pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>'<option value="/'+PIN_CLOUD[k]+'">'+esc(k)+'</option>').join('')+'</optgroup>';
+  $('#v-cockpit').innerHTML=
+    '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
+    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="copies a /pin command to paste in Claude Code" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
+    '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
+  document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
+  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{if(ps.value)send('pin',ps.value);ps.selectedIndex=0;};})();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};
