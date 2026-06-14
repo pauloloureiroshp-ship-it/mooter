@@ -46,6 +46,7 @@ function _file(sessionId) { return path.join(DIR, _safeId(sessionId) + '.jsonl')
 /** Point at the session currently being routed — router-execute reads this since the
  *  /mooter-<model> skill invocation carries no session id. */
 function setCurrentSession(sessionId) {
+  if (!isEnabled()) return false; // true opt-in: zero writes (not even the pointer) when OFF
   try { fs.mkdirSync(ROUTER, { recursive: true }); fs.writeFileSync(CURRENT, JSON.stringify({ session_id: sessionId, ts: new Date().toISOString() })); return true; } catch { return false; }
 }
 function currentSession() {
@@ -65,6 +66,8 @@ function appendTurn(sessionId, turn) {
       tokens: Number(turn.tokens) || null,
     };
     if (!rec.text) return false;
+    // mode 0o600 is honoured on POSIX; on Windows it is a no-op (NTFS ACLs apply) —
+    // the file still lives under the user-profile dir whose default ACL is user-only.
     fs.appendFileSync(_file(sessionId), JSON.stringify(rec) + '\n', { mode: 0o600 });
     return true;
   } catch { return false; }
