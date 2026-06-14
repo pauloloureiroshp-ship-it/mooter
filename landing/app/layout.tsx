@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono, Caveat } from 'next/font/google';
 import './globals.css';
 import CmdKPalette from './_components/CmdKPalette';
+import versionInfo from './version.json';
+import { FACTS, PROOF_LINE } from './lib/facts';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -37,7 +39,7 @@ export const viewport: Viewport = {
 // with zero collected reviews — a fake rating is both dishonest and a Google
 // rich-result violation).
 const DESCRIPTION =
-  'The router for Claude Code. Local-first, learns forever, spawns agents safely by default. Routes prompts across Ollama, Haiku, Sonnet and Opus — same results, a fraction of the spend, zero code changes.';
+  'The router for Claude Code. Local-first, learns forever, spawns agents safely by default. Routes prompts across Ollama, Haiku, Sonnet and Opus — comparable quality on routine tasks, a fraction of the spend, zero code changes.';
 
 export const metadata: Metadata = {
   title: 'mooter — The router for Claude Code',
@@ -57,17 +59,17 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'mooter — The router for Claude Code',
-    description: '47% saved vs all-Opus across 658 routed calls — real data from the author’s own machine, not a community average. Open source · MIT.',
+    description: `${PROOF_LINE} Open source · MIT.`,
     type: 'website',
     url: 'https://mooter.ai',
     siteName: 'mooter',
-    images: [{ url: '/api/og?savings=47%25', width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
+    images: [{ url: `/api/og?savings=${FACTS.avgSavingsPct}%25`, width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'mooter — The router for Claude Code',
-    description: '47% saved vs all-Opus across 658 routed calls. Real data. Zero proxy. Just a hook. MIT.',
-    images: ['/api/og?savings=47%25'],
+    description: `${FACTS.avgSavingsPct}% saved vs all-Opus across ${FACTS.callsRouted} routed calls. Real data. Zero proxy. Just a hook. MIT.`,
+    images: [`/api/og?savings=${FACTS.avgSavingsPct}%25`],
   },
 };
 
@@ -84,7 +86,7 @@ const jsonLd = {
       description: DESCRIPTION,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS, Windows, Linux',
-      softwareVersion: '1.21.5',
+      softwareVersion: versionInfo.version,
       license: 'https://opensource.org/licenses/MIT',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       author: { '@id': 'https://mooter.ai/#paulo' },

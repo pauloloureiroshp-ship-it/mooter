@@ -77,7 +77,7 @@ export default function CommunityPulse() {
         }}
       >
         <Stat value={live ? fmt(data!.prompts_routed) : '—'} label="Prompts routed" />
-        {live && data!.saved_last_7d != null ? (
+        {live && data!.saved_last_7d > 0 ? (
           <Stat value={`$${data!.saved_last_7d.toFixed(2)}`} label="Saved (all-time)" />
         ) : (
           <div>

@@ -41,12 +41,13 @@ function cellColor(v: string): string | undefined {
 }
 
 export default async function ComparePage() {
-  let lastUpdated = 'unknown';
+  // Real date or nothing — never a "Last updated unknown" placeholder in prod (SPEC §5.5).
+  let lastUpdated: string | null = null;
   try {
     const md = await readFile(join(process.cwd(), 'docs/compare-snapshot.md'), 'utf-8');
-    lastUpdated = md.match(/Last updated:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? 'unknown';
+    lastUpdated = md.match(/Last updated:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
   } catch {
-    lastUpdated = 'unknown';
+    lastUpdated = null;
   }
 
   return (
@@ -112,7 +113,7 @@ export default async function ComparePage() {
       </div>
 
       <p style={{ color: 'var(--color-muted)', fontSize: 13.5, marginTop: 18, maxWidth: 760 }}>
-        Last updated {lastUpdated}. Snapshot of public functionality at the time. We checked the docs. If we got
+        {lastUpdated ? `Last updated ${lastUpdated}. ` : ''}Snapshot of public functionality at the time. We checked the docs. If we got
         something wrong, <a href="https://github.com/pauloloureiroshp-ship-it/mooter/issues" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>open an issue</a> and we&apos;ll fix it.
       </p>
       <p style={{ color: 'var(--color-faint, var(--color-muted))', fontSize: 12.5, marginTop: 8 }}>
