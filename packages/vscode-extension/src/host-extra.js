@@ -107,6 +107,23 @@ function writeBudget(usd) {
   } catch { return { ok: false }; }
 }
 
+// W2: per-prompt "next prompt" model pin. The cockpit writes this file; the engine
+// hook (inject_context.js) reads+consumes it on the next UserPromptSubmit — a local
+// ollama id ("qwen2.5:3b") routes to T0+that model, a claude-* id to its tier.
+// Empty/Auto clears any pending pin. Consume-once is enforced by the engine.
+const PIN_NEXT_FILE = path.join(ROUTER, '.pin-next.json');
+function readPinNext() { const j = readJson(PIN_NEXT_FILE); return j && j.model ? { model: j.model } : null; }
+function writePinNext(model) {
+  const m = String(model || '').trim();
+  try {
+    if (!m) { try { fs.unlinkSync(PIN_NEXT_FILE); } catch { /* already absent */ } return { ok: true, model: '' }; }
+    if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(m)) return { ok: false };
+    fs.mkdirSync(path.dirname(PIN_NEXT_FILE), { recursive: true });
+    fs.writeFileSync(PIN_NEXT_FILE, JSON.stringify({ model: m, scope: 'once', set_by: 'vscode-cockpit', at: new Date().toISOString() }, null, 2));
+    return { ok: true, model: m };
+  } catch { return { ok: false }; }
+}
+
 // The 10 slash sub-commands from the canonical /mooter SKILL template.
 const SLASH_CMDS = ['route', 'savings', 'explain', 'digest', 'local', 'why-not-fable', 'tier', 'mcp', 'vision', 'bench'];
 
@@ -336,5 +353,5 @@ function tokenLedger() {
 
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
-  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks,
+  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, SLASH_CMDS, mooterScore, installedPacks,
   PRICES, priceFor, costFor, tokenLedger };
