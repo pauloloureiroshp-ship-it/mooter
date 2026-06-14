@@ -1,0 +1,42 @@
+{
+  "name": "mooter-cockpit",
+  "displayName": "Mooter — Cost Cockpit for Claude Code",
+  "description": "See what your Claude Code routing saves you — live decisions, tier distribution, counterfactual savings. The cockpit for the mooter router. Not affiliated with Anthropic.",
+  "version": "0.7.1",
+  "publisher": "mooter",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/pauloloureiroshp-ship-it/mooter" },
+  "homepage": "https://mooter.ai",
+  "engines": { "vscode": "^1.98.0" },
+  "categories": ["AI", "Visualization"],
+  "keywords": ["claude", "claude-code", "router", "cost", "ollama"],
+  "icon": "media/icon.png",
+  "galleryBanner": { "color": "#0B0A09", "theme": "dark" },
+  "main": "./src/extension.js",
+  "scripts": { "test": "node --test src/*.test.js" },
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "mooter", "title": "Mooter", "icon": "media/cow.svg" }
+      ]
+    },
+    "views": {
+      "mooter": [
+        { "type": "webview", "id": "mooterCockpit", "name": "Cockpit" }
+      ]
+    },
+    "commands": [
+      { "command": "mooter.openCockpit", "title": "Mooter: Open Cockpit" },
+      { "command": "mooter.newSession", "title": "Mooter: New Claude Code Session" },
+      { "command": "mooter.refresh", "title": "Mooter: Refresh Data" }
+    ],
+    "configuration": {
+      "title": "Mooter",
+      "properties": {
+        "mooter.trackerPort": { "type": "number", "default": 7821, "description": "Port of the local mooter savings tracker" },
+        "mooter.statusBar.enabled": { "type": "boolean", "default": true, "description": "Show the mooter item in the status bar" }
+      }
+    }
+  }
+}
