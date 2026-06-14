@@ -138,6 +138,16 @@ DoRun "Copy router .js" {
         ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
     Get-ChildItem (Join-Path $SrcDir "tools\router") -Filter *.json -File -ErrorAction SilentlyContinue |
         ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
+    # Provider wrappers live in a subdir — the top-level *.js scan above misses them,
+    # so router-execute would fail with wrapper_missing for ollama/codex/openai pins
+    # (Wave 61). Copy the providers/ subdir explicitly.
+    $provSrc = Join-Path $SrcDir "tools\router\providers"
+    if (Test-Path $provSrc) {
+        $provDst = Join-Path $RouterDir "providers"
+        New-Item -ItemType Directory -Path $provDst -Force | Out-Null
+        Get-ChildItem $provSrc -Filter *.js -File -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName $provDst -Force }
+    }
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
