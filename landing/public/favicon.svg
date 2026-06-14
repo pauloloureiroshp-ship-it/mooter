@@ -1,8 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#080808"/>
-  <rect x="7" y="6" width="3" height="20" fill="#4ec9b0"/>
-  <rect x="7" y="6" width="13" height="3" fill="#4ec9b0"/>
-  <rect x="7" y="14" width="10" height="3" fill="#4ec9b0"/>
-  <!-- routing dot -->
-  <circle cx="24" cy="22" r="2.5" fill="#4ec9b0" opacity="0.7"/>
+  <rect width="32" height="32" rx="7" fill="#14110D"/>
+  <g transform="translate(4,4) scale(0.24)">
+    <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
+    <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
+    <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+    <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
+    <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
+    <circle cx="36" cy="46" r="5" fill="#1C1209"/>
+    <circle cx="64" cy="46" r="5" fill="#1C1209"/>
+    <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
+    <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+    <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+  </g>
 </svg>

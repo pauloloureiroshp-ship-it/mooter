@@ -2,6 +2,11 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.9.1] — 2026-06-14
+
+### Changed
+- Accessibility: the Decisions list is now keyboard-operable (`role="button"`, Enter/Space to expand), matching the tab strip and mode controls.
+
 ## [0.9.0] — 2026-06-14
 
 ### Added
