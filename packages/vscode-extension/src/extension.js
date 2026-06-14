@@ -305,6 +305,16 @@ function getHtml() {
   .livesub{font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
   .liveok{font-size:9.5px;color:var(--g);font-weight:700}
   .livewarn{font-size:9.5px;color:#e5c07b;font-weight:700}
+  .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
+  .srow{display:flex;align-items:center;gap:9px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
+  .srow:hover{background:var(--vscode-list-hoverBackground)}
+  .srow.on{border-left-color:var(--g);background:var(--gdim)}
+  .srow .livecow{font-size:18px}
+  .sbody{flex:1;min-width:0}
+  .stop{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
+  .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecard-idle{opacity:.65}
@@ -385,10 +395,9 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
-let curMode='auto';const MORDER=['zen','auto','beast'];let lastLiveTs='';let workingUntil=0;
-// Walk the cow while mooter is working: a prompt just routed (active window) or a
-// spawn is running. Client-side tick keeps it smooth between the ~7s polls.
-setInterval(function(){var c=document.getElementById('liveCow'),t=document.getElementById('liveStat'),on=Date.now()<workingUntil;if(c)c.classList.toggle('working',on);if(t)t.classList.toggle('on',on);},900);
+let curMode='auto';const MORDER=['zen','auto','beast'];
+// Each live-session cow walks via the CSS .working class set at render time (the
+// session is "working" when its transcript was just written) — no JS tick needed.
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
 $('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
@@ -407,6 +416,8 @@ let ledgerScope='session';let lastSnap=null;
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
+function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(/claude|opus|sonnet|haiku/.test(x))return '✨';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
+function agoFmt(ms){const t=Math.round((+ms||0)/1000);if(t<60)return t+'s';const mi=Math.round(t/60);if(mi<60)return mi+'m';const h=Math.round(mi/60);return h<24?h+'h':Math.round(h/24)+'d';}
 function ledgerHtml(s){
   // Scoped to one session when a session is in effect (sessionLedger), else the global
   // ledger with its This-session/All-time toggle.
@@ -474,11 +485,16 @@ window.addEventListener('message',(e)=>{
   // one, or a pinned pick from the selector), or all sessions when 'all'.
   const selSess=s.selectedSession||'auto';const effSess=s.effectiveSession||null;
   const M=(effSess&&s.sessionMetrics)?s.sessionMetrics:m; // scoped metrics (savings/prompts)
+  const realLocalN=(M.option_a_hits||0); // REAL local executions (Option-A deflections), scoped
   const decScoped=effSess?decs.filter(d=>d.sid===effSess):decs; // scoped tier-mix
+  // ── Live herd: every open session as its own walking cow (working · LLM · tab name).
+  // Click a cow to focus the numbers below on it. This is the multi-session view.
   const rsess=s.recent||[];
-  const sessOpts='<option value="auto"'+(selSess==='auto'?' selected':'')+'>🟢 Active session (auto-follow)</option>'+rsess.map(r=>'<option value="'+esc(r.fullId)+'"'+(selSess===r.fullId?' selected':'')+'>'+(r.working?'● ':'')+esc(r.id)+' · '+esc(r.project)+(r.model?' · '+esc(modelLabel(r.model)):'')+'</option>').join('')+'<option value="all"'+(selSess==='all'?' selected':'')+'>🌐 All sessions (global)</option>';
-  const sessNote=effSess?('following '+esc((effSess||'').slice(0,8))+(selSess==='auto'?' · auto':' · pinned')):'all sessions (global)';
-  const sessPicker='<div class="card" style="padding:8px 11px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">🧵 Session</span><select id="sessSel" title="which Claude Code session these numbers reflect" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+sessOpts+'</select></div><div class="sub" style="font-size:9px;margin-top:4px">'+esc(sessNote)+' — auto-follows the tab you send a prompt in. A pure tab-click with no activity is not detectable, so pick it here.</div></div>';
+  const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||(r.project?r.project:'session '+r.id);
+    return '<div class="srow'+(sel?' on':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="'+esc(r.fullId)+'"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+(r.working?'<span class="livedot"></span>working':esc(agoFmt(r.ageMs))+' ago')+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div></div></div>';};
+  const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
+  const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
+  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent</span></div><div class="herd">'+herdRows+allRow+'</div><div class="sub" style="font-size:9px;margin-top:6px">● = generating now (transcript being written) · click a cow to focus its numbers below. The cockpit reads ~/.claude logs — it cannot see which VS Code tab is focused, so it follows the one you prompt in.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -488,18 +504,9 @@ window.addEventListener('message',(e)=>{
   const locals=installed.filter(n=>PIN_LOCAL[n]);
   if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
-  const lv=s.live;
-  // Cow identity = who ACTUALLY answered (executor), not the router's advisory pick.
-  const execTag=lv?(lv.real?(lv.scope==='dispatch'?'<span class="liveok" title="a real local dispatch ran this">✓ ran local</span>':'<span class="liveok" title="the model answering in this Claude Code session (from the session logs)">● host · this session</span>'):'<span class="livewarn" title="router recommendation — no execution confirmed yet">⏳ recommended</span>'):'';
-  const recRow=(lv&&lv.recommended&&lv.recommended.model!==lv.model)
-    ? 'router → '+esc(lv.recommended.emoji)+' '+esc(modelLabel(lv.recommended.model))+' · '+esc(lv.tier)+' · '+(lv.why==='pinned'?'📌 pinned':(lv.why==='cascade'?'⬆ cascade':'🤖 auto'))+' <span style="opacity:.55">(advisory)</span>'
-    : (lv?((lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')):'');
-  const liveCard=lv
-    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ host')+'</span><span class="livemodel">'+esc(modelLabel(lv.model))+'</span>'+execTag+' <span class="livestat" id="liveStat">🛠 working</span></div><div class="livesub">'+recRow+(lv.dispatch?'<br><span style="opacity:.8">last local run: '+esc(lv.dispatch.emoji)+' '+esc(modelLabel(lv.dispatch.model))+' ✓</span>':'')+'</div></div><span class="livedot" title="last routed prompt"></span></div>'
-    : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
+  const lv=s.live; // executor of the focused session (used by the "Actually ran" line below)
   $('#v-cockpit').innerHTML=
-    sessPicker+
-    liveCard+
+    herdCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
     (function(){
@@ -520,14 +527,13 @@ window.addEventListener('message',(e)=>{
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
-    '<div class="card"><div class="lbl">Tier mix · last '+decScoped.length+'</div>'+bars+'</div>'+
+    '<div class="card"><div class="lbl">Router recommendations · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span></div>'+bars+'<div class="sub" style="font-size:9.5px;margin-top:5px">↑ what the router <b>suggested</b> (T0 = local) — not what ran. <b>Actually ran:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model))+' (host)':'host model')+' · '+realLocalN+' real local dispatch'+(realLocalN===1?'':'es')+'</div></div>'+
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
-  (function(){const ss=$('#sessSel');if(ss)ss.onchange=()=>send('selectSession',ss.value);})();
-  (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');workingUntil=Date.now()+12000;}const run=s.herd&&s.herd.run;if(run&&/run|active|progress/i.test(String(run.status||'')))workingUntil=Math.max(workingUntil,Date.now()+12000);})();
+  document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>send('selectSession',el.dataset.sess);el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
