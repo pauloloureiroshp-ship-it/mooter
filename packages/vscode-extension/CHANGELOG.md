@@ -2,6 +2,20 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.12.1] — 2026-06-14
+
+Mascot + accent alignment (Wave 60). Reverts the geometric cream cow introduced
+with the canonical-cow pass back to the classic cow, and settles on a single rose
+accent — no orange.
+
+### Changed
+- **Classic cow everywhere** — the Activity Bar mark and the Marketplace icon now
+  use the classic cow (grey/white head, rose muzzle, dark eyes with catch-light),
+  matching the website. The Marketplace `icon.png` is re-rendered 512×512 on a
+  lifted `#1C1A17` background so it survives the dark gallery.
+- **One accent: rose `#E8888A`** — the orange `#FF6B35` that arrived with the
+  canonical-cow pass is removed. CSP/nonce and the read-only contract are unchanged.
+
 ## [0.12.0] — 2026-06-14
 
 Design-system redesign from the Claude Design handoff (Wave 60), shipped together
