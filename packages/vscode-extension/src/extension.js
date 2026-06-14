@@ -35,6 +35,12 @@ function detectClaude() {
     path.join(home, '.local', 'bin', 'claude.exe'),
     path.join(home, 'AppData', 'Roaming', 'npm', 'claude.cmd'),
     path.join(home, 'AppData', 'Roaming', 'npm', 'claude'),
+    path.join(home, 'AppData', 'Local', 'Programs', 'claude', 'claude.exe'),
+    path.join(home, 'scoop', 'shims', 'claude.cmd'),
+    path.join(home, 'scoop', 'shims', 'claude'),
+    'C:\\ProgramData\\chocolatey\\bin\\claude.exe',
+    '/opt/homebrew/bin/claude',
+    '/usr/local/bin/claude',
   ];
   return cands.some((p) => { try { return fs.existsSync(p); } catch { return false; } });
 }
@@ -127,6 +133,17 @@ function makeStatusBar(ctx, data) {
   }));
 }
 
+// Route a `mooter <args>` command through the resolved CLI via node — PATH-independent
+// and Windows-safe (the `mooter` shim is often not on PATH). Falls back to the literal.
+function mooterCmd(cmd) {
+  try {
+    if (/^mooter\s/.test(cmd) && extra.MOOTER_CLI && fs.existsSync(extra.MOOTER_CLI)) {
+      return 'node "' + extra.MOOTER_CLI + '" ' + cmd.replace(/^mooter\s+/, '');
+    }
+  } catch { /* fall through */ }
+  return cmd;
+}
+
 function runInTerminal(cmd, name = 'mooter') {
   const t = vscode.window.terminals.find((x) => x.name === name) || vscode.window.createTerminal(name);
   t.show(); t.sendText(cmd);
@@ -146,11 +163,11 @@ class CockpitProvider {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
       if (m.cmd === 'refresh') this.data.refresh(true);
-      if (m.cmd === 'term') runInTerminal(m.arg || 'mooter doctor');
+      if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
       if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
-      if (m.cmd === 'slashInstall') { runInTerminal('mooter slash-commands install'); setTimeout(() => this.data.refresh(true), 4000); }
+      if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
       if (m.cmd === 'budget') {
         const r = extra.writeBudget(m.arg);

@@ -2,6 +2,14 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.9.2] — 2026-06-14
+
+### Fixed (Windows-test feedback)
+- **Buttons that ran `mooter …` now work without the CLI on PATH** — commands are routed through the resolved CLI via `node` (the `mooter` shim is often not on PATH on Windows).
+- **"Pull recommended model" button** in the Mooter Score was a no-op — now actually pulls your GPU-matched model via Ollama.
+- **Setup wizard no longer shown to installed users** if only the hook fell out — `runtimeInstalled` checks the hook *or* the classifier.
+- **Claude Code detection** now also covers scoop, chocolatey, Program Files (Windows) and Homebrew (macOS).
+
 ## [0.9.1] — 2026-06-14
 
 ### Changed

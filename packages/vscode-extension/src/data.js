@@ -9,6 +9,7 @@ const http = require('http');
 
 const DECISIONS_LOG = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
 const RUNTIME_HOOK = path.join(os.homedir(), '.claude', 'tools', 'router', 'inject_context.js');
+const RUNTIME_CLASSIFY = path.join(os.homedir(), '.claude', 'tools', 'router', 'classify.js');
 
 function httpJson(port, pathname, timeoutMs = 2500) {
   return new Promise((resolve) => {
@@ -78,7 +79,9 @@ function tierCounts(decisions) {
   return c;
 }
 
-function runtimeInstalled() { try { return fs.existsSync(RUNTIME_HOOK); } catch { return false; } }
+// Installed if the hook OR the classifier is present — don't show the setup wizard
+// to a user whose hook merely fell out of settings while the engine is still there.
+function runtimeInstalled() { try { return fs.existsSync(RUNTIME_HOOK) || fs.existsSync(RUNTIME_CLASSIFY); } catch { return false; } }
 
 // Poll cadence (ms): brisk while the cockpit is visible, lazy when it's hidden so a
 // closed panel doesn't keep the status bar perfectly live at the cost of CPU/processes.
