@@ -533,8 +533,33 @@ function _firstPrompt(file) {
   return null;
 }
 
+// Per-session live state from decisions.log: pairs `classified` (prompt entered) with
+// `turn_end` (Stop hook → turn finished). Last event per session tells us:
+//   classified (no turn_end after) → Claude is WORKING (generating now)
+//   turn_end                       → Claude finished, WAITING FOR THE USER (your turn)
+// This is the honest "needs your action" signal — derived from real hook telemetry, not
+// a guess. It is NOT specifically "permission required" (that needs a Notification hook).
+function sessionActivity(maxBytes = 256 * 1024) {
+  const out = {};
+  try {
+    const lp = path.join(ROUTER, 'decisions.log');
+    const st = fs.statSync(lp); const start = Math.max(0, st.size - maxBytes);
+    const fd = fs.openSync(lp, 'r'); const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    for (const line of buf.toString('utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.event !== 'classified' && e.event !== 'turn_end') continue;
+      const sid = e.session_id; if (!sid || sid === 'unknown') continue;
+      const ts = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+      if (!out[sid] || ts >= out[sid].ts) out[sid] = { event: e.event, ts };
+    }
+  } catch { /* no log */ }
+  return out;
+}
+
 function recentSessions(maxN = 8) {
-  const out = []; const now = Date.now(); const names = sessionNames();
+  const out = []; const now = Date.now(); const names = sessionNames(); const act = sessionActivity();
   for (const f of listSessionFiles().slice(0, maxN)) {
     let lastModel = null; let turns = 0;
     try {
@@ -550,7 +575,19 @@ function recentSessions(maxN = 8) {
     } catch { /* skip unreadable */ }
     const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
     const sid = path.basename(f.file).replace(/\.jsonl$/, '');
-    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
+    // State (honest): "working" only when a prompt is in flight AND the transcript is
+    // actively being written (fresh). A stalled prompt (classified, no turn_end, gone
+    // quiet) or a finished turn (turn_end) within the last 30 min = "your turn" (Claude
+    // is waiting for you — could be done or blocked on a permission/question).
+    const a = act[sid];
+    const fresh = (now - f.mtime) < 120000;          // transcript touched in last 2 min
+    const recent = (now - f.mtime) < 30 * 60 * 1000; // session active in last 30 min
+    let working = false; let needsYou = false;
+    if (a) {
+      if (a.event === 'classified' && fresh) working = true;
+      else if (recent) needsYou = true;
+    } else { working = fresh; }
+    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou });
   }
   return out;
 }
