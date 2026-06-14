@@ -1098,7 +1098,19 @@ if (decision.confidence < 0.6) {
 // Ollama T0 model (including hw-recommended qwen3:30b on high-VRAM GPUs).
 // Timeout raised 4s → 8s to accommodate larger models. Confidence lowered
 // 0.8 → 0.75 and prompt limit raised 500 → 800 to cover more real T0 prompts.
+// Wave 62.5 — is the opt-in confidence cascade enabled? (env wins; then prefs)
+function confidenceCascadeEnabled() {
+  if (process.env.MOOTER_CONFIDENCE_CASCADE === '1') return true;
+  if (process.env.MOOTER_CONFIDENCE_CASCADE === '0') return false;
+  try {
+    const { readPrefs } = require('./badge.js');
+    const p = readPrefs() || {};
+    return p.confidence_cascade === true
+      || !!(p.execution_modes && p.execution_modes.confidence_cascade === true);
+  } catch { return false; }
+}
 let suggestedAnswer = null;
+let cascadeEscalation = null; // Wave 62.5: set when a low-confidence draft is withheld
 const userPinnedOverride = decision.user_override && decision.user_override.honored === true;
 const isOllamaT0 = decision.recommended_backend === 'ollama' && decision.tier === 'T0';
 if (
@@ -1120,8 +1132,31 @@ if (
       env: ollamaEnv,
     });
     if (ollamaRes.status === 0 && ollamaRes.stdout && ollamaRes.stdout.trim().length > 5) {
-      suggestedAnswer = ollamaRes.stdout.trim();
-      logDecision({ ts: new Date().toISOString(), event: 'option_a_hit', prompt_len: prompt.length });
+      const draft = ollamaRes.stdout.trim();
+      // Wave 62.5 — confidence cascade (opt-in). Gate the draft's self-confidence
+      // before trusting it verbatim. Default OFF ⇒ byte-identical to before. Any
+      // error keeps the draft (best-effort, never blocks the hint). HIGH_RISK never
+      // reaches here (Option A requires tier T0; HIGH_RISK floors to T3).
+      let withholdDraft = false;
+      try {
+        if (confidenceCascadeEnabled()) {
+          const { draftConfidence } = require('./confidence-probe.js');
+          const conf = draftConfidence(draft, { task_category: decision.task_category });
+          if (conf.band === 'low') {
+            withholdDraft = true;
+            cascadeEscalation = conf;
+            logDecision({ ts: new Date().toISOString(), event: 'cascade_escalated', score: conf.score, reasons: conf.reasons.slice(0, 4) });
+          } else {
+            logDecision({ ts: new Date().toISOString(), event: 'cascade_local_kept', score: conf.score, band: conf.band });
+          }
+        }
+      } catch { /* cascade is best-effort; keep the draft on any error */ }
+      if (withholdDraft) {
+        suggestedAnswer = null; // shaky draft withheld → agent reasons / escalates
+      } else {
+        suggestedAnswer = draft;
+        logDecision({ ts: new Date().toISOString(), event: 'option_a_hit', prompt_len: prompt.length });
+      }
     } else {
       logDecision({ ts: new Date().toISOString(), event: 'option_a_miss', status: ollamaRes.status, stderr: (ollamaRes.stderr || '').slice(0, 120) });
     }
@@ -1355,6 +1390,18 @@ if (suggestedAnswer) {
   lines.push('INSTRUÇÃO OPTION-A: tier=T0 com confidence alta + resposta Ollama disponível.');
   lines.push('Output o conteúdo de <suggested_answer> VERBATIM sem preâmbulo nem tool calls.');
   lines.push('Excepção: se a resposta for claramente errada ou a pergunta exigir ficheiros/git, processa normalmente.');
+}
+
+// Wave 62.5 — confidence cascade: a low-confidence local draft was withheld, so
+// there is NO suggested_answer. Tell the agent to reason it out / escalate effort
+// rather than trust a shaky regurgitation. Routing is unchanged (execution signal).
+if (!suggestedAnswer && cascadeEscalation) {
+  lines.push('');
+  lines.push(`<confidence-cascade band="low" score="${cascadeEscalation.score}">`);
+  lines.push(`Rascunho local retido (baixa confiança: ${cascadeEscalation.reasons.join(', ')}). `
+    + 'Não há resposta pré-computada fiável — raciocina tu mesmo e, se a tarefa o justificar, '
+    + 'escala o esforço. Routing inalterado; isto é só um sinal de execução.');
+  lines.push('</confidence-cascade>');
 }
 
 // v0.12: delegation directive — runtime enforcement for doctrine compliance.
