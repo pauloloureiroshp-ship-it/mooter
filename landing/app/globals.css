@@ -1259,12 +1259,15 @@ html:has(.app-shell-dark) body {
   justify-content: center;
   padding: 64px 56px;
   border-right: 1px solid var(--border);
+  min-width: 0; /* let the grid column shrink instead of forcing horizontal overflow */
 }
 .app-shell-root .login-hero-right {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 48px;
+  min-width: 0; /* fix the terminal-mockup bleed at narrow widths (gap #4) */
+  overflow: hidden;
   background:
     radial-gradient(circle at 30% 20%, rgba(194,95,101,0.06), transparent 60%),
     var(--bg);
