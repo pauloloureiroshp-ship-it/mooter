@@ -4,11 +4,13 @@
 // CommunityPulse, which is reserved for opted-in herd telemetry once devices
 // start phoning home. Static server component — no client JS, no fetch.
 
+import { FACTS } from '../lib/facts';
+
 const STATS: { label: string; value: string; sub: string }[] = [
-  { label: 'calls routed', value: '658', sub: 'across 7 moos' },
-  { label: 'saved vs Opus', value: '$25.95', sub: 'alltime' },
-  { label: 'avg savings', value: '47%', sub: 'vs all-Opus' },
-  { label: 'packs installed', value: '3', sub: 'data · diagram · voice' },
+  { label: 'calls routed', value: String(FACTS.callsRouted), sub: `across ${FACTS.moos} moos` },
+  { label: 'saved vs Opus', value: `$${FACTS.savedAllTimeUsd.toFixed(2)}`, sub: 'alltime' },
+  { label: 'avg savings', value: `${FACTS.avgSavingsPct}%`, sub: 'vs all-Opus' },
+  { label: 'packs installed', value: String(FACTS.packsInstalled), sub: 'data · diagram · voice' },
 ];
 
 export default function PulseStrip() {
