@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { EXPECTED_CLASSIFY_SHA } from "../../../synthesis/src/state/central-state.ts";
 import { detectSandbox } from "../../../spawn-orchestrator/src/index.ts";
 import { reconcileStats, type ReconcileResult } from "./stats-reconcile.ts";
+import { gatherCoherence, renderCoherence, type CoherenceReport } from "./coherence.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -38,6 +39,8 @@ export interface DoctorProbes {
   classifyPath?: string | null;
   /** Override the stats reconcile (tests). Returns null to skip the check. */
   statsReconcile?: () => ReconcileResult | null;
+  /** Override the coherence gather (tests). Only used with `--coherence`. */
+  coherence?: () => CoherenceReport;
 }
 
 function defaultWhich(bin: string): boolean {
@@ -153,9 +156,15 @@ const GLYPH: Record<Level, string> = { ok: "✓", warn: "⚠", fail: "✗" };
 
 export function runDoctor(args: string[], probes: DoctorProbes = {}): CmdResult {
   const checks = runDoctorChecks(probes);
+  // `--coherence` cross-checks the savings/usage numbers across local + hub
+  // surfaces and names the probable cause of any divergence (Wave 59A). It is
+  // diagnostic only — it never changes the doctor exit code.
+  const coherence = args.includes("--coherence")
+    ? (probes.coherence ?? (() => gatherCoherence({ mooterHome: join(probes.home ?? homedir(), ".mooter") })))()
+    : null;
   if (args.includes("--json")) {
     const fail = checks.some((c) => c.level === "fail");
-    return { exitCode: fail ? 1 : 0, output: JSON.stringify({ checks }, null, 2) };
+    return { exitCode: fail ? 1 : 0, output: JSON.stringify({ checks, ...(coherence ? { coherence } : {}) }, null, 2) };
   }
   const out: string[] = ["🐮 Mooter doctor — health check", ""];
   for (const c of checks) out.push(`  ${GLYPH[c.level]} ${c.name.padEnd(26)} ${c.detail}`);
@@ -163,5 +172,6 @@ export function runDoctor(args: string[], probes: DoctorProbes = {}): CmdResult 
   const fails = checks.filter((c) => c.level === "fail").length;
   const warns = checks.filter((c) => c.level === "warn").length;
   out.push(fails ? `${fails} failure(s) — fix before spawning.` : warns ? `${warns} warning(s) — Mooter is usable; address when convenient.` : "All green. 🐮");
+  if (coherence) out.push(...renderCoherence(coherence));
   return { exitCode: fails ? 1 : 0, output: out.join("\n") };
 }
