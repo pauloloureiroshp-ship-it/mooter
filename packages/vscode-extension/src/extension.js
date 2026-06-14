@@ -324,7 +324,7 @@ function getHtml() {
   @media (prefers-reduced-motion: reduce){.pulse{animation:none}*{transition:none!important}}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
-  <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">Score …</span></span></div>
+  <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click to view">Score …</span></span></div>
 <div class="tabs">
   <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
 </div>
@@ -392,7 +392,7 @@ window.addEventListener('message',(e)=>{
     else inR.textContent='🐮 could not resolve — try the Terminal tab';
     return;}
   if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
-  const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
+  const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,done:0,total:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
   const cl=s.claude||{state:'none'};
   const PAIR={ext:{t:'Claude Code ✓',c:'var(--g)',d:'paired via extension '+esc(cl.version||'')},cli:{t:'Claude Code ✓ (CLI)',c:'var(--g)',d:'Claude Code CLI detected'},none:{t:'Claude Code —',c:'var(--bmuted)',d:'install Claude Code to pair'}}[cl.state];
