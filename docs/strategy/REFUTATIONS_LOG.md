@@ -1,4 +1,35 @@
-# Wave 53 — Refutations Log
+# Refutations Log
+
+## 2026-06-14 — Wave 60.5 (Reasoning-Effort Axis) · R1 derivation source
+
+**Assumption (Master Prompt §4 Wave 60.5):** `reasoningEffort(decision)` derives from `task_category`, implying the 24-category taxonomy in `packages/router/src/task-categories.ts` (`coding.frontend`, `reasoning.math`, …).
+**Reality (CC Day-0 recon):** That 24-cat taxonomy is the Wave 58 **matrix engine** and never reaches the host-side `decision`. `classify.js` emits a different, smaller vocabulary via its `category` variable (`classify.js:666-729`) + early fast-paths: `cross_file_change`/`architecture_or_critical` (T3), `reasoning_intermediate` (T2), `simple_transform_or_explain`/`cheap_task`/`ambiguous_medium`/`ambiguous_long` (T1), `trivial_local`/`mechanical_trivial`/`ambiguous_short`/`bash_command_paste`/`file_read_intent` (T0).
+**Action:** Block A keys off these real `decision` values, not the 24-cat names.
+**Doctrine line:** "Refuta as minhas premissas se o repo discordar" · "Zero LLM na decisão — deriva de sinais já calculados".
+
+## 2026-06-14 — Wave 60.5 · R2 git base
+
+**Assumption (§3):** `git worktree add -b wave60_5-reasoning-axis` off current HEAD.
+**Reality:** repo was on `wave60_design_redesign`, 20 landing-design commits ahead of `main`, dirty tree; those commits touch **zero** router/packages-router files.
+**Action:** branch off `main` (v1.39.0 = the brief's stated world-state). Stashed the design-session `SYNC.md` WIP (restore on `wave60_design_redesign` via `git stash pop`).
+**Doctrine line:** "Honest > brief".
+
+## 2026-06-14 — Wave 60.5 · R3 execution shape
+
+**Assumption (§3):** dedicated worktree + `mooter conductor lock`.
+**Reality:** Paulo chose in-place branch off `main` (no worktree — the Windows spawn-sandbox caveat only bites *parallel* worktrees). `mooter` not on PATH (bin = `./src/index.ts`), so `conductor lock` is **skipped**; an isolated fresh branch with no sibling worktree on `main`/`wave60_5` has negligible race surface.
+**Doctrine line:** "Bazuca só quando a parede é de betão".
+
+## 2026-06-14 — Wave 60.5 · R4 T5/Fable effort
+
+**Assumption (implicit tier→effort):** top tier → `high`, so T5 (Fable) → `high`.
+**Reality:** T3 is *complexity-driven* (classify.js only assigns T3 on high signals), but T5 is *pin-driven* (`@fable`, decoupled from complexity). Mapping T5→high forces max thinking on a trivial pinned task.
+**Action:** T5 is **not** special-cased; it falls through to risk/category derivation so effort tracks the *task*, not the pinned model.
+**Doctrine line:** "Não desperdices tokens" · "Doctrine > optimizador (only for HIGH_RISK)".
+
+---
+
+## Wave 53 — Refutations Log (earlier)
 
 > Metacognition: o sistema reconhece e corrige os seus próprios pressupostos. Cada entrada = assunção do brief → realidade verificada → acção → linha da Doutrina V4.
 > Companhia: [[WAVE53_DAY0_RECON.md]] · [[WAVE53_BRIEF_V3.md]].
