@@ -78,7 +78,7 @@ export default function CommunityPulse() {
       >
         <Stat value={live ? fmt(data!.prompts_routed) : '—'} label="Prompts routed" />
         {live && data!.saved_last_7d > 0 ? (
-          <Stat value={`$${data!.saved_last_7d.toFixed(2)}`} label="Saved (all-time)" />
+          <Stat value={`$${data!.saved_last_7d.toFixed(2)}`} label="Saved (7d)" />
         ) : (
           <div>
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-accent-2)' }}>growing</div>
