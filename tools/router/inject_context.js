@@ -1401,6 +1401,17 @@ try {
   if (eff) {
     lines.push('');
     lines.push(`<reasoning-effort>${eff}</reasoning-effort>`);
+    // Persist the level for the opt-in 🧠 eff statusline chip (Block C). The
+    // statusline runs as a separate process and cannot see this decision object,
+    // so we record exactly what the hint emitted. Best-effort, mirrors effort.json.
+    try {
+      const mooterDir = process.env.MOOTER_HOME || path.join(require('os').homedir(), '.mooter');
+      fs.mkdirSync(mooterDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(mooterDir, 'reasoning-effort.json'),
+        JSON.stringify({ effort: eff, tier: decision.tier, ts: Date.now() }),
+      );
+    } catch { /* persistence is best-effort — the hint already carries the tag */ }
   }
 } catch { /* reasoning-effort is best-effort, never blocks the hint */ }
 
