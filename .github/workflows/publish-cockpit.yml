@@ -1,0 +1,33 @@
+name: Publish cockpit extension
+# Publishes packages/vscode-extension to the VS Code Marketplace (and Open VSX)
+# when a tag like `cockpit-v0.8.0` is pushed, or via manual dispatch.
+# Requires repo secrets: VSCE_PAT (required), OVSX_PAT (optional, for Open VSX).
+on:
+  push:
+    tags: ['cockpit-v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test
+        run: node --test src/*.test.js
+      - name: Publish to VS Code Marketplace
+        run: npx --yes @vscode/vsce@latest publish -p "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish to Open VSX (optional)
+        if: ${{ secrets.OVSX_PAT != '' }}
+        continue-on-error: true
+        run: npx --yes ovsx publish -p "$OVSX_PAT"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
