@@ -2,10 +2,37 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
-## [0.11.0] — 2026-06-14
+## [0.12.0] — 2026-06-14
+
+Design-system redesign from the Claude Design handoff (Wave 60), shipped together
+with the **Token Ledger** — same tokens and voice as mooter.ai, honest numbers, and
+a calmer brand balance. (Consolidates the redesign and the Token Ledger, which had
+collided on 0.11.0, into a single release.)
 
 ### Added
 - **Token Ledger** in the Cockpit — per-model token counter with **estimated cost by model** (Opus 4.8, Sonnet 4.6, Haiku 4.5, Fable 5 …), toggle **This session ⇄ All time**. Real usage read from Claude Code's own session logs (`~/.claude/projects/*.jsonl`, `message.usage`), cache tokens shown separately, prices Jun 2026 (advisory). Local (Ollama) models shown as **FREE** — the savings proof, transparent and honest.
+- First-run reads as a to-do, not an error — unset Setup fields show a neutral
+  "— not set" instead of red-italic "missing"; the Decisions empty state has a CTA.
+- The "ask mooter anything" bar is sticky at the top with an example affordance.
+- A rose `:focus-visible` ring on every interactive element; `prefers-reduced-motion`
+  is honoured; the statusline has a readable fallback + retry (no stuck "warming up").
+
+### Changed
+- **Honest hero numbers** — the Cockpit "Saved vs all-Opus" and the Insights
+  "Routing intelligence" numbers are neutral by default; green is now reserved for
+  genuine positive signal (real savings, cache-hit > 0). No more green `$0.00`.
+  With no routed prompts yet, the Cockpit shows "no routing data yet" + a CTA.
+- **One coherent Claude Code state** — header and Setup no longer contradict each
+  other ("paired" vs "missing"); a single ext · cli · none model drives both.
+- **Mooter Score is labelled** — the header shows "Score N/8" (green only at a full
+  8/8), never a bare unlabelled percentage.
+- **Cockpit ↔ Doctor de-duplicated** — the Cockpit shows the score + the single
+  next action; the full 8-check list lives in Doctor.
+- **Brand balance** — rose is the accent for action/navigation/selection (primary
+  button, active tab, mode badge & segment, active effort), ending the "green on
+  everything" look. Green stays semantic (tier T0, savings, done, detected).
+- **Canonical cow** — the Activity Bar uses the new `currentColor` mono cow; the
+  Marketplace icon is the 512×512 cow on a lifted background.
 
 ## [0.10.0] — 2026-06-14
 
