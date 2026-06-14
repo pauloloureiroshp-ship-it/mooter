@@ -508,6 +508,31 @@ function sessionNames(maxBytes = 1024 * 1024) {
   return out;
 }
 
+// Read the first N bytes of a file (head) — used to find a session's first prompt
+// (the transcript's first user message), which is the most reliable session name.
+function _readHead(file, maxBytes) {
+  try { const fd = fs.openSync(file, 'r'); const st = fs.fstatSync(fd); const len = Math.min(st.size, maxBytes); const buf = Buffer.alloc(len); fs.readSync(fd, buf, 0, len, 0); fs.closeSync(fd); return buf.toString('utf8'); } catch { return ''; }
+}
+// The session's first real user prompt = Claude Code's own session title. Reliable for
+// every session (history.jsonl can miss sessions whose first prompt was a paste). Strips
+// the leading markdown heading and collapses whitespace; skips tool/synthetic lines.
+function _firstPrompt(file) {
+  const head = _readHead(file, 96 * 1024);
+  for (const line of head.split('\n')) {
+    if (line.indexOf('"user"') < 0) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    const msg = o && o.message; if (!msg || (o.type && o.type !== 'user')) continue;
+    const c = msg.content; let t = '';
+    if (Array.isArray(c)) { for (const b of c) if (b && b.type === 'text') t += b.text; }
+    else if (typeof c === 'string') t = c;
+    t = String(t).trim();
+    if (!t || t.charAt(0) === '<') continue; // skip tool_result / synthetic blocks
+    const firstLine = (t.split('\n').find((x) => x.trim()) || t).replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim();
+    if (firstLine) return firstLine.slice(0, 52);
+  }
+  return null;
+}
+
 function recentSessions(maxN = 8) {
   const out = []; const now = Date.now(); const names = sessionNames();
   for (const f of listSessionFiles().slice(0, maxN)) {
@@ -525,7 +550,7 @@ function recentSessions(maxN = 8) {
     } catch { /* skip unreadable */ }
     const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
     const sid = path.basename(f.file).replace(/\.jsonl$/, '');
-    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
+    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
   }
   return out;
 }
