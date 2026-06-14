@@ -1,4 +1,5 @@
 import Card from '@/components/Card';
+import versionInfo from '../../version.json';
 
 // MultiSessionTable — the "multi-session field" comparison (Wave 33.9, carried
 // from landing-v12-deploy/mooter-v1-iter1.jsx CompareArtboard). 11 capabilities
@@ -9,7 +10,7 @@ import Card from '@/components/Card';
 type Kind = 'y' | 'n' | 'p' | 'cve';
 
 const TOOLS: { name: string; sub: string; highlight?: boolean }[] = [
-  { name: 'mooter', sub: 'v1.21.5', highlight: true },
+  { name: 'mooter', sub: `v${versionInfo.version}`, highlight: true },
   { name: 'Composio AO', sub: 'agent os' },
   { name: 'Conductor', sub: 'orchestr.' },
   { name: 'Cursor Bg', sub: 'bg agents' },
