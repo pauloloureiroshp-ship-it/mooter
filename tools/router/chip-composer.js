@@ -73,6 +73,10 @@ const DEFAULT_ELIGIBLE = [
 const CHIP_MODULES = [
   './compression-status.js', './setup-status.js', './ecosystem-status.js',
   './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
+  // Wave 58.4 Block D — 🎓 Pastor v2 honest TF-IDF chip (self-gates: '' until
+  // decisions.log ≥ 50). CHIP_MODULES only (line-3), NOT DEFAULT_ELIGIBLE, so it
+  // never breaks the A.5 "matrix is the only new default-visible chip" contract.
+  './pastor-lora-status.js',
   './effort-status.js', './quant-status.js', './vector-status.js',
   // Wave 58.2 — 🎮 GPU/VRAM chip (reads gpu-probe's hw-capability.json cache;
   // self-gates to '' on CPU-only / no cache). The one Wave-Mega dense-line
