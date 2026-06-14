@@ -897,6 +897,20 @@ async function executePinned(input = {}) {
     return { ok: false, error: { code: 'wrapper_missing', message: `no wrapper available for ${providerKey}`, provider: providerKey } };
   }
 
+  // Wave 65 Context Bridge (P1): for local (ollama) dispatches, inject a budgeted
+  // slice of the conversation so the stateless model answers in-context. Opt-in; the
+  // host (Claude) is never touched. Best-effort — never blocks the dispatch.
+  let effectivePrompt = prompt;
+  let _ctx = null;
+  let _sc = null;
+  try { _sc = require('./session-context.js'); } catch { /* optional */ }
+  if (_sc && providerKey === 'ollama' && _sc.isEnabled()) {
+    try {
+      _ctx = _sc.buildContextBlock(_sc.currentSession(), { excludeText: prompt });
+      if (_ctx) effectivePrompt = _ctx.text + '\n\n---\nCurrent request:\n' + prompt;
+    } catch { /* best-effort */ }
+  }
+
   const wrapperOpts = {};
   const perAttempt = Number(options.timeoutMs) || 0;
   wrapperOpts.timeoutMs = perAttempt > 0 ? perAttempt : 30_000;
@@ -905,7 +919,7 @@ async function executePinned(input = {}) {
   let response = null;
   let threw = null;
   try {
-    response = await wrapper(prompt, wrapperOpts);
+    response = await wrapper(effectivePrompt, wrapperOpts);
   } catch (e) {
     threw = e;
   }
@@ -915,12 +929,16 @@ async function executePinned(input = {}) {
   if (!response || !response.ok || !response.text) {
     return { ok: false, error: { code: 'no_output', message: 'provider returned no usable text', provider: providerKey } };
   }
-  return buildOk({
+  // Wave 65: record the local assistant turn + surface the context tax (honest).
+  try { if (_sc && providerKey === 'ollama' && _sc.isEnabled()) _sc.appendTurn(_sc.currentSession(), { role: 'assistant', model, text: response.text, tokens: response.tokensOut }); } catch { /* best-effort */ }
+  const result = buildOk({
     provider: providerKey,
     response,
     classification: { tier: 'pinned', task_category: 'user_pin', recommended_model: model || null },
     fallbackChain: [providerKey],
   });
+  if (_ctx) result.context = { turns: _ctx.turns, approx_tokens: _ctx.approxTokens };
+  return result;
 }
 
 module.exports = {

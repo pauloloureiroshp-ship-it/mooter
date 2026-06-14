@@ -921,6 +921,9 @@ try {
 // v0.7.2: include ts_ms and session_id so the Stop hook can pair start→end
 // events and the savings-tracker can compute turn-level latency.
 const sessionId = payload.session_id || (payload.session && payload.session.id) || 'unknown';
+// Wave 65 Context Bridge (P0): record the user turn + point at the current session
+// so router-execute can find this transcript. Opt-in; best-effort, never throws.
+try { const _sc = require('./session-context.js'); _sc.setCurrentSession(sessionId); _sc.appendTurn(sessionId, { role: 'user', text: prompt }); } catch { /* best-effort */ }
 logDecision({
   ts: new Date().toISOString(),
   ts_ms: Date.now(),
