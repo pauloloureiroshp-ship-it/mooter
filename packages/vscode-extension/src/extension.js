@@ -46,7 +46,7 @@ function detectClaude() {
 }
 
 class DataService {
-  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; }
+  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; this.selectedSession = 'auto'; }
   onUpdate(fn) { this.listeners.add(fn); return { dispose: () => this.listeners.delete(fn) }; }
   async refresh(deep) {
     // Overlap guard: deep refreshes fan out up to 8 CLI execs (≤9s each). Without
@@ -56,11 +56,20 @@ class DataService {
     try {
     this.tick++;
     const p = trackerPort();
+    // Resolve which session the cockpit reflects: 'all' → global; 'auto' → follow the
+    // session of the most-recent prompt (.last-classified.json); else a pinned id.
+    const activeSid = extra.activeSession();
+    const sel = this.selectedSession;
+    const effSid = sel === 'all' ? null : (sel === 'auto' ? (activeSid && activeSid.id) : sel);
     const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me'), data_.httpJson(p, '/last-execution')];
     // Deep (CLI-spawning) work only when the panel is visible — never churn processes for a hidden view.
     const doDeep = (deep || this.tick % 3 === 1) && this.visible;
     if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
-    const [metrics, last, health, me, lastExec, ollama, sline, slash, effort, whynot, trail, security, spans] = await Promise.all(jobs);
+    // Per-session savings come from the SAME tracker pipeline (/metrics?session_id) so
+    // they can never drift from the global figure — one source of truth (honesty).
+    const sessMetricsP = effSid ? data_.httpJson(p, '/metrics?session_id=' + encodeURIComponent(effSid)) : Promise.resolve(null);
+    const [results, sessionMetrics] = await Promise.all([Promise.all(jobs), sessMetricsP]);
+    const [metrics, last, health, me, lastExec, ollama, sline, slash, effort, whynot, trail, security, spans] = results;
     const prev = this.snapshot;
     this.snapshot = {
       at: Date.now(),
@@ -88,6 +97,11 @@ class DataService {
       ledger: doDeep ? extra.tokenLedger() : prev.ledger,
       recent: doDeep ? extra.recentSessions() : prev.recent,
       localTok: doDeep ? extra.localTokens() : prev.localTok,
+      // session scope (cheap single-file aggregate → computed every refresh so
+      // auto-follow is snappy when you send a prompt in another tab).
+      activeSession: activeSid, selectedSession: this.selectedSession, effectiveSession: effSid,
+      sessionMetrics,
+      sessionLedger: effSid ? extra.tokenLedger(effSid, { sessionOnly: true }) : null,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
     };
@@ -176,6 +190,7 @@ class CockpitProvider {
         else vscode.window.setStatusBarMessage('🐮 could not set next-prompt model', 3500);
         this.data.refresh(true);
       }
+      if (m.cmd === 'selectSession') { const a = String(m.arg || 'auto'); this.data.selectedSession = (a === 'all' || a === 'auto') ? a : a.replace(/[^a-zA-Z0-9._-]/g, ''); this.data.refresh(true); }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -203,6 +218,18 @@ function project(s) {
   const base = data_.publicSnapshot(s);
   const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown', raw: s.sub } : null;
   const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
+  // Session scope: when a session is in effect, the Live cow reads THAT session's
+  // host model (its ledger) and THAT session's most-recent decision (not the global
+  // /last, which could belong to another terminal) — so the cow is coherent with the
+  // numbers below it.
+  const effSid = s.effectiveSession || null;
+  const sLedger = (effSid && s.sessionLedger) ? s.sessionLedger : s.ledger;
+  const hostModel = (sLedger && sLedger.session && sLedger.session.lastModel) || null;
+  let lastForCow = s.last;
+  if (effSid) {
+    const dd = (base.decisions || []).find((d) => d.sid === effSid);
+    lastForCow = dd ? { model_full: dd.model, tier: dd.tier, confidence: dd.conf, ts: dd.ts, cascade_path: '', user_override: dd.rule === 'user_override' } : null;
+  }
   return Object.assign(base, {
     mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash, pinNext: s.pinNext,
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
@@ -211,8 +238,9 @@ function project(s) {
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
     herd: s.herd, recent: s.recent || [], localTok: s.localTok || null,
-    ledger: s.ledger,
-    live: extra.liveRouting(s.last, { hostModel: (s.ledger && s.ledger.session && s.ledger.session.lastModel) || null, lastExecution: s.lastExec }),
+    ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
+    activeSession: s.activeSession || null, selectedSession: s.selectedSession || 'auto', effectiveSession: effSid,
+    live: extra.liveRouting(lastForCow, { hostModel, lastExecution: s.lastExec }),
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -380,12 +408,17 @@ const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
 function ledgerHtml(s){
-  const L=(s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0};const decs=s.decisions||[];
+  // Scoped to one session when a session is in effect (sessionLedger), else the global
+  // ledger with its This-session/All-time toggle.
+  const scoped=!!(s.effectiveSession&&s.sessionLedger);
+  const L=scoped?(s.sessionLedger.session||{rows:[],turns:0}):((s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0});
+  const scopeLbl=scoped?'this session':(ledgerScope==='session'?'this session':'all time');
+  const decsAll=s.decisions||[];const decs=scoped?decsAll.filter(d=>d.sid===s.effectiveSession):decsAll;
   const loc={};for(const d of decs){if(d.tier==='T0'&&d.model)loc[d.model]=(loc[d.model]||0)+1;}
   const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
-  const tog=['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('');
-  const head='<div class="lbl">🧾 Tokens by model <span style="float:right">'+tog+'</span></div>';
-  const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+(ledgerScope==='session'?'this session':'yet')+'</div>';
+  const tog=scoped?('<span style="float:right;opacity:.6;font-size:9px">'+esc((s.effectiveSession||'').slice(0,8))+'</span>'):('<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>');
+  const head='<div class="lbl">🧾 Tokens by model '+tog+'</div>';
+  const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+scopeLbl+'</div>';
   // Local (Ollama) — honest: a real measured T0 aggregate (token_tracker: tokens in/out,
   // cost $0, saved vs Opus), plus the per-model breakdown by CALL COUNT (local per-model
   // token metering isn't available, so we never fabricate per-model token numbers).
@@ -398,7 +431,7 @@ function ledgerHtml(s){
     const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+' calls</span></div>').join('');
     if(locRows)localBlock+='<div class="sub" style="font-size:9px;margin:5px 0 2px">routed to (per-model token metering n/a locally — call counts):</div>'+locRows;
   }
-  return '<div class="card">'+head+rows+localBlock+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+(ledgerScope==='session'?'this session':'all time')+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local tokens from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
+  return '<div class="card">'+head+rows+localBlock+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+scopeLbl+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local tokens from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
@@ -437,7 +470,16 @@ window.addEventListener('message',(e)=>{
 
   // ── COCKPIT: hero + score + next actions (req 7,12)
   const pend=(score.checks||[]).filter(c=>!c.ok);
-  const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
+  // ── Session scope: the cockpit numbers reflect ONE session (auto-follow the active
+  // one, or a pinned pick from the selector), or all sessions when 'all'.
+  const selSess=s.selectedSession||'auto';const effSess=s.effectiveSession||null;
+  const M=(effSess&&s.sessionMetrics)?s.sessionMetrics:m; // scoped metrics (savings/prompts)
+  const decScoped=effSess?decs.filter(d=>d.sid===effSess):decs; // scoped tier-mix
+  const rsess=s.recent||[];
+  const sessOpts='<option value="auto"'+(selSess==='auto'?' selected':'')+'>🟢 Active session (auto-follow)</option>'+rsess.map(r=>'<option value="'+esc(r.fullId)+'"'+(selSess===r.fullId?' selected':'')+'>'+(r.working?'● ':'')+esc(r.id)+' · '+esc(r.project)+(r.model?' · '+esc(modelLabel(r.model)):'')+'</option>').join('')+'<option value="all"'+(selSess==='all'?' selected':'')+'>🌐 All sessions (global)</option>';
+  const sessNote=effSess?('following '+esc((effSess||'').slice(0,8))+(selSess==='auto'?' · auto':' · pinned')):'all sessions (global)';
+  const sessPicker='<div class="card" style="padding:8px 11px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">🧵 Session</span><select id="sessSel" title="which Claude Code session these numbers reflect" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+sessOpts+'</select></div><div class="sub" style="font-size:9px;margin-top:4px">'+esc(sessNote)+' — auto-follows the tab you send a prompt in. A pure tab-click with no activity is not detectable, so pick it here.</div></div>';
+  const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
   const curPin=(s.pinNext&&s.pinNext.model)||'';
@@ -456,6 +498,7 @@ window.addEventListener('message',(e)=>{
     ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ host')+'</span><span class="livemodel">'+esc(modelLabel(lv.model))+'</span>'+execTag+' <span class="livestat" id="liveStat">🛠 working</span></div><div class="livesub">'+recRow+(lv.dispatch?'<br><span style="opacity:.8">last local run: '+esc(lv.dispatch.emoji)+' '+esc(modelLabel(lv.dispatch.model))+' ✓</span>':'')+'</div></div><span class="livedot" title="last routed prompt"></span></div>'
     : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
   $('#v-cockpit').innerHTML=
+    sessPicker+
     liveCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
@@ -464,19 +507,26 @@ window.addEventListener('message',(e)=>{
       // recommended tier". The host model actually answers in a CC session, so the only
       // GUARANTEED savings are real local dispatches (guaranteed_saved/executions). We
       // keep the $ (per your choice) but label it advisory and show the real number too.
-      const execN=(m.executions&&m.executions.total!=null?m.executions.total:(m.option_a_hits||0))||0;
-      const realSaved=(typeof m.guaranteed_saved==='number')?m.guaranteed_saved:((m.executions&&m.executions.guaranteed_saved_usd)||0);
-      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
+      // Coherence: pair the $ with the count from the SAME source. Both guaranteed_saved
+      // and option_a_hits come out of computeMetrics(ForSession), so they scope together —
+      // under a session they're THAT session's, globally they're all-time. (M.executions is
+      // a process-global aggregate that never scopes by session — using it under a
+      // "this session" label would mix scopes, which is exactly what we must not do.)
+      const execN=M.option_a_hits||0;
+      const realSaved=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0;
+      const scopeChip=effSess?'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · this session</span>':'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span>';
+      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
     })()+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
-    '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
-    '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
+    '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
+    '<div class="card"><div class="lbl">Tier mix · last '+decScoped.length+'</div>'+bars+'</div>'+
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
+  (function(){const ss=$('#sessSel');if(ss)ss.onchange=()=>send('selectSession',ss.value);})();
   (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');workingUntil=Date.now()+12000;}const run=s.herd&&s.herd.run;if(run&&/run|active|progress/i.test(String(run.status||'')))workingUntil=Math.max(workingUntil,Date.now()+12000);})();
   wireLedgerToggle();
 
