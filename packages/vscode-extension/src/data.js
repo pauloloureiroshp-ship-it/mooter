@@ -80,4 +80,8 @@ function tierCounts(decisions) {
 
 function runtimeInstalled() { try { return fs.existsSync(RUNTIME_HOOK); } catch { return false; } }
 
-module.exports = { DECISIONS_LOG, RUNTIME_HOOK, httpJson, parseDecisions, readDecisions, publicSnapshot, statusBarText, tierCounts, runtimeInstalled };
+// Poll cadence (ms): brisk while the cockpit is visible, lazy when it's hidden so a
+// closed panel doesn't keep the status bar perfectly live at the cost of CPU/processes.
+function pollIntervalMs(visible) { return visible ? 7000 : 60000; }
+
+module.exports = { DECISIONS_LOG, RUNTIME_HOOK, httpJson, parseDecisions, readDecisions, publicSnapshot, statusBarText, tierCounts, runtimeInstalled, pollIntervalMs };

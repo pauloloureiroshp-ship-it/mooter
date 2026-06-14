@@ -64,6 +64,12 @@ test('tierCounts: counts only known tiers', () => {
   assert.deepEqual(c, { T0: 2, T1: 0, T2: 0, T3: 1 });
 });
 
+test('pollIntervalMs: brisk when visible, lazy when hidden', () => {
+  assert.equal(d.pollIntervalMs(true), 7000);
+  assert.equal(d.pollIntervalMs(false), 60000);
+  assert.ok(d.pollIntervalMs(false) > d.pollIntervalMs(true)); // hidden never polls faster than visible
+});
+
 test('httpJson: tracker down → null (never throws/hangs)', async () => {
   const r = await d.httpJson(59999, '/metrics', 300);
   assert.equal(r, null);

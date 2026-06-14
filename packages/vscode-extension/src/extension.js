@@ -1,6 +1,11 @@
-// mooter-cockpit v0.2.0 — extension host
+// mooter-cockpit v0.7.0 — extension host
 // 7 requisitos (2026-06-12): brand colors · terminal parity · setup wizard ·
 // slash commands mgmt · model/subscription picker · rich metrics · marketplace-ready.
+// v0.7.0 (2026-06-14): resource hygiene + honesty —
+//   · visibility-aware polling (fast when panel visible, slow shallow when hidden)
+//   · overlap guard (no piled-up CLI process batches)
+//   · expanded Decisions survive the periodic re-render
+//   · explicit "tracker offline · last known" so stale numbers never read as live.
 // Doctrine: read-only over the runtime; zero routing logic here.
 'use strict';
 
@@ -13,13 +18,19 @@ const extra = require('./host-extra.js');
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
 class DataService {
-  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; }
+  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; }
   onUpdate(fn) { this.listeners.add(fn); return { dispose: () => this.listeners.delete(fn) }; }
   async refresh(deep) {
+    // Overlap guard: deep refreshes fan out up to 8 CLI execs (≤9s each). Without
+    // this, a slow batch + the interval would stack process batches. Drop, don't queue.
+    if (this.busy) return;
+    this.busy = true;
+    try {
     this.tick++;
     const p = trackerPort();
     const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me')];
-    const doDeep = deep || this.tick % 3 === 1;
+    // Deep (CLI-spawning) work only when the panel is visible — never churn processes for a hidden view.
+    const doDeep = (deep || this.tick % 3 === 1) && this.visible;
     if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
     const [metrics, last, health, me, ollama, sline, slash, effort, whynot, trail, security, spans] = await Promise.all(jobs);
     const prev = this.snapshot;
@@ -49,10 +60,24 @@ class DataService {
       decisions: data_.readDecisions(),
     };
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
+    } finally { this.busy = false; }
+  }
+  schedule() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = setInterval(() => this.refresh(false), data_.pollIntervalMs(this.visible));
+  }
+  // Called by the webview provider on visibility change. Visible → fast cadence + an
+  // immediate refresh; hidden → slow shallow polling (keeps the status bar warm cheaply).
+  setVisible(v) {
+    v = !!v;
+    if (v === this.visible && this.timer) return;
+    this.visible = v;
+    this.schedule();
+    if (v) this.refresh(true);
   }
   start() {
     this.refresh(true);
-    this.timer = setInterval(() => this.refresh(false), 7000);
+    this.schedule();
     try {
       this.watcher = fs.watch(path.dirname(data_.DECISIONS_LOG), { persistent: false }, (_e, f) => {
         if (f === 'decisions.log') this.refresh(false);
@@ -73,6 +98,7 @@ function makeStatusBar(ctx, data) {
     item.tooltip = new vscode.MarkdownString(
       `**mooter** · mode **${s.mode}**\n\nlast: ${lastModel}` +
       (s.metrics ? `\n\nsaved **$${(s.metrics.saved || 0).toFixed(2)}** · ${s.metrics.saved_pct || 0}% vs all-Opus` : '') +
+      (s.runtimeInstalled && !s.trackerUp ? `\n\n⚠️ tracker offline — last known values` : '') +
       `\n\n_Click → Mooter Cockpit_`);
     item.show();
   }));
@@ -89,7 +115,10 @@ class CockpitProvider {
     view.webview.options = { enableScripts: true };
     view.webview.html = getHtml();
     const sub = this.data.onUpdate((s) => { try { view.webview.postMessage({ type: 'snapshot', s: project(s) }); } catch {} });
-    view.onDidDispose(() => sub.dispose());
+    // Throttle polling to the panel's visibility (fewer background CLI spawns when hidden).
+    this.data.setVisible(view.visible);
+    const vis = view.onDidChangeVisibility(() => this.data.setVisible(view.visible));
+    view.onDidDispose(() => { sub.dispose(); vis.dispose(); });
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
@@ -261,6 +290,7 @@ function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','
 function tc(d){const c={T0:0,T1:0,T2:0,T3:0};for(const x of d)if(c[x.tier]!=null)c[x.tier]++;return c;}
 const TCOL={T0:'var(--t0)',T1:'var(--t1)',T2:'var(--t2)',T3:'var(--t3)'};
 const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
+const openDecs=new Set();// decision keys (ts) the user expanded — must survive the periodic re-render
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
@@ -299,7 +329,7 @@ window.addEventListener('message',(e)=>{
   const pend=(score.checks||[]).filter(c=>!c.ok);
   const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
-  $('#v-cockpit').innerHTML='<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+'</div></div>'+
+  $('#v-cockpit').innerHTML='<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
@@ -392,11 +422,11 @@ window.addEventListener('message',(e)=>{
   // ── DECISIONS
   const spans=s.spans||[];
   function spanFor(d){const p=(d.preview||'').slice(0,28);if(!p)return null;const hit=spans.find(x=>x.line.includes(p.slice(0,20)));return hit?hit.id:null;}
-  if(decs.length){$('#v-decisions').innerHTML=decs.map((d,i)=>{const sid=spanFor(d);
-    return '<div class="dec"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div>'+
+  if(decs.length){$('#v-decisions').innerHTML=decs.map((d,i)=>{const sid=spanFor(d);const key=d.ts||('i'+i);
+    return '<div class="dec'+(openDecs.has(key)?' open':'')+'" data-key="'+esc(key)+'"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div>'+
     '<div class="ddet">model <b>'+esc(d.model)+'</b> · '+esc(d.cat)+' · conf <b>'+esc(d.conf)+'</b>'+(d.rule&&d.rule!=='none'?' · rule <b>'+esc(d.rule)+'</b>':'')+
     (sid?'<span class="stars" data-sid="'+esc(sid)+'">'+[1,2,3,4,5].map(n=>'<span data-n="'+n+'">★</span>').join('')+'</span>':'')+'</div></div>';}).join('');
-    document.querySelectorAll('.dec').forEach(el=>el.onclick=(ev)=>{if(ev.target.closest('.stars'))return;el.classList.toggle('open');});
+    document.querySelectorAll('.dec').forEach(el=>el.onclick=(ev)=>{if(ev.target.closest('.stars'))return;const open=el.classList.toggle('open');const k=el.dataset.key;if(open)openDecs.add(k);else openDecs.delete(k);});
     document.querySelectorAll('.stars span').forEach(st=>st.onclick=()=>{const w=st.parentElement;const n=+st.dataset.n;
       w.querySelectorAll('span').forEach(x=>x.classList.toggle('on',+x.dataset.n<=n));send('rate',{id:w.dataset.sid,n});});}
 
