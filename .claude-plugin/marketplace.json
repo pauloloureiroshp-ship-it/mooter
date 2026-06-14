@@ -1,0 +1,18 @@
+{
+  "name": "mooter",
+  "description": "Official marketplace for mooter — the router for Claude Code (local-first model routing, measured savings, MIT)",
+  "owner": {
+    "name": "Paulo Loureiro",
+    "email": "paulo@mooter.ai"
+  },
+  "plugins": [
+    {
+      "name": "mooter",
+      "description": "Routes every prompt to the cheapest capable model (local Ollama / Haiku / Sonnet / Opus). Hook, not proxy. 47% measured savings, methodology published. MIT.",
+      "author": { "name": "Paulo Loureiro" },
+      "category": "productivity",
+      "source": "./plugin/mooter",
+      "homepage": "https://mooter.ai"
+    }
+  ]
+}
