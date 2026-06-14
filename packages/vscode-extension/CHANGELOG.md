@@ -2,6 +2,28 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.12.2] — 2026-06-15 — data-coherence, per-session & live herd
+
+> Driven by the rule: **every number must match the reality of the solution — never mislead, always sincere.** A 4-way audit (code + live telemetry) confirmed several surfaces showed routing *intent* as if it were *execution*. Fixes:
+
+### Fixed (coherence — the displayed data was not the truth)
+- **The cockpit showed the wrong model.** It rendered the router's *recommended* model (`/last.model_full`, an advisory tier decision) as if it had answered. In a Claude Code session the **host model answers every turn**; the recommendation only runs for real local dispatches or spawned subagents. The per-session view now derives the **real executor** from the session's transcript (host model) — and an **"Actually ran"** line states that host model + the count of real local dispatches, so an unconfirmed routing recommendation is never shown as execution.
+- **`synthetic` row removed from "Tokens by model."** It was Claude Code's own `<synthetic>` placeholder ("No response requested.", zero usage), not real spend — now skipped from the ledger.
+- **Savings headline labelled honestly.** "Saved vs all-Opus" is **advisory / token-estimated** (what you'd save *if* each prompt ran on its recommended tier — the host actually answers, so it isn't billed). The `$` stays, now clearly tagged advisory, with a **real executed** line ($ guaranteed-saved from actual local dispatches; $0 when there were none).
+- **No fake LoRA/DoRA "evolution."** The Models/Insights tabs claimed a trained adapter and "trained on N decisions." No neural LoRA/DoRA is trained locally (it's a manual GPU job). Re-labelled: adapter "baseline (none installed)", mechanism **TF-IDF + EWMA over real decisions** — honest about what actually learns.
+
+### Added
+- **Click a cow → open that Claude Code session.** Clicking a live-session row now opens/focuses that exact session in the editor (via the extension's own `claude-vscode.primaryEditor.open` command, with the `vscode://anthropic.claude-code/open?session=` URI as fallback) and scopes the cockpit to it — go from "which session?" to interacting in one click.
+- **"Your turn" alert on the herd.** Sessions where Claude finished its turn (or stalled waiting) show a pulsing amber dot + "your turn", and the header counts "N need you". Derived honestly from the `classified`/`turn_end` pair in `decisions.log` (real hook telemetry) gated by transcript freshness — it means "Claude is waiting for your reply", **not** specifically "permission required" (that would need a Notification hook; offered separately).
+- **🐄 Live sessions herd.** The top of the Cockpit now shows **every open Claude Code session as its own walking cow** — the session's tab name (its first real prompt, read from that session's transcript, with `~/.claude/history.jsonl` as a fallback), the real host LLM, and a ● "generating now" indicator (its transcript is being written). **Click a cow to focus** all the numbers below (savings, prompts, recommendations, token ledger) on that session, or pick **🌐 All sessions**. Auto-follows the session you send a prompt in (`.last-classified.json`, ~1s). Per-session savings come from the tracker's own `/metrics?session_id` (one source of truth). Honest limit stated in-UI: the cockpit reads `~/.claude` logs and **cannot see which VS Code tab is focused** (no extension API), so it follows activity.
+- **"Router recommendations" is now labelled advisory, with an "Actually ran" line.** The tier-mix bars were read as "usage" (e.g. "100% local") while the host model actually answered everything — incoherent. They're now titled **Router recommendations · advisory** with a line stating what **actually ran** (the host model + count of real local dispatches). No more "100% local" next to an Opus executor.
+- **Local (Ollama) models in the Token Ledger** — real measured T0 tokens (in/out) from `token_tracker`, cost **$0**, and the counterfactual saved-vs-Opus. Per-model rows show **call counts** (local per-model token metering isn't available, so no per-model token figure is invented).
+- **🧵 Sessions tab** (replaces the empty "Herd" facade) — recent Claude Code sessions by file activity, with the real last host model + turn count. Honestly labelled "recent", **never "active"**: the cockpit cannot detect the focused VS Code tab (no extension API), and cross-session messaging isn't tracked, so neither is shown.
+
+### Changed
+- De-clutter: tab labels get per-feature emojis (🐮 Cockpit · ⚙️ Setup · 🧵 Sessions · 🔬 Decisions · 🩺 Doctor); the redundant third mode-selector (Models tab) is now a read-only indicator.
+- Brand accent aligned to the single **rose `#E8888A`** (Wave 60 direction) across mode/tabs/primary actions; tier colours unchanged.
+
 ## [0.12.1] — 2026-06-14
 
 Mascot + accent alignment (Wave 60). Reverts the geometric cream cow introduced

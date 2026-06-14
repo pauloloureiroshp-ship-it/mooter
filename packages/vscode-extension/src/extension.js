@@ -56,17 +56,17 @@ class DataService {
     try {
     this.tick++;
     const p = trackerPort();
-    const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me')];
+    const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me'), data_.httpJson(p, '/last-execution')];
     // Deep (CLI-spawning) work only when the panel is visible — never churn processes for a hidden view.
     const doDeep = (deep || this.tick % 3 === 1) && this.visible;
     if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
-    const [metrics, last, health, me, ollama, sline, slash, effort, whynot, trail, security, spans] = await Promise.all(jobs);
+    const [metrics, last, health, me, lastExec, ollama, sline, slash, effort, whynot, trail, security, spans] = await Promise.all(jobs);
     const prev = this.snapshot;
     this.snapshot = {
       at: Date.now(),
       runtimeInstalled: data_.runtimeInstalled(),
       trackerUp: !!(health && health.ok),
-      metrics, last, me,
+      metrics, last, me, lastExec,
       mode: extra.readMode(),
       sub: extra.readSubProfile(),
       device: extra.deviceProfile(),
@@ -86,6 +86,8 @@ class DataService {
       spans: doDeep ? spans : prev.spans,
       herd: doDeep ? extra.herd() : prev.herd,
       ledger: doDeep ? extra.tokenLedger() : prev.ledger,
+      recent: doDeep ? extra.recentSessions() : prev.recent,
+      localTok: doDeep ? extra.localTokens() : prev.localTok,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
     };
@@ -208,8 +210,9 @@ function project(s) {
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
-    herd: s.herd,
-    ledger: s.ledger, live: extra.liveRouting(s.last),
+    herd: s.herd, recent: s.recent || [], localTok: s.localTok || null,
+    ledger: s.ledger,
+    live: extra.liveRouting(s.last, { hostModel: (s.ledger && s.ledger.session && s.ledger.session.lastModel) || null, lastExecution: s.lastExec }),
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -272,6 +275,8 @@ function getHtml() {
   .liveprov{font-size:10px;color:var(--vscode-descriptionForeground)}
   .livemodel{font-size:10.5px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
   .livesub{font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
+  .liveok{font-size:9.5px;color:var(--g);font-weight:700}
+  .livewarn{font-size:9.5px;color:#e5c07b;font-weight:700}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecard-idle{opacity:.65}
@@ -334,7 +339,7 @@ function getHtml() {
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
@@ -381,8 +386,19 @@ function ledgerHtml(s){
   const tog=['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('');
   const head='<div class="lbl">🧾 Tokens by model <span style="float:right">'+tog+'</span></div>';
   const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+(ledgerScope==='session'?'this session':'yet')+'</div>';
-  const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+'</span></div>').join('');
-  return '<div class="card">'+head+rows+(locRows?'<div class="sub" style="margin:9px 0 2px">Local (Ollama) · $0</div>'+locRows:'')+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+(ledgerScope==='session'?'this session':'all time')+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">real usage from Claude Code logs · prices Jun 2026 · advisory · local = $0</div></div>';
+  // Local (Ollama) — honest: a real measured T0 aggregate (token_tracker: tokens in/out,
+  // cost $0, saved vs Opus), plus the per-model breakdown by CALL COUNT (local per-model
+  // token metering isn't available, so we never fabricate per-model token numbers).
+  const lt=s.localTok;
+  let localBlock='';
+  if(lt||Object.keys(loc).length){
+    const savedLocal=lt?((lt.in*5+lt.out*25)/1e6):0; // vs Opus 4.8 [$5,$25]/1M — counterfactual, honest
+    localBlock='<div class="sub" style="margin:9px 0 2px">🦙 Local (Ollama) · cost <b>$0</b>'+(lt?' · saved ~$'+savedLocal.toFixed(savedLocal<0.01?4:2)+' vs Opus':'')+'</div>';
+    if(lt)localBlock+='<table class="mx"><tr><th>scope</th><th>in</th><th>out</th><th>calls</th><th>est $</th></tr><tr><td title="all local models, T0 — measured by token_tracker">All local · T0</td><td>'+lFmt(lt.in)+'</td><td>'+lFmt(lt.out)+'</td><td>'+lt.calls+'</td><td>$0.00</td></tr></table>';
+    const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+' calls</span></div>').join('');
+    if(locRows)localBlock+='<div class="sub" style="font-size:9px;margin:5px 0 2px">routed to (per-model token metering n/a locally — call counts):</div>'+locRows;
+  }
+  return '<div class="card">'+head+rows+localBlock+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+(ledgerScope==='session'?'this session':'all time')+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local tokens from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
@@ -392,7 +408,6 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else if(a.startsWith('openUrl:'))send('openUrl',a.slice(8));
   else if(a.startsWith('pull:'))send('pull',a.slice(5));
   else if(a.startsWith('tab:'))goTab(a.slice(4));
-  else if(a==='spawnDemo')send('term','mooter spawn "audit this repo" --local');
   else send(a,b.dataset.x);
 });}
 window.addEventListener('message',(e)=>{
@@ -432,14 +447,27 @@ window.addEventListener('message',(e)=>{
   if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   const lv=s.live;
+  // Cow identity = who ACTUALLY answered (executor), not the router's advisory pick.
+  const execTag=lv?(lv.real?(lv.scope==='dispatch'?'<span class="liveok" title="a real local dispatch ran this">✓ ran local</span>':'<span class="liveok" title="the model answering in this Claude Code session (from the session logs)">● host · this session</span>'):'<span class="livewarn" title="router recommendation — no execution confirmed yet">⏳ recommended</span>'):'';
+  const recRow=(lv&&lv.recommended&&lv.recommended.model!==lv.model)
+    ? 'router → '+esc(lv.recommended.emoji)+' '+esc(modelLabel(lv.recommended.model))+' · '+esc(lv.tier)+' · '+(lv.why==='pinned'?'📌 pinned':(lv.why==='cascade'?'⬆ cascade':'🤖 auto'))+' <span style="opacity:.55">(advisory)</span>'
+    : (lv?((lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')):'');
   const liveCard=lv
-    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ cloud')+'</span><span class="livemodel">'+esc(lv.model)+'</span></div><div class="livesub">'+(lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')+' <span class="livestat" id="liveStat">🛠 working</span></div></div><span class="livedot" title="last routed prompt"></span></div>'
+    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ host')+'</span><span class="livemodel">'+esc(modelLabel(lv.model))+'</span>'+execTag+' <span class="livestat" id="liveStat">🛠 working</span></div><div class="livesub">'+recRow+(lv.dispatch?'<br><span style="opacity:.8">last local run: '+esc(lv.dispatch.emoji)+' '+esc(modelLabel(lv.dispatch.model))+' ✓</span>':'')+'</div></div><span class="livedot" title="last routed prompt"></span></div>'
     : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
   $('#v-cockpit').innerHTML=
     liveCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
-    '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
+    (function(){
+      // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
+      // recommended tier". The host model actually answers in a CC session, so the only
+      // GUARANTEED savings are real local dispatches (guaranteed_saved/executions). We
+      // keep the $ (per your choice) but label it advisory and show the real number too.
+      const execN=(m.executions&&m.executions.total!=null?m.executions.total:(m.option_a_hits||0))||0;
+      const realSaved=(typeof m.guaranteed_saved==='number')?m.guaranteed_saved:((m.executions&&m.executions.guaranteed_saved_usd)||0);
+      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
+    })()+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
@@ -479,44 +507,41 @@ window.addEventListener('message',(e)=>{
   // ── MODELS: Moo trio + quant/LoRA (req 5,6)
   const q=(s.quant&&s.quant.models&&s.quant.models[0])||null;
   const adapter=(s.prefs&&s.prefs.adapter)||'baseline';
-  $('#v-models').innerHTML='<div class="card"><div class="lbl">Who routes your prompts</div><div class="seg" style="margin-top:8px">'+
-    '<div class="mo'+(s.mode==='zen'?' on':'')+'" data-m="zen">🐄 LazyMoo<small>local-first · conserve</small></div>'+
-    '<div class="mo'+(s.mode==='auto'?' on':'')+'" data-m="auto">🐮 Moo<small>automatic · balanced</small></div>'+
-    '<div class="mo'+(s.mode==='beast'?' on':'')+'" data-m="beast">🐂 CrazyMoo<small>best model · Fable 5*</small></div></div>'+
-    '<div class="sub" style="margin-top:7px">*CrazyMoo uses the strongest available rung — <b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus.</div></div>'+
+  $('#v-models').innerHTML='<div class="card"><div class="lbl">Who routes your prompts</div>'+
+    '<div class="sub" style="margin-top:7px">Mode: <b>'+esc(MOO[s.mode]||s.mode)+'</b> — switch from the header badge or the 🐮 Cockpit tab.</div>'+
+    '<div class="sub" style="margin-top:5px">🐄 LazyMoo = local-first · 🐮 Moo = balanced · 🐂 CrazyMoo = strongest rung (<b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus).</div></div>'+
     '<div class="card"><div class="lbl">Effort — how hard the Moo tries to save</div><div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">'+
     ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--g);color:var(--g)':'')+'" data-eff="'+l+'">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
     '</div><div class="sub" style="margin-top:6px">ultramoo = max thrift (compression + caveman prose)</div></div>'+
     (s.whynot?'<div class="card"><div class="lbl">Why not Fable 5? — per-decision honesty</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.whynot)+'</div></div>':'')+
     '<div class="card"><div class="lbl">🧬 Engine intelligence</div>'+
     '<div class="kv"><span>Quantization</span><span>'+(q?esc(q.name+' · '+q.quant+(q.sizeGb?' · '+q.sizeGb+'GB':'')):'no snapshot — run mooter quant status')+'</span></div>'+
-    '<div class="kv"><span>LoRA adapter</span><span>'+esc(adapter)+'</span></div>'+
-    '<div class="kv"><span>Evolution</span><span>trained on '+esc((m.prompts||0))+' routed decisions</span></div>'+
+    '<div class="kv"><span>Adapter</span><span>'+esc(adapter==='baseline'?'baseline (none installed)':adapter)+'</span></div>'+
+    '<div class="kv"><span>Routing learned</span><span>'+esc((m.prompts||0))+' decisions · TF-IDF</span></div>'+
+    '<div class="sub" style="font-size:9px;margin-top:4px">No neural LoRA/DoRA is trained here — adapter training is a manual GPU job. The router learns by TF-IDF + EWMA over real decisions, not by updating model weights.</div>'+
     '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px">Refresh quant</button> <button class="sm" data-a="term:mooter forge install">Forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
-  document.querySelectorAll('#v-models .mo').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
   document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
   wireButtons($('#v-models'));
 
-  // ── 🐄 HERD: dynamic workflow live (run · swimlanes · tokens via×llm · sessions)
-  const h=s.herd||{};const run=h.run||null;const mx=h.matrix||{llms:[],rows:[]};
+  // ── 🧵 SESSIONS: recent Claude Code sessions by activity (honest replacement for the
+  // old Herd facade — spawns/heartbeats/worktrees don't exist on disk, so we don't
+  // pretend they do). We CANNOT detect the focused VS Code tab (no extension API), so
+  // this is "recent by activity", never "active". Token matrix shows only when real.
+  const h=s.herd||{};const mx=h.matrix||{llms:[],rows:[]};
   const fmtk=(n)=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
-  const runHtml=run&&run.status?'<div class="card hero"><div class="lbl">Live run · '+esc(run.status)+'</div><div class="big" style="font-size:20px">🤖 '+esc(run.agents_done!=null?run.agents_done:'?')+'/'+esc(run.agents_total!=null?run.agents_total:'?')+(run.tokens?' · ↓'+fmtk(run.tokens)+' tok':'')+'</div>'+(h.current&&h.current.agent_name?'<div class="sub">current: <b>'+esc(h.current.agent_name)+'</b></div>':'')+'</div>'
-    :'<div class="card"><div class="lbl">Live run</div><div class="sub" style="margin-top:6px">🤖 no run active — spawn one:</div><button class="sm" data-a="spawnDemo" style="margin-top:6px">mooter spawn →</button></div>';
-  const spawnIcon=(st)=>/run|active|progress/i.test(st)?'<span class="pulse"></span>':(/done|ok|success|complete/i.test(st)?'✓ ':(/fail|error/i.test(st)?'<span style="color:var(--t3)">✗ </span>':'⏸ '));
-  const spawnsHtml=(h.spawns&&h.spawns.length)?h.spawns.map(sp=>'<div class="dr"><div class="w">'+spawnIcon(sp.status)+esc(sp.task)+'<small>'+esc(sp.status)+(sp.model?' · '+esc(sp.model):'')+(sp.started?' · '+esc(String(sp.started).slice(11,16)):'')+'</small></div></div>').join('')
-    :'<div class="sub" style="margin-top:5px">'+(h.spawns===null?'no spawns yet — agents appear here when the herd works':'—')+'</div>';
+  const rs=s.recent||[];
+  const fmtAge=(ms)=>{const t=Math.round(ms/1000);if(t<60)return t+'s ago';const mi=Math.round(t/60);if(mi<60)return mi+'m ago';const hr=Math.round(mi/60);if(hr<24)return hr+'h ago';return Math.round(hr/24)+'d ago';};
+  const sessHtml=rs.length?rs.map(x=>'<div class="dr"><div class="w">'+(x.working?'<span class="pulse" title="active in the last 90s"></span>':'⚪ ')+esc(x.project||'?')+' <span class="meta">'+esc(x.id)+'</span><small>'+(x.model?esc(modelLabel(x.model)):'no model yet')+' · '+x.turns+' turns · '+fmtAge(x.ageMs)+'</small></div></div>').join('')
+    :'<div class="sub" style="margin-top:5px">no recent sessions found in ~/.claude/projects</div>';
   let mxHtml='';
   if(mx.rows.length){mxHtml='<table class="mx"><tr><th>agent</th>'+mx.llms.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr>'+
     mx.rows.map(r=>'<tr><td title="'+esc(r.via)+'">'+esc(r.via)+'</td>'+r.cells.map(c=>'<td'+(c?' title="'+c.n+' decisions"':'')+'>'+(c?fmtk(c.tok):'—')+'</td>').join('')+'</tr>').join('')+'</table>';}
-  else mxHtml='<div class="sub" style="margin-top:5px">no v2 decisions yet</div>';
-  const sessHtml=(h.sessions&&h.sessions.length)?h.sessions.map(x=>'<div class="dr"><div class="w">'+(x.live?'<span class="pulse"></span>':'⚪ ')+esc(x.name||'?')+'<small>'+esc(x.branch||'')+(x.intent?' · "'+esc(x.intent)+'"':'')+'</small></div></div>').join('')
-    :'<div class="sub" style="margin-top:5px">no live sessions (heartbeats)</div>';
-  $('#v-herd').innerHTML=runHtml+
-    '<div class="card"><div class="lbl">Moo agents (spawns)</div>'+spawnsHtml+'</div>'+
-    '<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>'+
-    '<div class="card"><div class="lbl">Sessions (live terminals)</div>'+sessHtml+'</div>';
+  $('#v-herd').innerHTML=
+    '<div class="card"><div class="lbl">🧵 Recent sessions <span style="float:right;opacity:.6;font-size:9px">by activity</span></div>'+sessHtml+
+    '<div class="sub" style="font-size:9px;margin-top:7px">● = active in the last 90s · ⚪ = last activity (heuristic from file mtime). The cockpit reads transcripts in ~/.claude/projects — it <b>cannot tell which Claude Code tab is focused</b> (the extension exposes no such API), and cross-session messaging is not tracked, so neither is shown.</div></div>'+
+    (mx.rows.length?'<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>':'');
   wireButtons($('#v-herd'));
 
   // ── INSIGHTS (telemetria total — req: quant, LoRA, per-prompt)
@@ -525,11 +550,13 @@ window.addEventListener('message',(e)=>{
   $('#v-insights').innerHTML=
     '<div class="card hero"><div class="lbl">Routing intelligence</div><div class="big">'+(ins.cacheRate!=null?ins.cacheRate+'%':'—')+'</div><div class="sub">classifier cache-hit rate · confidence <b>'+(ins.confNow!=null?ins.confNow:'—')+'</b>'+(confDelta!=null?' <span style="color:'+(confDelta>=0?'var(--g)':'var(--t3)')+'">'+(confDelta>=0?'▲':'▼')+Math.abs(confDelta).toFixed(2)+'</span> vs previous window':'')+'</div></div>'+
     '<div class="card"><div class="lbl">📦 Quantization (all local models)</div>'+(qa.length?qa.map(q=>'<div class="kv"><span>'+esc(q.name)+'</span><span>'+esc(q.quant||'?')+(q.sizeGb?' · '+q.sizeGb+'GB':'')+'</span></div>').join(''):'<div class="sub" style="margin-top:5px">no snapshot — <button class="sm" data-a="term:mooter quant status">run quant status</button></div>')+'</div>'+
-    '<div class="card"><div class="lbl">🧬 LoRA / Pastor evolution</div>'+
-    '<div class="kv"><span>Adapter</span><span>'+esc((s.prefs&&s.prefs.adapter)||'baseline')+'</span></div>'+
+    '<div class="card"><div class="lbl">🧠 Pastor learning · TF-IDF (not neural LoRA)</div>'+
+    '<div class="kv"><span>Adapter</span><span>'+esc(((s.prefs&&s.prefs.adapter)||'baseline')==='baseline'?'baseline (none installed)':(s.prefs.adapter))+'</span></div>'+
+    '<div class="kv"><span>Mechanism</span><span>TF-IDF + EWMA over real decisions</span></div>'+
     '<div class="kv"><span>Fable observations</span><span>'+(ins.fableObs!=null?ins.fableObs:'off — opt-in')+'</span></div>'+
-    '<div class="kv"><span>Training corpus</span><span>'+(ins.trainingLines!=null?ins.trainingLines+' examples':'—')+'</span></div>'+
+    '<div class="kv"><span>Training corpus</span><span>'+(ins.trainingLines!=null?ins.trainingLines+' examples':'— (none yet)')+'</span></div>'+
     '<div class="kv"><span>Hub sync</span><span>'+(ins.lastHubPush?esc(ins.lastHubPush.slice(0,16).replace('T',' ')):'never')+'</span></div>'+
+    '<div class="sub" style="font-size:9px;margin-top:4px">Neural LoRA/DoRA training is a manual GPU job — not running here. "Learning" = TF-IDF routing + confidence calibration over your real decisions.</div>'+
     '<button class="sm" data-a="term:mooter fable-observe stats" style="margin-top:6px">fable stats</button> <button class="sm" data-a="term:mooter forge install">forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Per-prompt evolution (newest first)</div>'+decs.slice(0,8).map(d=>'<div class="kv"><span style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((d.preview||'').slice(0,42))+'</span><span><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span> conf '+esc(d.conf)+'</span></div>').join('')+'</div>';
   wireButtons($('#v-insights'));
