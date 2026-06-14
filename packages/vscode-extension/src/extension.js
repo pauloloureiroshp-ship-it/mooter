@@ -75,6 +75,7 @@ class DataService {
       prefs: extra.preferences(),
       budget: extra.readBudget(),
       packs: extra.installedPacks(),
+      pinNext: extra.readPinNext(),
       ollama: doDeep ? ollama : prev.ollama,
       statuslineHtml: doDeep ? sline : prev.statuslineHtml,
       slash: doDeep ? slash : prev.slash,
@@ -167,6 +168,12 @@ class CockpitProvider {
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
       if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
+      if (m.cmd === 'pinNext') {
+        const r = extra.writePinNext(m.arg);
+        if (r.ok) vscode.window.setStatusBarMessage(r.model ? '🐮 next prompt → ' + r.model + ' (auto-routed — no paste needed)' : '🐮 next prompt → Auto (let Moo decide)', 5000);
+        else vscode.window.setStatusBarMessage('🐮 could not set next-prompt model', 3500);
+        this.data.refresh(true);
+      }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -195,7 +202,7 @@ function project(s) {
   const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown', raw: s.sub } : null;
   const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
   return Object.assign(base, {
-    mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash,
+    mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash, pinNext: s.pinNext,
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
     sub, device: s.device, hw: s.hw, quant: s.quant, prefs: s.prefs,
     budget: s.budget, packs: s.packs,
@@ -395,13 +402,15 @@ window.addEventListener('message',(e)=>{
   const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
-  let pinOpts='<option value="">🐮 Auto — let Moo decide</option>';
+  const curPin=(s.pinNext&&s.pinNext.model)||'';
+  const selAttr=(v)=>v===curPin?' selected':'';
+  let pinOpts='<option value=""'+selAttr('')+'>🐮 Auto — let Moo decide</option>';
   const locals=installed.filter(n=>PIN_LOCAL[n]);
-  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="/'+PIN_LOCAL[n]+'">'+esc(n)+'</option>').join('')+'</optgroup>';
-  pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>'<option value="/'+PIN_CLOUD[k]+'">'+esc(k)+'</option>').join('')+'</optgroup>';
+  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
+  pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   $('#v-cockpit').innerHTML=
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
-    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="copies a /pin command to paste in Claude Code" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
+    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
     '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
@@ -411,7 +420,7 @@ window.addEventListener('message',(e)=>{
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
-  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{if(ps.value)send('pin',ps.value);ps.selectedIndex=0;};})();
+  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
   wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
