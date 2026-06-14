@@ -23,7 +23,7 @@ export async function GET(request: Request) {
           mooter
         </div>
         <div style={{ color: '#ededed', fontSize: '32px', marginTop: '20px' }}>
-          {savings} less. Same results.
+          {savings} less. Comparable quality on routine tasks.
         </div>
         <div style={{ color: '#666', fontSize: '20px', marginTop: '16px' }}>
           The Claude Code router that knows when to save.

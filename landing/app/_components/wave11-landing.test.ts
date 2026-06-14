@@ -20,6 +20,14 @@ describe('Wave 11 PR-A landing', () => {
     expect(src).toContain('href="/methodology"');
   });
 
+  it('banned "Same results" claim is absent from the OG image + PWA manifest', () => {
+    // Wave 60 — the honesty guard previously only covered the hero; the banned
+    // over-claim was still live in the social card + install metadata. Keep both
+    // honest ("comparable quality on routine tasks") so it can't regress.
+    expect(read('app/api/og/route.tsx')).not.toContain('Same results');
+    expect(read('app/manifest.ts')).not.toContain('Same results');
+  });
+
   it('D2-4 homepage surfaces an auth-error banner', () => {
     const page = read('app/page.tsx');
     expect(page).toContain('<AuthErrorBanner />');
