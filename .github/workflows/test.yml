@@ -187,6 +187,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # cli tests import packages/router/src/*.ts directly (raw .ts paths via tsx);
+      # those modules need router's own deps (e.g. js-yaml) → install both, per CLAUDE.md.
+      - name: Install router deps
+        working-directory: packages/router
+        run: npm ci --no-audit --no-fund
       - name: Install cli deps
         working-directory: packages/cli
         run: npm ci --no-audit --no-fund
