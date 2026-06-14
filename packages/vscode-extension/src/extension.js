@@ -490,7 +490,7 @@ window.addEventListener('message',(e)=>{
   // ── Live herd: every open session as its own walking cow (working · LLM · tab name).
   // Click a cow to focus the numbers below on it. This is the multi-session view.
   const rsess=s.recent||[];
-  const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||(r.project?r.project:'session '+r.id);
+  const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
     return '<div class="srow'+(sel?' on':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="'+esc(r.fullId)+'"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+(r.working?'<span class="livedot"></span>working':esc(agoFmt(r.ageMs))+' ago')+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div></div></div>';};
   const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
