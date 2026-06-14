@@ -2,7 +2,7 @@
 //
 // ── WHY THIS MATRIX IS SPARSE (anti-fabrication + adaptive growth) ───────────
 //
-// The matrix is 14 models × 24 categories = 336 logical cells.  The vast
+// The matrix is 17 models × 24 categories = 408 logical cells.  The vast
 // majority start EMPTY ({ score: null, source: "unknown", measured: false }).
 // This is a deliberate design choice, not an oversight:
 //
@@ -22,7 +22,7 @@
 //      So the matrix densifies organically, per install, grounded in evidence —
 //      never by fabrication.
 //
-// The UI can therefore say, honestly, "N of 336 cells measured" (coverageStats).
+// The UI can therefore say, honestly, "N of 408 cells measured" (coverageStats).
 //
 // ── SHAPE ────────────────────────────────────────────────────────────────────
 //
@@ -48,11 +48,16 @@ import { TASK_CATEGORIES, type TaskCategory } from "./task-categories.ts";
 import { loadBenchmarks, type BenchmarkCell } from "./benchmark-fetcher.ts";
 
 // ---------------------------------------------------------------------------
-// Models — the Wave 58 roster.
+// Models — the Wave 58 roster (expanded in Wave 58.4).
 //
-// The product copy labels this "12 models"; the honest count is 14 (the brief
-// over-counts under a marketing "12" label — we cover ALL 14 and report the
-// real number).  qwen3-30b is the local (free) model.
+// Wave 58 shipped 14 models; Wave 58.4 adds 3 genuinely-new ids (Gemini 3 Flash,
+// DeepSeek V4 Pro, Moonshot Kimi K2.6) for an honest count of 17.  These three
+// are PRICE-ONLY additions: real, web-searched prices live in tools/router/
+// pricing.js, but their specialization cells stay EMPTY (measured:false) until a
+// benchmark source backs them — no fabricated scores (Doctrine V4 #5).
+// qwen3.6 / qwen3-30b are the local (free) models.  NOTE: claude-fable-5 is
+// LISTED here but routing stays opt-in via @fable (T5) — matrix presence is a
+// capability record, NOT an auto-route signal.
 // ---------------------------------------------------------------------------
 
 export const MATRIX_MODELS = [
@@ -66,8 +71,11 @@ export const MATRIX_MODELS = [
   "gpt-5-3-codex",
   "gpt-oss",
   "gemini-3.1-pro",
+  "gemini-3-flash",  // Wave 58.4 — Gemini 3 Flash (Preview); price-only, cells empty
   "deepseek-v3.2",
+  "deepseek-v4-pro", // Wave 58.4 — DeepSeek V4 Pro; price-only, cells empty
   "minimax",
+  "kimi-k2.6",       // Wave 58.4 — Moonshot Kimi K2.6; price-only, cells empty
   "qwen3.6",
   "qwen3-30b",
 ] as const;
@@ -208,7 +216,7 @@ export function getCell(model: string, category: TaskCategory): SpecializationCe
 // ---------------------------------------------------------------------------
 
 export interface CoverageStats {
-  /** 14 × 24 = 336. */
+  /** 17 × 24 = 408. */
   total_cells: number;
   /** Cells backed by a real measurement (measured: true). */
   measured_cells: number;
@@ -232,7 +240,7 @@ export interface CoverageStats {
  * Honest coverage report over the full matrix.
  *
  * The headline the UI should surface is `measured_cells of total_cells`
- * (e.g. "13 of 336 cells measured") — never round the sparse reality up.
+ * (e.g. "14 of 408 cells measured") — never round the sparse reality up.
  */
 export function coverageStats(): CoverageStats {
   const m = getMatrix();

@@ -3,7 +3,7 @@
  * matrix-status.js — Wave 58 A.13 (matrix coverage chip).
  *
  * DEFAULT-ON line-3 chip showing the Wave 58 model × category specialization
- * matrix coverage, e.g. `🎯 Matrix: 14 mod × 24 cat · 13/336 measured · refreshed 1d ago`.
+ * matrix coverage, e.g. `🎯 Matrix: 17 mod × 24 cat · 14/408 measured · refreshed 1d ago`.
  *
  * Wave 58 A.5 — this chip is shown by DEFAULT (the matrix is the headline Wave 58
  * artifact). It is HIDDEN only when the user explicitly opts out via any of:
@@ -28,8 +28,10 @@
  *   because the statusline runtime cannot import the TS package").
  *
  * Constants (kept in sync with packages/router/src/specialization-matrix.ts):
- *   14 models × 24 categories = 336 total cells.
- *   These are stable for the Wave 58 release; bump both sides if the roster grows.
+ *   17 models × 24 categories = 408 total cells (Wave 58.4 added 3 price-only
+ *   models: gemini-3-flash, deepseek-v4-pro, kimi-k2.6 — empty specialization
+ *   cells, so the measured count is unchanged; only the model/total counts grow).
+ *   Bump BOTH sides (this file + specialization-matrix.ts) if the roster grows.
  */
 'use strict';
 
@@ -38,9 +40,9 @@ const path = require('path');
 const os = require('os');
 
 // ── Constants (must match specialization-matrix.ts MATRIX_MODELS / TASK_CATEGORIES) ──
-const MATRIX_MODELS_COUNT = 14;
+const MATRIX_MODELS_COUNT = 17;
 const MATRIX_CATEGORIES_COUNT = 24;
-const MATRIX_TOTAL_CELLS = MATRIX_MODELS_COUNT * MATRIX_CATEGORIES_COUNT; // 336
+const MATRIX_TOTAL_CELLS = MATRIX_MODELS_COUNT * MATRIX_CATEGORIES_COUNT; // 408
 
 // ── File paths ────────────────────────────────────────────────────────────────
 
@@ -194,7 +196,7 @@ function fmtAge(asOfDate, now) {
  * @param {number}      [now]  Current timestamp ms (injectable for tests).
  * @returns {string}           Chip string, or '🎯 Matrix: ?' when data is absent.
  *
- * Format: `🎯 Matrix: 14 mod × 24 cat · M/336 measured · refreshed Xd ago`
+ * Format: `🎯 Matrix: 17 mod × 24 cat · M/408 measured · refreshed Xd ago`
  * When data is null/unreadable: `🎯 Matrix: ?`
  */
 function buildMatrixChip(data, now = Date.now()) {

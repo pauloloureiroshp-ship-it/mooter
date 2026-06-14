@@ -165,9 +165,9 @@ describe("TES — honesty gates (no fabrication)", () => {
 // ---------------------------------------------------------------------------
 
 describe("specialization-matrix — coverage counts only measured cells", () => {
-  test("total = 14 models × 24 categories = 336", () => {
+  test("total = 17 models × 24 categories = 408", () => {
     const s = coverageStats();
-    assert.equal(s.total_cells, 336);
+    assert.equal(s.total_cells, 408); // Wave 58.4: roster 14 → 17 models
     assert.equal(s.total_cells, MATRIX_MODELS.length * TASK_CATEGORIES.length);
   });
 

@@ -73,6 +73,9 @@ const PRICES = {
   'gemini-2.5-pro[200k+]':          { input: 2.50,  output: 15.0,  strengths: ['long-context'],                    tier: 'T2' },
   'gemini-2.5-flash':                { input: 0.30,  output: 2.50,  strengths: ['fast','cheap','multimodal'],       tier: 'T1' },
   'gemini-2.5-flash-lite':           { input: 0.10,  output: 0.40,  strengths: ['ultra-cheap','fast'],              tier: 'T0' },
+  // Wave 58.4 — Gemini 3 Flash (Preview), web-searched 2026-06-14: $0.50/$3.00.
+  // Distinct from Gemini 3.5 Flash ($1.50/$9.00). Matrix id: gemini-3-flash (price-only, cells empty).
+  'gemini-3-flash':                  { input: 0.50,  output: 3.00,  strengths: ['fast','cheap','multimodal'],       tier: 'T1' },
 
   // ── OpenAI — verified 2026-04-16 from developers.openai.com ───────
   'gpt-4o':                          { input: 2.50,  output: 10.0,  strengths: ['general','multimodal','tools'],    tier: 'T2' },
@@ -84,6 +87,16 @@ const PRICES = {
   'deepseek-v3':                     { input: 0.27,  output:  1.10, strengths: ['general','cheap'],                 tier: 'T0' },
   'deepseek-r1':                     { input: 0.55,  output:  2.19, strengths: ['reasoning','math','cheap'],        tier: 'T1' },
   'deepseek-v4':                     { input: 0.30,  output:  0.50, strengths: ['newest','general','ultra-cheap'],  tier: 'T0' },
+  // Wave 58.4 — DeepSeek V4 Pro. STANDARD list price ($1.74/$3.48) after the
+  // 75%-off promo expired 2026-05-31 (promo was $0.435/$0.87). Web-searched
+  // 2026-06-14; 1M context. Matrix id: deepseek-v4-pro (price-only, cells empty).
+  'deepseek-v4-pro':                 { input: 1.74,  output:  3.48, strengths: ['reasoning','code','long-context'], tier: 'T2' },
+
+  // ── Moonshot (Kimi) — Wave 58.4, web-searched 2026-06-14 ──────────
+  // Official Moonshot API: $0.60/$2.50. Some sources report an updated
+  // $0.95/$4.00 and OpenRouter lists $0.68/$3.41 — verify at platform.moonshot
+  // before relying on this for billing. Matrix id: kimi-k2.6 (price-only).
+  'kimi-k2.6':                       { input: 0.60,  output:  2.50, strengths: ['code','agentic','cheap'],          tier: 'T1' },
 
   // ── xAI (Grok) — verified 2026-04-16 from docs.x.ai ──────────────
   'grok-4':                          { input: 3.00,  output: 15.0,  strengths: ['reasoning','2M-context'],          tier: 'T3' },

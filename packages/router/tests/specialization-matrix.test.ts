@@ -118,7 +118,7 @@ describe("coverageStats", () => {
   test("total_cells equals models × categories", () => {
     const stats = coverageStats();
     assert.equal(stats.total_cells, MATRIX_MODELS.length * TASK_CATEGORIES.length);
-    assert.equal(stats.total_cells, 14 * 24);
+    assert.equal(stats.total_cells, 17 * 24); // Wave 58.4: roster 14 → 17 models
   });
 
   test("measured + empty = total", () => {

@@ -47,9 +47,10 @@ after(() => {
 
 // ── MATRIX_TOTAL_CELLS constant ───────────────────────────────────────────────
 
-test('MATRIX_TOTAL_CELLS equals 14 × 24 = 336', () => {
-  assert.equal(MATRIX_TOTAL_CELLS, 336);
-  assert.equal(MATRIX_MODELS_COUNT * MATRIX_CATEGORIES_COUNT, 336);
+test('MATRIX_TOTAL_CELLS equals 17 × 24 = 408', () => {
+  assert.equal(MATRIX_TOTAL_CELLS, 408);
+  assert.equal(MATRIX_MODELS_COUNT * MATRIX_CATEGORIES_COUNT, 408);
+  assert.equal(MATRIX_MODELS_COUNT, 17);
 });
 
 // ── countMeasured ─────────────────────────────────────────────────────────────
@@ -152,17 +153,19 @@ test('buildMatrixChip: absent as_of → age shows ?', () => {
   assert.match(chip, /refreshed \? ago/);
 });
 
-test('buildMatrixChip: no measured cells → 0/336 measured', () => {
+test('buildMatrixChip: no measured cells → 0/408 measured', () => {
   const chip = buildMatrixChip(makeData(0, '2026-06'), NOW);
-  assert.match(chip, /0\/336 measured/);
+  assert.match(chip, /0\/408 measured/);
 });
 
 // ── buildMatrixChip — real data renders honestly ──────────────────────────────
 
 test('buildMatrixChip: 14 measured cells renders correct chip', () => {
-  // as_of "2026-06" normalises to 2026-06-01; NOW is 2026-06-12 → 11 days ago
+  // as_of "2026-06" normalises to 2026-06-01; NOW is 2026-06-12 → 11 days ago.
+  // 14 measured / 408 total (Wave 58.4: 3 new models added empty cells, so the
+  // measured count is unchanged but the denominator grows 336 → 408).
   const chip = buildMatrixChip(makeData(14, '2026-06'), NOW);
-  assert.equal(chip, '🎯 Matrix: 14 mod × 24 cat · 14/336 measured · refreshed 11d ago');
+  assert.equal(chip, '🎯 Matrix: 17 mod × 24 cat · 14/408 measured · refreshed 11d ago');
 });
 
 test('buildMatrixChip: chip always starts with 🎯 Matrix:', () => {
@@ -171,7 +174,7 @@ test('buildMatrixChip: chip always starts with 🎯 Matrix:', () => {
 
 test('buildMatrixChip: chip format includes mod × cat', () => {
   const chip = buildMatrixChip(makeData(1, '2026-06-01'), NOW);
-  assert.match(chip, /14 mod × 24 cat/);
+  assert.match(chip, /17 mod × 24 cat/);
 });
 
 test('buildMatrixChip: uses provided now for age calculation', () => {
@@ -352,7 +355,7 @@ test('statusLine: opted in via prefs → returns chip starting with 🎯', () =>
   try {
     const line = statusLine();
     assert.ok(line.startsWith('🎯'), `expected chip starting with 🎯, got: "${line}"`);
-    assert.match(line, /\d+\/336 measured/);
+    assert.match(line, /\d+\/408 measured/);
   } finally {
     if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
