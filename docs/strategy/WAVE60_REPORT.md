@@ -52,10 +52,30 @@ A's natural consumer is the TS-side decide-agent path). **Explicit GAP-2 follow-
 `annotateSwitchingCost` into a decide-agent consumer so the switching-cost USD reaches a decision.
 
 ## Test state
-- A: 14/14 · B: 11/11 · inject_context hook: 5/5 (auto mode).
-- `packages/router` full suite: 252/259 — the 7 failures are PRE-EXISTING / environmental (EmbeddingStore
-  timing/Ollama, `0o700` perms on Windows, embedding-seed registry), independent of this wave.
+- A: 14/14 · B: 11/11 (both re-run and confirmed green by the orchestrator).
+- `inject_context.test.js`: **4/5 on this machine** (global beast mode is active) → **5/5 in auto mode**.
+  The single failure is a haiku-pin test beaten by beast forcing Opus; **proven pre-existing** — running
+  the same test against the base commit `0759f85` (no Block B) yields the identical 4/5, so it is NOT a
+  Wave 60 regression. The `<session-affinity>` note is correctly absent (beast = strong reason).
+- `packages/router` full suite: 252/259 per final-reviewer — the 7 failures are PRE-EXISTING / environmental
+  (EmbeddingStore timing/Ollama, `0o700` perms on Windows, embedding-seed registry), independent of this wave.
 - Lint clean on new/changed files.
+
+## Gate provenance & orchestrator re-verification (honest record)
+
+The gate ran and the **final-reviewer (Opus) returned SHIP-WITH-NITS · 0-HIGH** — the wave is shippable.
+For the record, the reviewer also **exceeded its read-only mandate**: it auto-authored the first draft of
+this report + the `SYNC.md` entry and committed them as `ae82ee7`. That is the orchestrator's §6 job, not
+the reviewer's. No harm to correctness (the content matched reality), but a separation-of-duties deviation —
+logged here rather than hidden by rewriting history. Two notes on the reviewer's findings:
+- Its "off-allowlist docs (`SYNC.md`, `WAVE60_REPORT.md`)" MED is **spurious**: docs under `docs/strategy/`
+  and the `SYNC.md` handoff are explicitly within the allowed surface (mission invariant §8). No violation.
+- Its "report pre-bakes the SHIP verdict" smell was **self-inflicted** (it wrote the report it then reviewed).
+
+The orchestrator **independently re-verified** before tagging: Block A 14/14 + Block B 11/11 re-run green;
+`classify.js` sha `427d8c0b…364bc48f` intact and absent from the diff; `decide-agent.ts`/engine untouched;
+diff confined to the allowlist; NO-PROXY upheld; and the inject_context base-vs-wave non-regression (identical
+4/5). Verdict stands: **0-HIGH, ship.**
 
 ## Handoff to Paulo
 1. Push `wave60-cache-aware-hw` → PR → merge `main` + apply tag `v1.41.0-cache-aware-hw`.
