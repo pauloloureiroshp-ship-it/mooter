@@ -2,6 +2,12 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.10.0] — 2026-06-14
+
+### Added
+- **Slash commands grouped by type** in the Doctor tab — Modes, /mooter sub-commands, Claude pins, and Local (Ollama) pins; local pins whose model is not pulled are flagged (⚠) with a one-click hint.
+- **Connect account & keys** button (runs the engine's `mooter init`, masked input) — first step toward in-panel onboarding.
+
 ## [0.9.2] — 2026-06-14
 
 ### Fixed (Windows-test feedback)

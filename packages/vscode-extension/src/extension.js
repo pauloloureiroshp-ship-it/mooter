@@ -499,9 +499,13 @@ window.addEventListener('message',(e)=>{
   const ok=(b)=>b?'✅':(b===null?'🟡':'❌');const sl=s.slash||{};
   $('#v-doctor').innerHTML='<div class="card">'+
     (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+'</div>'+(c.ok?'':'<button class="sm" data-a="'+esc(c.fix)+'">fix</button>')+'</div>').join('')+'</div>'+
-    '<div class="card"><div class="lbl">/mooter sub-commands ('+(sl.installed?'installed':'NOT installed')+')</div><div style="margin-top:6px">'+
-    (s.slashCmds||[]).map(c=>'<span class="pill'+(sl.installed?' ok':'')+'">/'+esc(c)+'</span>').join('')+'</div>'+
-    '<button class="sm" data-a="slashInstall" style="margin-top:7px">'+(sl.installed?'Update skill':'Install /mooter skill')+'</button></div>'+
+    '<div class="card"><div class="lbl">Slash commands · '+(sl.installed?'installed ✓':'NOT installed')+'</div>'+
+    '<div class="sub" style="margin:7px 0 3px">Modes</div><div>'+['zen','auto','beast'].map(mo=>'<span class="pill ok">'+MOO[mo]+'</span>').join('')+'</div>'+
+    '<div class="sub" style="margin:8px 0 3px">/mooter sub-commands</div><div>'+(s.slashCmds||[]).map(c=>'<span class="pill'+(sl.installed?' ok':'')+'">/'+esc(c)+'</span>').join('')+'</div>'+
+    '<div class="sub" style="margin:8px 0 3px">Claude pins</div><div>'+Object.keys(PIN_CLOUD).map(k=>'<span class="pill">/'+esc(PIN_CLOUD[k])+'</span>').join('')+'</div>'+
+    '<div class="sub" style="margin:8px 0 3px">Local pins (Ollama)</div><div>'+Object.keys(PIN_LOCAL).map(n=>{const have=(s.ollama||[]).some(o=>o.name===n);return '<span class="pill'+(have?' ok':' warn')+'" title="'+(have?'model installed':'run: ollama pull '+esc(n))+'">/'+esc(PIN_LOCAL[n])+(have?'':' ⚠')+'</span>';}).join('')+'</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px"><button class="sm" data-a="slashInstall">'+(sl.installed?'Update /mooter skill':'Install /mooter skill')+'</button><button class="sm" data-a="term:mooter init">🔑 Connect account &amp; keys</button></div>'+
+    '<div class="sub" style="margin-top:6px;font-size:10px">⚠ = pin whose Ollama model is not pulled yet</div></div>'+
     (s.security?'<div class="card"><div class="lbl">🛡️ Sandbox security (4-layer)</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.security)+'</div></div>':'')+
     '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1">Full doctor →</button><button data-a="refresh" style="flex:1">Refresh</button></div>';
   wireButtons($('#v-doctor'));
