@@ -124,6 +124,33 @@ function writePinNext(model) {
   } catch { return { ok: false }; }
 }
 
+// Live Routing descriptor for the cockpit "who handled this prompt" cow. Built from
+// the tracker /last decision; maps the model to its canonical family emoji/colour
+// (llm-emoji-map) so the plugin matches the terminal statusline. Returns null when
+// there's no decision yet.
+let _emojiMod;
+function _emoji() {
+  if (_emojiMod !== undefined) return _emojiMod;
+  try { _emojiMod = require(path.join(ROUTER, 'llm-emoji-map.js')); } catch { _emojiMod = null; }
+  return _emojiMod;
+}
+const FAMILY_HEX = { amber: '#E5C07B', tan: '#C9A876', blue: '#5A9BD4', green: '#4CAF6A', gold: '#F2C94C', pink: '#E8888A', gray: '#8A8076' };
+function liveRouting(last) {
+  if (!last || !last.model_full) return null;
+  const model = String(last.model_full);
+  const em = _emoji();
+  const d = (em && em.emojiForModel) ? em.emojiForModel(model) : { emoji: '🤖', label: 'Model', color: 'gray' };
+  const isLocal = d.label === 'Ollama' || (!/^claude-/i.test(model) && model.includes(':'));
+  const why = last.user_override ? 'pinned' : (String(last.cascade_path || '').includes('→') ? 'cascade' : 'auto');
+  return {
+    model, tier: last.tier || '', emoji: d.emoji, label: d.label,
+    color: FAMILY_HEX[d.color] || FAMILY_HEX.gray,
+    provider: isLocal ? 'local' : 'cloud', why,
+    cascade: last.cascade_path || '', confidence: last.confidence != null ? last.confidence : null,
+    ts: last.ts || '',
+  };
+}
+
 // The 10 slash sub-commands from the canonical /mooter SKILL template.
 const SLASH_CMDS = ['route', 'savings', 'explain', 'digest', 'local', 'why-not-fable', 'tier', 'mcp', 'vision', 'bench'];
 
@@ -353,5 +380,5 @@ function tokenLedger() {
 
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
-  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, SLASH_CMDS, mooterScore, installedPacks,
+  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
   PRICES, priceFor, costFor, tokenLedger };
