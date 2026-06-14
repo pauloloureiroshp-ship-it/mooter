@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "tsx --test tests/*.test.ts",
-    "build": "NODE_PATH=node_modules esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=mooter.js --log-level=warning"
+    "build": "node build.mjs"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

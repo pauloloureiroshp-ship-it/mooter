@@ -35,9 +35,9 @@
 // network, never throws. Mirrors cost.ts conventions (integer microUSD probe,
 // graceful degradation on unknown models).
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+// Wave 61: pricing snapshot inlined at build time so the bundled CLI resolves it
+// without a source-relative path (fixes ENOENT in ~/.mooter/cli-v1).
+import pricingSnapshot from "../../../data/pricing-snapshot-2026-05-27.json";
 import { computeCostMicros, isLocalModel } from "./cost.ts";
 
 // --- conventions (documented; change here + in the SPEC together) -----------
@@ -72,21 +72,8 @@ interface PricingSnapshot {
   models: Record<string, SnapshotModel>;
 }
 
-// packages/router/src/tes-calculator.ts -> <repo>/data/pricing-snapshot-2026-05-27.json
-const SNAPSHOT_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "data",
-  "pricing-snapshot-2026-05-27.json",
-);
-
-let _snapshot: PricingSnapshot | null = null;
 function loadSnapshot(): PricingSnapshot {
-  if (_snapshot) return _snapshot;
-  _snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, "utf8")) as PricingSnapshot;
-  return _snapshot;
+  return pricingSnapshot as unknown as PricingSnapshot;
 }
 
 /** Same trailing-date strip as cost.ts, so dated API ids resolve to a key. */
