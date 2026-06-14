@@ -2,7 +2,10 @@ import NavBar from '@/components/NavBar';
 import versionInfo from './version.json';
 import Footer from '@/components/Footer';
 import { CrookOutline } from '@/components/PastorCrook';
+import Dotgrid from '@/components/Dotgrid';
+import Eyebrow from '@/components/Eyebrow';
 import HeroTerminal from './_components/HeroTerminal';
+import TwoTerminalDemo from './_components/TwoTerminalDemo';
 import PulseStrip from './_components/PulseStrip';
 import CommunityPulse from './_components/CommunityPulse';
 import WhyLocalCards from './_components/WhyLocalCards';
@@ -10,14 +13,23 @@ import AuthErrorBanner from './_components/AuthErrorBanner';
 
 const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
 
+// Inline above-the-fold pulse strip — author's real machine numbers (not a community average).
+const heroStats: [string, string, string][] = [
+  ['calls routed', '658', 'across the author’s moos'],
+  ['saved vs Opus', '$25.95', 'alltime'],
+  ['avg savings', '47%', 'vs all-Opus'],
+  ['packs installed', '3', 'data · diagram · voice'],
+];
+
 export default function Page() {
   return (
     <>
       <NavBar />
       <main>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '0 40px' }}>
+        <section className="m-pad" style={{ position: 'relative', maxWidth: 1280, margin: '0 auto', padding: '0 40px' }}>
+          <Dotgrid style={{ top: -24, height: 720, bottom: 'auto', maskImage: 'linear-gradient(to bottom, #000 55%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 55%, transparent)' }} />
           <AuthErrorBanner />
-          <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', gap: 56, alignItems: 'center', padding: '72px 0 56px' }}>
+          <div className="hero-grid" style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', gap: 56, alignItems: 'center', padding: '72px 0 40px' }}>
             {/* Left */}
             <div>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-muted)', border: '1px solid var(--color-border)', borderRadius: 999, padding: '5px 12px' }}>
@@ -69,6 +81,36 @@ export default function Page() {
               <HeroTerminal />
             </div>
           </div>
+
+          {/* Inline community-pulse strip — author's real machine numbers (gap #4). */}
+          <div
+            className="m-2col"
+            style={{
+              position: 'relative',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              borderRadius: 14,
+              padding: '20px 28px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 24,
+            }}
+          >
+            {heroStats.map(([label, num, sub]) => (
+              <div key={label}>
+                <Eyebrow>{label}</Eyebrow>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 30, fontVariantNumeric: 'tabular-nums', fontWeight: 600, letterSpacing: '-0.02em', marginTop: 4 }}>{num}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--color-muted)', marginTop: 2 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'relative', marginTop: 14, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span aria-hidden="true">🐮</span>
+            <span>From the author&apos;s machine — 1 dev (Paulo). Real numbers, not a community average. Opted-in herd telemetry goes live soon.</span>
+          </div>
+
+          {/* Live two-terminal savings demo (client island) — below the hero (gap #1). */}
+          <TwoTerminalDemo />
 
           {/* How it works — the longer explanation lives below the fold, out of the hero (gap #6). */}
           <section style={{ padding: '4px 0 8px', maxWidth: 720 }}>

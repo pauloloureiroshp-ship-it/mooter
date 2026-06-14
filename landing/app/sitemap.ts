@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     page('/', 1.0, 'weekly'),
     page('/install', 0.9, 'weekly'),
+    page('/commands', 0.8, 'monthly'),
     page('/compare', 0.8, 'weekly'),
     page('/packs', 0.7, 'weekly'),
     page('/under-the-hood', 0.7, 'monthly'),
