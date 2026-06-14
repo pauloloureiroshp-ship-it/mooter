@@ -197,11 +197,8 @@ jobs:
       - name: Install cli deps
         working-directory: packages/cli
         run: npm ci --no-audit --no-fund
-      # One pre-existing, environment-dependent test is skipped: "security audit … when
-      # sandbox is present" probes for a real sandbox binary the runner lacks (fails on
-      # Linux + Windows alike, predates Wave 58.7, lives in security.test.ts — outside this
-      # wave's allowlist). Tracked as debt; mirrors the router job's --test-skip-pattern.
-      # Direct tsx invocation (not `npm test --`) so the spaced pattern survives quoting.
+      # The previously-skipped "security audit … sandbox present" test now self-guards
+      # (skips when bwrap is absent — see security.test.ts), so no skip-pattern is needed.
       - name: Run cli tests
         working-directory: packages/cli
-        run: npx tsx --test --test-skip-pattern="renders 4 layers and exit 0 when sandbox is present" tests/*.test.ts
+        run: npm test
