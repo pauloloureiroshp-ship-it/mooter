@@ -2,6 +2,11 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.8.1] — 2026-06-14
+
+### Added
+- Marketplace listing screenshot (live savings, Mooter Score, tier mix) in the README.
+
 ## [0.8.0] — 2026-06-14
 
 ### Added

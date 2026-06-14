@@ -2,6 +2,8 @@
 
 **See what your Claude Code routing actually saves you.** Mooter routes each prompt to the cheapest capable model — local Ollama for trivial work, Haiku / Sonnet / Opus only when needed. This extension is the **read-only cockpit** for that engine: live savings, the tier mix, and every decision with its *why*.
 
+![Mooter Cost Cockpit — live savings, Mooter Score, and tier mix in the VS Code sidebar](media/cockpit.png)
+
 > Community project. **Not affiliated with, or endorsed by, Anthropic.** "Claude" and "Claude Code" are trademarks of Anthropic, PBC. This extension pairs with — and never replaces — the official Claude Code extension.
 
 ## Features
