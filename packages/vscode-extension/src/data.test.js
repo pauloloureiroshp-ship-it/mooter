@@ -214,6 +214,9 @@ test('recentSessions: each entry carries a full session id + 8-char short id', (
     assert.equal(typeof r.fullId, 'string');
     assert.equal(r.id, r.fullId.slice(0, 8)); // id is the short prefix used in the picker
     assert.ok('working' in r && 'ageMs' in r); // honest activity heuristic fields present
+    assert.equal(typeof r.working, 'boolean');
+    assert.equal(typeof r.needsYou, 'boolean'); // "your turn" alert flag (turn_end / stalled)
+    assert.ok(!(r.working && r.needsYou)); // mutually exclusive — never both at once
     assert.ok(r.name === null || typeof r.name === 'string'); // tab name (first prompt) or null — never fabricated
   }
 });

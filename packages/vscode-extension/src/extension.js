@@ -191,6 +191,17 @@ class CockpitProvider {
         this.data.refresh(true);
       }
       if (m.cmd === 'selectSession') { const a = String(m.arg || 'auto'); this.data.selectedSession = (a === 'all' || a === 'auto') ? a : a.replace(/[^a-zA-Z0-9._-]/g, ''); this.data.refresh(true); }
+      if (m.cmd === 'openSession') {
+        // Open/focus that exact Claude Code session in the editor. The extension's URI
+        // handler maps /open?session=<id> → claude-vscode.primaryEditor.open(id); we call
+        // the command directly (URI as fallback), then scope the cockpit to it.
+        const id = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (id) {
+          try { await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', id); }
+          catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
+          this.data.selectedSession = id; this.data.refresh(true);
+        }
+      }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -315,6 +326,12 @@ function getHtml() {
   .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
   .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
+  .alertdot{width:8px;height:8px;border-radius:50%;background:#E5C07B;flex:none;animation:alertpulse 1.5s infinite}
+  @keyframes alertpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .needsyou{color:#E5C07B;font-weight:700}
+  .srow.needs:not(.on){background:rgba(229,192,123,.08)}
+  .sopen{font-size:12px;color:var(--vscode-descriptionForeground);flex:none;opacity:.45}
+  .srow:hover .sopen{opacity:1;color:var(--g)}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecard-idle{opacity:.65}
@@ -491,10 +508,12 @@ window.addEventListener('message',(e)=>{
   // Click a cow to focus the numbers below on it. This is the multi-session view.
   const rsess=s.recent||[];
   const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
-    return '<div class="srow'+(sel?' on':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="'+esc(r.fullId)+'"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+(r.working?'<span class="livedot"></span>working':esc(agoFmt(r.ageMs))+' ago')+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div></div></div>';};
+    const badge=r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago');
+    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div></div><span class="sopen" title="open in Claude Code">↗</span></div>';};
   const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
-  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent</span></div><div class="herd">'+herdRows+allRow+'</div><div class="sub" style="font-size:9px;margin-top:6px">● = generating now (transcript being written) · click a cow to focus its numbers below. The cockpit reads ~/.claude logs — it cannot see which VS Code tab is focused, so it follows the one you prompt in.</div></div>';
+  const needN=rsess.filter(r=>r.needsYou).length;
+  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div><div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -533,7 +552,7 @@ window.addEventListener('message',(e)=>{
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
-  document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>send('selectSession',el.dataset.sess);el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
