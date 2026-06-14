@@ -79,19 +79,19 @@ function err(message: string): CmdResult {
 
 // ── lazy engine loaders ───────────────────────────────────────────────────────
 //
-// Assembled at runtime (array.join) so esbuild does not statically resolve and
-// bundle the engine — mirrors workflow.ts's ENGINE_SPECIFIER trick.
-
-const MATRIX_SPECIFIER = ["..", "..", "..", "router", "src", "specialization-matrix.ts"].join("/");
-const TES_SPECIFIER = ["..", "..", "..", "router", "src", "tes-calculator.ts"].join("/");
-const DECIDE_SPECIFIER = ["..", "..", "..", "router", "src", "decide-agent.ts"].join("/");
-const CATEGORIES_SPECIFIER = ["..", "..", "..", "router", "src", "task-categories.ts"].join("/");
+// Wave 61: literal specifiers (NOT the old array.join() trick) so esbuild INLINES
+// the engine into the bundled CLI — required for ~/.mooter/cli-v1 to run without
+// the source tree present. Still lazy: only imported after a subcommand validates.
 
 type MatrixMod = typeof import("../../../router/src/specialization-matrix.ts");
 type TesMod = typeof import("../../../router/src/tes-calculator.ts");
 type DecideMod = typeof import("../../../router/src/decide-agent.ts");
 type CategoriesMod = typeof import("../../../router/src/task-categories.ts");
 
+// Wave 61: literal specifiers so esbuild INLINES the engine into the bundled CLI.
+// The previous array.join() specifiers were deliberately left unresolved by esbuild
+// — which broke the installed bundle (`Cannot find module .../specialization-matrix.ts`
+// from ~/.mooter/cli-v1). Still lazy: only imported after a subcommand validates args.
 async function loadEngine(): Promise<{
   matrix: MatrixMod;
   tes: TesMod;
@@ -99,10 +99,10 @@ async function loadEngine(): Promise<{
   categories: CategoriesMod;
 }> {
   const [matrix, tes, decide, categories] = await Promise.all([
-    import(MATRIX_SPECIFIER) as Promise<MatrixMod>,
-    import(TES_SPECIFIER) as Promise<TesMod>,
-    import(DECIDE_SPECIFIER) as Promise<DecideMod>,
-    import(CATEGORIES_SPECIFIER) as Promise<CategoriesMod>,
+    import("../../../router/src/specialization-matrix.ts") as Promise<MatrixMod>,
+    import("../../../router/src/tes-calculator.ts") as Promise<TesMod>,
+    import("../../../router/src/decide-agent.ts") as Promise<DecideMod>,
+    import("../../../router/src/task-categories.ts") as Promise<CategoriesMod>,
   ]);
   return { matrix, tes, decide, categories };
 }
