@@ -792,6 +792,20 @@ h3 { font-size: 20px; line-height: 1.3; }
   .mspin { animation: none !important; }
 }
 
+/* ── Mock-parity responsive helpers (Wave 60) ─────────────────
+   Inline-styled artboards can't hold media queries, so layout-collapse
+   lives here. Apply via className on grids/bands. Mirrors the mock's
+   colors_and_type.css (.m-stack / .m-2col / .m-pad / .m-scroll-x / .m-hide). */
+@media (max-width: 768px) {
+  .m-stack    { grid-template-columns: 1fr !important; }
+  .m-2col     { grid-template-columns: 1fr 1fr !important; }
+  .m-pad      { padding-left: 20px !important; padding-right: 20px !important; }
+  .m-pad-y    { padding-top: 36px !important; padding-bottom: 40px !important; }
+  .m-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .m-scroll-x > table { min-width: 720px; }
+  .m-hide     { display: none !important; }
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; gap: 48px; }
