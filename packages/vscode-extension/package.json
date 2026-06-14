@@ -1,17 +1,27 @@
 {
   "name": "mooter-cockpit",
   "displayName": "Mooter — Cost Cockpit for Claude Code",
-  "description": "See what your Claude Code routing saves you — live decisions, tier distribution, counterfactual savings. The cockpit for the mooter router. Not affiliated with Anthropic.",
-  "version": "0.7.1",
+  "description": "See what your Claude Code routing saves — live decisions, tier mix, counterfactual $ savings. Read-only cockpit for the mooter router. Community project, not affiliated with Anthropic.",
+  "version": "0.8.0",
   "publisher": "mooter",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/pauloloureiroshp-ship-it/mooter" },
+  "repository": { "type": "git", "url": "https://github.com/pauloloureiroshp-ship-it/mooter.git" },
   "homepage": "https://mooter.ai",
+  "bugs": { "url": "https://github.com/pauloloureiroshp-ship-it/mooter/issues" },
   "engines": { "vscode": "^1.98.0" },
-  "categories": ["AI", "Visualization"],
-  "keywords": ["claude", "claude-code", "router", "cost", "ollama"],
+  "categories": ["AI", "Visualization", "Machine Learning", "Other"],
+  "keywords": ["claude", "claude-code", "router", "cost", "savings", "ollama", "local-first", "llm", "cost-optimization", "telemetry"],
   "icon": "media/icon.png",
   "galleryBanner": { "color": "#0B0A09", "theme": "dark" },
+  "pricing": "Free",
+  "qna": "marketplace",
+  "markdown": "github",
+  "preview": false,
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true, "description": "Read-only over your local mooter telemetry (~/.claude); never executes workspace code." },
+    "virtualWorkspaces": { "supported": false, "description": "Needs local filesystem access to read mooter telemetry and run the mooter CLI." }
+  },
   "main": "./src/extension.js",
   "scripts": { "test": "node --test src/*.test.js" },
   "activationEvents": ["onStartupFinished"],
@@ -27,16 +37,48 @@
       ]
     },
     "commands": [
-      { "command": "mooter.openCockpit", "title": "Mooter: Open Cockpit" },
-      { "command": "mooter.newSession", "title": "Mooter: New Claude Code Session" },
-      { "command": "mooter.refresh", "title": "Mooter: Refresh Data" }
+      { "command": "mooter.openCockpit", "title": "Open Cockpit", "category": "Mooter" },
+      { "command": "mooter.newSession", "title": "New Claude Code Session", "category": "Mooter" },
+      { "command": "mooter.refresh", "title": "Refresh Data", "category": "Mooter", "icon": "$(refresh)" }
     ],
+    "menus": {
+      "view/title": [
+        { "command": "mooter.refresh", "when": "view == mooterCockpit", "group": "navigation" }
+      ]
+    },
     "configuration": {
       "title": "Mooter",
       "properties": {
-        "mooter.trackerPort": { "type": "number", "default": 7821, "description": "Port of the local mooter savings tracker" },
-        "mooter.statusBar.enabled": { "type": "boolean", "default": true, "description": "Show the mooter item in the status bar" }
+        "mooter.trackerPort": { "type": "number", "default": 7821, "minimum": 1, "maximum": 65535, "description": "Port of the local mooter savings tracker." },
+        "mooter.statusBar.enabled": { "type": "boolean", "default": true, "description": "Show the mooter item in the status bar." }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "mooter.gettingStarted",
+        "title": "Get started with Mooter",
+        "description": "See what your Claude Code routing saves — in three steps.",
+        "steps": [
+          {
+            "id": "engine",
+            "title": "Install the mooter engine",
+            "description": "Mooter routes each prompt to the cheapest capable model. Install the engine, then this cockpit lights up.\n[Open Cockpit](command:mooter.openCockpit)",
+            "media": { "markdown": "walkthrough/engine.md" }
+          },
+          {
+            "id": "open",
+            "title": "Open the Cockpit",
+            "description": "Click the 🐮 in the Activity Bar to see live savings, the tier mix, and every routing decision.\n[Open Cockpit](command:mooter.openCockpit)",
+            "media": { "markdown": "walkthrough/open.md" }
+          },
+          {
+            "id": "launch",
+            "title": "Launch a routed session",
+            "description": "Start Claude Code with mooter hints active and watch the decisions feed fill in.\n[New session](command:mooter.newSession)",
+            "media": { "markdown": "walkthrough/launch.md" }
+          }
+        ]
+      }
+    ]
   }
 }

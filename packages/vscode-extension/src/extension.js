@@ -1,4 +1,9 @@
-// mooter-cockpit v0.7.0 — extension host
+// mooter-cockpit v0.8.0 — extension host
+// v0.8.0 (2026-06-14): publish-perfect + cross-platform —
+//   · external links via env.openExternal (Windows/Linux safe, no macOS `open`)
+//   · Claude Code CLI detection no longer assumes a Unix path
+//   · keyboard-navigable tab strip (role=tab + arrow keys)
+//   · manifest: extensionKind/capabilities/walkthrough/CHANGELOG; fixed .vscodeignore.
 // 7 requisitos (2026-06-12): brand colors · terminal parity · setup wizard ·
 // slash commands mgmt · model/subscription picker · rich metrics · marketplace-ready.
 // v0.7.0 (2026-06-14): resource hygiene + honesty —
@@ -16,6 +21,20 @@ const data_ = require('./data.js');
 const extra = require('./host-extra.js');
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
+
+// Cross-platform Claude Code detection: the installed extension is the strongest
+// signal; otherwise probe the usual CLI locations on macOS/Linux/Windows.
+function detectClaude() {
+  if (vscode.extensions.getExtension('anthropic.claude-code')) return true;
+  const home = require('os').homedir();
+  const cands = [
+    path.join(home, '.local', 'bin', 'claude'),
+    path.join(home, '.local', 'bin', 'claude.exe'),
+    path.join(home, 'AppData', 'Roaming', 'npm', 'claude.cmd'),
+    path.join(home, 'AppData', 'Roaming', 'npm', 'claude'),
+  ];
+  return cands.some((p) => { try { return fs.existsSync(p); } catch { return false; } });
+}
 
 class DataService {
   constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; }
@@ -56,7 +75,7 @@ class DataService {
       security: doDeep ? security : prev.security,
       spans: doDeep ? spans : prev.spans,
       herd: doDeep ? extra.herd() : prev.herd,
-      claudeCli: fs.existsSync(path.join(require('os').homedir(), '.local', 'bin', 'claude')),
+      claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
     };
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
@@ -89,6 +108,7 @@ class DataService {
 
 function makeStatusBar(ctx, data) {
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
+  item.name = 'Mooter';
   item.command = 'mooter.openCockpit';
   ctx.subscriptions.push(item);
   ctx.subscriptions.push(data.onUpdate((s) => {
@@ -124,6 +144,7 @@ class CockpitProvider {
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
       if (m.cmd === 'refresh') this.data.refresh(true);
       if (m.cmd === 'term') runInTerminal(m.arg || 'mooter doctor');
+      if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal('mooter slash-commands install'); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -280,8 +301,13 @@ function getHtml() {
 <div class="view" id="v-doctor"><div class="empty">…</div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
-function goTab(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.v===name));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+name));}
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>goTab(t.dataset.v));
+function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+name));}
+(function(){const tl=document.querySelector('.tabs');if(tl)tl.setAttribute('role','tablist');
+  const tabs=[...document.querySelectorAll('.tab')];
+  document.querySelectorAll('.view').forEach(v=>v.setAttribute('role','tabpanel'));
+  tabs.forEach((t,i)=>{const on=t.classList.contains('on');t.setAttribute('role','tab');t.setAttribute('aria-controls','v-'+t.dataset.v);t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;
+    t.onclick=()=>goTab(t.dataset.v);
+    t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
 const inI=$('#intentIn'),inG=$('#intentGo'),inR=$('#intentRes');
 function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';inR.textContent='🐮 thinking…';send('intent',v);}
@@ -295,6 +321,7 @@ function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
   if(a.startsWith('term:'))send('term',a.slice(5));
+  else if(a.startsWith('openUrl:'))send('openUrl',a.slice(8));
   else if(a.startsWith('pull:'))send('pull',a.slice(5));
   else if(a.startsWith('tab:'))goTab(a.slice(4));
   else if(a==='spawnDemo')send('term','mooter spawn "audit this repo" --local');
@@ -319,7 +346,7 @@ window.addEventListener('message',(e)=>{
     $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Setup wizard</div><div class="sub" style="margin-top:6px">Same flow as mooter.ai/onboarding.</div></div><div class="card">'+
       [{ok:s.claudeCli,t:'Claude Code CLI',d:s.claudeCli?'detected':'install Claude Code first'},
        {ok:false,t:'mooter engine',d:'one command — local routing + savings',b:['Install engine','install']},
-       {ok:(s.ollama||[]).length>0,t:'Ollama (free T0)',d:'optional',b:['ollama.com →','term:open https://ollama.com/download']},
+       {ok:(s.ollama||[]).length>0,t:'Ollama (free T0)',d:'optional',b:['ollama.com →','openUrl:https://ollama.com/download']},
        {ok:false,t:'First routed prompt',d:'launch a session'}]
       .map((st,i)=>'<div class="wstep'+(st.ok?' done':'')+'"><div class="n">'+(st.ok?'✓':i+1)+'</div><div class="w">'+esc(st.t)+'<small>'+esc(st.d)+'</small></div>'+(st.b?'<button data-a="'+st.b[1]+'">'+esc(st.b[0])+'</button>':'')+'</div>').join('')+'</div>';
     wireButtons($('#v-cockpit'));return;
