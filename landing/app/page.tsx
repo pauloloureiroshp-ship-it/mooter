@@ -38,22 +38,12 @@ export default function Page() {
                 Spawns agents safely by default.
               </p>
 
-              <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 18, maxWidth: 540 }}>
-                Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
-                But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
-                environment and routes every prompt to the optimal model. Comparable quality on routine tasks, a fraction of the spend —{' '}
-                <strong style={{ color: 'var(--color-text)' }}>47% saved vs all-Opus across the author&apos;s own 658 routed calls</strong>. Real data, not a community average.{' '}
-                <a href="/methodology" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              {/* One tight proof line above the fold — the full explanation moved to "How it works" below. */}
+              <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.6, marginTop: 18, maxWidth: 540 }}>
+                <strong style={{ color: 'var(--color-text)' }}>47% saved vs all-Opus across the author&apos;s own 658 routed calls</strong> — real data, not a community average.{' '}
+                <a href="/methodology" style={{ color: 'var(--color-accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   See the benchmark *
                 </a>
-              </p>
-
-              {/* D6 — condensed persona+$ subline (rubric C5) */}
-              <p style={{ color: 'var(--color-text)', fontSize: 15, lineHeight: 1.6, marginTop: 14, maxWidth: 560, fontWeight: 500 }}>
-                For a vibe coder on a Max plan: renames, commits &amp; explains run <strong>local (free)</strong>;
-                debugging &amp; refactors go <strong>cloud</strong> — typically ~30% less on a mixed day, more when
-                local does the heavy lifting.{' '}
-                <a href="/methodology" style={{ color: 'var(--color-accent)' }}>Estimate yours →</a>
               </p>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
@@ -79,6 +69,23 @@ export default function Page() {
               <HeroTerminal />
             </div>
           </div>
+
+          {/* How it works — the longer explanation lives below the fold, out of the hero (gap #6). */}
+          <section style={{ padding: '4px 0 8px', maxWidth: 720 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-muted)', fontWeight: 500 }}>How it works</div>
+            <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 10 }}>
+              Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
+              But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
+              environment and routes every prompt to the optimal model: comparable quality on routine tasks, a
+              fraction of the spend.
+            </p>
+            <p style={{ color: 'var(--color-text)', fontSize: 15, lineHeight: 1.6, marginTop: 14, fontWeight: 500 }}>
+              For a vibe coder on a Max plan: renames, commits &amp; explains run <strong>local (free)</strong>;
+              debugging &amp; refactors go <strong>cloud</strong> — typically ~30% less on a mixed day, more when
+              local does the heavy lifting.{' '}
+              <a href="/methodology" style={{ color: 'var(--color-accent)' }}>Estimate yours →</a>
+            </p>
+          </section>
 
           <PulseStrip />
 
