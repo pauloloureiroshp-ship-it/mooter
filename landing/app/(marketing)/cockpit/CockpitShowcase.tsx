@@ -1523,14 +1523,14 @@ export default function CockpitShowcase() {
             Install in 30s →
           </Btn>
           <a
-            href="https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packages/vscode-extension"
+            href="https://github.com/pauloloureiroshp-ship-it/mooter/releases/download/vscode-cockpit-v0.12.1/mooter-cockpit-0.12.1.vsix"
             target="_blank"
             rel="noopener noreferrer"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '15px 26px',
+              gap: 9,
+              padding: '15px 24px',
               fontSize: 16,
               fontWeight: 600,
               borderRadius: 10,
@@ -1542,12 +1542,19 @@ export default function CockpitShowcase() {
               lineHeight: 1,
             }}
           >
-            Get the VS Code extension ↗
+            <svg width="18" height="18" viewBox="0 0 256 254" aria-hidden="true" style={{ flexShrink: 0 }}>
+              <path
+                fill="#0098FF"
+                d="M181.534 254.252a15.91 15.91 0 0 0 12.676-.486l52.299-25.166a16 16 0 0 0 9.045-14.433V40.535a16 16 0 0 0-9.045-14.434L194.21.935a15.92 15.92 0 0 0-18.164 3.092L75.911 95.397l-43.652-33.135a10.642 10.642 0 0 0-13.598.605L4.534 75.952c-4.85 4.418-4.855 12.06-.012 16.485L42.318 127 4.522 161.563c-4.843 4.426-4.838 12.067.012 16.485l14.127 12.886a10.643 10.643 0 0 0 13.598.604l43.652-33.135 100.135 91.37a15.91 15.91 0 0 0 5.488 3.479ZM192.137 69.6 116.156 127l75.981 57.4V69.6Z"
+              />
+            </svg>
+            Install for VS Code
           </a>
         </div>
         <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--color-muted)' }}>
-          The Cockpit lives in your VS Code Activity Bar. Marketplace listing coming soon — for now the
-          extension installs from the repo (the README has the steps).
+          Downloads the Cockpit extension <code>.vsix</code> (v0.12.1). Then run{' '}
+          <code style={{ color: 'var(--color-text)' }}>code --install-extension mooter-cockpit-0.12.1.vsix</code>{' '}
+          — or in VS Code, Extensions → ⋯ → <em>Install from VSIX…</em>. Marketplace listing coming soon.
         </p>
         <p style={{ marginTop: 10, fontSize: 12, color: 'var(--color-muted)' }}>
           Community project · not affiliated with Anthropic. The cockpit above is an illustrative mock — numbers are
