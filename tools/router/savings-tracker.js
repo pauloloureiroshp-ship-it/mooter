@@ -437,6 +437,8 @@ function emptyMetrics() {
     prompts: 0,              // user prompts, system prompts filtered out
     system_prompts_filtered: 0,
     option_a_hits: 0,
+    cascade_local_kept: 0,   // Wave 62.5 — confident local drafts trusted (advisory)
+    cascade_escalated: 0,    // Wave 62.5 — shaky drafts withheld → escalation justified
 
     // USD costs (always present, source of truth)
     real_cost: 0,            // kept for backwards compat — now = real_cost_estimated
@@ -477,7 +479,10 @@ function computeMetrics(lines) {
   // the only guaranteed Opus skips.
   for (const line of lines) {
     const e = safeParse(line);
-    if (e && e.event === 'option_a_hit') m.option_a_hits += 1;
+    if (!e) continue;
+    if (e.event === 'option_a_hit') m.option_a_hits += 1;
+    else if (e.event === 'cascade_local_kept') m.cascade_local_kept += 1;
+    else if (e.event === 'cascade_escalated') m.cascade_escalated += 1;
   }
 
   // Second pass: real cost accounting over classified user prompts.
@@ -549,6 +554,16 @@ function computeMetrics(lines) {
     console.error('[savings-tracker] INVARIANT BROKEN: guaranteed_saved > advisory_saved');
     m.guaranteed_saved = m.advisory_saved;
   }
+
+  // Wave 62.5 — confidence-cascade telemetry (ADVISORY ONLY; never $-guaranteed).
+  // Measures the cascade's DISCRIMINATION, not new dollars: a withheld shaky draft
+  // prevents a FALSE saving (a bad verbatim answer that would cost a correction
+  // turn), it does not manufacture a real one. So nothing here is added to
+  // guaranteed_saved / advisory_saved — the honesty invariant above is untouched.
+  m.cascade_decisions = m.cascade_local_kept + m.cascade_escalated;
+  m.cascade_escalation_rate = m.cascade_decisions > 0
+    ? round((m.cascade_escalated / m.cascade_decisions) * 100, 1)
+    : 0;
 
   // Plan-aware fields (P2): surface the user's subscription so consumers
   // can show the right framing. Claude Max users pay flat — show

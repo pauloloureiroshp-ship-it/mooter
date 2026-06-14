@@ -1109,6 +1109,20 @@ function confidenceCascadeEnabled() {
       || !!(p.execution_modes && p.execution_modes.confidence_cascade === true);
   } catch { return false; }
 }
+// Wave 62.5 Block D — optional calibrated escalate threshold (env wins; then prefs).
+// Computed OUT-OF-BAND by the auto-learning calibrator (calibrateLowThreshold over
+// logged cascade scores); the hook only reads the pre-computed number — no hot-path IO.
+function cascadeLowThreshold() {
+  const env = parseFloat(process.env.MOOTER_CONFIDENCE_THRESHOLD);
+  if (Number.isFinite(env) && env > 0 && env < 1) return env;
+  try {
+    const { readPrefs } = require('./badge.js');
+    const p = readPrefs() || {};
+    const v = Number(p.confidence_cascade_threshold);
+    if (Number.isFinite(v) && v > 0 && v < 1) return v;
+  } catch { /* ignore */ }
+  return undefined; // → draftConfidence uses its DEFAULT_LOW
+}
 let suggestedAnswer = null;
 let cascadeEscalation = null; // Wave 62.5: set when a low-confidence draft is withheld
 const userPinnedOverride = decision.user_override && decision.user_override.honored === true;
@@ -1141,7 +1155,7 @@ if (
       try {
         if (confidenceCascadeEnabled()) {
           const { draftConfidence } = require('./confidence-probe.js');
-          const conf = draftConfidence(draft, { task_category: decision.task_category });
+          const conf = draftConfidence(draft, { task_category: decision.task_category, lowThreshold: cascadeLowThreshold() });
           if (conf.band === 'low') {
             withholdDraft = true;
             cascadeEscalation = conf;
