@@ -203,7 +203,9 @@ function project(s) {
     insights: extra.insights(s.decisions),
     herd: s.herd,
     ledger: s.ledger,
-    paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
+    // ONE coherent Claude-Code pairing state for both header and Setup (SPEC §6 / P2):
+    //   ext (extension installed) · cli (binary on disk) · none. Header & Setup must never disagree.
+    claude: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); if (e) return { state: 'ext', version: (e.packageJSON && e.packageJSON.version) || '' }; return { state: s.claudeCli ? 'cli' : 'none' }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
     slashCmds: extra.SLASH_CMDS,
@@ -380,15 +382,16 @@ window.addEventListener('message',(e)=>{
   if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
-  const pr=s.paired||{};
-  $('#pair').innerHTML=pr.ok?'<span title="paired with Claude Code '+esc(pr.version)+'" style="color:var(--g)">✕ ✱ Claude Code ✓</span>':'<span title="Claude Code extension not found" style="color:var(--t3)">✕ ✱ not paired</span>';
+  const cl=s.claude||{state:'none'};
+  const PAIR={ext:{t:'Claude Code ✓',c:'var(--g)',d:'paired via extension '+esc(cl.version||'')},cli:{t:'Claude Code ✓ (CLI)',c:'var(--g)',d:'Claude Code CLI detected'},none:{t:'Claude Code —',c:'var(--bmuted)',d:'install Claude Code to pair'}}[cl.state];
+  $('#pair').innerHTML='<span title="'+PAIR.d+'" style="color:'+PAIR.c+'">'+PAIR.t+'</span>';
   curMode=s.mode||'auto';$('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
   $('#scoreBadge').textContent=score.pct+'%';
 
   // WIZARD quando engine falta
   if(!s.runtimeInstalled){
     $('#v-cockpit').innerHTML='<div class="card hero"><div class="lbl">Setup wizard</div><div class="sub" style="margin-top:6px">Same flow as mooter.ai/onboarding.</div></div><div class="card">'+
-      [{ok:s.claudeCli,t:'Claude Code CLI',d:s.claudeCli?'detected':'install Claude Code first'},
+      [{ok:(s.claude&&s.claude.state!=='none'),t:'Claude Code',d:(s.claude&&s.claude.state!=='none')?'detected':'install Claude Code first'},
        {ok:false,t:'mooter engine',d:'one command — local routing + savings',b:['Install engine','install']},
        {ok:(s.ollama||[]).length>0,t:'Ollama (free T0)',d:'optional',b:['ollama.com →','openUrl:https://ollama.com/download']},
        {ok:false,t:'First routed prompt',d:'launch a session'}]
@@ -431,7 +434,7 @@ window.addEventListener('message',(e)=>{
   $('#v-setup').innerHTML=
     '<div class="card"><div class="lbl">🎮 Hardware</div>'+kv('GPU',hw.name||hwd.gpu||null)+kv('VRAM',hw.vram_mb?(hw.vram_mb/1024).toFixed(0)+' GB':null)+kv('Tier',hw.hw_tier||hwd.hw_tier)+kv('RAM',hwd.ram_gb?hwd.ram_gb+' GB':null)+kv('CPU cores',hwd.cpu_cores)+kv('Platform',(hwd.platform||'')+(hwd.arch?'/'+hwd.arch:''))+
       (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
-    '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',sw.ollama_installed!=null?(sw.ollama_installed?'yes':'no'):((s.ollama||[]).length?'running':'offline'))+'</div>'+
+    '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version||(s.claude&&s.claude.state==='ext'?'extension '+(s.claude.version||''):s.claude&&s.claude.state==='cli'?'CLI detected':null))+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',sw.ollama_installed!=null?(sw.ollama_installed?'yes':'no'):((s.ollama||[]).length?'running':'offline'))+'</div>'+
     '<div class="card"><div class="lbl">🔑 Subscriptions</div>'+kv('Anthropic',subs.anthropic||(s.sub&&s.sub.profile))+kv('OpenAI',subs.openai)+kv('Gemini',subs.gemini)+kv('Ollama',subs.ollama)+'<div class="sub" style="margin-top:5px">keys & tiers drive T1-T3 budgets</div></div>'+
     '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>';
   const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>send('budget',bi.value);
