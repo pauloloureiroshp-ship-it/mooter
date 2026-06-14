@@ -7,6 +7,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runCostPerf, runBenchmarks, parseLastDays } from "../src/commands/cost-perf.ts";
+import { MATRIX_MODELS } from "../../router/src/specialization-matrix.ts";
+import { TASK_CATEGORIES } from "../../router/src/task-categories.ts";
 
 // ── parseLastDays ─────────────────────────────────────────────────────────────
 
@@ -197,8 +199,9 @@ test("benchmarks list: --json produces valid JSON when fetcher is available", as
     const parsed = JSON.parse(res.output) as { total_logical: number; cells: unknown[] };
     assert.ok(typeof parsed.total_logical === "number", "total_logical present");
     assert.ok(Array.isArray(parsed.cells), "cells is an array");
-    // 17 models × 24 categories = 408 logical cells
-    assert.equal(parsed.total_logical, 408);
+    // Self-healing: derive the expected denominator from the engine roster so a
+    // future MATRIX_MODELS change can never silently desync this test (Wave 58.8).
+    assert.equal(parsed.total_logical, MATRIX_MODELS.length * TASK_CATEGORIES.length);
   } else {
     assert.match(res.output, /benchmark-fetcher|source checkout/);
   }

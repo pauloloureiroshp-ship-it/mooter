@@ -4,6 +4,7 @@ import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 
 import { runSecurity } from "../src/commands/security.ts";
 
@@ -16,7 +17,23 @@ function fakeHome(withSettings: boolean): string {
   return h;
 }
 
-test("security audit renders 4 layers and exit 0 when sandbox is present", () => {
+// The "sandbox present" path asserts exit 0, which only holds when a real sandbox
+// (bwrap) is installed — otherwise the audit correctly reports FAIL → exit ≠ 0.
+// Guard so the test runs (and asserts exit 0) only where bwrap exists; honest skip
+// elsewhere (CI runners / Windows). This replaces the cli-test --test-skip-pattern.
+function hasSandbox(): boolean {
+  try {
+    execSync("command -v bwrap", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test(
+  "security audit renders 4 layers and exit 0 when sandbox is present",
+  { skip: hasSandbox() ? false : "no bwrap on this host (sandbox absent)" },
+  () => {
   const r = runSecurity(["audit"], { env: {} as NodeJS.ProcessEnv, home: fakeHome(true) });
   assert.ok(r.output.includes("Layer 1"));
   assert.ok(r.output.includes("Layer 4"));
