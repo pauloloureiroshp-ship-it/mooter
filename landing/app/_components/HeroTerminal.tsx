@@ -43,6 +43,12 @@ export default function HeroTerminal() {
   }, []);
 
   useEffect(() => {
+    // Honour prefers-reduced-motion: keep one representative scene static, no cycling.
+    const reduce =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
     const id = setInterval(() => {
       if (!inView.current) return;
       setVisible(false);
