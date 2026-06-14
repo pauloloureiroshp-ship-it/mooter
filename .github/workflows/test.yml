@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'tools/router/**'
+      - 'packages/cli/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
     paths:
       - 'tools/router/**'
+      - 'packages/cli/**'
       - '.github/workflows/test.yml'
   workflow_dispatch:
 
