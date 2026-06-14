@@ -249,7 +249,10 @@ function getHtml() {
   .brand b{color:var(--r);font-size:13.5px}.brand .proj{font-size:11px;color:var(--vscode-descriptionForeground);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .right{margin-left:auto;display:flex;gap:5px;align-items:center}
   .badge{font-size:10px;padding:2px 8px;border-radius:8px}
-  .b-mode{color:var(--g);background:var(--gdim)}.b-score{color:var(--ink);background:var(--g);font-weight:700;cursor:pointer}
+  .b-mode{color:var(--g);background:var(--gdim)}
+  /* Score badge = labelled "Score N/8" (never a bare %). Theme-aware neutral; green only at full. */
+  .b-score{color:var(--vscode-badge-foreground);background:var(--vscode-badge-background);font-weight:700;cursor:pointer}
+  .b-score.full{color:var(--ink);background:var(--g)}
   .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
   .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--g)}
@@ -311,7 +314,7 @@ function getHtml() {
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
-  <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
+  <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">Score …</span></span></div>
 <div class="tabs">
   <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
 </div>
@@ -369,7 +372,8 @@ window.addEventListener('message',(e)=>{
   const PAIR={ext:{t:'Claude Code ✓',c:'var(--g)',d:'paired via extension '+esc(cl.version||'')},cli:{t:'Claude Code ✓ (CLI)',c:'var(--g)',d:'Claude Code CLI detected'},none:{t:'Claude Code —',c:'var(--bmuted)',d:'install Claude Code to pair'}}[cl.state];
   $('#pair').innerHTML='<span title="'+PAIR.d+'" style="color:'+PAIR.c+'">'+PAIR.t+'</span>';
   curMode=s.mode||'auto';$('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
-  $('#scoreBadge').textContent=score.pct+'%';
+  $('#scoreBadge').textContent='Score '+score.done+'/'+score.total;
+  $('#scoreBadge').classList.toggle('full',score.done===score.total);
 
   // WIZARD quando engine falta
   if(!s.runtimeInstalled){
@@ -400,7 +404,9 @@ window.addEventListener('message',(e)=>{
       : '<div class="big">—</div><div class="sub">no routing data yet — launch a session below to see your counterfactual savings'+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline</span>')+'</div>')+
     '</div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
-    (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
+    (pend.length
+      ? '<div class="dr"><span>◻︎</span><div class="w">Next: '+esc(pend[0].t)+'</div><button class="sm" data-a="'+esc(pend[0].fix)+'">fix</button></div>'+(pend.length>1?'<button class="sm" data-a="tab:doctor" style="margin-top:6px;width:100%">'+(pend.length-1)+' more in Doctor →</button>':'')
+      : '<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
