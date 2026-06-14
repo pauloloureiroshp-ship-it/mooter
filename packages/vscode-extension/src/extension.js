@@ -275,7 +275,13 @@ function getHtml() {
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecard-idle{opacity:.65}
-  @media (prefers-reduced-motion:reduce){.livecard.pulse .livecow{animation:none}.livedot{animation:none}}
+  .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
+  @keyframes moowalk{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-2px) rotate(-5deg)}75%{transform:translateY(-2px) rotate(5deg)}}
+  .livestat{display:none;font-weight:700;color:var(--lc)}
+  .livestat.on{display:inline}
+  .livestat.on::after{content:'';animation:moodots 1.3s steps(4,end) infinite}
+  @keyframes moodots{0%{content:''}25%{content:'·'}50%{content:'··'}75%{content:'···'}}
+  @media (prefers-reduced-motion:reduce){.livecard.pulse .livecow,.livecow.working{animation:none}.livedot{animation:none}.livestat.on::after{animation:none;content:'…'}}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -346,7 +352,10 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
-let curMode='auto';const MORDER=['zen','auto','beast'];let lastLiveTs='';
+let curMode='auto';const MORDER=['zen','auto','beast'];let lastLiveTs='';let workingUntil=0;
+// Walk the cow while mooter is working: a prompt just routed (active window) or a
+// spawn is running. Client-side tick keeps it smooth between the ~7s polls.
+setInterval(function(){var c=document.getElementById('liveCow'),t=document.getElementById('liveStat'),on=Date.now()<workingUntil;if(c)c.classList.toggle('working',on);if(t)t.classList.toggle('on',on);},900);
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
 $('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
@@ -424,7 +433,7 @@ window.addEventListener('message',(e)=>{
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   const lv=s.live;
   const liveCard=lv
-    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ cloud')+'</span><span class="livemodel">'+esc(lv.model)+'</span></div><div class="livesub">'+(lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')+'</div></div><span class="livedot" title="last routed prompt"></span></div>'
+    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ cloud')+'</span><span class="livemodel">'+esc(lv.model)+'</span></div><div class="livesub">'+(lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')+' <span class="livestat" id="liveStat">🛠 working</span></div></div><span class="livedot" title="last routed prompt"></span></div>'
     : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
   $('#v-cockpit').innerHTML=
     liveCard+
@@ -440,7 +449,7 @@ window.addEventListener('message',(e)=>{
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
-  (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');}})();
+  (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');workingUntil=Date.now()+12000;}const run=s.herd&&s.herd.run;if(run&&/run|active|progress/i.test(String(run.status||'')))workingUntil=Math.max(workingUntil,Date.now()+12000);})();
   wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
