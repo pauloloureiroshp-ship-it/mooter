@@ -24,8 +24,8 @@ test('brief policy: T0 raw (free/local), T3 distilled (expensive/rot-prone)', ()
   assert.equal(shouldDistill('T3'), true);
 });
 
-test('budget is non-decreasing across the cost ladder T0..T3', () => {
-  const order = ['T0', 'T1', 'T2', 'T3'];
+test('budget is non-decreasing across the cost ladder T0..T3..T5', () => {
+  const order = ['T0', 'T1', 'T2', 'T3', 'T5'];
   for (let i = 1; i < order.length; i++) {
     assert.ok(
       contextBudget(order[i]).max_context_tokens >= contextBudget(order[i - 1]).max_context_tokens,
