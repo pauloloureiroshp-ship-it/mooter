@@ -61,9 +61,13 @@ export default async function ComparePage() {
       {/* Primary: the multi-session field (agents & orchestrators) — Wave 33.9 */}
       <MultiSessionTable />
 
-      {/* Secondary: vs other LLM routers / proxies */}
-      <Eyebrow>vs other routers</Eyebrow>
-      <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 700, letterSpacing: '-0.02em', margin: '8px 0 16px' }}>
+      {/* Secondary: vs other LLM routers / proxies — progressively revealed so the
+          11×8 matrix above stays the hero and mobile isn't hit with two big tables (gap #5). */}
+      <details style={{ marginTop: 28 }}>
+        <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-accent)', padding: '10px 16px', border: '1px solid var(--color-border-light)', borderRadius: 999 }}>
+          Show full router comparison — vs Cursor, Aider &amp; proxies ▾
+        </summary>
+      <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 700, letterSpacing: '-0.02em', margin: '20px 0 16px' }}>
         And against the routers and proxies
       </h2>
 
@@ -122,6 +126,7 @@ export default async function ComparePage() {
         mooter decides <em>which model runs each step</em>. It complements them (run mooter under Claude Code while you
         use any of them elsewhere) rather than replacing them — so this table compares routers, not agents.
       </p>
+      </details>
     </section>
   );
 }
