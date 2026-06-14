@@ -90,7 +90,7 @@ function quantSnapshot() { return readJson(path.join(MOOTER_HOME, 'cache', 'quan
 function preferences() { return readJson(path.join(MOOTER_HOME, 'preferences.json')); }
 function installedPacks() { return readJson(path.join(MOOTER_HOME, 'installed_packs.json')); }
 
-const BUDGET_PATHS = [path.join(MOOTER_HOME, 'budget-config.json'), path.join(os.homedir(), '.frugal', 'budget-config.json')];
+const BUDGET_PATHS = [path.join(MOOTER_HOME, 'budget-config.json')];// only ~/.mooter — legacy home path removed (migration is one-way; rebrand doctrine)
 function readBudget() { for (const p of BUDGET_PATHS) { const j = readJson(p); if (j) return j; } return null; }
 function writeBudget(usd) {
   const n = Math.max(0, Math.min(10000, Number(usd) || 0));

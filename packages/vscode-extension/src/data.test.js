@@ -84,7 +84,7 @@ test('httpJson: live mock server → parsed JSON', async () => {
 });
 
 test('httpJson: non-JSON body → null', async () => {
-  const srv = http.createServer((_q, res) => { res.end('frugal — savings summary'); });
+  const srv = http.createServer((_q, res) => { res.end('mooter — savings summary'); });
   await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
   const r = await d.httpJson(srv.address().port, '/summary');
   assert.equal(r, null);
