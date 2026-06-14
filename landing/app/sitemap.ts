@@ -24,6 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page('/compare', 0.8, 'weekly'),
     page('/packs', 0.7, 'weekly'),
     page('/under-the-hood', 0.7, 'monthly'),
+    page('/cockpit', 0.7, 'monthly'),
     page('/security', 0.7, 'monthly'),
     page('/sessions', 0.6, 'monthly'),
     page('/spawn', 0.6, 'monthly'),
