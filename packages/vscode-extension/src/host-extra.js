@@ -485,8 +485,31 @@ function localTokens() {
 // exposes no such API, and VS Code gives no cross-extension focus signal), so this is
 // labelled "recent", never "active". Each entry carries the real last host model +
 // turn count from the transcript. `working` is a heuristic (mtime < 90s), never a claim.
-function recentSessions(maxN = 6) {
-  const out = []; const now = Date.now();
+// Human session names = what the user actually typed first (Claude Code's own session
+// title is the first prompt). Read from ~/.claude/history.jsonl ({display, sessionId}).
+// Skips "[Pasted text]" / "[Image]" placeholders so the name is meaningful. This is the
+// same text shown on the session's tab — honest, not fabricated.
+function sessionNames(maxBytes = 1024 * 1024) {
+  const out = {};
+  try {
+    const hp = path.join(os.homedir(), '.claude', 'history.jsonl');
+    const st = fs.statSync(hp); const start = Math.max(0, st.size - maxBytes);
+    const fd = fs.openSync(hp, 'r'); const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    for (const line of buf.toString('utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let d; try { d = JSON.parse(line); } catch { continue; }
+      const sid = d.sessionId || d.session_id; if (!sid || out[sid]) continue;
+      const disp = String(d.display || '').trim();
+      if (!disp || disp.charAt(0) === '[') continue; // skip paste/image placeholders
+      out[sid] = disp.replace(/\s+/g, ' ').slice(0, 52);
+    }
+  } catch { /* no history */ }
+  return out;
+}
+
+function recentSessions(maxN = 8) {
+  const out = []; const now = Date.now(); const names = sessionNames();
   for (const f of listSessionFiles().slice(0, maxN)) {
     let lastModel = null; let turns = 0;
     try {
@@ -502,7 +525,7 @@ function recentSessions(maxN = 6) {
     } catch { /* skip unreadable */ }
     const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
     const sid = path.basename(f.file).replace(/\.jsonl$/, '');
-    out.push({ id: sid.slice(0, 8), fullId: sid, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
+    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
   }
   return out;
 }
