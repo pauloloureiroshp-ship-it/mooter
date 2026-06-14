@@ -198,3 +198,26 @@ test('liveRouting: nothing → null (never fabricates)', () => {
   assert.equal(x.liveRouting(null, {}), null);
   assert.equal(x.liveRouting({}, {}), null);
 });
+
+// ── Per-session scoping (cockpit considerations #3/#4 — "reflect the active session") ──
+test('tokenLedger: sessionOnly skips the all-time aggregate (cheap per-session path)', () => {
+  const led = x.tokenLedger('___no-such-session-id___', { sessionOnly: true });
+  assert.deepEqual(led.all, { rows: [], turns: 0, lastModel: null }); // all-aggregate skipped
+  assert.deepEqual(led.session.rows, []); // unknown session → empty, never throws
+  assert.equal(typeof led.sessions, 'number');
+});
+
+test('recentSessions: each entry carries a full session id + 8-char short id', () => {
+  const rs = x.recentSessions(3);
+  assert.ok(Array.isArray(rs));
+  for (const r of rs) {
+    assert.equal(typeof r.fullId, 'string');
+    assert.equal(r.id, r.fullId.slice(0, 8)); // id is the short prefix used in the picker
+    assert.ok('working' in r && 'ageMs' in r); // honest activity heuristic fields present
+  }
+});
+
+test('activeSession: returns null or {id,ts} — never throws (auto-follow source)', () => {
+  const a = x.activeSession();
+  assert.ok(a === null || (a && typeof a.id === 'string' && a.id !== 'unknown'));
+});

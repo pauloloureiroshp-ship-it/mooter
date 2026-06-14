@@ -423,12 +423,35 @@ function aggregateUsage(files) {
     .sort((x, y) => (y.cost || 0) - (x.cost || 0));
   return { rows, turns, lastModel };
 }
-// scope: 'session' (most-recent file) | 'all' (every file). Never throws.
-function tokenLedger() {
+// scope: 'session' (a specific sessionId, or the most-recent file when omitted) |
+// 'all' (every file). Never throws. Passing sessionId scopes the cockpit to ONE
+// Claude Code session so its numbers reflect exactly that tab's work.
+function tokenLedger(sessionId, opts) {
   const files = listSessionFiles();
-  const session = files.length ? aggregateUsage([files[0].file]) : { rows: [], turns: 0, lastModel: null };
-  const all = aggregateUsage(files.map((f) => f.file));
+  let sessionFiles;
+  if (sessionId) {
+    const match = files.find((f) => path.basename(f.file).replace(/\.jsonl$/, '') === sessionId);
+    sessionFiles = match ? [match.file] : [];
+  } else {
+    sessionFiles = files.length ? [files[0].file] : [];
+  }
+  const session = sessionFiles.length ? aggregateUsage(sessionFiles) : { rows: [], turns: 0, lastModel: null };
+  // sessionOnly skips the all-time aggregate (every file) — used by the per-session
+  // scope path that recomputes every refresh, so it stays cheap (one file).
+  const all = (opts && opts.sessionOnly) ? { rows: [], turns: 0, lastModel: null } : aggregateUsage(files.map((f) => f.file));
   return { session, all, sessions: files.length };
+}
+
+// The currently ACTIVE session = the one whose prompt was classified most recently
+// (inject_context.js writes .last-classified.json with the session_id on every
+// UserPromptSubmit, across all terminals). This is the honest auto-follow signal: as
+// soon as you send a prompt in a tab, that tab becomes the active session. Returns
+// null when nothing has been routed yet.
+function activeSession() {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(ROUTER, '.last-classified.json'), 'utf8'));
+    return j && j.session_id && j.session_id !== 'unknown' ? { id: j.session_id, ts: j.ts_ms || null } : null;
+  } catch { return null; }
 }
 
 // Real LOCAL (Ollama/T0) tokens — the honest answer to "list local models like Opus,
@@ -479,7 +502,7 @@ function recentSessions(maxN = 6) {
     } catch { /* skip unreadable */ }
     const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
     const sid = path.basename(f.file).replace(/\.jsonl$/, '');
-    out.push({ id: sid.slice(0, 8), project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
+    out.push({ id: sid.slice(0, 8), fullId: sid, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
   }
   return out;
 }
@@ -487,4 +510,4 @@ function recentSessions(maxN = 6) {
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
-  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions };
+  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession };
