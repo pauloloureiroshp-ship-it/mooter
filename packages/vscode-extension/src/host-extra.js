@@ -135,19 +135,64 @@ function _emoji() {
   return _emojiMod;
 }
 const FAMILY_HEX = { amber: '#E5C07B', tan: '#C9A876', blue: '#5A9BD4', green: '#4CAF6A', gold: '#F2C94C', pink: '#E8888A', gray: '#8A8076' };
-function liveRouting(last) {
-  if (!last || !last.model_full) return null;
-  const model = String(last.model_full);
+function _fam(model) {
   const em = _emoji();
   const d = (em && em.emojiForModel) ? em.emojiForModel(model) : { emoji: '🤖', label: 'Model', color: 'gray' };
-  const isLocal = d.label === 'Ollama' || (!/^claude-/i.test(model) && model.includes(':'));
-  const why = last.user_override ? 'pinned' : (String(last.cascade_path || '').includes('→') ? 'cascade' : 'auto');
+  return { emoji: d.emoji, label: d.label, color: FAMILY_HEX[d.color] || FAMILY_HEX.gray };
+}
+function _isLocalId(model) { return !/^claude-/i.test(model) && String(model).includes(':'); }
+
+// The Live cow's coherence fix (honesty mandate): the tracker /last carries the
+// router's RECOMMENDED model (an advisory tier decision), which is NOT proof of what
+// answered. In a Claude Code session the HOST model answers every turn regardless;
+// the recommendation only executes for real local dispatches (router-execute) or
+// spawned subagents. So we separate two axes and never let the recommendation
+// masquerade as execution:
+//   • executor (cow identity)  — ground truth: opts.hostModel (this session's
+//     answering model, from the token ledger) or a real local dispatch
+//     (opts.lastExecution from /last-execution).
+//   • recommended (advisory)   — what the classifier suggested, shown dimmed.
+// Falls back to the recommendation flagged real:false only when no execution is
+// known yet — so the UI can say "recommended (not confirmed)" instead of lying.
+function liveRouting(last, opts) {
+  opts = opts || {};
+  let recommended = null;
+  if (last && last.model_full) {
+    const rm = String(last.model_full); const f = _fam(rm);
+    recommended = {
+      model: rm, tier: last.tier || '', emoji: f.emoji, label: f.label, color: f.color,
+      provider: (f.label === 'Ollama' || _isLocalId(rm)) ? 'local' : 'cloud',
+      why: last.user_override ? 'pinned' : (String(last.cascade_path || '').includes('→') ? 'cascade' : 'auto'),
+      cascade: last.cascade_path || '', confidence: last.confidence != null ? last.confidence : null,
+    };
+  }
+  let dispatch = null;
+  const ex = opts.lastExecution;
+  if (ex && ex.ok && (ex.model || ex.model_full)) {
+    const dm = String(ex.model || ex.model_full); const f = _fam(dm);
+    dispatch = { model: dm, emoji: f.emoji, label: f.label, color: f.color };
+  }
+  let host = null;
+  if (opts.hostModel) {
+    const hm = String(opts.hostModel); const f = _fam(hm);
+    host = { model: hm, emoji: f.emoji, label: f.label, color: f.color };
+  }
+  let exec;
+  if (host) exec = { ...host, provider: 'cloud', real: true, scope: 'session' };
+  else if (dispatch) exec = { ...dispatch, provider: 'local', real: true, scope: 'dispatch' };
+  else if (recommended) exec = { model: recommended.model, emoji: recommended.emoji, label: recommended.label, color: recommended.color, provider: recommended.provider, real: false, scope: 'recommended' };
+  else return null;
   return {
-    model, tier: last.tier || '', emoji: d.emoji, label: d.label,
-    color: FAMILY_HEX[d.color] || FAMILY_HEX.gray,
-    provider: isLocal ? 'local' : 'cloud', why,
-    cascade: last.cascade_path || '', confidence: last.confidence != null ? last.confidence : null,
-    ts: last.ts || '',
+    model: exec.model, emoji: exec.emoji, label: exec.label, color: exec.color,
+    provider: exec.provider, real: exec.real, scope: exec.scope,
+    recommended,
+    // surface a real local dispatch as an extra chip when it isn't already the identity
+    dispatch: (dispatch && exec.scope !== 'dispatch') ? dispatch : null,
+    tier: (recommended && recommended.tier) || (last && last.tier) || '',
+    why: recommended ? recommended.why : 'auto',
+    cascade: recommended ? recommended.cascade : '',
+    confidence: recommended ? recommended.confidence : null,
+    ts: (last && last.ts) || '',
   };
 }
 
@@ -352,33 +397,94 @@ function listSessionFiles() {
   return out.sort((a, b) => b.mtime - a.mtime);
 }
 // Aggregate one or more session files by model. Dedup turns by message.id.
+// `lastModel` = the model of the most recent real usage line — the host model that
+// actually answered this session (ground truth for the Live cow, not the router's
+// advisory recommendation). Single-file scope ⇒ this is the true "who ran last".
 function aggregateUsage(files) {
-  const byModel = {}; const seen = new Set(); let turns = 0;
+  const byModel = {}; const seen = new Set(); let turns = 0; let lastModel = null;
   for (const f of files) {
     let txt = ''; try { const st = fs.statSync(f); const start = Math.max(0, st.size - 8 * 1024 * 1024); const fd = fs.openSync(f, 'r'); const buf = Buffer.alloc(st.size - start); fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd); txt = buf.toString('utf8'); } catch { continue; }
     for (const line of txt.split('\n')) {
       if (!line.includes('"usage"')) continue;
       let d; try { d = JSON.parse(line); } catch { continue; }
       const msg = d && d.message; const u = msg && msg.usage; if (!u || !msg.model) continue;
+      // Skip Claude Code's own pseudo-models ('<synthetic>' = "No response requested."
+      // with zero usage). They are harness placeholders, not real model spend — keeping
+      // them would put a phantom row in the ledger (honesty: only real usage shows).
+      if (String(msg.model).charAt(0) === '<') continue;
       const id = msg.id || d.uuid; if (id) { if (seen.has(id)) continue; seen.add(id); }
       const m = msg.model; const a = byModel[m] || (byModel[m] = { model: m, in: 0, out: 0, cw: 0, cr: 0, n: 0 });
       a.in += u.input_tokens || 0; a.out += u.output_tokens || 0;
       a.cw += u.cache_creation_input_tokens || 0; a.cr += u.cache_read_input_tokens || 0; a.n += 1; turns += 1;
+      lastModel = m;
     }
   }
   const rows = Object.values(byModel).map((a) => ({ ...a, cost: costFor(a.model, a) }))
     .sort((x, y) => (y.cost || 0) - (x.cost || 0));
-  return { rows, turns };
+  return { rows, turns, lastModel };
 }
 // scope: 'session' (most-recent file) | 'all' (every file). Never throws.
 function tokenLedger() {
   const files = listSessionFiles();
-  const session = files.length ? aggregateUsage([files[0].file]) : { rows: [], turns: 0 };
+  const session = files.length ? aggregateUsage([files[0].file]) : { rows: [], turns: 0, lastModel: null };
   const all = aggregateUsage(files.map((f) => f.file));
   return { session, all, sessions: files.length };
+}
+
+// Real LOCAL (Ollama/T0) tokens — the honest answer to "list local models like Opus,
+// with tokens in/out, cost $0". Local calls are NOT in the Claude transcript, so the
+// ledger above can't see them; token_tracker.js records them via the executor path
+// (trackCall) into os.tmpdir()/mooter-tokens-<session>.json. We read the most-recent
+// session cache and return its measured T0 aggregate. Returns null when nothing was
+// metered (never a fabricated number). NOTE: token_tracker meters by TIER, so this is
+// the T0 total, not a per-model split — the UI labels it honestly.
+let _ttMod;
+function _tt() { if (_ttMod !== undefined) return _ttMod; try { _ttMod = require(path.join(ROUTER, 'token_tracker.js')); } catch { _ttMod = null; } return _ttMod; }
+function localTokens() {
+  try {
+    const dir = os.tmpdir();
+    const cand = fs.readdirSync(dir)
+      .filter((f) => /^mooter-tokens-.+\.json$/.test(f))
+      .map((f) => { try { return { sid: f.slice('mooter-tokens-'.length, -'.json'.length), m: fs.statSync(path.join(dir, f)).mtimeMs }; } catch { return null; } })
+      .filter(Boolean).sort((a, b) => b.m - a.m);
+    if (!cand.length) return null;
+    const tt = _tt(); if (!tt || typeof tt.snapshot !== 'function') return null;
+    const snap = tt.snapshot(cand[0].sid);
+    const t0 = snap && snap.T0;
+    if (!t0 || (!t0.calls && !t0.tokens_in && !t0.tokens_out)) return null;
+    return { calls: t0.calls || 0, in: t0.tokens_in || 0, out: t0.tokens_out || 0, real: true };
+  } catch { return null; }
+}
+
+// Recent Claude Code sessions by file activity (mtime) — the honest substitute for
+// the old "Herd" facade (spawns/heartbeats/worktrees that don't exist on disk). We
+// CANNOT know which VS Code tab is focused (the anthropic.claude-code extension
+// exposes no such API, and VS Code gives no cross-extension focus signal), so this is
+// labelled "recent", never "active". Each entry carries the real last host model +
+// turn count from the transcript. `working` is a heuristic (mtime < 90s), never a claim.
+function recentSessions(maxN = 6) {
+  const out = []; const now = Date.now();
+  for (const f of listSessionFiles().slice(0, maxN)) {
+    let lastModel = null; let turns = 0;
+    try {
+      const st = fs.statSync(f.file); const start = Math.max(0, st.size - 256 * 1024);
+      const fd = fs.openSync(f.file, 'r'); const buf = Buffer.alloc(st.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+      for (const line of buf.toString('utf8').split('\n')) {
+        if (!line.includes('"usage"')) continue;
+        let d; try { d = JSON.parse(line); } catch { continue; }
+        const m = d && d.message; if (!m || !m.model || String(m.model).charAt(0) === '<') continue;
+        lastModel = m.model; turns += 1;
+      }
+    } catch { /* skip unreadable */ }
+    const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
+    const sid = path.basename(f.file).replace(/\.jsonl$/, '');
+    out.push({ id: sid.slice(0, 8), project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working: now - f.mtime < 90000 });
+  }
+  return out;
 }
 
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
-  PRICES, priceFor, costFor, tokenLedger };
+  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions };

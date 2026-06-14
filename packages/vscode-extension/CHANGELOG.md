@@ -2,6 +2,23 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [Unreleased] — data-coherence & honesty pass
+
+> Driven by the rule: **every number must match the reality of the solution — never mislead, always sincere.** A 4-way audit (code + live telemetry) confirmed several surfaces showed routing *intent* as if it were *execution*. Fixes:
+
+### Fixed (coherence — the displayed data was not the truth)
+- **Live cow showed the wrong model.** It rendered the router's *recommended* model (`/last.model_full`, an advisory tier decision) as if it had answered. In a Claude Code session the **host model answers every turn**; the recommendation only runs for real local dispatches or spawned subagents. The cow now shows the **real executor** (the session's host model from the transcript logs, or a real local dispatch from `/last-execution`) and keeps the router's pick as a separate, dimmed **advisory** line. Falls back to the recommendation flagged "⏳ recommended (not confirmed)" — never claims an unconfirmed model ran.
+- **`synthetic` row removed from "Tokens by model."** It was Claude Code's own `<synthetic>` placeholder ("No response requested.", zero usage), not real spend — now skipped from the ledger.
+- **Savings headline labelled honestly.** "Saved vs all-Opus" is **advisory / token-estimated** (what you'd save *if* each prompt ran on its recommended tier — the host actually answers, so it isn't billed). The `$` stays, now clearly tagged advisory, with a **real executed** line ($ guaranteed-saved from actual local dispatches; $0 when there were none).
+- **No fake LoRA/DoRA "evolution."** The Models/Insights tabs claimed a trained adapter and "trained on N decisions." No neural LoRA/DoRA is trained locally (it's a manual GPU job). Re-labelled: adapter "baseline (none installed)", mechanism **TF-IDF + EWMA over real decisions** — honest about what actually learns.
+
+### Added
+- **Local (Ollama) models in the Token Ledger** — real measured T0 tokens (in/out) from `token_tracker`, cost **$0**, and the counterfactual saved-vs-Opus. Per-model rows show **call counts** (local per-model token metering isn't available, so no per-model token figure is invented).
+- **🧵 Sessions tab** (replaces the empty "Herd" facade) — recent Claude Code sessions by file activity, with the real last host model + turn count. Honestly labelled "recent", **never "active"**: the cockpit cannot detect the focused VS Code tab (no extension API), and cross-session messaging isn't tracked, so neither is shown.
+
+### Changed
+- De-clutter: tab labels get per-feature emojis (🐮 Cockpit · ⚙️ Setup · 🧵 Sessions · 🔬 Decisions · 🩺 Doctor); the redundant third mode-selector (Models tab) is now a read-only indicator.
+
 ## [0.11.0] — 2026-06-14
 
 ### Added

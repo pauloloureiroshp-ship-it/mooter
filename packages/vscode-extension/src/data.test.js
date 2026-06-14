@@ -144,3 +144,57 @@ test('costFor: cache-aware, matches the real fable-5 session', () => {
   assert.equal(x.costFor('unknown-model', { in: 1000, out: 1000 }), null); // honest: no price → null
   assert.equal(x.costFor('claude-haiku-4-5', { in: 1e6, out: 0 }), 1); // 1M input @ $1/M
 });
+
+// ── Coherence/honesty fixes (cockpit considerations #2, #5) ──
+test('aggregateUsage: skips <synthetic> placeholders, tracks real lastModel (#5,#2)', () => {
+  const p = path.join(os.tmpdir(), 'mooter-ledger-test-' + process.pid + '.jsonl');
+  const lines = [
+    JSON.stringify({ message: { model: 'claude-opus-4-8', usage: { input_tokens: 100, output_tokens: 50 }, id: 'm1' } }),
+    JSON.stringify({ message: { model: '<synthetic>', usage: { input_tokens: 0, output_tokens: 0 }, id: 'syn1' } }),
+    JSON.stringify({ message: { model: 'claude-sonnet-4-6', usage: { input_tokens: 200, output_tokens: 80 }, id: 'm2' } }),
+  ];
+  fs.writeFileSync(p, lines.join('\n') + '\n');
+  const agg = x.aggregateUsage([p]);
+  const models = agg.rows.map((r) => r.model);
+  assert.ok(!models.includes('<synthetic>'), 'synthetic excluded from the ledger');
+  assert.ok(models.includes('claude-opus-4-8') && models.includes('claude-sonnet-4-6'));
+  assert.equal(agg.lastModel, 'claude-sonnet-4-6'); // most recent REAL usage line = host model
+  assert.equal(agg.turns, 2); // synthetic not counted
+  fs.unlinkSync(p);
+});
+
+test('liveRouting: executor = host model; recommendation kept separate as advisory (#2)', () => {
+  const last = { model_full: 'claude-sonnet-4-6', tier: 'T2', confidence: 0.7, ts: 't1' };
+  const r = x.liveRouting(last, { hostModel: 'claude-opus-4-8' });
+  assert.equal(r.model, 'claude-opus-4-8'); // who ACTUALLY answered
+  assert.equal(r.provider, 'cloud');
+  assert.equal(r.real, true);
+  assert.equal(r.scope, 'session');
+  assert.equal(r.recommended.model, 'claude-sonnet-4-6'); // advisory recommendation, separate
+  assert.notEqual(r.model, r.recommended.model); // the coherence fix: no longer conflated
+});
+
+test('liveRouting: no execution known → recommendation flagged real:false (#2)', () => {
+  const r = x.liveRouting({ model_full: 'claude-sonnet-4-6', tier: 'T2', ts: 't' }, {});
+  assert.equal(r.model, 'claude-sonnet-4-6');
+  assert.equal(r.real, false);
+  assert.equal(r.scope, 'recommended');
+});
+
+test('liveRouting: a real local dispatch is the executor (#2)', () => {
+  const r = x.liveRouting({ model_full: 'claude-opus-4-8', tier: 'T3', ts: 't' }, { lastExecution: { ok: true, model: 'qwen2.5:3b' } });
+  assert.equal(r.model, 'qwen2.5:3b');
+  assert.equal(r.provider, 'local');
+  assert.equal(r.scope, 'dispatch');
+});
+
+test('liveRouting: host identity + a local dispatch → dispatch surfaced as a chip (#2)', () => {
+  const r = x.liveRouting({ model_full: 'claude-sonnet-4-6', tier: 'T2', ts: 't' }, { hostModel: 'claude-opus-4-8', lastExecution: { ok: true, model: 'qwen2.5:3b' } });
+  assert.equal(r.model, 'claude-opus-4-8'); // the session host is the identity
+  assert.ok(r.dispatch && r.dispatch.model === 'qwen2.5:3b'); // real local run shown as extra
+});
+
+test('liveRouting: nothing → null (never fabricates)', () => {
+  assert.equal(x.liveRouting(null, {}), null);
+  assert.equal(x.liveRouting({}, {}), null);
+});
