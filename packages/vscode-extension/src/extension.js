@@ -249,7 +249,7 @@ function getHtml() {
   .brand b{color:var(--r);font-size:13.5px}.brand .proj{font-size:11px;color:var(--vscode-descriptionForeground);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .right{margin-left:auto;display:flex;gap:5px;align-items:center}
   .badge{font-size:10px;padding:2px 8px;border-radius:8px}
-  .b-mode{color:var(--g);background:var(--gdim)}
+  .b-mode{color:var(--r);background:var(--rdim)}
   /* Score badge = labelled "Score N/8" (never a bare %). Theme-aware neutral; green only at full. */
   .b-score{color:var(--vscode-badge-foreground);background:var(--vscode-badge-background);font-weight:700;cursor:pointer}
   .b-score.full{color:var(--ink);background:var(--g)}
@@ -257,7 +257,7 @@ function getHtml() {
   .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
   .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px;white-space:nowrap}
-  .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--g)}
+  .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--r)}
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   /* Honest hero: warm/neutral by default; the green border is EARNED — only shown
@@ -284,7 +284,7 @@ function getHtml() {
   .bar .t{width:58px;color:var(--vscode-descriptionForeground)}.bar .tr{flex:1;height:6px;background:var(--vscode-input-background);border-radius:3px;overflow:hidden}
   .bar .f{height:100%}.bar .p{width:56px;text-align:right;color:var(--vscode-descriptionForeground)}
   button{font-family:inherit;cursor:pointer;border-radius:5px;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);padding:5px 10px;font-size:11.5px}
-  button.go{width:100%;background:var(--g);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
+  button.go{width:100%;background:var(--r);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
   button.go:hover{filter:brightness(1.08)}button.sm{padding:3px 9px;font-size:10.5px}
   .hint{text-align:center;font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:6px}
   .dec{border:1px solid var(--vscode-widget-border);border-radius:5px;margin-bottom:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
@@ -301,13 +301,13 @@ function getHtml() {
   .dr:last-child{border:none}.dr .w{flex:1}.dr small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px}
   .seg{display:flex;background:var(--vscode-input-background);border-radius:7px;padding:3px;gap:2px}
   .seg .mo{flex:1;padding:7px 4px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground);text-align:center;border:1px solid transparent}
-  .seg .mo.on{background:var(--gdim);color:var(--g);font-weight:700;border-color:var(--g)}
+  .seg .mo.on{background:var(--rdim);color:var(--r);font-weight:700;border-color:var(--r)}
   .seg .mo small{display:block;font-size:9px;font-weight:400;margin-top:1px}
   .pill{display:inline-block;font-size:10.5px;border:1px solid var(--vscode-widget-border);border-radius:9px;padding:2px 9px;margin:2px 3px 2px 0}
   .pill.ok{border-color:var(--g);color:var(--g)}.pill.warn{border-color:#e5c07b;color:#e5c07b}
   .term{background:var(--ink);border-radius:7px;padding:10px 12px;font:11.5px var(--vscode-editor-font-family);color:#ddd;overflow-x:auto;white-space:pre;line-height:1.7}
   .wstep{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--vscode-widget-border)}
-  .wstep:last-child{border:none}.wstep .n{width:20px;height:20px;border-radius:50%;background:var(--gdim);color:var(--g);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+  .wstep:last-child{border:none}.wstep .n{width:20px;height:20px;border-radius:50%;background:var(--vscode-input-background);color:var(--vscode-descriptionForeground);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
   .wstep.done .n{background:var(--g);color:var(--ink)}
   .wstep .w{flex:1;font-size:12px}.wstep small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px;margin-top:1px}
   .scorebar{height:8px;background:var(--vscode-input-background);border-radius:4px;overflow:hidden;margin:8px 0 4px}
@@ -316,13 +316,17 @@ function getHtml() {
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
+  /* A11y (SPEC §3): a rose focus-visible ring on every interactive element. */
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,[role=button]:focus-visible,.tab:focus-visible,.dec:focus-visible{outline:2px solid var(--r);outline-offset:1px;border-radius:4px}
+  /* Respect prefers-reduced-motion: stop the live pulse and any transitions. */
+  @media (prefers-reduced-motion: reduce){.pulse{animation:none}*{transition:none!important}}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">Score …</span></span></div>
 <div class="tabs">
   <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
 </div>
-<div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
+<div class="intentwrap"><input id="intentIn" aria-label="Ask mooter anything in natural language" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo" aria-label="Resolve to a mooter command">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="intenthint">try: 'why did my last prompt use Opus?' · 'pull the best local model' · 'show my savings'</div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
 <div class="view" id="view-setup"><div id="v-setup"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Install</div><div id="v-install"></div><div class="lbl" style="margin:14px 2px 6px">Models</div><div id="v-models"></div></div>
@@ -453,7 +457,7 @@ window.addEventListener('message',(e)=>{
     '<div class="mo'+(s.mode==='beast'?' on':'')+'" data-m="beast">🐂 CrazyMoo<small>best model · Fable 5*</small></div></div>'+
     '<div class="sub" style="margin-top:7px">*CrazyMoo uses the strongest available rung — <b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus.</div></div>'+
     '<div class="card"><div class="lbl">Effort — how hard the Moo tries to save</div><div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">'+
-    ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--g);color:var(--g)':'')+'" data-eff="'+l+'">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
+    ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--r);color:var(--r)':'')+'" data-eff="'+l+'">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
     '</div><div class="sub" style="margin-top:6px">ultramoo = max thrift (compression + caveman prose)</div></div>'+
     (s.whynot?'<div class="card"><div class="lbl">Why not Fable 5? — per-decision honesty</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.whynot)+'</div></div>':'')+
     '<div class="card"><div class="lbl">🧬 Engine intelligence</div>'+
@@ -515,7 +519,7 @@ window.addEventListener('message',(e)=>{
   else{$('#v-decisions').innerHTML='<div class="empty">No decisions yet — every routed prompt lands here.<br><button class="sm" data-a="launch" style="margin-top:8px">Start a routed session</button></div>';wireButtons($('#v-decisions'));}
 
   // ── TERMINAL (req 2)
-  $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">renderer warming up…</span>')+'</div></div>'+
+  $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">statusline not captured yet — it appears after your first routed prompt. </span><button class="sm" data-a="refresh">retry</button>')+'</div></div>'+
     '<div class="card"><div class="lbl">mooter commands → integrated terminal</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">'+
     ['mooter doctor','mooter savings','mooter sessions list','mooter why-not-fable','mooter quant status','mooter sync'].map(c=>'<button data-a="term:'+esc(c)+'">'+esc(c.replace('mooter ',''))+'</button>').join('')+
     '</div><div class="hint">identical on macOS and Windows — the CLI is the contract</div></div>';
