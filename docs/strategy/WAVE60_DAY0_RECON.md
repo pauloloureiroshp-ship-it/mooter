@@ -34,11 +34,13 @@
 
 **W60-R4 — `decide-agent.ts` is frozen but cleanly wrappable.** Confirmed Block A can wrap it without edits: read `blended_cost` from its result and apply a switching-cost adjustment in a NEW `cache-aware-cost.ts`. We adopt only the *idea* of switching cost (cache read 0.10× vs write 1.25× on a new backend), never a cache mechanism (NO-PROXY, mission §5).
 
-## 4. Reshaped scope (recommendation)
-- **A** `packages/router/src/cache-aware-cost.ts` (NEW) — switching-cost wrapper over decide-agent. ✅ real value, doable.
-- **B** session affinity host-side in `inject_context.js` — prefer the session's established moo unless a strong reason. ✅ doable, zero KV read.
-- **C** **DESCOPE** — moot/blocked (W60-R1/R2). At most: fix the stale `qwen2.5:3b` hint in `model-manager.js:268` → `qwen3:30b`, and (optional, runtime) document the `ROUTER_OLLAMA_*` env upgrade. No model hardcoding.
-- **D** HW-aware T0 module (reads the correct `hw-capability.json`, degrades gracefully) + `mooter models`. ✅ doable with W60-R3 guards.
+## 4. Reshaped scope (final — A+B are the genuine new code)
+- **A** `packages/router/src/cache-aware-cost.ts` (NEW) — switching-cost wrapper over decide-agent. ✅ **SHIPPED** (14 tests).
+- **B** `tools/router/session-affinity.js` (NEW) — host-side cache-continuity nudge in the hint. ✅ **SHIPPED** (11 tests).
+- **C** **MOOT** — roster already `qwen3:30b` on dispatch; T0 default in FROZEN classify.js behind env; even the "stale hint" is the correct minimal first-pull (W60-R1/R2/R2b). **Zero actionable change.**
+- **D** **ALREADY IMPLEMENTED** end-to-end (W60-R5): `gpu-probe.js recommended_t0` → `inject_context.js:641 FRUGAL_HW_RECOMMENDED_T0` → FROZEN `classify.js:945` T0 bias → `hardware-matcher.js` (= `mooter models` content) → `gpu-status.js` chip. **Not rebuilt** (would duplicate). A wired `mooter models` is deferred (FROZEN packages/cli).
+
+> **Net:** Wave 60's real deliverable is **A + B**. C and D were already built in prior waves — the honest finding, not a gap.
 
 ## 5. Gate (end of wave)
 final-reviewer 0-HIGH · re-verify sha · diff confined (host-side `tools/router/` + NEW `packages/router/src/cache-aware-cost.ts` + docs) · handoff · β tag `v1.41.0-cache-aware-hw` (Paulo applies final).
