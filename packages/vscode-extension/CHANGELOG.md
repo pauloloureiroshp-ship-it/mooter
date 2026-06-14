@@ -2,6 +2,35 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.11.0] — 2026-06-14
+
+Design-system redesign from the Claude Design handoff (Wave 60) — same tokens and
+voice as mooter.ai, honest numbers, and a calmer brand balance.
+
+### Changed
+- **Honest hero numbers** — the Cockpit "Saved vs all-Opus" and the Insights
+  "Routing intelligence" numbers are neutral by default; green is now reserved for
+  genuine positive signal (real savings, cache-hit > 0). No more green `$0.00`.
+  With no routed prompts yet, the Cockpit shows "no routing data yet" + a CTA.
+- **One coherent Claude Code state** — header and Setup no longer contradict each
+  other ("paired" vs "missing"); a single ext · cli · none model drives both.
+- **Mooter Score is labelled** — the header shows "Score N/8" (green only at a full
+  8/8), never a bare unlabelled percentage.
+- **Cockpit ↔ Doctor de-duplicated** — the Cockpit shows the score + the single
+  next action; the full 8-check list lives in Doctor.
+- **Brand balance** — rose is the accent for action/navigation/selection (primary
+  button, active tab, mode badge & segment, active effort), ending the "green on
+  everything" look. Green stays semantic (tier T0, savings, done, detected).
+- **Canonical cow** — the Activity Bar uses the new `currentColor` mono cow; the
+  Marketplace icon is the 512×512 cow on a lifted background.
+
+### Added
+- First-run reads as a to-do, not an error — unset Setup fields show a neutral
+  "— not set" instead of red-italic "missing"; the Decisions empty state has a CTA.
+- The "ask mooter anything" bar is sticky at the top with an example affordance.
+- A rose `:focus-visible` ring on every interactive element; `prefers-reduced-motion`
+  is honoured; the statusline has a readable fallback + retry (no stuck "warming up").
+
 ## [0.10.0] — 2026-06-14
 
 ### Added
