@@ -1,4 +1,35 @@
-# Wave 53 — Refutations Log
+# Refutations Log
+
+## 2026-06-14 — Wave 60 (Cache-Aware + Roster + HW-aware T0) · W60-R1 qwen3-coder-next absent
+
+**Assumption (Master Prompt §4 Wave 60 Block C):** swap `qwen2.5:* → qwen3-coder-next / qwen3-30b` in `model-manager.js`.
+**Reality (Day-0 `ollama list`):** `qwen3-coder-next` is NOT installed and is not a known Ollama tag. Best installed coder is `qwen2.5-coder:14b`. `qwen3:30b` IS installed.
+**Action:** Cannot hardcode a non-existent model (the brief itself flagged this). Block C target invalid.
+**Doctrine line:** "confirmar disponibilidade no Ollama no Day-0 antes de hardcodar".
+
+## 2026-06-14 — Wave 60 · W60-R2 roster not in model-manager.js; general swap already done
+
+**Assumption:** the local roster lives in `model-manager.js` and still uses `qwen2.5:*`.
+**Reality:** `model-manager.js` is a management CLI (one stale hint string `ollama pull qwen2.5:3b` at `:268`). The dispatch path already uses `qwen3:30b` (`_model-resolver.js:19,31`, `budget-engine.js:46`). The remaining `qwen2.5:3b` is the T0 **default in FROZEN `classify.js`** (`:162-216`), changeable only via env (`ROUTER_OLLAMA_*`), never by editing the file.
+**Action:** **Block C is essentially moot/blocked.** At most fix the stale hint string; no model hardcoding; the real default lives behind a frozen file + env override.
+**Doctrine line:** "Honest > brief" · "classify.js FROZEN".
+
+## 2026-06-14 — Wave 60 · W60-R3 hw-capability.json path + presence
+
+**Assumption:** Block D reads `hw-capability.json` (implied under `~/.mooter`), assumed present.
+**Reality:** written by `gpu-probe.js` to `~/.claude/tools/router/hw-capability.json` (`:144`), and ONLY when a GPU is detected (`:206`). Absent on this machine now.
+**Action:** Block D reads the correct path and degrades gracefully (no fake bias when absent/GPU-less); respects that the local model is already `qwen3:30b`.
+**Doctrine line:** "No fabrication".
+
+## 2026-06-14 — Wave 60 · W60-R4 decide-agent.ts wrappable (not editable)
+
+**Assumption (§4):** wrap `decide-agent.ts`, never edit (FROZEN engine).
+**Reality (confirmed):** clean interface — `blended_cost` on its result, `blendedCost(in,out)=in+0.3*out`. Block A's NEW `packages/router/src/cache-aware-cost.ts` consumes the result + session context and applies a switching-cost adjustment without re-implementing cost math. We adopt only the *idea* of switching cost, never a cache mechanism (NO-PROXY).
+**Doctrine line:** "Adoptamos só a ideia de custo, nunca o mecanismo".
+
+---
+
+## Wave 53 — Refutations Log (earlier)
 
 > Metacognition: o sistema reconhece e corrige os seus próprios pressupostos. Cada entrada = assunção do brief → realidade verificada → acção → linha da Doutrina V4.
 > Companhia: [[WAVE53_DAY0_RECON.md]] · [[WAVE53_BRIEF_V3.md]].
