@@ -407,20 +407,22 @@ function LoginHero() {
 
         {/* Right — illustrative statusline teaser (clearly labelled, never mistaken for real data) */}
         <div className="login-hero-right">
-          <div style={{
-            fontFamily: 'var(--font-mono), monospace', fontSize: '0.7rem', letterSpacing: '0.08em',
-            textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10, alignSelf: 'flex-start',
-          }}>
-            Example — not your data yet
+          <div style={{ width: '100%', maxWidth: 440 }}>
+            <div style={{
+              fontFamily: 'var(--font-mono), monospace', fontSize: '0.7rem', letterSpacing: '0.08em',
+              textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10,
+            }}>
+              Example — not your data yet
+            </div>
+            <LoginStatuslinePreview />
+            <p style={{
+              fontFamily: 'var(--font-mono), monospace', fontSize: '0.72rem', color: 'var(--muted)',
+              lineHeight: 1.55, marginTop: 12,
+            }}>
+              Illustrative. After you sign in this fills with your real savings, 5h quota forecast and herd —
+              synced across machines.
+            </p>
           </div>
-          <LoginStatuslinePreview />
-          <p style={{
-            fontFamily: 'var(--font-mono), monospace', fontSize: '0.72rem', color: 'var(--muted)',
-            lineHeight: 1.55, marginTop: 12, maxWidth: 440,
-          }}>
-            Illustrative. After you sign in this fills with your real savings, 5h quota forecast and herd —
-            synced across machines.
-          </p>
         </div>
       </div>
     </div>
