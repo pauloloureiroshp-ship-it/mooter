@@ -25,6 +25,12 @@
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { MATRIX_MODELS } from "../../../router/src/specialization-matrix.ts";
+import { TASK_CATEGORIES } from "../../../router/src/task-categories.ts";
+
+// Logical-cell denominator = full roster × categories (derives from the engine,
+// never goes stale — Wave 58.7 fix after the 14→17 roster expansion).
+const LOGICAL_CELLS = MATRIX_MODELS.length * TASK_CATEGORIES.length; // 17×24 = 408
 
 export interface CmdResult {
   exitCode: number;
@@ -283,7 +289,7 @@ Usage:
       No network — manual curation only (A.16).
 
   mooter benchmarks list [--model <id>] [--category <cat>] [--json]
-      Show seeded cells and overall coverage (N of 336 logical cells measured).
+      Show seeded cells and overall coverage (N of ${LOGICAL_CELLS} logical cells measured).
       --model     filter to one model (e.g. --model claude-opus-4-6)
       --category  filter to one category (e.g. --category coding.frontend)
       --json      raw JSON for scripting
@@ -429,9 +435,6 @@ export async function runBenchmarks(args: string[]): Promise<CmdResult> {
       if (categoryFilter && c.category !== categoryFilter) return false;
       return true;
     });
-
-    // 14 models × 24 categories = 336
-    const LOGICAL_CELLS = 14 * 24;
 
     if (asJson) {
       return {
