@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
-import Link from 'next/link';
 import Eyebrow from '@/components/Eyebrow';
 import Card from '@/components/Card';
 import Btn from '@/components/Btn';
@@ -181,11 +180,13 @@ function Segment<T extends string | number>({
   value,
   onChange,
   compact,
+  iconOnly,
 }: {
   items: { k: T; label: string; emoji?: string; note?: string }[];
   value: T;
   onChange: (k: T) => void;
   compact?: boolean;
+  iconOnly?: boolean;
 }) {
   return (
     <div
@@ -207,9 +208,10 @@ function Segment<T extends string | number>({
             type="button"
             onClick={() => onChange(it.k)}
             aria-pressed={on}
+            aria-label={it.label}
             title={it.note || it.label}
             style={{
-              padding: compact ? '3px 7px' : '4px 9px',
+              padding: iconOnly ? '3px 6px' : compact ? '3px 7px' : '4px 9px',
               fontSize: 11,
               borderRadius: 4,
               cursor: 'pointer',
@@ -224,7 +226,7 @@ function Segment<T extends string | number>({
             }}
           >
             {it.emoji ? <span aria-hidden="true">{it.emoji}</span> : null}
-            {it.label}
+            {iconOnly ? null : it.label}
           </button>
         );
       })}
@@ -356,12 +358,14 @@ function CockpitTab({
   setMode,
   nextModel,
   setNextModel,
+  narrow,
 }: {
   scenario: Scenario;
   mode: string;
   setMode: (k: string) => void;
   nextModel: string;
   setNextModel: (k: string) => void;
+  narrow?: boolean;
 }) {
   const offline = scenario === 'degraded';
   const firstRun = scenario === 'firstrun';
@@ -463,7 +467,7 @@ function CockpitTab({
       <CkCard>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
           <Eyb>mode</Eyb>
-          <Segment items={MODES} value={mode} onChange={setMode} compact />
+          <Segment items={MODES} value={mode} onChange={setMode} compact iconOnly={narrow} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Eyb>next prompt</Eyb>
@@ -1177,7 +1181,7 @@ function CockpitPlugin({ width, scenario }: { width: Width; scenario: Scenario }
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          <Segment items={MODES} value={mode} onChange={setMode} compact />
+          <Segment items={MODES} value={mode} onChange={setMode} compact iconOnly={width === 300} />
           <Dropdown label="next:" items={MODELS} value={nextModel} onChange={setNextModel} />
           <span
             title="Mooter Score — 4 of 8 checks"
@@ -1243,7 +1247,7 @@ function CockpitPlugin({ width, scenario }: { width: Width; scenario: Scenario }
       {/* BODY */}
       <div role="tabpanel" style={{ flex: 1, overflowY: 'auto', padding: '12px 11px 16px' }}>
         {tab === 'Cockpit' && (
-          <CockpitTab scenario={scenario} mode={mode} setMode={setMode} nextModel={nextModel} setNextModel={setNextModel} />
+          <CockpitTab scenario={scenario} mode={mode} setMode={setMode} nextModel={nextModel} setNextModel={setNextModel} narrow={width === 300} />
         )}
         {tab === 'Setup' && <SetupTab scenario={scenario} />}
         {tab === 'Herd' && <HerdTab scenario={scenario} />}
@@ -1518,11 +1522,34 @@ export default function CockpitShowcase() {
           <Btn href="/install" size="lg">
             Install in 30s →
           </Btn>
-          <Link href="/under-the-hood" style={{ color: 'var(--color-accent)', fontSize: 14 }}>
-            Get the VS Code extension
-          </Link>
+          <a
+            href="https://github.com/pauloloureiroshp-ship-it/mooter/tree/main/packages/vscode-extension"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '15px 26px',
+              fontSize: 16,
+              fontWeight: 600,
+              borderRadius: 10,
+              fontFamily: 'var(--font)',
+              background: 'transparent',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border-light)',
+              textDecoration: 'none',
+              lineHeight: 1,
+            }}
+          >
+            Get the VS Code extension ↗
+          </a>
         </div>
-        <p style={{ marginTop: 28, fontSize: 12, color: 'var(--color-muted)' }}>
+        <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--color-muted)' }}>
+          The Cockpit lives in your VS Code Activity Bar. Marketplace listing coming soon — for now the
+          extension installs from the repo (the README has the steps).
+        </p>
+        <p style={{ marginTop: 10, fontSize: 12, color: 'var(--color-muted)' }}>
           Community project · not affiliated with Anthropic. The cockpit above is an illustrative mock — numbers are
           token-estimated and advisory.
         </p>
