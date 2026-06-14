@@ -178,3 +178,18 @@ jobs:
           cp "$HOME/.claude/tools/router/classify.js" /tmp/classify.after2.js
           diff -u /tmp/classify.after1.js /tmp/classify.after2.js
           echo "update-router idempotency verified"
+
+  cli-test:
+    name: packages/cli unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install cli deps
+        working-directory: packages/cli
+        run: npm ci --no-audit --no-fund
+      - name: Run cli tests
+        working-directory: packages/cli
+        run: npm test

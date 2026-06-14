@@ -197,8 +197,8 @@ test("benchmarks list: --json produces valid JSON when fetcher is available", as
     const parsed = JSON.parse(res.output) as { total_logical: number; cells: unknown[] };
     assert.ok(typeof parsed.total_logical === "number", "total_logical present");
     assert.ok(Array.isArray(parsed.cells), "cells is an array");
-    // 14 models × 24 categories = 336 logical cells
-    assert.equal(parsed.total_logical, 336);
+    // 17 models × 24 categories = 408 logical cells
+    assert.equal(parsed.total_logical, 408);
   } else {
     assert.match(res.output, /benchmark-fetcher|source checkout/);
   }
