@@ -209,7 +209,7 @@ function project(s) {
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
     herd: s.herd,
-    ledger: s.ledger,
+    ledger: s.ledger, live: extra.liveRouting(s.last),
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -262,6 +262,20 @@ function getHtml() {
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
+  .livecard{display:flex;align-items:center;gap:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-left:3px solid var(--lc,var(--g));border-radius:7px;padding:9px 11px;margin-bottom:8px}
+  .livecow{font-size:22px;line-height:1}
+  .livecard.pulse .livecow{animation:moopulse 1.4s ease-out}
+  @keyframes moopulse{0%{transform:scale(1)}28%{transform:scale(1.28);filter:drop-shadow(0 0 7px var(--lc))}100%{transform:scale(1);filter:none}}
+  .livebody{flex:1;min-width:0}
+  .livetop{font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .livefam{font-weight:700;color:var(--lc)}
+  .liveprov{font-size:10px;color:var(--vscode-descriptionForeground)}
+  .livemodel{font-size:10.5px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+  .livesub{font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
+  .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
+  @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .livecard-idle{opacity:.65}
+  @media (prefers-reduced-motion:reduce){.livecard.pulse .livecow{animation:none}.livedot{animation:none}}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -332,7 +346,7 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
-let curMode='auto';const MORDER=['zen','auto','beast'];
+let curMode='auto';const MORDER=['zen','auto','beast'];let lastLiveTs='';
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
 $('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
@@ -408,7 +422,12 @@ window.addEventListener('message',(e)=>{
   const locals=installed.filter(n=>PIN_LOCAL[n]);
   if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
+  const lv=s.live;
+  const liveCard=lv
+    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ cloud')+'</span><span class="livemodel">'+esc(lv.model)+'</span></div><div class="livesub">'+(lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')+'</div></div><span class="livedot" title="last routed prompt"></span></div>'
+    : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
   $('#v-cockpit').innerHTML=
+    liveCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
     '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
@@ -421,6 +440,7 @@ window.addEventListener('message',(e)=>{
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
+  (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');}})();
   wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
