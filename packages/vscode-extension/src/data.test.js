@@ -126,3 +126,21 @@ test('parseV2 + herdMatrix: real line, pivot via×llm', () => {
   assert.equal(cell.n, 1);
   assert.equal(m.rows[0].via, 'model-architect');
 });
+
+// ── v0.11 Token Ledger cost math (real captured usage) ──
+test('priceFor: family match + unknown → null', () => {
+  assert.deepEqual(x.priceFor('claude-opus-4-8'), [5, 25]);
+  assert.deepEqual(x.priceFor('claude-sonnet-4-6'), [3, 15]);
+  assert.deepEqual(x.priceFor('claude-haiku-4-5-20251001'), [1, 5]);
+  assert.deepEqual(x.priceFor('claude-fable-5'), [10, 50]);
+  assert.deepEqual(x.priceFor('something-with-opus-inside'), [5, 25]);
+  assert.equal(x.priceFor('llama-3'), null);
+});
+test('costFor: cache-aware, matches the real fable-5 session', () => {
+  // real capture: in 65065 · out 149013 · cache_w 768457 · cache_r 15063676
+  const c = x.costFor('claude-fable-5', { in: 65065, out: 149013, cw: 768457, cr: 15063676 });
+  // (65065*10 + 149013*50 + 768457*10*1.25 + 15063676*10*0.1)/1e6
+  assert.ok(Math.abs(c - 32.7707) < 0.01, 'fable-5 session ≈ $32.77, got ' + c);
+  assert.equal(x.costFor('unknown-model', { in: 1000, out: 1000 }), null); // honest: no price → null
+  assert.equal(x.costFor('claude-haiku-4-5', { in: 1e6, out: 0 }), 1); // 1M input @ $1/M
+});

@@ -84,6 +84,7 @@ class DataService {
       security: doDeep ? security : prev.security,
       spans: doDeep ? spans : prev.spans,
       herd: doDeep ? extra.herd() : prev.herd,
+      ledger: doDeep ? extra.tokenLedger() : prev.ledger,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
     };
@@ -201,6 +202,7 @@ function project(s) {
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
     herd: s.herd,
+    ledger: s.ledger,
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -338,6 +340,21 @@ const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
 const PIN_LOCAL={'qwen3:30b':'mooter-qwen3-30b','qwen2.5:3b':'mooter-qwen2-5-3b','qwen2.5-coder:7b':'mooter-qwen2-5-coder-7b','qwen2.5-coder:14b':'mooter-qwen2-5-coder-14b','gemma3:12b':'mooter-gemma3-12b','gemma4:e4b':'mooter-gemma4-e4b','deepseek-r1:7b':'mooter-deepseek-r1-7b'};
 const PIN_CLOUD={Haiku:'mooter-haiku-4-5',Sonnet:'mooter-sonnet-4-6','Opus 4.7':'mooter-opus-4-7'};
 const openDecs=new Set();// decision keys (ts) the user expanded — must survive the periodic re-render
+let ledgerScope='session';let lastSnap=null;
+const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
+function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
+function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
+function ledgerHtml(s){
+  const L=(s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0};const decs=s.decisions||[];
+  const loc={};for(const d of decs){if(d.tier==='T0'&&d.model)loc[d.model]=(loc[d.model]||0)+1;}
+  const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
+  const tog=['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('');
+  const head='<div class="lbl">🧾 Tokens by model <span style="float:right">'+tog+'</span></div>';
+  const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+(ledgerScope==='session'?'this session':'yet')+'</div>';
+  const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+'</span></div>').join('');
+  return '<div class="card">'+head+rows+(locRows?'<div class="sub" style="margin:9px 0 2px">Local (Ollama) · $0</div>'+locRows:'')+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+(ledgerScope==='session'?'this session':'all time')+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">real usage from Claude Code logs · prices Jun 2026 · advisory · local = $0</div></div>';
+}
+function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
@@ -354,7 +371,7 @@ window.addEventListener('message',(e)=>{
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
     else inR.textContent='🐮 could not resolve — try the Terminal tab';
     return;}
-  if(e.data.type!=='snapshot')return;const s=e.data.s;
+  if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
   const pr=s.paired||{};
@@ -390,10 +407,12 @@ window.addEventListener('message',(e)=>{
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
+    '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{if(ps.value)send('pin',ps.value);ps.selectedIndex=0;};})();
+  wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};

@@ -265,6 +265,76 @@ function herd() {
   };
 }
 
+// ── v0.11 Token Ledger ──────────────────────────────────────────────────────
+// Real per-model token usage from Claude Code's own session logs (the ground
+// truth ccusage/ccost read): ~/.claude/projects/<proj>/<session>.jsonl, one line
+// per turn with message.usage. Local (Ollama) calls do NOT appear here — they are
+// free, shown separately by the webview from the routing decisions.
+// Prices per 1M tokens [input, output] (May/Jun 2026 · advisory). cache_write =
+// input×1.25, cache_read = input×0.1. Unknown model → cost null (honest).
+const PRICES = {
+  'claude-opus-4-8': [5, 25], 'claude-opus-4-7': [5, 25], 'claude-opus-4-6': [5, 25],
+  'claude-sonnet-4-6': [3, 15], 'claude-sonnet-4-5': [3, 15],
+  'claude-haiku-4-5': [1, 5], 'claude-haiku-4-5-20251001': [1, 5],
+  'claude-fable-5': [10, 50],
+};
+function priceFor(model) {
+  const m = String(model || '').toLowerCase();
+  if (PRICES[m]) return PRICES[m];
+  if (m.includes('fable')) return [10, 50];
+  if (m.includes('opus')) return [5, 25];
+  if (m.includes('sonnet')) return [3, 15];
+  if (m.includes('haiku')) return [1, 5];
+  return null; // unknown → cost not asserted
+}
+function costFor(model, u) {
+  const p = priceFor(model); if (!p) return null;
+  const [pin, pout] = p;
+  return ((u.in || 0) * pin + (u.out || 0) * pout + (u.cw || 0) * pin * 1.25 + (u.cr || 0) * pin * 0.1) / 1e6;
+}
+function listSessionFiles() {
+  const root = path.join(os.homedir(), '.claude', 'projects');
+  const out = [];
+  try {
+    for (const proj of fs.readdirSync(root)) {
+      const pdir = path.join(root, proj);
+      let st; try { st = fs.statSync(pdir); } catch { continue; }
+      if (!st.isDirectory()) continue;
+      for (const f of fs.readdirSync(pdir)) {
+        if (f.endsWith('.jsonl')) { try { out.push({ file: path.join(pdir, f), mtime: fs.statSync(path.join(pdir, f)).mtimeMs }); } catch { /* skip */ } }
+      }
+    }
+  } catch { /* no projects dir */ }
+  return out.sort((a, b) => b.mtime - a.mtime);
+}
+// Aggregate one or more session files by model. Dedup turns by message.id.
+function aggregateUsage(files) {
+  const byModel = {}; const seen = new Set(); let turns = 0;
+  for (const f of files) {
+    let txt = ''; try { const st = fs.statSync(f); const start = Math.max(0, st.size - 8 * 1024 * 1024); const fd = fs.openSync(f, 'r'); const buf = Buffer.alloc(st.size - start); fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd); txt = buf.toString('utf8'); } catch { continue; }
+    for (const line of txt.split('\n')) {
+      if (!line.includes('"usage"')) continue;
+      let d; try { d = JSON.parse(line); } catch { continue; }
+      const msg = d && d.message; const u = msg && msg.usage; if (!u || !msg.model) continue;
+      const id = msg.id || d.uuid; if (id) { if (seen.has(id)) continue; seen.add(id); }
+      const m = msg.model; const a = byModel[m] || (byModel[m] = { model: m, in: 0, out: 0, cw: 0, cr: 0, n: 0 });
+      a.in += u.input_tokens || 0; a.out += u.output_tokens || 0;
+      a.cw += u.cache_creation_input_tokens || 0; a.cr += u.cache_read_input_tokens || 0; a.n += 1; turns += 1;
+    }
+  }
+  const rows = Object.values(byModel).map((a) => ({ ...a, cost: costFor(a.model, a) }))
+    .sort((x, y) => (y.cost || 0) - (x.cost || 0));
+  return { rows, turns };
+}
+// scope: 'session' (most-recent file) | 'all' (every file). Never throws.
+function tokenLedger() {
+  const files = listSessionFiles();
+  const session = files.length ? aggregateUsage([files[0].file]) : { rows: [], turns: 0 };
+  const all = aggregateUsage(files.map((f) => f.file));
+  return { session, all, sessions: files.length };
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
-  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks };
+  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks,
+  PRICES, priceFor, costFor, tokenLedger };
