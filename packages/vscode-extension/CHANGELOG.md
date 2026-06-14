@@ -2,6 +2,11 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.8.2] — 2026-06-14
+
+### Changed
+- New extension icon — the official mooter.ai cow mark (cream + orange) on a dark tile; reads clearly in Marketplace search on light and dark themes.
+
 ## [0.8.1] — 2026-06-14
 
 ### Added
