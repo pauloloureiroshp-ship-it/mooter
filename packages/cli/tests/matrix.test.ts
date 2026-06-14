@@ -46,12 +46,12 @@ test("default view: --category selects a different category", async () => {
   assert.match(res.output, /Matrix · TES for reasoning\.math/);
 });
 
-test("default view: every roster model appears exactly once (14 models)", async () => {
+test("default view: every roster model appears exactly once (17 models)", async () => {
   const res = await runMatrix(["--category", "coding.backend", "--json"]);
   const view = JSON.parse(res.output);
-  assert.equal(view.rows.length, 14);
+  assert.equal(view.rows.length, 17);
   const models = new Set(view.rows.map((r: { model: string }) => r.model));
-  assert.equal(models.size, 14, "no duplicate models");
+  assert.equal(models.size, 17, "no duplicate models");
 });
 
 test("anti-fabrication: unmeasured cells never carry a TES number", async () => {
@@ -121,7 +121,7 @@ test("buildDefaultView is reachable as a pure-ish helper (engine-backed)", async
   const decide = await import("../../router/src/decide-agent.ts");
   const view = buildDefaultView("coding.backend", { matrix: mod, tes, decide });
   assert.equal(view.category, "coding.backend");
-  assert.equal(view.rows.length, 14);
+  assert.equal(view.rows.length, 17);
 });
 
 // ── category validation ────────────────────────────────────────────────────
