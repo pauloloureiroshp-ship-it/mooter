@@ -15,7 +15,9 @@ if (text.length < 3) process.exit(1);
 
 const hostUrl = new URL(process.env.OLLAMA_HOST || 'http://127.0.0.1:11434');
 const model = process.env.MOOTER_EMBED_MODEL || 'nomic-embed-text';
-const body = JSON.stringify({ model, prompt: text, keep_alive: -1 });
+// Finite keep_alive: this is a rare, best-effort grey-zone call — don't pin the
+// embedding model in VRAM indefinitely (frees GPU for other work between bursts).
+const body = JSON.stringify({ model, prompt: text, keep_alive: '5m' });
 
 const url = new URL('/api/embeddings', hostUrl);
 const lib = url.protocol === 'https:' ? https : http;
