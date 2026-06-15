@@ -38,20 +38,20 @@ test('sanitize: clamps overly long segments', () => {
 
 // ── statusLine integration ───────────────────────────────────────────────────
 function withCustom(content, prefsObj, fn) {
+  // MOOTER_HOME IS the .mooter dir (matches customPath() and prefs()): custom.js
+  // lives at <MOOTER_HOME>/statusline/custom.js and prefs at
+  // <MOOTER_HOME>/preferences.json. $HOME is a no-op for os.homedir() on Windows,
+  // so MOOTER_HOME is the only portable, hermetic override for prefs().
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-custom-'));
   const prevMH = process.env.MOOTER_HOME;
-  const prevHome = process.env.HOME;
   process.env.MOOTER_HOME = dir;
-  process.env.HOME = dir;
   try {
     fs.mkdirSync(path.join(dir, 'statusline'), { recursive: true });
-    fs.mkdirSync(path.join(dir, '.mooter'), { recursive: true });
     if (content != null) fs.writeFileSync(path.join(dir, 'statusline', 'custom.js'), content);
-    if (prefsObj) fs.writeFileSync(path.join(dir, '.mooter', 'preferences.json'), JSON.stringify(prefsObj));
+    if (prefsObj) fs.writeFileSync(path.join(dir, 'preferences.json'), JSON.stringify(prefsObj));
     return fn();
   } finally {
     if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
-    if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   }
 }
 
