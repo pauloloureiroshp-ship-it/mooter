@@ -162,3 +162,36 @@ test('advise — explicit caller cacheCold overrides the derived one', () => {
   const r = A.advise(sid, { category: 'x', cwd: '/a', prompt: 'committed', cacheCold: 'cold' }, t + 10_000);
   assert.strictEqual(r.cacheCold, 'cold'); // caller wins over the 'hot' that the 10s gap would derive
 });
+
+// --- Fase 2: grey-zone embedding drift (injected vectors; no live Ollama) ---
+test('advise — embedding drift is OFF by default and fires on a pivot when enabled', () => {
+  const sid = 'sess-drift';
+  const t = 9_500_000_000;
+  const seed = () => A.writeState(sid, {
+    category: 'code_generation', cwd: '/a', turns: 5,
+    drift: { centroid: [1, 0, 0], count: 6, distances: [0.01, 0.02, 0.01, 0.03, 0.02, 0.01] },
+  }, t);
+
+  // (1) embedEnabled OFF → no drift even with a grey-zone category transition (0.4).
+  seed();
+  const off = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why fail', embedding: [0, 1, 0] }, t + 1000);
+  assert.strictEqual(off.drift, null);
+  assert.ok(off.boundary < A.STRONG); // stays grey, not boosted
+
+  // (2) embedEnabled ON + grey-zone + orthogonal pivot → drift fires → boundary boosted to strong.
+  seed();
+  const on = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why fail', embedEnabled: true, embedding: [0, 1, 0] }, t + 2000);
+  assert.ok(on.drift && on.drift.fired === true, `drift=${JSON.stringify(on.drift)}`);
+  assert.ok(on.boundary >= A.STRONG, `boosted boundary=${on.boundary}`);
+  assert.ok(on.signals.includes('embedding_drift'));
+});
+
+test('advise — embedding drift does NOT run outside the grey zone (strong boundary already)', () => {
+  const sid = 'sess-drift2';
+  const t = 9_600_000_000;
+  A.writeState(sid, { category: 'code_generation', cwd: '/a', turns: 5,
+    drift: { centroid: [1, 0, 0], count: 6, distances: [0.01, 0.02, 0.01, 0.03, 0.02, 0.01] } }, t);
+  // a commit signal makes Stage 1 already strong (0.5) → Stage 2 is skipped (no embedding cost)
+  const r = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'committed it', embedEnabled: true, embedding: [0, 1, 0] }, t + 1000);
+  assert.strictEqual(r.drift, null); // skipped — already strong, no need to embed
+});

@@ -1383,6 +1383,9 @@ try {
       cwd: payload.cwd,
       prompt,
       risk_level: decision.risk_level,
+      // Fase 2 — embedding drift is a FURTHER opt-in (it spawns a bounded Ollama
+      // embedding in the grey zone). Default off ⇒ Stage 2 never runs, zero latency.
+      embedEnabled: process.env.MOOTER_COMPACTION_EMBED === '1',
     });
     if (adv.decision === 'ADVISE_NOW') {
       lines.push('');

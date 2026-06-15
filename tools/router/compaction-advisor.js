@@ -23,6 +23,7 @@ const W_CATEGORY = 0.4;  // classify.js category transition (code_generation →
 const W_FOCUS = 0.3;     // the focused directory changed (dir A → dir B)
 const W_GAP = 0.3;       // user-away temporal gap between turns
 const STRONG = 0.5;      // boundary >= this ⇒ a strong, causal boundary
+const GREY_LOW = 0.2;    // Fase 2: run the embedding drift detector only in [GREY_LOW, STRONG)
 const GAP_MS = 10 * 60 * 1000; // 10 min idle ⇒ user-away boundary
 const STALE_MS = 12 * 60 * 60 * 1000;
 
@@ -154,7 +155,26 @@ function writeState(sessionId, state, now = Date.now()) {
  */
 function advise(sessionId, cur = {}, now = Date.now()) {
   const prev = readState(sessionId, now);
-  const { score, signals } = stage1Boundary(prev, cur, now);
+  let { score, signals } = stage1Boundary(prev, cur, now);
+
+  // Fase 2 — Stage-2 embedding drift: ONLY in the grey zone, ONLY when opt-in
+  // (cur.embedEnabled), best-effort. Catches a semantic pivot Stage 1 missed (same
+  // file/category, new goal). cur.embedding lets tests inject a vector (no Ollama).
+  let driftState = (prev && prev.drift) || null;
+  let driftInfo = null;
+  if (cur.embedEnabled && score >= GREY_LOW && score < STRONG) {
+    try {
+      const { stage2Drift, embedText } = require('./compaction-drift.js');
+      const emb = Array.isArray(cur.embedding) ? cur.embedding : embedText(cur.prompt);
+      driftInfo = stage2Drift(driftState, emb, { percentile: cur.driftPercentile });
+      driftState = driftInfo.state;
+      if (driftInfo.fired) {
+        score = Math.max(score, STRONG);
+        signals = signals.filter((s) => s !== 'continuous').concat('embedding_drift');
+      }
+    } catch { /* best-effort; drift is optional */ }
+  }
+
   const pressure = pressureLadder(cur.tokenPct);
   // Fase 3 — derive cache temperature from the last turn's ts (caller may override).
   const cacheCold = cur.cacheCold || (prev ? cacheState(prev.ts, now) : 'unknown');
@@ -166,8 +186,12 @@ function advise(sessionId, cur = {}, now = Date.now()) {
     turns,
     last_event: commitTestPRSignal(cur.prompt) ? 'commit_test_pr' : (prev && prev.last_event) || null,
     last_decision: decision,
+    drift: driftState,
   }, now);
-  return { decision, boundary: score, signals, pressure, cacheCold, turns };
+  return {
+    decision, boundary: score, signals, pressure, cacheCold, turns,
+    drift: driftInfo && { fired: driftInfo.fired, drift: driftInfo.drift, threshold: driftInfo.threshold },
+  };
 }
 
 module.exports = {
