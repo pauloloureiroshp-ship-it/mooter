@@ -27,6 +27,47 @@
 **Action:** T5 is **not** special-cased; it falls through to risk/category derivation so effort tracks the *task*, not the pinned model.
 **Doctrine line:** "Não desperdices tokens" · "Doctrine > optimizador (only for HIGH_RISK)".
 
+## 2026-06-14 — Wave 60 (Cache-Aware + Roster + HW-aware T0) · W60-R1 qwen3-coder-next absent
+
+**Assumption (Master Prompt §4 Wave 60 Block C):** swap `qwen2.5:* → qwen3-coder-next / qwen3-30b` in `model-manager.js`.
+**Reality (Day-0 `ollama list`):** `qwen3-coder-next` is NOT installed and is not a known Ollama tag. Best installed coder is `qwen2.5-coder:14b`. `qwen3:30b` IS installed.
+**Action:** Cannot hardcode a non-existent model (the brief itself flagged this). Block C target invalid.
+**Doctrine line:** "confirmar disponibilidade no Ollama no Day-0 antes de hardcodar".
+
+## 2026-06-14 — Wave 60 · W60-R2 roster not in model-manager.js; general swap already done
+
+**Assumption:** the local roster lives in `model-manager.js` and still uses `qwen2.5:*`.
+**Reality:** `model-manager.js` is a management CLI (one stale hint string `ollama pull qwen2.5:3b` at `:268`). The dispatch path already uses `qwen3:30b` (`_model-resolver.js:19,31`, `budget-engine.js:46`). The remaining `qwen2.5:3b` is the T0 **default in FROZEN `classify.js`** (`:162-216`), changeable only via env (`ROUTER_OLLAMA_*`), never by editing the file.
+**Action:** **Block C is essentially moot/blocked.** At most fix the stale hint string; no model hardcoding; the real default lives behind a frozen file + env override.
+**Doctrine line:** "Honest > brief" · "classify.js FROZEN".
+
+## 2026-06-14 — Wave 60 · W60-R3 hw-capability.json path + presence
+
+**Assumption:** Block D reads `hw-capability.json` (implied under `~/.mooter`), assumed present.
+**Reality:** written by `gpu-probe.js` to `~/.claude/tools/router/hw-capability.json` (`:144`), and ONLY when a GPU is detected (`:206`). Absent on this machine now.
+**Action:** Block D reads the correct path and degrades gracefully (no fake bias when absent/GPU-less); respects that the local model is already `qwen3:30b`.
+**Doctrine line:** "No fabrication".
+
+## 2026-06-14 — Wave 60 · W60-R4 decide-agent.ts wrappable (not editable)
+
+**Assumption (§4):** wrap `decide-agent.ts`, never edit (FROZEN engine).
+**Reality (confirmed):** clean interface — `blended_cost` on its result, `blendedCost(in,out)=in+0.3*out`. Block A's NEW `packages/router/src/cache-aware-cost.ts` consumes the result + session context and applies a switching-cost adjustment without re-implementing cost math. We adopt only the *idea* of switching cost, never a cache mechanism (NO-PROXY).
+**Doctrine line:** "Adoptamos só a ideia de custo, nunca o mecanismo".
+
+## 2026-06-14 — Wave 60 · W60-R5 Block D already implemented end-to-end
+
+**Assumption (§4 Wave 60 Block D):** build a host-side module that reads `hw-capability.json` and biases T0 to the best model that fits VRAM, + expose `mooter models`.
+**Reality (deeper Day-0):** the entire HW-aware T0 pipeline already exists and is LIVE (v0.9.1/v0.10): `gpu-probe.js:buildHwCapability` computes `recommended_t0` (largest model fitting VRAM, preferring qwen3:30b) and writes `hw-capability.json`; `inject_context.js:641-642` passes it as `FRUGAL_HW_RECOMMENDED_T0`; FROZEN `classify.js:945-948` consumes that env var to override the T0 general model; `hardware-matcher.js` already produces per-user model recommendations (`--human`/`--install`) = the "mooter models" content; `gpu-status.js` already renders the VRAM chip from the same file.
+**Action:** **Do NOT build Block D — it would be a duplicate.** A wired `mooter models` subcommand would touch FROZEN `packages/cli` (no allowlist), so it stays deferred; the content already exists via `node hardware-matcher.js --human`. Wave 60's genuine new code is Blocks A + B only.
+**Doctrine line:** "Honest > brief" · "Refutações são valiosas — é assim que as waves ganham qualidade".
+
+## 2026-06-14 — Wave 60 · W60-R2b Block C has no actionable change
+
+**Assumption:** at least fix the stale `qwen2.5:3b` hint in `model-manager.js:268` → qwen3.
+**Reality:** that hint is the "you have NO models — pull the smallest (1.9GB) first" suggestion. `qwen2.5:3b` is the correct minimal first-pull; replacing it with `qwen3:30b` (18GB) would wrongly suggest a large pull to a VRAM-poor user.
+**Action:** **Block C is fully moot — zero actionable change.** Leave the hint correct.
+**Doctrine line:** "Honest > brief".
+
 ---
 
 ## Wave 53 — Refutations Log (earlier)
