@@ -100,7 +100,48 @@ function stage2Drift(state, embedding, opts = {}) {
   };
 }
 
+// --- Stage 3: qwen arbiter (rare tie-break, only in the embedding grey zone) ---
+const ARBITER_BAND = 0.25; // |drift - threshold|/threshold within this ⇒ borderline ⇒ arbitrate
+
+/** True when the drift sits close enough to the threshold to be worth a tie-break. Pure. */
+function needsArbiter(drift, threshold, band = ARBITER_BAND) {
+  if (typeof drift !== 'number' || typeof threshold !== 'number' || !(threshold > 0)) return false;
+  return Math.abs(drift - threshold) / threshold <= band;
+}
+
+/** Build the binary SAME/NEW arbiter prompt (pure). anchor = the topic's seed turn. */
+function arbiterPrompt(anchor, current) {
+  const a = String(anchor || '').slice(0, 400);
+  const c = String(current || '').slice(0, 400);
+  return 'Decide se duas mensagens de uma conversa de desenvolvimento são o MESMO tópico/tarefa ou um tópico/tarefa NOVO.\n'
+    + `ÂNCORA DO TÓPICO: "${a}"\nMENSAGEM ACTUAL: "${c}"\n`
+    + 'Responde APENAS com uma palavra: SAME (mesmo tópico) ou NEW (tópico novo).';
+}
+
+/** Parse a SAME/NEW verdict from model text (tolerant; last occurrence wins). Pure. → 'SAME'|'NEW'|null */
+function parseArbiterVerdict(text) {
+  const m = String(text || '').toUpperCase().match(/\b(SAME|NEW)\b/g);
+  return m && m.length ? m[m.length - 1] : null;
+}
+
+/** Best-effort qwen SAME/NEW arbitration → 'SAME'|'NEW'|null (degrades to null). */
+function arbitrate(anchor, current, opts = {}) {
+  const a = String(anchor || ''), c = String(current || '');
+  if (a.length < 3 || c.length < 3) return null;
+  try {
+    const script = path.join(__dirname, 'ollama_call_node.js');
+    const env = Object.assign({}, process.env);
+    if (opts.model) env.OLLAMA_OPTION_A_MODEL = opts.model;
+    const res = spawnSync(process.execPath, [script, arbiterPrompt(a, c)], {
+      encoding: 'utf8', timeout: opts.timeout || 4000, env,
+    });
+    if (res.status === 0 && res.stdout) return parseArbiterVerdict(res.stdout);
+  } catch { /* best-effort */ }
+  return null;
+}
+
 module.exports = {
   cosineDistance, updateCentroid, percentileThreshold, embedText, stage2Drift,
-  DEFAULT_PCT, MIN_SAMPLES, MAX_DISTANCES,
+  needsArbiter, arbiterPrompt, parseArbiterVerdict, arbitrate,
+  DEFAULT_PCT, MIN_SAMPLES, MAX_DISTANCES, ARBITER_BAND,
 };

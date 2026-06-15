@@ -67,3 +67,31 @@ test('stage2Drift — distances window is bounded (no unbounded growth)', () => 
   for (let i = 0; i < 120; i++) s = D.stage2Drift(s, [Math.cos(i), Math.sin(i)]).state;
   assert.ok(s.distances.length <= D.MAX_DISTANCES, `len=${s.distances.length}`);
 });
+
+// --- Fase 3: qwen arbiter (pure helpers) ---
+test('needsArbiter — true only in the borderline band around the threshold', () => {
+  assert.strictEqual(D.needsArbiter(0.5, 0.5), true);   // exactly on
+  assert.strictEqual(D.needsArbiter(0.55, 0.5), true);  // +10% within 25%
+  assert.strictEqual(D.needsArbiter(0.5, 0.4), true);   // |0.5-0.4|/0.4 = 0.25 edge
+  assert.strictEqual(D.needsArbiter(1.0, 0.4), false);  // far above
+  assert.strictEqual(D.needsArbiter(0.1, 0.4), false);  // far below
+  assert.strictEqual(D.needsArbiter(null, 0.4), false);
+  assert.strictEqual(D.needsArbiter(0.5, null), false);
+  assert.strictEqual(D.needsArbiter(0.5, 0), false);    // bad threshold
+});
+
+test('parseArbiterVerdict — tolerant SAME/NEW (last occurrence wins; word-bounded)', () => {
+  assert.strictEqual(D.parseArbiterVerdict('SAME'), 'SAME');
+  assert.strictEqual(D.parseArbiterVerdict('new'), 'NEW');
+  assert.strictEqual(D.parseArbiterVerdict('A resposta é: NEW.'), 'NEW');
+  assert.strictEqual(D.parseArbiterVerdict('SAME or NEW? → NEW'), 'NEW');
+  assert.strictEqual(D.parseArbiterVerdict('não sei'), null);
+  assert.strictEqual(D.parseArbiterVerdict(''), null);
+  assert.strictEqual(D.parseArbiterVerdict('renewable sameness'), null); // no bare SAME/NEW
+});
+
+test('arbiterPrompt — embeds both messages and forces a one-word answer', () => {
+  const p = D.arbiterPrompt('fix the auth bug', 'now write the README');
+  assert.ok(p.includes('fix the auth bug') && p.includes('now write the README'));
+  assert.ok(/\bSAME\b/.test(p) && /\bNEW\b/.test(p));
+});

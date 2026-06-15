@@ -195,3 +195,41 @@ test('advise — embedding drift does NOT run outside the grey zone (strong boun
   const r = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'committed it', embedEnabled: true, embedding: [0, 1, 0] }, t + 1000);
   assert.strictEqual(r.drift, null); // skipped — already strong, no need to embed
 });
+
+// --- Fase 3: arbiter overrides a borderline Stage-2 verdict (injected verdict; no Ollama) ---
+test('advise — Stage-3 arbiter: SAME suppresses, NEW rescues a borderline drift', () => {
+  const sid = 'sess-arb';
+  const t = 9_700_000_000;
+  // p90 of distances ≈ 0.5; injected embedding gives drift exactly 0.5 → borderline (needsArbiter true),
+  // and drift is NOT > threshold so Stage 2 alone would NOT fire. The arbiter decides.
+  const seed = () => A.writeState(sid, {
+    category: 'code_generation', cwd: '/a', turns: 5, topic_anchor: 'fix the parser',
+    drift: { centroid: [1, 0, 0], count: 6, distances: [0.4, 0.5, 0.45, 0.5, 0.5, 0.5] },
+  }, t);
+  const emb = [0.5, 0.8660254, 0]; // unit vector; cosine with [1,0,0] = 0.5 → distance 0.5
+
+  seed();
+  const same = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why does the parser fail',
+    embedEnabled: true, arbiterEnabled: true, embedding: emb, arbiterVerdict: 'SAME' }, t + 1000);
+  assert.strictEqual(same.drift.fired, false, `SAME must not fire: ${JSON.stringify(same.drift)}`);
+
+  seed();
+  const neu = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'now switch to writing docs',
+    embedEnabled: true, arbiterEnabled: true, embedding: emb, arbiterVerdict: 'NEW' }, t + 2000);
+  assert.strictEqual(neu.drift.fired, true, `NEW must fire: ${JSON.stringify(neu.drift)}`);
+  assert.ok(neu.signals.includes('arbiter_new'));
+  assert.ok(neu.boundary >= A.STRONG);
+});
+
+test('advise — topic anchor is stored sanitized and reset on a fired boundary (arbiter on)', () => {
+  const sid = 'sess-anchor';
+  const t = 9_800_000_000;
+  // first turn with arbiter on → seeds the anchor from the prompt
+  A.advise(sid, { category: 'x', cwd: '/a', prompt: 'build the login form', arbiterEnabled: true }, t);
+  const st = A.readState(sid, t + 100);
+  assert.strictEqual(st.topic_anchor, 'build the login form');
+  // a strong Stage-1 boundary (commit) resets the anchor to the new topic seed
+  A.advise(sid, { category: 'x', cwd: '/a', prompt: 'committed; now the dashboard', arbiterEnabled: true }, t + 200);
+  const st2 = A.readState(sid, t + 300);
+  assert.strictEqual(st2.topic_anchor, 'committed; now the dashboard');
+});

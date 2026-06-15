@@ -157,20 +157,32 @@ function advise(sessionId, cur = {}, now = Date.now()) {
   const prev = readState(sessionId, now);
   let { score, signals } = stage1Boundary(prev, cur, now);
 
-  // Fase 2 — Stage-2 embedding drift: ONLY in the grey zone, ONLY when opt-in
-  // (cur.embedEnabled), best-effort. Catches a semantic pivot Stage 1 missed (same
-  // file/category, new goal). cur.embedding lets tests inject a vector (no Ollama).
+  // Fase 2/3 — Stage-2 embedding drift + Stage-3 qwen arbiter, ONLY in the grey
+  // zone, ONLY when opt-in, best-effort. Stage 2 catches a semantic pivot Stage 1
+  // missed; Stage 3 arbitrates the BORDERLINE (same vocabulary, new intent). Tests
+  // inject cur.embedding / cur.arbiterVerdict to avoid live Ollama.
   let driftState = (prev && prev.drift) || null;
+  let topicAnchor = (prev && prev.topic_anchor) || null;
   let driftInfo = null;
+  let driftFired = false;
   if (cur.embedEnabled && score >= GREY_LOW && score < STRONG) {
     try {
-      const { stage2Drift, embedText } = require('./compaction-drift.js');
-      const emb = Array.isArray(cur.embedding) ? cur.embedding : embedText(cur.prompt);
-      driftInfo = stage2Drift(driftState, emb, { percentile: cur.driftPercentile });
+      const drift = require('./compaction-drift.js');
+      const emb = Array.isArray(cur.embedding) ? cur.embedding : drift.embedText(cur.prompt);
+      driftInfo = drift.stage2Drift(driftState, emb, { percentile: cur.driftPercentile });
       driftState = driftInfo.state;
-      if (driftInfo.fired) {
+      driftFired = driftInfo.fired;
+      // Stage 3 — arbiter ONLY when the drift is borderline + opt-in (rare tie-break).
+      if (cur.arbiterEnabled && topicAnchor && drift.needsArbiter(driftInfo.drift, driftInfo.threshold)) {
+        const verdict = cur.arbiterVerdict || drift.arbitrate(topicAnchor, cur.prompt, { model: cur.arbiterModel });
+        if (verdict === 'NEW') { driftFired = true; signals = signals.concat('arbiter_new'); }
+        else if (verdict === 'SAME') { driftFired = false; }
+      }
+      if (driftFired) {
         score = Math.max(score, STRONG);
-        signals = signals.filter((s) => s !== 'continuous').concat('embedding_drift');
+        if (!signals.includes('embedding_drift') && !signals.includes('arbiter_new')) {
+          signals = signals.filter((s) => s !== 'continuous').concat('embedding_drift');
+        }
       }
     } catch { /* best-effort; drift is optional */ }
   }
@@ -180,6 +192,15 @@ function advise(sessionId, cur = {}, now = Date.now()) {
   const cacheCold = cur.cacheCold || (prev ? cacheState(prev.ts, now) : 'unknown');
   const decision = compactionDecision({ boundary: score, pressure, cacheCold, risk_level: cur.risk_level });
   const turns = (prev && Number(prev.turns) || 0) + 1;
+
+  // Topic anchor (Stage-3 input): sanitized seed of the current topic — reset on a
+  // fired boundary (topic changed) or seeded when absent. Only kept when arbiter on.
+  if (cur.arbiterEnabled && (score >= STRONG || !topicAnchor)) {
+    let t = String(cur.prompt || '').slice(0, 300);
+    try { const { sanitize } = require('./privacy.js'); t = sanitize(t) || t; } catch { /* best-effort */ }
+    topicAnchor = t.slice(0, 300);
+  }
+
   writeState(sessionId, {
     category: cur.category || (prev && prev.category) || null,
     cwd: cur.cwd || (prev && prev.cwd) || null,
@@ -187,10 +208,11 @@ function advise(sessionId, cur = {}, now = Date.now()) {
     last_event: commitTestPRSignal(cur.prompt) ? 'commit_test_pr' : (prev && prev.last_event) || null,
     last_decision: decision,
     drift: driftState,
+    topic_anchor: topicAnchor,
   }, now);
   return {
     decision, boundary: score, signals, pressure, cacheCold, turns,
-    drift: driftInfo && { fired: driftInfo.fired, drift: driftInfo.drift, threshold: driftInfo.threshold },
+    drift: driftInfo && { fired: driftFired, drift: driftInfo.drift, threshold: driftInfo.threshold },
   };
 }
 
