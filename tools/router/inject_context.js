@@ -1320,6 +1320,34 @@ const lines = [
   '</router-hint>',
 ].filter(Boolean);
 
+// Wave 60.5 — reasoning-effort axis (axis 2). Emit a semantic effort level
+// (none|low|medium|high) derived purely from the already-computed decision
+// (tier/risk/category/safety-floor) — zero LLM, never touches classify.js. Placed
+// right after the hint so the session sees it as a routing directive, before the
+// display-only tier-badge. Best-effort + self-gating: a missing or broken module
+// omits the tag, leaving the hint byte-identical to the pre-60.5 baseline. Shares
+// the hint's confidence>=0.6 gate (we never reach here below it). Mirrors the
+// <tier-badge> emission pattern below.
+try {
+  const { reasoningEffort } = require('./reasoning-effort.js');
+  const eff = reasoningEffort(decision);
+  if (eff) {
+    lines.push('');
+    lines.push(`<reasoning-effort>${eff}</reasoning-effort>`);
+    // Persist the level for the opt-in 🧠 eff statusline chip (Block C). The
+    // statusline runs as a separate process and cannot see this decision object,
+    // so we record exactly what the hint emitted. Best-effort, mirrors effort.json.
+    try {
+      const mooterDir = process.env.MOOTER_HOME || path.join(require('os').homedir(), '.mooter');
+      fs.mkdirSync(mooterDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(mooterDir, 'reasoning-effort.json'),
+        JSON.stringify({ effort: eff, tier: decision.tier, ts: Date.now() }),
+      );
+    } catch { /* persistence is best-effort — the hint already carries the tag */ }
+  }
+} catch { /* reasoning-effort is best-effort, never blocks the hint */ }
+
 // Wave 2.5 Day 3 — tier badge. A compact [tier·model·conf] marker emitted as a
 // separate block right after the hint so the session can surface it inline.
 // Suppressed when the user has run `mooter quiet`. The hint is already gated to
