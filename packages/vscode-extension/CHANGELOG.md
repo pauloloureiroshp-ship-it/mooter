@@ -2,6 +2,15 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.12.3] — 2026-06-15 — bug-fix sweep
+
+### Fixed
+- **Removed a stray NUL byte** from `extension.js` (a composite-key separator was written as a raw `\0`, turning the file "binary" to tooling). The repo+branch key is now a clean JSON tuple.
+- **`prStage`** no longer reports a PR as plain "open" when a check is `COMPLETED` with a null conclusion (cancelled/expired run) — it now surfaces "CI ⏳".
+- **Guarded `#null`** in the session PR chip if a PR ever lacks a number.
+- **First paint when the panel starts collapsed** now does a full (deep) refresh instead of showing zeros for up to 60s.
+- **Removed ~11 dead `.live*` CSS classes** (and the `moopulse`/`moodots` keyframes) left over from the single-cow card the herd replaced.
+
 ## [0.12.2] — 2026-06-15 — data-coherence, per-session & live herd
 
 > Driven by the rule: **every number must match the reality of the solution — never mislead, always sincere.** A 4-way audit (code + live telemetry) confirmed several surfaces showed routing *intent* as if it were *execution*. Fixes:

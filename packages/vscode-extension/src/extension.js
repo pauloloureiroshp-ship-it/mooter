@@ -63,7 +63,9 @@ class DataService {
     const effSid = sel === 'all' ? null : (sel === 'auto' ? (activeSid && activeSid.id) : sel);
     const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me'), data_.httpJson(p, '/last-execution')];
     // Deep (CLI-spawning) work only when the panel is visible — never churn processes for a hidden view.
-    const doDeep = (deep || this.tick % 3 === 1) && this.visible;
+    // Deep work runs when visible; ALSO force it on the very first refresh (deep && tick 1)
+    // so a panel that starts collapsed still gets a full first paint instead of 60s of zeros.
+    const doDeep = ((deep || this.tick % 3 === 1) && this.visible) || (deep && this.tick === 1);
     if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
     // Per-session savings come from the SAME tracker pipeline (/metrics?session_id) so
     // they can never drift from the global figure — one source of truth (honesty).
@@ -314,18 +316,7 @@ function getHtml() {
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
-  .livecard{display:flex;align-items:center;gap:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-left:3px solid var(--lc,var(--g));border-radius:7px;padding:9px 11px;margin-bottom:8px}
   .livecow{font-size:22px;line-height:1}
-  .livecard.pulse .livecow{animation:moopulse 1.4s ease-out}
-  @keyframes moopulse{0%{transform:scale(1)}28%{transform:scale(1.28);filter:drop-shadow(0 0 7px var(--lc))}100%{transform:scale(1);filter:none}}
-  .livebody{flex:1;min-width:0}
-  .livetop{font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-  .livefam{font-weight:700;color:var(--lc)}
-  .liveprov{font-size:10px;color:var(--vscode-descriptionForeground)}
-  .livemodel{font-size:10.5px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
-  .livesub{font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
-  .liveok{font-size:9.5px;color:var(--g);font-weight:700}
-  .livewarn{font-size:9.5px;color:#e5c07b;font-weight:700}
   .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
   .srow{display:flex;align-items:center;gap:9px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
   .srow:hover{background:var(--vscode-list-hoverBackground)}
@@ -347,14 +338,9 @@ function getHtml() {
   .srow:hover .sopen{opacity:1;color:var(--g)}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
-  .livecard-idle{opacity:.65}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
   @keyframes moowalk{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-2px) rotate(-5deg)}75%{transform:translateY(-2px) rotate(5deg)}}
-  .livestat{display:none;font-weight:700;color:var(--lc)}
-  .livestat.on{display:inline}
-  .livestat.on::after{content:'';animation:moodots 1.3s steps(4,end) infinite}
-  @keyframes moodots{0%{content:''}25%{content:'·'}50%{content:'··'}75%{content:'···'}}
-  @media (prefers-reduced-motion:reduce){.livecard.pulse .livecow,.livecow.working{animation:none}.livedot{animation:none}.livestat.on::after{animation:none;content:'…'}}
+  @media (prefers-reduced-motion:reduce){.livecow.working,.livedot{animation:none}}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -532,7 +518,7 @@ window.addEventListener('message',(e)=>{
   // Feature 1+2: each session carries its own repo-scoped PR (r.pr, resolved host-side by
   // gh run in the session's cwd). "Linked" = ≥2 sessions on the SAME repo AND branch (same
   // work) — keyed by cwd+branch so a same-named branch in a different repo is never crossed.
-  const bkey=(r)=>String(r.cwd||'')+' '+String(r.branch||'');
+  const bkey=(r)=>JSON.stringify([String(r.cwd||''),String(r.branch||'')]); // repo+branch composite key (clean, collision-free)
   const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
   const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
     const badge=r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago');
@@ -544,7 +530,7 @@ window.addEventListener('message',(e)=>{
       const pr=r.pr;
       const branchChip='<span class="scmbr" title="git branch">'+(linked?'🔗 ':'⎇ ')+esc(r.branch)+'</span>';
       let prChip;
-      if(pr&&pr.stage)prChip='<span class="scmpr" title="'+esc(pr.title||'')+'" style="color:'+stageColor(pr.stage)+'">#'+esc(String(pr.number))+' · '+esc(pr.stage)+'</span>';
+      if(pr&&pr.stage)prChip='<span class="scmpr" title="'+esc(pr.title||'')+'" style="color:'+stageColor(pr.stage)+'">#'+esc(pr.number!=null?String(pr.number):'?')+' · '+esc(pr.stage)+'</span>';
       else prChip='<span class="scmpr" style="opacity:.55">no PR</span>';
       scm='<div class="sscm">'+branchChip+' '+prChip+'</div>';
     }
@@ -552,7 +538,7 @@ window.addEventListener('message',(e)=>{
   const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
-  const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc(k.slice(k.lastIndexOf(' ')+1))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
+  const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
   const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';

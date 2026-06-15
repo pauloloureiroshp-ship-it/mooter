@@ -247,6 +247,12 @@ test('prStage: a still-running check → CI ⏳', () => {
   ] };
   assert.equal(x.prStage(pr), 'CI ⏳');
 });
+test('prStage: COMPLETED check with null conclusion → CI ⏳ (not silently "open")', () => {
+  // a cancelled/expired run can log status COMPLETED with no conclusion — ambiguous,
+  // so we surface it as pending rather than reporting the PR as plain "open".
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [{ __typename: 'CheckRun', status: 'COMPLETED', conclusion: null }] };
+  assert.equal(x.prStage(pr), 'CI ⏳');
+});
 test('prStage: open + all checks passed → ready ✅', () => {
   const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
     { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },

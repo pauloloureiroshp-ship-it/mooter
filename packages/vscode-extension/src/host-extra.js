@@ -602,7 +602,9 @@ function prStage(pr) {
     const status = String(c.status || '').toUpperCase();
     const ctxState = String(c.state || '').toUpperCase(); // StatusContext (non-CheckRun)
     const failed = concl === 'FAILURE' || concl === 'TIMED_OUT' || concl === 'CANCELLED' || concl === 'ACTION_REQUIRED' || ctxState === 'FAILURE' || ctxState === 'ERROR';
-    const pending = (status && status !== 'COMPLETED') || ctxState === 'PENDING';
+    // COMPLETED with no conclusion (e.g. a cancelled/expired run that logged none) is
+    // ambiguous → treat as still-pending rather than silently reporting the PR as "open".
+    const pending = (status && status !== 'COMPLETED') || ctxState === 'PENDING' || (status === 'COMPLETED' && !concl && !ctxState);
     const passed = concl === 'SUCCESS' || concl === 'NEUTRAL' || concl === 'SKIPPED' || ctxState === 'SUCCESS';
     if (failed) anyFail = true;
     if (pending) anyPending = true;
