@@ -46,12 +46,19 @@ describe('Day 3 — impact calc unchanged (functionality preserved, est. is dire
     expect(cloud).toMatch(/75% less than Opus-only/);
   });
 
-  it('3-step wizard flow + captured state shape are intact (no functional change)', () => {
-    // step machine
+  it('5-step wizard flow + captured state shape are intact (Wave 60 — same facts, more steps)', () => {
+    // Wave 60 — the wizard adopts the design mock's 5 phases (probe · providers ·
+    // local stack · install · confirm). The step machine still starts at 1 and
+    // walks forward; the SAME fields are still captured and the SAME profile is
+    // still saved. The step count changed; the functional contract did not.
     expect(PAGE).toContain('useState(1)');
-    expect(PAGE).toContain('setStep(2)');
-    expect(PAGE).toContain('setStep(3)');
-    // the same fields are still captured
+    expect(PAGE).toContain('const TOTAL_STEPS = 5');
+    for (const s of ['setStep(2)', 'setStep(3)', 'setStep(4)', 'setStep(5)']) {
+      expect(PAGE).toContain(s);
+    }
+    // profile save still gated behind the install step and still walks to confirm
+    expect(PAGE).toContain('saveProfile(); setStep(5)');
+    // the same fields are still captured (no field dropped by the re-phasing)
     for (const field of ['monthly_budget_usd: budget', 'PERSONAS', 'suggestHardware', 'SUB_OPTIONS']) {
       expect(PAGE).toContain(field);
     }

@@ -75,6 +75,7 @@ class DataService {
       prefs: extra.preferences(),
       budget: extra.readBudget(),
       packs: extra.installedPacks(),
+      pinNext: extra.readPinNext(),
       ollama: doDeep ? ollama : prev.ollama,
       statuslineHtml: doDeep ? sline : prev.statuslineHtml,
       slash: doDeep ? slash : prev.slash,
@@ -84,6 +85,7 @@ class DataService {
       security: doDeep ? security : prev.security,
       spans: doDeep ? spans : prev.spans,
       herd: doDeep ? extra.herd() : prev.herd,
+      ledger: doDeep ? extra.tokenLedger() : prev.ledger,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
     };
@@ -166,6 +168,12 @@ class CockpitProvider {
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
       if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
+      if (m.cmd === 'pinNext') {
+        const r = extra.writePinNext(m.arg);
+        if (r.ok) vscode.window.setStatusBarMessage(r.model ? '🐮 next prompt → ' + r.model + ' (auto-routed — no paste needed)' : '🐮 next prompt → Auto (let Moo decide)', 5000);
+        else vscode.window.setStatusBarMessage('🐮 could not set next-prompt model', 3500);
+        this.data.refresh(true);
+      }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -194,13 +202,14 @@ function project(s) {
   const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown', raw: s.sub } : null;
   const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
   return Object.assign(base, {
-    mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash,
+    mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash, pinNext: s.pinNext,
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
     sub, device: s.device, hw: s.hw, quant: s.quant, prefs: s.prefs,
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
     herd: s.herd,
+    ledger: s.ledger, live: extra.liveRouting(s.last),
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -253,6 +262,26 @@ function getHtml() {
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
+  .livecard{display:flex;align-items:center;gap:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-left:3px solid var(--lc,var(--g));border-radius:7px;padding:9px 11px;margin-bottom:8px}
+  .livecow{font-size:22px;line-height:1}
+  .livecard.pulse .livecow{animation:moopulse 1.4s ease-out}
+  @keyframes moopulse{0%{transform:scale(1)}28%{transform:scale(1.28);filter:drop-shadow(0 0 7px var(--lc))}100%{transform:scale(1);filter:none}}
+  .livebody{flex:1;min-width:0}
+  .livetop{font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .livefam{font-weight:700;color:var(--lc)}
+  .liveprov{font-size:10px;color:var(--vscode-descriptionForeground)}
+  .livemodel{font-size:10.5px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+  .livesub{font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
+  .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
+  @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .livecard-idle{opacity:.65}
+  .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
+  @keyframes moowalk{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-2px) rotate(-5deg)}75%{transform:translateY(-2px) rotate(5deg)}}
+  .livestat{display:none;font-weight:700;color:var(--lc)}
+  .livestat.on{display:inline}
+  .livestat.on::after{content:'';animation:moodots 1.3s steps(4,end) infinite}
+  @keyframes moodots{0%{content:''}25%{content:'·'}50%{content:'··'}75%{content:'···'}}
+  @media (prefers-reduced-motion:reduce){.livecard.pulse .livecow,.livecow.working{animation:none}.livedot{animation:none}.livestat.on::after{animation:none;content:'…'}}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -323,7 +352,10 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
-let curMode='auto';const MORDER=['zen','auto','beast'];
+let curMode='auto';const MORDER=['zen','auto','beast'];let lastLiveTs='';let workingUntil=0;
+// Walk the cow while mooter is working: a prompt just routed (active window) or a
+// spawn is running. Client-side tick keeps it smooth between the ~7s polls.
+setInterval(function(){var c=document.getElementById('liveCow'),t=document.getElementById('liveStat'),on=Date.now()<workingUntil;if(c)c.classList.toggle('working',on);if(t)t.classList.toggle('on',on);},900);
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
 $('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
@@ -338,6 +370,21 @@ const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
 const PIN_LOCAL={'qwen3:30b':'mooter-qwen3-30b','qwen2.5:3b':'mooter-qwen2-5-3b','qwen2.5-coder:7b':'mooter-qwen2-5-coder-7b','qwen2.5-coder:14b':'mooter-qwen2-5-coder-14b','gemma3:12b':'mooter-gemma3-12b','gemma4:e4b':'mooter-gemma4-e4b','deepseek-r1:7b':'mooter-deepseek-r1-7b'};
 const PIN_CLOUD={Haiku:'mooter-haiku-4-5',Sonnet:'mooter-sonnet-4-6','Opus 4.7':'mooter-opus-4-7'};
 const openDecs=new Set();// decision keys (ts) the user expanded — must survive the periodic re-render
+let ledgerScope='session';let lastSnap=null;
+const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
+function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
+function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
+function ledgerHtml(s){
+  const L=(s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0};const decs=s.decisions||[];
+  const loc={};for(const d of decs){if(d.tier==='T0'&&d.model)loc[d.model]=(loc[d.model]||0)+1;}
+  const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
+  const tog=['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('');
+  const head='<div class="lbl">🧾 Tokens by model <span style="float:right">'+tog+'</span></div>';
+  const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+(ledgerScope==='session'?'this session':'yet')+'</div>';
+  const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+'</span></div>').join('');
+  return '<div class="card">'+head+rows+(locRows?'<div class="sub" style="margin:9px 0 2px">Local (Ollama) · $0</div>'+locRows:'')+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+(ledgerScope==='session'?'this session':'all time')+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">real usage from Claude Code logs · prices Jun 2026 · advisory · local = $0</div></div>';
+}
+function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
@@ -354,7 +401,7 @@ window.addEventListener('message',(e)=>{
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
     else inR.textContent='🐮 could not resolve — try the Terminal tab';
     return;}
-  if(e.data.type!=='snapshot')return;const s=e.data.s;
+  if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
   const pr=s.paired||{};
@@ -378,22 +425,32 @@ window.addEventListener('message',(e)=>{
   const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
-  let pinOpts='<option value="">🐮 Auto — let Moo decide</option>';
+  const curPin=(s.pinNext&&s.pinNext.model)||'';
+  const selAttr=(v)=>v===curPin?' selected':'';
+  let pinOpts='<option value=""'+selAttr('')+'>🐮 Auto — let Moo decide</option>';
   const locals=installed.filter(n=>PIN_LOCAL[n]);
-  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="/'+PIN_LOCAL[n]+'">'+esc(n)+'</option>').join('')+'</optgroup>';
-  pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>'<option value="/'+PIN_CLOUD[k]+'">'+esc(k)+'</option>').join('')+'</optgroup>';
+  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
+  pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
+  const lv=s.live;
+  const liveCard=lv
+    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ cloud')+'</span><span class="livemodel">'+esc(lv.model)+'</span></div><div class="livesub">'+(lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')+' <span class="livestat" id="liveStat">🛠 working</span></div></div><span class="livedot" title="last routed prompt"></span></div>'
+    : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
   $('#v-cockpit').innerHTML=
+    liveCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
-    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="copies a /pin command to paste in Claude Code" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
+    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
     '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
+    '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
-  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{if(ps.value)send('pin',ps.value);ps.selectedIndex=0;};})();
+  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
+  (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');workingUntil=Date.now()+12000;}const run=s.herd&&s.herd.run;if(run&&/run|active|progress/i.test(String(run.status||'')))workingUntil=Math.max(workingUntil,Date.now()+12000);})();
+  wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};

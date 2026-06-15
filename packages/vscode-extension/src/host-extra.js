@@ -107,6 +107,50 @@ function writeBudget(usd) {
   } catch { return { ok: false }; }
 }
 
+// W2: per-prompt "next prompt" model pin. The cockpit writes this file; the engine
+// hook (inject_context.js) reads+consumes it on the next UserPromptSubmit — a local
+// ollama id ("qwen2.5:3b") routes to T0+that model, a claude-* id to its tier.
+// Empty/Auto clears any pending pin. Consume-once is enforced by the engine.
+const PIN_NEXT_FILE = path.join(ROUTER, '.pin-next.json');
+function readPinNext() { const j = readJson(PIN_NEXT_FILE); return j && j.model ? { model: j.model } : null; }
+function writePinNext(model) {
+  const m = String(model || '').trim();
+  try {
+    if (!m) { try { fs.unlinkSync(PIN_NEXT_FILE); } catch { /* already absent */ } return { ok: true, model: '' }; }
+    if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(m)) return { ok: false };
+    fs.mkdirSync(path.dirname(PIN_NEXT_FILE), { recursive: true });
+    fs.writeFileSync(PIN_NEXT_FILE, JSON.stringify({ model: m, scope: 'once', set_by: 'vscode-cockpit', at: new Date().toISOString() }, null, 2));
+    return { ok: true, model: m };
+  } catch { return { ok: false }; }
+}
+
+// Live Routing descriptor for the cockpit "who handled this prompt" cow. Built from
+// the tracker /last decision; maps the model to its canonical family emoji/colour
+// (llm-emoji-map) so the plugin matches the terminal statusline. Returns null when
+// there's no decision yet.
+let _emojiMod;
+function _emoji() {
+  if (_emojiMod !== undefined) return _emojiMod;
+  try { _emojiMod = require(path.join(ROUTER, 'llm-emoji-map.js')); } catch { _emojiMod = null; }
+  return _emojiMod;
+}
+const FAMILY_HEX = { amber: '#E5C07B', tan: '#C9A876', blue: '#5A9BD4', green: '#4CAF6A', gold: '#F2C94C', pink: '#E8888A', gray: '#8A8076' };
+function liveRouting(last) {
+  if (!last || !last.model_full) return null;
+  const model = String(last.model_full);
+  const em = _emoji();
+  const d = (em && em.emojiForModel) ? em.emojiForModel(model) : { emoji: '🤖', label: 'Model', color: 'gray' };
+  const isLocal = d.label === 'Ollama' || (!/^claude-/i.test(model) && model.includes(':'));
+  const why = last.user_override ? 'pinned' : (String(last.cascade_path || '').includes('→') ? 'cascade' : 'auto');
+  return {
+    model, tier: last.tier || '', emoji: d.emoji, label: d.label,
+    color: FAMILY_HEX[d.color] || FAMILY_HEX.gray,
+    provider: isLocal ? 'local' : 'cloud', why,
+    cascade: last.cascade_path || '', confidence: last.confidence != null ? last.confidence : null,
+    ts: last.ts || '',
+  };
+}
+
 // The 10 slash sub-commands from the canonical /mooter SKILL template.
 const SLASH_CMDS = ['route', 'savings', 'explain', 'digest', 'local', 'why-not-fable', 'tier', 'mcp', 'vision', 'bench'];
 
@@ -265,6 +309,76 @@ function herd() {
   };
 }
 
+// ── v0.11 Token Ledger ──────────────────────────────────────────────────────
+// Real per-model token usage from Claude Code's own session logs (the ground
+// truth ccusage/ccost read): ~/.claude/projects/<proj>/<session>.jsonl, one line
+// per turn with message.usage. Local (Ollama) calls do NOT appear here — they are
+// free, shown separately by the webview from the routing decisions.
+// Prices per 1M tokens [input, output] (May/Jun 2026 · advisory). cache_write =
+// input×1.25, cache_read = input×0.1. Unknown model → cost null (honest).
+const PRICES = {
+  'claude-opus-4-8': [5, 25], 'claude-opus-4-7': [5, 25], 'claude-opus-4-6': [5, 25],
+  'claude-sonnet-4-6': [3, 15], 'claude-sonnet-4-5': [3, 15],
+  'claude-haiku-4-5': [1, 5], 'claude-haiku-4-5-20251001': [1, 5],
+  'claude-fable-5': [10, 50],
+};
+function priceFor(model) {
+  const m = String(model || '').toLowerCase();
+  if (PRICES[m]) return PRICES[m];
+  if (m.includes('fable')) return [10, 50];
+  if (m.includes('opus')) return [5, 25];
+  if (m.includes('sonnet')) return [3, 15];
+  if (m.includes('haiku')) return [1, 5];
+  return null; // unknown → cost not asserted
+}
+function costFor(model, u) {
+  const p = priceFor(model); if (!p) return null;
+  const [pin, pout] = p;
+  return ((u.in || 0) * pin + (u.out || 0) * pout + (u.cw || 0) * pin * 1.25 + (u.cr || 0) * pin * 0.1) / 1e6;
+}
+function listSessionFiles() {
+  const root = path.join(os.homedir(), '.claude', 'projects');
+  const out = [];
+  try {
+    for (const proj of fs.readdirSync(root)) {
+      const pdir = path.join(root, proj);
+      let st; try { st = fs.statSync(pdir); } catch { continue; }
+      if (!st.isDirectory()) continue;
+      for (const f of fs.readdirSync(pdir)) {
+        if (f.endsWith('.jsonl')) { try { out.push({ file: path.join(pdir, f), mtime: fs.statSync(path.join(pdir, f)).mtimeMs }); } catch { /* skip */ } }
+      }
+    }
+  } catch { /* no projects dir */ }
+  return out.sort((a, b) => b.mtime - a.mtime);
+}
+// Aggregate one or more session files by model. Dedup turns by message.id.
+function aggregateUsage(files) {
+  const byModel = {}; const seen = new Set(); let turns = 0;
+  for (const f of files) {
+    let txt = ''; try { const st = fs.statSync(f); const start = Math.max(0, st.size - 8 * 1024 * 1024); const fd = fs.openSync(f, 'r'); const buf = Buffer.alloc(st.size - start); fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd); txt = buf.toString('utf8'); } catch { continue; }
+    for (const line of txt.split('\n')) {
+      if (!line.includes('"usage"')) continue;
+      let d; try { d = JSON.parse(line); } catch { continue; }
+      const msg = d && d.message; const u = msg && msg.usage; if (!u || !msg.model) continue;
+      const id = msg.id || d.uuid; if (id) { if (seen.has(id)) continue; seen.add(id); }
+      const m = msg.model; const a = byModel[m] || (byModel[m] = { model: m, in: 0, out: 0, cw: 0, cr: 0, n: 0 });
+      a.in += u.input_tokens || 0; a.out += u.output_tokens || 0;
+      a.cw += u.cache_creation_input_tokens || 0; a.cr += u.cache_read_input_tokens || 0; a.n += 1; turns += 1;
+    }
+  }
+  const rows = Object.values(byModel).map((a) => ({ ...a, cost: costFor(a.model, a) }))
+    .sort((x, y) => (y.cost || 0) - (x.cost || 0));
+  return { rows, turns };
+}
+// scope: 'session' (most-recent file) | 'all' (every file). Never throws.
+function tokenLedger() {
+  const files = listSessionFiles();
+  const session = files.length ? aggregateUsage([files[0].file]) : { rows: [], turns: 0 };
+  const all = aggregateUsage(files.map((f) => f.file));
+  return { session, all, sessions: files.length };
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
-  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, SLASH_CMDS, mooterScore, installedPacks };
+  deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
+  PRICES, priceFor, costFor, tokenLedger };

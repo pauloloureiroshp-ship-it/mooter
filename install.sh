@@ -146,6 +146,12 @@ do_run "mkdir -p '$ROUTER_DIR' '$HOOKS_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/sk
 do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/' 2>/dev/null || true"
 do_run "cp '$SRC_DIR/tools/router/'*.json '$ROUTER_DIR/' 2>/dev/null || true"
 
+# Provider wrappers live in a subdir — the top-level *.js glob above misses them,
+# so router-execute would fail with `wrapper_missing` for ollama/codex/openai pins
+# (Wave 61). Copy the providers/ subdir explicitly.
+do_run "mkdir -p '$ROUTER_DIR/providers'"
+do_run "cp '$SRC_DIR/tools/router/providers/'*.js '$ROUTER_DIR/providers/' 2>/dev/null || true"
+
 # Hooks live under ~/.claude/hooks/ (not ~/.claude/tools/router/).
 for h in gsd-statusline.js gsd-turn-end.js mooter-turn-header.js frugal-turn-header.js exec-logger.js PostToolUse.js; do
   [ -f "$SRC_DIR/tools/router/$h" ] && do_run "cp '$SRC_DIR/tools/router/$h' '$HOOKS_DIR/$h'"

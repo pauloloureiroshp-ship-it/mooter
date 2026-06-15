@@ -35,9 +35,9 @@
 // Pure module: file reads only (the snapshot + benchmark seed, both already read
 // by the modules we reuse). No network, never throws.
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+// Wave 61: pricing snapshot inlined at build time so the bundled CLI resolves it
+// without a source-relative path (fixes ENOENT in ~/.mooter/cli-v1).
+import pricingSnapshot from "../../../data/pricing-snapshot-2026-05-27.json";
 
 import { MATRIX_MODELS, getCell, type MatrixModel } from "./specialization-matrix.ts";
 import { TASK_CATEGORIES, type TaskCategory, parseTaskCategory } from "./task-categories.ts";
@@ -65,21 +65,8 @@ interface PricingSnapshotTiers {
   local_models_free?: string[];
 }
 
-// packages/router/src/decide-agent.ts -> <repo>/data/pricing-snapshot-2026-05-27.json
-const SNAPSHOT_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "data",
-  "pricing-snapshot-2026-05-27.json",
-);
-
-let _snapshotTiers: PricingSnapshotTiers | null = null;
 function loadSnapshotTiers(): PricingSnapshotTiers {
-  if (_snapshotTiers) return _snapshotTiers;
-  _snapshotTiers = JSON.parse(readFileSync(SNAPSHOT_PATH, "utf8")) as PricingSnapshotTiers;
-  return _snapshotTiers;
+  return pricingSnapshot as unknown as PricingSnapshotTiers;
 }
 
 /** Strip a trailing `-YYYYMMDD` so dated API ids resolve to the snapshot key. */

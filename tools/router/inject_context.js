@@ -745,6 +745,59 @@ if (pinModelRaw && pinModelRaw.startsWith('claude-')) {
   }
 }
 
+// ── W2: cockpit "next prompt" pin-file (consume-once) ──────────────────────
+// The VSCode cockpit writes ~/.claude/tools/router/.pin-next.json {model,scope}
+// when the user picks a model for the next prompt. We read+delete it here (so it
+// only affects the very next prompt) and apply it as an honored user_override:
+//   • claude-* id  → its tier (same machinery as the MOOTER_PIN_MODEL env pin)
+//   • local ollama id (e.g. "qwen2.5:3b") → T0 + that EXACT model via the ollama
+//     backend; the agent then runs it through router-execute (same as the
+//     /mooter-<model> skills), so the exact local model actually answers.
+// HIGH_RISK downgrades are refused (mirrors the env pin). Best-effort: any error
+// is swallowed so the hook never breaks.
+try {
+  const PIN_NEXT_PATH = path.join(ROUTER_DIR, '.pin-next.json');
+  if (fs.existsSync(PIN_NEXT_PATH)) {
+    let filePin = null;
+    try { filePin = JSON.parse(fs.readFileSync(PIN_NEXT_PATH, 'utf8')); } catch { /* corrupt */ }
+    try { fs.unlinkSync(PIN_NEXT_PATH); } catch { /* consume-once is best-effort */ }
+    const fpModel = filePin && typeof filePin.model === 'string' ? filePin.model.trim() : '';
+    const alreadyPinned = decision.user_override && decision.user_override.honored === true;
+    if (fpModel && !alreadyPinned) {
+      const isClaude = fpModel.startsWith('claude-');
+      const PIN_FILE_TIER = { 'claude-opus-4-7': 'T3', 'claude-opus-4-6': 'T3', 'claude-sonnet-4-6': 'T2', 'claude-haiku-4-5': 'T1' };
+      const targetTier = isClaude ? PIN_FILE_TIER[fpModel] : 'T0';
+      if (targetTier) {
+        const ORDER = ['T0', 'T1', 'T2', 'T3'];
+        const originalTier = decision.tier;
+        const isDowngrade = ORDER.indexOf(targetTier) < ORDER.indexOf(originalTier);
+        const isHighRisk = decision.risk_level === 'high' || HIGH_RISK_HINT.test(prompt);
+        if (isDowngrade && isHighRisk) {
+          decision.user_override = { honored: false, requested: fpModel, blocked: fpModel, kind: 'mooter-pin-file', reason: 'high_risk_downgrade_refused' };
+          decision.escalation_rule =
+            decision.escalation_rule === 'none'
+              ? 'mooter_pin_refused_high_risk'
+              : `${decision.escalation_rule}+mooter_pin_refused_high_risk`;
+        } else {
+          const back = isClaude
+            ? ({ T1: { b: 'anthropic_api', s: 'cheap-triage' }, T2: { b: 'claude_subagent', s: 'model-reasoner' }, T3: { b: 'claude_subagent', s: 'model-architect' } }[targetTier])
+            : { b: 'ollama', s: 'local-summarizer' };
+          decision.user_override = { honored: true, requested: fpModel, label: fpModel, kind: 'mooter-pin-file', original_tier: originalTier, tier: targetTier, subagent: back.s };
+          decision.tier = targetTier;
+          decision.suggested_subagent = back.s;
+          decision.recommended_backend = back.b;
+          decision.recommended_model = fpModel;
+          decision.confidence = Math.max(Number(decision.confidence) || 0, 0.9);
+          decision.escalation_rule =
+            decision.escalation_rule === 'none'
+              ? 'mooter_pin'
+              : `${decision.escalation_rule}+mooter_pin`;
+        }
+      }
+    }
+  }
+} catch { /* pin-file is best-effort; never break the hook */ }
+
 // ── v0.8 HAIKU ARBITER ─────────────────────────────────────────────────
 // When the regex classifier is uncertain (confidence < 0.75 OR the
 // task_category is ambiguous_medium / ambiguous_long), fall through to
@@ -868,6 +921,9 @@ try {
 // v0.7.2: include ts_ms and session_id so the Stop hook can pair start→end
 // events and the savings-tracker can compute turn-level latency.
 const sessionId = payload.session_id || (payload.session && payload.session.id) || 'unknown';
+// Wave 65 Context Bridge (P0): record the user turn + point at the current session
+// so router-execute can find this transcript. Opt-in; best-effort, never throws.
+try { const _sc = require('./session-context.js'); _sc.setCurrentSession(sessionId); _sc.appendTurn(sessionId, { role: 'user', text: prompt }); } catch { /* best-effort */ }
 logDecision({
   ts: new Date().toISOString(),
   ts_ms: Date.now(),
@@ -998,6 +1054,17 @@ if (budget) {
   } catch { /* silent */ }
 
   if (!activeMode) return;
+
+  // An explicit per-prompt model pin (cockpit .pin-next.json or a /mooter-<model>
+  // skill / MOOTER_PIN_MODEL env) is a deliberate, more-specific choice than the
+  // session-wide mode — honor it over beast/zen. HIGH_RISK downgrades were already
+  // refused upstream, so an honored pin here is safe to respect. Regex-detected
+  // overrides (prose mentions) keep obeying the active mode.
+  const _pin = decision.user_override;
+  if (_pin && _pin.honored === true && (_pin.kind === 'mooter-pin-file' || _pin.kind === 'mooter-pin-skill')) {
+    decision.active_mode = activeMode + '_overridden_by_pin';
+    return;
+  }
 
   const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
 

@@ -13,14 +13,14 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: 'Space Grotesk', -apple-system, sans-serif;
-  background: #0A0A0A;
-  color: #ededed;
+  background: #0B0A09;
+  color: #F2EDE6;
   font-size: 16px;
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: #FF6B35; text-decoration: none; }
+a { color: #E8888A; text-decoration: none; }
 code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
 
 /* ── Sidebar nav ── */
@@ -32,8 +32,8 @@ code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
   height: 100vh;
   width: 220px;
   flex-shrink: 0;
-  background: #080808;
-  border-right: 1px solid #1e1e24;
+  background: #0F0E0C;
+  border-right: 1px solid #252220;
   padding: 2rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -47,18 +47,18 @@ code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
   gap: 8px;
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid #1e1e24;
+  border-bottom: 1px solid #252220;
 }
 .sidebar-logo-name {
   font-weight: 700;
   letter-spacing: -0.04em;
-  color: #FF6B35;
+  color: #E8888A;
   font-size: 1.1rem;
 }
 .sidebar-version {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.6rem;
-  color: #333;
+  color: #7A7168;
   display: block;
   margin-top: 1px;
 }
@@ -66,7 +66,7 @@ code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
 .nav-section {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.6rem;
-  color: #333;
+  color: #7A7168;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin: 1rem 0 0.5rem;
@@ -81,7 +81,7 @@ code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
   transition: all 0.15s;
   text-decoration: none;
 }
-.nav-link:hover { background: #111; color: #ededed; }
+.nav-link:hover { background: #1a1714; color: #F2EDE6; }
 
 /* ── Main content ── */
 .main {
@@ -93,7 +93,7 @@ code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
 
 /* ── Sections ── */
 .section { margin-bottom: 6rem; scroll-margin-top: 2rem; }
-.divider { border: none; border-top: 1px solid #1e1e24; margin: 4rem 0; }
+.divider { border: none; border-top: 1px solid #252220; margin: 4rem 0; }
 
 /* ── Typography ── */
 .page-title {
@@ -109,14 +109,14 @@ code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
   font-family: 'JetBrains Mono', monospace;
   margin-bottom: 3rem;
   padding-bottom: 3rem;
-  border-bottom: 1px solid #1e1e24;
+  border-bottom: 1px solid #252220;
 }
 
 h2 {
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.03em;
-  color: #ededed;
+  color: #F2EDE6;
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
@@ -125,9 +125,9 @@ h2 {
 .num {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
-  color: #FF6B35;
-  background: rgba(255,107,53,0.1);
-  border: 1px solid rgba(255,107,53,0.2);
+  color: #E8888A;
+  background: rgba(232,136,138,0.1);
+  border: 1px solid rgba(232,136,138,0.2);
   padding: 2px 7px;
   border-radius: 4px;
   font-weight: 400;
@@ -142,7 +142,7 @@ h2 {
   letter-spacing: 0.04em;
 }
 .status-current { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
-.status-proposed { background: rgba(255,107,53,0.1); color: #FF6B35; border: 1px solid rgba(255,107,53,0.2); }
+.status-proposed { background: rgba(232,136,138,0.1); color: #E8888A; border: 1px solid rgba(232,136,138,0.2); }
 .status-direction { background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); }
 
 h3 {
@@ -161,8 +161,8 @@ p strong { color: #aaa; font-weight: 600; }
 
 /* ── Cards & grids ── */
 .card {
-  background: #0e0e12;
-  border: 1px solid #1e1e24;
+  background: #14110E;
+  border: 1px solid #252220;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -186,10 +186,10 @@ p strong { color: #aaa; font-weight: 600; }
   gap: 0.875rem;
   padding: 2.5rem 1.5rem;
 }
-.logo-bg-dark   { background: #0A0A0A; }
-.logo-bg-mid    { background: #1a1a20; }
-.logo-bg-light  { background: #F5EDD4; }
-.logo-bg-orange { background: #FF6B35; }
+.logo-bg-dark   { background: #0B0A09; }
+.logo-bg-mid    { background: #1f1b18; }
+.logo-bg-light  { background: #CCD3DA; }
+.logo-bg-accent { background: #E8888A; }
 .logo-bg-white  { background: #fff; }
 
 .logo-label {
@@ -230,8 +230,8 @@ p strong { color: #aaa; font-weight: 600; }
 .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1rem; }
 .swatch-card { border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); }
 .swatch-block { height: 72px; }
-.swatch-info { padding: 0.75rem; background: #111114; }
-.swatch-name { font-size: 0.813rem; font-weight: 600; color: #ededed; display: block; margin-bottom: 2px; }
+.swatch-info { padding: 0.75rem; background: #14110E; }
+.swatch-name { font-size: 0.813rem; font-weight: 600; color: #F2EDE6; display: block; margin-bottom: 2px; }
 .swatch-hex { font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: #5c5c6e; }
 .swatch-role { font-size: 0.62rem; color: #3a3a44; display: block; margin-top: 3px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em; }
 
@@ -241,13 +241,13 @@ p strong { color: #aaa; font-weight: 600; }
   align-items: baseline;
   gap: 1.5rem;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid #1e1e24;
-  background: #0e0e12;
+  border-bottom: 1px solid #252220;
+  background: #14110E;
 }
 .type-row:first-child { border-radius: 10px 10px 0 0; }
 .type-row:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
 .type-meta { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: #3a3a44; min-width: 100px; flex-shrink: 0; line-height: 1; padding-top: 4px; }
-.type-sample { color: #ededed; }
+.type-sample { color: #F2EDE6; }
 
 /* ── Tier system ── */
 .tier-card { padding: 1.5rem; border-radius: 12px; border: 1px solid; }
@@ -259,8 +259,8 @@ p strong { color: #aaa; font-weight: 600; }
 
 /* ── Components ── */
 .component-surface {
-  background: #0e0e12;
-  border: 1px solid #1e1e24;
+  background: #14110E;
+  border: 1px solid #252220;
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -275,8 +275,8 @@ p strong { color: #aaa; font-weight: 600; }
   font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 0.875rem;
   cursor: pointer; border: none; transition: all 0.15s ease; white-space: nowrap;
 }
-.btn-primary { background: #FF6B35; color: #000; }
-.btn-ghost { background: transparent; color: #ededed; border: 1px solid #2a2a32; }
+.btn-primary { background: #E8888A; color: #000; }
+.btn-ghost { background: transparent; color: #F2EDE6; border: 1px solid #322c28; }
 .btn-sm { padding: 0.4rem 0.875rem; font-size: 0.75rem; }
 
 .badge {
@@ -292,8 +292,8 @@ p strong { color: #aaa; font-weight: 600; }
 }
 
 .terminal {
-  background: #080808;
-  border: 1px solid #252525;
+  background: #0F0E0C;
+  border: 1px solid #2a2622;
   border-radius: 10px;
   overflow: hidden;
   font-family: 'JetBrains Mono', monospace;
@@ -301,19 +301,19 @@ p strong { color: #aaa; font-weight: 600; }
 }
 .terminal-header {
   display: flex; gap: 5px; align-items: center; padding: 8px 12px;
-  background: #0e0e0e; border-bottom: 1px solid #1a1a1a;
+  background: #14110E; border-bottom: 1px solid #1f1b18;
 }
 .dot { width: 9px; height: 9px; border-radius: 50%; }
 .dot-r { background: #ff5f57; }
 .dot-y { background: #febc2e; }
 .dot-g { background: #28c840; }
 .terminal-body { padding: 1rem 1.25rem; }
-.ps1 { color: #FF6B35; }
+.ps1 { color: #E8888A; }
 
 /* ── Hero blueprint ── */
 .hero-blueprint {
-  background: #0A0A0A;
-  border: 1px solid #252525;
+  background: #0B0A09;
+  border: 1px solid #2a2622;
   border-radius: 16px;
   padding: 3rem 2rem;
   text-align: center;
@@ -328,22 +328,22 @@ p strong { color: #aaa; font-weight: 600; }
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 0%, rgba(255,107,53,0.06) 0%, transparent 65%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(232,136,138,0.06) 0%, transparent 65%);
   pointer-events: none;
 }
 .blueprint-annotation {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.62rem;
-  color: rgba(255,107,53,0.5);
-  border: 1px dashed rgba(255,107,53,0.2);
+  color: rgba(232,136,138,0.5);
+  border: 1px dashed rgba(232,136,138,0.2);
   padding: 2px 8px;
   border-radius: 4px;
   margin-top: -0.75rem;
 }
 
 .hero-install-demo {
-  background: #111;
-  border: 1px solid #252525;
+  background: #1a1714;
+  border: 1px solid #2a2622;
   border-radius: 8px;
   padding: 0.75rem 1.25rem;
   font-family: 'JetBrains Mono', monospace;
@@ -358,7 +358,7 @@ p strong { color: #aaa; font-weight: 600; }
 .hero-install-demo .ps1 { flex-shrink: 0; }
 .hero-copy-btn {
   margin-left: auto;
-  background: #FF6B35;
+  background: #E8888A;
   color: #000;
   border: none;
   border-radius: 5px;
@@ -401,7 +401,7 @@ p strong { color: #aaa; font-weight: 600; }
   border-radius: 0 0 8px 8px;
   padding: 0.875rem 1.125rem;
   font-size: 0.875rem;
-  color: #ededed;
+  color: #F2EDE6;
   font-weight: 500;
 }
 .voice-tag {
@@ -422,19 +422,19 @@ p strong { color: #aaa; font-weight: 600; }
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem 1.25rem;
-  background: #0e0e12;
-  border-bottom: 1px solid #1e1e24;
+  background: #14110E;
+  border-bottom: 1px solid #252220;
 }
 .structure-item:first-child { border-radius: 10px 10px 0 0; }
 .structure-item:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
 .structure-num {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
-  color: #FF6B35;
+  color: #E8888A;
   min-width: 24px;
   margin-top: 3px;
 }
-.structure-name { font-weight: 600; font-size: 0.875rem; color: #ededed; margin-bottom: 0.25rem; }
+.structure-name { font-weight: 600; font-size: 0.875rem; color: #F2EDE6; margin-bottom: 0.25rem; }
 .structure-desc { font-size: 0.813rem; color: #5c5c6e; line-height: 1.6; }
 .structure-cut {
   font-family: 'JetBrains Mono', monospace;
@@ -463,14 +463,14 @@ p strong { color: #aaa; font-weight: 600; }
 .space-list { display: flex; flex-direction: column; gap: 0; }
 .space-row {
   display: flex; align-items: center; gap: 1rem;
-  padding: 0.875rem 1.25rem; background: #0e0e12;
-  border-bottom: 1px solid #1e1e24;
+  padding: 0.875rem 1.25rem; background: #14110E;
+  border-bottom: 1px solid #252220;
 }
 .space-row:first-child { border-radius: 10px 10px 0 0; }
 .space-row:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
-.space-token { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #FF6B35; min-width: 110px; }
+.space-token { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #E8888A; min-width: 110px; }
 .space-bar-wrap { flex: 1; background: rgba(255,255,255,0.04); border-radius: 4px; height: 18px; overflow: hidden; }
-.space-bar { height: 100%; background: rgba(255,107,53,0.35); border-radius: 4px; }
+.space-bar { height: 100%; background: rgba(232,136,138,0.35); border-radius: 4px; }
 .space-val { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #5c5c6e; min-width: 40px; text-align: right; }
 </style>
 </head>
@@ -480,20 +480,19 @@ p strong { color: #aaa; font-weight: 600; }
 <!-- ── Sidebar ── -->
 <nav class="sidebar">
   <div class="sidebar-logo">
-    <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
-      <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
-      <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-      <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-      <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-      <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-      <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-      <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-      <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-      <circle cx="38" cy="44" r="2" fill="white"/>
-      <circle cx="66" cy="44" r="2" fill="white"/>
-      <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
-      <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
-      <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+    <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+      <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+      <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+      <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+      <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+      <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+      <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+      <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+      <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+      <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+      <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+      <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+      <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
     </svg>
     <div>
       <div class="sidebar-logo-name">mooter</div>
@@ -527,176 +526,170 @@ p strong { color: #aaa; font-weight: 600; }
   <section class="section" id="logo">
     <h2><span class="num">01</span> Logo</h2>
 
-    <p>A vaquinha de frente — blocky, friendly, expressiva. Cores derivadas directamente do emoji 🐮: corpo cream, focinho laranja, olhos quase-pretos. O logo escala de 16px (favicon) até 200px (hero). A versão v2 adiciona um outline escuro nas orelhas e cabeça para dar peso visual no estilo Ollama.</p>
+    <p>A vaquinha clássica de frente — friendly, expressiva, derivada do emoji 🐮: cabeça grey/white, focinho rose, olhos escuros com catch-light branco, horns e orelhas em grey. O logo escala de 16px (favicon) até 200px (hero) sem perder definição.</p>
 
-    <h3>v1 — Current (sem outline)</h3>
+    <h3>Logo — variantes de fundo</h3>
     <div class="grid-4" style="margin-bottom: 2rem;">
       <div class="card">
         <div class="logo-display logo-bg-dark">
-          <!-- v1 — original -->
-          <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
-            <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
-            <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
-            <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-            <circle cx="36" cy="46" r="5" fill="#1C1209"/>
-            <circle cx="64" cy="46" r="5" fill="#1C1209"/>
-            <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
-            <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
-            <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
-            <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
-            <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+          <!-- classic Twemoji cow -->
+          <svg width="72" height="72" viewBox="0 0 36 36" fill="none">
+            <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
-          <div class="logo-label">Dark · v1</div>
+          <div class="logo-label">Dark</div>
         </div>
       </div>
       <div class="card">
         <div class="logo-display logo-bg-dark" style="padding: 1.5rem;">
-          <svg width="32" height="32" viewBox="0 0 100 100" fill="none">
-            <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
-            <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
-            <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-            <circle cx="36" cy="46" r="5" fill="#1C1209"/>
-            <circle cx="64" cy="46" r="5" fill="#1C1209"/>
-            <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
-            <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
-            <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
-            <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
-            <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+          <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+            <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
-          <div class="logo-label">32px · perde definição</div>
+          <div class="logo-label">32px · lê-se bem</div>
         </div>
       </div>
       <div class="card">
         <div class="logo-display logo-bg-light">
-          <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
-            <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#1C1209"/>
-            <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#1C1209"/>
-            <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#1C1209"/>
-            <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#1C1209"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="#1C1209"/>
-            <circle cx="36" cy="46" r="5" fill="#F5EDD4"/>
-            <circle cx="64" cy="46" r="5" fill="#F5EDD4"/>
-            <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
-            <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
-            <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+          <svg width="48" height="48" viewBox="0 0 36 36" fill="none">
+            <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
-          <div class="logo-label" style="color:#888;">Light · v1</div>
+          <div class="logo-label" style="color:#555;">Light grey</div>
         </div>
       </div>
       <div class="card">
-        <div class="logo-display" style="background: #111; padding: 1.25rem;">
-          <div class="logo-lockup" style="font-size:1.1rem; color:#ededed;">
-            <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
-              <path d="M29 29 C26 21 22 14 25 10 C28 7 32 13 33 23Z" fill="#F5EDD4"/>
-              <path d="M71 29 C74 21 78 14 75 10 C72 7 68 13 67 23Z" fill="#F5EDD4"/>
-              <rect x="9" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-              <rect x="78" y="36" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-              <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-              <circle cx="36" cy="46" r="5" fill="#1C1209"/>
-              <circle cx="64" cy="46" r="5" fill="#1C1209"/>
-              <circle cx="37.8" cy="44.2" r="1.8" fill="white"/>
-              <circle cx="65.8" cy="44.2" r="1.8" fill="white"/>
-              <rect x="26" y="59" width="48" height="24" rx="12" fill="#FF6B35"/>
-              <ellipse cx="38" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
-              <ellipse cx="62" cy="71" rx="5" ry="4.5" fill="#C04A0C"/>
+        <div class="logo-display" style="background: #1a1714; padding: 1.25rem;">
+          <div class="logo-lockup" style="font-size:1.1rem; color:#F2EDE6;">
+            <svg width="24" height="24" viewBox="0 0 36 36" fill="none">
+              <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+              <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+              <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+              <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+              <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+              <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+              <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+              <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+              <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+              <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+              <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+              <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
             </svg>
-            <span style="color:#FF6B35;">mooter</span>
+            <span style="color:#E8888A;">mooter</span>
           </div>
-          <div class="logo-label">Lockup · v1</div>
+          <div class="logo-label">Lockup</div>
         </div>
       </div>
     </div>
 
-    <h3>v2 — Proposed (com outline escuro · mais peso · Ollama-style)</h3>
-    <p>Adicionado um layer escuro (#1C1209) atrás das orelhas e cabeça. Olhos ligeiramente maiores (r=6). Muzzle maior (52px wide). Resultado: lê-se claramente a 24px, tem peso visual on dark bg, e o mascote destaca-se como o Ollama faz.</p>
+    <h3>Logo — escala &amp; aplicação</h3>
+    <p>A mesma vaquinha clássica em vários tamanhos e fundos: cabeça grey/white, focinho rose, olhos escuros com catch-light branco. Lê-se claramente desde 24px até hero size, mantendo o focinho rose como único ponto de cor quente.</p>
 
     <div class="grid-4" style="margin-bottom: 1rem;">
       <!-- v2 logo definition (shared) -->
       <div class="card">
         <div class="logo-display logo-bg-dark">
-          <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
-            <!-- Outline layer -->
-            <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
-            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-            <!-- Cream fills -->
-            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-            <!-- Eyes (bigger) -->
-            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="38" cy="44" r="2" fill="white"/>
-            <circle cx="66" cy="44" r="2" fill="white"/>
-            <!-- Muzzle (wider) -->
-            <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
-            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
-            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+          <svg width="72" height="72" viewBox="0 0 36 36" fill="none">
+            <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
-          <div class="logo-label">Dark · v2 ✦</div>
+          <div class="logo-label">Dark ✦</div>
         </div>
       </div>
       <div class="card">
         <div class="logo-display logo-bg-dark" style="padding: 1.5rem;">
-          <svg width="32" height="32" viewBox="0 0 100 100" fill="none">
-            <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
-            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="38" cy="44" r="2" fill="white"/>
-            <circle cx="66" cy="44" r="2" fill="white"/>
-            <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
-            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
-            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+          <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+            <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
-          <div class="logo-label">32px · lê-se melhor ✦</div>
+          <div class="logo-label">32px · lê-se bem ✦</div>
         </div>
       </div>
       <div class="card">
-        <div class="logo-display" style="background:#FF6B35;">
-          <svg width="56" height="56" viewBox="0 0 100 100" fill="none">
-            <rect x="14" y="22" width="72" height="64" rx="17" fill="rgba(0,0,0,0.35)"/>
-            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="rgba(0,0,0,0.35)"/>
-            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="rgba(0,0,0,0.35)"/>
-            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="white"/>
-            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="white"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="white"/>
-            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="38" cy="44" r="2" fill="rgba(255,255,255,0.6)"/>
-            <circle cx="66" cy="44" r="2" fill="rgba(255,255,255,0.6)"/>
-            <rect x="24" y="58" width="52" height="26" rx="13" fill="#C04A0C"/>
-            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#8a3009"/>
-            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#8a3009"/>
+        <div class="logo-display" style="background:#E8888A;">
+          <svg width="56" height="56" viewBox="0 0 36 36" fill="none">
+            <path fill="#FFFFFF" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#FFFFFF" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#FFFFFF" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#FFFFFF" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#FFFFFF" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#F2D6D7" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#D89A9D" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#D89A9D" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
           <div class="logo-label" style="color:rgba(0,0,0,0.4);">On Accent</div>
         </div>
       </div>
       <div class="card">
         <div class="logo-display logo-bg-dark">
-          <!-- Hero size — 136px equivalent -->
-          <svg width="136" height="136" viewBox="0 0 100 100" fill="none">
-            <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
-            <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-            <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-            <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-            <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-            <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-            <circle cx="38" cy="44" r="2" fill="white"/>
-            <circle cx="66" cy="44" r="2" fill="white"/>
-            <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
-            <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
-            <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+          <!-- Hero size — 136px -->
+          <svg width="136" height="136" viewBox="0 0 36 36" fill="none">
+            <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+            <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+            <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+            <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+            <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+            <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+            <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+            <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+            <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+            <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
           </svg>
           <div class="logo-label">136px · hero size ✦</div>
         </div>
@@ -706,7 +699,7 @@ p strong { color: #aaa; font-weight: 600; }
     <div class="do-dont">
       <div class="do-box">
         <strong>✓ Usar</strong>
-        v2 (com outline) em fundos escuros — mais presença<br/>
+        A vaquinha clássica — cabeça grey/white, focinho rose<br/>
         Mínimo 96px no hero, 28px na nav, 20px no footer<br/>
         "mooter" (lowercase, Space Grotesk 700) no lockup<br/>
         Float animation lento (5s ease-in-out) no hero
@@ -714,7 +707,7 @@ p strong { color: #aaa; font-weight: 600; }
       <div class="dont-box">
         <strong>✗ Não usar</strong>
         Rodar, distorcer, ou recolorir fora das variantes<br/>
-        Usar o logo v1 sem outline em fundos muito escuros<br/>
+        Trocar o focinho rose por laranja ou outra cor<br/>
         "Mooter" com maiúscula — sempre lowercase<br/>
         Adicionar drop shadows no ficheiro SVG
       </div>
@@ -726,15 +719,15 @@ p strong { color: #aaa; font-weight: 600; }
   <!-- ── 02 COLORS ── -->
   <section class="section" id="color">
     <h2><span class="num">02</span> Color</h2>
-    <p>Preto profundo como base — não cinzento. O laranja vem directamente do focinho do emoji 🐮. O verde é reservado para savings/positive outcomes. O sistema de tiers segue uma lógica de custo: verde gratuito → vermelho caro.</p>
+    <p>Warm dark como base — preto quente, não cinzento frio. O rose é o único accent, derivado do focinho da vaquinha 🐮. O verde é reservado para savings/positive outcomes. O sistema de tiers segue uma lógica de custo: verde gratuito → vermelho caro.</p>
 
     <h3>Brand Core</h3>
     <div class="swatch-grid" style="margin-bottom: 2rem;">
-      <div class="swatch-card"><div class="swatch-block" style="background:#0A0A0A; border-bottom:1px solid #1e1e24;"></div><div class="swatch-info"><span class="swatch-name">Void</span><span class="swatch-hex">#0A0A0A</span><span class="swatch-role">--bg · base</span></div></div>
-      <div class="swatch-card"><div class="swatch-block" style="background:#FF6B35;"></div><div class="swatch-info"><span class="swatch-name" style="color:#FF6B35;">Mooter Orange</span><span class="swatch-hex">#FF6B35</span><span class="swatch-role">--accent · primary</span></div></div>
-      <div class="swatch-card"><div class="swatch-block" style="background:#F5EDD4;"></div><div class="swatch-info"><span class="swatch-name">Cow Cream</span><span class="swatch-hex">#F5EDD4</span><span class="swatch-role">--cream · logo body</span></div></div>
-      <div class="swatch-card"><div class="swatch-block" style="background:#C04A0C;"></div><div class="swatch-info"><span class="swatch-name">Dark Muzzle</span><span class="swatch-hex">#C04A0C</span><span class="swatch-role">Logo nostrils</span></div></div>
-      <div class="swatch-card"><div class="swatch-block" style="background:#1C1209;"></div><div class="swatch-info"><span class="swatch-name">Eye Dark</span><span class="swatch-hex">#1C1209</span><span class="swatch-role">Logo outline/eyes</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#0B0A09; border-bottom:1px solid #252220;"></div><div class="swatch-info"><span class="swatch-name">Void</span><span class="swatch-hex">#0B0A09</span><span class="swatch-role">--bg · base</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#E8888A;"></div><div class="swatch-info"><span class="swatch-name" style="color:#E8888A;">Accent Rose</span><span class="swatch-hex">#E8888A</span><span class="swatch-role">--accent · primary action</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#CCD3DA;"></div><div class="swatch-info"><span class="swatch-name">Head Grey</span><span class="swatch-hex">#CCD3DA</span><span class="swatch-role">--head · logo body</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#EDAEB0;"></div><div class="swatch-info"><span class="swatch-name">Muzzle Rose</span><span class="swatch-hex">#EDAEB0</span><span class="swatch-role">Logo muzzle</span></div></div>
+      <div class="swatch-card"><div class="swatch-block" style="background:#2C2F33;"></div><div class="swatch-info"><span class="swatch-name">Eye Dark</span><span class="swatch-hex">#2C2F33</span><span class="swatch-role">Logo eyes</span></div></div>
       <div class="swatch-card"><div class="swatch-block" style="background:#23d18b;"></div><div class="swatch-info"><span class="swatch-name" style="color:#23d18b;">Savings Green</span><span class="swatch-hex">#23d18b</span><span class="swatch-role">--green · positive</span></div></div>
     </div>
 
@@ -766,7 +759,7 @@ p strong { color: #aaa; font-weight: 600; }
 
     <h3>Scale — JetBrains Mono (Data & Code)</h3>
     <div>
-      <div class="type-row"><div class="type-meta">Terminal<br/>400</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.875rem; color:#dcdcaa;"><span style="color:#FF6B35;">›</span> curl -fsSL https://mooter.ai/install.sh | bash</div></div>
+      <div class="type-row"><div class="type-meta">Terminal<br/>400</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.875rem; color:#dcdcaa;"><span style="color:#E8888A;">›</span> curl -fsSL https://mooter.ai/install.sh | bash</div></div>
       <div class="type-row"><div class="type-meta">Output<br/>400</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.8125rem; color:#888;">tier: <span style="color:#22c55e; border:1px solid #22c55e; padding:1px 5px; border-radius:3px; font-size:0.65rem; font-weight:800;">T0</span> &nbsp; Ollama · free &nbsp; 9ms &nbsp; $0.000 &nbsp; 98% ✓</div></div>
       <div class="type-row"><div class="type-meta">Stat<br/>700</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:1.5rem; font-weight:700; color:#23d18b;">$6.29 saved</div></div>
       <div class="type-row"><div class="type-meta">Label<br/>600 · caps</div><div class="type-sample" style="font-family:'JetBrains Mono',monospace; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; color:#5c5c6e;">Community · live savings</div></div>
@@ -821,25 +814,24 @@ p strong { color: #aaa; font-weight: 600; }
 
     <div class="hero-blueprint">
       <!-- Logo grande a flutuar -->
-      <svg width="136" height="136" viewBox="0 0 100 100" fill="none" style="filter: drop-shadow(0 12px 40px rgba(255,107,53,0.22));">
-        <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
-        <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-        <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-        <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-        <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-        <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-        <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-        <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-        <circle cx="38" cy="44" r="2" fill="white"/>
-        <circle cx="66" cy="44" r="2" fill="white"/>
-        <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
-        <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
-        <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+      <svg width="136" height="136" viewBox="0 0 36 36" fill="none" style="filter: drop-shadow(0 12px 40px rgba(232,136,138,0.22));">
+        <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+        <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+        <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+        <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+        <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+        <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+        <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+        <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+        <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+        <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+        <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+        <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
       </svg>
-      <div class="blueprint-annotation">136px · float animation · drop-shadow orange</div>
+      <div class="blueprint-annotation">136px · float animation · drop-shadow rose</div>
 
       <div style="font-size:clamp(2rem,4vw,3rem); font-weight:700; letter-spacing:-0.04em; line-height:1.05; text-align:center;">
-        Stop paying Opus rates<br/><span style="color:#FF6B35;">for git commits.</span>
+        Stop paying Opus rates<br/><span style="color:#E8888A;">for git commits.</span>
       </div>
       <div class="blueprint-annotation">1 headline · max 8 words · sem subtítulo</div>
 
@@ -853,7 +845,7 @@ p strong { color: #aaa; font-weight: 600; }
       <div class="hero-providers-demo">
         <span>routes to:</span>
         <span class="provider-dot" style="color:#22c55e;">● Ollama</span>
-        <span class="provider-dot" style="color:#ededed;">● Haiku</span>
+        <span class="provider-dot" style="color:#F2EDE6;">● Haiku</span>
         <span class="provider-dot" style="color:#a78bfa;">● Sonnet</span>
         <span class="provider-dot" style="color:#f87171;">● Opus</span>
       </div>
@@ -892,15 +884,15 @@ p strong { color: #aaa; font-weight: 600; }
     <div class="card card-pad" style="margin-bottom:1.5rem;">
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.5rem;">
         <div>
-          <div style="font-size:0.813rem; font-weight:600; color:#ededed; margin-bottom:0.5rem;">Declaração, não explicação</div>
+          <div style="font-size:0.813rem; font-weight:600; color:#F2EDE6; margin-bottom:0.5rem;">Declaração, não explicação</div>
           <div style="font-size:0.813rem; color:#5c5c6e; line-height:1.7;">Headlines são afirmações confiantes. Não terminam em "?" e não começam com "How".</div>
         </div>
         <div>
-          <div style="font-size:0.813rem; font-weight:600; color:#ededed; margin-bottom:0.5rem;">O produto fala por si</div>
+          <div style="font-size:0.813rem; font-weight:600; color:#F2EDE6; margin-bottom:0.5rem;">O produto fala por si</div>
           <div style="font-size:0.813rem; color:#5c5c6e; line-height:1.7;">Os terminais Before/After são o argumento. Não precisam de setup paragraph.</div>
         </div>
         <div>
-          <div style="font-size:0.813rem; font-weight:600; color:#ededed; margin-bottom:0.5rem;">Números > adjetivos</div>
+          <div style="font-size:0.813rem; font-weight:600; color:#F2EDE6; margin-bottom:0.5rem;">Números > adjetivos</div>
           <div style="font-size:0.813rem; color:#5c5c6e; line-height:1.7;">"$0.053 vs $0.190" é mais forte que "dramatically cheaper".</div>
         </div>
       </div>
@@ -1060,26 +1052,25 @@ p strong { color: #aaa; font-weight: 600; }
   </section>
 
   <!-- Footer -->
-  <div style="text-align:center; padding-top:3rem; border-top:1px solid #1e1e24;">
+  <div style="text-align:center; padding-top:3rem; border-top:1px solid #252220;">
     <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:0.5rem;">
-      <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
-        <rect x="14" y="22" width="72" height="64" rx="17" fill="#1C1209"/>
-        <rect x="6" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-        <rect x="77" y="32" width="17" height="22" rx="8.5" fill="#1C1209"/>
-        <rect x="9" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-        <rect x="78" y="34" width="13" height="18" rx="6.5" fill="#F5EDD4"/>
-        <rect x="17" y="24" width="66" height="60" rx="14" fill="#F5EDD4"/>
-        <circle cx="36" cy="46" r="6" fill="#1C1209"/>
-        <circle cx="64" cy="46" r="6" fill="#1C1209"/>
-        <circle cx="38" cy="44" r="2" fill="white"/>
-        <circle cx="66" cy="44" r="2" fill="white"/>
-        <rect x="24" y="58" width="52" height="26" rx="13" fill="#FF6B35"/>
-        <ellipse cx="38" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
-        <ellipse cx="62" cy="71" rx="5.5" ry="5" fill="#C04A0C"/>
+      <svg width="18" height="18" viewBox="0 0 36 36" fill="none">
+        <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"></path>
+        <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"></path>
+        <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"></path>
+        <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"></path>
+        <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"></path>
+        <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"></path>
+        <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"></ellipse>
+        <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"></ellipse>
+        <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+        <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"></path>
+        <circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"></circle>
+        <circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"></circle>
       </svg>
-      <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1rem; letter-spacing:-0.04em; color:#FF6B35;">mooter</span>
+      <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1rem; letter-spacing:-0.04em; color:#E8888A;">mooter</span>
     </div>
-    <div style="font-family:'JetBrains Mono',monospace; font-size:0.65rem; color:#3a3a44;">
+    <div style="font-family:'JetBrains Mono',monospace; font-size:0.65rem; color:#7A7168;">
       Brand Guide v2 · MIT · 2026 · mooter.ai
     </div>
   </div>

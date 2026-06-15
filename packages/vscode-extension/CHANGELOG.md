@@ -2,6 +2,30 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.12.1] — 2026-06-14
+
+Mascot + accent alignment (Wave 60). Reverts the geometric cream cow introduced
+with the canonical-cow pass back to the classic cow, and settles on a single rose
+accent — no orange.
+
+### Changed
+- **Classic cow everywhere** — the Activity Bar mark and the Marketplace icon now
+  use the classic cow (grey/white head, rose muzzle, dark eyes with catch-light),
+  matching the website. The Marketplace `icon.png` is re-rendered 512×512 on a
+  lifted `#1C1A17` background so it survives the dark gallery.
+- **One accent: rose `#E8888A`** — the orange `#FF6B35` that arrived with the
+  canonical-cow pass is removed. CSP/nonce and the read-only contract are unchanged.
+
+## [0.12.0] — 2026-06-14
+
+Design-system redesign from the Claude Design handoff (Wave 60) — same tokens and
+voice as mooter.ai, honest numbers, and a calmer brand balance.
+
+## [0.11.0] — 2026-06-14
+
+### Added
+- **Token Ledger** in the Cockpit — per-model token counter with **estimated cost by model** (Opus 4.8, Sonnet 4.6, Haiku 4.5, Fable 5 …), toggle **This session ⇄ All time**. Real usage read from Claude Code's own session logs (`~/.claude/projects/*.jsonl`, `message.usage`), cache tokens shown separately, prices Jun 2026 (advisory). Local (Ollama) models shown as **FREE** — the savings proof, transparent and honest.
+
 ## [0.10.0] — 2026-06-14
 
 ### Added

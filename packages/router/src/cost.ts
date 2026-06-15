@@ -10,10 +10,12 @@
 // break the turn — so this module returns 0 for unknown/local models instead.
 // Both honour the §13.3 invariant: cost is INTEGER microUSD (no float drift).
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import type { Provider } from "./mooter_event.ts";
+// Wave 61: pricing snapshot inlined at build time (esbuild/tsx) so the bundled CLI
+// (~/.mooter/cli-v1/mooter.js) resolves it without a source-relative path — the
+// previous import.meta.url + "../../../data" resolved to a non-existent path in the
+// bundle (ENOENT). The data is now part of the bundle.
+import pricingSnapshot from "../../../data/pricing-snapshot-2026-05-27.json";
 
 interface SnapshotModel {
   input_per_mtok: number;
@@ -26,21 +28,8 @@ interface PricingSnapshot {
   ollama_models: string[];
 }
 
-// packages/router/src/cost.ts -> <repo>/data/pricing-snapshot-2026-05-27.json
-const SNAPSHOT_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "data",
-  "pricing-snapshot-2026-05-27.json",
-);
-
-let _snapshot: PricingSnapshot | null = null;
 function loadSnapshot(): PricingSnapshot {
-  if (_snapshot) return _snapshot;
-  _snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, "utf8")) as PricingSnapshot;
-  return _snapshot;
+  return pricingSnapshot as unknown as PricingSnapshot;
 }
 
 /** The snapshot version string — written to the event's pricing_version. */
