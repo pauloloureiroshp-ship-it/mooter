@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Eyebrow from '@/components/Eyebrow';
 import Card from '@/components/Card';
 import MonoNum from '@/components/MonoNum';
+import Dotgrid from '@/components/Dotgrid';
 import WorkflowChip from './WorkflowChip';
+import WorkflowPipeline from './WorkflowPipeline';
 
 export const metadata: Metadata = {
   title: 'Workflow — live visibility, local & free',
@@ -17,19 +19,11 @@ const SECTION_BG = {
   overflow: 'hidden' as const,
 };
 
-const DOTGRID = {
-  position: 'absolute' as const,
-  inset: 0,
-  pointerEvents: 'none' as const,
-  backgroundImage: 'radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px)',
-  backgroundSize: '22px 22px',
-};
-
 export default function WorkflowPage() {
   return (
     <div style={SECTION_BG}>
-      <div style={DOTGRID} aria-hidden />
-      <div className="workflow-wrap" style={{ padding: '64px 40px 72px', maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
+      <Dotgrid />
+      <div className="workflow-wrap m-pad m-pad-y" style={{ padding: '64px 40px 72px', maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
         <Eyebrow>§ workflow · live visibility</Eyebrow>
         <h1 style={{ fontFamily: 'var(--font-sans)', fontSize: 'clamp(30px, 5vw, 46px)', fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.06, marginTop: 10, marginBottom: 14, maxWidth: 900 }}>
           Watch your workflow live. Same idea as Claude Code&apos;s dynamic workflows.{' '}
@@ -41,11 +35,16 @@ export default function WorkflowPage() {
         </p>
 
         {/* the live chip, hero of the section */}
-        <div style={{ marginBottom: 36, maxWidth: 560 }}>
+        <div style={{ marginBottom: 28, maxWidth: 560 }}>
           <WorkflowChip />
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-muted)', fontFamily: 'var(--font-mono)' }}>
             ↑ live · dots advance every 500ms as agents complete
           </div>
+        </div>
+
+        {/* the same run, drawn as a pipeline filling left-to-right */}
+        <div style={{ marginBottom: 40 }}>
+          <WorkflowPipeline />
         </div>
 
         {/* same shape, two bills */}

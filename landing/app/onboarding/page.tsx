@@ -6,6 +6,7 @@ import { generateFrugalConfig } from '../lib/generate-mooter-config';
 import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
 import { LOCAL_HW, estimateMonthlySavings } from './_lib/estimate';
+import StatuslineCard from '@/components/StatuslineCard';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -29,6 +30,11 @@ const BUDGET_OPTIONS = [
 
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://mooter.ai/install.sh)';
 const INSTALL_CMD_WIN = 'irm https://mooter.ai/install-windows.ps1 | iex';
+
+// Wave 60 — 5-step wizard (mock parity). Adopting the design's phased flow:
+// 1 hardware probe · 2 providers + budget + persona · 3 local stack ·
+// 4 install command · 5 confirm + personalised config.
+const TOTAL_STEPS = 5;
 
 // ── Live preview helpers — gives the user a tangible "what you'll get" as they
 //    fill out step 1. estimateMonthlySavings + LOCAL_HW live in _lib/estimate
@@ -326,7 +332,10 @@ export default function OnboardingPage() {
           </Link>
         </div>
 
-        {/* ── Progress indicator ─────────────────────────────── */}
+        {/* ── Progress indicator (Wave 60 — 5-step wizard, mock parity) ─────
+            The wizard now mirrors the design's 5 phases: probe → providers →
+            local stack → install → confirm. Each step preserves its real data
+            wiring; the extra steps split the previously-crowded step 1. */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 14, marginBottom: 40,
         }}>
@@ -339,10 +348,10 @@ export default function OnboardingPage() {
             fontWeight: 600,
             flexShrink: 0,
           }}>
-            Step {step} of 3
+            Step {step} of {TOTAL_STEPS}
           </span>
           <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-            {[1, 2, 3].map(s => (
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map(s => (
               <div
                 key={s}
                 style={{
@@ -357,6 +366,9 @@ export default function OnboardingPage() {
           </div>
         </div>
 
+        {/* Wave 60 — keyed wrapper replays the fadeIn entrance on each step
+            change (transform/opacity only; frozen under prefers-reduced-motion). */}
+        <div key={`onb-step-${step}`} style={{ animation: 'fadeIn 0.35s ease both' }}>
         {/* ── Step 1 ─────────────────────────────────────────── */}
         {step === 1 && (
           <div>
@@ -462,28 +474,44 @@ export default function OnboardingPage() {
               ))}
             </ChipGroup>
 
-            <FieldLabel>Which AI providers do you already use?</FieldLabel>
-            <p style={{
-              fontSize: '0.78rem', color: 'var(--muted)',
-              margin: '-6px 0 10px', lineHeight: 1.5,
+            <div style={{ display: 'flex', gap: 12 }}>
+              <SecondaryButton onClick={() => setStep(1)}>{'←'} Back</SecondaryButton>
+              <PrimaryButton onClick={() => setStep(3)}>Next {'→'}</PrimaryButton>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3 — local stack recommendation (real router models) ───── */}
+        {step === 3 && (
+          <div>
+            <h2 style={{
+              fontSize: '1.75rem', fontWeight: 700, margin: '0 0 8px',
+              letterSpacing: '-0.02em', color: 'var(--text)',
+              fontFamily: 'var(--font)',
             }}>
-              Your API keys stay on your machine after install — this just tells mooter which tiers to route to.
+              Your local stack
+            </h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: '0 0 24px', lineHeight: 1.6 }}>
+              Mooter maps free local models to your hardware {'—'} the router picks per task, no config needed.
             </p>
-            <ChipGroup>
-              {SUB_OPTIONS.map(s => (
-                <Chip key={s} active={subs.includes(s)} onClick={() => toggleSub(s)}>
-                  {s}
-                </Chip>
-              ))}
-            </ChipGroup>
 
             {/* Ollama baseline + optional stack — aligned with real mooter router */}
             {(() => {
               const rec = recommendOllamaModel(hw, detected.gpuName);
-              if (!rec) return null;
+              if (!rec) {
+                return (
+                  <div style={{
+                    padding: '18px 20px', marginBottom: 24,
+                    background: 'var(--surface-2)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)', fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.6,
+                  }}>
+                    No local GPU stack for this setup {'—'} mooter routes trivial tasks to Haiku instead. You can add Ollama later and mooter will auto-use it.
+                  </div>
+                );
+              }
               return (
                 <div style={{
-                  marginTop: 20,
+                  marginBottom: 24,
                   padding: '18px 20px',
                   background: 'var(--surface-2)',
                   border: '1px dashed color-mix(in srgb, var(--tier-0) 40%, var(--border))',
@@ -512,7 +540,6 @@ export default function OnboardingPage() {
                     </span>
                   </div>
 
-                  {/* Baseline row (installer auto-pulls this) */}
                   <OllamaModelRow
                     name={rec.baseline.name}
                     size={rec.baseline.size}
@@ -521,7 +548,6 @@ export default function OnboardingPage() {
                     tagColor="var(--accent)"
                   />
 
-                  {/* Optional rows (mooter auto-uses if present) */}
                   {rec.optional.length > 0 && (
                     <>
                       <div style={{
@@ -529,7 +555,7 @@ export default function OnboardingPage() {
                         fontSize: '0.7rem', color: 'var(--muted)',
                         textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
                       }}>
-                        Optional — mooter auto-uses if installed
+                        Optional {'—'} mooter auto-uses if installed
                       </div>
                       {rec.optional.map(m => (
                         <OllamaModelRow
@@ -550,12 +576,48 @@ export default function OnboardingPage() {
                       color: 'var(--muted)', lineHeight: 1.55,
                       paddingTop: 12, borderTop: '1px solid var(--border)',
                     }}>
-                      {rec.note} The router picks per task — no config needed.
+                      {rec.note} The router picks per task {'—'} no config needed.
                     </p>
                   )}
                 </div>
               );
             })()}
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <SecondaryButton onClick={() => setStep(2)}>{'←'} Back</SecondaryButton>
+              <PrimaryButton onClick={() => setStep(4)}>Next {'→'}</PrimaryButton>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2 — providers, budget, persona, savings preview ───────── */}
+        {step === 2 && (
+          <div>
+            <h2 style={{
+              fontSize: '1.75rem', fontWeight: 700, margin: '0 0 8px',
+              letterSpacing: '-0.02em', color: 'var(--text)',
+              fontFamily: 'var(--font)',
+            }}>
+              Map your subscriptions
+            </h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: '0 0 24px', lineHeight: 1.6 }}>
+              Mooter routes inside the plans you already pay for. Pick what you have — you can change this anytime.
+            </p>
+
+            <FieldLabel>Which AI providers do you already use?</FieldLabel>
+            <p style={{
+              fontSize: '0.78rem', color: 'var(--muted)',
+              margin: '-6px 0 10px', lineHeight: 1.5,
+            }}>
+              Your API keys stay on your machine after install — this just tells mooter which tiers to route to.
+            </p>
+            <ChipGroup>
+              {SUB_OPTIONS.map(s => (
+                <Chip key={s} active={subs.includes(s)} onClick={() => toggleSub(s)}>
+                  {s}
+                </Chip>
+              ))}
+            </ChipGroup>
 
             <FieldLabel>Monthly token budget (beyond existing subs)?</FieldLabel>
             <ChipGroup>
@@ -613,14 +675,15 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            <PrimaryButton disabled={!hw} onClick={() => setStep(2)}>
-              {hw ? 'Next \u2192' : 'Pick your hardware to continue'}
-            </PrimaryButton>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <SecondaryButton onClick={() => setStep(1)}>{'\u2190'} Back</SecondaryButton>
+              <PrimaryButton onClick={() => setStep(3)}>Next {'\u2192'}</PrimaryButton>
+            </div>
           </div>
         )}
 
-        {/* ── Step 2 ─────────────────────────────────────────── */}
-        {step === 2 && (
+        {/* ── Step 4 — install command ───────────────────────────────────── */}
+        {step === 4 && (
           <div>
             <h2 style={{
               fontSize: '1.75rem', fontWeight: 700, margin: '0 0 8px',
@@ -697,16 +760,16 @@ export default function OnboardingPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>
-              <SecondaryButton onClick={() => setStep(1)}>&larr; Back</SecondaryButton>
-              <PrimaryButton onClick={() => { saveProfile(); setStep(3); }}>
+              <SecondaryButton onClick={() => setStep(3)}>&larr; Back</SecondaryButton>
+              <PrimaryButton onClick={() => { saveProfile(); setStep(5); }}>
                 Done, next &rarr;
               </PrimaryButton>
             </div>
           </div>
         )}
 
-        {/* ── Step 3 ─────────────────────────────────────────── */}
-        {step === 3 && (
+        {/* ── Step 5 — confirm + personalised config ─────────────────────── */}
+        {step === 5 && (
           <div>
             <h2 style={{
               fontSize: '1.75rem', fontWeight: 700, margin: '0 0 8px',
@@ -718,6 +781,33 @@ export default function OnboardingPage() {
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: '0 0 24px', lineHeight: 1.6 }}>
               mooter is configured for your exact setup. You can change this later in settings.
             </p>
+
+            {/* Wave 60 — illustrative statusline preview (mock parity). Clearly
+                labelled: this is a sample layout, not your live terminal yet. */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 10, marginBottom: 10, flexWrap: 'wrap',
+              }}>
+                <span style={{
+                  fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'var(--mono)',
+                  textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
+                }}>
+                  Your statusline preview
+                </span>
+                <span style={{
+                  fontFamily: 'var(--mono)', fontSize: '0.62rem', textTransform: 'uppercase',
+                  letterSpacing: '0.08em', color: 'var(--muted)',
+                  border: '1px dashed var(--border-light)', borderRadius: 'var(--r-sm)', padding: '2px 8px',
+                }}>
+                  illustrative
+                </span>
+              </div>
+              <StatuslineCard />
+              <p style={{ margin: '10px 0 0', fontSize: '0.74rem', color: 'var(--muted)', fontFamily: 'var(--mono)', lineHeight: 1.6 }}>
+                Sample layout {'—'} your real numbers render in your terminal once mooter is active.
+              </p>
+            </div>
 
             {(() => {
               const config = generateFrugalConfig({
@@ -932,6 +1022,7 @@ export default function OnboardingPage() {
             </a>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

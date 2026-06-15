@@ -2,7 +2,7 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
-## [Unreleased] — data-coherence & honesty pass
+## [0.12.2] — 2026-06-15 — data-coherence, per-session & live herd
 
 > Driven by the rule: **every number must match the reality of the solution — never mislead, always sincere.** A 4-way audit (code + live telemetry) confirmed several surfaces showed routing *intent* as if it were *execution*. Fixes:
 
@@ -22,6 +22,26 @@ All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Kee
 
 ### Changed
 - De-clutter: tab labels get per-feature emojis (🐮 Cockpit · ⚙️ Setup · 🧵 Sessions · 🔬 Decisions · 🩺 Doctor); the redundant third mode-selector (Models tab) is now a read-only indicator.
+- Brand accent aligned to the single **rose `#E8888A`** (Wave 60 direction) across mode/tabs/primary actions; tier colours unchanged.
+
+## [0.12.1] — 2026-06-14
+
+Mascot + accent alignment (Wave 60). Reverts the geometric cream cow introduced
+with the canonical-cow pass back to the classic cow, and settles on a single rose
+accent — no orange.
+
+### Changed
+- **Classic cow everywhere** — the Activity Bar mark and the Marketplace icon now
+  use the classic cow (grey/white head, rose muzzle, dark eyes with catch-light),
+  matching the website. The Marketplace `icon.png` is re-rendered 512×512 on a
+  lifted `#1C1A17` background so it survives the dark gallery.
+- **One accent: rose `#E8888A`** — the orange `#FF6B35` that arrived with the
+  canonical-cow pass is removed. CSP/nonce and the read-only contract are unchanged.
+
+## [0.12.0] — 2026-06-14
+
+Design-system redesign from the Claude Design handoff (Wave 60) — same tokens and
+voice as mooter.ai, honest numbers, and a calmer brand balance.
 
 ## [0.11.0] — 2026-06-14
 

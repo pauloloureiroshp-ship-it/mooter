@@ -17,14 +17,20 @@ interface Scene {
   routeColor: string;
   cost: string;
   costColor: string;
+  // Wave 60: richer routing trace (intent/complexity + profile + pack), per mock HeroV2Artboard.
+  intent: string;
+  complexity: string;
+  complexityColor: string;
+  pack: string;
+  savesNote: string;
 }
 
 // Preserved from the original page.tsx HERO_SCENES (IMPLEMENTATION_SPEC §4.1 "sacred").
 const HERO_SCENES: Scene[] = [
-  { tier: 'T0', tierLabel: 'local · free', prompt: '"make this button rounded"', classify: '8ms', level: 'TRIVIAL', route: '→ qwen2.5-coder:7b (local)', routeColor: '#E8888A', cost: '$0.000', costColor: 'var(--color-green)' },
-  { tier: 'T1', tierLabel: 'haiku · fast', prompt: '"explain this TypeError"', classify: '11ms', level: 'EXPLAIN', route: '→ claude-haiku', routeColor: '#A0B8D8', cost: '$0.001', costColor: 'var(--color-green)' },
-  { tier: 'T2', tierLabel: 'sonnet · reason', prompt: '"why does submit crash on iOS?"', classify: '12ms', level: 'INVESTIGATE', route: '→ claude-sonnet', routeColor: '#A88BD4', cost: '$0.003', costColor: 'var(--color-green)' },
-  { tier: 'T3', tierLabel: 'opus · critical', prompt: '"design payment infra w/ stripe"', classify: '19ms', level: 'ARCHITECTURE', route: '→ claude-opus', routeColor: '#D46A5A', cost: '$0.042', costColor: 'var(--color-yellow)' },
+  { tier: 'T0', tierLabel: 'local · free', prompt: '"make this button rounded"', classify: '8ms', level: 'TRIVIAL', route: '→ qwen2.5-coder:7b (local)', routeColor: '#E8888A', cost: '$0.000', costColor: 'var(--color-green)', intent: 'edit', complexity: 'low', complexityColor: 'var(--color-tier-0)', pack: 'code-base', savesNote: '(over opus, saves $0.04)' },
+  { tier: 'T1', tierLabel: 'haiku · fast', prompt: '"explain this TypeError"', classify: '11ms', level: 'EXPLAIN', route: '→ claude-haiku', routeColor: '#A0B8D8', cost: '$0.001', costColor: 'var(--color-green)', intent: 'explain', complexity: 'low', complexityColor: 'var(--color-tier-1)', pack: 'errors-triage', savesNote: '(over opus, saves $0.03)' },
+  { tier: 'T2', tierLabel: 'sonnet · reason', prompt: '"draft the system map for the auth refactor"', classify: '14ms', level: 'ARCHITECTURE', route: '→ claude-sonnet', routeColor: '#A88BD4', cost: '$0.003', costColor: 'var(--color-green)', intent: 'arch', complexity: 'med', complexityColor: 'var(--color-tier-2)', pack: 'diagram-systems', savesNote: '(over opus, saves $0.31)' },
+  { tier: 'T3', tierLabel: 'opus · critical', prompt: '"design payment infra w/ stripe"', classify: '19ms', level: 'ARCHITECTURE', route: '→ claude-opus', routeColor: '#D46A5A', cost: '$0.042', costColor: 'var(--color-yellow)', intent: 'arch', complexity: 'high', complexityColor: 'var(--color-tier-3)', pack: 'payments-infra', savesNote: '(hard → kept on opus)' },
 ];
 
 export default function HeroTerminal() {
@@ -67,17 +73,32 @@ export default function HeroTerminal() {
           </span>
         }
       >
-        <div style={{ minHeight: 132, transition: 'opacity 0.25s ease', opacity: visible ? 1 : 0 }}>
-          <div style={{ color: 'var(--color-term-dim)' }}>$ claude <span style={{ color: 'var(--color-term-fg)' }}>{s.prompt}</span></div>
-          <div style={{ marginTop: 8 }}>
-            <span style={{ color: 'var(--color-term-dim)' }}>classify </span>
-            <span className="num">{s.classify}</span>
-            <span style={{ color: 'var(--color-term-dim)' }}> · {s.level} · route </span>
-            <span style={{ color: s.routeColor }}>{s.route}</span>
+        <div style={{ minHeight: 168, transition: 'opacity 0.25s ease', opacity: visible ? 1 : 0 }}>
+          <div style={{ color: 'var(--color-term-dim)' }}>$ claude <span style={{ color: 'var(--color-accent)' }}>{s.prompt}</span></div>
+          <div style={{ marginTop: 6, color: 'var(--color-term-dim)' }}>
+            {'  ├─ '}<span style={{ color: 'var(--color-term-fg)' }}>classify</span>{'  '}
+            <span className="num" style={{ color: 'var(--color-green)' }}>{s.classify}</span>
+            {'  · intent='}<span style={{ color: 'var(--color-accent)' }}>{s.intent}</span>
+            {' complexity='}<span style={{ color: s.complexityColor }}>{s.complexity}</span>
           </div>
-          <div style={{ marginTop: 6 }}>
+          <div style={{ color: 'var(--color-term-dim)' }}>
+            {'  ├─ '}<span style={{ color: 'var(--color-term-fg)' }}>profile</span>{'   GPU='}
+            <span style={{ color: 'var(--color-term-fg)' }}>RTX 4090</span>{'  sub='}
+            <span style={{ color: 'var(--color-term-fg)' }}>claude-max</span>
+          </div>
+          <div style={{ color: 'var(--color-term-dim)' }}>
+            {'  ├─ '}<span style={{ color: 'var(--color-term-fg)' }}>pack</span>{'      '}
+            <span style={{ color: 'var(--color-accent)' }}>{s.pack}</span>{'  (trust 98)'}
+          </div>
+          <div style={{ color: 'var(--color-term-dim)' }}>
+            {'  └─ '}<span style={{ color: 'var(--color-term-fg)' }}>route</span>{'     '}
+            <span style={{ color: s.routeColor }}>{s.route}</span>{'  '}
+            <span style={{ opacity: 0.6 }}>{s.savesNote}</span>
+          </div>
+          <div style={{ marginTop: 8 }}>
             <span style={{ color: 'var(--color-term-dim)' }}>cost </span>
             <span className="num" style={{ color: s.costColor }}>{s.cost}</span>
+            <span style={{ color: 'var(--color-term-dim)' }}> · {s.level}</span>
           </div>
         </div>
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-term-border)' }}>
