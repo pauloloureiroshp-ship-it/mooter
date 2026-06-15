@@ -25,6 +25,21 @@ function execNode(script, args = [], timeoutMs = 6000) {
   });
 }
 
+// Run an arbitrary executable on PATH (git, gh) and capture stdout. Mirrors execNode's
+// contract: never throws, always resolves { ok, out }. shell:false → no injection from
+// the cwd path (args are passed as an array, not interpolated). Used only by the deep
+// refresh, always with a timeout, so a hung/offline git/gh can never block the cockpit.
+function execTool(cmd, args = [], timeoutMs = 6000, cwd) {
+  return new Promise((resolve) => {
+    try {
+      const opts = { timeout: timeoutMs, maxBuffer: 1024 * 512, windowsHide: true };
+      if (cwd) opts.cwd = cwd; // run git/gh INSIDE the session's repo → repo-correct results
+      execFile(cmd, args, opts,
+        (err, stdout) => resolve({ ok: !err, out: String(stdout || '').trim() }));
+    } catch { resolve({ ok: false, out: '' }); }
+  });
+}
+
 async function ollamaModels() {
   const r = await httpJson(11434, '/api/tags', 1500);
   if (!r || !Array.isArray(r.models)) return null; // null = ollama down
@@ -533,6 +548,72 @@ function _firstPrompt(file) {
   return null;
 }
 
+// ── Feature 1+2: session → cwd → branch → PR → stage ────────────────────────
+// The transcript's head carries the working directory the session runs in (top-level
+// `cwd` on every line). Reading it lets us resolve the session's git branch and any open
+// PR — the honest chain "this session is working on branch X / PR #N (stage)". We read
+// only the head (64KB) and return the first cwd we see, or null (never fabricated).
+function _sessionCwd(file) {
+  const head = _readHead(file, 64 * 1024);
+  for (const line of head.split('\n')) {
+    if (line.indexOf('"cwd"') < 0) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o && typeof o.cwd === 'string' && o.cwd.trim()) return o.cwd;
+  }
+  return null;
+}
+
+// The current branch of a git repo at `cwd`. null when cwd is missing, not a repo, in a
+// detached HEAD ("HEAD"), or git is absent/slow (2s timeout). Async — callers await it.
+async function gitBranch(cwd) {
+  if (!cwd || typeof cwd !== 'string') return null;
+  const r = await execTool('git', ['-C', cwd, 'rev-parse', '--abbrev-ref', 'HEAD'], 2000);
+  if (!r.ok) return null;
+  const b = r.out.split('\n')[0].trim();
+  return (!b || b === 'HEAD') ? null : b; // 'HEAD' = detached → no branch to show
+}
+
+// Open/recent PRs from gh, scoped to the repo at `cwd` (gh runs in that dir → the PRs
+// genuinely belong to that session's repo, never another repo that happens to share a
+// branch name). [] when gh is absent, unauthenticated, offline, or cwd is not a GitHub
+// repo — degrades gracefully, never throws. 6s timeout. Each PR carries the fields
+// prStage() needs (state, isDraft, statusCheckRollup) plus number/title/headRefName.
+async function prList(cwd) {
+  const r = await execTool('gh', ['pr', 'list', '--json', 'number,title,headRefName,state,isDraft,statusCheckRollup', '--limit', '50'], 6000, cwd);
+  if (!r.ok || !r.out) return [];
+  let arr; try { arr = JSON.parse(r.out); } catch { return []; }
+  return Array.isArray(arr) ? arr : [];
+}
+
+// Pure (testable): derive the human stage of a PR from its gh JSON. Order of precedence:
+//   MERGED → 'merged ✓'   ·   draft → 'draft'   ·   any check FAILED → 'CI ❌'
+//   a check still running/queued → 'CI ⏳'   ·   open + all checks passed → 'ready ✅'
+//   open with no checks → 'open'.   No PR / bad input → null (never fabricated).
+// statusCheckRollup entries are CheckRun {status,conclusion} or StatusContext {state}.
+function prStage(pr) {
+  if (!pr || typeof pr !== 'object') return null;
+  if (String(pr.state).toUpperCase() === 'MERGED') return 'merged ✓';
+  if (pr.isDraft) return 'draft';
+  const checks = Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
+  let any = false, anyFail = false, anyPending = false, allPass = true;
+  for (const c of checks) {
+    any = true;
+    const concl = String(c.conclusion || '').toUpperCase();
+    const status = String(c.status || '').toUpperCase();
+    const ctxState = String(c.state || '').toUpperCase(); // StatusContext (non-CheckRun)
+    const failed = concl === 'FAILURE' || concl === 'TIMED_OUT' || concl === 'CANCELLED' || concl === 'ACTION_REQUIRED' || ctxState === 'FAILURE' || ctxState === 'ERROR';
+    const pending = (status && status !== 'COMPLETED') || ctxState === 'PENDING';
+    const passed = concl === 'SUCCESS' || concl === 'NEUTRAL' || concl === 'SKIPPED' || ctxState === 'SUCCESS';
+    if (failed) anyFail = true;
+    if (pending) anyPending = true;
+    if (!passed) allPass = false;
+  }
+  if (anyFail) return 'CI ❌';
+  if (anyPending) return 'CI ⏳';
+  if (any && allPass) return 'ready ✅';
+  return 'open';
+}
+
 // Per-session live state from decisions.log: pairs `classified` (prompt entered) with
 // `turn_end` (Stop hook → turn finished). Last event per session tells us:
 //   classified (no turn_end after) → Claude is WORKING (generating now)
@@ -558,8 +639,15 @@ function sessionActivity(maxBytes = 256 * 1024) {
   return out;
 }
 
-function recentSessions(maxN = 8) {
+// Async (Feature 1+2): each session also carries its working dir (`cwd`, from the
+// transcript head) and git `branch`. git is resolved at most ONCE per distinct cwd
+// (dedupe — many sessions share a cwd) and only when a branchCache map is supplied; the
+// `null`-safe default keeps the function cheap when callers don't want git. Returns the
+// same honest fields as before plus { cwd, branch } (both null when unknown — never faked).
+async function recentSessions(maxN = 8) {
   const out = []; const now = Date.now(); const names = sessionNames(); const act = sessionActivity();
+  const branchCache = new Map(); // cwd → branch|null, resolved once per cwd this call
+  const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   for (const f of listSessionFiles().slice(0, maxN)) {
     let lastModel = null; let turns = 0;
     try {
@@ -587,7 +675,23 @@ function recentSessions(maxN = 8) {
       if (a.event === 'classified' && fresh) working = true;
       else if (recent) needsYou = true;
     } else { working = fresh; }
-    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou });
+    const cwd = _sessionCwd(f.file);
+    let branch = null;
+    if (cwd) {
+      if (branchCache.has(cwd)) branch = branchCache.get(cwd);
+      else { branch = await gitBranch(cwd); branchCache.set(cwd, branch); }
+    }
+    // PR is resolved against THIS session's own repo (gh runs in `cwd`) and matched by
+    // branch within that repo only — never a same-named branch from another repo (honesty).
+    let pr = null;
+    if (cwd && branch) {
+      let prs;
+      if (prCache.has(cwd)) prs = prCache.get(cwd);
+      else { prs = await prList(cwd); prCache.set(cwd, prs); }
+      const match = prs.find((p) => p && p.headRefName === branch);
+      if (match) pr = { number: match.number, title: String(match.title || '').slice(0, 80), state: match.state, isDraft: match.isDraft, stage: prStage(match) };
+    }
+    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr });
   }
   return out;
 }
@@ -595,4 +699,5 @@ function recentSessions(maxN = 8) {
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
-  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession };
+  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
+  execTool, _sessionCwd, gitBranch, prList, prStage };

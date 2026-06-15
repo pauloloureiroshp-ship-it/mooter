@@ -6,6 +6,11 @@ All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Kee
 
 > Driven by the rule: **every number must match the reality of the solution — never mislead, always sincere.** A 4-way audit (code + live telemetry) confirmed several surfaces showed routing *intent* as if it were *execution*. Fixes:
 
+### Added (UX round 2)
+- **Branch + PR + stage on each live session.** A session running inside a git repo now shows its `⎇ branch` and, when there's an open PR for it, `#N · <stage>` (merged ✓ / draft / CI ⏳ / CI ❌ / ready ✅ / open) — the honest chain **session → cwd (transcript) → branch (git) → PR (gh)**. PRs are resolved **per repo** (gh runs in the session's own cwd), so a same-named branch in another repo is never mis-linked. Sessions on the **same repo+branch** are marked 🔗 (same work). Sessions outside a repo show nothing (no fabrication); gh/git failures degrade silently.
+- **"Next prompt" picker promoted** — its own card with the rose accent and a clear "🎯 Next prompt model" header (was small and faded).
+- **Unified Token Ledger** — cloud and local now share the **same columns** (model · in · out · cache · cost · saved vs Opus). Local is one honest "🦙 Local (Ollama · T0)" row with real measured T0 tokens (token_tracker), `$0` cost, and the saved-vs-Opus counterfactual; cloud's "saved" is "—" (a billed row *is* the spend). Note kept: local per-model isn't metered → T0 aggregate.
+
 ### Fixed (coherence — the displayed data was not the truth)
 - **The cockpit showed the wrong model.** It rendered the router's *recommended* model (`/last.model_full`, an advisory tier decision) as if it had answered. In a Claude Code session the **host model answers every turn**; the recommendation only runs for real local dispatches or spawned subagents. The per-session view now derives the **real executor** from the session's transcript (host model) — and an **"Actually ran"** line states that host model + the count of real local dispatches, so an unconfirmed routing recommendation is never shown as execution.
 - **`synthetic` row removed from "Tokens by model."** It was Claude Code's own `<synthetic>` placeholder ("No response requested.", zero usage), not real spend — now skipped from the ledger.

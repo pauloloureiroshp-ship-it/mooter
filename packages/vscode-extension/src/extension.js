@@ -68,9 +68,15 @@ class DataService {
     // Per-session savings come from the SAME tracker pipeline (/metrics?session_id) so
     // they can never drift from the global figure — one source of truth (honesty).
     const sessMetricsP = effSid ? data_.httpJson(p, '/metrics?session_id=' + encodeURIComponent(effSid)) : Promise.resolve(null);
-    const [results, sessionMetrics] = await Promise.all([Promise.all(jobs), sessMetricsP]);
-    const [metrics, last, health, me, lastExec, ollama, sline, slash, effort, whynot, trail, security, spans] = results;
+    // Async deep-only work (git/gh + transcript-cwd resolution). recentSessions is now
+    // async (resolves each session's branch via git, deduped per cwd); prList shells out
+    // to gh. Both null-safe with timeouts — gathered in parallel, never blocking the panel.
     const prev = this.snapshot;
+    // recentSessions resolves each session's branch AND its repo-scoped PR (gh run in the
+    // session's own cwd) — so PR/stage is attached per session, never matched cross-repo.
+    const recentP = doDeep ? extra.recentSessions() : Promise.resolve(prev.recent);
+    const [results, sessionMetrics, recent] = await Promise.all([Promise.all(jobs), sessMetricsP, recentP]);
+    const [metrics, last, health, me, lastExec, ollama, sline, slash, effort, whynot, trail, security, spans] = results;
     this.snapshot = {
       at: Date.now(),
       runtimeInstalled: data_.runtimeInstalled(),
@@ -95,7 +101,7 @@ class DataService {
       spans: doDeep ? spans : prev.spans,
       herd: doDeep ? extra.herd() : prev.herd,
       ledger: doDeep ? extra.tokenLedger() : prev.ledger,
-      recent: doDeep ? extra.recentSessions() : prev.recent,
+      recent,
       localTok: doDeep ? extra.localTokens() : prev.localTok,
       // session scope (cheap single-file aggregate → computed every refresh so
       // auto-follow is snappy when you send a prompt in another tab).
@@ -248,7 +254,11 @@ function project(s) {
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
-    herd: s.herd, recent: s.recent || [], localTok: s.localTok || null,
+    // Each session in `recent` already carries its repo-scoped { pr: {number,stage,…} }
+    // (resolved host-side in recentSessions; stage from the pure prStage). No global PR
+    // list and no cross-repo branch-name matching in the webview.
+    herd: s.herd, recent: s.recent || [],
+    localTok: s.localTok || null,
     ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
     activeSession: s.activeSession || null, selectedSession: s.selectedSession || 'auto', effectiveSession: effSid,
     live: extra.liveRouting(lastForCow, { hostModel, lastExecution: s.lastExec }),
@@ -326,6 +336,9 @@ function getHtml() {
   .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
   .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
+  .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scmpr{font-weight:600;font-size:9.5px}
   .alertdot{width:8px;height:8px;border-radius:50%;background:#E5C07B;flex:none;animation:alertpulse 1.5s infinite}
   @keyframes alertpulse{0%,100%{opacity:1}50%{opacity:.25}}
   .needsyou{color:#E5C07B;font-weight:700}
@@ -377,6 +390,12 @@ function getHtml() {
   .seg .mo{flex:1;padding:7px 4px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground);text-align:center;border:1px solid transparent}
   .seg .mo.on{background:var(--rdim);color:var(--r);font-weight:700;border-color:var(--r)}
   .seg .mo small{display:block;font-size:9px;font-weight:400;margin-top:1px}
+  .pincard{margin-bottom:8px;border:1px solid var(--r);border-left:3px solid var(--r);background:linear-gradient(180deg,var(--rdim),transparent 70%)}
+  .pinhead{font-size:13px;font-weight:700;color:var(--r);display:flex;align-items:center;gap:6px}
+  .pinsub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin:3px 0 8px}
+  .pinsel{width:100%;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--r);border-radius:6px;padding:7px 9px;font:12px var(--vscode-font-family);cursor:pointer}
+  .pinsel:focus-visible{outline:2px solid var(--r);outline-offset:1px}
+  .pinnow{font-size:10px;color:var(--r);margin-top:6px}
   .pill{display:inline-block;font-size:10.5px;border:1px solid var(--vscode-widget-border);border-radius:9px;padding:2px 9px;margin:2px 3px 2px 0}
   .pill.ok{border-color:var(--g);color:var(--g)}.pill.warn{border-color:#e5c07b;color:#e5c07b}
   .term{background:var(--ink);border-radius:7px;padding:10px 12px;font:11.5px var(--vscode-editor-font-family);color:#ddd;overflow-x:auto;white-space:pre;line-height:1.7}
@@ -388,7 +407,7 @@ function getHtml() {
   .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),#e5c07b 50%,var(--g));border-radius:4px}
   input[type=number]{width:90px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:5px 8px;font:12px var(--vscode-font-family)}
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
-  .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}
+  .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
@@ -432,34 +451,37 @@ const openDecs=new Set();// decision keys (ts) the user expanded — must surviv
 let ledgerScope='session';let lastSnap=null;
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
+// PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
+function stageColor(st){const x=String(st||'');if(x.indexOf('merged')===0)return 'var(--g)';if(x.indexOf('ready')===0)return 'var(--g)';if(x.indexOf('❌')>=0)return 'var(--t3)';if(x.indexOf('⏳')>=0)return '#e5c07b';if(x==='draft')return 'var(--vscode-descriptionForeground)';return 'var(--vscode-descriptionForeground)';}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
 function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(/claude|opus|sonnet|haiku/.test(x))return '✨';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
 function agoFmt(ms){const t=Math.round((+ms||0)/1000);if(t<60)return t+'s';const mi=Math.round(t/60);if(mi<60)return mi+'m';const h=Math.round(mi/60);return h<24?h+'h':Math.round(h/24)+'d';}
 function ledgerHtml(s){
-  // Scoped to one session when a session is in effect (sessionLedger), else the global
-  // ledger with its This-session/All-time toggle.
+  // Feature 4: ONE table, SAME columns for cloud and local — model | in | out | cache |
+  // cost | saved vs Opus. Cloud rows show real $ and "—" for saved (they ARE the spend);
+  // the local row shows real in/out (token_tracker), $0 cost, and the honest counterfactual
+  // saved = (in*5 + out*25)/1e6 vs Opus 4.8 [$5,$25]/1M. No more "calls" inconsistency.
   const scoped=!!(s.effectiveSession&&s.sessionLedger);
   const L=scoped?(s.sessionLedger.session||{rows:[],turns:0}):((s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0});
   const scopeLbl=scoped?'this session':(ledgerScope==='session'?'this session':'all time');
-  const decsAll=s.decisions||[];const decs=scoped?decsAll.filter(d=>d.sid===s.effectiveSession):decsAll;
-  const loc={};for(const d of decs){if(d.tier==='T0'&&d.model)loc[d.model]=(loc[d.model]||0)+1;}
   const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
   const tog=scoped?('<span style="float:right;opacity:.6;font-size:9px">'+esc((s.effectiveSession||'').slice(0,8))+'</span>'):('<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>');
   const head='<div class="lbl">🧾 Tokens by model '+tog+'</div>';
-  const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+scopeLbl+'</div>';
-  // Local (Ollama) — honest: a real measured T0 aggregate (token_tracker: tokens in/out,
-  // cost $0, saved vs Opus), plus the per-model breakdown by CALL COUNT (local per-model
-  // token metering isn't available, so we never fabricate per-model token numbers).
+  // Cloud rows (real). saved = "—" (a billed row can't "save vs Opus" — it IS the spend).
+  const cloudTr=L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td><td class="sv">—</td></tr>').join('');
+  // Local row (real in/out from token_tracker; T0 aggregate — per-model not metered). One
+  // line, SAME columns: cache "—" (not metered locally), cost $0, saved vs Opus = real.
   const lt=s.localTok;
-  let localBlock='';
-  if(lt||Object.keys(loc).length){
-    const savedLocal=lt?((lt.in*5+lt.out*25)/1e6):0; // vs Opus 4.8 [$5,$25]/1M — counterfactual, honest
-    localBlock='<div class="sub" style="margin:9px 0 2px">🦙 Local (Ollama) · cost <b>$0</b>'+(lt?' · saved ~$'+savedLocal.toFixed(savedLocal<0.01?4:2)+' vs Opus':'')+'</div>';
-    if(lt)localBlock+='<table class="mx"><tr><th>scope</th><th>in</th><th>out</th><th>calls</th><th>est $</th></tr><tr><td title="all local models, T0 — measured by token_tracker">All local · T0</td><td>'+lFmt(lt.in)+'</td><td>'+lFmt(lt.out)+'</td><td>'+lt.calls+'</td><td>$0.00</td></tr></table>';
-    const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+' calls</span></div>').join('');
-    if(locRows)localBlock+='<div class="sub" style="font-size:9px;margin:5px 0 2px">routed to (per-model token metering n/a locally — call counts):</div>'+locRows;
+  let localTr='';
+  if(lt){
+    const savedLocal=(lt.in*5+lt.out*25)/1e6; // counterfactual vs Opus 4.8 — honest, not billed
+    localTr='<tr><td title="all local models, T0 — measured by token_tracker">🦙 Local (Ollama · T0)</td><td>'+lFmt(lt.in)+'</td><td>'+lFmt(lt.out)+'</td><td title="local cache not metered">—</td><td><b>$0</b></td><td class="sv" title="what Opus 4.8 would have cost for these tokens">+$'+savedLocal.toFixed(savedLocal<0.01?4:2)+'</td></tr>';
   }
-  return '<div class="card">'+head+rows+localBlock+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+scopeLbl+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local tokens from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
+  const body=(cloudTr||localTr)
+    ?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>cost</th><th>saved vs Opus</th></tr>'+cloudTr+localTr+'</table>')
+    :('<div class="sub" style="margin-top:6px">No usage logged '+scopeLbl+'</div>');
+  const localNote=lt?'<div class="sub" style="font-size:9px;margin-top:4px">local per-model not metered → T0 aggregate</div>':'';
+  return '<div class="card">'+head+body+localNote+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+scopeLbl+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
@@ -507,13 +529,33 @@ window.addEventListener('message',(e)=>{
   // ── Live herd: every open session as its own walking cow (working · LLM · tab name).
   // Click a cow to focus the numbers below on it. This is the multi-session view.
   const rsess=s.recent||[];
+  // Feature 1+2: each session carries its own repo-scoped PR (r.pr, resolved host-side by
+  // gh run in the session's cwd). "Linked" = ≥2 sessions on the SAME repo AND branch (same
+  // work) — keyed by cwd+branch so a same-named branch in a different repo is never crossed.
+  const bkey=(r)=>String(r.cwd||'')+' '+String(r.branch||'');
+  const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
   const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
     const badge=r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago');
-    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div></div><span class="sopen" title="open in Claude Code">↗</span></div>';};
+    // Branch / PR / stage line — only when the session's cwd is a git repo (r.branch set).
+    // A linked icon when ≥2 sessions share this branch (same work — honest, never crossed).
+    let scm='';
+    if(r.branch){
+      const linked=branchCount[bkey(r)]>1;
+      const pr=r.pr;
+      const branchChip='<span class="scmbr" title="git branch">'+(linked?'🔗 ':'⎇ ')+esc(r.branch)+'</span>';
+      let prChip;
+      if(pr&&pr.stage)prChip='<span class="scmpr" title="'+esc(pr.title||'')+'" style="color:'+stageColor(pr.stage)+'">#'+esc(String(pr.number))+' · '+esc(pr.stage)+'</span>';
+      else prChip='<span class="scmpr" style="opacity:.55">no PR</span>';
+      scm='<div class="sscm">'+branchChip+' '+prChip+'</div>';
+    }
+    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
   const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
+  // Honest link note: branches shared by ≥2 sessions (same work), if any.
+  const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
+  const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc(k.slice(k.lastIndexOf(' ')+1))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
-  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div><div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs.</div></div>';
+  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -527,7 +569,7 @@ window.addEventListener('message',(e)=>{
   $('#v-cockpit').innerHTML=
     herdCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
-    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
+    '<div class="card pincard"><div class="pinhead">🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
       // recommended tier". The host model actually answers in a CC session, so the only

@@ -207,8 +207,8 @@ test('tokenLedger: sessionOnly skips the all-time aggregate (cheap per-session p
   assert.equal(typeof led.sessions, 'number');
 });
 
-test('recentSessions: each entry carries a full session id + 8-char short id', () => {
-  const rs = x.recentSessions(3);
+test('recentSessions: each entry carries a full session id + 8-char short id', async () => {
+  const rs = await x.recentSessions(3);
   assert.ok(Array.isArray(rs));
   for (const r of rs) {
     assert.equal(typeof r.fullId, 'string');
@@ -224,4 +224,87 @@ test('recentSessions: each entry carries a full session id + 8-char short id', (
 test('activeSession: returns null or {id,ts} — never throws (auto-follow source)', () => {
   const a = x.activeSession();
   assert.ok(a === null || (a && typeof a.id === 'string' && a.id !== 'unknown'));
+});
+
+// ── Feature 1+2: prStage (pure) — derive the PR stage from gh JSON, honestly ──
+test('prStage: MERGED state wins over everything', () => {
+  assert.equal(x.prStage({ state: 'MERGED', isDraft: true, statusCheckRollup: [{ status: 'COMPLETED', conclusion: 'FAILURE' }] }), 'merged ✓');
+});
+test('prStage: draft (open, not merged)', () => {
+  assert.equal(x.prStage({ state: 'OPEN', isDraft: true, statusCheckRollup: [] }), 'draft');
+});
+test('prStage: a failed check → CI ❌ (failure beats pending/pass)', () => {
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+  ] };
+  assert.equal(x.prStage(pr), 'CI ❌');
+});
+test('prStage: a still-running check → CI ⏳', () => {
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', status: 'IN_PROGRESS', conclusion: null },
+  ] };
+  assert.equal(x.prStage(pr), 'CI ⏳');
+});
+test('prStage: open + all checks passed → ready ✅', () => {
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SKIPPED' },
+  ] };
+  assert.equal(x.prStage(pr), 'ready ✅');
+});
+test('prStage: open with no checks → open', () => {
+  assert.equal(x.prStage({ state: 'OPEN', isDraft: false, statusCheckRollup: [] }), 'open');
+  assert.equal(x.prStage({ state: 'OPEN', isDraft: false }), 'open'); // missing rollup tolerated
+});
+test('prStage: StatusContext (legacy) entries — FAILURE/PENDING/SUCCESS by state', () => {
+  assert.equal(x.prStage({ state: 'OPEN', statusCheckRollup: [{ __typename: 'StatusContext', state: 'FAILURE' }] }), 'CI ❌');
+  assert.equal(x.prStage({ state: 'OPEN', statusCheckRollup: [{ __typename: 'StatusContext', state: 'PENDING' }] }), 'CI ⏳');
+  assert.equal(x.prStage({ state: 'OPEN', statusCheckRollup: [{ __typename: 'StatusContext', state: 'SUCCESS' }] }), 'ready ✅');
+});
+test('prStage: no PR / bad input → null (never fabricated)', () => {
+  assert.equal(x.prStage(null), null);
+  assert.equal(x.prStage(undefined), null);
+  assert.equal(x.prStage('not an object'), null);
+});
+
+// ── Feature 1+2: prList always resolves to an array (graceful degradation) ──
+test('prList: resolves to an array even with no gh / offline (never throws)', async () => {
+  const r = await x.prList();
+  assert.ok(Array.isArray(r)); // [] when gh absent/unauth/offline — honest empty, not a throw
+});
+
+// ── Feature 1+2: gitBranch null-safe contract ──
+test('gitBranch: null/garbage cwd → null (never throws)', async () => {
+  assert.equal(await x.gitBranch(null), null);
+  assert.equal(await x.gitBranch(''), null);
+  assert.equal(await x.gitBranch(123), null);
+  assert.equal(await x.gitBranch('/no/such/dir/at/all/' + process.pid), null); // not a repo → null
+});
+
+// ── Feature 1+2: _sessionCwd reads cwd from a transcript head; null when absent ──
+test('_sessionCwd: extracts top-level cwd from transcript head, null when absent', () => {
+  const p = path.join(os.tmpdir(), 'mooter-cwd-test-' + process.pid + '.jsonl');
+  const cwd = '/home/paulo/frugal-wave61'; // exact round-trip through JSON.stringify/parse
+  fs.writeFileSync(p, JSON.stringify({ type: 'user', cwd, message: { role: 'user' } }) + '\n');
+  assert.equal(x._sessionCwd(p), cwd);
+  fs.writeFileSync(p, JSON.stringify({ type: 'user', message: { role: 'user' } }) + '\n'); // no cwd
+  assert.equal(x._sessionCwd(p), null);
+  fs.unlinkSync(p);
+  assert.equal(x._sessionCwd('/nonexistent/' + process.pid + '.jsonl'), null); // missing file → null
+});
+
+// ── Feature 1+2: recentSessions now carries cwd + branch (null-safe) ──
+test('recentSessions: async, each entry has cwd + branch (string|null, never fabricated)', async () => {
+  const rs = await x.recentSessions(3);
+  assert.ok(Array.isArray(rs));
+  for (const r of rs) {
+    assert.ok(r.cwd === null || typeof r.cwd === 'string'); // real cwd or null — never faked
+    assert.ok(r.branch === null || typeof r.branch === 'string'); // real branch or null
+    // prior contract still holds
+    assert.equal(typeof r.fullId, 'string');
+    assert.equal(typeof r.working, 'boolean');
+    assert.equal(typeof r.needsYou, 'boolean');
+  }
 });
