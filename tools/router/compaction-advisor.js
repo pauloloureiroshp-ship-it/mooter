@@ -87,6 +87,23 @@ function compactionDecision({ boundary = 0, pressure = 'monitor', cacheCold = 'u
   return 'HOLD';
 }
 
+// --- Fase 3: cache-aware timing. The prompt-cache has a ~5-min TTL; compacting
+// rewrites the prefix and loses a warm cache. So the optimal instant is NOT "early
+// because there's room" — it's the boundary where the cache was going to churn
+// anyway (post-commit + pause), not mid-task while the prefix is hot.
+const CACHE_TTL_MS = 5 * 60 * 1000; // prompt-cache TTL (regressed from 1h in Mar-2026)
+const CACHE_HOT_MS = 90 * 1000;     // recent activity ⇒ prefix still warm
+
+/** Prompt-cache temperature from the gap since the last turn. 'unknown' when no prior ts. */
+function cacheState(lastTs, now = Date.now()) {
+  const t = Number(lastTs);
+  if (!Number.isFinite(t) || t <= 0) return 'unknown'; // Number(null/'')===0, not NaN
+  const gap = Number(now) - t;
+  if (gap < CACHE_HOT_MS) return 'hot';
+  if (gap >= CACHE_TTL_MS) return 'cold';
+  return 'cooling';
+}
+
 /**
  * A restorable "previously on" snapshot of the session boundary state — the priority
  * payload a PreCompact hook would persist. Pure; deterministic; JSON-serializable.
@@ -139,7 +156,9 @@ function advise(sessionId, cur = {}, now = Date.now()) {
   const prev = readState(sessionId, now);
   const { score, signals } = stage1Boundary(prev, cur, now);
   const pressure = pressureLadder(cur.tokenPct);
-  const decision = compactionDecision({ boundary: score, pressure, cacheCold: cur.cacheCold, risk_level: cur.risk_level });
+  // Fase 3 — derive cache temperature from the last turn's ts (caller may override).
+  const cacheCold = cur.cacheCold || (prev ? cacheState(prev.ts, now) : 'unknown');
+  const decision = compactionDecision({ boundary: score, pressure, cacheCold, risk_level: cur.risk_level });
   const turns = (prev && Number(prev.turns) || 0) + 1;
   writeState(sessionId, {
     category: cur.category || (prev && prev.category) || null,
@@ -148,10 +167,10 @@ function advise(sessionId, cur = {}, now = Date.now()) {
     last_event: commitTestPRSignal(cur.prompt) ? 'commit_test_pr' : (prev && prev.last_event) || null,
     last_decision: decision,
   }, now);
-  return { decision, boundary: score, signals, pressure, turns };
+  return { decision, boundary: score, signals, pressure, cacheCold, turns };
 }
 
 module.exports = {
-  pressureLadder, commitTestPRSignal, stage1Boundary, compactionDecision, buildSnapshot,
-  readState, writeState, advise, STRONG, GAP_MS,
+  pressureLadder, commitTestPRSignal, stage1Boundary, compactionDecision, cacheState, buildSnapshot,
+  readState, writeState, advise, STRONG, GAP_MS, CACHE_TTL_MS,
 };

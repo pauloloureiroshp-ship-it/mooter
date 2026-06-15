@@ -6,9 +6,9 @@ to pick the instant. The Mooter Compaction Advisor decides **when** to compact b
 boundary, host-side, deterministic, zero-cloud — and (today) **advises**, because Claude Code can't yet
 auto-fire `/compact` from a hook (issue #58538).
 
-> **Fase 1 (this release)** = the deterministic Stage-1 advisor + chip + nudge. Fases 2 (Ollama embedding
-> drift), 3 (cache-aware TTL gate), 4 (auto-trigger when #58538 ships), and 0 (global PreCompact hook /
-> autocompact override — **shared config, parked for your OK**) are separate phases.
+> **Fases 1 + 3 (this release)** = the deterministic Stage-1 advisor + chip + nudge + the **cache-aware
+> timing gate** (`cacheState`). Fases 2 (Ollama embedding drift), 4 (auto-trigger when #58538 ships), and 0
+> (global PreCompact hook / autocompact override — **shared config, parked for your OK**) remain separate.
 
 ## How it decides
 

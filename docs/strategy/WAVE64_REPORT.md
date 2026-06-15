@@ -6,11 +6,11 @@
 The reviewer was constrained read-only and **made no commits/tags** (verified via reflog). The MED it caught
 was a real bug — **fixed in commit before tagging**.
 
-## What shipped (Fase 1 — host-side only, zero `packages/*`)
+## What shipped (Fases 1 + 3 — host-side only, zero `packages/*`)
 
 | Item | File | Tests |
 |---|---|---|
-| Deterministic boundary advisor | `tools/router/compaction-advisor.js` (NEW) | `compaction-advisor.test.js` (13) |
+| Deterministic boundary advisor + **cache-aware gate (Fase 3)** | `tools/router/compaction-advisor.js` (NEW) | `compaction-advisor.test.js` (17) |
 | `🪶` opt-in chip | `tools/router/compaction-status.js` (NEW) + `chip-composer.js` | `compaction-status.test.js` (5) |
 | Opt-in nudge | `tools/router/inject_context.js` (Option-A region) | non-regression (base-vs-wave 4/4) |
 
@@ -19,6 +19,12 @@ advises by the **semantic task boundary**, deterministic & host-side. Stage-1 we
 (0.5) + `classify.js` category transition (0.4) + focus/`cwd` change (0.3) + user-away gap >10min (0.3);
 `≥0.5` = strong boundary. Decision `HOLD`/`PREP_SNAPSHOT`/`ADVISE_NOW` (B.5), **never advises mid-HIGH_RISK**.
 Advisory only — CC can't auto-fire `/compact` (issue #58538); Fase 4 flips one line when it can.
+
+**Fase 3 — cache-aware timing (`cacheState`).** The prompt-cache has a ~5-min TTL; compacting rewrites the
+prefix and loses a warm cache. So the advisor derives the cache temperature from the inter-turn gap (hot
+<90s · cooling · cold ≥5min) and, on a strong boundary, **PREP_SNAPSHOT while the cache is hot** (don't churn
+mid-task) vs **ADVISE_NOW when cooling/cold** (the prefix was going to churn anyway). Pure; the risk guard
+still wins (HIGH_RISK → HOLD regardless of cache).
 
 ## Invariants (verified by final-reviewer + orchestrator)
 
@@ -43,14 +49,14 @@ Advisory only — CC can't auto-fire `/compact` (issue #58538); Fase 4 flips one
   "previously on" capability a future PreCompact hook (Fase 0/4) will use — deliberately dormant, documented.
 
 ## Test state
-- 18/18 new (advisor 13 + chip 5). `inject_context.test.js` 4/5 (the 1 fail = haiku-pin beaten by active
+- 22/22 new (advisor 17 + chip 5). `inject_context.test.js` 4/5 (the 1 fail = haiku-pin beaten by active
   beast mode, **pre-existing**; base `0759f85` gives identical 4/5). ReDoS-checked; path-traversal-safe.
 
 ## Deferred (the spec's other phases — each ships value isolated)
 - **Fase 0** (global PreCompact hook + `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) — **shared config; needs Paulo's OK**
   (would affect every open CC session).
-- **Fase 2** (Ollama embedding-drift detector + qwen3 arbiter), **Fase 3** (cache-aware TTL gate — `cacheCold`
-  is already an input to `compactionDecision`, just defaulted `unknown`), **Fase 4** (auto-trigger when #58538 ships).
+- **Fase 2** (Ollama embedding-drift detector + qwen3 arbiter), **Fase 4** (auto-trigger when #58538 ships).
+  *(Fase 3 cache-aware gate — **shipped this release**.)*
 
 ## Handoff to Paulo
 1. Push `wave64-compaction-advisor` → PR → merge `main` + apply tag `v1.44.0-compaction-advisor`.

@@ -123,3 +123,42 @@ test('advise — path traversal in session id is neutralized', () => {
     assert.ok(path.resolve(compactDir, f).startsWith(compactDir), `escaped dir: ${f}`);
   }
 });
+
+// --- Fase 3: cache-aware gate ---
+test('cacheState — hot / cooling / cold / unknown by inter-turn gap', () => {
+  const now = 1_000_000_000;
+  assert.strictEqual(A.cacheState(null, now), 'unknown');
+  assert.strictEqual(A.cacheState(now - 10_000, now), 'hot');        // 10s ago
+  assert.strictEqual(A.cacheState(now - 2 * 60 * 1000, now), 'cooling'); // 2 min ago
+  assert.strictEqual(A.cacheState(now - 6 * 60 * 1000, now), 'cold');    // 6 min ago (> TTL)
+});
+
+test('advise — hot cache + strong boundary → PREP_SNAPSHOT (do not churn the warm prefix)', () => {
+  const sid = 'sess-cache';
+  const t = 7_000_000_000;
+  A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'write x' }, t); // seed prev.ts = t
+  // Next turn 10s later (cache hot) WITH a strong boundary (commit signal): prepare, not advise.
+  const hot = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'committed it' }, t + 10_000);
+  assert.strictEqual(hot.cacheCold, 'hot');
+  assert.ok(hot.boundary >= A.STRONG);
+  assert.strictEqual(hot.decision, 'PREP_SNAPSHOT');
+});
+
+test('advise — cold cache + strong boundary → ADVISE_NOW (cache gone anyway)', () => {
+  const sid = 'sess-cold';
+  const t = 8_000_000_000;
+  A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'write x' }, t);
+  // 6 min later (cache cold) + commit boundary → advise now.
+  const cold = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'tests pass' }, t + 6 * 60 * 1000);
+  assert.strictEqual(cold.cacheCold, 'cold');
+  assert.ok(cold.boundary >= A.STRONG);
+  assert.strictEqual(cold.decision, 'ADVISE_NOW');
+});
+
+test('advise — explicit caller cacheCold overrides the derived one', () => {
+  const sid = 'sess-ovr';
+  const t = 9_000_000_000;
+  A.advise(sid, { category: 'x', cwd: '/a', prompt: 'hi' }, t);
+  const r = A.advise(sid, { category: 'x', cwd: '/a', prompt: 'committed', cacheCold: 'cold' }, t + 10_000);
+  assert.strictEqual(r.cacheCold, 'cold'); // caller wins over the 'hot' that the 10s gap would derive
+});
