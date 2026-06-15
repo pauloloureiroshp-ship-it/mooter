@@ -74,9 +74,14 @@ test('readPrefs falls back to defaults when the file is missing or bad', () => {
 
 // ── live hook subprocess ──────────────────────────────────────────────────────
 
-/** Run the hook with a prompt + isolated HOME; return combined stdout+stderr. */
+/** Run the hook with a prompt + isolated home; return combined stdout+stderr.
+ * MOOTER_HOME (the .mooter dir) is the cross-platform prefs override — $HOME is a
+ * no-op for os.homedir() on Windows, so it alone cannot isolate the hook's prefs. */
 function runHook(prompt, home) {
-  const env = Object.assign({}, process.env, { HOME: home });
+  const env = Object.assign({}, process.env, {
+    HOME: home,
+    MOOTER_HOME: path.join(home, '.mooter'),
+  });
   delete env.MOOTER_PIN_MODEL;
   const res = spawnSync(process.execPath, [SCRIPT], {
     input: JSON.stringify({ prompt, session_id: 'badge-test' }),
