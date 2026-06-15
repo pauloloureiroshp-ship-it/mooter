@@ -1367,8 +1367,11 @@ try {
     if (process.env.MOOTER_COMPACTION_ADVISOR === '1') return true;
     if (process.env.MOOTER_COMPACTION_ADVISOR === '0') return false;
     try {
-      const { readPrefs } = require('./badge.js');
-      const p = readPrefs() || {};
+      // Read raw preferences.json directly — badge.js readPrefs() whitelists keys
+      // and would strip compaction_advisor (mirrors compaction-status.js's reader).
+      const _os = require('os'); const _fs = require('fs');
+      const home = process.env.MOOTER_HOME || path.join(_os.homedir(), '.mooter');
+      const p = JSON.parse(_fs.readFileSync(path.join(home, 'preferences.json'), 'utf8')) || {};
       return p.compaction_advisor === true
         || !!(p.execution_modes && p.execution_modes.compaction_advisor === true);
     } catch { return false; }

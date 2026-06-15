@@ -17,7 +17,7 @@ auto-fire `/compact` from a hook (issue #58538).
 1. **Stage-1 boundary gate** (`stage1Boundary`): weighted vote over signals the harness already has —
    commit/test-pass/PR language (0.5, strongest), `classify.js` category transition (0.4), focus/`cwd`
    change (0.3), user-away temporal gap >10min (0.3). `score ≥ 0.5` ⇒ a **strong, causal boundary**.
-2. **Pressure ladder** (`pressureLadder`): Monitor <70 · Mask 80 · Prune 85 · Advise 90 · Emergency 99,
+2. **Pressure ladder** (`pressureLadder`): Monitor <80 · Mask 80 · Prune 85 · Advise 90 · Emergency 99,
    from an API-reported fill %. **Degrades to `monitor` when no % is available** (the hook exposes none
    reliably) — so the MVP rests on the *boundary*, which is the differentiation.
 3. **Decision** (`compactionDecision`): 
