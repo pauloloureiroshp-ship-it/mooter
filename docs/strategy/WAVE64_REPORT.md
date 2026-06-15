@@ -6,14 +6,21 @@
 The reviewer was constrained read-only and **made no commits/tags** (verified via reflog). The MED it caught
 was a real bug — **fixed in commit before tagging**.
 
-## What shipped (Fases 1 + 2 + 3 — host-side only, zero `packages/*`)
+## What shipped (Fases 1 + 2 + 3 + Stage-3 arbiter — host-side only, zero `packages/*`)
 
 | Item | File | Tests |
 |---|---|---|
-| Boundary advisor + **cache-aware gate (Fase 3)** | `tools/router/compaction-advisor.js` (NEW) | `compaction-advisor.test.js` (19) |
-| **Stage-2 embedding-drift detector (Fase 2, opt-in)** | `tools/router/compaction-drift.js` (NEW) + `ollama_embed_node.js` | `compaction-drift.test.js` (7) |
+| Boundary advisor + **cache-aware gate (Fase 3)** | `tools/router/compaction-advisor.js` (NEW) | `compaction-advisor.test.js` (21) |
+| **Stage-2 embedding drift + Stage-3 qwen arbiter (opt-in)** | `tools/router/compaction-drift.js` (NEW) + `ollama_embed_node.js` | `compaction-drift.test.js` (10) |
 | `🪶` opt-in chip | `tools/router/compaction-status.js` (NEW) + `chip-composer.js` | `compaction-status.test.js` (5) |
 | Opt-in nudge | `tools/router/inject_context.js` (Option-A region) | non-regression (base-vs-wave 4/4) |
+
+**Stage 3 — qwen arbiter (`MOOTER_COMPACTION_ARBITER=1`, implies embed).** Runs ONLY when Stage-2 drift is
+**borderline** (`|drift−threshold|/threshold ≤ 25%`) — the "same vocabulary, new intent" case embeddings
+miss. A binary SAME/NEW verdict (best-effort qwen via `ollama_call_node`) judges the current prompt vs a
+**sanitized topic anchor** (`privacy.sanitize`, ≤300 chars, reset on a fired boundary): **NEW rescues** a
+missed boundary, **SAME suppresses** a false one, null → keep Stage-2's call. Default OFF ⇒ zero latency;
+HIGH_RISK guard still wins. The anchor is the only prompt-text stored, and only under the arbiter opt-in.
 
 **The differentiator:** every compaction tool fires on a dumb trigger (% of window / tool-call count). This
 advises by the **semantic task boundary**, deterministic & host-side. Stage-1 weighted vote: commit/test-PR
@@ -40,6 +47,11 @@ still wins (HIGH_RISK → HOLD regardless of cache).
 | 7 | No shared-config change | ✅ zero `settings.json` / global PreCompact hook (Fase 0 parked) |
 
 ## Gate findings (all resolved or intentional)
+- **Stage-3 gate (separate run): SHIP-WITH-NITS · 0-HIGH** (constrained read-only; no mutations — reflog-verified).
+  No code fixes needed. Honest caveat recorded: `privacy.sanitize` is a **best-effort PII filter, not a hard
+  secret barrier** — the topic anchor stores ≤300 chars of prompt text, but ONLY under the explicit arbiter
+  opt-in (same trust level as the existing `decisions.log` preview). Anchor is bounded, no injection surface
+  (spawnSync args array, advisory-only blast radius).
 - **Fase 2 gate (separate run): SHIP · 0-HIGH · 0-MED** (constrained read-only; no mutations — reflog-verified).
   1 LOW fixed in-wave: embed helper used `keep_alive: -1` (pinned the model in VRAM) → finite `5m` TTL.
 - **MED — prefs opt-in for the nudge was dead code (FIXED in-wave).** It read prefs via `badge.js readPrefs()`,
@@ -52,16 +64,18 @@ still wins (HIGH_RISK → HOLD regardless of cache).
   "previously on" capability a future PreCompact hook (Fase 0/4) will use — deliberately dormant, documented.
 
 ## Test state
-- 31/31 new (advisor 19 + drift 7 + chip 5). `inject_context.test.js` 4/5 (the 1 fail = haiku-pin beaten by
+- 36/36 new (advisor 21 + drift 10 + chip 5). `inject_context.test.js` 4/5 (the 1 fail = haiku-pin beaten by
   active beast mode, **pre-existing**; base `0759f85` gives identical 4/5). ReDoS-checked; path-traversal-safe.
-  Stage-2 drift tests use injected vectors (no live Ollama); embed call is best-effort/bounded (2.5s, fails closed).
+  Stage-2/3 tests use injected vectors/verdicts (no live Ollama); embed + arbiter calls are best-effort/bounded
+  (2.5s/4s, fail closed). Default OFF byte-identical re-proven base-vs-wave after Stage 3 (4/4).
 
 ## Deferred (the spec's other phases — each ships value isolated)
 - **Fase 0** (global PreCompact hook + `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) — **shared config; needs Paulo's OK**
   (would affect every open CC session).
 - **Fase 4** (auto-trigger when #58538 ships) — 1-line swap of `ADVISE_NOW` for actuation.
-- **Stage-3 qwen3 arbiter** (the grey-zone tie-breaker on top of Fase 2's embedding) — optional refinement.
-  *(Fases 2 embedding-drift + 3 cache-aware gate — **shipped this release**.)*
+- **Full last-K-turns arbiter** — the MVP arbiter (W64-R5) uses a single topic anchor; the richer version
+  should reuse **Wave 65's `session-context.js` transcript store** post-merge (no duplicate store).
+  *(Fases 2 embedding-drift + 3 cache-aware gate + Stage-3 arbiter — **shipped this release**.)*
 
 ## Handoff to Paulo
 1. Push `wave64-compaction-advisor` → PR → merge `main` + apply tag `v1.44.0-compaction-advisor`.

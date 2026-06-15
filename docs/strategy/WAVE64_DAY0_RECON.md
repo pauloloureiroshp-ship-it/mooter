@@ -44,6 +44,14 @@ constraint). **⇒ Fase 0 is parked for Paulo's explicit OK.** Fase 1 ships the 
 from PostToolUse-tracked Read/Edit paths, not available in UserPromptSubmit. **⇒ MVP uses `payload.cwd`
 change as the focus-shift proxy** (coarse but real and zero-cost); a richer focus-set is a Fase-2 refinement.
 
+**W64-R5 — Stage-3 arbiter uses a single topic ANCHOR, not the spec's "last K turns".** The full arbiter
+wants recent conversation turns — but that transcript is exactly what **Wave 65's `session-context.js`
+store** (already built on a parallel branch) provides. Building a parallel K-turn store here would
+duplicate Wave 65 + add the same privacy surface. **⇒ the MVP arbiter judges the current prompt vs a
+single sanitized (`privacy.sanitize`) topic anchor** (the seed of the current topic, reset on a fired
+boundary) — light, opt-in, and self-contained. **The full last-K-turns arbiter should reuse Wave 65's
+sanitized transcript store post-merge** (a clean follow-up, not a duplicate). Honest scope, not a gap.
+
 ## 3. Scope (final — Fase 1)
 - `compaction-advisor.js` (NEW) — `pressureLadder`, `commitTestPRSignal`, `stage1Boundary`,
   `compactionDecision` (HOLD/PREP_SNAPSHOT/ADVISE_NOW; **never advises mid-HIGH_RISK**), `buildSnapshot`
