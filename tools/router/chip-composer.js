@@ -63,6 +63,9 @@ const DEFAULT_ELIGIBLE = [
   // Wave 58 A.1 — 🤖 multi-agent workflow progress (opt-IN: '' unless
   // statusline_chips.agents_progress / MOOTER_STATUSLINE_AGENTS_PROGRESS=1).
   './agents-progress-status.js',
+  // Wave 64 Fase 1 — 🪶 compaction advisor (opt-IN: '' unless
+  // statusline_chips.compaction / MOOTER_STATUSLINE_COMPACTION=1).
+  './compaction-status.js',
 ];
 
 // The full historic chip list, in render order. Extracted verbatim from the old

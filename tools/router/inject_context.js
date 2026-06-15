@@ -1357,6 +1357,40 @@ if (suggestedAnswer) {
   lines.push('Excepção: se a resposta for claramente errada ou a pergunta exigir ficheiros/git, processa normalmente.');
 }
 
+// Wave 64 Fase 1 — compaction advisor (opt-in). At a strong, causal task boundary
+// (commit/test-pass/PR, category shift, focus change, user-away gap) nudge the agent
+// to /compact now — cheaper than the emergency auto-compact and preserves causal
+// structure. Advisory only (CC can't auto-fire /compact; issue #58538). NEVER advises
+// mid-HIGH_RISK. Default OFF ⇒ hint byte-identical. Best-effort: any error is swallowed.
+try {
+  const advisorOn = (() => {
+    if (process.env.MOOTER_COMPACTION_ADVISOR === '1') return true;
+    if (process.env.MOOTER_COMPACTION_ADVISOR === '0') return false;
+    try {
+      const { readPrefs } = require('./badge.js');
+      const p = readPrefs() || {};
+      return p.compaction_advisor === true
+        || !!(p.execution_modes && p.execution_modes.compaction_advisor === true);
+    } catch { return false; }
+  })();
+  if (advisorOn) {
+    const advisor = require('./compaction-advisor.js');
+    const adv = advisor.advise(sessionId, {
+      category: decision.task_category,
+      cwd: payload.cwd,
+      prompt,
+      risk_level: decision.risk_level,
+    });
+    if (adv.decision === 'ADVISE_NOW') {
+      lines.push('');
+      lines.push(`<compaction-advisor decision="advise" boundary="${adv.boundary}">`);
+      lines.push(`Fronteira de tarefa detectada (${adv.signals.join(', ')}). Bom momento para /compact agora `
+        + '— preserva a estrutura causal e é mais barato que o auto-compact de emergência. Advisory; routing inalterado.');
+      lines.push('</compaction-advisor>');
+    }
+  }
+} catch { /* advisor best-effort; never blocks the hint */ }
+
 // v0.12: delegation directive — runtime enforcement for doctrine compliance.
 //
 // Problem the directive solves: main Opus was inlining every T0/T1 task
