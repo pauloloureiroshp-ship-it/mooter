@@ -6,11 +6,12 @@
 The reviewer was constrained read-only and **made no commits/tags** (verified via reflog). The MED it caught
 was a real bug — **fixed in commit before tagging**.
 
-## What shipped (Fases 1 + 3 — host-side only, zero `packages/*`)
+## What shipped (Fases 1 + 2 + 3 — host-side only, zero `packages/*`)
 
 | Item | File | Tests |
 |---|---|---|
-| Deterministic boundary advisor + **cache-aware gate (Fase 3)** | `tools/router/compaction-advisor.js` (NEW) | `compaction-advisor.test.js` (17) |
+| Boundary advisor + **cache-aware gate (Fase 3)** | `tools/router/compaction-advisor.js` (NEW) | `compaction-advisor.test.js` (19) |
+| **Stage-2 embedding-drift detector (Fase 2, opt-in)** | `tools/router/compaction-drift.js` (NEW) + `ollama_embed_node.js` | `compaction-drift.test.js` (7) |
 | `🪶` opt-in chip | `tools/router/compaction-status.js` (NEW) + `chip-composer.js` | `compaction-status.test.js` (5) |
 | Opt-in nudge | `tools/router/inject_context.js` (Option-A region) | non-regression (base-vs-wave 4/4) |
 
@@ -39,6 +40,8 @@ still wins (HIGH_RISK → HOLD regardless of cache).
 | 7 | No shared-config change | ✅ zero `settings.json` / global PreCompact hook (Fase 0 parked) |
 
 ## Gate findings (all resolved or intentional)
+- **Fase 2 gate (separate run): SHIP · 0-HIGH · 0-MED** (constrained read-only; no mutations — reflog-verified).
+  1 LOW fixed in-wave: embed helper used `keep_alive: -1` (pinned the model in VRAM) → finite `5m` TTL.
 - **MED — prefs opt-in for the nudge was dead code (FIXED in-wave).** It read prefs via `badge.js readPrefs()`,
   a whitelisting normalizer that strips unknown keys → `compaction_advisor` was always undefined (only the env
   var worked). Now reads raw `preferences.json` directly (mirrors `compaction-status.js`). Verified: prefs
@@ -49,14 +52,16 @@ still wins (HIGH_RISK → HOLD regardless of cache).
   "previously on" capability a future PreCompact hook (Fase 0/4) will use — deliberately dormant, documented.
 
 ## Test state
-- 22/22 new (advisor 17 + chip 5). `inject_context.test.js` 4/5 (the 1 fail = haiku-pin beaten by active
-  beast mode, **pre-existing**; base `0759f85` gives identical 4/5). ReDoS-checked; path-traversal-safe.
+- 31/31 new (advisor 19 + drift 7 + chip 5). `inject_context.test.js` 4/5 (the 1 fail = haiku-pin beaten by
+  active beast mode, **pre-existing**; base `0759f85` gives identical 4/5). ReDoS-checked; path-traversal-safe.
+  Stage-2 drift tests use injected vectors (no live Ollama); embed call is best-effort/bounded (2.5s, fails closed).
 
 ## Deferred (the spec's other phases — each ships value isolated)
 - **Fase 0** (global PreCompact hook + `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) — **shared config; needs Paulo's OK**
   (would affect every open CC session).
-- **Fase 2** (Ollama embedding-drift detector + qwen3 arbiter), **Fase 4** (auto-trigger when #58538 ships).
-  *(Fase 3 cache-aware gate — **shipped this release**.)*
+- **Fase 4** (auto-trigger when #58538 ships) — 1-line swap of `ADVISE_NOW` for actuation.
+- **Stage-3 qwen3 arbiter** (the grey-zone tie-breaker on top of Fase 2's embedding) — optional refinement.
+  *(Fases 2 embedding-drift + 3 cache-aware gate — **shipped this release**.)*
 
 ## Handoff to Paulo
 1. Push `wave64-compaction-advisor` → PR → merge `main` + apply tag `v1.44.0-compaction-advisor`.

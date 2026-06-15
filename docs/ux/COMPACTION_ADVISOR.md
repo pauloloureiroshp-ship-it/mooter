@@ -6,9 +6,17 @@ to pick the instant. The Mooter Compaction Advisor decides **when** to compact b
 boundary, host-side, deterministic, zero-cloud — and (today) **advises**, because Claude Code can't yet
 auto-fire `/compact` from a hook (issue #58538).
 
-> **Fases 1 + 3 (this release)** = the deterministic Stage-1 advisor + chip + nudge + the **cache-aware
-> timing gate** (`cacheState`). Fases 2 (Ollama embedding drift), 4 (auto-trigger when #58538 ships), and 0
-> (global PreCompact hook / autocompact override — **shared config, parked for your OK**) remain separate.
+> **Fases 1 + 2 + 3 (this release)** = the deterministic Stage-1 advisor + the **Stage-2 embedding-drift
+> detector** (`compaction-drift.js`, opt-in) + the **cache-aware timing gate** (`cacheState`) + chip + nudge.
+> Fase 4 (auto-trigger when #58538 ships) and Fase 0 (global PreCompact hook / autocompact override —
+> **shared config, parked for your OK**) remain separate.
+
+**Fase 2 — Stage-2 embedding drift (`compaction-drift.js`, opt-in `MOOTER_COMPACTION_EMBED=1`).** Runs ONLY
+in Stage-1's grey zone (boundary `[0.2, 0.5)`) and only when enabled: embeds the turn via Ollama
+(`nomic-embed-text`, best-effort/bounded), keeps a running centroid, and fires when the cosine distance
+exceeds the **session p90** (percentile, not absolute) — catching a semantic pivot Stage 1 missed (same
+file/category, new goal). A fire lifts the boundary to strong. Default OFF ⇒ zero latency; the HIGH_RISK
+guard still wins.
 
 ## How it decides
 
