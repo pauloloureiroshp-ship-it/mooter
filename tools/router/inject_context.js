@@ -1098,16 +1098,22 @@ if (decision.confidence < 0.6) {
 // Ollama T0 model (including hw-recommended qwen3:30b on high-VRAM GPUs).
 // Timeout raised 4s → 8s to accommodate larger models. Confidence lowered
 // 0.8 → 0.75 and prompt limit raised 500 → 800 to cover more real T0 prompts.
+// Wave 62.5 — read raw preferences.json (badge.js readPrefs() whitelists keys and
+// would strip confidence_cascade*). Mirrors compaction-status.js's own reader.
+function _cascadeRawPrefs() {
+  try {
+    const _os = require('os'); const _fs = require('fs');
+    const home = process.env.MOOTER_HOME || path.join(_os.homedir(), '.mooter');
+    return JSON.parse(_fs.readFileSync(path.join(home, 'preferences.json'), 'utf8')) || {};
+  } catch { return {}; }
+}
 // Wave 62.5 — is the opt-in confidence cascade enabled? (env wins; then prefs)
 function confidenceCascadeEnabled() {
   if (process.env.MOOTER_CONFIDENCE_CASCADE === '1') return true;
   if (process.env.MOOTER_CONFIDENCE_CASCADE === '0') return false;
-  try {
-    const { readPrefs } = require('./badge.js');
-    const p = readPrefs() || {};
-    return p.confidence_cascade === true
-      || !!(p.execution_modes && p.execution_modes.confidence_cascade === true);
-  } catch { return false; }
+  const p = _cascadeRawPrefs();
+  return p.confidence_cascade === true
+    || !!(p.execution_modes && p.execution_modes.confidence_cascade === true);
 }
 // Wave 62.5 Block D — optional calibrated escalate threshold (env wins; then prefs).
 // Computed OUT-OF-BAND by the auto-learning calibrator (calibrateLowThreshold over
@@ -1115,12 +1121,8 @@ function confidenceCascadeEnabled() {
 function cascadeLowThreshold() {
   const env = parseFloat(process.env.MOOTER_CONFIDENCE_THRESHOLD);
   if (Number.isFinite(env) && env > 0 && env < 1) return env;
-  try {
-    const { readPrefs } = require('./badge.js');
-    const p = readPrefs() || {};
-    const v = Number(p.confidence_cascade_threshold);
-    if (Number.isFinite(v) && v > 0 && v < 1) return v;
-  } catch { /* ignore */ }
+  const v = Number(_cascadeRawPrefs().confidence_cascade_threshold);
+  if (Number.isFinite(v) && v > 0 && v < 1) return v;
   return undefined; // → draftConfidence uses its DEFAULT_LOW
 }
 let suggestedAnswer = null;
