@@ -553,9 +553,6 @@ window.addEventListener('message',(e)=>{
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   const lv=s.live; // executor of the focused session (used by the "Actually ran" line below)
   $('#v-cockpit').innerHTML=
-    herdCard+
-    '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
-    '<div class="card pincard"><div class="pinhead">🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
       // recommended tier". The host model actually answers in a CC session, so the only
@@ -571,6 +568,9 @@ window.addEventListener('message',(e)=>{
       const scopeChip=effSess?'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · this session</span>':'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span>';
       return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
     })()+
+    '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
+    herdCard+
+    '<div class="card pincard"><div class="pinhead">🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+

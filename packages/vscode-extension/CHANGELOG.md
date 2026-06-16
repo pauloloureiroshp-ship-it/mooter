@@ -2,6 +2,11 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.12.4] — 2026-06-16 — Cockpit block order
+
+### Changed
+- **Cockpit layout reordered** to put the headline first: **① Saved vs all-Opus** (the savings hero) is now the top block, followed by **② the LazyMoo · Moo · CrazyMoo mode switch**. Live sessions, the next-prompt picker, Mooter Score, recommendations and the Token Ledger follow. No logic change — pure render order.
+
 ## [0.12.3] — 2026-06-15 — bug-fix sweep
 
 ### Fixed
