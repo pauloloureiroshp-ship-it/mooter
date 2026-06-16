@@ -1415,6 +1415,24 @@ try {
   }
 } catch { /* reasoning-effort is best-effort, never blocks the hint */ }
 
+// Wave 60 Block B — session affinity (cache continuity). Surface a best-effort
+// <session-affinity> note when this prompt would switch the routed model without a
+// strong reason, so the agent can choose to stay and keep the warm prompt cache.
+// Host-side + deterministic: never reads engine KV, never mutates routing, never
+// fires on HIGH_RISK / safety-floor / beast / honored-override (strong reasons take
+// the fresh model). Records the session's model afterwards. Best-effort: a missing
+// or broken module omits the note → hint byte-identical to the pre-wave baseline.
+try {
+  const aff = require('./session-affinity.js');
+  const established = aff.getEstablished(sessionId);
+  const note = aff.affinityNote(established, decision);
+  if (note) {
+    lines.push('');
+    lines.push(note);
+  }
+  aff.recordModel(sessionId, decision.recommended_model, decision.tier);
+} catch { /* session affinity is best-effort, never blocks the hint */ }
+
 // Wave 2.5 Day 3 — tier badge. A compact [tier·model·conf] marker emitted as a
 // separate block right after the hint so the session can surface it inline.
 // Suppressed when the user has run `mooter quiet`. The hint is already gated to

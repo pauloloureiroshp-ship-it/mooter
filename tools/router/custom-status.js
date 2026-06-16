@@ -34,7 +34,14 @@ function customPath() {
 
 function prefs() {
   try {
-    return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8'));
+    // Resolve home the same way customPath() does: an explicit MOOTER_HOME IS the
+    // .mooter dir; else <real-home>/.mooter. ($HOME is a no-op for os.homedir() on
+    // Windows, so MOOTER_HOME is the portable, hermetic override.)
+    const home = process.env.MOOTER_HOME;
+    const prefsPath = home
+      ? path.join(home, 'preferences.json')
+      : path.join(os.homedir(), '.mooter', 'preferences.json');
+    return JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
   } catch {
     return {};
   }
