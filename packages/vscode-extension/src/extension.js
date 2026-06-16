@@ -349,6 +349,13 @@ function getHtml() {
   .intentres{font-size:11px;color:var(--vscode-descriptionForeground);margin:-4px 0 8px;display:none}
   .intentres b{color:var(--g)}
   .lbl{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--vscode-descriptionForeground)}
+  .collaphead{cursor:pointer;user-select:none;outline:none}
+  .collaphead:hover{color:var(--vscode-foreground)}
+  .collaphead:focus-visible{outline:1px solid var(--r);outline-offset:2px;border-radius:3px}
+  .chev{display:inline-block;font-size:8px;opacity:.5;margin-right:6px;transition:transform .15s ease;vertical-align:middle}
+  .card.collapsed .chev{transform:rotate(-90deg)}
+  .card.collapsed>*:not(.collaphead){display:none!important}
+  .card.collapsed{padding-bottom:12px}
   .big{font-size:27px;font-weight:700;color:var(--g);font-variant-numeric:tabular-nums}
   .sub{font-size:12px;color:var(--vscode-descriptionForeground)}.sub b{color:var(--vscode-foreground)}
   .row{display:flex;gap:6px}.row .card{flex:1;padding:8px 10px}
@@ -435,6 +442,16 @@ const PIN_LOCAL={'qwen3:30b':'mooter-qwen3-30b','qwen2.5:3b':'mooter-qwen2-5-3b'
 const PIN_CLOUD={Haiku:'mooter-haiku-4-5',Sonnet:'mooter-sonnet-4-6','Opus 4.7':'mooter-opus-4-7'};
 const openDecs=new Set();// decision keys (ts) the user expanded — must survive the periodic re-render
 let ledgerScope='session';let lastSnap=null;
+// Collapsible cards: ids the user hid. Survives the periodic re-render (module Set) AND
+// window reload (persisted via the webview state API). Lets the user hide sections they
+// don't care about for a cleaner cockpit. Hero (savings) + mode switch are never collapsible.
+const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||[];}catch{return [];}})());
+function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
+function cc(id){return collapsed.has(id)?' collapsed':'';}
+// Build a uniform collapsible header (chevron + title). Click/Enter toggles; clicks on
+// interactive children (e.g. the ledger scope pills [data-ls]) are ignored so they don't collapse.
+function chead(title,cls){return '<div class="'+(cls||'lbl')+' collaphead"><span class="chev">▾</span>'+title+'</div>';}
+function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();};h.onclick=tog;h.setAttribute('role','button');h.setAttribute('tabindex','0');h.setAttribute('aria-label','toggle section');h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog();}});});}
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
 // PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
@@ -452,7 +469,7 @@ function ledgerHtml(s){
   const scopeLbl=scoped?'this session':(ledgerScope==='session'?'this session':'all time');
   const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
   const tog=scoped?('<span style="float:right;opacity:.6;font-size:9px">'+esc((s.effectiveSession||'').slice(0,8))+'</span>'):('<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>');
-  const head='<div class="lbl">🧾 Tokens by model '+tog+'</div>';
+  const head=chead('🧾 Tokens by model '+tog);
   // Cloud rows (real). saved = "—" (a billed row can't "save vs Opus" — it IS the spend).
   const cloudTr=L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td><td class="sv">—</td></tr>').join('');
   // Local row (real in/out from token_tracker; T0 aggregate — per-model not metered). One
@@ -467,9 +484,9 @@ function ledgerHtml(s){
     ?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>cost</th><th>saved vs Opus</th></tr>'+cloudTr+localTr+'</table>')
     :('<div class="sub" style="margin-top:6px">No usage logged '+scopeLbl+'</div>');
   const localNote=lt?'<div class="sub" style="font-size:9px;margin-top:4px">local per-model not metered → T0 aggregate</div>':'';
-  return '<div class="card">'+head+body+localNote+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+scopeLbl+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
+  return '<div class="card'+cc('ledger')+'" data-collap="ledger">'+head+body+localNote+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+scopeLbl+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
 }
-function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
+function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();wireCollapse(lg);}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
@@ -541,7 +558,7 @@ window.addEventListener('message',(e)=>{
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
-  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -569,12 +586,12 @@ window.addEventListener('message',(e)=>{
       return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
     })()+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
+    '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
     herdCard+
-    '<div class="card pincard"><div class="pinhead">🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
-    '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
+    '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
-    '<div class="card"><div class="lbl">Router recommendations · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span></div>'+bars+'<div class="sub" style="font-size:9.5px;margin-top:5px">↑ what the router <b>suggested</b> (T0 = local) — not what ran. <b>Actually ran:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model))+' (host)':'host model')+' · '+realLocalN+' real local dispatch'+(realLocalN===1?'':'es')+'</div></div>'+
+    '<div class="card'+cc('recs')+'" data-collap="recs"><div class="lbl collaphead"><span class="chev">▾</span>Router recommendations · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span></div>'+bars+'<div class="sub" style="font-size:9.5px;margin-top:5px">↑ what the router <b>suggested</b> (T0 = local) — not what ran. <b>Actually ran:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model))+' (host)':'host model')+' · '+realLocalN+' real local dispatch'+(realLocalN===1?'':'es')+'</div></div>'+
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
@@ -582,6 +599,7 @@ window.addEventListener('message',(e)=>{
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   wireLedgerToggle();
+  wireCollapse($('#v-cockpit'));
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};

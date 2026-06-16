@@ -2,6 +2,15 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.13.0] — 2026-06-16 — Collapsible sections + cleaner layout
+
+### Added
+- **Collapsible sections** — every secondary card (Next prompt model, Live sessions, Mooter Score, Router recommendations, Token Ledger) now has a ▾ chevron in its header. Click (or Enter/Space) to hide a section you don't care about. Your choices **persist** across refreshes and window reloads. Keeps the cockpit as clean as you want it. The **Saved vs all-Opus** hero and the **mode switch** stay always visible.
+
+### Changed
+- **Next prompt model** picker moved directly under the LazyMoo · Moo · CrazyMoo switch (pick the mode, then the model).
+- Tidier layout: consistent collapsible headers, subtle chevron, calmer spacing.
+
 ## [0.12.4] — 2026-06-16 — Cockpit block order
 
 ### Changed
