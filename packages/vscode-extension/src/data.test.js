@@ -292,7 +292,7 @@ test('gitBranch: null/garbage cwd → null (never throws)', async () => {
 // ── Feature 1+2: _sessionCwd reads cwd from a transcript head; null when absent ──
 test('_sessionCwd: extracts top-level cwd from transcript head, null when absent', () => {
   const p = path.join(os.tmpdir(), 'mooter-cwd-test-' + process.pid + '.jsonl');
-  const cwd = '/home/paulo/frugal-wave61'; // exact round-trip through JSON.stringify/parse
+  const cwd = '/home/paulo/mooter-wave61'; // exact round-trip through JSON.stringify/parse
   fs.writeFileSync(p, JSON.stringify({ type: 'user', cwd, message: { role: 'user' } }) + '\n');
   assert.equal(x._sessionCwd(p), cwd);
   fs.writeFileSync(p, JSON.stringify({ type: 'user', message: { role: 'user' } }) + '\n'); // no cwd
