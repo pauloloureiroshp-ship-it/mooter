@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono, Caveat } from 'next/font/google';
 import './globals.css';
 import CmdKPalette from './_components/CmdKPalette';
+import versionInfo from './version.json';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -84,7 +85,7 @@ const jsonLd = {
       description: DESCRIPTION,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS, Windows, Linux',
-      softwareVersion: '1.21.5',
+      softwareVersion: versionInfo.version,
       license: 'https://opensource.org/licenses/MIT',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       author: { '@id': 'https://mooter.ai/#paulo' },
