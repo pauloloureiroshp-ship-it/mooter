@@ -360,7 +360,7 @@ function getHtml() {
   .arow .amodel{font-weight:600;white-space:nowrap}
   .arow .arole{opacity:.7;white-space:nowrap;font-size:10px}
   .arow .atask{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.55}
-  .adot{width:14px;text-align:center;font-size:10px;flex:none}.adot.done{color:var(--g)}.adot.q{opacity:.45}
+  .adot{width:14px;text-align:center;font-size:10px;flex:none}.adot.done{color:var(--g)}.adot.q{opacity:.45}.adot.fail{color:var(--t3)}
   .aprog{font-variant-numeric:tabular-nums;font-size:10px;color:var(--g);min-width:30px;text-align:right}
   .apar{float:right;opacity:.75;font-size:9px;font-weight:600}
   .big{font-size:27px;font-weight:700;color:var(--g);font-variant-numeric:tabular-nums}
@@ -688,11 +688,14 @@ window.addEventListener('message',(e)=>{
     const run=h.run||null, spawns=Array.isArray(h.spawns)?h.spawns:[], cur=h.current||null;
     const curFresh=cur&&cur.ts&&(Date.now()-cur.ts)<120000;
     const isLoc=(m)=>/qwen|llama|gemma|deepseek|mistral|phi|ollama|:/i.test(String(m||''));
-    const stOf=(x)=>{x=String(x||'').toLowerCase();return /run|active|progress|working|flight/.test(x)?'run':(/done|complete|finish|success|ok/.test(x)?'done':'queue');};
-    let agents=spawns.map(sp=>({model:sp.model,role:sp.id,task:sp.task,status:stOf(sp.status),progress:(typeof sp.progress==='number'?sp.progress:null)}));
-    if(curFresh && !agents.some(a=>a.model===cur.model&&a.role===cur.subagent)) agents.unshift({model:cur.model,role:cur.subagent,task:'in flight',status:'run',progress:null});
+    // local vs subscription: the real signal is the spawn mode (local or cloud); fall back to
+    // the model-name heuristic only when mode is absent (e.g. the in-flight last-subagent record).
+    const locOf=(a)=>a.mode?(a.mode==='local'):isLoc(a.model);
+    const stOf=(x)=>{x=String(x||'').toLowerCase();return /fail|error|crash|127/.test(x)?'fail':(/run|active|progress|working|flight/.test(x)?'run':(/done|complete|finish|success|ok/.test(x)?'done':'queue'));};
+    let agents=spawns.map(sp=>({model:sp.model,mode:sp.mode,tier:sp.tier,role:sp.id,task:sp.task,status:stOf(sp.status),progress:(typeof sp.progress==='number'?sp.progress:null)}));
+    if(curFresh && !agents.some(a=>a.model===cur.model&&a.role===cur.subagent)) agents.unshift({model:cur.model,mode:null,tier:cur.tier,role:cur.subagent,task:'in flight',status:'run',progress:null});
     const running=agents.filter(a=>a.status==='run');
-    const nLoc=running.filter(a=>isLoc(a.model)).length, nCloud=running.length-nLoc;
+    const nLoc=running.filter(a=>locOf(a)).length, nCloud=running.length-nLoc;
     const par=running.length?('<span class="apar">🦙 '+nLoc+' local · ✨ '+nCloud+' subscription working</span>'):'<span class="apar">idle</span>';
     let runBar='';
     if(run && (run.agents_total!=null||run.agents_done!=null)){
@@ -702,9 +705,9 @@ window.addEventListener('message',(e)=>{
     let rows='';
     if(agents.length){
       rows=agents.map(a=>{
-        const dot=a.status==='run'?'<span class="pulse" title="working"></span>':(a.status==='done'?'<span class="adot done" title="done">✓</span>':'<span class="adot q" title="queued">◌</span>');
+        const dot=a.status==='run'?'<span class="pulse" title="working"></span>':(a.status==='done'?'<span class="adot done" title="done">✓</span>':(a.status==='fail'?'<span class="adot fail" title="failed">✗</span>':'<span class="adot q" title="queued">◌</span>'));
         const prog=(a.progress!=null)?'<span class="aprog" title="'+Math.round(a.progress)+'% complete">'+Math.round(a.progress)+'%</span>':'';
-        return '<div class="arow">'+dot+'<span class="amodel">'+(isLoc(a.model)?'🦙':'✨')+' '+esc(a.model?modelLabel(a.model):'—')+'</span><span class="arole">'+esc(a.role||'agent')+'</span><span class="atask">'+esc(a.task||'')+'</span>'+prog+'</div>';
+        return '<div class="arow">'+dot+'<span class="amodel">'+(locOf(a)?'🦙':'✨')+' '+esc(a.model?modelLabel(a.model):(a.tier||'agent'))+'</span><span class="arole">'+esc((a.role||'agent').slice(0,16))+'</span><span class="atask">'+esc(a.task||'')+'</span>'+prog+'</div>';
       }).join('');
     }
     let empty='';

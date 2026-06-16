@@ -341,7 +341,8 @@ function readSpawns(maxN = 8) {
     return fs.readdirSync(root).map((id) => {
       const st = readJson(path.join(root, id, 'state.json')) || {};
       return { id, status: st.status || st.state || '?', task: String(st.task || st.prompt || id).slice(0, 60),
-        model: st.model || st.llm || null, started: st.started_at || st.created_at || null };
+        model: st.model || st.llm || null, mode: st.mode || null, tier: st.tier || null,
+        started: st.started_at || st.created_at || st.createdAtMs || null };
     }).sort((a, b) => String(b.started).localeCompare(String(a.started))).slice(0, maxN);
   } catch { return null; }
 }

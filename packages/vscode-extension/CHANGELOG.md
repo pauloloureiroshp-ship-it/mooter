@@ -2,6 +2,12 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.0] — 2026-06-16 — Agents panel: accurate local/subscription + status
+
+### Fixed
+- **Agents panel reads the real local/subscription signal.** Each agent line now uses the spawn's `mode` (local → 🦙 / cloud → ✨) and shows its `tier` (T0–T3) when the model name isn't recorded — instead of guessing from a (often absent) model field. The parallel count is computed the same way.
+- **Failed agents shown honestly** with a red ✗ (e.g. a sandbox exit) rather than a neutral "queued" dot.
+
 ## [0.15.0] — 2026-06-16 — Live agents panel (parallel local + subscription)
 
 ### Added
