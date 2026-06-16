@@ -11,6 +11,8 @@ import { join } from "node:path";
 
 import type { SandboxConfig, NetworkPolicy, Tier } from "../types.ts";
 import { buildBwrapInvocation } from "./linux_bubblewrap.ts";
+import { buildSeatbeltInvocation } from "./darwin_seatbelt.ts";
+import { detectSandbox } from "./detect.ts";
 
 export interface BuildConfigInput {
   worktreePath: string;
@@ -79,4 +81,33 @@ export function assembleBwrap(input: AssembleInput): string[] {
   }
   const existingBlockedPaths = input.config.blockedPaths.filter((p) => exists(p));
   return ["bwrap", ...buildBwrapInvocation(input.config, { existingBlockedPaths, env }, input.command)];
+}
+
+/** Resolve the whitelisted env values from the source env (shared by both backends). */
+function resolveEnv(input: AssembleInput): Record<string, string> {
+  const src = input.sourceEnv ?? process.env;
+  const env: Record<string, string> = {};
+  for (const name of input.config.envWhitelist) {
+    const v = src[name];
+    if (typeof v === "string") env[name] = v;
+  }
+  return env;
+}
+
+/** Assemble the macOS Seatbelt invocation argv (argv[0] = "sandbox-exec"). */
+export function assembleSeatbelt(input: AssembleInput): string[] {
+  return buildSeatbeltInvocation(input.config, { env: resolveEnv(input) }, input.command);
+}
+
+/**
+ * Assemble the sandbox invocation for the platform's detected backend. This is the
+ * entry point the runner uses — it never runs unsandboxed: an unsupported platform
+ * throws (security wins, mirroring the rejected `--no-sandbox`).
+ * `backend` is injectable for tests; defaults to the live detection.
+ */
+export function assembleSandbox(input: AssembleInput, backend?: string): string[] {
+  const b = backend ?? detectSandbox().backend;
+  if (b === "seatbelt") return assembleSeatbelt(input);
+  if (b === "bubblewrap") return assembleBwrap(input);
+  throw new Error(`no sandbox backend available for this platform (got '${b}') — Mooter never spawns unsandboxed`);
 }

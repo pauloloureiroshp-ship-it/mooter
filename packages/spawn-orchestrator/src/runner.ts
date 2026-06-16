@@ -7,7 +7,7 @@
 
 import { spawn as nodeSpawn } from "node:child_process";
 
-import { assembleBwrap } from "./sandbox/sandbox.ts";
+import { assembleSandbox } from "./sandbox/sandbox.ts";
 import { appendOutput, patchRecord } from "./state.ts";
 import type { SpawnRecord } from "./types.ts";
 
@@ -51,7 +51,7 @@ export interface RunOptions {
 export function runSandboxed(record: SpawnRecord, opts: RunOptions): SpawnHandle {
   const now = opts.now ?? (() => Date.now());
   const impl = opts.spawnImpl ?? defaultSpawnImpl;
-  const argv = assembleBwrap({ config: record.sandbox, command: opts.command, sourceEnv: opts.sourceEnv });
+  const argv = assembleSandbox({ config: record.sandbox, command: opts.command, sourceEnv: opts.sourceEnv });
 
   appendOutput(record.id, `$ ${argv.join(" ")}\n`, opts.home);
 
