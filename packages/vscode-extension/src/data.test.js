@@ -144,3 +144,173 @@ test('costFor: cache-aware, matches the real fable-5 session', () => {
   assert.equal(x.costFor('unknown-model', { in: 1000, out: 1000 }), null); // honest: no price → null
   assert.equal(x.costFor('claude-haiku-4-5', { in: 1e6, out: 0 }), 1); // 1M input @ $1/M
 });
+
+// ── Coherence/honesty fixes (cockpit considerations #2, #5) ──
+test('aggregateUsage: skips <synthetic> placeholders, tracks real lastModel (#5,#2)', () => {
+  const p = path.join(os.tmpdir(), 'mooter-ledger-test-' + process.pid + '.jsonl');
+  const lines = [
+    JSON.stringify({ message: { model: 'claude-opus-4-8', usage: { input_tokens: 100, output_tokens: 50 }, id: 'm1' } }),
+    JSON.stringify({ message: { model: '<synthetic>', usage: { input_tokens: 0, output_tokens: 0 }, id: 'syn1' } }),
+    JSON.stringify({ message: { model: 'claude-sonnet-4-6', usage: { input_tokens: 200, output_tokens: 80 }, id: 'm2' } }),
+  ];
+  fs.writeFileSync(p, lines.join('\n') + '\n');
+  const agg = x.aggregateUsage([p]);
+  const models = agg.rows.map((r) => r.model);
+  assert.ok(!models.includes('<synthetic>'), 'synthetic excluded from the ledger');
+  assert.ok(models.includes('claude-opus-4-8') && models.includes('claude-sonnet-4-6'));
+  assert.equal(agg.lastModel, 'claude-sonnet-4-6'); // most recent REAL usage line = host model
+  assert.equal(agg.turns, 2); // synthetic not counted
+  fs.unlinkSync(p);
+});
+
+test('liveRouting: executor = host model; recommendation kept separate as advisory (#2)', () => {
+  const last = { model_full: 'claude-sonnet-4-6', tier: 'T2', confidence: 0.7, ts: 't1' };
+  const r = x.liveRouting(last, { hostModel: 'claude-opus-4-8' });
+  assert.equal(r.model, 'claude-opus-4-8'); // who ACTUALLY answered
+  assert.equal(r.provider, 'cloud');
+  assert.equal(r.real, true);
+  assert.equal(r.scope, 'session');
+  assert.equal(r.recommended.model, 'claude-sonnet-4-6'); // advisory recommendation, separate
+  assert.notEqual(r.model, r.recommended.model); // the coherence fix: no longer conflated
+});
+
+test('liveRouting: no execution known → recommendation flagged real:false (#2)', () => {
+  const r = x.liveRouting({ model_full: 'claude-sonnet-4-6', tier: 'T2', ts: 't' }, {});
+  assert.equal(r.model, 'claude-sonnet-4-6');
+  assert.equal(r.real, false);
+  assert.equal(r.scope, 'recommended');
+});
+
+test('liveRouting: a real local dispatch is the executor (#2)', () => {
+  const r = x.liveRouting({ model_full: 'claude-opus-4-8', tier: 'T3', ts: 't' }, { lastExecution: { ok: true, model: 'qwen2.5:3b' } });
+  assert.equal(r.model, 'qwen2.5:3b');
+  assert.equal(r.provider, 'local');
+  assert.equal(r.scope, 'dispatch');
+});
+
+test('liveRouting: host identity + a local dispatch → dispatch surfaced as a chip (#2)', () => {
+  const r = x.liveRouting({ model_full: 'claude-sonnet-4-6', tier: 'T2', ts: 't' }, { hostModel: 'claude-opus-4-8', lastExecution: { ok: true, model: 'qwen2.5:3b' } });
+  assert.equal(r.model, 'claude-opus-4-8'); // the session host is the identity
+  assert.ok(r.dispatch && r.dispatch.model === 'qwen2.5:3b'); // real local run shown as extra
+});
+
+test('liveRouting: nothing → null (never fabricates)', () => {
+  assert.equal(x.liveRouting(null, {}), null);
+  assert.equal(x.liveRouting({}, {}), null);
+});
+
+// ── Per-session scoping (cockpit considerations #3/#4 — "reflect the active session") ──
+test('tokenLedger: sessionOnly skips the all-time aggregate (cheap per-session path)', () => {
+  const led = x.tokenLedger('___no-such-session-id___', { sessionOnly: true });
+  assert.deepEqual(led.all, { rows: [], turns: 0, lastModel: null }); // all-aggregate skipped
+  assert.deepEqual(led.session.rows, []); // unknown session → empty, never throws
+  assert.equal(typeof led.sessions, 'number');
+});
+
+test('recentSessions: each entry carries a full session id + 8-char short id', async () => {
+  const rs = await x.recentSessions(3);
+  assert.ok(Array.isArray(rs));
+  for (const r of rs) {
+    assert.equal(typeof r.fullId, 'string');
+    assert.equal(r.id, r.fullId.slice(0, 8)); // id is the short prefix used in the picker
+    assert.ok('working' in r && 'ageMs' in r); // honest activity heuristic fields present
+    assert.equal(typeof r.working, 'boolean');
+    assert.equal(typeof r.needsYou, 'boolean'); // "your turn" alert flag (turn_end / stalled)
+    assert.ok(!(r.working && r.needsYou)); // mutually exclusive — never both at once
+    assert.ok(r.name === null || typeof r.name === 'string'); // tab name (first prompt) or null — never fabricated
+  }
+});
+
+test('activeSession: returns null or {id,ts} — never throws (auto-follow source)', () => {
+  const a = x.activeSession();
+  assert.ok(a === null || (a && typeof a.id === 'string' && a.id !== 'unknown'));
+});
+
+// ── Feature 1+2: prStage (pure) — derive the PR stage from gh JSON, honestly ──
+test('prStage: MERGED state wins over everything', () => {
+  assert.equal(x.prStage({ state: 'MERGED', isDraft: true, statusCheckRollup: [{ status: 'COMPLETED', conclusion: 'FAILURE' }] }), 'merged ✓');
+});
+test('prStage: draft (open, not merged)', () => {
+  assert.equal(x.prStage({ state: 'OPEN', isDraft: true, statusCheckRollup: [] }), 'draft');
+});
+test('prStage: a failed check → CI ❌ (failure beats pending/pass)', () => {
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+  ] };
+  assert.equal(x.prStage(pr), 'CI ❌');
+});
+test('prStage: a still-running check → CI ⏳', () => {
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', status: 'IN_PROGRESS', conclusion: null },
+  ] };
+  assert.equal(x.prStage(pr), 'CI ⏳');
+});
+test('prStage: COMPLETED check with null conclusion → CI ⏳ (not silently "open")', () => {
+  // a cancelled/expired run can log status COMPLETED with no conclusion — ambiguous,
+  // so we surface it as pending rather than reporting the PR as plain "open".
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [{ __typename: 'CheckRun', status: 'COMPLETED', conclusion: null }] };
+  assert.equal(x.prStage(pr), 'CI ⏳');
+});
+test('prStage: open + all checks passed → ready ✅', () => {
+  const pr = { state: 'OPEN', isDraft: false, statusCheckRollup: [
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SKIPPED' },
+  ] };
+  assert.equal(x.prStage(pr), 'ready ✅');
+});
+test('prStage: open with no checks → open', () => {
+  assert.equal(x.prStage({ state: 'OPEN', isDraft: false, statusCheckRollup: [] }), 'open');
+  assert.equal(x.prStage({ state: 'OPEN', isDraft: false }), 'open'); // missing rollup tolerated
+});
+test('prStage: StatusContext (legacy) entries — FAILURE/PENDING/SUCCESS by state', () => {
+  assert.equal(x.prStage({ state: 'OPEN', statusCheckRollup: [{ __typename: 'StatusContext', state: 'FAILURE' }] }), 'CI ❌');
+  assert.equal(x.prStage({ state: 'OPEN', statusCheckRollup: [{ __typename: 'StatusContext', state: 'PENDING' }] }), 'CI ⏳');
+  assert.equal(x.prStage({ state: 'OPEN', statusCheckRollup: [{ __typename: 'StatusContext', state: 'SUCCESS' }] }), 'ready ✅');
+});
+test('prStage: no PR / bad input → null (never fabricated)', () => {
+  assert.equal(x.prStage(null), null);
+  assert.equal(x.prStage(undefined), null);
+  assert.equal(x.prStage('not an object'), null);
+});
+
+// ── Feature 1+2: prList always resolves to an array (graceful degradation) ──
+test('prList: resolves to an array even with no gh / offline (never throws)', async () => {
+  const r = await x.prList();
+  assert.ok(Array.isArray(r)); // [] when gh absent/unauth/offline — honest empty, not a throw
+});
+
+// ── Feature 1+2: gitBranch null-safe contract ──
+test('gitBranch: null/garbage cwd → null (never throws)', async () => {
+  assert.equal(await x.gitBranch(null), null);
+  assert.equal(await x.gitBranch(''), null);
+  assert.equal(await x.gitBranch(123), null);
+  assert.equal(await x.gitBranch('/no/such/dir/at/all/' + process.pid), null); // not a repo → null
+});
+
+// ── Feature 1+2: _sessionCwd reads cwd from a transcript head; null when absent ──
+test('_sessionCwd: extracts top-level cwd from transcript head, null when absent', () => {
+  const p = path.join(os.tmpdir(), 'mooter-cwd-test-' + process.pid + '.jsonl');
+  const cwd = '/home/paulo/frugal-wave61'; // exact round-trip through JSON.stringify/parse
+  fs.writeFileSync(p, JSON.stringify({ type: 'user', cwd, message: { role: 'user' } }) + '\n');
+  assert.equal(x._sessionCwd(p), cwd);
+  fs.writeFileSync(p, JSON.stringify({ type: 'user', message: { role: 'user' } }) + '\n'); // no cwd
+  assert.equal(x._sessionCwd(p), null);
+  fs.unlinkSync(p);
+  assert.equal(x._sessionCwd('/nonexistent/' + process.pid + '.jsonl'), null); // missing file → null
+});
+
+// ── Feature 1+2: recentSessions now carries cwd + branch (null-safe) ──
+test('recentSessions: async, each entry has cwd + branch (string|null, never fabricated)', async () => {
+  const rs = await x.recentSessions(3);
+  assert.ok(Array.isArray(rs));
+  for (const r of rs) {
+    assert.ok(r.cwd === null || typeof r.cwd === 'string'); // real cwd or null — never faked
+    assert.ok(r.branch === null || typeof r.branch === 'string'); // real branch or null
+    // prior contract still holds
+    assert.equal(typeof r.fullId, 'string');
+    assert.equal(typeof r.working, 'boolean');
+    assert.equal(typeof r.needsYou, 'boolean');
+  }
+});

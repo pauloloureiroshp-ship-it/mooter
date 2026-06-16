@@ -60,7 +60,7 @@ function publicSnapshot(s) {
     decisions: (s.decisions || []).slice(0, 40).map((d) => ({
       ts: d.ts, tier: d.tier, cat: d.task_category, model: d.recommended_model,
       conf: d.confidence, preview: String(d.prompt_preview || '').slice(0, 90),
-      rule: d.escalation_rule,
+      rule: d.escalation_rule, sid: d.session_id,
     })),
   };
 }

@@ -25,6 +25,21 @@ function execNode(script, args = [], timeoutMs = 6000) {
   });
 }
 
+// Run an arbitrary executable on PATH (git, gh) and capture stdout. Mirrors execNode's
+// contract: never throws, always resolves { ok, out }. shell:false → no injection from
+// the cwd path (args are passed as an array, not interpolated). Used only by the deep
+// refresh, always with a timeout, so a hung/offline git/gh can never block the cockpit.
+function execTool(cmd, args = [], timeoutMs = 6000, cwd) {
+  return new Promise((resolve) => {
+    try {
+      const opts = { timeout: timeoutMs, maxBuffer: 1024 * 512, windowsHide: true };
+      if (cwd) opts.cwd = cwd; // run git/gh INSIDE the session's repo → repo-correct results
+      execFile(cmd, args, opts,
+        (err, stdout) => resolve({ ok: !err, out: String(stdout || '').trim() }));
+    } catch { resolve({ ok: false, out: '' }); }
+  });
+}
+
 async function ollamaModels() {
   const r = await httpJson(11434, '/api/tags', 1500);
   if (!r || !Array.isArray(r.models)) return null; // null = ollama down
@@ -135,19 +150,64 @@ function _emoji() {
   return _emojiMod;
 }
 const FAMILY_HEX = { amber: '#E5C07B', tan: '#C9A876', blue: '#5A9BD4', green: '#4CAF6A', gold: '#F2C94C', pink: '#E8888A', gray: '#8A8076' };
-function liveRouting(last) {
-  if (!last || !last.model_full) return null;
-  const model = String(last.model_full);
+function _fam(model) {
   const em = _emoji();
   const d = (em && em.emojiForModel) ? em.emojiForModel(model) : { emoji: '🤖', label: 'Model', color: 'gray' };
-  const isLocal = d.label === 'Ollama' || (!/^claude-/i.test(model) && model.includes(':'));
-  const why = last.user_override ? 'pinned' : (String(last.cascade_path || '').includes('→') ? 'cascade' : 'auto');
+  return { emoji: d.emoji, label: d.label, color: FAMILY_HEX[d.color] || FAMILY_HEX.gray };
+}
+function _isLocalId(model) { return !/^claude-/i.test(model) && String(model).includes(':'); }
+
+// The Live cow's coherence fix (honesty mandate): the tracker /last carries the
+// router's RECOMMENDED model (an advisory tier decision), which is NOT proof of what
+// answered. In a Claude Code session the HOST model answers every turn regardless;
+// the recommendation only executes for real local dispatches (router-execute) or
+// spawned subagents. So we separate two axes and never let the recommendation
+// masquerade as execution:
+//   • executor (cow identity)  — ground truth: opts.hostModel (this session's
+//     answering model, from the token ledger) or a real local dispatch
+//     (opts.lastExecution from /last-execution).
+//   • recommended (advisory)   — what the classifier suggested, shown dimmed.
+// Falls back to the recommendation flagged real:false only when no execution is
+// known yet — so the UI can say "recommended (not confirmed)" instead of lying.
+function liveRouting(last, opts) {
+  opts = opts || {};
+  let recommended = null;
+  if (last && last.model_full) {
+    const rm = String(last.model_full); const f = _fam(rm);
+    recommended = {
+      model: rm, tier: last.tier || '', emoji: f.emoji, label: f.label, color: f.color,
+      provider: (f.label === 'Ollama' || _isLocalId(rm)) ? 'local' : 'cloud',
+      why: last.user_override ? 'pinned' : (String(last.cascade_path || '').includes('→') ? 'cascade' : 'auto'),
+      cascade: last.cascade_path || '', confidence: last.confidence != null ? last.confidence : null,
+    };
+  }
+  let dispatch = null;
+  const ex = opts.lastExecution;
+  if (ex && ex.ok && (ex.model || ex.model_full)) {
+    const dm = String(ex.model || ex.model_full); const f = _fam(dm);
+    dispatch = { model: dm, emoji: f.emoji, label: f.label, color: f.color };
+  }
+  let host = null;
+  if (opts.hostModel) {
+    const hm = String(opts.hostModel); const f = _fam(hm);
+    host = { model: hm, emoji: f.emoji, label: f.label, color: f.color };
+  }
+  let exec;
+  if (host) exec = { ...host, provider: 'cloud', real: true, scope: 'session' };
+  else if (dispatch) exec = { ...dispatch, provider: 'local', real: true, scope: 'dispatch' };
+  else if (recommended) exec = { model: recommended.model, emoji: recommended.emoji, label: recommended.label, color: recommended.color, provider: recommended.provider, real: false, scope: 'recommended' };
+  else return null;
   return {
-    model, tier: last.tier || '', emoji: d.emoji, label: d.label,
-    color: FAMILY_HEX[d.color] || FAMILY_HEX.gray,
-    provider: isLocal ? 'local' : 'cloud', why,
-    cascade: last.cascade_path || '', confidence: last.confidence != null ? last.confidence : null,
-    ts: last.ts || '',
+    model: exec.model, emoji: exec.emoji, label: exec.label, color: exec.color,
+    provider: exec.provider, real: exec.real, scope: exec.scope,
+    recommended,
+    // surface a real local dispatch as an extra chip when it isn't already the identity
+    dispatch: (dispatch && exec.scope !== 'dispatch') ? dispatch : null,
+    tier: (recommended && recommended.tier) || (last && last.tier) || '',
+    why: recommended ? recommended.why : 'auto',
+    cascade: recommended ? recommended.cascade : '',
+    confidence: recommended ? recommended.confidence : null,
+    ts: (last && last.ts) || '',
   };
 }
 
@@ -352,33 +412,294 @@ function listSessionFiles() {
   return out.sort((a, b) => b.mtime - a.mtime);
 }
 // Aggregate one or more session files by model. Dedup turns by message.id.
+// `lastModel` = the model of the most recent real usage line — the host model that
+// actually answered this session (ground truth for the Live cow, not the router's
+// advisory recommendation). Single-file scope ⇒ this is the true "who ran last".
 function aggregateUsage(files) {
-  const byModel = {}; const seen = new Set(); let turns = 0;
+  const byModel = {}; const seen = new Set(); let turns = 0; let lastModel = null;
   for (const f of files) {
     let txt = ''; try { const st = fs.statSync(f); const start = Math.max(0, st.size - 8 * 1024 * 1024); const fd = fs.openSync(f, 'r'); const buf = Buffer.alloc(st.size - start); fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd); txt = buf.toString('utf8'); } catch { continue; }
     for (const line of txt.split('\n')) {
       if (!line.includes('"usage"')) continue;
       let d; try { d = JSON.parse(line); } catch { continue; }
       const msg = d && d.message; const u = msg && msg.usage; if (!u || !msg.model) continue;
+      // Skip Claude Code's own pseudo-models ('<synthetic>' = "No response requested."
+      // with zero usage). They are harness placeholders, not real model spend — keeping
+      // them would put a phantom row in the ledger (honesty: only real usage shows).
+      if (String(msg.model).charAt(0) === '<') continue;
       const id = msg.id || d.uuid; if (id) { if (seen.has(id)) continue; seen.add(id); }
       const m = msg.model; const a = byModel[m] || (byModel[m] = { model: m, in: 0, out: 0, cw: 0, cr: 0, n: 0 });
       a.in += u.input_tokens || 0; a.out += u.output_tokens || 0;
       a.cw += u.cache_creation_input_tokens || 0; a.cr += u.cache_read_input_tokens || 0; a.n += 1; turns += 1;
+      lastModel = m;
     }
   }
   const rows = Object.values(byModel).map((a) => ({ ...a, cost: costFor(a.model, a) }))
     .sort((x, y) => (y.cost || 0) - (x.cost || 0));
-  return { rows, turns };
+  return { rows, turns, lastModel };
 }
-// scope: 'session' (most-recent file) | 'all' (every file). Never throws.
-function tokenLedger() {
+// scope: 'session' (a specific sessionId, or the most-recent file when omitted) |
+// 'all' (every file). Never throws. Passing sessionId scopes the cockpit to ONE
+// Claude Code session so its numbers reflect exactly that tab's work.
+function tokenLedger(sessionId, opts) {
   const files = listSessionFiles();
-  const session = files.length ? aggregateUsage([files[0].file]) : { rows: [], turns: 0 };
-  const all = aggregateUsage(files.map((f) => f.file));
+  let sessionFiles;
+  if (sessionId) {
+    const match = files.find((f) => path.basename(f.file).replace(/\.jsonl$/, '') === sessionId);
+    sessionFiles = match ? [match.file] : [];
+  } else {
+    sessionFiles = files.length ? [files[0].file] : [];
+  }
+  const session = sessionFiles.length ? aggregateUsage(sessionFiles) : { rows: [], turns: 0, lastModel: null };
+  // sessionOnly skips the all-time aggregate (every file) — used by the per-session
+  // scope path that recomputes every refresh, so it stays cheap (one file).
+  const all = (opts && opts.sessionOnly) ? { rows: [], turns: 0, lastModel: null } : aggregateUsage(files.map((f) => f.file));
   return { session, all, sessions: files.length };
+}
+
+// The currently ACTIVE session = the one whose prompt was classified most recently
+// (inject_context.js writes .last-classified.json with the session_id on every
+// UserPromptSubmit, across all terminals). This is the honest auto-follow signal: as
+// soon as you send a prompt in a tab, that tab becomes the active session. Returns
+// null when nothing has been routed yet.
+function activeSession() {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(ROUTER, '.last-classified.json'), 'utf8'));
+    return j && j.session_id && j.session_id !== 'unknown' ? { id: j.session_id, ts: j.ts_ms || null } : null;
+  } catch { return null; }
+}
+
+// Real LOCAL (Ollama/T0) tokens — the honest answer to "list local models like Opus,
+// with tokens in/out, cost $0". Local calls are NOT in the Claude transcript, so the
+// ledger above can't see them; token_tracker.js records them via the executor path
+// (trackCall) into os.tmpdir()/mooter-tokens-<session>.json. We read the most-recent
+// session cache and return its measured T0 aggregate. Returns null when nothing was
+// metered (never a fabricated number). NOTE: token_tracker meters by TIER, so this is
+// the T0 total, not a per-model split — the UI labels it honestly.
+let _ttMod;
+function _tt() { if (_ttMod !== undefined) return _ttMod; try { _ttMod = require(path.join(ROUTER, 'token_tracker.js')); } catch { _ttMod = null; } return _ttMod; }
+function localTokens() {
+  try {
+    const dir = os.tmpdir();
+    const cand = fs.readdirSync(dir)
+      .filter((f) => /^mooter-tokens-.+\.json$/.test(f))
+      .map((f) => { try { return { sid: f.slice('mooter-tokens-'.length, -'.json'.length), m: fs.statSync(path.join(dir, f)).mtimeMs }; } catch { return null; } })
+      .filter(Boolean).sort((a, b) => b.m - a.m);
+    if (!cand.length) return null;
+    const tt = _tt(); if (!tt || typeof tt.snapshot !== 'function') return null;
+    const snap = tt.snapshot(cand[0].sid);
+    const t0 = snap && snap.T0;
+    if (!t0 || (!t0.calls && !t0.tokens_in && !t0.tokens_out)) return null;
+    return { calls: t0.calls || 0, in: t0.tokens_in || 0, out: t0.tokens_out || 0, real: true };
+  } catch { return null; }
+}
+
+// Recent Claude Code sessions by file activity (mtime) — the honest substitute for
+// the old "Herd" facade (spawns/heartbeats/worktrees that don't exist on disk). We
+// CANNOT know which VS Code tab is focused (the anthropic.claude-code extension
+// exposes no such API, and VS Code gives no cross-extension focus signal), so this is
+// labelled "recent", never "active". Each entry carries the real last host model +
+// turn count from the transcript. `working` is a heuristic (mtime < 90s), never a claim.
+// Human session names = what the user actually typed first (Claude Code's own session
+// title is the first prompt). Read from ~/.claude/history.jsonl ({display, sessionId}).
+// Skips "[Pasted text]" / "[Image]" placeholders so the name is meaningful. This is the
+// same text shown on the session's tab — honest, not fabricated.
+function sessionNames(maxBytes = 1024 * 1024) {
+  const out = {};
+  try {
+    const hp = path.join(os.homedir(), '.claude', 'history.jsonl');
+    const st = fs.statSync(hp); const start = Math.max(0, st.size - maxBytes);
+    const fd = fs.openSync(hp, 'r'); const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    for (const line of buf.toString('utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let d; try { d = JSON.parse(line); } catch { continue; }
+      const sid = d.sessionId || d.session_id; if (!sid || out[sid]) continue;
+      const disp = String(d.display || '').trim();
+      if (!disp || disp.charAt(0) === '[') continue; // skip paste/image placeholders
+      out[sid] = disp.replace(/\s+/g, ' ').slice(0, 52);
+    }
+  } catch { /* no history */ }
+  return out;
+}
+
+// Read the first N bytes of a file (head) — used to find a session's first prompt
+// (the transcript's first user message), which is the most reliable session name.
+function _readHead(file, maxBytes) {
+  try { const fd = fs.openSync(file, 'r'); const st = fs.fstatSync(fd); const len = Math.min(st.size, maxBytes); const buf = Buffer.alloc(len); fs.readSync(fd, buf, 0, len, 0); fs.closeSync(fd); return buf.toString('utf8'); } catch { return ''; }
+}
+// The session's first real user prompt = Claude Code's own session title. Reliable for
+// every session (history.jsonl can miss sessions whose first prompt was a paste). Strips
+// the leading markdown heading and collapses whitespace; skips tool/synthetic lines.
+function _firstPrompt(file) {
+  const head = _readHead(file, 96 * 1024);
+  for (const line of head.split('\n')) {
+    if (line.indexOf('"user"') < 0) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    const msg = o && o.message; if (!msg || (o.type && o.type !== 'user')) continue;
+    const c = msg.content; let t = '';
+    if (Array.isArray(c)) { for (const b of c) if (b && b.type === 'text') t += b.text; }
+    else if (typeof c === 'string') t = c;
+    t = String(t).trim();
+    if (!t || t.charAt(0) === '<') continue; // skip tool_result / synthetic blocks
+    const firstLine = (t.split('\n').find((x) => x.trim()) || t).replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim();
+    if (firstLine) return firstLine.slice(0, 52);
+  }
+  return null;
+}
+
+// ── Feature 1+2: session → cwd → branch → PR → stage ────────────────────────
+// The transcript's head carries the working directory the session runs in (top-level
+// `cwd` on every line). Reading it lets us resolve the session's git branch and any open
+// PR — the honest chain "this session is working on branch X / PR #N (stage)". We read
+// only the head (64KB) and return the first cwd we see, or null (never fabricated).
+function _sessionCwd(file) {
+  const head = _readHead(file, 64 * 1024);
+  for (const line of head.split('\n')) {
+    if (line.indexOf('"cwd"') < 0) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o && typeof o.cwd === 'string' && o.cwd.trim()) return o.cwd;
+  }
+  return null;
+}
+
+// The current branch of a git repo at `cwd`. null when cwd is missing, not a repo, in a
+// detached HEAD ("HEAD"), or git is absent/slow (2s timeout). Async — callers await it.
+async function gitBranch(cwd) {
+  if (!cwd || typeof cwd !== 'string') return null;
+  const r = await execTool('git', ['-C', cwd, 'rev-parse', '--abbrev-ref', 'HEAD'], 2000);
+  if (!r.ok) return null;
+  const b = r.out.split('\n')[0].trim();
+  return (!b || b === 'HEAD') ? null : b; // 'HEAD' = detached → no branch to show
+}
+
+// Open/recent PRs from gh, scoped to the repo at `cwd` (gh runs in that dir → the PRs
+// genuinely belong to that session's repo, never another repo that happens to share a
+// branch name). [] when gh is absent, unauthenticated, offline, or cwd is not a GitHub
+// repo — degrades gracefully, never throws. 6s timeout. Each PR carries the fields
+// prStage() needs (state, isDraft, statusCheckRollup) plus number/title/headRefName.
+async function prList(cwd) {
+  const r = await execTool('gh', ['pr', 'list', '--json', 'number,title,headRefName,state,isDraft,statusCheckRollup', '--limit', '50'], 6000, cwd);
+  if (!r.ok || !r.out) return [];
+  let arr; try { arr = JSON.parse(r.out); } catch { return []; }
+  return Array.isArray(arr) ? arr : [];
+}
+
+// Pure (testable): derive the human stage of a PR from its gh JSON. Order of precedence:
+//   MERGED → 'merged ✓'   ·   draft → 'draft'   ·   any check FAILED → 'CI ❌'
+//   a check still running/queued → 'CI ⏳'   ·   open + all checks passed → 'ready ✅'
+//   open with no checks → 'open'.   No PR / bad input → null (never fabricated).
+// statusCheckRollup entries are CheckRun {status,conclusion} or StatusContext {state}.
+function prStage(pr) {
+  if (!pr || typeof pr !== 'object') return null;
+  if (String(pr.state).toUpperCase() === 'MERGED') return 'merged ✓';
+  if (pr.isDraft) return 'draft';
+  const checks = Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
+  let any = false, anyFail = false, anyPending = false, allPass = true;
+  for (const c of checks) {
+    any = true;
+    const concl = String(c.conclusion || '').toUpperCase();
+    const status = String(c.status || '').toUpperCase();
+    const ctxState = String(c.state || '').toUpperCase(); // StatusContext (non-CheckRun)
+    const failed = concl === 'FAILURE' || concl === 'TIMED_OUT' || concl === 'CANCELLED' || concl === 'ACTION_REQUIRED' || ctxState === 'FAILURE' || ctxState === 'ERROR';
+    // COMPLETED with no conclusion (e.g. a cancelled/expired run that logged none) is
+    // ambiguous → treat as still-pending rather than silently reporting the PR as "open".
+    const pending = (status && status !== 'COMPLETED') || ctxState === 'PENDING' || (status === 'COMPLETED' && !concl && !ctxState);
+    const passed = concl === 'SUCCESS' || concl === 'NEUTRAL' || concl === 'SKIPPED' || ctxState === 'SUCCESS';
+    if (failed) anyFail = true;
+    if (pending) anyPending = true;
+    if (!passed) allPass = false;
+  }
+  if (anyFail) return 'CI ❌';
+  if (anyPending) return 'CI ⏳';
+  if (any && allPass) return 'ready ✅';
+  return 'open';
+}
+
+// Per-session live state from decisions.log: pairs `classified` (prompt entered) with
+// `turn_end` (Stop hook → turn finished). Last event per session tells us:
+//   classified (no turn_end after) → Claude is WORKING (generating now)
+//   turn_end                       → Claude finished, WAITING FOR THE USER (your turn)
+// This is the honest "needs your action" signal — derived from real hook telemetry, not
+// a guess. It is NOT specifically "permission required" (that needs a Notification hook).
+function sessionActivity(maxBytes = 256 * 1024) {
+  const out = {};
+  try {
+    const lp = path.join(ROUTER, 'decisions.log');
+    const st = fs.statSync(lp); const start = Math.max(0, st.size - maxBytes);
+    const fd = fs.openSync(lp, 'r'); const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    for (const line of buf.toString('utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.event !== 'classified' && e.event !== 'turn_end') continue;
+      const sid = e.session_id; if (!sid || sid === 'unknown') continue;
+      const ts = e.ts_ms || (e.ts ? Date.parse(e.ts) : 0);
+      if (!out[sid] || ts >= out[sid].ts) out[sid] = { event: e.event, ts };
+    }
+  } catch { /* no log */ }
+  return out;
+}
+
+// Async (Feature 1+2): each session also carries its working dir (`cwd`, from the
+// transcript head) and git `branch`. git is resolved at most ONCE per distinct cwd
+// (dedupe — many sessions share a cwd) and only when a branchCache map is supplied; the
+// `null`-safe default keeps the function cheap when callers don't want git. Returns the
+// same honest fields as before plus { cwd, branch } (both null when unknown — never faked).
+async function recentSessions(maxN = 8) {
+  const out = []; const now = Date.now(); const names = sessionNames(); const act = sessionActivity();
+  const branchCache = new Map(); // cwd → branch|null, resolved once per cwd this call
+  const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
+  for (const f of listSessionFiles().slice(0, maxN)) {
+    let lastModel = null; let turns = 0;
+    try {
+      const st = fs.statSync(f.file); const start = Math.max(0, st.size - 256 * 1024);
+      const fd = fs.openSync(f.file, 'r'); const buf = Buffer.alloc(st.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+      for (const line of buf.toString('utf8').split('\n')) {
+        if (!line.includes('"usage"')) continue;
+        let d; try { d = JSON.parse(line); } catch { continue; }
+        const m = d && d.message; if (!m || !m.model || String(m.model).charAt(0) === '<') continue;
+        lastModel = m.model; turns += 1;
+      }
+    } catch { /* skip unreadable */ }
+    const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
+    const sid = path.basename(f.file).replace(/\.jsonl$/, '');
+    // State (honest): "working" only when a prompt is in flight AND the transcript is
+    // actively being written (fresh). A stalled prompt (classified, no turn_end, gone
+    // quiet) or a finished turn (turn_end) within the last 30 min = "your turn" (Claude
+    // is waiting for you — could be done or blocked on a permission/question).
+    const a = act[sid];
+    const fresh = (now - f.mtime) < 120000;          // transcript touched in last 2 min
+    const recent = (now - f.mtime) < 30 * 60 * 1000; // session active in last 30 min
+    let working = false; let needsYou = false;
+    if (a) {
+      if (a.event === 'classified' && fresh) working = true;
+      else if (recent) needsYou = true;
+    } else { working = fresh; }
+    const cwd = _sessionCwd(f.file);
+    let branch = null;
+    if (cwd) {
+      if (branchCache.has(cwd)) branch = branchCache.get(cwd);
+      else { branch = await gitBranch(cwd); branchCache.set(cwd, branch); }
+    }
+    // PR is resolved against THIS session's own repo (gh runs in `cwd`) and matched by
+    // branch within that repo only — never a same-named branch from another repo (honesty).
+    let pr = null;
+    if (cwd && branch) {
+      let prs;
+      if (prCache.has(cwd)) prs = prCache.get(cwd);
+      else { prs = await prList(cwd); prCache.set(cwd, prs); }
+      const match = prs.find((p) => p && p.headRefName === branch);
+      if (match) pr = { number: match.number, title: String(match.title || '').slice(0, 80), state: match.state, isDraft: match.isDraft, stage: prStage(match) };
+    }
+    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr });
+  }
+  return out;
 }
 
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
-  PRICES, priceFor, costFor, tokenLedger };
+  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
+  execTool, _sessionCwd, gitBranch, prList, prStage };

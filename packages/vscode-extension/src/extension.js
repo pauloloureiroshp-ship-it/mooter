@@ -46,7 +46,7 @@ function detectClaude() {
 }
 
 class DataService {
-  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; }
+  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; this.selectedSession = 'auto'; }
   onUpdate(fn) { this.listeners.add(fn); return { dispose: () => this.listeners.delete(fn) }; }
   async refresh(deep) {
     // Overlap guard: deep refreshes fan out up to 8 CLI execs (≤9s each). Without
@@ -56,17 +56,34 @@ class DataService {
     try {
     this.tick++;
     const p = trackerPort();
-    const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me')];
+    // Resolve which session the cockpit reflects: 'all' → global; 'auto' → follow the
+    // session of the most-recent prompt (.last-classified.json); else a pinned id.
+    const activeSid = extra.activeSession();
+    const sel = this.selectedSession;
+    const effSid = sel === 'all' ? null : (sel === 'auto' ? (activeSid && activeSid.id) : sel);
+    const jobs = [data_.httpJson(p, '/metrics'), data_.httpJson(p, '/last'), data_.httpJson(p, '/health'), data_.httpJson(p, '/me'), data_.httpJson(p, '/last-execution')];
     // Deep (CLI-spawning) work only when the panel is visible — never churn processes for a hidden view.
-    const doDeep = (deep || this.tick % 3 === 1) && this.visible;
+    // Deep work runs when visible; ALSO force it on the very first refresh (deep && tick 1)
+    // so a panel that starts collapsed still gets a full first paint instead of 60s of zeros.
+    const doDeep = ((deep || this.tick % 3 === 1) && this.visible) || (deep && this.tick === 1);
     if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
-    const [metrics, last, health, me, ollama, sline, slash, effort, whynot, trail, security, spans] = await Promise.all(jobs);
+    // Per-session savings come from the SAME tracker pipeline (/metrics?session_id) so
+    // they can never drift from the global figure — one source of truth (honesty).
+    const sessMetricsP = effSid ? data_.httpJson(p, '/metrics?session_id=' + encodeURIComponent(effSid)) : Promise.resolve(null);
+    // Async deep-only work (git/gh + transcript-cwd resolution). recentSessions is now
+    // async (resolves each session's branch via git, deduped per cwd); prList shells out
+    // to gh. Both null-safe with timeouts — gathered in parallel, never blocking the panel.
     const prev = this.snapshot;
+    // recentSessions resolves each session's branch AND its repo-scoped PR (gh run in the
+    // session's own cwd) — so PR/stage is attached per session, never matched cross-repo.
+    const recentP = doDeep ? extra.recentSessions() : Promise.resolve(prev.recent);
+    const [results, sessionMetrics, recent] = await Promise.all([Promise.all(jobs), sessMetricsP, recentP]);
+    const [metrics, last, health, me, lastExec, ollama, sline, slash, effort, whynot, trail, security, spans] = results;
     this.snapshot = {
       at: Date.now(),
       runtimeInstalled: data_.runtimeInstalled(),
       trackerUp: !!(health && health.ok),
-      metrics, last, me,
+      metrics, last, me, lastExec,
       mode: extra.readMode(),
       sub: extra.readSubProfile(),
       device: extra.deviceProfile(),
@@ -86,6 +103,13 @@ class DataService {
       spans: doDeep ? spans : prev.spans,
       herd: doDeep ? extra.herd() : prev.herd,
       ledger: doDeep ? extra.tokenLedger() : prev.ledger,
+      recent,
+      localTok: doDeep ? extra.localTokens() : prev.localTok,
+      // session scope (cheap single-file aggregate → computed every refresh so
+      // auto-follow is snappy when you send a prompt in another tab).
+      activeSession: activeSid, selectedSession: this.selectedSession, effectiveSession: effSid,
+      sessionMetrics,
+      sessionLedger: effSid ? extra.tokenLedger(effSid, { sessionOnly: true }) : null,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
     };
@@ -174,6 +198,18 @@ class CockpitProvider {
         else vscode.window.setStatusBarMessage('🐮 could not set next-prompt model', 3500);
         this.data.refresh(true);
       }
+      if (m.cmd === 'selectSession') { const a = String(m.arg || 'auto'); this.data.selectedSession = (a === 'all' || a === 'auto') ? a : a.replace(/[^a-zA-Z0-9._-]/g, ''); this.data.refresh(true); }
+      if (m.cmd === 'openSession') {
+        // Open/focus that exact Claude Code session in the editor. The extension's URI
+        // handler maps /open?session=<id> → claude-vscode.primaryEditor.open(id); we call
+        // the command directly (URI as fallback), then scope the cockpit to it.
+        const id = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (id) {
+          try { await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', id); }
+          catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
+          this.data.selectedSession = id; this.data.refresh(true);
+        }
+      }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
@@ -201,6 +237,18 @@ function project(s) {
   const base = data_.publicSnapshot(s);
   const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown', raw: s.sub } : null;
   const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
+  // Session scope: when a session is in effect, the Live cow reads THAT session's
+  // host model (its ledger) and THAT session's most-recent decision (not the global
+  // /last, which could belong to another terminal) — so the cow is coherent with the
+  // numbers below it.
+  const effSid = s.effectiveSession || null;
+  const sLedger = (effSid && s.sessionLedger) ? s.sessionLedger : s.ledger;
+  const hostModel = (sLedger && sLedger.session && sLedger.session.lastModel) || null;
+  let lastForCow = s.last;
+  if (effSid) {
+    const dd = (base.decisions || []).find((d) => d.sid === effSid);
+    lastForCow = dd ? { model_full: dd.model, tier: dd.tier, confidence: dd.conf, ts: dd.ts, cascade_path: '', user_override: dd.rule === 'user_override' } : null;
+  }
   return Object.assign(base, {
     mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash, pinNext: s.pinNext,
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
@@ -208,8 +256,14 @@ function project(s) {
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
-    herd: s.herd,
-    ledger: s.ledger, live: extra.liveRouting(s.last),
+    // Each session in `recent` already carries its repo-scoped { pr: {number,stage,…} }
+    // (resolved host-side in recentSessions; stage from the pure prStage). No global PR
+    // list and no cross-repo branch-name matching in the webview.
+    herd: s.herd, recent: s.recent || [],
+    localTok: s.localTok || null,
+    ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
+    activeSession: s.activeSession || null, selectedSession: s.selectedSession || 'auto', effectiveSession: effSid,
+    live: extra.liveRouting(lastForCow, { hostModel, lastExecution: s.lastExec }),
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -255,33 +309,38 @@ function getHtml() {
   .brand b{color:var(--r);font-size:13.5px}.brand .proj{font-size:11px;color:var(--vscode-descriptionForeground);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .right{margin-left:auto;display:flex;gap:5px;align-items:center}
   .badge{font-size:10px;padding:2px 8px;border-radius:8px}
-  .b-mode{color:var(--g);background:var(--gdim)}.b-score{color:var(--ink);background:var(--g);font-weight:700;cursor:pointer}
+  .b-mode{color:var(--r);background:var(--rdim)}.b-score{color:var(--ink);background:var(--g);font-weight:700;cursor:pointer}
   .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
   .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
-  .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--g)}
+  .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--r)}
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
-  .livecard{display:flex;align-items:center;gap:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-left:3px solid var(--lc,var(--g));border-radius:7px;padding:9px 11px;margin-bottom:8px}
   .livecow{font-size:22px;line-height:1}
-  .livecard.pulse .livecow{animation:moopulse 1.4s ease-out}
-  @keyframes moopulse{0%{transform:scale(1)}28%{transform:scale(1.28);filter:drop-shadow(0 0 7px var(--lc))}100%{transform:scale(1);filter:none}}
-  .livebody{flex:1;min-width:0}
-  .livetop{font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-  .livefam{font-weight:700;color:var(--lc)}
-  .liveprov{font-size:10px;color:var(--vscode-descriptionForeground)}
-  .livemodel{font-size:10.5px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
-  .livesub{font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
+  .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
+  .srow{display:flex;align-items:center;gap:9px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
+  .srow:hover{background:var(--vscode-list-hoverBackground)}
+  .srow.on{border-left-color:var(--g);background:var(--gdim)}
+  .srow .livecow{font-size:18px}
+  .sbody{flex:1;min-width:0}
+  .stop{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
+  .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
+  .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scmpr{font-weight:600;font-size:9.5px}
+  .alertdot{width:8px;height:8px;border-radius:50%;background:#E5C07B;flex:none;animation:alertpulse 1.5s infinite}
+  @keyframes alertpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .needsyou{color:#E5C07B;font-weight:700}
+  .srow.needs:not(.on){background:rgba(229,192,123,.08)}
+  .sopen{font-size:12px;color:var(--vscode-descriptionForeground);flex:none;opacity:.45}
+  .srow:hover .sopen{opacity:1;color:var(--g)}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
-  .livecard-idle{opacity:.65}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
   @keyframes moowalk{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-2px) rotate(-5deg)}75%{transform:translateY(-2px) rotate(5deg)}}
-  .livestat{display:none;font-weight:700;color:var(--lc)}
-  .livestat.on{display:inline}
-  .livestat.on::after{content:'';animation:moodots 1.3s steps(4,end) infinite}
-  @keyframes moodots{0%{content:''}25%{content:'·'}50%{content:'··'}75%{content:'···'}}
-  @media (prefers-reduced-motion:reduce){.livecard.pulse .livecow,.livecow.working{animation:none}.livedot{animation:none}.livestat.on::after{animation:none;content:'…'}}
+  @media (prefers-reduced-motion:reduce){.livecow.working,.livedot{animation:none}}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -298,7 +357,7 @@ function getHtml() {
   .bar .t{width:58px;color:var(--vscode-descriptionForeground)}.bar .tr{flex:1;height:6px;background:var(--vscode-input-background);border-radius:3px;overflow:hidden}
   .bar .f{height:100%}.bar .p{width:56px;text-align:right;color:var(--vscode-descriptionForeground)}
   button{font-family:inherit;cursor:pointer;border-radius:5px;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);padding:5px 10px;font-size:11.5px}
-  button.go{width:100%;background:var(--g);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
+  button.go{width:100%;background:var(--r);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
   button.go:hover{filter:brightness(1.08)}button.sm{padding:3px 9px;font-size:10.5px}
   .hint{text-align:center;font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:6px}
   .dec{border:1px solid var(--vscode-widget-border);border-radius:5px;margin-bottom:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
@@ -315,8 +374,14 @@ function getHtml() {
   .dr:last-child{border:none}.dr .w{flex:1}.dr small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px}
   .seg{display:flex;background:var(--vscode-input-background);border-radius:7px;padding:3px;gap:2px}
   .seg .mo{flex:1;padding:7px 4px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground);text-align:center;border:1px solid transparent}
-  .seg .mo.on{background:var(--gdim);color:var(--g);font-weight:700;border-color:var(--g)}
+  .seg .mo.on{background:var(--rdim);color:var(--r);font-weight:700;border-color:var(--r)}
   .seg .mo small{display:block;font-size:9px;font-weight:400;margin-top:1px}
+  .pincard{margin-bottom:8px;border:1px solid var(--r);border-left:3px solid var(--r);background:linear-gradient(180deg,var(--rdim),transparent 70%)}
+  .pinhead{font-size:13px;font-weight:700;color:var(--r);display:flex;align-items:center;gap:6px}
+  .pinsub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin:3px 0 8px}
+  .pinsel{width:100%;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--r);border-radius:6px;padding:7px 9px;font:12px var(--vscode-font-family);cursor:pointer}
+  .pinsel:focus-visible{outline:2px solid var(--r);outline-offset:1px}
+  .pinnow{font-size:10px;color:var(--r);margin-top:6px}
   .pill{display:inline-block;font-size:10.5px;border:1px solid var(--vscode-widget-border);border-radius:9px;padding:2px 9px;margin:2px 3px 2px 0}
   .pill.ok{border-color:var(--g);color:var(--g)}.pill.warn{border-color:#e5c07b;color:#e5c07b}
   .term{background:var(--ink);border-radius:7px;padding:10px 12px;font:11.5px var(--vscode-editor-font-family);color:#ddd;overflow-x:auto;white-space:pre;line-height:1.7}
@@ -328,13 +393,13 @@ function getHtml() {
   .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),#e5c07b 50%,var(--g));border-radius:4px}
   input[type=number]{width:90px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:5px 8px;font:12px var(--vscode-font-family)}
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
-  .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}
+  .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">Cockpit</div><div class="tab" data-v="setup">Setup</div><div class="tab" data-v="herd">🐄 Herd</div><div class="tab" data-v="decisions">Decisions</div><div class="tab" data-v="doctor">Doctor</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
@@ -352,10 +417,9 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 $('#scoreBadge').onclick=()=>goTab('cockpit');
-let curMode='auto';const MORDER=['zen','auto','beast'];let lastLiveTs='';let workingUntil=0;
-// Walk the cow while mooter is working: a prompt just routed (active window) or a
-// spawn is running. Client-side tick keeps it smooth between the ~7s polls.
-setInterval(function(){var c=document.getElementById('liveCow'),t=document.getElementById('liveStat'),on=Date.now()<workingUntil;if(c)c.classList.toggle('working',on);if(t)t.classList.toggle('on',on);},900);
+let curMode='auto';const MORDER=['zen','auto','beast'];
+// Each live-session cow walks via the CSS .working class set at render time (the
+// session is "working" when its transcript was just written) — no JS tick needed.
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
 $('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
@@ -373,16 +437,37 @@ const openDecs=new Set();// decision keys (ts) the user expanded — must surviv
 let ledgerScope='session';let lastSnap=null;
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
+// PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
+function stageColor(st){const x=String(st||'');if(x.indexOf('merged')===0)return 'var(--g)';if(x.indexOf('ready')===0)return 'var(--g)';if(x.indexOf('❌')>=0)return 'var(--t3)';if(x.indexOf('⏳')>=0)return '#e5c07b';if(x==='draft')return 'var(--vscode-descriptionForeground)';return 'var(--vscode-descriptionForeground)';}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
+function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(/claude|opus|sonnet|haiku/.test(x))return '✨';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
+function agoFmt(ms){const t=Math.round((+ms||0)/1000);if(t<60)return t+'s';const mi=Math.round(t/60);if(mi<60)return mi+'m';const h=Math.round(mi/60);return h<24?h+'h':Math.round(h/24)+'d';}
 function ledgerHtml(s){
-  const L=(s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0};const decs=s.decisions||[];
-  const loc={};for(const d of decs){if(d.tier==='T0'&&d.model)loc[d.model]=(loc[d.model]||0)+1;}
+  // Feature 4: ONE table, SAME columns for cloud and local — model | in | out | cache |
+  // cost | saved vs Opus. Cloud rows show real $ and "—" for saved (they ARE the spend);
+  // the local row shows real in/out (token_tracker), $0 cost, and the honest counterfactual
+  // saved = (in*5 + out*25)/1e6 vs Opus 4.8 [$5,$25]/1M. No more "calls" inconsistency.
+  const scoped=!!(s.effectiveSession&&s.sessionLedger);
+  const L=scoped?(s.sessionLedger.session||{rows:[],turns:0}):((s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0});
+  const scopeLbl=scoped?'this session':(ledgerScope==='session'?'this session':'all time');
   const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
-  const tog=['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('');
-  const head='<div class="lbl">🧾 Tokens by model <span style="float:right">'+tog+'</span></div>';
-  const rows=L.rows.length?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>est $</th></tr>'+L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td></tr>').join('')+'</table>'):'<div class="sub" style="margin-top:6px">No Claude usage logged '+(ledgerScope==='session'?'this session':'yet')+'</div>';
-  const locRows=Object.keys(loc).sort((a,b)=>loc[b]-loc[a]).map(m=>'<div class="kv"><span>'+esc(modelLabel(m))+'</span><span><span class="pill ok">FREE</span> '+loc[m]+'</span></div>').join('');
-  return '<div class="card">'+head+rows+(locRows?'<div class="sub" style="margin:9px 0 2px">Local (Ollama) · $0</div>'+locRows:'')+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+(ledgerScope==='session'?'this session':'all time')+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">real usage from Claude Code logs · prices Jun 2026 · advisory · local = $0</div></div>';
+  const tog=scoped?('<span style="float:right;opacity:.6;font-size:9px">'+esc((s.effectiveSession||'').slice(0,8))+'</span>'):('<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>');
+  const head='<div class="lbl">🧾 Tokens by model '+tog+'</div>';
+  // Cloud rows (real). saved = "—" (a billed row can't "save vs Opus" — it IS the spend).
+  const cloudTr=L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td><td class="sv">—</td></tr>').join('');
+  // Local row (real in/out from token_tracker; T0 aggregate — per-model not metered). One
+  // line, SAME columns: cache "—" (not metered locally), cost $0, saved vs Opus = real.
+  const lt=s.localTok;
+  let localTr='';
+  if(lt){
+    const savedLocal=(lt.in*5+lt.out*25)/1e6; // counterfactual vs Opus 4.8 — honest, not billed
+    localTr='<tr><td title="all local models, T0 — measured by token_tracker">🦙 Local (Ollama · T0)</td><td>'+lFmt(lt.in)+'</td><td>'+lFmt(lt.out)+'</td><td title="local cache not metered">—</td><td><b>$0</b></td><td class="sv" title="what Opus 4.8 would have cost for these tokens">+$'+savedLocal.toFixed(savedLocal<0.01?4:2)+'</td></tr>';
+  }
+  const body=(cloudTr||localTr)
+    ?('<table class="mx"><tr><th>model</th><th>in</th><th>out</th><th>cache</th><th>cost</th><th>saved vs Opus</th></tr>'+cloudTr+localTr+'</table>')
+    :('<div class="sub" style="margin-top:6px">No usage logged '+scopeLbl+'</div>');
+  const localNote=lt?'<div class="sub" style="font-size:9px;margin-top:4px">local per-model not metered → T0 aggregate</div>':'';
+  return '<div class="card">'+head+body+localNote+'<div class="kv" style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px"><span>Total · '+scopeLbl+'</span><span><b>$'+total.toFixed(2)+'</b> · '+L.turns+' Claude turns</span></div><div class="sub" style="font-size:9px;margin-top:4px">Claude tokens from session logs · local from token_tracker · prices Jun 2026 · advisory · local = $0</div></div>';
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
@@ -392,7 +477,6 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else if(a.startsWith('openUrl:'))send('openUrl',a.slice(8));
   else if(a.startsWith('pull:'))send('pull',a.slice(5));
   else if(a.startsWith('tab:'))goTab(a.slice(4));
-  else if(a==='spawnDemo')send('term','mooter spawn "audit this repo" --local');
   else send(a,b.dataset.x);
 });}
 window.addEventListener('message',(e)=>{
@@ -422,7 +506,43 @@ window.addEventListener('message',(e)=>{
 
   // ── COCKPIT: hero + score + next actions (req 7,12)
   const pend=(score.checks||[]).filter(c=>!c.ok);
-  const cnt=tc(decs);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
+  // ── Session scope: the cockpit numbers reflect ONE session (auto-follow the active
+  // one, or a pinned pick from the selector), or all sessions when 'all'.
+  const selSess=s.selectedSession||'auto';const effSess=s.effectiveSession||null;
+  const M=(effSess&&s.sessionMetrics)?s.sessionMetrics:m; // scoped metrics (savings/prompts)
+  const realLocalN=(M.option_a_hits||0); // REAL local executions (Option-A deflections), scoped
+  const decScoped=effSess?decs.filter(d=>d.sid===effSess):decs; // scoped tier-mix
+  // ── Live herd: every open session as its own walking cow (working · LLM · tab name).
+  // Click a cow to focus the numbers below on it. This is the multi-session view.
+  const rsess=s.recent||[];
+  // Feature 1+2: each session carries its own repo-scoped PR (r.pr, resolved host-side by
+  // gh run in the session's cwd). "Linked" = ≥2 sessions on the SAME repo AND branch (same
+  // work) — keyed by cwd+branch so a same-named branch in a different repo is never crossed.
+  const bkey=(r)=>JSON.stringify([String(r.cwd||''),String(r.branch||'')]); // repo+branch composite key (clean, collision-free)
+  const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
+  const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
+    const badge=r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago');
+    // Branch / PR / stage line — only when the session's cwd is a git repo (r.branch set).
+    // A linked icon when ≥2 sessions share this branch (same work — honest, never crossed).
+    let scm='';
+    if(r.branch){
+      const linked=branchCount[bkey(r)]>1;
+      const pr=r.pr;
+      const branchChip='<span class="scmbr" title="git branch">'+(linked?'🔗 ':'⎇ ')+esc(r.branch)+'</span>';
+      let prChip;
+      if(pr&&pr.stage)prChip='<span class="scmpr" title="'+esc(pr.title||'')+'" style="color:'+stageColor(pr.stage)+'">#'+esc(pr.number!=null?String(pr.number):'?')+' · '+esc(pr.stage)+'</span>';
+      else prChip='<span class="scmpr" style="opacity:.55">no PR</span>';
+      scm='<div class="sscm">'+branchChip+' '+prChip+'</div>';
+    }
+    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
+  const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
+  // Honest link note: branches shared by ≥2 sessions (same work), if any.
+  const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
+  const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
+  const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
+  const needN=rsess.filter(r=>r.needsYou).length;
+  const herdCard='<div class="card" style="padding:9px 11px;margin-bottom:8px"><div class="lbl">🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
   const curPin=(s.pinNext&&s.pinNext.model)||'';
@@ -431,25 +551,36 @@ window.addEventListener('message',(e)=>{
   const locals=installed.filter(n=>PIN_LOCAL[n]);
   if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
-  const lv=s.live;
-  const liveCard=lv
-    ? '<div class="livecard" id="liveCard" style="--lc:'+esc(lv.color)+'"><span class="livecow" id="liveCow">🐮</span><div class="livebody"><div class="livetop"><span class="livefam">'+esc(lv.emoji)+' '+esc(lv.label)+'</span><span class="liveprov">'+(lv.provider==='local'?'🏠 local':'☁ cloud')+'</span><span class="livemodel">'+esc(lv.model)+'</span></div><div class="livesub">'+(lv.why==='pinned'?'📌 pinned by you':(lv.why==='cascade'?'⬆ cascaded':'🤖 auto'))+' · '+esc(lv.tier)+(lv.cascade?' · '+esc(lv.cascade):'')+(lv.confidence!=null?' · conf '+esc(lv.confidence):'')+' <span class="livestat" id="liveStat">🛠 working</span></div></div><span class="livedot" title="last routed prompt"></span></div>'
-    : '<div class="livecard livecard-idle"><span class="livecow">🐮</span><div class="livebody"><div class="livetop">idle</div><div class="livesub">waiting for the next prompt…</div></div></div>';
+  const lv=s.live; // executor of the focused session (used by the "Actually ran" line below)
   $('#v-cockpit').innerHTML=
-    liveCard+
+    herdCard+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
-    '<div class="card" style="padding:9px 11px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span class="lbl" style="flex:none">Next prompt →</span><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" style="flex:1;min-width:0;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 6px;font:11px var(--vscode-font-family)">'+pinOpts+'</select></div>'+
-    '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'source: savings-tracker /metrics')+'"><div class="lbl">Saved vs all-Opus <span style="float:right;opacity:.6;font-size:9px">ⓘ token-estimated · advisory</span></div><div class="big">$'+(m.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(m.saved_pct||0)+'%</b> below · real $'+(m.real_cost||0).toFixed(2)+' vs naive $'+(m.naive_cost||0).toFixed(2)+(s.trackerUp?'':' <span style="color:#e5c07b">· ⚠ tracker offline, last known</span>')+'</div></div>'+
+    '<div class="card pincard"><div class="pinhead">🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
+    (function(){
+      // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
+      // recommended tier". The host model actually answers in a CC session, so the only
+      // GUARANTEED savings are real local dispatches (guaranteed_saved/executions). We
+      // keep the $ (per your choice) but label it advisory and show the real number too.
+      // Coherence: pair the $ with the count from the SAME source. Both guaranteed_saved
+      // and option_a_hits come out of computeMetrics(ForSession), so they scope together —
+      // under a session they're THAT session's, globally they're all-time. (M.executions is
+      // a process-global aggregate that never scopes by session — using it under a
+      // "this session" label would mix scopes, which is exactly what we must not do.)
+      const execN=M.option_a_hits||0;
+      const realSaved=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0;
+      const scopeChip=effSess?'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · this session</span>':'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span>';
+      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
+    })()+
     '<div class="card"><div class="lbl">Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
-    '<div class="row"><div class="card"><div class="v">'+(m.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(m.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
-    '<div class="card"><div class="lbl">Tier mix · last '+decs.length+'</div>'+bars+'</div>'+
+    '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
+    '<div class="card"><div class="lbl">Router recommendations · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span></div>'+bars+'<div class="sub" style="font-size:9.5px;margin-top:5px">↑ what the router <b>suggested</b> (T0 = local) — not what ran. <b>Actually ran:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model))+' (host)':'host model')+' · '+realLocalN+' real local dispatch'+(realLocalN===1?'':'es')+'</div></div>'+
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
-  (function(){const lc=$('#liveCard');if(lc&&s.live&&s.live.ts&&s.live.ts!==lastLiveTs){lastLiveTs=s.live.ts;lc.classList.remove('pulse');void lc.offsetWidth;lc.classList.add('pulse');workingUntil=Date.now()+12000;}const run=s.herd&&s.herd.run;if(run&&/run|active|progress/i.test(String(run.status||'')))workingUntil=Math.max(workingUntil,Date.now()+12000);})();
+  document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   wireLedgerToggle();
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
@@ -479,44 +610,41 @@ window.addEventListener('message',(e)=>{
   // ── MODELS: Moo trio + quant/LoRA (req 5,6)
   const q=(s.quant&&s.quant.models&&s.quant.models[0])||null;
   const adapter=(s.prefs&&s.prefs.adapter)||'baseline';
-  $('#v-models').innerHTML='<div class="card"><div class="lbl">Who routes your prompts</div><div class="seg" style="margin-top:8px">'+
-    '<div class="mo'+(s.mode==='zen'?' on':'')+'" data-m="zen">🐄 LazyMoo<small>local-first · conserve</small></div>'+
-    '<div class="mo'+(s.mode==='auto'?' on':'')+'" data-m="auto">🐮 Moo<small>automatic · balanced</small></div>'+
-    '<div class="mo'+(s.mode==='beast'?' on':'')+'" data-m="beast">🐂 CrazyMoo<small>best model · Fable 5*</small></div></div>'+
-    '<div class="sub" style="margin-top:7px">*CrazyMoo uses the strongest available rung — <b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus.</div></div>'+
+  $('#v-models').innerHTML='<div class="card"><div class="lbl">Who routes your prompts</div>'+
+    '<div class="sub" style="margin-top:7px">Mode: <b>'+esc(MOO[s.mode]||s.mode)+'</b> — switch from the header badge or the 🐮 Cockpit tab.</div>'+
+    '<div class="sub" style="margin-top:5px">🐄 LazyMoo = local-first · 🐮 Moo = balanced · 🐂 CrazyMoo = strongest rung (<b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus).</div></div>'+
     '<div class="card"><div class="lbl">Effort — how hard the Moo tries to save</div><div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">'+
     ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--g);color:var(--g)':'')+'" data-eff="'+l+'">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
     '</div><div class="sub" style="margin-top:6px">ultramoo = max thrift (compression + caveman prose)</div></div>'+
     (s.whynot?'<div class="card"><div class="lbl">Why not Fable 5? — per-decision honesty</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.whynot)+'</div></div>':'')+
     '<div class="card"><div class="lbl">🧬 Engine intelligence</div>'+
     '<div class="kv"><span>Quantization</span><span>'+(q?esc(q.name+' · '+q.quant+(q.sizeGb?' · '+q.sizeGb+'GB':'')):'no snapshot — run mooter quant status')+'</span></div>'+
-    '<div class="kv"><span>LoRA adapter</span><span>'+esc(adapter)+'</span></div>'+
-    '<div class="kv"><span>Evolution</span><span>trained on '+esc((m.prompts||0))+' routed decisions</span></div>'+
+    '<div class="kv"><span>Adapter</span><span>'+esc(adapter==='baseline'?'baseline (none installed)':adapter)+'</span></div>'+
+    '<div class="kv"><span>Routing learned</span><span>'+esc((m.prompts||0))+' decisions · TF-IDF</span></div>'+
+    '<div class="sub" style="font-size:9px;margin-top:4px">No neural LoRA/DoRA is trained here — adapter training is a manual GPU job. The router learns by TF-IDF + EWMA over real decisions, not by updating model weights.</div>'+
     '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px">Refresh quant</button> <button class="sm" data-a="term:mooter forge install">Forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
-  document.querySelectorAll('#v-models .mo').forEach(el=>el.onclick=()=>send('mode',el.dataset.m));
   document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
   wireButtons($('#v-models'));
 
-  // ── 🐄 HERD: dynamic workflow live (run · swimlanes · tokens via×llm · sessions)
-  const h=s.herd||{};const run=h.run||null;const mx=h.matrix||{llms:[],rows:[]};
+  // ── 🧵 SESSIONS: recent Claude Code sessions by activity (honest replacement for the
+  // old Herd facade — spawns/heartbeats/worktrees don't exist on disk, so we don't
+  // pretend they do). We CANNOT detect the focused VS Code tab (no extension API), so
+  // this is "recent by activity", never "active". Token matrix shows only when real.
+  const h=s.herd||{};const mx=h.matrix||{llms:[],rows:[]};
   const fmtk=(n)=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
-  const runHtml=run&&run.status?'<div class="card hero"><div class="lbl">Live run · '+esc(run.status)+'</div><div class="big" style="font-size:20px">🤖 '+esc(run.agents_done!=null?run.agents_done:'?')+'/'+esc(run.agents_total!=null?run.agents_total:'?')+(run.tokens?' · ↓'+fmtk(run.tokens)+' tok':'')+'</div>'+(h.current&&h.current.agent_name?'<div class="sub">current: <b>'+esc(h.current.agent_name)+'</b></div>':'')+'</div>'
-    :'<div class="card"><div class="lbl">Live run</div><div class="sub" style="margin-top:6px">🤖 no run active — spawn one:</div><button class="sm" data-a="spawnDemo" style="margin-top:6px">mooter spawn →</button></div>';
-  const spawnIcon=(st)=>/run|active|progress/i.test(st)?'<span class="pulse"></span>':(/done|ok|success|complete/i.test(st)?'✓ ':(/fail|error/i.test(st)?'<span style="color:var(--t3)">✗ </span>':'⏸ '));
-  const spawnsHtml=(h.spawns&&h.spawns.length)?h.spawns.map(sp=>'<div class="dr"><div class="w">'+spawnIcon(sp.status)+esc(sp.task)+'<small>'+esc(sp.status)+(sp.model?' · '+esc(sp.model):'')+(sp.started?' · '+esc(String(sp.started).slice(11,16)):'')+'</small></div></div>').join('')
-    :'<div class="sub" style="margin-top:5px">'+(h.spawns===null?'no spawns yet — agents appear here when the herd works':'—')+'</div>';
+  const rs=s.recent||[];
+  const fmtAge=(ms)=>{const t=Math.round(ms/1000);if(t<60)return t+'s ago';const mi=Math.round(t/60);if(mi<60)return mi+'m ago';const hr=Math.round(mi/60);if(hr<24)return hr+'h ago';return Math.round(hr/24)+'d ago';};
+  const sessHtml=rs.length?rs.map(x=>'<div class="dr"><div class="w">'+(x.working?'<span class="pulse" title="active in the last 90s"></span>':'⚪ ')+esc(x.project||'?')+' <span class="meta">'+esc(x.id)+'</span><small>'+(x.model?esc(modelLabel(x.model)):'no model yet')+' · '+x.turns+' turns · '+fmtAge(x.ageMs)+'</small></div></div>').join('')
+    :'<div class="sub" style="margin-top:5px">no recent sessions found in ~/.claude/projects</div>';
   let mxHtml='';
   if(mx.rows.length){mxHtml='<table class="mx"><tr><th>agent</th>'+mx.llms.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr>'+
     mx.rows.map(r=>'<tr><td title="'+esc(r.via)+'">'+esc(r.via)+'</td>'+r.cells.map(c=>'<td'+(c?' title="'+c.n+' decisions"':'')+'>'+(c?fmtk(c.tok):'—')+'</td>').join('')+'</tr>').join('')+'</table>';}
-  else mxHtml='<div class="sub" style="margin-top:5px">no v2 decisions yet</div>';
-  const sessHtml=(h.sessions&&h.sessions.length)?h.sessions.map(x=>'<div class="dr"><div class="w">'+(x.live?'<span class="pulse"></span>':'⚪ ')+esc(x.name||'?')+'<small>'+esc(x.branch||'')+(x.intent?' · "'+esc(x.intent)+'"':'')+'</small></div></div>').join('')
-    :'<div class="sub" style="margin-top:5px">no live sessions (heartbeats)</div>';
-  $('#v-herd').innerHTML=runHtml+
-    '<div class="card"><div class="lbl">Moo agents (spawns)</div>'+spawnsHtml+'</div>'+
-    '<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>'+
-    '<div class="card"><div class="lbl">Sessions (live terminals)</div>'+sessHtml+'</div>';
+  $('#v-herd').innerHTML=
+    '<div class="card"><div class="lbl">🧵 Recent sessions <span style="float:right;opacity:.6;font-size:9px">by activity</span></div>'+sessHtml+
+    '<div class="sub" style="font-size:9px;margin-top:7px">● = active in the last 90s · ⚪ = last activity (heuristic from file mtime). The cockpit reads transcripts in ~/.claude/projects — it <b>cannot tell which Claude Code tab is focused</b> (the extension exposes no such API), and cross-session messaging is not tracked, so neither is shown.</div></div>'+
+    (mx.rows.length?'<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>':'');
   wireButtons($('#v-herd'));
 
   // ── INSIGHTS (telemetria total — req: quant, LoRA, per-prompt)
@@ -525,11 +653,13 @@ window.addEventListener('message',(e)=>{
   $('#v-insights').innerHTML=
     '<div class="card hero"><div class="lbl">Routing intelligence</div><div class="big">'+(ins.cacheRate!=null?ins.cacheRate+'%':'—')+'</div><div class="sub">classifier cache-hit rate · confidence <b>'+(ins.confNow!=null?ins.confNow:'—')+'</b>'+(confDelta!=null?' <span style="color:'+(confDelta>=0?'var(--g)':'var(--t3)')+'">'+(confDelta>=0?'▲':'▼')+Math.abs(confDelta).toFixed(2)+'</span> vs previous window':'')+'</div></div>'+
     '<div class="card"><div class="lbl">📦 Quantization (all local models)</div>'+(qa.length?qa.map(q=>'<div class="kv"><span>'+esc(q.name)+'</span><span>'+esc(q.quant||'?')+(q.sizeGb?' · '+q.sizeGb+'GB':'')+'</span></div>').join(''):'<div class="sub" style="margin-top:5px">no snapshot — <button class="sm" data-a="term:mooter quant status">run quant status</button></div>')+'</div>'+
-    '<div class="card"><div class="lbl">🧬 LoRA / Pastor evolution</div>'+
-    '<div class="kv"><span>Adapter</span><span>'+esc((s.prefs&&s.prefs.adapter)||'baseline')+'</span></div>'+
+    '<div class="card"><div class="lbl">🧠 Pastor learning · TF-IDF (not neural LoRA)</div>'+
+    '<div class="kv"><span>Adapter</span><span>'+esc(((s.prefs&&s.prefs.adapter)||'baseline')==='baseline'?'baseline (none installed)':(s.prefs.adapter))+'</span></div>'+
+    '<div class="kv"><span>Mechanism</span><span>TF-IDF + EWMA over real decisions</span></div>'+
     '<div class="kv"><span>Fable observations</span><span>'+(ins.fableObs!=null?ins.fableObs:'off — opt-in')+'</span></div>'+
-    '<div class="kv"><span>Training corpus</span><span>'+(ins.trainingLines!=null?ins.trainingLines+' examples':'—')+'</span></div>'+
+    '<div class="kv"><span>Training corpus</span><span>'+(ins.trainingLines!=null?ins.trainingLines+' examples':'— (none yet)')+'</span></div>'+
     '<div class="kv"><span>Hub sync</span><span>'+(ins.lastHubPush?esc(ins.lastHubPush.slice(0,16).replace('T',' ')):'never')+'</span></div>'+
+    '<div class="sub" style="font-size:9px;margin-top:4px">Neural LoRA/DoRA training is a manual GPU job — not running here. "Learning" = TF-IDF routing + confidence calibration over your real decisions.</div>'+
     '<button class="sm" data-a="term:mooter fable-observe stats" style="margin-top:6px">fable stats</button> <button class="sm" data-a="term:mooter forge install">forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Per-prompt evolution (newest first)</div>'+decs.slice(0,8).map(d=>'<div class="kv"><span style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((d.preview||'').slice(0,42))+'</span><span><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span> conf '+esc(d.conf)+'</span></div>').join('')+'</div>';
   wireButtons($('#v-insights'));
