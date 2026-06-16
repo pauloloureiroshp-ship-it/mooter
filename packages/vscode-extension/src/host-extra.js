@@ -221,7 +221,10 @@ function mooterScore(ctx) {
     { k: 'tracker', t: 'Savings tracker running',         ok: !!ctx.trackerUp,        fix: 'term:mooter doctor' },
     { k: 'ollama',  t: 'Ollama online (free T0 tier)',    ok: Array.isArray(ctx.ollama) && ctx.ollama.length > 0, fix: 'openUrl:https://ollama.com/download' },
     { k: 'reco',    t: 'Recommended model for your GPU',  ok: !!(ctx.hw && ctx.ollama && ctx.ollama.some((m) => m.name.startsWith(String(ctx.hw.recommended_t0 || '').split(':')[0]))), fix: (ctx.hw && ctx.hw.recommended_t0) ? 'pull:' + ctx.hw.recommended_t0 : 'openUrl:https://ollama.com/download' },
-    { k: 'sub',     t: 'Subscription profile configured', ok: !!(ctx.sub && ctx.sub.profile && ctx.sub.profile !== 'unknown'), fix: 'term:mooter init' },
+    // "Configured" = the profile file exists and setup ran. Supports both the legacy single
+    // `profile` field and the current `profiles` map written by setup-profile.js/detect-subscriptions.js
+    // (a provider detected — e.g. ollama:'installed' — or a budget strategy counts as configured).
+    { k: 'sub',     t: 'Subscription profile configured', ok: !!(ctx.sub && ((ctx.sub.profile && ctx.sub.profile !== 'unknown') || (ctx.sub.profiles && Object.values(ctx.sub.profiles).some((v) => v && v !== 'unknown' && v !== 'none')) || ctx.sub.budget_strategy)), fix: 'term:node ~/.claude/tools/router/setup-profile.js --non-interactive' },
     { k: 'budget',  t: 'Monthly budget set',              ok: !!(ctx.budget && ctx.budget.monthly_budget_usd > 0), fix: 'tab:setup' },
     { k: 'slash',   t: '/mooter slash commands',          ok: !!(ctx.slash && ctx.slash.installed), fix: 'slashInstall' },
     { k: 'packs',   t: 'At least one Moo Pack installed', ok: !!(installedPacks() && Object.keys(installedPacks() || {}).length > 0), fix: 'term:mooter pack list' },
@@ -652,17 +655,31 @@ async function recentSessions(maxN = 8) {
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   for (const f of listSessionFiles().slice(0, maxN)) {
     let lastModel = null; let turns = 0;
+    let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
     try {
-      const st = fs.statSync(f.file); const start = Math.max(0, st.size - 256 * 1024);
+      const st = fs.statSync(f.file); const start = Math.max(0, st.size - 1024 * 1024);
       const fd = fs.openSync(f.file, 'r'); const buf = Buffer.alloc(st.size - start);
       fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
       for (const line of buf.toString('utf8').split('\n')) {
-        if (!line.includes('"usage"')) continue;
+        if (!line) continue;
         let d; try { d = JSON.parse(line); } catch { continue; }
+        const ts = d.timestamp ? Date.parse(d.timestamp) : NaN;
+        if (!isNaN(ts)) { if (firstTs == null || ts < firstTs) firstTs = ts; if (lastTs == null || ts > lastTs) lastTs = ts; }
         const m = d && d.message; if (!m || !m.model || String(m.model).charAt(0) === '<') continue;
+        const u = m.usage; if (!u) continue;
         lastModel = m.model; turns += 1;
+        tin += u.input_tokens || 0; tout += u.output_tokens || 0;
+        const a = sm[m.model] || (sm[m.model] = { model: m.model, in: 0, out: 0, cw: 0, cr: 0 });
+        a.in += u.input_tokens || 0; a.out += u.output_tokens || 0; a.cw += u.cache_creation_input_tokens || 0; a.cr += u.cache_read_input_tokens || 0;
       }
     } catch { /* skip unreadable */ }
+    // Per-session cost + counterfactual saved vs all-Opus + throughput — same formulas as the
+    // Token Ledger (coherent). saved = (in*5+out*25)/1M [Opus 4.8] − actual cost; tok/s over the
+    // session's active span (first↔last timestamp). Null when not derivable (never faked).
+    let scost = 0, ssaved = 0;
+    for (const a of Object.values(sm)) { const c = costFor(a.model, a) || 0; scost += c; ssaved += (a.in * 5 + a.out * 25) / 1e6 - c; }
+    const durSec = (firstTs != null && lastTs != null && lastTs > firstTs) ? (lastTs - firstTs) / 1000 : null;
+    const tokPerSec = (durSec && durSec > 0) ? Math.round((tin + tout) / durSec) : null;
     const proj = path.basename(path.dirname(f.file)).replace(/^[A-Za-z]--+/, '').replace(/-/g, ' ').trim();
     const sid = path.basename(f.file).replace(/\.jsonl$/, '');
     // State (honest): "working" only when a prompt is in flight AND the transcript is
@@ -693,7 +710,7 @@ async function recentSessions(maxN = 8) {
       const match = prs.find((p) => p && p.headRefName === branch);
       if (match) pr = { number: match.number, title: String(match.title || '').slice(0, 80), state: match.state, isDraft: match.isDraft, stage: prStage(match) };
     }
-    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr });
+    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec });
   }
   return out;
 }

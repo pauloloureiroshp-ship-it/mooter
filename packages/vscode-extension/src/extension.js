@@ -235,7 +235,7 @@ class CockpitProvider {
 
 function project(s) {
   const base = data_.publicSnapshot(s);
-  const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || 'unknown', raw: s.sub } : null;
+  const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || ((s.sub.profiles && s.sub.profiles.anthropic && s.sub.profiles.anthropic !== 'unknown') ? s.sub.profiles.anthropic : ((s.sub.profiles || s.sub.budget_strategy) ? 'configured' : 'unknown')), raw: s.sub } : null;
   const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
   // Session scope: when a session is in effect, the Live cow reads THAT session's
   // host model (its ledger) and THAT session's most-recent decision (not the global
@@ -465,11 +465,15 @@ function ledgerHtml(s){
   // the local row shows real in/out (token_tracker), $0 cost, and the honest counterfactual
   // saved = (in*5 + out*25)/1e6 vs Opus 4.8 [$5,$25]/1M. No more "calls" inconsistency.
   const scoped=!!(s.effectiveSession&&s.sessionLedger);
-  const L=scoped?(s.sessionLedger.session||{rows:[],turns:0}):((s.ledger&&s.ledger[ledgerScope])||{rows:[],turns:0});
-  const scopeLbl=scoped?'this session':(ledgerScope==='session'?'this session':'all time');
+  // Always honour the session/all-time toggle. When scoped to a focused CC session, 'session'
+  // shows THAT session; 'all' shows every session — so an empty/quiet session never hides the
+  // per-model history (the user can always flip to All time). Fixes the "counter disappeared".
+  const L=(ledgerScope==='all')?((s.ledger&&s.ledger.all)||{rows:[],turns:0}):(scoped?((s.sessionLedger&&s.sessionLedger.session)||{rows:[],turns:0}):((s.ledger&&s.ledger.session)||{rows:[],turns:0}));
+  const scopeLbl=(ledgerScope==='all')?'all time':'this session';
   const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
-  const tog=scoped?('<span style="float:right;opacity:.6;font-size:9px">'+esc((s.effectiveSession||'').slice(0,8))+'</span>'):('<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>');
-  const head=chead('🧾 Tokens by model '+tog);
+  const sidChip=(scoped&&ledgerScope!=='all')?(' <span style="opacity:.55;font-size:9px">· '+esc((s.effectiveSession||'').slice(0,8))+'</span>'):'';
+  const tog='<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>';
+  const head=chead('🧾 Tokens by model'+sidChip+' '+tog);
   // Cloud rows (real). saved = "—" (a billed row can't "save vs Opus" — it IS the spend).
   const cloudTr=L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td><td class="sv">—</td></tr>').join('');
   // Local row (real in/out from token_tracker; T0 aggregate — per-model not metered). One
@@ -654,7 +658,15 @@ window.addEventListener('message',(e)=>{
   const fmtk=(n)=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
   const rs=s.recent||[];
   const fmtAge=(ms)=>{const t=Math.round(ms/1000);if(t<60)return t+'s ago';const mi=Math.round(t/60);if(mi<60)return mi+'m ago';const hr=Math.round(mi/60);if(hr<24)return hr+'h ago';return Math.round(hr/24)+'d ago';};
-  const sessHtml=rs.length?rs.map(x=>'<div class="dr"><div class="w">'+(x.working?'<span class="pulse" title="active in the last 90s"></span>':'⚪ ')+esc(x.project||'?')+' <span class="meta">'+esc(x.id)+'</span><small>'+(x.model?esc(modelLabel(x.model)):'no model yet')+' · '+x.turns+' turns · '+fmtAge(x.ageMs)+'</small></div></div>').join('')
+  const sessHtml=rs.length?rs.map(x=>{
+    const nm=esc(x.name||('session '+x.id));
+    const dot=x.working?'<span class="pulse" title="working — active in the last 90s"></span>':(x.needsYou?'<span class="alertdot" title="your turn"></span> ':'⚪ ');
+    // Coherent per-session line — all from THIS session JSONL, same formulas as the Token Ledger.
+    const tokLine=(x.tokIn||x.tokOut)
+      ?('<span title="input / output tokens this session">'+fmtk(x.tokIn||0)+' in · '+fmtk(x.tokOut||0)+' out</span> · <span title="estimated spend — token-estimated, advisory">$'+(x.cost||0).toFixed(2)+'</span>'+((x.saved>0)?' · <span class="sv" title="counterfactual vs all-Opus 4.8 — same formula as the Token Ledger">saved $'+x.saved.toFixed(2)+'</span>':'')+(x.tokPerSec?' · <span title="throughput over the active span of this session">'+fmtk(x.tokPerSec)+' tok/s</span>':''))
+      :'<span style="opacity:.55">no model usage logged</span>';
+    return '<div class="dr"><div class="w"><div>'+dot+'<b>'+nm+'</b> <span class="meta">'+esc(x.id)+'</span></div><small>'+(x.model?famEmoji(x.model)+' '+esc(modelLabel(x.model)):'no model yet')+' · '+x.turns+' turns · '+fmtAge(x.ageMs)+((x.project&&x.project!=='?')?' · '+esc(x.project):'')+'</small><div class="sub" style="font-size:10px;margin-top:2px">'+tokLine+'</div></div></div>';
+  }).join('')
     :'<div class="sub" style="margin-top:5px">no recent sessions found in ~/.claude/projects</div>';
   let mxHtml='';
   if(mx.rows.length){mxHtml='<table class="mx"><tr><th>agent</th>'+mx.llms.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr>'+

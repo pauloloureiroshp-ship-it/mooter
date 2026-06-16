@@ -2,6 +2,16 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.14.0] — 2026-06-16 — Per-model counter always reachable · Sessions tab names + coherent metrics · subscription check fix
+
+### Fixed
+- **Token Ledger never hides the per-model counter.** When scoped to a focused Claude Code session, the **This session ⇄ All time** toggle now stays available — a quiet/empty session no longer shows just "No usage logged" with no way out. Flip to **All time** to see the full per-model history (local + each Claude model).
+- **"Subscription profile configured" check** now recognises the current `subscription-profile.json` shape (`profiles` map from `setup-profile.js`/`detect-subscriptions.js`) — a detected provider or a budget strategy counts as configured. No longer stays pending after setup; the fix button points at the detector that writes the file.
+
+### Added
+- **Sessions tab shows each session's name** (first prompt / Claude Code title), like the cockpit — instead of the raw project path.
+- **Coherent per-session metrics** in the Sessions tab: input/output **tokens**, estimated **cost**, **saved vs all-Opus**, and **tok/s** — all from that session's own transcript, same formulas as the Token Ledger (advisory, never fabricated; shown only when usage exists).
+
 ## [0.13.0] — 2026-06-16 — Collapsible sections + cleaner layout
 
 ### Added
