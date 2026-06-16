@@ -2,6 +2,13 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.15.0] — 2026-06-16 — Live agents panel (parallel local + subscription)
+
+### Added
+- **🤖 Agents — live** panel in the Sessions tab: shows the agents working for the herd — local Moos (🦙) and subscription models (✨) — with a parallel count ("N local · M subscription working"), a run progress bar (real `agents_done/agents_total`), and one line per agent (model · role · task · status). Status is honest: an animated **working** pulse, **✓ done**, or **◌ queued**. A numeric per-agent **%** shows only if the engine emits it (`spawn.progress`) — never fabricated.
+- Built strictly from **real sources** (active-run, spawns, in-flight sub-agent, the decisions matrix). When no parallel run is active, it says so plainly and lists the agent roles Mooter routed recently — and notes that full parallel local+subscription fan-out (with per-agent progress) is an engine capability in progress. The panel **lights up live** the moment the engine emits that data.
+- Panel is collapsible (chevron), like the other sections.
+
 ## [0.14.0] — 2026-06-16 — Per-model counter always reachable · Sessions tab names + coherent metrics · subscription check fix
 
 ### Fixed

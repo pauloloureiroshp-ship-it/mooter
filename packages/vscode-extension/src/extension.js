@@ -356,6 +356,13 @@ function getHtml() {
   .card.collapsed .chev{transform:rotate(-90deg)}
   .card.collapsed>*:not(.collaphead){display:none!important}
   .card.collapsed{padding-bottom:12px}
+  .arow{display:flex;align-items:center;gap:7px;font-size:11px;padding:5px 0;border-top:1px solid var(--vscode-widget-border)}
+  .arow .amodel{font-weight:600;white-space:nowrap}
+  .arow .arole{opacity:.7;white-space:nowrap;font-size:10px}
+  .arow .atask{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.55}
+  .adot{width:14px;text-align:center;font-size:10px;flex:none}.adot.done{color:var(--g)}.adot.q{opacity:.45}
+  .aprog{font-variant-numeric:tabular-nums;font-size:10px;color:var(--g);min-width:30px;text-align:right}
+  .apar{float:right;opacity:.75;font-size:9px;font-weight:600}
   .big{font-size:27px;font-weight:700;color:var(--g);font-variant-numeric:tabular-nums}
   .sub{font-size:12px;color:var(--vscode-descriptionForeground)}.sub b{color:var(--vscode-foreground)}
   .row{display:flex;gap:6px}.row .card{flex:1;padding:8px 10px}
@@ -671,11 +678,49 @@ window.addEventListener('message',(e)=>{
   let mxHtml='';
   if(mx.rows.length){mxHtml='<table class="mx"><tr><th>agent</th>'+mx.llms.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr>'+
     mx.rows.map(r=>'<tr><td title="'+esc(r.via)+'">'+esc(r.via)+'</td>'+r.cells.map(c=>'<td'+(c?' title="'+c.n+' decisions"':'')+'>'+(c?fmtk(c.tok):'—')+'</td>').join('')+'</tr>').join('')+'</table>';}
+  // 🤖 Agents — live parallel agents (local Moos + subscription) for THIS herd. Honest:
+  // built only from real sources (active-run.json run progress, spawns/*/state.json,
+  // last-subagent in-flight, decisions_v2 matrix). Per-agent shows real status (working
+  // pulse / done / queued); a numeric % only if the engine emits spawn.progress (future-
+  // ready). Run-level % = agents_done/agents_total (real). Empty state is honest: it says
+  // parallel fan-out is an engine capability in progress and lights up when data arrives.
+  const agentsCard=(function(){
+    const run=h.run||null, spawns=Array.isArray(h.spawns)?h.spawns:[], cur=h.current||null;
+    const curFresh=cur&&cur.ts&&(Date.now()-cur.ts)<120000;
+    const isLoc=(m)=>/qwen|llama|gemma|deepseek|mistral|phi|ollama|:/i.test(String(m||''));
+    const stOf=(x)=>{x=String(x||'').toLowerCase();return /run|active|progress|working|flight/.test(x)?'run':(/done|complete|finish|success|ok/.test(x)?'done':'queue');};
+    let agents=spawns.map(sp=>({model:sp.model,role:sp.id,task:sp.task,status:stOf(sp.status),progress:(typeof sp.progress==='number'?sp.progress:null)}));
+    if(curFresh && !agents.some(a=>a.model===cur.model&&a.role===cur.subagent)) agents.unshift({model:cur.model,role:cur.subagent,task:'in flight',status:'run',progress:null});
+    const running=agents.filter(a=>a.status==='run');
+    const nLoc=running.filter(a=>isLoc(a.model)).length, nCloud=running.length-nLoc;
+    const par=running.length?('<span class="apar">🦙 '+nLoc+' local · ✨ '+nCloud+' subscription working</span>'):'<span class="apar">idle</span>';
+    let runBar='';
+    if(run && (run.agents_total!=null||run.agents_done!=null)){
+      const done=Math.max(0,+run.agents_done||0), total=Math.max(done,+run.agents_total||0), pct=total?Math.round(done/total*100):0;
+      runBar='<div class="sub" style="margin:5px 0 2px">Run · '+done+'/'+total+' agents done'+(run.tokens?' · '+fmtk(run.tokens)+' tok':'')+'</div><div class="scorebar"><div class="f" style="width:'+pct+'%"></div></div>';
+    }
+    let rows='';
+    if(agents.length){
+      rows=agents.map(a=>{
+        const dot=a.status==='run'?'<span class="pulse" title="working"></span>':(a.status==='done'?'<span class="adot done" title="done">✓</span>':'<span class="adot q" title="queued">◌</span>');
+        const prog=(a.progress!=null)?'<span class="aprog" title="'+Math.round(a.progress)+'% complete">'+Math.round(a.progress)+'%</span>':'';
+        return '<div class="arow">'+dot+'<span class="amodel">'+(isLoc(a.model)?'🦙':'✨')+' '+esc(a.model?modelLabel(a.model):'—')+'</span><span class="arole">'+esc(a.role||'agent')+'</span><span class="atask">'+esc(a.task||'')+'</span>'+prog+'</div>';
+      }).join('');
+    }
+    let empty='';
+    if(!agents.length){
+      const seen=(mx.rows||[]).slice(0,6).map(r=>{let llm=null;(r.cells||[]).forEach((c,i)=>{if(c&&!llm)llm=mx.llms[i];});return '<span class="pill">'+(isLoc(llm)?'🦙':'✨')+' '+esc(r.via)+(llm?' · '+esc(llm):'')+'</span>';}).join('');
+      empty='<div class="sub" style="margin-top:4px">No parallel run active — Mooter routes one agent per prompt right now.</div>'+(seen?'<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">'+seen+'</div>':'')+'<div class="sub" style="font-size:9px;margin-top:7px;opacity:.7">ⓘ Parallel local + subscription fan-out (with per-agent progress) is an engine capability in progress — this panel lights up live when the engine emits it.</div>';
+    }
+    return '<div class="card'+cc('agents')+'" data-collap="agents"><div class="lbl collaphead"><span class="chev">▾</span>🤖 Agents — live '+par+'</div>'+runBar+rows+empty+'</div>';
+  })();
   $('#v-herd').innerHTML=
     '<div class="card"><div class="lbl">🧵 Recent sessions <span style="float:right;opacity:.6;font-size:9px">by activity</span></div>'+sessHtml+
     '<div class="sub" style="font-size:9px;margin-top:7px">● = active in the last 90s · ⚪ = last activity (heuristic from file mtime). The cockpit reads transcripts in ~/.claude/projects — it <b>cannot tell which Claude Code tab is focused</b> (the extension exposes no such API), and cross-session messaging is not tracked, so neither is shown.</div></div>'+
+    agentsCard+
     (mx.rows.length?'<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>':'');
   wireButtons($('#v-herd'));
+  wireCollapse($('#v-herd'));
 
   // ── INSIGHTS (telemetria total — req: quant, LoRA, per-prompt)
   const ins=s.insights||{};const qa=ins.quantAll||[];
