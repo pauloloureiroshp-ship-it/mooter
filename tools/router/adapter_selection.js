@@ -14,10 +14,7 @@ const os = require('os');
 const crypto = require('crypto');
 
 function mooterHome() {
-  // Same resolution convention as the rest of the router (cost-perf-tracker.js,
-  // matrix-status.js, …): an explicit MOOTER_HOME IS the .mooter dir; else
-  // <real-home>/.mooter. Cross-platform — never depends on $HOME (no-op on Windows).
-  return process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
+  return path.join(os.homedir(), '.mooter');
 }
 
 /** Local HMAC secret (same file consent.ts getLocalSecret persists). */
@@ -69,7 +66,7 @@ function getActiveAdapter() {
 /** Whether the user has *marked* an adapter active (D1 won't honor it yet). */
 function markedAdapterId() {
   try {
-    const prefs = JSON.parse(fs.readFileSync(path.join(mooterHome(), 'preferences.json'), 'utf8'));
+    const prefs = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8'));
     return prefs && typeof prefs.active_adapter_id === 'string' ? prefs.active_adapter_id : null;
   } catch {
     return null;

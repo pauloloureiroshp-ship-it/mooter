@@ -48,13 +48,7 @@ function heartbeatsDir() {
 
 function prefs() {
   try {
-    // Resolve the same way heartbeatsDir() does: an explicit MOOTER_HOME is the
-    // base (its preferences live in <MOOTER_HOME>/.mooter/), else the real home.
-    const home = process.env.MOOTER_HOME;
-    const prefsPath = home
-      ? path.join(home, '.mooter', 'preferences.json')
-      : path.join(os.homedir(), '.mooter', 'preferences.json');
-    return JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
+    return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8'));
   } catch {
     return {};
   }

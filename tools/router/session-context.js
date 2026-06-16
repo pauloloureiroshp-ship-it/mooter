@@ -19,27 +19,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// Home resolution: an explicit MOOTER_HOME (the .mooter dir, matching the rest of
-// the router) roots ALL state — store, pointer and prefs — under it, so tests and
-// sandboxed runs never read or write the developer's real home. $HOME is a no-op
-// for os.homedir() on Windows, so MOOTER_HOME is the only portable override.
-// Lazily resolved (getters) so a test that sets MOOTER_HOME after require() still
-// gets an isolated home — a module-load-time const would freeze the real home.
-function _mooterHome() {
-  return process.env.MOOTER_HOME && process.env.MOOTER_HOME.length > 0
-    ? process.env.MOOTER_HOME
-    : path.join(os.homedir(), '.mooter');
-}
-// Store/pointer live under .claude/tools/router in production; when MOOTER_HOME is
-// set they live directly under it (one isolated dir for the whole bridge).
-function _routerDir() {
-  return process.env.MOOTER_HOME && process.env.MOOTER_HOME.length > 0
-    ? process.env.MOOTER_HOME
-    : path.join(os.homedir(), '.claude', 'tools', 'router');
-}
-function _dir() { return path.join(_routerDir(), '.session-context'); }
-function _current() { return path.join(_routerDir(), '.current-session.json'); }
-function _prefs() { return path.join(_mooterHome(), 'preferences.json'); }
+const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
+const DIR = path.join(ROUTER, '.session-context');
+const CURRENT = path.join(ROUTER, '.current-session.json');
+const PREFS = path.join(os.homedir(), '.mooter', 'preferences.json');
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // prune transcripts older than 7d
 const MAX_TEXT = 4000;                  // cap per-turn stored text
@@ -50,7 +33,7 @@ const DEFAULT_MAX_TURNS = 12;
 function isEnabled() {
   if (process.env.MOOTER_CONTEXT_BRIDGE === '1') return true;
   if (process.env.MOOTER_CONTEXT_BRIDGE === '0') return false;
-  try { return JSON.parse(fs.readFileSync(_prefs(), 'utf8')).context_bridge === true; } catch { return false; }
+  try { return JSON.parse(fs.readFileSync(PREFS, 'utf8')).context_bridge === true; } catch { return false; }
 }
 
 function _sanitize(text) {
@@ -58,23 +41,23 @@ function _sanitize(text) {
   return String(text);
 }
 function _safeId(id) { return String(id || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80); }
-function _file(sessionId) { return path.join(_dir(), _safeId(sessionId) + '.jsonl'); }
+function _file(sessionId) { return path.join(DIR, _safeId(sessionId) + '.jsonl'); }
 
 /** Point at the session currently being routed — router-execute reads this since the
  *  /mooter-<model> skill invocation carries no session id. */
 function setCurrentSession(sessionId) {
   if (!isEnabled()) return false; // true opt-in: zero writes (not even the pointer) when OFF
-  try { fs.mkdirSync(_routerDir(), { recursive: true }); fs.writeFileSync(_current(), JSON.stringify({ session_id: sessionId, ts: new Date().toISOString() })); return true; } catch { return false; }
+  try { fs.mkdirSync(ROUTER, { recursive: true }); fs.writeFileSync(CURRENT, JSON.stringify({ session_id: sessionId, ts: new Date().toISOString() })); return true; } catch { return false; }
 }
 function currentSession() {
-  try { return JSON.parse(fs.readFileSync(_current(), 'utf8')).session_id || null; } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(CURRENT, 'utf8')).session_id || null; } catch { return null; }
 }
 
 /** Append one turn. No-op (returns false) when disabled / empty / on any error. */
 function appendTurn(sessionId, turn) {
   if (!isEnabled() || !sessionId || !turn || !turn.text) return false;
   try {
-    fs.mkdirSync(_dir(), { recursive: true });
+    fs.mkdirSync(DIR, { recursive: true });
     const rec = {
       ts: new Date().toISOString(),
       role: turn.role === 'assistant' ? 'assistant' : 'user',
@@ -130,9 +113,8 @@ function buildContextBlock(sessionId, opts = {}) {
 function pruneOld() {
   try {
     const now = Date.now();
-    const dir = _dir();
-    for (const f of fs.readdirSync(dir)) {
-      const fp = path.join(dir, f);
+    for (const f of fs.readdirSync(DIR)) {
+      const fp = path.join(DIR, f);
       try { if (now - fs.statSync(fp).mtimeMs > TTL_MS) fs.unlinkSync(fp); } catch { /* skip */ }
     }
   } catch { /* dir absent */ }
@@ -140,9 +122,5 @@ function pruneOld() {
 
 module.exports = {
   isEnabled, setCurrentSession, currentSession, appendTurn, readTurns, buildContextBlock, pruneOld,
-  DEFAULT_BUDGET_TOKENS,
+  DIR, CURRENT, DEFAULT_BUDGET_TOKENS,
 };
-// DIR/CURRENT are resolved live (honor a MOOTER_HOME set after require) so test
-// consumers (sc.DIR) always get the currently-active, isolated path.
-Object.defineProperty(module.exports, 'DIR', { enumerable: true, get: _dir });
-Object.defineProperty(module.exports, 'CURRENT', { enumerable: true, get: _current });

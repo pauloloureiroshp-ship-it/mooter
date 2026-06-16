@@ -13,19 +13,16 @@ test('getActiveAdapter: null with no prefs (baseline)', () => {
 });
 
 test('getActiveAdapter: null when marked but no manifest on disk', () => {
-  // Override via MOOTER_HOME (the .mooter dir itself) — the cross-platform home
-  // resolution the source actually honors; $HOME is a no-op on Windows.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
-  const mooterHome = path.join(tmp, '.mooter');
-  fs.mkdirSync(mooterHome, { recursive: true });
-  fs.writeFileSync(path.join(mooterHome, 'preferences.json'), JSON.stringify({ active_adapter_id: 'abc123' }));
-  const prevMH = process.env.MOOTER_HOME;
-  process.env.MOOTER_HOME = mooterHome;
+  fs.mkdirSync(path.join(tmp, '.mooter'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, '.mooter', 'preferences.json'), JSON.stringify({ active_adapter_id: 'abc123' }));
+  const prevHome = process.env.HOME;
+  process.env.HOME = tmp;
   try {
     assert.equal(getActiveAdapter(), null, 'marked id with no manifest → baseline');
     assert.equal(markedAdapterId(), 'abc123', 'but it reports the marked id');
   } finally {
-    if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
+    if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   }
 });
 
@@ -39,29 +36,26 @@ function signed(manifest, secret) {
   return { ...rest, signature: crypto.createHmac('sha256', secret).update(JSON.stringify(rest)).digest('hex') };
 }
 
-// `mooterHome` is the .mooter dir itself (matches MOOTER_HOME semantics).
-function setupAdapter(mooterHome, id, manifestFields, secret, opts = {}) {
-  fs.mkdirSync(path.join(mooterHome, 'adapters', id), { recursive: true });
-  fs.writeFileSync(path.join(mooterHome, '.telemetry_secret'), secret + '\n');
-  fs.writeFileSync(path.join(mooterHome, 'preferences.json'), JSON.stringify({ active_adapter_id: id }));
+function setupAdapter(tmp, id, manifestFields, secret, opts = {}) {
+  fs.mkdirSync(path.join(tmp, '.mooter', 'adapters', id), { recursive: true });
+  fs.writeFileSync(path.join(tmp, '.mooter', '.telemetry_secret'), secret + '\n');
+  fs.writeFileSync(path.join(tmp, '.mooter', 'preferences.json'), JSON.stringify({ active_adapter_id: id }));
   const manifest = signed({ schema_version: 1, adapter_id: id, name: manifestFields.name, base_model: 'qwen2.5:3b', adapter_type: 'lora', quantization: 'q4_k_m', ...manifestFields }, secret);
-  fs.writeFileSync(path.join(mooterHome, 'adapters', id, 'manifest.json'), JSON.stringify(manifest, null, 2));
-  if (opts.withGguf !== false) fs.writeFileSync(path.join(mooterHome, 'adapters', id, 'adapter.gguf'), 'FAKE');
+  fs.writeFileSync(path.join(tmp, '.mooter', 'adapters', id, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  if (opts.withGguf !== false) fs.writeFileSync(path.join(tmp, '.mooter', 'adapters', id, 'adapter.gguf'), 'FAKE');
   return manifest;
 }
 
-// Point MOOTER_HOME at the .mooter dir — the cross-platform override the source
-// honors (setting $HOME is a no-op on Windows where os.homedir() ignores it).
-function withHome(mooterHome, fn) {
-  const prev = process.env.MOOTER_HOME;
-  process.env.MOOTER_HOME = mooterHome;
-  try { return fn(); } finally { if (prev === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prev; }
+function withHome(tmp, fn) {
+  const prev = process.env.HOME;
+  process.env.HOME = tmp;
+  try { return fn(); } finally { if (prev === undefined) delete process.env.HOME; else process.env.HOME = prev; }
 }
 
 test('getActiveAdapter (D2): valid signed manifest + gguf → returns it', () => {
-  const home = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ad-')), '.mooter');
-  setupAdapter(home, 'aaa111', { name: 'diagram-v1' }, 'sec-1');
-  withHome(home, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
+  setupAdapter(tmp, 'aaa111', { name: 'diagram-v1' }, 'sec-1');
+  withHome(tmp, () => {
     const a = getActiveAdapter();
     assert.ok(a, 'returns the manifest');
     assert.equal(a.name, 'diagram-v1');
@@ -69,18 +63,18 @@ test('getActiveAdapter (D2): valid signed manifest + gguf → returns it', () =>
 });
 
 test('getActiveAdapter (D2): tampered signature → null (never honor)', () => {
-  const home = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ad-')), '.mooter');
-  const m = setupAdapter(home, 'bbb222', { name: 'x' }, 'sec-2');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
+  const m = setupAdapter(tmp, 'bbb222', { name: 'x' }, 'sec-2');
   // tamper: change name without re-signing
   m.name = 'evil';
-  fs.writeFileSync(path.join(home, 'adapters', 'bbb222', 'manifest.json'), JSON.stringify(m));
-  withHome(home, () => assert.equal(getActiveAdapter(), null, 'tampered manifest → baseline'));
+  fs.writeFileSync(path.join(tmp, '.mooter', 'adapters', 'bbb222', 'manifest.json'), JSON.stringify(m));
+  withHome(tmp, () => assert.equal(getActiveAdapter(), null, 'tampered manifest → baseline'));
 });
 
 test('getActiveAdapter (D2): missing adapter.gguf → null', () => {
-  const home = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ad-')), '.mooter');
-  setupAdapter(home, 'ccc333', { name: 'x' }, 'sec-3', { withGguf: false });
-  withHome(home, () => assert.equal(getActiveAdapter(), null, 'no .gguf → baseline'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-'));
+  setupAdapter(tmp, 'ccc333', { name: 'x' }, 'sec-3', { withGguf: false });
+  withHome(tmp, () => assert.equal(getActiveAdapter(), null, 'no .gguf → baseline'));
 });
 
 test('verifyManifestSignatureSync: matches the natural-order signing', () => {

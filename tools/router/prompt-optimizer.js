@@ -295,13 +295,6 @@ function optimize(prompt, decision) {
   if (HIGH_RISK_HINT.test(prompt)) return null;
   if (category === 'architecture_or_critical') return null;
   if (category === 'cross_file_change') return null;
-  // Wave 63 GAP 5 — never compress a DENSE code_generation prompt (fenced code,
-  // multi-line code spec, or symbol-heavy body): removePadding/reformatForT0 strip
-  // articles & prepositions and collapse whitespace, which can corrupt code,
-  // identifiers, or string literals. Short/light code prompts still optimize. The
-  // literature flags code as the compression-sensitive case (today only
-  // architecture/cross-file were guarded).
-  if (category === 'code_generation' && isDenseCodePrompt(prompt)) return null;
   if (/<optimized-task/.test(prompt)) return null;
   if (category === 'bash_command_paste') return null;
   if (category === 'file_read_intent') return null;
@@ -368,33 +361,11 @@ function optimize(prompt, decision) {
   };
 }
 
-// ── Wave 63 GAP 5: dense-code detection ─────────────────────────────────
-/**
- * True when a prompt carries dense code/structure that destructive compression
- * (article/preposition removal + whitespace collapse) could corrupt: a fenced
- * code block, a multi-line code spec, or a symbol-heavy body. Short/light code
- * prompts return false (safe to optimize). Pure; never throws.
- * @param {string} text @returns {boolean}
- */
-function isDenseCodePrompt(text) {
-  if (!text || typeof text !== 'string') return false;
-  if (/```/.test(text)) return true; // fenced code block
-  const codeToken = /[{};]|=>|\bdef\b|\bfunction\b|\bclass\b|\bimport\b|\breturn\b|\bconst\b|\blet\b|#include/;
-  const lines = text.split('\n');
-  if (lines.length >= 4 && codeToken.test(text)) return true; // multi-line code spec
-  if (text.length > 120) {
-    const symbols = (text.match(/[{}()[\]<>;=|&/*+]/g) || []).length;
-    if (symbols / text.length > 0.12) return true; // symbol-heavy body
-  }
-  return false;
-}
-
 // ── Exports ────────────────────────────────────────────────────────────
 
 module.exports = {
   optimize,
   // Exposed for testing:
-  isDenseCodePrompt,
   removePadding,
   reformatForT0,
   reformatForT1,

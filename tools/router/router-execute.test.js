@@ -17,18 +17,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
-
-// Hermetic Context Bridge: pin executePinned's session-context store at an isolated
-// temp MOOTER_HOME so it never reads/writes the developer's real ~/.mooter or
-// ~/.claude/tools/router/.session-context. Without this, executePinned() would inject
-// the real machine's conversation history into a pinned ollama prompt whenever the
-// dev's preferences.json has `context_bridge: true`, making the suite order-dependent
-// (the `pin: ollama → echo:hello` test then sees a polluted prompt). The empty temp
-// home has no preferences.json, so isEnabled() defaults OFF unless a test sets the
-// MOOTER_CONTEXT_BRIDGE env explicitly (the two Context Bridge tests below do).
-process.env.MOOTER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'rx-mooterhome-'));
 
 const { runExecutorWithFixture, reset } = require('./router-execute.harness');
 
@@ -432,7 +421,8 @@ test('execute() never throws on async wrapper rejection — error captured in re
 
 // ── T-08 — telemetry write-through (I10 + disk write) ───────────────────
 
-// os, fs and path are already required at the top of this file.
+const os = require('node:os');
+// fs and path are already required at the top of this file.
 
 test('I10: prompt_preview redacts API keys, bearer tokens, and KEY=value patterns', () => {
   const r = _internal.sanitisePromptPreview(

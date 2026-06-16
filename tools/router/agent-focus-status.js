@@ -27,14 +27,7 @@ try { tracker = require('./subagent_tracker.js'); } catch { tracker = null; }
 
 function prefs() {
   try {
-    // An explicit MOOTER_HOME IS the .mooter dir (matches the router-wide
-    // convention); else <real-home>/.mooter. $HOME is a no-op for os.homedir() on
-    // Windows, so MOOTER_HOME is the portable, hermetic override.
-    const home = process.env.MOOTER_HOME;
-    const prefsPath = home
-      ? path.join(home, 'preferences.json')
-      : path.join(os.homedir(), '.mooter', 'preferences.json');
-    return JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
+    return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8'));
   } catch {
     return {};
   }
