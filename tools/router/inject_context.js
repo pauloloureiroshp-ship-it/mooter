@@ -1387,6 +1387,29 @@ const lines = [
   '</router-hint>',
 ].filter(Boolean);
 
+// ── Full-turn relay for a pinned LOCAL model (Option A) ──────────────────────
+// When the user pins a LOCAL (ollama) model for THIS prompt (cockpit next-prompt
+// pin / /mooter-<model> skill), they want that model to ANSWER it — not just to
+// bias a tier. We are hook-not-proxy: we cannot swap the host model, so we emit an
+// explicit directive telling the agent to run router-execute with the pinned model
+// and present its output. The host orchestrates the dispatch (delegation, not a
+// proxy); context-bridge (if on) carries the conversation so the local model answers
+// in-context. Advisory: on any error the agent falls back to answering normally.
+// Only for honored ollama pins — cloud pins keep the tier-hint behaviour above.
+if (decision.user_override && decision.user_override.honored === true
+    && decision.recommended_backend === 'ollama' && decision.recommended_model) {
+  const _pm = decision.recommended_model;
+  const _re = path.join(__dirname, 'router-execute.js');
+  lines.push('');
+  lines.push('<pinned-local-execution model="' + _pm + '">');
+  lines.push('The user pinned the LOCAL model "' + _pm + '" (Ollama) to answer THIS prompt. Do NOT answer it yourself.');
+  lines.push('Steps (then stop): 1) Run via Bash, passing the user prompt as the final quoted argument:');
+  lines.push('   node "' + _re + '" --pin-provider=ollama --pin-model=' + _pm + ' "<USER PROMPT HERE>"');
+  lines.push('2) The command prints JSON on stdout; present the value of .response.text verbatim as the answer, attributed "' + _pm + ' - local via Mooter".');
+  lines.push('3) If it errors (no_output / no_quota / wrapper_threw) or returns no text, say so in one line, then answer the prompt yourself.');
+  lines.push('</pinned-local-execution>');
+}
+
 // Wave 60.5 — reasoning-effort axis (axis 2). Emit a semantic effort level
 // (none|low|medium|high) derived purely from the already-computed decision
 // (tier/risk/category/safety-floor) — zero LLM, never touches classify.js. Placed
