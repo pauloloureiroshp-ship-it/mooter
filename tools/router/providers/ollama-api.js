@@ -44,7 +44,7 @@ const SYSTEM = [
  */
 
 /**
- * Call Ollama's /api/generate endpoint (non-streaming).
+ * Call Ollama's /api/chat endpoint (non-streaming).
  *
  * @param {string} prompt
  * @param {object} [opts]
@@ -65,10 +65,17 @@ async function callOllama(prompt, opts = {}) {
   const model = opts.model || process.env.OLLAMA_OPTION_A_MODEL || DEFAULT_MODEL;
   const timeoutMs = Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS;
 
+  // Wave 66: dispatch via /api/chat (messages) instead of the legacy /api/generate.
+  // Modern instruct/reasoning models (gemma3+, gemma4:e4b, ...) return an EMPTY
+  // `response` on /api/generate but answer correctly on /api/chat (text lands in
+  // message.content). Older models (qwen2.5) work on both, so chat is strictly
+  // safer. think:false stops reasoning models burning num_predict on hidden CoT.
   const body = JSON.stringify({
     model,
-    system: opts.system || SYSTEM,
-    prompt,
+    messages: [
+      { role: 'system', content: opts.system || SYSTEM },
+      { role: 'user', content: prompt },
+    ],
     stream: false,
     keep_alive: -1,
     options: {
@@ -78,7 +85,7 @@ async function callOllama(prompt, opts = {}) {
     think: false,
   });
 
-  const url = host.replace(/\/+$/, '') + '/api/generate';
+  const url = host.replace(/\/+$/, '') + '/api/chat';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -108,7 +115,13 @@ async function callOllama(prompt, opts = {}) {
     return null;
   }
 
-  const text = (json && typeof json.response === 'string') ? json.response.trim() : '';
+  // /api/chat puts the answer in message.content; keep a /api/generate fallback
+  // (response) so older payloads and test stubs still parse.
+  const rawText =
+    (json && json.message && typeof json.message.content === 'string') ? json.message.content
+    : (json && typeof json.response === 'string')                      ? json.response
+    : '';
+  const text = rawText.trim();
   if (!text) return null;
 
   const tokensIn  = Number(json.prompt_eval_count) || 0;

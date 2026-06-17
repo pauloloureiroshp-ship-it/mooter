@@ -1406,7 +1406,10 @@ if (decision.user_override && decision.user_override.honored === true
   lines.push('Steps (then stop): 1) Run via Bash, passing the user prompt as the final quoted argument:');
   lines.push('   node "' + _re + '" --pin-provider=ollama --pin-model=' + _pm + ' "<USER PROMPT HERE>"');
   lines.push('2) The command prints JSON on stdout; present the value of .response.text verbatim as the answer, attributed "' + _pm + ' - local via Mooter".');
-  lines.push('3) If it errors (no_output / no_quota / wrapper_threw) or returns no text, say so in one line, then answer the prompt yourself.');
+  lines.push('3) If it errors or returns no text, do NOT just say "no_output". Translate the failure for the user, then answer yourself:');
+  lines.push('   - error.code "no_quota" -> "o Ollama nao esta a responder (daemon em baixo ou ocupado) - confirma com: ollama ps".');
+  lines.push('   - error.code "no_output"/empty -> "o modelo \\"' + _pm + '\\" nao devolveu texto (pode nao estar instalado: ollama pull ' + _pm + ', ou esta a fazer cold-load)".');
+  lines.push('   State in ONE line: "tentei o teu modelo local \\"' + _pm + '\\", <motivo>; respondo eu (modelo desta sessao) como fallback." Then answer the prompt.');
   lines.push('</pinned-local-execution>');
 }
 
