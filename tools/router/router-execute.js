@@ -911,9 +911,18 @@ async function executePinned(input = {}) {
     } catch { /* best-effort */ }
   }
 
+  // Pinned execution is an explicit user choice — they accept waiting. Local
+  // (ollama) models can need a long cold-load AND slow CPU-offloaded inference
+  // (measured on Paulo's Mac: gemma4:e4b ~9.6GB → 79s cold-load, ~120s warm at
+  // 69% CPU/31% GPU). The old 30s per-attempt default returned no_output before
+  // the model even answered. Give LOCAL pins a generous default (env-overridable
+  // via MOOTER_LOCAL_PIN_TIMEOUT_MS); cloud pins keep the short 30s default.
   const wrapperOpts = {};
-  const perAttempt = Number(options.timeoutMs) || 0;
-  wrapperOpts.timeoutMs = perAttempt > 0 ? perAttempt : 30_000;
+  const explicitTimeout = Number(options.timeoutMs) || 0;
+  const localPinDefaultMs = Number(process.env.MOOTER_LOCAL_PIN_TIMEOUT_MS) || 240_000;
+  wrapperOpts.timeoutMs = explicitTimeout > 0
+    ? explicitTimeout
+    : (providerKey === 'ollama' ? localPinDefaultMs : 30_000);
   if (model) wrapperOpts.model = model;
 
   let response = null;
