@@ -3,6 +3,34 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+## RANKINGS — `mooter.ai/rankings` (R0→R3)
+
+**Estado:** **R0 ✅** (higiene & dados) · R1 🟡 (vitrine, SHIP-GATE) · R2 🟡 (pipeline) · R3 🟡 (cockpit). Branch `feat/rankings` off `main` @ `3d28578`. 5 commits (`376ef8b`→`91675e9`). `classify.js` sha `427d8c0b…364bc48f` **INTACTA**.
+
+**R0 entregue (5 tasks, cada uma com teste + gates verdes):**
+- **#1 `376ef8b`** roster drift 14→17 → fonte única `landing/app/lib/matrix-roster.ts` (espelho do engine, **CI-locked** por `matrix-roster.test.ts` que lê o *source* de `specialization-matrix.ts`/`task-categories.ts`). Admin route + testes actualizados (336→408 células).
+- **#2 `842526a`** hub hostname unificado → `mooter-hub.frugal-hub.workers.dev` (canónico, 200 a `/health`; `paulo-loureiro` dava 404). `hub-url-consistency.test.ts` falha se `pricing.ts` divergir de `env.js`.
+- **#3 `5d04d85`** comando real é `pricing-update` (Wave 33, já registado); adicionado **alias `price-update`** + flag **`--dry-run`** não-destrutivo (não escreve cache, degrada a exit 0 sem crash). Validado contra hub live (8 models).
+- **#4 `fd4f82b`** matrix route: `readFileSync(join(cwd,'..','data'))` → **JSON `import` inlined** (Wave 61). `next build` limpo (import externo de `data/` resolve sob webpack). CLI `mooter matrix --json` já era cwd-safe (verificado de `/tmp`).
+- **#5 `91675e9`** **`/api/rankings` público** (ISR `revalidate 3600`). Motor partilhado `landing/app/lib/matrix-engine.ts` → admin + rankings constroem a **mesma** grid 17×24 dos **mesmos** números. Shape §B completo. `curl localhost:7819/api/rankings` → **200**, 408 células, coverage 14 measured / 405 pending-TES, coerente com a matrix admin.
+
+**Doutrina:** anti-fabricação (unmeasured→`null`+status `unmeasured`; preço pending→`tes:null`; local→`free`) ✅ · proveniência `source`+`as_of` em cada número ✅ · `mooter_point` **advisory:true** (fleet<50) ✅ · sha intacta ✅ · `packages/*` frozen intocados (R0 só adiciona ficheiros novos em `landing/` + edita routes/CLI não-frozen) ✅ · selective adds ✅.
+
+**Gates R0:** landing **193/193** · cli **632** (631 pass, 1 skip) · `tsc --noEmit` **0** · `next build` limpo · ratchet **146/146** · `mooter matrix --json` e `price-update --dry-run` sem crash.
+
+**REFUTATIONS_LOG (R0):**
+- **RK-R1** HEAD do playbook (`~6fc9d85`, cockpit v0.14.0) **STALE** — real `3d28578` (cockpit v0.16.0, runtime v1.39.0). SYNC topo confirmou.
+- **RK-R2** ratchet do playbook (`git grep -li frugal -- .` = **400**) ≠ gate real do CI (`.github/workflows/no-frugal.yml`: `grep -rli frugal tools packages hub landing scripts | grep -v node_modules` = **145**, baseline **146** em `docs/rebrand/frugal-baseline.txt`). O "146" referia a *baseline* do CI, não o total do repo. #2 leva-o a 146 (host real contém `frugal-hub`, subdomínio Cloudflare não-renomeável) — ainda PASS (≤ baseline). **Usar sempre o comando do CI.**
+- **RK-R3** comando é `pricing-update`, não `price-update` (deep-dive enganou-se) → alias adicionado.
+- **RK-R4** canónico = `mooter-hub.frugal-hub.workers.dev`; `frugal-hub.frugal-hub.workers.dev` é o **worker legacy deprecated** (Wave 13.x, mesmo D1; fora de scope).
+- **RK-R5** landing **não importa** o engine `.ts` (`specialization-matrix.ts` arrasta `benchmark-fetcher.ts`/`node:fs` + `.ts`-specifiers; sem `transpilePackages`) → roster espelhado + lockstep por leitura de source; TES re-portado em `matrix-engine.ts`. JSON de `data/` (repo root) **importa OK** sob Next webpack (provado por `next build`).
+- **RK-R6** `mooter_point` é **advisory snapshot** (valores do mockup, "os teus números variam"); `/api/stats` live (saved% real, k-anon) liga-se no **hero do R1**. fleet<50 → `advisory:true`.
+- **RK-R7** `packages/mooter-bench/RESULTS.json` **não existe** no path esperado (só `dataset/` + `src/`) — R1 #5 terá de o gerar/localizar antes de usar accuracy/savings.
+
+**Próxima missão:** **R1 — vitrine pública (SHIP-GATE)**. ⚠️ Gates de ambiente nesta máquina (MacBook M3): `gh` **ausente** (preciso para o PR `feat/rankings→dev→main`); `next build` precisa das env Supabase (`NEXT_PUBLIC_SUPABASE_*`, `SITE_URL`, `MOOTER_HUB_URL` — já no Vercel, dummies localmente). Sem gate de credencial Paulo para R0/R1 (R2 precisa `AA_API_KEY`). Notion: sub-page R0 sob [📊 Rankings](https://app.notion.com/p/3826f6e42bc481049672fac08513acfd).
+
+---
+
 ### 🐮 Sessão — 2026-06-14 (Wave 60.5 — Reasoning-Effort Axis (GAP 1) · **PR — gated Paulo**)
 **Estado:** ✅ Eixo 2 (reasoning/output) entregue na branch `wave60_5-reasoning-axis` (off `main` @ v1.39.0), na **worktree isolada** `../mooter-wave60_5`. `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (verificada pré-1ª-linha, a cada bloco, e pós-final-reviewer). final-reviewer Opus **SHIP-WITH-NITS · 0-HIGH · 0-MED** (2 NITs não-bloqueantes). Diff confinado a host-side `tools/router/*` + docs; **zero `packages/*`**, zero edição de ficheiro frozen.
 **Entregue (4 blocos, cada um com teste):** **A** `tools/router/reasoning-effort.js` — `reasoningEffort(decision) → none|low|medium|high`, puro, deriva de tier/risk/category/safety-floor já calculados (zero LLM). 23 testes. **B** `inject_context.js` emite `<reasoning-effort>LEVEL</reasoning-effort>` no router-hint (best-effort; módulo ausente → tag omitida → hint **byte-idêntico**). 3 testes (inclui prova de byte-identity por splice). **C** chip opt-in `🧠 eff` (`reasoning-effort-status.js` self-gating + persistência best-effort em `~/.mooter/reasoning-effort.json` + registo em `CHIP_MODULES`, **não** `DEFAULT_ELIGIBLE` → default byte-idêntico, contrato A.5 intacto). 6 testes. **D** `docs/ux/REASONING_EFFORT.md`.
