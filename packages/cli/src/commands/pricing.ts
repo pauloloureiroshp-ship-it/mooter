@@ -16,7 +16,11 @@ export interface CmdResult {
   output: string;
 }
 
-export const DEFAULT_HUB = "https://mooter-hub.paulo-loureiro.workers.dev";
+// Canonical hub host — the one that actually answers /health (200). MUST stay in
+// lockstep with tools/router/env.js DEFAULT_HUB_URL; hub-url-consistency.test.ts
+// fails the build if they diverge. (`frugal-hub` is the Cloudflare account
+// subdomain, not a rebrand miss — renaming it requires a worker redeploy.)
+export const DEFAULT_HUB = "https://mooter-hub.frugal-hub.workers.dev";
 
 export interface PricingModel {
   id: string;
