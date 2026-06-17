@@ -63,13 +63,13 @@ describe('admin happy path (reads real seed + snapshot)', () => {
     getUser.mockResolvedValue({ id: 'u1', email: 'admin@example.com' });
   });
 
-  it('returns 200 with the full 14×24 dense matrix', async () => {
+  it('returns 200 with the full 17×24 dense matrix', async () => {
     const res = await GET(req('tok'));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.models).toHaveLength(14);
+    expect(body.models).toHaveLength(17);
     expect(body.categories).toHaveLength(24);
-    expect(body.cells).toHaveLength(14 * 24);
+    expect(body.cells).toHaveLength(17 * 24);
   });
 
   it('sets a private, no-store cache header (reads session state)', async () => {
@@ -87,14 +87,14 @@ describe('admin happy path (reads real seed + snapshot)', () => {
     expect(entry.target_user_id_hash).toBeNull();
   });
 
-  it('coverage is honest: 14 measured of 336, and reports pending-TES count', async () => {
+  it('coverage is honest: 14 measured of 408, and reports pending-TES count', async () => {
     const body = await (await GET(req('tok'))).json();
-    expect(body.coverage.total_cells).toBe(336);
+    expect(body.coverage.total_cells).toBe(408); // 17 models × 24 categories
     expect(body.coverage.measured_cells).toBe(14); // matches the seed's 14 cited cells
-    expect(body.coverage.empty_cells).toBe(322);
+    expect(body.coverage.empty_cells).toBe(394); // 408 − 14
     // tes_pending_cells counts EVERY cell with a null TES (incl. all empties).
     expect(body.coverage.tes_pending_cells).toBeGreaterThanOrEqual(14);
-    expect(body.coverage.tes_pending_cells).toBeLessThanOrEqual(336);
+    expect(body.coverage.tes_pending_cells).toBeLessThanOrEqual(408);
   });
 
   it('NEVER fabricates a TES: every cell tes is null or a finite number, and a pending cell has tes:null', async () => {
