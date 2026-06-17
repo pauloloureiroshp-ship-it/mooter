@@ -577,7 +577,14 @@ window.addEventListener('message',(e)=>{
   const selAttr=(v)=>v===curPin?' selected':'';
   let pinOpts='<option value=""'+selAttr('')+'>🐮 Auto — let Moo decide</option>';
   const locals=installed.filter(n=>PIN_LOCAL[n]);
-  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+'</option>').join('')+'</optgroup>';
+  // Honest speed hint from REAL model size (ollama /api/tags). Heavy local models
+  // (>=8GB) cold-load slowly and often spill to CPU on laptops (e.g. gemma4:e4b ~9.6GB
+  // => first reply ~1-2min); small ones (<=4GB, e.g. qwen2.5:3b) answer in seconds.
+  // null size => make no claim. Annotates the label only; the <option> value stays the bare model id.
+  const ollSize={};(s.ollama||[]).forEach(x=>{if(x&&x.name)ollSize[x.name]=x.sizeGb;});
+  const localTag=(n)=>{const g=ollSize[n];if(g==null)return '';if(g>=8)return ' \u00b7 '+g+'GB \u26a0 lento';if(g<=4)return ' \u00b7 '+g+'GB \u26a1';return ' \u00b7 '+g+'GB';};
+  const isHeavyLocal=(n)=>{const g=ollSize[n];return g!=null&&g>=8;};
+  if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+esc(localTag(n))+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   const lv=s.live; // executor of the focused session (used by the "Actually ran" line below)
   $('#v-cockpit').innerHTML=
@@ -597,7 +604,7 @@ window.addEventListener('message',(e)=>{
       return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
     })()+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
-    '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b></div>':'')+'</div>'+
+    '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b>'+(isHeavyLocal(curPin)?' <span style="opacity:.65;font-size:9px">\u00b7 modelo pesado: 1\u00aa resposta pode levar ~1-2min (cold-load + CPU)</span>':'')+'</div>':'')+'</div>'+
     herdCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
