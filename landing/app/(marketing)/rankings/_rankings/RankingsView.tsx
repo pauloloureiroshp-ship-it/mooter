@@ -9,8 +9,21 @@
 // carries its source + as_of in a tooltip. Not affiliated with Anthropic.
 
 import React, { useMemo, useState } from 'react';
-import { tesBucket, bucketColor } from '../../../(app)/dashboard/_matrix_state';
+import { tesBucket, type TesBucket } from '../../../(app)/dashboard/_matrix_state';
 import type { RankingsPayload, RankingsModel } from '../../../lib/rankings-data';
+
+// Heatmap palette mapped onto the real design tokens (globals.css), not an ad-hoc
+// chart palette: high value → green, mid → yellow, low → tier-3 red, pending → a
+// faint neutral (honestly "unknown", never a coloured score).
+const HEAT_COLORS: Record<TesBucket, string> = {
+  high: 'var(--color-green)',
+  mid: 'var(--color-yellow)',
+  low: 'var(--color-tier-3)',
+  pending: 'var(--color-faint)',
+};
+function heatColor(b: TesBucket): string {
+  return HEAT_COLORS[b];
+}
 
 export interface BenchSnapshot {
   generated_at: string;
@@ -32,7 +45,7 @@ const TIER_COLORS: Record<string, string> = {
   T5: 'var(--color-accent)',
 };
 function tierColor(t: string | null): string {
-  return (t && TIER_COLORS[t]) || '#3a372f';
+  return (t && TIER_COLORS[t]) || 'var(--color-border-light)';
 }
 
 type Axis = 'tes' | 'cost' | 'score';
@@ -95,7 +108,7 @@ function chipStyle(bg: string, faded = false): React.CSSProperties {
     fontWeight: 700,
     padding: '2px 7px',
     borderRadius: 6,
-    color: '#0B0A09',
+    color: 'var(--color-bg)',
     background: bg,
     opacity: faded ? 0.55 : 1,
   };
@@ -117,7 +130,7 @@ function ControlButton({
       onClick={onClick}
       style={{
         background: active ? 'var(--color-accent)' : 'var(--color-surface-2)',
-        color: active ? '#0B0A09' : 'var(--color-muted)',
+        color: active ? 'var(--color-bg)' : 'var(--color-muted)',
         border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
         borderRadius: 999,
         padding: '5px 12px',
@@ -182,28 +195,32 @@ export function RankingsView({ data, bench }: { data: RankingsPayload; bench: Be
       rows = rows.filter((r) => r.vendor === v);
     }
     const dir = sortDir;
-    const val = (r: Row): number | string => {
+    const val = (r: Row): number | string | null => {
       switch (sortKey) {
         case 'name':
           return r.name.toLowerCase();
         case 'tier':
           return r.tier ?? 'ZZ';
         case 'score':
-          return r.score ?? -Infinity;
+          return r.score;
         case 'in':
-          return r.inP ?? Infinity;
+          return r.inP;
         case 'out':
-          return r.outP ?? Infinity;
+          return r.outP;
         case 'blended':
-          return r.blended ?? Infinity;
+          return r.blended;
         case 'tes':
         default:
-          return r.tes ?? -Infinity;
+          return r.tes;
       }
     };
     return [...rows].sort((a, b) => {
       const va = val(a);
       const vb = val(b);
+      // Nulls always sort last, regardless of direction (never NaN arithmetic).
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
       if (typeof va === 'string' || typeof vb === 'string') {
         return dir * String(va).localeCompare(String(vb));
       }
@@ -223,7 +240,7 @@ export function RankingsView({ data, bench }: { data: RankingsPayload; bench: Be
   const cov = data.coverage;
 
   return (
-    <main
+    <div
       style={{
         maxWidth: 1080,
         margin: '0 auto',
@@ -248,8 +265,8 @@ export function RankingsView({ data, bench }: { data: RankingsPayload; bench: Be
       <p style={{ color: 'var(--color-muted)', maxWidth: 640, fontSize: 15 }}>
         OpenRouter ranks models by <em>usage</em>. We show the{' '}
         <strong>cost×quality frontier</strong> — and where the Mooter router falls by mixing local
-        models ($0) with subscriptions. <strong>Real data · sources cited per cell · not a community
-        average.</strong>
+        models ($0) with subscriptions. <strong>Real benchmark scores, cited per cell · routing
+        savings are an advisory estimate · not a community average.</strong>
       </p>
 
       {/* Block 0 — Hero */}
@@ -358,12 +375,12 @@ export function RankingsView({ data, bench }: { data: RankingsPayload; bench: Be
         point is an <strong style={{ color: 'var(--color-text)' }}>advisory</strong> result of real
         routing ({mp.basis}) — not a model; your numbers vary.
         <div style={{ marginTop: 10 }}>
-          Benchmarks:{' '}
+          Benchmark sources (cited per cell): SWE-bench Verified · Terminal-Bench 2.0 · GPQA Diamond
+          · AIME 2026 · vendor evals. Cost×quality axis convention from{' '}
           <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>
             Artificial Analysis
           </a>
-          {' '}· SWE-bench · SEAL · per-cell sources in tooltips. Pricing: Anthropic/vendor list
-          prices ({data.pricing['claude-opus-4-7']?.as_of ?? 'snapshot'}).
+          . Pricing: Anthropic/vendor list prices ({data.pricing['claude-opus-4-7']?.as_of ?? 'snapshot'}).
         </div>
       </div>
       <p style={{ marginTop: 18, color: 'var(--color-muted)', fontSize: 11, textAlign: 'center' }}>
@@ -371,7 +388,7 @@ export function RankingsView({ data, bench }: { data: RankingsPayload; bench: Be
         trademarks of Anthropic. Mooter is an independent, MIT-licensed router. Generated{' '}
         {new Date(data.generated_at).toISOString().slice(0, 10)} · v{data.version}.
       </p>
-    </main>
+    </div>
   );
 }
 
@@ -442,23 +459,28 @@ function Leaderboard({
   const th = (k: SortKey, label: string, num = false): React.ReactNode => (
     <th
       scope="col"
-      onClick={() => onSort(k)}
       aria-sort={sortKey === k ? (sortDir < 0 ? 'descending' : 'ascending') : 'none'}
-      style={{
-        textAlign: num ? 'right' : 'left',
-        padding: '9px 10px',
-        borderBottom: '1px solid var(--color-border)',
-        color: 'var(--color-muted)',
-        fontWeight: 600,
-        fontSize: 12,
-        cursor: 'pointer',
-        userSelect: 'none',
-        whiteSpace: 'nowrap',
-        fontFamily: num ? 'var(--mono)' : 'var(--font)',
-      }}
+      style={{ padding: 0, borderBottom: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}
     >
-      {label}
-      {sortKey === k ? (sortDir < 0 ? ' ▼' : ' ▲') : ''}
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        style={{
+          width: '100%',
+          textAlign: num ? 'right' : 'left',
+          padding: '9px 10px',
+          background: 'transparent',
+          border: 'none',
+          color: 'var(--color-muted)',
+          fontWeight: 600,
+          fontSize: 12,
+          cursor: 'pointer',
+          fontFamily: num ? 'var(--mono)' : 'var(--font)',
+        }}
+      >
+        {label}
+        {sortKey === k ? (sortDir < 0 ? ' ▼' : ' ▲') : ''}
+      </button>
     </th>
   );
   const numTd: React.CSSProperties = {
@@ -502,21 +524,27 @@ function Leaderboard({
             </tr>
           </thead>
           <tbody>
-            {/* Mooter row pinned on top */}
-            <tr style={{ background: 'rgba(76,175,106,0.10)' }} title={mp.basis}>
+            {/* Mooter row pinned on top — advisory estimate, never measured data */}
+            <tr
+              style={{ background: 'rgba(76,175,106,0.10)' }}
+              title={`${mp.basis} · source: ${mp.source} · as of ${mp.as_of}`}
+            >
               <td style={nameTd}>
                 <strong>🐮 Mooter</strong>{' '}
-                <span style={{ color: 'var(--color-muted)', fontSize: 12 }}>routing (advisory)</span>
+                <span style={{ color: 'var(--color-text)', fontSize: 12 }}>routing (advisory)</span>
               </td>
               <td style={nameTd}>
                 <span style={chipStyle('var(--color-green)')}>MIX</span>
               </td>
-              <td style={numTd}>{(mp.score * 100).toFixed(1)}</td>
+              {/* ≈ marks an advisory estimate, not a measured benchmark score */}
+              <td style={numTd} title="advisory estimate of the routed mix — not a benchmark">
+                ≈ {(mp.score * 100).toFixed(1)}
+              </td>
               <td style={{ ...numTd, color: 'var(--color-green)', fontWeight: 700 }}>~$0+</td>
               <td style={numTd}>—</td>
-              <td style={{ ...numTd, color: 'var(--color-green)', fontWeight: 700 }}>{fmtUsd(mp.blended_3to1)}</td>
-              <td style={{ ...numTd, fontWeight: 700 }}>{fmtTes(mp.tes)}</td>
-              <td style={{ ...nameTd, color: 'var(--color-muted)', fontSize: 12 }}>advisory</td>
+              <td style={{ ...numTd, color: 'var(--color-green)', fontWeight: 700 }}>≈ {fmtUsd(mp.blended_3to1)}</td>
+              <td style={{ ...numTd, fontWeight: 700 }}>≈ {fmtTes(mp.tes)}</td>
+              <td style={{ ...nameTd, color: 'var(--color-text)', fontSize: 12 }}>advisory</td>
             </tr>
             {rows.map((r) => {
               const dim = r.status === 'unmeasured' || r.status === 'pending';
@@ -528,7 +556,9 @@ function Leaderboard({
                 .filter(Boolean)
                 .join(' · ');
               return (
-                <tr key={r.id} title={tip} style={{ opacity: dim ? 0.5 : 1 }}>
+                // Dimmed = de-emphasised via a muted (AA-contrast) text colour, NOT
+                // opacity (which would drop text below WCAG contrast).
+                <tr key={r.id} title={tip} style={dim ? { color: 'var(--color-muted)' } : undefined}>
                   <td style={nameTd}>
                     <strong>{r.name}</strong>{' '}
                     <span style={{ color: 'var(--color-muted)', fontSize: 12 }}>{r.vendor}</span>
@@ -674,7 +704,7 @@ function Frontier({
                 <circle cx={sx(p.x)} cy={sy(p.y)} r={16} fill="none" stroke="var(--color-green)" strokeWidth={1.5} opacity={0.5} strokeDasharray="3 3" />
               )}
               <circle cx={sx(p.x)} cy={sy(p.y)} r={r} fill={color}>
-                <title>{`${p.mooter ? '🐮 ' : ''}${p.name}: $${p.x.toFixed(2)}/M · score ${(p.y * 100).toFixed(1)}`}</title>
+                <title>{`${p.mooter ? '🐮 ' : ''}${p.name}: $${p.x.toFixed(2)}/M · score ${(p.y * 100).toFixed(1)}${p.mooter ? ' (advisory estimate — not a benchmark)' : ''}`}</title>
               </circle>
               <text
                 x={sx(p.x) + (p.x > xmax * 0.8 ? -10 : 11)}
@@ -750,6 +780,7 @@ function Heatmap({ data }: { data: RankingsPayload }) {
               {data.categories.map((c) => (
                 <th
                   key={c}
+                  scope="col"
                   title={c}
                   style={{ padding: '2px 3px', color: 'var(--color-muted)', whiteSpace: 'nowrap', fontWeight: 400 }}
                 >
@@ -761,12 +792,14 @@ function Heatmap({ data }: { data: RankingsPayload }) {
           <tbody>
             {data.models.map((m) => (
               <tr key={m.id}>
-                <td
+                <th
+                  scope="row"
                   style={{
                     textAlign: 'right',
                     padding: '2px 8px',
                     fontFamily: 'var(--mono)',
                     color: 'var(--color-text)',
+                    fontWeight: 400,
                     whiteSpace: 'nowrap',
                     position: 'sticky',
                     left: 0,
@@ -774,7 +807,7 @@ function Heatmap({ data }: { data: RankingsPayload }) {
                   }}
                 >
                   {shortModel(m.id)}
-                </td>
+                </th>
                 {data.categories.map((cat) => {
                   const cell = cellByKey.get(`${m.id}|${cat}`);
                   const bucket = tesBucket(cell?.tes ?? null);
@@ -791,11 +824,11 @@ function Heatmap({ data }: { data: RankingsPayload }) {
                           width: 20,
                           height: 20,
                           borderRadius: 3,
-                          background: bucketColor(bucket),
+                          background: heatColor(bucket),
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: pending ? 'var(--color-muted)' : '#fff',
+                          color: pending ? 'var(--color-muted)' : 'var(--color-text)',
                           fontSize: 10,
                         }}
                       >
@@ -812,7 +845,7 @@ function Heatmap({ data }: { data: RankingsPayload }) {
       <div style={{ display: 'flex', gap: 14, marginTop: 14, flexWrap: 'wrap', ...S.muted }}>
         {(['high', 'mid', 'low', 'pending'] as const).map((b) => (
           <span key={b} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 2, background: bucketColor(b), display: 'inline-block' }} />
+            <span style={{ width: 12, height: 12, borderRadius: 2, background: heatColor(b), display: 'inline-block' }} />
             {b}
           </span>
         ))}

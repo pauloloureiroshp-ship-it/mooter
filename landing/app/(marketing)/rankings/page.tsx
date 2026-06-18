@@ -6,7 +6,7 @@ import { RankingsView, type BenchSnapshot } from './_rankings/RankingsView';
 export const metadata: Metadata = {
   title: 'Mooter Rankings — the cost×quality frontier',
   description:
-    'Where each LLM lands on the cost×quality frontier — and where the Mooter router falls by mixing local $0 models with subscriptions. Real data, sources cited per cell, not a community average. Not affiliated with Anthropic.',
+    'Where each LLM lands on the cost×quality frontier — and where the Mooter router falls by mixing local $0 models with subscriptions. Real benchmark scores cited per cell; routing savings are an advisory estimate. Not a community average. Not affiliated with Anthropic.',
 };
 
 // ISR — regenerated at most hourly. The page builds the SAME payload as
