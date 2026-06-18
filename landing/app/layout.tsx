@@ -84,7 +84,7 @@ const jsonLd = {
       description: DESCRIPTION,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS, Windows, Linux',
-      softwareVersion: '1.21.5',
+      softwareVersion: '1.38.0',
       license: 'https://opensource.org/licenses/MIT',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       author: { '@id': 'https://mooter.ai/#paulo' },

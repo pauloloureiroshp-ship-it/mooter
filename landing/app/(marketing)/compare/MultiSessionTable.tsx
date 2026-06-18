@@ -9,7 +9,7 @@ import Card from '@/components/Card';
 type Kind = 'y' | 'n' | 'p' | 'cve';
 
 const TOOLS: { name: string; sub: string; highlight?: boolean }[] = [
-  { name: 'mooter', sub: 'v1.21.5', highlight: true },
+  { name: 'mooter', sub: 'v1.38.0', highlight: true },
   { name: 'Composio AO', sub: 'agent os' },
   { name: 'Conductor', sub: 'orchestr.' },
   { name: 'Cursor Bg', sub: 'bg agents' },
