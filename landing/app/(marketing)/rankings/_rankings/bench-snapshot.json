@@ -1,0 +1,17 @@
+{
+  "_note": "Committed snapshot of `mooter benchmark run` output. The live RESULTS.json in packages/mooter-bench/ is gitignored by design (timestamped, machine-specific), so this sanitized copy is what the public page imports. Regenerate with `cd packages/mooter-bench && npm run bench` and refresh the numeric fields below. Every number is the deterministic frozen-classifier output over the synthetic dataset — see honest_caveats.",
+  "generated_at": "2026-06-18T16:38:05.522Z",
+  "accuracy": 0.6,
+  "total": 50,
+  "completion": 1,
+  "cohorts": 1,
+  "cohort_label": "author cohort (N=1)",
+  "est_savings_pct": 64,
+  "classifier_sha256": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "dataset": "packages/mooter-bench/dataset/workflows.json",
+  "honest_caveats": [
+    "Synthetic author-judgment dataset, not production traces",
+    "Single cohort (N=1)",
+    "Savings are list-price estimates on an assumed token profile, not measured billing"
+  ]
+}

@@ -1,7 +1,7 @@
 /**
  * delta.js — POST /api/delta
  *
- * Receives an anonymized delta from a frugal instance, validates it,
+ * Receives an anonymized delta from a mooter instance, validates it,
  * computes trust_score, stores in D1, and triggers model detection.
  */
 

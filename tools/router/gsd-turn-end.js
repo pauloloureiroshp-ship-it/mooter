@@ -257,6 +257,7 @@ function augmentLastClassified() {
   // Derive response_len_bucket from the last assistant message in the
   // transcript, if the Stop payload provides a transcript_path.
   let responseLen = null;
+  let _assistantText = '';
   try {
     const tp = payload.transcript_path || payload.transcriptPath || null;
     if (tp && fs.existsSync(tp)) {
@@ -268,11 +269,11 @@ function augmentLastClassified() {
         if (!msg || msg.role !== 'assistant') continue;
         const content = Array.isArray(msg.content) ? msg.content : null;
         if (!content) continue;
-        let total = 0;
+        let total = 0; let _txt = '';
         for (const block of content) {
-          if (block && typeof block.text === 'string') total += block.text.length;
+          if (block && typeof block.text === 'string') { total += block.text.length; _txt += block.text; }
         }
-        if (total > 0) { responseLen = total; break; }
+        if (total > 0) { responseLen = total; _assistantText = _txt; break; }
       }
     }
   } catch { /* non-fatal */ }
@@ -287,6 +288,16 @@ function augmentLastClassified() {
 
   state.turn_end_ts = turnEndMs;
   if (responseLenBucket) state.response_len_bucket = responseLenBucket;
+
+  // Wave 65 Context Bridge (P0): record the host (Claude) assistant turn so local
+  // dispatches can see what the host said. Absolute require (this hook runs from
+  // ~/.claude/hooks/). Opt-in is enforced inside appendTurn; best-effort.
+  try {
+    if (_assistantText) {
+      const _scPath = require('path').join(require('os').homedir(), '.claude', 'tools', 'router', 'session-context.js');
+      require(_scPath).appendTurn(sessionId, { role: 'assistant', text: _assistantText });
+    }
+  } catch { /* best-effort */ }
 
   try {
     fs.writeFileSync(LAST_CLASSIFIED_PATH, JSON.stringify(state));

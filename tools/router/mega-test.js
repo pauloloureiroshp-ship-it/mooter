@@ -176,7 +176,7 @@ if (jsonMode) {
   }, null, 2));
 } else {
   if (!failOnly) {
-    console.log('frugal \u2014 mega test (100 prompts)\n');
+    console.log('mooter \u2014 mega test (100 prompts)\n');
     console.log(`Exact accuracy:    ${exact}/${total} (${(exact/total*100).toFixed(1)}%)`);
     console.log(`Adjusted accuracy: ${adjusted}/${total} (${(adjusted/total*100).toFixed(1)}%)`);
     console.log(`True failures:     ${fail}`);

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// frugal-turn-header.js — UserPromptSubmit hook (second in chain after inject_context.js).
+// mooter-turn-header.js — UserPromptSubmit hook (second in chain after inject_context.js).
 //
 // Emits a visible turn header so the user sees the routing decision every turn.
 // Complements PostToolUse.js (which shows the executor of each Bash call) by

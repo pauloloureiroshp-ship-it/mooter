@@ -42,10 +42,12 @@ import { handleUserDashboard } from './routes/user-dashboard.js';
 import { handleAdminUsers } from './routes/admin_users.js';
 import { adminUserDetail } from './routes/admin_user_detail.js';
 import { handleAdminCohort } from './routes/admin_cohort.js';
+import { handleBenchmarks } from './routes/benchmarks.js';
 import { runAggregate } from './jobs/aggregate.js';
 import { runGenerate } from './jobs/generate.js';
 import { runNotify } from './jobs/notify.js';
 import { runUpdateProfiles } from './jobs/update-profiles.js';
+import { runIngest } from './lib/ingest.js';
 import { tryValidateEnv } from './lib/env.js';
 
 const handler = {
@@ -136,6 +138,9 @@ const handler = {
         case '/v1/pricing':
           response = await handlePricing(request, env);
           break;
+        case '/v1/benchmarks':
+          response = await handleBenchmarks(request, env);
+          break;
         case '/aggregate-stats':
           response = await handleAggregateStats(request, env);
           break;
@@ -184,9 +189,13 @@ const handler = {
       // Hourly: aggregate deltas
       ctx.waitUntil(runAggregate(env));
     } else if (cron === '0 6 * * *') {
-      // Daily: generate router-tuning + update user profiles
+      // Daily: generate router-tuning + update user profiles + ingest external
+      // benchmarks/pricing (Rankings R2). Hooked into the EXISTING daily slot so no
+      // new cron trigger is added — the Free-plan cron budget is already tight
+      // (see wrangler.mooter.toml [triggers] note). runIngest degrades on its own.
       ctx.waitUntil(runGenerate(env));
       ctx.waitUntil(runUpdateProfiles(env));
+      ctx.waitUntil(runIngest(env));
     } else if (cron === '0 6 * * 1') {
       // Weekly: notify + prune
       ctx.waitUntil(runNotify(env));

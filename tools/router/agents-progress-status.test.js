@@ -11,7 +11,7 @@ const path = require('node:path');
 
 const mod = require('./agents-progress-status.js');
 const {
-  buildAgentsProgressChip, readActiveWorkflow, currentAgent,
+  buildAgentsProgressChip, readActiveWorkflow, currentAgent, activeNamed,
   fmtElapsed, fmtTokens, optedIn, statusLine,
 } = mod;
 
@@ -38,6 +38,30 @@ test('full chip: done/total · elapsed · tokens · current', () => {
 test('tokens omitted when the pointer carries none (Wave 28 writes none) — no fabrication', () => {
   const out = buildAgentsProgressChip(wf({ tokens: 0 }), snap([]), NOW);
   assert.equal(out, '🤖 3/7 done · 1m 12s');
+});
+
+// Wave 58.4 Block C — "K running" segment (≥2 in flight).
+test('two+ in-flight agents → "K running" segment after done/total', () => {
+  const out = buildAgentsProgressChip(
+    wf({ tokens: 42300 }),
+    snap([
+      { agent_name: 'model-reasoner', started_at: NOW - 5000 },
+      { agent_name: 'cheap-triage', started_at: NOW - 3000 },
+    ]),
+    NOW,
+  );
+  assert.equal(out, '🤖 3/7 done · 2 running · 1m 12s · ↓42.3k tok · current: model-reasoner');
+});
+
+test('single in-flight agent → no "running" segment (current: names it)', () => {
+  const out = buildAgentsProgressChip(wf({ tokens: 0 }), snap([{ agent_name: 'cheap-triage', started_at: NOW - 3000 }]), NOW);
+  assert.doesNotMatch(out, /running/);
+  assert.equal(out, '🤖 3/7 done · 1m 12s · current: cheap-triage');
+});
+
+test('activeNamed counts named records, ignores nameless / null snap', () => {
+  assert.equal(activeNamed(snap([{ agent_name: 'a', started_at: 1 }, { agent_name: '', started_at: 2 }, { started_at: 3 }])).length, 1);
+  assert.equal(activeNamed(null).length, 0);
 });
 
 test('current agent omitted when no subagent is in flight', () => {

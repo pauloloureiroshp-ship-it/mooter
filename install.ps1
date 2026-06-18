@@ -138,6 +138,16 @@ DoRun "Copy router .js" {
         ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
     Get-ChildItem (Join-Path $SrcDir "tools\router") -Filter *.json -File -ErrorAction SilentlyContinue |
         ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
+    # Provider wrappers live in a subdir — the top-level *.js scan above misses them,
+    # so router-execute would fail with wrapper_missing for ollama/codex/openai pins
+    # (Wave 61). Copy the providers/ subdir explicitly.
+    $provSrc = Join-Path $SrcDir "tools\router\providers"
+    if (Test-Path $provSrc) {
+        $provDst = Join-Path $RouterDir "providers"
+        New-Item -ItemType Directory -Path $provDst -Force | Out-Null
+        Get-ChildItem $provSrc -Filter *.js -File -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName $provDst -Force }
+    }
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
@@ -153,6 +163,44 @@ foreach ($h in $hookNames) {
 DoRun "Copy CLI to ~/.mooter/cli/" {
     Copy-Item (Join-Path $SrcDir "tools\cli\*") $MooterCliDir -Recurse -Force
     if (Test-Path $versionFile) { Copy-Item $versionFile (Join-Path $MooterDir "version.json") -Force }
+}
+
+# -- Wave 8/61 - v1.0 product CLI (self-contained esbuild bundle) ----------
+# Built from source into a single esbuild bundle and shipped alongside the legacy
+# CLI; the hybrid shim below routes v1.0 commands here. Mirrors install.sh. The
+# cross-platform `npm run build` (node build.mjs) is what makes this work under
+# cmd.exe on Windows (Wave 61 C5 — the old POSIX `NODE_PATH=... esbuild` failed here).
+$MooterCliV1Dir = Join-Path $MooterDir "cli-v1"
+$MooterPacksDir = Join-Path $MooterDir "packs"
+$CliSrc = Join-Path $SrcDir "packages\cli"
+if (Get-Command npm -ErrorAction SilentlyContinue) {
+    Say "Building v1.0 CLI bundle (esbuild)..."
+    if ($DryRun) {
+        Info "[dry-run] cd packages\cli; npm install; npm run build; copy bundle + packs"
+    } else {
+        $v1ok = $false
+        Push-Location $CliSrc
+        try {
+            & npm install --no-audit --no-fund --silent
+            if ($LASTEXITCODE -eq 0) {
+                & npm run build
+                if (($LASTEXITCODE -eq 0) -and (Test-Path (Join-Path $CliSrc "mooter.js"))) { $v1ok = $true }
+            }
+        } catch { $v1ok = $false }
+        finally { Pop-Location }
+        if ($v1ok) {
+            New-Item -ItemType Directory -Path $MooterCliV1Dir -Force | Out-Null
+            New-Item -ItemType Directory -Path $MooterPacksDir -Force | Out-Null
+            Copy-Item (Join-Path $CliSrc "mooter.js") (Join-Path $MooterCliV1Dir "mooter.js") -Force
+            $packsSrc = Join-Path $SrcDir "packs"
+            if (Test-Path $packsSrc) { Copy-Item (Join-Path $packsSrc "*") $MooterPacksDir -Recurse -Force -ErrorAction SilentlyContinue }
+            Ok "v1.0 CLI bundle installed (feedback - forge - login - adapter - trail - pack)"
+        } else {
+            Warn "v1.0 bundle build failed - legacy CLI only (feedback/forge unavailable). Re-run with npm available."
+        }
+    }
+} else {
+    Warn "npm not found - v1.0 commands (feedback/forge/...) unavailable; legacy CLI only."
 }
 
 # Agents + skills (best-effort)
@@ -182,11 +230,31 @@ Ok "Runtime installed"
 
 # -- Shim in ~/.local/bin/mooter.cmd --------------------------------------
 Say "Installing mooter shim to $ShimPath..."
-$shimContent = @"
+$shimContent = @'
 @echo off
-REM mooter launcher shim (installed by install.ps1)
-node "%USERPROFILE%\.mooter\cli\mooter.js" %*
-"@
+REM mooter launcher shim (installed by install.ps1). Wave 61 hybrid dispatch:
+REM   v1.0 product commands  -> bundled CLI (%USERPROFILE%\.mooter\cli-v1\mooter.js)
+REM   legacy/installer cmds   -> legacy CLI  (%USERPROFILE%\.mooter\cli\mooter.js)
+setlocal
+set "V1=%USERPROFILE%\.mooter\cli-v1\mooter.js"
+set "LEGACY=%USERPROFILE%\.mooter\cli\mooter.js"
+if "%MOOTER_PACKS_DIR%"=="" set "MOOTER_PACKS_DIR=%USERPROFILE%\.mooter\packs"
+set "MCMD=%~1"
+if /I "%MCMD%"=="doctor"    goto legacy
+if /I "%MCMD%"=="update"    goto legacy
+if /I "%MCMD%"=="uninstall" goto legacy
+if /I "%MCMD%"=="version"   goto legacy
+if /I "%MCMD%"=="--version" goto legacy
+if /I "%MCMD%"=="-v"        goto legacy
+if /I "%MCMD%"=="help"      goto legacy
+if /I "%MCMD%"=="--help"    goto legacy
+if /I "%MCMD%"=="-h"        goto legacy
+if "%MCMD%"==""             goto legacy
+if exist "%V1%" ( node "%V1%" %* ) else ( node "%LEGACY%" %* )
+goto :eof
+:legacy
+node "%LEGACY%" %*
+'@
 if (-not $DryRun) { Set-Content -Path $ShimPath -Value $shimContent -Encoding ASCII }
 if ($DryRun) { Write-Host "  [dry-run] Would write shim to $ShimPath" -ForegroundColor DarkGray } else { Ok "Shim: $ShimPath" }
 

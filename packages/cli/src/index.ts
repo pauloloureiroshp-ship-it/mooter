@@ -98,7 +98,7 @@ Usage:
   mooter turboquant [status|build [--run]|enable|disable]   opt-in 3-bit KV cache (EXPERIMENTAL, build-from-source)
   mooter minimax-m3 [check|status|install [--run]]   watch + install MiniMax M3 weights when released
   mooter monitor [providers|status|enable|disable]   opt-in arbitrage monitor (public status pages; advisory only)
-  mooter pricing-update [--show]   pull latest model pricing from the hub into a local cache
+  mooter pricing-update [--show|--dry-run]   pull latest model pricing from the hub into a local cache (alias: price-update)
   mooter observability <status|enable|disable|export [--last N] [--dry-run]|export-config>   opt-in OTLP span export of routing decisions
   mooter feedback span <span_id> <1-5> [--note "..."]   score one routing span (LOCAL only — never sent to the hub)
   mooter feedback spans [--last N]  list recent routing decisions with their span ids
@@ -425,7 +425,9 @@ async function main(argv: string[]): Promise<number> {
     return res.exitCode;
   }
 
-  if (command === "pricing-update") {
+  // `price-update` is an accepted alias for `pricing-update` (the canonical name
+  // shipped in Wave 33). Both reach the same read-only, never-crash handler.
+  if (command === "pricing-update" || command === "price-update") {
     const res = await runPricingUpdate(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;

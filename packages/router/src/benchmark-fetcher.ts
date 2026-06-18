@@ -67,7 +67,7 @@ export type Category =
   | "context.multimodal"
   | "context.audio";
 
-/** All 14 matrix models. */
+/** All 17 (keep in sync with MATRIX_MODELS). */
 export type ModelId =
   | "claude-opus-4-6"
   | "claude-opus-4-7"
@@ -79,8 +79,11 @@ export type ModelId =
   | "gpt-5-3-codex"
   | "gpt-oss"
   | "gemini-3.1-pro"
+  | "gemini-3-flash"
   | "deepseek-v3.2"
+  | "deepseek-v4-pro"
   | "minimax"
+  | "kimi-k2.6"
   | "qwen3.6"
   | "qwen3-30b";
 

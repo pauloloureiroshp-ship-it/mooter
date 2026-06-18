@@ -42,7 +42,7 @@ export function buildPricingBody(now) {
  * @param {any} _env
  * @returns {Promise<Response>}
  */
-export async function handlePricing(request, _env) {
+export async function handlePricing(request, env) {
   if (request.method !== 'GET') {
     return new Response(JSON.stringify({ error: 'method not allowed' }), {
       status: 405,
@@ -50,8 +50,51 @@ export async function handlePricing(request, _env) {
     });
   }
   const body = buildPricingBody(Date.now());
+  try {
+    if (env && env.DB) {
+      const res = await env.DB.prepare(
+        'SELECT model, input_per_mtok, output_per_mtok, blended_3to1, source, as_of FROM pricing_models',
+      ).all();
+      const rows = (res && res.results) || [];
+      if (rows.length) {
+        body.models = mergeD1Pricing(body.models, rows);
+        body.source = 'canonical+d1';
+      }
+    }
+  } catch {
+    // keep the canonical snapshot — never 500 the pricing endpoint
+  }
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
   });
+}
+
+/**
+ * Merge D1 pricing_models rows (Rankings R2 ingestor) into the canonical snapshot
+ * models[]. Pure → unit-testable. D1's input/output override a matching snapshot id
+ * (keeping its tier); a D1-only model is appended with tier 'T?' (unknown band). A
+ * row with no usable price is skipped — never fabricated. Returns a NEW array.
+ * @param {Array<{id:string,tier:string,input:number,output:number}>} snapshotModels
+ * @param {Array<{model:string,input_per_mtok:number|null,output_per_mtok:number|null}>} d1Rows
+ */
+export function mergeD1Pricing(snapshotModels, d1Rows) {
+  const byId = new Map(snapshotModels.map((m) => [m.id, { ...m }]));
+  for (const r of d1Rows || []) {
+    if (!r || typeof r.model !== 'string') continue;
+    if (r.input_per_mtok == null && r.output_per_mtok == null) continue; // nothing to add
+    const existing = byId.get(r.model);
+    if (existing) {
+      if (r.input_per_mtok != null) existing.input = r.input_per_mtok;
+      if (r.output_per_mtok != null) existing.output = r.output_per_mtok;
+    } else {
+      byId.set(r.model, {
+        id: r.model,
+        tier: 'T?',
+        input: r.input_per_mtok == null ? 0 : r.input_per_mtok,
+        output: r.output_per_mtok == null ? 0 : r.output_per_mtok,
+      });
+    }
+  }
+  return [...byId.values()];
 }

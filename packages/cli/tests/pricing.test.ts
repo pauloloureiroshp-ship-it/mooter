@@ -48,3 +48,20 @@ test("pricing-update never throws on a network failure", async () => {
   assert.strictEqual(r.exitCode, 1);
   assert.match(r.output, /kept existing cache/);
 });
+
+test("pricing-update --dry-run previews without writing the cache", async () => {
+  const home = mkdtempSync(tmpdir() + "/mooter-pr5-");
+  const r = await runPricingUpdate(["--dry-run"], { home, fetchImpl: fakeFetch(BODY) });
+  assert.strictEqual(r.exitCode, 0);
+  assert.match(r.output, /dry-run/);
+  assert.match(r.output, /would cache 1 models/);
+  assert.strictEqual(readCache(home), null, "dry-run must not write a cache file");
+});
+
+test("pricing-update --dry-run degrades (exit 0) and never crashes when the hub is down", async () => {
+  const home = mkdtempSync(tmpdir() + "/mooter-pr6-");
+  const r = await runPricingUpdate(["--dry-run"], { home, fetchImpl: (async () => { throw new Error("offline"); }) as unknown as typeof fetch });
+  assert.strictEqual(r.exitCode, 0, "dry-run degrades to success on a hub failure");
+  assert.match(r.output, /dry-run/);
+  assert.strictEqual(readCache(home), null, "still no cache written");
+});

@@ -1,0 +1,13 @@
+{
+  "name": "mooter",
+  "description": "The router for Claude Code — routes every prompt to the cheapest capable model (local Ollama, Haiku, Sonnet, Opus). Hook, not proxy: never intercepts your API traffic. 47% measured savings on the author's machine, methodology published. Local-first, risk-aware, MIT.",
+  "version": "1.38.0",
+  "author": {
+    "name": "Paulo Loureiro",
+    "email": "paulo@mooter.ai"
+  },
+  "homepage": "https://mooter.ai",
+  "repository": "https://github.com/pauloloureiroshp-ship-it/mooter",
+  "license": "MIT",
+  "keywords": ["router", "cost-optimization", "ollama", "local-first", "model-routing"]
+}

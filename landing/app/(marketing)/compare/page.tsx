@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import Eyebrow from '@/components/Eyebrow';
+import Dotgrid from '@/components/Dotgrid';
 import MultiSessionTable from './MultiSessionTable';
+import versionInfo from '../../version.json';
 
 export const metadata: Metadata = {
   title: 'How mooter compares',
@@ -50,11 +52,18 @@ export default async function ComparePage() {
   }
 
   return (
-    <section style={{ maxWidth: 1180, margin: '0 auto', padding: '72px 40px' }}>
-      <Eyebrow>Compare</Eyebrow>
+    <section className="m-pad m-pad-y" style={{ position: 'relative', maxWidth: 1180, margin: '0 auto', padding: '72px 40px', overflow: 'hidden' }}>
+      <Dotgrid />
+      <div style={{ position: 'relative' }}>
+      <Eyebrow>§ compare · the multi-session field</Eyebrow>
       <h1 style={{ fontSize: 'clamp(34px, 5vw, 52px)', fontWeight: 700, margin: '0 0 8px' }}>How mooter compares</h1>
-      <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 640, marginBottom: 32 }}>
+      <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 640, marginBottom: 20 }}>
         We&apos;re not the only LLM router. We are the one built for Claude Code.
+      </p>
+      <p style={{ color: 'var(--color-muted)', fontSize: 14.5, maxWidth: 680, lineHeight: 1.6, marginBottom: 32 }}>
+        Every score below is <strong style={{ color: 'var(--color-text)' }}>counted from the cells</strong>, not asserted.
+        On routine tasks mooter aims for <em>comparable quality</em> at a fraction of the cost — not identical output.
+        Where a competitor&apos;s capability is undocumented we mark it partial, never invent a win.
       </p>
 
       {/* Primary: the multi-session field (agents & orchestrators) — Wave 33.9 */}
@@ -66,7 +75,7 @@ export default async function ComparePage() {
         And against the routers and proxies
       </h2>
 
-      <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 12 }}>
+      <div className="m-scroll-x" style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 880 }}>
           <thead>
             <tr>
@@ -121,6 +130,10 @@ export default async function ComparePage() {
         mooter decides <em>which model runs each step</em>. It complements them (run mooter under Claude Code while you
         use any of them elsewhere) rather than replacing them — so this table compares routers, not agents.
       </p>
+      <p style={{ color: 'var(--color-faint, var(--color-muted))', fontSize: 12, marginTop: 28, fontFamily: 'var(--font-mono)' }}>
+        Snapshot reflects mooter v{versionInfo.version}. Capabilities and scores are derived, sourced, and open to correction.
+      </p>
+      </div>
     </section>
   );
 }

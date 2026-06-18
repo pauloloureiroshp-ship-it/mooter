@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <!-- Mooter cow silhouette — monochrome (currentColor) for the VS Code Activity Bar, derived from landing/public/mooter-logo.svg -->
+  <path d="M6.9 7.0C6.2 5.1 5.3 3.4 6 2.4c.7-.7 1.7.7 1.9 3.1z"/>
+  <path d="M17.1 7.0C17.8 5.1 18.7 3.4 18 2.4c-.7-.7-1.7.7-1.9 3.1z"/>
+  <rect x="2.2" y="8.6" width="3.1" height="4.3" rx="1.55"/>
+  <rect x="18.7" y="8.6" width="3.1" height="4.3" rx="1.55"/>
+  <rect x="4.1" y="5.8" width="15.8" height="14.4" rx="3.4"/>
+  <circle cx="8.6" cy="11" r="1.2" fill="#0B0A09"/>
+  <circle cx="15.4" cy="11" r="1.2" fill="#0B0A09"/>
+  <rect x="6.2" y="14.2" width="11.6" height="5.8" rx="2.9" fill="#0B0A09" opacity=".35"/>
+</svg>

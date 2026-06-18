@@ -745,6 +745,59 @@ if (pinModelRaw && pinModelRaw.startsWith('claude-')) {
   }
 }
 
+// ── W2: cockpit "next prompt" pin-file (consume-once) ──────────────────────
+// The VSCode cockpit writes ~/.claude/tools/router/.pin-next.json {model,scope}
+// when the user picks a model for the next prompt. We read+delete it here (so it
+// only affects the very next prompt) and apply it as an honored user_override:
+//   • claude-* id  → its tier (same machinery as the MOOTER_PIN_MODEL env pin)
+//   • local ollama id (e.g. "qwen2.5:3b") → T0 + that EXACT model via the ollama
+//     backend; the agent then runs it through router-execute (same as the
+//     /mooter-<model> skills), so the exact local model actually answers.
+// HIGH_RISK downgrades are refused (mirrors the env pin). Best-effort: any error
+// is swallowed so the hook never breaks.
+try {
+  const PIN_NEXT_PATH = path.join(ROUTER_DIR, '.pin-next.json');
+  if (fs.existsSync(PIN_NEXT_PATH)) {
+    let filePin = null;
+    try { filePin = JSON.parse(fs.readFileSync(PIN_NEXT_PATH, 'utf8')); } catch { /* corrupt */ }
+    try { fs.unlinkSync(PIN_NEXT_PATH); } catch { /* consume-once is best-effort */ }
+    const fpModel = filePin && typeof filePin.model === 'string' ? filePin.model.trim() : '';
+    const alreadyPinned = decision.user_override && decision.user_override.honored === true;
+    if (fpModel && !alreadyPinned) {
+      const isClaude = fpModel.startsWith('claude-');
+      const PIN_FILE_TIER = { 'claude-opus-4-7': 'T3', 'claude-opus-4-6': 'T3', 'claude-sonnet-4-6': 'T2', 'claude-haiku-4-5': 'T1' };
+      const targetTier = isClaude ? PIN_FILE_TIER[fpModel] : 'T0';
+      if (targetTier) {
+        const ORDER = ['T0', 'T1', 'T2', 'T3'];
+        const originalTier = decision.tier;
+        const isDowngrade = ORDER.indexOf(targetTier) < ORDER.indexOf(originalTier);
+        const isHighRisk = decision.risk_level === 'high' || HIGH_RISK_HINT.test(prompt);
+        if (isDowngrade && isHighRisk) {
+          decision.user_override = { honored: false, requested: fpModel, blocked: fpModel, kind: 'mooter-pin-file', reason: 'high_risk_downgrade_refused' };
+          decision.escalation_rule =
+            decision.escalation_rule === 'none'
+              ? 'mooter_pin_refused_high_risk'
+              : `${decision.escalation_rule}+mooter_pin_refused_high_risk`;
+        } else {
+          const back = isClaude
+            ? ({ T1: { b: 'anthropic_api', s: 'cheap-triage' }, T2: { b: 'claude_subagent', s: 'model-reasoner' }, T3: { b: 'claude_subagent', s: 'model-architect' } }[targetTier])
+            : { b: 'ollama', s: 'local-summarizer' };
+          decision.user_override = { honored: true, requested: fpModel, label: fpModel, kind: 'mooter-pin-file', original_tier: originalTier, tier: targetTier, subagent: back.s };
+          decision.tier = targetTier;
+          decision.suggested_subagent = back.s;
+          decision.recommended_backend = back.b;
+          decision.recommended_model = fpModel;
+          decision.confidence = Math.max(Number(decision.confidence) || 0, 0.9);
+          decision.escalation_rule =
+            decision.escalation_rule === 'none'
+              ? 'mooter_pin'
+              : `${decision.escalation_rule}+mooter_pin`;
+        }
+      }
+    }
+  }
+} catch { /* pin-file is best-effort; never break the hook */ }
+
 // ── v0.8 HAIKU ARBITER ─────────────────────────────────────────────────
 // When the regex classifier is uncertain (confidence < 0.75 OR the
 // task_category is ambiguous_medium / ambiguous_long), fall through to
@@ -868,6 +921,9 @@ try {
 // v0.7.2: include ts_ms and session_id so the Stop hook can pair start→end
 // events and the savings-tracker can compute turn-level latency.
 const sessionId = payload.session_id || (payload.session && payload.session.id) || 'unknown';
+// Wave 65 Context Bridge (P0): record the user turn + point at the current session
+// so router-execute can find this transcript. Opt-in; best-effort, never throws.
+try { const _sc = require('./session-context.js'); _sc.setCurrentSession(sessionId); _sc.appendTurn(sessionId, { role: 'user', text: prompt }); } catch { /* best-effort */ }
 logDecision({
   ts: new Date().toISOString(),
   ts_ms: Date.now(),
@@ -998,6 +1054,17 @@ if (budget) {
   } catch { /* silent */ }
 
   if (!activeMode) return;
+
+  // An explicit per-prompt model pin (cockpit .pin-next.json or a /mooter-<model>
+  // skill / MOOTER_PIN_MODEL env) is a deliberate, more-specific choice than the
+  // session-wide mode — honor it over beast/zen. HIGH_RISK downgrades were already
+  // refused upstream, so an honored pin here is safe to respect. Regex-detected
+  // overrides (prose mentions) keep obeying the active mode.
+  const _pin = decision.user_override;
+  if (_pin && _pin.honored === true && (_pin.kind === 'mooter-pin-file' || _pin.kind === 'mooter-pin-skill')) {
+    decision.active_mode = activeMode + '_overridden_by_pin';
+    return;
+  }
 
   const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
 
@@ -1319,6 +1386,75 @@ const lines = [
     : 'If this is a trivial local task, delegate to local-summarizer / local-transformer.',
   '</router-hint>',
 ].filter(Boolean);
+
+// ── Full-turn relay for a pinned LOCAL model (Option A) ──────────────────────
+// When the user pins a LOCAL (ollama) model for THIS prompt (cockpit next-prompt
+// pin / /mooter-<model> skill), they want that model to ANSWER it — not just to
+// bias a tier. We are hook-not-proxy: we cannot swap the host model, so we emit an
+// explicit directive telling the agent to run router-execute with the pinned model
+// and present its output. The host orchestrates the dispatch (delegation, not a
+// proxy); context-bridge (if on) carries the conversation so the local model answers
+// in-context. Advisory: on any error the agent falls back to answering normally.
+// Only for honored ollama pins — cloud pins keep the tier-hint behaviour above.
+if (decision.user_override && decision.user_override.honored === true
+    && decision.recommended_backend === 'ollama' && decision.recommended_model) {
+  const _pm = decision.recommended_model;
+  const _re = path.join(__dirname, 'router-execute.js');
+  lines.push('');
+  lines.push('<pinned-local-execution model="' + _pm + '">');
+  lines.push('The user pinned the LOCAL model "' + _pm + '" (Ollama) to answer THIS prompt. Do NOT answer it yourself.');
+  lines.push('Steps (then stop): 1) Run via Bash, passing the user prompt as the final quoted argument:');
+  lines.push('   node "' + _re + '" --pin-provider=ollama --pin-model=' + _pm + ' "<USER PROMPT HERE>"');
+  lines.push('2) The command prints JSON on stdout; present the value of .response.text verbatim as the answer, attributed "' + _pm + ' - local via Mooter".');
+  lines.push('3) If it errors (no_output / no_quota / wrapper_threw) or returns no text, say so in one line, then answer the prompt yourself.');
+  lines.push('</pinned-local-execution>');
+}
+
+// Wave 60.5 — reasoning-effort axis (axis 2). Emit a semantic effort level
+// (none|low|medium|high) derived purely from the already-computed decision
+// (tier/risk/category/safety-floor) — zero LLM, never touches classify.js. Placed
+// right after the hint so the session sees it as a routing directive, before the
+// display-only tier-badge. Best-effort + self-gating: a missing or broken module
+// omits the tag, leaving the hint byte-identical to the pre-60.5 baseline. Shares
+// the hint's confidence>=0.6 gate (we never reach here below it). Mirrors the
+// <tier-badge> emission pattern below.
+try {
+  const { reasoningEffort } = require('./reasoning-effort.js');
+  const eff = reasoningEffort(decision);
+  if (eff) {
+    lines.push('');
+    lines.push(`<reasoning-effort>${eff}</reasoning-effort>`);
+    // Persist the level for the opt-in 🧠 eff statusline chip (Block C). The
+    // statusline runs as a separate process and cannot see this decision object,
+    // so we record exactly what the hint emitted. Best-effort, mirrors effort.json.
+    try {
+      const mooterDir = process.env.MOOTER_HOME || path.join(require('os').homedir(), '.mooter');
+      fs.mkdirSync(mooterDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(mooterDir, 'reasoning-effort.json'),
+        JSON.stringify({ effort: eff, tier: decision.tier, ts: Date.now() }),
+      );
+    } catch { /* persistence is best-effort — the hint already carries the tag */ }
+  }
+} catch { /* reasoning-effort is best-effort, never blocks the hint */ }
+
+// Wave 60 Block B — session affinity (cache continuity). Surface a best-effort
+// <session-affinity> note when this prompt would switch the routed model without a
+// strong reason, so the agent can choose to stay and keep the warm prompt cache.
+// Host-side + deterministic: never reads engine KV, never mutates routing, never
+// fires on HIGH_RISK / safety-floor / beast / honored-override (strong reasons take
+// the fresh model). Records the session's model afterwards. Best-effort: a missing
+// or broken module omits the note → hint byte-identical to the pre-wave baseline.
+try {
+  const aff = require('./session-affinity.js');
+  const established = aff.getEstablished(sessionId);
+  const note = aff.affinityNote(established, decision);
+  if (note) {
+    lines.push('');
+    lines.push(note);
+  }
+  aff.recordModel(sessionId, decision.recommended_model, decision.tier);
+} catch { /* session affinity is best-effort, never blocks the hint */ }
 
 // Wave 2.5 Day 3 — tier badge. A compact [tier·model·conf] marker emitted as a
 // separate block right after the hint so the session can surface it inline.

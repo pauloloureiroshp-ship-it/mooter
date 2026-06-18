@@ -36,6 +36,8 @@ SYNC_FILES=(
   classify.js
   patterns.js
   inject_context.js
+  session-context.js
+  router-execute.js
   arbiter.js
   backtest.js
   feedback-collector.js

@@ -5,6 +5,7 @@ const LINKS = [
   { label: 'How', href: '/under-the-hood' },
   { label: 'Packs', href: '/packs' },
   { label: 'Compare', href: '/compare' },
+  { label: 'Commands', href: '/commands' },
   { label: 'Conductor', href: '/conductor' },
   { label: 'Workflow', href: '/workflow' },
   { label: 'Methodology', href: '/methodology' },

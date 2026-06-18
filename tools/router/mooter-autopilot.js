@@ -42,7 +42,7 @@ function writeMode(targetMode) {
   let cur = readMode();
   if (!cur) {
     cur = {
-      _description: 'Feature flags for mooter/frugal router. Evolves with each sprint.',
+      _description: 'Feature flags for the mooter router. Evolves with each sprint.',
       shadow_mode: false,
       similarity_lookup: false,
       ground_truth_oracle: false,

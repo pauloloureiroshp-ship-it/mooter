@@ -9,14 +9,18 @@
   },
   "scripts": {
     "test": "tsx --test tests/*.test.ts",
-    "build": "NODE_PATH=node_modules esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=mooter.js --log-level=warning"
+    "build": "node build.mjs"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.1",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.1",
     "js-yaml": "^4.1.1",
     "p-limit": "^6.2.0",
     "tsx": "^4.22.3"
+  },
+  "_overrides_rationale": "Wave 58.5 — esbuild ^0.28.1 clears the 0.17.0-0.28.0 advisory (GHSA-67mh-4wv8-2f99, GHSA-gv7w-rqvm-qjhr, GHSA-g7r4-m6w7-qqqr). Reaches tree via tsx (dev runtime + tests) and direct devDep (build target). tsx itself does not ship in the bundled mooter.js, so this fix is dev-only. Pattern follows Wave 58.3 D.2 hub fix (PR #167).",
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }

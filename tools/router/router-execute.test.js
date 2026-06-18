@@ -17,7 +17,18 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+
+// Hermetic Context Bridge: pin executePinned's session-context store at an isolated
+// temp MOOTER_HOME so it never reads/writes the developer's real ~/.mooter or
+// ~/.claude/tools/router/.session-context. Without this, executePinned() would inject
+// the real machine's conversation history into a pinned ollama prompt whenever the
+// dev's preferences.json has `context_bridge: true`, making the suite order-dependent
+// (the `pin: ollama → echo:hello` test then sees a polluted prompt). The empty temp
+// home has no preferences.json, so isEnabled() defaults OFF unless a test sets the
+// MOOTER_CONTEXT_BRIDGE env explicitly (the two Context Bridge tests below do).
+process.env.MOOTER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'rx-mooterhome-'));
 
 const { runExecutorWithFixture, reset } = require('./router-execute.harness');
 
@@ -421,8 +432,7 @@ test('execute() never throws on async wrapper rejection — error captured in re
 
 // ── T-08 — telemetry write-through (I10 + disk write) ───────────────────
 
-const os = require('node:os');
-// fs and path are already required at the top of this file.
+// os, fs and path are already required at the top of this file.
 
 test('I10: prompt_preview redacts API keys, bearer tokens, and KEY=value patterns', () => {
   const r = _internal.sanitisePromptPreview(
@@ -945,4 +955,42 @@ test('pin CLI: --pin-provider=invalid exits non-zero', () => {
     timeout: 10_000,
   });
   assert.notEqual(r.status, 0);
+});
+
+// ── Wave 65 — Context Bridge injection in executePinned ──────────────────────
+const { executePinned: _execPinned } = require('./router-execute.js');
+const _sc = require('./session-context.js');
+
+test('Context Bridge: executePinned injects prior turns + surfaces context tax when enabled', async () => {
+  process.env.MOOTER_CONTEXT_BRIDGE = '1';
+  const SID = 'rx-ctx-on-' + process.pid;
+  _sc.setCurrentSession(SID);
+  _sc.appendTurn(SID, { role: 'user', text: 'remember the secret is banana' });
+  let seen = '';
+  const result = await _execPinned({
+    prompt: 'what is the secret?',
+    provider: 'ollama',
+    model: 'qwen2.5:3b',
+    options: { __deps: { availability: { ollama: true }, providers: { ollama: async (p) => { seen = p; return { ok: true, text: 'banana', tokensOut: 1 }; } } } },
+  });
+  assert.equal(result.ok, true);
+  assert.ok(seen.includes('banana'), 'prior turn injected into the prompt');
+  assert.ok(result.context && result.context.turns >= 1, 'context tax surfaced on result');
+  try { fs.unlinkSync(path.join(_sc.DIR, SID + '.jsonl')); } catch { /* ignore */ }
+  delete process.env.MOOTER_CONTEXT_BRIDGE;
+});
+
+test('Context Bridge: executePinned does not inject when disabled', async () => {
+  process.env.MOOTER_CONTEXT_BRIDGE = '0';
+  let seen = '';
+  const result = await _execPinned({
+    prompt: 'plain prompt',
+    provider: 'ollama',
+    model: 'qwen2.5:3b',
+    options: { __deps: { availability: { ollama: true }, providers: { ollama: async (p) => { seen = p; return { ok: true, text: 'ok', tokensOut: 1 }; } } } },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(seen, 'plain prompt', 'no injection when OFF');
+  assert.equal(result.context, undefined, 'no context tax when OFF');
+  delete process.env.MOOTER_CONTEXT_BRIDGE;
 });

@@ -26,7 +26,13 @@ const DEFAULT_PREFS = { quiet: false, badge_position: 'inline', statusline_view:
  */
 function readPrefs(prefsPath) {
   try {
-    const p = prefsPath || path.join(os.homedir(), '.mooter', 'preferences.json');
+    // Same home resolution as the rest of the router: an explicit MOOTER_HOME IS
+    // the .mooter dir; else <real-home>/.mooter. Cross-platform — $HOME is a no-op
+    // under os.homedir() on Windows, so MOOTER_HOME is the portable override.
+    const defaultPath = process.env.MOOTER_HOME
+      ? path.join(process.env.MOOTER_HOME, 'preferences.json')
+      : path.join(os.homedir(), '.mooter', 'preferences.json');
+    const p = prefsPath || defaultPath;
     const obj = JSON.parse(fs.readFileSync(p, 'utf8'));
     return {
       quiet: !!(obj && obj.quiet === true),

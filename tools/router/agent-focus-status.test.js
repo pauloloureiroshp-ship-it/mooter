@@ -78,18 +78,22 @@ test('statusLine reads the herd state for the session', () => {
 });
 
 test('statusLine honours hidden_chips opt-out', () => {
+  // MOOTER_HOME (the .mooter dir) is the cross-platform prefs override; setting
+  // $HOME is a no-op for os.homedir() on Windows, so it cannot isolate prefs() and
+  // the test would read the developer's real ~/.mooter (machine-state-dependent).
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-agfocus-'));
-  const prevHome = process.env.HOME;
-  process.env.HOME = dir;
+  const mooterHome = path.join(dir, '.mooter');
+  const prevMH = process.env.MOOTER_HOME;
+  process.env.MOOTER_HOME = mooterHome;
   const sid = 'b3hide' + process.pid;
   const p = herdPath(sid);
-  fs.mkdirSync(path.join(dir, '.mooter'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.mooter', 'preferences.json'), JSON.stringify({ hidden_chips: ['agent_focus'] }));
+  fs.mkdirSync(mooterHome, { recursive: true });
+  fs.writeFileSync(path.join(mooterHome, 'preferences.json'), JSON.stringify({ hidden_chips: ['agent_focus'] }));
   fs.writeFileSync(p, JSON.stringify({ active: { x: { agent_name: 'a', started_at: Date.now() } }, cumulative: {}, peak_concurrent: 1 }));
   try {
     assert.strictEqual(statusLine(sid), '');
   } finally {
-    if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
+    if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
     fs.rmSync(p, { force: true });
   }
 });

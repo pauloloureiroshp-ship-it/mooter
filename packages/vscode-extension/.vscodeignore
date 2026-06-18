@@ -1,0 +1,8 @@
+.vscode-test/**
+node_modules/**
+**/*.test.js
+*.vsix
+docs/**
+.gitignore
+.eslintrc*
+**/.DS_Store

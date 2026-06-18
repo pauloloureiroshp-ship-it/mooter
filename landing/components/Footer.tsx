@@ -9,6 +9,7 @@ const COLUMNS: { title: string; links: { label: string; href: string; ext?: bool
     title: 'Product',
     links: [
       { label: 'Install', href: '/install' },
+      { label: 'Cockpit (VS Code)', href: '/cockpit' },
       { label: 'Packs', href: '/packs' },
       { label: 'Compare', href: '/compare' },
       { label: 'Methodology', href: '/methodology' },

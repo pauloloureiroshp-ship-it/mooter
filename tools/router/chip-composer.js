@@ -73,7 +73,21 @@ const DEFAULT_ELIGIBLE = [
 const CHIP_MODULES = [
   './compression-status.js', './setup-status.js', './ecosystem-status.js',
   './wave-status.js', './dogfood-status.js', './mlwr-status.js', './limits-status.js', './pastor-status.js',
-  './effort-status.js', './quant-status.js', './vector-status.js', './turboquant-status.js',
+  // Wave 58.4 Block D — 🎓 Pastor v2 honest TF-IDF chip (self-gates: '' until
+  // decisions.log ≥ 50). CHIP_MODULES only (line-3), NOT DEFAULT_ELIGIBLE, so it
+  // never breaks the A.5 "matrix is the only new default-visible chip" contract.
+  './pastor-lora-status.js',
+  './effort-status.js', './quant-status.js', './vector-status.js',
+  // Wave 60.5 Block C — 🧠 reasoning-effort axis chip (opt-IN via
+  // statusline_chips.reasoning_effort / MOOTER_STATUSLINE_REASONING_EFFORT=1;
+  // self-gates to '' otherwise). CHIP_MODULES only (line-3), NOT DEFAULT_ELIGIBLE,
+  // so the default wired statusline stays byte-identical (A.5 contract + invariant 6).
+  './reasoning-effort-status.js',
+  // Wave 58.2 — 🎮 GPU/VRAM chip (reads gpu-probe's hw-capability.json cache;
+  // self-gates to '' on CPU-only / no cache). The one Wave-Mega dense-line
+  // segment that had no chip. Dense-line only (here), never in DEFAULT_ELIGIBLE.
+  './gpu-status.js',
+  './turboquant-status.js',
   './eagle3-status.js', './minimax-status.js', './arbitrage-status.js',
   // Wave 33.5 Block A — terminal-name (A.7) + workflow-progress dots (A.6).
   './terminal-name-status.js', './workflow-progress-status.js',

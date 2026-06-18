@@ -16,7 +16,11 @@ export interface CmdResult {
   output: string;
 }
 
-export const DEFAULT_HUB = "https://mooter-hub.paulo-loureiro.workers.dev";
+// Canonical hub host — the one that actually answers /health (200). MUST stay in
+// lockstep with tools/router/env.js DEFAULT_HUB_URL; hub-url-consistency.test.ts
+// fails the build if they diverge. (`frugal-hub` is the Cloudflare account
+// subdomain, not a rebrand miss — renaming it requires a worker redeploy.)
+export const DEFAULT_HUB = "https://mooter-hub.frugal-hub.workers.dev";
 
 export interface PricingModel {
   id: string;
@@ -62,16 +66,22 @@ export async function runPricingUpdate(
     return { exitCode: 0, output: `🐮 pricing cache (from ${c.source}, generated ${c.generated_at}):\n${rows.join("\n")}` };
   }
 
+  // --dry-run previews the pull WITHOUT writing the cache, and never fails on a
+  // transient hub problem (exit 0 + honest message) — it is a non-destructive
+  // probe safe to run anywhere, including CI verdict checks.
+  const dryRun = args.includes("--dry-run");
   const fetchImpl = deps.fetchImpl ?? fetch;
   const hub = (deps.hubUrl ?? DEFAULT_HUB).replace(/\/$/, "");
   try {
     const res = await fetchImpl(`${hub}/v1/pricing`);
     if (!res.ok) {
-      return { exitCode: 1, output: `hub returned ${res.status} — kept existing cache (no change).` };
+      const msg = `hub returned ${res.status} — kept existing cache (no change).`;
+      return { exitCode: dryRun ? 0 : 1, output: dryRun ? `🐮 dry-run: ${msg}` : msg };
     }
     const body = await res.json();
     if (!isValidBody(body)) {
-      return { exitCode: 1, output: "hub returned an unexpected shape — kept existing cache (no change)." };
+      const msg = "hub returned an unexpected shape — kept existing cache (no change).";
+      return { exitCode: dryRun ? 0 : 1, output: dryRun ? `🐮 dry-run: ${msg}` : msg };
     }
     const cache: PricingCache = {
       generated_at: body.generated_at,
@@ -79,10 +89,17 @@ export async function runPricingUpdate(
       models: body.models,
       pulled_at: deps.now ?? Date.now(),
     };
+    if (dryRun) {
+      return {
+        exitCode: 0,
+        output: `🐮 dry-run — would cache ${cache.models.length} models from ${cache.source} (generated ${cache.generated_at}); no file written.`,
+      };
+    }
     mkdirSync(join(home, ".mooter"), { recursive: true });
     writeFileSync(cachePath(home), JSON.stringify(cache, null, 2) + "\n");
     return { exitCode: 0, output: `✓ pricing updated — ${cache.models.length} models cached (source: ${cache.source}).` };
   } catch (e) {
-    return { exitCode: 1, output: `pricing pull failed (${(e as Error).message}) — kept existing cache (no change).` };
+    const msg = `pricing pull failed (${(e as Error).message}) — kept existing cache (no change).`;
+    return { exitCode: dryRun ? 0 : 1, output: dryRun ? `🐮 dry-run: ${msg}` : msg };
   }
 }

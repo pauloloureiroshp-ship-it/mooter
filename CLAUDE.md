@@ -48,3 +48,23 @@ tier — local Ollama first, cloud only when it earns its cost. Mission:
 - CLI: `cd packages/cli && npm test`
 - Fresh worktrees need `npm install` in **both** `packages/cli` and `packages/router` first.
 - Other packages: each is standalone — `cd packages/<name> && npm test`.
+
+## After every release (keep `~/.claude/` in sync)
+
+`/mooter-update` syncs **files only** (router `*.js`, skills, agents) — it never
+sets environment variables, and runtime mirrors live outside the repo. After any
+release that touches `tools/router/`:
+
+1. `git pull origin main` in `~/frugal`.
+2. In Claude Code, run `/mooter-update` (idempotent — safe to run twice).
+3. Verify the new runtime files landed:
+   `Test-Path ~/.claude/tools/router/<new-file>.js`
+4. Kill stale CC sessions: `Get-Process claude | Stop-Process -Force`.
+5. Open a **fresh** CC terminal and confirm the statusline.
+
+**Statusline depends on machine state `/mooter-update` cannot restore** — if it
+drops to 3 lines after a fresh profile/OS, re-apply (see `~/.claude/PREFERENCES.md`):
+
+- expanded layout: `[Environment]::SetEnvironmentVariable('MOOTER_MODE','1','User')`
+- GPU chip + dense line: `~/.mooter/preferences.json` → `{"statusline_line3": true}`
+  (path is `~/.mooter/`, **not** `~/.claude/`).

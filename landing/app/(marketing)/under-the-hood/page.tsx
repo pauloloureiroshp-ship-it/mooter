@@ -1,29 +1,62 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
 import Eyebrow from '@/components/Eyebrow';
 import Card from '@/components/Card';
+import MonoNum from '@/components/MonoNum';
 import { CrookOutline } from '@/components/PastorCrook';
+import versionInfo from '@/app/version.json';
 
-export const metadata: Metadata = {
-  title: 'Under the hood — quantization, LoRA & DoRA',
-  description: 'Why your laptop can run Opus-grade models now. Quantization and DoRA, in 30 seconds each.',
-};
+// Animated bar that grows to `pct` only while visible, settling instantly when
+// the OS prefers reduced motion. transform-only (scaleX) — no layout thrash.
+function GrowBar({ pct, color }: { pct: number; color: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setGrown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => setGrown(entry.isIntersecting),
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={{ height: 14, background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden' }}>
+      <div
+        style={{
+          width: `${pct}%`, height: '100%', background: color,
+          transform: grown ? 'scaleX(1)' : 'scaleX(0)', transformOrigin: 'left',
+          transition: 'transform 700ms cubic-bezier(0.22,1,0.36,1)',
+        }}
+      />
+    </div>
+  );
+}
 
 export default function UnderTheHoodPage() {
   return (
-    <section style={{ maxWidth: 1080, margin: '0 auto', padding: '72px 40px' }}>
-      <Eyebrow>Under the hood</Eyebrow>
-      <h1 style={{ fontSize: 'clamp(34px, 5vw, 52px)', fontWeight: 700, margin: '0 0 8px', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-        <CrookOutline size={34} /> Mooter pastors the Moos.
+    <section style={{ maxWidth: 1180, margin: '0 auto', padding: '72px 40px' }} className="m-pad m-pad-y">
+      <Eyebrow>Under the hood · Smart routing. Mooter routes.</Eyebrow>
+      <h1 style={{ fontSize: 'clamp(34px, 5vw, 52px)', fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.05, margin: '0 0 8px', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+        <CrookOutline size={34} /> Two ideas you don&apos;t need a PhD to use.
       </h1>
-      <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 640, marginBottom: 48 }}>
-        Two ideas make local-first routing work without trading off the answer.
+      <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 660, marginBottom: 48 }}>
+        Quantization and DoRA make local-first routing work without trading off the answer — 30 seconds each.
       </p>
 
       {/* §7.1 Quantization */}
-      <div className="uth-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28, alignItems: 'start', marginBottom: 64 }}>
+      <div className="uth-row m-stack" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 28, alignItems: 'start', marginBottom: 64 }}>
         <div>
-          <h2 style={{ fontSize: 28, fontWeight: 600 }}>Why your laptop can run Opus-grade models now</h2>
-          <div style={{ color: 'var(--color-accent-2)', fontSize: 14, margin: '6px 0 16px' }}>Quantization, in 30 seconds.</div>
+          <Eyebrow>01 · Quantization</Eyebrow>
+          <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 6px' }}>Why your laptop can run Opus-grade models now</h2>
+          <div style={{ color: 'var(--color-accent-2)', fontSize: 13, fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>quantization, in 30 seconds</div>
           <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65 }}>
             Full-precision AI models are huge. A 30-billion-parameter model in 32-bit floats weighs 120GB — too big
             for your GPU. Quantization compresses the model&apos;s numbers to 4-bit integers, shrinking it to 18GB while
@@ -31,14 +64,26 @@ export default function UnderTheHoodPage() {
             prefers quantized local models for T0 whenever quality stays above the bar — saving you money without
             trading off the answer.
           </p>
-          <Card style={{ marginTop: 20 }}>
-            <pre style={{ margin: 0, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-term-fg)', whiteSpace: 'pre-wrap' }}>{`qwen3:30b (full precision FP32)
-████████████████████  120 GB
-✗ doesn't fit your GPU
-
-qwen3:30b (quantized Q4_K_M)
-████  18 GB
-✓ fits 24GB GPU · ~98% quality`}</pre>
+          {/* visual size comparison (animated, reduced-motion safe) */}
+          <Card style={{ marginTop: 20, background: 'var(--color-surface-2)' }} padding={16}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontFamily: 'var(--mono)' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 6 }}>
+                  <span>qwen3:30b <span style={{ color: 'var(--color-muted)' }}>(full precision FP32)</span></span>
+                  <span style={{ color: 'var(--color-tier-3)' }}>120 GB</span>
+                </div>
+                <GrowBar pct={100} color="var(--color-tier-3)" />
+                <div style={{ fontSize: 11, color: 'var(--color-tier-3)', marginTop: 4 }}>✗ doesn&apos;t fit your GPU</div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 6 }}>
+                  <span>qwen3:30b <span style={{ color: 'var(--color-muted)' }}>(quantized Q4_K_M)</span></span>
+                  <span style={{ color: 'var(--color-green)' }}>18 GB</span>
+                </div>
+                <GrowBar pct={15} color="var(--color-green)" />
+                <div style={{ fontSize: 11, color: 'var(--color-green)', marginTop: 4 }}>✓ fits 24GB GPU · <MonoNum color="var(--color-green)">~98%</MonoNum> quality</div>
+              </div>
+            </div>
           </Card>
         </div>
         <Card accent padding={26}>
@@ -62,7 +107,7 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
         </Card>
       </div>
 
-      {/* 2026 local frontier (D2) */}
+      {/* 2026 local frontier */}
       <div style={{ marginTop: 8, marginBottom: 8 }}>
         <p style={{ color: 'var(--color-muted)', fontSize: 14.5, lineHeight: 1.7, maxWidth: 780 }}>
           The local frontier moves fast. As of 2026, notable local-capable coding models include{' '}
@@ -75,52 +120,66 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       </div>
 
       {/* §7.2 LoRA / DoRA */}
-      <div className="uth-row" id="forge" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28, alignItems: 'start' }}>
+      <div className="uth-row m-stack" id="forge" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 28, alignItems: 'start', marginTop: 56 }}>
         <div>
-          <h2 style={{ fontSize: 28, fontWeight: 600 }}>Specialize the brain on your code — locally, overnight.</h2>
-          <div style={{ color: 'var(--color-accent-2)', fontSize: 14, margin: '6px 0 16px' }}>LoRA and DoRA, in 30 seconds.</div>
+          <Eyebrow>02 · LoRA / DoRA</Eyebrow>
+          <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 6px' }}>Specialize the brain on your code — locally, overnight.</h2>
+          <div style={{ color: 'var(--color-accent-2)', fontSize: 13, fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>LoRA and DoRA, in 30 seconds</div>
           <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65 }}>
-            A 7-billion-parameter model knows a lot — but it doesn&apos;t know your codebase. Re-training from scratch
-            would take weeks and a cluster. LoRA (Low-Rank Adaptation) lets you train a tiny &apos;patch&apos; — usually under
+            A 7-billion-parameter model knows a lot — but it doesn&apos;t know <em style={{ color: 'var(--color-accent)' }}>your</em> codebase.
+            Re-training from scratch would take weeks and a cluster. LoRA (Low-Rank Adaptation) lets you train a tiny &apos;patch&apos; — usually under
             100MB — that adjusts the model toward your specific style, your conventions, your domain. DoRA is the 2024
             refinement: it separates <em>how much</em> the patch moves a weight from <em>which direction</em>, which
             makes the adapter sharper for the same compute budget. Mooter&apos;s Wave 5 trains a DoRA r=32 adapter on your
             repo locally on your RTX 4090 in 3-6 hours, overnight. Activate it in your terminal. Your code never leaves
             your machine.
           </p>
-          <Card style={{ marginTop: 20 }}>
-            <pre style={{ margin: 0, fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--color-term-fg)', whiteSpace: 'pre-wrap' }}>{`┌─ Base model (frozen, 7B params, 5GB) ─┐
-│   ┌──────────────────────────────┐    │
-│   │ LoRA adapter (your code)     │    │
-│   │ r=32 · ~80MB · trained 4h    │    │
-│   └──────────────────────────────┘    │
-└────────────────────────────────────────┘
-         ↓
-   Output specialized to your repo`}</pre>
+          {/* adapter diagram */}
+          <Card style={{ marginTop: 20, background: 'var(--color-surface-2)' }} padding={20}>
+            <div style={{ border: '1.5px dashed var(--color-border-light)', borderRadius: 10, padding: 16, position: 'relative' }}>
+              <div style={{ position: 'absolute', top: -10, left: 14, padding: '2px 8px', background: 'var(--color-surface-2)', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--color-muted)' }}>base model · frozen · 7B params · 5 GB</div>
+              <div style={{ margin: '10px 0', border: '1.5px solid var(--color-accent)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-accent-08)' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 13, color: 'var(--color-accent)' }}>LoRA adapter · your code</div>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--color-muted)', marginTop: 2 }}>r=32 · ~80 MB · trained ~4h</div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 10, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-muted)' }}>↓</div>
+            <div style={{ textAlign: 'center', marginTop: 6, fontSize: 13, color: 'var(--color-text)' }}>Output specialized to <span style={{ color: 'var(--color-accent)' }}>your repo</span></div>
           </Card>
         </div>
-        <Card accent padding={26}>
-          <pre style={{ margin: 0, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-muted)', whiteSpace: 'pre-wrap' }}>{`🛠 Adapter Forge — Wave 5 (coming Q3 2026)
-
-Train your code's brain.
-Locally. Overnight. ToS-safe.
-
-  ✓ Self-distillation on your repo
-  ✓ DoRA r=32 + Unsloth
-  ✓ Qwen3-14B base
-  ✓ Eval harness vs Sonnet
-  ✓ Hot-swap via vLLM
-  ✓ Your code never leaves your machine
-
-Eligibility: 30 days of mooter use + ≥200 logged decisions
-Estimated time: 3–6 hours on RTX 4090
-Estimated gain: +12pp quality on domain prompts
-
-Status: in development · expected Q3 2026`}</pre>
+        {/* Wave 5 Adapter Forge card */}
+        <Card accent padding={26} style={{ background: 'linear-gradient(135deg, var(--color-accent-08), transparent 60%)' }}>
+          <Eyebrow>Coming Wave 5 · Adapter Forge</Eyebrow>
+          <h3 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15, margin: '6px 0 6px' }}>Train your code&apos;s brain.</h3>
+          <p style={{ fontSize: 14, color: 'var(--color-text)', marginBottom: 18 }}>Locally. Overnight. ToS-safe.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+            {[
+              'Self-distillation on your repo',
+              'DoRA r=32 + Unsloth',
+              'Qwen3-14B base',
+              'Eval harness vs Sonnet',
+              'Hot-swap via vLLM',
+              'Your code never leaves your machine',
+            ].map((item) => (
+              <div key={item} style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                <span aria-hidden style={{ color: 'var(--color-green)' }}>✓</span>
+                <span style={{ color: 'var(--color-text)' }}>{item}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 14, borderTop: '1px solid var(--color-accent-25)', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--color-muted)' }}>
+            <div>Eligibility · <span style={{ color: 'var(--color-text)' }}>30 days of mooter use</span> + <span style={{ color: 'var(--color-text)' }}>≥200 logged decisions</span></div>
+            <div>Est. time · <span style={{ color: 'var(--color-text)' }}>3–6 hours</span> on RTX 4090</div>
+            <div>Est. gain · <span style={{ color: 'var(--color-green)' }}>+12pp</span> quality on domain prompts</div>
+          </div>
+          <div style={{ marginTop: 16, padding: '8px 12px', background: 'rgba(212,192,144,0.08)', border: '1px solid rgba(212,192,144,0.3)', borderRadius: 6, fontSize: 11.5, color: 'var(--color-yellow)', fontFamily: 'var(--mono)' }}>
+            status · in development · expected Q3 2026
+          </div>
         </Card>
       </div>
-      {/* §7.2b — DoRA decomposition diagram + citations (D5, rubric C3) */}
-      <div style={{ marginTop: 28 }}>
+
+      {/* §7.2b — DoRA decomposition diagram + citations */}
+      <div style={{ marginTop: 44 }}>
         <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 10 }}>How a DoRA adapter decomposes a weight</h3>
         <svg role="img" aria-label="LoRA and DoRA weight decomposition" viewBox="0 0 720 150" style={{ maxWidth: 720, width: '100%', height: 'auto', border: '1px solid var(--color-border)', borderRadius: 10, background: 'var(--color-surface)' }}>
           <style>{`.lbl{font:13px var(--mono,monospace);fill:var(--color-text)}.dim{font:11px var(--mono,monospace);fill:var(--color-muted)}`}</style>
@@ -149,7 +208,7 @@ Status: in development · expected Q3 2026`}</pre>
         </p>
       </div>
 
-      {/* §7.3 — How the router decides (classify.js + hook), D5 rubric C3 */}
+      {/* §7.3 — How the router decides (classify.js + hook) */}
       <div style={{ marginTop: 44 }}>
         <h2 style={{ fontSize: 28, fontWeight: 600, marginBottom: 6 }}>How the router decides — <code>classify.js</code> + the hook</h2>
         <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65, maxWidth: 820 }}>
@@ -181,7 +240,7 @@ Status: in development · expected Q3 2026`}</pre>
         </p>
       </div>
 
-      {/* §7.4 — Familiarity bridge: Claude Dynamic Workflows ↔ Mooter Moos (Wave 13) */}
+      {/* §7.4 — Familiarity bridge: Claude Dynamic Workflows ↔ Mooter Moos */}
       <div style={{ marginTop: 44 }}>
         <h2 style={{ fontSize: 28, fontWeight: 600, marginBottom: 6 }}>Dynamic Workflows, made visible — the herd 🐄</h2>
         <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65, maxWidth: 820 }}>
@@ -197,7 +256,7 @@ Status: in development · expected Q3 2026`}</pre>
           one-liner shows up <em>during</em> the work, and the hook owns the render moment. So mooter inverts the
           contract — <strong>the cheaper the work, the louder it speaks</strong>.
         </p>
-        <div style={{ marginTop: 16, overflowX: 'auto' }}>
+        <div style={{ marginTop: 16, overflowX: 'auto' }} className="m-scroll-x">
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ textAlign: 'left', color: 'var(--color-muted)' }}>
@@ -215,11 +274,11 @@ Status: in development · expected Q3 2026`}</pre>
                 ['Where it runs', '☁ Anthropic cloud (Opus 4.8 orchestrator)', 'hybrid — orchestrator stays on Claude Code; workers can be local Moos'],
                 ['Cost per spawn', 'Anthropic billing', '$0 for local Moos (your hardware)'],
                 ['“Peak concurrent” stat', 'not surfaced', '✅ Stop digest: peak concurrent: N'],
-              ].map((r, i) => (
+              ].map((row, i) => (
                 <tr key={i} style={{ borderTop: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '8px 10px' }}>{r[0]}</td>
-                  <td style={{ padding: '8px 10px', color: 'var(--color-muted)' }}>{r[1]}</td>
-                  <td style={{ padding: '8px 10px' }}>{r[2]}</td>
+                  <td style={{ padding: '8px 10px' }}>{row[0]}</td>
+                  <td style={{ padding: '8px 10px', color: 'var(--color-muted)' }}>{row[1]}</td>
+                  <td style={{ padding: '8px 10px' }}>{row[2]}</td>
                 </tr>
               ))}
             </tbody>
@@ -233,7 +292,7 @@ Status: in development · expected Q3 2026`}</pre>
         </p>
       </div>
 
-      {/* §7.5 — Wave 33 differentiation: opt-in performance backends, honest scope */}
+      {/* §7.5 — opt-in performance backends, honest scope */}
       <div style={{ marginTop: 44 }}>
         <h2 style={{ fontSize: 28, fontWeight: 600, marginBottom: 6 }}>Newer, faster local backends — opt-in, never default</h2>
         <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65, maxWidth: 820 }}>
@@ -262,7 +321,7 @@ Status: in development · expected Q3 2026`}</pre>
         <p style={{ color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.7, marginTop: 12, maxWidth: 820 }}>
           <strong>Honest scope:</strong> none of these are on by default, and none of them change which <em>tier</em> a
           prompt gets — <code>classify.js</code> still decides that, and its logic has been byte-frozen for 12 consecutive
-          releases. They make the local side faster and lighter; the routing you trust is unchanged.
+          releases. They make the local side faster and lighter; the routing you trust is unchanged. Current build: mooter v{versionInfo.version}.
         </p>
       </div>
 

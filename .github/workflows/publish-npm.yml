@@ -1,0 +1,25 @@
+name: Publish @mooter/cli to npm
+# Publishes mooter-package/ (@mooter/cli) to npm when a tag `cli-v*` is pushed.
+# Requires repo secret: NPM_TOKEN (npm Automation token with publish rights).
+on:
+  push:
+    tags: ['cli-v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mooter-package
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
