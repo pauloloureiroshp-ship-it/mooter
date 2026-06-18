@@ -5,6 +5,7 @@ import { classifyDomain, loadPacks } from "./classify_domain.ts";
 import { loadPackManifest, packResolve, detectEnv } from "./pack_resolve.ts";
 const arr = (a: any[] | undefined) => "[" + ((a || []) as any[]).join(", ") + "]";
 async function main() {
+  process.stdin.setEncoding("utf8");
   let raw = ""; for await (const c of process.stdin) raw += c;
   let prompt = "", cwd = process.cwd();
   try { const j = JSON.parse(raw || "{}"); prompt = j.prompt || j.user_prompt || ""; cwd = j.cwd || cwd; } catch {}
