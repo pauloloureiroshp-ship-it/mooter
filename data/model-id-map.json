@@ -1,0 +1,23 @@
+{
+  "_note": "Crosswalk Mooter id → external catalogue ids, for the R2 ingestor (hub/lib/ingest.js). aa_slug/openrouter_id are best-effort: when null or unmatched the ingestor falls back to a normalized creator+name match and only writes a cell/price when the match is confident (low confidence → skip + log, never guess). match_name is the canonical lowercase name used for fuzzy matching. Refresh the external ids by reviewing a `npm run ingest:map` proposal (dev-time), never silently.",
+  "_generated_at": "2026-06-18",
+  "models": {
+    "claude-opus-4-6":   { "vendor": "Anthropic", "match_name": "claude opus 4.6",   "aa_slug": null, "openrouter_id": "anthropic/claude-opus-4.6" },
+    "claude-opus-4-7":   { "vendor": "Anthropic", "match_name": "claude opus 4.7",   "aa_slug": null, "openrouter_id": "anthropic/claude-opus-4.7" },
+    "claude-opus-4-8":   { "vendor": "Anthropic", "match_name": "claude opus 4.8",   "aa_slug": null, "openrouter_id": "anthropic/claude-opus-4.8" },
+    "claude-sonnet-4-6": { "vendor": "Anthropic", "match_name": "claude sonnet 4.6", "aa_slug": null, "openrouter_id": "anthropic/claude-sonnet-4.6" },
+    "claude-haiku-4-5":  { "vendor": "Anthropic", "match_name": "claude haiku 4.5",  "aa_slug": null, "openrouter_id": "anthropic/claude-haiku-4.5" },
+    "claude-fable-5":    { "vendor": "Anthropic", "match_name": "fable 5",           "aa_slug": null, "openrouter_id": null },
+    "gpt-5":             { "vendor": "OpenAI",    "match_name": "gpt 5",             "aa_slug": null, "openrouter_id": "openai/gpt-5" },
+    "gpt-5-3-codex":     { "vendor": "OpenAI",    "match_name": "gpt 5.3 codex",     "aa_slug": null, "openrouter_id": "openai/gpt-5-codex" },
+    "gpt-oss":           { "vendor": "OpenAI",    "match_name": "gpt oss",           "aa_slug": null, "openrouter_id": "openai/gpt-oss-120b" },
+    "gemini-3.1-pro":    { "vendor": "Google",    "match_name": "gemini 3.1 pro",    "aa_slug": null, "openrouter_id": "google/gemini-3.1-pro" },
+    "gemini-3-flash":    { "vendor": "Google",    "match_name": "gemini 3 flash",    "aa_slug": null, "openrouter_id": "google/gemini-3-flash" },
+    "deepseek-v3.2":     { "vendor": "DeepSeek",  "match_name": "deepseek v3.2",     "aa_slug": null, "openrouter_id": "deepseek/deepseek-v3.2" },
+    "deepseek-v4-pro":   { "vendor": "DeepSeek",  "match_name": "deepseek v4 pro",   "aa_slug": null, "openrouter_id": "deepseek/deepseek-v4-pro" },
+    "minimax":           { "vendor": "MiniMax",   "match_name": "minimax",           "aa_slug": null, "openrouter_id": "minimax/minimax-01" },
+    "kimi-k2.6":         { "vendor": "Moonshot",  "match_name": "kimi k2.6",         "aa_slug": null, "openrouter_id": "moonshotai/kimi-k2.6" },
+    "qwen3.6":           { "vendor": "Alibaba",   "match_name": "qwen3.6",           "aa_slug": null, "openrouter_id": null },
+    "qwen3-30b":         { "vendor": "Alibaba",   "match_name": "qwen3 30b",         "aa_slug": null, "openrouter_id": null }
+  }
+}
