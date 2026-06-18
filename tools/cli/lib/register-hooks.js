@@ -56,7 +56,10 @@ ensure('UserPromptSubmit', 'mooter-turn-header.js', `node "${hooksFwd}/mooter-tu
 for (const entry of (s.hooks.UserPromptSubmit || [])) {
   for (const h of (entry.hooks || [])) {
     if (h.command && /[\/"]pack-hint\.js"/.test(h.command)) {
-      h.command = h.command.split('pack-hint.js').join('pack-hint.cjs');
+      // Anchored swap mirrors the guard above so only the boundary-delimited
+      // token migrates (a path that merely contains "pack-hint.js" elsewhere
+      // is left intact).
+      h.command = h.command.replace(/([\/"])pack-hint\.js"/g, '$1pack-hint.cjs"');
       added++;
     }
   }
