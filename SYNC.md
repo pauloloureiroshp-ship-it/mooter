@@ -3,49 +3,17 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
-### 🔥 Sessão — 2026-06-19 (First Magic — FASE 4: cockpit + statusline)
-**Estado:** ✅ FASE 4 em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f4-cockpit` **off `f3`** → contém F1+F3; 1 commit `e40cd03`, **não pushed**). `classify.js` sha `427d8c0b…` **INTACTA**. `final-reviewer` Opus: 1ª passagem **BLOCK** (1 bug real: teste do Moo-cap dependente da RAM do host), corrigido → 2ª passagem **SHIP**.
+### 🔥 Sessão — 2026-06-18 (First Magic — FASE 2: moo-verify, crítico grátis)
+**Estado:** ✅ FASE 2 entregue em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f2-verify` off `dca1cac`, 1 commit `32fbf75`, **não pushed** — gated em Paulo). FASE 1 vive na branch `first-magic/f1-safety-plane` (review prévio: SHIP-WITH-NITS). `classify.js` sha `427d8c0b…` **INTACTA**. `final-reviewer` Opus: **SHIP-WITH-NITS** (3 nits de honestidade/robustez aplicados, 0 blockers).
 **Deliverables (NOVOS; nenhum frozen tocado):**
-- `cockpit-feed.js` — `buildFeed()` agrega fontes REAIS num view-model: `~/.mooter/workflows/active-run.json` (pointer — cockpit acende sozinho), `spawns/<id>/state.json` (lanes), `decisions.log` (risk_blocked do F1), `verify-last.json` (F2), savings injetado (F3) e cap de Moos HW-aware (`local-fleet`). `—`/null quando falta. `writeActiveRun/clearActiveRun`.
-- `statusline-firstmagic.js` — 6-seg: `🐮 maestro:Sonnet · 🦙×N (cap M) · ⚠️risk:K · $X (−Y% vs Opus) · verify:🟢 · run:Ts`.
-- `cockpit-live.js` — swimlane terminal Agents-live (🦙 local / ✨ Claude); o vsix consome o mesmo JSON. `cockpit-demo.js` — demo real.
-**DoD provado (demo real, integrado):** ⚠️risk:**2** (chip do **F1** real), verify:🟢 (**F2** real), savings **−61%** (sessão real MISTA local+Claude via :7821, **não** o demo 100%-local), Moos cap **2** HW-aware — tudo no cockpit + statusline. 12 testes novos verdes.
-**Honestidade (reforços):** savings de runs reais mistos (`—` se faltam, nunca fabricado); Moo cap HW-aware (8GB M3→2, **determinístico via `totalMemMB` injetável** — não preso à RAM do host); chip de risco = contagem real do F1; lane sem tokens → `—`.
-**Bug corrigido no review (BLOCK→SHIP):** teste `moos_cap===2` lia `os.totalmem()` → falharia em CI 16GB+/Windows; corrigido com `opts.totalMemMB` injetável (prod usa RAM real; testes determinísticos). +nits: env var alinhado a `MOOTER_HOME`, guard de savings exige base em $, demo cleanup em `finally`.
-**Suite:** 689 testes; **zero falhas determinísticas novas** (baseline 6 ambientais; subtestes `gsd-statusline-latency` flaky por carga, não tocados).
-**⚠️ BACKLOG (Paulo):** avaliação adversarial EXTERNA do `moo-risk` antes de claim público (Youden 1.00 in-sample).
-**Próximo:** FASE de MERGE (F1+F2+F3+F4 num só tree) para o screencap da First Magic — plano + dry-run verificado abaixo no relatório CC→Paulo.
-
----
-
-### 🔥 Sessão — 2026-06-18 (First Magic — FASE 3: cost plane heterogéneo)
-**Estado:** ✅ FASE 3 em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f3-cost-plane` **off `f1`** — reusa `moo-risk`+`local-fleet`; diff `f1...f3` = só adições F3; 1 commit `a298aff`, **não pushed**). `classify.js` sha `427d8c0b…` **INTACTA**. `final-reviewer` Opus: 1ª passagem **BLOCK** (2 bugs reais), corrigido → 2ª passagem **SHIP**.
-**Deliverables (NOVOS; nenhum frozen tocado):**
-- `subagent-route.js` — decisão determinística local|cloud por **papel**: leaf/verboso (retrieval, grep, ler logs, correr testes, summarize) → Ollama local ($0); síntese/decisão/design/review → maestro cloud. **Only-upgrade:** task HIGH_RISK (via `moo-risk` **tool layer**) → forçada a cloud Opus, nunca downgrade. `hooks/SubagentStart-moo-route.js` (bias-only via `additionalContext`, fail-open).
-- `handoff-bus.js` — `~/.mooter/run/<id>/state.md` working-state **destilado** (## Goal/Decisions/State/Open/Artifacts), **capped 4KB por bytes** + caps por secção (não dump). `arbitrate()` = um fio pago por fornecedor (preserva cache). Sanitizer runId à prova de `..`.
-- `run-savings.js` — savings honesto vs counterfactual **all-Opus** via `pricing.js` SSOT, tokens REAIS; sem tokens → `saved=null` (—), **nunca fabricado**.
-- `cost-plane-demo.js` — demo real.
-**DoD provado (demo real):** 2 Moos locais qwen2.5:3b em **paralelo** ($0) ao cap HW (8GB M3 → **2, não inventado**; ≥3 em ≥16GB, paramétrico), wall 6.7s vs serial 12.9s; handoff destilado 504 bytes; savings reais vs all-Opus (100% local). 27 testes novos verdes.
-**Bugs corrigidos no review (BLOCK→SHIP):** (1) bypass only-upgrade — role "summarize" disparava o veto asking-vs-doing e suprimia o sinal destrutivo da task → corrigido com `assess(layer:'tool')` no routing; (2) byte-cap do handoff não byte-bounded em multibyte → slice por `Buffer` + cap ao `maestro_provider`. +2 nits robustez (payload `null`, runId `..`).
-**Suite:** 677 testes; falhas determinísticas = baseline (4 ficheiros ambientais herdados); subtestes `gsd-statusline-latency` são **flaky por carga** (passam em isolamento no clone e no pristine) — não tocados pela F3. **Zero regressões determinísticas.**
-**NÃO feito (honest):** Stop gate (F2) mantém-se opt-in (não auto-wired pela F3); cockpit visual (swimlanes/$ por lane/chip risco) é FASE 4 — esta fase entrega a *fonte* (route decisions, handoff state, run-savings); integração final F1+F2+F3 num só working tree fica para a fase de merge.
-**⚠️ BACKLOG (Paulo, pré-claim público):** avaliação adversarial EXTERNA do `moo-risk` (Youden 1.00 é in-sample).
-**Próximo:** Paulo revê FASE 3 → OK → FASE 4 (cockpit + statusline em tempo real).
-
----
-
-### 🔥 Sessão — 2026-06-18 (First Magic — FASE 1: Safety Plane)
-**Estado:** ✅ FASE 0 (auditoria, sem código) + FASE 1 entregues em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f1-safety-plane`, 1 commit `019c118`, **não pushed** — gated em Paulo). Sessão CC viva no working tree → ship por clone, sem clobberar. `classify.js` sha `427d8c0b…` **INTACTA** (verificada a cada passo). `final-reviewer` Opus: 1ª passagem **BLOCK** (bypass real do hook via `# sandbox`), corrigido → 2ª passagem **SHIP-WITH-NITS** (nits endurecidos).
-**Deliverables (todos ficheiros NOVOS em `tools/router/`, nenhum frozen tocado):**
-- `moo-risk.js` — primitiva host-side zero-LLM `{risk_tier, action∈{allow,escalate_T3,escalate_human}, reason, signals}`. Reusa `patterns.HIGH_RISK` (sem importar classify). **Duas camadas:** prompt layer = asking-vs-doing + dev-context veto (fix de FPR); tool layer (`{layer:'tool'}`, usado pelo hook) = ignora vetos, bloqueia qualquer op destrutiva (fecha o bypass `# sandbox`/`# example`).
-- `hooks/PreToolUse-moo-risk.js` — gate: exit-2 bloqueia ops destrutivas + evento `risk_blocked` (preview **redigido** de secrets) → `decisions.log`; fail-open em erro. `hooks/MOO-RISK-WIRING.md` = registo + **deny rule documentada (manual, fail-closed backstop)** + limite de cobertura honesto.
-- `local-fleet.js` — nº de Moos **HW-aware** derivado de RAM real × footprint do modelo (nunca hardcoded). Neste M3 8GB → **2 Moos** (lane qwen2.5:3b); reporta `recommended_t0`.
-- `moo-risk-validate.js` + 3 suites de teste (**30 testes verdes**).
-**Métricas (honesto):** vs 50 prompts Arm C **(in-sample = design set)** → Youden **1.00**, indirect FPR **0.0** (baseline classify.js 0.52 / 0.60 no mesmo set; alvos do DoD ≥0.52 / ~0.10 batidos). Holdout out-of-sample (14 paráfrases novas, autoria minha) → Youden **1.00**. ⚠️ Caveat: in-sample + holdout não-adversarial; número real-world será menor.
-**DoD provado reproduzível:** `"drop the legacy_users table…"` → escalate_human (exit 2 c/ motivo); `"explain what rm -rf does"` → allow (exit 0).
-**Suite completa:** 649 testes, 642 pass, **6 fail TODAS pré-existentes/ambientais** (Apple Silicon VRAM, sem `ANTHROPIC_API_KEY`, daemon :7821, backtest rede) — confirmadas idênticas no repo-fonte intacto; **FASE 1 = zero falhas novas**.
-**NÃO feito (honest):** deny rule é documentada (manual), não auto-wired; cockpit visual do risk-chip + nº de Moos é FASE 4 (esta fase entrega a *fonte* HW-aware); cobertura destrutiva é enumeração explícita (cauda longa kubectl/aws/find → deny rule).
-**Próximo:** Paulo revê FASE 1 → OK → FASE 2 (moo-verify, crítico grátis).
+- `tools/router/moo-verify.js` — crítico determinístico **zero-LLM** (substitui o LLM-as-judge → mata o self-preferential bias a $0). Auto-deteta stack (npm/tsc/eslint/vitest/jest · ruff/mypy/pytest · cargo). Contrato `{pass, checks:[{name,kind,pass,signal}], blocking}`, exit 0/2. Sinal honesto: tool ausente = `—` (`pass:null`, nunca pass fabricado); placeholder npm "no test specified" = ausente; fast-fail → resto `pending`; orçamento total de tempo → não-corridos ficam `pending`. `required`/`advisory` via `mooter.verify.json`. Escreve só `~/.mooter/verify-last.json`.
+- `--gate` (Stop hook) — **self-gating** (no-op sem `mooter.verify.json` nem `MOOTER_VERIFY_GATE=1` → default byte-idêntico); **fail-open** em erro. RED → stderr + exit 2 mantém o agente a trabalhar até verde (cap nativo de 8 blocks). Required+custom com tool em falta → **bloqueia** (misconfig visível, não verde silencioso).
+- `.claude/skills/moo-verify/SKILL.md` (count moo-* 11→12, `moo-skills.test.js` atualizado no mesmo commit por regra do repo).
+**DoD provado reproduzível:** projeto opted-in, turno 1 testes RED → gate exit 2 ("keep going"); turno 2 fix → GREEN → gate exit 0. **$0, sem LLM.** 12 testes novos verdes.
+**Suite completa:** 632 testes, 625 pass, **6 fail TODAS pré-existentes** (diff de subtestes vs pristine = **0 novas**; backtest/env/savings-tracker-me/wave33_17 + 2 render statusline — ambientais Mac/rede/daemon).
+**NÃO feito (honest):** Stop gate é opt-in (não auto-wired); `moo-loop` (loop+budget que consome este crítico) é FASE 3.
+**⚠️ BACKLOG (Paulo, pré-claim público):** **avaliação adversarial EXTERNA do `moo-risk` (FASE 1)** antes de qualquer claim público — o **Youden 1.00 é in-sample** (set dos 50 = set de design) + holdout de autoria própria; precisa de dados adversariais independentes para um número defensável.
+**Próximo:** Paulo revê FASE 2 → OK → FASE 3 (cost plane heterogéneo: SubagentStart + handoff bus + savings por run).
 
 ---
 
