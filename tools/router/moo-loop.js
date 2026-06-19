@@ -34,7 +34,7 @@ const path = require('node:path');
 
 const { assess, isBlocking } = require('./moo-risk');
 const { decideRoute } = require('./subagent-route');
-const { priceTurn } = require('./pricing');
+const { priceTurn, TIER_TO_PRICING_KEY } = require('./pricing');
 
 const VERIFY_CLI = path.join(__dirname, 'moo-verify.js');
 
@@ -270,6 +270,133 @@ function runLoop(opts) {
   }
 }
 
+// ── poll mode (FASE 2): wrap the native /loop with a free local tick ──────────
+//
+// `moo-loop poll` does NOT reinvent cron. The native /loop fires on the interval;
+// each fire runs `poll-tick`, which runs the check LOCALLY ($0) and only signals
+// ACTIONABLE (→ the session may spend a paid model) when the check finds something
+// AND the per-window budget still allows it. Everything here is deterministic.
+
+const POLL_EST_IN = 6000;
+const POLL_EST_OUT = 1200;
+
+// Real /loop limits — confirmed from the official docs in FASE 0
+// (code.claude.com/docs/en/scheduled-tasks): minimum interval 1 minute, units
+// s/m/h/d, and a recurring task expires 7 days after creation.
+const MIN_INTERVAL_SEC = 60;
+const LOOP_EXPIRY_DAYS = 7;
+
+/** Parse '30s'|'5m'|'2h'|'1d' → seconds. Sub-minute rounds UP to 60s (cron granularity). */
+function parseInterval(s) {
+  const m = String(s || '').trim().match(/^(\d+)\s*([smhd])$/i);
+  if (!m) return null;
+  const mult = { s: 1, m: 60, h: 3600, d: 86400 }[m[2].toLowerCase()];
+  return Math.max(MIN_INTERVAL_SEC, parseInt(m[1], 10) * mult);
+}
+
+function fmtInterval(sec) {
+  if (sec % 86400 === 0) return `${sec / 86400}d`;
+  if (sec % 3600 === 0) return `${sec / 3600}h`;
+  return `${Math.round(sec / 60)}m`;
+}
+
+function pollLog(id) { return path.join(loopHome(), `poll-${id}.jsonl`); }
+
+/** Decide if a check result is actionable, per the rule. Deterministic, $0. */
+function isActionable(result, rule) {
+  const r = rule || 'nonempty';
+  const out = (result.stdout || '').trim();
+  if (r === 'nonempty') return out.length > 0;
+  if (r === 'empty') return out.length === 0;
+  if (r === 'nonzero') return result.code !== 0;
+  if (r === 'zero') return result.code === 0;
+  if (r.startsWith('match:')) { try { return new RegExp(r.slice(6)).test(out); } catch { return false; } }
+  return out.length > 0;
+}
+
+/** Run the check locally ($0), in an isolated env. */
+function runCheck(checkCmd, cwd) {
+  const res = spawnSync('bash', ['-c', checkCmd], { cwd, env: cleanEnv({}), encoding: 'utf8' });
+  return { code: res.status, stdout: res.stdout || '', stderr: res.stderr || '' };
+}
+
+/**
+ * Escalation $ already committed this poll window, summed from its append-only log.
+ * Relies on the native /loop firing ticks BETWEEN turns (never concurrently — FASE-0
+ * docs), so this read-then-append accounting is race-free in practice.
+ */
+function windowSpent(id) {
+  let spent = 0;
+  try {
+    for (const ln of fs.readFileSync(pollLog(id), 'utf8').split('\n')) {
+      if (!ln) continue;
+      try { const e = JSON.parse(ln); if (e.phase === 'tick' && e.escalated) spent += (e.cost || 0); } catch { /* skip */ }
+    }
+  } catch { /* no log yet */ }
+  return spent;
+}
+
+/**
+ * One poll fire — what the native /loop calls each interval. Runs the check
+ * LOCALLY ($0); signals ACTIONABLE only when the check finds something AND the
+ * per-window budget still allows the paid escalation. Never runs a destructive
+ * check (risk-gated). Returns a verdict object and logs the tick.
+ */
+function pollTick(opts) {
+  const cwd = opts.cwd || process.cwd();
+  const id = opts.id || 'default';
+  // Floor-tier ESTIMATE for the would-be escalation: the session that acts on an
+  // ACTIONABLE signal may classify its own prompt higher (deploy/secrets → T3 Opus),
+  // so the window cap is a floor, not a guarantee. Pass --escalate-tier T3 to budget
+  // conservatively. The logged cost is always a real pricing.js figure, never fabricated.
+  const escTier = (opts.escalateTier || 'T2').toUpperCase();
+  const maxCost = opts.maxCost == null ? Infinity : opts.maxCost; // window budget (USD)
+  const log = (v) => { appendLog(pollLog(id), v); return v; };
+
+  // Never EXECUTE a destructive "check". NOTE: this vets the LITERAL command string,
+  // not runtime-expanded forms (var indirection, base64|eval). That is sound here
+  // because the check is the operator's own /loop command, not untrusted input.
+  const rk = assess(opts.check || '', { layer: 'tool' });
+  if (isBlocking(rk.action)) {
+    return log({ phase: 'tick', id, actionable: false, escalated: false, cost: 0, verdict: 'risk-blocked', reason: rk.reason });
+  }
+
+  const result = runCheck(opts.check, cwd);
+  if (!isActionable(result, opts.actionableWhen)) {
+    return log({ phase: 'tick', id, actionable: false, escalated: false, cost: 0, exit: result.code ?? null, verdict: 'quiet' });
+  }
+
+  // actionable → a paid model would act; gate on the per-window budget
+  const escModel = TIER_TO_PRICING_KEY[escTier] || 'claude-sonnet-4-6';
+  const estCost = priceTurn(escModel, POLL_EST_IN, POLL_EST_OUT);
+  const already = windowSpent(id);
+  if (Number.isFinite(maxCost) && already + estCost > maxCost) {
+    return log({ phase: 'tick', id, actionable: true, escalated: false, cost: 0, verdict: 'budget-exhausted', window_spent: Number(already.toFixed(6)), max_cost: maxCost });
+  }
+  return log({
+    phase: 'tick', id, actionable: true, escalated: true, cost: estCost, model: escModel,
+    verdict: 'actionable', escalate: opts.escalate || '', signal: (result.stdout || '').trim().slice(0, 200),
+  });
+}
+
+/**
+ * `moo-loop poll <interval> "<check>"` — validates the interval against the REAL
+ * /loop limits, prints the native /loop wiring that runs a free local poll-tick
+ * each fire, and initialises the budget window. Does NOT reinvent cron.
+ */
+function pollSetup(opts) {
+  const sec = parseInterval(opts.interval);
+  if (!sec) return { ok: false, error: `bad interval "${opts.interval}" — use 30s|5m|2h|1d` };
+  const id = opts.id || Date.now().toString(36); // pollLog() adds the "poll-" prefix
+  const cap = Number.isFinite(opts.maxCost) ? ` --max-cost $${opts.maxCost}` : '';
+  const esc = opts.escalate ? ` --escalate ${JSON.stringify(opts.escalate)}` : '';
+  const tickCmd =
+    `node ${JSON.stringify(__filename)} poll-tick --id ${id} --check ${JSON.stringify(opts.check)}` +
+    ` --actionable-when ${opts.actionableWhen || 'nonempty'}${cap}${esc}`;
+  appendLog(pollLog(id), { phase: 'open', id, interval: fmtInterval(sec), max_cost: Number.isFinite(opts.maxCost) ? opts.maxCost : null });
+  return { ok: true, id, interval: fmtInterval(sec), loopLine: `/loop ${fmtInterval(sec)} ${tickCmd}`, expiryDays: LOOP_EXPIRY_DAYS, log: pollLog(id) };
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 // Usage:
 //   node moo-loop.js until <verify-profile> --max-cost $X --max-iters N \
@@ -291,9 +418,12 @@ function parseArgs(argv) {
 function usage(msg) {
   if (msg) process.stderr.write(`moo-loop: ${msg}\n`);
   process.stderr.write(
-    'usage: node moo-loop.js until <verify-profile> --max-cost $X --max-iters N \\\n' +
-    '         [--goal "<predicate>"] [--attempt-cmd "<cmd>"] [--cwd <path>] [--no-progress N] [--json]\n' +
-    '  opt-in by design: BOTH --max-cost and --max-iters are required.\n'
+    'usage:\n' +
+    '  node moo-loop.js until <verify-profile> --max-cost $X --max-iters N \\\n' +
+    '       [--goal "<predicate>"] [--attempt-cmd "<cmd>"] [--cwd <path>] [--no-progress N] [--json]\n' +
+    '    opt-in by design: BOTH --max-cost and --max-iters are required.\n' +
+    '  node moo-loop.js poll <interval> "<check>" [--max-cost $X] [--actionable-when nonempty|empty|nonzero|zero|match:RE] [--escalate "<what>"]\n' +
+    '    prints the native /loop wiring; the tick runs local ($0), pays only when ACTIONABLE.\n'
   );
   process.exit(64);
 }
@@ -323,31 +453,73 @@ function summarize(v) {
   return lines.join('\n');
 }
 
-if (require.main === module) {
-  const a = parseArgs(process.argv.slice(2));
-  const sub = a._[0];
-  if (sub !== 'until') usage(`unknown or missing subcommand "${sub || ''}" (only "until" in FASE 1)`);
-
+function cmdUntil(a) {
   const verifyProfile = (a._[1] || 'default').replace(/^verify:/, '');
   const maxCost = money(a['max-cost']);
   const maxIters = parseInt(a['max-iters'], 10);
   if (!Number.isFinite(maxCost) || !Number.isFinite(maxIters)) {
     usage('both --max-cost and --max-iters are required and must be numbers');
   }
-
   const verdict = runLoop({
-    verifyProfile,
-    maxCost,
-    maxIters,
-    goal: a.goal,
-    attemptCmd: a['attempt-cmd'],
-    cwd: a.cwd,
+    verifyProfile, maxCost, maxIters,
+    goal: a.goal, attemptCmd: a['attempt-cmd'], cwd: a.cwd,
     noProgress: a['no-progress'] != null ? parseInt(a['no-progress'], 10) : undefined,
   });
-
   if (a.json) process.stdout.write(JSON.stringify(verdict, null, 2) + '\n');
   else process.stdout.write(summarize(verdict) + '\n');
   process.exit(exitFor(verdict.stop_reason));
 }
 
-module.exports = { runLoop, progressOf, routeTick, tickCostOf, riskGate, STOP, EXIT };
+function cmdPoll(a) {
+  const interval = a._[1];
+  const check = a._.slice(2).join(' ');
+  if (!interval || !check) usage('poll needs an interval and a "<check>"');
+  const r = pollSetup({
+    interval, check,
+    maxCost: a['max-cost'] != null ? money(a['max-cost']) : undefined,
+    actionableWhen: a['actionable-when'], escalate: a.escalate,
+  });
+  if (!r.ok) usage(r.error);
+  if (a.json) { process.stdout.write(JSON.stringify(r, null, 2) + '\n'); process.exit(0); }
+  process.stdout.write(
+    `🐮 moo-loop poll — wraps the native /loop (does not reinvent cron)\n` +
+    `  interval: ${r.interval} (min 1m; a recurring /loop expires after ${r.expiryDays}d — recreate to extend)\n` +
+    `  window log: ${r.log}\n` +
+    `Paste this to start it:\n  ${r.loopLine}\n` +
+    `The tick runs LOCAL ($0); a paid model is spent only on a tick that prints ACTIONABLE.\n`
+  );
+  process.exit(0);
+}
+
+function cmdPollTick(a) {
+  if (a.check == null) usage('poll-tick needs --check "<cmd>"');
+  const v = pollTick({
+    id: a.id, check: a.check, cwd: a.cwd,
+    actionableWhen: a['actionable-when'],
+    maxCost: a['max-cost'] != null ? money(a['max-cost']) : undefined,
+    escalate: a.escalate, escalateTier: a['escalate-tier'],
+  });
+  if (a.json) { process.stdout.write(JSON.stringify(v, null, 2) + '\n'); process.exit(v.verdict === 'actionable' ? 10 : 0); }
+  const line = {
+    quiet: `🐮 poll-tick QUIET ($0) — nothing actionable`,
+    actionable: `🐮 poll-tick ACTIONABLE → escalate (est $${(v.cost || 0).toFixed(4)} via ${v.model}): ${v.signal}\n${v.escalate || ''}`,
+    'budget-exhausted': `🐮 poll-tick BUDGET-EXHAUSTED — actionable but window cap $${v.max_cost} reached; staying local ($0)`,
+    'risk-blocked': `🐮 poll-tick RISK-BLOCKED — refusing destructive check: ${v.reason}`,
+  }[v.verdict] || v.verdict;
+  process.stdout.write(line + '\n');
+  process.exit(v.verdict === 'actionable' ? 10 : v.verdict === 'risk-blocked' ? 3 : 0);
+}
+
+if (require.main === module) {
+  const a = parseArgs(process.argv.slice(2));
+  const sub = a._[0];
+  if (sub === 'until') cmdUntil(a);
+  else if (sub === 'poll') cmdPoll(a);
+  else if (sub === 'poll-tick') cmdPollTick(a);
+  else usage(`unknown or missing subcommand "${sub || ''}" (use "until" or "poll")`);
+}
+
+module.exports = {
+  runLoop, progressOf, routeTick, tickCostOf, riskGate, STOP, EXIT,
+  pollTick, pollSetup, isActionable, parseInterval, fmtInterval,
+};
