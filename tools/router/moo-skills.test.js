@@ -10,7 +10,9 @@ const path = require('path');
 const SKILLS_DIR = path.join(__dirname, '..', '..', '.claude', 'skills');
 const EXPECTED = ['moo-workflow', 'moo-effort', 'moo-herd', 'moo-dashboard', 'moo-status', 'moo-distill', 'moo-pack', 'moo-help',
   // Wave 53 Phase E — CC-parity skills (additive; do NOT shadow CC's native /agents //memory //init).
-  'moo-agents', 'moo-memory', 'moo-init'];
+  'moo-agents', 'moo-memory', 'moo-init',
+  // First Magic FASE 2 — the free deterministic critic.
+  'moo-verify'];
 
 function frontmatter(text) {
   const m = text.match(/^---\n([\s\S]*?)\n---/);
@@ -23,7 +25,7 @@ function frontmatter(text) {
   return out;
 }
 
-test('all 11 /moo-* skills exist with valid frontmatter and matching name', () => {
+test('all 12 /moo-* skills exist with valid frontmatter and matching name', () => {
   for (const slug of EXPECTED) {
     const p = path.join(SKILLS_DIR, slug, 'SKILL.md');
     assert.ok(fs.existsSync(p), `${slug}/SKILL.md missing`);
@@ -34,7 +36,7 @@ test('all 11 /moo-* skills exist with valid frontmatter and matching name', () =
   }
 });
 
-test('exactly the 11 expected moo-* skills are present (no stragglers)', () => {
+test('exactly the 12 expected moo-* skills are present (no stragglers)', () => {
   const dirs = fs.readdirSync(SKILLS_DIR).filter((d) => d.startsWith('moo-'));
   assert.deepStrictEqual(dirs.sort(), [...EXPECTED].sort());
 });
