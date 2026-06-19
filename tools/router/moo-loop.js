@@ -35,6 +35,8 @@ const path = require('node:path');
 const { assess, isBlocking } = require('./moo-risk');
 const { decideRoute } = require('./subagent-route');
 const { priceTurn, TIER_TO_PRICING_KEY } = require('./pricing');
+const { writeState } = require('./handoff-bus');
+const { computeRunSavings } = require('./run-savings');
 
 const VERIFY_CLI = path.join(__dirname, 'moo-verify.js');
 
@@ -99,16 +101,61 @@ function runVerify(cwd, profile) {
   return parsed;
 }
 
+// Failing-count patterns from common runner summaries. moo-verify keeps the LAST
+// meaningful line of a failing check as its `signal`, so when the runner prints a
+// count there (jest/vitest/pytest/mocha/TAP), we read a FINE gradient; otherwise we
+// fall back to the coarse failing-check count. Provenance is logged (signal_kind),
+// never fabricated — we don't invent a number the output didn't contain.
+const FAIL_COUNT_RE = [
+  /#\s*fail\s+(\d+)/i, // node:test TAP summary
+  /(\d+)\s+failed/i, // jest / vitest / pytest "N failed"
+  /(\d+)\s+failing/i, // mocha "N failing"
+  /(\d+)\s+(?:tests?\s+)?failures?/i,
+  /fail(?:ed|ing)?\s*[:=]\s*(\d+)/i,
+];
+
 /**
- * Progress metric from a verify result. `signal` = number of failing required
- * checks (lower = closer to green; 0 == done). Deterministic, computed locally —
- * this is what governs the no-progress abort and, in FASE 3, near-objective
- * escalation.
+ * Proximity signal from a verify result: {count, kind}. `count` = how far from
+ * green (0 == done; lower == closer). `kind` is 'parsed' when a real failing count
+ * was read from runner output, else 'checks' (coarse failing-check count). This is
+ * what governs the no-progress abort and FASE-3 near-objective escalation.
  */
+function proximitySignal(result) {
+  const text = []
+    .concat((result.blocking || []).map((b) => b.signal || ''))
+    .concat((result.checks || []).map((c) => c.signal || ''))
+    .join('\n');
+  for (const re of FAIL_COUNT_RE) {
+    const m = text.match(re);
+    if (m) return { count: parseInt(m[1], 10), kind: 'parsed' };
+  }
+  const coarse = Math.max(
+    (result.checks || []).filter((c) => c.pass === false).length,
+    (result.blocking || []).length
+  );
+  return { count: coarse, kind: 'checks' };
+}
+
+/** Back-compat scalar signal (FASE 1) — delegates to the proximity count. */
 function progressOf(result) {
-  const failing = (result.checks || []).filter((c) => c.pass === false).length;
-  const blocking = (result.blocking || []).length;
-  return Math.max(failing, blocking);
+  return proximitySignal(result).count;
+}
+
+/**
+ * Honest savings ESTIMATE vs an all-frontier (Opus) run, via the run-savings SSOT.
+ * Tokens are per-tick estimates (the coder is delegated, so real tokens are not
+ * measured) — hence flagged `estimated:true`. Local ticks are a true $0; the
+ * estimate quantifies what local-first + late escalation saved vs all-Opus.
+ */
+function estimateSavings(history) {
+  if (!history.length) return null;
+  const lanes = history.map((h) => ({
+    target: h.target, model: h.model,
+    input_tokens: ATTEMPT_EST_IN, output_tokens: ATTEMPT_EST_OUT,
+    label: `iter ${h.iter} (${h.proximity || 'far'})`,
+  }));
+  const s = computeRunSavings({ lanes, maestro: 'claude-opus-4-6[1m]' });
+  return { ...s, estimated: true, basis: `ESTIMATE (coder delegated, tokens not measured) — ${s.basis}` };
 }
 
 /**
@@ -203,6 +250,8 @@ function runLoop(opts) {
   const noProgressN = opts.noProgress == null ? DEFAULT_NO_PROGRESS : opts.noProgress;
   const goal = opts.goal || '';
   const attemptCmd = opts.attemptCmd || '';
+  const escalateNear = !!opts.escalateNear; // FASE 3: opt-in near-objective escalation
+  const nearThreshold = opts.nearThreshold == null ? 2 : opts.nearThreshold;
   const id = opts.id || `loop-${Date.now().toString(36)}`;
   const stateFile = path.join(cwd, 'MOO_LOOP.md');
   const logFile = path.join(loopHome(), `${id}.jsonl`);
@@ -210,15 +259,20 @@ function runLoop(opts) {
   let spent = 0;
   let bestSignal = Infinity;
   let sinceImprove = 0;
+  let lastKind = 'checks';
   const history = [];
 
   const finish = (reason, extra) => {
     const verdict = {
       id, stop_reason: reason, cwd, goal: goal || null,
-      iters: extra.iter, signal: extra.signal,
+      iters: extra.iter, signal: extra.signal, signal_kind: lastKind,
       spent_usd: Number(spent.toFixed(6)), max_cost: maxCost, max_iters: maxIters,
       pass: reason === STOP.VERIFIED,
       blocking: (extra.result && extra.result.blocking) || [],
+      escalate_near: escalateNear, near_threshold: nearThreshold,
+      // savings is an escalation-mode metric; don't present a number on a plain
+      // local-first run that never opted into escalation (symmetry with the summary).
+      savings: escalateNear ? estimateSavings(history) : null,
       history,
       ...(extra.risk ? { risk: extra.risk } : {}),
     };
@@ -231,24 +285,36 @@ function runLoop(opts) {
     // 1. STOP-CONDITION FIRST — the deterministic critic, $0. Success is checked
     //    before any cap so we never "fail" a loop that is actually green.
     const result = runVerify(cwd, opts.verifyProfile);
-    const signal = progressOf(result);
-    appendLog(logFile, { phase: 'verify', iter, signal, pass: result.pass });
+    const prox = proximitySignal(result);
+    const signal = prox.count;
+    lastKind = prox.kind;
+    appendLog(logFile, { phase: 'verify', iter, signal, signal_kind: prox.kind, pass: result.pass });
 
     if (result.pass) return finish(STOP.VERIFIED, { iter, signal, result });
 
     // 2. HARD CAP: iterations.
     if (iter >= maxIters) return finish(STOP.MAX_ITERS, { iter, signal, result });
 
-    // 3. NO-PROGRESS abort: if the failing-check count has not reached a new low
-    //    in N consecutive verifies, stop (don't keep paying to try the same thing).
+    // 3. NO-PROGRESS abort: if the failing count has not reached a new low in N
+    //    consecutive verifies, stop (don't keep paying to try the same thing).
     if (signal < bestSignal) { bestSignal = signal; sinceImprove = 0; }
     else { sinceImprove += 1; }
     if (noProgressN > 0 && sinceImprove >= noProgressN) {
       return finish(STOP.NO_PROGRESS, { iter, signal, result });
     }
 
-    // 4. ROUTE (local-first; near-objective escalation = FASE 3).
-    const route = routeTick(goal);
+    // 4. ROUTE. Default (FASE 1) is local-first. With --escalate-near (FASE 3),
+    //    the trigger is the CRITIC's signal, not a size heuristic: once we are
+    //    NEAR the objective (signal within the threshold), escalate to the cloud
+    //    maestro for the last jump; while FAR, keep ticking local ($0).
+    //    NOTE: a true "local-while-far" gradient needs the runner to print a failing
+    //    COUNT (signal_kind 'parsed'). With only a coarse check-count ('checks', ~1
+    //    because moo-verify fast-fails), a red state is already ≤ threshold and so
+    //    escalates on the FIRST red — surfaced honestly via signal_kind.
+    const proximity = (escalateNear && signal > 0 && signal <= nearThreshold) ? 'near' : 'far';
+    const route = proximity === 'near'
+      ? decideRoute({ role: 'review and fix the remaining failing checks', task: goal || '' })
+      : routeTick(goal);
     const tickCost = tickCostOf(route);
 
     // 5. BUDGET gate — cut the expensive source BEFORE paying for the attempt.
@@ -261,12 +327,29 @@ function runLoop(opts) {
       return finish(STOP.RISK_BLOCKED, { iter, signal, result, risk: verdict });
     }
 
+    // 6b. On escalation, hand the maestro a DISTILLED working-state (handoff-bus
+    //     caps it to 4KB) — never a transcript dump.
+    if (proximity === 'near' && route.target === 'cloud') {
+      try {
+        writeState(id, {
+          goal: goal || '(unspecified)',
+          decisions: history.slice(-5).map((h) => `iter ${h.iter}: signal ${h.signal} via ${h.target}`),
+          state: [`signal ${signal} (${prox.kind}) — near objective (≤${nearThreshold})`]
+            .concat((result.blocking || []).map((b) => `red: ${b.name} — ${b.signal}`)),
+          open: [`fix the ${signal} remaining failing check(s) — the last jump`],
+          artifacts: [stateFile],
+          maestro_provider: 'claude',
+        });
+      } catch { /* advisory */ }
+      appendLog(logFile, { phase: 'escalate', iter, signal, signal_kind: prox.kind, model: route.model, est_cost: tickCost });
+    }
+
     // 7. Record the tick, refresh the scratchpad, run the delegated coder.
-    history.push({ iter, signal, target: route.target, model: route.model, cost: tickCost });
+    history.push({ iter, signal, proximity, target: route.target, model: route.model, cost: tickCost });
     try { fs.writeFileSync(stateFile, renderState({ id, goal, iter, signal, spent, maxCost, result, history })); } catch { /* advisory */ }
     const attempt = runAttempt(attemptCmd, { cwd, goal, stateFile, signal, iter });
     spent += tickCost;
-    appendLog(logFile, { phase: 'attempt', iter, target: route.target, model: route.model, cost: tickCost, code: attempt.code, skipped: !!attempt.skipped });
+    appendLog(logFile, { phase: 'attempt', iter, proximity, signal_kind: prox.kind, target: route.target, model: route.model, cost: tickCost, code: attempt.code, skipped: !!attempt.skipped });
   }
 }
 
@@ -406,9 +489,10 @@ function pollSetup(opts) {
 // OPT-IN BY CONSTRUCTION: refuses to run without BOTH --max-cost AND --max-iters.
 function parseArgs(argv) {
   const a = { _: [] };
+  const flags = new Set(['--json', '--escalate-near']); // boolean (no value)
   for (let i = 0; i < argv.length; i++) {
     const t = argv[i];
-    if (t === '--json') { a.json = true; continue; }
+    if (flags.has(t)) { a[t.slice(2)] = true; continue; }
     if (t.startsWith('--')) { a[t.slice(2)] = argv[++i]; continue; }
     a._.push(t);
   }
@@ -420,8 +504,10 @@ function usage(msg) {
   process.stderr.write(
     'usage:\n' +
     '  node moo-loop.js until <verify-profile> --max-cost $X --max-iters N \\\n' +
-    '       [--goal "<predicate>"] [--attempt-cmd "<cmd>"] [--cwd <path>] [--no-progress N] [--json]\n' +
+    '       [--goal "<predicate>"] [--attempt-cmd "<cmd>"] [--cwd <path>] [--no-progress N] \\\n' +
+    '       [--escalate-near [--near-threshold N]] [--json]\n' +
     '    opt-in by design: BOTH --max-cost and --max-iters are required.\n' +
+    '    --escalate-near: local-first while FAR, escalate to cloud for the last jump when NEAR (signal ≤ N, default 2).\n' +
     '  node moo-loop.js poll <interval> "<check>" [--max-cost $X] [--actionable-when nonempty|empty|nonzero|zero|match:RE] [--escalate "<what>"]\n' +
     '    prints the native /loop wiring; the tick runs local ($0), pays only when ACTIONABLE.\n'
   );
@@ -444,8 +530,11 @@ function summarize(v) {
   const lines = [
     `moo-loop ${v.id}`,
     head,
-    `  iters: ${v.iters}/${v.max_iters} · signal: ${v.signal} · spent: $${v.spent_usd.toFixed(4)}/$${v.max_cost.toFixed(2)}`,
+    `  iters: ${v.iters}/${v.max_iters} · signal: ${v.signal} (${v.signal_kind}) · spent: $${v.spent_usd.toFixed(4)}/$${v.max_cost.toFixed(2)}`,
   ];
+  if (v.escalate_near && v.savings && v.savings.saved_usd != null) {
+    lines.push(`  savings (est): $${v.savings.saved_usd.toFixed(4)} (${v.savings.saved_pct}%) vs all-Opus · ${v.savings.local_lanes} local / ${v.savings.cloud_lanes} cloud ticks`);
+  }
   if (!v.pass && v.blocking && v.blocking.length) {
     lines.push(`  red: ${v.blocking.map((b) => `${b.name} (${b.signal})`).join(', ')}`);
   }
@@ -464,6 +553,8 @@ function cmdUntil(a) {
     verifyProfile, maxCost, maxIters,
     goal: a.goal, attemptCmd: a['attempt-cmd'], cwd: a.cwd,
     noProgress: a['no-progress'] != null ? parseInt(a['no-progress'], 10) : undefined,
+    escalateNear: a['escalate-near'] === true,
+    nearThreshold: a['near-threshold'] != null ? parseInt(a['near-threshold'], 10) : undefined,
   });
   if (a.json) process.stdout.write(JSON.stringify(verdict, null, 2) + '\n');
   else process.stdout.write(summarize(verdict) + '\n');
@@ -520,6 +611,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  runLoop, progressOf, routeTick, tickCostOf, riskGate, STOP, EXIT,
+  runLoop, progressOf, proximitySignal, estimateSavings, routeTick, tickCostOf, riskGate, STOP, EXIT,
   pollTick, pollSetup, isActionable, parseInterval, fmtInterval,
 };
