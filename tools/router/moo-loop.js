@@ -528,6 +528,62 @@ function pollSetup(opts) {
   return { ok: true, id, interval: fmtInterval(sec), loopLine: `/loop ${fmtInterval(sec)} ${tickCmd}`, expiryDays: LOOP_EXPIRY_DAYS, log: pollLog(id) };
 }
 
+// ── FASE 5: integrations — /goal checker + per-subagent gate for fan-out ──────
+//
+// /goal's native evaluator (Haiku) does NOT run commands — it only judges text
+// already visible in the conversation (confirmed in FASE 0). So we don't replace
+// it; we FEED it ground truth. `goal-check` runs the deterministic critic and
+// prints ONE canonical line that a /goal predicate can reference verbatim.
+
+/** Run the critic and render a single, unambiguous verdict line for /goal. */
+function goalCheck(cwd, profile) {
+  const result = runVerify(cwd, profile);
+  const prox = proximitySignal(result);
+  const detail = result.pass
+    ? 'all required checks green'
+    : ((result.blocking || []).map((b) => `${b.name}: ${b.signal}`).join('; ') || `${prox.count} failing`);
+  return { pass: !!result.pass, signal: prox.count, line: `MOO-VERIFY: pass=${result.pass} (${detail})` };
+}
+
+// Native Dynamic Workflows fan out subagents with NO granular per-subagent budget
+// or risk gate. `gate` is that missing gate: before a workflow spawns an agent, it
+// asks moo-loop — risk-vetoed tasks are blocked, and a per-window budget caps the
+// cumulative paid spend. Deterministic, $0, reuses moo-risk + pricing.
+function gateLog(window) { return path.join(loopHome(), `gate-${window}.jsonl`); }
+
+function gateWindowSpent(window) {
+  let spent = 0;
+  try {
+    for (const ln of fs.readFileSync(gateLog(window), 'utf8').split('\n')) {
+      if (!ln) continue;
+      try { const e = JSON.parse(ln); if (e.granted) spent += (e.cost || 0); } catch { /* skip */ }
+    }
+  } catch { /* none yet */ }
+  return spent;
+}
+
+function gateSubagent(opts) {
+  const task = opts.task || '';
+  const window = opts.window || 'default';
+  const tier = (opts.tier || 'T2').toUpperCase();
+  const maxCost = opts.maxCost == null ? Infinity : opts.maxCost;
+  const log = (v) => { appendLog(gateLog(window), v); return v; };
+
+  // risk gate first — a destructive subagent task is blocked outright
+  const rk = assess(task, { layer: 'tool' });
+  if (isBlocking(rk.action)) {
+    return log({ window, granted: false, cost: 0, verdict: 'risk-blocked', reason: rk.reason, task: task.slice(0, 120) });
+  }
+  // budget gate — cap cumulative paid spend across the fan-out window
+  const model = TIER_TO_PRICING_KEY[tier] || 'claude-sonnet-4-6';
+  const estCost = priceTurn(model, opts.estIn || POLL_EST_IN, opts.estOut || POLL_EST_OUT);
+  const already = gateWindowSpent(window);
+  if (Number.isFinite(maxCost) && already + estCost > maxCost) {
+    return log({ window, granted: false, cost: 0, verdict: 'budget-exhausted', window_spent: Number(already.toFixed(6)), max_cost: maxCost, task: task.slice(0, 120) });
+  }
+  return log({ window, granted: true, cost: estCost, model, verdict: 'allow', task: task.slice(0, 120) });
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 // Usage:
 //   node moo-loop.js until <verify-profile> --max-cost $X --max-iters N \
@@ -558,7 +614,11 @@ function usage(msg) {
     '    --escalate-near: local-first while FAR, escalate to cloud for the last jump when NEAR (signal ≤ N, default 2).\n' +
     '    --cockpit: stream live loop state to the cockpit (shares the GLOBAL active-run.json — do not run alongside a `mooter workflow`).\n' +
     '  node moo-loop.js poll <interval> "<check>" [--max-cost $X] [--actionable-when nonempty|empty|nonzero|zero|match:RE] [--escalate "<what>"]\n' +
-    '    prints the native /loop wiring; the tick runs local ($0), pays only when ACTIONABLE.\n'
+    '    prints the native /loop wiring; the tick runs local ($0), pays only when ACTIONABLE.\n' +
+    '  node moo-loop.js goal-check [<verify-profile>] [--cwd <path>] [--json]\n' +
+    '    runs the deterministic critic and prints one canonical "MOO-VERIFY: pass=…" line for a /goal predicate to reference.\n' +
+    '  node moo-loop.js gate --task "<subagent task>" --window <id> --max-cost $X [--tier T0|T1|T2|T3] [--json]\n' +
+    '    per-subagent risk+budget gate for a Dynamic-Workflows fan-out (allow / risk-blocked / budget-exhausted).\n'
   );
   process.exit(64);
 }
@@ -651,16 +711,47 @@ function cmdPollTick(a) {
   process.exit(v.verdict === 'actionable' ? 10 : v.verdict === 'risk-blocked' ? 3 : 0);
 }
 
+function cmdGoalCheck(a) {
+  const profile = (a._[1] || 'default').replace(/^verify:/, '');
+  const r = goalCheck(a.cwd || process.cwd(), profile);
+  if (a.json) process.stdout.write(JSON.stringify(r, null, 2) + '\n');
+  else process.stdout.write(r.line + '\n');
+  process.exit(r.pass ? 0 : 2);
+}
+
+function cmdGate(a) {
+  if (a.task == null) usage('gate needs --task "<subagent task>"');
+  const v = gateSubagent({
+    task: a.task, window: a.window, tier: a.tier,
+    maxCost: a['max-cost'] != null ? money(a['max-cost']) : undefined,
+    estIn: a['est-in'] != null ? parseInt(a['est-in'], 10) : undefined,
+    estOut: a['est-out'] != null ? parseInt(a['est-out'], 10) : undefined,
+  });
+  if (a.json) { process.stdout.write(JSON.stringify(v, null, 2) + '\n'); }
+  else {
+    const line = {
+      allow: `🐮 gate ALLOW (est $${(v.cost || 0).toFixed(4)} via ${v.model}) — ${v.task}`,
+      'risk-blocked': `🐮 gate RISK-BLOCKED — ${v.reason}`,
+      'budget-exhausted': `🐮 gate BUDGET-EXHAUSTED — window cap $${v.max_cost} reached (spent $${v.window_spent})`,
+    }[v.verdict] || v.verdict;
+    process.stdout.write(line + '\n');
+  }
+  process.exit(v.verdict === 'allow' ? 0 : v.verdict === 'risk-blocked' ? 3 : 4);
+}
+
 if (require.main === module) {
   const a = parseArgs(process.argv.slice(2));
   const sub = a._[0];
   if (sub === 'until') cmdUntil(a);
   else if (sub === 'poll') cmdPoll(a);
   else if (sub === 'poll-tick') cmdPollTick(a);
-  else usage(`unknown or missing subcommand "${sub || ''}" (use "until" or "poll")`);
+  else if (sub === 'goal-check') cmdGoalCheck(a);
+  else if (sub === 'gate') cmdGate(a);
+  else usage(`unknown or missing subcommand "${sub || ''}" (use until · poll · goal-check · gate)`);
 }
 
 module.exports = {
   runLoop, progressOf, proximitySignal, estimateSavings, routeTick, tickCostOf, riskGate, STOP, EXIT,
   pollTick, pollSetup, isActionable, parseInterval, fmtInterval,
+  goalCheck, gateSubagent,
 };
