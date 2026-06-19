@@ -1,0 +1,98 @@
+<svg viewBox="0 0 800 1010" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" role="img">
+<title>Mooter — Control Plane Operacional (First Magic: local + Claude)</title>
+<desc>Fluxo vertical: Prompt/accao -> DECIDE (classify.js frozen + moo-risk) -> SAFETY GATE (deny de accoes destrutivas) -> EXECUTE heterogeneo (Claude maestro + N Moos locais via Handoff Bus) -> VERIFY (critico local gratis) -> OBSERVE (cockpit/statusline) -> LEARN (flywheel federado, ainda dark). Doutrina e fleet.json no rodape.</desc>
+<style>
+  text{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif}
+  .ink{fill:#0B0A09}.sub{fill:#6B6560}.info{fill:#5A7DA8}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .box{fill:#FFFFFF;stroke:#D8D2CC;stroke-width:1.5}
+  .bt{font-size:15px;font-weight:700;fill:#0B0A09}
+  .bs{font-size:11px;fill:#6B6560}
+  .hook{font-size:10px;fill:#5A7DA8}
+  .coral{stroke:#E8888A;stroke-width:2.2}.green{stroke:#4CAF6A;stroke-width:2.2}
+  .fillc{fill:#E8888A}.fillg{fill:#4CAF6A}
+  .flow{stroke:#6B6560;stroke-width:1.6;fill:none;marker-end:url(#ar)}
+</style>
+<defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#6B6560"/>
+  </marker>
+</defs>
+<rect x="0" y="0" width="800" height="1010" fill="#FFFFFF"/>
+<text x="40" y="34" class="ink" font-size="22" font-weight="700">Mooter — Control Plane Operacional</text>
+<text x="40" y="56" class="sub" font-size="13">First Magic: frota local + Claude · maestro num slot pluggable</text>
+
+<rect x="280" y="78" width="240" height="46" rx="10" class="box"/>
+<text x="400" y="100" text-anchor="middle" class="bt">Prompt / Acção (tool)</text>
+<text x="400" y="116" text-anchor="middle" class="bs">entrada via hooks do Claude Code</text>
+<path class="flow" d="M400,124 L400,150"/>
+
+<rect x="210" y="152" width="380" height="74" rx="10" class="box"/>
+<text x="230" y="178" class="bt">DECIDE</text>
+<text x="230" y="196" class="bs mono">classify.js (FROZEN) + moo-risk</text>
+<text x="230" y="212" class="bs">tier × risco × skill sugerida · zero-LLM</text>
+<text x="570" y="172" text-anchor="end" class="hook mono">hook: UserPromptSubmit</text>
+<path class="flow" d="M400,226 L400,252"/>
+
+<rect x="210" y="254" width="380" height="78" rx="10" class="box coral"/>
+<rect x="210" y="254" width="6" height="78" rx="3" class="fillc"/>
+<text x="232" y="280" class="bt">SAFETY GATE</text>
+<text x="232" y="298" class="bs mono">moo-risk deny · asking-vs-doing</text>
+<text x="232" y="314" class="bs">acção destrutiva → bloqueia + motivo</text>
+<text x="570" y="274" text-anchor="end" class="hook mono">hook: PreToolUse + deny rule</text>
+<text x="232" y="328" class="fillc" font-size="10" font-weight="700">★ a wedge medida (Youden 0.52)</text>
+<path class="flow coral" d="M590,293 L676,293"/>
+<rect x="640" y="266" width="150" height="54" rx="9" class="box coral"/>
+<text x="715" y="289" text-anchor="middle" class="bt" font-size="13">⚠ BLOCK</text>
+<text x="715" y="305" text-anchor="middle" class="bs">escala a humano</text>
+<path class="flow" d="M400,332 L400,360"/>
+
+<rect x="150" y="362" width="500" height="150" rx="10" class="box"/>
+<text x="170" y="388" class="bt">EXECUTE — heterogéneo</text>
+<text x="632" y="382" text-anchor="end" class="hook mono">hook: SubagentStart</text>
+<rect x="170" y="400" width="210" height="58" rx="8" class="box"/>
+<text x="275" y="423" text-anchor="middle" class="bt" font-size="13">Claude (maestro)</text>
+<text x="275" y="440" text-anchor="middle" class="bs">decide · sintetiza · HIGH_RISK</text>
+<rect x="420" y="400" width="210" height="58" rx="8" class="box green"/>
+<rect x="420" y="400" width="6" height="58" rx="3" class="fillg"/>
+<text x="528" y="423" text-anchor="middle" class="bt" font-size="13">Moos locais ×N</text>
+<text x="528" y="440" text-anchor="middle" class="bs">retrieval · testes · draft · $0</text>
+<rect x="170" y="468" width="460" height="32" rx="8" class="box"/>
+<text x="400" y="488" text-anchor="middle" class="bs mono">Handoff Bus — ~/.mooter/run/&lt;id&gt;/state.md (destilado, não dump)</text>
+<path class="flow" d="M400,512 L400,538"/>
+
+<rect x="210" y="540" width="380" height="74" rx="10" class="box green"/>
+<rect x="210" y="540" width="6" height="74" rx="3" class="fillg"/>
+<text x="232" y="566" class="bt">VERIFY (espinha)</text>
+<text x="232" y="584" class="bs mono">moo-verify: pytest · tsc · eslint → {pass}</text>
+<text x="232" y="600" class="bs">crítico determinístico · 0 tokens</text>
+<text x="570" y="560" text-anchor="end" class="hook mono">hook: Stop (encadeia gsd-turn-end)</text>
+<path class="flow green" d="M210,577 C150,577 150,470 168,440"/>
+<text x="118" y="512" class="bs" font-size="10" transform="rotate(-90 118 512)">fail → continua (cap 8)</text>
+<path class="flow" d="M400,614 L400,640"/>
+
+<rect x="210" y="642" width="380" height="70" rx="10" class="box"/>
+<text x="232" y="668" class="bt">OBSERVE — Cockpit + statusline</text>
+<text x="232" y="686" class="bs">swimlanes local/Claude · $/token · risco · verify</text>
+<text x="232" y="702" class="bs mono">tempo real · acende sozinho (active-run.json)</text>
+<path class="flow" d="M400,712 L400,738"/>
+
+<rect x="210" y="740" width="380" height="64" rx="10" class="box" stroke-dasharray="6 5"/>
+<text x="232" y="766" class="bt">LEARN — flywheel federado</text>
+<text x="232" y="784" class="bs">decisions.log → hub · calibra risco+routing</text>
+<text x="570" y="760" text-anchor="end" class="hook">DARK até fleet ≥ 50</text>
+
+<line x1="40" y1="838" x2="760" y2="838" stroke="#D8D2CC" stroke-width="1"/>
+<text x="40" y="862" class="sub" font-size="12" font-weight="700">Doutrina (trava)</text>
+<text x="40" y="882" class="bs mono">classify.js frozen (sha 427d8c0…) · no-proxy · zero-LLM no risco/verify · default byte-idêntico · sem métricas fabricadas</text>
+<text x="40" y="906" class="sub" font-size="12" font-weight="700">fleet.json</text>
+<text x="40" y="926" class="bs mono">maestro: claude · workers_local: N (HW-aware, M3 8GB→~2) · workers_sub: [ ] (fase 2: GPT/Gemini)</text>
+
+<text x="40" y="966" class="sub" font-size="12" font-weight="700">Legenda</text>
+<rect x="120" y="955" width="14" height="14" rx="3" class="box coral"/>
+<text x="142" y="966" class="bs">Safety — a wedge medida</text>
+<rect x="330" y="955" width="14" height="14" rx="3" class="box green"/>
+<text x="352" y="966" class="bs">$0 em tokens (compute real) · verify</text>
+<rect x="640" y="955" width="14" height="14" rx="3" class="box" stroke-dasharray="4 3"/>
+<text x="662" y="966" class="bs">futuro / dark</text>
+</svg>
