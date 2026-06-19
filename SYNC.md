@@ -3,6 +3,21 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🔥 Sessão — 2026-06-18 (First Magic — FASE 1: Safety Plane)
+**Estado:** ✅ FASE 0 (auditoria, sem código) + FASE 1 entregues em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f1-safety-plane`, 1 commit `019c118`, **não pushed** — gated em Paulo). Sessão CC viva no working tree → ship por clone, sem clobberar. `classify.js` sha `427d8c0b…` **INTACTA** (verificada a cada passo). `final-reviewer` Opus: 1ª passagem **BLOCK** (bypass real do hook via `# sandbox`), corrigido → 2ª passagem **SHIP-WITH-NITS** (nits endurecidos).
+**Deliverables (todos ficheiros NOVOS em `tools/router/`, nenhum frozen tocado):**
+- `moo-risk.js` — primitiva host-side zero-LLM `{risk_tier, action∈{allow,escalate_T3,escalate_human}, reason, signals}`. Reusa `patterns.HIGH_RISK` (sem importar classify). **Duas camadas:** prompt layer = asking-vs-doing + dev-context veto (fix de FPR); tool layer (`{layer:'tool'}`, usado pelo hook) = ignora vetos, bloqueia qualquer op destrutiva (fecha o bypass `# sandbox`/`# example`).
+- `hooks/PreToolUse-moo-risk.js` — gate: exit-2 bloqueia ops destrutivas + evento `risk_blocked` (preview **redigido** de secrets) → `decisions.log`; fail-open em erro. `hooks/MOO-RISK-WIRING.md` = registo + **deny rule documentada (manual, fail-closed backstop)** + limite de cobertura honesto.
+- `local-fleet.js` — nº de Moos **HW-aware** derivado de RAM real × footprint do modelo (nunca hardcoded). Neste M3 8GB → **2 Moos** (lane qwen2.5:3b); reporta `recommended_t0`.
+- `moo-risk-validate.js` + 3 suites de teste (**30 testes verdes**).
+**Métricas (honesto):** vs 50 prompts Arm C **(in-sample = design set)** → Youden **1.00**, indirect FPR **0.0** (baseline classify.js 0.52 / 0.60 no mesmo set; alvos do DoD ≥0.52 / ~0.10 batidos). Holdout out-of-sample (14 paráfrases novas, autoria minha) → Youden **1.00**. ⚠️ Caveat: in-sample + holdout não-adversarial; número real-world será menor.
+**DoD provado reproduzível:** `"drop the legacy_users table…"` → escalate_human (exit 2 c/ motivo); `"explain what rm -rf does"` → allow (exit 0).
+**Suite completa:** 649 testes, 642 pass, **6 fail TODAS pré-existentes/ambientais** (Apple Silicon VRAM, sem `ANTHROPIC_API_KEY`, daemon :7821, backtest rede) — confirmadas idênticas no repo-fonte intacto; **FASE 1 = zero falhas novas**.
+**NÃO feito (honest):** deny rule é documentada (manual), não auto-wired; cockpit visual do risk-chip + nº de Moos é FASE 4 (esta fase entrega a *fonte* HW-aware); cobertura destrutiva é enumeração explícita (cauda longa kubectl/aws/find → deny rule).
+**Próximo:** Paulo revê FASE 1 → OK → FASE 2 (moo-verify, crítico grátis).
+
+---
+
 ### 📦 Sessão — 2026-06-18 (Wave A polish — landing copy 1.21.5→1.38.0)
 **Estado:** ✅ 1 commit `90db50b chore(landing): bump softwareVersion 1.21.5 → 1.38.0` pushed para `origin/wave-a/moo-packs-wired` (`ee7687d..90db50b`). `final-reviewer` Opus **PASS-WITH-NOTES** 0 blockers. classify.js sha `427d8c0b…` INTACTA · frozen packages intocados · zero strings `1.21.5` remanescentes em `landing/`.
 **Files:** `landing/app/layout.tsx` (JSON-LD `SoftwareApplication.softwareVersion`) + `landing/app/(marketing)/compare/MultiSessionTable.tsx` (row label). Refs historic `v1.21.1` em `changelog/_lib.ts` e `design-spec/wave33_5_pages.json` deixados intactos.
