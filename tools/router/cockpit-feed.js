@@ -49,6 +49,17 @@ function readVerify(opts) {
   return v.pass === true ? 'pass' : (v.pass === false ? 'fail' : null);
 }
 
+// The live moo-loop panel (FASE 4). moo-loop --cockpit writes loop-<id>.state.json
+// each tick; we read it via the active run_id. Null when no loop is feeding — the
+// cockpit renders "—", never a fabricated loop.
+function readLoop(opts) {
+  if (opts && 'loop' in opts) return opts.loop;
+  const ar = readActiveRun(opts);
+  const id = ar && (ar.run_id || ar.id);
+  if (!id) return null;
+  return readJSON(path.join(MOOTER(), `loop-${id}.state.json`));
+}
+
 function countRiskBlocked(opts) {
   if (opts && 'riskBlocked' in opts) return opts.riskBlocked;
   const logPath = opts && opts.decisionsLog ? opts.decisionsLog : DECISIONS_LOG;
@@ -120,6 +131,7 @@ function buildFeed(opts = {}) {
     risk: { blocked, ok: blocked === 0 },
     verify,
     savings,
+    loop: readLoop(opts),
   };
 }
 
@@ -147,7 +159,7 @@ function writeActiveRun(snap = {}) {
 
 function clearActiveRun() { try { fs.unlinkSync(activeRunPath()); } catch { /* none */ } }
 
-module.exports = { buildFeed, spawnToLane, countRiskBlocked, readActiveRun, writeActiveRun, clearActiveRun, activeRunPath };
+module.exports = { buildFeed, spawnToLane, countRiskBlocked, readActiveRun, readLoop, writeActiveRun, clearActiveRun, activeRunPath };
 
 if (require.main === module) {
   process.stdout.write(JSON.stringify(buildFeed({ nowMs: Date.parse(new Date().toISOString()) }), null, 2) + '\n');

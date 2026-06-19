@@ -37,6 +37,7 @@ const { decideRoute } = require('./subagent-route');
 const { priceTurn, TIER_TO_PRICING_KEY } = require('./pricing');
 const { writeState } = require('./handoff-bus');
 const { computeRunSavings } = require('./run-savings');
+const { writeActiveRun } = require('./cockpit-feed');
 
 const VERIFY_CLI = path.join(__dirname, 'moo-verify.js');
 
@@ -232,6 +233,13 @@ function appendLog(logFile, entry) {
   try { fs.appendFileSync(logFile, JSON.stringify(entry) + '\n'); } catch { /* advisory */ }
 }
 
+// The live loop panel the cockpit reads (FASE 4): one file per run, overwritten
+// each tick. The cockpit (cockpit-feed.readLoop) surfaces it via the active run_id.
+function loopStatePath(id) { return path.join(loopHome(), `loop-${id}.state.json`); }
+function writeLoopState(snap) {
+  try { fs.writeFileSync(loopStatePath(snap.run_id), JSON.stringify(snap, null, 2) + '\n'); } catch { /* advisory */ }
+}
+
 /**
  * The loop. Returns a verdict object; does not exit the process (the CLI does).
  * @param {object} opts
@@ -252,6 +260,7 @@ function runLoop(opts) {
   const attemptCmd = opts.attemptCmd || '';
   const escalateNear = !!opts.escalateNear; // FASE 3: opt-in near-objective escalation
   const nearThreshold = opts.nearThreshold == null ? 2 : opts.nearThreshold;
+  const cockpit = !!opts.cockpit; // FASE 4: feed the live cockpit (opt-in)
   const id = opts.id || `loop-${Date.now().toString(36)}`;
   const stateFile = path.join(cwd, 'MOO_LOOP.md');
   const logFile = path.join(loopHome(), `${id}.jsonl`);
@@ -261,6 +270,29 @@ function runLoop(opts) {
   let sinceImprove = 0;
   let lastKind = 'checks';
   const history = [];
+
+  // FASE 4: stream the live panel to the cockpit. Lights up active-run.json (the
+  // pointer the cockpit watches) and writes loop-<id>.state.json each tick. Real
+  // numbers only; the cockpit renders "—" for whatever is null. Opt-in (--cockpit).
+  // CAVEAT: active-run.json is the GLOBAL pointer shared with real `mooter workflow`
+  // runs — don't run --cockpit concurrently with a Workflow (it would stomp that
+  // pointer). On finish we write status:'done' (with the stop_reason) and DELIBERATELY
+  // leave the pointer so the completed run stays visible; buildFeed staleness (5 min)
+  // retires it. The loop panel carries `status`/`stop_reason` so a 'done' run is never
+  // mistaken for a live one.
+  const nowIso = () => new Date().toISOString();
+  const feedCockpit = (snap) => {
+    if (!cockpit) return;
+    writeLoopState({ run_id: id, ts: nowIso(), max_iters: maxIters, max_cost: maxCost, escalate_near: escalateNear, ...snap });
+    try {
+      writeActiveRun({
+        status: snap.status || 'running', run_id: id,
+        maestro_provider: snap.tick_target === 'cloud' ? 'claude' : null,
+        maestro_model: snap.tick_target === 'cloud' ? (snap.tick_model || null) : null,
+        agents_done: snap.iter || 0, agents_total: maxIters, tokens: null, ts: nowIso(),
+      });
+    } catch { /* advisory */ }
+  };
 
   const finish = (reason, extra) => {
     const verdict = {
@@ -278,8 +310,18 @@ function runLoop(opts) {
     };
     appendLog(logFile, { phase: 'stop', ...verdict });
     try { fs.writeFileSync(stateFile, renderState({ id, goal, iter: extra.iter, signal: extra.signal, spent, maxCost, result: extra.result || { pass: reason === STOP.VERIFIED, blocking: [] }, history })); } catch { /* advisory */ }
+    const lastTick = history[history.length - 1] || {};
+    feedCockpit({
+      status: 'done', iter: extra.iter, signal: extra.signal, signal_kind: lastKind,
+      proximity: lastTick.proximity || null, tick_target: lastTick.target || null,
+      tick_model: lastTick.model || null, tick_cost: lastTick.cost == null ? null : lastTick.cost,
+      spent: Number(spent.toFixed(6)), budget_remaining: Number((maxCost - spent).toFixed(6)),
+      stop_reason: reason, risk_blocked: reason === STOP.RISK_BLOCKED ? 1 : 0,
+    });
     return verdict;
   };
+
+  feedCockpit({ status: 'running', iter: 0, signal: null, signal_kind: null, spent: 0, budget_remaining: maxCost, stop_reason: null, risk_blocked: 0 });
 
   for (let iter = 0; ; iter++) {
     // 1. STOP-CONDITION FIRST — the deterministic critic, $0. Success is checked
@@ -350,6 +392,12 @@ function runLoop(opts) {
     const attempt = runAttempt(attemptCmd, { cwd, goal, stateFile, signal, iter });
     spent += tickCost;
     appendLog(logFile, { phase: 'attempt', iter, proximity, signal_kind: prox.kind, target: route.target, model: route.model, cost: tickCost, code: attempt.code, skipped: !!attempt.skipped });
+    feedCockpit({
+      status: 'running', iter, signal, signal_kind: prox.kind, proximity,
+      tick_target: route.target, tick_model: route.model, tick_cost: tickCost,
+      spent: Number(spent.toFixed(6)), budget_remaining: Number((maxCost - spent).toFixed(6)),
+      stop_reason: null, risk_blocked: 0,
+    });
   }
 }
 
@@ -489,7 +537,7 @@ function pollSetup(opts) {
 // OPT-IN BY CONSTRUCTION: refuses to run without BOTH --max-cost AND --max-iters.
 function parseArgs(argv) {
   const a = { _: [] };
-  const flags = new Set(['--json', '--escalate-near']); // boolean (no value)
+  const flags = new Set(['--json', '--escalate-near', '--cockpit']); // boolean (no value)
   for (let i = 0; i < argv.length; i++) {
     const t = argv[i];
     if (flags.has(t)) { a[t.slice(2)] = true; continue; }
@@ -505,9 +553,10 @@ function usage(msg) {
     'usage:\n' +
     '  node moo-loop.js until <verify-profile> --max-cost $X --max-iters N \\\n' +
     '       [--goal "<predicate>"] [--attempt-cmd "<cmd>"] [--cwd <path>] [--no-progress N] \\\n' +
-    '       [--escalate-near [--near-threshold N]] [--json]\n' +
+    '       [--escalate-near [--near-threshold N]] [--cockpit] [--json]\n' +
     '    opt-in by design: BOTH --max-cost and --max-iters are required.\n' +
     '    --escalate-near: local-first while FAR, escalate to cloud for the last jump when NEAR (signal ≤ N, default 2).\n' +
+    '    --cockpit: stream live loop state to the cockpit (shares the GLOBAL active-run.json — do not run alongside a `mooter workflow`).\n' +
     '  node moo-loop.js poll <interval> "<check>" [--max-cost $X] [--actionable-when nonempty|empty|nonzero|zero|match:RE] [--escalate "<what>"]\n' +
     '    prints the native /loop wiring; the tick runs local ($0), pays only when ACTIONABLE.\n'
   );
@@ -555,6 +604,7 @@ function cmdUntil(a) {
     noProgress: a['no-progress'] != null ? parseInt(a['no-progress'], 10) : undefined,
     escalateNear: a['escalate-near'] === true,
     nearThreshold: a['near-threshold'] != null ? parseInt(a['near-threshold'], 10) : undefined,
+    cockpit: a.cockpit === true,
   });
   if (a.json) process.stdout.write(JSON.stringify(verdict, null, 2) + '\n');
   else process.stdout.write(summarize(verdict) + '\n');
