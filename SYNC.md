@@ -3,6 +3,22 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🔥 Sessão — 2026-06-18 (First Magic — FASE 3: cost plane heterogéneo)
+**Estado:** ✅ FASE 3 em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f3-cost-plane` **off `f1`** — reusa `moo-risk`+`local-fleet`; diff `f1...f3` = só adições F3; 1 commit `a298aff`, **não pushed**). `classify.js` sha `427d8c0b…` **INTACTA**. `final-reviewer` Opus: 1ª passagem **BLOCK** (2 bugs reais), corrigido → 2ª passagem **SHIP**.
+**Deliverables (NOVOS; nenhum frozen tocado):**
+- `subagent-route.js` — decisão determinística local|cloud por **papel**: leaf/verboso (retrieval, grep, ler logs, correr testes, summarize) → Ollama local ($0); síntese/decisão/design/review → maestro cloud. **Only-upgrade:** task HIGH_RISK (via `moo-risk` **tool layer**) → forçada a cloud Opus, nunca downgrade. `hooks/SubagentStart-moo-route.js` (bias-only via `additionalContext`, fail-open).
+- `handoff-bus.js` — `~/.mooter/run/<id>/state.md` working-state **destilado** (## Goal/Decisions/State/Open/Artifacts), **capped 4KB por bytes** + caps por secção (não dump). `arbitrate()` = um fio pago por fornecedor (preserva cache). Sanitizer runId à prova de `..`.
+- `run-savings.js` — savings honesto vs counterfactual **all-Opus** via `pricing.js` SSOT, tokens REAIS; sem tokens → `saved=null` (—), **nunca fabricado**.
+- `cost-plane-demo.js` — demo real.
+**DoD provado (demo real):** 2 Moos locais qwen2.5:3b em **paralelo** ($0) ao cap HW (8GB M3 → **2, não inventado**; ≥3 em ≥16GB, paramétrico), wall 6.7s vs serial 12.9s; handoff destilado 504 bytes; savings reais vs all-Opus (100% local). 27 testes novos verdes.
+**Bugs corrigidos no review (BLOCK→SHIP):** (1) bypass only-upgrade — role "summarize" disparava o veto asking-vs-doing e suprimia o sinal destrutivo da task → corrigido com `assess(layer:'tool')` no routing; (2) byte-cap do handoff não byte-bounded em multibyte → slice por `Buffer` + cap ao `maestro_provider`. +2 nits robustez (payload `null`, runId `..`).
+**Suite:** 677 testes; falhas determinísticas = baseline (4 ficheiros ambientais herdados); subtestes `gsd-statusline-latency` são **flaky por carga** (passam em isolamento no clone e no pristine) — não tocados pela F3. **Zero regressões determinísticas.**
+**NÃO feito (honest):** Stop gate (F2) mantém-se opt-in (não auto-wired pela F3); cockpit visual (swimlanes/$ por lane/chip risco) é FASE 4 — esta fase entrega a *fonte* (route decisions, handoff state, run-savings); integração final F1+F2+F3 num só working tree fica para a fase de merge.
+**⚠️ BACKLOG (Paulo, pré-claim público):** avaliação adversarial EXTERNA do `moo-risk` (Youden 1.00 é in-sample).
+**Próximo:** Paulo revê FASE 3 → OK → FASE 4 (cockpit + statusline em tempo real).
+
+---
+
 ### 🔥 Sessão — 2026-06-18 (First Magic — FASE 1: Safety Plane)
 **Estado:** ✅ FASE 0 (auditoria, sem código) + FASE 1 entregues em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f1-safety-plane`, 1 commit `019c118`, **não pushed** — gated em Paulo). Sessão CC viva no working tree → ship por clone, sem clobberar. `classify.js` sha `427d8c0b…` **INTACTA** (verificada a cada passo). `final-reviewer` Opus: 1ª passagem **BLOCK** (bypass real do hook via `# sandbox`), corrigido → 2ª passagem **SHIP-WITH-NITS** (nits endurecidos).
 **Deliverables (todos ficheiros NOVOS em `tools/router/`, nenhum frozen tocado):**
