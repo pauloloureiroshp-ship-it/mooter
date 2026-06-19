@@ -3,6 +3,21 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🔥 Sessão — 2026-06-19 (First Magic — FASE 4: cockpit + statusline)
+**Estado:** ✅ FASE 4 em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f4-cockpit` **off `f3`** → contém F1+F3; 1 commit `e40cd03`, **não pushed**). `classify.js` sha `427d8c0b…` **INTACTA**. `final-reviewer` Opus: 1ª passagem **BLOCK** (1 bug real: teste do Moo-cap dependente da RAM do host), corrigido → 2ª passagem **SHIP**.
+**Deliverables (NOVOS; nenhum frozen tocado):**
+- `cockpit-feed.js` — `buildFeed()` agrega fontes REAIS num view-model: `~/.mooter/workflows/active-run.json` (pointer — cockpit acende sozinho), `spawns/<id>/state.json` (lanes), `decisions.log` (risk_blocked do F1), `verify-last.json` (F2), savings injetado (F3) e cap de Moos HW-aware (`local-fleet`). `—`/null quando falta. `writeActiveRun/clearActiveRun`.
+- `statusline-firstmagic.js` — 6-seg: `🐮 maestro:Sonnet · 🦙×N (cap M) · ⚠️risk:K · $X (−Y% vs Opus) · verify:🟢 · run:Ts`.
+- `cockpit-live.js` — swimlane terminal Agents-live (🦙 local / ✨ Claude); o vsix consome o mesmo JSON. `cockpit-demo.js` — demo real.
+**DoD provado (demo real, integrado):** ⚠️risk:**2** (chip do **F1** real), verify:🟢 (**F2** real), savings **−61%** (sessão real MISTA local+Claude via :7821, **não** o demo 100%-local), Moos cap **2** HW-aware — tudo no cockpit + statusline. 12 testes novos verdes.
+**Honestidade (reforços):** savings de runs reais mistos (`—` se faltam, nunca fabricado); Moo cap HW-aware (8GB M3→2, **determinístico via `totalMemMB` injetável** — não preso à RAM do host); chip de risco = contagem real do F1; lane sem tokens → `—`.
+**Bug corrigido no review (BLOCK→SHIP):** teste `moos_cap===2` lia `os.totalmem()` → falharia em CI 16GB+/Windows; corrigido com `opts.totalMemMB` injetável (prod usa RAM real; testes determinísticos). +nits: env var alinhado a `MOOTER_HOME`, guard de savings exige base em $, demo cleanup em `finally`.
+**Suite:** 689 testes; **zero falhas determinísticas novas** (baseline 6 ambientais; subtestes `gsd-statusline-latency` flaky por carga, não tocados).
+**⚠️ BACKLOG (Paulo):** avaliação adversarial EXTERNA do `moo-risk` antes de claim público (Youden 1.00 in-sample).
+**Próximo:** FASE de MERGE (F1+F2+F3+F4 num só tree) para o screencap da First Magic — plano + dry-run verificado abaixo no relatório CC→Paulo.
+
+---
+
 ### 🔥 Sessão — 2026-06-18 (First Magic — FASE 3: cost plane heterogéneo)
 **Estado:** ✅ FASE 3 em **clone isolado** `~/mooter-fm-f1` (branch `first-magic/f3-cost-plane` **off `f1`** — reusa `moo-risk`+`local-fleet`; diff `f1...f3` = só adições F3; 1 commit `a298aff`, **não pushed**). `classify.js` sha `427d8c0b…` **INTACTA**. `final-reviewer` Opus: 1ª passagem **BLOCK** (2 bugs reais), corrigido → 2ª passagem **SHIP**.
 **Deliverables (NOVOS; nenhum frozen tocado):**
