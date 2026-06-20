@@ -1,0 +1,10 @@
+{
+  "name": "@mooter/bridge",
+  "version": "0.1.0",
+  "description": "Local stdio MCP server exposing the Mooter agent fleet (Claude Code sessions) to an MCP client such as Cowork. P0: read-only session visibility. Zero deps.",
+  "bin": { "mooter-bridge": "./server.js" },
+  "main": "./server.js",
+  "scripts": { "test": "node --test server.test.js" },
+  "license": "MIT",
+  "private": true
+}
