@@ -74,3 +74,24 @@ test('ping → empty result', async () => {
   const r = await bridge.handle({ jsonrpc: '2.0', id: 8, method: 'ping' });
   assert.deepEqual(r.result, {});
 });
+
+// ── P0.1: graceful drain — stdin close must NOT cut off an in-flight async tool call ──
+test('subprocess: response to a slow tools/call arrives AFTER stdin closes (graceful drain)', async () => {
+  const { spawn } = require('node:child_process');
+  const child = spawn(process.execPath, [require('path').join(__dirname, 'server.js')], {
+    env: { ...process.env, MOOTER_BRIDGE_SLOW_MS: '300' }, stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  let out = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (d) => { out += d; });
+  child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {} } }) + '\n');
+  child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+  child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'mooter_sessions_list', arguments: { limit: 3 } } }) + '\n');
+  child.stdin.end(); // close immediately — the 300ms tool call is still in flight
+  const code = await new Promise((res) => child.on('close', res));
+  const msgs = out.trim().split('\n').filter(Boolean).map(JSON.parse);
+  const call = msgs.find((m) => m.id === 2);
+  assert.ok(call, 'tools/call response was delivered despite stdin closing first');
+  assert.ok(call.result.structuredContent.counts, 'has structured counts');
+  assert.equal(code, 0, 'exits cleanly after draining');
+});

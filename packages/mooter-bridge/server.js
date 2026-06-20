@@ -38,6 +38,8 @@ function shapeSession(r) {
 }
 
 async function toolSessionsList(args) {
+  const slow = Number(process.env.MOOTER_BRIDGE_SLOW_MS);
+  if (slow > 0) await new Promise((r) => setTimeout(r, slow)); // test-only: prove graceful drain
   const limit = Math.min(Math.max(Number(args && args.limit) || 8, 1), 50);
   if (!hx || typeof hx.recentSessions !== 'function') {
     return { error: 'host-extra unavailable — run this server from inside the mooter repo (packages/vscode-extension present)' };
@@ -112,6 +114,9 @@ function send(msg) { try { process.stdout.write(JSON.stringify(msg) + '\n'); } c
 
 function main() {
   let buf = '';
+  let pending = 0;
+  let stdinEnded = false;
+  const maybeExit = () => { if (stdinEnded && pending === 0) process.exit(0); };
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
     buf += chunk;
@@ -120,11 +125,18 @@ function main() {
       const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
       if (!line) continue;
       let msg; try { msg = JSON.parse(line); } catch { log('bad json line'); continue; }
-      Promise.resolve(handle(msg)).then((res) => { if (res) send(res); }).catch((e) => log('handle err', (e && e.message) || ''));
+      pending++;
+      Promise.resolve(handle(msg))
+        .then((res) => { if (res) send(res); })
+        .catch((e) => log('handle err', (e && e.message) || ''))
+        .finally(() => { pending--; maybeExit(); });
     }
   });
-  process.stdin.on('end', () => process.exit(0));
-  log('ready (P0) · tools: ' + TOOLS.map((t) => t.name).join(', '));
+  // Drain in-flight tool calls before exiting. A real MCP client keeps stdin open, but
+  // pipe-and-close callers must still receive their last response — e.g. the async git/gh
+  // inside recentSessions() that the stdin-end exit used to cut off.
+  process.stdin.on('end', () => { stdinEnded = true; maybeExit(); });
+  log('ready (P0.1) · tools: ' + TOOLS.map((t) => t.name).join(', '));
 }
 
 if (require.main === module) main();
