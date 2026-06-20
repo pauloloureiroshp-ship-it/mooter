@@ -13,6 +13,9 @@
  */
 
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
+const { spawn } = require('child_process');
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_INFO = { name: 'mooter-bridge', version: '0.1.0' };
 
@@ -65,6 +68,57 @@ async function toolSessionRead(args) {
   return shapeSession(r);
 }
 
+
+// ── P1: headless runner — spawn `claude -p` in an isolated dir, routed by Mooter ──────
+// Real spawner. Injectable via setSpawner() for hermetic tests. WITHOUT --bare so the
+// Mooter UserPromptSubmit hook (router) fires and the run shows in the cockpit/decisions.log.
+function realSpawnClaude(cfg) {
+  return new Promise((resolve) => {
+    const args = ['-p', cfg.prompt, '--output-format', 'json'];
+    if (cfg.allowedTools) args.push('--allowedTools', cfg.allowedTools);
+    if (cfg.permissionMode) args.push('--permission-mode', cfg.permissionMode);
+    if (cfg.maxTurns) args.push('--max-turns', String(cfg.maxTurns));
+    let child;
+    try { child = spawn('claude', args, { cwd: cfg.cwd, env: process.env }); }
+    catch (e) { return resolve({ ok: false, error: 'spawn failed: ' + ((e && e.message) || e) }); }
+    let out = ''; let err = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { err += d; });
+    const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* */ } resolve({ ok: false, error: 'timeout', stderr: err.slice(0, 800) }); }, cfg.timeoutMs || 300000);
+    child.on('error', (e) => { clearTimeout(timer); resolve({ ok: false, error: String((e && e.message) || e) }); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      let j = null; try { j = JSON.parse(out); } catch { /* not json */ }
+      resolve({ ok: code === 0 && !!j, code, json: j, stderr: err.slice(0, 800) });
+    });
+  });
+}
+let spawnClaude = realSpawnClaude;
+function setSpawner(fn) { spawnClaude = fn; }
+
+async function toolRun(args) {
+  const prompt = String((args && args.prompt) || '').trim();
+  if (!prompt) return { error: 'prompt is required' };
+  const allowedTools = args.allowedTools ? String(args.allowedTools) : null; // opt-in; omit => text-only
+  const maxTurns = Math.min(Math.max(Number(args.maxTurns) || 6, 1), 20);
+  const permissionMode = allowedTools ? (args.permissionMode ? String(args.permissionMode) : 'acceptEdits') : null;
+  // Isolated working dir by default — never the user's active repo working tree unless asked.
+  let cwd, ephemeral = false;
+  if (args.cwd) { cwd = String(args.cwd); }
+  else { cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-run-')); ephemeral = true; }
+  const t0 = Date.now();
+  const r = await spawnClaude({ prompt, cwd, allowedTools, permissionMode, maxTurns, timeoutMs: 300000 });
+  const durationMs = Date.now() - t0;
+  // best-effort audit (never throws)
+  try {
+    const dir = path.join(os.homedir(), '.mooter'); try { fs.mkdirSync(dir, { recursive: true }); } catch { /* */ }
+    fs.appendFileSync(path.join(dir, 'bridge-runs.log'), JSON.stringify({ ts: new Date().toISOString(), prompt: prompt.slice(0, 200), cwd, allowedTools, maxTurns, ok: r.ok, cost: r.json && r.json.total_cost_usd, session_id: r.json && r.json.session_id }) + '\n');
+  } catch { /* */ }
+  if (!r.ok) return { error: r.error || ('claude -p failed (exit ' + r.code + ')'), stderr: r.stderr || null, cwd };
+  const j = r.json || {};
+  return { result: j.result != null ? j.result : null, session_id: j.session_id || null, cost_usd: j.total_cost_usd != null ? j.total_cost_usd : null, num_turns: j.num_turns != null ? j.num_turns : null, cwd, ephemeral, durationMs };
+}
+
 const TOOLS = [
   {
     name: 'mooter_sessions_list',
@@ -79,6 +133,18 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Session id (fullId or 8-char short id / prefix).' } }, required: ['id'], additionalProperties: false },
     annotations: { title: 'Read a Mooter session', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolSessionRead,
+  },
+  {
+    name: 'mooter_run',
+    description: 'Run a Claude Code agent HEADLESS on a task and return its result. Spawns `claude -p` in an ISOLATED working directory (a fresh temp dir by default), routed and observed by the Mooter router (the run shows up in the cockpit). By default it runs TEXT-ONLY with no tools; pass allowedTools to let it edit files or run commands (e.g. "Write,Edit,Bash(npm test*)") — those runs are bounded by maxTurns and confined to the working directory. Returns result text, session id, cost (USD) and turns. Use to delegate work to the fleet from chat.',
+    inputSchema: { type: 'object', properties: {
+      prompt: { type: 'string', description: 'The task for the agent.' },
+      allowedTools: { type: 'string', description: 'Optional permission-rule list to auto-approve tools, e.g. "Write,Edit,Bash(git *)". Omit for a safe text-only run.' },
+      cwd: { type: 'string', description: 'Optional working directory. Defaults to a fresh isolated temp dir. Pass a path only when the task must run in a specific repo/worktree.' },
+      maxTurns: { type: 'number', description: 'Max agent turns (1-20, default 6).' },
+    }, required: ['prompt'], additionalProperties: false },
+    annotations: { title: 'Run a headless Mooter agent', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    handler: toolRun,
   },
 ];
 
@@ -140,4 +206,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { handle, TOOLS, toolSessionsList, toolSessionRead, shapeSession, setHostExtra, PROTOCOL_VERSION };
+module.exports = { handle, TOOLS, toolSessionsList, toolSessionRead, toolRun, shapeSession, setHostExtra, setSpawner, PROTOCOL_VERSION };
