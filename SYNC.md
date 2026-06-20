@@ -4,6 +4,16 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🔁 Sessão — 2026-06-20 (FASE B — moo-loop → `main` · **REBASED, gated Paulo**)
+**Estado:** ✅ moo-loop (F1–F5, já construído) **rebasado sobre `origin/main`** (já com a FASE A: First Magic + Moo Packs) em clone isolado `~/mooter-moo-loop` (branch `fase-b/moo-loop-on-main`). **10 commits** sobre main (9 moo-loop + 1 fix de lockfile). `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (0 diff). **Não dupliquei** o trabalho — amarrei os commits existentes (doutrina "importa, não dupliques").
+**Payload (`tools/router/`, additions + wiring):** `moo-loop.js` (757 linhas — motor do loop: para por prova determinística do `moo-verify`, caps duros `--max-cost`/`--max-iters` enforcement, abort no-progress, `moo-risk` antes de cada ação, fresh-context + goal re-injectado por tick, escalada near-objective signal-driven) + 5 testes (`moo-loop`/`-poll`/`-near`/`-cockpit`/`-gate`) + `.claude/skills/moo-loop/SKILL.md`; modifica `cockpit-feed.js` (painel `readLoop` aditivo — feed da First Magic preservada) e `moo-skills.test.js`; `package.json` test-list união.
+**Conflitos:** só `tools/router/package.json` (×5) → **união determinística** dos test-lists. `cockpit-feed.js` auto-mergeou limpo (só adições). `classify.js` nunca conflituou. 0 markers.
+**Gates:** `tools/router` **926 · 923 pass · 2 fail · 1 skip** (as 2 falhas = VRAM% em Apple Silicon, `statusline-two-line` 0-diff vs main; **0 novas**); 34 testes moo-loop + moo-skills verdes; `node --check` ok; `packages/*` intocados (herdam o verde da FASE A).
+**`final-reviewer` Opus 0-HIGH:** **SHIP-WITH-NITS → fixed**. Invariantes 1–7 ✅ (stop path zero-LLM = `moo-verify` determinístico; caps são enforcement; opt-in exige `--max-cost`+`--max-iters`; `moo-risk` antes de cada ação; savings `estimated:true`/null, nunca fabricado; cockpit coexiste). **1 HIGH corrigido:** `package-lock.json` em HEAD estava `0.9.9` vs `package.json` `1.0.0` (**drift pré-existente herdado do main**, não da FASE B) → bumpado o lockfile (só campo de versão, 0 churn de deps) para HEAD self-consistent / `npm ci` passa.
+**Próximo (gate Paulo):** push `fase-b/moo-loop-on-main` → ff `main` → tag `v1.45.0-moo-loop` → `/mooter-update`. Depois **FASE C (3rd-Brain Auto-Loader)**.
+
+---
+
 ### 🚀 Sessão — 2026-06-19 (FASE A — First Magic + Moo Packs → `main` · **REBASED, gated Paulo**)
 **Estado:** ✅ First Magic (F1–F5) + Moo Packs (Wave A) **rebasados sobre `origin/main` `8f66065`** (re-rebase limpo após o main avançar 3 commits durante a sessão: 2 fixes Ollama `db10d38`/`aca2220` + diagrama SVG `8f66065` — sem overlap de ficheiros) num worktree isolado `~/mooter-faseA` (branch `fase-a/first-magic-on-main`). Branch **publicada** no GitHub; merge p/ `main` via ff. `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (0 diff vs `origin/main`, byte-idêntica; confirmada início/fim de cada rebase, nunca conflituou). **moo-loop deliberadamente NÃO incluído** (é a FASE B, clone separado).
 **Decisões do Paulo:** `main` = `origin/main` (os 121 commits do trunk são o tronco vivo: cockpit v0.12→0.16, spawn Seatbelt, router relay, waves 60/60.5/61/63 — não regredir para `wave-a`). Gates separados (A→B). Moo Packs entram com a First Magic (mesma linha, por baixo da FM — são produto).
