@@ -110,3 +110,22 @@ model-weights/
 packages/cli/mooter.js
 # personal Claude Code preferences (per-dev)
 CLAUDE.local.md
+
+# Wave 60 cleanup (2026-06-21) — local-only artefacts & GSD scratch
+.venv-lora/
+.planning/
+**/__pycache__/
+tools/router/.last-classified.json
+tools/router/.providers-cache.json
+tools/router/.turn-counter
+tools/router/last-subagent.json
+tools/router/*.day2bak
+tools/router/*.preDebug
+landing-v12-deploy/
+landing-v12-deploy.tar.gz
+packages/router/scripts/wave2-benchmark/outputs/
+packages/vscode-extension/*.vsix
+hub/.claude/
+# Strategy deck — coherent with the *.pptx "decks live in Drive, not git" policy
+docs/strategy/MOOTER_STRATEGY_PRESENTATION.html
+docs/strategy/generate_strategy_pptx.js
