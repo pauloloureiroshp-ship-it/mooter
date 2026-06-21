@@ -154,20 +154,16 @@ console.log("===============================\n");
 // Assertions (DoD)
 // --------------------------------------------------------------------------
 
-test("loads all 7 registry packs (3 seed + Wave 2 Day 5 additions)", () => {
-  const ids = PACKS.map((p) => p.pack_id).sort();
-  assert.deepEqual(
-    ids,
-    [
-      ANIM,
-      AUDIT,
-      DIAG,
-      "data-spreadsheet",
-      "knowledge-third-brain",
-      "prd-strategy",
-      "voice-tts",
-    ].sort(),
-  );
+test("loads the pack registry — the 7 seed+wave2 packs still load; grows freely", () => {
+  // Self-healing (was a brittle hardcoded 7-id deepEqual): the repo legitimately
+  // carries more packs now (caveman, obsidian-vault-sync, code-graph, …). Assert
+  // the original guaranteed set still compiles + a growth-tolerant floor, not an
+  // exact list that goes stale every time a pack is added.
+  const ids = new Set(PACKS.map((p) => p.pack_id));
+  for (const id of [ANIM, AUDIT, DIAG, "data-spreadsheet", "knowledge-third-brain", "prd-strategy", "voice-tts"]) {
+    assert.ok(ids.has(id), `core pack ${id} must load`);
+  }
+  assert.ok(ids.size >= 7, `expected >= 7 packs, found ${ids.size}`);
 });
 
 test("recall >= 0.85 overall on the 30 positives", () => {
