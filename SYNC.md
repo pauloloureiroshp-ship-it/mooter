@@ -17,10 +17,10 @@
 - `packages/router` suite completa: 285 tests, **3 fail — TODAS pré-existentes** (provado por isolamento removendo code-graph): 2× pack-count stale (`exactly 7 packs`; `main` já tem 9) + `init 0o700` env/Windows. Zero novas de graphify.
 - `packages/cli`: 627 tests, 15 fail — **todas env/Windows** (perms 0600/0700, escritas FS), nenhuma pack/graph; diff toca 0 ficheiros cli.
 - Chip `🕸 graph` é **opt-in** (default OFF, provado por teste; statusline default byte-idêntica; `<graph-context>` ausente sem breadcrumb → router-hint byte-idêntico).
-**`final-reviewer` Opus:** _(pendente — preenchido após o gate)_.
-**PR:** _(a abrir)_ — `wave66-graphify` → `main`, título "Wave 66 — Graphify × Mooter (graph-aware routing)".
+**`final-reviewer` Opus:** **SHIP-WITH-NITS → 0-HIGH / 0-MED / 1-LOW** — o único LOW (label "Wave 61" stale numa mensagem de assert em `chip-composer.test.js`) **corrigido** no commit `afb842e`. Efetivamente **SHIP**.
+**PR:** **#192** — <https://github.com/pauloloureiroshp-ship-it/mooter/pull/192> (`wave66-graphify` → `main`).
 **⚠️ Invariante:** `wave60_design_redesign` continua a **NÃO** ser merged como um todo (só cherry-pick graphify). Recon "graphify deferred" do outro eixo **não** tocado.
-**Próximo (gate Paulo):** final-reviewer SHIP → push → abrir PR → preencher PR link + verdict aqui.
+**Próximo (gate Paulo):** rever PR #192 → merge para `main` → tag → `/mooter-update` (tocou `tools/router/`).
 
 ---
 
