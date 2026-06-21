@@ -450,6 +450,14 @@ function emptyMetrics() {
     guaranteed_saved: 0,     // Option A hits × avg Opus turn cost (REAL)
     advisory_saved: 0,       // same as `saved`, kept explicitly for honesty
 
+    // Wave 66 Block 5 — graph-context savings: a THIRD honesty category, kept
+    // strictly separate from the $ buckets above. An ADVISORY estimate (in TOKENS,
+    // not $) of context tokens not loaded because a code knowledge graph answered
+    // structurally instead of grep. NEVER guaranteed, NEVER folded into guaranteed_
+    // /advisory_saved, gated before publication (architecture brief §E / §H).
+    graph_resolved_count: 0,
+    graph_saved_tokens_est: 0,
+
     // Alternate currency (if CURRENCY != USD)
     in_brl: null,
     in_eur: null,
@@ -474,10 +482,18 @@ function computeMetrics(lines) {
   const m = emptyMetrics();
 
   // First pass: count Option A hits (regardless of filter) — they are
-  // the only guaranteed Opus skips.
+  // the only guaranteed Opus skips. Wave 66 Block 5 also tallies graph_resolved
+  // events here (advisory token saving), filtering synthetic tester events like
+  // the real-cost pass below.
   for (const line of lines) {
     const e = safeParse(line);
-    if (e && e.event === 'option_a_hit') m.option_a_hits += 1;
+    if (!e) continue;
+    if (e.event === 'option_a_hit') m.option_a_hits += 1;
+    if (e.event === 'graph_resolved' && e.source !== 'mooter-tester') {
+      m.graph_resolved_count += 1;
+      const est = Number(e.tokens_saved_est);
+      if (Number.isFinite(est) && est > 0) m.graph_saved_tokens_est += est;
+    }
   }
 
   // Second pass: real cost accounting over classified user prompts.
@@ -594,6 +610,7 @@ function computeMetrics(lines) {
   m.avg_saved_per_prompt = round(m.avg_saved_per_prompt, 5);
   m.guaranteed_saved = round(m.guaranteed_saved, 4);
   m.advisory_saved = round(m.advisory_saved, 4);
+  m.graph_saved_tokens_est = Math.round(m.graph_saved_tokens_est); // advisory tokens (integer)
 
   // Wave 2.5 Day 1 — cost chips for the statusline. `alltime` is the cumulative
   // real spend over the lines fed in (session-scoped when called via
@@ -1207,6 +1224,7 @@ function handleSummary(_req, res) {
     line('Naive Opus:', m.naive_cost),
     line('Advisory:', m.advisory_saved),
     line('Guaranteed:', m.guaranteed_saved) + `  (${m.option_a_hits} Option-A hits)`,
+    `Graph (adv):  ~${m.graph_saved_tokens_est} ctx-tokens  (${m.graph_resolved_count} graph-resolved, advisory)`,
     `Saved pct:    ${m.saved_pct.toFixed(1)}%  (advisory)`,
     ``,
     `Tier breakdown:`,

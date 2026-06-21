@@ -1,0 +1,73 @@
+name: code-graph
+version: 0.1.0
+description: "Codebase navigation & impact via a local code knowledge graph (Graphify, tree-sitter)"
+domain_signals:
+  # word-boundary keywords (single tokens) — classify_domain matches exact words.
+  # Deliberately DISCRIMINATIVE: generic verbs/nouns (refactor, architecture,
+  # module, structure, graph, impact) are excluded — they false-positive on plain
+  # prompts ("refactor this loop") and collide with diagram/audit packs. The
+  # multi-word signal lives in intent_phrases + embedding_seeds below.
+  keywords: [codebase, callgraph, callers, callees, usages, dependency, dependencies, codemap]
+  # substring intent phrases (multi-word) — matched lower-cased
+  intent_phrases:
+    - "where is"
+    - "call graph"
+    - "who calls"
+    - "find usages"
+    - "impact of changing"
+    - "trace the dependency"
+    - "map the codebase"
+    - "what depends on"
+  # Wave 66 — NL embedding seeds for axis-2 routing (v2 nomic-embed-text). Distinct
+  # across packs so cosine sim discriminates; about navigating/understanding code
+  # structure (not auditing it — that's code-audit).
+  embedding_seeds:
+    - "onde é que esta função é chamada em todo o projeto"
+    - "se eu mudar esta assinatura, que ficheiros partem"
+    - "mostra-me o grafo de dependências deste módulo"
+    - "quem importa este helper e quem depende dele"
+    - "quero entender a estrutura desta codebase antes de refactorizar"
+    - "qual o caminho entre este controller e a camada de dados"
+    - "lista os símbolos que tocam neste serviço de autenticação"
+    - "navega o código por relações em vez de fazer grep a tudo"
+  negative_keywords: [vulnerability, secret scan, owasp, lint]
+model_floor: T1                       # navegação/entendimento é barato; o grafo localiza
+model_ceiling: T3                     # refactor multi-ficheiro / impacto pode escalar
+escalation_keywords:
+  - refactor across
+  - rename everywhere
+  - impact analysis
+  - architecture decision
+  - multi-file refactor
+  - breaking change
+mcps:
+  recommended: [graphify-mcp]
+subagents:
+  primary: model-reasoner             # navegação/root-cause; Opus só com escalation
+  reviewer: final-reviewer
+repos_canonical:
+  - name: graphify
+    url: https://github.com/safishamsi/graphify
+    license: MIT
+    note: "Local code knowledge graph (tree-sitter, NetworkX, Leiden). MCP tools: query_graph/get_neighbors/shortest_path. PyPI temporariamente 'graphifyy'."
+tools_cli: [graphify]
+prompt_scaffold: |
+  A code knowledge graph may be available for this repo (Graphify MCP / graph.json).
+  Prefer querying the graph (query_graph, get_neighbors, shortest_path) over grepping
+  every file: it answers "where is X / who calls Y / impact of changing Z" with far
+  less context. Fall back to search only when the graph is absent or stale.
+validation:
+  smoke_test: "Resolve a 'where is X' query via graph queries instead of full-text grep"
+  acceptance_criteria:
+    - "Pack resolves graphify-mcp as recommended (+ missing when not installed)"
+    - "Navigation queries cite graph nodes/edges, not exhaustive file reads"
+metadata:
+  author: paulo-loureiro
+  created: 2026-06-21
+  validated_against:
+    skills_version: "2026-06"
+    mcp_registry_snapshot: 2026-06-21
+  ttl_days: 90
+  trust_score: 0.5
+  usage_count: 0
+  notion_kb_url: null

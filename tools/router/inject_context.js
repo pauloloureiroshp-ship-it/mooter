@@ -1359,6 +1359,15 @@ try {
   require('./hint_coherence.js').coerceHintCoherent(decision, { t0Model: bestOllamaT0() });
 } catch { /* coherence is best-effort — never block the hint */ }
 
+// Wave 66 Block 3 — graph-context annotation (downstream of every guardrail).
+// Reads the breadcrumb; when a code knowledge graph is resolved for this repo it
+// sets decision.graph_context and appends '+graph_resolved' to escalation_rule.
+// It NEVER changes the tier → the HIGH_RISK hard floor is untouched. No breadcrumb
+// → decision left untouched → the router-hint stays byte-identical.
+try {
+  require('./graph-context.js').applyGraphContext(decision);
+} catch { /* graph context is best-effort — never block the hint */ }
+
 const lines = [
   '<router-hint>',
   `task_category: ${decision.task_category}`,
@@ -1476,6 +1485,26 @@ try {
     lines.push(`<tier-badge>${buildBadgeOutput(decision)}</tier-badge>`);
   }
 } catch { /* badge is best-effort, never blocks the hint */ }
+
+// Wave 66 Block 3 — emit the <graph-context> block (a sibling of <router-hint>,
+// the hint itself stays intact) when a graph is resolved, and log a graph_resolved
+// event (Block 5; advisory token saving only). Best-effort.
+try {
+  const { renderGraphContextBlock } = require('./graph-context.js');
+  const graphBlock = renderGraphContextBlock(decision);
+  if (graphBlock.length) {
+    lines.push(...graphBlock);
+    const gc = decision.graph_context || {};
+    logDecision({
+      ts: new Date().toISOString(),
+      event: 'graph_resolved',
+      nodes: gc.nodes,
+      repo_size: Number.isFinite(Number(gc.repo_size)) ? Number(gc.repo_size) : null,
+      tokens_saved_est: gc.tokens_saved_est,
+      session_id: sessionId,
+    });
+  }
+} catch { /* graph block is best-effort, never blocks the hint */ }
 
 // Append <optimized-task> when the optimizer produced a reformulation.
 if (optimizedTask) {

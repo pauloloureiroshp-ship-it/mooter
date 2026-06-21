@@ -63,6 +63,10 @@ const DEFAULT_ELIGIBLE = [
   // Wave 58 A.1 — 🤖 multi-agent workflow progress (opt-IN: '' unless
   // statusline_chips.agents_progress / MOOTER_STATUSLINE_AGENTS_PROGRESS=1).
   './agents-progress-status.js',
+  // Wave 66 Block 6 — 🕸 code knowledge graph (opt-IN: '' unless
+  // statusline_chips.graph / MOOTER_STATUSLINE_GRAPH=1). Default OFF →
+  // byte-identical statusline. Honest `🕸 ?` when opted in but no breadcrumb.
+  './graph-status.js',
 ];
 
 // The full historic chip list, in render order. Extracted verbatim from the old
@@ -115,6 +119,8 @@ const CHIP_MODULES = [
   './matrix-status.js',
   // Wave 58 A.1 — 🤖 multi-agent workflow progress (opt-IN).
   './agents-progress-status.js',
+  // Wave 66 Block 6 — 🕸 code knowledge graph (opt-IN).
+  './graph-status.js',
 ];
 
 /**

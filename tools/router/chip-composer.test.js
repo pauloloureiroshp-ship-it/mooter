@@ -39,8 +39,8 @@ test('always-on line-3-only chips are NOT default-eligible', () => {
   assert.ok(!DEFAULT_ELIGIBLE.includes('./terminal-name-status.js'), 'terminal-name must not be default-eligible');
 });
 
-test('matrix + agents-progress are present in both lists', () => {
-  for (const m of ['./matrix-status.js', './agents-progress-status.js']) {
+test('matrix + agents-progress + graph are present in both lists', () => {
+  for (const m of ['./matrix-status.js', './agents-progress-status.js', './graph-status.js']) {
     assert.ok(DEFAULT_ELIGIBLE.includes(m), `${m} in default set`);
     assert.ok(CHIP_MODULES.includes(m), `${m} in full list`);
   }
@@ -64,6 +64,7 @@ test('composeChips default (empty prefs) → only the matrix chip', () => {
     assert.ok(line.startsWith('🎯 Matrix:'), `expected matrix-only, got: "${line}"`);
     assert.ok(!line.includes('📊 local routes'), 'mlwr must not appear in default render');
     assert.ok(!line.includes('🪟'), 'terminal-name must not appear in default render');
+    assert.ok(!line.includes('🕸'), 'graph chip must not appear in default render (Wave 61 opt-in)');
   } finally {
     if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
