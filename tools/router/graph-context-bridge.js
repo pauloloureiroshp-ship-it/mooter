@@ -64,6 +64,10 @@ function buildSnapshot(ctx, now) {
   };
   const edges = toCount(ctx.edges);
   if (edges !== null) snap.edges = edges;
+  // repo_size = source-file count the graph was built over (Wave 61.B). Optional;
+  // gates the savings estimate (announce only at >=100 files — see DAY0 recon §2).
+  const repoSize = toCount(ctx.repo_size);
+  if (repoSize !== null) snap.repo_size = repoSize;
   return snap;
 }
 
@@ -112,6 +116,8 @@ function readGraphContext(opts = {}) {
   const out = { repo, nodes, resolved: raw.resolved !== false, ts: Number(raw.ts) || 0 };
   const edges = toCount(raw.edges);
   if (edges !== null) out.edges = edges;
+  const repoSize = toCount(raw.repo_size);
+  if (repoSize !== null) out.repo_size = repoSize;
   return out;
 }
 
@@ -124,22 +130,24 @@ module.exports = {
 };
 
 if (require.main === module) {
-  // CLI: graph-context-bridge.js set <repo> <nodes> [edges] [--unresolved]
+  // CLI: graph-context-bridge.js set <repo> <nodes> [edges] [--repo-size=N] [--unresolved]
   //      graph-context-bridge.js clear
   const [, , cmd, ...rest] = process.argv;
   if (cmd === 'set') {
-    const flags = new Set(rest.filter((a) => a.startsWith('--')));
+    const flags = rest.filter((a) => a.startsWith('--'));
     const pos = rest.filter((a) => !a.startsWith('--'));
     const [repo, nodes, edges] = pos;
+    const repoSizeFlag = flags.find((f) => f.startsWith('--repo-size='));
     const ok = setGraphContext({
       repo,
       nodes,
       edges,
-      resolved: !flags.has('--unresolved'),
+      repo_size: repoSizeFlag ? repoSizeFlag.split('=')[1] : undefined,
+      resolved: !flags.includes('--unresolved'),
     });
     process.exit(ok ? 0 : 1);
   }
   if (cmd === 'clear') process.exit(clearGraphContext() ? 0 : 1);
-  process.stderr.write('usage: graph-context-bridge.js set <repo> <nodes> [edges] [--unresolved] | clear\n');
+  process.stderr.write('usage: graph-context-bridge.js set <repo> <nodes> [edges] [--repo-size=N] [--unresolved] | clear\n');
   process.exit(2);
 }
