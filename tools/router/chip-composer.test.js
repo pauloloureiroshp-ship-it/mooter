@@ -64,7 +64,7 @@ test('composeChips default (empty prefs) → only the matrix chip', () => {
     assert.ok(line.startsWith('🎯 Matrix:'), `expected matrix-only, got: "${line}"`);
     assert.ok(!line.includes('📊 local routes'), 'mlwr must not appear in default render');
     assert.ok(!line.includes('🪟'), 'terminal-name must not appear in default render');
-    assert.ok(!line.includes('🕸'), 'graph chip must not appear in default render (Wave 61 opt-in)');
+    assert.ok(!line.includes('🕸'), 'graph chip must not appear in default render (Wave 66 opt-in)');
   } finally {
     if (prevMH === undefined) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = prevMH;
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
