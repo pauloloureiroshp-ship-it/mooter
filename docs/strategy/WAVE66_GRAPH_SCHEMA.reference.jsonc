@@ -1,0 +1,43 @@
+// Wave 66 — graph.json schema contract (PROVISIONAL, as_of 2026-06-21)
+// Source: NetworkX node-link JSON (Graphify output). NOT YET verified against a
+// live install — `graphifyy` install was blocked by the supply-chain guardrail and
+// `uv` is absent (see WAVE66_DAY0_RECON.md §1). Treat every node/edge attribute as
+// OPTIONAL. The breadcrumb (Bloco 2) + hint annotation (Bloco 3) depend ONLY on the
+// node COUNT, which is stable across all NetworkX versions, so 66.A/66.B are safe to
+// build against this contract. The community field (for 66.C) MUST be confirmed live
+// before use — do not hardcode its name.
+{
+  // --- top level (NetworkX node_link_data) ---
+  "directed": true,                 // bool — may be absent
+  "multigraph": false,              // bool — may be absent
+  "graph": {},                      // graph-level attrs — may be absent
+  "nodes": [                        // REQUIRED for any signal. node COUNT is the stable contract.
+    {
+      "id": "string",               // REQUIRED per node (unique). Only field we rely on.
+      // ↓ ALL optional — presence/name varies by Graphify/NetworkX version. Never assume.
+      "type": "function|class|method|file|module",
+      "name": "string",
+      "file": "string",             // or "path"
+      "line": 0,                    // or "lineno"
+      "language": "string",
+      "community": 0                // Leiden cluster id — 66.C ONLY. Name may be "cluster"/"group". CONFIRM LIVE.
+    }
+  ],
+  // --- EDGES: accept BOTH keys. NetworkX moved "links" (legacy) -> "edges" (recent). ---
+  // Reader contract:  const edges = graph.links || graph.edges || [];
+  "links": [
+    {
+      "source": "string",           // node id
+      "target": "string",           // node id
+      "type": "imports|calls|defines|contains|references"  // optional; name varies
+    }
+  ]
+}
+//
+// TOLERANT-READER RULES (fixed now; copy into graph-context-bridge.js / graph-context.js):
+//   1. edges  = g.links || g.edges || []
+//   2. nodes  = Array.isArray(g.nodes) ? g.nodes : []
+//   3. signal = nodes.length            // the ONLY value 66.A/66.B emit
+//   4. every node/edge attribute access uses a fallback; missing -> undefined, never throw
+//   5. file absent / JSON corrupt -> clean state (return false / ''), never break the hook
+//   6. community-based logic (66.C) is gated until the field name is confirmed against a real graph.json
