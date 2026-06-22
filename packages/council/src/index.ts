@@ -19,3 +19,4 @@ export const COUNCIL_SCAFFOLD = "council-scaffold-ready" as const;
 // ---- Bloco A: Advisory Council ----
 export * from "./types.ts";
 export * from "./cas.ts";
+export * from "./compose.ts";
