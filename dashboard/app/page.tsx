@@ -537,19 +537,19 @@ function CostTrendSvg({ data }: { data: CostSeries }) {
       style={{ width: '100%', height: 'auto', display: 'block' }}
     >
       {/* grid */}
-      <line x1={P} y1={H - P} x2={W - P} y2={H - P} stroke="#2a2d33" strokeWidth="1" />
-      <line x1={P} y1={P} x2={P} y2={H - P} stroke="#2a2d33" strokeWidth="1" />
+      <line x1={P} y1={H - P} x2={W - P} y2={H - P} stroke="#252220" strokeWidth="1" />
+      <line x1={P} y1={P} x2={P} y2={H - P} stroke="#252220" strokeWidth="1" />
 
-      {/* naive (baseline) */}
-      <path d={pathNaive} fill="none" stroke="#f44747" strokeWidth="2" strokeDasharray="4 4" />
-      {/* real */}
-      <path d={pathReal} fill="none" stroke="#4ec9b0" strokeWidth="2.5" />
+      {/* naive (baseline) — terracotta = expensive all-Opus */}
+      <path d={pathNaive} fill="none" stroke="#D46A5A" strokeWidth="2" strokeDasharray="4 4" />
+      {/* real — green = the saved path */}
+      <path d={pathReal} fill="none" stroke="#4CAF6A" strokeWidth="2.5" />
 
       {/* labels */}
-      <text x={W - P} y={yOf(data.naiveTotal) - 6} fill="#f44747" fontSize="11" textAnchor="end" fontFamily="monospace">
+      <text x={W - P} y={yOf(data.naiveTotal) - 6} fill="#D46A5A" fontSize="11" textAnchor="end" fontFamily="monospace">
         naive Opus ${data.naiveTotal.toFixed(3)}
       </text>
-      <text x={W - P} y={yOf(data.realTotal) - 6} fill="#4ec9b0" fontSize="11" textAnchor="end" fontFamily="monospace">
+      <text x={W - P} y={yOf(data.realTotal) - 6} fill="#4CAF6A" fontSize="11" textAnchor="end" fontFamily="monospace">
         frugal ${data.realTotal.toFixed(3)}
       </text>
     </svg>
