@@ -4,6 +4,25 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🏛 Council Quality Eval — 2026-06-22 (branch `wave-autopilot-loop` off `wave-council-d` — Claude Code, ultracode autónomo)
+**O que responde:** o Gate A provou que o council **MUDA** o veredicto (91,7%) mas assinou que **não provava melhoria**. Este eval responde: o council **MELHORA** vs o melhor single-model? Corrida **REAL, 100% local, $0** (sem cloud keys), com a **higiene que o Gate A não teve**: verificáveis por execução/gabarito (nunca LLM); abertos por juiz **cross-vendor** (Gemma julga Qwen), **cego**, ordem randomizada **nas duas direções**, rubric **length-neutral**. `classify.js` sha `427d8c0b…364bc48f` **INTACTA**. Tudo aditivo (`packages/council/{scripts,eval,tests}/`).
+**Barra pré-registada (fixa ANTES de correr, no código):** council é ferramenta de **qualidade** sse *(aberto)* WIN−LOSS>0 com IC binomial a **excluir 0** **E** *(verificável)* accuracy_delta **≥0**.
+**Resultado (n=43: 32 verificáveis + 11 abertos):**
+- **Verificável (n=32, grading determinístico):** single **78,1%** → council **84,4%**, **Δ=+6,3pp** (não regride ✅). Ganho concentrado em **security-audit 67%→100%** (apanha s06, o caso "não há vuln" — anti-falso-positivo — e s05 path-traversal) e **factual-grounding 80%→100%** (f03). **Regride** em coding-bugfix 80%→60% (deliberação escolheu pior assento em c04/c07). É a tese do council a confirmar-se: cross-exam adversarial corta overclaims em tarefas verificáveis.
+- **Aberto (n=11, pairwise cego cross-vendor):** council **win=2 · tie=7 · loss=2** → WIN−LOSS=**0**, win-share 50% **IC95 [15,85]** (inclui 0) → **sem vitória estatística limpa**.
+- **Custo/latência:** $0 (all-local) · single 415s vs council **2367s** (~5,7× mais lento) — a latência **é** o custo aqui.
+- **Calibração:** confiança **≥0,6 → 91%** vs <0,6 → 81% (✅ a confiança calibra). **MAS** convergência **CONFIRMED → 80%** vs not-CONFIRMED → 92% (**invertido** — o sinal ACT/CONFIRMED está mal calibrado a este N; caveat honesto, possível ruído n pequeno).
+**Recomendação (saída 2 de 3 — GATED):** **manter o council GATED a alto-risco** (válvula ESCALATE), **especialmente security-audit / factual-grounding / tarefas propensas a alucinação** onde o ganho verificável é grande (+33pp / +20pp). **NÃO vender como "respostas melhores" em geral** — o pairwise aberto é um empate e pode regredir bugfixes simples. Usar o sinal **confiança≥0,6**; **recalibrar o sinal CONFIRMED** antes de o usar para ACT. Não net-win → **não** merge+tag flagship; não net-loss → **não** é fix-juiz urgente. Evidência: `packages/council/scripts/quality-eval-results.json` (caveat embebido) + `_handoff/council-eval/RESULTS.md`.
+**Caveats (assinados):** all-LOCAL (sem arm C all-Opus; arm A = melhor single **local**); council **mono-vendor** (3 variantes Qwen — diversidade limitada pelos modelos instalados); aberto n=11 → IC largo por construção; `contains:` é matching booleano de substrings (pode sub/sobre-creditar paráfrases). Mitigado: juiz cross-vendor+cego+length-neutral; subset verificável (determinístico) é o sinal mais forte.
+**Gate humano (NÃO mergeado):** **PR #199** — <https://github.com/pauloloureiroshp-ship-it/mooter/pull/199> (`wave-autopilot-loop` → `wave-council-d`, **não `main`**). final-reviewer (Opus): **SHIP**, zero nits. Comando exacto para o Paulo decidir:
+```bash
+# rever primeiro:  gh pr diff 199 --repo pauloloureiroshp-ship-it/mooter
+gh pr merge 199 --repo pauloloureiroshp-ship-it/mooter --squash   # merge p/ wave-council-d (NÃO main)
+```
+**+ Feature landed nesta run — 🛸 Mooter Autopilot Loop (plugin):** módulo `packages/vscode-extension/src/cockpit-loop.js` + 6 pontos de wiring (tab 🛸 Autopilot, comando `mooter.startAutopilotWave`, `readLoopState` no snapshot, casos loop* no onDidReceiveMessage). **52/52 testes da extensão verdes** (incl. parsing real do webview). Smoke `DRY_RUN=1` do `loop-runner.mjs` confirmado (round 1 → awaiting_eval). 3 divergências reais vs spec documentadas e adaptadas (tabs estáticas/client-render, CSP sem inline onclick → `data-loop`, CSS escopado) em `_handoff/autopilot-loop/AUTOPILOT_LOOP.md`.
+
+---
+
 ### 🏛 Sessão — 2026-06-22 (Wave Council — Bloco 0 + Bloco A (Advisory MVP) + Gate A — Claude Code, ultracode)
 **Estado:** 🚧 Em curso na branch **`wave-council`** (off `main` `380d41c`). **NUNCA merge para `main`** (1 PR por bloco). `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (re-verificada). Todo o código novo em **`packages/council/`** (aditivo) + wiring mínimo no CLI.
 **Bloco 0 — Day-0 recon (`8a11bd3`):** sweep paralelo de **11 alvos**, todos **MATCH**, **zero divergências bloqueantes** (única nota cosmética: `VoteResult` tem campo extra `reviewers`, até útil). Assinaturas verbatim em `docs/strategy/WAVE_COUNCIL_DAY0_RECON.md` (SSOT para A–D). Confirmado: `worktree-conductor` é **lock conductor, NÃO cria worktrees** (Bloco C orquestra `git worktree` por cima); `validation/adversarial` (`review`/`vote`) **é** o motor de deliberação a reusar; cross-package = imports relativos `.ts` (sem workspaces). Scaffold `packages/council/` verde.

@@ -1,0 +1,8 @@
+# Generated at runtime by loop-runner.mjs (and DRY_RUN smoke) — never committed.
+ledger.jsonl
+OUTBOX.md
+STOP
+HUMAN_OK
+ASK_HUMAN.md
+transcript/
+*.tmp

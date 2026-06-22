@@ -1,0 +1,11 @@
+{
+  "loop_id": "council-quality-eval-2026-06-22",
+  "wave": "council-quality-eval",
+  "branch": "wave-council-d",
+  "status": "cc_running",
+  "round": 1,
+  "maxRounds": 12,
+  "sessionId": null,
+  "note": "status=cc_running so the runner picks up round 1 (INBOX seeded). Evaluator (Cowork scheduled task) only acts when status=awaiting_eval.",
+  "updated_at": "2026-06-22T00:00:00Z"
+}
