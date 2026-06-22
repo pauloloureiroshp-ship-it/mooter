@@ -39,3 +39,4 @@ export * from "./mcp.ts";
 
 // ---- Bloco D: Pastor learning loop ----
 export * from "./pastor.ts";
+export * from "./cas-tune.ts";
