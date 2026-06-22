@@ -1,0 +1,178 @@
+{
+  "summary": {
+    "prompts": 12,
+    "changed": 11,
+    "pct": 0.917,
+    "threshold": 0.3,
+    "pass": true,
+    "breakdown": {
+      "byDifferentWinner": 10,
+      "byNonConfirmed": 1
+    },
+    "totalCostUsd": 0,
+    "anchor": "gemma4:e4b",
+    "seats": [
+      "gemma4:e4b",
+      "deepseek-r1:7b",
+      "qwen2.5:3b"
+    ]
+  },
+  "rows": [
+    {
+      "category": "coding.security",
+      "prompt": "Is storing a bcrypt hash of an API key in localStorage safe ",
+      "winner": "qwen2.5:3b",
+      "convergence": "CONFIRMED",
+      "confidence": 0.548,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 84443,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "coding.refactor",
+      "prompt": "Should a 2000-line God class be split by extracting feature ",
+      "winner": "gemma4:e4b",
+      "convergence": "REJECTED",
+      "confidence": 0.339,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 47614,
+      "changed": true,
+      "reason": "non-confirmed (REJECTED) + documented refute"
+    },
+    {
+      "category": "coding.debug",
+      "prompt": "A websocket reconnects randomly every few minutes in product",
+      "winner": "deepseek-r1:7b",
+      "convergence": "CONFIRMED",
+      "confidence": 1,
+      "rounds": 1,
+      "calls": 9,
+      "costUsd": 0,
+      "latencyMs": 43700,
+      "changed": true,
+      "reason": "preferred deepseek-r1:7b over anchor"
+    },
+    {
+      "category": "coding.infra",
+      "prompt": "For a single-region app with 50 req/s, is Kubernetes the rig",
+      "winner": "qwen2.5:3b",
+      "convergence": "REJECTED",
+      "confidence": 0.4,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 60131,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "reasoning.math",
+      "prompt": "Is 1 a prime number? Answer and give the one-line reason.",
+      "winner": "qwen2.5:3b",
+      "convergence": "CONFIRMED",
+      "confidence": 1,
+      "rounds": 1,
+      "calls": 9,
+      "costUsd": 0,
+      "latencyMs": 19519,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "reasoning.science",
+      "prompt": "Does adding more parallel agents to a debate monotonically i",
+      "winner": "qwen2.5:3b",
+      "convergence": "CONFIRMED",
+      "confidence": 0.514,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 36560,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "coding.security",
+      "prompt": "Is it safe to disable CSRF tokens for an API that only uses ",
+      "winner": "qwen2.5:3b",
+      "convergence": "REJECTED",
+      "confidence": 0.109,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 66935,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "coding.refactor",
+      "prompt": "Should error handling use exceptions or Result types in a Ty",
+      "winner": "gemma4:e4b",
+      "convergence": "CONFIRMED",
+      "confidence": 0.528,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 42753,
+      "changed": false,
+      "reason": "anchor answer confirmed (CONFIRMED)"
+    },
+    {
+      "category": "coding.debug",
+      "prompt": "An async function intermittently returns undefined under loa",
+      "winner": "qwen2.5:3b",
+      "convergence": "REJECTED",
+      "confidence": 0.2,
+      "rounds": 1,
+      "calls": 9,
+      "costUsd": 0,
+      "latencyMs": 33148,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "reasoning.general",
+      "prompt": "Is eventual consistency acceptable for a bank account balanc",
+      "winner": "qwen2.5:3b",
+      "convergence": "REJECTED",
+      "confidence": 0,
+      "rounds": 1,
+      "calls": 9,
+      "costUsd": 0,
+      "latencyMs": 30934,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "coding.competitive",
+      "prompt": "To find the k-th largest element in an unsorted array of n i",
+      "winner": "qwen2.5:3b",
+      "convergence": "CONFIRMED",
+      "confidence": 1,
+      "rounds": 1,
+      "calls": 9,
+      "costUsd": 0,
+      "latencyMs": 62257,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    },
+    {
+      "category": "coding.infra",
+      "prompt": "Should secrets be baked into a Docker image at build time fo",
+      "winner": "qwen2.5:3b",
+      "convergence": "CONFIRMED",
+      "confidence": 0.507,
+      "rounds": 2,
+      "calls": 13,
+      "costUsd": 0,
+      "latencyMs": 42507,
+      "changed": true,
+      "reason": "preferred qwen2.5:3b over anchor"
+    }
+  ]
+}
