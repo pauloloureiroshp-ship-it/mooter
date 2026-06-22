@@ -105,29 +105,43 @@ export default function Dashboard() {
   const [retrainOutput, setRetrainOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch metrics + tuning once (and every 10s)
+  // Fetch metrics + tuning once, then every 10s — but only while the tab is
+  // visible. A monitoring dashboard is left open for hours; polling a backgrounded
+  // tab just hammers the local tracker + file reads for nothing. Refresh
+  // immediately when the tab comes back into focus. (pilar/site R3)
   useEffect(() => {
+    let cancelled = false;
     const loadTop = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const [m, t] = await Promise.all([
           fetch('/api/metrics', { cache: 'no-store' }).then((r) => r.json()),
           fetch('/api/tuning', { cache: 'no-store' }).then((r) => r.json()),
         ]);
+        if (cancelled) return;
         setMetrics(m);
         setTuning(t);
         if (m.error) setError(`${m.error}${m.hint ? ' — ' + m.hint : ''}`);
         else setError(null);
       } catch (err) {
-        setError(`metrics fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+        if (!cancelled) setError(`metrics fetch failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     };
     loadTop();
     const iv = setInterval(loadTop, 10_000);
-    return () => clearInterval(iv);
+    const onVisible = () => { if (!document.hidden) loadTop(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
-  // Fetch decisions whenever filters change (debounced via effect)
+  // Fetch decisions whenever filters change. Guard against a slower earlier
+  // request landing after a newer one and clobbering the table. (pilar/site R3)
   useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams();
     params.set('window', windowKey);
     if (tier) params.set('tier', tier);
@@ -138,10 +152,12 @@ export default function Dashboard() {
     fetch(`/api/decisions?${params.toString()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         if (data.error) setError(data.error);
         else setDecisions(data.decisions || []);
       })
-      .catch((err) => setError(`decisions fetch failed: ${err.message}`));
+      .catch((err) => { if (!cancelled) setError(`decisions fetch failed: ${err.message}`); });
+    return () => { cancelled = true; };
   }, [windowKey, tier, category, minConf, maxConf]);
 
   const categories = useMemo(() => {
