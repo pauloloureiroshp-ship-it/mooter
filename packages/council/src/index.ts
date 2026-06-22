@@ -34,3 +34,4 @@ export * from "./ledger.ts";
 // ---- Bloco C: Builder Council ----
 export * from "./builder.ts";
 export * from "./tests-judge.ts";
+export * from "./cleanup.ts";

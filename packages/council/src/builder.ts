@@ -13,9 +13,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parallel } from "../../workflow/src/primitives.ts";
-import { acquireWithRecovery, reap } from "../../worktree-conductor/src/conductor.ts";
+import { acquireWithRecovery } from "../../worktree-conductor/src/conductor.ts";
 import { release } from "../../worktree-conductor/src/locks.ts";
 import { judgeByTests } from "./tests-judge.ts";
+import { cleanupWorktrees } from "./cleanup.ts";
 import type { Council, ModelSpec } from "./types.ts";
 
 export interface BuilderTask {
@@ -213,28 +214,17 @@ export async function buildWithCouncil(
   }
 
   // 5) Cleanup: remove ALL worktrees (zero leaks); KEEP branches (the diffs). Reap stale locks.
-  let cleanedUp = true;
-  for (const m of members) {
-    const rm = gitSafe(["worktree", "remove", "--force", m.worktreeDir], task.repoDir);
-    if (!rm.ok && existsSync(m.worktreeDir)) {
-      try {
-        rmSync(m.worktreeDir, { recursive: true, force: true });
-      } catch {
-        cleanedUp = false;
-      }
-    }
-  }
-  gitSafe(["worktree", "prune"], task.repoDir);
+  const clean = cleanupWorktrees(task.repoDir, members.map((m) => m.worktreeDir), { home: task.home });
+  let cleanedUp = clean.failed.length === 0;
   try {
     if (existsSync(scratch)) rmSync(scratch, { recursive: true, force: true });
   } catch {
     /* scratch root best-effort */
   }
   try {
-    reap({ home: task.home });
     if (locked) release(lockResource, sessionId, { home: task.home });
   } catch {
-    /* conductor cleanup best-effort */
+    /* conductor lock release best-effort */
   }
 
   return {
