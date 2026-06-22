@@ -27,3 +27,4 @@ export * from "./cli.ts";
 
 // ---- Bloco B: deliberation + calibrated safety ----
 export * from "./escalation.ts";
+export * from "./auto-trigger.ts";
