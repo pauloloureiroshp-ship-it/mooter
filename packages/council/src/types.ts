@@ -62,6 +62,30 @@ export interface MinorityEntry {
   rationale: string;
 }
 
+/** Per-candidate adversarial vote (one candidate answer reviewed by the other seats). */
+export interface CandidateVote {
+  seatId: string;
+  vote: VoteResult;
+}
+
+/** Raw deliberation trace produced by deliberate(), consumed by synthesize(). */
+export interface DeliberationTrace {
+  prompt: string;
+  /** Phase 1: independent answers, no cross-talk. */
+  answers: SeatAnswer[];
+  /** Phase 2: per-candidate adversarial votes. */
+  candidates: CandidateVote[];
+  /** Seat whose answer won the adversarial round (highest surviving vote), or null. */
+  winnerSeatId: string | null;
+  /** The winner's aggregate vote (drives verdict confidence). */
+  vote: VoteResult;
+  /** Every ReviewResult across all rounds (source of the minority report). */
+  reviews: ReviewResult[];
+  rounds: number;
+  costUsd: number;
+  latencyMs: number;
+}
+
 /** The honest 4-section council verdict. */
 export interface CouncilVerdict {
   /** ④ Recommendation. */

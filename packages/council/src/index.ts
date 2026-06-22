@@ -20,3 +20,4 @@ export const COUNCIL_SCAFFOLD = "council-scaffold-ready" as const;
 export * from "./types.ts";
 export * from "./cas.ts";
 export * from "./compose.ts";
+export * from "./verdict.ts";
