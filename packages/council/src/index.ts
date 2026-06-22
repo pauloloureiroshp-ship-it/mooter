@@ -15,3 +15,7 @@
 
 /** Marker for the scaffolded-but-not-yet-implemented state. Replaced as blocks land. */
 export const COUNCIL_SCAFFOLD = "council-scaffold-ready" as const;
+
+// ---- Bloco A: Advisory Council ----
+export * from "./types.ts";
+export * from "./cas.ts";
