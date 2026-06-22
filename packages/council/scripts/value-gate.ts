@@ -112,6 +112,10 @@ async function main() {
     totalCostUsd: totalCost,
     anchor: ANCHOR,
     seats: FAST_ROSTER.map((r) => r.id),
+    caveat:
+      "Measures verdict CHANGE, not improvement. Anchor-sensitive (anchor = roster[0]); " +
+      "most changes are 'different-winner' (council elevated another seat). The length-neutral " +
+      "judge that would prove quality gains lands in Bloco C. See SYNC.md / CHANGELOG.",
   };
   writeFileSync(new URL("./value-gate-results.json", import.meta.url), JSON.stringify({ summary, rows }, null, 2));
   process.stdout.write(

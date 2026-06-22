@@ -85,6 +85,9 @@ export function decideActOrEscalate(
   const pooledConfidence = linearOpinionPool([verdict.confidence, 1 - refuteVeto], [2, 1]);
 
   const reasons: string[] = [];
+  // "credible objection" is DEFINED as a refute at/above refuteVetoLevel. The safety
+  // invariant (no false-ACT under disagreement) holds for credible objections by this
+  // definition; lowering refuteVetoLevel widens the ACT envelope — tune deliberately.
   const hardObjection = refuteVeto >= refuteVetoLevel;
   const confirmedOk = !requireConfirmed || verdict.convergence === "CONFIRMED";
 

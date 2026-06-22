@@ -197,6 +197,8 @@ export async function buildWithCouncil(
   // 3) Persist each member's diff as a branch commit (deliverable). Serial, best-effort.
   for (const m of members) {
     if (!m.applied) continue;
+    // `add -A` is scoped to this member's EPHEMERAL worktree (force-removed in step 5),
+    // never the main checkout — the repo-wide "no git add -A" rule targets the real tree.
     gitSafe(["add", "-A"], m.worktreeDir);
     gitSafe(["-c", "user.email=council@mooter", "-c", "user.name=Council Builder", "commit", "-m", `council: ${m.seatId}`], m.worktreeDir);
   }
