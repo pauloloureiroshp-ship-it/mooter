@@ -98,6 +98,11 @@
         "title": "Refresh Data",
         "category": "Mooter",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "mooter.startAutopilotWave",
+        "title": "Start Autopilot Wave",
+        "category": "Mooter"
       }
     ],
     "menus": {

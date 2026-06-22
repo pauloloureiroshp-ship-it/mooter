@@ -22,8 +22,15 @@ const fs = require('fs');
 const path = require('path');
 const data_ = require('./data.js');
 const extra = require('./host-extra.js');
+const loop = require('./cockpit-loop');
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
+
+// Workspace root — where the Autopilot Loop file-bus (_handoff/loop/) lives.
+function repoRoot() {
+  const f = vscode.workspace.workspaceFolders;
+  return (f && f[0] && f[0].uri.fsPath) || process.cwd();
+}
 
 // Cross-platform Claude Code detection: the installed extension is the strongest
 // signal; otherwise probe the usual CLI locations on macOS/Linux/Windows.
@@ -112,6 +119,9 @@ class DataService {
       sessionLedger: effSid ? extra.tokenLedger(effSid, { sessionOnly: true }) : null,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
+      // Autopilot Loop bus state — pure fs read (NO spawn), cheap on every poll so the
+      // 🛸 tab stays live; respects the overlap guard like every other snapshot field.
+      loop: loop.readLoopState(repoRoot()),
     };
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
     } finally { this.busy = false; }
@@ -228,6 +238,12 @@ class CockpitProvider {
         const res = await extra.intentResolve(m.arg);
         try { view.webview.postMessage({ type: 'intent', res }); } catch {}
       }
+      // 🛸 Autopilot Loop controls. Start launches the headless runner (one click, no
+      // typing); Stop/Approve/Reject write file-bus sentinels (never merges by itself).
+      if (m.cmd === 'loopStart') { loop.startLoop(runInTerminal, repoRoot()); }
+      if (m.cmd === 'loopStop') { loop.stopLoop(repoRoot()); this.data.refresh(true); }
+      if (m.cmd === 'loopApprove') { loop.approveHuman(repoRoot()); this.data.refresh(true); }
+      if (m.cmd === 'loopReject') { loop.rejectHuman(repoRoot()); this.data.refresh(true); }
     });
     this.data.refresh(true);
   }
@@ -252,6 +268,9 @@ function project(s) {
   return Object.assign(base, {
     mode: s.mode, me: s.me, ollama: s.ollama, slash: s.slash, pinNext: s.pinNext,
     statuslineHtml: s.statuslineHtml, claudeCli: s.claudeCli,
+    // 🛸 Autopilot tab is host-rendered (renderLoopTab) and injected as innerHTML in the
+    // webview — same pattern as statuslineHtml (CSP forbids inline handlers; buttons use data-loop).
+    loopHtml: loop.renderLoopTab(s.loop),
     sub, device: s.device, hw: s.hw, quant: s.quant, prefs: s.prefs,
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
@@ -288,6 +307,8 @@ function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newSession', newSession));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
+  // 🛸 Autopilot Loop — one-click start of the headless loop-runner (file-bus driven).
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.startAutopilotWave', () => loop.startLoop(runInTerminal, repoRoot())));
   data.start();
 }
 function deactivate() {}
@@ -413,7 +434,7 @@ function getHtml() {
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><div class="tab" data-v="loop">🛸 Autopilot</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
@@ -421,6 +442,7 @@ function getHtml() {
 <div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
 <div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
 <div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
+<div class="view" id="view-loop"><div id="v-loop"><div class="empty">Autopilot Loop — connecting…</div></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
 function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));}
@@ -499,6 +521,8 @@ function ledgerHtml(s){
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();wireCollapse(lg);}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
+// 🛸 Autopilot Loop buttons are CSP-safe: they carry data-loop instead of inline onclick.
+function wireLoop(root){if(!root)return;root.querySelectorAll('[data-loop]').forEach(b=>{b.onclick=()=>send(b.dataset.loop);});}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
   if(a.startsWith('term:'))send('term',a.slice(5));
@@ -781,6 +805,10 @@ window.addEventListener('message',(e)=>{
     (s.security?'<div class="card"><div class="lbl">🛡️ Sandbox security (4-layer)</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.security)+'</div></div>':'')+
     '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1">Full doctor →</button><button data-a="refresh" style="flex:1">Refresh</button></div>';
   wireButtons($('#v-doctor'));
+
+  // ── 🛸 AUTOPILOT: host-rendered loop tab (renderLoopTab) injected as innerHTML.
+  $('#v-loop').innerHTML=s.loopHtml||'<div class="empty">Autopilot Loop — open _handoff/loop/ to begin.</div>';
+  wireLoop($('#v-loop'));
 });
 send('refresh');
 </script></body></html>`;
