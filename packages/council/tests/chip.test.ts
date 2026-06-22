@@ -12,6 +12,7 @@ function v(partial: Partial<CouncilVerdict>): CouncilVerdict {
     uniqueFindings: [],
     minorityReport: [],
     seats: ["a", "b"],
+    winnerSeatId: "a",
     judge: null,
     rounds: 1,
     costUsd: 0,
