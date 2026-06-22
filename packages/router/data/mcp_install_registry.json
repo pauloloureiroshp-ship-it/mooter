@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0",
-  "updated": "2026-05-27",
+  "version": "0.2.1",
+  "updated": "2026-06-21",
   "note": "Seed registry of common MCP servers and their install commands (Pastor Wave 1, Day 4; hardened Day 6). Source of truth is versioned here; runtime may override at ~/.mooter/cache/mcp_install_registry.json. Keys are lower-case canonical MCP ids matched against pack.yaml mcps.{required,recommended}. Commands verified against official docs / research_best_in_class_2026.md §2/§8/§9/§12 on 2026-05-27. Remote-only official servers use 'claude mcp add --transport http|sse <name> <url>'; stdio servers use the bare npx/uvx/pipx command.",
   "servers": {
     "github": {
@@ -137,6 +137,11 @@
       "install": "claude mcp add --transport sse cloudflare-docs https://docs.mcp.cloudflare.com/sse",
       "transport": "sse",
       "note": "Cloudflare ships several official remote MCP servers (docs, bindings, observability, ...). Docs server shown; swap host per product."
+    },
+    "graphify-mcp": {
+      "install": "uv tool install graphifyy && graphify install   # or, once the canonical PyPI name is reclaimed: pipx install graphify",
+      "transport": "stdio",
+      "note": "Graphify code knowledge-graph MCP (safishamsi/graphify, MIT) — local tree-sitter graph; tools query_graph/get_neighbors/shortest_path. Serve: python -m graphify.serve graphify-out/graph.json. WARN: PyPI pkg is temporarily 'graphifyy' (typosquat-shaped) — verify before installing. Use only the code/tree-sitter path (no multimodal-LLM) to keep zero-LLM-cost. as_of 2026-06."
     }
   }
 }

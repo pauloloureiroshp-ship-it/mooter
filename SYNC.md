@@ -4,6 +4,26 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🕸 Sessão — 2026-06-21 (Wave 66 — Graphify × Mooter aterra em `main`, coexistindo com context-budget)
+**Estado:** ✅ Graphify entregue como **Wave 66** (eixo próprio), branch `wave66-graphify` **off `origin/main` (`07bdf37`)**. Graphify fora deferido sob o rótulo "Wave 61" (entrou o **context-budget** em `main` em vez disso); agora ship independente. Os dois eixos são **ortogonais e coexistem**: graph = estrutura-de-código (grep-vs-graph); context-budget = contexto-por-tier. Esta sessão **NÃO** toca no Wave 61 / context-budget / auto-matrix de `main`. `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (re-verificada início e fim).
+**Origem (decisão Option 1):** cherry-pick **só** dos commits graphify de `wave60_design_redesign` — **NUNCA** merge da branch inteira (regrediria o cockpit 0.16→0.12 e perderia 100+ commits de router de `main`).
+**KEEP (graphify, renomeado 61→66):** `22e74ce` (code-graph pack + `graph-context-bridge` + chip `🕸 graph`) · `450ef84` (graph-context hint + advisory graph savings) · `50ca786` (`graph-aware-decide.ts`) · docs (Day-0 recon, graph schema, MCP coexistence) · brief untracked `WAVE61_GRAPHIFY_ARCHITECTURE.md` recuperado → `WAVE66_GRAPHIFY_ARCHITECTURE.md`. Re-committed limpo como `feat(wave66)` 66.A/B + 66.C + docs.
+**EXCLUDE:** todos os ~25 commits `landing/`/cockpit/wave60.5/wave60-cleanup; `eb51d37` (SYNC "Wave 61 Graphify SHIPPED" — substituído por este bloco).
+**Deviations (honesto):** (1) docs recriados sob nomes `WAVE66_*` em vez de cherry-pick dos commits de docs — porque `WAVE61_DAY0_RECON.md` **colide** com o recon context-budget de `main`; o recon graphify ficou `WAVE66_DAY0_RECON.md` (cross-refs no código apontam lá). (2) 3 commits re-agrupados em 2 de código (66.A/B juntos) + 1 de docs, mensagens Wave 66 (tree idêntico ao do cherry-pick).
+**Gates (honesto):**
+- `classify.js` sha intacta ✅; diff vs `origin/main` = **21 ficheiros, todos graphify**, zero `landing/`/cockpit/context-budget/`classify.js`/`version.json` ✅.
+- `inject_context.js` (+29) e `savings-tracker.js`: **puramente aditivos** (2 blocos try/catch graph downstream dos guardrails; categoria advisory `graph_saved_tokens_est` em TOKENS separada dos buckets $) — auto-merge correto, nada de `main` removido.
+- `tools/router` graph tests: **49/49 pass**. `packages/router` graph tests (`code-graph-pack` + `graph-aware-decide`): **20/20 pass** (inclui doutrina HIGH_RISK+localized → bias PROIBIDO, tier nunca desce).
+- `packages/router` suite completa: 285 tests, **3 fail — TODAS pré-existentes** (provado por isolamento removendo code-graph): 2× pack-count stale (`exactly 7 packs`; `main` já tem 9) + `init 0o700` env/Windows. Zero novas de graphify.
+- `packages/cli`: 627 tests, 15 fail — **todas env/Windows** (perms 0600/0700, escritas FS), nenhuma pack/graph; diff toca 0 ficheiros cli.
+- Chip `🕸 graph` é **opt-in** (default OFF, provado por teste; statusline default byte-idêntica; `<graph-context>` ausente sem breadcrumb → router-hint byte-idêntico).
+**`final-reviewer` Opus:** **SHIP-WITH-NITS → 0-HIGH / 0-MED / 1-LOW** — o único LOW (label "Wave 61" stale numa mensagem de assert em `chip-composer.test.js`) **corrigido** no commit `afb842e`. Efetivamente **SHIP**.
+**PR:** **#192** — <https://github.com/pauloloureiroshp-ship-it/mooter/pull/192> (`wave66-graphify` → `main`).
+**⚠️ Invariante:** `wave60_design_redesign` continua a **NÃO** ser merged como um todo (só cherry-pick graphify). Recon "graphify deferred" do outro eixo **não** tocado.
+**Próximo (gate Paulo):** rever PR #192 → merge para `main` → tag → `/mooter-update` (tocou `tools/router/`).
+
+---
+
 ### 🚀 Sessão — 2026-06-19 (FASE A — First Magic + Moo Packs → `main` · **REBASED, gated Paulo**)
 **Estado:** ✅ First Magic (F1–F5) + Moo Packs (Wave A) **rebasados sobre `origin/main` `8f66065`** (re-rebase limpo após o main avançar 3 commits durante a sessão: 2 fixes Ollama `db10d38`/`aca2220` + diagrama SVG `8f66065` — sem overlap de ficheiros) num worktree isolado `~/mooter-faseA` (branch `fase-a/first-magic-on-main`). Branch **publicada** no GitHub; merge p/ `main` via ff. `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (0 diff vs `origin/main`, byte-idêntica; confirmada início/fim de cada rebase, nunca conflituou). **moo-loop deliberadamente NÃO incluído** (é a FASE B, clone separado).
 **Decisões do Paulo:** `main` = `origin/main` (os 121 commits do trunk são o tronco vivo: cockpit v0.12→0.16, spawn Seatbelt, router relay, waves 60/60.5/61/63 — não regredir para `wave-a`). Gates separados (A→B). Moo Packs entram com a First Magic (mesma linha, por baixo da FM — são produto).
