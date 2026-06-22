@@ -24,7 +24,14 @@
 - `8e3320b` **telemetry + vault ledger** — registo **content-free** (features only, buckets, k-anon-friendly; testes provam zero leak de conteúdo) + `postTelemetry` opt-in (hub D1) + ledger JSONL no vault `~/.mooter` + `council-last.json` (data layer do chip persistente).
 **SELF-GATE B — segurança (`d822af5`):** end-to-end (deliberate→escalate), determinístico. ACT só em consenso; ESCALATE em qualquer discórdia; **sweep exaustivo (12 configs) → ZERO false-ACT → PASS**. Suite council **74/74 verde**.
 **Diferido honesto:** wiring do chip 🏛 na statusline persistente (`tools/router/*.js`) — o **data layer existe** (`council-last.json`); falta escolher o ficheiro certo dos dois statusline (memória "[Dual statusline files]"/"[Check settings.json FIRST]"). É a única integração pendente do Bloco B.
-**Próximo:** PR #2 (Bloco B) → Bloco C (Builder Council: worktrees + testes-como-juiz + MCP `council_convene`).
+**PR #2 (Bloco B):** #196 — <https://github.com/pauloloureiroshp-ship-it/mooter/pull/196> (stacked em #195).
+**Bloco C — Builder Council (5 commits):**
+- `7abf45a` **builder worktrees** — `buildWithCouncil`: 1 worktree git isolada por assento, implementação paralela (Implementor injectável), testes por worktree, coordenado pelo lock do `worktree-conductor` (que NÃO cria worktrees — §8). **Invariante:** nunca merge para `main`/base — só branches+diffs; perdedoras removidas; "no winner" honesto.
+- `47756a6` **tests-as-judge** — `judgeByTests`: pass-rate=utility (ground truth); juiz LLM só desempata entre as que passam, com higiene 11d (rubric length-neutral + anónimo A/B/C + ordem rotacionada); fallback length-neutral; hook de geração de testes quando ausentes.
+- `73e39f5` **worktree cleanup** — `cleanupWorktrees` zero-leak idempotente (remove→prune→reap); branches preservados.
+- `6371488` **mcp council_convene** — `McpTool` registado no mcp-server (21 tools; counts atualizados honestamente); reusa `runCouncilCli`.
+**SELF-GATE C — correção (`2c67258`):** repo git real, e2e compose→build→judge→cleanup; escolhe impl que passa, **zero leaks** (só worktree main), branches preservados; "no winner" honesto quando nada passa → **PASS**. Suite council **89/89**; mcp-server **27/27**; cli **611/627** (15 pré-existentes Windows, zero regressão).
+**Próximo:** PR #3 (Bloco C) → Bloco D (Pastor loop: logging de outcomes + auto-tune CAS EWMA + melhor council por categoria + distill hook).
 
 ### 🕸 Sessão — 2026-06-22 (Wave 66 Graphify — Fase B: MERGED em `main` + tag + runtime sync — Claude Code)
 **Estado:** ✅ **Wave 66 MERGED em `main`** via **PR #192** (merge `17882d2`). Local fast-forward de `origin/main` (54 commits: 6 graphify + undici fix #194 `acfb6d9` + outras waves). `classify.js` sha `427d8c0b…364bc48f` **INTACTA em `main`** (re-verificada). `decide-agent.ts` byte-idêntico (`2d6eba4f…`) — só o wrapper novo `graph-aware-decide.ts`.
