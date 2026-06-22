@@ -23,7 +23,7 @@
   /* Brand accent — cow-muzzle rose (= landing --color-accent) */
   --accent: #E8888A;
   --on-accent: #1A0E0E;   /* dark warm ink for text on rose */
-  --danger: #D46A5A;
+  --danger: #E0664F;      /* brighter alarm red — distinct from the T3 tier terracotta */
   --warn: #D4C090;
 
   /* Fonts — next/font injects --font-sans / --font-mono (= landing) */
@@ -220,7 +220,7 @@ h2 {
 .dist-seg.T0 { background: var(--t0); }
 .dist-seg.T1 { background: var(--t1); }
 .dist-seg.T2 { background: var(--t2); }
-.dist-seg.T3 { background: var(--t3); color: #F2EDE6; }   /* terracotta → off-white */
+.dist-seg.T3 { background: var(--t3); }   /* dark text (default) on terracotta → ~5:1, WCAG AA */
 
 /* Decisions table */
 table.decisions {

@@ -111,8 +111,10 @@ export default function Dashboard() {
   // immediately when the tab comes back into focus. (pilar/site R3)
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
     const loadTop = async () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
+      if (inFlight) return; // never overlap a slow poll → no out-of-order clobber
+      inFlight = true;
       try {
         const [m, t] = await Promise.all([
           fetch('/api/metrics', { cache: 'no-store' }).then((r) => r.json()),
@@ -125,10 +127,13 @@ export default function Dashboard() {
         else setError(null);
       } catch (err) {
         if (!cancelled) setError(`metrics fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        inFlight = false;
       }
     };
-    loadTop();
-    const iv = setInterval(loadTop, 10_000);
+    loadTop(); // always fetch once on mount — even in a background tab, so it never sticks on empty
+    // Re-poll only while visible; refresh the instant the tab is refocused.
+    const iv = setInterval(() => { if (!document.hidden) loadTop(); }, 10_000);
     const onVisible = () => { if (!document.hidden) loadTop(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -156,7 +161,7 @@ export default function Dashboard() {
         if (data.error) setError(data.error);
         else setDecisions(data.decisions || []);
       })
-      .catch((err) => { if (!cancelled) setError(`decisions fetch failed: ${err.message}`); });
+      .catch((err) => { if (!cancelled) setError(`decisions fetch failed: ${err instanceof Error ? err.message : String(err)}`); });
     return () => { cancelled = true; };
   }, [windowKey, tier, category, minConf, maxConf]);
 
@@ -562,10 +567,10 @@ function CostTrendSvg({ data }: { data: CostSeries }) {
       <path d={pathReal} fill="none" stroke="#4CAF6A" strokeWidth="2.5" />
 
       {/* labels */}
-      <text x={W - P} y={yOf(data.naiveTotal) - 6} fill="#D46A5A" fontSize="11" textAnchor="end" fontFamily="monospace">
+      <text x={W - P} y={yOf(data.naiveTotal) - 6} fill="#D46A5A" fontSize="11" textAnchor="end" fontFamily="'JetBrains Mono', ui-monospace, monospace">
         naive Opus ${data.naiveTotal.toFixed(3)}
       </text>
-      <text x={W - P} y={yOf(data.realTotal) - 6} fill="#4CAF6A" fontSize="11" textAnchor="end" fontFamily="monospace">
+      <text x={W - P} y={yOf(data.realTotal) - 6} fill="#4CAF6A" fontSize="11" textAnchor="end" fontFamily="'JetBrains Mono', ui-monospace, monospace">
         frugal ${data.realTotal.toFixed(3)}
       </text>
     </svg>

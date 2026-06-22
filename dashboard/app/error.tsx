@@ -18,13 +18,13 @@ export default function Error({
   }, [error]);
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ padding: '2rem' }}>
       <h1 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Dashboard error</h1>
-      <p style={{ color: '#6B5F55', marginBottom: '1rem' }}>
+      <p style={{ color: 'var(--fg-dim)', marginBottom: '1rem' }}>
         An unexpected error occurred. You can retry or refresh the page.
       </p>
       {error.digest && (
-        <p style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.75rem', color: '#6B5F55' }}>
+        <p style={{ fontFamily: 'var(--mono)', fontSize: '0.75rem', color: 'var(--fg-dim)' }}>
           error id: {error.digest}
         </p>
       )}
@@ -32,9 +32,9 @@ export default function Error({
         onClick={reset}
         style={{
           padding: '0.5rem 1rem',
-          background: '#2A2320',
-          color: 'white',
-          border: 'none',
+          background: 'var(--bg-elev-2)',
+          color: 'var(--fg)',
+          border: '1px solid var(--border)',
           borderRadius: 4,
           cursor: 'pointer',
           marginTop: '1rem',
