@@ -11,7 +11,10 @@
 import { computeCAS, type CasResult } from "./cas.ts";
 import { composeCouncil as realCompose, type ComposeBudget } from "./compose.ts";
 import { deliberate as realDeliberate } from "./deliberate.ts";
-import { renderCouncilChip, allOpusBaselineUsd, OPUS_PER_CALL_EST } from "./chip.ts";
+import { renderCouncilChip, OPUS_PER_CALL_EST } from "./chip.ts";
+import { decideActOrEscalate } from "./escalation.ts";
+import { recordCouncil } from "./ledger.ts";
+import { postTelemetry } from "./telemetry.ts";
 import type { Council, CouncilVerdict } from "./types.ts";
 
 export interface CliResult {
@@ -23,6 +26,8 @@ export interface CliDeps {
   composeCouncil: typeof realCompose;
   deliberate: typeof realDeliberate;
   hasCloudKey: boolean;
+  /** Injectable persistence (vault ledger + statusline state). */
+  record: typeof recordCouncil;
 }
 
 interface ParsedArgs {
@@ -32,6 +37,7 @@ interface ParsedArgs {
   budget: number;
   localOnly: boolean;
   json: boolean;
+  decide: boolean;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
@@ -41,6 +47,7 @@ function parseArgs(args: string[]): ParsedArgs {
   let budget = 0;
   let localOnly = false;
   let json = false;
+  let decide = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "explain" && positional.length === 0 && mode === "run") mode = "explain";
@@ -48,9 +55,10 @@ function parseArgs(args: string[]): ParsedArgs {
     else if (a === "--budget") budget = Number(args[++i] ?? "0") || 0;
     else if (a === "--local-only") localOnly = true;
     else if (a === "--json") json = true;
+    else if (a === "--decide") decide = true;
     else positional.push(a);
   }
-  return { mode, prompt: positional.join(" ").trim(), category, budget, localOnly, json };
+  return { mode, prompt: positional.join(" ").trim(), category, budget, localOnly, json, decide };
 }
 
 function bullets(items: string[]): string {
@@ -84,6 +92,7 @@ function renderVerdict(v: CouncilVerdict): string {
 export async function runCouncilCli(args: string[], deps: Partial<CliDeps> = {}): Promise<CliResult> {
   const compose = deps.composeCouncil ?? realCompose;
   const deliberate = deps.deliberate ?? realDeliberate;
+  const record = deps.record ?? recordCouncil;
   const hasCloudKey = deps.hasCloudKey ?? !!process.env.ANTHROPIC_API_KEY;
 
   const p = parseArgs(args);
@@ -91,7 +100,7 @@ export async function runCouncilCli(args: string[], deps: Partial<CliDeps> = {})
     return {
       exitCode: 2,
       output:
-        'usage: mooter council "<prompt>" [--category C] [--budget USD] [--local-only] [--json]\n' +
+        'usage: mooter council "<prompt>" [--category C] [--budget USD] [--local-only] [--decide] [--json]\n' +
         '       mooter council explain "<prompt>" [...]',
     };
   }
@@ -130,17 +139,32 @@ export async function runCouncilCli(args: string[], deps: Partial<CliDeps> = {})
 
   // run mode — real deliberation.
   const verdict = await deliberate(p.prompt, council);
-  void allOpusBaselineUsd; // (kept for parity with chip math)
-  if (p.json) return { exitCode: 0, output: JSON.stringify(verdict, null, 2) };
-  return {
-    exitCode: 0,
-    output: [
-      `🏛 Mooter Council — advisory`,
-      `prompt: ${JSON.stringify(p.prompt)}`,
-      `CAS: CONVENE (score ${cas.score}) — ${cas.reasons.join("; ")}`,
-      `composition: ${council.note}`,
+  const decision = p.decide ? decideActOrEscalate(verdict) : null;
+
+  // Persist (vault ledger + statusline state) + best-effort telemetry. Never breaks output.
+  try {
+    const { record: rec } = record(verdict, { category: p.category, localOnly: p.localOnly, decision: decision?.decision });
+    await postTelemetry(rec, {}); // no-op unless MOOTER_HUB_TELEMETRY_URL is set
+  } catch {
+    /* vault/telemetry failure must never break the council output */
+  }
+  if (p.json) {
+    return { exitCode: 0, output: JSON.stringify(decision ? { verdict, decision } : verdict, null, 2) };
+  }
+  const lines = [
+    `🏛 Mooter Council — advisory`,
+    `prompt: ${JSON.stringify(p.prompt)}`,
+    `CAS: CONVENE (score ${cas.score}) — ${cas.reasons.join("; ")}`,
+    `composition: ${council.note}`,
+    ``,
+    renderVerdict(verdict),
+  ];
+  if (decision) {
+    lines.push(
       ``,
-      renderVerdict(verdict),
-    ].join("\n"),
-  };
+      `⚖ decision: ${decision.decision} (pooled ${decision.pooledConfidence} vs threshold ${decision.threshold})`,
+      `  ${decision.reasons.join("; ")}`,
+    );
+  }
+  return { exitCode: 0, output: lines.join("\n") };
 }

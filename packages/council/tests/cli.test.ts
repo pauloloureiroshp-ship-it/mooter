@@ -20,6 +20,7 @@ const fakeVerdict: CouncilVerdict = {
   uniqueFindings: ["[repro/c] untested on windows"],
   minorityReport: [{ reviewer: "c", lens: "security", verdict: "refute", confidence: 0.9, rationale: "auth gap" }],
   seats: ["qwen3:30b", "gemma3:12b", "deepseek-r1:7b"],
+  winnerSeatId: "deepseek-r1:7b",
   judge: null,
   rounds: 1,
   costUsd: 0,
@@ -34,6 +35,8 @@ const deps = {
   composeCouncil: (() => fakeCouncil) as any,
   deliberate: (async () => fakeVerdict) as any,
   hasCloudKey: false,
+  // no-op persistence so tests never touch the real ~/.mooter vault
+  record: (() => ({ record: {} as any, ledgerPath: "", statePath: "" })) as any,
 };
 
 test("cli: no prompt → usage + exit 2", async () => {

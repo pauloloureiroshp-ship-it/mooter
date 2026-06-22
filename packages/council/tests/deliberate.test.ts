@@ -62,6 +62,20 @@ test("deliberate: minority report preserved even when the winner is CONFIRMED", 
   assert.ok(v.dissent.length >= 1, "dissent section non-empty");
 });
 
+test("deliberate: stability detected when a 2nd round does not move the outcome", async () => {
+  const c = council([seat("a", "A", "uncertain"), seat("b", "B", "uncertain"), seat("d", "D", "uncertain")]);
+  const v = await deliberate("q", c, { stopThreshold: 0.6, maxRounds: 2 });
+  assert.equal(v.rounds, 2);
+  assert.equal(v.stable, true, "round 2 changed nothing → stable");
+});
+
+test("deliberate: decisive round 1 is not flagged stable (no 2nd round happened)", async () => {
+  const c = council([seat("a", "A", "confirm"), seat("b", "B", "confirm"), seat("d", "D", "confirm")]);
+  const v = await deliberate("q", c, { stopThreshold: 0.6 });
+  assert.equal(v.rounds, 1);
+  assert.equal(v.stable, false);
+});
+
 test("deliberate: all seats error → honest empty verdict, no fabrication", async () => {
   const c = council([seat("a", "", "uncertain", 0.9, true), seat("b", "", "uncertain", 0.9, true)]);
   const v = await deliberate("q", c);
