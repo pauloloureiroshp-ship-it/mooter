@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Mooter MCP server (Wave 30 Phase K \u2192 Wave 50-51 1.C) \u2014 20 tools over the MCP stdio protocol (see README.md for the full list). Zero-dep: hand-rolled newline-delimited JSON-RPC 2.0.",
+  "description": "Mooter MCP server (Wave 30 Phase K \u2192 Wave Council) \u2014 21 tools over the MCP stdio protocol (see README.md for the full list). Zero-dep: hand-rolled newline-delimited JSON-RPC 2.0.",
   "bin": {
     "mooter-mcp": "./src/bin.ts"
   },

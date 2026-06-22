@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { councilConveneTool } from "../../council/src/mcp.ts";
 
 import { summarize, EXPECTED_CLASSIFY_SHA } from "../../synthesis/src/state/central-state.ts";
 import { mooterPath, appendJsonl, readJsonSafe } from "../../synthesis/src/config.ts";
@@ -786,6 +787,8 @@ export function buildRegistry(): McpTool[] {
     getSavingsTool,
     explainTierTool,
     sessionSummaryTool,
+    // Wave Council (additive)
+    councilConveneTool,
   ];
 }
 

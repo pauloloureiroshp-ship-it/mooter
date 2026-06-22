@@ -1,7 +1,7 @@
 {
   "name": "mooter",
   "version": "0.2.0",
-  "description": "Mooter MCP server — 20 tools: wave status, dogfood logging, workflows, ecosystem recommendations, Pastor hints/adapters, Notion auto-write, Obsidian sync, effort/ultramoo, workflow watch, GDPR export, cross-session orchestration, live routing (route_query), honest savings, tier explainer, and session summary.",
+  "description": "Mooter MCP server — 21 tools: wave status, dogfood logging, workflows, ecosystem recommendations, Pastor hints/adapters, Notion auto-write, Obsidian sync, effort/ultramoo, workflow watch, GDPR export, cross-session orchestration, live routing (route_query), honest savings, tier explainer, session summary, and council convene.",
   "transport": "stdio",
   "protocolVersion": "2024-11-05",
   "install": {

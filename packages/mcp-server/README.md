@@ -1,10 +1,10 @@
 # @mooter/mcp-server
 
 Mooter's MCP server: a **zero-dependency** stdio MCP implementation (hand-rolled
-newline-delimited JSON-RPC 2.0) that exposes **20 tools** over the Mooter local
+newline-delimited JSON-RPC 2.0) that exposes **21 tools** over the Mooter local
 state. It is a thin protocol adapter — every tool reuses the existing Mooter
 packages (`synthesis`, `cli`, `effort`, `transparency`, `data-rights`,
-`sessions-orchestrator`) and never invents numbers.
+`sessions-orchestrator`, `council`) and never invents numbers.
 
 ## Run
 
