@@ -21,3 +21,4 @@ export * from "./types.ts";
 export * from "./cas.ts";
 export * from "./compose.ts";
 export * from "./verdict.ts";
+export * from "./deliberate.ts";
