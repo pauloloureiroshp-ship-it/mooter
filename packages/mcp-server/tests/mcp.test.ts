@@ -46,11 +46,12 @@ test("ping → empty result", async () => {
   assert.deepEqual(r!.result, {});
 });
 
-test("tools/list returns all 20 tools with inputSchema", async () => {
+test("tools/list returns all 21 tools with inputSchema", async () => {
   const r = await handleRequest(req("tools/list"), registry);
   const tools = (r!.result as { tools: Array<{ name: string; inputSchema: unknown }> }).tools;
-  assert.equal(tools.length, 20); // Wave 50-51 1.C added route_query/get_savings/explain_tier/session_summary
+  assert.equal(tools.length, 21); // Wave Council added council_convene
   assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOL_NAMES].sort());
+  assert.ok(tools.some((t) => t.name === "council_convene"));
   for (const t of tools) assert.ok(t.inputSchema);
   assert.ok(TOOL_NAMES.includes("mooter_pastor_adapter_suggest"));
   assert.ok(TOOL_NAMES.includes("mooter_obsidian_sync"));

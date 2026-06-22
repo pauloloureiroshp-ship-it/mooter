@@ -30,3 +30,9 @@ export * from "./escalation.ts";
 export * from "./auto-trigger.ts";
 export * from "./telemetry.ts";
 export * from "./ledger.ts";
+
+// ---- Bloco C: Builder Council ----
+export * from "./builder.ts";
+export * from "./tests-judge.ts";
+export * from "./cleanup.ts";
+export * from "./mcp.ts";
