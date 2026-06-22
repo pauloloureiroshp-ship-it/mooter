@@ -13,6 +13,8 @@ import { composeCouncil as realCompose, type ComposeBudget } from "./compose.ts"
 import { deliberate as realDeliberate } from "./deliberate.ts";
 import { renderCouncilChip, OPUS_PER_CALL_EST } from "./chip.ts";
 import { decideActOrEscalate } from "./escalation.ts";
+import { recordCouncil } from "./ledger.ts";
+import { postTelemetry } from "./telemetry.ts";
 import type { Council, CouncilVerdict } from "./types.ts";
 
 export interface CliResult {
@@ -24,6 +26,8 @@ export interface CliDeps {
   composeCouncil: typeof realCompose;
   deliberate: typeof realDeliberate;
   hasCloudKey: boolean;
+  /** Injectable persistence (vault ledger + statusline state). */
+  record: typeof recordCouncil;
 }
 
 interface ParsedArgs {
@@ -88,6 +92,7 @@ function renderVerdict(v: CouncilVerdict): string {
 export async function runCouncilCli(args: string[], deps: Partial<CliDeps> = {}): Promise<CliResult> {
   const compose = deps.composeCouncil ?? realCompose;
   const deliberate = deps.deliberate ?? realDeliberate;
+  const record = deps.record ?? recordCouncil;
   const hasCloudKey = deps.hasCloudKey ?? !!process.env.ANTHROPIC_API_KEY;
 
   const p = parseArgs(args);
@@ -135,6 +140,14 @@ export async function runCouncilCli(args: string[], deps: Partial<CliDeps> = {})
   // run mode — real deliberation.
   const verdict = await deliberate(p.prompt, council);
   const decision = p.decide ? decideActOrEscalate(verdict) : null;
+
+  // Persist (vault ledger + statusline state) + best-effort telemetry. Never breaks output.
+  try {
+    const { record: rec } = record(verdict, { category: p.category, localOnly: p.localOnly, decision: decision?.decision });
+    await postTelemetry(rec, {}); // no-op unless MOOTER_HUB_TELEMETRY_URL is set
+  } catch {
+    /* vault/telemetry failure must never break the council output */
+  }
   if (p.json) {
     return { exitCode: 0, output: JSON.stringify(decision ? { verdict, decision } : verdict, null, 2) };
   }
