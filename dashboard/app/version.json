@@ -1,0 +1,4 @@
+{
+  "version": "1.39.0",
+  "_comment": "Mirrors landing/app/version.json (synced from tools/router/version.json). Read by app/layout.tsx sidebar badge — replaces the old hardcoded v0.9.7."
+}
