@@ -4,6 +4,14 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🕸 Sessão — 2026-06-22 (Wave 66 Graphify — Fase B: MERGED em `main` + tag + runtime sync — Claude Code)
+**Estado:** ✅ **Wave 66 MERGED em `main`** via **PR #192** (merge `17882d2`). Local fast-forward de `origin/main` (54 commits: 6 graphify + undici fix #194 `acfb6d9` + outras waves). `classify.js` sha `427d8c0b…364bc48f` **INTACTA em `main`** (re-verificada). `decide-agent.ts` byte-idêntico (`2d6eba4f…`) — só o wrapper novo `graph-aware-decide.ts`.
+**Tag:** `v1.44.0-graphify` (anotada, no merge `17882d2`) — **alinhada ao `version.json` (1.44.0, não bumped: wave aditiva/opt-in)**; convenção `v<ver>-<slug>` como `v1.44.0-first-magic`/`-compaction-advisor`. **⚠️ Local, por pushar (aguarda OK).**
+**Runtime sync (`/mooter-update`):** runtime sincronizado via glob; **graph-* aterraram em `~/.claude/tools/router/`**: `graph-context.js` · `graph-context-bridge.js` · `graph-status.js` (`graph-aware-decide.ts` é package-source, não runtime de hook — correctamente fora). Backtest OK, hub up-to-date, self-test **T3 pass**.
+**Smoke (runtime real):** (a) **sem breadcrumb → ZERO artefactos graph** (`<router-hint>` byte-idêntico à baseline pré-graph) ✅ · (b) **com breadcrumb → `<graph-context>` aparece** (`nós=951 · resolved=true · repo=frugal` + grep-avoidance) ✅ · (c) **HIGH_RISK → tier T3→T3** (grafo nunca faz downgrade; única mudança no hint = `escalation +graph_resolved`, sinal de explicabilidade por design, asserido no teste committed) ✅ · **chip 🕸 default OFF** (ausente mesmo com breadcrumb; só `MOOTER_STATUSLINE_GRAPH=1`/pref liga) ✅.
+**mooter.ai:** ✅ **intacto** — diff mergeado (22 fich.) não toca `landing/`/`app/`/`dashboard/`. Wave 100% aditiva/opt-in.
+**Pendente (OK do Paulo):** `git push origin v1.44.0-graphify` (dispara `version-sync.yml`, mantém `version.json` 1.44.0) + commit/push desta entrada SYNC em `main`.
+
 ### 🕸 Sessão — 2026-06-21 (Wave 66 — Graphify × Mooter aterra em `main`, coexistindo com context-budget)
 **Estado:** ✅ Graphify entregue como **Wave 66** (eixo próprio), branch `wave66-graphify` **off `origin/main` (`07bdf37`)**. Graphify fora deferido sob o rótulo "Wave 61" (entrou o **context-budget** em `main` em vez disso); agora ship independente. Os dois eixos são **ortogonais e coexistem**: graph = estrutura-de-código (grep-vs-graph); context-budget = contexto-por-tier. Esta sessão **NÃO** toca no Wave 61 / context-budget / auto-matrix de `main`. `classify.js` sha `427d8c0b…364bc48f` **INTACTA** (re-verificada início e fim).
 **Origem (decisão Option 1):** cherry-pick **só** dos commits graphify de `wave60_design_redesign` — **NUNCA** merge da branch inteira (regrediria o cockpit 0.16→0.12 e perderia 100+ commits de router de `main`).
