@@ -8,6 +8,31 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [1.45.0] — 2026-06-22 — Council Mode (Wave Council) — *pending merge of PRs #195–#198*
+
+**A third routing axis: classify.js routes by complexity, decideAgent by cost, the Council by *confidence*. When one head isn't enough, Mooter convenes a heterogeneous local-first council, deliberates adversarially with adaptive stopping, and returns a verdict that exposes dissent. For code, members compete in isolated worktrees and tests pick the winner. Cents, not N× frontier — and the Pastor learns to convene it less over time.** Additive `packages/council/`; `classify.js` (sha `427d8c0b…`) and all frozen engine packages untouched (read, never modified).
+
+### Added
+- **CAS** — deterministic, host-side, zero-LLM activation score (confidence / T3 floor / TES tie / category / explicit). Conservative; Pastor auto-tunes the threshold.
+- **Composition** — distinct families, ≥1 local always (high-risk councils run 100% offline), odd size, cross-family Opus judge that never votes, Fable never auto, budget cap.
+- **Deliberation** — Phase-1 parallel (no cross-talk) → adversarial cross-exam (reuses validation `review`/`vote`) → `converge()`-driven adaptive stopping + stability detection.
+- **Honest 4-section verdict** — consensus / dissent / unique findings / recommendation + calibrated confidence + always-preserved minority report (not majority vote).
+- **Conformal ACT/ESCALATE** — high-risk actions become calibrated decisions (linear opinion pool + split conformal); ESCALATE on any real disagreement, ACT only on strong consensus. High-risk T3 floors auto-convene before the dangerous action.
+- **Builder Council** — concurrent implementations in isolated git worktrees, tests as judge (LLM judge only breaks ties among passing builds, length-neutral + anonymized), zero-leak cleanup, MCP tool `council_convene` (mcp-server now 21 tools).
+- **Pastor loop** — content-free outcome ledger, EWMA CAS auto-tune (fires less where redundant), per-category best council, distillation hook.
+- **CLI/telemetry** — `mooter council "<prompt>"` + `mooter council explain|--decide`; 🏛 statusline chip renderer; content-free, k-anon-friendly telemetry + vault ledger.
+
+### Gates (self-checked, honest)
+- **A (value):** 11/12 = 91.7% verdict-change vs single-model on high-CAS prompts (live, 100% local, $0). Caveat: anchor-sensitive; measures change, not (yet) improvement.
+- **B (safety):** exhaustive sweep → zero false-ACT under disagreement.
+- **C (correctness):** real git repo — picks a passing impl, zero worktree leaks, honest "no winner".
+- **D (learning):** CAS threshold rises as the council turns redundant.
+
+### Notes
+- Day-0 recon (11-agent verbatim sweep) confirmed every reused API before any code; see `docs/strategy/WAVE_COUNCIL_DAY0_RECON.md`.
+- LoRA "judge" adapter deferred (no training data yet — not fabricated).
+- Persistent-statusline wiring of the 🏛 chip is the one documented follow-up (data layer `council-last.json` exists).
+
 ## [1.34.0] — 2026-06-10 — Local CC Mirror + Anthropic Pride (Wave 53)
 
 **Mooter as a local Claude Code mirror + honesty layer. Every new surface is opt-in, the statusline default is byte-identical, and `classify.js` (sha `427d8c0b…`) is untouched.**
