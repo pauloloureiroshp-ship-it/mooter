@@ -31,7 +31,15 @@
 - `73e39f5` **worktree cleanup** — `cleanupWorktrees` zero-leak idempotente (remove→prune→reap); branches preservados.
 - `6371488` **mcp council_convene** — `McpTool` registado no mcp-server (21 tools; counts atualizados honestamente); reusa `runCouncilCli`.
 **SELF-GATE C — correção (`2c67258`):** repo git real, e2e compose→build→judge→cleanup; escolhe impl que passa, **zero leaks** (só worktree main), branches preservados; "no winner" honesto quando nada passa → **PASS**. Suite council **89/89**; mcp-server **27/27**; cli **611/627** (15 pré-existentes Windows, zero regressão).
-**Próximo:** PR #3 (Bloco C) → Bloco D (Pastor loop: logging de outcomes + auto-tune CAS EWMA + melhor council por categoria + distill hook).
+**PR #3 (Bloco C):** #197 — <https://github.com/pauloloureiroshp-ship-it/mooter/pull/197> (stacked em #196).
+**Bloco D — Pastor learning loop (4 commits):**
+- `7d0212b` **pastor logging** — outcomes content-free (changedVerdict/decisive/stable/cost/seats/consensusBeatMembers) → ledger vault; `summarizeOutcomes` (change/redundancy/beat rates).
+- `f79acd3` **CAS auto-tune** — `autoTuneCasThreshold` EWMA (reusa `EWMA_ALPHA`/`MIN_DATAPOINTS`): redundância↑ → threshold↑ → dispara MENOS; neutro abaixo de MIN_DATAPOINTS.
+- `6887a63` **per-category best + distill hook** — `bestCouncilPerCategory` (melhor valor por categoria) + `distillHook` (prevê mudança; salta o council quando change-rate baixo c/ dados suficientes; nunca salta sem dados).
+- LoRA judge: **diferido honestamente** (brief: "só se houver dados"; não há dados de treino — não fabricado).
+**SELF-GATE D — aprendizagem (`8e71b35`):** e2e via vault, council com valor decrescente → threshold **sobe** (EWMA redundância >0.6) → dispara menos; nuance honesta (EWMA lidera o distill de média-de-vida). → **PASS**. Suite council **106/106**.
+**Estado dos 4 gates:** A (valor 91.7%) ✅ · B (segurança, zero false-ACT) ✅ · C (correção builder, zero leaks) ✅ · D (aprendizagem, threshold sobe) ✅.
+**Próximo:** PR #4 (Bloco D) → Fecho (CHANGELOG, demo real local, prova sha frozen, final-reviewer, recomendação de tag `v?.?.0-council-complete`).
 
 ### 🕸 Sessão — 2026-06-22 (Wave 66 Graphify — Fase B: MERGED em `main` + tag + runtime sync — Claude Code)
 **Estado:** ✅ **Wave 66 MERGED em `main`** via **PR #192** (merge `17882d2`). Local fast-forward de `origin/main` (54 commits: 6 graphify + undici fix #194 `acfb6d9` + outras waves). `classify.js` sha `427d8c0b…364bc48f` **INTACTA em `main`** (re-verificada). `decide-agent.ts` byte-idêntico (`2d6eba4f…`) — só o wrapper novo `graph-aware-decide.ts`.
