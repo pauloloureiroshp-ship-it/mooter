@@ -24,3 +24,6 @@ export * from "./verdict.ts";
 export * from "./deliberate.ts";
 export * from "./chip.ts";
 export * from "./cli.ts";
+
+// ---- Bloco B: deliberation + calibrated safety ----
+export * from "./escalation.ts";
