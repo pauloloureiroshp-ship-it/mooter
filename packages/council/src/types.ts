@@ -84,6 +84,8 @@ export interface DeliberationTrace {
   rounds: number;
   costUsd: number;
   latencyMs: number;
+  /** Total real model calls made (Phase 1 + all review rounds). */
+  modelCalls: number;
 }
 
 /** The honest 4-section council verdict. */
@@ -106,6 +108,7 @@ export interface CouncilVerdict {
   rounds: number;
   costUsd: number;
   latencyMs: number;
+  modelCalls: number;
   convergence: Convergence;
   voteScore: number;
   /** Honest coverage note (e.g. deterministic judge, all-local, unknown prices). */

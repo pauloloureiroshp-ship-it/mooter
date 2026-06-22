@@ -123,6 +123,7 @@ export function synthesize(
     rounds: trace.rounds,
     costUsd: Math.round(trace.costUsd * 1e6) / 1e6,
     latencyMs: trace.latencyMs,
+    modelCalls: trace.modelCalls,
     convergence: trace.vote.convergence,
     voteScore: Math.round(trace.vote.score * 1000) / 1000,
     coverageNote: coverage.join("; ") || "full cloud council",

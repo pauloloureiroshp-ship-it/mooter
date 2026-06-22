@@ -124,6 +124,7 @@ export async function deliberate(
       rounds: 0,
       costUsd: answerCost,
       latencyMs: Date.now() - wall0,
+      modelCalls: answers.length,
     };
     return synthesize(trace, council, { coverageNotes: opts.coverageNotes });
   }
@@ -202,6 +203,7 @@ export async function deliberate(
     rounds,
     costUsd: answerCost + meter.cost,
     latencyMs: Date.now() - wall0,
+    modelCalls: answers.length + meter.calls,
   };
 
   return synthesize(trace, council, { coverageNotes: opts.coverageNotes });

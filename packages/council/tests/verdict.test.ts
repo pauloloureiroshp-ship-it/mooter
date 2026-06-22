@@ -31,6 +31,7 @@ function trace(partial: Partial<DeliberationTrace>): DeliberationTrace {
     rounds: 1,
     costUsd: 0,
     latencyMs: 10,
+    modelCalls: 0,
     ...partial,
   };
 }
