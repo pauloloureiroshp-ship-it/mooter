@@ -17,6 +17,19 @@ describe('pilar/site R2 — landing How it works', () => {
     expect(src).toContain('3 · Learn');
   });
 
+  it('locks the Classify claim to the established <50ms / regex figure', () => {
+    expect(src).toContain('<50ms — regex, zero LLM cost');
+  });
+
+  it('keeps the Learn claim grounded — no autonomy drift beyond "tunes itself"', () => {
+    // Guard against this becoming "continuously self-optimizes with AI" or similar.
+    expect(src).toContain('tunes itself from your own routed calls');
+  });
+
+  it('the section links onward to the benchmark and under-the-hood', () => {
+    expect(src).toContain('href="/under-the-hood"');
+  });
+
   it('no longer repeats the hero pitch (each pitch line appears exactly once)', () => {
     // Both lines used to appear twice (hero + a verbatim "How it works" copy).
     expect(count(src, 'already paying for a powerful AI stack')).toBe(1);
