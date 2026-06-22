@@ -14,7 +14,11 @@
 - **Calibração:** confiança **≥0,6 → 91%** vs <0,6 → 81% (✅ a confiança calibra). **MAS** convergência **CONFIRMED → 80%** vs not-CONFIRMED → 92% (**invertido** — o sinal ACT/CONFIRMED está mal calibrado a este N; caveat honesto, possível ruído n pequeno).
 **Recomendação (saída 2 de 3 — GATED):** **manter o council GATED a alto-risco** (válvula ESCALATE), **especialmente security-audit / factual-grounding / tarefas propensas a alucinação** onde o ganho verificável é grande (+33pp / +20pp). **NÃO vender como "respostas melhores" em geral** — o pairwise aberto é um empate e pode regredir bugfixes simples. Usar o sinal **confiança≥0,6**; **recalibrar o sinal CONFIRMED** antes de o usar para ACT. Não net-win → **não** merge+tag flagship; não net-loss → **não** é fix-juiz urgente. Evidência: `packages/council/scripts/quality-eval-results.json` (caveat embebido) + `_handoff/council-eval/RESULTS.md`.
 **Caveats (assinados):** all-LOCAL (sem arm C all-Opus; arm A = melhor single **local**); council **mono-vendor** (3 variantes Qwen — diversidade limitada pelos modelos instalados); aberto n=11 → IC largo por construção; `contains:` é matching booleano de substrings (pode sub/sobre-creditar paráfrases). Mitigado: juiz cross-vendor+cego+length-neutral; subset verificável (determinístico) é o sinal mais forte.
-**Gate humano (NÃO mergeado):** PR aberto de `wave-autopilot-loop` → `wave-council-d` (não `main`). Comando de merge para o Paulo decidir no fundo desta entrada.
+**Gate humano (NÃO mergeado):** **PR #199** — <https://github.com/pauloloureiroshp-ship-it/mooter/pull/199> (`wave-autopilot-loop` → `wave-council-d`, **não `main`**). final-reviewer (Opus): **SHIP**, zero nits. Comando exacto para o Paulo decidir:
+```bash
+# rever primeiro:  gh pr diff 199 --repo pauloloureiroshp-ship-it/mooter
+gh pr merge 199 --repo pauloloureiroshp-ship-it/mooter --squash   # merge p/ wave-council-d (NÃO main)
+```
 **+ Feature landed nesta run — 🛸 Mooter Autopilot Loop (plugin):** módulo `packages/vscode-extension/src/cockpit-loop.js` + 6 pontos de wiring (tab 🛸 Autopilot, comando `mooter.startAutopilotWave`, `readLoopState` no snapshot, casos loop* no onDidReceiveMessage). **52/52 testes da extensão verdes** (incl. parsing real do webview). Smoke `DRY_RUN=1` do `loop-runner.mjs` confirmado (round 1 → awaiting_eval). 3 divergências reais vs spec documentadas e adaptadas (tabs estáticas/client-render, CSP sem inline onclick → `data-loop`, CSS escopado) em `_handoff/autopilot-loop/AUTOPILOT_LOOP.md`.
 
 ---
