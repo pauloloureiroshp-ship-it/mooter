@@ -11,7 +11,7 @@
 // so we wrap the seat in a metering caller). Honesty: a seat that errors abstains
 // (uncertain) — the council never fabricates an answer it did not get.
 
-import { parallel } from "../../workflow/src/primitives.ts";
+import { parallel, converge } from "../../workflow/src/primitives.ts";
 import { review } from "../../validation/src/adversarial/reviewer.ts";
 import { vote } from "../../validation/src/adversarial/voter.ts";
 import { synthesize } from "./verdict.ts";
@@ -39,6 +39,8 @@ export interface DeliberateOptions {
   maxRounds?: number;
   /** Passed to vote(). */
   voteThreshold?: number;
+  /** Winner score delta below which an extra round is deemed stable (stop). */
+  stabilityEpsilon?: number;
   /** Extra honesty caveats forwarded to synthesize(). */
   coverageNotes?: string[];
 }
@@ -89,6 +91,7 @@ export async function deliberate(
   const stopThreshold = opts.stopThreshold ?? 0.6;
   const maxRounds = opts.maxRounds ?? 2;
   const voteThreshold = opts.voteThreshold ?? 0.5;
+  const stabilityEpsilon = opts.stabilityEpsilon ?? 0.15;
   const wall0 = Date.now();
   const meter: Meter = { cost: 0, latency: 0, calls: 0 };
 
@@ -125,6 +128,7 @@ export async function deliberate(
       costUsd: answerCost,
       latencyMs: Date.now() - wall0,
       modelCalls: answers.length,
+      stable: false,
     };
     return synthesize(trace, council, { coverageNotes: opts.coverageNotes });
   }
@@ -156,42 +160,63 @@ export async function deliberate(
     }
   };
 
-  let rounds = 0;
-  await runRound(candidates, round1Lenses);
-  rounds = 1;
-
   const voteOf = (id: string) => vote(reviewsByCandidate.get(id) ?? [], { threshold: voteThreshold });
-  let winnerId = candidates[0].seatId;
-  let winnerVote = voteOf(winnerId);
-  for (const c of candidates) {
-    const v = voteOf(c.seatId);
-    if (betterVote(v, winnerVote) === v) {
-      winnerVote = v;
-      winnerId = c.seatId;
-    }
-  }
-
-  // Adaptive stopping (iMAD): decisive consensus in EITHER direction → skip round 2.
-  // A unanimous refute is consensus too; only genuine uncertainty needs another round.
-  const decisive =
-    (winnerVote.convergence === "CONFIRMED" || winnerVote.convergence === "REJECTED") &&
-    Math.abs(winnerVote.score) >= stopThreshold;
-  if (!decisive && maxRounds > 1 && candidates.length > 1) {
-    // Round 2: re-examine the top-2 candidates along the round-2 lenses.
-    const ranked = [...candidates].sort((a, b) => voteOf(b.seatId).score - voteOf(a.seatId).score);
-    const top2 = ranked.slice(0, 2);
-    await runRound(top2, round2Lenses);
-    rounds = 2;
-    winnerId = candidates[0].seatId;
-    winnerVote = voteOf(winnerId);
+  const pickWinner = (): { id: string; v: VoteResult } => {
+    let id = candidates[0].seatId;
+    let v = voteOf(id);
     for (const c of candidates) {
-      const v = voteOf(c.seatId);
-      if (betterVote(v, winnerVote) === v) {
-        winnerVote = v;
-        winnerId = c.seatId;
+      const cv = voteOf(c.seatId);
+      if (betterVote(cv, v) === cv) {
+        v = cv;
+        id = c.seatId;
       }
     }
-  }
+    return { id, v };
+  };
+
+  // Multi-round cross-exam driven by converge(): each iteration runs a round, picks
+  // the winner, then STOPS (returns the SAME reference → converge's fixpoint) on
+  // decisive consensus in either direction OR detected stability (winner unchanged +
+  // score delta < epsilon between rounds). Otherwise it returns a NEW value to
+  // escalate. maxRounds caps converge's iterations as a hard ceiling.
+  const lensSchedule: Lens[][] = [round1Lenses, round2Lenses];
+  let rounds = 0;
+  let prevWinner: string | null = null;
+  let prevScore = Number.NaN;
+  let stable = false;
+  let winnerId = candidates[0].seatId;
+  let winnerVote = voteOf(winnerId);
+
+  await converge<{ round: number }>(
+    [{ round: 0 }],
+    async (st) => {
+      const lenses = lensSchedule[rounds] ?? round2Lenses;
+      const cands =
+        rounds === 0
+          ? candidates
+          : [...candidates].sort((a, b) => voteOf(b.seatId).score - voteOf(a.seatId).score).slice(0, 2);
+      await runRound(cands, lenses);
+      rounds += 1;
+
+      const w = pickWinner();
+      winnerId = w.id;
+      winnerVote = w.v;
+
+      const decisive =
+        (winnerVote.convergence === "CONFIRMED" || winnerVote.convergence === "REJECTED") &&
+        Math.abs(winnerVote.score) >= stopThreshold;
+      const changedWinner = winnerId !== prevWinner;
+      const scoreDelta = Number.isNaN(prevScore) ? Infinity : Math.abs(winnerVote.score - prevScore);
+      stable = !changedWinner && scoreDelta < stabilityEpsilon;
+      prevWinner = winnerId;
+      prevScore = winnerVote.score;
+
+      // Fixpoint (same ref → stop): decisive, stable, single candidate, or budget spent.
+      if (decisive || stable || candidates.length < 2 || rounds >= maxRounds) return st;
+      return { round: rounds }; // new ref → run another round
+    },
+    maxRounds,
+  );
 
   const trace: DeliberationTrace = {
     prompt,
@@ -204,6 +229,7 @@ export async function deliberate(
     costUsd: answerCost + meter.cost,
     latencyMs: Date.now() - wall0,
     modelCalls: answers.length + meter.calls,
+    stable,
   };
 
   return synthesize(trace, council, { coverageNotes: opts.coverageNotes });

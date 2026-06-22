@@ -86,6 +86,8 @@ export interface DeliberationTrace {
   latencyMs: number;
   /** Total real model calls made (Phase 1 + all review rounds). */
   modelCalls: number;
+  /** True when an extra round did not move the outcome (adaptive stability). */
+  stable: boolean;
 }
 
 /** The honest 4-section council verdict. */
@@ -104,11 +106,15 @@ export interface CouncilVerdict {
   minorityReport: MinorityEntry[];
   // ---- meta / transparency ----
   seats: string[];
+  /** Seat whose answer won the adversarial round (null if no usable answer). */
+  winnerSeatId: string | null;
   judge: string | null;
   rounds: number;
   costUsd: number;
   latencyMs: number;
   modelCalls: number;
+  /** Whether deliberation stabilized (extra round changed nothing). */
+  stable?: boolean;
   convergence: Convergence;
   voteScore: number;
   /** Honest coverage note (e.g. deterministic judge, all-local, unknown prices). */
