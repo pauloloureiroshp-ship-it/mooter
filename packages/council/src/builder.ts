@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { parallel } from "../../workflow/src/primitives.ts";
 import { acquireWithRecovery, reap } from "../../worktree-conductor/src/conductor.ts";
 import { release } from "../../worktree-conductor/src/locks.ts";
+import { judgeByTests } from "./tests-judge.ts";
 import type { Council, ModelSpec } from "./types.ts";
 
 export interface BuilderTask {
@@ -30,6 +31,8 @@ export interface BuilderTask {
   branchPrefix?: string;
   /** Scratch dir for worktrees. Default <repoDir>/.council-worktrees. */
   scratchDir?: string;
+  /** When true, a dedicated seat generates tests in each worktree before judging. */
+  testsMissing?: boolean;
   /** Conductor lock home (tests → tmp). */
   home?: string;
   /** Lock owner session id. Default "council-builder". */
@@ -50,6 +53,8 @@ export interface MemberBuild {
   passed: boolean;
   /** Sum of added+deleted lines vs base — length signal for the length-neutral judge. */
   diffLines: number;
+  /** The unified diff vs base (capped) — shown to the anonymized LLM tie-break judge. */
+  diff?: string;
   testOutput: string;
   error?: string;
 }
@@ -64,7 +69,9 @@ export interface BuilderResult {
 export interface BuilderOptions {
   implementor: Implementor;
   concurrency?: number;
-  /** Pick the winner among passing builds. Default: first passing. tests-judge overrides. */
+  /** A dedicated seat that writes tests into a worktree when task.testsMissing. */
+  testGenerator?: Implementor;
+  /** Override the judge (sync). Default: judgeByTests (length-neutral + LLM tie-break). */
   pickWinner?: (passing: MemberBuild[]) => MemberBuild | null;
 }
 
@@ -169,7 +176,16 @@ export async function buildWithCouncil(
         m.error = `implementor error: ${(e as Error).message}`;
         return;
       }
+      // If the task ships no tests, a dedicated seat generates them first (design 11e).
+      if (task.testsMissing && opts.testGenerator) {
+        try {
+          await opts.testGenerator(seat, { worktreeDir: m.worktreeDir, task });
+        } catch (e) {
+          m.error = `test generation error: ${(e as Error).message}`;
+        }
+      }
       m.diffLines = diffLinesVsBase(m.worktreeDir, task.base);
+      m.diff = gitSafe(["diff", task.base], m.worktreeDir).out.slice(0, 4000);
       const t = runTests(task.testArgv, m.worktreeDir);
       m.passed = t.passed;
       m.testOutput = t.output;
@@ -184,11 +200,17 @@ export async function buildWithCouncil(
     gitSafe(["-c", "user.email=council@mooter", "-c", "user.name=Council Builder", "commit", "-m", `council: ${m.seatId}`], m.worktreeDir);
   }
 
-  // 4) Judge: pick winner among passing builds.
+  // 4) Judge: tests are the judge; the LLM judge only breaks ties among passing builds.
   const passing = members.filter((m) => m.passed);
-  const pick = opts.pickWinner ?? ((p) => p[0] ?? null);
-  const winner = passing.length ? pick(passing) : null;
-  if (!winner) notes.push(passing.length ? "judge returned no winner" : "no implementation passed the tests — no winner (honest)");
+  let winner: MemberBuild | null;
+  if (opts.pickWinner) {
+    winner = passing.length ? opts.pickWinner(passing) : null;
+    if (!winner) notes.push(passing.length ? "judge returned no winner" : "no implementation passed — no winner (honest)");
+  } else {
+    const j = await judgeByTests(members, { llmJudge: council.judge });
+    winner = j.winner;
+    notes.push(j.note);
+  }
 
   // 5) Cleanup: remove ALL worktrees (zero leaks); KEEP branches (the diffs). Reap stale locks.
   let cleanedUp = true;
