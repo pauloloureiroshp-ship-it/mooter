@@ -36,3 +36,6 @@ export * from "./builder.ts";
 export * from "./tests-judge.ts";
 export * from "./cleanup.ts";
 export * from "./mcp.ts";
+
+// ---- Bloco D: Pastor learning loop ----
+export * from "./pastor.ts";
