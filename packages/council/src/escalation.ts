@@ -24,6 +24,14 @@ export interface EscalationConfig {
   requireConfirmed?: boolean;
   /** A minority refute at/above this confidence is a credible objection → ESCALATE. */
   refuteVetoLevel?: number;
+  /**
+   * Calibrated floor: even a CONFIRMED verdict must clear this confidence to ACT.
+   * W2 recalibration (quality-eval, n=32 verifiable): CONFIRMED *alone* is only 80%
+   * accurate, but CONFIRMED ∧ confidence ≥ 0.6 is 90.9%, while CONFIRMED ∧ confidence
+   * < 0.6 collapses to 66.7%. A bare CONFIRMED that barely clears the vote threshold is
+   * the inversion source — it must NOT license ACT. Default 0.6 (empirically justified).
+   */
+  minConfirmedConfidence?: number;
 }
 
 export interface EscalationDecision {
@@ -76,6 +84,7 @@ export function decideActOrEscalate(
   const alpha = config.alpha ?? 0.2; // default: need ≥ 0.8 pooled confidence
   const requireConfirmed = config.requireConfirmed ?? true;
   const refuteVetoLevel = config.refuteVetoLevel ?? 0.7;
+  const minConfirmedConfidence = config.minConfirmedConfidence ?? 0.6; // W2-calibrated ACT floor
 
   const threshold = conformalThreshold(config.calibration ?? [], alpha);
   const refuteVeto = strongestRefute(verdict);
@@ -89,10 +98,15 @@ export function decideActOrEscalate(
   // invariant (no false-ACT under disagreement) holds for credible objections by this
   // definition; lowering refuteVetoLevel widens the ACT envelope — tune deliberately.
   const hardObjection = refuteVeto >= refuteVetoLevel;
-  const confirmedOk = !requireConfirmed || verdict.convergence === "CONFIRMED";
+  // ACT requires CONFIRMED *and* the calibrated confidence floor — a low-confidence
+  // CONFIRMED (the empirical inversion: 66.7% accurate) does NOT clear the gate.
+  const isConfirmed = verdict.convergence === "CONFIRMED";
+  const confidentEnough = verdict.confidence >= minConfirmedConfidence;
+  const confirmedOk = !requireConfirmed || (isConfirmed && confidentEnough);
 
   if (hardObjection) reasons.push(`credible objection (refute confidence ${refuteVeto.toFixed(2)} ≥ ${refuteVetoLevel})`);
-  if (!confirmedOk) reasons.push(`convergence ${verdict.convergence} (not CONFIRMED)`);
+  if (!confirmedOk && !isConfirmed) reasons.push(`convergence ${verdict.convergence} (not CONFIRMED)`);
+  if (!confirmedOk && isConfirmed && !confidentEnough) reasons.push(`CONFIRMED but confidence ${verdict.confidence.toFixed(2)} < calibrated floor ${minConfirmedConfidence} (low-confidence CONFIRMED is the inversion source)`);
   if (pooledConfidence < threshold) reasons.push(`pooled confidence ${pooledConfidence.toFixed(2)} < threshold ${threshold.toFixed(2)}`);
 
   let decision: Decision = "ESCALATE";

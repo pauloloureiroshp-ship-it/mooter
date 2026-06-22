@@ -90,3 +90,32 @@ test("deliberate: recommendation is the winning candidate's text", async () => {
   // winner = C (the one a,b confirmed) → recommendation is C's text
   assert.equal(v.recommendation, "answer-C");
 });
+
+test("deliberate: length-neutral selection — at equal correctness the CONCISE answer wins (not the verbose one, not array order)", async () => {
+  // All three seats confirm each other → all candidates CONFIRMED with the same score
+  // (tied on correctness). The shortest answer belongs to seat 'z' (lexicographically
+  // last AND last in the array). A position/seatId-biased selector would pick 'a' (the
+  // verbose, first answer); length-neutral selection must pick 'z' (the concise one).
+  const verbose = "yes, and to elaborate at length: here is a great deal of redundant restatement";
+  const c = council([
+    seat("a", verbose, "confirm"),
+    seat("m", "yes, that is correct", "confirm"),
+    seat("z", "yes", "confirm"),
+  ]);
+  const v = await deliberate("q", c, { stopThreshold: 0.6 });
+  assert.equal(v.convergence, "CONFIRMED");
+  assert.equal(v.recommendation, "yes", "concise answer wins the correctness tie");
+  assert.equal(v.winnerSeatId, "z");
+});
+
+test("deliberate: lengthNeutral:false reproduces the pre-W2 position-stable tiebreak (last-in-array, NOT shortest) — A/B control", async () => {
+  const c = council([
+    seat("a", "this is a long verbose answer with many redundant words", "confirm"),
+    seat("m", "yes", "confirm"),                 // shortest
+    seat("z", "yes indeed sir", "confirm"),       // last in array
+  ]);
+  const vNew = await deliberate("q", c, { stopThreshold: 0.6 });
+  assert.equal(vNew.recommendation, "yes", "length-neutral (default) picks the shortest");
+  const vOld = await deliberate("q", c, { stopThreshold: 0.6, lengthNeutral: false });
+  assert.equal(vOld.recommendation, "yes indeed sir", "lengthNeutral:false picks last-in-array (old behaviour)");
+});

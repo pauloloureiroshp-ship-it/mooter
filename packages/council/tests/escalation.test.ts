@@ -85,6 +85,28 @@ test("ESCALATE when pooled confidence is below the conformal threshold", () => {
   assert.ok(d.reasons.some((r) => /threshold/.test(r)));
 });
 
+// ──────────────────── ACT recalibration: calibrated CONFIRMED floor (W2) ────────────────────
+test("CALIBRATION: a low-confidence CONFIRMED does NOT license ACT (the inversion source)", () => {
+  // CONFIRMED conf 0.55 (< 0.6 floor). Empirically CONFIRMED∧conf<0.6 → 66.7% accurate,
+  // so it must ESCALATE. We lower the conformal threshold (alpha 0.4 → 0.6) so the POOLED
+  // gate would PASS — isolating the calibrated floor as the decisive blocker.
+  const d = decideActOrEscalate(v({ convergence: "CONFIRMED", confidence: 0.55, minorityReport: [] }), { alpha: 0.4 });
+  assert.equal(d.decision, "ESCALATE");
+  assert.ok(d.reasons.some((r) => /calibrated floor/.test(r)), `floor must be the reason, got: ${d.reasons.join(" | ")}`);
+  assert.ok(!d.reasons.some((r) => /pooled confidence .* < threshold/.test(r)), "pooled gate passed → floor is the decisive blocker");
+});
+
+test("CALIBRATION: a CONFIRMED above the floor with high confidence still ACTs (no over-correction)", () => {
+  const d = decideActOrEscalate(v({ convergence: "CONFIRMED", confidence: 0.95, minorityReport: [] }));
+  assert.equal(d.decision, "ACT");
+});
+
+test("CALIBRATION: the floor is configurable — lowering it flips the SAME verdict from ESCALATE to ACT", () => {
+  const verdict = v({ convergence: "CONFIRMED", confidence: 0.55, minorityReport: [] });
+  assert.equal(decideActOrEscalate(verdict, { alpha: 0.4 }).decision, "ESCALATE", "default floor 0.6 blocks");
+  assert.equal(decideActOrEscalate(verdict, { alpha: 0.4, minConfirmedConfidence: 0.5 }).decision, "ACT", "floor 0.5 admits it");
+});
+
 test("SAFETY INVARIANT: a credible refute can never yield ACT (no false-ACT under disagreement)", () => {
   for (const conf of [0.5, 0.7, 0.9, 0.99]) {
     const d = decideActOrEscalate(

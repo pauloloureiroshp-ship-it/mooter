@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { synthesize, calibrateConfidence, minorityReport } from "../src/verdict.ts";
+import {
+  synthesize,
+  calibrateConfidence,
+  minorityReport,
+  selectWinner,
+  preferCandidate,
+  type WinnerCandidate,
+} from "../src/verdict.ts";
 import type {
   Council,
   CouncilVerdict,
@@ -58,6 +65,58 @@ test("minorityReport: only non-confirm reviews are preserved (with evidence)", (
   assert.equal(mr.length, 2);
   assert.ok(mr.some((m) => m.verdict === "refute" && /off-by-one/.test(m.rationale)));
   assert.ok(mr.some((m) => m.verdict === "uncertain"));
+});
+
+// ──────────────────── length-neutral winner selection (W2) ────────────────────
+function cand(seatId: string, convergence: Convergence, score: number, length: number): WinnerCandidate {
+  return { seatId, vote: vr(convergence, score, []), length };
+}
+
+test("preferCandidate: correctness dominates — higher convergence rank wins regardless of length", () => {
+  const confirmedLong = cand("a", "CONFIRMED", 0.8, 9999);
+  const uncertainShort = cand("b", "UNCERTAIN", 0.9, 1);
+  assert.equal(preferCandidate(confirmedLong, uncertainShort), true, "CONFIRMED beats UNCERTAIN even if far longer");
+  assert.equal(preferCandidate(uncertainShort, confirmedLong), false);
+});
+
+test("preferCandidate: a materially higher vote score wins even when longer (length never trumps correctness)", () => {
+  const strongLong = cand("a", "CONFIRMED", 0.9, 5000);
+  const weakShort = cand("b", "CONFIRMED", 0.5, 10); // Δscore 0.4 > epsilon
+  assert.equal(preferCandidate(strongLong, weakShort), true);
+});
+
+test("preferCandidate: at EQUAL correctness (same rank, |Δscore| ≤ ε) the SHORTER answer wins", () => {
+  const concise = cand("a", "CONFIRMED", 0.80, 40);
+  const verbose = cand("b", "CONFIRMED", 0.82, 400); // within ε=0.05 → tied on correctness
+  assert.equal(preferCandidate(concise, verbose), true, "concise wins the tie");
+  assert.equal(preferCandidate(verbose, concise), false, "verbosity is never rewarded");
+});
+
+test("selectWinner: verbosity is not rewarded — among equally-correct answers the shortest wins, and it is POSITION-FREE", () => {
+  // The shortest answer belongs to seat 'z' (lexicographically LAST) and appears LAST
+  // in the array. If selection leaked position/seatId order, 'a' (verbose) would win.
+  const cands: WinnerCandidate[] = [
+    cand("a", "CONFIRMED", 0.81, 500), // verbose, first in array, lexicographically first
+    cand("m", "CONFIRMED", 0.80, 120),
+    cand("z", "CONFIRMED", 0.82, 12),  // concise, last in array, lexicographically last
+  ];
+  assert.equal(selectWinner(cands)!.seatId, "z");
+  // Order-invariance: reversing the input must not change the winner.
+  assert.equal(selectWinner([...cands].reverse())!.seatId, "z");
+});
+
+test("selectWinner: fully tied (same rank, score, length) → deterministic seatId tiebreak, never array order", () => {
+  const cands: WinnerCandidate[] = [
+    cand("c", "CONFIRMED", 0.8, 50),
+    cand("a", "CONFIRMED", 0.8, 50),
+    cand("b", "CONFIRMED", 0.8, 50),
+  ];
+  assert.equal(selectWinner(cands)!.seatId, "a");
+  assert.equal(selectWinner([...cands].reverse())!.seatId, "a", "deterministic regardless of order");
+});
+
+test("selectWinner: empty set → null (no fabricated winner)", () => {
+  assert.equal(selectWinner([]), null);
 });
 
 test("synthesize: 4 sections populated + recommendation = winner text", () => {

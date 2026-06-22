@@ -19,7 +19,60 @@ import type {
   DeliberationTrace,
   MinorityEntry,
   ReviewResult,
+  VoteResult,
 } from "./types.ts";
+
+/** A winner candidate: its adversarial vote plus the verbosity signal (answer length). */
+export interface WinnerCandidate {
+  seatId: string;
+  vote: VoteResult;
+  /** Character length of the candidate's answer — the verbosity signal (length-neutrality). */
+  length: number;
+}
+
+/** Convergence → ordinal rank. CONFIRMED beats UNCERTAIN beats REJECTED. */
+function convergenceRank(c: VoteResult["convergence"]): number {
+  return c === "CONFIRMED" ? 2 : c === "UNCERTAIN" ? 1 : 0;
+}
+
+/**
+ * Length-neutral total order over candidates (Doctrine §5 — never reward verbosity).
+ *
+ * Correctness ALWAYS dominates: a higher convergence rank wins; at equal rank a
+ * MATERIALLY higher vote score (Δ > scoreEpsilon) wins. ONLY when two candidates are
+ * statistically tied on correctness (same rank AND |Δscore| ≤ scoreEpsilon) does the
+ * SHORTER answer win — verbosity is never a tiebreaker in its own favour. The final
+ * tiebreak is the seatId (lexicographic), NOT array position, so selection is
+ * deterministic and free of the position bias an array-order tiebreak smuggles in.
+ *
+ * Returns true iff `a` should beat `b`.
+ */
+export function preferCandidate(
+  a: WinnerCandidate,
+  b: WinnerCandidate,
+  scoreEpsilon = 0.05,
+): boolean {
+  const ra = convergenceRank(a.vote.convergence);
+  const rb = convergenceRank(b.vote.convergence);
+  if (ra !== rb) return ra > rb;
+  if (Math.abs(a.vote.score - b.vote.score) > scoreEpsilon) return a.vote.score > b.vote.score;
+  // Equal correctness → prefer the more concise answer (length-neutral: no verbosity bonus).
+  if (a.length !== b.length) return a.length < b.length;
+  // Fully tied → deterministic, position-free tiebreak on seatId.
+  return a.seatId < b.seatId;
+}
+
+/**
+ * Pick the winning candidate under the length-neutral order. Pure; ties resolved
+ * deterministically (never by array position). Returns null on an empty set.
+ */
+export function selectWinner(
+  candidates: WinnerCandidate[],
+  scoreEpsilon = 0.05,
+): WinnerCandidate | null {
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, c) => (preferCandidate(c, best, scoreEpsilon) ? c : best));
+}
 
 function uniqueShort(items: string[], max = 6): string[] {
   const seen = new Set<string>();

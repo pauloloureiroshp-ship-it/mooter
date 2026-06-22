@@ -41,14 +41,53 @@ import { gradeVerifiable, wilson } from "./quality-grade.ts";
 const SEAT_IDS = (process.env.EVAL_SEATS ?? "qwen2.5-coder:7b,qwen2.5:3b,qwen2.5-coder:14b").split(",");
 const SINGLE_ID = process.env.EVAL_SINGLE ?? "qwen2.5-coder:14b"; // strongest single local → fair baseline
 const JUDGE_ID = process.env.EVAL_JUDGE ?? "gemma3:12b";          // cross-vendor (Google ≠ Alibaba/Qwen)
-const LIMIT = process.env.EVAL_LIMIT ? Number(process.env.EVAL_LIMIT) : Infinity;
+const LIMIT_ARG = process.argv.slice(2).find((a) => a.startsWith("--limit="))?.split("=")[1];
+const LIMIT = LIMIT_ARG ? Number(LIMIT_ARG) : process.env.EVAL_LIMIT ? Number(process.env.EVAL_LIMIT) : Infinity;
+const ACT_FLOOR = 0.6; // W2-calibrated ACT confidence floor (mirrors escalation.ts minConfirmedConfidence)
 
-const single: ModelSpec = makeOllamaModel(SINGLE_ID, "T0");
-const judge: ModelSpec = makeOllamaModel(JUDGE_ID, "T0");
+// Reproducibility (W2): the frozen makeOllamaModel uses temperature 0.2 with NO seed, so a
+// re-run flips ~12% of items by decode noise alone (single-A flipped 4/32 between two runs
+// at identical code) — too noisy to certify a sub-15pp non-regression from ONE sample/item.
+// EVAL_SEED / --seed=N builds a DETERMINISTIC local caller (temperature 0 + fixed seed) so
+// old-code↔new-code can be compared apples-to-apples. This lives in the eval (NOT a frozen
+// engine file); it never modifies callers.ts. Default (no seed) keeps the original caller.
+const SEED_ARG = process.argv.slice(2).find((a) => a.startsWith("--seed="))?.split("=")[1];
+const EVAL_SEED = SEED_ARG ?? process.env.EVAL_SEED;
+const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
+// A/B attribution (W2): --no-length-neutral runs the council with the pre-W2 tiebreak so the
+// length-neutral change can be isolated under a fixed seed. --tag=X suffixes the output files
+// so an A/B pair does not clobber the canonical artifacts.
+const LENGTH_NEUTRAL = !process.argv.slice(2).includes("--no-length-neutral");
+const TAG = process.argv.slice(2).find((a) => a.startsWith("--tag="))?.split("=")[1] ?? "";
+
+function makeSeededOllamaModel(id: string, seed: number): ModelSpec {
+  return {
+    id, tier: "T0", kind: "local",
+    async call(prompt: string) {
+      const t0 = Date.now();
+      try {
+        const res = await fetch(`${OLLAMA_HOST}/api/generate`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: id, prompt, stream: false, options: { temperature: 0, seed } }),
+        });
+        if (!res.ok) return { text: "", costUsd: 0, latencyMs: Date.now() - t0, error: `ollama HTTP ${res.status}` };
+        const json = (await res.json()) as { response?: string };
+        return { text: json.response ?? "", costUsd: 0, latencyMs: Date.now() - t0 };
+      } catch (e) {
+        return { text: "", costUsd: 0, latencyMs: Date.now() - t0, error: (e as Error).message };
+      }
+    },
+  };
+}
+const mkModel = (id: string): ModelSpec =>
+  EVAL_SEED !== undefined ? makeSeededOllamaModel(id, Number(EVAL_SEED)) : makeOllamaModel(id, "T0");
+
+const single: ModelSpec = mkModel(SINGLE_ID);
+const judge: ModelSpec = mkModel(JUDGE_ID);
 const council: Council = {
-  seats: SEAT_IDS.map((id) => makeOllamaModel(id.trim(), "T0")),
+  seats: SEAT_IDS.map((id) => mkModel(id.trim())),
   judge: null, // Advisory: deterministic synthesis (no internal cloud judge)
-  note: `eval council: ${SEAT_IDS.join(" + ")} (local, $0)`,
+  note: `eval council: ${SEAT_IDS.join(" + ")} (local, $0)${EVAL_SEED !== undefined ? `, seed=${EVAL_SEED} deterministic` : ""}`,
   estCostUsd: 0,
 };
 
@@ -88,14 +127,21 @@ function parseVerdict(text: string): "1" | "2" | "tie" | null {
   return (last as "1" | "2") ?? null;
 }
 
-/** Run the judge once with a given (resp1, resp2) ordering → which response won. */
+/** Run the judge once with a given (resp1, resp2) ordering → which response won.
+ *  Retries on a call error / unparseable reply (W2: 4/11 open items were lost to transient
+ *  judge failures → forced ties that polluted the open arm). Up to 3 attempts before null. */
 async function judgeOnce(question: string, rubric: string, r1: string, r2: string): Promise<"1" | "2" | "tie" | null> {
   const prompt =
     `${RUBRIC_PREFACE}\n\nRUBRIC for a good answer: ${rubric}\n\n` +
     `QUESTION:\n${question}\n\n--- Response 1 ---\n${r1}\n\n--- Response 2 ---\n${r2}\n\nWhich response is better?`;
-  const out = await judge.call(prompt);
-  if (out.error) return null;
-  return parseVerdict(out.text);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const out = await judge.call(prompt);
+    if (!out.error) {
+      const v = parseVerdict(out.text);
+      if (v !== null) return v;
+    }
+  }
+  return null;
 }
 
 /** Blind pairwise, BOTH orders. Returns A/B/tie for council(B) vs single(A). */
@@ -128,15 +174,37 @@ async function main() {
 
   // Checkpoint each row as we go (long all-local run) so an interrupted run still yields
   // data. Transient + gitignored; the committed artifact is quality-eval-results.json.
-  const progressUrl = new URL("./quality-eval-progress.jsonl", import.meta.url);
-  try { writeFileSync(progressUrl, ""); } catch { /* best effort */ }
-
+  // RESUME-SAFE (W2): the ~40-min all-local run does not survive a host/session restart,
+  // so EVAL_RESUME re-seeds `rows` from the checkpoint and skips already-graded ids, and
+  // EVAL_CHUNK_SECONDS bounds each pass (exit 0 with a PARTIAL marker) so the run can be
+  // driven to completion in restart-safe chunks. Defaults preserve the original behaviour.
+  // Knobs accepted via CLI args (--resume, --chunk=N) or env (EVAL_RESUME, EVAL_CHUNK_SECONDS).
+  const argv = process.argv.slice(2);
+  const chunkArg = argv.find((a) => a.startsWith("--chunk="))?.split("=")[1];
+  const RESUME = argv.includes("--resume") || !!process.env.EVAL_RESUME;
+  const CHUNK_SECONDS = chunkArg ? Number(chunkArg)
+    : process.env.EVAL_CHUNK_SECONDS ? Number(process.env.EVAL_CHUNK_SECONDS) : Infinity;
+  const t0 = Date.now();
+  const progressUrl = new URL(`./quality-eval-progress${TAG ? "." + TAG : ""}.jsonl`, import.meta.url);
   const rows: any[] = [];
-  let i = 0;
+  const doneIds = new Set<string>();
+  if (RESUME) {
+    try {
+      readFileSync(progressUrl, "utf8").trim().split(/\r?\n/).filter(Boolean).forEach((l) => {
+        const r = JSON.parse(l); rows.push(r); doneIds.add(r.id);
+      });
+    } catch { /* no checkpoint yet → fresh */ }
+    process.stdout.write(`RESUME: ${doneIds.size}/${items.length} already graded\n`);
+  } else {
+    try { writeFileSync(progressUrl, ""); } catch { /* best effort */ }
+  }
+
+  let i = doneIds.size;
   for (const item of items) {
+    if (doneIds.has(item.id)) continue;
     i++;
     const a = await single.call(item.prompt);
-    const v: CouncilVerdict = await deliberate(item.prompt, council, { concurrency: 3, maxRounds: 1 });
+    const v: CouncilVerdict = await deliberate(item.prompt, council, { concurrency: 3, maxRounds: 1, lengthNeutral: LENGTH_NEUTRAL });
     const ansA = a.text ?? "";
     const ansB = v.recommendation ?? "";
 
@@ -164,7 +232,15 @@ async function main() {
       );
     }
     rows.push(row);
+    doneIds.add(item.id);
     try { writeFileSync(progressUrl, rows.map((r) => JSON.stringify(r)).join("\n") + "\n"); } catch { /* best effort */ }
+
+    // Restart-safe chunking: stop cleanly when this pass's wall-clock budget is spent
+    // and work remains. The next (resumed) pass picks up exactly where this one left off.
+    if (Number.isFinite(CHUNK_SECONDS) && (Date.now() - t0) / 1000 >= CHUNK_SECONDS && doneIds.size < items.length) {
+      process.stdout.write(`PARTIAL ${doneIds.size}/${items.length} — chunk budget (${CHUNK_SECONDS}s) reached; exit 0 for resume\n`);
+      process.exit(0);
+    }
   }
 
   // ── aggregate ──────────────────────────────────────────────────────────────
@@ -198,9 +274,24 @@ async function main() {
   const calibration = [
     calib((r) => r.confidence >= 0.6, "council confidence ≥ 0.6"),
     calib((r) => r.confidence < 0.6, "council confidence < 0.6"),
-    calib((r) => r.convergence === "CONFIRMED", "convergence CONFIRMED (ACT)"),
+    calib((r) => r.convergence === "CONFIRMED", "convergence CONFIRMED (ACT v1)"),
     calib((r) => r.convergence !== "CONFIRMED", "convergence not CONFIRMED"),
+    calib((r) => r.convergence === "CONFIRMED" && r.confidence >= ACT_FLOOR, `ACT gate v2 (CONFIRMED ∧ conf≥${ACT_FLOOR})`),
+    calib((r) => !(r.convergence === "CONFIRMED" && r.confidence >= ACT_FLOOR), "¬ACT v2 (ESCALATE)"),
   ];
+
+  // ACT recalibration (W2): the gate that fires ACT must do so only where empirical
+  // precision justifies it. v1 = CONFIRMED alone; v2 = CONFIRMED ∧ confidence ≥ floor.
+  const prec = (rs: any[]) => (rs.length ? +(rs.filter((r) => r.correctB).length / rs.length).toFixed(3) : null);
+  const actV1 = ver.filter((r) => r.convergence === "CONFIRMED");
+  const actV2 = ver.filter((r) => r.convergence === "CONFIRMED" && r.confidence >= ACT_FLOOR);
+  const act_recalibration = {
+    floor: ACT_FLOOR,
+    v1_confirmed_only: { n: actV1.length, act_precision: prec(actV1) },
+    v2_confirmed_and_conf_ge_floor: { n: actV2.length, act_precision: prec(actV2) },
+    improvement_pp: prec(actV1) !== null && prec(actV2) !== null ? +(((prec(actV2) as number) - (prec(actV1) as number)) * 100).toFixed(1) : null,
+    note: "ACT precision = P(correct | gate fires) on the verifiable subset. escalation.ts now requires CONFIRMED ∧ confidence ≥ floor, so ACT fires only where empirical precision justifies it (W2 recalibration of the inverted CONFIRMED signal).",
+  };
 
   // breakdown by category
   const cats = [...new Set(rows.map((r) => r.category))].sort();
@@ -239,6 +330,10 @@ async function main() {
       n_total: all.length, n_run: items.length,
       arms: { A_single: SINGLE_ID, B_council: SEAT_IDS, C_all_opus: null },
       judge: JUDGE_ID,
+      seed: EVAL_SEED !== undefined ? Number(EVAL_SEED) : null,
+      deterministic: EVAL_SEED !== undefined,
+      length_neutral: LENGTH_NEUTRAL,
+      tag: TAG || null,
       classify_sha_frozen: "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
     },
     prereg_bar: "council is a QUALITY tool iff (open) WIN−LOSS>0 with binomial CI excluding 0, AND (verifiable) accuracy_delta ≥ 0. Fixed before running.",
@@ -261,6 +356,7 @@ async function main() {
       note: "all-local council → real $0 cost; latency is the true cost signal here.",
     },
     calibration,
+    act_recalibration,
     by_category: byCategory,
     decision, recommendation,
     caveat:
@@ -273,11 +369,18 @@ async function main() {
       "`contains:` specs use substring boolean matching, which can under/over-credit paraphrases. " +
       "MITIGATED: the open judge is CROSS-VENDOR (Gemma/Google ≠ Qwen), blind, order-randomized both " +
       "ways, and length-neutral — the hygiene Gate A lacked. The verifiable subset (deterministic, no LLM) " +
-      "is the stronger signal; treat the open pairwise as directional at this N.",
+      "is the stronger signal; treat the open pairwise as directional at this N. " +
+      "(5) DECODE NONDETERMINISM: the frozen caller uses temperature 0.2 with NO seed, so one " +
+      "sample/item carries a large run-to-run noise floor — measured directly, single-A correctness " +
+      "flipped 4/32 items between two runs at IDENTICAL code, and council-B flipped 7/32 (mostly via " +
+      "review-phase convergence shifts, not winner-selection). A single draw therefore CANNOT certify a " +
+      "sub-15pp non-regression; use --seed=N (deterministic temp-0 caller) and compare old↔new code under " +
+      "the same seed, or average k≥3 samples, before treating any verifiable Δ as real." +
+      (EVAL_SEED !== undefined ? ` This run is deterministic (seed=${EVAL_SEED}).` : " This run is NON-deterministic (no seed)."),
     rows,
   };
 
-  writeFileSync(new URL("./quality-eval-results.json", import.meta.url), JSON.stringify(results, null, 2));
+  writeFileSync(new URL(`./quality-eval-results${TAG ? "." + TAG : ""}.json`, import.meta.url), JSON.stringify(results, null, 2));
 
   process.stdout.write(
     `\n── SUMMARY ──\n` +
@@ -285,6 +388,8 @@ async function main() {
     `acc single=${(accA * 100).toFixed(1)}%  council=${(accB * 100).toFixed(1)}%  Δ=${(accDelta * 100).toFixed(1)}pp\n` +
     `open (n=${open.length}): council win=${wins} tie=${ties} loss=${losses}  ` +
     `win-share=${(winShare.p * 100).toFixed(0)}% CI95=[${(winShare.lo * 100).toFixed(0)},${(winShare.hi * 100).toFixed(0)}]\n` +
+    `ACT recalib: v1 CONFIRMED=${act_recalibration.v1_confirmed_only.act_precision} (n=${act_recalibration.v1_confirmed_only.n}) → ` +
+    `v2 CONFIRMED∧conf≥${ACT_FLOOR}=${act_recalibration.v2_confirmed_and_conf_ge_floor.act_precision} (n=${act_recalibration.v2_confirmed_and_conf_ge_floor.n})\n` +
     `cost: A=$${totCostA.toFixed(4)} B=$${totCostB.toFixed(4)} · latency A=${(totLatA / 1000).toFixed(0)}s B=${(totLatB / 1000).toFixed(0)}s\n` +
     `DECISION: ${decision}\n${recommendation}\n`,
   );

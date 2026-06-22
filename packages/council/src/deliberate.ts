@@ -14,7 +14,7 @@
 import { parallel, converge } from "../../workflow/src/primitives.ts";
 import { review } from "../../validation/src/adversarial/reviewer.ts";
 import { vote } from "../../validation/src/adversarial/voter.ts";
-import { synthesize } from "./verdict.ts";
+import { synthesize, selectWinner } from "./verdict.ts";
 import type {
   Council,
   CouncilVerdict,
@@ -41,6 +41,13 @@ export interface DeliberateOptions {
   voteThreshold?: number;
   /** Winner score delta below which an extra round is deemed stable (stop). */
   stabilityEpsilon?: number;
+  /** Vote-score gap below which two candidates are "tied on correctness" → the more
+   *  concise answer wins (length-neutral winner selection). Default 0.05. */
+  scoreEpsilon?: number;
+  /** Length-neutral winner selection (default true). When false, fall back to the pre-W2
+   *  position-stable tiebreak (rank → score, last-in-array wins ties) — for A/B attribution
+   *  only; production keeps the length-neutral default. */
+  lengthNeutral?: boolean;
   /** Extra honesty caveats forwarded to synthesize(). */
   coverageNotes?: string[];
 }
@@ -73,13 +80,6 @@ function manualVote(threshold: number, reviewers: ReviewResult[] = []): VoteResu
   };
 }
 
-/** Rank a candidate's vote: CONFIRMED beats others; then higher score wins. */
-function betterVote(a: VoteResult, b: VoteResult): VoteResult {
-  const rank = (v: VoteResult) => (v.convergence === "CONFIRMED" ? 2 : v.convergence === "UNCERTAIN" ? 1 : 0);
-  if (rank(a) !== rank(b)) return rank(a) > rank(b) ? a : b;
-  return a.score >= b.score ? a : b;
-}
-
 export async function deliberate(
   prompt: string,
   council: Council,
@@ -92,6 +92,8 @@ export async function deliberate(
   const maxRounds = opts.maxRounds ?? 2;
   const voteThreshold = opts.voteThreshold ?? 0.5;
   const stabilityEpsilon = opts.stabilityEpsilon ?? 0.15;
+  const scoreEpsilon = opts.scoreEpsilon ?? 0.05;
+  const lengthNeutral = opts.lengthNeutral ?? true;
   const wall0 = Date.now();
   const meter: Meter = { cost: 0, latency: 0, calls: 0 };
 
@@ -160,16 +162,24 @@ export async function deliberate(
     }
   };
 
+  // Length signal for length-neutral selection: char count of each candidate's answer.
+  const lenOf = new Map(candidates.map((c) => [c.seatId, c.text.trim().length]));
   const voteOf = (id: string) => vote(reviewsByCandidate.get(id) ?? [], { threshold: voteThreshold });
   const pickWinner = (): { id: string; v: VoteResult } => {
+    if (lengthNeutral) {
+      const w = selectWinner(
+        candidates.map((c) => ({ seatId: c.seatId, vote: voteOf(c.seatId), length: lenOf.get(c.seatId) ?? 0 })),
+        scoreEpsilon,
+      )!;
+      return { id: w.seatId, v: w.vote };
+    }
+    // Pre-W2 fallback (A/B only): rank → score, position-stable (last-in-array wins ties).
+    const rank = (vr: VoteResult) => (vr.convergence === "CONFIRMED" ? 2 : vr.convergence === "UNCERTAIN" ? 1 : 0);
     let id = candidates[0].seatId;
     let v = voteOf(id);
     for (const c of candidates) {
       const cv = voteOf(c.seatId);
-      if (betterVote(cv, v) === cv) {
-        v = cv;
-        id = c.seatId;
-      }
+      if (rank(cv) > rank(v) || (rank(cv) === rank(v) && cv.score >= v.score)) { v = cv; id = c.seatId; }
     }
     return { id, v };
   };
