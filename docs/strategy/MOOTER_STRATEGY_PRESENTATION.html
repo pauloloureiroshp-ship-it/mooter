@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mooter.ai — The Skill-Pack Router · Strategic Deck 2026</title>
+<style>
+  :root {
+    --navy: #1E2761;
+    --navy-deep: #141A47;
+    --ice: #CADCFC;
+    --ice-pale: #E8F0FE;
+    --coral: #F96167;
+    --coral-soft: #FCE7E8;
+    --green: #10B981;
+    --gold: #F59E0B;
+    --slate: #475569;
+    --slate-light: #94A3B8;
+    --slate-pale: #F1F5F9;
+    --text: #0F172A;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --white: #FFFFFF;
+    --bg: #FAFAFC;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    overflow: hidden;
+    line-height: 1.5;
+  }
+  .deck {
+    height: 100vh; width: 100vw;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100vh; width: 100vw;
+    padding: 60px 80px;
+    display: flex; flex-direction: column;
+    background: var(--white);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+    overflow-y: auto;
+  }
+  .slide.active { opacity: 1; pointer-events: auto; }
+  .slide.dark {
+    background: var(--navy);
+    color: var(--white);
+  }
+  .slide.dark .label { color: var(--ice); }
+  .slide.dark .subtitle { color: var(--ice); }
+  .slide.dark .muted { color: var(--slate-light); }
+
+  .label {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--coral);
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 56px; font-weight: 800; line-height: 1.1;
+    margin-bottom: 16px; letter-spacing: -1px;
+  }
+  h2 {
+    font-size: 36px; font-weight: 700; line-height: 1.2;
+    margin-bottom: 20px; letter-spacing: -0.5px;
+  }
+  h3 {
+    font-size: 22px; font-weight: 700; line-height: 1.3;
+    margin-bottom: 12px;
+  }
+  h4 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .subtitle {
+    font-size: 24px; color: var(--slate);
+    margin-bottom: 32px; font-weight: 400;
+  }
+  .lead {
+    font-size: 20px; line-height: 1.6;
+    margin-bottom: 24px;
+    color: var(--text);
+    max-width: 900px;
+  }
+  .muted { color: var(--text-muted); }
+  .tagline {
+    font-size: 32px; line-height: 1.4; font-weight: 600;
+    color: var(--navy);
+    padding: 28px 32px;
+    background: var(--ice-pale);
+    border-left: 6px solid var(--coral);
+    border-radius: 4px;
+    margin: 24px 0;
+    max-width: 1000px;
+  }
+  .slide.dark .tagline {
+    background: rgba(255,255,255,0.06);
+    color: var(--white);
+    border-left-color: var(--coral);
+  }
+  /* Grid layouts */
+  .grid { display: grid; gap: 24px; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card-dark {
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+  }
+  .card .num {
+    display: inline-block;
+    width: 40px; height: 40px;
+    background: var(--coral);
+    color: var(--white);
+    font-weight: 800;
+    font-size: 18px;
+    text-align: center;
+    line-height: 40px;
+    border-radius: 50%;
+    margin-bottom: 16px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+    background: var(--ice-pale);
+    color: var(--navy);
+    margin-right: 6px;
+  }
+  .badge.coral { background: var(--coral-soft); color: var(--coral); }
+  .badge.green { background: #D1FAE5; color: #065F46; }
+  .badge.gold { background: #FEF3C7; color: #92400E; }
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 15px;
+  }
+  th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--slate); background: var(--slate-pale);
+  }
+  td { vertical-align: top; }
+  .slide.dark table th { background: rgba(255,255,255,0.08); color: var(--ice); border-color: rgba(255,255,255,0.15); }
+  .slide.dark table td { border-color: rgba(255,255,255,0.1); color: var(--white); }
+  /* Code */
+  .code {
+    background: var(--navy-deep);
+    color: #E5E7EB;
+    font-family: 'SF Mono', 'Consolas', Monaco, monospace;
+    font-size: 13px;
+    padding: 20px 24px;
+    border-radius: 8px;
+    overflow-x: auto;
+    line-height: 1.6;
+  }
+  .code .kw { color: #C4B5FD; }
+  .code .str { color: #86EFAC; }
+  .code .com { color: #94A3B8; font-style: italic; }
+  .code .key { color: #FCD34D; }
+  /* SVG */
+  svg.diagram { max-width: 100%; height: auto; display: block; margin: 16px 0; }
+  /* Nav */
+  .nav {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 8px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px);
+    padding: 10px 20px;
+    border-radius: 50px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    z-index: 100;
+  }
+  .nav button {
+    background: var(--slate-pale);
+    border: none;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--slate);
+    transition: all 0.2s;
+  }
+  .nav button:hover { background: var(--ice); color: var(--navy); }
+  .dots {
+    position: fixed; right: 24px; top: 50%;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 100;
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--slate-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+  .dot.active { background: var(--coral); transform: scale(1.4); }
+  .counter {
+    position: fixed; top: 24px; right: 24px;
+    font-size: 13px; font-weight: 600;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.9);
+    padding: 6px 14px;
+    border-radius: 20px;
+    z-index: 100;
+  }
+  .slide.dark + .counter, .dark .counter { color: var(--ice); }
+  /* Animations */
+  .slide.active h1, .slide.active h2 { animation: slideIn 0.5s ease forwards; }
+  @keyframes slideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  /* Misc */
+  .pill {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px; font-weight: 600;
+    margin: 4px;
+  }
+  .pill-coral { background: var(--coral); color: var(--white); }
+  .pill-navy { background: var(--navy); color: var(--white); }
+  .pill-outline { background: transparent; border: 2px solid var(--border); color: var(--text); }
+  .check::before { content: "✓ "; color: var(--green); font-weight: 700; }
+  .x::before { content: "✕ "; color: var(--coral); font-weight: 700; }
+  .warn::before { content: "⚠ "; color: var(--gold); font-weight: 700; }
+  .marker {
+    width: 4px;
+    background: var(--coral);
+    border-radius: 2px;
+    margin-right: 16px;
+  }
+  .row { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+  .footer {
+    position: absolute; bottom: 30px; left: 80px; right: 80px;
+    font-size: 12px; color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    display: flex; justify-content: space-between;
+  }
+  .slide.dark .footer { border-color: rgba(255,255,255,0.15); color: var(--slate-light); }
+  .stat {
+    font-size: 64px; font-weight: 800; color: var(--coral);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-label { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- SLIDE 1 — COVER -->
+<section class="slide dark active" data-slide="1">
+  <div style="margin-top: auto; margin-bottom: 32px;">
+    <div class="label" style="color: var(--coral); letter-spacing: 4px;">STRATEGIC DECK · MAY 2026</div>
+    <h1 style="font-size: 88px; line-height: 1; margin-bottom: 24px;">mooter.ai</h1>
+    <h2 style="font-size: 36px; font-weight: 400; color: var(--ice); margin-bottom: 48px;">
+      The Skill-Pack Router · Pastor Alemão
+    </h2>
+    <div class="tagline" style="font-size: 28px; max-width: 1100px; line-height: 1.4;">
+      The only AI router that picks not just <em>the model</em> —<br>
+      but <strong>the tools, the weights, and the entire stack</strong>.<br>
+      <span style="color: var(--coral);">Before the first token.</span>
+    </div>
+  </div>
+  <div style="margin-top: auto; display: flex; gap: 32px; align-items: end; font-size: 14px; color: var(--ice);">
+    <div>
+      <div style="opacity: 0.6; text-transform: uppercase; letter-spacing: 2px; font-size: 11px;">Owner</div>
+      <div style="font-size: 18px;">Paulo Loureiro</div>
+    </div>
+    <div>
+      <div style="opacity: 0.6; text-transform: uppercase; letter-spacing: 2px; font-size: 11px;">Date</div>
+      <div style="font-size: 18px;">2026-05-27</div>
+    </div>
+    <div>
+      <div style="opacity: 0.6; text-transform: uppercase; letter-spacing: 2px; font-size: 11px;">Status</div>
+      <div style="font-size: 18px;">Wave 1 in progress</div>
+    </div>
+    <div style="margin-left: auto; opacity: 0.4; font-size: 12px;">use ← → to navigate</div>
+  </div>
+</section>
+
+<!-- SLIDE 2 — THE PROBLEM -->
+<section class="slide" data-slide="2">
+  <div class="label">The problem · stack AI 2026</div>
+  <h2>Três forças tornam o stack AI hoje ingovernável</h2>
+  <p class="lead">O vibe coder paga 5 subscriptions, instala 50 MCPs, escolhe entre 6 frameworks de agentes — e ainda assim não sabe qual usar para cada tarefa específica.</p>
+
+  <div class="grid grid-3" style="margin-top: 32px;">
+    <div class="card">
+      <div class="num">1</div>
+      <h3>Modelos proliferam</h3>
+      <p class="muted" style="font-size: 15px;">Opus 4.7, GPT-5, Gemini 3.1, Llama 4, Qwen 3.5, DeepSeek-R1...</p>
+      <p style="margin-top: 12px; font-size: 14px;">Cada modelo tem sweet-spot, custo, latência, contexto diferentes. Escolher errado custa 10-50× mais por turn.</p>
+    </div>
+    <div class="card">
+      <div class="num">2</div>
+      <h3>MCP Registry explode</h3>
+      <p class="muted" style="font-size: 15px;">~10 000+ servers em PulseMCP / Smithery / Composio.</p>
+      <p style="margin-top: 12px; font-size: 14px;">Anthropic registry oficial cobre ~20%. Sem ranking unificado, qual usar para X?</p>
+    </div>
+    <div class="card">
+      <div class="num">3</div>
+      <h3>Skills sem registry oficial</h3>
+      <p class="muted" style="font-size: 15px;">Anthropic Skills: 17 oficiais · comunidade: ~66 000+</p>
+      <p style="margin-top: 12px; font-size: 14px;">Discovery e qualidade são caóticas. Nenhum "ranker" emergiu ainda.</p>
+    </div>
+  </div>
+
+  <div class="tagline" style="margin-top: 32px; font-size: 22px;">
+    Resultado: <strong>tempo perdido a escolher</strong>, <strong>dinheiro queimado</strong> em modelo errado,
+    e ferramentas certas que ficam por descobrir.
+  </div>
+
+  <div class="footer">
+    <span>mooter.ai · The Skill-Pack Router</span>
+    <span>02 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 3 — THE THESIS -->
+<section class="slide dark" data-slide="3">
+  <div class="label" style="color: var(--coral);">A tese · em uma frase</div>
+  <div style="display: flex; flex-direction: column; justify-content: center; flex: 1; max-width: 1100px;">
+    <h1 style="font-size: 64px; line-height: 1.15; margin-bottom: 32px;">
+      O Mooter não escolhe o modelo.<br>
+      Escolhe o <span style="color: var(--coral);">rebanho</span>:
+    </h1>
+    <p style="font-size: 28px; line-height: 1.5; color: var(--ice);">
+      modelo <span style="color: var(--white); font-weight: 700;">+</span>
+      ferramentas <span style="color: var(--white); font-weight: 700;">+</span>
+      exemplos <span style="color: var(--white); font-weight: 700;">+</span>
+      pesos.
+    </p>
+    <p style="font-size: 32px; line-height: 1.4; color: var(--coral); margin-top: 32px; font-weight: 700;">
+      Antes do primeiro token.
+    </p>
+  </div>
+  <div class="footer">
+    <span>mooter.ai</span>
+    <span>03 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 4 — EIXO 1 -->
+<section class="slide" data-slide="4">
+  <div class="label">Eixo 1 · Complexity routing · já existe</div>
+  <h2>Tier T0–T3 — rota cada prompt para o modelo mínimo viável</h2>
+  <p class="lead">O <code>classify.js</code> v3 em produção desde Abril 2026 classifica cada prompt em < 50 ms e direciona-o para o tier certo.</p>
+
+  <div class="grid grid-4" style="margin-top: 24px;">
+    <div class="card" style="border-top: 4px solid var(--green);">
+      <h3 style="color: var(--green);">T0</h3>
+      <p style="font-size: 13px; color: var(--text-muted);">Ollama local</p>
+      <div class="stat" style="font-size: 36px;">$0</div>
+      <p style="font-size: 13px;">qwen3:30b · 83.9% dos prompts</p>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--ice);">
+      <h3 style="color: var(--navy);">T1</h3>
+      <p style="font-size: 13px; color: var(--text-muted);">Haiku 4.5</p>
+      <div class="stat" style="font-size: 36px;">~$0.001</div>
+      <p style="font-size: 13px;">Commit msg, regex · ~6%</p>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--gold);">
+      <h3 style="color: var(--gold);">T2</h3>
+      <p style="font-size: 13px; color: var(--text-muted);">Sonnet 4.6</p>
+      <div class="stat" style="font-size: 36px;">~$0.010</div>
+      <p style="font-size: 13px;">Bug hunt, plano · ~6%</p>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--coral);">
+      <h3 style="color: var(--coral);">T3</h3>
+      <p style="font-size: 13px; color: var(--text-muted);">Opus 4.7</p>
+      <div class="stat" style="font-size: 36px;">~$0.050</div>
+      <p style="font-size: 13px;">Arquitectura, audit · ~4%</p>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 32px; margin-top: 40px; padding: 24px; background: var(--ice-pale); border-radius: 12px;">
+    <div>
+      <div class="stat">90.2%</div>
+      <div class="stat-label">Savings validados</div>
+    </div>
+    <div>
+      <div class="stat">1 437</div>
+      <div class="stat-label">Prompts reais medidos</div>
+    </div>
+    <div>
+      <div class="stat">&lt; 50 ms</div>
+      <div class="stat-label">Latência p50 do classifier</div>
+    </div>
+    <div style="margin-left: auto; max-width: 320px;">
+      <p class="muted" style="font-size: 14px;"><strong>Status:</strong> em produção, estável. Base sobre a qual se constrói o Pastor.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Eixo 1 · classify.js v3 · 2026-04-15 GA</span>
+    <span>04 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 5 — EIXO 2 PASTOR -->
+<section class="slide" data-slide="5">
+  <div class="label">Eixo 2 · Domain routing · Pastor v2 (Wave 1–4)</div>
+  <h2>Domínio da tarefa → <span style="color: var(--coral);">Moo Pack</span></h2>
+  <p class="lead">O classifier ganha um <strong>segundo eixo ortogonal</strong>: além da complexidade, identifica o <em>domínio</em> e selecciona um Pack (bundle de skills + MCPs + sub-agentes + repos + scaffold).</p>
+
+  <svg class="diagram" viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr1" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L9,3 z" fill="#1E2761"/>
+      </marker>
+    </defs>
+    <!-- Input -->
+    <rect x="20" y="130" width="160" height="60" rx="8" fill="#E8F0FE" stroke="#1E2761" stroke-width="2"/>
+    <text x="100" y="158" text-anchor="middle" font-size="13" font-weight="700" fill="#1E2761">UserPromptSubmit</text>
+    <text x="100" y="176" text-anchor="middle" font-size="11" fill="#475569">"animar este hero"</text>
+    <!-- Arrow split -->
+    <line x1="180" y1="160" x2="280" y2="100" stroke="#1E2761" stroke-width="2" marker-end="url(#arr1)"/>
+    <line x1="180" y1="160" x2="280" y2="220" stroke="#1E2761" stroke-width="2" marker-end="url(#arr1)"/>
+    <!-- Eixo 1 -->
+    <rect x="280" y="60" width="280" height="80" rx="8" fill="#CADCFC" stroke="#1E2761" stroke-width="2"/>
+    <text x="420" y="86" text-anchor="middle" font-size="13" font-weight="700" fill="#1E2761">EIXO 1 · classify_complexity()</text>
+    <text x="420" y="106" text-anchor="middle" font-size="12" fill="#475569">existing · fast-path regex</text>
+    <text x="420" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#F96167">→ T2 (Sonnet 4.6)</text>
+    <!-- Eixo 2 -->
+    <rect x="280" y="180" width="280" height="80" rx="8" fill="#FCE7E8" stroke="#F96167" stroke-width="2"/>
+    <text x="420" y="206" text-anchor="middle" font-size="13" font-weight="700" fill="#F96167">EIXO 2 · classify_domain()</text>
+    <text x="420" y="226" text-anchor="middle" font-size="12" fill="#475569">new · regex → embedding → Haiku</text>
+    <text x="420" y="244" text-anchor="middle" font-size="14" font-weight="700" fill="#1E2761">→ Pack: animation-web</text>
+    <!-- Merge -->
+    <line x1="560" y1="100" x2="660" y2="160" stroke="#1E2761" stroke-width="2" marker-end="url(#arr1)"/>
+    <line x1="560" y1="220" x2="660" y2="160" stroke="#1E2761" stroke-width="2" marker-end="url(#arr1)"/>
+    <!-- Output -->
+    <rect x="660" y="120" width="220" height="80" rx="8" fill="#1E2761" stroke="#1E2761" stroke-width="2"/>
+    <text x="770" y="148" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">&lt;router-hint&gt; + &lt;pack-hint&gt;</text>
+    <text x="770" y="170" text-anchor="middle" font-size="11" fill="#CADCFC">tier=T2 · pack=animation-web</text>
+    <text x="770" y="186" text-anchor="middle" font-size="11" fill="#CADCFC">skills, MCPs, scaffold</text>
+  </svg>
+
+  <div class="grid grid-2" style="margin-top: 16px;">
+    <div class="card">
+      <h4>O classifier de domínio escolhe entre Moo Packs</h4>
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 8px;">Camada regex (5 ms) → embedding (50 ms opcional) → Haiku semantic fallback (800 ms) se confidence < 0.6.</p>
+    </div>
+    <div class="card">
+      <h4>O pastor cerca o rebanho certo</h4>
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 8px;">Pack diz exactamente quais skills invocar, MCPs ligar, sub-agentes delegar, repos consultar. Stack montada antes do primeiro token.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Eixo 2 · Pastor v2 · Wave 1–4 (5 semanas)</span>
+    <span>05 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 6 — EIXO 3 ADAPTER FORGE -->
+<section class="slide dark" data-slide="6">
+  <div class="label" style="color: var(--coral);">Eixo 3 · Specialization · Adapter Forge (Wave 5)</div>
+  <h2 style="color: var(--white);">Cada projecto treina o teu Mooter um pouco mais</h2>
+  <p style="font-size: 18px; color: var(--ice); max-width: 1000px;">O classifier ganha um terceiro eixo. Adapter LoRA/DoRA local (por projecto e/ou por pack) eleva qualidade de T1/T2 local para próximo do tier cloud — sem mover-se do hardware.</p>
+
+  <div style="display: flex; gap: 32px; margin-top: 32px; align-items: center;">
+    <!-- Diagrama -->
+    <svg viewBox="0 0 380 320" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+      <defs>
+        <marker id="arrW" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#CADCFC"/>
+        </marker>
+      </defs>
+      <!-- Eixo 1 -->
+      <rect x="20" y="20" width="340" height="50" rx="6" fill="#CADCFC" opacity="0.3" stroke="#CADCFC" stroke-width="1"/>
+      <text x="190" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#CADCFC">Eixo 1 · classify_complexity()</text>
+      <text x="190" y="58" text-anchor="middle" font-size="11" fill="#CADCFC" opacity="0.8">→ Tier T0-T3 (modelo)</text>
+      <!-- Eixo 2 -->
+      <rect x="20" y="90" width="340" height="50" rx="6" fill="#CADCFC" opacity="0.3" stroke="#CADCFC" stroke-width="1"/>
+      <text x="190" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#CADCFC">Eixo 2 · classify_domain()</text>
+      <text x="190" y="128" text-anchor="middle" font-size="11" fill="#CADCFC" opacity="0.8">→ Moo Pack ID</text>
+      <!-- Eixo 3 NEW -->
+      <rect x="20" y="160" width="340" height="50" rx="6" fill="#F96167" stroke="#F96167" stroke-width="2"/>
+      <text x="190" y="182" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Eixo 3 · classify_specialization()</text>
+      <text x="190" y="198" text-anchor="middle" font-size="11" fill="#FFFFFF">→ Project LoRA · Pack LoRA · null</text>
+      <!-- Merge to output -->
+      <line x1="190" y1="210" x2="190" y2="250" stroke="#CADCFC" stroke-width="2" marker-end="url(#arrW)"/>
+      <rect x="20" y="250" width="340" height="50" rx="6" fill="#1E2761" stroke="#FFFFFF" stroke-width="2"/>
+      <text x="190" y="272" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Stack escolhida</text>
+      <text x="190" y="290" text-anchor="middle" font-size="11" fill="#CADCFC">modelo + pack + adapter (opcional)</text>
+    </svg>
+
+    <div style="flex: 1;">
+      <h3 style="color: var(--white);">Dois sabores de adapter</h3>
+      <table style="margin-top: 12px;">
+        <thead>
+          <tr><th style="color: var(--ice);">Adapter</th><th style="color: var(--ice);">Onde mora</th><th style="color: var(--ice);">Activa quando</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Project LoRA</strong></td>
+            <td><code>&lt;repo&gt;/.mooter/project.lora</code></td>
+            <td>repo_fingerprint × pack match</td>
+          </tr>
+          <tr>
+            <td><strong>Pack LoRA</strong></td>
+            <td>Pack Registry (hub)</td>
+            <td>pack_id match + opt-in</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 20px; font-size: 14px; color: var(--ice);">
+        <strong style="color: var(--coral);">Switching cost biológico</strong>: depois de 60-90 dias o teu LoRA vale tempo real para ti — migrar para outro router perde-o.
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Eixo 3 · Adapter Forge · Wave 5 (8 dias, post-launch)</span>
+    <span>06 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 7 — MOO PACK ANATOMY -->
+<section class="slide" data-slide="7">
+  <div class="label">Anatomia · Moo Pack manifest</div>
+  <h2>Um Pack é um manifesto declarativo · zero código</h2>
+  <p class="lead">Ficheiro YAML em <code>packs/&lt;name&gt;/pack.yaml</code>. Descreve quando activar, o que invocar, e como compor o scaffold de sistema.</p>
+
+  <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-top: 16px;">
+    <div class="code"><span class="com"># packs/animation-web/pack.yaml</span>
+<span class="key">name:</span> <span class="str">animation-web</span>
+<span class="key">version:</span> <span class="str">0.1.0</span>
+<span class="key">domain_signals:</span>
+  <span class="key">keywords:</span> <span class="str">[animation, motion, scroll-trigger]</span>
+  <span class="key">intent_phrases:</span> <span class="str">["fazer animar", "transição suave"]</span>
+  <span class="key">file_extensions:</span> <span class="str">[.tsx, .jsx, .css, .svg]</span>
+<span class="key">model_floor:</span> <span class="str">T2</span>
+<span class="key">skills:</span>
+  <span class="key">required:</span> <span class="str">[anthropic-skills:web-artifacts-builder]</span>
+<span class="key">mcps:</span>
+  <span class="key">recommended:</span> <span class="str">[vercel, motion-canvas]</span>
+<span class="key">subagents:</span>
+  <span class="key">primary:</span> <span class="str">model-reasoner</span>
+<span class="key">repos_canonical:</span>
+  - <span class="key">name:</span> <span class="str">motion</span>
+    <span class="key">url:</span> <span class="str">https://motion.dev</span>
+    <span class="key">license:</span> <span class="str">MIT</span>
+<span class="key">prompt_scaffold:</span> <span class="str">|</span>
+  <span class="str">Default Motion (motion.dev) para React.</span>
+  <span class="str">60fps non-negotiable. Respeita prefers-reduced-motion.</span>
+<span class="key">adapter:</span>  <span class="com"># opcional (Wave 5)</span>
+  <span class="key">name:</span> <span class="str">animation-web-lora-v1</span>
+  <span class="key">base_model:</span> <span class="str">qwen3:14b</span>
+  <span class="key">format:</span> <span class="str">dora</span>
+  <span class="key">rank:</span> <span class="str">32</span>
+</div>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div class="card" style="background: var(--ice-pale);">
+        <h4 style="color: var(--navy);">Composição declarativa</h4>
+        <p style="font-size: 14px;">O Pack diz <em>o quê</em>, não <em>como</em>. O runtime resolve skills disponíveis, MCPs ligados, sugere instalação do que falta.</p>
+      </div>
+      <div class="card" style="background: var(--coral-soft);">
+        <h4 style="color: var(--coral);">Trust score sindicado</h4>
+        <p style="font-size: 14px;">Cada pack tem trust_score 0–1 calculado pelo hub (uso, validações, feedback). Discovery objectiva.</p>
+      </div>
+      <div class="card" style="background: var(--slate-pale);">
+        <h4>Adapter opcional</h4>
+        <p style="font-size: 14px;">Wave 5: pack pode ter LoRA treinado em corpus público + traces sintéticas legais para o domínio.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Schema completo · PASTOR.md §4</span>
+    <span>07 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 8 — PASTOR EM RUNTIME -->
+<section class="slide" data-slide="8">
+  <div class="label">Pastor em runtime · pipeline completo</div>
+  <h2>O fluxo do prompt à stack montada · &lt; 60 ms p99</h2>
+
+  <svg class="diagram" viewBox="0 0 1100 360" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr8" markerWidth="8" markerHeight="8" refX="7" refY="2.5" orient="auto">
+        <path d="M0,0 L0,5 L7,2.5 z" fill="#1E2761"/>
+      </marker>
+    </defs>
+    <!-- User prompt -->
+    <rect x="20" y="20" width="180" height="60" rx="8" fill="#E8F0FE" stroke="#1E2761" stroke-width="2"/>
+    <text x="110" y="46" text-anchor="middle" font-size="13" font-weight="700" fill="#1E2761">Prompt do user</text>
+    <text x="110" y="64" text-anchor="middle" font-size="11" fill="#475569">"preciso de animar..."</text>
+    <line x1="200" y1="50" x2="240" y2="50" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+
+    <!-- Hook -->
+    <rect x="240" y="20" width="180" height="60" rx="8" fill="#1E2761"/>
+    <text x="330" y="46" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">UserPromptSubmit hook</text>
+    <text x="330" y="64" text-anchor="middle" font-size="11" fill="#CADCFC">inject_context.js</text>
+    <line x1="420" y1="50" x2="460" y2="50" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+
+    <!-- 3 classifiers parallel -->
+    <rect x="460" y="20" width="200" height="60" rx="8" fill="#CADCFC" stroke="#1E2761" stroke-width="2"/>
+    <text x="560" y="38" text-anchor="middle" font-size="12" font-weight="700" fill="#1E2761">classify_complexity()</text>
+    <text x="560" y="56" text-anchor="middle" font-size="11" fill="#475569">→ T2</text>
+    <text x="560" y="72" text-anchor="middle" font-size="10" fill="#475569" font-style="italic">eixo 1 · &lt; 5ms</text>
+
+    <rect x="460" y="100" width="200" height="60" rx="8" fill="#FCE7E8" stroke="#F96167" stroke-width="2"/>
+    <text x="560" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#F96167">classify_domain()</text>
+    <text x="560" y="136" text-anchor="middle" font-size="11" fill="#475569">→ animation-web</text>
+    <text x="560" y="152" text-anchor="middle" font-size="10" fill="#475569" font-style="italic">eixo 2 · &lt; 5ms regex</text>
+
+    <rect x="460" y="180" width="200" height="60" rx="8" fill="#FEF3C7" stroke="#F59E0B" stroke-width="2"/>
+    <text x="560" y="198" text-anchor="middle" font-size="12" font-weight="700" fill="#92400E">classify_specialization()</text>
+    <text x="560" y="216" text-anchor="middle" font-size="11" fill="#475569">→ project.lora or null</text>
+    <text x="560" y="232" text-anchor="middle" font-size="10" fill="#475569" font-style="italic">eixo 3 · &lt; 5ms lookup</text>
+
+    <!-- Resolve -->
+    <line x1="660" y1="50" x2="720" y2="120" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+    <line x1="660" y1="130" x2="720" y2="130" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+    <line x1="660" y1="210" x2="720" y2="140" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+
+    <rect x="720" y="100" width="180" height="60" rx="8" fill="#1E2761"/>
+    <text x="810" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">pack_resolve()</text>
+    <text x="810" y="144" text-anchor="middle" font-size="11" fill="#CADCFC">gap analysis · &lt; 20 ms</text>
+
+    <line x1="900" y1="130" x2="940" y2="130" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+
+    <!-- Hint emit -->
+    <rect x="940" y="100" width="150" height="60" rx="8" fill="#F96167"/>
+    <text x="1015" y="126" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">emit hints</text>
+    <text x="1015" y="144" text-anchor="middle" font-size="11" fill="#FCE7E8">&lt;router-hint&gt;</text>
+    <text x="1015" y="158" text-anchor="middle" font-size="11" fill="#FCE7E8">&lt;pack-hint&gt;</text>
+
+    <!-- Claude reads -->
+    <line x1="1015" y1="160" x2="1015" y2="200" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+    <rect x="900" y="200" width="180" height="50" rx="8" fill="#E8F0FE" stroke="#1E2761" stroke-width="2"/>
+    <text x="990" y="222" text-anchor="middle" font-size="12" font-weight="700" fill="#1E2761">Claude lê doutrina</text>
+    <text x="990" y="238" text-anchor="middle" font-size="10" fill="#475569">CLAUDE.md + hints</text>
+
+    <!-- Claude acts -->
+    <line x1="900" y1="225" x2="700" y2="300" stroke="#1E2761" stroke-width="2" marker-end="url(#arr8)"/>
+    <rect x="500" y="280" width="200" height="60" rx="8" fill="#10B981"/>
+    <text x="600" y="306" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Claude age</text>
+    <text x="600" y="324" text-anchor="middle" font-size="11" fill="#D1FAE5">invoca skills, MCPs, scaffold</text>
+
+    <!-- Feedback -->
+    <path d="M 500 310 Q 200 350 110 90" stroke="#94A3B8" stroke-width="1" stroke-dasharray="4,4" fill="none" marker-end="url(#arr8)"/>
+    <text x="290" y="345" font-size="11" fill="#64748B" font-style="italic">feedback signal → decisions.log → cron retrain (eixo 3)</text>
+  </svg>
+
+  <div class="footer">
+    <span>Pipeline runtime · backward-compat com classify.js v3</span>
+    <span>08 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 9 — 7 PACKS SEMENTINHA -->
+<section class="slide" data-slide="9">
+  <div class="label">Cobertura · 7 packs sementinha cobrem ~80% dos pedidos</div>
+  <h2>O rebanho inicial</h2>
+
+  <div class="grid grid-4" style="margin-top: 24px;">
+    <div class="card" style="border-top: 4px solid var(--coral);">
+      <h3>animation-web</h3>
+      <p class="muted" style="font-size: 13px;">Motion graphics · scroll · transitions</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">T2</span>
+        <span class="badge">motion.dev</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--gold);">
+      <h3>diagram-systems</h3>
+      <p class="muted" style="font-size: 13px;">Mermaid · D2 · architecture · C4</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">T1-T3</span>
+        <span class="badge">Mermaid</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--green);">
+      <h3>data-spreadsheet</h3>
+      <p class="muted" style="font-size: 13px;">XLSX · Pivot · cross-reference · Polars</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">T2-T3</span>
+        <span class="badge">openpyxl</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--coral);">
+      <h3>code-audit</h3>
+      <p class="muted" style="font-size: 13px;">Semgrep + Snyk + GitGuardian</p>
+      <div style="margin-top: 8px;">
+        <span class="badge coral">T3</span>
+        <span class="badge">Opus gate</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--ice);">
+      <h3>prd-strategy</h3>
+      <p class="muted" style="font-size: 13px;">PRD · OKR · roadmap · RICE</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">T2</span>
+        <span class="badge">feature-spec</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--gold);">
+      <h3>voice-tts</h3>
+      <p class="muted" style="font-size: 13px;">Cartesia · ElevenLabs · Hume</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">T1</span>
+        <span class="badge">low-latency</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--green);">
+      <h3>knowledge-third-brain</h3>
+      <p class="muted" style="font-size: 13px;">Notion · Obsidian · MegaMem</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">T1</span>
+        <span class="badge">third brain</span>
+      </div>
+    </div>
+    <div class="card" style="border-top: 4px solid var(--slate-light); background: var(--slate-pale);">
+      <h3 style="color: var(--slate);">+ N (community)</h3>
+      <p class="muted" style="font-size: 13px;">Wave 4 abre publishing community</p>
+      <div style="margin-top: 8px;">
+        <span class="badge">future</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 32px; padding: 20px 24px; background: var(--ice-pale); border-radius: 12px; display: flex; gap: 24px; align-items: center;">
+    <div style="font-size: 48px;">🐑</div>
+    <div>
+      <h4 style="color: var(--navy); margin-bottom: 4px;">Cada pack é um rebanho convocado para uma classe específica de tarefa</h4>
+      <p style="font-size: 14px; color: var(--text-muted);">Cada um cita repos canónicos da research 2026 (motion.dev, Mermaid, Semgrep, Cartesia, etc.) — zero fontes inventadas.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Specs completos · PASTOR.md §5</span>
+    <span>09 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 10 — HARDWARE QUANTIZATION -->
+<section class="slide" data-slide="10">
+  <div class="label">Hardware-aware quantization · Eixo 0 do balanço</div>
+  <h2>O modelo certo para o teu hardware — sem escolher</h2>
+  <p class="lead">Onboarding detecta GPU / VRAM / SUbscriptions e auto-decide quantização + modelo base que cabe. Routing T0 nunca pede o que não corre.</p>
+
+  <table style="margin-top: 24px;">
+    <thead>
+      <tr>
+        <th>Hardware</th>
+        <th>VRAM</th>
+        <th>Modelo base T0</th>
+        <th>Quantização</th>
+        <th>Footprint</th>
+        <th>Performance esperada</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>RTX 4090</strong></td>
+        <td>24 GB</td>
+        <td><code>qwen3:30b</code> (MoE)</td>
+        <td>Q4_K_M</td>
+        <td>~18 GB</td>
+        <td>40-60 tok/s · best T0 quality</td>
+      </tr>
+      <tr>
+        <td><strong>RTX 4080 / 4070 Ti</strong></td>
+        <td>16 GB</td>
+        <td><code>qwen3:14b</code></td>
+        <td>Q5_K_M</td>
+        <td>~10 GB</td>
+        <td>30-50 tok/s · solid T0</td>
+      </tr>
+      <tr>
+        <td><strong>RTX 4070 / 3070</strong></td>
+        <td>12 GB</td>
+        <td><code>qwen2.5-coder:14b</code></td>
+        <td>Q4_K_M</td>
+        <td>~9 GB</td>
+        <td>25-40 tok/s · code-specialised</td>
+      </tr>
+      <tr>
+        <td><strong>MacBook M2/M3</strong></td>
+        <td>16 GB unified</td>
+        <td><code>qwen3:8b</code></td>
+        <td>Q5_K_M</td>
+        <td>~6 GB</td>
+        <td>25-40 tok/s · Metal accelerated</td>
+      </tr>
+      <tr>
+        <td><strong>Sem GPU</strong></td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>Bypass T0 → cloud T1+ (Haiku)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid grid-3" style="margin-top: 24px;">
+    <div class="card" style="background: var(--ice-pale);">
+      <h4 style="color: var(--navy);">Detection automática</h4>
+      <p style="font-size: 14px; margin-top: 8px;"><code>gpu-probe.js</code> identifica NVIDIA / Apple Silicon / AMD / CPU em &lt; 1s no first-run.</p>
+    </div>
+    <div class="card" style="background: var(--coral-soft);">
+      <h4 style="color: var(--coral);">Quantização não é loss</h4>
+      <p style="font-size: 14px; margin-top: 8px;">Q4_K_M perde &lt; 2% accuracy vs FP16 em coding tasks · 4× menor footprint · 3× faster inference.</p>
+    </div>
+    <div class="card" style="background: #D1FAE5;">
+      <h4 style="color: #065F46;">Recommendation engine</h4>
+      <p style="font-size: 14px; margin-top: 8px;">Se VRAM permite upgrade (ex.: tens 4090 mas correr modelo 14B), recomenda upgrade para 30B com 1-click pull.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>onboarding.js · hw-capability.json · budget-engine.js</span>
+    <span>10 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 11 — SUBSCRIPTION ORCHESTRATION -->
+<section class="slide" data-slide="11">
+  <div class="label">Subscription orchestration · usa o que já pagas</div>
+  <h2>O Mooter não te força mais 1 subscription</h2>
+  <p class="lead">Mapeia as tuas subscriptions activas → tier de routing óptimo. Maximiza utilização das mais caras antes de gastar PAYG.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Subscription</th>
+        <th>Custo mensal</th>
+        <th>Capacidade incluída</th>
+        <th>Tier alocado</th>
+        <th>Estratégia Mooter</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Claude Max</strong></td>
+        <td>$200</td>
+        <td>~40h Opus / ~480h Sonnet por janela 5h</td>
+        <td>T3 (Opus) + T2 (Sonnet)</td>
+        <td>Reserva Opus para arquitectura · spawn Sonnet em paralelo</td>
+      </tr>
+      <tr>
+        <td><strong>Claude Pro</strong></td>
+        <td>$20</td>
+        <td>Sonnet limit · Haiku abundante</td>
+        <td>T2 (Sonnet) + T1 (Haiku)</td>
+        <td>Cap Sonnet · default Haiku</td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI Plus</strong></td>
+        <td>$20</td>
+        <td>GPT-5 com limits</td>
+        <td>T2 fallback se Anthropic degrada</td>
+        <td>Provider arbitrage (Layer 10)</td>
+      </tr>
+      <tr>
+        <td><strong>Anthropic API PAYG</strong></td>
+        <td>per token</td>
+        <td>Sem cap</td>
+        <td>T1 Haiku bulk · T3 Opus para over-cap</td>
+        <td>Failover quando Max cap atingido</td>
+      </tr>
+      <tr>
+        <td><strong>Ollama local</strong></td>
+        <td>$0</td>
+        <td>RTX 4090 · 30B MoE</td>
+        <td>T0 (83.9% dos prompts)</td>
+        <td>Default sempre; cloud só se T1+ necessário</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="display: flex; gap: 24px; margin-top: 32px;">
+    <div class="card" style="flex: 1; border-left: 4px solid var(--green);">
+      <h4>Ganho real medido (90 dias)</h4>
+      <table style="margin-top: 8px;">
+        <tbody>
+          <tr><td>Custo PAYG SEM Mooter</td><td><strong>$320/mês</strong></td></tr>
+          <tr><td>Custo PAYG COM Mooter</td><td><strong>$28/mês</strong></td></tr>
+          <tr><td>Savings</td><td style="color: var(--green); font-weight: 700;">91.3% ($3504/ano)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="flex: 1; border-left: 4px solid var(--coral);">
+      <h4>Provider arbitrage (Layer 10)</h4>
+      <p style="font-size: 14px;">Side-car thread poll 60s sobre status APIs (Anthropic, OpenAI, Google, Ollama). Se Anthropic degrada → failover automático para GPT-5. RDTR emit reason "anthropic=degraded, failover→openai".</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Budget engine + Subscription profile + Provider arbitrage</span>
+    <span>11 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 12 — ADAPTER FORGE PIPELINE -->
+<section class="slide dark" data-slide="12">
+  <div class="label" style="color: var(--coral);">Adapter Forge · pipeline 8 dias</div>
+  <h2 style="color: var(--white);">Como o teu Mooter aprende o teu projecto</h2>
+
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 32px;">
+    <div class="card card-dark" style="background: rgba(249,97,103,0.15); border: 2px solid var(--coral);">
+      <div style="font-size: 36px; font-weight: 800; color: var(--coral);">01</div>
+      <h4 style="margin-top: 12px; color: var(--white);">Collect</h4>
+      <p style="font-size: 13px; color: var(--ice); margin-top: 8px;">Telemetry collector extende <code>decisions.log</code>. Cada prompt + output + feedback signal + latência + tokens. Opt-in explícito.</p>
+      <p style="font-size: 11px; color: var(--coral); margin-top: 12px;">Dia 1</p>
+    </div>
+    <div class="card card-dark" style="background: rgba(249,97,103,0.15); border: 2px solid var(--coral);">
+      <div style="font-size: 36px; font-weight: 800; color: var(--coral);">02</div>
+      <h4 style="margin-top: 12px; color: var(--white);">Curate</h4>
+      <p style="font-size: 13px; color: var(--ice); margin-top: 8px;">Filtros: comprimento, syntax válida, feedback ≥ neutro, MinHash dedup. Pelo menos 5k records por projecto antes de treinar.</p>
+      <p style="font-size: 11px; color: var(--coral); margin-top: 12px;">Dia 2-3</p>
+    </div>
+    <div class="card card-dark" style="background: rgba(249,97,103,0.15); border: 2px solid var(--coral);">
+      <div style="font-size: 36px; font-weight: 800; color: var(--coral);">03</div>
+      <h4 style="margin-top: 12px; color: var(--white);">Train</h4>
+      <p style="font-size: 13px; color: var(--ice); margin-top: 8px;">Unsloth + QLoRA/DoRA r=32. Base: Qwen3-14B. 3 epochs, ~3-6h em RTX 4090. Output: <code>.mooter/project.lora</code></p>
+      <p style="font-size: 11px; color: var(--coral); margin-top: 12px;">Dia 4-5</p>
+    </div>
+    <div class="card card-dark" style="background: rgba(249,97,103,0.15); border: 2px solid var(--coral);">
+      <div style="font-size: 36px; font-weight: 800; color: var(--coral);">04</div>
+      <h4 style="margin-top: 12px; color: var(--white);">Eval + Deploy</h4>
+      <p style="font-size: 13px; color: var(--ice); margin-top: 8px;">200 hold-out prompts × {local+LoRA, base local, Sonnet 4.6}. Activação só se win-rate vs Sonnet ≥ 60%.</p>
+      <p style="font-size: 11px; color: var(--coral); margin-top: 12px;">Dia 6-8</p>
+    </div>
+  </div>
+
+  <div style="margin-top: 40px; display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <div>
+      <h3 style="color: var(--white);">Sweet-spot do que vai funcionar</h3>
+      <table style="margin-top: 12px;">
+        <thead><tr><th style="color: var(--ice);">Vai funcionar (T1-T2)</th><th style="color: var(--ice);">NÃO vai funcionar (T3)</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="check"></span>Code completion no estilo do projecto</td>
+            <td><span class="x"></span>Reasoning aberto / arquitectura nova</td>
+          </tr>
+          <tr>
+            <td><span class="check"></span>Templating boilerplate específico</td>
+            <td><span class="x"></span>Debugging não-trivial fora dos padrões</td>
+          </tr>
+          <tr>
+            <td><span class="check"></span>Decisões deterministas (naming, paths)</td>
+            <td><span class="x"></span>Audit de segurança (T3, Opus sempre)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card card-dark" style="background: rgba(255,255,255,0.06);">
+      <h4 style="color: var(--coral);">Gate de saída Wave 5</h4>
+      <p style="font-size: 14px; color: var(--ice); margin-top: 8px;">
+        Mínimo 1 Project LoRA treinado em <code>~/mooter/</code> próprio · validated em eval · activado por default · poupa ≥ 30% calls T2 cloud para T1 local <strong>medido em 14 dias</strong>.
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Wave 5 · Eixo 3 · gate de entrada: ≥ 50 utilizadores opt-in</span>
+    <span>12 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 13 — QUANT vs LORA vs DISTILL -->
+<section class="slide" data-slide="13">
+  <div class="label">As 3 técnicas · não confundir</div>
+  <h2>Quantização ≠ LoRA/DoRA ≠ Distillation</h2>
+  <p class="lead">A força do Mooter está em <strong>combinar as três</strong> de forma consciente — cada uma com função distinta.</p>
+
+  <table style="margin-top: 24px;">
+    <thead>
+      <tr>
+        <th></th>
+        <th style="color: var(--coral);">Quantização</th>
+        <th style="color: var(--gold);">LoRA / DoRA</th>
+        <th style="color: var(--navy);">Distillation</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>O que faz</strong></td>
+        <td>Reduz tamanho do modelo (peso em RAM/VRAM)</td>
+        <td>Adiciona <em>comportamento</em>: estilo, padrões, naming</td>
+        <td>Transfere <em>raciocínio</em> de prof → aluno</td>
+      </tr>
+      <tr>
+        <td><strong>O que NÃO faz</strong></td>
+        <td>Não muda o que o modelo sabe</td>
+        <td>Não cria inteligência geral nova</td>
+        <td>Não fecha gap em capacidades emergentes</td>
+      </tr>
+      <tr>
+        <td><strong>Custo treino</strong></td>
+        <td>0 (post-processing)</td>
+        <td>3-6h RTX 4090 · ~5k examples</td>
+        <td>Variável · depende do dataset</td>
+      </tr>
+      <tr>
+        <td><strong>Footprint</strong></td>
+        <td>4× menor (Q4 vs FP16)</td>
+        <td>+ 10-200 MB de adapter</td>
+        <td>Modelo aluno completo</td>
+      </tr>
+      <tr>
+        <td><strong>Quando usar</strong></td>
+        <td>Sempre (modelo local cabe no hardware)</td>
+        <td>Quando há padrão repetitivo do projecto/domínio</td>
+        <td>Quando o aluno tem capacity mas falta direcção</td>
+      </tr>
+      <tr>
+        <td><strong>Risco legal</strong></td>
+        <td>Zero</td>
+        <td>Zero (dados do user)</td>
+        <td>Variável (ToS do modelo prof)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tagline" style="margin-top: 32px; font-size: 22px;">
+    Combinadas: <strong>modelo local pequeno</strong> (qwen3:14b q4_K_M)
+    + <strong>LoRA do projecto</strong> (5 MB)
+    + <strong>processo de Sonnet</strong> (judge para eval)
+    = competitivo com Sonnet em T1-T2 a <span style="color: var(--coral);">custo $0</span> por chamada.
+  </div>
+
+  <div class="footer">
+    <span>DoRA r=32 default · Unsloth · research 2026-05-27</span>
+    <span>13 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 14 — SELF-DISTILL SAFE -->
+<section class="slide" data-slide="14">
+  <div class="label">Self-distillation segura · 4 caminhos</div>
+  <h2>Caminho A é o único na Wave 5 · resto requer legal review</h2>
+  <p class="lead">Anthropic objecta publicamente a distillation directa de outputs Claude. O Mooter respeita os ToS — implementa só o caminho legalmente limpo.</p>
+
+  <table style="margin-top: 24px;">
+    <thead>
+      <tr>
+        <th>Caminho</th>
+        <th>Dataset source</th>
+        <th>Risco ToS</th>
+        <th>Recomendação</th>
+        <th>Wave</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: #D1FAE5;">
+        <td><strong>A — Self-distillation</strong></td>
+        <td>Próprio repo do user (code, commits, docs)</td>
+        <td><span class="check"></span> Zero — dados do user</td>
+        <td><strong>MVP. Wave 5 só implementa isto.</strong></td>
+        <td>Wave 5</td>
+      </tr>
+      <tr>
+        <td><strong>B — Adapter comunitário</strong></td>
+        <td>HF pre-trained (Qwen3.5-Claude-distilled, 4k+ downloads)</td>
+        <td><span class="warn"></span> Cinza — risco do uploader</td>
+        <td>Permitido com aviso + opt-in</td>
+        <td>Wave 6</td>
+      </tr>
+      <tr>
+        <td><strong>C — Open-license models</strong></td>
+        <td>DeepSeek-R1, Llama 3.x, Qwen3-Coder traces</td>
+        <td><span class="check"></span> Permitido pela licença</td>
+        <td>Wave 6+, opcional</td>
+        <td>Wave 7+</td>
+      </tr>
+      <tr>
+        <td><strong>D — User-owned Opus outputs</strong></td>
+        <td>Outputs Claude do user em sessões pessoais</td>
+        <td><span class="x"></span> Zona cinza — cláusula "compete with Claude"</td>
+        <td>Não Wave 5. Pós-Series-A com legal review</td>
+        <td>?</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid grid-2" style="margin-top: 32px;">
+    <div class="card" style="background: var(--coral-soft);">
+      <h4 style="color: var(--coral);">⚠ Anthropic ToS — texto</h4>
+      <p style="font-size: 13px; margin-top: 8px;"><em>"Customer Restrictions: ... train or develop AI models that compete with Claude."</em></p>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">Anthropic Acceptable Use Policy + Customer Agreement, secção restrita.</p>
+    </div>
+    <div class="card" style="background: #D1FAE5;">
+      <h4 style="color: #065F46;">✓ Caminho A — porquê funciona</h4>
+      <p style="font-size: 13px; margin-top: 8px;">Não usa outputs Claude para criar dataset. Apenas usa <em>ficheiros do repo do user</em> (code próprio, commits próprios, docs próprias). Treina LoRA para "ser bom <em>neste projecto</em>", não para "imitar Opus".</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Privacy by code · não por promessa · ADR 014</span>
+    <span>14 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 15 — LEARNING PIPELINE -->
+<section class="slide" data-slide="15">
+  <div class="label">Pipeline de aprendizagem · feedback loop</div>
+  <h2>Cada decisão torna o teu Mooter mais inteligente</h2>
+
+  <svg class="diagram" viewBox="0 0 1100 300" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr15" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L9,3 z" fill="#F96167"/>
+      </marker>
+    </defs>
+    <!-- Cycle -->
+    <rect x="40" y="100" width="180" height="80" rx="12" fill="#FCE7E8" stroke="#F96167" stroke-width="2"/>
+    <text x="130" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#F96167">decisions.log</text>
+    <text x="130" y="150" text-anchor="middle" font-size="11" fill="#475569">cada turn registado</text>
+    <text x="130" y="166" text-anchor="middle" font-size="11" fill="#475569">prompt → output → signal</text>
+    <line x1="220" y1="140" x2="280" y2="140" stroke="#F96167" stroke-width="2" marker-end="url(#arr15)"/>
+
+    <rect x="280" y="100" width="180" height="80" rx="12" fill="#FEF3C7" stroke="#F59E0B" stroke-width="2"/>
+    <text x="370" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#92400E">cron · semanal</text>
+    <text x="370" y="150" text-anchor="middle" font-size="11" fill="#475569">curate · filter · dedupe</text>
+    <text x="370" y="166" text-anchor="middle" font-size="11" fill="#475569">≥ 5k records para retrain</text>
+    <line x1="460" y1="140" x2="520" y2="140" stroke="#F96167" stroke-width="2" marker-end="url(#arr15)"/>
+
+    <rect x="520" y="100" width="180" height="80" rx="12" fill="#CADCFC" stroke="#1E2761" stroke-width="2"/>
+    <text x="610" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#1E2761">retrain LoRA</text>
+    <text x="610" y="150" text-anchor="middle" font-size="11" fill="#475569">Unsloth + DoRA r=32</text>
+    <text x="610" y="166" text-anchor="middle" font-size="11" fill="#475569">3-6h RTX 4090</text>
+    <line x1="700" y1="140" x2="760" y2="140" stroke="#F96167" stroke-width="2" marker-end="url(#arr15)"/>
+
+    <rect x="760" y="100" width="180" height="80" rx="12" fill="#D1FAE5" stroke="#10B981" stroke-width="2"/>
+    <text x="850" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#065F46">eval harness</text>
+    <text x="850" y="150" text-anchor="middle" font-size="11" fill="#475569">200 hold-out × Sonnet judge</text>
+    <text x="850" y="166" text-anchor="middle" font-size="11" fill="#475569">winrate ≥ 60% → activa</text>
+
+    <!-- Cycle back -->
+    <path d="M 850 180 Q 850 230 700 250 Q 500 270 200 230 Q 80 200 100 180" stroke="#F96167" stroke-width="2" stroke-dasharray="5,5" fill="none" marker-end="url(#arr15)"/>
+    <text x="500" y="265" text-anchor="middle" font-size="12" font-weight="700" fill="#F96167">deploy → próximas decisões → ciclo</text>
+
+    <!-- Drift -->
+    <rect x="40" y="30" width="900" height="44" rx="6" fill="#1E2761"/>
+    <text x="490" y="58" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">Drift detection · se win-rate cai &gt; 10pp em 7d → trigger retrain antes do schedule</text>
+  </svg>
+
+  <div class="grid grid-3" style="margin-top: 32px;">
+    <div class="card">
+      <h4>Telemetry opt-in</h4>
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 8px;">Cada decisão local fica em <code>decisions.log</code>. Sync com hub só com consentimento explícito. Aggregator open-source para auditabilidade.</p>
+    </div>
+    <div class="card">
+      <h4>Curate determinista</h4>
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 8px;">Filtros: testes passam? lint clean? syntax válida? feedback ≥ neutro? MinHash dedup near-exact. Logs reproduzíveis.</p>
+    </div>
+    <div class="card">
+      <h4>Eval triple-layer</h4>
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 8px;">1. Deterministic checks (custo 0). 2. Sonnet-as-judge (custo médio). 3. Opus sample mensal (custo alto, calibração).</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>decisions.log → cron → curate → train → eval → deploy → loop</span>
+    <span>15 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 16 — DIFERENCIAL VS COMPETITORS -->
+<section class="slide" data-slide="16">
+  <div class="label">Mercado · diferencial competitivo</div>
+  <h2>Onde se encaixa o Mooter no ecossistema actual</h2>
+  <p class="lead">O Mooter <strong>não compete</strong> com frameworks de agents nem com catálogos de MCP. Ocupa o espaço vazio entre eles: o ranker que escolhe <em>qual</em> usar para cada tarefa.</p>
+
+  <table style="margin-top: 24px;">
+    <thead>
+      <tr>
+        <th>Categoria</th>
+        <th>Players 2026</th>
+        <th>O que fazem</th>
+        <th>O que Mooter faz a mais</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Agent orchestration</strong></td>
+        <td>LangGraph · CrewAI · OpenAI Agents SDK · AG2 · Bee · Inngest AgentKit</td>
+        <td>Constroem grafos de agentes</td>
+        <td><strong>Escolhe qual grafo usar</strong> por intent — é router para eles</td>
+      </tr>
+      <tr>
+        <td><strong>MCP catalogs</strong></td>
+        <td>PulseMCP · Smithery · Composio · Anthropic Registry</td>
+        <td>Listam servers disponíveis</td>
+        <td><strong>Decide qual ligar</strong> para a tarefa actual + sugere install</td>
+      </tr>
+      <tr>
+        <td><strong>Skills marketplaces</strong></td>
+        <td>Anthropic Skills (17) · SkillsMP (66k+) · claudeskills.info</td>
+        <td>Expoõem skills isoladas</td>
+        <td><strong>Compõe skills</strong> em packs coerentes</td>
+      </tr>
+      <tr>
+        <td><strong>Model routers</strong></td>
+        <td>OpenRouter · NotDiamond · Martian</td>
+        <td>Rotam só o modelo</td>
+        <td><strong>Rota tudo</strong> — modelo + tools + scaffold + pesos</td>
+      </tr>
+      <tr>
+        <td><strong>Code assistants</strong></td>
+        <td>Cursor · Claude Code · Windsurf · Cline · Aider</td>
+        <td>UX de coding</td>
+        <td><strong>Ortogonal</strong> — corre dentro de qualquer um via hook</td>
+      </tr>
+      <tr>
+        <td><strong>Static rules</strong></td>
+        <td>Cursor Rules · Cline rules · .cursorrules</td>
+        <td>Regras estáticas por projecto</td>
+        <td><strong>Regras dinâmicas por intent</strong>, não por projecto</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 32px; padding: 20px 24px; background: var(--navy); color: var(--white); border-radius: 12px;">
+    <div style="display: flex; gap: 24px; align-items: center;">
+      <div style="font-size: 36px;">⚠</div>
+      <div>
+        <h4 style="color: var(--coral); margin-bottom: 4px;">Janela competitiva &lt; 12 meses</h4>
+        <p style="font-size: 14px; color: var(--ice);">Smithery + Composio + PulseMCP estão a evoluir de catálogos para semi-routers (one-click install + hosted runtime). Se algum adicionar classificação por intent → competidor directo.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Research 2026-05-27 · fontes citadas no documento</span>
+    <span>16 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 17 — SWITCHING COST -->
+<section class="slide dark" data-slide="17">
+  <div class="label" style="color: var(--coral);">Moat · switching cost biológico</div>
+  <h2 style="color: var(--white);">Cada user que usa 90 dias tem um Mooter <em>diferente</em></h2>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 32px; align-items: center;">
+    <div>
+      <h3 style="color: var(--coral);">Aderência cresce com uso · não com features</h3>
+      <p style="font-size: 16px; color: var(--ice); line-height: 1.6; margin-top: 16px;">
+        Wave 5+ — cada repo treina o Mooter um pouco mais. Adapter LoRA acumula no <code>.mooter/</code> do projecto. Cada turn de feedback positivo é um data-point que afina os pesos.
+      </p>
+      <p style="font-size: 16px; color: var(--ice); line-height: 1.6; margin-top: 16px;">
+        Migrar para outro router significa começar de zero. <strong style="color: var(--white);">Não é "habituação ao UI" — é perda real de capability acumulada.</strong>
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;">
+        <div>
+          <div class="stat" style="font-size: 56px; color: var(--coral);">60-90d</div>
+          <div class="stat-label" style="color: var(--ice);">para LoRA convergir</div>
+        </div>
+        <div>
+          <div class="stat" style="font-size: 56px; color: var(--white);">∞</div>
+          <div class="stat-label" style="color: var(--ice);">valor accumulado, não transferível</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="color: var(--coral);">Acumulação por camada</h3>
+      <div style="background: rgba(255,255,255,0.08); padding: 20px; border-radius: 12px; margin-top: 16px;">
+        <div class="row">
+          <div class="marker" style="height: 60px;"></div>
+          <div>
+            <h4 style="color: var(--white);">Camada 1 · user_priors.bin (2 KB)</h4>
+            <p style="font-size: 13px; color: var(--ice); margin-top: 4px;">LinUCB bandit. Velocity vs quality, lang preference, cost sensitivity. Maturity após ~2000 decisões.</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="marker" style="height: 60px; background: var(--ice);"></div>
+          <div>
+            <h4 style="color: var(--white);">Camada 2 · repo_fingerprint.bin (1.4 KB)</h4>
+            <p style="font-size: 13px; color: var(--ice); margin-top: 4px;">Vector 64-dim do estilo do repo. AST patterns, naming, async style, dominant frameworks.</p>
+          </div>
+        </div>
+        <div class="row" style="margin-bottom: 0;">
+          <div class="marker" style="height: 60px; background: var(--coral);"></div>
+          <div>
+            <h4 style="color: var(--white);">Camada 3 · project.lora (10-200 MB) · Wave 5</h4>
+            <p style="font-size: 13px; color: var(--ice); margin-top: 4px;">Adapter treinado nos teus dados. Eleva qualidade local para próximo do cloud em tarefas T1-T2 específicas.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tagline" style="margin-top: 32px; background: rgba(249,97,103,0.15); border-left-color: var(--coral); font-size: 22px;">
+    O moat não é a tecnologia. É o que <span style="color: var(--coral);">a tecnologia acumula no teu dispositivo</span> ao longo do tempo.
+  </div>
+
+  <div class="footer">
+    <span>Layer 7 (priors) + Layer 8 (fingerprint) + Layer 9 (adapter) = switching cost biológico</span>
+    <span>17 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 18 — ROADMAP -->
+<section class="slide" data-slide="18">
+  <div class="label">Roadmap · 5 waves · 5+ semanas</div>
+  <h2>De vault privado a launch público + Adapter Forge</h2>
+
+  <div style="margin-top: 32px;">
+    <!-- Timeline -->
+    <div style="position: relative; padding-left: 40px;">
+      <div style="position: absolute; left: 15px; top: 0; bottom: 0; width: 3px; background: var(--ice);"></div>
+
+      <div style="position: relative; margin-bottom: 28px;">
+        <div style="position: absolute; left: -32px; top: 4px; width: 26px; height: 26px; background: var(--coral); border-radius: 50%; color: white; font-weight: 700; text-align: center; line-height: 26px; font-size: 14px;">1</div>
+        <h4 style="color: var(--navy);">Wave 1 · Foundations · 2026-05-28 → 2026-06-03 <span class="badge coral">7 dias · in progress</span></h4>
+        <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">Schema + ADR · 3 packs sementinha · classify_domain() regex · &lt;pack-hint&gt; · CLI básico · validação live · repo público 🟢</p>
+      </div>
+
+      <div style="position: relative; margin-bottom: 28px;">
+        <div style="position: absolute; left: -32px; top: 4px; width: 26px; height: 26px; background: var(--navy); border-radius: 50%; color: white; font-weight: 700; text-align: center; line-height: 26px; font-size: 14px;">2</div>
+        <h4 style="color: var(--navy);">Wave 2 · Registry + embeddings · 2026-06-04 → 2026-06-10 <span class="badge">7 dias</span></h4>
+        <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">Embedding layer (nomic-embed-text + faiss) · 4 packs adicionais · Hub endpoints · Haiku semantic fallback · demo público</p>
+      </div>
+
+      <div style="position: relative; margin-bottom: 28px;">
+        <div style="position: absolute; left: -32px; top: 4px; width: 26px; height: 26px; background: var(--navy); border-radius: 50%; color: white; font-weight: 700; text-align: center; line-height: 26px; font-size: 14px;">3</div>
+        <h4 style="color: var(--navy);">Wave 3 · Onboarding + Notion KB · 2026-06-11 → 2026-06-17 <span class="badge">7 dias</span></h4>
+        <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">Budget-first onboarding · auto-install packs · Notion KB per pack · feedback loop · TTL re-validation</p>
+      </div>
+
+      <div style="position: relative; margin-bottom: 28px;">
+        <div style="position: absolute; left: -32px; top: 4px; width: 26px; height: 26px; background: var(--navy); border-radius: 50%; color: white; font-weight: 700; text-align: center; line-height: 26px; font-size: 14px;">4</div>
+        <h4 style="color: var(--navy);">Wave 4 · Launch público + cookbook · 2026-06-18 → 2026-06-24 <span class="badge">7 dias</span></h4>
+        <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">Pack template repo · Cookbook PR Anthropic · Show HN · Anthropic Startup Program · 10 community packs (soft target)</p>
+      </div>
+
+      <div style="position: relative;">
+        <div style="position: absolute; left: -32px; top: 4px; width: 26px; height: 26px; background: var(--gold); border-radius: 50%; color: white; font-weight: 700; text-align: center; line-height: 26px; font-size: 14px;">5</div>
+        <h4 style="color: var(--gold);">Wave 5 · Adapter Forge · 2026-06-25 → 2026-07-02 <span class="badge gold">8 dias · conditional</span></h4>
+        <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">Telemetry · curation · self-distill · Unsloth+DoRA · eval harness · vLLM/Ollama deploy · cron retrain. <strong>Gate de entrada: ≥ 50 utilizadores opt-in.</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 32px; padding: 16px 24px; background: var(--ice-pale); border-radius: 12px; display: flex; gap: 32px; align-items: center;">
+    <div>
+      <div class="stat" style="font-size: 36px;">36</div>
+      <div class="stat-label">dias totais (5 waves)</div>
+    </div>
+    <div>
+      <div class="stat" style="font-size: 36px;">+ Series A</div>
+      <div class="stat-label">após Wave 5 com tracção</div>
+    </div>
+    <div style="flex: 1; margin-left: auto;">
+      <p style="font-size: 14px; color: var(--text-muted);">Cada wave fecha com PR mergeado, sub-página Notion HQ, e demo gravado. SYNC.md sempre actualizado.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Roadmap completo · PASTOR.md §8</span>
+    <span>18 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 19 — RISKS -->
+<section class="slide" data-slide="19">
+  <div class="label">Riscos honestos · não escondidos</div>
+  <h2>O que pode dar errado · e como mitigamos</h2>
+
+  <table style="margin-top: 24px;">
+    <thead>
+      <tr>
+        <th>Risco</th>
+        <th>Severidade</th>
+        <th>Mitigação</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Construir 3 meses em privado outra vez</strong></td>
+        <td><span class="badge coral">Crítico</span></td>
+        <td>Gate explícito Wave 1 Day 7: repo público + Notion HQ + 3 packs validados <strong>ou pivot</strong></td>
+      </tr>
+      <tr>
+        <td>Pastor vira "more bloat" — users ignoram hints</td>
+        <td><span class="badge gold">Médio</span></td>
+        <td>Statusline pequeno · sticky hint só se confidence ≥ 0.6 · <code>mooter pack run</code> dry-run</td>
+      </tr>
+      <tr>
+        <td>Sobre-engenharia — 50 packs vazios</td>
+        <td><span class="badge gold">Médio</span></td>
+        <td>Cada pack só entra no registry após validação em ≥ 10 prompts reais · trust_score visível</td>
+      </tr>
+      <tr>
+        <td>Domain classifier vira "regex hell"</td>
+        <td><span class="badge">Baixo</span></td>
+        <td>Mesma escada que complexity classifier: regex → embedding → Haiku · cada camada testada</td>
+      </tr>
+      <tr>
+        <td>Packs ficam desactualizados (skills/MCPs mudam mensalmente)</td>
+        <td><span class="badge gold">Médio</span></td>
+        <td>TTL_days no metadata · cron semanal verifica liveness · hub avisa <code>mooter pack digest</code></td>
+      </tr>
+      <tr>
+        <td>Smithery/Composio lança classificação por intent primeiro</td>
+        <td><span class="badge gold">Médio</span></td>
+        <td>Velocidade. Wave 1 = 7 dias. Cookbook PR + HN = Wave 4 = 4 semanas total. Open-source moat</td>
+      </tr>
+      <tr>
+        <td><strong>Anthropic ToS Adapter Forge</strong></td>
+        <td><span class="badge coral">Crítico</span></td>
+        <td>Wave 5 SÓ implementa caminho A (self-distillation no codebase do user) · caminhos B/C/D só com legal review</td>
+      </tr>
+      <tr>
+        <td>Eval brittleness — Opus-as-judge inconsistente</td>
+        <td><span class="badge gold">Médio</span></td>
+        <td>Sonnet judge default (mais barato + estável) · Opus só em amostra mensal de calibração</td>
+      </tr>
+      <tr>
+        <td>Hardware: RTX 4090 marginal para Qwen3-30B-A3B fine-tune</td>
+        <td><span class="badge gold">Médio</span></td>
+        <td>Default Qwen3-14B · upgrade path para H100/A100 cloud se justificar</td>
+      </tr>
+      <tr>
+        <td>Switching cost ↑↑ assusta utilizadores enterprise</td>
+        <td><span class="badge">Baixo</span></td>
+        <td>Adapter sempre exportável: <code>mooter adapter export &lt;name&gt;</code> → portable LoRA file</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Anti-patterns documentados · PASTOR.md §11 + §12.7</span>
+    <span>19 / 20</span>
+  </div>
+</section>
+
+<!-- SLIDE 20 — NEXT STEPS -->
+<section class="slide dark" data-slide="20">
+  <div class="label" style="color: var(--coral);">Next steps · começa hoje</div>
+  <h1 style="font-size: 64px; line-height: 1.15;">Wave 1 Day 1 em curso.<br>
+  Repo público em <span style="color: var(--coral);">7 dias</span>.</h1>
+
+  <div class="grid grid-3" style="margin-top: 40px;">
+    <div class="card card-dark" style="background: rgba(249,97,103,0.15); border: 2px solid var(--coral);">
+      <div style="font-size: 36px; color: var(--coral); font-weight: 800;">Now</div>
+      <h4 style="color: var(--white); margin-top: 12px;">Wave 1 Day 1</h4>
+      <p style="font-size: 14px; color: var(--ice); margin-top: 8px;">2026-05-28 · Schema + ADR + spec pack-hint. Claude Code corre no WSL. <strong style="color: var(--coral);">Em execução agora.</strong></p>
+    </div>
+    <div class="card card-dark" style="background: rgba(255,255,255,0.06);">
+      <div style="font-size: 36px; color: var(--ice); font-weight: 800;">+7d</div>
+      <h4 style="color: var(--white); margin-top: 12px;">Wave 1 closure</h4>
+      <p style="font-size: 14px; color: var(--ice); margin-top: 8px;">2026-06-03 · repo <code>mooter-ai/mooter</code> público · 3 packs sementinha validados · validation report</p>
+    </div>
+    <div class="card card-dark" style="background: rgba(255,255,255,0.06);">
+      <div style="font-size: 36px; color: var(--ice); font-weight: 800;">+27d</div>
+      <h4 style="color: var(--white); margin-top: 12px;">Wave 4 launch</h4>
+      <p style="font-size: 14px; color: var(--ice); margin-top: 8px;">2026-06-24 · Show HN + Anthropic cookbook PR + Anthropic Startup Program submission</p>
+    </div>
+  </div>
+
+  <div class="tagline" style="margin-top: 40px; background: rgba(255,255,255,0.06); border-left-color: var(--coral); font-size: 26px;">
+    O Pastor não é uma feature.<br>
+    É um <span style="color: var(--coral);">novo arquetipo</span>: o router que escolhe não apenas o modelo,<br>
+    mas todo o rebanho de capacidades — antes do primeiro token.
+  </div>
+
+  <div style="margin-top: 40px; display: flex; gap: 16px; align-items: end;">
+    <div>
+      <h4 style="color: var(--white);">Documentos canónicos</h4>
+      <p style="font-size: 13px; color: var(--ice); margin-top: 4px;">
+        <code>docs/strategy/PASTOR.md</code> · SSoT estratégia<br>
+        <code>docs/strategy/PASTOR_OPERATIONS.md</code> · runbook<br>
+        <code>docs/strategy/research_best_in_class_2026.md</code> · research factual
+      </p>
+    </div>
+    <div style="margin-left: auto; text-align: right;">
+      <p style="font-size: 13px; color: var(--ice);">Paulo Loureiro · 2026-05-27</p>
+      <p style="font-size: 13px; color: var(--coral); font-weight: 600;">mooter.ai · 🐑 cercar o rebanho certo</p>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- NAV -->
+<div class="counter" id="counter">01 / 20</div>
+<div class="dots" id="dots"></div>
+<div class="nav">
+  <button id="first" title="First (Home)">⏮</button>
+  <button id="prev" title="Previous (←)">◀</button>
+  <button id="next" title="Next (→)">▶</button>
+  <button id="last" title="Last (End)">⏭</button>
+  <button id="fullscreen" title="Fullscreen (F)" style="width: auto; padding: 0 12px;">⛶</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  const counter = document.getElementById('counter');
+  const dotsContainer = document.getElementById('dots');
+  let currentSlide = 0;
+
+  // Build dots
+  for (let i = 0; i < totalSlides; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.addEventListener('click', () => goToSlide(i));
+    dotsContainer.appendChild(dot);
+  }
+
+  function goToSlide(idx) {
+    if (idx < 0 || idx >= totalSlides) return;
+    slides[currentSlide].classList.remove('active');
+    document.querySelectorAll('.dot')[currentSlide].classList.remove('active');
+    currentSlide = idx;
+    slides[currentSlide].classList.add('active');
+    document.querySelectorAll('.dot')[currentSlide].classList.add('active');
+    counter.textContent = String(currentSlide + 1).padStart(2, '0') + ' / ' + String(totalSlides).padStart(2, '0');
+    // Update counter color based on slide background
+    counter.style.color = slides[currentSlide].classList.contains('dark') ? '#CADCFC' : '#64748B';
+    counter.style.background = slides[currentSlide].classList.contains('dark') ? 'rgba(30,39,97,0.9)' : 'rgba(255,255,255,0.9)';
+  }
+
+  document.getElementById('first').addEventListener('click', () => goToSlide(0));
+  document.getElementById('prev').addEventListener('click', () => goToSlide(currentSlide - 1));
+  document.getElementById('next').addEventListener('click', () => goToSlide(currentSlide + 1));
+  document.getElementById('last').addEventListener('click', () => goToSlide(totalSlides - 1));
+  document.getElementById('fullscreen').addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { goToSlide(currentSlide + 1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { goToSlide(currentSlide - 1); e.preventDefault(); }
+    if (e.key === 'Home') goToSlide(0);
+    if (e.key === 'End') goToSlide(totalSlides - 1);
+    if (e.key.toLowerCase() === 'f') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+</script>
+
+</body>
+</html>
