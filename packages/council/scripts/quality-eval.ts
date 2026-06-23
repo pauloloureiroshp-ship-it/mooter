@@ -60,21 +60,31 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const LENGTH_NEUTRAL = !process.argv.slice(2).includes("--no-length-neutral");
 const TAG = process.argv.slice(2).find((a) => a.startsWith("--tag="))?.split("=")[1] ?? "";
 
+// Per-call timeout (ms): a hung Ollama generation must not block the whole run forever.
+// Generous (180s) so it only fires on a genuine wedge, never on a slow-but-progressing
+// call. A timed-out call returns an error → the seat abstains honestly (no fabrication).
+const CALL_TIMEOUT_MS = Number(process.env.EVAL_CALL_TIMEOUT_MS ?? 180000);
+
 function makeSeededOllamaModel(id: string, seed: number): ModelSpec {
   return {
     id, tier: "T0", kind: "local",
     async call(prompt: string) {
       const t0 = Date.now();
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
       try {
         const res = await fetch(`${OLLAMA_HOST}/api/generate`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: id, prompt, stream: false, options: { temperature: 0, seed } }),
+          signal: ctrl.signal,
         });
         if (!res.ok) return { text: "", costUsd: 0, latencyMs: Date.now() - t0, error: `ollama HTTP ${res.status}` };
         const json = (await res.json()) as { response?: string };
         return { text: json.response ?? "", costUsd: 0, latencyMs: Date.now() - t0 };
       } catch (e) {
         return { text: "", costUsd: 0, latencyMs: Date.now() - t0, error: (e as Error).message };
+      } finally {
+        clearTimeout(timer);
       }
     },
   };
