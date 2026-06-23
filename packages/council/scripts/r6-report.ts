@@ -119,9 +119,9 @@ if (WRITE) {
       base_reliability: COUNCIL_BASE_RELIABILITY, ceiling: COUNCIL_CORROBORATION_CEILING,
     },
     act_gate: {
-      old_confirmed: { n: actOldW.length, precision: precN(actOldW) },
-      new_corroborated: { n: actNewW.length, precision: precN(actNewW) },
-      note: "ACT precision = P(correct | gate fires) on the verifiable subset. New gate requires independent corroboration (clusterSize≥2) + not-genuine-uncertainty; conservative (low coverage, high precision).",
+      old_confirmed: { n: actOldW.length, precision: precN(actOldW), precision_ci95: ((w) => [+w.lo.toFixed(3), +w.hi.toFixed(3)])(wilson(actOldW.filter((r) => r.correctB).length, actOldW.length)) },
+      new_corroborated: { n: actNewW.length, precision: precN(actNewW), precision_ci95: ((w) => [+w.lo.toFixed(3), +w.hi.toFixed(3)])(wilson(actNewW.filter((r) => r.correctB).length, actNewW.length)) },
+      note: "ACT precision = P(correct | gate fires) on the verifiable subset. New gate requires independent corroboration (clusterSize≥2) + not-genuine-uncertainty; conservative — HIGH precision but LOW coverage (n=2 here, so the 1.000 has a wide CI; read it as 'fires rarely, and only on independent agreement', not a strong point estimate).",
     },
     cost: { dollars: 0, all_local: true, avg_council_calls: +(ver.reduce((s, r) => s + (r.councilCalls || 0), 0) / ver.length).toFixed(1), latency_ratio_council_vs_single: +(totLatB / totLatA).toFixed(1) },
     decision,

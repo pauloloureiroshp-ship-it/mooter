@@ -54,13 +54,21 @@
   "act_gate": {
     "old_confirmed": {
       "n": 12,
-      "precision": 0.667
+      "precision": 0.667,
+      "precision_ci95": [
+        0.391,
+        0.862
+      ]
     },
     "new_corroborated": {
       "n": 2,
-      "precision": 1
+      "precision": 1,
+      "precision_ci95": [
+        0.342,
+        1
+      ]
     },
-    "note": "ACT precision = P(correct | gate fires) on the verifiable subset. New gate requires independent corroboration (clusterSize≥2) + not-genuine-uncertainty; conservative (low coverage, high precision)."
+    "note": "ACT precision = P(correct | gate fires) on the verifiable subset. New gate requires independent corroboration (clusterSize≥2) + not-genuine-uncertainty; conservative — HIGH precision but LOW coverage (n=2 here, so the 1.000 has a wide CI; read it as 'fires rarely, and only on independent agreement', not a strong point estimate)."
   },
   "cost": {
     "dollars": 0,

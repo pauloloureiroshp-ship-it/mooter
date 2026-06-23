@@ -15,6 +15,14 @@
 //                     in-sample number (the anti-overfit headline the charter demands).
 //
 // Nothing here calls a model or touches the frozen engine. Pure + deterministic.
+//
+// WIRING (so a future reader knows what is load-bearing): the SHIPPED runtime confidence
+// (verdict.ts calibrateConfidence) uses the linear corroboration formula, NOT isotonic or
+// smoothed rate. The primitives here are used by the OFFLINE fit/report scripts
+// (calibration-fit.ts, r6-report.ts) — expectedCalibrationError/brier/looCv score the
+// shipped confidence honestly out-of-fit; isotonicPAVA + smoothedRate back the candidate
+// calibrators those scripts compare against. All are unit-tested and available for a
+// future runtime calibrator, but only the linear formula is on the shipped path today.
 
 export interface LabeledScore {
   /** Raw monotone-ish score to calibrate (higher = more confident). */
