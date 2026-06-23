@@ -163,13 +163,44 @@ function renderRow(r, opts) {
     ? '<div class="ssub" style="opacity:.7">🧠 ' + esc(r.brainTitle) + '</div>'
     : '';
 
+  // ── Git stage chip (WCOCKPIT-4: safety — shows uncommitted/staged/ahead/clean) ──
+  var gsChip = '';
+  var gsTip = '';
+  if (r.gitStage) {
+    var gsState = r.gitStage.state;
+    var gsDirty = r.gitStage.dirty || 0;
+    var gsAhead = r.gitStage.ahead || 0;
+    if (gsState === 'clean') {
+      gsChip = '<span class="gstage clean">✓ clean</span>';
+    } else if (gsState === 'uncommitted') {
+      gsChip = '<span class="gstage dirty">● ' + gsDirty + ' uncommitted</span>';
+      gsTip  = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
+    } else if (gsState === 'staged') {
+      gsChip = '<span class="gstage staged">◐ staged</span>';
+    } else if (gsState === 'ahead') {
+      gsChip = '<span class="gstage ahead">↑' + gsAhead + ' to push</span>';
+      gsTip  = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
+    }
+  }
+  var gitLine = gsChip ? '<div class="sgit">' + gsChip + (gsTip ? ' ' + gsTip : '') + '</div>' : '';
+
+  // ── Worktree accent (WCOCKPIT-4: consistent border-left color per worktree name) ──
+  var _WTA = ['#5A9BD4','#D4A05A','#A05AD4','#5AD4A0','#D4605A','#D4C05A','#60A05A'];
+  var wtStyle = '';
+  if (r.worktree) {
+    var _wth = 0;
+    for (var _wti = 0; _wti < r.worktree.length; _wti++) _wth = (_wth * 31 + r.worktree.charCodeAt(_wti)) & 0xFFFF;
+    var _wtc = _WTA[_wth % _WTA.length];
+    wtStyle = ' style="border-left-color:' + _wtc + ';border-top-left-radius:0;border-bottom-left-radius:0"';
+  }
+
   return '<div class="srow' + (sel ? ' on' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
-    + '" data-sess="' + esc(r.fullId) + '" role="button" tabindex="0" title="open this session in Claude Code">'
+    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" role="button" tabindex="0" title="open this session in Claude Code">'
     + '<span class="livecow' + cowCls + '">🐮</span>'
     + '<div class="sbody">'
     + '<div class="stop"><span class="sname">' + esc(nm) + '</span><span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span></div>'
     + '<div class="ssub">' + badge + ' · ' + esc(r.id) + (sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '') + '</div>'
-    + brainLine + scm
+    + brainLine + scm + gitLine
     + modeSeg + ctrl + meta
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'

@@ -5,7 +5,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFile } = require('child_process');
+const { execFile, spawnSync } = require('child_process');
 const { httpJson } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
@@ -582,6 +582,41 @@ async function gitBranch(cwd) {
   return (!b || b === 'HEAD') ? null : b; // 'HEAD' = detached → no branch to show
 }
 
+// WCOCKPIT-4: READ-ONLY git stage snapshot for a session's working directory.
+// Runs git status --porcelain + rev-list ahead/behind. Sync, 3s timeout, never throws.
+// Returns { state, dirty, staged, ahead, behind } with state ∈ clean|uncommitted|staged|ahead.
+// state priority: uncommitted (dirty) > staged > ahead > clean.
+// null when cwd is invalid, not a git repo, or git times out.
+function gitStage(cwd) {
+  if (!cwd || typeof cwd !== 'string') return null;
+  try {
+    const sopts = { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] };
+    const sr = spawnSync('git', ['-C', cwd, 'status', '--porcelain'], sopts);
+    if (sr.status !== 0 || sr.error) return null;
+    const lines = (sr.stdout || '').split('\n').filter(function(l) { return l.length >= 2; });
+    let dirty = 0, staged = 0;
+    for (const line of lines) {
+      const x = line[0], y = line[1];
+      if (x !== ' ' && x !== '?') staged++;   // col1 ≠ space = staged change
+      if (y !== ' ' || x === '?') dirty++;     // col2 ≠ space or untracked = dirty
+    }
+    let ahead = 0, behind = 0;
+    try {
+      const rr = spawnSync('git', ['-C', cwd, 'rev-list', '--count', '--left-right', '@{u}...HEAD'], sopts);
+      if (rr.status === 0 && !rr.error) {
+        const parts = (rr.stdout || '').trim().split(/\s+/);
+        behind = parseInt(parts[0] || '0', 10) || 0;
+        ahead  = parseInt(parts[1] || '0', 10) || 0;
+      }
+    } catch { /* no upstream configured — not an error */ }
+    let state = 'clean';
+    if      (dirty  > 0) state = 'uncommitted';
+    else if (staged > 0) state = 'staged';
+    else if (ahead  > 0) state = 'ahead';
+    return { state, dirty, staged, ahead, behind };
+  } catch { return null; }
+}
+
 // Open/recent PRs from gh, scoped to the repo at `cwd` (gh runs in that dir → the PRs
 // genuinely belong to that session's repo, never another repo that happens to share a
 // branch name). [] when gh is absent, unauthenticated, offline, or cwd is not a GitHub
@@ -727,6 +762,8 @@ async function recentSessions(maxN = 8) {
       if (thisWt) worktree = path.basename(thisWt.path);
     }
     const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec };
+    row.repoFolder = cwd ? path.basename(cwd) : null; // WCOCKPIT-3: clean folder name for grouping
+    row.gitStage = cwd ? gitStage(cwd) : null;        // WCOCKPIT-4: READ-ONLY git stage snapshot
     modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     out.push(row);
@@ -743,4 +780,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
-  execTool, _sessionCwd, gitBranch, prList, prStage };
+  execTool, _sessionCwd, gitBranch, gitStage, prList, prStage };

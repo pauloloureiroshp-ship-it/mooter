@@ -4,6 +4,59 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🔍 Sessão — 2026-06-23 (Wave WCOCKPIT-4 — Git stage por sessão (safety) + worktree accent)
+**Branch:** `wave-WCOCKPIT` · **Commit:** (a commitar)
+**Estado:** ✅ **Entregue** — 5 ficheiros modificados, 235 linhas.
+**O que aterrou (100% aditivo, sem toque no engine):**
+- `host-extra.js`: `gitStage(cwd)` helper sync (READ-ONLY: `git status --porcelain` + `rev-list @{u}...HEAD`, timeout 3s, never-throws); exportado; `recentSessions()` popula `row.gitStage = { state, dirty, staged, ahead, behind }`
+- `row-renderer.js`: `renderRow()` emite chip `.gstage` (✓ clean / ● N uncommitted âmbar / ◐ staged azul / ↑N to push); `.gtip` safety tip "⚠ trabalho por guardar — não fechar" quando dirty>0 ou ahead>0; worktree accent `border-left-color` com hash determinístico por worktree name + `border-radius:0` no lado esquerdo
+- `extension.js`: CSS `.sgit .gstage.clean/dirty/staged/ahead .gtip`
+- `data.test.js`: +13 testes (gitStage unit null/non-git/real-repo; recentSessions tem gitStage; renderRow HTML-level para cada estado; safety tip; sem chip quando null; worktree accent; determinismo de cor)
+**O que o utilizador vê agora:** chip de estágio git em cada card (verde = clean, âmbar = uncommitted, azul = staged/ahead) + dica "⚠ não fechar" quando há trabalho por guardar + borda-esquerda colorida por worktree
+**Testes:** `node --test data.test.js` → **106 pass, 0 fail** (+13 testes WCOCKPIT-4)
+**`classify.js` sha:** `427d8c0b...364bc48f` **INTACTA** ✓
+**Notion:** https://app.notion.com/p/3886f6e42bc481618e98ed1fcf37c469
+**BLOCKERS (gate humano):** merge `wave-WCOCKPIT → main` (commits b3a327f + c9115ad + 4cce4ae + WCOCKPIT-4) + `/mooter-update` + smoke (chip git visível, cor por worktree, safety tip em sessões com dirty/ahead).
+
+### 🎨 Sessão — 2026-06-23 (Wave WCOCKPIT-3 — Fechar gap UI do cockpit, renderRow = mockup)
+**Branch:** `wave-WCOCKPIT` · **Commit:** `4cce4ae`
+**Estado:** ✅ **Entregue** — 3 ficheiros modificados (+row-renderer.js), 413 linhas.
+**O que aterrou (100% aditivo, sem toque no engine):**
+- `row-renderer.js` (NOVO): módulo CJS puro com `renderRow(r, opts)` + `renderGroupHeader(k, gr)` testáveis e serializáveis via `fn.toString()` para o webview
+- `extension.js`: substitui inline `rowFor` por delegação ao `renderRow`; `grpHd` → `renderGroupHeader`; CSS `.sseg .smode .sctrl .smodsel button.sauto`; `wireSessControls()` com `stopPropagation` para mode/model/auto dentro da srow; `RR = require('./row-renderer')` com fallback
+- `data.test.js`: +22 testes HTML-level (assert que o HTML de `renderRow()` contém: 3 mode buttons, .on class no modo activo, .lazy/.crazy na vaca, select de modelo com option selected correcto, toggle auto.on, SVG Notion+Obsidian, ↺ refresh, wt chip, brain title, XSS escaping, aria-label)
+**O que o utilizador vê no card agora:** segmented [💤 | 🐮 | ⚡] por sessão + model select + auto toggle + Notion/Obs SVG + wt chip + brain title + agrupamento por `registry.project`
+**Testes:** `node --test data.test.js` → **93 pass, 0 fail** (+22 testes WCOCKPIT-3)
+**`classify.js` sha:** `427d8c0b...364bc48f` **INTACTA** ✓
+**Notion:** https://app.notion.com/p/3886f6e42bc481da8389fa68c47af381
+**BLOCKERS (gate humano):** merge `wave-WCOCKPIT → main` (commits b3a327f + c9115ad + 4cce4ae) + `/mooter-update` + smoke (segmented visível no card, model select funciona, auto toggle, wt chip em linked worktrees).
+
+### 🔍 Sessão — 2026-06-23 (Wave WCOCKPIT-2 — Refinamento anti-perder-se, aditivo sobre WCOCKPIT)
+**Branch:** `wave-WCOCKPIT` · **Commit:** `c9115ad`
+**Estado:** ✅ **Entregue** — 4 ficheiros modificados, 207 inserções.
+**O que aterrou:**
+- `mode-registry.js`: DEFAULT + `notionPageId/notionSyncedAt/obsidianPath/obsidianSyncedAt`; `worktrees(cwd)` (git porcelain, timeout 3s); `touchSync(sid, which)` atómico; `decorate()` exporta campos integração
+- `host-extra.js`: `lastActiveTs=f.mtime`, `wtCache`, `worktree=basename(linked wt)`, sort needsYou-first+lastActiveTs-desc
+- `extension.js`: CSS `.smeta/.intchip/.intlogo/.wtchip/.intrefresh`; meta line com Notion SVG + Obsidian SVG + tempo + wt chip + botão ↺; sorted antes do render; handler `refreshIntegrations`
+**Testes:** `node --test data.test.js` → **71 pass, 0 fail** (+12 testes WCOCKPIT-2)
+**`classify.js` sha:** `427d8c0b...364bc48f` **INTACTA** ✓
+**Notion:** https://app.notion.com/p/3886f6e42bc48174b7ffe13b3de06b54
+**BLOCKERS (gate humano):** merge `wave-WCOCKPIT → main` (commits b3a327f + c9115ad) + `/mooter-update` + smoke (meta line visível, ↺ funciona, sort correcto, wt chip em linked worktrees).
+
+### 🐄 Sessão — 2026-06-23 (Wave WCOCKPIT — Auto-pilot por sessão no cockpit, aditivo + testes)
+**Branch:** `wave-WCOCKPIT` · **Commit:** `b3a327f`
+**Estado:** ✅ **Entregue** — 6 ficheiros, 480 inserções, 0 regressões.
+**O que aterrou (100% aditivo, sem toque no engine):**
+- `packages/vscode-extension/src/mode-registry.js` + `cowork-waiting.js` (copiados de `_handoff/loop/`)
+- `host-extra.js` `recentSessions()`: `modeRegistry.decorate()` + `coworkWaiting.decorate()` por row (requires lazy com fallback)
+- `extension.js`: CSS `moolazy`/`moocrazy` + `${COWORK.CSS}`; `rowFor()` com badge cowork + classes de modo; handlers `setMode/setModel/setAuto/toggleProject`
+- `sdk-runner.mjs`: `createRequire` ESM→CJS + `resolveModel()` por sessão (lazy→haiku, moo→GEN_MODEL, crazy→opus)
+- `data.test.js`: +20 unit tests mode-registry + cowork-waiting + contrato WCOCKPIT em `recentSessions()`
+**Testes:** `node --test data.test.js` → **59 pass, 0 fail**. 15 fail CLI = env/Windows pré-existentes (branch não toca CLI).
+**`classify.js` sha:** `427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f` **INTACTA** ✓
+**Notion:** https://app.notion.com/p/3886f6e42bc481eaa54fe2deb8205592
+**BLOCKERS (gate humano):** merge `wave-WCOCKPIT → main` + `/mooter-update` + smoke live (modos animam, badge 🔵, sdk usa haiku em lazy).
+
 ### 🕸 Sessão — 2026-06-22 (Wave 66 Graphify — Fase B: MERGED em `main` + tag + runtime sync — Claude Code)
 **Estado:** ✅ **Wave 66 MERGED em `main`** via **PR #192** (merge `17882d2`). Local fast-forward de `origin/main` (54 commits: 6 graphify + undici fix #194 `acfb6d9` + outras waves). `classify.js` sha `427d8c0b…364bc48f` **INTACTA em `main`** (re-verificada). `decide-agent.ts` byte-idêntico (`2d6eba4f…`) — só o wrapper novo `graph-aware-decide.ts`.
 **Tag:** `v1.44.0-graphify` (anotada, no merge `17882d2`) — **alinhada ao `version.json` (1.44.0, não bumped: wave aditiva/opt-in)**; convenção `v<ver>-<slug>` como `v1.44.0-first-magic`/`-compaction-advisor`. **⚠️ Local, por pushar (aguarda OK).**

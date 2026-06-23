@@ -794,3 +794,119 @@ test('WCOCKPIT-3 renderRow: sseg toolbar has aria-label for accessibility', () =
   assert.ok(html.includes('role="toolbar"'), 'mode segmented must have role=toolbar');
   assert.ok(html.includes('aria-label="session mode"'), 'mode segmented must have aria-label');
 });
+
+// ── WCOCKPIT-4: gitStage unit tests ──
+
+test('WCOCKPIT-4 gitStage: null/empty/non-string cwd → null (never throws)', () => {
+  assert.equal(x.gitStage(null), null);
+  assert.equal(x.gitStage(''), null);
+  assert.equal(x.gitStage(123), null);
+});
+
+test('WCOCKPIT-4 gitStage: non-git dir → null (never throws)', () => {
+  const nonGit = path.join(os.tmpdir(), 'no-git-wcockpit4-' + process.pid);
+  assert.equal(x.gitStage(nonGit), null); // not a repo, git returns non-zero → null
+});
+
+test('WCOCKPIT-4 gitStage: real git repo → valid state object', () => {
+  const projectRoot = path.resolve(__dirname, '..', '..', '..');
+  const gs = x.gitStage(projectRoot);
+  assert.ok(gs !== null, 'gitStage must return an object for a real git repo');
+  assert.ok(['clean', 'uncommitted', 'staged', 'ahead'].includes(gs.state), 'state must be valid');
+  assert.equal(typeof gs.dirty,  'number', 'dirty must be a number');
+  assert.equal(typeof gs.staged, 'number', 'staged must be a number');
+  assert.equal(typeof gs.ahead,  'number', 'ahead must be a number');
+  assert.equal(typeof gs.behind, 'number', 'behind must be a number');
+  assert.ok(gs.dirty >= 0 && gs.staged >= 0 && gs.ahead >= 0 && gs.behind >= 0,
+    'all counts must be non-negative');
+});
+
+test('WCOCKPIT-4 gitStage: recentSessions entries have gitStage (object|null, never undefined)', async () => {
+  const rs = await x.recentSessions(3);
+  for (const r of rs) {
+    assert.ok('gitStage' in r, 'row must have gitStage field');
+    assert.ok(r.gitStage === null || (typeof r.gitStage === 'object' && r.gitStage !== null),
+      'gitStage must be object or null — never undefined or string');
+    if (r.gitStage !== null) {
+      assert.ok(['clean', 'uncommitted', 'staged', 'ahead'].includes(r.gitStage.state),
+        'gitStage.state must be valid');
+    }
+  }
+});
+
+// ── WCOCKPIT-4: renderRow HTML-level tests — git stage chip ──
+
+test('WCOCKPIT-4 renderRow: clean state shows ✓ clean chip, no safety tip', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 } });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="gstage clean"'), 'clean chip must have .gstage.clean');
+  assert.ok(html.includes('✓ clean'), 'clean chip must show ✓ clean text');
+  assert.ok(!html.includes('não fechar'), 'clean state must NOT show safety tip');
+  assert.ok(html.includes('class="sgit"'), 'sgit container must be present');
+});
+
+test('WCOCKPIT-4 renderRow: uncommitted state shows ● N uncommitted chip with safety tip', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0, behind: 0 } });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="gstage dirty"'), 'uncommitted chip must have .gstage.dirty');
+  assert.ok(html.includes('● 3 uncommitted'), 'uncommitted chip must show dirty count');
+  assert.ok(html.includes('não fechar'), 'dirty state must show safety tip');
+  assert.ok(html.includes('class="gtip"'), 'gtip class must be present');
+});
+
+test('WCOCKPIT-4 renderRow: staged state shows ◐ staged chip (no safety tip)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'staged', dirty: 0, staged: 2, ahead: 0, behind: 0 } });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="gstage staged"'), 'staged chip must have .gstage.staged');
+  assert.ok(html.includes('◐ staged'), 'staged chip must show ◐ staged');
+  assert.ok(!html.includes('não fechar'), 'staged-only must NOT show safety tip');
+});
+
+test('WCOCKPIT-4 renderRow: ahead state shows ↑N to push chip with safety tip', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2, behind: 0 } });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="gstage ahead"'), 'ahead chip must have .gstage.ahead');
+  assert.ok(html.includes('↑2 to push'), 'ahead chip must show ahead count');
+  assert.ok(html.includes('não fechar'), 'ahead state must show safety tip');
+});
+
+test('WCOCKPIT-4 renderRow: null gitStage → no git stage chip rendered', () => {
+  // SAMPLE_ROW has no gitStage field → no chip
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(!html.includes('class="sgit"'), 'no sgit div when gitStage is absent/null');
+  assert.ok(!html.includes('class="gstage'), 'no gstage chip when gitStage is absent/null');
+});
+
+test('WCOCKPIT-4 renderRow: worktree row has border-left-color accent (no left radius)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { worktree: 'wave-WCOCKPIT' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('border-left-color:'), 'worktree row must have border-left-color inline style');
+  assert.ok(html.includes('border-top-left-radius:0'), 'worktree row must flatten top-left radius');
+  assert.ok(html.includes('border-bottom-left-radius:0'), 'worktree row must flatten bottom-left radius');
+});
+
+test('WCOCKPIT-4 renderRow: no worktree → no border-left-color accent style', () => {
+  // SAMPLE_ROW has worktree=null
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(!html.includes('border-left-color:'), 'no worktree → no border accent style');
+});
+
+test('WCOCKPIT-4 renderRow: two sessions with same worktree get same accent color (deterministic)', () => {
+  const row1 = Object.assign({}, SAMPLE_ROW, { fullId: 'sess-a', worktree: 'my-feature' });
+  const row2 = Object.assign({}, SAMPLE_ROW, { fullId: 'sess-b', worktree: 'my-feature' });
+  const h1 = rr.renderRow(row1, {});
+  const h2 = rr.renderRow(row2, {});
+  const extractAccent = html => { const m = html.match(/border-left-color:([^;'"]+)/); return m ? m[1] : null; };
+  assert.equal(extractAccent(h1), extractAccent(h2), 'same worktree name must produce same accent color');
+});
+
+test('WCOCKPIT-4 renderRow: two sessions with different worktrees may differ in accent (hash spread)', () => {
+  const row1 = Object.assign({}, SAMPLE_ROW, { fullId: 'sess-c', worktree: 'alpha' });
+  const row2 = Object.assign({}, SAMPLE_ROW, { fullId: 'sess-d', worktree: 'beta-long-name-123' });
+  const h1 = rr.renderRow(row1, {});
+  const h2 = rr.renderRow(row2, {});
+  // Both must have a style — content may differ (hash-dependent)
+  assert.ok(h1.includes('border-left-color:'), 'alpha worktree must have accent');
+  assert.ok(h2.includes('border-left-color:'), 'beta worktree must have accent');
+  // (not asserting they differ — hash collision theoretically possible, just verifying both render)
+});

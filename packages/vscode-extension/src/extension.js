@@ -407,6 +407,14 @@ function getHtml() {
   .smodsel{font-size:9.5px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:4px;max-width:115px;min-width:68px}
   button.sauto{font-size:9px;padding:2px 7px;opacity:.5}
   button.sauto.on{opacity:1;color:var(--g);border-color:var(--g)}
+  /* WCOCKPIT-4: git stage chip + safety tip */
+  .sgit{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}
+  .gstage{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600}
+  .gstage.clean{color:var(--g);background:var(--gdim)}
+  .gstage.dirty{color:#e5c07b;background:rgba(229,192,123,.12)}
+  .gstage.staged{color:#5A9BD4;background:rgba(90,155,212,.12)}
+  .gstage.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
+  .gtip{font-size:9px;color:#e5c07b;font-weight:600}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
