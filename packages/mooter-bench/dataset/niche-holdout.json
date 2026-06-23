@@ -1,0 +1,401 @@
+{
+  "$schema_note": "MooterBench niche holdout v0.1.0 — 56 coding-niche OOD prompts. SEALED: never use for training or classifier tuning. Split: T0=15, T1=11, T2=15, T3=15. Categories bias toward coding domain (bug-investigation, security, architecture, ci-config, pre-merge-review, test-gen). Labels are author-judgment gold labels against the Mooter routing doctrine.",
+  "version": "0.1.0",
+  "sealed": true,
+  "holdout_note": "OOD: zero overlap with dataset/workflows.json. Do not add prompts that appeared in any prior tuning run. Unseal only with Paulo's explicit approval.",
+  "split": { "T0": 15, "T1": 11, "T2": 15, "T3": 15 },
+  "workflows": [
+    {
+      "id": "nh-001",
+      "prompt": "add a semicolon at the end of line 87 in src/utils/format.ts",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "One-character insertion in one file, zero reasoning required."
+    },
+    {
+      "id": "nh-002",
+      "prompt": "change the font-size from 14px to 16px in the Card component styles",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Single CSS value change, local model territory."
+    },
+    {
+      "id": "nh-003",
+      "prompt": "rename the function parseDate to parseISODate in src/helpers/date.ts",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Mechanical rename in a single file."
+    },
+    {
+      "id": "nh-004",
+      "prompt": "remove the unused import 'lodash' from src/api/users.ts",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Delete one import line, no reasoning."
+    },
+    {
+      "id": "nh-005",
+      "prompt": "update the tooltip text on the submit button from 'Send' to 'Submit form'",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Copy change in a single component."
+    },
+    {
+      "id": "nh-006",
+      "prompt": "add aria-label='close dialog' to the X button in Modal.tsx",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Single attribute addition, accessibility tweak, one file."
+    },
+    {
+      "id": "nh-007",
+      "prompt": "fix the import path in test/unit/auth.test.ts — it currently points to '../../src/auth' but the file moved to '../../src/modules/auth'",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "String change in a known import statement, no logic change."
+    },
+    {
+      "id": "nh-008",
+      "prompt": "update the version field in package.json from 1.2.3 to 1.2.4",
+      "category": "trivial-edit",
+      "expected_tier": "T0",
+      "rationale": "Single field bump in one file — by itself trivial."
+    },
+    {
+      "id": "nh-009",
+      "prompt": "convert this object destructuring in utils/helpers.js to use default params syntax",
+      "category": "format-transform",
+      "expected_tier": "T0",
+      "rationale": "Mechanical syntactic transform within one small function."
+    },
+    {
+      "id": "nh-010",
+      "prompt": "reformat this JSON response from single-line to pretty-printed with 2-space indent: {\"id\":1,\"name\":\"Alice\",\"role\":\"admin\"}",
+      "category": "format-transform",
+      "expected_tier": "T0",
+      "rationale": "Pure format transform on inline data, no reasoning needed."
+    },
+    {
+      "id": "nh-011",
+      "prompt": "write a regex that matches valid ISO 8601 dates like 2024-01-15 but not 2024-13-01",
+      "category": "regex",
+      "expected_tier": "T0",
+      "rationale": "Regex generation is a well-scoped, local-model task."
+    },
+    {
+      "id": "nh-012",
+      "prompt": "write a regex to strip ANSI escape codes from a terminal string in JavaScript",
+      "category": "regex",
+      "expected_tier": "T0",
+      "rationale": "Single well-defined regex, self-contained, local model sufficient."
+    },
+    {
+      "id": "nh-013",
+      "prompt": "add a docstring to the calculateTax function in billing/tax.py explaining its params and return value",
+      "category": "docs",
+      "expected_tier": "T0",
+      "rationale": "Docstring for a named function — local model, no architecture judgment."
+    },
+    {
+      "id": "nh-014",
+      "prompt": "update the @param jsdoc for the 'options' argument in src/client.ts line 34 to reflect the new 'timeout' field",
+      "category": "docs",
+      "expected_tier": "T0",
+      "rationale": "Doc update to match an already-known change — one comment block."
+    },
+    {
+      "id": "nh-015",
+      "prompt": "add a comment block above the retry loop in src/http/fetch.ts explaining the exponential backoff logic",
+      "category": "docs",
+      "expected_tier": "T0",
+      "rationale": "Inline comment addition, local model territory."
+    },
+    {
+      "id": "nh-016",
+      "prompt": "write a one-line commit message for this diff: adds null check before calling user.getProfile()",
+      "category": "commit-msg",
+      "expected_tier": "T1",
+      "rationale": "Commit message generation is a cheap, triage-level task."
+    },
+    {
+      "id": "nh-017",
+      "prompt": "generate a commit message for: moves API key from hardcoded string to process.env.OPENAI_KEY and updates the .env.example",
+      "category": "commit-msg",
+      "expected_tier": "T1",
+      "rationale": "Commit message for a described change — T1 codegen."
+    },
+    {
+      "id": "nh-018",
+      "prompt": "write three alternative commit message options for: adds debounce to the search input handler to reduce API calls",
+      "category": "commit-msg",
+      "expected_tier": "T1",
+      "rationale": "Still commit message generation, slightly more options but same tier."
+    },
+    {
+      "id": "nh-019",
+      "prompt": "explain this TypeScript error: 'Type string is not assignable to type number | undefined'",
+      "category": "explain-error",
+      "expected_tier": "T1",
+      "rationale": "Common TS type error explanation — cheap triage."
+    },
+    {
+      "id": "nh-020",
+      "prompt": "what does this Python traceback mean: AttributeError: 'NoneType' object has no attribute 'split' at line 42 in parser.py",
+      "category": "explain-error",
+      "expected_tier": "T1",
+      "rationale": "Explain a known error pattern — T1 is appropriate."
+    },
+    {
+      "id": "nh-021",
+      "prompt": "explain why this ESLint rule fires: 'no-unused-vars' on the 'err' variable in the catch block",
+      "category": "explain-error",
+      "expected_tier": "T1",
+      "rationale": "ESLint rule explanation is a triage-level coding task."
+    },
+    {
+      "id": "nh-022",
+      "prompt": "write a unit test for this pure function: function clamp(n, min, max) { return Math.min(Math.max(n, min), max); }",
+      "category": "test-gen",
+      "expected_tier": "T1",
+      "rationale": "Test generation for a single pure, trivial function is T1."
+    },
+    {
+      "id": "nh-023",
+      "prompt": "generate a Jest test stub for the formatCurrency(amount, currency) function — just the describe/it shells, no implementation needed",
+      "category": "test-gen",
+      "expected_tier": "T1",
+      "rationale": "Stub/shell generation is T1 triage-level codegen."
+    },
+    {
+      "id": "nh-024",
+      "prompt": "generate a Playwright test that clicks the login button and asserts the dashboard URL loads",
+      "category": "test-gen",
+      "expected_tier": "T1",
+      "rationale": "Simple E2E test for a well-defined flow — T1 codegen."
+    },
+    {
+      "id": "nh-025",
+      "prompt": "write a Python type stub (.pyi file) for our internal crypto.py module — it exports encrypt(data: bytes, key: str) -> bytes and decrypt(ciphertext: bytes, key: str) -> bytes",
+      "category": "docs",
+      "expected_tier": "T1",
+      "rationale": "Stub file from known signatures — T1 mechanical codegen."
+    },
+    {
+      "id": "nh-026",
+      "prompt": "summarize the key differences between Promise.all() and Promise.allSettled() and when to prefer each in our codebase",
+      "category": "summarize",
+      "expected_tier": "T1",
+      "rationale": "Knowledge explanation for a specific technical choice — T1 reasoning."
+    },
+    {
+      "id": "nh-027",
+      "prompt": "the WebSocket connection drops after exactly 30 seconds of inactivity. I suspect the server closes idle connections but I can't find where. Reproduce steps: connect, send one message, wait 31 seconds, observe disconnect. Help me trace it.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Time-based connection issue requiring multi-hop reasoning — T2."
+    },
+    {
+      "id": "nh-028",
+      "prompt": "our CI test suite passes locally but fails in GitHub Actions with 'ECONNREFUSED 127.0.0.1:5432'. I think the test DB isn't starting in time. Help me debug the race condition.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Race condition between service startup and tests — T2 reasoning."
+    },
+    {
+      "id": "nh-029",
+      "prompt": "users report that the search results are showing stale data after an update. The cache seems to be the problem but I'm not sure which layer — Redis, CDN, or in-memory — is holding old values. How do I trace this?",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Multi-layer cache debugging requires systematic reasoning — T2."
+    },
+    {
+      "id": "nh-030",
+      "prompt": "our batch job runs fine for <1000 items but throws a heap out of memory error at ~50k. Here's the loop: items.forEach(async item => { await processItem(item); }). What's wrong?",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Memory bug diagnosis in async JS — T2 root cause analysis."
+    },
+    {
+      "id": "nh-031",
+      "prompt": "the login form submits twice on mobile Safari. I've verified there are no duplicate event listeners but the network tab shows two identical POST requests. Help me trace the root cause.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Browser-specific double-submit bug requiring systematic debugging — T2."
+    },
+    {
+      "id": "nh-032",
+      "prompt": "investigate why our Puppeteer screenshot tests are 2x slower after upgrading from Node 18 to Node 20. The tests themselves haven't changed.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Performance regression investigation across Node versions — T2."
+    },
+    {
+      "id": "nh-033",
+      "prompt": "write integration tests for the UserAuthService: happy path login, expired token, invalid credentials, and concurrent login attempts from two sessions",
+      "category": "test-gen",
+      "expected_tier": "T2",
+      "rationale": "Multi-scenario integration test generation requires reasoning about edge cases — T2."
+    },
+    {
+      "id": "nh-034",
+      "prompt": "add property-based tests using fast-check for our JSON schema validator — cover at least 5 interesting edge cases",
+      "category": "test-gen",
+      "expected_tier": "T2",
+      "rationale": "Property-based testing requires reasoning about invariants — T2."
+    },
+    {
+      "id": "nh-035",
+      "prompt": "our TypeScript build compiles cleanly but ts-jest fails with 'Cannot find module ../utils/crypto — module resolution differs between tsc and Jest. Help me align them.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Module resolution mismatch between build tools — T2 investigation."
+    },
+    {
+      "id": "nh-036",
+      "prompt": "trace why our GraphQL subscription leaks memory over 24h: the subscription count in the Apollo dashboard grows without bound even when clients disconnect",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Subscription memory leak tracing requires deep Apollo internals reasoning — T2."
+    },
+    {
+      "id": "nh-037",
+      "prompt": "should we use Prisma or Drizzle ORM for our new microservice? Compare them on type safety, migration support, query performance, and team learning curve",
+      "category": "dependency",
+      "expected_tier": "T2",
+      "rationale": "Technology comparison requiring trade-off reasoning — T2."
+    },
+    {
+      "id": "nh-038",
+      "prompt": "compare React Query vs SWR for our data-fetching layer: focus on caching strategies, subscription support, bundle size, and ecosystem fit with Next.js 14",
+      "category": "dependency",
+      "expected_tier": "T2",
+      "rationale": "Library comparison with multiple dimensions — T2 reasoning."
+    },
+    {
+      "id": "nh-039",
+      "prompt": "the Stripe webhook handler is occasionally processing the same payment_intent.succeeded event twice, creating duplicate charges. Trace the idempotency failure.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Idempotency failure in payment webhook — T2 systematic debugging."
+    },
+    {
+      "id": "nh-040",
+      "prompt": "write a fuzz test for our URL parser (parseURL.ts) that explores boundary inputs: empty strings, Unicode, very long URLs, and malformed percent-encoding",
+      "category": "test-gen",
+      "expected_tier": "T2",
+      "rationale": "Fuzz test design for a parser requires edge-case reasoning — T2."
+    },
+    {
+      "id": "nh-041",
+      "prompt": "our rate-limited endpoint returns 429 for the right users but also for requests coming from our own internal health-check IP. Trace why the IP allowlist isn't being applied.",
+      "category": "bug-investigation",
+      "expected_tier": "T2",
+      "rationale": "Request routing / IP-based allowlist debugging — T2."
+    },
+    {
+      "id": "nh-042",
+      "prompt": "the authentication module has a SQL injection vulnerability in the login query: `SELECT * FROM users WHERE email = '${email}'`. How should this be fixed and what other inputs need sanitization?",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "SQL injection vulnerability — HIGH_RISK security issue, T3 required."
+    },
+    {
+      "id": "nh-043",
+      "prompt": "audit the JWT implementation in auth/token.ts — we're using HS256 but the key is only 8 characters. What are the risks and what should we change?",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "JWT weak key vulnerability audit — T3 security review."
+    },
+    {
+      "id": "nh-044",
+      "prompt": "review this PR before we merge it to main — it refactors our payment processing flow and touches 12 files",
+      "category": "pre-merge-review",
+      "expected_tier": "T3",
+      "rationale": "Pre-merge review of payment code — HIGH_RISK gate, T3."
+    },
+    {
+      "id": "nh-045",
+      "prompt": "the OAuth2 callback handler doesn't validate the state parameter, making it vulnerable to CSRF attacks. Fix it properly.",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "CSRF vulnerability in OAuth flow — T3 security fix required."
+    },
+    {
+      "id": "nh-046",
+      "prompt": "design the authorization system for our multi-tenant SaaS: users can belong to multiple orgs, orgs have roles (admin/member/viewer), and resources are scoped to orgs",
+      "category": "architecture",
+      "expected_tier": "T3",
+      "rationale": "Authorization system design for multi-tenant SaaS — T3 architecture."
+    },
+    {
+      "id": "nh-047",
+      "prompt": "set up the GitHub Actions CI pipeline: run tests on PR, block merge if coverage drops below 80%, deploy to staging on merge to main, deploy to production on tag v*",
+      "category": "ci-config",
+      "expected_tier": "T3",
+      "rationale": "CI/CD pipeline setup touching prod deploy — T3 required."
+    },
+    {
+      "id": "nh-048",
+      "prompt": "the user session tokens in our mobile app are stored in AsyncStorage without encryption. A rooted device can extract them. Redesign the token storage.",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "Insecure token storage vulnerability — T3 security redesign."
+    },
+    {
+      "id": "nh-049",
+      "prompt": "review this database migration before we run it in production: it drops the `user_sessions` table and recreates it with a new schema",
+      "category": "pre-merge-review",
+      "expected_tier": "T3",
+      "rationale": "Production migration review — HIGH_RISK (drop table + prod) — T3."
+    },
+    {
+      "id": "nh-050",
+      "prompt": "architect the real-time notification system for 500k concurrent users: WebSockets vs SSE vs polling, message delivery guarantees, and horizontal scaling strategy",
+      "category": "architecture",
+      "expected_tier": "T3",
+      "rationale": "Large-scale real-time architecture design — T3."
+    },
+    {
+      "id": "nh-051",
+      "prompt": "the XSS filter in our comment renderer strips script tags but misses SVG onload handlers: <svg onload=alert(1)>. Patch it.",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "XSS bypass via SVG — T3 security fix."
+    },
+    {
+      "id": "nh-052",
+      "prompt": "set up Terraform to provision our EKS cluster with auto-scaling node groups, IAM roles for service accounts, and a private VPC",
+      "category": "ci-config",
+      "expected_tier": "T3",
+      "rationale": "Terraform infra-as-code for production EKS — T3."
+    },
+    {
+      "id": "nh-053",
+      "prompt": "we need to rotate the database credentials in production without downtime. The app uses a connection pool. Walk me through the safe rotation procedure.",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "Credential rotation in production — T3 (secrets + prod)."
+    },
+    {
+      "id": "nh-054",
+      "prompt": "review this final pull request — it implements bcrypt password hashing to replace our current MD5 and touches the auth module, user model, and 3 API endpoints",
+      "category": "pre-merge-review",
+      "expected_tier": "T3",
+      "rationale": "Pre-merge security review of auth refactor — T3."
+    },
+    {
+      "id": "nh-055",
+      "prompt": "design the microservice decomposition for splitting our monolith: identify service boundaries, data ownership, inter-service communication, and the strangler fig migration plan",
+      "category": "architecture",
+      "expected_tier": "T3",
+      "rationale": "Monolith-to-microservices architecture — T3."
+    },
+    {
+      "id": "nh-056",
+      "prompt": "the brute force protection on our login API only checks by IP, but attackers are rotating IPs via residential proxies. Redesign the protection layer.",
+      "category": "security",
+      "expected_tier": "T3",
+      "rationale": "Brute force protection redesign — T3 security architecture."
+    }
+  ]
+}

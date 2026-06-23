@@ -7,6 +7,8 @@
   "description": "MooterBench — open, reproducible routing benchmark for the Mooter local-first LLM router. Inspired by Anthropic's Bloom: open methodology, honest metrics.",
   "scripts": {
     "bench": "tsx src/run.ts",
+    "niche": "tsx src/niche-eval.ts",
+    "niche:json": "tsx src/niche-eval.ts --json",
     "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
