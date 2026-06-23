@@ -149,20 +149,19 @@ function renderRow(r, opts) {
   var autoOn = !!r.auto;
   var autoBtn = '<button class="sauto' + (autoOn ? ' on' : '') + '" data-msess="' + esc(sid) + '" data-mauto="' + String(autoOn) + '" title="auto-pilot: Moo adapts model to task">' + (autoOn ? '⚡ auto' : 'auto') + '</button>';
 
-  var ctrl = '<div class="sctrl">' + modelSel + autoBtn + '</div>';
+  // WCOCKPIT-7: ctrl row assembled after integration chips (combines model+auto+integrations+close)
 
   // ── Integration meta (Notion + Obsidian + worktree + refresh) ──
   var notionSvg = '<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo" style="border-radius:2px"><rect width="100" height="100" fill="currentColor"/><text x="50" y="76" text-anchor="middle" font-size="72" font-weight="700" fill="#0d1117" font-family="serif">N</text></svg>';
   var obsSvg = '<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo"><polygon points="50,5 90,38 72,95 28,95 10,38" fill="#7c3aed" opacity="0.85"/><polygon points="50,5 90,38 50,58" fill="#a78bfa" opacity="0.65"/></svg>';
   var notionAgo = r.notionSyncedAt ? agoFmt(nowMs - new Date(r.notionSyncedAt).getTime()) : null;
   var obsAgo = r.obsidianSyncedAt ? agoFmt(nowMs - new Date(r.obsidianSyncedAt).getTime()) : null;
-  var notionChip = '<span class="intchip" title="Notion' + (notionAgo ? ' · ' + notionAgo + ' ago' : ' · not synced') + '">'
-    + notionSvg + (notionAgo ? ' ' + esc(notionAgo) : '<span class="intcta">link</span>') + '</span>';
-  var obsChip = '<span class="intchip" title="Obsidian' + (obsAgo ? ' · ' + obsAgo + ' ago' : ' · not synced') + '">'
-    + obsSvg + (obsAgo ? ' ' + esc(obsAgo) : '<span class="intcta">link</span>') + '</span>';
-  var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree">⌥ wt:' + esc(r.worktree) + '</span>' : '';
-  var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" title="refresh integrations">↺</button>';
-  var meta = '<div class="smeta">' + notionChip + ' ' + obsChip + (wtChip ? ' ' + wtChip : '') + ' ' + refreshBtn + '</div>';
+  var notionChip = '<span class="intchip' + (notionAgo ? ' on' : '') + '" title="Notion' + (notionAgo ? ' · synced ' + notionAgo + ' ago' : ' · not synced — use ↺') + '">' + notionSvg + '</span>';
+  var obsChip = '<span class="intchip' + (obsAgo ? ' on' : '') + '" title="Obsidian' + (obsAgo ? ' · synced ' + obsAgo + ' ago' : ' · not synced — use ↺') + '">' + obsSvg + '</span>';
+  var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree">⌥' + esc(r.worktree) + '</span>' : '';
+  var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" title="refresh Notion/Obsidian sync">↺</button>';
+  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
+  var ctrl = '<div class="sctrl">' + modelSel + autoBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
 
   // ── Brain title ──
   var brainLine = (r.brainTitle && r.brainTitle !== nm)
@@ -209,7 +208,7 @@ function renderRow(r, opts) {
     + '<div class="stop"><span class="sname">' + esc(nm) + '</span><span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span></div>'
     + '<div class="ssub">' + badge + ' · ' + esc(r.id) + (sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '') + '</div>'
     + brainLine + scm + gitLine
-    + '<div class="sdrawer">' + modeSeg + ctrl + meta + '</div>'
+    + '<div class="sdrawer">' + modeSeg + ctrl + '</div>'
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';

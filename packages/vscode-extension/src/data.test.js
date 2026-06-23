@@ -699,25 +699,24 @@ test('WCOCKPIT-3 renderRow: Notion SVG chip present (intchip + N SVG)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('class="intchip"'), 'Notion chip must have .intchip class');
   assert.ok(html.includes('font-family="serif">N</text>'), 'Notion SVG N logo must be present');
-  assert.ok(html.includes('title="Notion · not synced"'), 'Notion chip must show not synced when null');
-  // amber CTA when not synced
-  assert.ok(html.includes('class="intcta">link</span>'), 'Notion must show amber link CTA when not synced');
+  assert.ok(html.includes('title="Notion · not synced'), 'Notion chip title must indicate not synced when null');
+  // WCOCKPIT-7: icon-only — unsynced chip is dim (no .on), no inline link text
+  assert.ok(!html.includes('intchip on'), 'unsynced Notion chip must be dim (no .on)');
 });
 
 test('WCOCKPIT-3 renderRow: Notion chip shows ago time when notionSyncedAt set', () => {
   const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
   const row = Object.assign({}, SAMPLE_ROW, { notionSyncedAt: twoHoursAgo, obsidianSyncedAt: twoHoursAgo });
   const html = rr.renderRow(row, { nowMs: Date.now() });
-  assert.ok(html.includes('title="Notion · 2h ago"'), 'Notion chip must show sync time when set');
-  assert.ok(!html.includes('title="Notion · not synced"'), 'Notion must not show not-synced when synced');
-  // When both are synced, no amber link CTA should appear
-  assert.ok(!html.includes('class="intcta">link</span>'), 'must not show amber link CTA when both integrations synced');
+  assert.ok(html.includes('title="Notion · synced 2h ago"'), 'Notion chip must show sync time in its title when set');
+  assert.ok(html.includes('class="intchip on"'), 'synced Notion chip must be bright (.on)');
+  assert.ok(!html.includes('not synced'), 'must not show not-synced when synced');
 });
 
 test('WCOCKPIT-3 renderRow: Obsidian SVG chip present (purple gem)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('fill="#7c3aed"'), 'Obsidian SVG must have purple polygon');
-  assert.ok(html.includes('title="Obsidian · not synced"'), 'Obsidian chip must show not synced');
+  assert.ok(html.includes('title="Obsidian · not synced'), 'Obsidian chip title must indicate not synced');
 });
 
 test('WCOCKPIT-3 renderRow: ↺ refresh button present with data-a=refreshIntegrations', () => {
@@ -731,7 +730,7 @@ test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {
   const row = Object.assign({}, SAMPLE_ROW, { worktree: 'wave-WCOCKPIT' });
   const html = rr.renderRow(row, {});
   assert.ok(html.includes('class="wtchip"'), 'worktree chip must have .wtchip class');
-  assert.ok(html.includes('⌥ wt:wave-WCOCKPIT'), 'worktree chip must show wt: name');
+  assert.ok(html.includes('wave-WCOCKPIT'), 'worktree chip must show the worktree name');
 });
 
 test('WCOCKPIT-3 renderRow: worktree chip absent when worktree null', () => {
@@ -1030,7 +1029,7 @@ test('WCOCKPIT-6 renderRow: per-session controls wrapped in .sdrawer (hidden unt
   const di = html.indexOf('class="sdrawer"');
   assert.ok(html.indexOf('class="sseg"') > di, 'mode segmented must be inside the drawer');
   assert.ok(html.indexOf('class="smodsel"') > di, 'model select must be inside the drawer');
-  assert.ok(html.indexOf('class="smeta"') > di, 'integration meta must be inside the drawer');
+  assert.ok(html.indexOf('class="sint"') > di, 'integrations must be inside the drawer');
 });
 
 test('WCOCKPIT-6 renderRow: git chip suppressed when groupGitKey matches (dedup)', () => {
@@ -1065,4 +1064,30 @@ test('WCOCKPIT-6 renderGroupHeader: rolls up branch + uncommitted git once for t
   assert.ok(html.includes('wave-WCOCKPIT'), 'group header shows the shared branch');
   assert.ok(html.includes('162 uncommitted'), 'group header shows the rolled-up git stage');
   assert.ok(html.includes('class="ghd"'), 'group header uses .ghd container');
+});
+
+// ── WCOCKPIT-7: clear/close sessions + compact drawer ──
+test('WCOCKPIT-7 mode-registry: archive/isArchived/unarchive lifecycle', () => {
+  const sid = 'wc7-arch-' + process.pid;
+  mr.set(sid, { mode: 'moo' });
+  const t0 = Date.now();
+  assert.equal(mr.isArchived(sid, t0), false, 'not archived initially');
+  mr.archive(sid);
+  assert.equal(mr.isArchived(sid, t0 - 1000), true, 'archived hides a session with no newer activity');
+  assert.equal(mr.isArchived(sid, Date.now() + 60000), false, 'activity after archiving un-hides it');
+  mr.unarchive(sid);
+  assert.equal(mr.isArchived(sid, t0 - 1000), false, 'unarchive clears the archived state');
+});
+
+test('WCOCKPIT-7 renderRow: per-session close (archive) button present', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('class="sarch"'), 'close/archive button must be present');
+  assert.ok(html.includes('data-a="archiveSession"'), 'close button dispatches archiveSession');
+});
+
+test('WCOCKPIT-7 renderRow: integrations inline in control row (no standalone .smeta)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(!html.includes('class="smeta"'), 'old standalone .smeta block must be gone');
+  assert.ok(html.includes('class="sint"'), 'integrations sit in the inline .sint group');
+  assert.ok(html.indexOf('class="sint"') > html.indexOf('class="sctrl"'), 'integrations inline within the control row');
 });

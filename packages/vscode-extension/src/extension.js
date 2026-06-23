@@ -272,6 +272,19 @@ class CockpitProvider {
           vscode.window.setStatusBarMessage('🐮 integrations refreshed · ' + sid.slice(0, 8), 3000);
         }
       }
+      // WCOCKPIT-7: close/archive a single session from the cockpit (reversible)
+      if (m.cmd === 'archiveSession') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (sid) { try { MR.archive(sid); } catch {} this.data.refresh(true); vscode.window.setStatusBarMessage('🐮 session closed · ' + sid.slice(0, 8) + ' — returns if it becomes active again', 4000); }
+      }
+      // WCOCKPIT-7: bulk-close all sessions that already did their job (safe set computed by the webview)
+      if (m.cmd === 'clearDoneSessions') {
+        const ids = Array.isArray(m.arg) ? m.arg : [];
+        let n = 0;
+        for (const raw of ids) { const sid = String(raw || '').replace(/[^a-zA-Z0-9._-]/g, ''); if (sid) { try { MR.archive(sid); n++; } catch {} } }
+        this.data.refresh(true);
+        vscode.window.setStatusBarMessage(n ? ('🐮 cleared ' + n + ' done session' + (n === 1 ? '' : 's') + ' — they return if active again') : '🐮 nothing safe to clear', 4000);
+      }
     });
     this.data.refresh(true);
   }
@@ -407,6 +420,19 @@ function getHtml() {
   .smodsel{font-size:9.5px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:4px;max-width:115px;min-width:68px}
   button.sauto{font-size:9px;padding:2px 7px;opacity:.5}
   button.sauto.on{opacity:1;color:var(--g);border-color:var(--g)}
+  /* WCOCKPIT-7: compact drawer — integrations inline & icon-only, per-session close, bulk clear */
+  .sdrawer{margin-top:4px;padding-top:4px}
+  .sseg{margin-top:0}
+  .sseg .smode{padding:2px 2px;font-size:10px}
+  .sctrl{margin-top:4px;gap:4px;align-items:center;flex-wrap:nowrap}
+  .sint{display:inline-flex;align-items:center;gap:4px;margin-left:2px}
+  .intchip{opacity:.38;padding:0;gap:0}
+  .intchip.on{opacity:1}
+  .intchip:hover{opacity:.85}
+  button.sarch{margin-left:auto;flex:none;padding:1px 6px;font-size:10px;opacity:.35;border-radius:4px;line-height:1.3;border-color:transparent}
+  button.sarch:hover{opacity:1;color:var(--t3);border-color:var(--t3)}
+  .clrdone{font-size:9px;padding:1px 8px;border-radius:9px;opacity:.85;cursor:pointer;background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);color:var(--vscode-foreground);line-height:1.5}
+  .clrdone:hover{opacity:1;border-color:var(--r);color:var(--r)}
   /* WCOCKPIT-4: git stage chip + safety tip */
   .sgit{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}
   .gstage{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600}
@@ -607,6 +633,7 @@ function wireSessControls(root){
   root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
   root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mauto==='true';send('setAuto',{sid:b.dataset.msess,auto:!cur});};});
   root.querySelectorAll('.srow button.intrefresh').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
+  root.querySelectorAll('.srow button.sarch').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
 }
 window.addEventListener('message',(e)=>{
   if(e.data.type==='intent'){const r=e.data.res;
@@ -667,7 +694,8 @@ window.addEventListener('message',(e)=>{
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
-  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  const clearableN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).length; // WCOCKPIT-7: old & safe-to-close
+  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -715,6 +743,7 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));
 

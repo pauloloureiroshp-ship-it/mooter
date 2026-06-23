@@ -10,7 +10,7 @@ const FILE = path.join(ROUTER, ".mooter-sessions.json");
 const MODES = ["lazy", "moo", "crazy"];           // LazyMoo | Moo | CrazyMoo
 // WCOCKPIT-2: extended with Notion + Obsidian integration fields
 const DEFAULT = { mode: "moo", model: null, auto: false, project: null, brainTitle: null,
-  notionPageId: null, notionSyncedAt: null, obsidianPath: null, obsidianSyncedAt: null };
+  notionPageId: null, notionSyncedAt: null, obsidianPath: null, obsidianSyncedAt: null, archivedAt: null };
 
 function readAll() {
   try { const j = JSON.parse(fs.readFileSync(FILE, "utf8")); return j && typeof j === "object" ? j : {}; }
@@ -74,4 +74,10 @@ function touchSync(sid, which) {
   const field = which === 'notion' ? 'notionSyncedAt' : 'obsidianSyncedAt';
   return set(sid, { [field]: new Date().toISOString() });
 }
-module.exports = { readAll, writeAll, get, set, decorate, byProject, worktrees, touchSync, MODES, DEFAULT, FILE };
+// WCOCKPIT-7: archive = "close from cockpit". Reversible; a session reappears automatically
+// if it becomes active again (lastActiveTs > archivedAt). Never deletes logs or touches git.
+function archive(sessionId) { return set(sessionId, { archivedAt: Date.now() }); }
+function unarchive(sessionId) { return set(sessionId, { archivedAt: null }); }
+function isArchived(sessionId, lastActiveTs) { const e = get(sessionId); return !!(e.archivedAt && e.archivedAt >= (lastActiveTs || 0)); }
+
+module.exports = { readAll, writeAll, get, set, decorate, byProject, worktrees, touchSync, archive, unarchive, isArchived, MODES, DEFAULT, FILE };

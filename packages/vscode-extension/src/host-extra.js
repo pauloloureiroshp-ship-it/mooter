@@ -697,7 +697,8 @@ async function recentSessions(maxN = 8) {
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   const wtCache = new Map();     // WCOCKPIT-2: cwd → worktrees[], resolved once per cwd
   const gsCache = new Map();     // WCOCKPIT-4/5: cwd → gitStage result, once per cwd (async, non-blocking)
-  for (const f of listSessionFiles().slice(0, maxN)) {
+  for (const f of listSessionFiles().slice(0, maxN + 8)) {
+    if (out.length >= maxN) break; // WCOCKPIT-7: stop once we have maxN visible (archived are skipped below)
     let lastModel = null; let turns = 0;
     let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
     try {
@@ -771,6 +772,7 @@ async function recentSessions(maxN = 8) {
     } else { row.gitStage = null; }
     modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
+    if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
     out.push(row);
   }
   // WCOCKPIT-2: sort needs-you first, then most recent
