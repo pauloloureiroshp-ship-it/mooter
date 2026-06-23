@@ -112,3 +112,36 @@ packages/cli/mooter.js
 packages/router/pack-hint.cjs
 # personal Claude Code preferences (per-dev)
 CLAUDE.local.md
+
+# ── WCOCKPIT-6 cleanup (2026-06-23): build artifacts, venv & loop runtime ──
+# Local Python venv (LoRA experiments)
+.venv-lora/
+# VS Code extension build outputs
+packages/vscode-extension/*.vsix
+# Deploy build outputs
+landing-v12-deploy/
+landing-v12-deploy.tar.gz
+# Python bytecode
+__pycache__/
+# Router runtime cache/state
+tools/router/.last-classified.json
+tools/router/.providers-cache.json
+tools/router/.turn-counter
+tools/router/last-subagent.json
+# Benchmark run outputs
+packages/router/scripts/wave2-benchmark/outputs/
+# hub local claude state
+hub/.claude/
+# Autopilot loop ephemeral state (runtime only — keep scripts/runbooks tracked)
+_handoff/loop/QUEUE.jsonl
+_handoff/loop/QUEUE.jsonl.bak*
+_handoff/loop/*.tmp
+_handoff/loop/heartbeat
+_handoff/loop/ledger.jsonl
+_handoff/loop/INBOX.md
+_handoff/loop/OUTBOX.md
+_handoff/loop/ASK_HUMAN.md
+_handoff/loop/HUMAN_OK
+_handoff/loop/transcript/
+_handoff/loop/STATE.json
+_handoff/loop/heartbeat.json
