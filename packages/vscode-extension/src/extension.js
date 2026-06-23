@@ -259,6 +259,16 @@ class CockpitProvider {
           this.data.refresh(true);
         }
       }
+      // WCOCKPIT-2: refresh integrations — updates sync timestamps in registry (via bus, NOT direct API)
+      if (m.cmd === 'refreshIntegrations') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (sid) {
+          try { MR.touchSync(sid, 'notion'); } catch {}
+          try { MR.touchSync(sid, 'obsidian'); } catch {}
+          this.data.refresh(true);
+          vscode.window.setStatusBarMessage('🐮 integrations refreshed · ' + sid.slice(0, 8), 3000);
+        }
+      }
     });
     this.data.refresh(true);
   }
@@ -377,6 +387,14 @@ function getHtml() {
   @keyframes moocrazy{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-3px) rotate(-9deg)}50%{transform:translateY(-1px) rotate(9deg)}75%{transform:translateY(-3px) rotate(-9deg)}}
   @media (prefers-reduced-motion:reduce){.livecow.working,.livecow.lazy,.livecow.crazy,.livedot{animation:none}}
   ${COWORK.CSS}
+  .smeta{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap}
+  .intchip{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
+  .intchip:hover{opacity:1}
+  .intlogo{display:inline-block;vertical-align:middle;flex:none}
+  .intcta{color:#e5c07b;font-size:9px;font-weight:600}
+  .wtchip{font-size:9px;background:rgba(90,155,212,.15);color:#5A9BD4;border:1px solid rgba(90,155,212,.3);border-radius:7px;padding:1px 5px;font-family:var(--vscode-editor-font-family,monospace)}
+  button.intrefresh{padding:0 4px;font-size:10px;border-radius:3px;opacity:.45;min-width:0;line-height:1.4}
+  button.intrefresh:hover{opacity:1}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -602,8 +620,21 @@ window.addEventListener('message',(e)=>{
     }
     // WCOCKPIT: cow classes — working state, mode (lazy/crazy animate differently), cowork wait
     const cowCls=(r.working?' working':'')+(r.mode&&r.mode!=='moo'?' '+r.mode:'')+(r.waitingForCowork?' cowork':'');
-    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+(r.waitingForCowork?' cowork-row':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+cowCls+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
-  const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
+    // WCOCKPIT-2: integration meta line (Notion + Obsidian SVG mini-logos + worktree chip + refresh)
+    const notionSvg='<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo" style="border-radius:2px"><rect width="100" height="100" fill="currentColor"/><text x="50" y="76" text-anchor="middle" font-size="72" font-weight="700" fill="#0d1117" font-family="serif">N</text></svg>';
+    const obsSvg='<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo"><polygon points="50,5 90,38 72,95 28,95 10,38" fill="#7c3aed" opacity="0.85"/><polygon points="50,5 90,38 50,58" fill="#a78bfa" opacity="0.65"/></svg>';
+    const nowMs=Date.now();
+    const notionAgo=r.notionSyncedAt?agoFmt(nowMs-new Date(r.notionSyncedAt).getTime()):null;
+    const obsAgo=r.obsidianSyncedAt?agoFmt(nowMs-new Date(r.obsidianSyncedAt).getTime()):null;
+    const notionChip='<span class="intchip" title="Notion'+(notionAgo?' · '+notionAgo+' ago':' · not synced')+'">'+notionSvg+(notionAgo?' '+esc(notionAgo):'<span class="intcta">link</span>')+'</span>';
+    const obsChip='<span class="intchip" title="Obsidian'+(obsAgo?' · '+obsAgo+' ago':' · not synced')+'">'+obsSvg+(obsAgo?' '+esc(obsAgo):'<span class="intcta">link</span>')+'</span>';
+    const wtChip=r.worktree?'<span class="wtchip" title="git linked worktree">⌥ wt:'+esc(r.worktree)+'</span>':'';
+    const refreshBtn='<button class="intrefresh" data-a="refreshIntegrations" data-x="'+esc(r.fullId)+'" title="refresh integrations">↺</button>';
+    const meta='<div class="smeta">'+notionChip+' '+obsChip+(wtChip?' '+wtChip:'')+' '+refreshBtn+'</div>';
+    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+(r.waitingForCowork?' cowork-row':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+cowCls+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+meta+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
+  // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
+  const sorted=[...rsess].sort((a,b)=>{if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
+  const herdRows=sorted.length?sorted.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';

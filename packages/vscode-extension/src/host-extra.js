@@ -660,6 +660,7 @@ async function recentSessions(maxN = 8) {
   const _cwPend = coworkWaiting().readCoworkPending(); // WCOCKPIT: lê uma vez para todo o loop
   const branchCache = new Map(); // cwd → branch|null, resolved once per cwd this call
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
+  const wtCache = new Map();     // WCOCKPIT-2: cwd → worktrees[], resolved once per cwd
   for (const f of listSessionFiles().slice(0, maxN)) {
     let lastModel = null; let turns = 0;
     let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
@@ -717,11 +718,24 @@ async function recentSessions(maxN = 8) {
       const match = prs.find((p) => p && p.headRefName === branch);
       if (match) pr = { number: match.number, title: String(match.title || '').slice(0, 80), state: match.state, isDraft: match.isDraft, stage: prStage(match) };
     }
-    const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec };
-    modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle
+    // WCOCKPIT-2: worktree detection (per cwd, cached; shows chip only for linked worktrees)
+    let worktree = null;
+    if (cwd) {
+      if (!wtCache.has(cwd)) wtCache.set(cwd, modeRegistry().worktrees(cwd));
+      const wts = wtCache.get(cwd);
+      const thisWt = wts.find(wt => wt.linked && path.resolve(wt.path) === path.resolve(cwd));
+      if (thisWt) worktree = path.basename(thisWt.path);
+    }
+    const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec };
+    modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     out.push(row);
   }
+  // WCOCKPIT-2: sort needs-you first, then most recent
+  out.sort((a, b) => {
+    if (a.needsYou !== b.needsYou) return a.needsYou ? -1 : 1;
+    return (b.lastActiveTs || 0) - (a.lastActiveTs || 0);
+  });
   return out;
 }
 

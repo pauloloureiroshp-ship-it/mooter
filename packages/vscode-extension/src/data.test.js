@@ -476,3 +476,124 @@ test('recentSessions: WCOCKPIT — each entry has mode/auto/waitingForCowork fie
     }
   }
 });
+
+// ── WCOCKPIT-2: mode-registry — novos campos + worktrees + touchSync ──
+
+test('mode-registry WCOCKPIT-2: DEFAULT has notion/obsidian integration fields', () => {
+  assert.ok('notionPageId' in mr.DEFAULT, 'DEFAULT must have notionPageId');
+  assert.ok('notionSyncedAt' in mr.DEFAULT, 'DEFAULT must have notionSyncedAt');
+  assert.ok('obsidianPath' in mr.DEFAULT, 'DEFAULT must have obsidianPath');
+  assert.ok('obsidianSyncedAt' in mr.DEFAULT, 'DEFAULT must have obsidianSyncedAt');
+  assert.equal(mr.DEFAULT.notionPageId, null);
+  assert.equal(mr.DEFAULT.notionSyncedAt, null);
+});
+
+test('mode-registry WCOCKPIT-2: decorate fills integration fields on row', () => {
+  const sid = 'wcockpit2-test-' + process.pid;
+  mr.set(sid, { notionPageId: 'notion-abc', notionSyncedAt: '2026-06-23T00:00:00Z', obsidianPath: '/vault/note.md' });
+  const row = { fullId: sid };
+  mr.decorate(row);
+  assert.equal(row.notionPageId, 'notion-abc');
+  assert.equal(row.notionSyncedAt, '2026-06-23T00:00:00Z');
+  assert.equal(row.obsidianPath, '/vault/note.md');
+  assert.equal(row.obsidianSyncedAt, null);
+});
+
+test('mode-registry WCOCKPIT-2: touchSync updates notionSyncedAt atomically', () => {
+  const sid = 'wcockpit2-touch-' + process.pid;
+  mr.set(sid, { mode: 'moo' }); // fresh entry
+  const before = mr.get(sid).notionSyncedAt;
+  assert.equal(before, null); // not set yet
+  const ok = mr.touchSync(sid, 'notion');
+  assert.equal(ok, true);
+  const after = mr.get(sid).notionSyncedAt;
+  assert.ok(typeof after === 'string' && after.includes('T'), 'notionSyncedAt must be ISO timestamp');
+});
+
+test('mode-registry WCOCKPIT-2: touchSync updates obsidianSyncedAt independently', () => {
+  const sid = 'wcockpit2-touch-obs-' + process.pid;
+  mr.set(sid, { notionSyncedAt: '2026-01-01T00:00:00Z' });
+  mr.touchSync(sid, 'obsidian');
+  const e = mr.get(sid);
+  assert.equal(e.notionSyncedAt, '2026-01-01T00:00:00Z'); // unchanged
+  assert.ok(typeof e.obsidianSyncedAt === 'string' && e.obsidianSyncedAt.includes('T'));
+});
+
+test('mode-registry WCOCKPIT-2: touchSync rejects invalid `which` → false', () => {
+  const sid = 'wcockpit2-bad-' + process.pid;
+  assert.equal(mr.touchSync(sid, 'slack'), false);
+  assert.equal(mr.touchSync('', 'notion'), false);
+  assert.equal(mr.touchSync(null, 'notion'), false);
+});
+
+test('mode-registry WCOCKPIT-2: worktrees() returns [] for null/invalid cwd (never throws)', () => {
+  assert.deepEqual(mr.worktrees(null), []);
+  assert.deepEqual(mr.worktrees(''), []);
+  assert.deepEqual(mr.worktrees('/no/such/dir/at/all/' + process.pid), []);
+});
+
+test('mode-registry WCOCKPIT-2: worktrees() returns array for a real git repo', () => {
+  // Use the project root (which is a git repo)
+  const projectRoot = path.resolve(__dirname, '..', '..', '..');
+  const wts = mr.worktrees(projectRoot);
+  assert.ok(Array.isArray(wts), 'worktrees() must return an array');
+  // The main worktree should be present
+  if (wts.length > 0) {
+    assert.ok('path' in wts[0], 'each worktree must have a path');
+    assert.ok('linked' in wts[0], 'each worktree must have a linked flag');
+    assert.equal(wts[0].linked, false, 'first worktree is never linked (it is the main)');
+  }
+});
+
+test('mode-registry WCOCKPIT-2: worktrees() result — linked worktrees have linked=true', () => {
+  // Unit test the parsing logic by verifying the linked flag assignment
+  const wts = mr.worktrees(path.resolve(__dirname, '..', '..', '..'));
+  for (let i = 0; i < wts.length; i++) {
+    assert.equal(wts[i].linked, i > 0, 'only index > 0 should be linked');
+  }
+});
+
+// ── WCOCKPIT-2: recentSessions sort order + new fields ──
+
+test('recentSessions WCOCKPIT-2: each entry has lastActiveTs (epoch ms, > 0)', async () => {
+  const rs = await x.recentSessions(3);
+  for (const r of rs) {
+    assert.ok(typeof r.lastActiveTs === 'number' && r.lastActiveTs > 0,
+      'lastActiveTs must be a positive epoch ms timestamp');
+  }
+});
+
+test('recentSessions WCOCKPIT-2: each entry has worktree (string|null, never fabricated)', async () => {
+  const rs = await x.recentSessions(3);
+  for (const r of rs) {
+    assert.ok(r.worktree === null || typeof r.worktree === 'string',
+      'worktree must be string|null — never fabricated');
+  }
+});
+
+test('recentSessions WCOCKPIT-2: each entry has notion/obsidian integration fields', async () => {
+  const rs = await x.recentSessions(3);
+  for (const r of rs) {
+    assert.ok('notionPageId' in r, 'row must have notionPageId');
+    assert.ok('notionSyncedAt' in r, 'row must have notionSyncedAt');
+    assert.ok('obsidianPath' in r, 'row must have obsidianPath');
+    assert.ok('obsidianSyncedAt' in r, 'row must have obsidianSyncedAt');
+  }
+});
+
+test('recentSessions WCOCKPIT-2: sort order — needsYou sessions come first', async () => {
+  const rs = await x.recentSessions(8);
+  // Find index of first non-needsYou and check nothing after is needsYou
+  let firstNonNeeds = rs.findIndex(r => !r.needsYou);
+  if (firstNonNeeds >= 0) {
+    for (let i = firstNonNeeds + 1; i < rs.length; i++) {
+      assert.ok(!rs[i].needsYou, 'needsYou sessions must precede non-needsYou sessions (sorted)');
+    }
+  }
+  // also: among non-needsYou sessions, most recent first
+  const nonNeeds = rs.filter(r => !r.needsYou);
+  for (let i = 1; i < nonNeeds.length; i++) {
+    assert.ok((nonNeeds[i - 1].lastActiveTs || 0) >= (nonNeeds[i].lastActiveTs || 0),
+      'non-needsYou sessions must be ordered newest first');
+  }
+});
