@@ -26,6 +26,9 @@ const extra = require('./host-extra.js');
 let COWORK = null, MR = null;
 try { COWORK = require('./cowork-waiting'); } catch { COWORK = { badge: () => null, CSS: '' }; }
 try { MR = require('./mode-registry'); } catch { MR = { byProject: (rows) => ({ Unassigned: rows }) }; }
+// WCOCKPIT-3: row renderer module (serialised into webview via fn.toString())
+let RR = null;
+try { RR = require('./row-renderer'); } catch { RR = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -395,6 +398,15 @@ function getHtml() {
   .wtchip{font-size:9px;background:rgba(90,155,212,.15);color:#5A9BD4;border:1px solid rgba(90,155,212,.3);border-radius:7px;padding:1px 5px;font-family:var(--vscode-editor-font-family,monospace)}
   button.intrefresh{padding:0 4px;font-size:10px;border-radius:3px;opacity:.45;min-width:0;line-height:1.4}
   button.intrefresh:hover{opacity:1}
+  /* WCOCKPIT-3: per-session mode segmented + model select + auto toggle */
+  .sseg{display:flex;gap:2px;margin-top:4px;background:var(--vscode-input-background);border-radius:5px;padding:2px}
+  .sseg .smode{flex:1;padding:3px 2px;font-size:11px;border:1px solid transparent;border-radius:4px;opacity:.5;background:none;cursor:pointer;text-align:center}
+  .sseg .smode.on{opacity:1;font-weight:700;background:var(--rdim);border-color:var(--r)}
+  .sseg .smode:hover:not(.on){opacity:.85}
+  .sctrl{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap}
+  .smodsel{font-size:9.5px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:4px;max-width:115px;min-width:68px}
+  button.sauto{font-size:9px;padding:2px 7px;opacity:.5}
+  button.sauto.on{opacity:1;color:var(--g);border-color:var(--g)}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -561,6 +573,16 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else if(a.startsWith('tab:'))goTab(a.slice(4));
   else send(a,b.dataset.x);
 });}
+// WCOCKPIT-3: session card renderer (from row-renderer.js — safe when fn.toString() serialised)
+const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
+const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
+// WCOCKPIT-3: wire per-session mode/model/auto controls (stop-propagation inside srow)
+function wireSessControls(root){
+  root.querySelectorAll('.smode[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();send('setMode',{sid:b.dataset.msess,mode:b.dataset.mmode});};});
+  root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
+  root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mauto==='true';send('setAuto',{sid:b.dataset.msess,auto:!cur});};});
+  root.querySelectorAll('.srow button.intrefresh').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
+}
 window.addEventListener('message',(e)=>{
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
@@ -602,39 +624,15 @@ window.addEventListener('message',(e)=>{
   // work) — keyed by cwd+branch so a same-named branch in a different repo is never crossed.
   const bkey=(r)=>JSON.stringify([String(r.cwd||''),String(r.branch||'')]); // repo+branch composite key (clean, collision-free)
   const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
-  const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
-    // WCOCKPIT: cowork badge wins over working/needsYou (mutuamente exclusivos)
-    const cwb=COWORK.badge(r);
-    const badge=cwb||(r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago'));
-    // Branch / PR / stage line — only when the session's cwd is a git repo (r.branch set).
-    // A linked icon when ≥2 sessions share this branch (same work — honest, never crossed).
-    let scm='';
-    if(r.branch){
-      const linked=branchCount[bkey(r)]>1;
-      const pr=r.pr;
-      const branchChip='<span class="scmbr" title="git branch">'+(linked?'🔗 ':'⎇ ')+esc(r.branch)+'</span>';
-      let prChip;
-      if(pr&&pr.stage)prChip='<span class="scmpr" title="'+esc(pr.title||'')+'" style="color:'+stageColor(pr.stage)+'">#'+esc(pr.number!=null?String(pr.number):'?')+' · '+esc(pr.stage)+'</span>';
-      else prChip='<span class="scmpr" style="opacity:.55">no PR</span>';
-      scm='<div class="sscm">'+branchChip+' '+prChip+'</div>';
-    }
-    // WCOCKPIT: cow classes — working state, mode (lazy/crazy animate differently), cowork wait
-    const cowCls=(r.working?' working':'')+(r.mode&&r.mode!=='moo'?' '+r.mode:'')+(r.waitingForCowork?' cowork':'');
-    // WCOCKPIT-2: integration meta line (Notion + Obsidian SVG mini-logos + worktree chip + refresh)
-    const notionSvg='<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo" style="border-radius:2px"><rect width="100" height="100" fill="currentColor"/><text x="50" y="76" text-anchor="middle" font-size="72" font-weight="700" fill="#0d1117" font-family="serif">N</text></svg>';
-    const obsSvg='<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo"><polygon points="50,5 90,38 72,95 28,95 10,38" fill="#7c3aed" opacity="0.85"/><polygon points="50,5 90,38 50,58" fill="#a78bfa" opacity="0.65"/></svg>';
-    const nowMs=Date.now();
-    const notionAgo=r.notionSyncedAt?agoFmt(nowMs-new Date(r.notionSyncedAt).getTime()):null;
-    const obsAgo=r.obsidianSyncedAt?agoFmt(nowMs-new Date(r.obsidianSyncedAt).getTime()):null;
-    const notionChip='<span class="intchip" title="Notion'+(notionAgo?' · '+notionAgo+' ago':' · not synced')+'">'+notionSvg+(notionAgo?' '+esc(notionAgo):'<span class="intcta">link</span>')+'</span>';
-    const obsChip='<span class="intchip" title="Obsidian'+(obsAgo?' · '+obsAgo+' ago':' · not synced')+'">'+obsSvg+(obsAgo?' '+esc(obsAgo):'<span class="intcta">link</span>')+'</span>';
-    const wtChip=r.worktree?'<span class="wtchip" title="git linked worktree">⌥ wt:'+esc(r.worktree)+'</span>':'';
-    const refreshBtn='<button class="intrefresh" data-a="refreshIntegrations" data-x="'+esc(r.fullId)+'" title="refresh integrations">↺</button>';
-    const meta='<div class="smeta">'+notionChip+' '+obsChip+(wtChip?' '+wtChip:'')+' '+refreshBtn+'</div>';
-    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+(r.waitingForCowork?' cowork-row':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+cowCls+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+meta+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
+  // WCOCKPIT-3: rowFor delegates to renderRow (defined above from row-renderer.js)
+  const rowFor=(r)=>renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now()});
   // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
   const sorted=[...rsess].sort((a,b)=>{if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
-  const herdRows=sorted.length?sorted.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
+  // WCOCKPIT-3: group live sessions by Cowork project (explicit) → repo folder (host) → fallback.
+  const projOf=(r)=>r.coworkProject||r.repoFolder||(r.project&&r.project!=='Unassigned'?r.project:'')||'Unassigned';
+  const _grp={};const _ord=[];for(const r of sorted){const k=projOf(r);if(!(k in _grp)){_grp[k]=[];_ord.push(k);}_grp[k].push(r);}
+  const grpHd=(k,gr)=>renderGroupHeader(k,gr);
+  const herdRows=sorted.length?_ord.map(k=>grpHd(k,_grp[k])+_grp[k].map(rowFor).join('')).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
@@ -684,6 +682,7 @@ window.addEventListener('message',(e)=>{
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
+  wireSessControls($('#v-cockpit')); // WCOCKPIT-3: per-session mode/model/auto controls
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});

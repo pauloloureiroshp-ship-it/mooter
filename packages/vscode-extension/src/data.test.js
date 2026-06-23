@@ -597,3 +597,200 @@ test('recentSessions WCOCKPIT-2: sort order — needsYou sessions come first', a
       'non-needsYou sessions must be ordered newest first');
   }
 });
+
+// ── WCOCKPIT-3: HTML-level tests — renderRow renders all required UI elements ──
+const rr = require('./row-renderer');
+
+const SAMPLE_ROW = {
+  fullId: 'abc12345-dead-beef-1234-567890abcdef',
+  id: 'abc12345',
+  name: 'test session',
+  mode: 'lazy',
+  model: 'claude-opus-4-6',
+  auto: false,
+  project: 'Mooter.ai',
+  brainTitle: null,
+  working: false,
+  needsYou: false,
+  waitingForCowork: false,
+  coworkStatus: null,
+  coworkTitle: null,
+  ageMs: 120000,
+  branch: null,
+  cwd: null,
+  pr: null,
+  worktree: null,
+  notionPageId: null,
+  notionSyncedAt: null,
+  obsidianPath: null,
+  obsidianSyncedAt: null,
+  lastActiveTs: Date.now(),
+};
+
+test('WCOCKPIT-3 renderRow: mode segmented contains 3 mode buttons (lazy/moo/crazy)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('data-mmode="lazy"'), 'must have lazy mode button');
+  assert.ok(html.includes('data-mmode="moo"'), 'must have moo mode button');
+  assert.ok(html.includes('data-mmode="crazy"'), 'must have crazy mode button');
+});
+
+test('WCOCKPIT-3 renderRow: active mode button has .on class (lazy)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // mode=lazy
+  // The lazy button should have class "smode on"
+  assert.ok(html.includes('class="smode on"'), 'lazy mode button must have .on class');
+  // The moo and crazy buttons should NOT have .on
+  assert.ok(!html.includes('data-mmode="moo" ') || html.includes('class="smode"'), 'moo must not be on');
+});
+
+test('WCOCKPIT-3 renderRow: moo mode — moo button is active', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { mode: 'moo' });
+  const html = rr.renderRow(row, {});
+  // Check that the moo button specifically has .on
+  assert.ok(html.includes('data-mmode="moo"'), 'moo button must be present');
+  // The "on" class is applied to the active mode
+  const mooIdx = html.indexOf('data-mmode="moo"');
+  const classAttr = html.lastIndexOf('class="smode', mooIdx);
+  assert.ok(classAttr >= 0 && html.slice(classAttr, mooIdx).includes('on'), 'moo button must have .on class when mode=moo');
+});
+
+test('WCOCKPIT-3 renderRow: lazy mode cow has .lazy animation class', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // mode=lazy, not working
+  assert.ok(html.includes('class="livecow lazy"'), 'lazy cow must have .lazy animation class');
+});
+
+test('WCOCKPIT-3 renderRow: crazy mode cow has .crazy animation class', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { mode: 'crazy' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="livecow crazy"'), 'crazy cow must have .crazy animation class');
+});
+
+test('WCOCKPIT-3 renderRow: model dropdown present with data-msess', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('class="smodsel"'), 'model select must have .smodsel class');
+  assert.ok(html.includes('data-msess="' + SAMPLE_ROW.fullId + '"'), 'model select must have data-msess');
+  assert.ok(html.includes('<option value="claude-opus-4-6"'), 'Opus option must be present');
+  assert.ok(html.includes('<option value="claude-sonnet-4-6"'), 'Sonnet option must be present');
+  assert.ok(html.includes('<option value="claude-haiku-4-5"'), 'Haiku option must be present');
+});
+
+test('WCOCKPIT-3 renderRow: selected model option correct (Opus selected)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // model=claude-opus-4-6
+  assert.ok(html.includes('<option value="claude-opus-4-6" selected>'), 'Opus option must be selected');
+  assert.ok(!html.includes('<option value="claude-sonnet-4-6" selected>'), 'Sonnet must not be selected');
+  assert.ok(!html.includes('<option value="" selected>'), 'Auto must not be selected');
+});
+
+test('WCOCKPIT-3 renderRow: auto=false — auto button present, no .on class', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // auto=false
+  assert.ok(html.includes('class="sauto"'), 'auto button must be present without .on');
+  assert.ok(!html.includes('class="sauto on"'), 'auto button must NOT have .on when auto=false');
+  assert.ok(html.includes('data-mauto="false"'), 'data-mauto must be false');
+});
+
+test('WCOCKPIT-3 renderRow: auto=true — auto button has .on class', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { auto: true });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="sauto on"'), 'auto button must have .on when auto=true');
+  assert.ok(html.includes('data-mauto="true"'), 'data-mauto must be true');
+  assert.ok(html.includes('⚡ auto'), 'auto button must show ⚡ auto when on');
+});
+
+test('WCOCKPIT-3 renderRow: Notion SVG chip present (intchip + N SVG)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('class="intchip"'), 'Notion chip must have .intchip class');
+  assert.ok(html.includes('font-family="serif">N</text>'), 'Notion SVG N logo must be present');
+  assert.ok(html.includes('title="Notion · not synced"'), 'Notion chip must show not synced when null');
+  // amber CTA when not synced
+  assert.ok(html.includes('class="intcta">link</span>'), 'Notion must show amber link CTA when not synced');
+});
+
+test('WCOCKPIT-3 renderRow: Notion chip shows ago time when notionSyncedAt set', () => {
+  const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const row = Object.assign({}, SAMPLE_ROW, { notionSyncedAt: twoHoursAgo, obsidianSyncedAt: twoHoursAgo });
+  const html = rr.renderRow(row, { nowMs: Date.now() });
+  assert.ok(html.includes('title="Notion · 2h ago"'), 'Notion chip must show sync time when set');
+  assert.ok(!html.includes('title="Notion · not synced"'), 'Notion must not show not-synced when synced');
+  // When both are synced, no amber link CTA should appear
+  assert.ok(!html.includes('class="intcta">link</span>'), 'must not show amber link CTA when both integrations synced');
+});
+
+test('WCOCKPIT-3 renderRow: Obsidian SVG chip present (purple gem)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('fill="#7c3aed"'), 'Obsidian SVG must have purple polygon');
+  assert.ok(html.includes('title="Obsidian · not synced"'), 'Obsidian chip must show not synced');
+});
+
+test('WCOCKPIT-3 renderRow: ↺ refresh button present with data-a=refreshIntegrations', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('data-a="refreshIntegrations"'), '↺ refresh button must have correct data-a');
+  assert.ok(html.includes('↺'), 'refresh icon must be present');
+  assert.ok(html.includes('data-x="' + SAMPLE_ROW.fullId + '"'), 'data-x must be the session fullId');
+});
+
+test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { worktree: 'wave-WCOCKPIT' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="wtchip"'), 'worktree chip must have .wtchip class');
+  assert.ok(html.includes('⌥ wt:wave-WCOCKPIT'), 'worktree chip must show wt: name');
+});
+
+test('WCOCKPIT-3 renderRow: worktree chip absent when worktree null', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // worktree=null
+  assert.ok(!html.includes('class="wtchip"'), 'worktree chip must be absent when worktree=null');
+});
+
+test('WCOCKPIT-3 renderRow: brain title shown when brainTitle set', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { brainTitle: 'Wave WCOCKPIT-3 brain' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('🧠 Wave WCOCKPIT-3 brain'), 'brain title must be present when set');
+});
+
+test('WCOCKPIT-3 renderRow: brain title absent when brainTitle null', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // brainTitle=null
+  assert.ok(!html.includes('🧠'), 'brain title must be absent when brainTitle=null');
+});
+
+test('WCOCKPIT-3 renderGroupHeader: uses project key not repo name', () => {
+  const group = [
+    { fullId: 'a', needsYou: false },
+    { fullId: 'b', needsYou: true },
+  ];
+  const html = rr.renderGroupHeader('Mooter.ai', group);
+  assert.ok(html.includes('🗂 Mooter.ai'), 'header must show the Cowork project name');
+  assert.ok(!html.includes('FRUGAL'), 'header must NOT show repo name');
+  assert.ok(html.includes('1 need you'), 'header must count needsYou sessions');
+  assert.ok(html.includes('2'), 'header must show total session count');
+});
+
+test('WCOCKPIT-3 renderGroupHeader: Unassigned fallback renders without crash', () => {
+  const html = rr.renderGroupHeader('Unassigned', [{ fullId: 'x', needsYou: false }]);
+  assert.ok(html.includes('🗂 Unassigned'), 'Unassigned fallback must render');
+  assert.ok(!html.includes('need you'), 'no needsYou → no count shown');
+});
+
+test('WCOCKPIT-3 renderRow: XSS-escaped project and session id (esc guard)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, {
+    fullId: 'abc123',
+    id: 'abc123',
+    name: '<b>evil</b>',
+    worktree: '<script>alert(1)</script>',
+    brainTitle: '<img onerror=x>',
+  });
+  const html = rr.renderRow(row, {});
+  assert.ok(!html.includes('<b>evil</b>'), 'session name must be HTML-escaped');
+  assert.ok(!html.includes('<script>'), 'worktree must be HTML-escaped');
+  assert.ok(!html.includes('<img'), 'brainTitle must be HTML-escaped');
+});
+
+test('WCOCKPIT-3 esc helper: escapes all 4 HTML special chars', () => {
+  assert.equal(rr.esc('<script>&"test"</script>'), '&lt;script&gt;&amp;&quot;test&quot;&lt;/script&gt;');
+  assert.equal(rr.esc(null), '');
+  assert.equal(rr.esc(undefined), '');
+  assert.equal(rr.esc(0), '0');
+});
+
+test('WCOCKPIT-3 renderRow: sseg toolbar has aria-label for accessibility', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('role="toolbar"'), 'mode segmented must have role=toolbar');
+  assert.ok(html.includes('aria-label="session mode"'), 'mode segmented must have aria-label');
+});
