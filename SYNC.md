@@ -4,6 +4,19 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🏛 W5 — Council length-neutral REVERT: seeded re-cert + magnitude (2026-06-23, branch `wave-W5-council-revert` off `wave-council-w2`)
+**Objectivo:** completar A/B seeded (seed=42) do revert da winner-selection length-neutral. Obter magnitude exacta, re-cert ≥84.4%, registar finding negativo.
+**Dados:** `ab-run.log` — ambas as corridas completas (43/43 itens cada), reconstruídas em JSONL e analisadas pelo `quality-eval-ab.ts` (McNemar paired).
+**Resultado verifiable (n=32):** LN ajudou **2**, prejudicou **4**, concordantes **26** · McNemar p=**0.6875** (N=6 pares discordantes). Δ=**−6.3pp** (OLD/legacy: 68.8% vs NEW/LN: 62.5%). **NÃO significativo** (p>>0.05).
+**Resultado open (n=11):** LN ajudou **5**, prejudicou **3** (direcção oposta!) · McNemar p=**0.7266**. Combined: 7-7 tie (p=1.0).
+**Veredicto formal:** NEUTRAL → KEEP_LENGTH_NEUTRAL (analyzer; mas revert permanece como decisão precaucionária).
+**Re-cert ≥84.4%:** OLD/seeded=68.8% → **FAIL** (ambos os arms abaixo; bar 84.4% foi unseeded/temp=0.2 — comparação inter-temperatura inválida).
+**⚠️ Caveat crítico:** single model A diferiu entre arms (68.8% vs 81.3%) → decode noise NÃO completamente cancelado → pressuposto McNemar violado. Dados de convergência ausentes (null na reconstrução) → ACT recalibration BLOQUEADA.
+**Finding negativo registado:** council length-neutral REVERTIDO (precaucionário). Ledger: `~/.mooter/council-ledger.jsonl` entrada W5. Notion: https://app.notion.com/p/3886f6e42bc4818f80b0cb7ae17f99c6
+**classify.js:** sha `427d8c0b…364bc48f` INTACTA ✅.
+
+---
+
 ### 🏛 Council Quality Eval — 2026-06-22 (branch `wave-autopilot-loop` off `wave-council-d` — Claude Code, ultracode autónomo)
 **O que responde:** o Gate A provou que o council **MUDA** o veredicto (91,7%) mas assinou que **não provava melhoria**. Este eval responde: o council **MELHORA** vs o melhor single-model? Corrida **REAL, 100% local, $0** (sem cloud keys), com a **higiene que o Gate A não teve**: verificáveis por execução/gabarito (nunca LLM); abertos por juiz **cross-vendor** (Gemma julga Qwen), **cego**, ordem randomizada **nas duas direções**, rubric **length-neutral**. `classify.js` sha `427d8c0b…364bc48f` **INTACTA**. Tudo aditivo (`packages/council/{scripts,eval,tests}/`).
 **Barra pré-registada (fixa ANTES de correr, no código):** council é ferramenta de **qualidade** sse *(aberto)* WIN−LOSS>0 com IC binomial a **excluir 0** **E** *(verificável)* accuracy_delta **≥0**.

@@ -1,0 +1,226 @@
+{
+  "meta": {
+    "generated_for": "council-quality-eval-paired-ab",
+    "method": "Same-seed paired A/B: identical deliberation transcript per item, only the winner-selection tiebreak differs. McNemar exact on discordant pairs cancels decode noise. Verdict driven by the deterministic verifiable arm; open arm is corroboration only.",
+    "arm_a": "ln-on (length-neutral, production default)",
+    "arm_b": "ln-off (position-stable, pre-W2)",
+    "significance_level": 0.05,
+    "classify_sha_frozen": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f"
+  },
+  "paired": {
+    "arms": {
+      "a": "ln-on",
+      "b": "ln-off"
+    },
+    "n_common": 43,
+    "gradable": 43,
+    "winner_changed": {
+      "n": 0,
+      "verifiable": 0,
+      "open": 0,
+      "rate": 0,
+      "rate_ci95": [
+        0,
+        0.082
+      ],
+      "ids": []
+    },
+    "verifiable": {
+      "n_graded": 32,
+      "b_a_helped": 2,
+      "c_a_hurt": 4,
+      "concordant": 26,
+      "mcnemar": {
+        "b": 2,
+        "c": 4,
+        "n": 6,
+        "p": 0.6875,
+        "direction": -1
+      },
+      "acc_a": 0.625,
+      "acc_b": 0.688
+    },
+    "open": {
+      "n_graded": 11,
+      "b_a_helped": 5,
+      "c_a_hurt": 3,
+      "concordant": 3,
+      "mcnemar": {
+        "b": 5,
+        "c": 3,
+        "n": 8,
+        "p": 0.7265625,
+        "direction": 1
+      }
+    },
+    "combined_context": {
+      "b_a_helped": 7,
+      "c_a_hurt": 7,
+      "mcnemar": {
+        "b": 7,
+        "c": 7,
+        "n": 14,
+        "p": 1,
+        "direction": 0
+      }
+    },
+    "by_category": [
+      {
+        "category": "agentic-ops",
+        "n": 3,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "architecture",
+        "n": 6,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "coding-bugfix",
+        "n": 5,
+        "winner_changed": 0,
+        "ver_helped": 1,
+        "ver_hurt": 0
+      },
+      {
+        "category": "coding-spec",
+        "n": 3,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "factual-grounding",
+        "n": 5,
+        "winner_changed": 0,
+        "ver_helped": 1,
+        "ver_hurt": 1
+      },
+      {
+        "category": "hard-debugging",
+        "n": 5,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "reasoning-counting",
+        "n": 1,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "reasoning-logic",
+        "n": 2,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "reasoning-math",
+        "n": 4,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 2
+      },
+      {
+        "category": "reasoning-prob",
+        "n": 1,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "refactor-strategy",
+        "n": 2,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 0
+      },
+      {
+        "category": "security-audit",
+        "n": 6,
+        "winner_changed": 0,
+        "ver_helped": 0,
+        "ver_hurt": 1
+      }
+    ],
+    "primary_signal": "verifiable",
+    "verdict": "NEUTRAL",
+    "recommendation": "KEEP_LENGTH_NEUTRAL",
+    "rationale": "No significant verifiable difference (helped 2, hurt 4, McNemar p=0.6875). Not a proven lift, but NOT a regression — keep the default (position-free + concise) as the safer tiebreak. (open arm corroborates (helped 5, hurt 3).)"
+  },
+  "act_recalibration": {
+    "arm_a": {
+      "floor": 0.6,
+      "v1_confirmed_only": {
+        "n": 0,
+        "act_precision": null
+      },
+      "v2_confirmed_and_conf_ge_floor": {
+        "n": 0,
+        "act_precision": null
+      },
+      "improvement_pp": null,
+      "v2_beats_v1": null
+    },
+    "arm_b": {
+      "floor": 0.6,
+      "v1_confirmed_only": {
+        "n": 0,
+        "act_precision": null
+      },
+      "v2_confirmed_and_conf_ge_floor": {
+        "n": 0,
+        "act_precision": null
+      },
+      "improvement_pp": null,
+      "v2_beats_v1": null
+    },
+    "floor_grid_arm_a": {
+      "v1_confirmed_only": {
+        "n": 0,
+        "act_precision": null
+      },
+      "min_coverage": 0.3,
+      "grid": [
+        {
+          "floor": 0.5,
+          "n_fires": 0,
+          "coverage": null,
+          "act_precision": null,
+          "beats_v1": null
+        },
+        {
+          "floor": 0.55,
+          "n_fires": 0,
+          "coverage": null,
+          "act_precision": null,
+          "beats_v1": null
+        },
+        {
+          "floor": 0.6,
+          "n_fires": 0,
+          "coverage": null,
+          "act_precision": null,
+          "beats_v1": null
+        },
+        {
+          "floor": 0.65,
+          "n_fires": 0,
+          "coverage": null,
+          "act_precision": null,
+          "beats_v1": null
+        }
+      ],
+      "best": null,
+      "recommendation": "REVERT_FLOOR_TO_0"
+    },
+    "note": "Primary arm = arm_a (production, length-neutral). arm_b is a sensitivity check. v2 must beat v1 to justify the W2 ACT confidence floor; the floor_grid picks the best floor at adequate coverage, or signals REVERT_FLOOR_TO_0 if none beats v1."
+  }
+}
