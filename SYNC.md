@@ -4,6 +4,19 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🐛 Sessão — 2026-06-23 (Wave WCOCKPIT-5 — FIX cockpit em branco: gitStage async + guard)
+**Branch:** `wave-WCOCKPIT` · **Commit:** (a commitar)
+**Estado:** ✅ **Entregue** — 3 ficheiros, 140 linhas.
+**Root cause:** `gitStage()` usava `spawnSync` que **bloqueava o event loop do extension host** → `postMessage` do snapshot não chegava ao webview → painel em branco. Adicionalmente: sem `try/catch` no `rowFor` webview → um `renderRow` que falhe blanca o painel todo.
+**O que aterrou:**
+- `host-extra.js`: `gitStage()` convertida para **async** (`execTool`/`execFile`, não-bloqueante); `spawnSync` removido do import; `gsCache` adicionada em `recentSessions()` para evitar chamadas redundantes por CWD; `row.gitStage = await gsCache.get(cwd)` (mesma patter que `branchCache`)
+- `extension.js`: `rowFor` envolto em `try/catch` — um erro de render num único card mostra `⚠ render error` em vez de apagar o cockpit inteiro
+- `data.test.js`: +13 testes WCOCKPIT-5: webview-sim `fn.toString()+new Function()` path (replica exactamente o que o browser executa); testa com null/staged/uncommitted/ahead/clean/worktree/brain/XSS; confirma que `gitStage` retorna Promise (async)
+**Testes:** `node --test data.test.js` → **119 pass, 0 fail** (+13 testes WCOCKPIT-5, 106 baseline intactos)
+**`classify.js` sha:** `427d8c0b...364bc48f` **INTACTA** ✓
+**Notion:** https://app.notion.com/p/3886f6e42bc48167a261ec23c2d776f8
+**BLOCKERS (gate humano):** merge `wave-WCOCKPIT → main` (commits b3a327f + c9115ad + 4cce4ae + 71dda1f + WCOCKPIT-5) + `/mooter-update` + smoke (cockpit NÃO em branco, chip git visível, safety tip funciona).
+
 ### 🔍 Sessão — 2026-06-23 (Wave WCOCKPIT-4 — Git stage por sessão (safety) + worktree accent)
 **Branch:** `wave-WCOCKPIT` · **Commit:** (a commitar)
 **Estado:** ✅ **Entregue** — 5 ficheiros modificados, 235 linhas.

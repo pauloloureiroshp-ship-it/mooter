@@ -633,7 +633,8 @@ window.addEventListener('message',(e)=>{
   const bkey=(r)=>JSON.stringify([String(r.cwd||''),String(r.branch||'')]); // repo+branch composite key (clean, collision-free)
   const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
   // WCOCKPIT-3: rowFor delegates to renderRow (defined above from row-renderer.js)
-  const rowFor=(r)=>renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now()});
+  // WCOCKPIT-5: try/catch guard — a single bad row must NOT blank the whole cockpit panel
+  const rowFor=(r)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now()});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
   // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
   const sorted=[...rsess].sort((a,b)=>{if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
   // WCOCKPIT-3: group live sessions by Cowork project (explicit) → repo folder (host) → fallback.

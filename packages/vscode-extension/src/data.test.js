@@ -797,20 +797,21 @@ test('WCOCKPIT-3 renderRow: sseg toolbar has aria-label for accessibility', () =
 
 // ── WCOCKPIT-4: gitStage unit tests ──
 
-test('WCOCKPIT-4 gitStage: null/empty/non-string cwd → null (never throws)', () => {
-  assert.equal(x.gitStage(null), null);
-  assert.equal(x.gitStage(''), null);
-  assert.equal(x.gitStage(123), null);
+test('WCOCKPIT-4 gitStage: null/empty/non-string cwd → null (never throws)', async () => {
+  // gitStage is now async (WCOCKPIT-5 fix: was spawnSync, now uses execTool)
+  assert.equal(await x.gitStage(null), null);
+  assert.equal(await x.gitStage(''), null);
+  assert.equal(await x.gitStage(123), null);
 });
 
-test('WCOCKPIT-4 gitStage: non-git dir → null (never throws)', () => {
+test('WCOCKPIT-4 gitStage: non-git dir → null (never throws)', async () => {
   const nonGit = path.join(os.tmpdir(), 'no-git-wcockpit4-' + process.pid);
-  assert.equal(x.gitStage(nonGit), null); // not a repo, git returns non-zero → null
+  assert.equal(await x.gitStage(nonGit), null); // not a repo, git returns non-zero → null
 });
 
-test('WCOCKPIT-4 gitStage: real git repo → valid state object', () => {
+test('WCOCKPIT-4 gitStage: real git repo → valid state object', async () => {
   const projectRoot = path.resolve(__dirname, '..', '..', '..');
-  const gs = x.gitStage(projectRoot);
+  const gs = await x.gitStage(projectRoot);
   assert.ok(gs !== null, 'gitStage must return an object for a real git repo');
   assert.ok(['clean', 'uncommitted', 'staged', 'ahead'].includes(gs.state), 'state must be valid');
   assert.equal(typeof gs.dirty,  'number', 'dirty must be a number');
@@ -909,4 +910,115 @@ test('WCOCKPIT-4 renderRow: two sessions with different worktrees may differ in 
   assert.ok(h1.includes('border-left-color:'), 'alpha worktree must have accent');
   assert.ok(h2.includes('border-left-color:'), 'beta worktree must have accent');
   // (not asserting they differ — hash collision theoretically possible, just verifying both render)
+});
+
+// ── WCOCKPIT-5: EXECUTION tests — fn.toString()+new Function() path (exact webview simulation) ──
+// These tests replicate the actual failure mode: renderRow is serialised via fn.toString() and
+// executed in the webview as a bare function. If it references any symbol outside its body, or
+// throws on any real row shape, the webview message handler crashes and the cockpit goes blank.
+
+// Webview-level helpers (mirrors of extension.js inline definitions — used only in these tests)
+function _wv_esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _wv_agoFmt(ms){ const t=Math.round((+ms||0)/1000); if(t<60)return t+'s'; const mi=Math.round(t/60); if(mi<60)return mi+'m'; const h=Math.round(mi/60); return h<24?h+'h':Math.round(h/24)+'d'; }
+const _wv_MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-haiku-4-5':'Haiku 4.5','claude-fable-5':'Fable 5'};
+function _wv_modelLabel(m){ return _wv_MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' '); }
+function _wv_stageColor(st){ const x=String(st||''); if(x.indexOf('merged')===0)return 'var(--g)'; if(x.indexOf('ready')===0)return 'var(--g)'; if(x.indexOf('❌')>=0)return 'var(--t3)'; return 'var(--vscode-descriptionForeground)'; }
+function _wv_famEmoji(model){ const x=String(model||'').toLowerCase(); if(/claude|opus|sonnet|haiku/.test(x))return '✨'; return '🤖'; }
+
+// Build the renderRow function exactly as the webview does: fn.toString() + new Function()
+const _wvRenderRow = new Function('esc','agoFmt','famEmoji','modelLabel','stageColor',
+  'return (' + rr.renderRow.toString() + ')')(
+  _wv_esc, _wv_agoFmt, _wv_famEmoji, _wv_modelLabel, _wv_stageColor);
+const _wvRenderGroupHeader = new Function('esc',
+  'return (' + rr.renderGroupHeader.toString() + ')')(
+  _wv_esc);
+
+test('WCOCKPIT-5 webview-sim: renderRow.toString() has no template literals (safe in outer getHtml template)', () => {
+  const src = rr.renderRow.toString();
+  assert.ok(!src.includes('`'), 'no backticks in renderRow source — would break getHtml() template literal');
+  assert.ok(!src.includes('${'), 'no ${} in renderRow source — would break getHtml() template literal');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow parses and executes via new Function() (exact webview path)', () => {
+  // If this throws, the webview script would fail to parse and the panel would be blank
+  assert.ok(typeof _wvRenderRow === 'function', 'renderRow must be a function after new Function() deserialization');
+  assert.ok(typeof _wvRenderGroupHeader === 'function', 'renderGroupHeader must be a function after deserialization');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — no gitStage → no throw, non-empty HTML', () => {
+  const html = _wvRenderRow(SAMPLE_ROW, {});
+  assert.ok(typeof html === 'string' && html.length > 100, 'must return non-empty HTML string');
+  assert.ok(html.includes('class="srow"') || html.includes('class="srow '), 'must contain .srow element');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage=null → no throw, no chip', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: null });
+  const html = _wvRenderRow(row, {});
+  assert.ok(typeof html === 'string' && html.length > 100, 'null gitStage must render normally');
+  assert.ok(!html.includes('class="sgit"'), 'null gitStage must not render stage chip');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage uncommitted → no throw, chip rendered', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 5, staged: 0, ahead: 0, behind: 0 } });
+  const html = _wvRenderRow(row, {});
+  assert.ok(typeof html === 'string' && html.length > 100, 'gitStage uncommitted must render');
+  assert.ok(html.includes('● 5 uncommitted'), 'uncommitted chip must appear in webview-path HTML');
+  assert.ok(html.includes('não fechar'), 'safety tip must appear');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage staged → chip, no safety tip', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'staged', dirty: 0, staged: 2, ahead: 0, behind: 0 } });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('◐ staged'), 'staged chip must appear');
+  assert.ok(!html.includes('não fechar'), 'staged-only must not show safety tip');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage ahead → chip + safety tip', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 3, behind: 0 } });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('↑3 to push'), 'ahead chip must appear');
+  assert.ok(html.includes('não fechar'), 'safety tip must appear for ahead');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — worktree accent applied without throw', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { worktree: 'wave-WCOCKPIT', gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 } });
+  const html = _wvRenderRow(row, {});
+  assert.ok(typeof html === 'string' && html.length > 100, 'worktree+gitStage row must render');
+  assert.ok(html.includes('border-left-color:'), 'worktree accent must be present');
+  assert.ok(html.includes('✓ clean'), 'clean chip must be present');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — brain title with gitStage → no throw', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { brainTitle: 'Wave WCOCKPIT-5 brain', gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0, behind: 0 } });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('🧠 Wave WCOCKPIT-5 brain'), 'brain title must render');
+  assert.ok(html.includes('● 2 uncommitted'), 'git stage chip must also render');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — XSS guard still enforced after serialisation', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { name: '<b>evil</b>', worktree: '<script>x</script>' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(!html.includes('<b>evil</b>'), 'name must be escaped in webview path');
+  assert.ok(!html.includes('<script>'), 'worktree must be escaped in webview path');
+});
+
+test('WCOCKPIT-5 webview-sim: renderGroupHeader (webview fn) — no throw, non-empty HTML', () => {
+  const group = [Object.assign({}, SAMPLE_ROW), Object.assign({}, SAMPLE_ROW, { needsYou: true })];
+  const html = _wvRenderGroupHeader('Mooter.ai', group);
+  assert.ok(typeof html === 'string' && html.length > 20, 'renderGroupHeader must return HTML');
+  assert.ok(html.includes('Mooter.ai'), 'group key must appear');
+  assert.ok(html.includes('1 need you'), 'needsYou count must appear');
+});
+
+test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage clean, no safety tip (regression)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 } });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('✓ clean'), 'clean chip must be present');
+  assert.ok(!html.includes('não fechar'), 'clean must NOT show safety tip (regression guard)');
+});
+
+test('WCOCKPIT-5 gitStage: async (returns Promise, not a sync value)', () => {
+  const result = x.gitStage(null);
+  assert.ok(result && typeof result.then === 'function', 'gitStage must return a Promise (async after WCOCKPIT-5 fix)');
+  return result; // awaited by test runner
 });

@@ -5,7 +5,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFile, spawnSync } = require('child_process');
+const { execFile } = require('child_process');
 const { httpJson } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
@@ -582,18 +582,18 @@ async function gitBranch(cwd) {
   return (!b || b === 'HEAD') ? null : b; // 'HEAD' = detached → no branch to show
 }
 
-// WCOCKPIT-4: READ-ONLY git stage snapshot for a session's working directory.
-// Runs git status --porcelain + rev-list ahead/behind. Sync, 3s timeout, never throws.
+// WCOCKPIT-4 (fixed in WCOCKPIT-5): READ-ONLY git stage snapshot for a session's working dir.
+// ASYNC — uses execTool (execFile under the hood) so the event loop is NEVER blocked.
+// WCOCKPIT-4 used spawnSync which stalled the extension host → blank cockpit panel.
 // Returns { state, dirty, staged, ahead, behind } with state ∈ clean|uncommitted|staged|ahead.
 // state priority: uncommitted (dirty) > staged > ahead > clean.
-// null when cwd is invalid, not a git repo, or git times out.
-function gitStage(cwd) {
+// null when cwd is invalid, not a git repo, or git times out (3s).
+async function gitStage(cwd) {
   if (!cwd || typeof cwd !== 'string') return null;
   try {
-    const sopts = { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] };
-    const sr = spawnSync('git', ['-C', cwd, 'status', '--porcelain'], sopts);
-    if (sr.status !== 0 || sr.error) return null;
-    const lines = (sr.stdout || '').split('\n').filter(function(l) { return l.length >= 2; });
+    const sr = await execTool('git', ['-C', cwd, 'status', '--porcelain'], 3000);
+    if (!sr.ok) return null;
+    const lines = (sr.out || '').split('\n').filter(function(l) { return l.length >= 2; });
     let dirty = 0, staged = 0;
     for (const line of lines) {
       const x = line[0], y = line[1];
@@ -602,9 +602,9 @@ function gitStage(cwd) {
     }
     let ahead = 0, behind = 0;
     try {
-      const rr = spawnSync('git', ['-C', cwd, 'rev-list', '--count', '--left-right', '@{u}...HEAD'], sopts);
-      if (rr.status === 0 && !rr.error) {
-        const parts = (rr.stdout || '').trim().split(/\s+/);
+      const rr = await execTool('git', ['-C', cwd, 'rev-list', '--count', '--left-right', '@{u}...HEAD'], 3000);
+      if (rr.ok) {
+        const parts = (rr.out || '').trim().split(/\s+/);
         behind = parseInt(parts[0] || '0', 10) || 0;
         ahead  = parseInt(parts[1] || '0', 10) || 0;
       }
@@ -696,6 +696,7 @@ async function recentSessions(maxN = 8) {
   const branchCache = new Map(); // cwd → branch|null, resolved once per cwd this call
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   const wtCache = new Map();     // WCOCKPIT-2: cwd → worktrees[], resolved once per cwd
+  const gsCache = new Map();     // WCOCKPIT-4/5: cwd → gitStage result, once per cwd (async, non-blocking)
   for (const f of listSessionFiles().slice(0, maxN)) {
     let lastModel = null; let turns = 0;
     let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
@@ -763,7 +764,11 @@ async function recentSessions(maxN = 8) {
     }
     const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec };
     row.repoFolder = cwd ? path.basename(cwd) : null; // WCOCKPIT-3: clean folder name for grouping
-    row.gitStage = cwd ? gitStage(cwd) : null;        // WCOCKPIT-4: READ-ONLY git stage snapshot
+    // WCOCKPIT-4/5: async git stage (non-blocking; cached per cwd to avoid redundant git calls)
+    if (cwd) {
+      if (!gsCache.has(cwd)) gsCache.set(cwd, gitStage(cwd)); // store Promise, start only once per cwd
+      row.gitStage = await gsCache.get(cwd);
+    } else { row.gitStage = null; }
     modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     out.push(row);
