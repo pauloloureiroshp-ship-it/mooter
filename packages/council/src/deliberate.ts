@@ -246,6 +246,20 @@ export async function deliberate(
     maxRounds,
   );
 
+  // Self-consistency signal behind the winner (agreement strategy only). Deterministic
+  // from the Phase-1 answers; recomputed once here for the trace/verdict transparency.
+  const agreement =
+    winnerStrategy === "agreement"
+      ? (() => {
+          const w = selectWinnerByAgreement(
+            candidates.map((c) => ({ seatId: c.seatId, text: c.text, length: lenOf.get(c.seatId) })),
+          );
+          return w
+            ? { clusterSize: w.clusterSize, clusterWeight: w.clusterWeight, totalCandidates: candidates.length }
+            : null;
+        })()
+      : null;
+
   const trace: DeliberationTrace = {
     prompt,
     answers,
@@ -258,6 +272,7 @@ export async function deliberate(
     latencyMs: Date.now() - wall0,
     modelCalls: answers.length + meter.calls,
     stable,
+    agreement,
   };
 
   return synthesize(trace, council, { coverageNotes: opts.coverageNotes });

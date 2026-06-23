@@ -213,6 +213,9 @@ async function main() {
       costA: a.costUsd, latA: a.latencyMs, costB: v.costUsd, latB: v.latencyMs,
       councilCalls: v.modelCalls, convergence: v.convergence, confidence: v.confidence,
       winnerSeat: v.winnerSeatId,
+      clusterSize: v.agreement?.clusterSize ?? null,
+      clusterWeight: v.agreement?.clusterWeight ?? null,
+      voteScore: v.voteScore,
     };
 
     if (item.verifiable) {

@@ -115,3 +115,55 @@ test("SAFETY INVARIANT: a credible refute can never yield ACT (no false-ACT unde
     assert.equal(d.decision, "ESCALATE", `conf=${conf} must escalate under a credible refute`);
   }
 });
+
+// ── W3 corroboration gate (verdicts carrying a self-consistency signal) ──────────
+test("CORROBORATION (W3): a corroborated winner with no objection → ACT", () => {
+  const d = decideActOrEscalate(v({
+    convergence: "CONFIRMED", confidence: 0.9, minorityReport: [],
+    agreement: { clusterSize: 2, clusterWeight: 5, totalCandidates: 3 },
+  }));
+  assert.equal(d.decision, "ACT");
+  assert.ok(d.reasons.some((r) => /corroborated by 2/.test(r)));
+});
+
+test("CORROBORATION (W3): an UNCORROBORATED winner does NOT ACT even when CONFIRMED with high confidence (anti-correlated peer-vote no longer licenses ACT)", () => {
+  const d = decideActOrEscalate(v({
+    convergence: "CONFIRMED", confidence: 0.95, minorityReport: [],
+    agreement: { clusterSize: 1, clusterWeight: 4, totalCandidates: 3 },
+  }));
+  assert.equal(d.decision, "ESCALATE");
+  assert.ok(d.reasons.some((r) => /uncorroborated/.test(r)));
+});
+
+test("CORROBORATION (W3): agreement on a hedge (UNCERTAIN convergence) does NOT ACT", () => {
+  const d = decideActOrEscalate(v({
+    convergence: "UNCERTAIN", confidence: 0.9, minorityReport: [],
+    agreement: { clusterSize: 3, clusterWeight: 6, totalCandidates: 3 },
+  }));
+  assert.equal(d.decision, "ESCALATE");
+  assert.ok(d.reasons.some((r) => /uncertainty|hedge/.test(r)));
+});
+
+test("CORROBORATION (W3): a credible objection still forces ESCALATE even when corroborated (safety invariant holds)", () => {
+  const d = decideActOrEscalate(v({
+    convergence: "CONFIRMED", confidence: 0.9,
+    minorityReport: [{ reviewer: "c", lens: "security", verdict: "refute", confidence: 0.8, rationale: "risk" }],
+    agreement: { clusterSize: 2, clusterWeight: 5, totalCandidates: 3 },
+  }));
+  assert.equal(d.decision, "ESCALATE");
+  assert.ok(d.reasons.some((r) => /credible objection/.test(r)));
+});
+
+test("CORROBORATION (W3): minCorroboration is configurable", () => {
+  const verdict = v({ convergence: "CONFIRMED", confidence: 0.9, minorityReport: [], agreement: { clusterSize: 1, clusterWeight: 4, totalCandidates: 3 } });
+  assert.equal(decideActOrEscalate(verdict).decision, "ESCALATE", "default minCorroboration 2 blocks a lone winner");
+  assert.equal(decideActOrEscalate(verdict, { minCorroboration: 1 }).decision, "ACT", "minCorroboration 1 admits a lone winner");
+});
+
+test("CORROBORATION (W3): a REJECTED-by-peers but corroborated winner with no credible objection → ACT (peer-rejection is anti-correlated, not disqualifying)", () => {
+  const d = decideActOrEscalate(v({
+    convergence: "REJECTED", confidence: 0.9, minorityReport: [],
+    agreement: { clusterSize: 2, clusterWeight: 5, totalCandidates: 3 },
+  }));
+  assert.equal(d.decision, "ACT");
+});

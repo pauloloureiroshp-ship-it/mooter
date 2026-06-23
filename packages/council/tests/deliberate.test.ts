@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deliberate } from "../src/deliberate.ts";
+import { COUNCIL_BASE_RELIABILITY } from "../src/verdict.ts";
 import type { Council, ModelSpec, Verdict } from "../src/types.ts";
 
 // A scripted seat: returns `answer` for a generation prompt, and a VERDICT block for
@@ -27,12 +28,14 @@ function council(seats: ModelSpec[]): Council {
   return { seats, judge: null, note: "test", estCostUsd: 0 };
 }
 
-test("deliberate: consensus (all confirm) → adaptive stop at round 1, CONFIRMED", async () => {
-  const c = council([seat("a", "ans A", "confirm"), seat("b", "ans B", "confirm"), seat("d", "ans D", "confirm")]);
+test("deliberate: consensus (all AGREE + confirm) → adaptive stop at round 1, CONFIRMED, corroborated confidence", async () => {
+  // All seats produce the SAME answer (full corroboration) and confirm each other →
+  // CONFIRMED, decisive stop, and the W3 corroboration-driven confidence is high.
+  const c = council([seat("a", "yes", "confirm"), seat("b", "yes", "confirm"), seat("d", "yes", "confirm")]);
   const v = await deliberate("q", c, { stopThreshold: 0.6 });
   assert.equal(v.rounds, 1, "adaptive stop");
   assert.equal(v.convergence, "CONFIRMED");
-  assert.ok(v.confidence > 0.8);
+  assert.ok(v.confidence > 0.8, "unanimous corroboration lifts confidence");
   assert.equal(v.costUsd, 0, "all-local is free");
 });
 
@@ -41,7 +44,10 @@ test("deliberate: strong rejection is also consensus → adaptive stop at round 
   const v = await deliberate("q", c, { stopThreshold: 0.6 });
   assert.equal(v.rounds, 1, "unanimous refute stops early too");
   assert.equal(v.convergence, "REJECTED");
-  assert.ok(v.confidence <= 0.4, "rejected → low confidence");
+  // W3: peer-rejection is ANTI-correlated with correctness (refuted winners were 0.92
+  // accurate vs confirmed 0.60), so it no longer tanks confidence. Three different answers
+  // = no corroboration → the lone winner gets the council's base reliability.
+  assert.ok(Math.abs(v.confidence - COUNCIL_BASE_RELIABILITY) < 1e-9, `lone winner → base reliability, got ${v.confidence}`);
 });
 
 test("deliberate: genuine uncertainty → escalates to round 2", async () => {

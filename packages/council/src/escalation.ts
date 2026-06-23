@@ -25,13 +25,21 @@ export interface EscalationConfig {
   /** A minority refute at/above this confidence is a credible objection → ESCALATE. */
   refuteVetoLevel?: number;
   /**
-   * Calibrated floor: even a CONFIRMED verdict must clear this confidence to ACT.
-   * W2 recalibration (quality-eval, n=32 verifiable): CONFIRMED *alone* is only 80%
-   * accurate, but CONFIRMED ∧ confidence ≥ 0.6 is 90.9%, while CONFIRMED ∧ confidence
-   * < 0.6 collapses to 66.7%. A bare CONFIRMED that barely clears the vote threshold is
-   * the inversion source — it must NOT license ACT. Default 0.6 (empirically justified).
+   * Calibrated floor for the LEGACY (agreement-less) path: a CONFIRMED verdict must clear
+   * this confidence to ACT. Kept for verdicts without a self-consistency signal. Default 0.6.
    */
   minConfirmedConfidence?: number;
+  /**
+   * W3: when the verdict carries a self-consistency (agreement) signal, gate ACT on
+   * CORROBORATION instead of the peer-vote CONFIRMED convergence. The seeded eval proved
+   * CONFIRMED is ANTI-correlated with correctness (CONFIRMED→0.60 vs REJECTED→0.92), so
+   * "the peers confirmed it" is the wrong ACT trigger; "≥N seats independently produced
+   * the same answer" is the honest one (corroborated winners were 100% accurate, vs 60%
+   * for bare CONFIRMED). Default true. */
+  requireCorroboration?: boolean;
+  /** Minimum agreement cluster size to license ACT (independent seats on the same answer).
+   *  Default 2 — at least one seat must corroborate the winner. */
+  minCorroboration?: number;
 }
 
 export interface EscalationDecision {
@@ -84,7 +92,9 @@ export function decideActOrEscalate(
   const alpha = config.alpha ?? 0.2; // default: need ≥ 0.8 pooled confidence
   const requireConfirmed = config.requireConfirmed ?? true;
   const refuteVetoLevel = config.refuteVetoLevel ?? 0.7;
-  const minConfirmedConfidence = config.minConfirmedConfidence ?? 0.6; // W2-calibrated ACT floor
+  const minConfirmedConfidence = config.minConfirmedConfidence ?? 0.6; // legacy ACT floor
+  const requireCorroboration = config.requireCorroboration ?? true;
+  const minCorroboration = config.minCorroboration ?? 2;
 
   const threshold = conformalThreshold(config.calibration ?? [], alpha);
   const refuteVeto = strongestRefute(verdict);
@@ -98,22 +108,37 @@ export function decideActOrEscalate(
   // invariant (no false-ACT under disagreement) holds for credible objections by this
   // definition; lowering refuteVetoLevel widens the ACT envelope — tune deliberately.
   const hardObjection = refuteVeto >= refuteVetoLevel;
-  // ACT requires CONFIRMED *and* the calibrated confidence floor — a low-confidence
-  // CONFIRMED (the empirical inversion: 66.7% accurate) does NOT clear the gate.
-  const isConfirmed = verdict.convergence === "CONFIRMED";
-  const confidentEnough = verdict.confidence >= minConfirmedConfidence;
-  const confirmedOk = !requireConfirmed || (isConfirmed && confidentEnough);
+
+  // Strong-consensus proxy. W3: when a self-consistency signal is present, ACT requires
+  // CORROBORATION (≥N seats independently produced the winning answer) AND not genuine
+  // uncertainty — NOT the anti-correlated CONFIRMED convergence. Agreement on a hedge
+  // (everyone says "maybe" → UNCERTAIN) must NOT license ACT. With no agreement signal,
+  // fall back to the legacy CONFIRMED ∧ confidence-floor gate.
+  const ag = verdict.agreement;
+  let consensusOk: boolean;
+  if (ag && requireCorroboration) {
+    const corroborated = ag.clusterSize >= minCorroboration;
+    const notUncertain = verdict.convergence !== "UNCERTAIN";
+    consensusOk = corroborated && notUncertain;
+    if (!corroborated) reasons.push(`uncorroborated winner (cluster size ${ag.clusterSize} < ${minCorroboration}) — no independent agreement`);
+    else if (!notUncertain) reasons.push(`genuine uncertainty (convergence UNCERTAIN) despite agreement on a hedge`);
+  } else {
+    const isConfirmed = verdict.convergence === "CONFIRMED";
+    const confidentEnough = verdict.confidence >= minConfirmedConfidence;
+    consensusOk = !requireConfirmed || (isConfirmed && confidentEnough);
+    if (!consensusOk && !isConfirmed) reasons.push(`convergence ${verdict.convergence} (not CONFIRMED)`);
+    if (!consensusOk && isConfirmed && !confidentEnough) reasons.push(`CONFIRMED but confidence ${verdict.confidence.toFixed(2)} < calibrated floor ${minConfirmedConfidence}`);
+  }
 
   if (hardObjection) reasons.push(`credible objection (refute confidence ${refuteVeto.toFixed(2)} ≥ ${refuteVetoLevel})`);
-  if (!confirmedOk && !isConfirmed) reasons.push(`convergence ${verdict.convergence} (not CONFIRMED)`);
-  if (!confirmedOk && isConfirmed && !confidentEnough) reasons.push(`CONFIRMED but confidence ${verdict.confidence.toFixed(2)} < calibrated floor ${minConfirmedConfidence} (low-confidence CONFIRMED is the inversion source)`);
   if (pooledConfidence < threshold) reasons.push(`pooled confidence ${pooledConfidence.toFixed(2)} < threshold ${threshold.toFixed(2)}`);
 
   let decision: Decision = "ESCALATE";
-  if (confirmedOk && !hardObjection && pooledConfidence >= threshold) {
+  if (consensusOk && !hardObjection && pooledConfidence >= threshold) {
     decision = "ACT";
     reasons.length = 0;
-    reasons.push(`strong consensus (${verdict.convergence}, pooled ${pooledConfidence.toFixed(2)} ≥ ${threshold.toFixed(2)}), no credible objection`);
+    const basis = ag && requireCorroboration ? `corroborated by ${ag.clusterSize} seats` : `${verdict.convergence}`;
+    reasons.push(`strong consensus (${basis}, pooled ${pooledConfidence.toFixed(2)} ≥ ${threshold.toFixed(2)}), no credible objection`);
   } else if (reasons.length === 0) {
     reasons.push("escalating conservatively");
   }

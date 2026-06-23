@@ -68,6 +68,17 @@ export interface CandidateVote {
   vote: VoteResult;
 }
 
+/** Self-consistency signal behind the winner (agreement strategy). Independent of the
+ *  peer-vote: it counts how many seats independently produced the winning answer. */
+export interface AgreementSignal {
+  /** Seats whose Phase-1 answer fell in the winning cluster (≥1). 1 = no corroboration. */
+  clusterSize: number;
+  /** Σ competence of the winning cluster. */
+  clusterWeight: number;
+  /** Non-errored candidates considered. */
+  totalCandidates: number;
+}
+
 /** Raw deliberation trace produced by deliberate(), consumed by synthesize(). */
 export interface DeliberationTrace {
   prompt: string;
@@ -88,6 +99,8 @@ export interface DeliberationTrace {
   modelCalls: number;
   /** True when an extra round did not move the outcome (adaptive stability). */
   stable: boolean;
+  /** Agreement/self-consistency signal behind the winner (null unless agreement strategy). */
+  agreement?: AgreementSignal | null;
 }
 
 /** The honest 4-section council verdict. */
@@ -117,6 +130,8 @@ export interface CouncilVerdict {
   stable?: boolean;
   convergence: Convergence;
   voteScore: number;
+  /** Self-consistency signal behind the winner (agreement strategy; null otherwise). */
+  agreement?: AgreementSignal | null;
   /** Honest coverage note (e.g. deterministic judge, all-local, unknown prices). */
   coverageNote: string;
   /** Set by the value gate: did the council change the single-model outcome? */

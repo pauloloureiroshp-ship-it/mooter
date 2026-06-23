@@ -6,6 +6,7 @@ import {
   minorityReport,
   selectWinner,
   preferCandidate,
+  COUNCIL_BASE_RELIABILITY,
   type WinnerCandidate,
 } from "../src/verdict.ts";
 import type {
@@ -53,6 +54,43 @@ test("calibrateConfidence: UNCERTAIN is capped at 0.5", () => {
 });
 test("calibrateConfidence: REJECTED is capped at 0.4", () => {
   assert.ok(calibrateConfidence(trace({ vote: vr("REJECTED", 0.9, []) })) <= 0.4);
+});
+
+test("calibrateConfidence (agreement): a lone winner gets the base reliability, IGNORING the anti-correlated peer-vote", () => {
+  // A REJECTED peer-vote no longer drags a corroboration-1 winner down to 0.4: the W3
+  // finding is that peer-REJECTED winners are actually MORE accurate, so the vote is ignored.
+  const c = calibrateConfidence(trace({
+    vote: vr("REJECTED", -0.9, []),
+    agreement: { clusterSize: 1, clusterWeight: 4, totalCandidates: 3 },
+  }));
+  assert.ok(Math.abs(c - COUNCIL_BASE_RELIABILITY) < 1e-9, `expected base reliability, got ${c}`);
+});
+
+test("calibrateConfidence (agreement): unanimous corroboration lifts to the ceiling, never 1.0", () => {
+  const c = calibrateConfidence(trace({
+    vote: vr("CONFIRMED", 0.9, []),
+    agreement: { clusterSize: 3, clusterWeight: 8, totalCandidates: 3 },
+  }));
+  assert.ok(Math.abs(c - 0.95) < 1e-9, `expected ceiling 0.95, got ${c}`);
+  assert.ok(c < 1, "never claims certainty");
+});
+
+test("calibrateConfidence (agreement): confidence is monotone non-decreasing in corroboration", () => {
+  const mk = (size: number) => calibrateConfidence(trace({
+    vote: vr("UNCERTAIN", 0, []),
+    agreement: { clusterSize: size, clusterWeight: size, totalCandidates: 3 },
+  }));
+  assert.ok(mk(1) <= mk(2));
+  assert.ok(mk(2) <= mk(3));
+  assert.ok(mk(1) < mk(3), "more agreement → strictly more confidence");
+});
+
+test("calibrateConfidence (agreement): config overrides base and ceiling for other rosters", () => {
+  const c = calibrateConfidence(
+    trace({ agreement: { clusterSize: 1, clusterWeight: 1, totalCandidates: 3 } }),
+    { baseReliability: 0.5, ceiling: 0.9 },
+  );
+  assert.equal(c, 0.5);
 });
 
 test("minorityReport: only non-confirm reviews are preserved (with evidence)", () => {

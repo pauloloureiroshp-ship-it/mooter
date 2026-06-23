@@ -87,16 +87,52 @@ function uniqueShort(items: string[], max = 6): string[] {
   return out;
 }
 
+/** Council base reliability when the winner stands ALONE (no corroboration) and the
+ *  high-corroboration ceiling. Roster-specific, calibrated to the seeded local-Qwen
+ *  council (lone-winner accuracy ≈ 0.81 on the verifiable eval; corroboration-driven
+ *  confidence reached LOO-CV ECE ≈ 0.01 vs 0.56 for the old peer-vote read). Never claims
+ *  certainty (ceiling < 1). Override via CalibrationConfig for a different roster. */
+export const COUNCIL_BASE_RELIABILITY = 0.81;
+export const COUNCIL_CORROBORATION_CEILING = 0.95;
+
+export interface CalibrationConfig {
+  /** Reliability of a lone (uncorroborated) winner. Default COUNCIL_BASE_RELIABILITY. */
+  baseReliability?: number;
+  /** Ceiling reached at unanimous corroboration. Default COUNCIL_CORROBORATION_CEILING. */
+  ceiling?: number;
+}
+
 /**
- * Calibrated confidence in [0,1] from the winner's vote. Honest, not inflated:
- *   - base maps score [-1,1] → [0,1]
- *   - UNCERTAIN convergence is capped at 0.5 (we are not sure)
- *   - REJECTED is capped at 0.4 (the leading answer did not survive)
+ * Calibrated confidence in [0,1]. HONEST, and W3-corrected.
+ *
+ * The W2 confidence read (voteScore+1)/2 straight off the peer-vote — which the seeded
+ * eval proved ANTI-correlated with correctness (peer-CONFIRMED winners were 0.60 accurate
+ * vs peer-REJECTED 0.92: weak same-family seats confirm each other's plausible-wrong
+ * answers and refute the strong seat's correct one). Using that signal — or its old
+ * REJECTED→0.4 cap — pushes confidence the WRONG way.
+ *
+ * So when a self-consistency (agreement) signal is present, confidence is driven by
+ * CORROBORATION — how many INDEPENDENT seats reproduced the winning answer — and ignores
+ * the peer-vote entirely: a lone winner gets the council's base reliability; confidence
+ * lifts toward the ceiling as corroboration rises, never claiming certainty. With no
+ * agreement signal (deprecated non-agreement strategies / bare traces) it falls back to
+ * the legacy vote-derived mapping for backward compatibility.
  */
-export function calibrateConfidence(trace: DeliberationTrace): number {
+export function calibrateConfidence(trace: DeliberationTrace, config: CalibrationConfig = {}): number {
+  const ag = trace.agreement;
+  if (ag && ag.totalCandidates > 0) {
+    const base = config.baseReliability ?? COUNCIL_BASE_RELIABILITY;
+    const ceiling = config.ceiling ?? COUNCIL_CORROBORATION_CEILING;
+    const minFrac = 1 / ag.totalCandidates; // a lone winner's corroboration fraction
+    const lift =
+      ag.totalCandidates > 1
+        ? Math.max(0, Math.min(1, (ag.clusterSize / ag.totalCandidates - minFrac) / (1 - minFrac)))
+        : 0;
+    return Math.round((base + (ceiling - base) * lift) * 1000) / 1000;
+  }
+  // Legacy fallback (no agreement signal): vote-derived, capped. Kept for back-compat.
   const v = trace.vote;
-  const base = (v.score + 1) / 2;
-  let c = base;
+  let c = (v.score + 1) / 2;
   if (v.convergence === "UNCERTAIN") c = Math.min(c, 0.5);
   else if (v.convergence === "REJECTED") c = Math.min(c, 0.4);
   return Math.round(Math.max(0, Math.min(1, c)) * 1000) / 1000;
@@ -181,6 +217,7 @@ export function synthesize(
     stable: trace.stable,
     convergence: trace.vote.convergence,
     voteScore: Math.round(trace.vote.score * 1000) / 1000,
+    agreement: trace.agreement ?? null,
     coverageNote: coverage.join("; ") || "full cloud council",
   };
 }

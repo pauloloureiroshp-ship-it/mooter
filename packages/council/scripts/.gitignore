@@ -1,5 +1,7 @@
-# Transient eval checkpoint (the committed artifact is quality-eval-results.json)
+# Transient eval checkpoints (the committed artifact is quality-eval-results.json)
 quality-eval-progress.jsonl
+quality-eval-progress.*.jsonl
+eval-*.log
 # Diagnostic data artifacts (regenerate with seed=42 via perseat-probe.ts)
 perseat-probe.json
 perseat-probe.log
