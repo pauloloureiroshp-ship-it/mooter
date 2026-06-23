@@ -9,6 +9,8 @@
     "bench": "tsx src/run.ts",
     "niche": "tsx src/niche-eval.ts",
     "niche:json": "tsx src/niche-eval.ts --json",
+    "niche-r2": "tsx src/niche-eval-r2.ts",
+    "niche-r2:json": "tsx src/niche-eval-r2.ts --json",
     "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
