@@ -1,0 +1,42 @@
+# ~/.codex/config.toml — Mooter ↔ Codex plane
+# Auth: KEEP your existing ChatGPT OAuth login (codex-cli.js fallback depends on it).
+#       Metered parallel workers override per-run via CODEX_API_KEY (set by the Mooter runner) —
+#       do NOT run `codex login --with-api-key` (it would replace the OAuth session).
+# Verify:  codex login status  -> "Logged in using ChatGPT"
+# Facts verified against developers.openai.com/codex 2026-06-21.
+
+# --- default model for interactive `codex` ---
+model = "gpt-5.3-codex"          # coding workhorse; swap to gpt-5.5 for hardest tasks
+model_provider = "openai"         # built-in provider; uses your API-key login
+model_reasoning_effort = "medium" # minimal|low|medium|high|xhigh
+
+# Interactive default: ask before writing. Headless runs override to `never` per-call.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# AGENTS.md discovery: keep Mooter's repo AGENTS.md as the shared brain (default cap 32 KiB).
+# project_doc_max_bytes = 32768
+
+# --- subagent limits (defaults shown; sane for parallel worktrees) ---
+[agents]
+max_threads = 6   # max concurrent agent threads
+max_depth = 1     # a child agent may spawn, no deeper nesting
+
+# --- profiles: pick with `codex -p <name>` or in the Mooter runner ---
+[profiles.mooter-cloud]      # parallel worker plane (gated cloud)
+model = "gpt-5.3-codex"
+approval_policy = "never"    # non-interactive
+sandbox_mode = "workspace-write"
+
+[profiles.mooter-explore]    # read-only fan-out
+model = "gpt-5.4-mini"
+approval_policy = "never"
+sandbox_mode = "read-only"
+
+# --- MCP: let Codex consume the Mooter MCP server (same tools CC has) ---
+# Adjust the command to your install. Check: `mooter --help` / packages/mcp-server/README.
+[mcp_servers.mooter]
+command = "mooter"
+args = ["mcp"]                # if this errors, use: command="node", args=["<path>/packages/mcp-server/dist/index.js"]
+startup_timeout_sec = 20
+# enabled_tools = ["explain", "doctor", "spawn", "sessions"]  # optional allow-list

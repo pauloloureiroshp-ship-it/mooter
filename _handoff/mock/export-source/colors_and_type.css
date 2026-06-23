@@ -1,0 +1,218 @@
+/* ===========================================================
+   Mooter Design System — colors_and_type.css
+   Post-rebrand (April 2026): warm near-black + muted rose
+   =========================================================== */
+
+/* ── Fonts (Google Fonts — exact match to product) ────────── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ── BACKGROUND & SURFACE — warm dark ─── */
+  --bg:        #0B0A09;          /* warm near-black, never #000 */
+  --bg-2:      #0F0E0C;
+  --surface:   #141311;
+  --surface-2: #1C1A17;
+  --border:    #252220;
+  --border-light: #302C28;
+
+  /* ── TEXT — warm off-whites ─── */
+  --text:   #F2EDE6;             /* warm off-white, never pure #FFF */
+  --muted:  #7A7168;
+  --faint:  #2A2622;
+
+  /* ── ACCENT — muted rose (primary) ─── */
+  --accent:   #E8888A;           /* cow-muzzle rose */
+  --accent-2: #F2A5A5;
+  --accent-06: rgba(232,136,138,0.06);
+  --accent-08: rgba(232,136,138,0.08);
+  --accent-12: rgba(232,136,138,0.12);
+  --accent-25: rgba(232,136,138,0.25);
+
+  /* ── SEMANTIC ─── */
+  --green:  #4CAF6A;
+  --yellow: #D4C090;
+
+  /* ── TIER SYSTEM — PRODUCT, NOT DECORATION ─── */
+  --tier-0: #4CAF6A;             /* T0 local / Ollama — green */
+  --tier-1: #5A9BD4;             /* T1 Haiku — blue */
+  --tier-2: #A88BD4;             /* T2 Sonnet — purple */
+  --tier-3: #D46A5A;             /* T3 Opus — warm red */
+
+  /* Terminal variants (used in mockup traffic-light terminals) */
+  --t0: #4CAF6A;
+  --t1: #5A9BD4;
+  --t2: #D4C090;
+  --t3: #D46A5A;
+
+  /* ── TERMINAL / CODE SURFACES ─── */
+  --term-bg:     #0d1117;
+  --term-border: #30363d;
+  --term-header: #161b22;
+  --term-fg:     #c9d1d9;
+  --term-dim:    #8b949e;
+
+  /* ── FONTS ─── */
+  --font-sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── SPACING ─── */
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+
+  /* ── RADIUS ─── */
+  --r-sm:   6px;
+  --r-md:   10px;
+  --r-lg:   16px;
+  --r-xl:   24px;
+  --r-full: 9999px;
+
+  /* ── SHADOW (warm) ─── */
+  --shadow-sm:   0 1px 3px rgba(10,8,5,0.5);
+  --shadow-md:   0 8px 32px -8px rgba(10,8,5,0.7);
+  --shadow-lg:   0 24px 64px -16px rgba(10,8,5,0.85);
+  --shadow-glow: 0 0 40px -16px rgba(232,136,138,0.25);
+}
+
+/* ── BASE ─────────────────────────────────────────────────── */
+
+html { color-scheme: dark; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+code, pre, .mono, kbd { font-family: var(--font-mono); }
+
+/* Every NUMBER uses mono + tabular-nums — signature rule */
+.num, [data-num] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ── TYPOGRAPHY SEMANTIC SCALE ────────────────────────────── */
+
+.h1, h1 {
+  font-family: var(--font-sans);
+  font-size: clamp(2.8rem, 6vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;                  /* aggressive negative */
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.h2, h2.display {
+  font-family: var(--font-sans);
+  font-size: clamp(1.7rem, 3.5vw, 2.9rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.h3 {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.body, p {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.body-sm, .small {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.mono-tag {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.terminal-text {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+  color: var(--term-fg);
+}
+
+/* Tier chip — signature visual */
+.tier-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  background: transparent;
+  letter-spacing: 0.02em;
+}
+.tier-chip.t0 { color: var(--tier-0); }
+.tier-chip.t1 { color: var(--tier-1); }
+.tier-chip.t2 { color: var(--tier-2); }
+.tier-chip.t3 { color: var(--tier-3); }
+
+/* ===========================================================
+   Motion & responsive — added Wave 14 (redesign polish)
+   =========================================================== */
+
+/* Never bleed horizontally on any page */
+html, body { overflow-x: hidden; max-width: 100%; }
+
+/* Respect reduced-motion: neutralize all keyframe/transition motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Responsive helper hooks (applied via className on inline-styled artboards).
+   Inline styles can't hold media queries, so layout-collapse lives here. */
+@media (max-width: 768px) {
+  /* multi-col grids → single column */
+  .m-stack { grid-template-columns: 1fr !important; }
+  /* 4-col stat strips → 2 columns */
+  .m-2col  { grid-template-columns: 1fr 1fr !important; }
+  /* big section padding → comfortable mobile padding */
+  .m-pad   { padding-left: 20px !important; padding-right: 20px !important; }
+  .m-pad-y { padding-top: 36px !important; padding-bottom: 40px !important; }
+  /* wide tables → horizontal scroll instead of squish */
+  .m-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .m-scroll-x > table { min-width: 720px; }
+  /* hide decorative-only columns/blocks on small screens */
+  .m-hide { display: none !important; }
+}
+

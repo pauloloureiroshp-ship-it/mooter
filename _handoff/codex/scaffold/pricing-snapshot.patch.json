@@ -1,0 +1,33 @@
+{
+  "_comment": "Merge these keys into data/pricing-snapshot-2026-05-27.json -> models{}. Prices are WEB-SOURCED (2026-06-21) and NOT yet verified against the official API page, so pricing_status='web-unverified' keeps the auto-route gate CLOSED. Before flipping to 'active': run `mooter price-update` or verify at developers.openai.com/api/docs/pricing, then set pricing_status='active'.",
+  "models": {
+    "gpt-5-5": {
+      "input_per_mtok": 5.00,
+      "cached_input_per_mtok": 0.50,
+      "output_per_mtok": 30.00,
+      "tier": "T3",
+      "context_window": 1000000,
+      "pricing_status": "web-unverified",
+      "pricing_source": "web aggregators (devtk.ai, morphllm, aipricing.guru) 2026-06-21",
+      "as_of": "2026-06-21"
+    },
+    "gpt-5-4": {
+      "input_per_mtok": 2.50,
+      "cached_input_per_mtok": 0.25,
+      "output_per_mtok": 15.00,
+      "tier": "T2",
+      "pricing_status": "web-unverified",
+      "pricing_source": "web aggregators 2026-06-21",
+      "as_of": "2026-06-21"
+    },
+    "gpt-5-3-codex": {
+      "input_per_mtok": 1.75,
+      "output_per_mtok": 14.00,
+      "tier": "T2",
+      "pricing_status": "web-unverified",
+      "pricing_source": "web aggregators 2026-06-21",
+      "as_of": "2026-06-21",
+      "pricing_note": "Was 'pending' placeholder; filled with web price. Coding workhorse; cheaper input than Sonnet."
+    }
+  }
+}
