@@ -22,8 +22,17 @@ const fs = require('fs');
 const path = require('path');
 const data_ = require('./data.js');
 const extra = require('./host-extra.js');
+const fv = require('./fleet-view.js');
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
+
+// Resolve the open workspace folder as the repo root (for fleet buses).
+function repoRoot() {
+  try {
+    const wf = vscode.workspace.workspaceFolders;
+    return (wf && wf[0] && wf[0].uri.fsPath) || require('os').homedir();
+  } catch { return require('os').homedir(); }
+}
 
 // Cross-platform Claude Code detection: the installed extension is the strongest
 // signal; otherwise probe the usual CLI locations on macOS/Linux/Windows.
@@ -112,6 +121,7 @@ class DataService {
       sessionLedger: effSid ? extra.tokenLedger(effSid, { sessionOnly: true }) : null,
       claudeCli: detectClaude(),
       decisions: data_.readDecisions(),
+      fleetHtml: fv.renderFleetTab(fv.readFleet(repoRoot())),
     };
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
     } finally { this.busy = false; }
@@ -178,6 +188,7 @@ function runInTerminal(cmd, name = 'mooter') {
 class CockpitProvider {
   constructor(ctx, data) { this.ctx = ctx; this.data = data; }
   resolveWebviewView(view) {
+    this._view = view;
     view.webview.options = { enableScripts: true };
     view.webview.html = getHtml();
     const sub = this.data.onUpdate((s) => { try { view.webview.postMessage({ type: 'snapshot', s: project(s) }); } catch {} });
@@ -224,6 +235,8 @@ class CockpitProvider {
         const r = await extra.rateSpan(m.arg && m.arg.id, m.arg && m.arg.n);
         vscode.window.setStatusBarMessage(r.ok ? '🐮 feedback saved — the Pastor learns' : '🐮 could not save feedback', 3500);
       }
+      if (m.cmd === 'fleetApprove') { const n = String(m.arg || '').replace(/[^a-zA-Z0-9_-]/g, ''); if (n) { fv.approvePillar(n, { runInTerminal, mooterCmd }); setTimeout(() => this.data.refresh(true), 1500); } }
+      if (m.cmd === 'fleetStop')    { const n = String(m.arg || '').replace(/[^a-zA-Z0-9_-]/g, ''); if (n) { fv.stopPillar(n,    { runInTerminal, mooterCmd }); setTimeout(() => this.data.refresh(true), 1500); } }
       if (m.cmd === 'intent') {
         const res = await extra.intentResolve(m.arg);
         try { view.webview.postMessage({ type: 'intent', res }); } catch {}
@@ -264,6 +277,7 @@ function project(s) {
     ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
     activeSession: s.activeSession || null, selectedSession: s.selectedSession || 'auto', effectiveSession: effSid,
     live: extra.liveRouting(lastForCow, { hostModel, lastExecution: s.lastExec }),
+    fleetHtml: s.fleetHtml || null,
     paired: (() => { const e = vscode.extensions.getExtension('anthropic.claude-code'); return e ? { ok: true, version: (e.packageJSON && e.packageJSON.version) || '' } : { ok: false }; })(),
     projectName: (vscode.workspace.name || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].name) || 'no folder'),
     score: extra.mooterScore(ctx),
@@ -283,11 +297,16 @@ function activate(ctx) {
   const data = new DataService();
   ctx.subscriptions.push({ dispose: () => data.dispose() });
   makeStatusBar(ctx, data);
-  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', new CockpitProvider(ctx, data)));
+  const cockpitProvider = new CockpitProvider(ctx, data);
+  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', cockpitProvider));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openCockpit', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newSession', newSession));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openFleet', () => {
+    vscode.commands.executeCommand('mooterCockpit.focus');
+    try { if (cockpitProvider._view) cockpitProvider._view.webview.postMessage({ type: 'gotoTab', tab: 'fleet' }); } catch { /* panel not yet resolved */ }
+  }));
   data.start();
 }
 function deactivate() {}
@@ -409,11 +428,22 @@ function getHtml() {
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
+  /* Fleet tab — scoped under .fleetwrap */
+  .fleetwrap{padding:4px 0}
+  .fleetwrap-header{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 13px;margin-bottom:9px}
+  .fleetwrap-card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:7px}
+  .fleetwrap-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap}
+  .fleetwrap-name{font-size:12px;font-weight:700;white-space:nowrap}
+  .fleetwrap-rnd{font-size:10px;opacity:.6;white-space:nowrap}
+  .fleetwrap-cost{font-size:10px;opacity:.65;margin-left:auto;white-space:nowrap}
+  .fleetwrap-did,.fleetwrap-ledger{font-size:10px;opacity:.75;margin-bottom:2px;word-break:break-all}
+  .fleetwrap-dimkey{opacity:.5}
+  .fleetwrap-btns{display:flex;gap:6px;margin-top:6px}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><div class="tab" data-v="fleet">🚀 Fleet</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
@@ -421,6 +451,7 @@ function getHtml() {
 <div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
 <div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
 <div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
+<div class="view" id="view-fleet"><div id="v-fleet"><div class="empty">Connecting to fleet…</div></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
 function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));}
@@ -507,7 +538,9 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else if(a.startsWith('tab:'))goTab(a.slice(4));
   else send(a,b.dataset.x);
 });}
+function wireFleet(root){(root||document).querySelectorAll('button[data-fleet]').forEach(b=>{b.onclick=()=>{const a=String(b.dataset.fleet||'');const ci=a.indexOf(':');const cmd=ci>=0?a.slice(0,ci):a;const pilar=ci>=0?a.slice(ci+1):'';if(cmd==='approve')send('fleetApprove',pilar);else if(cmd==='stop')send('fleetStop',pilar);};});}
 window.addEventListener('message',(e)=>{
+  if(e.data.type==='gotoTab'){goTab(e.data.tab);return;}
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
@@ -766,6 +799,10 @@ window.addEventListener('message',(e)=>{
     ['mooter doctor','mooter savings','mooter sessions list','mooter why-not-fable','mooter quant status','mooter sync'].map(c=>'<button data-a="term:'+esc(c)+'">'+esc(c.replace('mooter ',''))+'</button>').join('')+
     '</div><div class="hint">identical on macOS and Windows — the CLI is the contract</div></div>';
   wireButtons($('#v-terminal'));
+
+  // ── FLEET tab (rendered host-side via fleet-view.js, injected as HTML)
+  const fleetRoot=$('#v-fleet');
+  if(fleetRoot&&s.fleetHtml!=null){fleetRoot.innerHTML=s.fleetHtml;wireFleet(fleetRoot);}
 
   // ── DOCTOR + 10 slash (req 10)
   const ok=(b)=>b?'✅':(b===null?'🟡':'❌');const sl=s.slash||{};
