@@ -67,6 +67,11 @@ const DEFAULT_ELIGIBLE = [
   // statusline_chips.graph / MOOTER_STATUSLINE_GRAPH=1). Default OFF →
   // byte-identical statusline. Honest `🕸 ?` when opted in but no breadcrumb.
   './graph-status.js',
+  // W3 Autopilot Loop polish — 🔄 loop wave+round+cost chip (opt-IN: '' unless
+  // preferences.statusline_loop === true). Default OFF → byte-identical statusline
+  // (A.5 contract preserved). Reads STATE.json + ledger.jsonl from disk — naturally
+  // cross-restart persistent. Honest `🔄 ?` when opted-in but bus not found.
+  './loop-status.js',
 ];
 
 // The full historic chip list, in render order. Extracted verbatim from the old
@@ -121,6 +126,9 @@ const CHIP_MODULES = [
   './agents-progress-status.js',
   // Wave 66 Block 6 — 🕸 code knowledge graph (opt-IN).
   './graph-status.js',
+  // W3 Autopilot Loop polish — 🔄 loop wave+round+cost (opt-IN via
+  // preferences.statusline_loop === true). Default OFF. See loop-status.js.
+  './loop-status.js',
 ];
 
 /**
