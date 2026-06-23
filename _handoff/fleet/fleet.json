@@ -1,0 +1,110 @@
+{
+  "version": "1.0.0",
+  "created": "2026-06-23",
+  "description": "Mooter Autopilot Fleet F1 — pilar registry",
+  "pillars": [
+    {
+      "id": "site",
+      "dirs": ["landing/", "dashboard/"],
+      "priority": 2,
+      "gpu_heavy": false,
+      "cloud": true,
+      "charter": "Maximizar conversão e retenção via landing + dashboard world-class, medido por bounce-rate e ativação."
+    },
+    {
+      "id": "vscode-plugin",
+      "dirs": ["packages/vscode-extension/"],
+      "priority": 3,
+      "gpu_heavy": false,
+      "cloud": true,
+      "charter": "Entregar o cockpit VSCode com statusline fiel, routing inline e zero fricção de instalação."
+    },
+    {
+      "id": "council",
+      "dirs": ["packages/council/"],
+      "priority": 1,
+      "gpu_heavy": true,
+      "cloud": false,
+      "charter": "Manter o quórum local como oráculo de qualidade: recall >95% em OOD, latência <2s por vote."
+    },
+    {
+      "id": "lora-dora",
+      "dirs": [".venv-lora/", "docs/foundation/"],
+      "priority": 4,
+      "gpu_heavy": true,
+      "cloud": false,
+      "charter": "Treinar adaptadores LoRA/DoRA que especializam o roteamento por domínio sem degradar o classificador base."
+    },
+    {
+      "id": "quantizacao",
+      "dirs": ["turboquant-backend/", "docs/foundation/ADAPTIVE_QUANTIZATION.md"],
+      "priority": 4,
+      "gpu_heavy": true,
+      "cloud": false,
+      "charter": "Manter VRAM <14 GB a Q4_K_M com fallback automático, sem regressão de qualidade >2% vs FP16."
+    },
+    {
+      "id": "matriz",
+      "dirs": ["packages/router/src/specialization-matrix.ts", "packages/router/src/benchmark-fetcher.ts"],
+      "priority": 2,
+      "gpu_heavy": false,
+      "cloud": false,
+      "charter": "Actualizar a matriz 17×N com benchmarks honestos e preços reais; lançar alerta se rival novo bate local-first em OOD."
+    },
+    {
+      "id": "skills",
+      "dirs": [".claude/skills/", "packs/"],
+      "priority": 3,
+      "gpu_heavy": false,
+      "cloud": true,
+      "charter": "Criar e afiar skills que reduzem o custo médio por tarefa em ≥10% sem perder qualidade no top-10 workflows."
+    },
+    {
+      "id": "statusline",
+      "dirs": ["tools/router/statusline-hooks.js", "tools/router/statusline.js"],
+      "priority": 3,
+      "gpu_heavy": false,
+      "cloud": false,
+      "charter": "Manter o statusline como painel de controlo fiel: savings reais, tier badge honesto, latência <50 ms."
+    },
+    {
+      "id": "seguranca",
+      "dirs": ["packages/data-rights/", "SECURITY.md"],
+      "priority": 1,
+      "gpu_heavy": false,
+      "cloud": true,
+      "charter": "Zero dados de utilizador a sair do dispositivo sem consentimento explícito; adversarial review semanal."
+    },
+    {
+      "id": "design",
+      "dirs": ["landing/", "dashboard/", "docs/design/"],
+      "priority": 3,
+      "gpu_heavy": false,
+      "cloud": true,
+      "charter": "Design system coerente e acessível (WCAG AA); critique score >8/10 em todas as vistas novas."
+    },
+    {
+      "id": "integracoes-llm",
+      "dirs": ["packages/arbitrage-monitor/", "packages/minimax-watcher/", "packages/router/src/benchmark-fetcher.ts"],
+      "priority": 2,
+      "gpu_heavy": false,
+      "cloud": false,
+      "charter": "Monitorizar 24/7 novos modelos e preços; injetar arbitrage signals na matriz em <1h do lançamento."
+    },
+    {
+      "id": "bench-eval",
+      "dirs": ["packages/mooter-bench/"],
+      "priority": 2,
+      "gpu_heavy": false,
+      "cloud": false,
+      "charter": "Benchmarks reprodutíveis e honestos: holdout OOD selado, sem data leakage, relatório público por release."
+    }
+  ],
+  "global_caps": {
+    "max_gpu_heavy_concurrent": 1,
+    "max_cloud_sessions_concurrent": 3,
+    "daily_token_budget_k": 500,
+    "stale_heartbeat_ms": 30000,
+    "poll_interval_ms": 5000
+  }
+}
