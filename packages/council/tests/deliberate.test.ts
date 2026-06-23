@@ -50,11 +50,20 @@ test("deliberate: strong rejection is also consensus → adaptive stop at round 
   assert.ok(Math.abs(v.confidence - COUNCIL_BASE_RELIABILITY) < 1e-9, `lone winner → base reliability, got ${v.confidence}`);
 });
 
-test("deliberate: genuine uncertainty → escalates to round 2", async () => {
+test("deliberate: genuine uncertainty (DIFFERENT answers) → escalates to round 2", async () => {
   const c = council([seat("a", "ans A", "uncertain"), seat("b", "ans B", "uncertain"), seat("d", "ans D", "uncertain")]);
   const v = await deliberate("q", c, { stopThreshold: 0.6, maxRounds: 2 });
   assert.equal(v.rounds, 2, "uncertainty needs another round");
   assert.equal(v.convergence, "UNCERTAIN");
+});
+
+test("deliberate: R5 cost — unanimous agreement stops after round 1 even when not decisive", async () => {
+  // SAME answer across all seats but only UNCERTAIN reviews (not decisive). With different
+  // answers this escalates to round 2 (test above); unanimous agreement has no answer-level
+  // dissent left to surface, so the cross-exam stops at round 1 — a free cost saving.
+  const c = council([seat("a", "same", "uncertain"), seat("b", "same", "uncertain"), seat("d", "same", "uncertain")]);
+  const v = await deliberate("q", c, { stopThreshold: 0.6, maxRounds: 2 });
+  assert.equal(v.rounds, 1, "unanimous agreement → no 2nd round");
 });
 
 test("deliberate: minority report preserved even when the winner is CONFIRMED", async () => {

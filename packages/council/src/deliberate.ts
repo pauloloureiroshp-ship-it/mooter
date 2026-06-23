@@ -174,15 +174,22 @@ export async function deliberate(
   // Length signal for length-neutral selection: char count of each candidate's answer.
   const lenOf = new Map(candidates.map((c) => [c.seatId, c.text.trim().length]));
   const voteOf = (id: string) => vote(reviewsByCandidate.get(id) ?? [], { threshold: voteThreshold });
+  // W3 default: competence-weighted self-consistency over the Phase-1 answers. VOTE-
+  // INDEPENDENT (the peer-vote proved anti-correlated with correctness in W2), so the
+  // winner is FIXED by Phase-1 and a 2nd round can never change the recommendation.
+  // Computed once and reused for selection, the early-stop, and the trace signal.
+  const agreementWinner =
+    winnerStrategy === "agreement"
+      ? selectWinnerByAgreement(candidates.map((c) => ({ seatId: c.seatId, text: c.text, length: lenOf.get(c.seatId) })))
+      : null;
+  // Unanimous corroboration: every candidate produced the same answer → there is no
+  // answer-level dissent left to surface → the cross-exam can stop after round 1 (R5).
+  const unanimousAgreement =
+    !!agreementWinner && agreementWinner.clusterSize === candidates.length && candidates.length > 1;
   const pickWinner = (): { id: string; v: VoteResult } => {
     if (winnerStrategy === "agreement") {
-      // W3 default: competence-weighted self-consistency over the Phase-1 answers. This is
-      // VOTE-INDEPENDENT (the peer-vote proved anti-correlated with correctness in W2); the
-      // winner's vote is still attached for confidence/dissent, but no longer selects.
-      const w = selectWinnerByAgreement(
-        candidates.map((c) => ({ seatId: c.seatId, text: c.text, length: lenOf.get(c.seatId) })),
-      )!;
-      return { id: w.seatId, v: voteOf(w.seatId) };
+      // The winner's vote is still attached for dissent/transparency, but no longer selects.
+      return { id: agreementWinner!.seatId, v: voteOf(agreementWinner!.seatId) };
     }
     if (winnerStrategy === "length-neutral") {
       const w = selectWinner(
@@ -239,26 +246,23 @@ export async function deliberate(
       prevWinner = winnerId;
       prevScore = winnerVote.score;
 
-      // Fixpoint (same ref → stop): decisive, stable, single candidate, or budget spent.
-      if (decisive || stable || candidates.length < 2 || rounds >= maxRounds) return st;
+      // Fixpoint (same ref → stop): decisive, stable, unanimous agreement (no dissent to
+      // find), single candidate, or budget spent.
+      if (decisive || stable || unanimousAgreement || candidates.length < 2 || rounds >= maxRounds) return st;
       return { round: rounds }; // new ref → run another round
     },
     maxRounds,
   );
 
-  // Self-consistency signal behind the winner (agreement strategy only). Deterministic
-  // from the Phase-1 answers; recomputed once here for the trace/verdict transparency.
-  const agreement =
-    winnerStrategy === "agreement"
-      ? (() => {
-          const w = selectWinnerByAgreement(
-            candidates.map((c) => ({ seatId: c.seatId, text: c.text, length: lenOf.get(c.seatId) })),
-          );
-          return w
-            ? { clusterSize: w.clusterSize, clusterWeight: w.clusterWeight, totalCandidates: candidates.length }
-            : null;
-        })()
-      : null;
+  // Self-consistency signal behind the winner (agreement strategy only), from the
+  // precomputed Phase-1 agreement winner — surfaced for transparency + calibration.
+  const agreement = agreementWinner
+    ? {
+        clusterSize: agreementWinner.clusterSize,
+        clusterWeight: agreementWinner.clusterWeight,
+        totalCandidates: candidates.length,
+      }
+    : null;
 
   const trace: DeliberationTrace = {
     prompt,
