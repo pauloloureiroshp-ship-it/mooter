@@ -4,6 +4,39 @@
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
 
+### 🎨 WCOCKPIT-6 — UX/UI cockpit optimizado (2026-06-23, Cowork autónomo)
+**Branch:** `wave-WCOCKPIT` · **Estado:** ✅ **Em prod (vsix 0.16.6-ux instalado + verificado live).**
+
+**Problema (print do Paulo):** cada um dos 8 cartões repetia branch + `162 uncommitted` + `trabalho por guardar` + mode-segmented + model + auto + Notion/Obsidian → ruído e altura desperdiçada; mode-switch global em overflow horizontal.
+
+**Mudanças (só `row-renderer.js` + `extension.js` CSS/caller — engine intacto):**
+- **Dedup por grupo:** branch + git-stage + safety tip passam ao **cabeçalho do projeto** (`renderGroupHeader`), uma vez. Cartões cujo branch/git == grupo deixam de os repetir (opt-in via `opts.groupBranch`/`groupGitKey`; standalone continua a mostrar tudo → testes intactos).
+- **Progressive disclosure:** mode-segmented + model + auto + integrações embrulhados em `.sdrawer`, escondido por defeito, revelado em `:hover`/`.on`/`:focus-within`. Indicador `⋯` no canto.
+- **Overflow fix:** `.seg .mo` com `min-width:0` + ellipsis (LazyMoo/Moo/CrazyMoo já não cortam).
+- **Cartões compactos:** default = vaca + nome + estado + modelo.
+- **+5 testes WCOCKPIT-6**; suite **124/125 pass** (1 fail = bug pré-existente do harness `webview-syntax`, `COWORK is not defined`; o `touchSync` que falhou era poluição de estado do sandbox, não regressão).
+**Verificado live:** cabeçalho `🗂 FRUGAL · ⎇ wave-WCOCKPIT · ● 166 uncommitted · ⚠ não fechar`; cartões limpos; drawer no cartão seleccionado.
+**⚠️ Nota de ambiente Cowork:** o Edit tool (lado Windows) dessincronizou do mount Linux (build lê o mount) → ficheiros truncados. Solução: editar via bash directamente no mount (`git checkout` baseline + replaces idempotentes). NÃO usar o Edit tool para ficheiros do repo nesta sessão.
+**🔜 Follow-up:** commitar `row-renderer.js`+`extension.js`+`data.test.js` (WCOCKPIT-6) + bump 0.16.6 + vsix.
+
+### 🛠 RECUPERAÇÃO — 2026-06-23 (Working-tree corrompido pelo crash, NÃO runtime VS Code)
+**Branch:** `wave-WCOCKPIT` (tip `5f0ccc9` = commit WCOCKPIT-5) · **Estado:** ✅ **Repo recuperado.**
+
+**Correcção do diagnóstico anterior:** o cockpit em branco NÃO era "runtime do VS Code precisa de restart". Restart limpo feito (File→Exit + reabrir) → cockpit continuou em branco. A causa real: o crash (API 500 + matar `node` a meio de escrita) **NUL-corrompeu / truncou vários ficheiros** e partiu o `.git/HEAD` e o `.git/index`.
+
+**Corrupção encontrada e reparada (tudo restaurado do tip 5f0ccc9):**
+- `.git/HEAD` — tinha `\0\0` no fim → `git symbolic-ref HEAD refs/heads/wave-WCOCKPIT` (HEAD resolve outra vez)
+- `.git/index` — corrupto → `rm` + `git read-tree --reset 5f0ccc9`
+- NUL-corrompidos: `extension.js`, `CHANGELOG.md`, `SYNC.md`, `packages/cli/src/index.ts`, `packages/mcp-server/{README.md,manifest.json,src/tools.ts,tests/mcp.test.ts}`
+- Truncados: `host-extra.js`, `data.test.js` (316→1024), `_handoff/loop/sdk-runner.mjs`, `packages/mcp-server/package.json`
+- **Preservados (trabalho legítimo por commitar, NÃO tocados):** `packages/vscode-extension/package.json` (0.16.3), `cowork-waiting.js` (+coworkProject), `mode-registry.js` (project fallback)
+- ⚠️ Untracked do loop ainda com NUL (não-críticos): `_handoff/loop/OUTBOX.md`, `transcript/round-{2,3,7}-*.md`
+
+**Verificação:** todos os ficheiros restaurados → `node --check` OK, 0 NUL, JSON válido. `git status`/`rev-parse HEAD` a funcionar.
+**⚠️ Nota:** trabalho uncommitted pós-tip nos ficheiros corrompidos foi destruído pelo crash (irrecuperável); a base limpa é o tip 5f0ccc9.
+**✅ RESOLVIDO:** rebuild VSIX `mooter-cockpit-0.16.5-recovered.vsix` (fonte limpa + WCOCKPIT-4/5) → `code --install-extension --force` → reload → **cockpit PINTA** (hero poupança, LazyMoo/Moo/CrazyMoo, Live Sessions por projeto, chip git 162-uncommitted + safety tip, modo/modelo/auto por sessão). A install 0.16.3 anterior era build stale SEM os fixes — essa era a verdadeira causa do branco.
+**🔜 Follow-ups:** commitar edits legítimos preservados (`vscode-extension/package.json` 0.16.5, `cowork-waiting.js`, `mode-registry.js`) + o vsix; limpar NUL nos untracked `_handoff/loop/*.md`.
+
 ### 🐛 Sessão — 2026-06-23 (Wave WCOCKPIT-5 — FIX cockpit em branco: gitStage async + guard)
 **Branch:** `wave-WCOCKPIT` · **Commit:** (a commitar)
 **Estado:** ✅ **Entregue** — 3 ficheiros, 140 linhas.

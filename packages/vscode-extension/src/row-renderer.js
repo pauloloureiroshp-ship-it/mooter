@@ -78,6 +78,10 @@ function renderRow(r, opts) {
   var effSess = opts.effSess != null ? opts.effSess : null;
   var branchCount = opts.branchCount || {};
   var nowMs = opts.nowMs != null ? opts.nowMs : Date.now();
+  // WCOCKPIT-6: group context — when a session's branch/git matches its project group,
+  // suppress the per-card chips (shown once in the group header) to kill repetition.
+  var groupBranch = opts.groupBranch != null ? opts.groupBranch : null;
+  var groupGitKey = opts.groupGitKey != null ? opts.groupGitKey : null;
 
   // Inline constants (safe when serialised — no external references needed in webview)
   var _MODES = [['lazy','💤','LazyMoo — local-first'],['moo','🐮','Moo — balanced'],['crazy','⚡','CrazyMoo — max power']];
@@ -101,17 +105,19 @@ function renderRow(r, opts) {
     badge = esc(agoFmt(r.ageMs)) + ' ago';
   }
 
-  // SCM (branch + PR chip)
+  // SCM (branch + PR chip) — branch chip suppressed when it equals the group's (header shows it once)
   var scm = '';
   if (r.branch) {
     var bk = JSON.stringify([String(r.cwd || ''), String(r.branch || '')]);
     var linked = (branchCount[bk] || 0) > 1;
     var pr = r.pr;
-    var branchChip = '<span class="scmbr" title="git branch">' + (linked ? '🔗 ' : '⎇ ') + esc(r.branch) + '</span>';
+    var sameBranch = groupBranch != null && groupBranch === r.branch;
+    var branchChip = sameBranch ? '' : '<span class="scmbr" title="git branch">' + (linked ? '🔗 ' : '⎇ ') + esc(r.branch) + '</span>';
     var prChip = (pr && pr.stage)
       ? '<span class="scmpr" title="' + esc(pr.title || '') + '" style="color:' + stageColor(pr.stage) + '">#' + esc(pr.number != null ? String(pr.number) : '?') + ' · ' + esc(pr.stage) + '</span>'
-      : '<span class="scmpr" style="opacity:.55">no PR</span>';
-    scm = '<div class="sscm">' + branchChip + ' ' + prChip + '</div>';
+      : (sameBranch ? '' : '<span class="scmpr" style="opacity:.55">no PR</span>');
+    var scmInner = branchChip + (branchChip && prChip ? ' ' : '') + prChip;
+    scm = scmInner ? '<div class="sscm">' + scmInner + '</div>' : '';
   }
 
   // Cow animation class: mode + working state + cowork
@@ -163,10 +169,12 @@ function renderRow(r, opts) {
     ? '<div class="ssub" style="opacity:.7">🧠 ' + esc(r.brainTitle) + '</div>'
     : '';
 
-  // ── Git stage chip (WCOCKPIT-4: safety — shows uncommitted/staged/ahead/clean) ──
+  // ── Git stage chip (WCOCKPIT-4) — suppressed when identical to the group's (header shows it once) ──
   var gsChip = '';
   var gsTip = '';
-  if (r.gitStage) {
+  var rowGitKey = r.gitStage ? (r.gitStage.state + ':' + (r.gitStage.dirty || 0) + ':' + (r.gitStage.ahead || 0)) : '';
+  var gitDeduped = groupGitKey != null && rowGitKey !== '' && groupGitKey === rowGitKey;
+  if (r.gitStage && !gitDeduped) {
     var gsState = r.gitStage.state;
     var gsDirty = r.gitStage.dirty || 0;
     var gsAhead = r.gitStage.ahead || 0;
@@ -201,7 +209,7 @@ function renderRow(r, opts) {
     + '<div class="stop"><span class="sname">' + esc(nm) + '</span><span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span></div>'
     + '<div class="ssub">' + badge + ' · ' + esc(r.id) + (sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '') + '</div>'
     + brainLine + scm + gitLine
-    + modeSeg + ctrl + meta
+    + '<div class="sdrawer">' + modeSeg + ctrl + meta + '</div>'
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';
@@ -209,9 +217,25 @@ function renderRow(r, opts) {
 
 // ── Group header ──────────────────────────────────────────────────────────────
 function renderGroupHeader(key, group) {
-  var gneed = 0;
-  for (var i = 0; i < group.length; i++) { if (group[i].needsYou) gneed++; }
-  return '<div style="display:flex;justify-content:space-between;align-items:center;margin:9px 2px 3px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;opacity:.6"><span>🗂 ' + esc(key) + '</span><span>' + group.length + (gneed ? ' · ' + gneed + ' need you' : '') + '</span></div>';
+  var gneed = 0, br = null, gs = null, i;
+  for (i = 0; i < group.length; i++) {
+    if (group[i].needsYou) gneed++;
+    if (!br && group[i].branch) br = group[i].branch;
+    if (!gs && group[i].gitStage) gs = group[i].gitStage;
+  }
+  // WCOCKPIT-6: branch + git stage rolled up once per project (was repeated on every card)
+  var brChip = br ? '<span class="ghbr" title="branch shared by this project">⎇ ' + esc(br) + '</span>' : '';
+  var gChip = '', gTip = '';
+  if (gs) {
+    var st = gs.state, d = gs.dirty || 0, a = gs.ahead || 0;
+    if (st === 'clean') gChip = '<span class="ghg clean">✓ clean</span>';
+    else if (st === 'uncommitted') { gChip = '<span class="ghg dirty">● ' + d + ' uncommitted</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
+    else if (st === 'staged') gChip = '<span class="ghg staged">◐ staged</span>';
+    else if (st === 'ahead') { gChip = '<span class="ghg ahead">↑' + a + ' to push</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
+  }
+  var meta = (brChip || gChip) ? '<span class="ghmeta">' + brChip + (brChip && gChip ? ' ' : '') + gChip + (gTip ? ' ' + gTip : '') + '</span>' : '';
+  var count = '<span class="ghcount">' + group.length + (gneed ? ' · ' + gneed + ' need you' : '') + '</span>';
+  return '<div class="ghd"><span class="ghkey">🗂 ' + esc(key) + '</span>' + meta + count + '</div>';
 }
 
 module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS };

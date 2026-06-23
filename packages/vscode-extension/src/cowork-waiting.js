@@ -16,6 +16,8 @@ function decorate(row, pending) {
   row.waitingForCowork = !!hit;
   row.coworkStatus = hit ? (pending.status || "pending") : null; // "pending" | "cowork_working"
   row.coworkTitle = hit ? (pending.coworkTitle || null) : null;
+  row.coworkProject = hit ? (pending.coworkProject || null) : null;
+  if (hit && pending.coworkProject) row.project = pending.coworkProject;
   if (hit) { row.working = false; row.needsYou = false; }
   return row;
 }

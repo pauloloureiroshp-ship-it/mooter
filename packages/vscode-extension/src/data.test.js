@@ -1022,3 +1022,47 @@ test('WCOCKPIT-5 gitStage: async (returns Promise, not a sync value)', () => {
   assert.ok(result && typeof result.then === 'function', 'gitStage must return a Promise (async after WCOCKPIT-5 fix)');
   return result; // awaited by test runner
 });
+
+// ── WCOCKPIT-6: progressive disclosure + group rollup dedup ──
+test('WCOCKPIT-6 renderRow: per-session controls wrapped in .sdrawer (hidden until hover/selected)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('class="sdrawer"'), 'controls must be wrapped in .sdrawer');
+  const di = html.indexOf('class="sdrawer"');
+  assert.ok(html.indexOf('class="sseg"') > di, 'mode segmented must be inside the drawer');
+  assert.ok(html.indexOf('class="smodsel"') > di, 'model select must be inside the drawer');
+  assert.ok(html.indexOf('class="smeta"') > di, 'integration meta must be inside the drawer');
+});
+
+test('WCOCKPIT-6 renderRow: git chip suppressed when groupGitKey matches (dedup)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 162, ahead: 0, behind: 0 } });
+  const solo = rr.renderRow(row, {});
+  assert.ok(solo.includes('162 uncommitted'), 'standalone card still shows its own git chip');
+  const deduped = rr.renderRow(row, { groupGitKey: 'uncommitted:162:0' });
+  assert.ok(!deduped.includes('162 uncommitted'), 'card must NOT repeat git chip already shown by group header');
+});
+
+test('WCOCKPIT-6 renderRow: git chip kept when groupGitKey differs', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 3, ahead: 0, behind: 0 } });
+  const html = rr.renderRow(row, { groupGitKey: 'uncommitted:162:0' });
+  assert.ok(html.includes('3 uncommitted'), 'a session that differs from its group must still show its own git chip');
+});
+
+test('WCOCKPIT-6 renderRow: branch chip suppressed when groupBranch matches', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { branch: 'wave-WCOCKPIT', cwd: '/x' });
+  const solo = rr.renderRow(row, {});
+  assert.ok(solo.includes('wave-WCOCKPIT'), 'standalone card shows branch');
+  const deduped = rr.renderRow(row, { groupBranch: 'wave-WCOCKPIT' });
+  assert.ok(!deduped.includes('class="scmbr"'), 'branch chip removed when same as group');
+  assert.ok(!deduped.includes('no PR'), 'no "no PR" filler when branch deduped and no PR');
+});
+
+test('WCOCKPIT-6 renderGroupHeader: rolls up branch + uncommitted git once for the project', () => {
+  const group = [
+    { fullId: 'a', needsYou: false, branch: 'wave-WCOCKPIT', gitStage: { state: 'uncommitted', dirty: 162, ahead: 0 } },
+    { fullId: 'b', needsYou: false, branch: 'wave-WCOCKPIT', gitStage: { state: 'uncommitted', dirty: 162, ahead: 0 } },
+  ];
+  const html = rr.renderGroupHeader('FRUGAL', group);
+  assert.ok(html.includes('wave-WCOCKPIT'), 'group header shows the shared branch');
+  assert.ok(html.includes('162 uncommitted'), 'group header shows the rolled-up git stage');
+  assert.ok(html.includes('class="ghd"'), 'group header uses .ghd container');
+});

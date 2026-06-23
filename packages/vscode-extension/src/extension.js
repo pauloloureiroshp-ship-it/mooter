@@ -415,6 +415,23 @@ function getHtml() {
   .gstage.staged{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gstage.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gtip{font-size:9px;color:#e5c07b;font-weight:600}
+  /* WCOCKPIT-6: progressive disclosure — per-session controls hidden until hover/selected */
+  .sdrawer{display:none;margin-top:5px;padding-top:5px;border-top:1px dashed var(--vscode-widget-border)}
+  .srow:hover .sdrawer,.srow.on .sdrawer,.srow:focus-within .sdrawer{display:block}
+  .srow{position:relative}
+  .srow::after{content:"⋯";position:absolute;right:8px;bottom:3px;font-size:11px;opacity:.3;line-height:1}
+  .srow:hover::after,.srow.on::after{content:""}
+  /* WCOCKPIT-6: group header rollup (branch + git stage once per project) */
+  .ghd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:11px 2px 4px;font-size:9px;letter-spacing:.04em}
+  .ghkey{text-transform:uppercase;opacity:.65;font-weight:600}
+  .ghcount{margin-left:auto;opacity:.55;text-transform:uppercase;white-space:nowrap}
+  .ghmeta{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .ghbr{font-family:var(--vscode-editor-font-family,monospace);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ghg{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:8px;font-weight:600}
+  .ghg.clean{color:var(--g);background:var(--gdim)}
+  .ghg.dirty{color:#e5c07b;background:rgba(229,192,123,.12)}
+  .ghg.staged,.ghg.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
+  .ghtip{color:#e5c07b;font-weight:600}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -461,7 +478,7 @@ function getHtml() {
   .dr{display:flex;gap:8px;padding:7px 4px;border-bottom:1px solid var(--vscode-widget-border);font-size:12px;align-items:center}
   .dr:last-child{border:none}.dr .w{flex:1}.dr small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px}
   .seg{display:flex;background:var(--vscode-input-background);border-radius:7px;padding:3px;gap:2px}
-  .seg .mo{flex:1;padding:7px 4px;font-size:11px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground);text-align:center;border:1px solid transparent}
+  .seg .mo{flex:1;min-width:0;padding:7px 3px;font-size:10.5px;border-radius:5px;cursor:pointer;color:var(--vscode-descriptionForeground);text-align:center;border:1px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .seg .mo.on{background:var(--rdim);color:var(--r);font-weight:700;border-color:var(--r)}
   .seg .mo small{display:block;font-size:9px;font-weight:400;margin-top:1px}
   .pincard{margin-bottom:8px;border:1px solid var(--r);border-left:3px solid var(--r);background:linear-gradient(180deg,var(--rdim),transparent 70%)}
@@ -634,14 +651,17 @@ window.addEventListener('message',(e)=>{
   const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
   // WCOCKPIT-3: rowFor delegates to renderRow (defined above from row-renderer.js)
   // WCOCKPIT-5: try/catch guard — a single bad row must NOT blank the whole cockpit panel
-  const rowFor=(r)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now()});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
+  const rowFor=(r,gctx)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
   // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
   const sorted=[...rsess].sort((a,b)=>{if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
   // WCOCKPIT-3: group live sessions by Cowork project (explicit) → repo folder (host) → fallback.
   const projOf=(r)=>r.coworkProject||r.repoFolder||(r.project&&r.project!=='Unassigned'?r.project:'')||'Unassigned';
   const _grp={};const _ord=[];for(const r of sorted){const k=projOf(r);if(!(k in _grp)){_grp[k]=[];_ord.push(k);}_grp[k].push(r);}
   const grpHd=(k,gr)=>renderGroupHeader(k,gr);
-  const herdRows=sorted.length?_ord.map(k=>grpHd(k,_grp[k])+_grp[k].map(rowFor).join('')).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
+  // WCOCKPIT-6: roll up branch + git stage to the group header; pass as context so cards dedup.
+  const gitKeyOf=(r)=>r.gitStage?(r.gitStage.state+':'+(r.gitStage.dirty||0)+':'+(r.gitStage.ahead||0)):'';
+  const groupCtx=(gr)=>{let branch=null,gitKey=null;for(const r of gr){if(!branch&&r.branch)branch=r.branch;if(!gitKey&&r.gitStage)gitKey=gitKeyOf(r);}return{branch,gitKey};};
+  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('');}).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';

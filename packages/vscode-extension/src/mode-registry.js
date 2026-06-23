@@ -36,7 +36,7 @@ function set(sessionId, patch) {
 function decorate(row) {
   const e = get(row.fullId);
   row.mode = e.mode; row.model = e.model || row.model || null; row.auto = !!e.auto;
-  row.project = e.project || "Unassigned"; row.brainTitle = e.brainTitle || null;
+  row.project = e.project || row.project || "Unassigned"; row.brainTitle = e.brainTitle || null;
   // WCOCKPIT-2: integration fields
   row.notionPageId = e.notionPageId || null;
   row.notionSyncedAt = e.notionSyncedAt || null;
