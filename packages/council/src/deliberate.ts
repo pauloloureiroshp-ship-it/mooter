@@ -15,6 +15,7 @@ import { parallel, converge } from "../../workflow/src/primitives.ts";
 import { review } from "../../validation/src/adversarial/reviewer.ts";
 import { vote } from "../../validation/src/adversarial/voter.ts";
 import { synthesize, selectWinner } from "./verdict.ts";
+import { selectWinnerByAgreement } from "./agreement.ts";
 import type {
   Council,
   CouncilVerdict,
@@ -46,8 +47,16 @@ export interface DeliberateOptions {
   scoreEpsilon?: number;
   /** Length-neutral winner selection (default true). When false, fall back to the pre-W2
    *  position-stable tiebreak (rank → score, last-in-array wins ties) — for A/B attribution
-   *  only; production keeps the length-neutral default. */
+   *  only. Superseded by winnerStrategy; kept for backward compatibility (false → "legacy"). */
   lengthNeutral?: boolean;
+  /** Winner-selection strategy (default "agreement").
+   *   - "agreement"     — W3 default: competence-weighted self-consistency cluster
+   *                       (see agreement.ts). Fixes the W2 regression where the weakest
+   *                       seat won 17/32 items via the peer-vote + brevity tiebreak.
+   *   - "length-neutral"— pre-W3: peer-vote rank → score → shorter answer (selectWinner).
+   *   - "legacy"        — pre-W2: peer-vote rank → score, position-stable (A/B control).
+   *  If unset, lengthNeutral:false maps to "legacy" for backward compatibility. */
+  winnerStrategy?: "agreement" | "length-neutral" | "legacy";
   /** Extra honesty caveats forwarded to synthesize(). */
   coverageNotes?: string[];
 }
@@ -93,7 +102,7 @@ export async function deliberate(
   const voteThreshold = opts.voteThreshold ?? 0.5;
   const stabilityEpsilon = opts.stabilityEpsilon ?? 0.15;
   const scoreEpsilon = opts.scoreEpsilon ?? 0.05;
-  const lengthNeutral = opts.lengthNeutral ?? true;
+  const winnerStrategy = opts.winnerStrategy ?? (opts.lengthNeutral === false ? "legacy" : "agreement");
   const wall0 = Date.now();
   const meter: Meter = { cost: 0, latency: 0, calls: 0 };
 
@@ -166,14 +175,23 @@ export async function deliberate(
   const lenOf = new Map(candidates.map((c) => [c.seatId, c.text.trim().length]));
   const voteOf = (id: string) => vote(reviewsByCandidate.get(id) ?? [], { threshold: voteThreshold });
   const pickWinner = (): { id: string; v: VoteResult } => {
-    if (lengthNeutral) {
+    if (winnerStrategy === "agreement") {
+      // W3 default: competence-weighted self-consistency over the Phase-1 answers. This is
+      // VOTE-INDEPENDENT (the peer-vote proved anti-correlated with correctness in W2); the
+      // winner's vote is still attached for confidence/dissent, but no longer selects.
+      const w = selectWinnerByAgreement(
+        candidates.map((c) => ({ seatId: c.seatId, text: c.text, length: lenOf.get(c.seatId) })),
+      )!;
+      return { id: w.seatId, v: voteOf(w.seatId) };
+    }
+    if (winnerStrategy === "length-neutral") {
       const w = selectWinner(
         candidates.map((c) => ({ seatId: c.seatId, vote: voteOf(c.seatId), length: lenOf.get(c.seatId) ?? 0 })),
         scoreEpsilon,
       )!;
       return { id: w.seatId, v: w.vote };
     }
-    // Pre-W2 fallback (A/B only): rank → score, position-stable (last-in-array wins ties).
+    // "legacy" — pre-W2 fallback (A/B only): rank → score, position-stable (last-in-array wins ties).
     const rank = (vr: VoteResult) => (vr.convergence === "CONFIRMED" ? 2 : vr.convergence === "UNCERTAIN" ? 1 : 0);
     let id = candidates[0].seatId;
     let v = voteOf(id);

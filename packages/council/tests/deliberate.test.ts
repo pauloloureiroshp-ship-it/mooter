@@ -52,10 +52,16 @@ test("deliberate: genuine uncertainty → escalates to round 2", async () => {
 });
 
 test("deliberate: minority report preserved even when the winner is CONFIRMED", async () => {
-  // a,b confirm; c always refutes. Candidate C (reviewed by a,b) is CONFIRMED and wins,
-  // but c's refutes against a and b must survive in the minority report.
-  const c = council([seat("a", "ans A", "confirm"), seat("b", "ans B", "confirm"), seat("c", "ans C", "refute")]);
+  // The strongest seat WINS (agreement → highest competence) and is CONFIRMED by the
+  // other two — yet it itself refutes both of them. That dissent must survive in the
+  // minority report (the council exposes disagreement, never fabricates unanimity).
+  const c = council([
+    seat("qwen2.5-coder:14b", "ans S", "refute"),
+    seat("qwen2.5-coder:7b", "ans M", "confirm"),
+    seat("qwen2.5:3b", "ans W", "confirm"),
+  ]);
   const v = await deliberate("q", c, { stopThreshold: 0.6 });
+  assert.equal(v.winnerSeatId, "qwen2.5-coder:14b");
   assert.equal(v.convergence, "CONFIRMED");
   assert.ok(v.minorityReport.length >= 2, `expected dissent preserved, got ${v.minorityReport.length}`);
   assert.ok(v.minorityReport.every((m) => m.verdict !== "confirm"));
@@ -84,38 +90,42 @@ test("deliberate: all seats error → honest empty verdict, no fabrication", asy
   assert.match(v.coverageNote, /errored/);
 });
 
-test("deliberate: recommendation is the winning candidate's text", async () => {
-  const c = council([seat("a", "answer-A", "confirm"), seat("b", "answer-B", "confirm"), seat("c", "answer-C", "refute")]);
+test("deliberate: recommendation is the winning seat's text (agreement → most competent)", async () => {
+  const c = council([
+    seat("qwen2.5-coder:14b", "answer-strong", "confirm"),
+    seat("qwen2.5-coder:7b", "answer-mid", "confirm"),
+    seat("qwen2.5:3b", "answer-weak", "confirm"),
+  ]);
   const v = await deliberate("q", c, { stopThreshold: 0.6 });
-  // winner = C (the one a,b confirmed) → recommendation is C's text
-  assert.equal(v.recommendation, "answer-C");
+  assert.equal(v.winnerSeatId, "qwen2.5-coder:14b");
+  assert.equal(v.recommendation, "answer-strong");
 });
 
-test("deliberate: length-neutral selection — at equal correctness the CONCISE answer wins (not the verbose one, not array order)", async () => {
-  // All three seats confirm each other → all candidates CONFIRMED with the same score
-  // (tied on correctness). The shortest answer belongs to seat 'z' (lexicographically
-  // last AND last in the array). A position/seatId-biased selector would pick 'a' (the
-  // verbose, first answer); length-neutral selection must pick 'z' (the concise one).
-  const verbose = "yes, and to elaborate at length: here is a great deal of redundant restatement";
+test("deliberate: agreement — among DIFFERENT answers the most competent seat wins, NOT the most concise (W2 regression fix)", async () => {
+  // All seats confirm each other → all CONFIRMED, tied on correctness. The weakest seat
+  // is the most concise; the pre-W3 length-neutral tiebreak handed it the win and that
+  // drove every W2 verifiable regression. Agreement selection picks the strongest seat.
   const c = council([
-    seat("a", verbose, "confirm"),
-    seat("m", "yes, that is correct", "confirm"),
-    seat("z", "yes", "confirm"),
+    seat("qwen2.5-coder:14b", "the answer is 42, with supporting reasoning", "confirm"),
+    seat("qwen2.5-coder:7b", "perhaps 17", "confirm"),
+    seat("qwen2.5:3b", "0", "confirm"), // shortest, weakest — the old trap
   ]);
   const v = await deliberate("q", c, { stopThreshold: 0.6 });
   assert.equal(v.convergence, "CONFIRMED");
-  assert.equal(v.recommendation, "yes", "concise answer wins the correctness tie");
-  assert.equal(v.winnerSeatId, "z");
+  assert.equal(v.winnerSeatId, "qwen2.5-coder:14b");
+  assert.equal(v.recommendation, "the answer is 42, with supporting reasoning");
 });
 
-test("deliberate: lengthNeutral:false reproduces the pre-W2 position-stable tiebreak (last-in-array, NOT shortest) — A/B control", async () => {
+test("deliberate: winnerStrategy controls — length-neutral picks shortest, legacy picks last-in-array (A/B controls)", async () => {
   const c = council([
-    seat("a", "this is a long verbose answer with many redundant words", "confirm"),
-    seat("m", "yes", "confirm"),                 // shortest
-    seat("z", "yes indeed sir", "confirm"),       // last in array
+    seat("qwen2.5-coder:14b", "this is a long verbose answer with many redundant words", "confirm"),
+    seat("qwen2.5-coder:7b", "yes", "confirm"),          // shortest
+    seat("qwen2.5:3b", "yes indeed sir", "confirm"),      // last in array
   ]);
-  const vNew = await deliberate("q", c, { stopThreshold: 0.6 });
-  assert.equal(vNew.recommendation, "yes", "length-neutral (default) picks the shortest");
-  const vOld = await deliberate("q", c, { stopThreshold: 0.6, lengthNeutral: false });
-  assert.equal(vOld.recommendation, "yes indeed sir", "lengthNeutral:false picks last-in-array (old behaviour)");
+  const vLen = await deliberate("q", c, { stopThreshold: 0.6, winnerStrategy: "length-neutral" });
+  assert.equal(vLen.recommendation, "yes", "length-neutral picks the shortest");
+  const vLegacy = await deliberate("q", c, { stopThreshold: 0.6, winnerStrategy: "legacy" });
+  assert.equal(vLegacy.recommendation, "yes indeed sir", "legacy picks last-in-array");
+  const vBackCompat = await deliberate("q", c, { stopThreshold: 0.6, lengthNeutral: false });
+  assert.equal(vBackCompat.recommendation, "yes indeed sir", "lengthNeutral:false maps to legacy (back-compat)");
 });
