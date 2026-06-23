@@ -314,3 +314,165 @@ test('recentSessions: async, each entry has cwd + branch (string|null, never fab
     assert.equal(typeof r.needsYou, 'boolean');
   }
 });
+
+// ── WCOCKPIT: mode-registry unit tests ──
+const mr = require('./mode-registry');
+const tmpSession = 'test-session-wcockpit-' + process.pid;
+
+test('mode-registry: DEFAULT is {mode:"moo", model:null, auto:false}', () => {
+  assert.equal(mr.DEFAULT.mode, 'moo');
+  assert.equal(mr.DEFAULT.model, null);
+  assert.equal(mr.DEFAULT.auto, false);
+});
+
+test('mode-registry: MODES has exactly lazy/moo/crazy', () => {
+  assert.deepEqual(mr.MODES.sort(), ['crazy', 'lazy', 'moo']);
+});
+
+test('mode-registry: get unknown session → DEFAULT fields', () => {
+  const e = mr.get('__no_such_session_ever__');
+  assert.equal(e.mode, 'moo');
+  assert.equal(e.model, null);
+  assert.equal(e.auto, false);
+});
+
+test('mode-registry: set + get roundtrip (atomic write)', () => {
+  mr.set(tmpSession, { mode: 'lazy', auto: true });
+  const e = mr.get(tmpSession);
+  assert.equal(e.mode, 'lazy');
+  assert.equal(e.auto, true);
+});
+
+test('mode-registry: set ignores invalid mode, keeps previous', () => {
+  mr.set(tmpSession, { mode: 'lazy' });
+  mr.set(tmpSession, { mode: 'INVALID_MODE' });
+  const e = mr.get(tmpSession);
+  assert.equal(e.mode, 'lazy'); // invalid patch → mode unchanged
+});
+
+test('mode-registry: decorate fills mode/model/auto/project/brainTitle on row', () => {
+  mr.set(tmpSession, { mode: 'crazy', model: 'claude-opus-4-6', auto: true, project: 'Mooter.ai', brainTitle: 'wave test' });
+  const row = { fullId: tmpSession };
+  mr.decorate(row);
+  assert.equal(row.mode, 'crazy');
+  assert.equal(row.model, 'claude-opus-4-6');
+  assert.equal(row.auto, true);
+  assert.equal(row.project, 'Mooter.ai');
+  assert.equal(row.brainTitle, 'wave test');
+});
+
+test('mode-registry: byProject groups rows by project', () => {
+  const rows = [
+    { fullId: 'a', project: 'Alpha' },
+    { fullId: 'b', project: 'Beta' },
+    { fullId: 'c', project: 'Alpha' },
+  ];
+  const g = mr.byProject(rows);
+  assert.equal(g['Alpha'].length, 2);
+  assert.equal(g['Beta'].length, 1);
+});
+
+test('mode-registry: rows with null project → Unassigned', () => {
+  const rows = [{ fullId: 'x', project: null }, { fullId: 'y' }];
+  const g = mr.byProject(rows);
+  assert.equal(g['Unassigned'].length, 2);
+});
+
+test('mode-registry: mode mutual exclusivity in states (never working+needsYou after decorate)', () => {
+  // decorate doesn't touch working/needsYou — those come from recentSessions; confirmed independent
+  const row = { fullId: tmpSession, working: true, needsYou: false };
+  mr.decorate(row);
+  assert.ok(!(row.working && row.needsYou)); // still mutually exclusive
+});
+
+// ── WCOCKPIT: cowork-waiting unit tests ──
+const cw = require('./cowork-waiting');
+
+test('cowork-waiting: decorate with null pending → waitingForCowork=false', () => {
+  const row = { fullId: 'sess-1', working: true, needsYou: false };
+  cw.decorate(row, null);
+  assert.equal(row.waitingForCowork, false);
+  assert.equal(row.coworkStatus, null);
+  assert.equal(row.coworkTitle, null);
+  // working/needsYou unchanged when no pending
+  assert.equal(row.working, true);
+  assert.equal(row.needsYou, false);
+});
+
+test('cowork-waiting: decorate with matching pending status=pending → waitingForCowork=true, working cleared', () => {
+  const row = { fullId: 'sess-2', working: true, needsYou: false };
+  cw.decorate(row, { session_id: 'sess-2', status: 'pending', note: 'push?', coworkTitle: null, ts: 't' });
+  assert.equal(row.waitingForCowork, true);
+  assert.equal(row.coworkStatus, 'pending');
+  assert.equal(row.coworkTitle, null);
+  assert.equal(row.working, false);    // mutually exclusive
+  assert.equal(row.needsYou, false);   // mutually exclusive
+});
+
+test('cowork-waiting: decorate with cowork_working → coworkTitle set', () => {
+  const row = { fullId: 'sess-3', working: false, needsYou: true };
+  cw.decorate(row, { session_id: 'sess-3', status: 'cowork_working', coworkTitle: 'Wave WCOCKPIT brain', ts: 't' });
+  assert.equal(row.waitingForCowork, true);
+  assert.equal(row.coworkStatus, 'cowork_working');
+  assert.equal(row.coworkTitle, 'Wave WCOCKPIT brain');
+  assert.equal(row.needsYou, false);  // mutually exclusive
+});
+
+test('cowork-waiting: status=answered → waitingForCowork=false (answered clears)', () => {
+  const row = { fullId: 'sess-4', working: false, needsYou: false };
+  cw.decorate(row, { session_id: 'sess-4', status: 'answered', coworkTitle: 'brain', ts: 't' });
+  assert.equal(row.waitingForCowork, false);
+});
+
+test('cowork-waiting: decorate with different session_id → no effect', () => {
+  const row = { fullId: 'sess-5', working: true, needsYou: false };
+  cw.decorate(row, { session_id: 'OTHER_SESSION', status: 'pending', ts: 't' });
+  assert.equal(row.waitingForCowork, false);
+  assert.equal(row.working, true); // untouched
+});
+
+test('cowork-waiting: badge returns null when not waiting', () => {
+  const row = { waitingForCowork: false };
+  assert.equal(cw.badge(row), null);
+});
+
+test('cowork-waiting: badge pending → "signalled Cowork…" span', () => {
+  const row = { waitingForCowork: true, coworkStatus: 'pending', coworkTitle: null };
+  const b = cw.badge(row);
+  assert.ok(typeof b === 'string' && b.includes('signalled Cowork'));
+});
+
+test('cowork-waiting: badge cowork_working → "waiting for Cowork — <title>" (XSS-escaped)', () => {
+  const row = { waitingForCowork: true, coworkStatus: 'cowork_working', coworkTitle: '<b>evil</b>' };
+  const b = cw.badge(row);
+  assert.ok(b.includes('waiting for Cowork'));
+  assert.ok(!b.includes('<b>evil</b>')); // title must be escaped
+  assert.ok(b.includes('&lt;b&gt;evil&lt;/b&gt;'));
+});
+
+test('cowork-waiting: states are mutually exclusive (waitingForCowork wins)', () => {
+  const row = { fullId: 'sess-6', working: true, needsYou: true };
+  cw.decorate(row, { session_id: 'sess-6', status: 'cowork_working', coworkTitle: 'brain', ts: 't' });
+  // when waiting: both working and needsYou must be false
+  assert.ok(row.waitingForCowork);
+  assert.ok(!row.working);
+  assert.ok(!row.needsYou);
+});
+
+// ── WCOCKPIT: recentSessions now carries WCOCKPIT fields ──
+test('recentSessions: WCOCKPIT — each entry has mode/auto/waitingForCowork fields', async () => {
+  const rs = await x.recentSessions(3);
+  assert.ok(Array.isArray(rs));
+  for (const r of rs) {
+    // mode-registry fields (default or from file)
+    assert.ok(['lazy', 'moo', 'crazy'].includes(r.mode), 'mode must be a valid WCOCKPIT mode');
+    assert.equal(typeof r.auto, 'boolean');
+    // cowork-waiting fields
+    assert.equal(typeof r.waitingForCowork, 'boolean');
+    // mutual exclusivity: waitingForCowork clears working+needsYou
+    if (r.waitingForCowork) {
+      assert.ok(!r.working, 'waitingForCowork and working must be mutually exclusive');
+      assert.ok(!r.needsYou, 'waitingForCowork and needsYou must be mutually exclusive');
+    }
+  }
+});

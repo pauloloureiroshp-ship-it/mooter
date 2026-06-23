@@ -22,6 +22,10 @@ const fs = require('fs');
 const path = require('path');
 const data_ = require('./data.js');
 const extra = require('./host-extra.js');
+// WCOCKPIT: cowork-waiting + mode-registry (aditivo; fallback seguro se ficheiros ausentes)
+let COWORK = null, MR = null;
+try { COWORK = require('./cowork-waiting'); } catch { COWORK = { badge: () => null, CSS: '' }; }
+try { MR = require('./mode-registry'); } catch { MR = { byProject: (rows) => ({ Unassigned: rows }) }; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -228,6 +232,33 @@ class CockpitProvider {
         const res = await extra.intentResolve(m.arg);
         try { view.webview.postMessage({ type: 'intent', res }); } catch {}
       }
+      // WCOCKPIT: per-session auto-pilot controls
+      if (m.cmd === 'setMode') {
+        const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const mode = String(m.arg && m.arg.mode || '').replace(/[^a-z]/g, '');
+        if (sid && mode) { try { MR.set(sid, { mode }); } catch {} this.data.refresh(true); }
+      }
+      if (m.cmd === 'setModel') {
+        const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const model = m.arg && m.arg.model != null ? String(m.arg.model).replace(/[^a-zA-Z0-9:._-]/g, '') : null;
+        if (sid) { try { MR.set(sid, { model: model || null }); } catch {} this.data.refresh(true); }
+      }
+      if (m.cmd === 'setAuto') {
+        const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (sid) { try { MR.set(sid, { auto: !!m.arg.auto }); } catch {} this.data.refresh(true); }
+      }
+      if (m.cmd === 'toggleProject') {
+        const proj = String(m.arg || '').slice(0, 64);
+        if (proj) {
+          try {
+            const prefs = extra.preferences() || {};
+            const key = 'project_collapsed_' + proj;
+            prefs[key] = !prefs[key];
+            extra.preferences.__set && extra.preferences.__set(prefs); // noop if not supported
+          } catch {}
+          this.data.refresh(true);
+        }
+      }
     });
     this.data.refresh(true);
   }
@@ -340,7 +371,12 @@ function getHtml() {
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
   @keyframes moowalk{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-2px) rotate(-5deg)}75%{transform:translateY(-2px) rotate(5deg)}}
-  @media (prefers-reduced-motion:reduce){.livecow.working,.livedot{animation:none}}
+  .livecow.lazy{animation:moolazy 2.2s ease-in-out infinite}
+  @keyframes moolazy{0%,100%{transform:rotate(0)}50%{transform:rotate(-6deg) translateY(1px)}}
+  .livecow.crazy{animation:moocrazy 0.38s ease-in-out infinite}
+  @keyframes moocrazy{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-3px) rotate(-9deg)}50%{transform:translateY(-1px) rotate(9deg)}75%{transform:translateY(-3px) rotate(-9deg)}}
+  @media (prefers-reduced-motion:reduce){.livecow.working,.livecow.lazy,.livecow.crazy,.livedot{animation:none}}
+  ${COWORK.CSS}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -549,7 +585,9 @@ window.addEventListener('message',(e)=>{
   const bkey=(r)=>JSON.stringify([String(r.cwd||''),String(r.branch||'')]); // repo+branch composite key (clean, collision-free)
   const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
   const rowFor=(r)=>{const sel=(selSess==='auto'&&effSess===r.fullId)||selSess===r.fullId;const nm=r.name||('session '+r.id);
-    const badge=r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago');
+    // WCOCKPIT: cowork badge wins over working/needsYou (mutuamente exclusivos)
+    const cwb=COWORK.badge(r);
+    const badge=cwb||(r.working?'<span class="livedot"></span>working':(r.needsYou?'<span class="alertdot"></span><span class="needsyou">your turn</span>':esc(agoFmt(r.ageMs))+' ago'));
     // Branch / PR / stage line — only when the session's cwd is a git repo (r.branch set).
     // A linked icon when ≥2 sessions share this branch (same work — honest, never crossed).
     let scm='';
@@ -562,7 +600,9 @@ window.addEventListener('message',(e)=>{
       else prChip='<span class="scmpr" style="opacity:.55">no PR</span>';
       scm='<div class="sscm">'+branchChip+' '+prChip+'</div>';
     }
-    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+(r.working?' working':'')+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
+    // WCOCKPIT: cow classes — working state, mode (lazy/crazy animate differently), cowork wait
+    const cowCls=(r.working?' working':'')+(r.mode&&r.mode!=='moo'?' '+r.mode:'')+(r.waitingForCowork?' cowork':'');
+    return '<div class="srow'+(sel?' on':'')+(r.needsYou?' needs':'')+(r.waitingForCowork?' cowork-row':'')+'" data-sess="'+esc(r.fullId)+'" role="button" tabindex="0" title="open this session in Claude Code"><span class="livecow'+cowCls+'">🐮</span><div class="sbody"><div class="stop"><span class="sname">'+esc(nm)+'</span><span class="sllm">'+famEmoji(r.model)+' '+esc(r.model?modelLabel(r.model):'—')+'</span></div><div class="ssub">'+badge+' · '+esc(r.id)+(sel?(selSess==='auto'?' · auto':' · pinned'):'')+'</div>'+scm+'</div><span class="sopen" title="open in Claude Code">↗</span></div>';};
   const herdRows=rsess.length?rsess.map(rowFor).join(''):'<div class="sub" style="margin-top:5px">no sessions yet — open a Claude Code tab and send a prompt</div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);

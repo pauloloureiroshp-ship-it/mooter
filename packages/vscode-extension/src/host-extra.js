@@ -10,6 +10,11 @@ const { httpJson } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
 const MODE_FILE = path.join(ROUTER, '.mooter-mode.json');
+
+// WCOCKPIT: mode-registry + cowork-waiting (aditivo — carregados lazy para evitar crash em ambientes sem src/)
+let _modeRegistry = null, _coworkWaiting = null;
+function modeRegistry() { if (!_modeRegistry) try { _modeRegistry = require('./mode-registry'); } catch { _modeRegistry = { decorate: (r) => r, byProject: (rows) => ({ Unassigned: rows }) }; } return _modeRegistry; }
+function coworkWaiting() { if (!_coworkWaiting) try { _coworkWaiting = require('./cowork-waiting'); } catch { _coworkWaiting = { readCoworkPending: () => null, decorate: (r) => r }; } return _coworkWaiting; }
 const SUB_PROFILE = path.join(ROUTER, 'subscription-profile.json');
 const CLI_CANDIDATES = [
   path.join(os.homedir(), '.mooter', 'cli-v1', 'mooter.js'),
@@ -652,6 +657,7 @@ function sessionActivity(maxBytes = 256 * 1024) {
 // same honest fields as before plus { cwd, branch } (both null when unknown — never faked).
 async function recentSessions(maxN = 8) {
   const out = []; const now = Date.now(); const names = sessionNames(); const act = sessionActivity();
+  const _cwPend = coworkWaiting().readCoworkPending(); // WCOCKPIT: lê uma vez para todo o loop
   const branchCache = new Map(); // cwd → branch|null, resolved once per cwd this call
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   for (const f of listSessionFiles().slice(0, maxN)) {
@@ -711,7 +717,10 @@ async function recentSessions(maxN = 8) {
       const match = prs.find((p) => p && p.headRefName === branch);
       if (match) pr = { number: match.number, title: String(match.title || '').slice(0, 80), state: match.state, isDraft: match.isDraft, stage: prStage(match) };
     }
-    out.push({ id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec });
+    const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, working, needsYou, cwd, branch, pr, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec };
+    modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle
+    coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
+    out.push(row);
   }
   return out;
 }
