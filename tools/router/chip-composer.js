@@ -67,6 +67,11 @@ const DEFAULT_ELIGIBLE = [
   // statusline_chips.graph / MOOTER_STATUSLINE_GRAPH=1). Default OFF →
   // byte-identical statusline. Honest `🕸 ?` when opted in but no breadcrumb.
   './graph-status.js',
+  // W4 Council persistent chip — 🏛 last council run (latency · cost · savings).
+  // Opt-IN: '' unless preferences.statusline_council === true. Default OFF →
+  // byte-identical statusline. Reads ~/.mooter/council-last.json from disk —
+  // naturally cross-restart persistent. Honest `🏛 —` when opted-in but no run yet.
+  './council-status.js',
 ];
 
 // The full historic chip list, in render order. Extracted verbatim from the old
@@ -121,6 +126,9 @@ const CHIP_MODULES = [
   './agents-progress-status.js',
   // Wave 66 Block 6 — 🕸 code knowledge graph (opt-IN).
   './graph-status.js',
+  // W4 Council persistent chip — 🏛 last council run (opt-IN via
+  // preferences.statusline_council === true). Default OFF. See council-status.js.
+  './council-status.js',
 ];
 
 /**
