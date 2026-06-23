@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "script": "quality-eval-paired.ts",
+    "wave": "W5",
+    "round": 2,
+    "design": "ONE_PASS_PAIRED — same deliberation transcript, two winner strategies post-hoc",
+    "seed": 42,
+    "temperature": 0,
+    "seats": [
+      "qwen2.5-coder:7b",
+      "qwen2.5:3b",
+      "qwen2.5-coder:14b"
+    ],
+    "single": "qwen2.5-coder:14b",
+    "judge": "gemma3:12b",
+    "n_items": 43,
+    "n_all": 43,
+    "strategies": {
+      "ln_on": "agreement (W3 / pilar/council default)",
+      "ln_off": "legacy (pre-W2 / reverted)"
+    },
+    "classify_sha_frozen": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+    "prereq_mcnemar": "Single-A IDENTICAL (one call, same seed) → decode noise cancelled. Premise INTACT."
+  },
+  "prereg_bar": "council_off (legacy) verifiable acc ≥ 84.4% seeded. Fixed before running.",
+  "verifiable": {
+    "n_graded": 32,
+    "acc_single_A": 0.656,
+    "acc_council_on": 0.688,
+    "acc_council_off": 0.656,
+    "delta_on_vs_single": 0.031,
+    "delta_off_vs_single": 0
+  },
+  "paired_ab": {
+    "n_common": 32,
+    "winner_changed": {
+      "n": 25,
+      "rate": 0.781
+    },
+    "b_off_helped_vs_on": 1,
+    "c_on_helped_vs_off": 2,
+    "mcnemar": {
+      "b": 1,
+      "c": 2,
+      "n": 3,
+      "p": 1,
+      "direction": -1
+    },
+    "verdict": "NEUTRAL"
+  },
+  "recert": {
+    "bar": 0.844,
+    "acc_council_off": 0.656,
+    "pass": false,
+    "decision": "REVERT_FAILS_BAR"
+  },
+  "act_recalibration": {
+    "arm_off": {
+      "n_confirmed": 23,
+      "act_precision": 0.565
+    },
+    "note": "CONFIRMED convergence as proxy for high-confidence items (floor=0.5 via voteThreshold default). n_confirmed=0 means no items reached CONFIRMED convergence in 1 round with seed=42."
+  },
+  "open": {
+    "n": 11,
+    "wins_council_on": 2,
+    "ties": 8,
+    "losses_single_A": 1
+  },
+  "rows": [
+    {
+      "id": "r01",
+      "category": "reasoning-math",
+      "verifiable": true,
+      "winnerId_on": "qwen2.5-coder:14b",
+      "winnerId_off": "qwen2.5-coder:14b",
+      "winnerChanged": false,
+      "voteScore_on": 0.111,
+      "voteScore_off": 0.111,
+      "convergence_on": "CONFIRMED",
+      "convergence_off": "CONFIRMED",
+      "correctA": true,
+      "correct_on": true,
+      "correct_off": true
+    },
+    {
+      "id": "r02",
+      "category": "reasoning-math",
+      "verifiable": true,
+      "winnerId_on": "qwen2.5-coder:14b",
+      "winnerId_off": "qwen2.5-coder:7b",
+      "winnerChanged": true,
+      "voteScore_on": -1,
+      "voteScore_off": -1,
+      "convergence_on": "REJECTED",
+      "convergence_off": "REJECTED",
+      "correctA": true,
+      "correct_on": true,
+      "correc

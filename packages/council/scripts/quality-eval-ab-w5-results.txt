@@ -1,0 +1,10 @@
+
+── PAIRED A/B (same-seed, noise-cancelled) ──
+arms: a=ln-on (length-neutral)  vs  b=ln-off (position-stable)
+common=43 gradable=43 · winner changed on 0 (ver 0 / open 0; rate=0.0% CI95=[0,8])
+verifiable (n=32): LN helped 2, hurt 4, same 26 · McNemar p=0.6875 · accB a=0.625 b=0.688
+open       (n=11): LN helped 5, hurt 3, same 3 · McNemar p=0.7266 (corroboration only)
+ACT floor (arm_a): v1 CONFIRMED=null (n=0) → v2 conf≥0.6=null (n=0) · v2_beats_v1=null · grid→REVERT_FLOOR_TO_0
+
+VERDICT: NEUTRAL → KEEP_LENGTH_NEUTRAL
+No significant verifiable difference (helped 2, hurt 4, McNemar p=0.6875). Not a proven lift, but NOT a regression — keep the default (position-free + concise) as the safer tiebreak. (open arm corroborates (helped 5, hurt 3).)
