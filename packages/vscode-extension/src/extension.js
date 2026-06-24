@@ -426,11 +426,13 @@ function getHtml() {
   .sseg .smode{padding:2px 2px;font-size:10px}
   .sctrl{margin-top:4px;gap:4px;align-items:center;flex-wrap:nowrap}
   .sint{display:inline-flex;align-items:center;gap:4px;margin-left:2px}
-  .intchip{opacity:.38;padding:0;gap:0}
+  .intchip{opacity:.6;padding:0;gap:0}
   .intchip.on{opacity:1}
   .intchip:hover{opacity:.85}
-  button.sarch{margin-left:auto;flex:none;padding:1px 6px;font-size:10px;opacity:.35;border-radius:4px;line-height:1.3;border-color:transparent}
+  button.sarch{margin-left:auto;flex:none;padding:2px 7px;font-size:10px;opacity:.5;border-radius:4px;line-height:1.4;border-color:transparent}
   button.sarch:hover{opacity:1;color:var(--t3);border-color:var(--t3)}
+  /* WCOCKPIT-7 a11y: visible keyboard focus for the new icon buttons (WCAG 2.4.7) */
+  button.sarch:focus-visible,button.intrefresh:focus-visible,.clrdone:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
   .clrdone{font-size:9px;padding:1px 8px;border-radius:9px;opacity:.85;cursor:pointer;background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);color:var(--vscode-foreground);line-height:1.5}
   .clrdone:hover{opacity:1;border-color:var(--r);color:var(--r)}
   /* WCOCKPIT-4: git stage chip + safety tip */

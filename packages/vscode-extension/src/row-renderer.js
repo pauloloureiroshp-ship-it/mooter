@@ -156,11 +156,11 @@ function renderRow(r, opts) {
   var obsSvg = '<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo"><polygon points="50,5 90,38 72,95 28,95 10,38" fill="#7c3aed" opacity="0.85"/><polygon points="50,5 90,38 50,58" fill="#a78bfa" opacity="0.65"/></svg>';
   var notionAgo = r.notionSyncedAt ? agoFmt(nowMs - new Date(r.notionSyncedAt).getTime()) : null;
   var obsAgo = r.obsidianSyncedAt ? agoFmt(nowMs - new Date(r.obsidianSyncedAt).getTime()) : null;
-  var notionChip = '<span class="intchip' + (notionAgo ? ' on' : '') + '" title="Notion' + (notionAgo ? ' · synced ' + notionAgo + ' ago' : ' · not synced — use ↺') + '">' + notionSvg + '</span>';
-  var obsChip = '<span class="intchip' + (obsAgo ? ' on' : '') + '" title="Obsidian' + (obsAgo ? ' · synced ' + obsAgo + ' ago' : ' · not synced — use ↺') + '">' + obsSvg + '</span>';
-  var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree">⌥' + esc(r.worktree) + '</span>' : '';
-  var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" title="refresh Notion/Obsidian sync">↺</button>';
-  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
+  var notionChip = '<span class="intchip' + (notionAgo ? ' on' : '') + '" role="img" aria-label="Notion ' + (notionAgo ? 'synced ' + notionAgo + ' ago' : 'not synced') + '" title="Notion' + (notionAgo ? ' · synced ' + notionAgo + ' ago' : ' · not synced — use ↺') + '">' + notionSvg + '</span>';
+  var obsChip = '<span class="intchip' + (obsAgo ? ' on' : '') + '" role="img" aria-label="Obsidian ' + (obsAgo ? 'synced ' + obsAgo + ' ago' : 'not synced') + '" title="Obsidian' + (obsAgo ? ' · synced ' + obsAgo + ' ago' : ' · not synced — use ↺') + '">' + obsSvg + '</span>';
+  var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree: ' + esc(r.worktree) + '">⌥' + esc(r.worktree) + '</span>' : '';
+  var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="refresh Notion and Obsidian sync" title="refresh Notion/Obsidian sync">↺</button>';
+  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="close this session (archive, reversible)" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
   var ctrl = '<div class="sctrl">' + modelSel + autoBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
 
   // ── Brain title ──
