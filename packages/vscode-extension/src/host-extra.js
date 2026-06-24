@@ -102,7 +102,7 @@ async function slashStatus() {
 }
 
 // ── v0.3 services ───────────────────────────────────────────────────────
-function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
+function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } }
 
 const MOOTER_HOME = path.join(os.homedir(), '.mooter');
 function deviceProfile() { return readJson(path.join(ROUTER, 'device-profile.json')); }

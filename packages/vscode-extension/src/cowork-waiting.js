@@ -7,7 +7,7 @@ const SIGNAL = path.join(ROUTER, ".cowork-pending.json");
 
 // Le o ficheiro de correlacao escrito por signal.ps1 / Cowork. -> {session_id,status,note,coworkTitle,ts} | null
 function readCoworkPending() {
-  try { const j = JSON.parse(fs.readFileSync(SIGNAL, "utf8")); return j && j.session_id ? j : null; }
+  try { const j = JSON.parse(fs.readFileSync(SIGNAL, "utf8").replace(/^\uFEFF/, "")); return j && j.session_id ? j : null; }
   catch { return null; }
 }
 // Decora uma row de recentSessions(). Estado "waiting for Cowork" GANHA a working/needsYou (mutuamente exclusivos).

@@ -16,7 +16,7 @@ $ts = (Get-Date).ToString("o")
 
 # (a) ficheiro de correlacao lido pelo PLUGIN (estado "waiting for Cowork")
 $pending = @{ session_id = $sid; status = "pending"; note = $Note; coworkTitle = $Title; coworkProject = $Project; ts = $ts } | ConvertTo-Json -Compress
-if (Test-Path $router) { Set-Content -Path (Join-Path $router ".cowork-pending.json") -Value $pending -Encoding UTF8 }
+if (Test-Path $router) { [System.IO.File]::WriteAllText((Join-Path $router ".cowork-pending.json"), $pending, (New-Object System.Text.UTF8Encoding($false))) }
 
 # (a2) WCOCKPIT-9 (Bloco A): espelho PERSISTENTE CC<->Cowork lido pelo cockpit (mode-registry.decorate).
 # Distinto do pending (so a sessao a espera): mapa durable { sid: {coworkProject,...} } para todas as sessoes.
@@ -31,14 +31,14 @@ if ($sid -and (Test-Path $router)) {
     }
     $map[$sid] = @{ coworkProject = $Project; coworkTitle = $Title; coworkConversationId = $null; coworkUpdatedAt = $ts }
     $tmp = $mapPath + ".tmp"
-    ($map | ConvertTo-Json -Depth 6) | Set-Content -Path $tmp -Encoding UTF8
+    [System.IO.File]::WriteAllText($tmp, ($map | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
     Move-Item -Force -Path $tmp -Destination $mapPath
   } catch {}
 }
 
 # (b) sinal lido pelo COWORK (governador)
 $sig = @{ ts = $ts; source = $Source; note = $Note; session_id = $sid; cwd = (Get-Location).Path } | ConvertTo-Json -Compress
-if (Test-Path $loop) { Set-Content -Path (Join-Path $loop "NEEDS_DECISION.json") -Value $sig -Encoding UTF8 }
+if (Test-Path $loop) { [System.IO.File]::WriteAllText((Join-Path $loop "NEEDS_DECISION.json"), $sig, (New-Object System.Text.UTF8Encoding($false))) }
 
 # (c) toast Windows instantaneo
 try {

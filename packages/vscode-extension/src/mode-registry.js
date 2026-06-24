@@ -43,7 +43,7 @@ function set(sessionId, patch) {
 // WCOCKPIT-9 (Bloco A): lê o mapa persistente CC<->Cowork (read-only). Nunca lança; {} se ausente.
 // Aceita ser pré-lido uma vez por refresh e passado a decorate() para evitar N leituras no loop.
 function readCoworkMap() {
-  try { const j = JSON.parse(fs.readFileSync(COWORK_MAP, "utf8")); return j && typeof j === "object" ? j : {}; }
+  try { const j = JSON.parse(fs.readFileSync(COWORK_MAP, "utf8").replace(/^\uFEFF/, "")); return j && typeof j === "object" ? j : {}; }
   catch { return {}; }
 }
 // WCOCKPIT-9 (Bloco A): grava a associação Cowork desta sessão no REGISTO (.mooter-sessions.json).
