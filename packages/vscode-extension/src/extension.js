@@ -523,7 +523,7 @@ function getHtml() {
   @keyframes moolazy{0%,100%{transform:rotate(0)}50%{transform:rotate(-6deg) translateY(1px)}}
   .livecow.crazy{animation:moocrazy 0.38s ease-in-out infinite}
   @keyframes moocrazy{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-3px) rotate(-9deg)}50%{transform:translateY(-1px) rotate(9deg)}75%{transform:translateY(-3px) rotate(-9deg)}}
-  @media (prefers-reduced-motion:reduce){.livecow.working,.livecow.lazy,.livecow.crazy,.livedot{animation:none}}
+  @media (prefers-reduced-motion:reduce){.livecow.working,.livecow.lazy,.livecow.crazy,.livedot,.alertdot{animation:none}}
   ${COWORK.CSS}
   .smeta{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap}
   .intchip{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
@@ -886,7 +886,7 @@ window.addEventListener('message',(e)=>{
       const execN=M.option_a_hits||0;
       const realSaved=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0;
       const scopeChip=effSess?'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · this session</span>':'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span>';
-      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
+      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big" role="status" aria-live="polite" aria-label="savings versus all-Opus this session">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
     })()+
     (function(){
       const gTok = M.graph_saved_tokens_est || 0;
@@ -924,7 +924,7 @@ window.addEventListener('message',(e)=>{
   $('#v-setup').innerHTML=
     '<div class="card"><div class="lbl">🎮 Hardware</div>'+kv('GPU',hw.name||hwd.gpu||null)+kv('VRAM',hw.vram_mb?(hw.vram_mb/1024).toFixed(0)+' GB':null)+kv('Tier',hw.hw_tier||hwd.hw_tier)+kv('RAM',hwd.ram_gb?hwd.ram_gb+' GB':null)+kv('CPU cores',hwd.cpu_cores)+kv('Platform',(hwd.platform||'')+(hwd.arch?'/'+hwd.arch:''))+
       (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
-    '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',sw.ollama_installed!=null?(sw.ollama_installed?'yes':'no'):((s.ollama||[]).length?'running':'offline'))+'</div>'+
+    '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',(s.ollama||[]).length?'running · '+(s.ollama.length)+' models':(sw.ollama_installed?'installed (stopped)':'offline'))+'</div>'+
     '<div class="card"><div class="lbl">🔑 Subscriptions</div>'+kv('Anthropic',subs.anthropic||(s.sub&&s.sub.profile))+kv('OpenAI',subs.openai)+kv('Gemini',subs.gemini)+kv('Ollama',subs.ollama)+'<div class="sub" style="margin-top:5px">keys & tiers drive T1-T3 budgets</div></div>'+
     '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>';
   const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>send('budget',bi.value);
