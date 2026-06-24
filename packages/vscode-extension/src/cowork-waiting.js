@@ -11,14 +11,21 @@ function readCoworkPending() {
   catch { return null; }
 }
 // Decora uma row de recentSessions(). Estado "waiting for Cowork" GANHA a working/needsYou (mutuamente exclusivos).
+// WCOCKPIT-9 (Bloco A): este é um OVERLAY do estado "waiting" instantâneo. NUNCA limpa o espelho
+// persistente (coworkProject/coworkTitle) que mode-registry.decorate() já preencheu para TODAS as
+// sessões — só o sobrepõe quando há um hit "waiting" que traz o seu próprio projeto/título.
 function decorate(row, pending) {
   const hit = pending && pending.session_id === row.fullId && pending.status !== "answered";
   row.waitingForCowork = !!hit;
   row.coworkStatus = hit ? (pending.status || "pending") : null; // "pending" | "cowork_working"
-  row.coworkTitle = hit ? (pending.coworkTitle || null) : null;
-  row.coworkProject = hit ? (pending.coworkProject || null) : null;
-  if (hit && pending.coworkProject) row.project = pending.coworkProject;
-  if (hit) { row.working = false; row.needsYou = false; }
+  if (hit) {
+    if (pending.coworkTitle) row.coworkTitle = pending.coworkTitle;
+    if (pending.coworkProject) { row.coworkProject = pending.coworkProject; row.project = pending.coworkProject; }
+    row.working = false; row.needsYou = false;
+  }
+  // Garante que os campos existem (defined) mesmo sem espelho persistente nem hit.
+  if (row.coworkTitle === undefined) row.coworkTitle = null;
+  if (row.coworkProject === undefined) row.coworkProject = null;
   return row;
 }
 // HTML do badge para o webview (string) ou null se nao aplicavel.

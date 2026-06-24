@@ -18,6 +18,24 @@ $ts = (Get-Date).ToString("o")
 $pending = @{ session_id = $sid; status = "pending"; note = $Note; coworkTitle = $Title; coworkProject = $Project; ts = $ts } | ConvertTo-Json -Compress
 if (Test-Path $router) { Set-Content -Path (Join-Path $router ".cowork-pending.json") -Value $pending -Encoding UTF8 }
 
+# (a2) WCOCKPIT-9 (Bloco A): espelho PERSISTENTE CC<->Cowork lido pelo cockpit (mode-registry.decorate).
+# Distinto do pending (so a sessao a espera): mapa durable { sid: {coworkProject,...} } para todas as sessoes.
+# Merge nao-destrutivo + escrita atomica (tmp+rename). So escreve o que conhecemos; campos ausentes = $null.
+if ($sid -and (Test-Path $router)) {
+  try {
+    $mapPath = Join-Path $router ".cowork-sessions.json"
+    $map = @{}
+    if (Test-Path $mapPath) {
+      try { $existing = Get-Content -Raw -Path $mapPath -Encoding UTF8 | ConvertFrom-Json
+            foreach ($p in $existing.PSObject.Properties) { $map[$p.Name] = $p.Value } } catch {}
+    }
+    $map[$sid] = @{ coworkProject = $Project; coworkTitle = $Title; coworkConversationId = $null; coworkUpdatedAt = $ts }
+    $tmp = $mapPath + ".tmp"
+    ($map | ConvertTo-Json -Depth 6) | Set-Content -Path $tmp -Encoding UTF8
+    Move-Item -Force -Path $tmp -Destination $mapPath
+  } catch {}
+}
+
 # (b) sinal lido pelo COWORK (governador)
 $sig = @{ ts = $ts; source = $Source; note = $Note; session_id = $sid; cwd = (Get-Location).Path } | ConvertTo-Json -Compress
 if (Test-Path $loop) { Set-Content -Path (Join-Path $loop "NEEDS_DECISION.json") -Value $sig -Encoding UTF8 }
@@ -33,4 +51,4 @@ try {
 } catch { try { [console]::beep(880,300) } catch {} }
 
 # (d) push opcional ao telemovel (define MOOTER_NTFY_TOPIC)
-if ($env:MOOTER_NTFY_TOPIC) { try { Invoke-RestMethod -Method Post -Uri ("htt
+if ($env:MOOTER_NTFY_TOPIC) { try { Invoke-RestMethod -Method Post -Uri ("https://ntfy.sh/" + $env:MOOTER_NTFY_TOPIC) -Body $Note | Out-Null } catch {} }

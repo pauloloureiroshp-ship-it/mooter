@@ -52,6 +52,24 @@ function detectClaude() {
   return cands.some((p) => { try { return fs.existsSync(p); } catch { return false; } });
 }
 
+// WCOCKPIT-9 (Bloco F): is the autopilot loop-runner alive? Honest signal from its heartbeat
+// (<workspace>/_handoff/loop/heartbeat.json, rewritten each round by sdk-runner.mjs). Fresh
+// (<90s) → active. Best-effort, never throws. Degrades the per-session LoopMoo toggle to
+// "armado (loop não activo)" when nothing is actually looping — never fakes an active loop.
+function loopRunnerActive() {
+  try {
+    const wfs = vscode.workspace.workspaceFolders || [];
+    for (const wf of wfs) {
+      try {
+        const hb = path.join(wf.uri.fsPath, '_handoff', 'loop', 'heartbeat.json');
+        const j = JSON.parse(fs.readFileSync(hb, 'utf8'));
+        if (j && j.ts && (Date.now() - Date.parse(j.ts)) < 90000) return true;
+      } catch { /* try next folder */ }
+    }
+  } catch { /* no workspace */ }
+  return false;
+}
+
 class DataService {
   constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; this.selectedSession = 'auto'; }
   onUpdate(fn) { this.listeners.add(fn); return { dispose: () => this.listeners.delete(fn) }; }
@@ -118,6 +136,7 @@ class DataService {
       sessionMetrics,
       sessionLedger: effSid ? extra.tokenLedger(effSid, { sessionOnly: true }) : null,
       claudeCli: detectClaude(),
+      loopActive: loopRunnerActive(), // WCOCKPIT-9 (Bloco F): honest LoopMoo liveness
       decisions: data_.readDecisions(),
     };
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
@@ -218,7 +237,16 @@ class CockpitProvider {
         }
       }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
-      if (m.cmd === 'slashInstall') { runInTerminal(mooterCmd('mooter slash-commands install')); setTimeout(() => this.data.refresh(true), 4000); }
+      if (m.cmd === 'slashInstall') {
+        const r = await extra.installSlashCommands();
+        vscode.window.setStatusBarMessage(r.ok ? '🐮 /mooter slash command installed' : ('🐮 slash install failed — ' + (r.out || 'unknown')), 6000);
+        this.data.refresh(true);
+      }
+      if (m.cmd === 'packInstall') {
+        const r = await extra.installPack(m.arg || null);
+        vscode.window.setStatusBarMessage(r.ok ? ('🐮 Moo Pack installed · ' + (r.name || '')) : ('🐮 pack install failed — ' + (r.out || 'unknown')), 6000);
+        this.data.refresh(true);
+      }
       if (m.cmd === 'install') runInTerminal('npx @mooter/cli', 'mooter setup');
       if (m.cmd === 'budget') {
         const r = extra.writeBudget(m.arg);
@@ -249,6 +277,91 @@ class CockpitProvider {
       if (m.cmd === 'setAuto') {
         const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
         if (sid) { try { MR.set(sid, { auto: !!m.arg.auto }); } catch {} this.data.refresh(true); }
+      }
+      // WCOCKPIT-9 (Bloco E): escolhe um slash command (skills/Moo Packs) para a sessão.
+      // Copia para o clipboard E arma-o como "próximo prompt" (registry nextSlash). Toast honesto:
+      // copiado — cola na sessão (a injeção automática depende da ponte CC; não fingimos que injetou).
+      if (m.cmd === 'pickSlash') {
+        const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const cmd = String(m.arg && m.arg.cmd || '').replace(/[^a-zA-Z0-9 :._/-]/g, '').slice(0, 80);
+        if (sid) {
+          if (cmd) {
+            try { await vscode.env.clipboard.writeText(cmd); } catch {}
+            try { (MR.setNextSlash ? MR.setNextSlash(sid, cmd) : MR.set(sid, { nextSlash: cmd })); } catch {}
+            vscode.window.setStatusBarMessage('🐮 ' + cmd + ' copiado — cola no prompt da sessão ' + sid.slice(0, 8), 5000);
+          } else {
+            try { (MR.setNextSlash ? MR.setNextSlash(sid, null) : MR.set(sid, { nextSlash: null })); } catch {}
+            vscode.window.setStatusBarMessage('🐮 slash desarmado · ' + sid.slice(0, 8), 3000);
+          }
+          this.data.refresh(true);
+        }
+      }
+      // WCOCKPIT-9 (Bloco F): arma/desarma o LoopMoo da sessão (estado persistente no registo).
+      // O loop-runner (_handoff/loop/sdk-runner.mjs) inscreve a sessão quando estiver activo;
+      // se não estiver, o estado fica "armado" e o cartão mostra a degradação honesta.
+      if (m.cmd === 'setLoop') {
+        const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (sid) {
+          const on = !!(m.arg && m.arg.loop);
+          try { (MR.setLoop ? MR.setLoop(sid, on) : MR.set(sid, { loop: on })); } catch {}
+          this.data.refresh(true);
+          vscode.window.setStatusBarMessage(on
+            ? (loopRunnerActive() ? '🔁 LoopMoo ON · ' + sid.slice(0, 8) : '🔁 LoopMoo armado · ' + sid.slice(0, 8) + ' — loop-runner não está activo')
+            : '🔁 LoopMoo OFF · ' + sid.slice(0, 8), 4000);
+        }
+      }
+      // ════════════════════════════════════════════════════════════════════════
+      // WCOCKPIT-9 (Bloco C): fluxo Commit & Push por sessão. SEMPRE host-side (execFile git,
+      // nunca terminal → não pode ser sequestrado por uma sessão CC). Garantias: preview
+      // obrigatório, stage SELECTIVO (nunca git add -A), guarda da sha de classify.js ANTES de
+      // commitar, aviso de harmonia entre sessões no mesmo repo+branch, push só com confirmação
+      // modal explícita, NUNCA --force, merge NÃO exposto (acção separada/gated por design).
+      // ════════════════════════════════════════════════════════════════════════
+      if (m.cmd === 'gitFlow') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const rows = (this.data.snapshot && this.data.snapshot.recent) || [];
+        const row = rows.find((r) => r.fullId === sid);
+        if (!row || !row.cwd) { vscode.window.showWarningMessage('🐮 sessão sem repo git — nada para commitar.'); return; }
+        const cwd = row.cwd, branch = row.branch || null;
+        // 1) GUARDA da sha de classify.js — aborta se o engine foi alterado neste repo.
+        const sha = extra.classifyShaGuard(cwd);
+        if (sha.checked && !sha.ok) {
+          vscode.window.showErrorMessage('🛑 classify.js está ALTERADO (sha ' + String(sha.sha).slice(0, 12) + '… ≠ frozen). Commit ABORTADO pelo guardrail — reverte classify.js primeiro.');
+          return;
+        }
+        // 2) PREVIEW obrigatório (read-only).
+        const prev = await extra.gitCommitPreview(cwd);
+        if (!prev || !prev.files.length) { vscode.window.setStatusBarMessage('🐮 nada para commitar nesta sessão', 3000); this.data.refresh(true); return; }
+        // 3) HARMONIA — outras sessões no mesmo repo+branch (mesmo trabalho).
+        const harmony = extra.gitHarmony(rows, cwd, branch);
+        // 4) Mensagem editável (default convencional).
+        const msg = await vscode.window.showInputBox({ value: prev.message, ignoreFocusOut: true,
+          prompt: 'Mensagem de commit · ' + prev.files.length + ' ficheiro' + (prev.files.length === 1 ? '' : 's') + ' · stage selectivo (nunca git add -A)' });
+        if (!msg) { vscode.window.setStatusBarMessage('🐮 commit cancelado', 2500); return; }
+        // 5) Confirmação MODAL com preview + comandos exactos + aviso de harmonia.
+        const fileList = prev.files.slice(0, 12).map((f) => '  ' + f.x + f.y + ' ' + f.path).join('\n')
+          + (prev.files.length > 12 ? '\n  …+' + (prev.files.length - 12) + ' more' : '');
+        const harmonyNote = harmony.shared
+          ? '\n\n⚠ HARMONIA: ' + harmony.count + ' sessões no mesmo repo+branch (' + (branch || '?') + ') — confirma que não pisas trabalho de outra sessão.'
+          : '';
+        const detail = 'Branch: ' + (branch || '(detached)') + '\n\nFicheiros (' + prev.files.length + '):\n' + fileList
+          + '\n\nComandos exactos:\n  git add -- <' + prev.files.length + ' selectivo' + (prev.files.length === 1 ? '' : 's') + '>\n  git commit -m "' + msg + '"'
+          + (sha.checked ? '\n\n✓ classify.js sha intacta' : '') + harmonyNote;
+        const choice = await vscode.window.showWarningMessage(
+          'Commit ' + prev.files.length + ' ficheiro' + (prev.files.length === 1 ? '' : 's') + ' em ' + (branch || '(detached)') + '?',
+          { modal: true, detail }, 'Commit', 'Commit & Push');
+        if (!choice) { vscode.window.setStatusBarMessage('🐮 commit cancelado', 2500); return; }
+        // 6) COMMIT selectivo. Resultado real (nunca presumido).
+        const cres = await extra.gitCommit(cwd, prev.files.map((f) => f.path), msg);
+        if (!cres.ok) { vscode.window.showErrorMessage('🛑 commit falhou: ' + String(cres.out || 'erro desconhecido').slice(0, 300)); this.data.refresh(true); return; }
+        vscode.window.showInformationMessage('✓ commit · ' + sid.slice(0, 8) + ' — ' + String(cres.out || '').slice(0, 160));
+        // 7) PUSH só quando o Paulo escolheu explicitamente "Commit & Push" (gate). Nunca --force.
+        if (choice === 'Commit & Push') {
+          const pres = await extra.gitPush(cwd);
+          if (pres.ok) vscode.window.showInformationMessage('⇡ push ok · ' + (branch || '') + ' — ' + String(pres.out || '').slice(0, 160));
+          else vscode.window.showErrorMessage('🛑 push falhou (o commit já está local): ' + String(pres.out || '').slice(0, 300));
+        }
+        this.data.refresh(true);
       }
       if (m.cmd === 'toggleProject') {
         const proj = String(m.arg || '').slice(0, 64);
@@ -313,10 +426,12 @@ function project(s) {
     budget: s.budget, packs: s.packs,
     effort: s.effort, whynot: s.whynot, trail: s.trail, security: s.security, spans: s.spans,
     insights: extra.insights(s.decisions),
+    slashList: extra.slashCommands(), // WCOCKPIT-9 (Bloco E): real slash commands (skills + installed packs)
     // Each session in `recent` already carries its repo-scoped { pr: {number,stage,…} }
     // (resolved host-side in recentSessions; stage from the pure prStage). No global PR
     // list and no cross-repo branch-name matching in the webview.
     herd: s.herd, recent: s.recent || [],
+    loopActive: !!s.loopActive, // WCOCKPIT-9 (Bloco F)
     localTok: s.localTok || null,
     ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
     activeSession: s.activeSession || null, selectedSession: s.selectedSession || 'auto', effectiveSession: effSid,
@@ -373,9 +488,10 @@ function getHtml() {
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
+  .card.graph{border-color:var(--g)} .card.graph .lbl{color:var(--g)}
   .livecow{font-size:22px;line-height:1}
   .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
-  .srow{display:flex;align-items:center;gap:9px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
+  .srow{display:flex;align-items:center;gap:9px;padding:5px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
   .srow:hover{background:var(--vscode-list-hoverBackground)}
   .srow.on{border-left-color:var(--g);background:var(--gdim)}
   .srow .livecow{font-size:18px}
@@ -384,6 +500,12 @@ function getHtml() {
   .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
   .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
+  /* WCOCKPIT-9 (Bloco B): compact single-line card — name + state + id on one .sline */
+  .sline{display:flex;align-items:baseline;gap:5px;min-width:0}
+  .sline .sname{flex:0 1 auto;min-width:34px}
+  .sline .sstate{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;color:var(--vscode-descriptionForeground);display:inline-flex;align-items:center;gap:4px}
+  .sline .sid{flex:none;font-size:9px;color:var(--vscode-descriptionForeground);opacity:.6;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace)}
+  .sline .sllm{margin-left:auto;flex:none}
   .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .scmpr{font-weight:600;font-size:9.5px}
@@ -420,6 +542,23 @@ function getHtml() {
   .smodsel{font-size:9.5px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:4px;max-width:115px;min-width:68px}
   button.sauto{font-size:9px;padding:2px 7px;opacity:.5}
   button.sauto.on{opacity:1;color:var(--g);border-color:var(--g)}
+  /* WCOCKPIT-9 (Bloco F): LoopMoo toggle — ON=azul activo, armado=âmbar tracejado (loop não activo) */
+  button.sloop{font-size:9px;padding:2px 7px;opacity:.5;white-space:nowrap}
+  button.sloop.on{opacity:1;color:#61afef;border-color:#61afef}
+  button.sloop.on.armed{color:#e5c07b;border-color:#e5c07b;border-style:dashed}
+  button.sloop:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
+  .livecow.loop{animation:mooloop 1.1s linear infinite}
+  @keyframes mooloop{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.livecow.loop{animation:none}}
+  /* WCOCKPIT-9 (Bloco E): per-session slash-command picker + armed "next" feedback chip */
+  .sslashrow{margin-top:4px}
+  .sslash{width:100%;font-size:9.5px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:4px}
+  .snext{font-size:9px;margin-top:3px;color:#61afef;font-family:var(--vscode-editor-font-family,monospace);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* WCOCKPIT-9 (Bloco C): per-session Commit & Push button (drawer-only; shown only when work) */
+  .sgitrow{margin-top:5px}
+  .sgitbtn{width:100%;font-size:9.5px;padding:3px 7px;border-radius:5px;cursor:pointer;font-weight:600;background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);border:1px solid #5A9BD4;opacity:.9;line-height:1.5}
+  .sgitbtn:hover{opacity:1;border-color:var(--g);color:var(--g)}
+  .sgitbtn:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
   /* WCOCKPIT-7: compact drawer — integrations inline & icon-only, per-session close, bulk clear */
   .sdrawer{margin-top:4px;padding-top:4px}
   .sseg{margin-top:0}
@@ -443,15 +582,23 @@ function getHtml() {
   .gstage.staged{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gstage.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gtip{font-size:9px;color:#e5c07b;font-weight:600}
-  /* WCOCKPIT-6: progressive disclosure — per-session controls hidden until hover/selected */
+  /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
+     (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
+     height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
   .sdrawer{display:none;margin-top:5px;padding-top:5px;border-top:1px dashed var(--vscode-widget-border)}
-  .srow:hover .sdrawer,.srow.on .sdrawer,.srow:focus-within .sdrawer{display:block}
+  .srow.on .sdrawer,.srow:focus-within .sdrawer{display:block}
   .srow{position:relative}
   .srow::after{content:"⋯";position:absolute;right:8px;bottom:3px;font-size:11px;opacity:.3;line-height:1}
-  .srow:hover::after,.srow.on::after{content:""}
+  .srow:hover::after{opacity:.6}
+  .srow.on::after,.srow:focus-within::after{content:""}
   /* WCOCKPIT-6: group header rollup (branch + git stage once per project) */
   .ghd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:11px 2px 4px;font-size:9px;letter-spacing:.04em}
   .ghkey{text-transform:uppercase;opacity:.65;font-weight:600}
+  .ghsrc{font-weight:600;text-transform:none;letter-spacing:0;font-size:8.5px;opacity:.85}
+  .ghsrc.cw{color:#61afef}
+  .ghsrc.repo{color:var(--vscode-descriptionForeground)}
+  .ghsrc.none{color:#e5c07b}
+  .ghrepo{font-family:var(--vscode-editor-font-family,monospace);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0;opacity:.7}
   .ghcount{margin-left:auto;opacity:.55;text-transform:uppercase;white-space:nowrap}
   .ghmeta{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .ghbr{font-family:var(--vscode-editor-font-family,monospace);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -634,8 +781,11 @@ function wireSessControls(root){
   root.querySelectorAll('.smode[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();send('setMode',{sid:b.dataset.msess,mode:b.dataset.mmode});};});
   root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
   root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mauto==='true';send('setAuto',{sid:b.dataset.msess,auto:!cur});};});
+  root.querySelectorAll('button.sloop[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mloop==='true';send('setLoop',{sid:b.dataset.msess,loop:!cur});};});
+  root.querySelectorAll('.sslash[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('pickSlash',{sid:s.dataset.msess,cmd:s.value});};s.onclick=function(e){e.stopPropagation();};});
   root.querySelectorAll('.srow button.intrefresh').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
   root.querySelectorAll('.srow button.sarch').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
+  root.querySelectorAll('.srow button.sgitbtn').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};}); // WCOCKPIT-9 (Bloco C)
 }
 window.addEventListener('message',(e)=>{
   if(e.data.type==='intent'){const r=e.data.res;
@@ -680,13 +830,20 @@ window.addEventListener('message',(e)=>{
   const branchCount={};for(const r of rsess){if(r.branch)branchCount[bkey(r)]=(branchCount[bkey(r)]||0)+1;}
   // WCOCKPIT-3: rowFor delegates to renderRow (defined above from row-renderer.js)
   // WCOCKPIT-5: try/catch guard — a single bad row must NOT blank the whole cockpit panel
-  const rowFor=(r,gctx)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
+  // WCOCKPIT-9 (Bloco D): passa os modelos locais REAIS (snapshot.ollama) ao dropdown por sessão.
+  // (Bloco F): loopActive = liveness honesta do loop-runner. (Bloco E): slashCommands = picker real.
+  const localModels=s.ollama||[];const loopActive=!!s.loopActive;const slashCommands=s.slashList||[];
+  const rowFor=(r,gctx)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey,localModels,loopActive,slashCommands});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
   // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
   const sorted=[...rsess].sort((a,b)=>{if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
-  // WCOCKPIT-3: group live sessions by Cowork project (explicit) → repo folder (host) → fallback.
-  const projOf=(r)=>r.coworkProject||r.repoFolder||(r.project&&r.project!=='Unassigned'?r.project:'')||'Unassigned';
-  const _grp={};const _ord=[];for(const r of sorted){const k=projOf(r);if(!(k in _grp)){_grp[k]=[];_ord.push(k);}_grp[k].push(r);}
-  const grpHd=(k,gr)=>renderGroupHeader(k,gr);
+  // WCOCKPIT-9 (Bloco A): agrupa por PROJETO COWORK real (espelho). O repoFolder deixa de
+  // mascarar-se de projeto: é fallback ROTULADO ('repo (sem Cowork)') só quando há repo git
+  // real (branch/gitStage); um cwd qualquer (ex.: System32) cai em 'Unassigned · sem Cowork'.
+  const isRealRepo=(r)=>!!(r.repoFolder&&(r.branch||r.gitStage));
+  const projOf=(r)=>r.coworkProject?r.coworkProject:(isRealRepo(r)?r.repoFolder:'Unassigned');
+  const originOf=(r)=>r.coworkProject?'cowork':(isRealRepo(r)?'repo':'unassigned');
+  const _grp={};const _ord=[];const _origin={};for(const r of sorted){const k=projOf(r);if(!(k in _grp)){_grp[k]=[];_ord.push(k);_origin[k]=originOf(r);}_grp[k].push(r);}
+  const grpHd=(k,gr)=>renderGroupHeader(k,gr,{origin:_origin[k]});
   // WCOCKPIT-6: roll up branch + git stage to the group header; pass as context so cards dedup.
   const gitKeyOf=(r)=>r.gitStage?(r.gitStage.state+':'+(r.gitStage.dirty||0)+':'+(r.gitStage.ahead||0)):'';
   const groupCtx=(gr)=>{let branch=null,gitKey=null;for(const r of gr){if(!branch&&r.branch)branch=r.branch;if(!gitKey&&r.gitStage)gitKey=gitKeyOf(r);}return{branch,gitKey};};
@@ -730,6 +887,17 @@ window.addEventListener('message',(e)=>{
       const realSaved=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0;
       const scopeChip=effSess?'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · this session</span>':'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span>';
       return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
+    })()+
+    (function(){
+      const gTok = M.graph_saved_tokens_est || 0;
+      const gRes = M.graph_resolved_count || 0;
+      if (gRes <= 0 && gTok <= 0) return '';
+      return '<div class="card graph" title="Graphify A/B benchmark — advisory, token-estimated. ~34x fewer input tokens than reading the hit-files; ≈par vs raw grep, but returns the call graph. repo ~1781 files, n=8, real tokenizer. Not published.">'
+        + '<div class="lbl">🕸 Context savings · Graphify <span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · benchmark</span></div>'
+        + '<div class="big">~34×</div>'
+        + '<div class="sub"><b>fewer input tokens vs reading the files</b> · ≈par vs grep · repo ~1781 · n=8</div>'
+        + '<div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ this machine:</span> ~<b>' + gTok.toLocaleString() + '</b> ctx-tokens saved · ' + gRes + ' graph-resolved</div>'
+        + '</div>';
     })()+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b>'+(isHeavyLocal(curPin)?' <span style="opacity:.65;font-size:9px">\u00b7 modelo pesado: 1\u00aa resposta pode levar ~1-2min (cold-load + CPU)</span>':'')+'</div>':'')+'</div>'+

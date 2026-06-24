@@ -5,6 +5,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { httpJson } = require('./data.js');
 
@@ -94,7 +95,7 @@ async function statuslineHtml() {
 }
 
 async function slashStatus() {
-  const r = await execNode(MOOTER_CLI, ['slash-commands', 'status'], 8000);
+  const r = await execMooter(['slash-commands', 'status'], 9000);
   if (!r.out) return { installed: null, raw: '' };
   const t = r.out.toLowerCase();
   return { installed: t.includes('installed') && !t.includes('not installed'), raw: r.out.trim().slice(0, 300) };
@@ -219,6 +220,59 @@ function liveRouting(last, opts) {
 // The 10 slash sub-commands from the canonical /mooter SKILL template.
 const SLASH_CMDS = ['route', 'savings', 'explain', 'digest', 'local', 'why-not-fable', 'tier', 'mcp', 'vision', 'bench'];
 
+// WCOCKPIT-9 (Bloco E): descrições curtas REAIS dos /mooter <sub> (do template do skill /mooter).
+const MOOTER_SUBCMD_DESC = {
+  route: 'rota um prompt e mostra o tier escolhido',
+  savings: 'poupança acumulada vs all-Opus',
+  explain: 'explica um chip/tópico do statusline',
+  digest: 'resumo do dia de routing',
+  local: 'lista os modelos locais Ollama instalados',
+  'why-not-fable': 'porque o Fable não foi auto-rotado',
+  tier: 'escada de tiers (T0–T5)',
+  mcp: 'estado dos servidores MCP ligados',
+  vision: 'tier para tarefas de visão',
+  bench: 'corre o mooter-bench',
+};
+// WCOCKPIT-9 (Bloco E): lê a `description:` (linha única) de um pack.yaml de um pack instalado.
+// Procura nas localizações canónicas (MOOTER_PACKS_DIR override → ~/.mooter/packs → repo/packs).
+// Parser leve por regex (sem dependência YAML); null se não encontrar. Nunca lança.
+function _packDescription(name) {
+  const cands = [];
+  if (process.env.MOOTER_PACKS_DIR) cands.push(path.join(process.env.MOOTER_PACKS_DIR, name, 'pack.yaml'));
+  cands.push(path.join(MOOTER_HOME, 'packs', name, 'pack.yaml'));
+  // <repo>/packs/<name> — __dirname = <repo>/packages/vscode-extension/src
+  cands.push(path.join(__dirname, '..', '..', '..', 'packs', name, 'pack.yaml'));
+  for (const p of cands) {
+    try {
+      const txt = fs.readFileSync(p, 'utf8');
+      const m = txt.match(/^description:\s*["']?(.+?)["']?\s*$/m);
+      if (m && m[1]) return m[1].trim();
+    } catch { /* try next */ }
+  }
+  return null;
+}
+// WCOCKPIT-9 (Bloco E): lista DETERMINÍSTICA e HONESTA dos slash commands disponíveis para o picker.
+// Fontes 100% reais e locais (nunca inventa): (1) os /mooter <sub> do skill canónico, (2) cada
+// Moo Pack REALMENTE instalado (installed_packs.json) como /<name> com a sua description do pack.yaml.
+// Pura/síncrona (não depende do wrapper CLI, que é finicky — ver armadilhas do brief).
+function slashCommands() {
+  const out = []; const seen = new Set();
+  const add = (cmd, desc) => {
+    const c = String(cmd || '').trim(); if (!c || seen.has(c)) return;
+    seen.add(c); out.push({ cmd: c, desc: desc ? String(desc).slice(0, 90) : '' });
+  };
+  for (const s of SLASH_CMDS) add('/mooter ' + s, MOOTER_SUBCMD_DESC[s] || '');
+  try {
+    const ip = installedPacks();
+    const arr = ip && (Array.isArray(ip) ? ip : (ip.packs || ip.installed || ip.list || []));
+    if (Array.isArray(arr)) for (const p of arr) {
+      const name = typeof p === 'string' ? p : (p && (p.name || p.id));
+      if (name) add('/' + name, _packDescription(name) || 'Moo Pack');
+    }
+  } catch { /* no packs → just the /mooter subcommands */ }
+  return out;
+}
+
 // Mooter Score — 8 equally-weighted setup checks (explainable, req 12).
 function mooterScore(ctx) {
   const checks = [
@@ -232,7 +286,7 @@ function mooterScore(ctx) {
     { k: 'sub',     t: 'Subscription profile configured', ok: !!(ctx.sub && ((ctx.sub.profile && ctx.sub.profile !== 'unknown') || (ctx.sub.profiles && Object.values(ctx.sub.profiles).some((v) => v && v !== 'unknown' && v !== 'none')) || ctx.sub.budget_strategy)), fix: 'term:node ~/.claude/tools/router/setup-profile.js --non-interactive' },
     { k: 'budget',  t: 'Monthly budget set',              ok: !!(ctx.budget && ctx.budget.monthly_budget_usd > 0), fix: 'tab:setup' },
     { k: 'slash',   t: '/mooter slash commands',          ok: !!(ctx.slash && ctx.slash.installed), fix: 'slashInstall' },
-    { k: 'packs',   t: 'At least one Moo Pack installed', ok: !!(installedPacks() && Object.keys(installedPacks() || {}).length > 0), fix: 'term:mooter pack list' },
+    { k: 'packs',   t: 'At least one Moo Pack installed', ok: !!(installedPacks() && Object.keys(installedPacks() || {}).length > 0), fix: 'packInstall' },
   ];
   const done = checks.filter((c) => c.ok).length;
   return { pct: Math.round((100 * done) / checks.length), done, total: checks.length, checks };
@@ -617,6 +671,100 @@ async function gitStage(cwd) {
   } catch { return null; }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// WCOCKPIT-9 (Bloco C) — git Commit/Push por sessão. HOST-SIDE, seguro, reversível, gated.
+// Princípios invioláveis: nunca `git add -A`, nunca `--force`, preview obrigatório, guarda da
+// sha de classify.js ANTES de commitar, aviso de harmonia entre sessões no mesmo repo+branch,
+// push só após confirmação explícita (modal), merge é acção separada (não exposta aqui).
+// ════════════════════════════════════════════════════════════════════════════
+
+// sha FROZEN de classify.js (CI-enforced). Usada como guarda anti-commit-acidental do engine.
+const FROZEN_CLASSIFY_SHA = '427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f';
+
+// PURA (testável): parse de `git status --porcelain` → [{x,y,path}]. Trata renomeações (-> novo)
+// e paths citados. Nunca lança.
+function parsePorcelain(text) {
+  const out = [];
+  for (const line of String(text || '').split('\n')) {
+    if (line.length < 4) continue;
+    const x = line[0], y = line[1];
+    let p = line.slice(3);
+    const arrow = p.indexOf(' -> ');
+    if (arrow >= 0) p = p.slice(arrow + 4); // rename → keep the new path
+    p = p.replace(/^"(.*)"$/, '$1');
+    if (p) out.push({ x, y, path: p });
+  }
+  return out;
+}
+
+// PURA (testável): mensagem de commit convencional por defeito (editável depois pelo Paulo).
+function defaultCommitMessage(branch, files) {
+  const n = (files || []).length;
+  const first = n ? String(files[0].path).split('/').pop() : '';
+  return 'wip(' + (branch || 'work') + '): ' + n + ' file' + (n === 1 ? '' : 's')
+    + (first ? ' — ' + first + (n > 1 ? ' +' + (n - 1) : '') : '');
+}
+
+// PURA (testável): HARMONIA — quantas sessões partilham este repo (cwd) E branch (= mesmo
+// trabalho). shared=true quando ≥2 sessões coabitam o par repo+branch → exige confirmação extra.
+function gitHarmony(recent, cwd, branch) {
+  const others = [];
+  for (const r of recent || []) {
+    if (!r || r.cwd !== cwd) continue;
+    if (branch && r.branch && r.branch !== branch) continue;
+    others.push(r.fullId || r.id);
+  }
+  return { shared: others.length > 1, count: others.length, others };
+}
+
+// Guarda da sha de classify.js do REPO a commitar. ok=false ABORTA o commit (engine alterado).
+// checked=false quando o repo não tem o ficheiro frozen (não é o repo do Mooter) → não bloqueia.
+function classifyShaGuard(cwd) {
+  try {
+    const p = path.join(cwd || '', 'tools', 'router', 'classify.js');
+    if (!fs.existsSync(p)) return { ok: true, checked: false };
+    const sha = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+    return { ok: sha === FROZEN_CLASSIFY_SHA, checked: true, sha };
+  } catch { return { ok: true, checked: false }; }
+}
+
+// READ-ONLY: preview de commit (ficheiros + branch + mensagem default). NUNCA stage/commit.
+async function gitCommitPreview(cwd) {
+  if (!cwd) return null;
+  const sr = await execTool('git', ['-C', cwd, 'status', '--porcelain'], 4000);
+  if (!sr.ok) return null;
+  const files = parsePorcelain(sr.out);
+  const branch = await gitBranch(cwd);
+  return { cwd, branch, files, message: defaultCommitMessage(branch, files) };
+}
+
+// Exec git capturando stdout+stderr (git escreve erros/progresso no stderr) → resultado HONESTO.
+function execGit(args, cwd, timeoutMs) {
+  return new Promise((resolve) => {
+    try {
+      execFile('git', ['-C', cwd].concat(args), { timeout: timeoutMs || 12000, maxBuffer: 1024 * 512, windowsHide: true },
+        (err, stdout, stderr) => resolve({ ok: !err, out: (String(stdout || '') + String(stderr || '')).trim() }));
+    } catch (e) { resolve({ ok: false, out: String((e && e.message) || e) }); }
+  });
+}
+
+// Commit SELECTIVO (NUNCA `git add -A`): stage exactamente os paths dados, depois commit.
+// Devolve o comando git exacto + resultado real (nunca "sucesso" presumido).
+async function gitCommit(cwd, files, message) {
+  if (!cwd || !Array.isArray(files) || !files.length || !message) return { ok: false, out: 'nothing to commit', cmd: '' };
+  const ar = await execGit(['add', '--'].concat(files), cwd, 8000);
+  if (!ar.ok) return { ok: false, out: 'git add failed: ' + ar.out, cmd: 'git add -- ' + files.join(' ') };
+  const cr = await execGit(['commit', '-m', message, '--'].concat(files), cwd, 12000);
+  return { ok: cr.ok, out: cr.out, cmd: 'git add -- <' + files.length + ' file' + (files.length === 1 ? '' : 's') + '> && git commit -m "' + message + '"' };
+}
+
+// Push (NUNCA `--force`). Resultado real (stdout+stderr). Gated a montante por confirmação modal.
+async function gitPush(cwd) {
+  if (!cwd) return { ok: false, out: 'no cwd', cmd: '' };
+  const r = await execGit(['push'], cwd, 30000);
+  return { ok: r.ok, out: r.out, cmd: 'git push' };
+}
+
 // Open/recent PRs from gh, scoped to the repo at `cwd` (gh runs in that dir → the PRs
 // genuinely belong to that session's repo, never another repo that happens to share a
 // branch name). [] when gh is absent, unauthenticated, offline, or cwd is not a GitHub
@@ -693,6 +841,7 @@ function sessionActivity(maxBytes = 256 * 1024) {
 async function recentSessions(maxN = 8) {
   const out = []; const now = Date.now(); const names = sessionNames(); const act = sessionActivity();
   const _cwPend = coworkWaiting().readCoworkPending(); // WCOCKPIT: lê uma vez para todo o loop
+  const _cwMap = modeRegistry().readCoworkMap();       // WCOCKPIT-9 (Bloco A): mapa Cowork persistente, uma leitura por refresh
   const branchCache = new Map(); // cwd → branch|null, resolved once per cwd this call
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   const wtCache = new Map();     // WCOCKPIT-2: cwd → worktrees[], resolved once per cwd
@@ -770,7 +919,7 @@ async function recentSessions(maxN = 8) {
       if (!gsCache.has(cwd)) gsCache.set(cwd, gitStage(cwd)); // store Promise, start only once per cwd
       row.gitStage = await gsCache.get(cwd);
     } else { row.gitStage = null; }
-    modeRegistry().decorate(row);          // WCOCKPIT: junta mode/model/auto/project/brainTitle + integration fields
+    modeRegistry().decorate(row, _cwMap);  // WCOCKPIT: junta mode/model/auto/project/brainTitle + cowork mirror + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
     out.push(row);
@@ -783,8 +932,56 @@ async function recentSessions(maxN = 8) {
   return out;
 }
 
-module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, ROUTER,
+// WCOCKPIT-8/8b: host-side CLI invocation. Runs the CLI as a direct child process (NEVER a
+// terminal → can't be hijacked by a Claude Code session). Tries the resolved node script
+// (MOOTER_CLI) first, then falls back to the GLOBAL `mooter` on PATH (npm bin), since many
+// setups only have the global `mooter` and not ~/.mooter/cli*/mooter.js.
+function execMooter(args, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  const optsBase = { timeout: timeoutMs, maxBuffer: 1024 * 512, windowsHide: true };
+  return new Promise((resolve) => {
+    const tryGlobal = () => {
+      try {
+        execFile('mooter', args, Object.assign({ shell: true }, optsBase),
+          (err, stdout, stderr) => resolve({ ok: !err, out: String(stdout || '') + String(stderr || '') }));
+      } catch { resolve({ ok: false, out: '' }); }
+    };
+    if (MOOTER_CLI && fs.existsSync(MOOTER_CLI)) {
+      execFile(process.execPath, [MOOTER_CLI, ...args], optsBase, (err, stdout, stderr) => {
+        if (!err) return resolve({ ok: true, out: String(stdout || '') + String(stderr || '') });
+        tryGlobal();
+      });
+    } else { tryGlobal(); }
+  });
+}
+async function installSlashCommands() {
+  const r = await execMooter(['slash-commands', 'install'], 18000);
+  return { ok: !!r.ok, out: (r.out || '').trim().slice(0, 220) };
+}
+async function installPack(name) {
+  let n = name && String(name).replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!n) {
+    const lr = await execMooter(['pack', 'list', '--json'], 10000);
+    try {
+      const j = JSON.parse(lr.out);
+      const arr = Array.isArray(j) ? j : (j.packs || j.available || j.list || []);
+      n = arr.map((p) => (typeof p === 'string' ? p : (p && (p.name || p.id)))).filter(Boolean)[0];
+    } catch { /* fall through to text parse */ }
+    if (!n) {
+      const lr2 = await execMooter(['pack', 'list'], 10000);
+      const m = String(lr2.out || '').match(/(^|\n)\s*[•*\-]?\s*([a-z][a-z0-9-]{2,})/i);
+      n = m && m[2];
+    }
+  }
+  if (!n) return { ok: false, name: null, out: 'no packs available to install' };
+  const r = await execMooter(['pack', 'install', String(n)], 18000);
+  return { ok: !!r.ok, name: n, out: (r.out || '').trim().slice(0, 220) };
+}
+
+module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
+  slashCommands, _packDescription,
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
-  execTool, _sessionCwd, gitBranch, gitStage, prList, prStage };
+  execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
+  parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA };

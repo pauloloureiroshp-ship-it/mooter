@@ -125,6 +125,9 @@ function renderRow(r, opts) {
   if (r.working) cowCls += ' working';
   if (r.mode && r.mode !== 'moo') cowCls += ' ' + r.mode;
   if (r.waitingForCowork) cowCls += ' cowork';
+  // WCOCKPIT-9 (Bloco F): a cow só ganha a animação 🔁 quando o loop está ARMADO **e** o runner
+  // está confirmado activo (honestidade — armado-mas-inactivo não finge estar a correr).
+  if (r.loop && opts.loopActive) cowCls += ' loop';
 
   var sid = r.fullId;
 
@@ -138,18 +141,52 @@ function renderRow(r, opts) {
   modeSeg += '</div>';
 
   // ── Model select (per-session) ──
+  // WCOCKPIT-9 (Bloco D): dropdown = tiers Claude (Auto/Opus/Sonnet/Haiku) + LLMs locais Ollama
+  // REAIS (opts.localModels, do snapshot.ollama). Locais pesados (≥8GB) levam "⚠ lento (cold-load)".
+  // O registo aceita qualquer string de modelo, por isso seleccionar um local persiste tal e qual.
   var curModel = r.model || '';
+  var matched = false;
   var modelOpts = '';
   for (var si = 0; si < _SMOD.length; si++) {
-    modelOpts += '<option value="' + esc(_SMOD[si][0]) + '"' + (curModel === _SMOD[si][0] ? ' selected' : '') + '>' + esc(_SMOD[si][1]) + '</option>';
+    var cOn = curModel === _SMOD[si][0]; if (cOn) matched = true;
+    modelOpts += '<option value="' + esc(_SMOD[si][0]) + '"' + (cOn ? ' selected' : '') + '>' + esc(_SMOD[si][1]) + '</option>';
   }
-  var modelSel = '<select class="smodsel" data-msess="' + esc(sid) + '" title="model for this session">' + modelOpts + '</select>';
+  var locals = (opts.localModels && opts.localModels.length) ? opts.localModels : [];
+  if (locals.length) {
+    var locOpts = '';
+    for (var li = 0; li < locals.length; li++) {
+      var lname = locals[li] && locals[li].name; if (!lname) continue;
+      var g = locals[li].sizeGb;
+      var hint = (g != null) ? (g >= 8 ? ' · ' + g + 'GB ⚠ lento (cold-load)' : (g <= 4 ? ' · ' + g + 'GB ⚡' : ' · ' + g + 'GB')) : '';
+      var lOn = curModel === lname; if (lOn) matched = true;
+      locOpts += '<option value="' + esc(lname) + '"' + (lOn ? ' selected' : '') + '>🦙 ' + esc(lname) + esc(hint) + '</option>';
+    }
+    if (locOpts) modelOpts += '<optgroup label="Local (Ollama)">' + locOpts + '</optgroup>';
+  }
+  // Honestidade: se o modelo guardado já não está em lista (ex.: local desinstalado), mostra-o
+  // tal como está, marcado, em vez de o "perder" silenciosamente para Auto.
+  if (curModel && !matched) {
+    modelOpts += '<option value="' + esc(curModel) + '" selected>' + esc(curModel) + ' (set)</option>';
+  }
+  var modelSel = '<select class="smodsel" data-msess="' + esc(sid) + '" title="model for this session — Claude tiers + local Ollama">' + modelOpts + '</select>';
 
   // ── Auto-pilot toggle ──
   var autoOn = !!r.auto;
   var autoBtn = '<button class="sauto' + (autoOn ? ' on' : '') + '" data-msess="' + esc(sid) + '" data-mauto="' + String(autoOn) + '" title="auto-pilot: Moo adapts model to task">' + (autoOn ? '⚡ auto' : 'auto') + '</button>';
 
-  // WCOCKPIT-7: ctrl row assembled after integration chips (combines model+auto+integrations+close)
+  // ── WCOCKPIT-9 (Bloco F): LoopMoo toggle (separado do segmented lazy/moo/crazy: aquilo é
+  // intensidade de routing; LoopMoo é o MODO de interacção — autopilot loop 🔁). Degradação
+  // honesta: ARMADO mas runner inactivo mostra "🔁 loop (armado)" e não anima a cow. ──
+  var loopOn = !!r.loop;
+  var loopActive = !!opts.loopActive;
+  var loopLabel = (loopOn && !loopActive) ? '🔁 armado' : '🔁 loop';
+  var loopTitle = loopOn
+    ? (loopActive ? 'LoopMoo ON — esta sessão está no autopilot loop (runner activo)'
+                  : 'LoopMoo armado — loop NÃO activo (loop-runner não está a correr). Arranca o runner para a sessão entrar no loop.')
+    : 'LoopMoo: corre esta sessão em autopilot loop (🔁) quando o loop-runner estiver activo';
+  var loopBtn = '<button class="sloop' + (loopOn ? ' on' : '') + (loopOn && !loopActive ? ' armed' : '') + '" data-msess="' + esc(sid) + '" data-mloop="' + String(loopOn) + '" title="' + loopTitle + '" aria-label="' + loopTitle + '">' + loopLabel + '</button>';
+
+  // WCOCKPIT-7: ctrl row assembled after integration chips (combines model+auto+loop+integrations+close)
 
   // ── Integration meta (Notion + Obsidian + worktree + refresh) ──
   var notionSvg = '<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo" style="border-radius:2px"><rect width="100" height="100" fill="currentColor"/><text x="50" y="76" text-anchor="middle" font-size="72" font-weight="700" fill="#0d1117" font-family="serif">N</text></svg>';
@@ -161,12 +198,42 @@ function renderRow(r, opts) {
   var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree: ' + esc(r.worktree) + '">⌥' + esc(r.worktree) + '</span>' : '';
   var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="refresh Notion and Obsidian sync" title="refresh Notion/Obsidian sync">↺</button>';
   var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="close this session (archive, reversible)" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
-  var ctrl = '<div class="sctrl">' + modelSel + autoBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
+  var ctrl = '<div class="sctrl">' + modelSel + autoBtn + loopBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
 
   // ── Brain title ──
   var brainLine = (r.brainTitle && r.brainTitle !== nm)
     ? '<div class="ssub" style="opacity:.7">🧠 ' + esc(r.brainTitle) + '</div>'
     : '';
+
+  // ── WCOCKPIT-9 (Bloco E): slash-command picker (skills + Moo Packs) ──
+  // Lista REAL (opts.slashCommands, host-side) com descrição entre parêntesis. Escolher copia o
+  // comando + arma-o como "próximo prompt" da sessão (registry nextSlash). Sem inventar comandos.
+  var slashList = (opts.slashCommands && opts.slashCommands.length) ? opts.slashCommands : [];
+  var slashPicker = '';
+  if (slashList.length) {
+    var sOpts = '<option value="">⌘ slash command…</option>';
+    for (var qi = 0; qi < slashList.length; qi++) {
+      var sc = slashList[qi]; if (!sc || !sc.cmd) continue;
+      var lbl = sc.cmd + (sc.desc ? ' — (' + sc.desc + ')' : '');
+      sOpts += '<option value="' + esc(sc.cmd) + '"' + (r.nextSlash === sc.cmd ? ' selected' : '') + '>' + esc(lbl) + '</option>';
+    }
+    slashPicker = '<div class="sslashrow"><select class="sslash" data-msess="' + esc(sid) + '" aria-label="slash command para o próximo prompt desta sessão" title="escolhe um slash command (skills + Moo Packs) para o próximo prompt desta sessão">' + sOpts + '</select></div>';
+  }
+  // Feedback honesto sempre visível (mesmo com o drawer fechado): qual o slash armado.
+  var nextSlashLine = r.nextSlash
+    ? '<div class="snext" title="armado para o próximo prompt desta sessão — também copiado para o clipboard">⌘ next ▶ ' + esc(r.nextSlash) + '</div>'
+    : '';
+
+  // ── WCOCKPIT-9 (Bloco C): botão Commit & Push (só quando há trabalho) ──
+  // Dispara o fluxo HOST-SIDE: preview → commit selectivo (nunca add -A) → push só com
+  // confirmação modal. Guarda da sha de classify.js + aviso de harmonia entre sessões.
+  var gitBtn = '';
+  if (r.gitStage && (r.gitStage.state === 'uncommitted' || r.gitStage.state === 'staged' || r.gitStage.state === 'ahead')) {
+    var gWork = r.gitStage.state === 'ahead'
+      ? ('↑' + (r.gitStage.ahead || 0) + ' to push')
+      : (((r.gitStage.dirty || r.gitStage.staged || 0)) + ' to commit');
+    gitBtn = '<div class="sgitrow"><button class="sgitbtn" data-a="gitFlow" data-x="' + esc(sid) + '" aria-label="commit and push this session" title="preview → commit selectivo → push (confirmado). Nunca git add -A, nunca --force; verifica a sha de classify.js e avisa se outra sessão está no mesmo repo+branch.">⎇ Commit &amp; Push · ' + esc(gWork) + '</button></div>';
+  }
 
   // ── Git stage chip (WCOCKPIT-4) — suppressed when identical to the group's (header shows it once) ──
   var gsChip = '';
@@ -177,13 +244,14 @@ function renderRow(r, opts) {
     var gsState = r.gitStage.state;
     var gsDirty = r.gitStage.dirty || 0;
     var gsAhead = r.gitStage.ahead || 0;
+    var gsStaged = r.gitStage.staged || 0;
     if (gsState === 'clean') {
       gsChip = '<span class="gstage clean">✓ clean</span>';
     } else if (gsState === 'uncommitted') {
       gsChip = '<span class="gstage dirty">● ' + gsDirty + ' uncommitted</span>';
       gsTip  = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
     } else if (gsState === 'staged') {
-      gsChip = '<span class="gstage staged">◐ staged</span>';
+      gsChip = '<span class="gstage staged">◐ ' + gsStaged + ' staged</span>';
     } else if (gsState === 'ahead') {
       gsChip = '<span class="gstage ahead">↑' + gsAhead + ' to push</span>';
       gsTip  = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
@@ -201,27 +269,45 @@ function renderRow(r, opts) {
     wtStyle = ' style="border-left-color:' + _wtc + ';border-top-left-radius:0;border-bottom-left-radius:0"';
   }
 
+  // WCOCKPIT-9 (Bloco B): cartão compacto — nome + estado + id COABITAM numa única .sline
+  // (antes eram duas linhas .stop + .ssub). O drawer (.sdrawer) continua só na selecção
+  // (.on / :focus-within — ver CSS). aria-label preserva o nome completo (a11y).
+  var pin = sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '';
   return '<div class="srow' + (sel ? ' on' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
-    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" role="button" tabindex="0" title="open this session in Claude Code">'
+    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
     + '<span class="livecow' + cowCls + '">🐮</span>'
     + '<div class="sbody">'
-    + '<div class="stop"><span class="sname">' + esc(nm) + '</span><span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span></div>'
-    + '<div class="ssub">' + badge + ' · ' + esc(r.id) + (sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '') + '</div>'
-    + brainLine + scm + gitLine
-    + '<div class="sdrawer">' + modeSeg + ctrl + '</div>'
+    + '<div class="sline">'
+      + '<span class="sname">' + esc(nm) + '</span>'
+      + '<span class="sstate">' + badge + '</span>'
+      + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
+      + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
+    + '</div>'
+    + brainLine + nextSlashLine + scm + gitLine
+    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + '</div>'
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';
 }
 
 // ── Group header ──────────────────────────────────────────────────────────────
-function renderGroupHeader(key, group) {
+// WCOCKPIT-9 (Bloco A): opts.origin distingue a ORIGEM do grupo, com honestidade:
+//   'cowork'     → nome real do projeto Cowork (espelho)  → "🗂 Mooter.ai · Cowork"
+//   'repo'       → fallback rotulado pela pasta do repo    → "📁 frugal · repo (sem Cowork)"
+//   'unassigned' → sessões sem repo nem mapeamento Cowork  → "📁 Unassigned · sem Cowork"
+// O repoFolder NUNCA é apresentado como se fosse um projeto Cowork; é sub-rótulo honesto.
+function renderGroupHeader(key, group, opts) {
+  opts = opts || {};
+  var origin = opts.origin || (key === 'Unassigned' ? 'unassigned' : 'cowork');
   var gneed = 0, br = null, gs = null, i;
+  var repoSet = {};
   for (i = 0; i < group.length; i++) {
     if (group[i].needsYou) gneed++;
     if (!br && group[i].branch) br = group[i].branch;
     if (!gs && group[i].gitStage) gs = group[i].gitStage;
+    if (group[i].repoFolder) repoSet[group[i].repoFolder] = 1;
   }
+  var repos = Object.keys(repoSet);
   // WCOCKPIT-6: branch + git stage rolled up once per project (was repeated on every card)
   var brChip = br ? '<span class="ghbr" title="branch shared by this project">⎇ ' + esc(br) + '</span>' : '';
   var gChip = '', gTip = '';
@@ -229,12 +315,24 @@ function renderGroupHeader(key, group) {
     var st = gs.state, d = gs.dirty || 0, a = gs.ahead || 0;
     if (st === 'clean') gChip = '<span class="ghg clean">✓ clean</span>';
     else if (st === 'uncommitted') { gChip = '<span class="ghg dirty">● ' + d + ' uncommitted</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
-    else if (st === 'staged') gChip = '<span class="ghg staged">◐ staged</span>';
+    else if (st === 'staged') gChip = '<span class="ghg staged">◐ ' + (gs.staged || 0) + ' staged</span>';
     else if (st === 'ahead') { gChip = '<span class="ghg ahead">↑' + a + ' to push</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
   }
   var meta = (brChip || gChip) ? '<span class="ghmeta">' + brChip + (brChip && gChip ? ' ' : '') + gChip + (gTip ? ' ' + gTip : '') + '</span>' : '';
   var count = '<span class="ghcount">' + group.length + (gneed ? ' · ' + gneed + ' need you' : '') + '</span>';
-  return '<div class="ghd"><span class="ghkey">🗂 ' + esc(key) + '</span>' + meta + count + '</div>';
+  // Origin-aware key + honest source tag + repo sub-label.
+  var icon, srcTag, repoSub = '';
+  if (origin === 'cowork') {
+    icon = '🗂'; srcTag = '<span class="ghsrc cw" title="agrupado pelo projeto Cowork real (espelho CC↔Cowork)">· Cowork</span>';
+    if (repos.length) repoSub = '<span class="ghrepo" title="pasta(s) de repo local deste projeto">📁 ' + esc(repos.join(' · ')) + '</span>';
+  } else if (origin === 'repo') {
+    icon = '📁'; srcTag = '<span class="ghsrc repo" title="sem projeto Cowork mapeado — agrupado pela pasta do repo (fallback honesto)">· repo (sem Cowork)</span>';
+  } else {
+    icon = '📁'; srcTag = '<span class="ghsrc none" title="sessões sem repo git nem mapeamento Cowork">· sem Cowork</span>';
+    if (repos.length) repoSub = '<span class="ghrepo" title="pasta(s) local — não é um projeto Cowork">repo:' + esc(repos.join(' · ')) + '</span>';
+  }
+  var keyHtml = '<span class="ghkey">' + icon + ' ' + esc(key) + ' ' + srcTag + '</span>';
+  return '<div class="ghd">' + keyHtml + repoSub + meta + count + '</div>';
 }
 
 module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS };

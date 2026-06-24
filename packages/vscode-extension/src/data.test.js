@@ -761,9 +761,12 @@ test('WCOCKPIT-3 renderGroupHeader: uses project key not repo name', () => {
   assert.ok(html.includes('2'), 'header must show total session count');
 });
 
-test('WCOCKPIT-3 renderGroupHeader: Unassigned fallback renders without crash', () => {
+test('WCOCKPIT-3/9 renderGroupHeader: Unassigned fallback renders, honestly labelled (sem Cowork)', () => {
   const html = rr.renderGroupHeader('Unassigned', [{ fullId: 'x', needsYou: false }]);
-  assert.ok(html.includes('🗂 Unassigned'), 'Unassigned fallback must render');
+  // WCOCKPIT-9 (Bloco A): Unassigned é fallback honesto — pasta 📁, nunca 🗂 (que é Cowork real)
+  assert.ok(html.includes('📁 Unassigned'), 'Unassigned fallback must render with 📁');
+  assert.ok(html.includes('sem Cowork'), 'Unassigned must be labelled "sem Cowork"');
+  assert.ok(!html.includes('🗂 Unassigned'), 'Unassigned must NOT use the Cowork-project icon');
   assert.ok(!html.includes('need you'), 'no needsYou → no count shown');
 });
 
@@ -858,7 +861,7 @@ test('WCOCKPIT-4 renderRow: staged state shows ◐ staged chip (no safety tip)',
   const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'staged', dirty: 0, staged: 2, ahead: 0, behind: 0 } });
   const html = rr.renderRow(row, {});
   assert.ok(html.includes('class="gstage staged"'), 'staged chip must have .gstage.staged');
-  assert.ok(html.includes('◐ staged'), 'staged chip must show ◐ staged');
+  assert.ok(html.includes('◐ 2 staged'), 'staged chip must show ◐ N staged (count)');
   assert.ok(!html.includes('não fechar'), 'staged-only must NOT show safety tip');
 });
 
@@ -968,7 +971,7 @@ test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage uncommitted �
 test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage staged → chip, no safety tip', () => {
   const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'staged', dirty: 0, staged: 2, ahead: 0, behind: 0 } });
   const html = _wvRenderRow(row, {});
-  assert.ok(html.includes('◐ staged'), 'staged chip must appear');
+  assert.ok(html.includes('◐ 2 staged'), 'staged chip must appear with count (WCOCKPIT-9 Bloco C)');
   assert.ok(!html.includes('não fechar'), 'staged-only must not show safety tip');
 });
 
@@ -1090,4 +1093,341 @@ test('WCOCKPIT-7 renderRow: integrations inline in control row (no standalone .s
   assert.ok(!html.includes('class="smeta"'), 'old standalone .smeta block must be gone');
   assert.ok(html.includes('class="sint"'), 'integrations sit in the inline .sint group');
   assert.ok(html.indexOf('class="sint"') > html.indexOf('class="sctrl"'), 'integrations inline within the control row');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// WCOCKPIT-9 (Bloco A) — Espelho Cowork: mapa persistente + projOf + origem honesta
+// ════════════════════════════════════════════════════════════════════════════
+
+test('WCOCKPIT-9 mode-registry: setCowork persists project/title/conversation + decorate reads them (sem mapa)', () => {
+  const sid = 'wc9-cowork-' + process.pid;
+  mr.setCowork(sid, { project: 'Mooter.ai', title: 'Wave WCOCKPIT-9 brain', conversationId: 'conv-123' });
+  const row = { fullId: sid };
+  mr.decorate(row, {}); // mapa Cowork vazio → cai para os campos do registo
+  assert.equal(row.coworkProject, 'Mooter.ai', 'registry coworkProject surfaced when no map');
+  assert.equal(row.coworkTitle, 'Wave WCOCKPIT-9 brain');
+  assert.equal(row.coworkConversationId, 'conv-123');
+  assert.ok(row.coworkUpdatedAt, 'coworkUpdatedAt timestamp set');
+});
+
+test('WCOCKPIT-9 mode-registry: decorate PREFERE o mapa Cowork persistente sobre o registo', () => {
+  const sid = 'wc9-prio-' + process.pid;
+  mr.setCowork(sid, { project: 'Registry Project', title: 'reg title' });
+  const map = { [sid]: { coworkProject: 'Real Cowork Project', coworkTitle: 'map title', coworkConversationId: 'c9' } };
+  const row = { fullId: sid };
+  mr.decorate(row, map);
+  assert.equal(row.coworkProject, 'Real Cowork Project', 'persistent map wins over registry');
+  assert.equal(row.coworkTitle, 'map title');
+  assert.equal(row.coworkConversationId, 'c9');
+});
+
+test('WCOCKPIT-9 mode-registry: sem mapa nem registo → coworkProject null (nunca inventado)', () => {
+  const row = { fullId: '__wc9_no_cowork_ever__' };
+  mr.decorate(row, {});
+  assert.equal(row.coworkProject, null, 'no Cowork mapping → null fallback (honest)');
+});
+
+test('WCOCKPIT-9 mode-registry: readCoworkMap nunca lança (ficheiro ausente → {})', () => {
+  const m = mr.readCoworkMap();
+  assert.equal(typeof m, 'object', 'always returns an object');
+  assert.ok(m !== null, 'never null');
+});
+
+test('WCOCKPIT-9 mode-registry: setLoop persiste + decorate expõe row.loop (Bloco F)', () => {
+  const sid = 'wc9-loop-' + process.pid;
+  mr.setLoop(sid, true);
+  const row = { fullId: sid };
+  mr.decorate(row, {});
+  assert.equal(row.loop, true, 'loop armed persists');
+  mr.setLoop(sid, false);
+  const row2 = { fullId: sid };
+  mr.decorate(row2, {});
+  assert.equal(row2.loop, false, 'loop disarmed persists');
+});
+
+test('WCOCKPIT-9 cowork-waiting: NÃO limpa o espelho persistente quando não é hit', () => {
+  // mode-registry decorou primeiro: coworkProject persistente presente.
+  const row = { fullId: 'wc9-keep', coworkProject: 'Mooter.ai', coworkTitle: 'brain', working: true };
+  cw.decorate(row, { session_id: 'OTHER', status: 'pending', ts: 't' }); // pending de outra sessão
+  assert.equal(row.coworkProject, 'Mooter.ai', 'persistent coworkProject preserved (not clobbered to null)');
+  assert.equal(row.coworkTitle, 'brain', 'persistent coworkTitle preserved');
+  assert.equal(row.waitingForCowork, false);
+  assert.equal(row.working, true, 'working untouched for non-hit');
+});
+
+test('WCOCKPIT-9 cowork-waiting: hit com coworkProject sobrepõe o espelho + define project', () => {
+  const row = { fullId: 'wc9-hit', coworkProject: 'Old', coworkTitle: 'old' };
+  cw.decorate(row, { session_id: 'wc9-hit', status: 'cowork_working', coworkProject: 'Live Project', coworkTitle: 'Live brain', ts: 't' });
+  assert.equal(row.coworkProject, 'Live Project', 'live pending project overrides');
+  assert.equal(row.project, 'Live Project', 'group project follows the live cowork project');
+  assert.equal(row.coworkTitle, 'Live brain');
+  assert.equal(row.waitingForCowork, true);
+});
+
+test('WCOCKPIT-9 renderGroupHeader: origin=cowork → 🗂 + "· Cowork" + repo sub-rótulo', () => {
+  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'frugal', branch: 'main' }];
+  const html = rr.renderGroupHeader('Mooter.ai', group, { origin: 'cowork' });
+  assert.ok(html.includes('🗂 Mooter.ai'), 'cowork project shown with 🗂');
+  assert.ok(html.includes('· Cowork'), 'cowork source tag present');
+  assert.ok(html.includes('📁 frugal'), 'repo folder shown as honest sub-label, not as the group name');
+});
+
+test('WCOCKPIT-9 renderGroupHeader: origin=repo → 📁 + "repo (sem Cowork)" (fallback rotulado)', () => {
+  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'frugal', branch: 'main' }];
+  const html = rr.renderGroupHeader('frugal', group, { origin: 'repo' });
+  assert.ok(html.includes('📁 frugal'), 'repo fallback uses 📁');
+  assert.ok(html.includes('repo (sem Cowork)'), 'repo fallback honestly labelled');
+  assert.ok(!html.includes('🗂'), 'repo fallback must NOT masquerade as a Cowork project');
+});
+
+test('WCOCKPIT-9 renderGroupHeader: origin=unassigned → 📁 + "sem Cowork" (System32-like)', () => {
+  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'System32' }];
+  const html = rr.renderGroupHeader('Unassigned', group, { origin: 'unassigned' });
+  assert.ok(html.includes('📁 Unassigned'), 'unassigned uses 📁');
+  assert.ok(html.includes('sem Cowork'), 'unassigned honestly labelled');
+  assert.ok(html.includes('repo:System32'), 'the raw cwd folder shown as sub-label, never as a project');
+});
+
+// ── WCOCKPIT-9 (Bloco B) — cartão compacto: nome + estado numa só .sline ──
+
+test('WCOCKPIT-9 (Bloco B) renderRow: nome + estado + id coabitam numa única .sline', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { working: true });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('class="sline"'), 'compact single-line container .sline present');
+  assert.ok(html.includes('class="sname"'), 'name span present');
+  assert.ok(html.includes('class="sstate"'), 'state span present on the same line');
+  assert.ok(html.includes('class="sid"'), 'short id span present');
+  // ordem na linha: nome → estado → id → llm
+  const iName = html.indexOf('class="sname"');
+  const iState = html.indexOf('class="sstate"');
+  const iId = html.indexOf('class="sid"');
+  const iLlm = html.indexOf('class="sllm"');
+  assert.ok(iName < iState && iState < iId && iId < iLlm, 'name, state, id, llm sit in order on one line');
+});
+
+test('WCOCKPIT-9 (Bloco B) renderRow: já NÃO usa o layout de duas linhas .stop/.ssub', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(!html.includes('class="stop"'), 'old two-line .stop block removed from the card');
+  assert.ok(!html.includes('class="ssub"'), 'old second-line .ssub block removed from the card');
+});
+
+test('WCOCKPIT-9 (Bloco B) renderRow: aria-label preserva o nome completo (a11y)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('aria-label="open session: test session"'), 'aria-label carries the full session name');
+});
+
+test('WCOCKPIT-9 (Bloco B) renderRow: drawer continua presente (revelado por CSS só na selecção)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('class="sdrawer"'), 'drawer markup still emitted (CSS gates its visibility to .on/:focus-within)');
+});
+
+// ── WCOCKPIT-9 (Bloco D) — modelos locais Ollama no dropdown por sessão ──
+
+test('WCOCKPIT-9 (Bloco D) renderRow: dropdown lista Claude + locais Ollama reais (🦙)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, { localModels: [{ name: 'qwen2.5:3b', sizeGb: 1.9 }, { name: 'gemma3:12b', sizeGb: 8.1 }] });
+  assert.ok(html.includes('<option value="claude-opus-4-6"'), 'Claude tiers still present');
+  assert.ok(html.includes('optgroup label="Local (Ollama)"'), 'local Ollama optgroup present');
+  assert.ok(html.includes('<option value="qwen2.5:3b"'), 'real local model id is an option');
+  assert.ok(html.includes('🦙 qwen2.5:3b'), 'local model rendered with 🦙');
+});
+
+test('WCOCKPIT-9 (Bloco D) renderRow: local pesado (≥8GB) marcado "⚠ lento (cold-load)"', () => {
+  const html = rr.renderRow(SAMPLE_ROW, { localModels: [{ name: 'gemma3:12b', sizeGb: 8.1 }] });
+  assert.ok(html.includes('8.1GB ⚠ lento (cold-load)'), 'heavy local flagged honestly');
+});
+
+test('WCOCKPIT-9 (Bloco D) renderRow: local leve (≤4GB) marcado ⚡ (rápido)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, { localModels: [{ name: 'qwen2.5:3b', sizeGb: 1.9 }] });
+  assert.ok(html.includes('1.9GB ⚡'), 'light local flagged fast');
+});
+
+test('WCOCKPIT-9 (Bloco D) renderRow: seleccionar um local persiste como selected', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { model: 'qwen2.5:3b' });
+  const html = rr.renderRow(row, { localModels: [{ name: 'qwen2.5:3b', sizeGb: 1.9 }] });
+  assert.ok(html.includes('<option value="qwen2.5:3b" selected>'), 'persisted local model is selected');
+  assert.ok(!html.includes('<option value="" selected>'), 'Auto not selected when a local is chosen');
+});
+
+test('WCOCKPIT-9 (Bloco D) renderRow: sem localModels → só Claude (retrocompatível)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('<option value="claude-opus-4-6"'), 'Claude options present with no locals');
+  assert.ok(!html.includes('optgroup label="Local (Ollama)"'), 'no local optgroup when none installed');
+});
+
+test('WCOCKPIT-9 (Bloco D) renderRow: modelo guardado fora da lista mostrado honestamente (set)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { model: 'llama3.1:70b' }); // not in Claude tiers, not in locals list
+  const html = rr.renderRow(row, { localModels: [{ name: 'qwen2.5:3b', sizeGb: 1.9 }] });
+  assert.ok(html.includes('<option value="llama3.1:70b" selected>'), 'unknown stored model kept, marked selected (not silently lost)');
+});
+
+// ── WCOCKPIT-9 (Bloco F) — toggle LoopMoo por sessão (com degradação honesta) ──
+
+test('WCOCKPIT-9 (Bloco F) renderRow: loop OFF → botão 🔁 presente, sem .on', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // loop undefined/false
+  assert.ok(html.includes('class="sloop"'), 'LoopMoo toggle present');
+  assert.ok(html.includes('data-mloop="false"'), 'data-mloop reflects OFF');
+  assert.ok(!html.includes('class="sloop on"'), 'no .on when loop off');
+  assert.ok(html.includes('🔁 loop'), 'label shows 🔁 loop when off');
+});
+
+test('WCOCKPIT-9 (Bloco F) renderRow: loop ON + runner activo → .on, anima a cow 🔁', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { loop: true });
+  const html = rr.renderRow(row, { loopActive: true });
+  assert.ok(html.includes('class="sloop on"'), 'toggle has .on when loop armed');
+  assert.ok(html.includes('data-mloop="true"'), 'data-mloop reflects ON');
+  assert.ok(html.includes('livecow loop') || /class="livecow[^"]* loop/.test(html), 'cow gets the 🔁 loop animation when actually looping');
+  assert.ok(!html.includes('armed'), 'active loop is NOT shown as merely armed');
+});
+
+test('WCOCKPIT-9 (Bloco F) renderRow: loop ARMADO mas runner inactivo → degradação honesta', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { loop: true });
+  const html = rr.renderRow(row, { loopActive: false });
+  assert.ok(html.includes('sloop on armed') || /class="sloop on armed"/.test(html), 'armed-not-active styling');
+  assert.ok(html.includes('🔁 armado'), 'label honestly reads "armado"');
+  assert.ok(!/class="livecow[^"]* loop/.test(html), 'cow does NOT animate 🔁 when loop is only armed (honesty)');
+});
+
+// ── WCOCKPIT-9 (Bloco E) — picker de slash commands (skills + Moo Packs) ──
+
+test('WCOCKPIT-9 (Bloco E) slashCommands: lista os /mooter <sub> reais com descrição (nunca inventa)', () => {
+  const list = x.slashCommands();
+  assert.ok(Array.isArray(list), 'returns an array');
+  const byCmd = Object.fromEntries(list.map((i) => [i.cmd, i.desc]));
+  assert.ok('/mooter route' in byCmd, '/mooter route present');
+  assert.ok('/mooter savings' in byCmd, '/mooter savings present');
+  assert.ok(byCmd['/mooter route'] && byCmd['/mooter route'].length > 0, 'route carries a real description');
+  // só comandos reais — todos começam por "/" e não há duplicados
+  assert.ok(list.every((i) => i.cmd.startsWith('/')), 'every command starts with /');
+  assert.equal(new Set(list.map((i) => i.cmd)).size, list.length, 'no duplicate commands');
+});
+
+test('WCOCKPIT-9 (Bloco E) _packDescription: lê description do pack.yaml (parser leve), null se ausente', () => {
+  const d = x._packDescription('code-audit'); // pack real no repo (packs/code-audit/pack.yaml)
+  if (d !== null) assert.ok(/audit/i.test(d), 'real pack description parsed from pack.yaml');
+  assert.equal(x._packDescription('__no_such_pack_ever__'), null, 'missing pack → null (never fabricated)');
+});
+
+test('WCOCKPIT-9 (Bloco E) renderRow: picker presente com comandos+descrições (parêntesis)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, { slashCommands: [
+    { cmd: '/mooter route', desc: 'rota um prompt e mostra o tier' },
+    { cmd: '/code-audit', desc: 'Code security & quality audit' },
+  ] });
+  assert.ok(html.includes('class="sslash"'), 'slash picker select present');
+  assert.ok(html.includes('data-msess="' + SAMPLE_ROW.fullId + '"'), 'picker scoped to the session');
+  assert.ok(html.includes('/mooter route — (rota um prompt e mostra o tier)'), 'command shows description in parentheses');
+  assert.ok(html.includes('<option value="/code-audit"'), 'installed pack command is an option');
+});
+
+test('WCOCKPIT-9 (Bloco E) renderRow: sem slashCommands → sem picker (sem comandos falsos)', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(!html.includes('class="sslash"'), 'no picker rendered when no real commands supplied');
+});
+
+test('WCOCKPIT-9 (Bloco E) renderRow: nextSlash armado mostra "next ▶" + opção selecionada', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { nextSlash: '/mooter savings' });
+  const html = rr.renderRow(row, { slashCommands: [{ cmd: '/mooter savings', desc: 'poupança' }] });
+  assert.ok(html.includes('class="snext"'), 'armed next-slash feedback chip present');
+  assert.ok(html.includes('next ▶ /mooter savings'), 'shows which command is armed');
+  assert.ok(html.includes('<option value="/mooter savings" selected>'), 'armed command pre-selected in picker');
+});
+
+test('WCOCKPIT-9 (Bloco E) mode-registry: setNextSlash persiste + decorate expõe row.nextSlash', () => {
+  const sid = 'wc9-slash-' + process.pid;
+  mr.setNextSlash(sid, '/mooter route');
+  const row = { fullId: sid };
+  mr.decorate(row, {});
+  assert.equal(row.nextSlash, '/mooter route', 'armed slash persists');
+  mr.setNextSlash(sid, null);
+  const row2 = { fullId: sid };
+  mr.decorate(row2, {});
+  assert.equal(row2.nextSlash, null, 'clearing the armed slash persists');
+});
+
+// ── WCOCKPIT-9 (Bloco C) — git Commit/Push por sessão (preview, harmonia, sha guard) ──
+
+test('WCOCKPIT-9 (Bloco C) parsePorcelain: parses statuses, renames, untracked', () => {
+  const files = x.parsePorcelain(' M src/a.js\n?? newfile.txt\nA  added.js\nR  old.js -> renamed.js');
+  const paths = files.map((f) => f.path);
+  assert.ok(paths.includes('src/a.js'), 'modified tracked file');
+  assert.ok(paths.includes('newfile.txt'), 'untracked file');
+  assert.ok(paths.includes('added.js'), 'staged add');
+  assert.ok(paths.includes('renamed.js'), 'rename keeps the NEW path');
+  assert.ok(!paths.includes('old.js'), 'rename old path dropped');
+});
+
+test('WCOCKPIT-9 (Bloco C) defaultCommitMessage: conventional wip(<branch>) format', () => {
+  const m = x.defaultCommitMessage('wave-WCOCKPIT', [{ path: 'src/a.js' }, { path: 'src/b.js' }]);
+  assert.ok(m.startsWith('wip(wave-WCOCKPIT): '), 'conventional prefix with branch');
+  assert.ok(m.includes('2 files'), 'mentions file count');
+  assert.ok(m.includes('a.js'), 'mentions a file');
+});
+
+test('WCOCKPIT-9 (Bloco C) gitHarmony: ≥2 sessões mesmo repo+branch → shared (mesmo trabalho)', () => {
+  const recent = [
+    { fullId: 's1', cwd: '/repo', branch: 'main' },
+    { fullId: 's2', cwd: '/repo', branch: 'main' },
+    { fullId: 's3', cwd: '/repo', branch: 'other' },
+    { fullId: 's4', cwd: '/elsewhere', branch: 'main' },
+  ];
+  const h = x.gitHarmony(recent, '/repo', 'main');
+  assert.equal(h.shared, true, 'two sessions share repo+branch → must warn');
+  assert.equal(h.count, 2);
+  assert.deepEqual(h.others.sort(), ['s1', 's2']);
+  assert.equal(x.gitHarmony(recent, '/elsewhere', 'main').shared, false, 'single session → not shared');
+});
+
+test('WCOCKPIT-9 (Bloco C) classifyShaGuard: frozen classify.js intacta → ok; repo sem ele → não bloqueia', () => {
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const g = x.classifyShaGuard(repoRoot);
+  if (g.checked) { // só quando o ficheiro frozen existe neste checkout
+    assert.equal(g.ok, true, 'frozen classify.js sha must match → commit guard passes');
+    assert.equal(g.sha, x.FROZEN_CLASSIFY_SHA);
+  }
+  const none = x.classifyShaGuard(path.join(os.tmpdir(), 'no-classify-' + process.pid));
+  assert.equal(none.checked, false, 'non-Mooter repo → not checked');
+  assert.equal(none.ok, true, 'and never blocks a non-Mooter repo');
+});
+
+test('WCOCKPIT-9 (Bloco C) gitCommitPreview: preview read-only do repo real (nunca commita)', async () => {
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const p = await x.gitCommitPreview(repoRoot);
+  assert.ok(p && typeof p === 'object', 'returns a preview object for a real git repo');
+  assert.ok(Array.isArray(p.files), 'files is an array');
+  assert.ok(typeof p.message === 'string' && p.message.length > 0, 'carries a default commit message');
+});
+
+test('WCOCKPIT-9 (Bloco C) renderRow: botão Commit & Push presente quando há trabalho', () => {
+  const dirty = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0, behind: 0 } });
+  const html = rr.renderRow(dirty, {});
+  assert.ok(html.includes('class="sgitbtn"'), 'Commit & Push button present when uncommitted');
+  assert.ok(html.includes('data-a="gitFlow"'), 'button dispatches gitFlow');
+  assert.ok(html.includes('Commit') && html.includes('Push'), 'button labelled Commit & Push');
+});
+
+test('WCOCKPIT-9 (Bloco C) renderRow: SEM botão quando clean (nada a commitar)', () => {
+  const clean = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 } });
+  const html = rr.renderRow(clean, {});
+  assert.ok(!html.includes('class="sgitbtn"'), 'no Commit & Push button when clean');
+});
+
+test('WCOCKPIT-9 (Bloco C) renderRow: botão presente em ahead (↑ to push)', () => {
+  const ahead = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2, behind: 0 } });
+  const html = rr.renderRow(ahead, {});
+  assert.ok(html.includes('class="sgitbtn"'), 'button present when ahead (to push)');
+  assert.ok(html.includes('to push'), 'button reflects push work');
+});
+
+// projOf é a regra de agrupamento inline em extension.js — fixada aqui como contrato:
+// coworkProject vence; senão pasta de repo REAL (branch/gitStage); senão 'Unassigned'.
+test('WCOCKPIT-9 projOf contract: Cowork > repo real > Unassigned (espelho honesto)', () => {
+  const isRealRepo = (r) => !!(r.repoFolder && (r.branch || r.gitStage));
+  const projOf = (r) => r.coworkProject ? r.coworkProject : (isRealRepo(r) ? r.repoFolder : 'Unassigned');
+  const originOf = (r) => r.coworkProject ? 'cowork' : (isRealRepo(r) ? 'repo' : 'unassigned');
+  assert.equal(projOf({ coworkProject: 'Mooter.ai', repoFolder: 'frugal', branch: 'main' }), 'Mooter.ai');
+  assert.equal(originOf({ coworkProject: 'Mooter.ai', repoFolder: 'frugal', branch: 'main' }), 'cowork');
+  assert.equal(projOf({ repoFolder: 'frugal', branch: 'main' }), 'frugal'); // repo real → fallback rotulado
+  assert.equal(originOf({ repoFolder: 'frugal', gitStage: { state: 'clean' } }), 'repo');
+  assert.equal(projOf({ repoFolder: 'System32' }), 'Unassigned'); // cwd qualquer, sem git → Unassigned
+  assert.equal(originOf({ repoFolder: 'System32' }), 'unassigned');
+  assert.equal(projOf({}), 'Unassigned');
 });

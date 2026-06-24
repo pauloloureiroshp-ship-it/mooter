@@ -6,11 +6,19 @@ const fs = require("fs"); const path = require("path"); const os = require("os")
 const { execFileSync } = require("child_process");
 const ROUTER = path.join(os.homedir(), ".claude", "tools", "router");
 const FILE = path.join(ROUTER, ".mooter-sessions.json");
+// WCOCKPIT-9 (Bloco A): mapa persistente CC<->Cowork escrito pelo LADO Cowork (sdk-runner/signal.ps1).
+// Distinto do .cowork-pending.json (estado "waiting" instantâneo de UMA sessão): este é o
+// espelho durável { session_id: {coworkProject, coworkTitle, coworkConversationId, coworkUpdatedAt} }
+// para TODAS as sessões que o Cowork associou. decorate() lê-o (read-only do lado do cockpit).
+const COWORK_MAP = path.join(ROUTER, ".cowork-sessions.json");
 
 const MODES = ["lazy", "moo", "crazy"];           // LazyMoo | Moo | CrazyMoo
 // WCOCKPIT-2: extended with Notion + Obsidian integration fields
+// WCOCKPIT-9 (Bloco A): cowork* mirror fields. (Bloco F): loop = LoopMoo armado para a sessão.
 const DEFAULT = { mode: "moo", model: null, auto: false, project: null, brainTitle: null,
-  notionPageId: null, notionSyncedAt: null, obsidianPath: null, obsidianSyncedAt: null, archivedAt: null };
+  notionPageId: null, notionSyncedAt: null, obsidianPath: null, obsidianSyncedAt: null, archivedAt: null,
+  coworkProject: null, coworkTitle: null, coworkConversationId: null, coworkUpdatedAt: null, loop: false,
+  nextSlash: null };
 
 function readAll() {
   try { const j = JSON.parse(fs.readFileSync(FILE, "utf8")); return j && typeof j === "object" ? j : {}; }
@@ -32,16 +40,51 @@ function set(sessionId, patch) {
   const all = readAll(); all[sessionId] = { ...DEFAULT, ...(all[sessionId] || {}), ...(patch || {}) };
   return writeAll(all);
 }
+// WCOCKPIT-9 (Bloco A): lê o mapa persistente CC<->Cowork (read-only). Nunca lança; {} se ausente.
+// Aceita ser pré-lido uma vez por refresh e passado a decorate() para evitar N leituras no loop.
+function readCoworkMap() {
+  try { const j = JSON.parse(fs.readFileSync(COWORK_MAP, "utf8")); return j && typeof j === "object" ? j : {}; }
+  catch { return {}; }
+}
+// WCOCKPIT-9 (Bloco A): grava a associação Cowork desta sessão no REGISTO (.mooter-sessions.json).
+// É o caminho "o cockpit aprendeu o mapeamento"; o lado Cowork escreve o .cowork-sessions.json.
+// decorate() prefere o mapa Cowork (autoritativo) e cai para estes campos do registo.
+function setCowork(sessionId, info) {
+  if (!sessionId) return false;
+  info = info || {};
+  return set(sessionId, {
+    coworkProject: info.project != null ? String(info.project) : null,
+    coworkTitle: info.title != null ? String(info.title) : null,
+    coworkConversationId: info.conversationId != null ? String(info.conversationId) : null,
+    coworkUpdatedAt: new Date().toISOString(),
+  });
+}
+// WCOCKPIT-9 (Bloco F): arma/desarma o LoopMoo para a sessão (estado persistente; o runner inscreve).
+function setLoop(sessionId, on) { if (!sessionId) return false; return set(sessionId, { loop: !!on }); }
+// WCOCKPIT-9 (Bloco E): regista o slash-command escolhido para usar no PRÓXIMO prompt da sessão.
+// '' / null limpa. A ponte CC pode consumi-lo; o cartão mostra "next ▶ /x" como feedback honesto.
+function setNextSlash(sessionId, cmd) { if (!sessionId) return false; const c = cmd ? String(cmd) : null; return set(sessionId, { nextSlash: c }); }
 // Decora uma row de recentSessions() com modo/modelo/auto/projeto/brain + integrações (mutuamente seguro).
-function decorate(row) {
+// coworkMap (opcional) = .cowork-sessions.json pré-lido; se ausente, lê uma vez aqui.
+function decorate(row, coworkMap) {
   const e = get(row.fullId);
   row.mode = e.mode; row.model = e.model || row.model || null; row.auto = !!e.auto;
   row.project = e.project || row.project || "Unassigned"; row.brainTitle = e.brainTitle || null;
+  row.loop = !!e.loop; // WCOCKPIT-9 (Bloco F)
+  row.nextSlash = e.nextSlash || null; // WCOCKPIT-9 (Bloco E)
   // WCOCKPIT-2: integration fields
   row.notionPageId = e.notionPageId || null;
   row.notionSyncedAt = e.notionSyncedAt || null;
   row.obsidianPath = e.obsidianPath || null;
   row.obsidianSyncedAt = e.obsidianSyncedAt || null;
+  // WCOCKPIT-9 (Bloco A): espelho Cowork. Mapa persistente (lado Cowork) é autoritativo;
+  // cai para os campos do registo (setCowork). cowork-waiting.decorate() pode sobrepor com o
+  // estado "waiting" instantâneo, mas NUNCA limpa estes valores persistentes (ver cowork-waiting.js).
+  const cm = (coworkMap || readCoworkMap())[row.fullId] || {};
+  row.coworkProject = cm.coworkProject || e.coworkProject || null;
+  row.coworkTitle = cm.coworkTitle || e.coworkTitle || row.brainTitle || null;
+  row.coworkConversationId = cm.coworkConversationId || e.coworkConversationId || null;
+  row.coworkUpdatedAt = cm.coworkUpdatedAt || e.coworkUpdatedAt || null;
   return row;
 }
 // Agrupa rows por projeto Cowork -> { project: [rows...] } (para os dropdowns).
@@ -80,4 +123,5 @@ function archive(sessionId) { return set(sessionId, { archivedAt: Date.now() });
 function unarchive(sessionId) { return set(sessionId, { archivedAt: null }); }
 function isArchived(sessionId, lastActiveTs) { const e = get(sessionId); return !!(e.archivedAt && e.archivedAt >= (lastActiveTs || 0)); }
 
-module.exports = { readAll, writeAll, get, set, decorate, byProject, worktrees, touchSync, archive, unarchive, isArchived, MODES, DEFAULT, FILE };
+module.exports = { readAll, writeAll, get, set, decorate, byProject, worktrees, touchSync, archive, unarchive, isArchived,
+  readCoworkMap, setCowork, setLoop, setNextSlash, MODES, DEFAULT, FILE, COWORK_MAP };

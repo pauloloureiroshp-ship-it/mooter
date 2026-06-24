@@ -16,6 +16,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { readFileSync, writeFileSync, existsSync, renameSync, mkdirSync, appendFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
@@ -106,6 +107,35 @@ const FOOTER = "\n\n--- LOOP PROTOCOL: faz o trabalho desta ronda e termina o tu
   "Termina com um bloco ```status``` (DID/TESTS/BLOCKERS/NEXT/DONE). As tuas perguntas e o irreversivel sao " +
   "tratados automaticamente pelo governador - nao esperes por humanos. ---";
 
+// WCOCKPIT-9 (Bloco A): escreve o ESPELHO persistente CC<->Cowork lido pelo cockpit
+// (mode-registry.decorate). Mapa { session_id: {coworkProject, coworkTitle, coworkConversationId,
+// coworkUpdatedAt} } em ~/.claude/tools/router/.cowork-sessions.json. Escrita atómica (tmp+rename),
+// merge não-destrutivo, nunca lança. HONESTO: só escreve o que o lado Cowork realmente conhece —
+// projeto via env COWORK_PROJECT (ou state.project), título via state.title, conversa via
+// COWORK_CONVERSATION_ID (ou state.loop_id). Campos ausentes ficam null, nunca inventados.
+const COWORK_MAP_FILE = join(homedir(), ".claude", "tools", "router", ".cowork-sessions.json");
+function writeCoworkSession(sid, state) {
+  if (!sid) return;
+  try {
+    const dir = dirname(COWORK_MAP_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    let map = {};
+    try { const j = JSON.parse(readFileSync(COWORK_MAP_FILE, "utf8")); if (j && typeof j === "object") map = j; } catch {}
+    const project = process.env.COWORK_PROJECT || (state && state.project) || null;
+    const title = (state && state.title) || null;
+    const conversationId = process.env.COWORK_CONVERSATION_ID || (state && state.loop_id) || null;
+    map[sid] = {
+      coworkProject: project != null ? String(project) : null,
+      coworkTitle: title != null ? String(title) : null,
+      coworkConversationId: conversationId != null ? String(conversationId) : null,
+      coworkUpdatedAt: new Date().toISOString(),
+    };
+    const tmp = COWORK_MAP_FILE + ".tmp";
+    writeFileSync(tmp, JSON.stringify(map, null, 2));
+    renameSync(tmp, COWORK_MAP_FILE);
+  } catch (e) { log("cowork-map write skipped:", e && e.message); }
+}
+
 // WCOCKPIT: mapa modo → modelo (lazy=haiku/barato, moo=GEN_MODEL, crazy=opus)
 const MODE_MODEL_MAP = { lazy: "claude-haiku-4-5", moo: null, crazy: "claude-opus-4-6" };
 const _modeRegPath = join(HERE, "mode-registry.js");
@@ -144,7 +174,7 @@ async function oneRound(s) {
           hooks: { Stop: [{ hooks: [onStop] }] },
         },
       })) {
-        if (m && m.type === "system" && m.subtype === "init" && m.session_id) sid = m.session_id;
+        if (m && m.type === "system" && m.subtype === "init" && m.session_id) { sid = m.session_id; writeCoworkSession(sid, s); } // WCOCKPIT-9 (Bloco A): espelha a associação CC↔Cowork assim que a sessão é conhecida
         if (m && m.type === "assistant" && m.message && m.message.content) {
           for (const c of m.message.content) if (c.type === "text") finalText += c.text;
         }
@@ -153,6 +183,7 @@ async function oneRound(s) {
     } catch (e) { ok = false; finalText = "SDK error: " + (e && e.message); log("round error:", e && e.message); }
     finally { clearTimeout(killTimer); }
   }
+  if (sid) writeCoworkSession(sid, s); // WCOCKPIT-9 (Bloco A): mantém o espelho fresco (cobre resume sem novo init)
   writeFileSync(OUTBOX, finalText);
   writeFileSync(join(TRANSCRIPT, "round-" + s.round + "-outbox.md"), finalText);
   appendFileSync(P("ledger.jsonl"), JSON.stringify({ ts: new Date().toISOString(), round: s.round, ok, chars: finalText.length, engine: "sdk" }) + "\n");
