@@ -757,7 +757,7 @@ test('WCOCKPIT-3 renderGroupHeader: uses project key not repo name', () => {
   const html = rr.renderGroupHeader('Mooter.ai', group);
   assert.ok(html.includes('🗂 Mooter.ai'), 'header must show the Cowork project name');
   assert.ok(!html.includes('FRUGAL'), 'header must NOT show repo name');
-  assert.ok(html.includes('1 need you'), 'header must count needsYou sessions');
+  assert.ok(html.includes('1 your turn'), 'header must count needsYou sessions');
   assert.ok(html.includes('2'), 'header must show total session count');
 });
 
@@ -1009,7 +1009,7 @@ test('WCOCKPIT-5 webview-sim: renderGroupHeader (webview fn) — no throw, non-e
   const html = _wvRenderGroupHeader('Mooter.ai', group);
   assert.ok(typeof html === 'string' && html.length > 20, 'renderGroupHeader must return HTML');
   assert.ok(html.includes('Mooter.ai'), 'group key must appear');
-  assert.ok(html.includes('1 need you'), 'needsYou count must appear');
+  assert.ok(html.includes('1 your turn'), 'needsYou count must appear');
 });
 
 test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — gitStage clean, no safety tip (regression)', () => {

@@ -319,7 +319,7 @@ function renderGroupHeader(key, group, opts) {
     else if (st === 'ahead') { gChip = '<span class="ghg ahead">↑' + a + ' to push</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
   }
   var meta = (brChip || gChip) ? '<span class="ghmeta">' + brChip + (brChip && gChip ? ' ' : '') + gChip + (gTip ? ' ' + gTip : '') + '</span>' : '';
-  var count = '<span class="ghcount">' + group.length + (gneed ? ' · ' + gneed + ' need you' : '') + '</span>';
+  var count = '<span class="ghcount">' + group.length + '</span>' + (gneed ? '<span class="ghneed" role="status" aria-live="polite" style="color:#E5C07B;font-weight:700;margin-left:7px" title="sessions waiting for your reply">⬤ ' + gneed + ' your turn</span>' : '');
   // Origin-aware key + honest source tag + repo sub-label.
   var icon, srcTag, repoSub = '';
   if (origin === 'cowork') {
