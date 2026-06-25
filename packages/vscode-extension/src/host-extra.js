@@ -848,7 +848,7 @@ async function recentSessions(maxN = 8) {
   const gsCache = new Map();     // WCOCKPIT-4/5: cwd → gitStage result, once per cwd (async, non-blocking)
   for (const f of listSessionFiles().slice(0, maxN + 8)) {
     if (out.length >= maxN) break; // WCOCKPIT-7: stop once we have maxN visible (archived are skipped below)
-    let lastModel = null; let turns = 0;
+    let lastModel = null; let turns = 0; let lastCtx = 0;
     let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
     try {
       const st = fs.statSync(f.file); const start = Math.max(0, st.size - 1024 * 1024);
@@ -862,7 +862,7 @@ async function recentSessions(maxN = 8) {
         const m = d && d.message; if (!m || !m.model || String(m.model).charAt(0) === '<') continue;
         const u = m.usage; if (!u) continue;
         lastModel = m.model; turns += 1;
-        tin += u.input_tokens || 0; tout += u.output_tokens || 0;
+        tin += u.input_tokens || 0; tout += u.output_tokens || 0; lastCtx = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
         const a = sm[m.model] || (sm[m.model] = { model: m.model, in: 0, out: 0, cw: 0, cr: 0 });
         a.in += u.input_tokens || 0; a.out += u.output_tokens || 0; a.cw += u.cache_creation_input_tokens || 0; a.cr += u.cache_read_input_tokens || 0;
       }
@@ -912,7 +912,7 @@ async function recentSessions(maxN = 8) {
       const thisWt = wts.find(wt => wt.linked && path.resolve(wt.path) === path.resolve(cwd));
       if (thisWt) worktree = path.basename(thisWt.path);
     }
-    const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, cost: scost, saved: ssaved, tokPerSec };
+    const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, ctxTokens: lastCtx, cost: scost, saved: ssaved, tokPerSec };
     row.repoFolder = cwd ? path.basename(cwd) : null; // WCOCKPIT-3: clean folder name for grouping
     // WCOCKPIT-4/5: async git stage (non-blocking; cached per cwd to avoid redundant git calls)
     if (cwd) {
