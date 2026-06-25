@@ -12,6 +12,8 @@
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { defaultPacksDir } from "../../../router/src/classify_domain.ts";
 import { mooterPath, readJsonSafe, writeJson, appendJsonl } from "../../../synthesis/src/index.ts";
@@ -332,6 +334,56 @@ export function packValidate(name: string, opts: PackCmdOptions = {}): CmdResult
 // acceptance signal (~/.mooter/pack_signals.jsonl) on each install/uninstall so
 // the routing loop can learn whether a pack's style gets accepted.
 
+// F2 supply-chain hardening: before recording an install, run the static
+// scaffold/MCP auditor (tools/router/pack-scaffold-audit.js) — spawned
+// READ-ONLY, never imported, never the network. A HIGH finding (prompt
+// injection in the scaffold, etc.) blocks the install unless --force; med/low
+// are warnings. First line of defence against a third-party pack shipping a
+// malicious prompt scaffold. Mirrors how mcp-server spawns classify.js.
+export interface AuditFinding { id: string; severity: string; line?: number; detail?: string; snippet?: string; }
+export interface AuditResult { ok: boolean; findings: AuditFinding[]; notes?: string[]; }
+
+function findRepoFile(rel: string): string | null {
+  const bases: string[] = [];
+  try { bases.push(dirname(fileURLToPath(import.meta.url))); } catch { /* bundled */ }
+  bases.push(process.cwd());
+  for (const base of bases) {
+    let dir = base;
+    for (let i = 0; i < 9; i++) {
+      const cand = join(dir, rel);
+      if (existsSync(cand)) return cand;
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return null;
+}
+
+export function auditScaffold(packDir: string): AuditResult | null {
+  const auditPath = findRepoFile("tools/router/pack-scaffold-audit.js");
+  if (!auditPath) return null; // auditor unavailable → fail-open (caller proceeds)
+  try {
+    const raw = execFileSync(process.execPath, [auditPath, packDir, "--json"], {
+      encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"],
+    });
+    return JSON.parse(raw) as AuditResult;
+  } catch (e: unknown) {
+    // The auditor exits 1 when findings exist; the JSON is still on stdout.
+    const out = (e as { stdout?: string | Buffer })?.stdout;
+    if (out) { try { return JSON.parse(out.toString()) as AuditResult; } catch { /* fall through */ } }
+    return null;
+  }
+}
+
+/** Pure gate decision — exported for tests. A HIGH finding blocks unless force. */
+export function auditBlocks(audit: AuditResult | null, force: boolean): { block: boolean; reason: string } {
+  if (!audit || force) return { block: false, reason: "" };
+  const highs = audit.findings.filter((f) => f.severity === "high");
+  if (highs.length === 0) return { block: false, reason: "" };
+  return { block: true, reason: highs.map((f) => `${f.id}${f.line ? `:${f.line}` : ""}`).join(", ") };
+}
+
 interface InstalledPack {
   name: string;
   installed_at: string;
@@ -357,10 +409,24 @@ function packAttribution(name: string): string | null {
   }
 }
 
-function packInstall(name: string, opts: { json: boolean }): CmdResult {
+function packInstall(name: string, opts: { json: boolean; force?: boolean }): CmdResult {
   const dir = join(defaultPacksDir(), name);
   if (!existsSync(join(dir, "pack.yaml"))) {
     return { exitCode: 1, output: opts.json ? JSON.stringify({ pack: name, installed: false, error: "not_found" }) : `${NO} pack '${name}' not found` };
+  }
+  // F2 gate: static safety audit before recording anything.
+  const audit = auditScaffold(dir);
+  const gate = auditBlocks(audit, !!opts.force);
+  if (gate.block) {
+    return {
+      exitCode: 1,
+      output: opts.json
+        ? JSON.stringify({ pack: name, installed: false, error: "unsafe_scaffold", findings: audit!.findings.filter((f) => f.severity === "high") })
+        : [
+            `${NO} install blocked: '${name}' has HIGH static-audit findings (${gate.reason}).`,
+            `  Review the pack's scaffold / pack.yaml. Re-run with --force to override if you trust the source.`,
+          ].join("\n"),
+    };
   }
   const reg = readInstalled();
   if (reg.packs.some((p) => p.name === name)) {
@@ -421,7 +487,8 @@ function packSync(name: string | undefined, opts: { json: boolean }): CmdResult 
 // --- dispatch ----------------------------------------------------------------
 export function runPack(argv: string[]): CmdResult {
   const json = argv.includes("--json");
-  const positional = argv.filter((a) => a !== "--json");
+  const force = argv.includes("--force");
+  const positional = argv.filter((a) => !a.startsWith("--"));
   const [sub, name] = positional;
 
   switch (sub) {
@@ -439,7 +506,7 @@ export function runPack(argv: string[]): CmdResult {
       return packValidate(name, { json });
     case "install":
       if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack install <name>` };
-      return packInstall(name, { json });
+      return packInstall(name, { json, force });
     case "uninstall":
       if (!name) return { exitCode: 1, output: `${NO} usage: mooter pack uninstall <name>` };
       return packUninstall(name, { json });
