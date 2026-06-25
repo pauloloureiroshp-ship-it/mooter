@@ -3,6 +3,44 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🔒 SECURITY-1 — Hardening do tracker local 7821 (2026-06-25, Cowork autónomo)
+**Estado:** 🟡 **Código escrito no working-tree (Cowork, file tools). Falta: correr testes + commit selectivo + verificação live → CLAUDE CODE (VM Cowork em baixo, IDE typing bloqueado).**
+
+**Contexto:** auditoria de segurança desta sessão (relatório em `outputs/SECURITY_AUDIT_mooter_2026-06-25.md`). Veredicto: as 3 promessas (local-first / não toca no código / nada sai sem login) resistem ao código. **1 achado MED:** o tracker `127.0.0.1:7821` emitia `Access-Control-Allow-Origin: *` sem validar Origin/Host → qualquer website aberto no browser podia ler `GET /me` (`device_id`+`user_id_hash`) e `/metrics`, e fazer CSRF via POST text/plain.
+
+**Fix aterrado (só `tools/router/` — `classify.js` e `packages/*` intactos):**
+- `tools/router/savings-tracker.js` (v0.7.0 → **v0.8.0**): novo `guardRequest()` + `hostAllowed`/`originAllowed`/`corsOriginFor`. (1) Host allow-list (127.0.0.1/localhost/[::1]:porta) → mata DNS-rebinding; (2) Origin allow-list → node clients (sem Origin) + `vscode-webview://` permitidos, **qualquer site http(s) rejeitado 403**; (3) writes exigem `application/json` → mata CSRF simple-request. `send()` **nunca** emite `*` (reflecte só origin permitida) + `X-Content-Type-Options: nosniff`. Preflight OPTIONS tratado. Guard exportado p/ testes.
+- `tools/router/savings-tracker-security.test.js` (**NOVO**): 11 unit tests do guard + 1 integração (arranca o tracker em :7931 via `MOOTER_TRACKER_PORT`, faz pedidos reais: site Origin→403, Host falso→403, text/plain→403, webview→200 c/ ACAO reflectido).
+- `.github/SECURITY.md` (**NOVO**): contrato de privacidade 5-camadas + hardening + disclosure (security@mooter.ai).
+
+**Compatibilidade verificada (não parte nada):** todos os writers locais já mandam `application/json` (`inject_context.js:376`, `arbiter.js:197`, `auto-sync.js:87`, `mooter-doctor.js:476`). A extensão lê via `http.get` node (sem Origin, Host auto) e o `setMode` escreve via `mooter-mode.js` (não HTTP). Reads GET sem body não são afectados.
+
+**🔜 CHECKLIST CLAUDE CODE (nativo Windows — correr por esta ordem):**
+1. `cd ~/frugal && git status` → confirmar que SÓ mudaram: `tools/router/savings-tracker.js`, `tools/router/savings-tracker-security.test.js`, `.github/SECURITY.md`, `SYNC.md`. **NÃO** mexer no trabalho Graphify uncommitted (`landing/`, `dashboard/`) — é sessão paralela.
+2. `node --check tools/router/savings-tracker.js` → deve passar.
+3. `node --test tools/router/savings-tracker-security.test.js` → 12 testes verdes (11 unit + 1 integração).
+4. Regressão cockpit: `cd packages/vscode-extension/src && node --test data.test.js` → baseline intacto.
+5. `certutil -hashfile tools/router/classify.js SHA256` → tem de ser `427d8c0b...364bc48f` (FROZEN).
+6. **Commit selectivo** (NUNCA `-A`): `git add tools/router/savings-tracker.js tools/router/savings-tracker-security.test.js .github/SECURITY.md SYNC.md` → `git commit -m "feat(security): harden tracker 7821 — Host/Origin/CSRF guard, kill ACAO:* (v0.8.0)"`.
+7. **Push só após OK do Paulo.**
+8. `/mooter-update` → sincroniza `~/.claude/tools/router/savings-tracker.js` para o runtime. Depois **matar + reabrir o tracker** (`Get-Process node | ? {...} | Stop-Process`; ele re-arranca via SessionStart hook ou `node savings-tracker.js`) para a versão live ter o guard. Verificar: `curl -H "Origin: https://evil.com" http://127.0.0.1:7821/metrics` → **403**.
+9. **Próximo pilar de segurança:** supply chain de packs/MCP — ver §SECURITY-2 abaixo.
+
+### 🔒 SECURITY-2 — Auditoria supply chain packs/MCP + auditor estático (2026-06-25, Cowork autónomo)
+**Estado:** 🟡 **Brief + ferramenta P5 escritos. Falta: correr self-test + commit selectivo → CLAUDE CODE.**
+
+**Veredicto (relatório `outputs/SECURITY_packs_mcp_2026-06-25.md`):** a superfície é menor do que o nome sugere. **Packs são declarativos e locais — não correm código no install** (excepto `obsidian-vault-sync`, first-party). Comando de install de MCP vem de **registry curado** (não do pack.yaml). Cockpit usa **`execFile` shell:false** + nome de pack sanitizado → sem injection. **Nenhum RCE remoto hoje.** Achados: F1 override de registry em `~/.mooter/cache/` não-verificado (LOW-MED) · F2 `prompt_scaffold` não sanitizado (LOW hoje / HIGH p/ marketplace) · F3 sem assinatura de packs (bloqueia marketplace) · F4 tools de egress da MCP first-party (notion_write/obsidian_sync/data_export, user-gated).
+
+**Implementado (P5, não-frozen — `tools/router/`):**
+- `tools/router/pack-scaffold-audit.js` (**NOVO + melhorado**): auditor estático READ-ONLY que sinaliza, **antes do install**, (a) 15 padrões de prompt-injection no scaffold (`ignore previous instructions`, `reveal system prompt`, `mooter_data_export`+`do not tell the user`, `curl https://…`, `<tool_result>` spoofing, `forget everything above`, markdown image beacons `![](…?leak=)`, data-URIs base64, **zero-width chars por código numérico** `0x200B…`, blobs base64), (b) MCPs declarados fora do registry curado, (c) proveniência em falta (`metadata.author`). Self-test embutido **10 casos**. CLI: `node pack-scaffold-audit.js <packDir> [--json]` · **`--all [packsDir]`** (audita todos os packs, exit-1 se algum HIGH — gate de CI) · `--self-test`.
+  - **Nota anti-footgun:** zero-width detectados por `charCodeAt`/`String.fromCharCode` (NUNCA char literal nem `\u` no source — strippam em silêncio e desligavam o check). Apanhei e corrigi isto na própria sessão.
+
+**🔜 CHECKLIST CLAUDE CODE:**
+1. `node tools/router/pack-scaffold-audit.js --self-test` → **10/10 pass**.
+2. (smoke) `node tools/router/pack-scaffold-audit.js --all` → audita todos os `packs/*`; espera-se 0 HIGH (packs first-party limpos). Se algum HIGH aparecer, é finding real a rever ANTES de ligar o gate de install.
+3. Commit selectivo: `git add tools/router/pack-scaffold-audit.js` → `git commit -m "feat(security): static pack scaffold/MCP audit (P5 supply-chain)"`. **Push após OK.**
+4. **Hardening que falta (frozen — precisa de wave):** F1/F2/F3 tocam `packages/router/src/pack_resolve.ts` (frozen) → fazer numa wave dedicada, não em hotfix.
+
 
 ### 🎨 WCOCKPIT-6 — UX/UI cockpit optimizado (2026-06-23, Cowork autónomo)
 **Branch:** `wave-WCOCKPIT` · **Estado:** ✅ **Em prod (vsix 0.16.6-ux instalado + verificado live).**
