@@ -282,7 +282,7 @@ function renderRow(r, opts) {
       + '<span class="sstate">' + badge + '</span>'
       + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
-      + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (' ' + Math.round(100 * r.ctxTokens / 200000) + '%') : '') + '</span>') : '')
+      + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
     + brainLine + nextSlashLine + scm + gitLine
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + '</div>'
@@ -333,7 +333,7 @@ function renderGroupHeader(key, group, opts) {
     if (repos.length) repoSub = '<span class="ghrepo" title="pasta(s) local — não é um projeto Cowork">repo:' + esc(repos.join(' · ')) + '</span>';
   }
   var keyHtml = '<span class="ghkey">' + icon + ' ' + esc(key) + ' ' + srcTag + '</span>';
-  return '<div class="ghd">' + keyHtml + repoSub + meta + count + '</div>';
+  return '<div class="ghd collaphead"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + '</div>';
 }
 
 module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS };

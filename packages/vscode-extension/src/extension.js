@@ -628,6 +628,9 @@ function getHtml() {
   .chev{display:inline-block;font-size:8px;opacity:.5;margin-right:6px;transition:transform .15s ease;vertical-align:middle}
   .card.collapsed .chev{transform:rotate(-90deg)}
   .card.collapsed>*:not(.collaphead){display:none!important}
+  .grpsec.collapsed>*:not(.collaphead){display:none!important}
+  .grpsec.collapsed .chev{transform:rotate(-90deg)}
+  .grpsec>.ghd.collaphead{cursor:pointer}
   .card.collapsed{padding-bottom:12px}
   .arow{display:flex;align-items:center;gap:7px;font-size:11px;padding:5px 0;border-top:1px solid var(--vscode-widget-border)}
   .arow .amodel{font-weight:600;white-space:nowrap}
@@ -854,7 +857,7 @@ window.addEventListener('message',(e)=>{
   // WCOCKPIT-6: roll up branch + git stage to the group header; pass as context so cards dedup.
   const gitKeyOf=(r)=>r.gitStage?(r.gitStage.state+':'+(r.gitStage.dirty||0)+':'+(r.gitStage.ahead||0)):'';
   const groupCtx=(gr)=>{let branch=null,gitKey=null;for(const r of gr){if(!branch&&r.branch)branch=r.branch;if(!gitKey&&r.gitStage)gitKey=gitKeyOf(r);}return{branch,gitKey};};
-  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('');}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">No live sessions yet</div><div class="sub" style="margin:4px 0 10px">Open a Claude Code tab and send a prompt — Mooter routes it and the herd lights up.</div><button class="go" data-a="launch">✱&nbsp; New Claude Code session</button></div>';
+  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('')+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">No live sessions yet</div><div class="sub" style="margin:4px 0 10px">Open a Claude Code tab and send a prompt — Mooter routes it and the herd lights up.</div><button class="go" data-a="launch">✱&nbsp; New Claude Code session</button></div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';

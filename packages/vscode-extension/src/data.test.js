@@ -1066,7 +1066,7 @@ test('WCOCKPIT-6 renderGroupHeader: rolls up branch + uncommitted git once for t
   const html = rr.renderGroupHeader('FRUGAL', group);
   assert.ok(html.includes('wave-WCOCKPIT'), 'group header shows the shared branch');
   assert.ok(html.includes('162 uncommitted'), 'group header shows the rolled-up git stage');
-  assert.ok(html.includes('class="ghd"'), 'group header uses .ghd container');
+  assert.ok(html.includes('class="ghd'), 'group header uses .ghd container');
 });
 
 // ── WCOCKPIT-7: clear/close sessions + compact drawer ──
