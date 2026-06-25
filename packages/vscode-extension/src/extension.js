@@ -699,14 +699,14 @@ function getHtml() {
 <div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
-function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));}
+function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));try{var _st=vsapi.getState()||{};_st.tab=name;vsapi.setState(_st);}catch(e){}}
 (function(){const tl=document.querySelector('.tabs');if(tl)tl.setAttribute('role','tablist');
   const tabs=[...document.querySelectorAll('.tab')];
   document.querySelectorAll('.view').forEach(v=>v.setAttribute('role','tabpanel'));
   tabs.forEach((t,i)=>{const on=t.classList.contains('on');t.setAttribute('role','tab');t.setAttribute('aria-controls','view-'+t.dataset.v);t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
-$('#scoreBadge').onclick=()=>goTab('cockpit');
+try{var _rt=(vsapi.getState()||{}).tab;if(_rt&&_rt!=='cockpit')goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
 let curMode='auto';const MORDER=['zen','auto','beast'];
 // Each live-session cow walks via the CSS .working class set at render time (the
 // session is "working" when its transcript was just written) — no JS tick needed.
