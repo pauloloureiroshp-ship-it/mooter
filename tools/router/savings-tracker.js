@@ -823,18 +823,69 @@ function readRealBudget() {
   }
 }
 
+// ── Security guard (localhost-only server) ───────────────────────────────────
+// The tracker binds 127.0.0.1, but a loopback server is still reachable by any
+// process on the machine AND — through the browser — by any website the user
+// visits (cross-origin fetch). Three guards close that surface:
+//   1. Host allow-list   → defeats DNS-rebinding (attacker.com → A 127.0.0.1).
+//   2. Origin allow-list → only the VS Code webview and non-browser node
+//      clients (CLI, statusline, hooks — which send NO Origin) may talk to us;
+//      any http(s) website Origin is rejected.
+//   3. JSON content-type on writes → kills "simple-request" CSRF (a text/plain
+//      POST skips the CORS preflight and could otherwise poison the corpus).
+// All legitimate writers already send application/json (inject_context.js,
+// arbiter.js, auto-sync.js, mooter-doctor.js). Extend via env if ever needed:
+//   MOOTER_TRACKER_ALLOW_ORIGIN="https://my.tool"  (comma-separated).
+const ALLOWED_HOSTS = new Set([
+  `127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`,
+]);
+const EXTRA_ORIGINS = String(process.env.MOOTER_TRACKER_ALLOW_ORIGIN || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+
+function hostAllowed(hostHeader) {
+  if (!hostHeader) return false; // HTTP/1.1 requires Host; its absence is suspicious
+  return ALLOWED_HOSTS.has(String(hostHeader).toLowerCase());
+}
+function originAllowed(origin) {
+  if (!origin) return true;                          // node client (no Origin) → ok
+  if (origin === 'null') return true;                // sandboxed/file webview origin
+  if (origin.startsWith('vscode-webview://')) return true; // the cockpit webview
+  if (EXTRA_ORIGINS.includes(origin)) return true;
+  return false;                                      // any real website → rejected
+}
+// CORS header we reflect back (NEVER '*'). Only for an allowed browser origin;
+// node clients need no CORS header at all.
+function corsOriginFor(origin) {
+  if (!origin) return null;
+  return originAllowed(origin) ? origin : null;
+}
+function guardRequest(req) {
+  if (!hostAllowed(req.headers.host)) return 'bad_host';
+  if (!originAllowed(req.headers.origin)) return 'forbidden_origin';
+  const method = (req.method || 'GET').toUpperCase();
+  if (method === 'POST' || method === 'PUT') {
+    const ct = String(req.headers['content-type'] || '').toLowerCase();
+    if (!ct.startsWith('application/json')) return 'bad_content_type';
+  }
+  return null;
+}
+
 // ── HTTP handlers ───────────────────────────────────────────────────────────
 function send(res, status, body, contentType) {
-  res.writeHead(status, {
+  const headers = {
     'Content-Type': contentType || 'application/json',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': '*',
-  });
+    'X-Content-Type-Options': 'nosniff',
+  };
+  // Reflect ONLY an explicitly-allowed origin (the VS Code webview). We never
+  // emit '*' — that wildcard is exactly what let any website read these metrics.
+  if (res._corsOrigin) headers['Access-Control-Allow-Origin'] = res._corsOrigin;
+  res.writeHead(status, headers);
   res.end(body);
 }
 
 function handleHealth(_req, res) {
-  send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid, version: '0.7.0' }));
+  send(res, 200, JSON.stringify({ ok: true, port: PORT, pid: process.pid, version: '0.8.0' }));
 }
 
 function handleMetrics(req, res) {
@@ -1615,6 +1666,30 @@ if (require.main === module) {
     const url = (req.url || '/').split('?')[0];
     const method = (req.method || 'GET').toUpperCase();
     try {
+      // Security gate (see guardRequest above). Decide the reflected CORS
+      // origin first so even the 403 carries correct headers for the webview.
+      res._corsOrigin = corsOriginFor(req.headers.origin);
+      const denied = guardRequest(req);
+      if (denied) {
+        send(res, 403, JSON.stringify({ error: 'forbidden', reason: denied }));
+        return;
+      }
+      // CORS preflight for the webview's JSON writes (allowed origins only).
+      if (method === 'OPTIONS') {
+        if (res._corsOrigin) {
+          res.writeHead(204, {
+            'Access-Control-Allow-Origin': res._corsOrigin,
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '600',
+            'Cache-Control': 'no-store',
+          });
+          res.end();
+        } else {
+          send(res, 403, JSON.stringify({ error: 'forbidden', reason: 'preflight_origin' }));
+        }
+        return;
+      }
       if (method === 'POST' && POST_ROUTES[url]) {
         POST_ROUTES[url](req, res);
         return;
@@ -1721,6 +1796,11 @@ module.exports = {
   EXECUTIONS_AGGREGATE,
   // accessor for tests (LAST_EXECUTION is mutable, can't export the binding directly)
   getLastExecution: () => LAST_EXECUTION,
+  // v0.8.0 — security guard (localhost-only hardening). Exported for unit tests.
+  guardRequest,
+  originAllowed,
+  hostAllowed,
+  corsOriginFor,
   resetExecutionsAggregate: () => {
     EXECUTIONS_AGGREGATE.total = 0;
     EXECUTIONS_AGGREGATE.by_provider = {};
