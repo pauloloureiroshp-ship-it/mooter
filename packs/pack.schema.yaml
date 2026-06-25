@@ -61,6 +61,14 @@ validation:                             # optional — how to prove the pack out
   smoke_test: string                    # optional — descriptive sentence of the test
   acceptance_criteria: [string]         # optional
 
+signature:                              # optional — supply-chain trust (F3). Absent = git-trusted (first-party)
+  algo: string                          #   required within (e.g. ed25519, sigstore) when signature present
+  value: string                         #   required within — the signature itself
+  key_id: string                        #   optional — author key / identity id
+  signed_hash: string                   #   optional — hash of the signed pack content
+# NOTE: presence is NOT enforced yet (packs are git-trusted). Marketplace packs
+# will require a valid signature in a later wave once a key registry exists.
+
 metadata:                               # required
   author: string                        # required
   created: ISO8601                       # required — YYYY-MM-DD

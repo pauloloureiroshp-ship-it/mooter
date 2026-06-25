@@ -78,5 +78,25 @@ export function validatePack(pack: unknown): string[] {
       errors.push("metadata.notion_kb_url: must be string or null (optional)");
   }
 
+  // --- signature (optional; supply-chain hardening F3) ---
+  // The trust contract for a future community marketplace. OPTIONAL for now:
+  // first-party packs are git-trusted, so absence is valid and never an error.
+  // When present, only the SHAPE is validated here — actually verifying the
+  // signature (and requiring it for marketplace packs) is a later wave, once a
+  // key registry exists. This lands the contract without premature key infra.
+  if (pack.signature !== undefined) {
+    if (!isObject(pack.signature)) {
+      errors.push("signature: must be a mapping when present");
+    } else {
+      const s = pack.signature;
+      for (const k of ["algo", "key_id", "value", "signed_hash"]) {
+        if (s[k] !== undefined && !isString(s[k]))
+          errors.push(`signature.${k}: must be a string when present`);
+      }
+      if (!isString(s.algo) || !isString(s.value))
+        errors.push("signature: when present, requires at least { algo, value } strings");
+    }
+  }
+
   return errors;
 }
