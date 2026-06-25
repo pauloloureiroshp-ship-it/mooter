@@ -139,6 +139,13 @@ class DataService {
       loopActive: loopRunnerActive(), // WCOCKPIT-9 (Bloco F): honest LoopMoo liveness
       decisions: data_.readDecisions(),
     };
+    try {
+      // WCOCKPIT polish: pull the founder back when a parallel session newly needs a reply.
+      // Fires only on the false->true transition (per session), capped, never on first snapshot.
+      const _rec = (this.snapshot && this.snapshot.recent) || [];
+      if (this._lastNeeds) { let _n = 0; for (const _r of _rec) { if (_r && _r.needsYou && !this._lastNeeds.has(_r.fullId) && _n < 3) { _n++; const _nm = String(_r.coworkTitle || _r.brainTitle || _r.name || _r.id || 'A Claude Code session').slice(0, 60); vscode.window.showInformationMessage('\u{1F42E} ' + _nm + ' \u2014 your turn (Claude is waiting for your reply)'); } } }
+      this._lastNeeds = new Set(_rec.filter((_r) => _r && _r.needsYou).map((_r) => _r.fullId));
+    } catch { /* notifications are best-effort */ }
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
     } finally { this.busy = false; }
   }
