@@ -122,12 +122,11 @@ function renderRow(r, opts) {
 
   // Cow animation class: mode + working state + cowork
   var cowCls = '';
-  if (r.working) cowCls += ' working';
-  if (r.mode && r.mode !== 'moo') cowCls += ' ' + r.mode;
-  if (r.waitingForCowork) cowCls += ' cowork';
-  // WCOCKPIT-9 (Bloco F): a cow só ganha a animação 🔁 quando o loop está ARMADO **e** o runner
-  // está confirmado activo (honestidade — armado-mas-inactivo não finge estar a correr).
-  if (r.loop && opts.loopActive) cowCls += ' loop';
+  // One honest motion per cow (transparency): loop > working > idle-mode personality.
+  // WCOCKPIT-9 (Bloco F): loop só anima quando ARMADO **e** o runner está confirmado activo.
+  if (r.loop && opts.loopActive) cowCls = ' loop';
+  else if (r.working) cowCls = ' working';
+  else if (r.mode && r.mode !== 'moo') cowCls = ' ' + r.mode;
 
   var sid = r.fullId;
 

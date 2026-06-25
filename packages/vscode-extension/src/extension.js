@@ -516,8 +516,8 @@ function getHtml() {
   .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .scmpr{font-weight:600;font-size:9.5px}
-  .alertdot{width:8px;height:8px;border-radius:50%;background:#E5C07B;flex:none;animation:alertpulse 1.5s infinite}
-  @keyframes alertpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .alertdot{width:8px;height:8px;border-radius:50%;background:#E5C07B;flex:none;animation:alertpulse 1.6s infinite}
+  @keyframes alertpulse{0%,100%{opacity:1}50%{opacity:.3}}
   .needsyou{color:#E5C07B;font-weight:700}
   .srow.needs:not(.on){background:rgba(229,192,123,.08)}
   .sopen{font-size:12px;color:var(--vscode-descriptionForeground);flex:none;opacity:.45}
