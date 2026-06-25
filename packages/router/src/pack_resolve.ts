@@ -57,12 +57,12 @@ export interface PackResolution {
 }
 
 // --- MCP install registry shape (packages/router/data/mcp_install_registry.json) ---
-interface McpRegistryEntry {
+export interface McpRegistryEntry {
   install: string;
   transport?: string;
   note?: string;
 }
-interface McpRegistry {
+export interface McpRegistry {
   version?: string;
   servers: Record<string, McpRegistryEntry>;
 }
@@ -218,26 +218,54 @@ export function suggestInstallCmd(
 }
 
 // --- registry loading ---------------------------------------------------------
-// Runtime override at ~/.mooter/cache/mcp_install_registry.json wins; the
-// versioned default in packages/router/data/ is the source of truth.
+// SECURITY (supply-chain hardening F1): the `install` command for every server
+// comes ONLY from the versioned, code-reviewed default in packages/router/data/.
+// A runtime cache at ~/.mooter/cache/mcp_install_registry.json may refine
+// non-executable metadata (`note`, `transport`) for servers that ALREADY exist
+// in the default, but it can never add a server or change an `install` string.
+// This neutralises a local-write attacker who could otherwise make
+// `mooter pack diff` print a poisoned `claude mcp add … | sh` command for the
+// user to run. The cache used to win outright — that was the hole (F1).
 let _registry: McpRegistry | null | undefined;
+
+function readRegistryFile(p: string): McpRegistry | null {
+  try {
+    if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")) as McpRegistry;
+  } catch {
+    /* unreadable / bad JSON → treat as absent */
+  }
+  return null;
+}
+
+/**
+ * Merge a runtime cache over the versioned default. The set of servers and
+ * every `install` string are taken ONLY from `base`; `cache` may refine
+ * `note`/`transport` on servers that already exist in `base`. Pure +
+ * exported so the security contract is unit-testable without the filesystem.
+ */
+export function mergeRegistry(base: McpRegistry, cache: McpRegistry | null): McpRegistry {
+  if (!cache?.servers) return base;
+  for (const [id, baseEntry] of Object.entries(base.servers ?? {})) {
+    const ov = cache.servers[id];
+    if (!ov || typeof ov !== "object") continue;
+    if (typeof ov.note === "string") baseEntry.note = ov.note;
+    if (typeof ov.transport === "string") baseEntry.transport = ov.transport;
+    // ov.install is deliberately ignored — never trust a cache for commands.
+  }
+  // Cache-only servers (absent from the default) are NOT added: untrusted source.
+  return base;
+}
+
 export function loadMcpRegistry(): McpRegistry | null {
   if (_registry !== undefined) return _registry;
-  const candidates = [
-    join(homedir(), ".mooter", "cache", "mcp_install_registry.json"),
-    join(import.meta.dirname ?? ".", "..", "data", "mcp_install_registry.json"),
-  ];
-  for (const p of candidates) {
-    try {
-      if (existsSync(p)) {
-        _registry = JSON.parse(readFileSync(p, "utf8")) as McpRegistry;
-        return _registry;
-      }
-    } catch {
-      /* try next */
-    }
+  const defaultPath = join(import.meta.dirname ?? ".", "..", "data", "mcp_install_registry.json");
+  const cachePath = join(homedir(), ".mooter", "cache", "mcp_install_registry.json");
+  const base = readRegistryFile(defaultPath);
+  if (!base) {
+    _registry = null;
+    return _registry;
   }
-  _registry = null;
+  _registry = mergeRegistry(base, readRegistryFile(cachePath));
   return _registry;
 }
 
