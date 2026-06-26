@@ -632,6 +632,23 @@ function computeMetrics(lines) {
   m.savings_usd_cumulative = m.saved;
   m.tokens_used = m.total_tokens;
 
+  // ── Cockpit v2 Wave 1 — ADDITIVE savings + auto_skill blocks ─────────────
+  // Strictly additive: the flat saved / advisory_saved fields above are
+  // untouched (the statusline reads them via trail.ts). routing_saved_usd is
+  // the SAME counterfactual number as `saved`, just under an explicit name.
+  // skill_efficiency is advisory (tokens, not $) and never folded into the $
+  // total while its pct is advisory/null — so `total` == routing_saved_usd.
+  m.auto_skill = computeAutoSkill(lines);
+  m.savings = {
+    routing_saved_usd: m.saved,
+    skill_efficiency: {
+      applied: m.auto_skill.applied,
+      est_tokens_saved_pct: m.auto_skill.est_tokens_saved_pct,
+      advisory: true,
+    },
+    total: m.saved,
+  };
+
   // v0.7.1: provider availability snapshot (sync cheap checks + Ollama from cache)
   m.providers = getProvidersSync();
 
@@ -727,6 +744,61 @@ function computeRoutingAudit(lines) {
     methodology: 'session_tier_mode_agreement_from_exec_log',
     estimated_honored_pct: round((sumCompliance / audited) * 100, 1),
   };
+}
+
+// ── Cockpit v2 Wave 1 — auto-skill directive tally (ADVISORY) ──────────────
+// Counts decisions where a confidence-gated auto-skill directive fired
+// (auto_skill set on the log entry) and, when a PAIRED token sample exists,
+// derives an ADVISORY % of output tokens saved vs the same-category baseline
+// WITHOUT the skill. est_tokens_saved_pct is null whenever there is no paired
+// sample — never a fabricated number. Tester events are filtered, matching the
+// real-cost pass. This block is strictly additive: it touches none of the flat
+// saved / advisory_saved fields the statusline reads.
+function computeAutoSkill(lines) {
+  let applied = 0;
+  const skills = {};
+  const withTok = {};    // task_category → { sum, n }  (decisions WITH the skill)
+  const withoutTok = {}; // task_category → { sum, n }  (same category, no skill)
+
+  for (const line of lines) {
+    const e = safeParse(line);
+    if (!e) continue;
+    if (e.source === 'mooter-tester') continue; // exclude synthetic tester traffic
+    const cat = e.task_category || e.op || 'unknown';
+    const tokOut = Number(e.tokens_out);
+    const hasTok = Number.isFinite(tokOut) && tokOut > 0;
+    const skill = (typeof e.auto_skill === 'string' && e.auto_skill) ? e.auto_skill : null;
+
+    if (skill) {
+      applied += 1;
+      skills[skill] = (skills[skill] || 0) + 1;
+      if (hasTok) {
+        withTok[cat] = withTok[cat] || { sum: 0, n: 0 };
+        withTok[cat].sum += tokOut; withTok[cat].n += 1;
+      }
+    } else if (hasTok && (e.event === 'classified' || e.event === 'executed')) {
+      withoutTok[cat] = withoutTok[cat] || { sum: 0, n: 0 };
+      withoutTok[cat].sum += tokOut; withoutTok[cat].n += 1;
+    }
+  }
+
+  // Advisory %: only categories where BOTH populations have a sample contribute,
+  // so the comparison is apples-to-apples. Signed (a skill could cost more).
+  let estPct = null;
+  let withAvgSum = 0, withoutAvgSum = 0, paired = 0;
+  for (const cat of Object.keys(withTok)) {
+    const w = withTok[cat], wo = withoutTok[cat];
+    if (w && w.n > 0 && wo && wo.n > 0) {
+      withAvgSum += w.sum / w.n;
+      withoutAvgSum += wo.sum / wo.n;
+      paired += 1;
+    }
+  }
+  if (paired > 0 && withoutAvgSum > 0) {
+    estPct = round((1 - (withAvgSum / withoutAvgSum)) * 100, 1);
+  }
+
+  return { applied, skills, est_tokens_saved_pct: estPct, advisory: true };
 }
 
 function buildArbiterMetrics() {
@@ -1775,6 +1847,7 @@ if (require.main === module) {
 module.exports = {
   computeMetrics,
   computeMetricsWindow,
+  computeAutoSkill,
   readRealBudget,
   isSystemPrompt,
   emptyMetrics,

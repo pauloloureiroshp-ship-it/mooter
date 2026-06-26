@@ -35,6 +35,7 @@ import {
   packResolve,
   type ResolveEnv,
 } from "../pack_resolve.ts";
+import { decideSkillApply, type SkillApplyDecision } from "../skill_apply.ts";
 import { generateUUIDv7, makeEnvelope, type MooterEvent, type Tier } from "../mooter_event.ts";
 import { applyAmbiguousScaffold, applyGeneralFallback, applyTierEscalation } from "../policy.ts";
 import {
@@ -96,6 +97,28 @@ const tierIdx = (t: string): number => {
 const arr = (xs: string[]): string => `[${xs.join(", ")}]`;
 
 /**
+ * Cockpit v2 Wave 1: render the skills line per the auto-skill decision.
+ *   directive → an IMPERATIVE line, honestly framed by the confidence. We never
+ *               claim the skill was "applied deterministically"; the agent still
+ *               chooses to honour the directive.
+ *   suggest   → the legacy advisory `skills_invoke=[…]` line (unchanged shape).
+ *   off       → `skills_invoke=[]`.
+ * Only skills already PRESENT in the env reach here (packResolve.skills_invoke),
+ * so a directive never asks the agent to invoke a missing skill.
+ */
+function renderSkillsLine(d: SkillApplyDecision, confidence: number): string {
+  if (d.mode === "directive") {
+    return (
+      `auto_skill_directive=${arr(d.skills)}  ` +
+      `# high-confidence domain match (conf=${confidence.toFixed(2)}) — ` +
+      `INVOKE these skills now (alta confiança — invoca agora)`
+    );
+  }
+  if (d.mode === "suggest") return `skills_invoke=${arr(d.skills)}`;
+  return "skills_invoke=[]";
+}
+
+/**
  * Render suggest_install as a tree (PASTOR §6.1 / §10.6): the one-shot pack
  * installer sits on the `suggest_install=` line, per-item commands hang below
  * with `└─`. Empty → `suggest_install=[]`. The first element stays on the key
@@ -138,14 +161,25 @@ export async function classifyForHints(
   return { complexity, domain };
 }
 
+/**
+ * Per-session opt-in for the auto-skill directive (Cockpit v2 Wave 1).
+ * DEFAULT = OFF: a directive is only ever emitted when the session opted in.
+ * Read from MOOTER_AUTO_SKILL=1 (explainable, reversible). Pure helper so the
+ * renderers stay injectable in tests (they take an explicit autoMode arg).
+ */
+export function autoSkillModeFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MOOTER_AUTO_SKILL === "1" || env.MOOTER_AUTO_SKILL === "true";
+}
+
 /** Render the two hint blocks from pre-computed classifications. */
 export function renderHints(
   c: HintClassifications,
   env: ResolveEnv,
   prompt: string,
+  autoMode = false,
 ): string {
   const routerHint = renderRouterHint(c.complexity);
-  const packHint = renderPackHint(c.domain, c.complexity, env, prompt);
+  const packHint = renderPackHint(c.domain, c.complexity, env, prompt, autoMode);
   return `${routerHint}\n\n${packHint}`;
 }
 
@@ -159,9 +193,10 @@ export async function buildHints(
   packs: CompiledPack[] = loadPacks(),
   env: ResolveEnv = detectEnv(),
   store?: EmbeddingStore,
+  autoMode = false,
 ): Promise<string> {
   const c = await classifyForHints(prompt, packs, store);
-  return renderHints(c, env, prompt);
+  return renderHints(c, env, prompt, autoMode);
 }
 
 function renderRouterHint(c: Awaited<ReturnType<typeof classifyComplexity>>): string {
@@ -192,6 +227,7 @@ function renderPackHint(
   complexity: Awaited<ReturnType<typeof classifyComplexity>>,
   env: ResolveEnv,
   prompt: string,
+  autoMode = false,
 ): string {
   const conf = domain.confidence.toFixed(2);
 
@@ -286,12 +322,23 @@ function renderPackHint(
     return parts.length ? parts.join("; ") : null;
   })();
 
+  // Cockpit v2 Wave 1: confidence-gated auto-skill. HIGH_RISK (risk_level=high)
+  // is NEVER a directive — it stays a suggestion with the high tier + human in
+  // the loop. The directive applies ONLY to skills already present in the env
+  // (r.skills_invoke); missing skills still flow through suggest_install below.
+  const skillApply = decideSkillApply({
+    confidence: domain.confidence,
+    skillsInvoke: r.skills_invoke,
+    highRisk: complexity.risk_level === "high",
+    autoMode,
+  });
+
   const lines = [
     "<pack-hint>",
     `pack=${manifest.pack_id} confidence=${conf} reason="signals: ${signals}"`,
     `model_floor=${manifest.model_floor} (${floorRespected ? "respected" : "raised"})`,
     finalTierReason ? `final_tier=${finalTier} (${finalTierReason})` : null,
-    `skills_invoke=${arr(r.skills_invoke)}`,
+    renderSkillsLine(skillApply, domain.confidence),
     `mcps_recommended=${arr(r.available_mcps)}`,
     `mcps_missing=${arr(r.missing_mcps)}`,
     `subagent_primary=${subagentPrimary}`,
@@ -493,7 +540,7 @@ async function main(): Promise<void> {
     const packs = loadPacks();
     const env = detectEnv();
     const c = await classifyForHints(prompt, packs);
-    process.stdout.write(renderHints(c, env, prompt) + "\n");
+    process.stdout.write(renderHints(c, env, prompt, autoSkillModeFromEnv()) + "\n");
 
     // Fire-and-forget event capture — never block the hook on telemetry. The
     // writer already swallows I/O failures internally; awaiting only ensures
