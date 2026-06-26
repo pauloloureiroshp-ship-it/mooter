@@ -36,6 +36,10 @@ import { createInterface } from "node:readline";
 import yaml from "js-yaml";
 import { defaultPacksDir } from "../../../router/src/classify_domain.ts";
 import { buildConsent, getLocalSecret, consentDetailsLong } from "../consent.ts";
+// F2.1: route init's recommended-pack install through the SAME static-audit gate
+// that `mooter pack install` uses (auditScaffold + auditBlocks live in pack.ts).
+// Closes the bypass where onboarding installed packs without scanning the scaffold.
+import { auditScaffold, auditBlocks, type AuditResult } from "./pack.ts";
 
 // Re-export so existing init tests keep importing buildConsent from this module.
 export { buildConsent };
@@ -100,6 +104,12 @@ export interface InitOptions {
   fromToken?: string;
   /** Override the landing base URL for token validation (default mooter.ai / env). */
   landingUrl?: string;
+  /**
+   * F2.1 seam — static-audit a pack's source dir before installing it. Defaults
+   * to the real `auditScaffold` (spawns tools/router/pack-scaffold-audit.js).
+   * Tests inject a fake to assert the gate blocks HIGH findings without a spawn.
+   */
+  auditPack?: (packDir: string) => AuditResult | null;
 }
 
 /** Wave 6 D2 — anonymous pre-config carried by a web install token. */
@@ -590,6 +600,7 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
   const packsDir = opts.packsDir ?? defaultPacksDir();
   const probe = opts.probe ?? (() => probeHardware(opts.fetchImpl ?? fetch));
   const validateAnthropic = opts.validateAnthropic ?? defaultValidateAnthropic;
+  const auditPack = opts.auditPack ?? auditScaffold; // F2.1: real auditor by default
 
   mkdirSync(mooterHome, { recursive: true });
 
@@ -720,6 +731,22 @@ export async function runInit(opts: InitOptions = {}): Promise<CmdResult> {
       false, // default SKIP — never auto-install
     );
     if (want) {
+      // F2.1 — same static-audit gate as `mooter pack install`. A HIGH finding
+      // (prompt-injection / exfil in the scaffold) blocks the install. Auditor
+      // unavailable → null → fail-open (matches pack.ts), so trusted installs
+      // never break when the auditor script is missing.
+      const gate = auditBlocks(auditPack(join(packsDir, f.pack_id)), false);
+      if (gate.block) {
+        io.print(
+          formatError(
+            `Pack install blocked: ${f.pack_id}`,
+            `HIGH static-audit findings in the scaffold (${gate.reason})`,
+            "inspect the pack, or install explicitly with: mooter pack install " +
+              `${f.pack_id} --force`,
+          ),
+        );
+        continue; // never install an unaudited/flagged pack during onboarding
+      }
       const ok = installPack(f.pack_id, packsDir, mooterHome, installed);
       io.print(
         ok
