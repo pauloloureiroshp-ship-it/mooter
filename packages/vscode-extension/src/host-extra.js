@@ -1331,6 +1331,62 @@ async function ollamaRecap(row, pending, timeoutMs, model) {
   } catch { return null; }
 }
 
+// ── Live Context Accumulator readers (PASSO 4/5) ───────────────────────────────────────────────
+// The turn-end hook (handoff-journal.js + handoff-rollup.js, in tools/router) accumulates a
+// per-session journal + a rolling local-LLM summary in the handoff/ dir. The handoff READS those
+// READY artifacts instead of resuming on-demand at copy time (no cold-start, no echo). The file
+// FORMAT is the only interface — no cross-package require. Path contract MIRRORS the writer:
+// MOOTER_HOME/handoff (tests) else <ROUTER>/handoff (prod: ~/.claude/tools/router/handoff). Every
+// reader is best-effort and never throws.
+function _handoffDir() {
+  return (process.env.MOOTER_HOME && process.env.MOOTER_HOME.length > 0)
+    ? path.join(process.env.MOOTER_HOME, 'handoff')
+    : path.join(ROUTER, 'handoff');
+}
+function _handoffSafeId(id) { return String(id || '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80); }
+
+// The rolling summary for a session: { text, model } or null. `model` (from <sid>.rollup-ts) is the
+// qwen model that produced it — used HONESTLY in the §SAVINGS engine label. Never throws.
+function readRollingSummary(sid) {
+  try {
+    const id = _handoffSafeId(sid); if (!id) return null;
+    const txt = fs.readFileSync(path.join(_handoffDir(), id + '.summary.txt'), 'utf8').trim();
+    if (!txt) return null;
+    let model = null;
+    try { model = (JSON.parse(fs.readFileSync(path.join(_handoffDir(), id + '.rollup-ts'), 'utf8')) || {}).model || null; } catch { /* optional */ }
+    return { text: txt.slice(0, 1200), model };
+  } catch { return null; }
+}
+
+// The last journal entry for a session (parsed), or null. Used to backfill LAST STEP when the live
+// transcript pending is thin. Never throws.
+function readJournalLast(sid) {
+  try {
+    const id = _handoffSafeId(sid); if (!id) return null;
+    const lines = fs.readFileSync(path.join(_handoffDir(), id + '.jsonl'), 'utf8').split('\n').filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) { try { return JSON.parse(lines[i]); } catch { /* skip */ } }
+    return null;
+  } catch { return null; }
+}
+
+// DETERMINISTIC project OVERALL from the per-session rolling summaries already on disk (PASSO 5):
+// joins each session's first summary line. Instant, no on-demand call, no echo. null when no
+// session has a summary yet (caller falls back to ollamaProjectSynth → deterministic counts).
+function projectSynthFromSummaries(rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  const parts = [];
+  for (const r of rows) {
+    const s = readRollingSummary(r && (r.fullId || r.id));
+    if (s && s.text) {
+      const first = String(s.text).split('\n').map((x) => x.trim()).filter(Boolean)[0];
+      if (first) parts.push(first.slice(0, 80));
+    }
+    if (parts.length >= 6) break;
+  }
+  if (!parts.length) return null;
+  return parts.join(' · ').slice(0, 300);
+}
+
 // ⇄ Handoff orchestration — the SINGLE source of truth shared by the cockpit handler and the
 // runtime smoke. Builds the hybrid handoff: deterministic skeleton (git/branch/files + PENDING
 // verbatim, never touched by the LLM) decorated with an OPTIONAL local narrative (DOING + RECAP).
@@ -1343,6 +1399,26 @@ async function ollamaRecap(row, pending, timeoutMs, model) {
 async function composeHandoff(row, pending, opts) {
   opts = opts || {};
   const mode = opts.mode || ((Number(row && row.turns) || 0) >= 12 ? 'full' : 'quick');
+  // ⇄ Live Context Accumulator (PASSO 4): if the turn-end hook already built a rolling summary in
+  // the background, USE IT — instant, no cold-start, no on-demand Ollama call. PENDING stays
+  // verbatim from the transcript; the journal backfills LAST STEP only when the live pending is thin.
+  // opts.noSummary forces the on-demand path (the runtime smoke proves the Ollama-down/hung guards).
+  if (!opts.noSummary) {
+    const sid = (row && (row.fullId || row.id)) || null;
+    const summ = sid ? readRollingSummary(sid) : null;
+    if (summ && summ.text) {
+      let pend = pending || {};
+      if (!(Array.isArray(pend.lastToolActions) && pend.lastToolActions.length)) {
+        const jl = readJournalLast(sid);
+        if (jl && Array.isArray(jl.tools) && jl.tools.length) pend = Object.assign({}, pend, { lastToolActions: jl.tools.slice(-3) });
+      }
+      const doing = String(summ.text).split('\n').map((s) => s.trim()).filter(Boolean)[0] || summ.text;
+      const recap = mode === 'full' ? summ.text : null;
+      const genModel = summ.model || 'local rolling summary';
+      const text = generateHandoff(row, pend, { doing, recap, mode, now: opts.now, genModel });
+      return { text, mode, doing, recap, timedOut: false, model: summ.model || 'local', fromSummary: true };
+    }
+  }
   const doingMs = opts.doingMs || 2000;
   const recapMs = opts.recapMs || 4000;
   const deadlineMs = opts.deadlineMs || 4500;
@@ -1428,4 +1504,5 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
-  generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel };
+  generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
+  readRollingSummary, readJournalLast, projectSynthFromSummaries };
