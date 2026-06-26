@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const http = require('http');
 const { execFile } = require('child_process');
 const { httpJson, isProbePrompt } = require('./data.js');
 
@@ -850,11 +851,14 @@ async function recentSessions(maxN = 8) {
     if (out.length >= maxN) break; // WCOCKPIT-7: stop once we have maxN visible (archived are skipped below)
     let lastModel = null; let turns = 0; let lastCtx = 0;
     let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
+    let pendingForRow = null; // ⇄ Handoff: derived from the SAME tail (no second open)
     try {
       const st = fs.statSync(f.file); const start = Math.max(0, st.size - 1024 * 1024);
       const fd = fs.openSync(f.file, 'r'); const buf = Buffer.alloc(st.size - start);
       fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
-      for (const line of buf.toString('utf8').split('\n')) {
+      const _tailLines = buf.toString('utf8').split('\n');
+      pendingForRow = extractPending(_tailLines); // ⇄ Handoff: last assistant turn + tool-calls
+      for (const line of _tailLines) {
         if (!line) continue;
         let d; try { d = JSON.parse(line); } catch { continue; }
         const ts = d.timestamp ? Date.parse(d.timestamp) : NaN;
@@ -914,6 +918,7 @@ async function recentSessions(maxN = 8) {
     }
     const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, ctxTokens: lastCtx, cost: scost, saved: ssaved, tokPerSec };
     row.repoFolder = cwd ? path.basename(cwd) : null; // WCOCKPIT-3: clean folder name for grouping
+    row.pending = pendingForRow || { lastAssistantText: '—', lastToolActions: [], stopped: false }; // ⇄ Handoff source (no re-read)
     // WCOCKPIT-4/5: async git stage (non-blocking; cached per cwd to avoid redundant git calls)
     if (cwd) {
       if (!gsCache.has(cwd)) gsCache.set(cwd, gitStage(cwd)); // store Promise, start only once per cwd
@@ -983,10 +988,181 @@ async function installPack(name) {
   return { ok: !!r.ok, name: n, out: (r.out || '').trim().slice(0, 220) };
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ⇄ HANDOFF — session → Cowork context (clipboard + SYNC.md upsert). HOST-SIDE, pure,
+// deterministic. Mata o screenshot-e-cola: um clique gera um texto estruturado (estado +
+// última acção + pergunta pendente verbatim + próximo passo). Determinístico primeiro;
+// Ollama local é OPCIONAL e nunca bloqueia. Campo sem dado → "—" (nunca inventado).
+// ════════════════════════════════════════════════════════════════════════════
+
+// PURA (testável): a partir de um tool_use.input, deriva um alvo curto e honesto (basename
+// de um path, comando, pattern, url, …). '' quando não há nada útil. Nunca lança.
+function _toolTarget(input) {
+  if (!input || typeof input !== 'object') return '';
+  const cand = input.file_path || input.path || input.notebook_path || input.command
+    || input.pattern || input.url || input.query || input.description || input.prompt || '';
+  let s = String(cand).replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  if (/[\\/]/.test(s) && !/\s/.test(s)) s = s.split(/[\\/]/).pop(); // path-like → basename
+  return s.slice(0, 48);
+}
+
+// PURA (testável): extrai a "pergunta pendente" do tail JSONL que recentSessions já leu.
+// Não reabre o ficheiro — recebe as linhas. Devolve o ÚLTIMO turno de texto do assistant
+// (≤400 chars), as últimas 1–3 tool-calls (nome + alvo, ordem cronológica) e `stopped`
+// (a última mensagem com significado foi do assistant → está à tua espera). Tail vazio → "—".
+function extractPending(tailLines) {
+  const lines = Array.isArray(tailLines) ? tailLines : [];
+  let lastAssistantText = '';
+  const allTools = [];
+  let lastMeaningfulRole = null;
+  for (const ln of lines) {
+    if (!ln || !ln.trim()) continue;
+    let d; try { d = JSON.parse(ln); } catch { continue; }
+    const msg = d && d.message;
+    const role = (msg && msg.role) || d.type;
+    if (role !== 'assistant' && role !== 'user') continue;
+    lastMeaningfulRole = role;
+    if (role !== 'assistant') continue;
+    const content = msg && msg.content;
+    let textHere = '';
+    if (Array.isArray(content)) {
+      for (const b of content) {
+        if (!b) continue;
+        if (b.type === 'text' && typeof b.text === 'string') textHere += b.text;
+        else if (b.type === 'tool_use') allTools.push({ name: String(b.name || 'tool'), target: _toolTarget(b.input) });
+      }
+    } else if (typeof content === 'string') { textHere += content; }
+    if (textHere.trim()) lastAssistantText = textHere.trim().replace(/\s+/g, ' ').slice(0, 400);
+  }
+  return {
+    lastAssistantText: lastAssistantText || '—',
+    lastToolActions: allTools.slice(-3),
+    stopped: lastMeaningfulRole === 'assistant',
+  };
+}
+
+function _two(n) { return (n < 10 ? '0' : '') + n; }
+function _fmtTs(d) {
+  try { return d.getFullYear() + '-' + _two(d.getMonth() + 1) + '-' + _two(d.getDate()) + ' ' + _two(d.getHours()) + ':' + _two(d.getMinutes()); }
+  catch { return '—'; }
+}
+function _or(v) { const s = (v == null) ? '' : String(v).trim(); return s ? s : '—'; }
+
+// PURA (testável): monta o texto de handoff no FORMATO FIXO. Tudo determinístico de `row`
+// + `pending`. opts.doing (Ollama/1ª linha) sobrepõe a linha DOING; opts.now fixa o timestamp
+// (testes). Campo em falta → "—". Nunca lança (row/pending null → tratados como {}).
+function generateHandoff(row, pending, opts) {
+  row = row || {}; pending = pending || {}; opts = opts || {};
+  const now = opts.now || new Date();
+  const id = row.id || (row.fullId ? String(row.fullId).slice(0, 8) : '?');
+  const proj = row.cwd ? path.basename(String(row.cwd)) : '—';
+  const name = row.name || ('session ' + id);
+  const gs = row.gitStage || {};
+  const auto = row.auto ? 'on' : 'off';
+  const loop = row.loop ? 'on' : 'off';
+  const saved = (Number(row.saved) || 0).toFixed(2);
+  const state = row.working ? '🟢 working'
+    : (row.needsYou ? '🟡 needs you'
+      : (row.waitingForCowork ? '⏳ waiting for you' : '✅ idle'));
+  const doing = (opts.doing && String(opts.doing).trim()) ? String(opts.doing).trim().slice(0, 160) : _or(row.name);
+  const last = (Array.isArray(pending.lastToolActions) && pending.lastToolActions.length)
+    ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(' · ')
+    : '—';
+  const stop = (pending.lastAssistantText && String(pending.lastAssistantText).trim()) ? String(pending.lastAssistantText).slice(0, 400) : '—';
+  const lines = [
+    '⇄ MOOTER HANDOFF → cola no Cowork',
+    'project: ' + proj + ' · session: ' + name + ' (' + id + ') · ' + _fmtTs(now),
+    'branch: ' + _or(row.branch) + ' · model: ' + _or(row.model) + ' · mode: ' + _or(row.mode) + ' · auto:' + auto + ' loop:' + loop,
+    'git: staged ' + (gs.staged || 0) + ' · ahead ' + (gs.ahead || 0) + ' · dirty ' + (gs.dirty || 0) + '  |  turns: ' + (row.turns || 0) + ' · saved $' + saved + ' (sessão)',
+    'state: ' + state,
+    '',
+    '▸ DOING: ' + doing,
+    '▸ LAST STEP: ' + last,
+    '▸ PENDING / STOPPED AT: ' + stop,
+    '▸ NEXT FOR COWORK: verificar gate · responder à pergunta · push após OK',
+    '▸ PERSIST: Cowork → regista este handoff no Notion (' + _or(row.notionPageId) + ') e no vault (' + _or(row.obsidianPath) + ')',
+    '',
+    'links: SYNC.md  ·  branch ' + _or(row.branch),
+    '⇄ END HANDOFF',
+  ];
+  return lines.join('\n');
+}
+
+function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// UPSERT atómico no SYNC.md na raiz de `cwd`. Substitui a secção anterior do MESMO sid
+// (marcadores HTML estáveis), nunca acumula lixo. Escrita temp+rename. cria o ficheiro se
+// ausente (rota local: "o contexto nunca se perde"). { ok, path, created } | { ok:false }.
+function writeHandoffToSync(cwd, sid, text, opts) {
+  opts = opts || {};
+  if (!cwd || typeof cwd !== 'string') return { ok: false };
+  const sidS = String(sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!sidS) return { ok: false };
+  try {
+    const file = path.join(cwd, 'SYNC.md');
+    let base = ''; let created = false;
+    try { base = fs.readFileSync(file, 'utf8'); } catch { created = true; }
+    const ts = _fmtTs(opts.now || new Date());
+    const name = String(opts.name || sidS).replace(/[\r\n]+/g, ' ').slice(0, 60);
+    const START = '<!-- mooter-handoff:' + sidS + ' -->';
+    const END = '<!-- /mooter-handoff:' + sidS + ' -->';
+    const FENCE = '```';
+    const block = START + '\n### ⇄ Handoff · ' + name + ' · ' + ts + '\n\n'
+      + FENCE + '\n' + String(text || '') + '\n' + FENCE + '\n' + END;
+    const re = new RegExp(_reEsc(START) + '[\\s\\S]*?' + _reEsc(END));
+    let next;
+    if (re.test(base)) { next = base.replace(re, block); }
+    else {
+      if (!base.trim()) base = '# Mooter — Sync Snapshot\n';
+      next = base.replace(/\s*$/, '') + '\n\n' + block + '\n';
+    }
+    const tmp = file + '.tmp';
+    fs.writeFileSync(tmp, next);
+    fs.renameSync(tmp, file);
+    return { ok: true, path: file, created };
+  } catch { return { ok: false }; }
+}
+
+// POST a 127.0.0.1:11434/api/generate (Ollama). Best-effort, bounded, nunca lança.
+function _ollamaGenerate(model, prompt, timeoutMs) {
+  return new Promise((resolve) => {
+    try {
+      const payload = JSON.stringify({ model, prompt, stream: false, options: { num_predict: 40 } });
+      const req = http.request({ host: '127.0.0.1', port: 11434, path: '/api/generate', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: timeoutMs || 2000 },
+        (res) => { let body = ''; res.on('data', (c) => (body += c)); res.on('end', () => { try { const j = JSON.parse(body); resolve(j && typeof j.response === 'string' ? j.response : null); } catch { resolve(null); } }); });
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.write(payload); req.end();
+    } catch { resolve(null); }
+  });
+}
+
+// OPCIONAL: 1 linha "DOING" via Ollama local (modelo mais pequeno = arranque mais rápido).
+// Bounded a `timeoutMs` e NUNCA bloqueia/lança — null faz o handler cair para o 1º prompt.
+async function ollamaDoing(row, timeoutMs) {
+  timeoutMs = timeoutMs || 2000;
+  try {
+    const tags = await httpJson(11434, '/api/tags', Math.min(1200, timeoutMs));
+    const models = tags && Array.isArray(tags.models) ? tags.models : [];
+    if (!models.length) return null;
+    const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
+    if (!m || !m.name) return null;
+    const prompt = 'In ONE short line (max 12 words, no preamble), say what this coding session is working on. Topic: "'
+      + String((row && row.name) || '').slice(0, 120) + '". Answer:';
+    const out = await _ollamaGenerate(m.name, prompt, timeoutMs);
+    if (!out) return null;
+    const line = String(out).split('\n').map((s) => s.trim()).filter(Boolean)[0] || '';
+    return line ? line.slice(0, 120) : null;
+  } catch { return null; }
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
   slashCommands, _packDescription,
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
-  parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA };
+  parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
+  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing };
