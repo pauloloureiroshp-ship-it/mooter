@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
-const { httpJson } = require('./data.js');
+const { httpJson, isProbePrompt } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
 const MODE_FILE = path.join(ROUTER, '.mooter-mode.json');
@@ -922,6 +922,11 @@ async function recentSessions(maxN = 8) {
     modeRegistry().decorate(row, _cwMap);  // WCOCKPIT: junta mode/model/auto/project/brainTitle + cowork mirror + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
+    // Drop throwaway probe sessions: a one-shot transcript whose only prompt is a
+    // CLI management/status echo (e.g. `mooter slash-commands status` mis-routed
+    // through the launcher). turns<=1 ensures a real multi-turn session that merely
+    // starts with such a word is never hidden. Keeps the list showing real work.
+    if (turns <= 1 && isProbePrompt(row.name)) continue;
     out.push(row);
   }
   // WCOCKPIT-2: sort needs-you first, then most recent

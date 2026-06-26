@@ -30,6 +30,25 @@ test('parseDecisions: newest-first ordering + maxN cap', () => {
   assert.equal(r[0].n, 99); // newest first
 });
 
+test('isProbePrompt: flags CLI management/status echoes, spares real prompts', () => {
+  // probe echoes (the cockpit's own `mooter slash-commands status` poll, etc.)
+  for (const p of ['slash-commands', 'slash-commands status', 'savings', 'status', 'pack list', 'why-not-fable']) {
+    assert.equal(d.isProbePrompt(p), true, `should flag probe: ${p}`);
+  }
+  // real prompts are never flagged
+  for (const p of ['refactor the auth middleware to add refresh tokens', 'fix the login bug', 'status of the deployment pipeline and the migration plan', '', null]) {
+    assert.equal(d.isProbePrompt(p), false, `should NOT flag: ${p}`);
+  }
+});
+
+test('parseDecisions: drops probe/management echoes (cockpit poll noise)', () => {
+  const probe = JSON.stringify({ event: 'classified', tier: 'T0', prompt_preview: 'slash-commands', session_id: 'x' });
+  const real = REAL_LINE;
+  const r = d.parseDecisions([probe, real, probe].join('\n'));
+  assert.equal(r.length, 1, 'only the real decision survives');
+  assert.equal(r[0].task_category, 'architecture_or_critical');
+});
+
 test('readDecisions: missing file → [] (never throws)', () => {
   assert.deepEqual(d.readDecisions(10, '/nonexistent/decisions.log'), []);
 });
