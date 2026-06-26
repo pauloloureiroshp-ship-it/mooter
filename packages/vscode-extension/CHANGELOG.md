@@ -2,6 +2,20 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.22] — 2026-06-25 — Project Stage Rail: plain-language transparency per session
+
+### Added
+
+- **Project Stage Rail** on every live session card — a 6-step semaphore (Edit → Save → Backup → Branch → Merge → Live) that lights the step you're actually on, derived purely from the session's existing git signal. Hover any step for a plain-language explainer ("Save — bundle changes into a restore point you can return to (git: commit)").
+- **Safe-to-close chip** next to the session state, in plain words: 🟢 *safe to close*, 🟠 *unsaved work*, 🔵 *saved, not backed up*. Answers the one question a vibe coder asks before closing the laptop.
+- **Plain next-move line** ("✦ …") with a single contextual action: **Save my work** when there's unsaved work (reuses the existing Commit & Push flow — selective commit, never `git add -A`, with the classify.js sha guard). Backing up (push) and merging stay advisory by design.
+- A **↓N pull to catch up** hint when the remote is ahead.
+
+### Notes
+
+- Front-end only: zero backend change, zero new commands, no change to the routing engine. A session with no git repo shows no rail — it can't honestly claim "safe to close".
+- Respects `prefers-reduced-motion`; the rail and its action are screen-reader labelled with the current step.
+
 ## [0.16.0] — 2026-06-16 — Agents panel: accurate local/subscription + status
 
 ### Fixed

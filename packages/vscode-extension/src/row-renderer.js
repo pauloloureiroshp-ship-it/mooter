@@ -304,16 +304,9 @@ function renderRow(r, opts) {
   if (r.gitStage) {
     var _ds = deriveStages(r.gitStage, r.branch);
     var _stg = _ds.stages;
-    var _dots = '';
-    for (var _si = 0; _si < STAGE_META.length; _si++) {
-      var _sk = STAGE_META[_si][0];
-      var _sstate = _stg[_sk] || 'todo';
-      var _sicon = _sstate === 'done' ? '✓' : STAGE_META[_si][4];
-      var _stip = STAGE_META[_si][1] + ' — ' + STAGE_META[_si][3] + ' (git: ' + STAGE_META[_si][2] + ')';
-      _dots += '<span class="sdot ' + _sstate + '" title="' + esc(_stip) + '">' + _sicon + '</span>';
-    }
-    railLine = '<div class="srail" role="img" aria-label="project stage rail">' + _dots + '</div>';
-
+    // Which single stage is the current step (invariant: ≤1 'now'; 'branch'/'live' never 'now').
+    // Computed BEFORE the rail so the rail's aria-label can name the actual state to a
+    // screen reader (the per-dot title tooltips are mouse-only).
     var _nowKey = '';
     var _norder = ['edit', 'save', 'backup', 'merge'];
     for (var _ni = 0; _ni < _norder.length; _ni++) { if (_stg[_norder[_ni]] === 'now') { _nowKey = _norder[_ni]; break; } }
@@ -324,9 +317,20 @@ function renderRow(r, opts) {
       merge:  'Your side-copy is clean — ready to fold into the official version'
     };
     var _nowMsg = _nowKey ? _NOWTXT[_nowKey] : (_ds.safe.level === 'green' ? 'All caught up — nothing pending' : _ds.safe.label);
+
+    var _dots = '';
+    for (var _si = 0; _si < STAGE_META.length; _si++) {
+      var _sk = STAGE_META[_si][0];
+      var _sstate = _stg[_sk] || 'todo';
+      var _sicon = _sstate === 'done' ? '✓' : STAGE_META[_si][4];
+      var _stip = STAGE_META[_si][1] + ' — ' + STAGE_META[_si][3] + ' (git: ' + STAGE_META[_si][2] + ')';
+      _dots += '<span class="sdot ' + _sstate + '" title="' + esc(_stip) + '">' + _sicon + '</span>';
+    }
+    railLine = '<div class="srail" role="img" aria-label="' + esc('Project stage — ' + _nowMsg) + '">' + _dots + '</div>';
+
     var _nowAct = '';
     if (_ds.safe.action === 'gitFlow') {
-      _nowAct = ' <button class="snowbtn" data-a="gitFlow" data-x="' + esc(sid) + '" title="preview → commit selectivo → push (confirmado). Nunca git add -A.">' + esc(_ds.safe.move || 'Save my work') + '</button>';
+      _nowAct = ' <button class="snowbtn" data-a="gitFlow" data-x="' + esc(sid) + '" aria-label="' + esc((_ds.safe.move || 'Save my work') + ' — commit, then optionally push, this session') + '" title="preview → commit selectivo → push (confirmado). Nunca git add -A.">' + esc(_ds.safe.move || 'Save my work') + '</button>';
     } else if (_ds.safe.hint) {
       _nowAct = ' <span class="snowhint" title="advisory — use ⎇ Commit &amp; Push in the drawer to back up">' + esc(_ds.safe.hint) + '</span>';
     }
