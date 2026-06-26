@@ -1728,3 +1728,51 @@ test('⇄ Handoff host-side flow (handler sim): clipboard + handoffSentAt + SYNC
   assert.ok(sync.includes('⇄ Handoff') && sync.includes('Ready to commit?'), 'SYNC.md upserted with the handoff');
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+// ── ⇄ Handoff HÍBRIDO (esqueleto determinístico + narrativa local) — RECAP / SAVINGS / mode ──
+test('⇄ Handoff híbrido: full inclui RECAP (opts.recap); quick NÃO; LLM nunca toca no PENDING', () => {
+  const row = { id: 'h1', name: 'first prompt', turns: 20, branch: 'b' };
+  const pending = { lastAssistantText: 'EXACT pending question?', lastToolActions: [], stopped: true };
+  const full = x.generateHandoff(row, pending, { mode: 'full', doing: 'DOING line', recap: 'line1\nline2\nline3', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(full.includes('▸ RECAP (local summary): line1'), 'full mode renders the RECAP line');
+  assert.ok(full.includes('line2') && full.includes('line3'), 'RECAP keeps its 3–5 lines');
+  // quick mode DROPS the RECAP even when a recap string is supplied
+  const quick = x.generateHandoff(row, pending, { mode: 'quick', recap: 'line1\nline2', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!quick.includes('▸ RECAP'), 'quick mode omits RECAP');
+  // REGRA DURA: o LLM (doing/recap) NUNCA toca no PENDING — fica verbatim em ambos os modos
+  assert.ok(full.includes('▸ PENDING / STOPPED AT: EXACT pending question?'), 'PENDING verbatim under full');
+  assert.ok(quick.includes('▸ PENDING / STOPPED AT: EXACT pending question?'), 'PENDING verbatim under quick');
+});
+
+test('⇄ Handoff híbrido: LLM ausente (sem recap) → RECAP omitido mesmo em full; DOING cai no 1º prompt', () => {
+  const txt = x.generateHandoff({ id: 'h2', name: 'p', turns: 50 }, { lastAssistantText: 'q?', lastToolActions: [], stopped: true }, { mode: 'full', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!txt.includes('▸ RECAP'), 'no recap supplied (timeout/Ollama-down) → RECAP omitted');
+  assert.ok(txt.includes('▸ DOING: p'), 'DOING falls back to the 1st prompt');
+});
+
+test('⇄ Handoff §SAVINGS: rodapé só com estimativa positiva (estTokensSaved:0 → omite), antes de links', () => {
+  const row = { id: 'h3', name: 'p', turns: 3 };
+  const pending = { lastAssistantText: 'q?', lastToolActions: [], stopped: true };
+  const withEst = x.generateHandoff(row, pending, { estTokensSaved: 1000, now: new Date('2026-06-26T00:00:00') });
+  assert.ok(withEst.includes('compressed locally (T0 · $0) · ~1k tok saved vs screenshot (est.)'), 'footer rendered with a labelled estimate');
+  assert.ok(withEst.indexOf('compressed locally') < withEst.indexOf('links: SYNC.md'), 'footer precedes the links line');
+  assert.ok(withEst.trimEnd().endsWith('⇄ END HANDOFF'));
+  const noEst = x.generateHandoff(row, pending, { estTokensSaved: 0, now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!noEst.includes('compressed locally'), 'sem estimativa → rodapé omitido (nunca um número fabricado)');
+  // default (no estTokensSaved) → estimated from text size → a positive footer is present
+  const def = x.generateHandoff(row, pending, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(def.includes('compressed locally (T0 · $0)') && def.includes('tok saved vs screenshot (est.)'), 'default path estimates from text size');
+});
+
+test('⇄ Handoff híbrido: mode default segue o tamanho da sessão (turns≥12 → full, senão quick)', () => {
+  const big = x.generateHandoff({ id: 'h4', name: 'p', turns: 12 }, { lastAssistantText: 'q?' }, { recap: 'R', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(big.includes('▸ RECAP (local summary): R'), 'turns≥12 defaults to full → RECAP shown when supplied');
+  const small = x.generateHandoff({ id: 'h5', name: 'p', turns: 4 }, { lastAssistantText: 'q?' }, { recap: 'R', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!small.includes('▸ RECAP'), 'turns<12 defaults to quick → no RECAP');
+});
+
+test('⇄ Handoff ollamaRecap: contrato — Promise; Ollama-down → null (nunca lança/bloqueia)', async () => {
+  // No live Ollama in CI → resolves null without throwing (hard-bounded, fail-open).
+  const r = await x.ollamaRecap({ name: 'p' }, { lastToolActions: [] }, 300);
+  assert.ok(r === null || typeof r === 'string');
+});

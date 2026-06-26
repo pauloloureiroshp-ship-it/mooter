@@ -1049,9 +1049,24 @@ function _fmtTs(d) {
 }
 function _or(v) { const s = (v == null) ? '' : String(v).trim(); return s ? s : '—'; }
 
-// PURA (testável): monta o texto de handoff no FORMATO FIXO. Tudo determinístico de `row`
-// + `pending`. opts.doing (Ollama/1ª linha) sobrepõe a linha DOING; opts.now fixa o timestamp
-// (testes). Campo em falta → "—". Nunca lança (row/pending null → tratados como {}).
+// Sessão "grande" (turns ≥ FULL_TURNS) → o handoff defaulta a 'full' (inclui RECAP). Abaixo
+// disto, 'quick' (só DOING). O opts.mode explícito sobrepõe sempre.
+const HANDOFF_FULL_TURNS = 12;
+// Baseline honesto: um screenshot enviado a um modelo de visão custa ~1.2k tokens. O handoff é
+// texto comprimido localmente; o "saved" é a diferença, sempre rotulado "(est.)". Nunca inventado.
+const HANDOFF_SCREENSHOT_TOK = 1200;
+function _fmtK(n) {
+  const k = (Number(n) || 0) / 1000;
+  return (k >= 10 ? Math.round(k) : Math.round(k * 10) / 10).toString().replace(/\.0$/, '') + 'k';
+}
+
+// PURA (testável): monta o texto de handoff no FORMATO FIXO. ESQUELETO determinístico de `row`
+// + `pending` (autoritativo). A NARRATIVA é do LLM local e ENTRA POR `opts` (nunca chamada aqui):
+//   opts.doing → linha DOING (fallback: 1º prompt) · opts.recap → linha RECAP (só mode 'full').
+// REGRA DURA: o PENDING é SEMPRE verbatim de pending.lastAssistantText — o LLM NUNCA lhe toca.
+// opts.mode 'quick'|'full' (default por tamanho da sessão); opts.estTokensSaved fixa/omite (≤0) o
+// rodapé §SAVINGS, senão estima do tamanho do texto. opts.now fixa o timestamp (testes). Campo em
+// falta → "—". Nunca lança (row/pending null → tratados como {}).
 function generateHandoff(row, pending, opts) {
   row = row || {}; pending = pending || {}; opts = opts || {};
   const now = opts.now || new Date();
@@ -1062,15 +1077,21 @@ function generateHandoff(row, pending, opts) {
   const auto = row.auto ? 'on' : 'off';
   const loop = row.loop ? 'on' : 'off';
   const saved = (Number(row.saved) || 0).toFixed(2);
+  const hmode = (opts.mode === 'full' || opts.mode === 'quick')
+    ? opts.mode
+    : ((Number(row.turns) || 0) >= HANDOFF_FULL_TURNS ? 'full' : 'quick');
   const state = row.working ? '🟢 working'
     : (row.needsYou ? '🟡 needs you'
       : (row.waitingForCowork ? '⏳ waiting for you' : '✅ idle'));
   const doing = (opts.doing && String(opts.doing).trim()) ? String(opts.doing).trim().slice(0, 160) : _or(row.name);
+  // RECAP só em 'full' E só quando o LLM devolveu algo — timeout/Ollama-down → recap omitido.
+  const recap = (hmode === 'full' && opts.recap && String(opts.recap).trim())
+    ? String(opts.recap).trim().slice(0, 600) : null;
   const last = (Array.isArray(pending.lastToolActions) && pending.lastToolActions.length)
     ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(' · ')
     : '—';
   const stop = (pending.lastAssistantText && String(pending.lastAssistantText).trim()) ? String(pending.lastAssistantText).slice(0, 400) : '—';
-  const lines = [
+  const body = [
     '⇄ MOOTER HANDOFF → cola no Cowork',
     'project: ' + proj + ' · session: ' + name + ' (' + id + ') · ' + _fmtTs(now),
     'branch: ' + _or(row.branch) + ' · model: ' + _or(row.model) + ' · mode: ' + _or(row.mode) + ' · auto:' + auto + ' loop:' + loop,
@@ -1078,15 +1099,22 @@ function generateHandoff(row, pending, opts) {
     'state: ' + state,
     '',
     '▸ DOING: ' + doing,
-    '▸ LAST STEP: ' + last,
-    '▸ PENDING / STOPPED AT: ' + stop,
-    '▸ NEXT FOR COWORK: verificar gate · responder à pergunta · push após OK',
-    '▸ PERSIST: Cowork → regista este handoff no Notion (' + _or(row.notionPageId) + ') e no vault (' + _or(row.obsidianPath) + ')',
-    '',
-    'links: SYNC.md  ·  branch ' + _or(row.branch),
-    '⇄ END HANDOFF',
   ];
-  return lines.join('\n');
+  if (recap) body.push('▸ RECAP (local summary): ' + recap);
+  body.push('▸ LAST STEP: ' + last);
+  body.push('▸ PENDING / STOPPED AT: ' + stop);
+  body.push('▸ NEXT FOR COWORK: verificar gate · responder à pergunta · push após OK');
+  body.push('▸ PERSIST: Cowork → regista este handoff no Notion (' + _or(row.notionPageId) + ') e no vault (' + _or(row.obsidianPath) + ')');
+  // §SAVINGS rodapé — estimativa rotulada do custo evitado vs colar um screenshot. Sem estimativa
+  // positiva (estTokensSaved ≤ 0) → omite (nunca um número fabricado).
+  const estSaved = (opts.estTokensSaved != null)
+    ? (Number(opts.estTokensSaved) || 0)
+    : Math.max(0, HANDOFF_SCREENSHOT_TOK - Math.ceil(body.join('\n').length / 4));
+  const tail = [''];
+  if (estSaved > 0) tail.push('compressed locally (T0 · $0) · ~' + _fmtK(estSaved) + ' tok saved vs screenshot (est.)');
+  tail.push('links: SYNC.md  ·  branch ' + _or(row.branch));
+  tail.push('⇄ END HANDOFF');
+  return body.concat(tail).join('\n');
 }
 
 function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1125,10 +1153,10 @@ function writeHandoffToSync(cwd, sid, text, opts) {
 }
 
 // POST a 127.0.0.1:11434/api/generate (Ollama). Best-effort, bounded, nunca lança.
-function _ollamaGenerate(model, prompt, timeoutMs) {
+function _ollamaGenerate(model, prompt, timeoutMs, numPredict) {
   return new Promise((resolve) => {
     try {
-      const payload = JSON.stringify({ model, prompt, stream: false, options: { num_predict: 40 } });
+      const payload = JSON.stringify({ model, prompt, stream: false, options: { num_predict: numPredict || 40 } });
       const req = http.request({ host: '127.0.0.1', port: 11434, path: '/api/generate', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: timeoutMs || 2000 },
         (res) => { let body = ''; res.on('data', (c) => (body += c)); res.on('end', () => { try { const j = JSON.parse(body); resolve(j && typeof j.response === 'string' ? j.response : null); } catch { resolve(null); } }); });
@@ -1158,6 +1186,34 @@ async function ollamaDoing(row, timeoutMs) {
   } catch { return null; }
 }
 
+// OPCIONAL (mode 'full'): RECAP de 3–5 linhas via Ollama local. Lê APENAS o contexto já extraído
+// do transcript (1º prompt + últimas tool-calls); o prompt manda "resume só o que está aqui; não
+// inventes; se não souberes, escreve —". NUNCA toca no PENDING (esse é verbatim no gerador).
+// Timeout DURO (~4s) e NUNCA bloqueia/lança — null faz o gerador omitir o RECAP (fallback honesto).
+async function ollamaRecap(row, pending, timeoutMs) {
+  timeoutMs = timeoutMs || 4000;
+  try {
+    const tags = await httpJson(11434, '/api/tags', Math.min(1500, timeoutMs));
+    const models = tags && Array.isArray(tags.models) ? tags.models : [];
+    if (!models.length) return null;
+    const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
+    if (!m || !m.name) return null;
+    const acts = (pending && Array.isArray(pending.lastToolActions))
+      ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(', ') : '';
+    const ctx = [
+      'Topic: ' + String((row && row.name) || '').slice(0, 160),
+      acts ? 'Recent actions: ' + acts.slice(0, 220) : '',
+    ].filter(Boolean).join('\n');
+    const prompt = 'You are writing a short handoff recap for a coding session. Resume SO o que esta no '
+      + 'contexto abaixo; nao inventes; se nao souberes, escreve "-". 3 to 5 short lines, no preamble.\n\n'
+      + ctx + '\n\nRecap:';
+    const out = await _ollamaGenerate(m.name, prompt, timeoutMs, 160);
+    if (!out) return null;
+    const lines = String(out).split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 5);
+    return lines.length ? lines.join('\n').slice(0, 600) : null;
+  } catch { return null; }
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
@@ -1165,4 +1221,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
-  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing };
+  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap };
