@@ -1858,8 +1858,8 @@ test('⇄ Handoff v2.1 #2 handler-sim: projHandoff → painel do grupo (sid casa
   // do group header (renderGroupHeader), senão o painel nunca é revelado ("handoff de projecto não aparece").
   const projKey = 'Mooter.ai';
   const rows = [
-    { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
-    { id: 'bb', fullId: 'bb', name: 'B', cwd: '/repo', branch: 'main', gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 1 } },
+    { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', working: true, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
+    { id: 'bb', fullId: 'bb', name: 'B', cwd: '/repo', branch: 'main', needsYou: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 1 } },
   ];
   const hoffCache = {};
   const posts = [];
@@ -1876,25 +1876,78 @@ test('⇄ Handoff v2.1 #2 handler-sim: projHandoff → painel do grupo (sid casa
   assert.equal(posts[1].status, 'enriched');
   assert.equal(posts[0].sid, projKey, 'sid postado casa o data-hoff do painel do grupo');
   assert.equal(posts[1].sid, projKey, 'enriched mantém o mesmo sid');
-  // Board com as 3 flags inline (DUP: 2 sessões mesmo repo+branch; UNCOMMITTED; UNPUSHED).
+  // Board com as 3 flags inline (DUP: 2 sessões ACTIVAS no mesmo repo+branch; UNCOMMITTED; UNPUSHED).
   assert.ok(posts[1].text.includes('DUP') && posts[1].text.includes('UNCOMMITTED') && posts[1].text.includes('UNPUSHED'), 'board revela as 3 flags inline');
   assert.equal(hoffCache[projKey], finalText, '📋 Copiar re-copia a board exacta da cache (clipboard)');
 });
 
 test('⇄ Handoff v2 generateProjectHandoff: BOARD com as 3 flags (DUP · UNCOMMITTED · UNPUSHED)', () => {
+  // 2 sessões ACTIVAS (working + needsYou) no mesmo repo+branch → 1 grupo contestado → DUP.
   const rows = [
-    { id: 'aa', fullId: 'aa', name: 'session A', cwd: '/repo', branch: 'main', model: 'claude-opus-4-8', gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0 } },
-    { id: 'bb', fullId: 'bb', name: 'session B', cwd: '/repo', branch: 'main', model: 'claude-sonnet-4-6', gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2 } },
+    { id: 'aa', fullId: 'aa', name: 'session A', cwd: '/repo', branch: 'main', model: 'claude-opus-4-8', working: true, gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0 } },
+    { id: 'bb', fullId: 'bb', name: 'session B', cwd: '/repo', branch: 'main', model: 'claude-sonnet-4-6', needsYou: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2 } },
   ];
   const txt = x.generateProjectHandoff('Mooter.ai', rows, { now: new Date('2026-06-26T12:00:00') });
   assert.ok(txt.includes('⇄ MOOTER PROJECT HANDOFF'), 'header present');
   assert.ok(txt.includes('project: Mooter.ai · 2 sessões'), 'session count + project name');
-  assert.ok(txt.includes('DUP'), 'DUP flag (≥2 sessions same repo+branch)');
+  assert.ok(txt.includes('DUP'), 'DUP flag (≥2 ACTIVE sessions same repo+branch)');
   assert.ok(txt.includes('UNCOMMITTED'), 'UNCOMMITTED flag (dirty>0)');
   assert.ok(txt.includes('UNPUSHED'), 'UNPUSHED flag (ahead>0)');
-  assert.ok(txt.includes('▸ FLAGS: 2 DUP · 1 UNCOMMITTED · 1 UNPUSHED'), 'flag tallies are honest');
+  // Tally conta GRUPOS contestados, não linhas: 1 grupo (repo+main) com 2 activas → "1 DUP".
+  assert.ok(txt.includes('▸ FLAGS: 1 DUP · 1 UNCOMMITTED · 1 UNPUSHED'), 'flag tallies are honest (group-counted)');
   assert.ok(txt.includes('session A (aa) · main · Opus 4.8') || txt.includes('session A (aa) · main · claude-opus-4-8'), 'per-session board line');
   assert.ok(txt.trimEnd().endsWith('⇄ END PROJECT HANDOFF'), 'closes with END marker');
+});
+
+test('⇄ Handoff v2 DUP (active-only): 3 idle em main → 0 DUP; 2 working mesma branch → DUP=1', () => {
+  // 3 sessões IDLE (✅) no mesmo repo+branch (main) → colisão NÃO é real → 0 DUP. Em vez disso, a
+  // FLAGS mostra a co-habitação informativa "N em <branch>" — nunca um DUP fabricado.
+  const idle = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'c', fullId: 'c', name: 'C', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const tIdle = x.generateProjectHandoff('P', idle, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!/\[[^\]]*DUP/.test(tIdle), 'nenhuma linha de sessão é marcada [DUP] (idle nunca dispara)');
+  assert.ok(tIdle.includes('▸ FLAGS: 3 em main · 0 UNCOMMITTED · 0 UNPUSHED'), '0 DUP → co-habitação informativa');
+  // 2 sessões ACTIVAS na mesma branch → 1 grupo contestado → DUP=1, ambas marcadas.
+  const active = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', needsYou: true, gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const tActive = x.generateProjectHandoff('P', active, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(tActive.includes('▸ FLAGS: 1 DUP'), '2 activas mesma branch → DUP=1 (group-counted)');
+  assert.equal((tActive.match(/\[DUP\]/g) || []).length, 2, 'ambas as sessões activas marcadas [DUP]');
+  // 1 activa + 1 idle na mesma branch → só 1 activa → NÃO é colisão → 0 DUP (informativo "2 em …").
+  const mixed = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const tMixed = x.generateProjectHandoff('P', mixed, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!/\[[^\]]*DUP/.test(tMixed) && tMixed.includes('▸ FLAGS: 2 em feat'), '1 activa só → sem DUP, informativo');
+});
+
+test('⇄ Handoff v2 OVERALL fallback: sem LLM → resumo de contagens (NUNCA o 1º prompt de uma row)', () => {
+  // Uma sessão cujo NOME é uma frase tipo-1º-prompt. Sem synth → o OVERALL é o resumo determinístico
+  // dos contadores, e JAMAIS o nome/1º-prompt da sessão (era o bug que sujava a OVERALL).
+  const firstPrompt = 'porque é que o websocket reconnect falha às vezes em produção';
+  const rows = [
+    { id: 'aa', fullId: 'aa', name: firstPrompt, cwd: '/r', branch: 'main', working: true, gitStage: { dirty: 1, ahead: 0 } },
+    { id: 'bb', fullId: 'bb', name: 'outra', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 2 } },
+  ];
+  const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-26T00:00:00') });
+  const overall = txt.split('\n').find((l) => l.includes('▸ OVERALL')) || '';
+  assert.ok(overall, 'OVERALL está SEMPRE presente (n>0)');
+  assert.ok(!overall.includes('(local summary)'), 'fallback é determinístico, não rotulado LLM');
+  assert.ok(!overall.includes(firstPrompt), 'OVERALL NUNCA usa o 1º prompt/nome de uma sessão');
+  assert.ok(overall.includes('2 sessões em main') && overall.includes('1 activa') && overall.includes('1 por commitar') && overall.includes('1 por push'), 'resumo factual dos contadores reais');
+});
+
+test('⇄ Handoff v2 OVERALL: com synth (qwen) → usa o synth verbatim como OVERALL', () => {
+  const rows = [{ id: 'x', fullId: 'x', name: 'n', cwd: '/r', branch: 'b', gitStage: { dirty: 0, ahead: 0 } }];
+  const txt = x.generateProjectHandoff('P', rows, { synth: 'duas sessões, uma à frente', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(txt.includes('▸ OVERALL (local summary): duas sessões, uma à frente'), 'synth local entra como OVERALL');
+  assert.ok(!txt.includes('por commitar'), 'com synth, o fallback determinístico não aparece');
 });
 
 test('⇄ Handoff v2 generateProjectHandoff: sem rows → nunca lança, header + END; synth opcional', () => {
@@ -1903,9 +1956,11 @@ test('⇄ Handoff v2 generateProjectHandoff: sem rows → nunca lança, header +
   assert.ok(empty.includes('project: Empty · 0 sessões'), '0 sessions handled');
   assert.ok(empty.includes('(nenhuma sessão neste projecto)'), 'honest empty board');
   assert.ok(empty.includes('⇄ END PROJECT HANDOFF'));
-  // synth (síntese local) entra só quando presente — nunca fabricada
+  assert.ok(!empty.includes('▸ OVERALL'), '0 sessões → sem OVERALL (board honesta já o diz)');
+  // OVERALL sempre limpo: sem synth → fallback determinístico (contagens), com synth → a síntese local.
   const noSynth = x.generateProjectHandoff('P', [{ id: 'x', name: 'n', branch: 'b' }], { now: new Date('2026-06-26T00:00:00') });
-  assert.ok(!noSynth.includes('▸ OVERALL'), 'no synth → no OVERALL line');
+  assert.ok(noSynth.includes('▸ OVERALL:') && !noSynth.includes('(local summary)'), 'no synth → deterministic OVERALL (counts)');
+  assert.ok(noSynth.includes('1 sessão em b'), 'fallback resume os contadores reais');
   const withSynth = x.generateProjectHandoff('P', [{ id: 'x', name: 'n', branch: 'b' }], { synth: 'two sessions, one ahead', now: new Date('2026-06-26T00:00:00') });
   assert.ok(withSynth.includes('▸ OVERALL (local summary): two sessions, one ahead'), 'synth rendered when supplied');
 });
@@ -1916,7 +1971,8 @@ test('⇄ Handoff v2 Ollama-down → board "done" na mesma (síntese omitida, nu
   assert.ok(synth === null || typeof synth === 'string');
   const text = x.generateProjectHandoff('P', rows, { synth });
   assert.ok(text.includes('⇄ END PROJECT HANDOFF'), 'a complete (done) board is produced regardless of Ollama');
-  if (synth === null) assert.ok(!text.includes('▸ OVERALL'), 'Ollama-down → OVERALL omitted (no fabricated synthesis)');
+  // Ollama-down → OVERALL é o resumo DETERMINÍSTICO dos contadores, nunca uma síntese fabricada nem o 1º prompt.
+  if (synth === null) assert.ok(text.includes('▸ OVERALL:') && !text.includes('(local summary)'), 'Ollama-down → deterministic OVERALL (counts), no fabricated synthesis');
 });
 
 test('⇄ Handoff v2 ollamaProjectSynth: contrato — Promise; Ollama-down → null (nunca lança/bloqueia)', async () => {
