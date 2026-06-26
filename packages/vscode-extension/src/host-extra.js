@@ -12,6 +12,9 @@ const { httpJson, isProbePrompt } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
 const MODE_FILE = path.join(ROUTER, '.mooter-mode.json');
+// Ollama port — 11434 in prod; overridable ONLY via env so runtime smoke tests can point the
+// real ollamaDoing/ollamaRecap/_ollamaGenerate at a fake server (down/slow) without touching 11434.
+const OLLAMA_PORT = Number(process.env.MOOTER_OLLAMA_PORT) || 11434;
 
 // WCOCKPIT: mode-registry + cowork-waiting (aditivo — carregados lazy para evitar crash em ambientes sem src/)
 let _modeRegistry = null, _coworkWaiting = null;
@@ -48,7 +51,7 @@ function execTool(cmd, args = [], timeoutMs = 6000, cwd) {
 }
 
 async function ollamaModels() {
-  const r = await httpJson(11434, '/api/tags', 1500);
+  const r = await httpJson(OLLAMA_PORT, '/api/tags', 1500);
   if (!r || !Array.isArray(r.models)) return null; // null = ollama down
   return r.models.map((m) => ({ name: m.name, sizeGb: m.size ? +(m.size / 1e9).toFixed(1) : null }));
 }
@@ -1157,7 +1160,7 @@ function _ollamaGenerate(model, prompt, timeoutMs, numPredict) {
   return new Promise((resolve) => {
     try {
       const payload = JSON.stringify({ model, prompt, stream: false, options: { num_predict: numPredict || 40 } });
-      const req = http.request({ host: '127.0.0.1', port: 11434, path: '/api/generate', method: 'POST',
+      const req = http.request({ host: '127.0.0.1', port: OLLAMA_PORT, path: '/api/generate', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: timeoutMs || 2000 },
         (res) => { let body = ''; res.on('data', (c) => (body += c)); res.on('end', () => { try { const j = JSON.parse(body); resolve(j && typeof j.response === 'string' ? j.response : null); } catch { resolve(null); } }); });
       req.on('error', () => resolve(null));
@@ -1172,7 +1175,7 @@ function _ollamaGenerate(model, prompt, timeoutMs, numPredict) {
 async function ollamaDoing(row, timeoutMs) {
   timeoutMs = timeoutMs || 2000;
   try {
-    const tags = await httpJson(11434, '/api/tags', Math.min(1200, timeoutMs));
+    const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1200, timeoutMs));
     const models = tags && Array.isArray(tags.models) ? tags.models : [];
     if (!models.length) return null;
     const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
@@ -1193,7 +1196,7 @@ async function ollamaDoing(row, timeoutMs) {
 async function ollamaRecap(row, pending, timeoutMs) {
   timeoutMs = timeoutMs || 4000;
   try {
-    const tags = await httpJson(11434, '/api/tags', Math.min(1500, timeoutMs));
+    const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, timeoutMs));
     const models = tags && Array.isArray(tags.models) ? tags.models : [];
     if (!models.length) return null;
     const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
@@ -1214,6 +1217,40 @@ async function ollamaRecap(row, pending, timeoutMs) {
   } catch { return null; }
 }
 
+// ⇄ Handoff orchestration — the SINGLE source of truth shared by the cockpit handler and the
+// runtime smoke. Builds the hybrid handoff: deterministic skeleton (git/branch/files + PENDING
+// verbatim, never touched by the LLM) decorated with an OPTIONAL local narrative (DOING + RECAP).
+//
+// Why this exists: the optional Ollama narrative must NEVER make the clipboard wait. Two guards:
+//   1) DOING and RECAP run in PARALLEL (was sequential 2s→4s ≈ 6s; now ≈ max(2s,4s) = 4s worst case).
+//   2) A HARD overall deadline (default 4500ms) wins the race no matter what — so even if a socket
+//      timeout misfires or Ollama hangs, generateHandoff still ships the deterministic text < 5s.
+// Best-effort throughout: any failure → that narrative piece is null and the skeleton stands alone.
+async function composeHandoff(row, pending, opts) {
+  opts = opts || {};
+  const mode = opts.mode || ((Number(row && row.turns) || 0) >= 12 ? 'full' : 'quick');
+  const doingMs = opts.doingMs || 2000;
+  const recapMs = opts.recapMs || 4000;
+  const deadlineMs = opts.deadlineMs || 4500;
+  let timer = null;
+  const narrative = (async () => {
+    const doingP = ollamaDoing(row, doingMs).catch(() => null);
+    const recapP = mode === 'full' ? ollamaRecap(row, pending, recapMs).catch(() => null) : Promise.resolve(null);
+    const [doing, recap] = await Promise.all([doingP, recapP]);
+    return { doing, recap, deadline: false };
+  })();
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ doing: null, recap: null, deadline: true }), deadlineMs);
+    if (timer && timer.unref) timer.unref(); // never hold the event loop open on the narrative
+  });
+  let got;
+  try { got = await Promise.race([narrative, deadline]); }
+  catch { got = { doing: null, recap: null, deadline: false }; }
+  finally { if (timer) clearTimeout(timer); }
+  const text = generateHandoff(row, pending, { doing: got.doing, recap: got.recap, mode, now: opts.now });
+  return { text, mode, doing: got.doing, recap: got.recap, timedOut: !!got.deadline };
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
@@ -1221,4 +1258,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
-  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap };
+  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff };

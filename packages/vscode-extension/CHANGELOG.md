@@ -2,6 +2,17 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.25] — 2026-06-26 — ⇄ Handoff: never "nothing" (parallel narrative + hard deadline)
+
+### Fixed
+
+- **⇄ Handoff button felt like it "generated nothing".** Root cause: on sessions with ≥12 turns ('full' mode) the optional local narrative ran the DOING and RECAP Ollama calls **sequentially** (2s + 4s), so against a cold/slow Ollama the clipboard wasn't written for ~6s — with **no on-screen feedback** during the wait, the click looked dead. Now DOING and RECAP run **in parallel** behind a **hard 4.5s deadline**, so the deterministic handoff (git/branch/files + PENDING verbatim) always reaches the clipboard in **< 5s**, even when Ollama hangs or is down. Added an immediate "🐮 a gerar handoff…" status the moment the button is clicked.
+
+### Added
+
+- **Runtime smoke** (`handoff-runtime-smoke.test.js`) that drives the REAL orchestration (`composeHandoff`) against a fake Ollama that is **down** and **hung on /api/generate**, asserting the clipboard is non-empty, the PENDING line is verbatim, and everything ships in < 5s. The previous handoff tests were sims that never touched the Ollama path.
+- `MOOTER_OLLAMA_PORT` env seam (defaults to 11434) so the smoke can point the real Ollama functions at a controllable fake server without touching the live daemon.
+
 ## [0.16.22] — 2026-06-25 — Project Stage Rail: plain-language transparency per session
 
 ### Added
