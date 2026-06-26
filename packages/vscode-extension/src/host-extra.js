@@ -1207,7 +1207,9 @@ function writeHandoffToSync(cwd, sid, text, opts) {
 function _ollamaGenerate(model, prompt, timeoutMs, numPredict) {
   return new Promise((resolve) => {
     try {
-      const payload = JSON.stringify({ model, prompt, stream: false, options: { num_predict: numPredict || 40 } });
+      // keep_alive '30m' KEEP-WARM: cada /api/generate renova a janela de retenção do modelo em RAM
+      // (esqueleto+enriquecimento futuros já vêm quentes, sem cold-load do disco). Renova a cada uso.
+      const payload = JSON.stringify({ model, prompt, stream: false, keep_alive: '30m', options: { num_predict: numPredict || 40 } });
       const req = http.request({ host: '127.0.0.1', port: OLLAMA_PORT, path: '/api/generate', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: timeoutMs || 2000 },
         (res) => { let body = ''; res.on('data', (c) => (body += c)); res.on('end', () => { try { const j = JSON.parse(body); resolve(j && typeof j.response === 'string' ? j.response : null); } catch { resolve(null); } }); });

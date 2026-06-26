@@ -1830,30 +1830,32 @@ test('⇄ Handoff v2 webview-sim: botão projHandoff + painel .hoffp no group he
   assert.ok(html.indexOf('class="hoffp"') > html.indexOf('class="ghd'), 'panel sits after the .ghd header');
 });
 
-test('⇄ Handoff v2 handler-sim: 2 postMessages — esqueleto (PENDING verbatim) → final', () => {
+test('⇄ Handoff v2.1 handler-sim: 2 postMessages — esqueleto (ready) → enriquecido (enriched)', () => {
   // Espelha a sequência do handler m.cmd==="handoff": skeleton determinístico (sem doing/recap)
-  // postado 'generating' → texto final postado 'done'. PENDING verbatim em AMBOS.
+  // postado 'ready' (copiado já) → texto enriquecido postado 'enriched' (com model). PENDING verbatim em AMBOS.
   const row = { fullId: 's1', id: 's1', name: 'wire v2 panel', branch: 'wave/cockpit-handoff-v2',
     model: 'claude-opus-4-8', turns: 20, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } };
   const pending = { lastAssistantText: 'EXACT pending verbatim?', lastToolActions: [{ name: 'Write', target: 'extension.js' }], stopped: true };
   const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
   const posts = [];
   const skeleton = x.generateHandoff(row, pending, { mode });
-  posts.push({ type: 'handoff', sid: row.fullId, status: 'generating', text: skeleton });
-  const final = x.generateHandoff(row, pending, { doing: 'narrativa local', recap: null, mode });
-  posts.push({ type: 'handoff', sid: row.fullId, status: 'done', text: final });
+  posts.push({ type: 'handoff', sid: row.fullId, status: 'ready', text: skeleton });
+  const enriched = x.generateHandoff(row, pending, { doing: 'narrativa local', recap: null, mode, genModel: 'qwen2.5:3b' });
+  posts.push({ type: 'handoff', sid: row.fullId, status: 'enriched', text: enriched, model: 'qwen2.5:3b' });
   assert.equal(posts.length, 2, 'exactly two postMessages');
-  assert.equal(posts[0].status, 'generating');
-  assert.equal(posts[1].status, 'done');
+  assert.equal(posts[0].status, 'ready');
+  assert.equal(posts[1].status, 'enriched');
+  assert.equal(posts[1].model, 'qwen2.5:3b', 'enriched carries the local gen model name');
   assert.ok(posts[0].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'skeleton carries PENDING verbatim');
-  assert.ok(posts[1].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'final keeps PENDING verbatim');
+  assert.ok(posts[1].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'enriched keeps PENDING verbatim');
   assert.ok(posts[0].text.includes('▸ LAST STEP: Write extension.js'), 'deterministic LAST STEP already in the skeleton');
+  assert.ok(posts[1].text !== posts[0].text, 'enriched text differs from the skeleton');
 });
 
-test('⇄ Handoff v2 #2 handler-sim: projHandoff → painel do grupo (sid casa data-hoff) revela board + clipboard', () => {
-  // Espelha m.cmd==="projHandoff": board instantânea → postMessage 'generating'(sid=projKey) →
-  // 'done'. O sid POSTADO tem de casar o data-hoff do painel do group header (renderGroupHeader),
-  // senão o painel nunca é revelado (era o sintoma "handoff de projecto não aparece").
+test('⇄ Handoff v2.1 #2 handler-sim: projHandoff → painel do grupo (sid casa data-hoff) revela board + clipboard', () => {
+  // Espelha m.cmd==="projHandoff": board instantânea → postMessage 'ready'(sid=projKey, copiada já) →
+  // 'enriched' quando a síntese local muda o texto. O sid POSTADO tem de casar o data-hoff do painel
+  // do group header (renderGroupHeader), senão o painel nunca é revelado ("handoff de projecto não aparece").
   const projKey = 'Mooter.ai';
   const rows = [
     { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
@@ -1863,15 +1865,17 @@ test('⇄ Handoff v2 #2 handler-sim: projHandoff → painel do grupo (sid casa d
   const posts = [];
   const instant = x.generateProjectHandoff(projKey, rows, {});
   hoffCache[projKey] = instant;
-  posts.push({ type: 'handoff', sid: projKey, status: 'generating', text: instant });
-  const finalText = x.generateProjectHandoff(projKey, rows, { synth: null });
-  hoffCache[projKey] = finalText;
-  posts.push({ type: 'handoff', sid: projKey, status: 'done', text: finalText });
+  posts.push({ type: 'handoff', sid: projKey, status: 'ready', text: instant });
+  const finalText = x.generateProjectHandoff(projKey, rows, { synth: 'two sessions, one ahead' });
+  if (finalText !== instant) { hoffCache[projKey] = finalText; posts.push({ type: 'handoff', sid: projKey, status: 'enriched', text: finalText, model: 'local' }); }
   // O painel do group header é keyed por projKey → o sid postado tem de o igualar.
   const headerHtml = _wvRenderGroupHeader(projKey, rows);
   assert.ok(headerHtml.includes('data-hoff="' + projKey + '"'), 'painel do grupo keyed pelo projKey');
+  assert.equal(posts.length, 2, 'ready + enriched (síntese local mudou o texto)');
+  assert.equal(posts[0].status, 'ready');
+  assert.equal(posts[1].status, 'enriched');
   assert.equal(posts[0].sid, projKey, 'sid postado casa o data-hoff do painel do grupo');
-  assert.equal(posts[1].sid, projKey, 'final mantém o mesmo sid');
+  assert.equal(posts[1].sid, projKey, 'enriched mantém o mesmo sid');
   // Board com as 3 flags inline (DUP: 2 sessões mesmo repo+branch; UNCOMMITTED; UNPUSHED).
   assert.ok(posts[1].text.includes('DUP') && posts[1].text.includes('UNCOMMITTED') && posts[1].text.includes('UNPUSHED'), 'board revela as 3 flags inline');
   assert.equal(hoffCache[projKey], finalText, '📋 Copiar re-copia a board exacta da cache (clipboard)');
