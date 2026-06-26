@@ -2,6 +2,18 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.27] — 2026-06-26 — Handoff v2: inline live panel (per-session + per-project), on composeHandoff
+
+### Added
+
+- **⇄ Handoff inline panel** — the ⇄ Handoff button now SHOWS the handoff text in a live panel right below it, in real time, as well as copying it to the clipboard and upserting `SYNC.md`. The deterministic skeleton (git/branch/files + the PENDING question **verbatim**) appears instantly (`postMessage 'generating'`); the final text — produced by the **parallel + hard-4.5s-deadline `composeHandoff`** from 0.16.25 — re-fills the panel (`postMessage 'done'`). The panel shows EXACTLY what goes to the clipboard — same source, no drift. A **📋 Copiar** button re-copies it.
+- **⇄ Handoff do projecto** — a per-project button on each group header builds a BOARD of every session in the project (one deterministic line per session with **DUP** / **UNCOMMITTED** / **UNPUSHED** flags) plus one bounded local synthesis line, shown in the same inline panel + clipboard + `SYNC.md` (under `__fleet__`).
+
+### Notes
+
+- Panel == clipboard (same `composeHandoff` / `generateProjectHandoff` source); the PENDING question is always verbatim; nothing is fabricated. If Ollama is down the panel still reaches "done" with the deterministic content (synthesis omitted, never faked) — the 4.5s deadline guarantees it.
+- Row/group renderers stay concatenation-only (webview-serialisation safe). No change to the routing engine; `classify.js` sha unchanged.
+
 ## [0.16.25] — 2026-06-26 — ⇄ Handoff: never "nothing" (parallel narrative + hard deadline)
 
 ### Fixed
