@@ -1128,12 +1128,15 @@ function generateHandoff(row, pending, opts) {
 
 // PURA (testável): BOARD de handoff do PROJECTO (todas as sessões de um grupo → um texto). Uma
 // linha determinística por sessão (estado + nome + branch + modelo) com flags:
-//   DUP         → ≥2 sessões partilham o mesmo repo+branch (gitHarmony.shared) = mesmo trabalho
+//   DUP         → ≥2 sessões ACTIVAS (working||needsYou) partilham repo+branch = colisão real.
+//                 Idle (✅) na mesma branch NÃO conta; a FLAGS conta GRUPOS contestados, não linhas
+//                 (sem nenhum mas com co-habitação → informativo "N em <branch>").
 //   UNCOMMITTED → gitStage.dirty > 0  (trabalho por guardar)
 //   UNPUSHED    → gitStage.ahead > 0  (commits locais por enviar)
-// A síntese OVERALL é do LLM local e ENTRA por opts.synth (nunca chamada aqui) — omitida se
-// ausente (Ollama-down/timeout). opts.now fixa o timestamp (testes). Nunca lança (rows não-array
-// → []). Reusa gitHarmony/_fmtTs/_or — não duplica lógica.
+// OVERALL está SEMPRE presente (n>0): a síntese do LLM local entra por opts.synth (1 linha factual,
+// re-injectada pelo enrichment de background); ausente (Ollama-down/timeout) → resumo DETERMINÍSTICO
+// dos contadores reais, NUNCA o 1º prompt de uma sessão. opts.now fixa o timestamp (testes). Nunca
+// lança (rows não-array → []). Reusa _fmtTs/_or — não duplica lógica.
 function generateProjectHandoff(proj, rows, opts) {
   opts = opts || {};
   rows = Array.isArray(rows) ? rows : [];
@@ -1145,24 +1148,62 @@ function generateProjectHandoff(proj, rows, opts) {
     '',
     '▸ BOARD:',
   ];
-  let dup = 0, unc = 0, unp = 0;
+  // POLISH 2 — DUP só sinaliza COLISÃO REAL: ≥2 sessões ACTIVAS (working||needsYou) a partilhar
+  // repo (cwd) + branch. Idle (✅) na mesma branch — sobretudo main — NÃO conta (era ruído). Pré-
+  // computa por grupo cwd+branch: total de sessões e quantas estão activas. branchCt alimenta o
+  // OVERALL determinístico (branch mais comum). Sem cwd → sem repo real → não pode colidir.
+  const _active = (r) => !!(r && (r.working || r.needsYou));
+  const groups = new Map();   // 'cwd\x00branch' -> { total, active, branch }
+  const branchCt = new Map(); // branch -> nº de sessões
+  for (const r of rows) {
+    if (r && r.branch) branchCt.set(r.branch, (branchCt.get(r.branch) || 0) + 1);
+    if (!r || !r.cwd) continue;
+    const k = r.cwd + '\x00' + (r.branch || '');
+    const g = groups.get(k) || { total: 0, active: 0, branch: r.branch || '' };
+    g.total++; if (_active(r)) g.active++;
+    groups.set(k, g);
+  }
+  let unc = 0, unp = 0, activeN = 0;
   const board = [];
   for (const r of rows) {
     const id = (r && r.id) || (r && r.fullId ? String(r.fullId).slice(0, 8) : '?');
     const gs = (r && r.gitStage) || {};
     const flags = [];
-    if (gitHarmony(rows, r && r.cwd, r && r.branch).shared) { flags.push('DUP'); dup++; }
+    const g = (r && r.cwd) ? groups.get(r.cwd + '\x00' + ((r && r.branch) || '')) : null;
+    if (g && g.active >= 2 && _active(r)) flags.push('DUP'); // só sessões activas num grupo contestado
     if ((gs.dirty || 0) > 0) { flags.push('UNCOMMITTED'); unc++; }
     if ((gs.ahead || 0) > 0) { flags.push('UNPUSHED'); unp++; }
+    if (_active(r)) activeN++;
     const st = (r && r.working) ? '🟢' : ((r && r.needsYou) ? '🟡' : ((r && r.waitingForCowork) ? '⏳' : '✅'));
     const fl = flags.length ? '  [' + flags.join(' ') + ']' : '';
     const nm = String((r && r.name) || ('session ' + id)).replace(/\s+/g, ' ').slice(0, 56);
     board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _or(r && r.branch) + ' · ' + _or(r && r.model) + fl);
   }
   if (!board.length) board.push('  — (nenhuma sessão neste projecto)');
+  // DUP tally = nº de GRUPOS com ≥2 activas. Sem nenhum, mas com co-habitação (≥2 na mesma branch
+  // sem colisão activa), mostra o maior grupo informativo "N em <branch>" — nunca um DUP falso.
+  let dupGroups = 0, coTop = null;
+  for (const g of groups.values()) {
+    if (g.active >= 2) dupGroups++;
+    else if (g.total >= 2 && (!coTop || g.total > coTop.total)) coTop = g;
+  }
+  const dupSeg = dupGroups > 0 ? (dupGroups + ' DUP')
+    : (coTop ? (coTop.total + ' em ' + (coTop.branch || '—')) : '0 DUP');
   const tail = [];
-  if (opts.synth && String(opts.synth).trim()) tail.push('', '▸ OVERALL (local summary): ' + String(opts.synth).trim().slice(0, 400));
-  tail.push('', '▸ FLAGS: ' + dup + ' DUP · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
+  // POLISH 1 — OVERALL sempre limpo. Com síntese local (qwen) → usa-a (1 linha factual). Sem ela
+  // (Ollama-down/frio) → resumo DETERMINÍSTICO dos contadores reais — NUNCA o 1º prompt/texto de
+  // uma sessão. O enrichment de background (#211) re-injecta a síntese qwen exactamente neste campo.
+  const synthText = (opts.synth && String(opts.synth).trim()) ? String(opts.synth).trim().slice(0, 400) : null;
+  if (synthText) {
+    tail.push('', '▸ OVERALL (local summary): ' + synthText);
+  } else if (n > 0) {
+    let bTop = '—', bMax = 0;
+    for (const [b, c] of branchCt) { if (c > bMax) { bMax = c; bTop = b; } }
+    const overall = n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' em ' + bTop + ' · '
+      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push';
+    tail.push('', '▸ OVERALL: ' + overall);
+  }
+  tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
   tail.push('▸ NEXT FOR COWORK: resolver DUP (mesma branch) · commit UNCOMMITTED · push UNPUSHED');
   tail.push('⇄ END PROJECT HANDOFF');
   return head.concat(board).concat(tail).join('\n');
