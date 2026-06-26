@@ -1526,3 +1526,186 @@ test('WCOCKPIT-9 projOf contract: Cowork > repo real > Unassigned (espelho hones
   assert.equal(originOf({ repoFolder: 'System32' }), 'unassigned');
   assert.equal(projOf({}), 'Unassigned');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// ⇄ HANDOFF — session → Cowork context (extractPending · generateHandoff ·
+// writeHandoffToSync · botão · handoffSentAt). Determinístico; campo sem dado → "—".
+// ════════════════════════════════════════════════════════════════════════════
+
+test('⇄ Handoff extractPending: tail real → último turno do assistant + tool-calls + stopped', () => {
+  const tail = [
+    JSON.stringify({ type: 'user', message: { role: 'user', content: 'fix the bug' } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [
+      { type: 'text', text: 'Let me edit the file.' },
+      { type: 'tool_use', name: 'Edit', input: { file_path: '/x/src/inject_context.ts' } },
+    ] } }),
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'ok' }] } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [
+      { type: 'tool_use', name: 'Bash', input: { command: 'npm test' } },
+      { type: 'text', text: 'Should I run the tests before pushing?' },
+    ] } }),
+  ];
+  const p = x.extractPending(tail);
+  assert.equal(p.lastAssistantText, 'Should I run the tests before pushing?');
+  assert.equal(p.stopped, true, 'last meaningful message was the assistant → stopped (your turn)');
+  // last 1–3 tool-calls, chronological, with honest targets (basename / command)
+  assert.equal(p.lastToolActions.length, 2);
+  assert.equal(p.lastToolActions[0].name, 'Edit');
+  assert.equal(p.lastToolActions[0].target, 'inject_context.ts');
+  assert.equal(p.lastToolActions[1].name, 'Bash');
+  assert.equal(p.lastToolActions[1].target, 'npm test');
+});
+
+test('⇄ Handoff extractPending: tail vazio / lixo → "—", [], stopped:false (nunca lança)', () => {
+  const e = x.extractPending([]);
+  assert.equal(e.lastAssistantText, '—');
+  assert.deepEqual(e.lastToolActions, []);
+  assert.equal(e.stopped, false);
+  const g = x.extractPending(['NOT JSON{{{', '', '{"truncated...']);
+  assert.equal(g.lastAssistantText, '—');
+  // mid-work: last meaningful line is a user/tool_result → not stopped
+  const mid = x.extractPending([
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'working' }] } }),
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'r' }] } }),
+  ]);
+  assert.equal(mid.stopped, false, 'assistant mid-work (last line is a tool_result) → not stopped');
+});
+
+test('⇄ Handoff generateHandoff: bate no §FORMATO exacto, campos presentes', () => {
+  const row = { fullId: 'abcd1234-dead-beef', id: 'abcd1234', name: 'fix the auth bug', cwd: '/home/p/myrepo',
+    branch: 'wave/x', model: 'claude-opus-4-8', mode: 'moo', auto: true, loop: false, turns: 12, saved: 1.2345,
+    gitStage: { state: 'uncommitted', dirty: 3, staged: 1, ahead: 0, behind: 0 }, notionPageId: 'np1', obsidianPath: '/vault/n.md' };
+  const pending = { lastAssistantText: 'Should I push?', lastToolActions: [{ name: 'Edit', target: 'a.ts' }, { name: 'Bash', target: 'npm test' }], stopped: true };
+  const txt = x.generateHandoff(row, pending, { now: new Date('2026-06-26T14:05:00') });
+  assert.ok(txt.startsWith('⇄ MOOTER HANDOFF → cola no Cowork'), 'header line exact');
+  assert.ok(txt.includes('project: myrepo · session: fix the auth bug (abcd1234) · 2026-06-26 14:05'));
+  assert.ok(txt.includes('branch: wave/x · model: claude-opus-4-8 · mode: moo · auto:on loop:off'));
+  assert.ok(txt.includes('git: staged 1 · ahead 0 · dirty 3  |  turns: 12 · saved $1.23 (sessão)'));
+  assert.ok(txt.includes('state: 🟡 needs you') || txt.includes('state: ✅ idle'), 'state line present (no live flags on row → idle)');
+  assert.ok(txt.includes('▸ DOING: fix the auth bug'), 'no Ollama → falls back to the 1st prompt');
+  assert.ok(txt.includes('▸ LAST STEP: Edit a.ts · Bash npm test'));
+  assert.ok(txt.includes('▸ PENDING / STOPPED AT: Should I push?'));
+  assert.ok(txt.includes('▸ NEXT FOR COWORK: verificar gate · responder à pergunta · push após OK'));
+  assert.ok(txt.includes('▸ PERSIST: Cowork → regista este handoff no Notion (np1) e no vault (/vault/n.md)'));
+  assert.ok(txt.includes('links: SYNC.md  ·  branch wave/x'));
+  assert.ok(txt.trimEnd().endsWith('⇄ END HANDOFF'));
+});
+
+test('⇄ Handoff generateHandoff: campos em falta → "—"; Ollama doing sobrepõe; nunca lança', () => {
+  const txt = x.generateHandoff({ fullId: 'x9', id: 'x9' }, { lastAssistantText: '—', lastToolActions: [], stopped: false }, { now: new Date('2026-01-01T00:00:00'), doing: 'wiring the handoff button' });
+  assert.ok(txt.includes('branch: — · model: — · mode: —'), 'missing fields rendered as —');
+  assert.ok(txt.includes('git: staged 0 · ahead 0 · dirty 0  |  turns: 0 · saved $0.00 (sessão)'));
+  assert.ok(txt.includes('▸ DOING: wiring the handoff button'), 'opts.doing (Ollama) overrides DOING');
+  assert.ok(txt.includes('▸ LAST STEP: —'));
+  assert.ok(txt.includes('▸ PENDING / STOPPED AT: —'));
+  assert.ok(txt.includes('no Notion (—) e no vault (—)'));
+  assert.doesNotThrow(() => x.generateHandoff(null, null, {}), 'null row/pending must not throw');
+  assert.ok(typeof x.generateHandoff(null, null, {}) === 'string');
+});
+
+test('⇄ Handoff generateHandoff: state reflecte working/needsYou/waitingForCowork (precedência)', () => {
+  const base = { id: 'a', name: 'n' };
+  assert.ok(x.generateHandoff(Object.assign({}, base, { working: true }), {}, {}).includes('state: 🟢 working'));
+  assert.ok(x.generateHandoff(Object.assign({}, base, { needsYou: true }), {}, {}).includes('state: 🟡 needs you'));
+  assert.ok(x.generateHandoff(Object.assign({}, base, { waitingForCowork: true }), {}, {}).includes('state: ⏳ waiting for you'));
+  assert.ok(x.generateHandoff(base, {}, {}).includes('state: ✅ idle'));
+});
+
+test('⇄ Handoff writeHandoffToSync: UPSERT por sid (2ª chamada substitui, não acumula); atómico', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sync-'));
+  const sid = 'sess-handoff-1';
+  const r1 = x.writeHandoffToSync(tmpDir, sid, 'FIRST HANDOFF TEXT', { name: 'sess', now: new Date('2026-06-26T10:00:00') });
+  assert.equal(r1.ok, true);
+  assert.equal(r1.created, true, 'created the SYNC.md when absent (context never lost)');
+  let content = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
+  assert.ok(content.includes('FIRST HANDOFF TEXT'));
+  assert.ok(content.includes('### ⇄ Handoff · sess · 2026-06-26 10:00'));
+  // 2nd handoff for the SAME sid → replaces, never accumulates
+  const r2 = x.writeHandoffToSync(tmpDir, sid, 'SECOND HANDOFF TEXT', { name: 'sess', now: new Date('2026-06-26T11:00:00') });
+  assert.equal(r2.ok, true);
+  content = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
+  assert.ok(content.includes('SECOND HANDOFF TEXT'));
+  assert.ok(!content.includes('FIRST HANDOFF TEXT'), 'upsert replaces — no accumulation of stale handoffs');
+  const startMarkers = (content.match(/<!-- mooter-handoff:sess-handoff-1 -->/g) || []).length;
+  assert.equal(startMarkers, 1, 'exactly ONE handoff block per sid');
+  // a DIFFERENT sid appends its own block (both coexist)
+  x.writeHandoffToSync(tmpDir, 'other-sid', 'OTHER SESSION HANDOFF', { name: 'other', now: new Date('2026-06-26T12:00:00') });
+  content = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
+  assert.ok(content.includes('SECOND HANDOFF TEXT') && content.includes('OTHER SESSION HANDOFF'), 'distinct sids coexist');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  // bad inputs → ok:false, never throws
+  assert.equal(x.writeHandoffToSync('', sid, 't').ok, false);
+  assert.equal(x.writeHandoffToSync(null, sid, 't').ok, false);
+  assert.equal(x.writeHandoffToSync(os.tmpdir(), '', 't').ok, false);
+});
+
+test('⇄ Handoff writeHandoffToSync: upsert num SYNC.md já existente preserva o resto', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sync-pre-'));
+  const file = path.join(tmpDir, 'SYNC.md');
+  fs.writeFileSync(file, '# Mooter — Sync Snapshot\n\n### Existing section\n**Estado:** keep me\n');
+  const r = x.writeHandoffToSync(tmpDir, 'sX', 'HANDOFF BODY', { name: 'sX', now: new Date('2026-06-26T13:00:00') });
+  assert.equal(r.ok, true);
+  assert.equal(r.created, false, 'existing file is not flagged created');
+  const content = fs.readFileSync(file, 'utf8');
+  assert.ok(content.includes('### Existing section') && content.includes('keep me'), 'pre-existing content preserved');
+  assert.ok(content.includes('HANDOFF BODY'), 'handoff block appended');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('⇄ Handoff mode-registry: setHandoff persiste handoffSentAt + decorate expõe (aditivo)', () => {
+  assert.ok('handoffSentAt' in mr.DEFAULT, 'DEFAULT carries handoffSentAt');
+  assert.equal(mr.DEFAULT.handoffSentAt, null);
+  const sid = 'handoff-reg-' + process.pid;
+  const row0 = { fullId: sid };
+  mr.decorate(row0, {});
+  assert.equal(row0.handoffSentAt, null, 'unset → null (never fabricated)');
+  mr.setHandoff(sid);
+  const row1 = { fullId: sid };
+  mr.decorate(row1, {});
+  assert.ok(typeof row1.handoffSentAt === 'string' && row1.handoffSentAt.includes('T'), 'setHandoff records an ISO timestamp');
+});
+
+test('⇄ Handoff renderRow: botão ⇄ Handoff no drawer (data-a=handoff) sem partir o invariante clean', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('data-a="handoff"'), 'handoff button dispatches the handoff command');
+  assert.ok(html.includes('⇄ Handoff'), 'button label present');
+  assert.ok(html.includes('class="sgitbtn handoff"'), 'reuses sgitbtn styling via a DISTINCT .handoff class');
+  assert.ok(html.indexOf('data-a="handoff"') > html.indexOf('class="sdrawer"'), 'handoff button lives inside the drawer');
+  // INVARIANTE preservado: um cartão CLEAN continua sem o botão bare sgitbtn (Commit & Push)
+  const clean = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 } });
+  const cleanHtml = rr.renderRow(clean, {});
+  assert.ok(!cleanHtml.includes('class="sgitbtn"'), 'clean row still has NO Commit & Push (handoff uses class="sgitbtn handoff")');
+  assert.ok(cleanHtml.includes('data-a="handoff"'), 'but ⇄ Handoff is always available, even when clean');
+});
+
+test('⇄ Handoff webview-sim: botão sobrevive ao path fn.toString()+new Function()', () => {
+  const html = _wvRenderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('data-a="handoff"'), 'handoff button survives webview serialization');
+  assert.ok(html.includes('⇄ Handoff'), 'label survives serialization');
+});
+
+test('⇄ Handoff host-side flow (handler sim): clipboard + handoffSentAt + SYNC.md upsert', () => {
+  // Espelha a sequência do handler m.cmd==="handoff" SEM vscode: generate → clipboard(mock)
+  // → setHandoff → writeHandoffToSync. (O handler real adiciona apenas clipboard.writeText + toast.)
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-handoff-'));
+  const sid = 'handoff-sim-' + process.pid;
+  const row = { fullId: sid, id: sid.slice(0, 8), name: 'wire the handoff button', cwd: tmpDir,
+    branch: 'wave/cockpit-handoff', model: 'claude-opus-4-8', mode: 'moo', auto: false, loop: false,
+    turns: 7, saved: 0.9, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0, behind: 0 },
+    notionPageId: null, obsidianPath: null,
+    pending: { lastAssistantText: 'Ready to commit?', lastToolActions: [{ name: 'Write', target: 'host-extra.js' }], stopped: true } };
+  let clipboard = null; // mock de vscode.env.clipboard.writeText
+  const text = x.generateHandoff(row, row.pending, { now: new Date('2026-06-26T09:00:00') });
+  clipboard = text;
+  mr.setHandoff(sid);
+  const w = x.writeHandoffToSync(row.cwd, sid, text, { name: row.name });
+  assert.ok(clipboard.includes('⇄ MOOTER HANDOFF'), 'clipboard holds the handoff text');
+  assert.ok(clipboard.includes('▸ PENDING / STOPPED AT: Ready to commit?'), 'pending question copied verbatim');
+  assert.ok(clipboard.includes('▸ LAST STEP: Write host-extra.js'), 'last tool-call copied');
+  const after = mr.get(sid);
+  assert.ok(typeof after.handoffSentAt === 'string' && after.handoffSentAt.includes('T'), 'handoffSentAt recorded in the registry');
+  assert.equal(w.ok, true, 'SYNC.md write ok');
+  const sync = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
+  assert.ok(sync.includes('⇄ Handoff') && sync.includes('Ready to commit?'), 'SYNC.md upserted with the handoff');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

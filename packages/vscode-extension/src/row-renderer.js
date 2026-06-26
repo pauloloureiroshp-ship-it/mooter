@@ -272,6 +272,14 @@ function renderRow(r, opts) {
     gitBtn = '<div class="sgitrow"><button class="sgitbtn" data-a="gitFlow" data-x="' + esc(sid) + '" aria-label="commit and push this session" title="preview → commit selectivo → push (confirmado). Nunca git add -A, nunca --force; verifica a sha de classify.js e avisa se outra sessão está no mesmo repo+branch.">⎇ Commit &amp; Push · ' + esc(gWork) + '</button></div>';
   }
 
+  // ── handoff button — SEMPRE disponivel (qualquer sessao pode dar handoff) ──
+  // Gera um texto de handoff (estado + ultima accao + pergunta pendente verbatim), copia
+  // para o clipboard (cola no Cowork) e faz upsert no SYNC.md. Classe distinta "sgitbtn handoff"
+  // (reusa o estilo/wiring mas NAO o selector exacto class="sgitbtn" — mantem o invariante do
+  // cartao clean, que so mostra um botao sgitbtn quando ha trabalho de git).
+  // NOTA: sem template-literals/backticks neste ficheiro (a fonte e embebida no webview).
+  var handoffBtn = '<div class="sgitrow"><button class="sgitbtn handoff" data-a="handoff" data-x="' + esc(sid) + '" aria-label="generate a Cowork handoff for this session" title="Gera um handoff (estado + última acção + pergunta pendente) → copia para o clipboard e faz upsert no SYNC.md. Cola no Cowork para dar contexto total sem screenshots.">⇄ Handoff</button></div>';
+
   // ── Git stage chip (WCOCKPIT-4) — suppressed when identical to the group's (header shows it once) ──
   var gsChip = '';
   var gsTip = '';
@@ -367,7 +375,7 @@ function renderRow(r, opts) {
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
     + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
-    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + '</div>'
+    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + '</div>'
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';

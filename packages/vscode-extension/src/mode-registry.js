@@ -18,7 +18,7 @@ const MODES = ["lazy", "moo", "crazy"];           // LazyMoo | Moo | CrazyMoo
 const DEFAULT = { mode: "moo", model: null, auto: false, project: null, brainTitle: null,
   notionPageId: null, notionSyncedAt: null, obsidianPath: null, obsidianSyncedAt: null, archivedAt: null,
   coworkProject: null, coworkTitle: null, coworkConversationId: null, coworkUpdatedAt: null, loop: false,
-  nextSlash: null };
+  nextSlash: null, handoffSentAt: null };
 
 function readAll() {
   try { const j = JSON.parse(fs.readFileSync(FILE, "utf8")); return j && typeof j === "object" ? j : {}; }
@@ -64,6 +64,8 @@ function setLoop(sessionId, on) { if (!sessionId) return false; return set(sessi
 // WCOCKPIT-9 (Bloco E): regista o slash-command escolhido para usar no PRÓXIMO prompt da sessão.
 // '' / null limpa. A ponte CC pode consumi-lo; o cartão mostra "next ▶ /x" como feedback honesto.
 function setNextSlash(sessionId, cmd) { if (!sessionId) return false; const c = cmd ? String(cmd) : null; return set(sessionId, { nextSlash: c }); }
+// ⇄ Handoff (aditivo): regista quando o último handoff desta sessão foi gerado/copiado.
+function setHandoff(sessionId, ts) { if (!sessionId) return false; return set(sessionId, { handoffSentAt: ts || new Date().toISOString() }); }
 // Decora uma row de recentSessions() com modo/modelo/auto/projeto/brain + integrações (mutuamente seguro).
 // coworkMap (opcional) = .cowork-sessions.json pré-lido; se ausente, lê uma vez aqui.
 function decorate(row, coworkMap) {
@@ -72,6 +74,7 @@ function decorate(row, coworkMap) {
   row.project = e.project || row.project || "Unassigned"; row.brainTitle = e.brainTitle || null;
   row.loop = !!e.loop; // WCOCKPIT-9 (Bloco F)
   row.nextSlash = e.nextSlash || null; // WCOCKPIT-9 (Bloco E)
+  row.handoffSentAt = e.handoffSentAt || null; // ⇄ Handoff
   // WCOCKPIT-2: integration fields
   row.notionPageId = e.notionPageId || null;
   row.notionSyncedAt = e.notionSyncedAt || null;
@@ -124,4 +127,4 @@ function unarchive(sessionId) { return set(sessionId, { archivedAt: null }); }
 function isArchived(sessionId, lastActiveTs) { const e = get(sessionId); return !!(e.archivedAt && e.archivedAt >= (lastActiveTs || 0)); }
 
 module.exports = { readAll, writeAll, get, set, decorate, byProject, worktrees, touchSync, archive, unarchive, isArchived,
-  readCoworkMap, setCowork, setLoop, setNextSlash, MODES, DEFAULT, FILE, COWORK_MAP };
+  readCoworkMap, setCowork, setLoop, setNextSlash, setHandoff, MODES, DEFAULT, FILE, COWORK_MAP };

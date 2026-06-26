@@ -370,6 +370,29 @@ class CockpitProvider {
         }
         this.data.refresh(true);
       }
+      // ⇄ Handoff: gera o handoff desta sessão (estado + última acção + pergunta pendente),
+      // copia para o clipboard (cola no Cowork = contexto total sem screenshots) e faz UPSERT
+      // no SYNC.md do repo da sessão (rota local "o contexto nunca se perde"). Determinístico
+      // primeiro (row + pending já lidos pelo host); Ollama local é opcional e nunca bloqueia.
+      if (m.cmd === 'handoff') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const rows = (this.data.snapshot && this.data.snapshot.recent) || [];
+        const row = rows.find((r) => r.fullId === sid);
+        if (!row) { vscode.window.showWarningMessage('🐮 sessão não encontrada — refresca o cockpit e tenta outra vez.'); return; }
+        const pending = row.pending || extra.extractPending([]);
+        // OPCIONAL: 1 linha "DOING" via Ollama local (bounded ≤2s, nunca bloqueia). Fallback = 1º prompt.
+        let doing = null;
+        try { doing = await extra.ollamaDoing(row, 2000); } catch { doing = null; }
+        const text = extra.generateHandoff(row, pending, { doing });
+        try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
+        try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch {}
+        let synced = false;
+        if (row.cwd) { try { const w = extra.writeHandoffToSync(row.cwd, sid, text, { name: row.name }); synced = !!(w && w.ok); } catch { synced = false; } }
+        vscode.window.setStatusBarMessage(synced
+          ? '🐮 handoff copiado — cola no Cowork (SYNC.md actualizado)'
+          : '🐮 handoff copiado — cola no Cowork', 6000);
+        this.data.refresh(true);
+      }
       if (m.cmd === 'toggleProject') {
         const proj = String(m.arg || '').slice(0, 64);
         if (proj) {
@@ -566,6 +589,9 @@ function getHtml() {
   .sgitbtn{width:100%;font-size:9.5px;padding:3px 7px;border-radius:5px;cursor:pointer;font-weight:600;background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);border:1px solid #5A9BD4;opacity:.9;line-height:1.5}
   .sgitbtn:hover{opacity:1;border-color:var(--g);color:var(--g)}
   .sgitbtn:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
+  /* ⇄ Handoff: distinct accent (purple ⇄), reuses .sgitbtn layout */
+  .sgitbtn.handoff{border-color:#a78bfa;color:var(--vscode-foreground)}
+  .sgitbtn.handoff:hover{border-color:#c4b5fd;color:#c4b5fd}
   /* WCOCKPIT-7: compact drawer — integrations inline & icon-only, per-session close, bulk clear */
   .sdrawer{margin-top:4px;padding-top:4px}
   .sseg{margin-top:0}
