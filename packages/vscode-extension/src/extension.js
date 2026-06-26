@@ -213,6 +213,9 @@ class CockpitProvider {
   resolveWebviewView(view) {
     view.webview.options = { enableScripts: true };
     view.webview.html = getHtml();
+    // ⇄ Handoff v2 (#3b): pré-aquece o modelo de geração local (best-effort, nunca bloqueia) para o
+    // 1º handoff já vir do LLM em vez do fallback determinístico por cold-start do Ollama.
+    try { extra.warmLocalGenModel(); } catch { /* best-effort */ }
     // ⇄ Handoff v2: cache do último texto de handoff por id (sessão OU projectKey) → o botão
     // 📋 Copiar re-copia sem regenerar. Vive no closure desta view (limpa ao recriar a view).
     const hoffCache = {};
@@ -855,7 +858,10 @@ function hoffPanelFor(id){const all=document.querySelectorAll('.hoffp');for(let 
 function hoffApply(id,st){const p=hoffPanelFor(id);if(!p||!st)return;const pre=p.querySelector('.hoffp-pre');const stx=p.querySelector('.hoffp-st');if(pre)pre.textContent=st.text||'';if(stx)stx.textContent=st.status==='done'?'✓ copiado para o clipboard':'🐮 a gerar… (esqueleto pronto · narrativa local a encher)';p.hidden=false;if(pre)pre.scrollTop=pre.scrollHeight;}
 function hydrateHoff(){for(const id in hoffState)hoffApply(id,hoffState[id]);}
 // Clicks inside a panel must not bubble to the session row (openSession) or the group collapse toggle.
-function wireHoff(root){(root||document).querySelectorAll('.hoffp').forEach(p=>{p.onclick=(e)=>{e.stopPropagation();};});(root||document).querySelectorAll('.projhandoff').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(o)o.call(b,e);};});}
+function wireHoff(root){(root||document).querySelectorAll('.hoffp').forEach(p=>{p.onclick=(e)=>{e.stopPropagation();};});(root||document).querySelectorAll('.projhandoff').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(o)o.call(b,e);};});
+  // ⇄ Handoff v2 (#1) — 📋 Copiar: feedback táctil instantâneo. Troca o label para "✓ Copiado" ~1.5s
+  // e repõe "📋 Copiar" (só setTimeout, sem libs). Um re-render periódico apenas o repõe mais cedo.
+  (root||document).querySelectorAll('.hoffcopy').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(o)o.call(b,e);b.textContent='✓ Copiado';setTimeout(()=>{try{b.textContent='📋 Copiar';}catch(_){}},1500);};});}
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
 // PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.

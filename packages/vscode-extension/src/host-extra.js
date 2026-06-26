@@ -1113,8 +1113,14 @@ function generateHandoff(row, pending, opts) {
   const estSaved = (opts.estTokensSaved != null)
     ? (Number(opts.estTokensSaved) || 0)
     : Math.max(0, HANDOFF_SCREENSHOT_TOK - Math.ceil(body.join('\n').length / 4));
+  // Rotula HONESTAMENTE o motor: se a narrativa local correu, mostra o modelo de geração usado
+  // (T0 · <model> · $0); sem narrativa (Ollama down/timeout/só-embedding) cai no rótulo
+  // determinístico. opts.genModel = nome do modelo OU ausente. Nunca um modelo inventado.
+  const engine = (opts.genModel && String(opts.genModel).trim())
+    ? ('T0 · ' + String(opts.genModel).trim() + ' · $0')
+    : 'T0 · deterministic — no local gen model · $0';
   const tail = [''];
-  if (estSaved > 0) tail.push('compressed locally (T0 · $0) · ~' + _fmtK(estSaved) + ' tok saved vs screenshot (est.)');
+  if (estSaved > 0) tail.push('compressed locally (' + engine + ') · ~' + _fmtK(estSaved) + ' tok saved vs screenshot (est.)');
   tail.push('links: SYNC.md  ·  branch ' + _or(row.branch));
   tail.push('⇄ END HANDOFF');
   return body.concat(tail).join('\n');
@@ -1212,19 +1218,41 @@ function _ollamaGenerate(model, prompt, timeoutMs, numPredict) {
   });
 }
 
-// OPCIONAL: 1 linha "DOING" via Ollama local (modelo mais pequeno = arranque mais rápido).
-// Bounded a `timeoutMs` e NUNCA bloqueia/lança — null faz o handler cair para o 1º prompt.
-async function ollamaDoing(row, timeoutMs) {
+// Escolhe um modelo de GERAÇÃO (texto) do /api/tags do Ollama — NUNCA um modelo de embedding.
+// Modelos de embedding (nomic-embed-text, bge, gte, e5, *-minilm, ou qualquer /embed/i) devolvem
+// vectores, não texto: passar-lhes o prompt da narrativa do handoff dá lixo (era o bug). Filtra-os
+// FORA primeiro, e só DEPOIS ordena por tamanho (o mais pequeno = cold-start mais rápido). Devolve
+// o NOME do modelo, ou null quando só há modelos de embedding instalados (fallback honesto → o
+// esqueleto determinístico fica sozinho). Puro/sync — não toca na rede.
+function pickLocalGenModel(models) {
+  const list = Array.isArray(models) ? models : [];
+  const gen = list.filter((m) => {
+    const n = String((m && m.name) || '');
+    if (!n) return false;
+    if (/embed/i.test(n)) return false;
+    if (/(^|[-_/])(nomic|bge|gte|e5|minilm|all-minilm)/i.test(n)) return false;
+    return true;
+  });
+  if (!gen.length) return null;
+  const best = gen.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
+  return (best && best.name) ? String(best.name) : null;
+}
+
+// OPCIONAL: 1 linha "DOING" via Ollama local (modelo de geração mais pequeno = arranque mais rápido).
+// `model` (opcional) fixa o modelo já resolvido por composeHandoff — sem ele, resolve-o aqui via
+// /api/tags. Bounded a `timeoutMs` e NUNCA bloqueia/lança — null faz o handler cair para o 1º prompt.
+async function ollamaDoing(row, timeoutMs, model) {
   timeoutMs = timeoutMs || 2000;
   try {
-    const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1200, timeoutMs));
-    const models = tags && Array.isArray(tags.models) ? tags.models : [];
-    if (!models.length) return null;
-    const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
-    if (!m || !m.name) return null;
+    let name = model || null;
+    if (!name) {
+      const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1200, timeoutMs));
+      name = pickLocalGenModel(tags && tags.models);
+    }
+    if (!name) return null;
     const prompt = 'In ONE short line (max 12 words, no preamble), say what this coding session is working on. Topic: "'
       + String((row && row.name) || '').slice(0, 120) + '". Answer:';
-    const out = await _ollamaGenerate(m.name, prompt, timeoutMs);
+    const out = await _ollamaGenerate(name, prompt, timeoutMs);
     if (!out) return null;
     const line = String(out).split('\n').map((s) => s.trim()).filter(Boolean)[0] || '';
     return line ? line.slice(0, 120) : null;
@@ -1235,14 +1263,15 @@ async function ollamaDoing(row, timeoutMs) {
 // do transcript (1º prompt + últimas tool-calls); o prompt manda "resume só o que está aqui; não
 // inventes; se não souberes, escreve —". NUNCA toca no PENDING (esse é verbatim no gerador).
 // Timeout DURO (~4s) e NUNCA bloqueia/lança — null faz o gerador omitir o RECAP (fallback honesto).
-async function ollamaRecap(row, pending, timeoutMs) {
+async function ollamaRecap(row, pending, timeoutMs, model) {
   timeoutMs = timeoutMs || 4000;
   try {
-    const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, timeoutMs));
-    const models = tags && Array.isArray(tags.models) ? tags.models : [];
-    if (!models.length) return null;
-    const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
-    if (!m || !m.name) return null;
+    let name = model || null;
+    if (!name) {
+      const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, timeoutMs));
+      name = pickLocalGenModel(tags && tags.models);
+    }
+    if (!name) return null;
     const acts = (pending && Array.isArray(pending.lastToolActions))
       ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(', ') : '';
     const ctx = [
@@ -1252,7 +1281,7 @@ async function ollamaRecap(row, pending, timeoutMs) {
     const prompt = 'You are writing a short handoff recap for a coding session. Resume SO o que esta no '
       + 'contexto abaixo; nao inventes; se nao souberes, escreve "-". 3 to 5 short lines, no preamble.\n\n'
       + ctx + '\n\nRecap:';
-    const out = await _ollamaGenerate(m.name, prompt, timeoutMs, 160);
+    const out = await _ollamaGenerate(name, prompt, timeoutMs, 160);
     if (!out) return null;
     const lines = String(out).split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 5);
     return lines.length ? lines.join('\n').slice(0, 600) : null;
@@ -1276,21 +1305,32 @@ async function composeHandoff(row, pending, opts) {
   const deadlineMs = opts.deadlineMs || 4500;
   let timer = null;
   const narrative = (async () => {
-    const doingP = ollamaDoing(row, doingMs).catch(() => null);
-    const recapP = mode === 'full' ? ollamaRecap(row, pending, recapMs).catch(() => null) : Promise.resolve(null);
+    // Resolve o modelo de GERAÇÃO local UMA vez (exclui embeddings) — partilhado por DOING+RECAP e
+    // exposto no rodapé (#3b). null → sem modelo de geração → o esqueleto determinístico fica sozinho.
+    let genModel = null;
+    try {
+      const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, deadlineMs));
+      genModel = pickLocalGenModel(tags && tags.models);
+    } catch { genModel = null; }
+    if (!genModel) return { doing: null, recap: null, deadline: false, genModel: null };
+    const doingP = ollamaDoing(row, doingMs, genModel).catch(() => null);
+    const recapP = mode === 'full' ? ollamaRecap(row, pending, recapMs, genModel).catch(() => null) : Promise.resolve(null);
     const [doing, recap] = await Promise.all([doingP, recapP]);
-    return { doing, recap, deadline: false };
+    return { doing, recap, deadline: false, genModel };
   })();
   const deadline = new Promise((resolve) => {
-    timer = setTimeout(() => resolve({ doing: null, recap: null, deadline: true }), deadlineMs);
+    timer = setTimeout(() => resolve({ doing: null, recap: null, deadline: true, genModel: null }), deadlineMs);
     if (timer && timer.unref) timer.unref(); // never hold the event loop open on the narrative
   });
   let got;
   try { got = await Promise.race([narrative, deadline]); }
-  catch { got = { doing: null, recap: null, deadline: false }; }
+  catch { got = { doing: null, recap: null, deadline: false, genModel: null }; }
   finally { if (timer) clearTimeout(timer); }
-  const text = generateHandoff(row, pending, { doing: got.doing, recap: got.recap, mode, now: opts.now });
-  return { text, mode, doing: got.doing, recap: got.recap, timedOut: !!got.deadline };
+  // Modelo no rodapé só quando a narrativa local PRODUZIU texto (honesto — um modelo escolhido que
+  // expirou/devolveu nada cai no rótulo determinístico, nunca um motor fabricado).
+  const ranModel = (got.genModel && (got.doing || got.recap)) ? got.genModel : null;
+  const text = generateHandoff(row, pending, { doing: got.doing, recap: got.recap, mode, now: opts.now, genModel: ranModel });
+  return { text, mode, doing: got.doing, recap: got.recap, timedOut: !!got.deadline, model: ranModel };
 }
 
 // OPCIONAL (handoff de PROJECTO): 1–2 linhas de síntese OVERALL via Ollama local. Lê APENAS o
@@ -1302,10 +1342,8 @@ async function ollamaProjectSynth(rows, timeoutMs) {
     rows = Array.isArray(rows) ? rows : [];
     if (!rows.length) return null;
     const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, timeoutMs));
-    const models = tags && Array.isArray(tags.models) ? tags.models : [];
-    if (!models.length) return null;
-    const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
-    if (!m || !m.name) return null;
+    const name = pickLocalGenModel(tags && tags.models);
+    if (!name) return null;
     const ctx = rows.slice(0, 12).map((r) => {
       const id = (r && r.id) || (r && r.fullId ? String(r.fullId).slice(0, 8) : '?');
       const gs = (r && r.gitStage) || {};
@@ -1315,11 +1353,28 @@ async function ollamaProjectSynth(rows, timeoutMs) {
     const prompt = 'You are writing ONE short overall line for a multi-session project handoff. '
       + 'Resume SO o que esta no contexto abaixo; nao inventes. 1 to 2 short lines, no preamble.\n\nSessions:\n'
       + ctx + '\n\nOverall:';
-    const out = await _ollamaGenerate(m.name, prompt, timeoutMs, 80);
+    const out = await _ollamaGenerate(name, prompt, timeoutMs, 80);
     if (!out) return null;
     const r = String(out).split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' ');
     return r ? r.slice(0, 300) : null;
   } catch { return null; }
+}
+
+// OPCIONAL (#3b): pré-aquece o modelo de geração local no arranque do cockpit. Best-effort,
+// fire-and-forget: um /api/generate minúsculo (num_predict 1) tira o modelo do disco para a RAM,
+// para o 1º handoff já vir do LLM em vez do fallback determinístico por cold-start. NUNCA bloqueia
+// nem lança — devolve já (a promessa interna corre em background e nunca é aguardada pelo caller).
+function warmLocalGenModel(timeoutMs) {
+  timeoutMs = timeoutMs || 1500;
+  (async () => {
+    try {
+      const tags = await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1200, timeoutMs));
+      const name = pickLocalGenModel(tags && tags.models);
+      if (!name) return;
+      await _ollamaGenerate(name, 'ok', 8000, 1); // budget longo OK — destacado, nunca aguardado
+    } catch { /* best-effort */ }
+  })();
+  return true;
 }
 
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
@@ -1330,4 +1385,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
-  generateProjectHandoff, ollamaProjectSynth };
+  generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel };

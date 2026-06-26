@@ -2,6 +2,22 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.28] — 2026-06-26 — Handoff v2 polish: gen-model narrative (skip embeddings) + copy feedback + project panel
+
+### Fixed
+
+- **Handoff narrative could pick an embedding model.** The local DOING/RECAP/project-synthesis narrative chose the *smallest* installed Ollama model — which on a machine with `nomic-embed-text` (or any `bge`/`gte`/`e5`/`minilm`/`*embed*`) installed meant feeding the narrative prompt to an **embedding** model that returns vectors, not text. New pure helper `pickLocalGenModel(models)` filters embedding models OUT *before* sorting by size, then picks the smallest remaining generation model (qwen2.5:3b in Paulo's environment). Embedding-only install → `null` → honest deterministic skeleton. Applied to `ollamaDoing` / `ollamaRecap` / `ollamaProjectSynth`.
+
+### Added
+
+- **Honest engine label in the §SAVINGS footer.** When the local narrative actually ran, the footer now names the real model: `compressed locally (T0 · <model> · $0) · ~Xk tok saved…`. When it didn't (Ollama down / timeout / embedding-only), it reads `compressed locally (T0 · deterministic — no local gen model · $0) · …`. Never an invented engine. `composeHandoff` resolves the generation model once and threads it through to `generateHandoff`.
+- **📋 Copiar tactile feedback** — clicking re-copy swaps the label to **✓ Copiado** for ~1.5s, then restores **📋 Copiar** (setTimeout only, no libs).
+- **Best-effort gen-model warm-up** on cockpit open (`warmLocalGenModel`) — a tiny detached `/api/generate` that pulls the model into RAM so the first handoff comes from the LLM instead of a cold-start fallback. Never blocks, never throws.
+
+### Notes
+
+- Project handoff panel verified end-to-end: the `projHandoff` post `sid` matches the group-header panel's `data-hoff` key, so clicking reveals the board (DUP/UNCOMMITTED/UNPUSHED flags) inline + clipboard. Row/group renderers stay concatenation-only. No change to the routing engine; `classify.js` sha unchanged.
+
 ## [0.16.27] — 2026-06-26 — Handoff v2: inline live panel (per-session + per-project), on composeHandoff
 
 ### Added

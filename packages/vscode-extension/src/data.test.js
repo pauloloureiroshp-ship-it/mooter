@@ -1753,15 +1753,34 @@ test('⇄ Handoff híbrido: LLM ausente (sem recap) → RECAP omitido mesmo em f
 test('⇄ Handoff §SAVINGS: rodapé só com estimativa positiva (estTokensSaved:0 → omite), antes de links', () => {
   const row = { id: 'h3', name: 'p', turns: 3 };
   const pending = { lastAssistantText: 'q?', lastToolActions: [], stopped: true };
+  // Sem genModel (narrativa não correu) → rótulo determinístico HONESTO (nunca um motor inventado).
   const withEst = x.generateHandoff(row, pending, { estTokensSaved: 1000, now: new Date('2026-06-26T00:00:00') });
-  assert.ok(withEst.includes('compressed locally (T0 · $0) · ~1k tok saved vs screenshot (est.)'), 'footer rendered with a labelled estimate');
+  assert.ok(withEst.includes('compressed locally (T0 · deterministic — no local gen model · $0) · ~1k tok saved vs screenshot (est.)'), 'footer labelled estimate + deterministic engine');
   assert.ok(withEst.indexOf('compressed locally') < withEst.indexOf('links: SYNC.md'), 'footer precedes the links line');
   assert.ok(withEst.trimEnd().endsWith('⇄ END HANDOFF'));
   const noEst = x.generateHandoff(row, pending, { estTokensSaved: 0, now: new Date('2026-06-26T00:00:00') });
   assert.ok(!noEst.includes('compressed locally'), 'sem estimativa → rodapé omitido (nunca um número fabricado)');
   // default (no estTokensSaved) → estimated from text size → a positive footer is present
   const def = x.generateHandoff(row, pending, { now: new Date('2026-06-26T00:00:00') });
-  assert.ok(def.includes('compressed locally (T0 · $0)') && def.includes('tok saved vs screenshot (est.)'), 'default path estimates from text size');
+  assert.ok(def.includes('compressed locally (T0 · deterministic — no local gen model · $0)') && def.includes('tok saved vs screenshot (est.)'), 'default path estimates from text size');
+  // #3b — quando a narrativa local correu, o rodapé nomeia o modelo de geração REAL usado (T0 · <model> · $0).
+  const withModel = x.generateHandoff(row, pending, { estTokensSaved: 1000, genModel: 'qwen2.5:3b', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(withModel.includes('compressed locally (T0 · qwen2.5:3b · $0) · ~1k tok saved vs screenshot (est.)'), 'LLM ran → footer names the real gen model');
+  assert.ok(!withModel.includes('deterministic'), 'model footer never also claims deterministic');
+});
+
+test('⇄ Handoff #3 pickLocalGenModel: exclui embeddings, escolhe modelo de geração; só-embedding → null', () => {
+  // O bug: a narrativa caía no modelo de EMBEDDING (devolve vectores, não texto). Filtra-os fora
+  // ANTES de ordenar por tamanho. No ambiente do Paulo → qwen2.5:3b (o menor não-embedding).
+  const env = [{ name: 'nomic-embed-text', size: 2.7e8 }, { name: 'qwen2.5:3b', size: 1.9e9 }, { name: 'qwen3:30b', size: 1.8e10 }];
+  assert.equal(x.pickLocalGenModel(env), 'qwen2.5:3b', 'embedding excluído; menor modelo de geração escolhido');
+  // Vários sinais de embedding cobertos (nome /embed/i + prefixos bge/gte/e5/minilm).
+  const onlyEmbed = [{ name: 'nomic-embed-text' }, { name: 'bge-large' }, { name: 'mxbai-embed-large' }, { name: 'all-minilm' }];
+  assert.equal(x.pickLocalGenModel(onlyEmbed), null, 'só-embedding → null (fallback honesto, esqueleto determinístico)');
+  // Robustez: lista vazia/lixo → null; nunca lança.
+  assert.equal(x.pickLocalGenModel([]), null);
+  assert.equal(x.pickLocalGenModel(null), null);
+  assert.equal(x.pickLocalGenModel([{ size: 1 }]), null, 'entrada sem nome → ignorada');
 });
 
 test('⇄ Handoff híbrido: mode default segue o tamanho da sessão (turns≥12 → full, senão quick)', () => {
@@ -1829,6 +1848,33 @@ test('⇄ Handoff v2 handler-sim: 2 postMessages — esqueleto (PENDING verbatim
   assert.ok(posts[0].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'skeleton carries PENDING verbatim');
   assert.ok(posts[1].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'final keeps PENDING verbatim');
   assert.ok(posts[0].text.includes('▸ LAST STEP: Write extension.js'), 'deterministic LAST STEP already in the skeleton');
+});
+
+test('⇄ Handoff v2 #2 handler-sim: projHandoff → painel do grupo (sid casa data-hoff) revela board + clipboard', () => {
+  // Espelha m.cmd==="projHandoff": board instantânea → postMessage 'generating'(sid=projKey) →
+  // 'done'. O sid POSTADO tem de casar o data-hoff do painel do group header (renderGroupHeader),
+  // senão o painel nunca é revelado (era o sintoma "handoff de projecto não aparece").
+  const projKey = 'Mooter.ai';
+  const rows = [
+    { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
+    { id: 'bb', fullId: 'bb', name: 'B', cwd: '/repo', branch: 'main', gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 1 } },
+  ];
+  const hoffCache = {};
+  const posts = [];
+  const instant = x.generateProjectHandoff(projKey, rows, {});
+  hoffCache[projKey] = instant;
+  posts.push({ type: 'handoff', sid: projKey, status: 'generating', text: instant });
+  const finalText = x.generateProjectHandoff(projKey, rows, { synth: null });
+  hoffCache[projKey] = finalText;
+  posts.push({ type: 'handoff', sid: projKey, status: 'done', text: finalText });
+  // O painel do group header é keyed por projKey → o sid postado tem de o igualar.
+  const headerHtml = _wvRenderGroupHeader(projKey, rows);
+  assert.ok(headerHtml.includes('data-hoff="' + projKey + '"'), 'painel do grupo keyed pelo projKey');
+  assert.equal(posts[0].sid, projKey, 'sid postado casa o data-hoff do painel do grupo');
+  assert.equal(posts[1].sid, projKey, 'final mantém o mesmo sid');
+  // Board com as 3 flags inline (DUP: 2 sessões mesmo repo+branch; UNCOMMITTED; UNPUSHED).
+  assert.ok(posts[1].text.includes('DUP') && posts[1].text.includes('UNCOMMITTED') && posts[1].text.includes('UNPUSHED'), 'board revela as 3 flags inline');
+  assert.equal(hoffCache[projKey], finalText, '📋 Copiar re-copia a board exacta da cache (clipboard)');
 });
 
 test('⇄ Handoff v2 generateProjectHandoff: BOARD com as 3 flags (DUP · UNCOMMITTED · UNPUSHED)', () => {
