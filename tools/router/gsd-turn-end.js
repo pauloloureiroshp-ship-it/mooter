@@ -305,6 +305,64 @@ function augmentLastClassified() {
 }
 try { augmentLastClassified(); } catch { /* never block the turn */ }
 
+// ── Live Context Accumulator (PASSO 3) — incremental handoff journal + rolling
+// local summary. At each turn-end: appendTurn (SYNC, fast — derives the snippet
+// + last tool calls from the transcript tail the host already wrote, plus cheap
+// git facts read straight from .git, no subprocess) THEN spawn the rolling
+// summary DETACHED (qwen on the free GPU, throttled inside the child; the hook
+// returns immediately, never awaits the model). Best-effort: never blocks/breaks
+// the turn. The handoff later READS this accumulated context instead of resuming
+// a thin slice on-demand at copy time.
+function accumulateHandoff() {
+  if (!sessionId || sessionId === 'unknown') return;
+  let journal;
+  try { journal = require(path.join(ROUTER_DIR, 'handoff-journal.js')); } catch { return; }
+
+  // Derive snippet + last tool calls from the transcript tail (same source the
+  // cockpit's extractPending reads). Best-effort; empty when no transcript.
+  let derived = { assistant_snippet: '', tools: [] };
+  try {
+    const tp = payload.transcript_path || payload.transcriptPath || null;
+    if (tp && fs.existsSync(tp)) {
+      derived = journal.deriveTurn(tailLines(tp, 262144)) || derived;
+    }
+  } catch { /* best-effort */ }
+
+  // Cheap git facts (branch + head sha from .git — no subprocess, no latency).
+  let git = {};
+  try {
+    const cwd = (typeof payload.cwd === 'string' && payload.cwd) ? payload.cwd : null;
+    if (cwd) git = journal.gitInfo(cwd) || {};
+  } catch { /* best-effort */ }
+
+  let nTurn = 0;
+  try { nTurn = journal.readJournal(sessionId).length + 1; } catch { /* fresh */ }
+
+  try {
+    journal.appendTurn(sessionId, {
+      assistant_snippet: derived.assistant_snippet,
+      tools: derived.tools,
+      git,
+      n_turn: nTurn,
+    });
+  } catch { /* never */ }
+
+  // Fire-and-forget rolling summary — throttled INSIDE the child (≥90s OR ≥5
+  // turns). Detached because this hook calls process.exit(0) below, which would
+  // kill an un-awaited in-process async. The clipboard never waits on qwen.
+  try {
+    const rollup = path.join(ROUTER_DIR, 'handoff-rollup.js');
+    if (fs.existsSync(rollup)) {
+      const { spawn } = require('child_process');
+      const child = spawn(process.execPath, [rollup, sessionId], {
+        detached: true, stdio: 'ignore', windowsHide: true,
+      });
+      child.unref();
+    }
+  } catch { /* never */ }
+}
+try { accumulateHandoff(); } catch { /* never block the turn */ }
+
 // ── PEÇA 4: Auto-sync silencioso (a cada 25 chamadas) ────────────────────
 function autoSync() {
   const { spawn } = require('child_process');

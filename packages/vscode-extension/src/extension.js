@@ -443,8 +443,12 @@ class CockpitProvider {
         //  (~11.5s) — o webview já tem a board. SÓ re-copia/substitui se o texto enriquecido mudou.
         let prows = snapRows;
         try { const all = await extra.recentSessions(30); const f = all.filter((r) => projOf(r) === proj); if (f.length) prows = f; } catch { /* mantém snapRows */ }
+        // PASSO 5 (live context): prefer the per-session rolling summaries already on disk —
+        // instant, deterministic, no echo. Only fall back to the on-demand local synth when no
+        // session has a summary yet (and that itself falls back to deterministic counts).
         let synth = null;
-        try { synth = await extra.ollamaProjectSynth(prows, 11500); } catch { synth = null; }
+        try { synth = extra.projectSynthFromSummaries(prows); } catch { synth = null; }
+        if (!synth) { try { synth = await extra.ollamaProjectSynth(prows, 11500); } catch { synth = null; } }
         let best = text0;
         const enriched = extra.generateProjectHandoff(proj, prows, { synth });
         if (enriched && enriched !== text0) {
