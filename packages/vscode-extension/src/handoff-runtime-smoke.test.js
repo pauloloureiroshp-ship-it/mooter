@@ -35,6 +35,10 @@ function freshExtra(port) {
 let hungServer = null;
 let hungPort = 0;
 let deadPort = 0; // a port nobody listens on → connection refused (Ollama DOWN)
+// A fake Ollama that ANSWERS /api/generate (captures the POST body) → the keep-warm + enrich path.
+let liveServer = null;
+let livePort = 0;
+let lastGenBody = null; // the JSON body of the most recent /api/generate request
 
 const ROW_QUICK = {
   fullId: 'smoke-quick', id: 'smoke-qu', name: 'wire the handoff button', turns: 7,
@@ -63,12 +67,39 @@ before(async () => {
   await new Promise((r) => tmp.listen(0, '127.0.0.1', r));
   deadPort = tmp.address().port;
   await new Promise((r) => tmp.close(r));
+
+  // A LIVE fake Ollama: answers /api/tags AND /api/generate (capturing the body) so we can prove
+  // keep_alive renewal and the enrich path (composeHandoff returns a model + a changed text).
+  liveServer = http.createServer((req, res) => {
+    if (req.url === '/api/tags') {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ models: [{ name: 'qwen2.5:3b', size: 2.0e9 }] }));
+      return;
+    }
+    if (req.url === '/api/generate') {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        try { lastGenBody = JSON.parse(body); } catch { lastGenBody = null; }
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ response: 'wiring the handoff enrichment' }));
+      });
+      return;
+    }
+    res.statusCode = 404; res.end('{}');
+  });
+  await new Promise((r) => liveServer.listen(0, '127.0.0.1', r));
+  livePort = liveServer.address().port;
 });
 
 after(async () => {
   if (hungServer) {
     try { hungServer.closeAllConnections && hungServer.closeAllConnections(); } catch {}
     await new Promise((r) => hungServer.close(r));
+  }
+  if (liveServer) {
+    try { liveServer.closeAllConnections && liveServer.closeAllConnections(); } catch {}
+    await new Promise((r) => liveServer.close(r));
   }
 });
 
@@ -123,4 +154,75 @@ test('SYNC.md upsert path still works with the deterministic text (no Ollama nee
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+// ── KEEP-WARM (B) ────────────────────────────────────────────────────────────────────────────
+test('keep-warm: every /api/generate body carries keep_alive "30m" (via composeHandoff)', async () => {
+  const extra = freshExtra(livePort);
+  lastGenBody = null;
+  const c = await extra.composeHandoff(ROW_QUICK, ROW_QUICK.pending, { deadlineMs: 4000, doingMs: 3500 });
+  assert.ok(lastGenBody, 'live Ollama /api/generate was reached');
+  assert.equal(lastGenBody.keep_alive, '30m', 'keep_alive "30m" renews the warm model on every generate');
+  assert.equal(c.model, 'qwen2.5:3b', 'composeHandoff reports the local gen model when the narrative ran');
+  assert.ok(c.text.includes('⇄ MOOTER HANDOFF'), 'enriched text is still a valid handoff');
+});
+
+test('keep-warm: warmLocalGenModel fires a tiny generate with keep_alive "30m" (renew on warm)', async () => {
+  const extra = freshExtra(livePort);
+  lastGenBody = null;
+  assert.equal(extra.warmLocalGenModel(200), true, 'warm never blocks — returns true immediately');
+  // fire-and-forget → poll briefly for the background generate to land.
+  const t0 = Date.now();
+  while (lastGenBody == null && Date.now() - t0 < 3000) { await new Promise((r) => setTimeout(r, 25)); }
+  assert.ok(lastGenBody, 'warm reached /api/generate in the background');
+  assert.equal(lastGenBody.keep_alive, '30m', 'warm renews keep_alive "30m"');
+  assert.equal(lastGenBody.options.num_predict, 1, 'warm uses a tiny generate (num_predict 1)');
+});
+
+// ── BACKGROUND ENRICHMENT handler-sim (A) ─────────────────────────────────────────────────────
+// Mirrors the cockpit handler m.cmd==='handoff' WITHOUT vscode: skeleton 'ready' + clipboard BEFORE
+// any LLM await; 'enriched' + re-clipboard ONLY when c.model!=null and the text changed.
+test('handler-sim (live): ready+clipboard BEFORE LLM await; enriched only when model!=null & text changed', async () => {
+  const extra = freshExtra(livePort);
+  const row = Object.assign({}, ROW_QUICK);
+  const pending = row.pending;
+  const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+  const posts = []; const clips = [];
+  // PASSO 1 — esqueleto, ANTES de qualquer await de LLM
+  const text0 = extra.generateHandoff(row, pending, { mode });
+  posts.push({ status: 'ready', text: text0 });
+  clips.push(text0);
+  assert.equal(posts.length, 1, 'exactly the ready post before any LLM work');
+  assert.equal(posts[0].status, 'ready');
+  assert.equal(clips[0], text0, 'skeleton copied to the clipboard first');
+  assert.ok(clips[0].includes('EXACT pending question — verbatim?'), 'PENDING verbatim in the copied skeleton');
+  // PASSO 2 — enriquecer
+  const c = await extra.composeHandoff(row, pending, { mode, deadlineMs: 4000, doingMs: 3500, recapMs: 3800 });
+  if (c && c.model && c.text && c.text !== text0) {
+    posts.push({ status: 'enriched', text: c.text, model: c.model });
+    clips.push(c.text);
+  }
+  assert.equal(posts.length, 2, 'enriched posted after the narrative ran (live Ollama)');
+  assert.equal(posts[1].status, 'enriched');
+  assert.equal(posts[1].model, 'qwen2.5:3b', 'enriched carries the model name');
+  assert.equal(clips[1], c.text, 're-copied the enriched text');
+  assert.ok(c.text !== text0, 'enriched text differs from the skeleton');
+  assert.ok(c.text.includes('EXACT pending question — verbatim?'), 'PENDING still verbatim after enrichment');
+});
+
+test('handler-sim (Ollama down): ready+clipboard only, NO enriched (skeleton stays, never empty)', async () => {
+  const extra = freshExtra(deadPort);
+  const row = ROW_QUICK;
+  const pending = row.pending;
+  const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+  const posts = []; const clips = [];
+  const text0 = extra.generateHandoff(row, pending, { mode });
+  posts.push({ status: 'ready', text: text0 });
+  clips.push(text0);
+  const c = await extra.composeHandoff(row, pending, { mode, deadlineMs: 4000, doingMs: 3500 });
+  if (c && c.model && c.text && c.text !== text0) { posts.push({ status: 'enriched' }); clips.push(c.text); }
+  assert.equal(posts.length, 1, 'no enriched post when Ollama is down');
+  assert.equal(clips.length, 1, 'clipboard holds only the skeleton');
+  assert.equal(c.model, null, 'composeHandoff reports a null model when no narrative ran');
+  assert.ok(clips[0].includes('⇄ MOOTER HANDOFF'), 'skeleton is non-empty (never "nothing generated")');
 });

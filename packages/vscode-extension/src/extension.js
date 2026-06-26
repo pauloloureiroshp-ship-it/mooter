@@ -215,19 +215,23 @@ class CockpitProvider {
     view.webview.html = getHtml();
     // ⇄ Handoff v2 (#3b): pré-aquece o modelo de geração local (best-effort, nunca bloqueia) para o
     // 1º handoff já vir do LLM em vez do fallback determinístico por cold-start do Ollama.
-    try { extra.warmLocalGenModel(); } catch { /* best-effort */ }
+    // ⇄ v2.1 KEEP-WARM: re-aquece quando o cockpit fica visível / no refresh, THROTTLED (máx 1×/8min)
+    // para renovar a janela keep_alive '30m' sem martelar o Ollama. Nunca bloqueia (fire-and-forget).
+    let lastWarmTs = 0;
+    const reWarm = () => { try { if (!view.visible) return; const now = Date.now(); if (now - lastWarmTs < 8 * 60 * 1000) return; lastWarmTs = now; extra.warmLocalGenModel(); } catch { /* best-effort */ } };
+    try { extra.warmLocalGenModel(); lastWarmTs = Date.now(); } catch { /* best-effort */ }
     // ⇄ Handoff v2: cache do último texto de handoff por id (sessão OU projectKey) → o botão
     // 📋 Copiar re-copia sem regenerar. Vive no closure desta view (limpa ao recriar a view).
     const hoffCache = {};
     const sub = this.data.onUpdate((s) => { try { view.webview.postMessage({ type: 'snapshot', s: project(s) }); } catch {} });
     // Throttle polling to the panel's visibility (fewer background CLI spawns when hidden).
     this.data.setVisible(view.visible);
-    const vis = view.onDidChangeVisibility(() => this.data.setVisible(view.visible));
+    const vis = view.onDidChangeVisibility(() => { this.data.setVisible(view.visible); reWarm(); });
     view.onDidDispose(() => { sub.dispose(); vis.dispose(); });
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
-      if (m.cmd === 'refresh') this.data.refresh(true);
+      if (m.cmd === 'refresh') { this.data.refresh(true); reWarm(); }
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
       if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
@@ -386,37 +390,41 @@ class CockpitProvider {
         const row = rows.find((r) => r.fullId === sid);
         if (!row) { vscode.window.showWarningMessage('🐮 sessão não encontrada — refresca o cockpit e tenta outra vez.'); return; }
         const pending = row.pending || extra.extractPending([]);
-        // Feedback IMEDIATO: a narrativa local pode levar até ~4.5s; sem isto o utilizador vê "nada"
-        // e pensa que o botão partiu (exactamente o sintoma reportado). O resultado substitui-o.
-        vscode.window.setStatusBarMessage('🐮 a gerar handoff…', 5000);
-        // local (T0 · $0). ⇄ v2 PASSO 1+3: o esqueleto determinístico (git/branch/ficheiros + PENDING
-        // verbatim) é revelado JÁ no painel inline (postMessage 'generating'); a seguir composeHandoff
-        // (#208) corre DOING+RECAP em PARALELO com deadline DURA (≤4.5s) e devolve o texto FINAL →
-        // postMessage 'done'. O clipboard nunca pendura à espera do Ollama lento; falha/timeout →
-        // fallback determinístico. O LLM NUNCA toca no PENDING. mode segue o tamanho da sessão.
         const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
-        const skeleton = extra.generateHandoff(row, pending, { mode });
-        hoffCache[sid] = skeleton;
-        try { view.webview.postMessage({ type: 'handoff', sid, status: 'generating', text: skeleton }); } catch {}
-        const composed = await extra.composeHandoff(row, pending, { mode });
-        const text = composed.text;
-        hoffCache[sid] = text;
-        try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
+        // ⇄ v2.1 BACKGROUND ENRICHMENT — o handoff copia SEMPRE, e enriquece DEPOIS:
+        //  PASSO 1: esqueleto determinístico (git/branch/ficheiros + PENDING verbatim) revelado no
+        //   painel ('ready') e COPIADO já, ANTES de qualquer await de LLM → o clipboard nunca espera.
+        //  PASSO 2: composeHandoff (DOING+RECAP em paralelo, deadline longo ~12s porque o webview já
+        //   tem o esqueleto) corre a narrativa LLM local; SÓ quando ela CORREU (c.model!=null) e o
+        //   texto mudou, substitui o painel ('enriched') e RE-COPIA. Ollama down/lento → fica o
+        //   esqueleto (já copiado). O LLM NUNCA toca no PENDING. mode segue o tamanho da sessão.
+        const text0 = extra.generateHandoff(row, pending, { mode });
+        hoffCache[sid] = text0;
+        try { view.webview.postMessage({ type: 'handoff', sid, status: 'ready', text: text0 }); } catch {}
+        try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
         try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch {}
-        let synced = false;
-        if (row.cwd) { try { const w = extra.writeHandoffToSync(row.cwd, sid, text, { name: row.name }); synced = !!(w && w.ok); } catch { synced = false; } }
-        // §SAVINGS: o rodapé visível ("~Xk tok saved vs screenshot (est.)") já viaja no texto. O
-        // registo advisory no savings-tracker da W1 fica deferido até a sua API estar confirmada
-        // (não fabricamos um writer); a estimativa honesta é a que o utilizador vê no handoff.
-        try { view.webview.postMessage({ type: 'handoff', sid, status: 'done', text }); } catch {}
-        vscode.window.setStatusBarMessage(synced
-          ? '🐮 handoff (' + mode + ') no painel + clipboard — cola no Cowork (SYNC.md actualizado)'
-          : '🐮 handoff (' + mode + ') no painel + clipboard — cola no Cowork', 6000);
+        vscode.window.setStatusBarMessage('🐮 handoff copiado — a enriquecer com LLM local…', 5000);
+        let best = text0;
+        try {
+          const c = await extra.composeHandoff(row, pending, { mode, deadlineMs: 12000, doingMs: 11000, recapMs: 11500 });
+          if (c && c.model && c.text && c.text !== text0) {
+            best = c.text;
+            hoffCache[sid] = best;
+            try { view.webview.postMessage({ type: 'handoff', sid, status: 'enriched', text: best, model: c.model }); } catch {}
+            try { await vscode.env.clipboard.writeText(best); } catch { /* clipboard best-effort */ }
+            vscode.window.setStatusBarMessage('✓ enriquecido (' + c.model + ') — recopiado', 5000);
+          }
+        } catch { /* Ollama down/lento → fica o esqueleto (nunca hang/vazio) */ }
+        // SYNC.md upsert com o MELHOR texto (enriquecido se houve, senão o esqueleto) — rota local
+        // "o contexto nunca se perde". §SAVINGS: o rodapé visível ("~Xk tok saved vs screenshot
+        // (est.)") já viaja no texto; o registo advisory no savings-tracker fica deferido até a sua
+        // API estar confirmada (não fabricamos um writer).
+        if (row.cwd) { try { extra.writeHandoffToSync(row.cwd, sid, best, { name: row.name }); } catch { /* SYNC.md best-effort */ } }
         this.data.refresh(true);
       }
-      // ⇄ Handoff v2 PASSO 2 — handoff de PROJECTO (todas as sessões do grupo). Mesmo painel inline
-      // (data-hoff=<projectKey>) + clipboard + upsert SYNC.md sob sid '__fleet__'. INSTANTÂNEO a
-      // partir do snapshot em memória; enriquece com recentSessions(30) + síntese local (≤4.5s).
+      // ⇄ Handoff de PROJECTO (todas as sessões do grupo). Mesmo painel inline (data-hoff=<projectKey>)
+      // + clipboard + upsert SYNC.md sob sid '__fleet__'. INSTANTÂNEO a partir do snapshot em memória
+      // ('ready', copiado já); enriquece em background com recentSessions(30) + síntese local.
       if (m.cmd === 'projHandoff') {
         const proj = String(m.arg || '').slice(0, 80);
         if (!proj) return;
@@ -424,24 +432,32 @@ class CockpitProvider {
         const projOf = (r) => (r && r.coworkProject) ? r.coworkProject
           : ((r && r.repoFolder && (r.branch || r.gitStage)) ? r.repoFolder : 'Unassigned');
         const snapRows = ((this.data.snapshot && this.data.snapshot.recent) || []).filter((r) => projOf(r) === proj);
-        const instant = extra.generateProjectHandoff(proj, snapRows, {});
-        hoffCache[proj] = instant;
-        try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'generating', text: instant }); } catch {}
-        // ENRIQUECE: recentSessions(30) capta sessões além das visíveis; síntese local bounded 4.5s.
+        // ⇄ v2.1 BACKGROUND ENRICHMENT (mesmo padrão do handoff de sessão):
+        //  PASSO 1: board instantânea (determinística) revelada ('ready') + COPIADA já, antes de awaits LLM.
+        const text0 = extra.generateProjectHandoff(proj, snapRows, {});
+        hoffCache[proj] = text0;
+        try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'ready', text: text0 }); } catch {}
+        try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
+        vscode.window.setStatusBarMessage('🐮 handoff do projecto ' + proj.slice(0, 24) + ' copiado — a enriquecer com LLM local…', 5000);
+        // PASSO 2: recentSessions(30) capta sessões além das visíveis + síntese local. Deadline longo
+        //  (~11.5s) — o webview já tem a board. SÓ re-copia/substitui se o texto enriquecido mudou.
         let prows = snapRows;
         try { const all = await extra.recentSessions(30); const f = all.filter((r) => projOf(r) === proj); if (f.length) prows = f; } catch { /* mantém snapRows */ }
         let synth = null;
-        try { synth = await extra.ollamaProjectSynth(prows, 4500); } catch { synth = null; }
-        const text = extra.generateProjectHandoff(proj, prows, { synth });
-        hoffCache[proj] = text;
-        try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
-        let synced = false;
+        try { synth = await extra.ollamaProjectSynth(prows, 11500); } catch { synth = null; }
+        let best = text0;
+        const enriched = extra.generateProjectHandoff(proj, prows, { synth });
+        if (enriched && enriched !== text0) {
+          best = enriched;
+          hoffCache[proj] = best;
+          try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'enriched', text: best, model: synth ? 'local' : null }); } catch {}
+          try { await vscode.env.clipboard.writeText(best); } catch { /* clipboard best-effort */ }
+          vscode.window.setStatusBarMessage(synth
+            ? '✓ enriquecido (síntese local) — recopiado'
+            : '🐮 handoff do projecto ' + proj.slice(0, 24) + ' actualizado — recopiado', 5000);
+        }
         const cwd = (prows.find((r) => r && r.cwd) || {}).cwd;
-        if (cwd) { try { const w = extra.writeHandoffToSync(cwd, '__fleet__', text, { name: proj }); synced = !!(w && w.ok); } catch { synced = false; } }
-        try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'done', text }); } catch {}
-        vscode.window.setStatusBarMessage(synced
-          ? '🐮 handoff do projecto ' + proj.slice(0, 24) + ' no painel + clipboard (SYNC.md actualizado)'
-          : '🐮 handoff do projecto ' + proj.slice(0, 24) + ' no painel + clipboard', 6000);
+        if (cwd) { try { extra.writeHandoffToSync(cwd, '__fleet__', best, { name: proj }); } catch { /* SYNC.md best-effort */ } }
         this.data.refresh(true);
       }
       // ⇄ Handoff v2 — 📋 Copiar: re-copia o último handoff (sessão OU projecto) da cache host-side.
@@ -851,11 +867,12 @@ function chead(title,cls){return '<div class="'+(cls||'lbl')+' collaphead"><span
 function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();};h.onclick=tog;h.setAttribute('role','button');h.setAttribute('tabindex','0');h.setAttribute('aria-label','toggle section');h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog();}});});}
 // ⇄ Handoff v2 — inline live panel state. The whole cockpit re-renders on every snapshot, so the
 // panel CONTENT must live OUTSIDE the DOM (here) and be re-applied after each render (hydrateHoff).
-// Keyed by data-hoff id (session id OR project key). status: 'generating' | 'done'. The host streams
-// skeleton → final via postMessage({type:'handoff'}); we never fabricate text webview-side.
+// Keyed by data-hoff id (session id OR project key). status: 'ready' (skeleton copiado) | 'enriched'
+// (narrativa LLM local · recopiado); 'generating'/'done' ainda aceites (compat). The host streams
+// skeleton → enriched via postMessage({type:'handoff'}); we never fabricate text webview-side.
 const hoffState={};
 function hoffPanelFor(id){const all=document.querySelectorAll('.hoffp');for(let i=0;i<all.length;i++){if(all[i].getAttribute('data-hoff')===id)return all[i];}return null;}
-function hoffApply(id,st){const p=hoffPanelFor(id);if(!p||!st)return;const pre=p.querySelector('.hoffp-pre');const stx=p.querySelector('.hoffp-st');if(pre)pre.textContent=st.text||'';if(stx)stx.textContent=st.status==='done'?'✓ copiado para o clipboard':'🐮 a gerar… (esqueleto pronto · narrativa local a encher)';p.hidden=false;if(pre)pre.scrollTop=pre.scrollHeight;}
+function hoffApply(id,st){const p=hoffPanelFor(id);if(!p||!st)return;const pre=p.querySelector('.hoffp-pre');const stx=p.querySelector('.hoffp-st');if(pre)pre.textContent=st.text||'';if(stx){const s=st.status;stx.textContent=s==='enriched'?('✓ enriquecido'+(st.model?' com '+st.model:'')+' · recopiado'):(s==='ready'?'📋 copiado · a enriquecer com LLM local…':(s==='done'?'✓ copiado para o clipboard':'🐮 a gerar… (esqueleto pronto · narrativa local a encher)'));}p.hidden=false;if(pre)pre.scrollTop=pre.scrollHeight;}
 function hydrateHoff(){for(const id in hoffState)hoffApply(id,hoffState[id]);}
 // Clicks inside a panel must not bubble to the session row (openSession) or the group collapse toggle.
 function wireHoff(root){(root||document).querySelectorAll('.hoffp').forEach(p=>{p.onclick=(e)=>{e.stopPropagation();};});(root||document).querySelectorAll('.projhandoff').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(o)o.call(b,e);};});
@@ -929,8 +946,9 @@ function wireSessControls(root){
   root.querySelectorAll('.srow button.sgitbtn').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};}); // WCOCKPIT-9 (Bloco C)
 }
 window.addEventListener('message',(e)=>{
-  // ⇄ Handoff v2 — live panel stream (skeleton 'generating' → final 'done'). Store + apply.
-  if(e.data.type==='handoff'){const id=e.data.sid;if(id!=null){hoffState[id]={status:e.data.status,text:e.data.text||''};hoffApply(id,hoffState[id]);}return;}
+  // ⇄ Handoff v2.1 — live panel stream: skeleton 'ready' (copiado já) → 'enriched' (narrativa LLM
+  // local · recopiado). 'generating'/'done' continuam suportados (compat). Store + apply.
+  if(e.data.type==='handoff'){const id=e.data.sid;if(id!=null){hoffState[id]={status:e.data.status,text:e.data.text||'',model:e.data.model||null};hoffApply(id,hoffState[id]);}return;}
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
