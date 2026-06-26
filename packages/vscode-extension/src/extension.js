@@ -380,16 +380,16 @@ class CockpitProvider {
         const row = rows.find((r) => r.fullId === sid);
         if (!row) { vscode.window.showWarningMessage('🐮 sessão não encontrada — refresca o cockpit e tenta outra vez.'); return; }
         const pending = row.pending || extra.extractPending([]);
+        // Feedback IMEDIATO: a narrativa local pode levar até ~4.5s; sem isto o utilizador vê "nada"
+        // e pensa que o botão partiu (exactamente o sintoma reportado). O resultado substitui-o.
+        vscode.window.setStatusBarMessage('🐮 a gerar handoff…', 5000);
         // HÍBRIDO: esqueleto determinístico (git/branch/ficheiros + PENDING verbatim) + narrativa
-        // local (T0 · $0). mode segue o tamanho da sessão (turns altos → 'full' inclui RECAP).
-        const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
-        // OPCIONAL: DOING (1 linha, ≤2s) + RECAP (3–5 linhas, só 'full', ≤4s) via Ollama local, com
-        // timeout DURO. Nunca bloqueiam nem lançam; falha → fallback determinístico (DOING = 1º
-        // prompt; RECAP omitido). O LLM NUNCA toca no PENDING (verbatim no gerador).
-        let doing = null, recap = null;
-        try { doing = await extra.ollamaDoing(row, 2000); } catch { doing = null; }
-        if (mode === 'full') { try { recap = await extra.ollamaRecap(row, pending, 4000); } catch { recap = null; } }
-        const text = extra.generateHandoff(row, pending, { doing, recap, mode });
+        // local (T0 · $0). composeHandoff corre DOING+RECAP em PARALELO com deadline DURA (≤4.5s) —
+        // o clipboard nunca pendura à espera do Ollama lento. Falha/timeout → fallback determinístico.
+        // O LLM NUNCA toca no PENDING (verbatim no gerador). mode segue o tamanho da sessão.
+        const composed = await extra.composeHandoff(row, pending);
+        const text = composed.text;
+        const mode = composed.mode;
         try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
         try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch {}
         let synced = false;
