@@ -392,7 +392,7 @@ class CockpitProvider {
         const ahead = (row && row.gitStage && row.gitStage.ahead) || 0;
         vscode.window.showInformationMessage(
           '☁ Back up ' + (ahead ? ahead + ' commit' + (ahead === 1 ? '' : 's') : 'your work') + ' on ' + branch,
-          { modal: true, detail: 'Your work is committed locally but not on GitHub yet. To back it up:\n\n     git push\n\n(Mooter never uses --force.) Next time there are file changes, “Save my work” offers Commit & Push together in one guided flow.' },
+          { modal: true, detail: 'Your work is committed locally but not on GitHub yet. To back it up:\n\n     git push\n\nFirst push on a new branch:\n     git push -u origin ' + branch + '\n\n(Mooter never uses --force.) Next time there are file changes, “Save my work” offers Commit & Push together in one guided flow.' },
           'OK'
         );
         return;
