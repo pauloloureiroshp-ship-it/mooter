@@ -1672,6 +1672,18 @@ try {
   const CASCADE_RE = /usa\s+opus|usa\s+o\s+melhor|melhor\s+modelo|thinks?\s+harder|ultrathink|preciso\s+do\s+teu\s+melhor/i;
   const cascadeDetected = CASCADE_RE.test(prompt);
 
+  // Cockpit v2 Wave 1: retry detection — generalises the cascade pattern above.
+  // A retry phrase ("try again", "não funcionou", …) signals the PREVIOUS turn
+  // failed, so we stamp retry_detected (0/1) into .last-classified.json, which
+  // event-builder.js joins per-decision. detectRetry is the canonical, tested
+  // detector; fall back to a local regex if the module can't load (best-effort).
+  let retryDetected = false;
+  try {
+    retryDetected = require('./event-builder.js').detectRetry(prompt);
+  } catch {
+    retryDetected = /try again|tenta\s+(?:de\s+novo|outra\s+vez|novamente)|de\s+novo|outra\s+vez|n[ãa]o\s+funciona\b|n[ãa]o\s+funcionou|n[ãa]o\s+resultou|still\s+broken|still\s+failing|doesn'?t\s+work|didn'?t\s+work|not\s+working|same\s+error|that'?s\s+wrong|est[áa]\s+errado|refaz\b/i.test(prompt);
+  }
+
   /**
    * @param {number} n
    */
@@ -1703,6 +1715,7 @@ try {
     task_category: decision.task_category,
     prompt_len_bucket: lenBucketLocal(prompt.length),
     cascade_upgrade: cascadeDetected ? 1 : 0,
+    retry_detected: retryDetected ? 1 : 0,
     response_len_bucket: null,
     turn_end_ts: null,
   };
