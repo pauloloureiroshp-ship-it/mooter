@@ -2,6 +2,18 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.23] — 2026-06-25 — Stage Rail visual upgrade: icons, CTAs, herd footer
+
+### Changed
+
+- **Stage Rail icons are now line-art** (file · save · cloud-up · git-branch · git-merge · rocket) in circular nodes that light by state — done = green ✓, current = dashed rose ring (pulses), upcoming = faint — matching the cockpit design.
+- **Prominent next-move button** per session: **Save my work** (real — reuses the Commit & Push flow), or **Merge when ready** / **Back it up** as *guided* advisories. Mooter never auto-merges or force-pushes; these explain the safe steps in a modal.
+- **Friendlier status line** ("✦ You changed files but haven't saved a restore point.") and a safe-to-close chip with an icon (⚠ unsaved · ☁ saved, not backed up · 🔒 safe to close).
+
+### Added
+
+- **"⇡ Commit & Push — N sessions"** summary at the foot of Live sessions when one or more sessions have work to save or back up (informational; the real actions are the per-card buttons).
+
 ## [0.16.22] — 2026-06-25 — Project Stage Rail: plain-language transparency per session
 
 ### Added

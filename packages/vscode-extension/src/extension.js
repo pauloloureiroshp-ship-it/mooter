@@ -370,6 +370,33 @@ class CockpitProvider {
         }
         this.data.refresh(true);
       }
+      // WCOCKPIT-10: guided (advisory) actions for the Stage Rail. Mooter NEVER auto-merges
+      // nor force-pushes — these explain the safe steps instead of executing a risky op.
+      if (m.cmd === 'gitMergeGuide') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const rows = (this.data.snapshot && this.data.snapshot.recent) || [];
+        const row = rows.find((r) => r.fullId === sid);
+        const branch = (row && row.branch) || '(this branch)';
+        vscode.window.showInformationMessage(
+          '🔀 Merge ' + branch + ' when you are happy',
+          { modal: true, detail: 'Mooter never auto-merges — merging is a deliberate step. The safe path:\n\n1. Make sure ' + branch + ' is clean and backed up (use “Save my work”).\n2. Open a Pull Request:\n     gh pr create --base main --head ' + branch + '\n3. Let the checks run and review the diff.\n4. Squash-merge the PR when it is green.\n\nWhy a PR and not a local merge: it runs CI, keeps a review trail, and never touches the official version until you click merge.' },
+          'OK'
+        );
+        return;
+      }
+      if (m.cmd === 'gitBackupGuide') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const rows = (this.data.snapshot && this.data.snapshot.recent) || [];
+        const row = rows.find((r) => r.fullId === sid);
+        const branch = (row && row.branch) || '(this branch)';
+        const ahead = (row && row.gitStage && row.gitStage.ahead) || 0;
+        vscode.window.showInformationMessage(
+          '☁ Back up ' + (ahead ? ahead + ' commit' + (ahead === 1 ? '' : 's') : 'your work') + ' on ' + branch,
+          { modal: true, detail: 'Your work is committed locally but not on GitHub yet. To back it up:\n\n     git push\n\nFirst push on a new branch:\n     git push -u origin ' + branch + '\n\n(Mooter never uses --force.) Next time there are file changes, “Save my work” offers Commit & Push together in one guided flow.' },
+          'OK'
+        );
+        return;
+      }
       if (m.cmd === 'toggleProject') {
         const proj = String(m.arg || '').slice(0, 64);
         if (proj) {
@@ -589,24 +616,29 @@ function getHtml() {
   .gstage.staged{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gstage.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gtip{font-size:9px;color:#e5c07b;font-weight:600}
-  /* WCOCKPIT-10: Project Stage Rail + safe-to-close chip + plain next-move */
-  .srail{display:flex;justify-content:space-between;position:relative;margin:6px 3px 2px}
-  .srail::before{content:"";position:absolute;left:11px;right:11px;top:11px;height:2px;background:var(--vscode-widget-border);z-index:0}
-  .sdot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;border:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background)}
-  .sdot.done{color:var(--g);background:var(--gdim);border-color:var(--g)}
-  .sdot.now{color:var(--r);background:var(--rdim);border-color:var(--r);animation:srnow 1.7s ease-in-out infinite}
-  .sdot.todo{opacity:.45}
-  @keyframes srnow{0%,100%{opacity:1}50%{opacity:.45}}
-  .snow{font-size:11px;color:var(--vscode-foreground);margin:3px 2px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-  .snowtxt{opacity:.9}
-  .snowbtn{font-size:9.5px;padding:1px 8px;border-radius:9px;background:var(--rdim);color:var(--r);border:1px solid var(--r);cursor:pointer;line-height:1.6}
-  .snowbtn:hover{opacity:.85}
-  .snowhint{font-size:9.5px;color:#5A9BD4;opacity:.85}
-  .sbehind{font-size:9.5px;color:#5A9BD4;margin:2px 2px 0;opacity:.85}
-  .ssafe{font-size:9px;border-radius:10px;padding:1px 7px;margin-left:6px;font-weight:600}
+  /* WCOCKPIT-10: Project Stage Rail + safe-to-close chip + plain next-move + CTA */
+  .srail{display:flex;justify-content:space-between;position:relative;margin:8px 4px 4px}
+  .srail::before{content:"";position:absolute;left:13px;right:13px;top:13px;height:2px;background:var(--vscode-widget-border);z-index:0}
+  .sdot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:1;border:1.5px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);color:var(--bmuted,var(--vscode-descriptionForeground))}
+  .sdot svg{width:13px;height:13px;display:block}
+  .sdot.done{color:#0d1a10;background:var(--g);border-color:var(--g)}
+  .sdot.now{color:var(--r);background:var(--rdim);border-color:var(--r);border-style:dashed;animation:srnow 1.7s ease-in-out infinite}
+  .sdot.todo{color:var(--vscode-descriptionForeground);opacity:.5}
+  @keyframes srnow{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.92)}}
+  .snow{font-size:11px;color:var(--vscode-foreground);margin:5px 3px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .snowtxt{opacity:.92}
+  .snowctarow{display:flex;margin:6px 2px 1px}
+  .snowcta{flex:1;font-size:11.5px;font-weight:600;padding:7px 12px;border-radius:7px;cursor:pointer;text-align:center;line-height:1.3;transition:opacity 140ms ease,border-color 140ms ease}
+  .snowcta.save{background:var(--rdim);color:var(--r);border:1px solid var(--r)}
+  .snowcta.guide{background:transparent;color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border)}
+  .snowcta:hover{opacity:.85;border-color:var(--g)}
+  .snowcta:focus-visible{outline:2px solid var(--r);outline-offset:1px}
+  .sbehind{font-size:9.5px;color:#5A9BD4;margin:3px 2px 0;opacity:.85}
+  .ssafe{font-size:9px;border-radius:10px;padding:1px 8px;margin-left:6px;font-weight:600;white-space:nowrap}
   .ssafe.green{color:var(--g);background:var(--gdim)}
   .ssafe.amber{color:#e5c07b;background:rgba(229,192,123,.12)}
   .ssafe.blue{color:#5A9BD4;background:rgba(90,155,212,.12)}
+  .herdfoot{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:8px;padding:8px;border-radius:7px;border:1px dashed var(--g);color:var(--g);background:var(--gdim);font-size:11px;font-weight:600}
   /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
      (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
      height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
@@ -887,7 +919,11 @@ window.addEventListener('message',(e)=>{
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
   const clearableN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).length; // WCOCKPIT-7: old & safe-to-close
-  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  // WCOCKPIT-10: summary of sessions with work to save/back up (informational — the real
+  // actions are the per-card "Save my work" buttons; a one-click bulk push is never safe).
+  const commitN=rsess.filter(r=>r.gitStage&&(r.gitStage.state==='uncommitted'||r.gitStage.state==='staged'||r.gitStage.state==='ahead')).length;
+  const herdFoot=commitN?'<div class="herdfoot" title="'+commitN+' session'+(commitN===1?'':'s')+' have work to save or back up — use the button on each card">⇡ Commit &amp; Push — '+commitN+' session'+(commitN===1?'':'s')+'</div>':'';
+  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+herdFoot+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);

@@ -1082,7 +1082,7 @@ test('WCOCKPIT-10 a11y: rail aria-label names the CURRENT step + Save button is 
   const ahead = _wvRenderRow(Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2, behind: 0 }, branch: 'wave/x' }), {});
   assert.ok(/aria-label="Project stage — [^"]+"/.test(ahead), 'rail aria-label must name the live state, not a static "stage rail"');
   const amber = _wvRenderRow(Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 1, staged: 0, ahead: 0, behind: 0 }, branch: 'wave/x' }), {});
-  assert.ok(/<button class="snowbtn"[^>]*aria-label="[^"]+"/.test(amber), 'Save my work button must carry an aria-label');
+  assert.ok(/<button class="snowcta[^"]*"[^>]*aria-label="[^"]+"/.test(amber), 'Save my work button must carry an aria-label');
 });
 
 test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — brain title with gitStage → no throw', () => {
