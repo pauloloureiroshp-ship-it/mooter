@@ -71,14 +71,16 @@ var SESS_MODELS = [
 // embedded into the webview by getHtml() (same fn.toString() path as renderRow). The
 // webview has no module scope, so getHtml() emits `const STAGE_META=…` and
 // `const deriveStages=…` as siblings of renderRow — see extension.js getHtml().
-// Columns: [key, label, git-term, plain-language, icon].
+// Columns: [key, label, git-term, plain-language, svg-paths] — line-art icons (Feather-style,
+// stroke=currentColor) so each node can be tinted by its state (done/now/todo).
 var STAGE_META = [
-  ['edit',   'Edit',   'working changes', 'The AI just changed your files — nothing saved yet',    '✎'],
-  ['save',   'Save',   'commit',          'Bundle changes into a restore point you can return to', '◆'],
-  ['backup', 'Backup', 'push',            'Send your restore points to GitHub so they are safe',   '↑'],
-  ['branch', 'Branch', 'branch',          'A safe side-copy that does not touch the real version', '⎇'],
-  ['merge',  'Merge',  'merge',           'Fold your side-copy back into the official version',     '⇄'],
-  ['live',   'Live',   'deploy',          'Publish it for the world to use',                        '◉']
+  ['edit',   'Edit',   'working changes', 'The AI just changed your files — nothing saved yet',    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'],
+  ['save',   'Save',   'commit',          'Bundle changes into a restore point you can return to', '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'],
+  ['backup', 'Backup', 'push',            'Send your restore points to GitHub so they are safe',   '<path d="M20 17.6A5 5 0 0 0 18 8h-1.3A8 8 0 1 0 4 16.3"/><polyline points="8 16 12 12 16 16"/><line x1="12" y1="12" x2="12" y2="21"/>'],
+  ['branch', 'Branch', 'branch',          'A safe side-copy that does not touch the real version', '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>'],
+  ['merge',  'Merge',  'merge',           'Fold your side-copy back into the official version',     '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>'],
+  ['live',   'Live',   'deploy',          'Publish it for the world to use',                        '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3-.55 4-2c1.08-1.62 0-5 0-5"/>'],
+  ['done',   'Done',   'done',            'complete',                                               '<polyline points="20 6 9 17 4 12"/>']
 ];
 
 // PURE: gitStage + branch → {stages, safe, behind}. Concatenation/literals only (no
@@ -300,43 +302,52 @@ function renderRow(r, opts) {
   // git repos. We must NEVER claim "safe to close" / "done" for a session with no version
   // control, so the whole block is gated on r.gitStage. Pure derivation over the same
   // gitStage signal the chip above already uses — same source, same truth, zero new backend.
-  var railLine = '', nowLine = '', safeChip = '', behindLine = '';
+  var railLine = '', nowLine = '', ctaLine = '', safeChip = '', behindLine = '';
   if (r.gitStage) {
     var _ds = deriveStages(r.gitStage, r.branch);
     var _stg = _ds.stages;
-    // Which single stage is the current step (invariant: ≤1 'now'; 'branch'/'live' never 'now').
-    // Computed BEFORE the rail so the rail's aria-label can name the actual state to a
-    // screen reader (the per-dot title tooltips are mouse-only).
+    // Current step (invariant: ≤1 'now'; 'branch'/'live' never 'now'). Computed before the
+    // rail so the rail's aria-label can name the live state to a screen reader.
     var _nowKey = '';
     var _norder = ['edit', 'save', 'backup', 'merge'];
     for (var _ni = 0; _ni < _norder.length; _ni++) { if (_stg[_norder[_ni]] === 'now') { _nowKey = _norder[_ni]; break; } }
     var _NOWTXT = {
-      edit:   'The AI changed your files — nothing saved yet',
-      save:   'Changes ready — save them into a restore point',
-      backup: 'Saved on your machine — not backed up to GitHub yet',
-      merge:  'Your side-copy is clean — ready to fold into the official version'
+      edit:   "You changed files but haven't saved a restore point.",
+      save:   "Changes are staged — save them into a restore point.",
+      backup: "Saved on your machine — back it up so it's safe.",
+      merge:  "On a safe side-copy. Merge it when you're happy."
     };
-    var _nowMsg = _nowKey ? _NOWTXT[_nowKey] : (_ds.safe.level === 'green' ? 'All caught up — nothing pending' : _ds.safe.label);
+    var _nowMsg = _nowKey ? _NOWTXT[_nowKey] : (_ds.safe.level === 'green' ? 'All caught up — safe to close.' : _ds.safe.label);
 
+    // Line-art icon nodes: done → green ✓, now → dashed rose ring (pulse), todo → faint.
+    var _svg = function (p) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
+    var _DONE = STAGE_META[STAGE_META.length - 1][4];
     var _dots = '';
-    for (var _si = 0; _si < STAGE_META.length; _si++) {
+    for (var _si = 0; _si < STAGE_META.length - 1; _si++) {
       var _sk = STAGE_META[_si][0];
       var _sstate = _stg[_sk] || 'todo';
-      var _sicon = _sstate === 'done' ? '✓' : STAGE_META[_si][4];
+      var _spaths = (_sstate === 'done') ? _DONE : STAGE_META[_si][4];
       var _stip = STAGE_META[_si][1] + ' — ' + STAGE_META[_si][3] + ' (git: ' + STAGE_META[_si][2] + ')';
-      _dots += '<span class="sdot ' + _sstate + '" title="' + esc(_stip) + '">' + _sicon + '</span>';
+      _dots += '<span class="sdot ' + _sstate + '" title="' + esc(_stip) + '">' + _svg(_spaths) + '</span>';
     }
     railLine = '<div class="srail" role="img" aria-label="' + esc('Project stage — ' + _nowMsg) + '">' + _dots + '</div>';
 
-    var _nowAct = '';
-    if (_ds.safe.action === 'gitFlow') {
-      _nowAct = ' <button class="snowbtn" data-a="gitFlow" data-x="' + esc(sid) + '" aria-label="' + esc((_ds.safe.move || 'Save my work') + ' — commit, then optionally push, this session') + '" title="preview → commit selectivo → push (confirmado). Nunca git add -A.">' + esc(_ds.safe.move || 'Save my work') + '</button>';
-    } else if (_ds.safe.hint) {
-      _nowAct = ' <span class="snowhint" title="advisory — use ⎇ Commit &amp; Push in the drawer to back up">' + esc(_ds.safe.hint) + '</span>';
-    }
-    nowLine = '<div class="snow"><span class="snowtxt">✦ ' + esc(_nowMsg) + '</span>' + _nowAct + '</div>';
+    nowLine = '<div class="snow"><span class="snowtxt">✦ ' + esc(_nowMsg) + '</span></div>';
 
-    safeChip = '<span class="ssafe ' + _ds.safe.level + '" title="' + esc(_ds.safe.label) + '">' + esc(_ds.safe.label) + '</span>';
+    // One contextual call-to-action. "Save my work" is REAL (reuses gitFlow). "Merge when
+    // ready" / "Back it up" are GUIDED (advisory) — Mooter never auto-merges or force-pushes.
+    var _cta = '';
+    if (_ds.safe.action === 'gitFlow') {
+      _cta = '<button class="snowcta save" data-a="gitFlow" data-x="' + esc(sid) + '" aria-label="' + esc((_ds.safe.move || 'Save my work') + ' — commit, then optionally push, this session') + '" title="preview → commit selectivo → push (confirmado). Nunca git add -A.">' + esc(_ds.safe.move || 'Save my work') + '</button>';
+    } else if (_stg.merge === 'now') {
+      _cta = '<button class="snowcta guide" data-a="gitMergeGuide" data-x="' + esc(sid) + '" aria-label="Merge when ready — show the safe steps to fold this branch into the official version" title="Guided merge — Mooter never auto-merges; shows the safe steps.">Merge when ready</button>';
+    } else if (_stg.backup === 'now') {
+      _cta = '<button class="snowcta guide" data-a="gitBackupGuide" data-x="' + esc(sid) + '" aria-label="Back it up — show how to push your saved work to GitHub" title="Guided backup — explains how to push your local commits (never --force).">Back it up</button>';
+    }
+    if (_cta) ctaLine = '<div class="snowctarow">' + _cta + '</div>';
+
+    var _safeIcon = _ds.safe.level === 'amber' ? '⚠ ' : (_ds.safe.level === 'blue' ? '☁ ' : '🔒 ');
+    safeChip = '<span class="ssafe ' + _ds.safe.level + '" title="' + esc(_ds.safe.label) + '">' + _safeIcon + esc(_ds.safe.label) + '</span>';
     if (_ds.behind) behindLine = '<div class="sbehind" title="your remote has commits you do not have yet">↓' + _ds.behind.n + ' — teammates pushed; pull to catch up</div>';
   }
 
@@ -366,7 +377,7 @@ function renderRow(r, opts) {
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
-    + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
+    + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + ctaLine + behindLine
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + '</div>'
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
