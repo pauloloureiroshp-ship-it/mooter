@@ -376,7 +376,7 @@ function renderRow(r, opts) {
 // ── Group header ──────────────────────────────────────────────────────────────
 // WCOCKPIT-9 (Bloco A): opts.origin distingue a ORIGEM do grupo, com honestidade:
 //   'cowork'     → nome real do projeto Cowork (espelho)  → "🗂 Mooter.ai · Cowork"
-//   'repo'       → fallback rotulado pela pasta do repo    → "📁 frugal · repo (sem Cowork)"
+//   'repo'       → fallback rotulado pela pasta do repo    → "📁 myrepo · repo (sem Cowork)"
 //   'unassigned' → sessões sem repo nem mapeamento Cowork  → "📁 Unassigned · sem Cowork"
 // O repoFolder NUNCA é apresentado como se fosse um projeto Cowork; é sub-rótulo honesto.
 function renderGroupHeader(key, group, opts) {

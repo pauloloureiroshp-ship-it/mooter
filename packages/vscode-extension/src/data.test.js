@@ -756,7 +756,7 @@ test('WCOCKPIT-3 renderGroupHeader: uses project key not repo name', () => {
   ];
   const html = rr.renderGroupHeader('Mooter.ai', group);
   assert.ok(html.includes('🗂 Mooter.ai'), 'header must show the Cowork project name');
-  assert.ok(!html.includes('FRUGAL'), 'header must NOT show repo name');
+  assert.ok(!html.includes('MYREPO'), 'header must NOT show repo name');
   assert.ok(html.includes('1 your turn'), 'header must count needsYou sessions');
   assert.ok(html.includes('2'), 'header must show total session count');
 });
@@ -1158,7 +1158,7 @@ test('WCOCKPIT-6 renderGroupHeader: rolls up branch + uncommitted git once for t
     { fullId: 'a', needsYou: false, branch: 'wave-WCOCKPIT', gitStage: { state: 'uncommitted', dirty: 162, ahead: 0 } },
     { fullId: 'b', needsYou: false, branch: 'wave-WCOCKPIT', gitStage: { state: 'uncommitted', dirty: 162, ahead: 0 } },
   ];
-  const html = rr.renderGroupHeader('FRUGAL', group);
+  const html = rr.renderGroupHeader('MYREPO', group);
   assert.ok(html.includes('wave-WCOCKPIT'), 'group header shows the shared branch');
   assert.ok(html.includes('162 uncommitted'), 'group header shows the rolled-up git stage');
   assert.ok(html.includes('class="ghd'), 'group header uses .ghd container');
@@ -1260,17 +1260,17 @@ test('WCOCKPIT-9 cowork-waiting: hit com coworkProject sobrepõe o espelho + def
 });
 
 test('WCOCKPIT-9 renderGroupHeader: origin=cowork → 🗂 + "· Cowork" + repo sub-rótulo', () => {
-  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'frugal', branch: 'main' }];
+  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'myrepo', branch: 'main' }];
   const html = rr.renderGroupHeader('Mooter.ai', group, { origin: 'cowork' });
   assert.ok(html.includes('🗂 Mooter.ai'), 'cowork project shown with 🗂');
   assert.ok(html.includes('· Cowork'), 'cowork source tag present');
-  assert.ok(html.includes('📁 frugal'), 'repo folder shown as honest sub-label, not as the group name');
+  assert.ok(html.includes('📁 myrepo'), 'repo folder shown as honest sub-label, not as the group name');
 });
 
 test('WCOCKPIT-9 renderGroupHeader: origin=repo → 📁 + "repo (sem Cowork)" (fallback rotulado)', () => {
-  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'frugal', branch: 'main' }];
-  const html = rr.renderGroupHeader('frugal', group, { origin: 'repo' });
-  assert.ok(html.includes('📁 frugal'), 'repo fallback uses 📁');
+  const group = [{ fullId: 'a', needsYou: false, repoFolder: 'myrepo', branch: 'main' }];
+  const html = rr.renderGroupHeader('myrepo', group, { origin: 'repo' });
+  assert.ok(html.includes('📁 myrepo'), 'repo fallback uses 📁');
   assert.ok(html.includes('repo (sem Cowork)'), 'repo fallback honestly labelled');
   assert.ok(!html.includes('🗂'), 'repo fallback must NOT masquerade as a Cowork project');
 });
@@ -1518,10 +1518,10 @@ test('WCOCKPIT-9 projOf contract: Cowork > repo real > Unassigned (espelho hones
   const isRealRepo = (r) => !!(r.repoFolder && (r.branch || r.gitStage));
   const projOf = (r) => r.coworkProject ? r.coworkProject : (isRealRepo(r) ? r.repoFolder : 'Unassigned');
   const originOf = (r) => r.coworkProject ? 'cowork' : (isRealRepo(r) ? 'repo' : 'unassigned');
-  assert.equal(projOf({ coworkProject: 'Mooter.ai', repoFolder: 'frugal', branch: 'main' }), 'Mooter.ai');
-  assert.equal(originOf({ coworkProject: 'Mooter.ai', repoFolder: 'frugal', branch: 'main' }), 'cowork');
-  assert.equal(projOf({ repoFolder: 'frugal', branch: 'main' }), 'frugal'); // repo real → fallback rotulado
-  assert.equal(originOf({ repoFolder: 'frugal', gitStage: { state: 'clean' } }), 'repo');
+  assert.equal(projOf({ coworkProject: 'Mooter.ai', repoFolder: 'myrepo', branch: 'main' }), 'Mooter.ai');
+  assert.equal(originOf({ coworkProject: 'Mooter.ai', repoFolder: 'myrepo', branch: 'main' }), 'cowork');
+  assert.equal(projOf({ repoFolder: 'myrepo', branch: 'main' }), 'myrepo'); // repo real → fallback rotulado
+  assert.equal(originOf({ repoFolder: 'myrepo', gitStage: { state: 'clean' } }), 'repo');
   assert.equal(projOf({ repoFolder: 'System32' }), 'Unassigned'); // cwd qualquer, sem git → Unassigned
   assert.equal(originOf({ repoFolder: 'System32' }), 'unassigned');
   assert.equal(projOf({}), 'Unassigned');
