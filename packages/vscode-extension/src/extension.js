@@ -380,17 +380,26 @@ class CockpitProvider {
         const row = rows.find((r) => r.fullId === sid);
         if (!row) { vscode.window.showWarningMessage('🐮 sessão não encontrada — refresca o cockpit e tenta outra vez.'); return; }
         const pending = row.pending || extra.extractPending([]);
-        // OPCIONAL: 1 linha "DOING" via Ollama local (bounded ≤2s, nunca bloqueia). Fallback = 1º prompt.
-        let doing = null;
+        // HÍBRIDO: esqueleto determinístico (git/branch/ficheiros + PENDING verbatim) + narrativa
+        // local (T0 · $0). mode segue o tamanho da sessão (turns altos → 'full' inclui RECAP).
+        const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+        // OPCIONAL: DOING (1 linha, ≤2s) + RECAP (3–5 linhas, só 'full', ≤4s) via Ollama local, com
+        // timeout DURO. Nunca bloqueiam nem lançam; falha → fallback determinístico (DOING = 1º
+        // prompt; RECAP omitido). O LLM NUNCA toca no PENDING (verbatim no gerador).
+        let doing = null, recap = null;
         try { doing = await extra.ollamaDoing(row, 2000); } catch { doing = null; }
-        const text = extra.generateHandoff(row, pending, { doing });
+        if (mode === 'full') { try { recap = await extra.ollamaRecap(row, pending, 4000); } catch { recap = null; } }
+        const text = extra.generateHandoff(row, pending, { doing, recap, mode });
         try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
         try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch {}
         let synced = false;
         if (row.cwd) { try { const w = extra.writeHandoffToSync(row.cwd, sid, text, { name: row.name }); synced = !!(w && w.ok); } catch { synced = false; } }
+        // §SAVINGS: o rodapé visível ("~Xk tok saved vs screenshot (est.)") já viaja no texto. O
+        // registo advisory no savings-tracker da W1 fica deferido até a sua API estar confirmada
+        // (não fabricamos um writer); a estimativa honesta é a que o utilizador vê no handoff.
         vscode.window.setStatusBarMessage(synced
-          ? '🐮 handoff copiado — cola no Cowork (SYNC.md actualizado)'
-          : '🐮 handoff copiado — cola no Cowork', 6000);
+          ? '🐮 handoff copiado (' + mode + ') — cola no Cowork (SYNC.md actualizado)'
+          : '🐮 handoff copiado (' + mode + ') — cola no Cowork', 6000);
         this.data.refresh(true);
       }
       if (m.cmd === 'toggleProject') {
