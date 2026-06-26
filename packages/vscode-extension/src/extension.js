@@ -530,7 +530,7 @@ function getHtml() {
   @keyframes moolazy{0%,100%{transform:rotate(0)}50%{transform:rotate(-6deg) translateY(1px)}}
   .livecow.crazy{animation:moocrazy 0.38s ease-in-out infinite}
   @keyframes moocrazy{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-3px) rotate(-9deg)}50%{transform:translateY(-1px) rotate(9deg)}75%{transform:translateY(-3px) rotate(-9deg)}}
-  @media (prefers-reduced-motion:reduce){.livecow.working,.livecow.lazy,.livecow.crazy,.livedot,.alertdot{animation:none}}
+  @media (prefers-reduced-motion:reduce){.livecow.working,.livecow.lazy,.livecow.crazy,.livedot,.alertdot,.sdot.now{animation:none}}
   ${COWORK.CSS}
   .smeta{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap}
   .intchip{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
@@ -589,6 +589,24 @@ function getHtml() {
   .gstage.staged{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gstage.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
   .gtip{font-size:9px;color:#e5c07b;font-weight:600}
+  /* WCOCKPIT-10: Project Stage Rail + safe-to-close chip + plain next-move */
+  .srail{display:flex;justify-content:space-between;position:relative;margin:6px 3px 2px}
+  .srail::before{content:"";position:absolute;left:11px;right:11px;top:11px;height:2px;background:var(--vscode-widget-border);z-index:0}
+  .sdot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;border:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background)}
+  .sdot.done{color:var(--g);background:var(--gdim);border-color:var(--g)}
+  .sdot.now{color:var(--r);background:var(--rdim);border-color:var(--r);animation:srnow 1.7s ease-in-out infinite}
+  .sdot.todo{opacity:.45}
+  @keyframes srnow{0%,100%{opacity:1}50%{opacity:.45}}
+  .snow{font-size:11px;color:var(--vscode-foreground);margin:3px 2px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .snowtxt{opacity:.9}
+  .snowbtn{font-size:9.5px;padding:1px 8px;border-radius:9px;background:var(--rdim);color:var(--r);border:1px solid var(--r);cursor:pointer;line-height:1.6}
+  .snowbtn:hover{opacity:.85}
+  .snowhint{font-size:9.5px;color:#5A9BD4;opacity:.85}
+  .sbehind{font-size:9.5px;color:#5A9BD4;margin:2px 2px 0;opacity:.85}
+  .ssafe{font-size:9px;border-radius:10px;padding:1px 7px;margin-left:6px;font-weight:600}
+  .ssafe.green{color:var(--g);background:var(--gdim)}
+  .ssafe.amber{color:#e5c07b;background:rgba(229,192,123,.12)}
+  .ssafe.blue{color:#5A9BD4;background:rgba(90,155,212,.12)}
   /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
      (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
      height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
@@ -785,6 +803,10 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else send(a,b.dataset.x);
 });}
 // WCOCKPIT-3: session card renderer (from row-renderer.js — safe when fn.toString() serialised)
+// WCOCKPIT-10: Stage Rail data + pure deriver embedded as siblings of renderRow (no module
+// scope in the webview, so renderRow's free refs to STAGE_META/deriveStages must be declared here).
+const STAGE_META=${RR?JSON.stringify(RR.STAGE_META):'[]'};
+const deriveStages=${RR?RR.deriveStages.toString():'function deriveStages(){return {stages:{},safe:{level:"green",label:"",action:null},behind:null};}'};
 const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WCOCKPIT-3: wire per-session mode/model/auto controls (stop-propagation inside srow)

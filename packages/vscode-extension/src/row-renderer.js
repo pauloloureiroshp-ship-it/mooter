@@ -66,6 +66,44 @@ var SESS_MODELS = [
   ['claude-haiku-4-5', 'Haiku']
 ];
 
+// ── Project Stage Rail (WCOCKPIT-10): plain-language transparency for vibe coders ──
+// STAGE_META + deriveStages are PURE and module-level so they can be unit-tested AND
+// embedded into the webview by getHtml() (same fn.toString() path as renderRow). The
+// webview has no module scope, so getHtml() emits `const STAGE_META=…` and
+// `const deriveStages=…` as siblings of renderRow — see extension.js getHtml().
+// Columns: [key, label, git-term, plain-language, icon].
+var STAGE_META = [
+  ['edit',   'Edit',   'working changes', 'The AI just changed your files — nothing saved yet',    '✎'],
+  ['save',   'Save',   'commit',          'Bundle changes into a restore point you can return to', '◆'],
+  ['backup', 'Backup', 'push',            'Send your restore points to GitHub so they are safe',   '↑'],
+  ['branch', 'Branch', 'branch',          'A safe side-copy that does not touch the real version', '⎇'],
+  ['merge',  'Merge',  'merge',           'Fold your side-copy back into the official version',     '⇄'],
+  ['live',   'Live',   'deploy',          'Publish it for the world to use',                        '◉']
+];
+
+// PURE: gitStage + branch → {stages, safe, behind}. Concatenation/literals only (no
+// template-literals — its source is embedded into the webview script). INVARIANT: at most
+// one stage is 'now', and 'branch' is never 'now'.
+function deriveStages(gitStage, branch) {
+  var g = gitStage || { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 };
+  var onBranch = !!branch && !/^(main|master|trunk)$/i.test(branch);
+  var stages = {
+    edit:   g.dirty > 0 ? 'now' : 'done',
+    save:   (g.dirty > 0) ? 'todo' : (g.staged > 0 ? 'now' : 'done'),
+    backup: (g.dirty > 0 || g.staged > 0) ? 'todo' : (g.ahead > 0 ? 'now' : 'done'),
+    branch: onBranch ? 'done' : 'todo',
+    merge:  (onBranch && g.dirty === 0 && g.staged === 0 && g.ahead === 0) ? 'now' : 'todo',
+    live:   'todo'
+  };
+  var safe = (g.dirty > 0 || g.staged > 0)
+    ? { level: 'amber', label: 'unsaved work', action: 'gitFlow', move: 'Save my work' }
+    : (g.ahead > 0
+        ? { level: 'blue', label: 'saved, not backed up', action: null, hint: 'push to back up' }
+        : { level: 'green', label: 'safe to close', action: null });
+  var behind = g.behind > 0 ? { n: g.behind } : null;
+  return { stages: stages, safe: safe, behind: behind };
+}
+
 // ── Main row renderer ──────────────────────────────────────────────────────────
 // opts: { selSess, effSess, branchCount, nowMs }
 // Calls esc/agoFmt/famEmoji/modelLabel/stageColor — must be in scope.
@@ -258,6 +296,46 @@ function renderRow(r, opts) {
   }
   var gitLine = gsChip ? '<div class="sgit">' + gsChip + (gsTip ? ' ' + gsTip : '') + '</div>' : '';
 
+  // ── WCOCKPIT-10: Project Stage Rail + plain status + safe-to-close — only for real
+  // git repos. We must NEVER claim "safe to close" / "done" for a session with no version
+  // control, so the whole block is gated on r.gitStage. Pure derivation over the same
+  // gitStage signal the chip above already uses — same source, same truth, zero new backend.
+  var railLine = '', nowLine = '', safeChip = '', behindLine = '';
+  if (r.gitStage) {
+    var _ds = deriveStages(r.gitStage, r.branch);
+    var _stg = _ds.stages;
+    var _dots = '';
+    for (var _si = 0; _si < STAGE_META.length; _si++) {
+      var _sk = STAGE_META[_si][0];
+      var _sstate = _stg[_sk] || 'todo';
+      var _sicon = _sstate === 'done' ? '✓' : STAGE_META[_si][4];
+      var _stip = STAGE_META[_si][1] + ' — ' + STAGE_META[_si][3] + ' (git: ' + STAGE_META[_si][2] + ')';
+      _dots += '<span class="sdot ' + _sstate + '" title="' + esc(_stip) + '">' + _sicon + '</span>';
+    }
+    railLine = '<div class="srail" role="img" aria-label="project stage rail">' + _dots + '</div>';
+
+    var _nowKey = '';
+    var _norder = ['edit', 'save', 'backup', 'merge'];
+    for (var _ni = 0; _ni < _norder.length; _ni++) { if (_stg[_norder[_ni]] === 'now') { _nowKey = _norder[_ni]; break; } }
+    var _NOWTXT = {
+      edit:   'The AI changed your files — nothing saved yet',
+      save:   'Changes ready — save them into a restore point',
+      backup: 'Saved on your machine — not backed up to GitHub yet',
+      merge:  'Your side-copy is clean — ready to fold into the official version'
+    };
+    var _nowMsg = _nowKey ? _NOWTXT[_nowKey] : (_ds.safe.level === 'green' ? 'All caught up — nothing pending' : _ds.safe.label);
+    var _nowAct = '';
+    if (_ds.safe.action === 'gitFlow') {
+      _nowAct = ' <button class="snowbtn" data-a="gitFlow" data-x="' + esc(sid) + '" title="preview → commit selectivo → push (confirmado). Nunca git add -A.">' + esc(_ds.safe.move || 'Save my work') + '</button>';
+    } else if (_ds.safe.hint) {
+      _nowAct = ' <span class="snowhint" title="advisory — use ⎇ Commit &amp; Push in the drawer to back up">' + esc(_ds.safe.hint) + '</span>';
+    }
+    nowLine = '<div class="snow"><span class="snowtxt">✦ ' + esc(_nowMsg) + '</span>' + _nowAct + '</div>';
+
+    safeChip = '<span class="ssafe ' + _ds.safe.level + '" title="' + esc(_ds.safe.label) + '">' + esc(_ds.safe.label) + '</span>';
+    if (_ds.behind) behindLine = '<div class="sbehind" title="your remote has commits you do not have yet">↓' + _ds.behind.n + ' — teammates pushed; pull to catch up</div>';
+  }
+
   // ── Worktree accent (WCOCKPIT-4: consistent border-left color per worktree name) ──
   var _WTA = ['#5A9BD4','#D4A05A','#A05AD4','#5AD4A0','#D4605A','#D4C05A','#60A05A'];
   var wtStyle = '';
@@ -279,11 +357,12 @@ function renderRow(r, opts) {
     + '<div class="sline">'
       + '<span class="sname">' + esc(nm) + '</span>'
       + '<span class="sstate">' + badge + '</span>'
+      + safeChip
       + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
-    + brainLine + nextSlashLine + scm + gitLine
+    + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + '</div>'
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
@@ -335,4 +414,4 @@ function renderGroupHeader(key, group, opts) {
   return '<div class="ghd collaphead"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + '</div>';
 }
 
-module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS };
+module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS, deriveStages, STAGE_META };

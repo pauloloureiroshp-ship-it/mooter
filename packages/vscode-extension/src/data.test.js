@@ -928,9 +928,9 @@ function _wv_stageColor(st){ const x=String(st||''); if(x.indexOf('merged')===0)
 function _wv_famEmoji(model){ const x=String(model||'').toLowerCase(); if(/claude|opus|sonnet|haiku/.test(x))return '✨'; return '🤖'; }
 
 // Build the renderRow function exactly as the webview does: fn.toString() + new Function()
-const _wvRenderRow = new Function('esc','agoFmt','famEmoji','modelLabel','stageColor',
+const _wvRenderRow = new Function('esc','agoFmt','famEmoji','modelLabel','stageColor','deriveStages','STAGE_META',
   'return (' + rr.renderRow.toString() + ')')(
-  _wv_esc, _wv_agoFmt, _wv_famEmoji, _wv_modelLabel, _wv_stageColor);
+  _wv_esc, _wv_agoFmt, _wv_famEmoji, _wv_modelLabel, _wv_stageColor, rr.deriveStages, rr.STAGE_META);
 const _wvRenderGroupHeader = new Function('esc',
   'return (' + rr.renderGroupHeader.toString() + ')')(
   _wv_esc);
@@ -988,6 +988,94 @@ test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — worktree accent applied
   assert.ok(typeof html === 'string' && html.length > 100, 'worktree+gitStage row must render');
   assert.ok(html.includes('border-left-color:'), 'worktree accent must be present');
   assert.ok(html.includes('✓ clean'), 'clean chip must be present');
+});
+
+// ── WCOCKPIT-10: Project Stage Rail — deriveStages (pure unit) + webview-sim render ──
+test('WCOCKPIT-10 deriveStages: clean on main → edit/save/backup done, merge todo, green, ZERO now', () => {
+  const r = rr.deriveStages({ state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 }, 'main');
+  assert.equal(r.stages.edit, 'done');
+  assert.equal(r.stages.save, 'done');
+  assert.equal(r.stages.backup, 'done');
+  assert.equal(r.stages.merge, 'todo');
+  assert.equal(r.safe.level, 'green');
+  assert.equal(Object.values(r.stages).filter((s) => s === 'now').length, 0);
+});
+
+test('WCOCKPIT-10 deriveStages: uncommitted → edit now, amber, move "Save my work", exactly ONE now', () => {
+  const r = rr.deriveStages({ state: 'uncommitted', dirty: 3, staged: 0, ahead: 0, behind: 0 }, 'main');
+  assert.equal(r.stages.edit, 'now');
+  assert.equal(r.safe.level, 'amber');
+  assert.equal(r.safe.move, 'Save my work');
+  assert.equal(r.safe.action, 'gitFlow');
+  assert.equal(Object.values(r.stages).filter((s) => s === 'now').length, 1);
+});
+
+test('WCOCKPIT-10 deriveStages: staged (dirty 0) → save now, amber (staged is unsaved), ONE now', () => {
+  const r = rr.deriveStages({ state: 'staged', dirty: 0, staged: 2, ahead: 0, behind: 0 }, 'main');
+  assert.equal(r.stages.save, 'now');
+  assert.equal(r.safe.level, 'amber');
+  assert.equal(Object.values(r.stages).filter((s) => s === 'now').length, 1);
+});
+
+test('WCOCKPIT-10 deriveStages: ahead (clean tree) → backup now, blue, advisory hint (no action), ONE now', () => {
+  const r = rr.deriveStages({ state: 'ahead', dirty: 0, staged: 0, ahead: 2, behind: 0 }, 'main');
+  assert.equal(r.stages.backup, 'now');
+  assert.equal(r.safe.level, 'blue');
+  assert.equal(r.safe.action, null);
+  assert.ok(r.safe.hint, 'blue level carries an advisory hint, not a one-click button');
+  assert.equal(Object.values(r.stages).filter((s) => s === 'now').length, 1);
+});
+
+test('WCOCKPIT-10 deriveStages: clean on feature branch → branch done, merge now, green, ONE now', () => {
+  const r = rr.deriveStages({ state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 }, 'wave/x');
+  assert.equal(r.stages.branch, 'done');
+  assert.equal(r.stages.merge, 'now');
+  assert.equal(r.safe.level, 'green');
+  assert.equal(Object.values(r.stages).filter((s) => s === 'now').length, 1);
+});
+
+test('WCOCKPIT-10 deriveStages: behind hint + INVARIANTS (branch never now, ≤1 now across cases)', () => {
+  const cases = [
+    [{ state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 4 }, 'main'],
+    [{ state: 'uncommitted', dirty: 1, staged: 0, ahead: 0, behind: 2 }, 'wave/x'],
+    [{ state: 'ahead', dirty: 0, staged: 0, ahead: 3, behind: 0 }, 'wave/x'],
+    [{ state: 'staged', dirty: 0, staged: 5, ahead: 0, behind: 0 }, 'wave/x'],
+  ];
+  for (const [gs, br] of cases) {
+    const r = rr.deriveStages(gs, br);
+    assert.notEqual(r.stages.branch, 'now', 'branch must NEVER be "now"');
+    assert.ok(Object.values(r.stages).filter((s) => s === 'now').length <= 1, 'at most ONE "now"');
+  }
+  assert.deepEqual(rr.deriveStages({ state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 1 }, 'main').behind, { n: 1 });
+  assert.equal(rr.deriveStages({ state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 }, 'main').behind, null);
+});
+
+test('WCOCKPIT-10 deriveStages: null gitStage → safe clean/green defaults, never throws', () => {
+  const r = rr.deriveStages(null, null);
+  assert.equal(r.safe.level, 'green');
+  assert.equal(Object.values(r.stages).filter((s) => s === 'now').length, 0);
+});
+
+test('WCOCKPIT-10 webview-sim: git row → .srail renders + amber chip + Save button reuses gitFlow', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0, behind: 0 }, branch: 'wave/x' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('class="srail"'), 'stage rail must render in the webview path');
+  assert.ok(html.includes('class="ssafe amber"'), 'amber safe-to-close chip must render');
+  assert.ok(html.includes('Save my work'), 'amber state shows the Save my work button');
+  assert.ok(html.includes('data-a="gitFlow"'), 'Save button reuses the existing gitFlow handler (no new command)');
+});
+
+test('WCOCKPIT-10 webview-sim: no gitStage → NO rail (honest: a non-repo session shows no stages)', () => {
+  const html = _wvRenderRow(SAMPLE_ROW, {});
+  assert.ok(!html.includes('class="srail"'), 'no rail when the session has no git repo');
+  assert.ok(!html.includes('class="ssafe'), 'no safe-to-close chip without a repo');
+});
+
+test('WCOCKPIT-10 webview-sim: ahead row → blue chip + advisory hint, NO Save button (push-only is advisory)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 3, behind: 0 }, branch: 'wave/x' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('class="ssafe blue"'), 'blue saved-not-backed-up chip');
+  assert.ok(!html.includes('Save my work'), 'no Save button when there is nothing to commit (push-only stays advisory)');
 });
 
 test('WCOCKPIT-5 webview-sim: renderRow (webview fn) — brain title with gitStage → no throw', () => {
