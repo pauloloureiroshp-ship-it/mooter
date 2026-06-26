@@ -27,6 +27,8 @@ test('recordFromDecision maps the schema + derives reasons from real fields', ()
     tokens_out: 0,
     reason: 'classify_score=0.75 T2',
     via: 'claude_subagent',
+    auto_skill: null,
+    auto_skill_conf: null,
   });
 
   // escalation_rule wins over the score; subagent is the via
@@ -45,6 +47,17 @@ test('recordFromDecision maps the schema + derives reasons from real fields', ()
   assert.equal(r4.tokens_in, 1200);
   assert.equal(r4.tokens_out, 300);
   assert.equal(r4.via, 'local-summarizer');
+  // no directive → auto_skill stays null (never fabricated)
+  assert.equal(r4.auto_skill, null);
+  assert.equal(r4.auto_skill_conf, null);
+
+  // Cockpit v2 W1: a decision that carried an auto-skill directive records it.
+  const r5 = v2.recordFromDecision({
+    tier: 'T1', task_category: 'diagram', recommended_model: 'haiku',
+    auto_skill: 'anthropic-skills:canvas-design', auto_skill_conf: 0.92,
+  });
+  assert.equal(r5.auto_skill, 'anthropic-skills:canvas-design');
+  assert.equal(r5.auto_skill_conf, 0.92);
 });
 
 test('writer is metadata-only (zero PII) and does not touch decisions.log', () => {

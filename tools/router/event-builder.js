@@ -58,6 +58,12 @@ const ALLOWED_FIELDS = new Set([
   'outcome_score', 'outcome_source', 'per_decision_savings_usd',
   'session_hour', 'event_date', 'created_at',
   'user_id_hash',
+  // Cockpit v2 Wave 1 — per-decision instrumentation. tokens_out is the REAL
+  // output-token count from the execution (router-execute.js), not the per-tier
+  // average; tok_per_s = tokens_out / decision latency. auto_skill[_conf] carry
+  // the confidence-gated directive when one fired. All default null — never a
+  // fabricated 0 when there is no sample.
+  'tokens_out', 'tok_per_s', 'auto_skill', 'auto_skill_conf',
 ]);
 
 // 16-hex stable hash of the authenticated Supabase user_id. Persisted by
@@ -103,6 +109,21 @@ function responseBucketFromLen(n) {
   if (v < 1000) return '500-1000';
   if (v < 2000) return '1000-2000';
   return '2000+';
+}
+
+// ─── Retry detection (Cockpit v2 Wave 1) ─────────────────────────────────
+// Generalises the cascade-detection pattern from inject_context.js. A retry
+// signal means the user is re-asking because the PREVIOUS turn failed —
+// retroactively flagging that decision as under-served. Natural-language only
+// (PT-PT + EN), conservative to avoid false positives. The live writer in
+// inject_context.js calls this and stamps retry_detected into
+// .last-classified.json, which buildEvent() then reads (0/1 per decision).
+const RETRY_RE =
+  /try again|tenta\s+(?:de\s+novo|outra\s+vez|novamente)|de\s+novo|outra\s+vez|n[ãa]o\s+funciona\b|n[ãa]o\s+funcionou|n[ãa]o\s+resultou|n[ãa]o\s+deu\b|still\s+broken|still\s+failing|still\s+not\s+working|doesn'?t\s+work|didn'?t\s+work|not\s+working|same\s+error|that'?s\s+wrong|isso\s+est[áa]\s+errado|est[áa]\s+errado|refaz\b|redo this/i;
+
+/** @param {string | null | undefined} prompt @returns {boolean} */
+function detectRetry(prompt) {
+  return typeof prompt === 'string' && RETRY_RE.test(prompt);
 }
 
 function instanceIdSync() {
@@ -296,6 +317,45 @@ function buildEvent(classified, execEntries, lastClassified, opts) {
     if (delta >= 0 && delta < 30 * 60 * 1000) wallClockMs = delta;
   }
 
+  // ─── Cockpit v2 Wave 1 per-decision instrumentation ────────────────────
+  // tokens_out — the REAL output-token count for this decision, sourced from
+  // the execution (router-execute.js posts tokens_out). Prefer an explicit
+  // opts.tokens_out; fall back to a matching exec row if it ever carries one.
+  // NEVER the per-tier average — null when no real sample exists.
+  let tokensOut = null;
+  if (typeof opts.tokens_out === 'number' && opts.tokens_out >= 0) {
+    tokensOut = opts.tokens_out;
+  } else if (Array.isArray(execEntries)) {
+    for (const e of execEntries) {
+      if (e && typeof e.tokens_out === 'number' && e.tokens_out >= 0) {
+        tokensOut = e.tokens_out;
+        break;
+      }
+    }
+  }
+
+  // tok_per_s — tokens_out / decision latency (seconds). Prefer the real
+  // execution duration when provided, else the measured wall-clock. null when
+  // either the token count or a positive latency is missing.
+  const latencyMs =
+    (typeof opts.duration_ms === 'number' && opts.duration_ms > 0)
+      ? opts.duration_ms
+      : (typeof wallClockMs === 'number' && wallClockMs > 0 ? wallClockMs : null);
+  const tokPerS =
+    (tokensOut != null && latencyMs)
+      ? Math.round((tokensOut / (latencyMs / 1000)) * 10) / 10
+      : null;
+
+  // auto_skill[_conf] — set only when a confidence-gated directive fired for
+  // this decision (carried on the classified entry or passed via opts).
+  const autoSkillName =
+    (typeof opts.auto_skill === 'string' && opts.auto_skill && opts.auto_skill) ||
+    (typeof classified.auto_skill === 'string' && classified.auto_skill && classified.auto_skill) ||
+    null;
+  const autoSkillConf =
+    typeof opts.auto_skill_conf === 'number' ? opts.auto_skill_conf
+      : (typeof classified.auto_skill_conf === 'number' ? classified.auto_skill_conf : null);
+
   // Temporal: derive session_hour + event_date from the classified ts
   // (UTC hour only, date without time).
   let eventDate = null;
@@ -342,6 +402,12 @@ function buildEvent(classified, execEntries, lastClassified, opts) {
     ollama_warm: (lastClassified && lastClassified.ollama_warm != null)
       ? (lastClassified.ollama_warm ? 1 : 0) : null,
     gpu_util_pct: null,
+
+    // Cockpit v2 Wave 1 — real per-decision signals (null without a sample).
+    tokens_out: tokensOut,
+    tok_per_s: tokPerS,
+    auto_skill: autoSkillName,
+    auto_skill_conf: autoSkillConf,
 
     explicit_rating: (opts.explicit_rating === -1 || opts.explicit_rating === 0 || opts.explicit_rating === 1)
       ? opts.explicit_rating : null,
@@ -642,4 +708,6 @@ module.exports = {
   responseBucketFromLen,
   extractKeywordSignals,
   instanceIdSync,
+  detectRetry,
+  RETRY_RE,
 };

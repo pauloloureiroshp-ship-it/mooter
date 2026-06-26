@@ -16,7 +16,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const SCHEMA_FIELDS = ['ts', 'op', 'tier', 'llm', 'tokens_in', 'tokens_out', 'reason', 'via'];
+// Cockpit v2 Wave 1: auto_skill + auto_skill_conf are ADDITIVE schema fields.
+// When the hook emitted a confidence-gated auto-skill DIRECTIVE for this
+// decision, auto_skill carries the primary skill name and auto_skill_conf its
+// domain confidence. Null when no directive fired (the common case while
+// auto-skill stays opt-in) — never a fabricated 0/empty.
+const SCHEMA_FIELDS = [
+  'ts', 'op', 'tier', 'llm', 'tokens_in', 'tokens_out', 'reason', 'via',
+  'auto_skill', 'auto_skill_conf',
+];
 
 function routerDir() {
   const claude = process.env.MOOTER_CLAUDE_DIR || process.env.FRUGAL_CLAUDE_DIR || path.join(os.homedir(), '.claude');
@@ -42,6 +50,7 @@ function shortLlm(model, tier) {
 /**
  * Human-readable routing reason, built ONLY from real decision fields — never
  * invented. Mirrors the brief's vocabulary (safety_boost_*, classify_score=X).
+ * @param {Record<string, any>} [d]
  */
 function deriveReason(d = {}) {
   if (d.safety_boost_applied && d.safety_boost_reason) {
@@ -56,6 +65,8 @@ function deriveReason(d = {}) {
  * Build a v2 record from a classify decision object. Pure. Only emits schema
  * fields — token counts default to 0 when the decision predates execution
  * (they are not invented; real per-tier token totals live in token_tracker.js).
+ * @param {Record<string, any>} [d]
+ * @param {Record<string, any>} [opts]
  */
 function recordFromDecision(d = {}, opts = {}) {
   return {
@@ -67,6 +78,9 @@ function recordFromDecision(d = {}, opts = {}) {
     tokens_out: Number(d.tokens_out) || 0,
     reason: deriveReason(d),
     via: d.suggested_subagent || d.via || d.recommended_backend || 'inline',
+    // Auto-skill (Cockpit v2 W1): only set when a directive actually fired.
+    auto_skill: typeof d.auto_skill === 'string' && d.auto_skill ? d.auto_skill : null,
+    auto_skill_conf: typeof d.auto_skill_conf === 'number' ? d.auto_skill_conf : null,
   };
 }
 
