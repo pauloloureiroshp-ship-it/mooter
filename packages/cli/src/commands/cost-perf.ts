@@ -25,8 +25,11 @@
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { MATRIX_MODELS } from "../../../router/src/specialization-matrix.ts";
 import { TASK_CATEGORIES } from "../../../router/src/task-categories.ts";
+import { DEFAULT_HUB } from "./pricing.ts";
 
 // Logical-cell denominator = full roster × categories (derives from the engine,
 // never goes stale — Wave 58.7 fix after the 14→17 roster expansion).
@@ -104,6 +107,127 @@ async function loadFetcher() {
   // Dynamic import avoids pulling the router into the CLI bundle top-level.
   const mod = await import("../../../router/src/benchmark-fetcher.ts");
   return mod;
+}
+
+// ── A.16 v2: scheduled-but-honest refresh from the curated hub ────────────────
+//
+// The hub (Option B) serves ONLY publicly-citable benchmark cells (SWE-bench,
+// GPQA, AIME, Terminal-Bench) plus optional price/tok-s passthrough. We GET, we
+// validate the shape, we WRITE ~/.mooter/benchmarks-overrides.json (preserving
+// the cell shape the loader reads). On ANY network/shape failure we keep the
+// existing local cache and report honestly — never corrupt a good override file.
+// Mirrors `mooter pricing-update`'s read-only, fail-safe contract.
+
+export interface BenchmarksRefreshDeps {
+  fetchImpl?: typeof fetch;
+  home?: string;
+  hubUrl?: string;
+  now?: number;
+}
+
+interface HubBenchmarksBody {
+  generated_at?: string;
+  source?: string;
+  cells?: unknown[];
+  pricing?: Array<{ id: string; tier: string; input: number; output: number }>;
+}
+
+function isHubBenchmarksBody(b: unknown): b is HubBenchmarksBody {
+  return !!b && typeof b === "object" && Array.isArray((b as HubBenchmarksBody).cells);
+}
+
+async function refreshFromHub(deps: BenchmarksRefreshDeps, asJson: boolean): Promise<CmdResult> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const home = deps.home ?? homedir();
+  const hub = (deps.hubUrl ?? DEFAULT_HUB).replace(/\/$/, "");
+
+  let fetcher: Awaited<ReturnType<typeof loadFetcher>>;
+  try {
+    fetcher = await loadFetcher();
+  } catch {
+    return {
+      exitCode: 1,
+      output:
+        "mooter benchmarks: cannot load benchmark-fetcher. " +
+        "Run from a source checkout (packages/router/src/ must be present).",
+    };
+  }
+
+  let body: unknown;
+  try {
+    const res = await fetchImpl(`${hub}/v1/benchmarks`);
+    if (!res.ok) {
+      return honest(`hub returned ${res.status} — kept existing overrides (no change).`, asJson, 1);
+    }
+    body = await res.json();
+  } catch (e) {
+    return honest(
+      `benchmark pull failed (${(e as Error).message}) — kept existing overrides (no change).`,
+      asJson,
+      1,
+    );
+  }
+
+  if (!isHubBenchmarksBody(body)) {
+    return honest("hub returned an unexpected shape — kept existing overrides (no change).", asJson, 1);
+  }
+
+  const source = typeof body.source === "string" ? body.source : "hub";
+  const asOf =
+    typeof body.generated_at === "string"
+      ? body.generated_at.slice(0, 10)
+      : new Date(deps.now ?? Date.now()).toISOString().slice(0, 10);
+
+  const { written, path } = fetcher.writeBenchmarkOverrides(body.cells ?? [], { source, as_of: asOf }, home);
+
+  // Optional price passthrough — write the pricing cache in the same shape
+  // `mooter pricing-update --show` reads, so a single refresh keeps both honest.
+  let pricedModels = 0;
+  if (Array.isArray(body.pricing) && body.pricing.length > 0) {
+    try {
+      const cache = {
+        generated_at: body.generated_at ?? new Date(deps.now ?? Date.now()).toISOString(),
+        source,
+        models: body.pricing,
+        pulled_at: deps.now ?? Date.now(),
+      };
+      mkdirSync(join(home, ".mooter"), { recursive: true });
+      writeFileSync(join(home, ".mooter", "pricing_cache.json"), JSON.stringify(cache, null, 2) + "\n");
+      pricedModels = body.pricing.length;
+    } catch {
+      // Price write is best-effort; a benchmark refresh must not fail on it.
+      pricedModels = 0;
+    }
+  }
+
+  if (asJson) {
+    return {
+      exitCode: 0,
+      output: JSON.stringify(
+        { ok: true, source, as_of: asOf, written_cells: written, priced_models: pricedModels, path },
+        null,
+        2,
+      ),
+    };
+  }
+  const lines = [
+    "mooter benchmarks refresh --from-hub",
+    "",
+    `  source          ${source}`,
+    `  as_of           ${asOf}`,
+    `  override cells  ${written}  (written to ${path})`,
+  ];
+  if (pricedModels > 0) lines.push(`  priced models   ${pricedModels}  (pricing_cache.json updated)`);
+  lines.push("");
+  lines.push("  Data-only refresh — no install, no action. Public benchmarks only (Option B).");
+  return { exitCode: 0, output: lines.join("\n") };
+}
+
+function honest(msg: string, asJson: boolean, exitCode: number): CmdResult {
+  return {
+    exitCode,
+    output: asJson ? JSON.stringify({ ok: exitCode === 0, message: msg }, null, 2) : `mooter benchmarks: ${msg}`,
+  };
 }
 
 // ── cost-perf formatters ─────────────────────────────────────────────────────
@@ -284,9 +408,12 @@ export async function runCostPerf(args: string[]): Promise<CmdResult> {
 const BENCHMARKS_USAGE = `mooter benchmarks — benchmark matrix viewer (Wave 58)
 
 Usage:
-  mooter benchmarks refresh [--json]
+  mooter benchmarks refresh [--from-hub] [--json]
       Re-read seed + user overrides, report cell counts and any manual-update hint.
-      No network — manual curation only (A.16).
+      Default: no network — manual curation only (A.16).
+      --from-hub  pull curated PUBLIC benchmarks (Option B) from the hub into
+                  ~/.mooter/benchmarks-overrides.json. Data-only; on any network
+                  failure the existing overrides are kept (honest, never corrupts).
 
   mooter benchmarks list [--model <id>] [--category <cat>] [--json]
       Show seeded cells and overall coverage (N of ${LOGICAL_CELLS} logical cells measured).
@@ -363,7 +490,7 @@ function renderBenchmarkList(
   return lines.join("\n");
 }
 
-export async function runBenchmarks(args: string[]): Promise<CmdResult> {
+export async function runBenchmarks(args: string[], deps: BenchmarksRefreshDeps = {}): Promise<CmdResult> {
   const [sub, ...rest] = args;
 
   if (!sub || sub === "help" || sub === "--help" || sub === "-h") {
@@ -373,6 +500,11 @@ export async function runBenchmarks(args: string[]): Promise<CmdResult> {
   if (sub === "refresh") {
     const { flags } = parseArgs(rest);
     const asJson = flags["json"] === true;
+
+    // A.16 v2 — opt-in network refresh from the curated hub (data-only).
+    if (flags["from-hub"] === true) {
+      return refreshFromHub(deps, asJson);
+    }
 
     let fetcher: Awaited<ReturnType<typeof loadFetcher>>;
     try {
