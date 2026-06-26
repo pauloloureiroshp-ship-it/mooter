@@ -23,15 +23,38 @@ function httpJson(port, pathname, timeoutMs = 2500) {
   });
 }
 
+// Management/status subcommands that a CLI poll (e.g. the cockpit's own
+// `mooter slash-commands status` health check) can echo into decisions.log as a
+// throwaway "prompt" when it is mis-routed through the claude launcher. These are
+// NOT real routing decisions or sessions — filtering them keeps the cockpit
+// showing real work instead of probe noise. The launcher itself is fixed at the
+// source (tools/router/mooter.ps1); this is the non-destructive read-side guard
+// that also hides the historical pollution already on disk.
+const MGMT_SUBCOMMANDS = new Set([
+  'slash-commands', 'savings', 'route', 'explain', 'digest', 'local', 'tier',
+  'mcp', 'vision', 'bench', 'why-not-fable', 'trail', 'pack', 'status',
+  'summary', 'feedback', 'focus', 'effort', 'init', 'doctor', 'update',
+  'login', 'dashboard',
+]);
+
+// True when `text` looks like a CLI management/status invocation echoed as a
+// prompt (short, first token is a known subcommand) — never a real sentence.
+function isProbePrompt(text) {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t || t.length > 40) return false; // a real prompt sentence, not a CLI echo
+  return MGMT_SUBCOMMANDS.has(t.split(/\s+/)[0]);
+}
+
 // Parse "classified" entries from a raw chunk of decisions.log text.
 // Tolerates: garbage lines, partial first line, unknown events, missing fields.
+// Probe/management echoes (e.g. "slash-commands status") are dropped as noise.
 function parseDecisions(text, maxN = 80) {
   const out = [];
   for (const line of String(text || '').split('\n')) {
     if (!line.trim()) continue;
     try {
       const j = JSON.parse(line);
-      if (j && j.event === 'classified') out.push(j);
+      if (j && j.event === 'classified' && !isProbePrompt(j.prompt_preview)) out.push(j);
     } catch { /* tolerate */ }
   }
   return out.slice(-maxN).reverse(); // newest first
@@ -87,4 +110,4 @@ function runtimeInstalled() { try { return fs.existsSync(RUNTIME_HOOK) || fs.exi
 // closed panel doesn't keep the status bar perfectly live at the cost of CPU/processes.
 function pollIntervalMs(visible) { return visible ? 7000 : 60000; }
 
-module.exports = { DECISIONS_LOG, RUNTIME_HOOK, httpJson, parseDecisions, readDecisions, publicSnapshot, statusBarText, tierCounts, runtimeInstalled, pollIntervalMs };
+module.exports = { DECISIONS_LOG, RUNTIME_HOOK, httpJson, parseDecisions, readDecisions, publicSnapshot, statusBarText, tierCounts, runtimeInstalled, pollIntervalMs, isProbePrompt };

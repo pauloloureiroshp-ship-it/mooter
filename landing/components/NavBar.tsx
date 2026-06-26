@@ -4,6 +4,7 @@ import MooterMark from './MooterMark';
 const LINKS = [
   { label: 'How', href: '/under-the-hood' },
   { label: 'Packs', href: '/packs' },
+  { label: 'Rankings', href: '/rankings' },
   { label: 'Compare', href: '/compare' },
   { label: 'Commands', href: '/commands' },
   { label: 'Conductor', href: '/conductor' },

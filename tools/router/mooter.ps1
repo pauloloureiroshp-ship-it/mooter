@@ -28,6 +28,33 @@ param(
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# --- Cockpit-pollution guard ---------------------------------------------------
+# `mooter` on PATH resolves to THIS launcher. A management/status subcommand --
+# e.g. the cockpit's `mooter slash-commands status` health poll -- must NEVER be
+# forwarded to `claude`: launching `claude <subcommand>` spins up a throwaway
+# Claude Code session per call, which (1) floods decisions.log, (2) creates junk
+# transcripts, and (3) overwrites .last-classified.json so the cockpit's
+# active-session follow jumps off your real session. Management verbs are sent to
+# the real mooter CLI when installed; otherwise answered locally -- never claude.
+$MgmtSubcommands = @(
+    'slash-commands','savings','route','explain','digest','local','tier','mcp',
+    'vision','bench','why-not-fable','trail','pack','status','summary',
+    'feedback','focus','effort','init','doctor','update','login','dashboard'
+)
+if ($ClaudeArgs -and $ClaudeArgs.Count -gt 0 -and ($MgmtSubcommands -contains $ClaudeArgs[0].ToLower())) {
+    $cli = $null
+    foreach ($c in @((Join-Path $HOME '.mooter\cli-v1\mooter.js'), (Join-Path $HOME '.mooter\cli\mooter.js'))) {
+        if (Test-Path $c) { $cli = $c; break }
+    }
+    if ($cli -and (Get-Command node -ErrorAction SilentlyContinue)) {
+        & node $cli @ClaudeArgs
+    } else {
+        # No CLI installed -> answer locally. NEVER launch claude for a mgmt call.
+        Write-Output ("mooter CLI not installed (subcommand: {0})." -f $ClaudeArgs[0])
+    }
+    return
+}
+
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Host '[X] claude CLI not found on PATH. Install Claude Code first.' -ForegroundColor Red
     return

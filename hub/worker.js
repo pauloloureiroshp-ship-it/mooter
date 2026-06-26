@@ -38,6 +38,7 @@ import { handleTransparency, handleForgetMe } from './routes/transparency.js';
 import { handleHeartbeat } from './routes/heartbeat.js';
 import { handleFeedback } from './routes/feedback.js';
 import { handlePricing } from './routes/pricing.js';
+import { handleBenchmarks } from './routes/benchmarks.js';
 import { handleUserDashboard } from './routes/user-dashboard.js';
 import { handleAdminUsers } from './routes/admin_users.js';
 import { adminUserDetail } from './routes/admin_user_detail.js';
@@ -135,6 +136,9 @@ const handler = {
           break;
         case '/v1/pricing':
           response = await handlePricing(request, env);
+          break;
+        case '/v1/benchmarks':   // GET: curated PUBLIC benchmark cells (Wave 5, Option B; data-only)
+          response = await handleBenchmarks(request, env);
           break;
         case '/aggregate-stats':
           response = await handleAggregateStats(request, env);

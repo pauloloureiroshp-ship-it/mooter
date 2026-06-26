@@ -69,6 +69,7 @@ import { runCcaFExport } from "./fable-observe/cca-f-export.ts";
 import { runCcaFAudit } from "./fable-observe/cca-f-audit-cmd.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 import { runCostPerf, runBenchmarks } from "./commands/cost-perf.ts";
+import { runRankings } from "./commands/rankings.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
@@ -137,6 +138,9 @@ Usage:
   mooter cost-perf report [--last <Nd>] [--json]   cost/perf journal: per-category breakdown + drift + Pareto
   mooter benchmarks refresh [--json]               re-read benchmark seed + overrides, report cell counts
   mooter benchmarks list [--model <m>] [--category <c>] [--json]   show seeded benchmark cells + coverage
+  mooter benchmarks refresh --from-hub [--json]    pull curated PUBLIC benchmarks from the hub (data-only, fail-safe)
+  mooter rankings build [--out <p>] [--json]       emit landing/public/rankings-seed.json (matrix×quality×price×TES×verdict)
+  mooter rankings schedule                         print the idempotent data-only refresh registration (never mutates the OS)
   mooter route adaptive "<task>" [--category <cat>] [--min-confidence 0.75] [--max-attempts 3] [--dry-run] [--json]   Fable-5-inspired adaptive escalation (judge-scored, escalates on low confidence)
 
 ${PACK_USAGE}`;
@@ -632,6 +636,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "benchmarks") {
     const res = await runBenchmarks(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "rankings") {
+    const res = await runRankings(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }

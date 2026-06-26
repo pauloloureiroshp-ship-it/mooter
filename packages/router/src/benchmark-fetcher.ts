@@ -31,7 +31,7 @@
 // null is the ONLY substitute when the benchmark is cited but no numeric score
 // exists (qualitative-only results). Never interpolate; never fabricate.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -133,9 +133,14 @@ function seedFilePath(): string {
 }
 
 /** User-local overrides: ~/.mooter/benchmarks-overrides.json */
-function overridesFilePath(): string {
-  const home = homedir();
+function overridesFilePath(home: string = homedir()): string {
   return join(home, ".mooter", "benchmarks-overrides.json");
+}
+
+/** Public path accessor — so a writer (e.g. `mooter benchmarks refresh --from-hub`)
+ *  targets the exact same file the loader reads. Honest single-source-of-truth. */
+export function benchmarkOverridesPath(home: string = homedir()): string {
+  return overridesFilePath(home);
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +267,80 @@ export function loadBenchmarks(): BenchmarkResult {
 export function refreshBenchmarks(): BenchmarkResult {
   // Re-reads from disk — no cache, no network.
   return loadBenchmarks();
+}
+
+// ---------------------------------------------------------------------------
+// Override ingestion (A.16 v2 — data-only writes from the curated hub).
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalise an arbitrary cell-like object into a strict BenchmarkCell, refusing
+ * to fabricate: a non-finite/out-of-range score collapses to null (qualitative),
+ * and `measured` is preserved as the source declared it. Cells missing a model
+ * or category are dropped (they cannot key into the matrix).
+ *
+ * This is the ONLY place hub-supplied cells are coerced, so the §13.3 invariant
+ * (raw provider score in [0,1] or null — never interpolated) is enforced once.
+ */
+export function normalizeHubCell(raw: unknown): BenchmarkCell | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.model !== "string" || typeof o.category !== "string") return null;
+  const scoreOk =
+    typeof o.score === "number" && Number.isFinite(o.score) && o.score >= 0 && o.score <= 1;
+  const cell: BenchmarkCell = {
+    model: o.model,
+    category: o.category,
+    score: scoreOk ? (o.score as number) : null, // never fabricate a numeric score
+    source: typeof o.source === "string" ? o.source : "hub",
+    source_url: typeof o.source_url === "string" ? o.source_url : "",
+    measured: o.measured === true, // only a cited source counts as measured
+  };
+  if (o.confidence === "high" || o.confidence === "medium" || o.confidence === "low") {
+    cell.confidence = o.confidence;
+  }
+  if (typeof o.as_of === "string") cell.as_of = o.as_of;
+  if (typeof o.mapping_note === "string") cell.mapping_note = o.mapping_note;
+  return cell;
+}
+
+/**
+ * Write a set of cells to the user-local overrides file, preserving the exact
+ * shape the loader reads back. Used by `mooter benchmarks refresh --from-hub`.
+ *
+ * Honest by construction:
+ *   - cells are run through normalizeHubCell (no fabricated numerics);
+ *   - the _meta block records provenance (source + as_of + count) so a reader
+ *     can always tell where the local overrides came from;
+ *   - writes are atomic-enough for this use (single writeFileSync) and create
+ *     the ~/.mooter directory if absent. Never throws on a malformed cell — it
+ *     is simply skipped.
+ *
+ * Returns the count actually written (after normalisation/dropping).
+ */
+export function writeBenchmarkOverrides(
+  cells: unknown[],
+  meta: { source: string; as_of: string },
+  home: string = homedir(),
+): { written: number; path: string } {
+  const normalized = cells
+    .map(normalizeHubCell)
+    .filter((c): c is BenchmarkCell => c !== null);
+  const path = overridesFilePath(home);
+  const body: RawBenchmarkFile = {
+    _meta: {
+      description:
+        "User-local benchmark overrides, written by `mooter benchmarks refresh --from-hub` (A.16 v2, data-only). " +
+        "Takes precedence over the repo seed. Numeric scores are raw provider values or null — never fabricated.",
+      source: meta.source,
+      as_of: meta.as_of,
+      written_cells: normalized.length,
+    },
+    cells: normalized,
+  };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(body, null, 2) + "\n");
+  return { written: normalized.length, path };
 }
 
 /**
