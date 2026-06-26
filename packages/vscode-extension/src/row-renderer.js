@@ -278,7 +278,19 @@ function renderRow(r, opts) {
   // (reusa o estilo/wiring mas NAO o selector exacto class="sgitbtn" — mantem o invariante do
   // cartao clean, que so mostra um botao sgitbtn quando ha trabalho de git).
   // NOTA: sem template-literals/backticks neste ficheiro (a fonte e embebida no webview).
-  var handoffBtn = '<div class="sgitrow"><button class="sgitbtn handoff" data-a="handoff" data-x="' + esc(sid) + '" aria-label="generate a Cowork handoff for this session" title="Gera um handoff (estado + última acção + pergunta pendente) → copia para o clipboard e faz upsert no SYNC.md. Cola no Cowork para dar contexto total sem screenshots.">⇄ Handoff</button></div>';
+  var handoffBtn = '<div class="sgitrow"><button class="sgitbtn handoff" data-a="handoff" data-x="' + esc(sid) + '" aria-label="generate a Cowork handoff for this session" title="Gera um handoff (estado + última acção + pergunta pendente) → mostra-o no painel inline aqui em baixo, copia para o clipboard e faz upsert no SYNC.md. Cola no Cowork para dar contexto total sem screenshots.">⇄ Handoff</button></div>';
+
+  // ── ⇄ Handoff v2: painel inline POR SESSÃO ──────────────────────────────────────
+  // Mostra EXACTAMENTE o texto que vai para o clipboard (mesma fonte: generateHandoff). Fica
+  // FORA do drawer (irmão, dentro de .sbody) para sobreviver às re-renderizações periódicas e
+  // não depender do display:none do drawer. Escondido até o host emitir postMessage({type:
+  // 'handoff'}) — esqueleto (status 'generating') e depois final (status 'done'). data-hoff=sid.
+  // Sem template-literals/backticks (a fonte é embebida no webview via fn.toString()).
+  var hoffPanel = '<div class="hoffp" data-hoff="' + esc(sid) + '" hidden>'
+    + '<div class="hoffp-st"></div>'
+    + '<pre class="hoffp-pre"></pre>'
+    + '<button class="sgitbtn hoffcopy" data-a="hoffCopy" data-x="' + esc(sid) + '" aria-label="copy this handoff to the clipboard again" title="copia outra vez este handoff para o clipboard">📋 Copiar</button>'
+    + '</div>';
 
   // ── Git stage chip (WCOCKPIT-4) — suppressed when identical to the group's (header shows it once) ──
   var gsChip = '';
@@ -376,6 +388,7 @@ function renderRow(r, opts) {
     + '</div>'
     + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + '</div>'
+    + hoffPanel
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';
@@ -423,7 +436,17 @@ function renderGroupHeader(key, group, opts) {
     if (repos.length) repoSub = '<span class="ghrepo" title="pasta(s) local — não é um projeto Cowork">repo:' + esc(repos.join(' · ')) + '</span>';
   }
   var keyHtml = '<span class="ghkey">' + icon + ' ' + esc(key) + ' ' + srcTag + '</span>';
-  return '<div class="ghd collaphead"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + '</div>';
+  // ── ⇄ Handoff v2: handoff de PROJECTO (todas as sessões deste grupo) ──────────────
+  // Botão no header → o host monta uma BOARD (linha por sessão + flags DUP/UNCOMMITTED/
+  // UNPUSHED + síntese local) e usa o MESMO painel inline (data-hoff=<projectKey>). O painel
+  // é irmão de .ghd (filho directo de .grpsec) → persiste e NÃO faz parte do alvo de colapso.
+  var projBtn = '<button class="sgitbtn handoff projhandoff" data-a="projHandoff" data-x="' + esc(key) + '" aria-label="generate a Cowork handoff for the whole project" title="Handoff de TODO o projecto — uma board com cada sessão (estado · branch · modelo · flags DUP/UNCOMMITTED/UNPUSHED) + síntese local. Mostra-o no painel aqui, copia para o clipboard e faz upsert no SYNC.md.">⇄ Handoff do projecto</button>';
+  var hoffPanel = '<div class="hoffp" data-hoff="' + esc(key) + '" hidden>'
+    + '<div class="hoffp-st"></div>'
+    + '<pre class="hoffp-pre"></pre>'
+    + '<button class="sgitbtn hoffcopy" data-a="hoffCopy" data-x="' + esc(key) + '" aria-label="copy this project handoff to the clipboard again" title="copia outra vez o handoff do projecto para o clipboard">📋 Copiar</button>'
+    + '</div>';
+  return '<div class="ghd collaphead"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + projBtn + '</div>' + hoffPanel;
 }
 
 module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS, deriveStages, STAGE_META };

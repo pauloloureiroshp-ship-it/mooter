@@ -1117,6 +1117,48 @@ function generateHandoff(row, pending, opts) {
   return body.concat(tail).join('\n');
 }
 
+// PURA (testável): BOARD de handoff do PROJECTO (todas as sessões de um grupo → um texto). Uma
+// linha determinística por sessão (estado + nome + branch + modelo) com flags:
+//   DUP         → ≥2 sessões partilham o mesmo repo+branch (gitHarmony.shared) = mesmo trabalho
+//   UNCOMMITTED → gitStage.dirty > 0  (trabalho por guardar)
+//   UNPUSHED    → gitStage.ahead > 0  (commits locais por enviar)
+// A síntese OVERALL é do LLM local e ENTRA por opts.synth (nunca chamada aqui) — omitida se
+// ausente (Ollama-down/timeout). opts.now fixa o timestamp (testes). Nunca lança (rows não-array
+// → []). Reusa gitHarmony/_fmtTs/_or — não duplica lógica.
+function generateProjectHandoff(proj, rows, opts) {
+  opts = opts || {};
+  rows = Array.isArray(rows) ? rows : [];
+  const now = opts.now || new Date();
+  const n = rows.length;
+  const head = [
+    '⇄ MOOTER PROJECT HANDOFF → cola no Cowork',
+    'project: ' + _or(proj) + ' · ' + n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' · ' + _fmtTs(now),
+    '',
+    '▸ BOARD:',
+  ];
+  let dup = 0, unc = 0, unp = 0;
+  const board = [];
+  for (const r of rows) {
+    const id = (r && r.id) || (r && r.fullId ? String(r.fullId).slice(0, 8) : '?');
+    const gs = (r && r.gitStage) || {};
+    const flags = [];
+    if (gitHarmony(rows, r && r.cwd, r && r.branch).shared) { flags.push('DUP'); dup++; }
+    if ((gs.dirty || 0) > 0) { flags.push('UNCOMMITTED'); unc++; }
+    if ((gs.ahead || 0) > 0) { flags.push('UNPUSHED'); unp++; }
+    const st = (r && r.working) ? '🟢' : ((r && r.needsYou) ? '🟡' : ((r && r.waitingForCowork) ? '⏳' : '✅'));
+    const fl = flags.length ? '  [' + flags.join(' ') + ']' : '';
+    const nm = String((r && r.name) || ('session ' + id)).replace(/\s+/g, ' ').slice(0, 56);
+    board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _or(r && r.branch) + ' · ' + _or(r && r.model) + fl);
+  }
+  if (!board.length) board.push('  — (nenhuma sessão neste projecto)');
+  const tail = [];
+  if (opts.synth && String(opts.synth).trim()) tail.push('', '▸ OVERALL (local summary): ' + String(opts.synth).trim().slice(0, 400));
+  tail.push('', '▸ FLAGS: ' + dup + ' DUP · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
+  tail.push('▸ NEXT FOR COWORK: resolver DUP (mesma branch) · commit UNCOMMITTED · push UNPUSHED');
+  tail.push('⇄ END PROJECT HANDOFF');
+  return head.concat(board).concat(tail).join('\n');
+}
+
 function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 // UPSERT atómico no SYNC.md na raiz de `cwd`. Substitui a secção anterior do MESMO sid
@@ -1214,6 +1256,35 @@ async function ollamaRecap(row, pending, timeoutMs) {
   } catch { return null; }
 }
 
+// OPCIONAL (handoff de PROJECTO): 1–2 linhas de síntese OVERALL via Ollama local. Lê APENAS o
+// estado determinístico de cada sessão (nome + branch + dirty/ahead) — não inventa. Timeout DURO
+// (~4.5s) e NUNCA bloqueia/lança — null faz o gerador omitir a linha OVERALL (fallback honesto).
+async function ollamaProjectSynth(rows, timeoutMs) {
+  timeoutMs = timeoutMs || 4500;
+  try {
+    rows = Array.isArray(rows) ? rows : [];
+    if (!rows.length) return null;
+    const tags = await httpJson(11434, '/api/tags', Math.min(1500, timeoutMs));
+    const models = tags && Array.isArray(tags.models) ? tags.models : [];
+    if (!models.length) return null;
+    const m = models.slice().sort((a, b) => (a.size || 0) - (b.size || 0))[0];
+    if (!m || !m.name) return null;
+    const ctx = rows.slice(0, 12).map((r) => {
+      const id = (r && r.id) || (r && r.fullId ? String(r.fullId).slice(0, 8) : '?');
+      const gs = (r && r.gitStage) || {};
+      return '- ' + String((r && r.name) || ('session ' + id)).slice(0, 60)
+        + ' (branch ' + ((r && r.branch) || '-') + ', dirty ' + (gs.dirty || 0) + ', ahead ' + (gs.ahead || 0) + ')';
+    }).join('\n');
+    const prompt = 'You are writing ONE short overall line for a multi-session project handoff. '
+      + 'Resume SO o que esta no contexto abaixo; nao inventes. 1 to 2 short lines, no preamble.\n\nSessions:\n'
+      + ctx + '\n\nOverall:';
+    const out = await _ollamaGenerate(m.name, prompt, timeoutMs, 80);
+    if (!out) return null;
+    const r = String(out).split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' ');
+    return r ? r.slice(0, 300) : null;
+  } catch { return null; }
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
@@ -1221,4 +1292,5 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
-  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap };
+  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap,
+  generateProjectHandoff, ollamaProjectSynth };

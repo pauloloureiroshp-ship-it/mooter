@@ -213,6 +213,9 @@ class CockpitProvider {
   resolveWebviewView(view) {
     view.webview.options = { enableScripts: true };
     view.webview.html = getHtml();
+    // ⇄ Handoff v2: cache do último texto de handoff por id (sessão OU projectKey) → o botão
+    // 📋 Copiar re-copia sem regenerar. Vive no closure desta view (limpa ao recriar a view).
+    const hoffCache = {};
     const sub = this.data.onUpdate((s) => { try { view.webview.postMessage({ type: 'snapshot', s: project(s) }); } catch {} });
     // Throttle polling to the panel's visibility (fewer background CLI spawns when hidden).
     this.data.setVisible(view.visible);
@@ -383,6 +386,12 @@ class CockpitProvider {
         // HÍBRIDO: esqueleto determinístico (git/branch/ficheiros + PENDING verbatim) + narrativa
         // local (T0 · $0). mode segue o tamanho da sessão (turns altos → 'full' inclui RECAP).
         const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+        // ⇄ v2 PASSO 1+3: esqueleto determinístico INSTANTÂNEO (git/branch/ficheiros + PENDING
+        // verbatim) revelado JÁ no painel inline (postMessage 'generating'). A narrativa local enche
+        // depois (≤4.5s) e re-emite ('done'). Mesma fonte que o clipboard → painel == clipboard.
+        const skeleton = extra.generateHandoff(row, pending, { mode });
+        hoffCache[sid] = skeleton;
+        try { view.webview.postMessage({ type: 'handoff', sid, status: 'generating', text: skeleton }); } catch {}
         // OPCIONAL: DOING (1 linha, ≤2s) + RECAP (3–5 linhas, só 'full', ≤4s) via Ollama local, com
         // timeout DURO. Nunca bloqueiam nem lançam; falha → fallback determinístico (DOING = 1º
         // prompt; RECAP omitido). O LLM NUNCA toca no PENDING (verbatim no gerador).
@@ -390,6 +399,7 @@ class CockpitProvider {
         try { doing = await extra.ollamaDoing(row, 2000); } catch { doing = null; }
         if (mode === 'full') { try { recap = await extra.ollamaRecap(row, pending, 4000); } catch { recap = null; } }
         const text = extra.generateHandoff(row, pending, { doing, recap, mode });
+        hoffCache[sid] = text;
         try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
         try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch {}
         let synced = false;
@@ -397,10 +407,49 @@ class CockpitProvider {
         // §SAVINGS: o rodapé visível ("~Xk tok saved vs screenshot (est.)") já viaja no texto. O
         // registo advisory no savings-tracker da W1 fica deferido até a sua API estar confirmada
         // (não fabricamos um writer); a estimativa honesta é a que o utilizador vê no handoff.
+        try { view.webview.postMessage({ type: 'handoff', sid, status: 'done', text }); } catch {}
         vscode.window.setStatusBarMessage(synced
-          ? '🐮 handoff copiado (' + mode + ') — cola no Cowork (SYNC.md actualizado)'
-          : '🐮 handoff copiado (' + mode + ') — cola no Cowork', 6000);
+          ? '🐮 handoff (' + mode + ') no painel + clipboard — cola no Cowork (SYNC.md actualizado)'
+          : '🐮 handoff (' + mode + ') no painel + clipboard — cola no Cowork', 6000);
         this.data.refresh(true);
+      }
+      // ⇄ Handoff v2 PASSO 2 — handoff de PROJECTO (todas as sessões do grupo). Mesmo painel inline
+      // (data-hoff=<projectKey>) + clipboard + upsert SYNC.md sob sid '__fleet__'. INSTANTÂNEO a
+      // partir do snapshot em memória; enriquece com recentSessions(30) + síntese local (≤4.5s).
+      if (m.cmd === 'projHandoff') {
+        const proj = String(m.arg || '').slice(0, 80);
+        if (!proj) return;
+        // Replica do agrupamento do webview (projOf): Cowork project > repo folder (só repo real) > Unassigned.
+        const projOf = (r) => (r && r.coworkProject) ? r.coworkProject
+          : ((r && r.repoFolder && (r.branch || r.gitStage)) ? r.repoFolder : 'Unassigned');
+        const snapRows = ((this.data.snapshot && this.data.snapshot.recent) || []).filter((r) => projOf(r) === proj);
+        const instant = extra.generateProjectHandoff(proj, snapRows, {});
+        hoffCache[proj] = instant;
+        try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'generating', text: instant }); } catch {}
+        // ENRIQUECE: recentSessions(30) capta sessões além das visíveis; síntese local bounded 4.5s.
+        let prows = snapRows;
+        try { const all = await extra.recentSessions(30); const f = all.filter((r) => projOf(r) === proj); if (f.length) prows = f; } catch { /* mantém snapRows */ }
+        let synth = null;
+        try { synth = await extra.ollamaProjectSynth(prows, 4500); } catch { synth = null; }
+        const text = extra.generateProjectHandoff(proj, prows, { synth });
+        hoffCache[proj] = text;
+        try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
+        let synced = false;
+        const cwd = (prows.find((r) => r && r.cwd) || {}).cwd;
+        if (cwd) { try { const w = extra.writeHandoffToSync(cwd, '__fleet__', text, { name: proj }); synced = !!(w && w.ok); } catch { synced = false; } }
+        try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'done', text }); } catch {}
+        vscode.window.setStatusBarMessage(synced
+          ? '🐮 handoff do projecto ' + proj.slice(0, 24) + ' no painel + clipboard (SYNC.md actualizado)'
+          : '🐮 handoff do projecto ' + proj.slice(0, 24) + ' no painel + clipboard', 6000);
+        this.data.refresh(true);
+      }
+      // ⇄ Handoff v2 — 📋 Copiar: re-copia o último handoff (sessão OU projecto) da cache host-side.
+      // Sem regenerar, sem tocar no SYNC.md. id = data-x do botão (sid sanitizado ou projectKey).
+      if (m.cmd === 'hoffCopy') {
+        const id = String(m.arg || '').slice(0, 80);
+        const txt = hoffCache[id];
+        if (txt) { try { await vscode.env.clipboard.writeText(txt); } catch {} vscode.window.setStatusBarMessage('🐮 handoff copiado outra vez para o clipboard', 3000); }
+        else vscode.window.setStatusBarMessage('🐮 nada para copiar — gera o handoff primeiro', 3000);
       }
       if (m.cmd === 'toggleProject') {
         const proj = String(m.arg || '').slice(0, 64);
@@ -601,6 +650,16 @@ function getHtml() {
   /* ⇄ Handoff: distinct accent (purple ⇄), reuses .sgitbtn layout */
   .sgitbtn.handoff{border-color:#a78bfa;color:var(--vscode-foreground)}
   .sgitbtn.handoff:hover{border-color:#c4b5fd;color:#c4b5fd}
+  /* ⇄ Handoff v2 — per-project button in the group header (own full-width line) */
+  .ghd .projhandoff{flex:0 0 100%;margin-top:3px;font-size:9px;padding:2px 8px;opacity:.85}
+  .ghd .projhandoff:hover{opacity:1}
+  /* ⇄ Handoff v2 — inline live panel (per-session + per-project). Shows EXACTLY the clipboard
+     text (same source: generateHandoff/generateProjectHandoff). Revealed by the host stream. */
+  .hoffp{margin-top:6px;border:1px solid #a78bfa;border-radius:6px;background:var(--vscode-editorWidget-background,var(--vscode-input-background));padding:7px 8px}
+  .hoffp[hidden]{display:none}
+  .hoffp-st{font-size:9px;font-weight:600;color:#a78bfa;margin-bottom:5px;letter-spacing:.03em}
+  .hoffp-pre{margin:0;max-height:260px;overflow:auto;font-family:var(--vscode-editor-font-family,monospace);font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--vscode-foreground)}
+  .hoffp .hoffcopy{margin-top:7px;width:auto;padding:2px 10px}
   /* WCOCKPIT-7: compact drawer — integrations inline & icon-only, per-session close, bulk clear */
   .sdrawer{margin-top:4px;padding-top:4px}
   .sseg{margin-top:0}
@@ -789,6 +848,16 @@ function cc(id){return collapsed.has(id)?' collapsed':'';}
 // interactive children (e.g. the ledger scope pills [data-ls]) are ignored so they don't collapse.
 function chead(title,cls){return '<div class="'+(cls||'lbl')+' collaphead"><span class="chev">▾</span>'+title+'</div>';}
 function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();};h.onclick=tog;h.setAttribute('role','button');h.setAttribute('tabindex','0');h.setAttribute('aria-label','toggle section');h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog();}});});}
+// ⇄ Handoff v2 — inline live panel state. The whole cockpit re-renders on every snapshot, so the
+// panel CONTENT must live OUTSIDE the DOM (here) and be re-applied after each render (hydrateHoff).
+// Keyed by data-hoff id (session id OR project key). status: 'generating' | 'done'. The host streams
+// skeleton → final via postMessage({type:'handoff'}); we never fabricate text webview-side.
+const hoffState={};
+function hoffPanelFor(id){const all=document.querySelectorAll('.hoffp');for(let i=0;i<all.length;i++){if(all[i].getAttribute('data-hoff')===id)return all[i];}return null;}
+function hoffApply(id,st){const p=hoffPanelFor(id);if(!p||!st)return;const pre=p.querySelector('.hoffp-pre');const stx=p.querySelector('.hoffp-st');if(pre)pre.textContent=st.text||'';if(stx)stx.textContent=st.status==='done'?'✓ copiado para o clipboard':'🐮 a gerar… (esqueleto pronto · narrativa local a encher)';p.hidden=false;if(pre)pre.scrollTop=pre.scrollHeight;}
+function hydrateHoff(){for(const id in hoffState)hoffApply(id,hoffState[id]);}
+// Clicks inside a panel must not bubble to the session row (openSession) or the group collapse toggle.
+function wireHoff(root){(root||document).querySelectorAll('.hoffp').forEach(p=>{p.onclick=(e)=>{e.stopPropagation();};});(root||document).querySelectorAll('.projhandoff').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(o)o.call(b,e);};});}
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
 // PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
@@ -856,6 +925,8 @@ function wireSessControls(root){
   root.querySelectorAll('.srow button.sgitbtn').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};}); // WCOCKPIT-9 (Bloco C)
 }
 window.addEventListener('message',(e)=>{
+  // ⇄ Handoff v2 — live panel stream (skeleton 'generating' → final 'done'). Store + apply.
+  if(e.data.type==='handoff'){const id=e.data.sid;if(id!=null){hoffState[id]={status:e.data.status,text:e.data.text||''};hoffApply(id,hoffState[id]);}return;}
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
@@ -978,6 +1049,7 @@ window.addEventListener('message',(e)=>{
     '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
   wireButtons($('#v-cockpit'));
   wireSessControls($('#v-cockpit')); // WCOCKPIT-3: per-session mode/model/auto controls
+  wireHoff($('#v-cockpit'));hydrateHoff(); // ⇄ Handoff v2: stop-propagation on panels/projBtn + re-apply live text after the re-render
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});

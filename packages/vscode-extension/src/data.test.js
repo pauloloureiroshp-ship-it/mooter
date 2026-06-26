@@ -1776,3 +1776,118 @@ test('⇄ Handoff ollamaRecap: contrato — Promise; Ollama-down → null (nunca
   const r = await x.ollamaRecap({ name: 'p' }, { lastToolActions: [] }, 300);
   assert.ok(r === null || typeof r === 'string');
 });
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ⇄ HANDOFF v2 — painel inline ao vivo (por sessão + por projecto). Painel == clipboard
+// (mesma fonte) · PENDING verbatim · renderRow/renderGroupHeader concat-only (webview-sim
+// verde) · BOARD com as 3 flags · 📋 re-copia · Ollama-down → 'done' na mesma.
+// ════════════════════════════════════════════════════════════════════════════════
+
+test('⇄ Handoff v2 webview-sim: painel .hoffp por sessão sobrevive a fn.toString()+new Function()', () => {
+  // No backticks/${} in the source (would break the outer getHtml() template literal)
+  const src = rr.renderRow.toString();
+  assert.ok(!src.includes('`') && !src.includes('${'), 'renderRow source stays concat-only');
+  const html = _wvRenderRow(SAMPLE_ROW, {});
+  assert.ok(html.includes('class="hoffp"'), 'inline panel present after serialization');
+  assert.ok(html.includes('data-hoff="' + SAMPLE_ROW.fullId + '"'), 'panel keyed by the session id');
+  assert.ok(html.includes('class="hoffp-pre"'), 'panel has the <pre> for the live text');
+  assert.ok(html.includes('class="hoffp-st"'), 'panel has the status line');
+  assert.ok(html.includes('data-a="hoffCopy"') && html.includes('📋 Copiar'), 'panel has the re-copy button');
+  assert.ok(html.indexOf('hidden') > -1, 'panel starts hidden until the host streams text');
+  // The panel lives OUTSIDE the drawer (sibling) so it survives re-renders / drawer collapse.
+  assert.ok(html.indexOf('class="hoffp"') > html.indexOf('class="sdrawer"'), 'panel is a sibling AFTER the drawer');
+});
+
+test('⇄ Handoff v2 webview-sim: botão projHandoff + painel .hoffp no group header (concat-only)', () => {
+  const src = rr.renderGroupHeader.toString();
+  assert.ok(!src.includes('`') && !src.includes('${'), 'renderGroupHeader source stays concat-only');
+  const group = [{ fullId: 'a', needsYou: false }, { fullId: 'b', needsYou: true }];
+  const html = _wvRenderGroupHeader('Mooter.ai', group);
+  assert.ok(html.includes('data-a="projHandoff"'), 'project handoff button dispatches projHandoff');
+  assert.ok(html.includes('data-x="Mooter.ai"'), 'button carries the project key');
+  assert.ok(html.includes('⇄ Handoff do projecto'), 'button label present');
+  assert.ok(html.includes('class="hoffp"') && html.includes('data-hoff="Mooter.ai"'), 'same inline panel, keyed by project');
+  // Panel is a sibling of .ghd (NOT inside the collapse-toggle header)
+  assert.ok(html.indexOf('class="hoffp"') > html.indexOf('class="ghd'), 'panel sits after the .ghd header');
+});
+
+test('⇄ Handoff v2 handler-sim: 2 postMessages — esqueleto (PENDING verbatim) → final', () => {
+  // Espelha a sequência do handler m.cmd==="handoff": skeleton determinístico (sem doing/recap)
+  // postado 'generating' → texto final postado 'done'. PENDING verbatim em AMBOS.
+  const row = { fullId: 's1', id: 's1', name: 'wire v2 panel', branch: 'wave/cockpit-handoff-v2',
+    model: 'claude-opus-4-8', turns: 20, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } };
+  const pending = { lastAssistantText: 'EXACT pending verbatim?', lastToolActions: [{ name: 'Write', target: 'extension.js' }], stopped: true };
+  const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+  const posts = [];
+  const skeleton = x.generateHandoff(row, pending, { mode });
+  posts.push({ type: 'handoff', sid: row.fullId, status: 'generating', text: skeleton });
+  const final = x.generateHandoff(row, pending, { doing: 'narrativa local', recap: null, mode });
+  posts.push({ type: 'handoff', sid: row.fullId, status: 'done', text: final });
+  assert.equal(posts.length, 2, 'exactly two postMessages');
+  assert.equal(posts[0].status, 'generating');
+  assert.equal(posts[1].status, 'done');
+  assert.ok(posts[0].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'skeleton carries PENDING verbatim');
+  assert.ok(posts[1].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'final keeps PENDING verbatim');
+  assert.ok(posts[0].text.includes('▸ LAST STEP: Write extension.js'), 'deterministic LAST STEP already in the skeleton');
+});
+
+test('⇄ Handoff v2 generateProjectHandoff: BOARD com as 3 flags (DUP · UNCOMMITTED · UNPUSHED)', () => {
+  const rows = [
+    { id: 'aa', fullId: 'aa', name: 'session A', cwd: '/repo', branch: 'main', model: 'claude-opus-4-8', gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0 } },
+    { id: 'bb', fullId: 'bb', name: 'session B', cwd: '/repo', branch: 'main', model: 'claude-sonnet-4-6', gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2 } },
+  ];
+  const txt = x.generateProjectHandoff('Mooter.ai', rows, { now: new Date('2026-06-26T12:00:00') });
+  assert.ok(txt.includes('⇄ MOOTER PROJECT HANDOFF'), 'header present');
+  assert.ok(txt.includes('project: Mooter.ai · 2 sessões'), 'session count + project name');
+  assert.ok(txt.includes('DUP'), 'DUP flag (≥2 sessions same repo+branch)');
+  assert.ok(txt.includes('UNCOMMITTED'), 'UNCOMMITTED flag (dirty>0)');
+  assert.ok(txt.includes('UNPUSHED'), 'UNPUSHED flag (ahead>0)');
+  assert.ok(txt.includes('▸ FLAGS: 2 DUP · 1 UNCOMMITTED · 1 UNPUSHED'), 'flag tallies are honest');
+  assert.ok(txt.includes('session A (aa) · main · Opus 4.8') || txt.includes('session A (aa) · main · claude-opus-4-8'), 'per-session board line');
+  assert.ok(txt.trimEnd().endsWith('⇄ END PROJECT HANDOFF'), 'closes with END marker');
+});
+
+test('⇄ Handoff v2 generateProjectHandoff: sem rows → nunca lança, header + END; synth opcional', () => {
+  assert.doesNotThrow(() => x.generateProjectHandoff('Empty', [], {}));
+  const empty = x.generateProjectHandoff('Empty', null, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(empty.includes('project: Empty · 0 sessões'), '0 sessions handled');
+  assert.ok(empty.includes('(nenhuma sessão neste projecto)'), 'honest empty board');
+  assert.ok(empty.includes('⇄ END PROJECT HANDOFF'));
+  // synth (síntese local) entra só quando presente — nunca fabricada
+  const noSynth = x.generateProjectHandoff('P', [{ id: 'x', name: 'n', branch: 'b' }], { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!noSynth.includes('▸ OVERALL'), 'no synth → no OVERALL line');
+  const withSynth = x.generateProjectHandoff('P', [{ id: 'x', name: 'n', branch: 'b' }], { synth: 'two sessions, one ahead', now: new Date('2026-06-26T00:00:00') });
+  assert.ok(withSynth.includes('▸ OVERALL (local summary): two sessions, one ahead'), 'synth rendered when supplied');
+});
+
+test('⇄ Handoff v2 Ollama-down → board "done" na mesma (síntese omitida, nunca pendura)', async () => {
+  const rows = [{ id: 'q', fullId: 'q', name: 'p', cwd: '/r', branch: 'b', gitStage: { state: 'clean', dirty: 0, ahead: 0 } }];
+  const synth = await x.ollamaProjectSynth(rows, 300); // no live Ollama → null, bounded, fail-open
+  assert.ok(synth === null || typeof synth === 'string');
+  const text = x.generateProjectHandoff('P', rows, { synth });
+  assert.ok(text.includes('⇄ END PROJECT HANDOFF'), 'a complete (done) board is produced regardless of Ollama');
+  if (synth === null) assert.ok(!text.includes('▸ OVERALL'), 'Ollama-down → OVERALL omitted (no fabricated synthesis)');
+});
+
+test('⇄ Handoff v2 ollamaProjectSynth: contrato — Promise; Ollama-down → null (nunca lança/bloqueia)', async () => {
+  const r = await x.ollamaProjectSynth([{ name: 'p', branch: 'b' }], 300);
+  assert.ok(r === null || typeof r === 'string');
+  assert.equal(await x.ollamaProjectSynth([], 300), null, 'no rows → null');
+});
+
+test('⇄ Handoff v2 hoffCopy: re-copia da cache host-side (sessão ou projecto) sem regenerar', () => {
+  // Espelha a cache do handler: hoffCache[id]=text; m.cmd==="hoffCopy" → clipboard ← hoffCache[id].
+  const hoffCache = {};
+  const sessText = x.generateHandoff({ id: 's', fullId: 's', name: 'n', branch: 'b' }, { lastAssistantText: 'q?' }, { now: new Date('2026-06-26T00:00:00') });
+  hoffCache['s'] = sessText;
+  const projText = x.generateProjectHandoff('Proj', [{ id: 's', name: 'n', branch: 'b' }], { now: new Date('2026-06-26T00:00:00') });
+  hoffCache['Proj'] = projText;
+  // hoffCopy for a session id
+  let clip = hoffCache['s'];
+  assert.equal(clip, sessText, 'session 📋 Copiar re-copies the exact cached handoff');
+  // hoffCopy for a project key
+  clip = hoffCache['Proj'];
+  assert.equal(clip, projText, 'project 📋 Copiar re-copies the exact cached board');
+  // unknown id → nothing to copy (handler shows the honest "gera primeiro" toast)
+  assert.equal(hoffCache['missing'], undefined, 'unknown id → no cached text');
+});

@@ -2,6 +2,18 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.26] — 2026-06-26 — Handoff v2: inline live panel (per-session + per-project)
+
+### Added
+
+- **⇄ Handoff inline panel** — the ⇄ Handoff button now SHOWS the handoff text in a live panel right below it, in real time, as well as copying it to the clipboard and upserting `SYNC.md`. The deterministic skeleton (git/branch/files + the PENDING question **verbatim**) appears instantly; the local-LLM narrative (DOING/RECAP) fills it in within ≤4.5s. The panel shows EXACTLY what goes to the clipboard — same source, no drift. A **📋 Copiar** button re-copies it.
+- **⇄ Handoff do projecto** — a per-project button on each group header builds a BOARD of every session in the project (one deterministic line per session with **DUP** / **UNCOMMITTED** / **UNPUSHED** flags) plus one bounded local synthesis line, shown in the same inline panel + clipboard + `SYNC.md` (under `__fleet__`).
+
+### Notes
+
+- Panel == clipboard (same `generateHandoff` / `generateProjectHandoff` source); the PENDING question is always verbatim; nothing is fabricated. If Ollama is down the panel still reaches "done" with the deterministic content (synthesis omitted, never faked).
+- Row/group renderers stay concatenation-only (webview-serialisation safe). No change to the routing engine; `classify.js` sha unchanged.
+
 ## [0.16.22] — 2026-06-25 — Project Stage Rail: plain-language transparency per session
 
 ### Added
