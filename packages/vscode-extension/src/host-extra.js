@@ -941,6 +941,7 @@ async function recentSessions(maxN = 8) {
   const prCache = new Map();     // cwd → prs[] (repo-scoped gh pr list, once per cwd)
   const wtCache = new Map();     // WCOCKPIT-2: cwd → worktrees[], resolved once per cwd
   const gsCache = new Map();     // WCOCKPIT-4/5: cwd → gitStage result, once per cwd (async, non-blocking)
+  const treeShaCache = new Map(); // PASSO 2: cwd → tree HEAD sha (cheap .git read, once per cwd)
   for (const f of listSessionFiles().slice(0, maxN + 8)) {
     if (out.length >= maxN) break; // WCOCKPIT-7: stop once we have maxN visible (archived are skipped below)
     let lastModel = null; let turns = 0; let lastCtx = 0;
@@ -1021,6 +1022,11 @@ async function recentSessions(maxN = 8) {
     modeRegistry().decorate(row, _cwMap);  // WCOCKPIT: junta mode/model/auto/project/brainTitle + cowork mirror + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     row.localMoo = localMooState(row.fullId); // B4: estado vivo do moo local (acumulador, read-only, $0)
+    // PASSO 2 (Mac feedback): HONEST per-session git from the session's OWN journal (not the shared
+    // tree HEAD). Reconciled vs the tree → uncertain (no journal) / diverged (tree moved under it).
+    let _treeSha = null;
+    if (cwd) { if (!treeShaCache.has(cwd)) treeShaCache.set(cwd, _treeHeadSha(cwd)); _treeSha = treeShaCache.get(cwd); }
+    row.sessionGit = reconcileSessionGit(sessionGitFromJournal(row.fullId), branch, _treeSha);
     if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
     // Drop throwaway probe sessions: a one-shot transcript whose only prompt is a
     // CLI management/status echo (e.g. `mooter slash-commands status` mis-routed
@@ -1246,7 +1252,19 @@ function generateHandoff(row, pending, opts) {
   const pos = ahead > 0 ? ('main+' + ahead) : (behind > 0 ? ('behind ' + behind) : 'main±0');
   const pushSeg = (typeof snap.pushed === 'number' && snap.pushed > 0) ? ('PR #' + snap.pushed)
     : (snap.pushed === true ? 'pushed' : 'local (no push)');
-  const base = _or(row.branch) + ' · ' + pos + ' · ' + pushSeg;
+  // PASSO 2 — HONEST per-session branch: prefer the session's OWN journal git (opts.sessionGit ||
+  // row.sessionGit) over the shared tree branch. No journal → "incerto (tree partilhado)"; divergence
+  // → ⚠ marker. Back-compat: no sessionGit → the tree branch as before.
+  const _sg = opts.sessionGit || row.sessionGit || null;
+  let branchSeg;
+  if (_sg && _sg.source === 'journal' && (_sg.branch || _sg.sha)) {
+    branchSeg = _or(_sg.branch) + (_sg.sha ? ' @' + String(_sg.sha).slice(0, 7) : '') + ' (journal)' + (_sg.diverged ? ' ⚠ diverge do tree' : '');
+  } else if (_sg && _sg.uncertain) {
+    branchSeg = _or(_sg.branch || row.branch) + ' (branch incerto · tree partilhado)';
+  } else {
+    branchSeg = _or(row.branch);
+  }
+  const base = branchSeg + ' · ' + pos + ' · ' + pushSeg;
 
   // ── GATE: classify.js freeze · files touched by HEAD (or brought in by a merge) · mixed-sessions ──
   const gateParts = [];
@@ -1340,6 +1358,21 @@ function generateHandoff(row, pending, opts) {
 // re-injectada pelo enrichment de background); ausente (Ollama-down/timeout) → resumo DETERMINÍSTICO
 // dos contadores reais, NUNCA o 1º prompt de uma sessão. opts.now fixa o timestamp (testes). Nunca
 // lança (rows não-array → []). Reusa _fmtTs/_or — não duplica lógica.
+// PURE (testable): the HONEST branch label for one session row (PASSO 2). Prefers the session's OWN
+// journal git (branch [+ short sha]); when the journal is absent the tree branch is shown flagged
+// "branch incerto (tree partilhado)"; divergence (journal vs tree HEAD) adds a ⚠ marker. Back-compat:
+// no sessionGit → plain tree branch (_or(r.branch)). Never throws.
+function _sessionBranchLabel(r) {
+  const sg = (r && r.sessionGit) || null;
+  if (sg && sg.source === 'journal' && (sg.branch || sg.sha)) {
+    return _or(sg.branch) + (sg.sha ? ' @' + String(sg.sha).slice(0, 7) : '') + (sg.diverged ? ' ⚠ diverge do tree' : '');
+  }
+  if (sg && sg.uncertain) {
+    return _or(sg.branch || (r && r.branch)) + ' · branch incerto (tree partilhado)';
+  }
+  return _or(r && r.branch);
+}
+
 function generateProjectHandoff(proj, rows, opts) {
   opts = opts || {};
   rows = Array.isArray(rows) ? rows : [];
@@ -1412,7 +1445,10 @@ function generateProjectHandoff(proj, rows, opts) {
     const st = (r && r.working) ? '🟢' : ((r && r.needsYou) ? '🟡' : ((r && r.waitingForCowork) ? '⏳' : '✅'));
     const fl = flags.length ? '  [' + flags.join(' ') + ']' : '';
     const nm = String((r && r.name) || ('session ' + id)).replace(/\s+/g, ' ').slice(0, 56);
-    board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _or(r && r.branch) + ' · ' + _or(r && r.model) + fl);
+    // PASSO 2 — HONEST per-session branch: prefer the session's OWN journal branch (+sha), not the
+    // shared tree HEAD. No journal → the tree branch flagged "incerto (tree partilhado)". Divergence
+    // (tree moved under the session) → ⚠ marker. Falls back to r.branch when no sessionGit (back-compat).
+    board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _sessionBranchLabel(r) + ' · ' + _or(r && r.model) + fl);
   }
   if (!board.length) board.push('  — (nenhuma sessão neste projecto)');
   // DUP tally = nº de GRUPOS com ≥2 activas E commits próprios. Sem nenhum, mas com co-habitação (≥2
@@ -1465,7 +1501,22 @@ function generateProjectHandoff(proj, rows, opts) {
     segs.push(askCounts.review + ' review');
     askLine.push('ASK:    ' + n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' · ' + segs.join(' · '));
   }
-  return head.concat(askLine).concat(['', '▸ BOARD:']).concat(board).concat(tail).join('\n');
+  // PASSO 2 — PROMOTE risk to the TOP. Real collision (≥2 active sessions with own commits on the
+  // same branch = dupGroups) OR per-session branch/SHA divergence from the shared tree → ⚠ HIGH (the
+  // board must NOT read green when sessions genuinely conflict). Low risk adds no line (board byte-
+  // identical to before → no false "verde" claim, no noise).
+  const riskLine = [];
+  if (n > 0) {
+    let diverged = 0;
+    for (const r of rows) { if (r && r.sessionGit && r.sessionGit.diverged) diverged++; }
+    if (dupGroups > 0 || diverged > 0) {
+      const reasons = [];
+      if (dupGroups > 0) reasons.push(dupGroups + ' colisão' + (dupGroups === 1 ? '' : 'es') + ' real' + (dupGroups === 1 ? '' : 'is') + ' (mesma branch · commits próprios)');
+      if (diverged > 0) reasons.push(diverged + ' sessã' + (diverged === 1 ? 'o' : 'es') + ' com branch/SHA divergente do tree');
+      riskLine.push('⚠ RISCO: HIGH — ' + reasons.join(' · '));
+    }
+  }
+  return head.concat(askLine).concat(riskLine).concat(['', '▸ BOARD:']).concat(board).concat(tail).join('\n');
 }
 
 function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1753,6 +1804,78 @@ function readJournalLast(sid) {
   } catch { return null; }
 }
 
+// ── PASSO 2 (Mac feedback): HONEST per-session branch/SHA, read from the session's OWN journal ──
+// The Mac gap: many sessions share ONE working tree, so gitBranch(cwd) reports the tree's CURRENT
+// HEAD — which another session may have moved under this one. The honest per-session provenance is
+// the git the session itself recorded on its LAST turn (handoff-journal writes git:{head,branch}
+// per entry). We read the most-recent journal entry that carries git facts. null when the session
+// has no journal yet (→ caller marks the branch "incerto (tree partilhado)", never the wrong one).
+// Read-only; never throws.
+function sessionGitFromJournal(sid) {
+  try {
+    const id = _handoffSafeId(sid); if (!id) return null;
+    const lines = fs.readFileSync(path.join(_handoffDir(), id + '.jsonl'), 'utf8').split('\n').filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let e; try { e = JSON.parse(lines[i]); } catch { continue; }
+      const g = e && e.git;
+      if (g && (g.head != null || g.branch != null)) {
+        return {
+          head: g.head != null ? String(g.head).slice(0, 12) : null,
+          branch: g.branch != null ? String(g.branch).slice(0, 80) : null,
+          source: 'journal',
+        };
+      }
+    }
+    return null;
+  } catch { return null; }
+}
+
+// Cheap, NON-blocking tree HEAD sha for a cwd: read straight from .git (no subprocess), mirroring
+// handoff-journal.gitInfo's head logic. Used only to detect DIVERGENCE (the session's journal sha
+// differs from the tree's current HEAD = the shared tree moved under it). null on any failure.
+function _treeHeadSha(cwd) {
+  try {
+    if (!cwd || typeof cwd !== 'string') return null;
+    let gitDir = path.join(cwd, '.git');
+    let st; try { st = fs.statSync(gitDir); } catch { return null; }
+    if (st.isFile()) {
+      const m = fs.readFileSync(gitDir, 'utf8').match(/gitdir:\s*(.+)\s*$/m);
+      if (m && m[1]) gitDir = path.resolve(cwd, m[1].trim()); else return null;
+    }
+    const headRaw = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim();
+    const refM = headRaw.match(/^ref:\s*(.+)$/);
+    if (!refM) return headRaw.slice(0, 12); // detached HEAD
+    const ref = refM[1].trim();
+    try { return fs.readFileSync(path.join(gitDir, ref), 'utf8').trim().slice(0, 12); }
+    catch {
+      try {
+        const packed = fs.readFileSync(path.join(gitDir, 'packed-refs'), 'utf8').split('\n');
+        for (const l of packed) { const mm = l.match(/^([0-9a-f]{40})\s+(.+)$/); if (mm && mm[2] === ref) return mm[1].slice(0, 12); }
+      } catch { /* none */ }
+      return null;
+    }
+  } catch { return null; }
+}
+
+// PURE (testable): reconcile a session's branch/SHA HONESTLY against the shared tree.
+//   • journal present → the session's OWN branch+sha (source 'journal'); `diverged` true when its
+//     branch OR sha differs from the current tree HEAD (the tree moved under it = collision signal).
+//   • journal absent  → the tree branch is returned but flagged `uncertain` ("incerto (tree
+//     partilhado)") — NEVER asserted as the session's own branch.
+// Returns { branch, sha, source:'journal'|'tree', uncertain:bool, diverged:bool }. Never throws.
+function reconcileSessionGit(journalGit, treeBranch, treeSha) {
+  const tb = treeBranch != null ? String(treeBranch) : null;
+  const ts = treeSha != null ? String(treeSha).slice(0, 12) : null;
+  const jg = journalGit || null;
+  if (jg && (jg.branch != null || jg.head != null)) {
+    const jb = jg.branch != null ? String(jg.branch) : null;
+    const jh = jg.head != null ? String(jg.head).slice(0, 12) : null;
+    const diverged = !!((jb && tb && jb !== tb) || (jh && ts && jh !== ts));
+    return { branch: jb || tb, sha: jh, source: 'journal', uncertain: false, diverged };
+  }
+  return { branch: tb, sha: ts, source: 'tree', uncertain: true, diverged: false };
+}
+
 // ── B4: estado vivo do "moo local" por sessão (read-only, $0) ──────────────────────────────────
 // O que o moo LOCAL fez/está a fazer SEM abrir terminal: último rolling summary + nº de entradas do
 // journal + flag HONESTA "a actualizar…" (o journal está à frente do último rollup → a próxima
@@ -1980,4 +2103,5 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
-  readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed };
+  readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed,
+  sessionGitFromJournal, reconcileSessionGit, _treeHeadSha, _sessionBranchLabel };
