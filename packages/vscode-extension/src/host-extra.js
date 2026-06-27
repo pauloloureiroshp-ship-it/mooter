@@ -1790,6 +1790,43 @@ function localMooState(sid) {
   } catch { return null; }
 }
 
+// ── WS3: Local speed snapshot (reads WS1's speed-meter readings, read-only) ────────────────────
+// Reads the append-only speed-metrics.jsonl written by tools/router/speed-meter.js (TTFT/TPOT/
+// throughput, batch=1, temp=0, median of warm runs). The file FORMAT is the only interface — no
+// cross-package require. Returns the latest measured WARM throughput per model so the Local Moo
+// Fleet header can show REAL local tok/s ($0, GPU-local). Never throws; null when nothing measured.
+function localSpeed() {
+  try {
+    // Same env override as speed-meter.js metricsPath() so reader and writer agree.
+    const p = process.env.MOOTER_SPEED_METRICS_LOG || path.join(ROUTER, 'speed-metrics.jsonl');
+    const raw = fs.readFileSync(p, 'utf8');
+    const byModel = {};
+    for (const line of raw.split('\n')) {
+      const t = line.trim(); if (!t) continue;
+      let r; try { r = JSON.parse(t); } catch { continue; }
+      if (!r || !r.model) continue;
+      const warm = r.warm || {};
+      const tps = Number(warm.tps);
+      const ttft = Number(warm.ttft_ms);
+      byModel[r.model] = {
+        model: String(r.model).slice(0, 40),
+        tps: Number.isFinite(tps) ? tps : null,
+        ttft_ms: Number.isFinite(ttft) ? ttft : null,
+        cold_ttft_ms: (r.cold && Number.isFinite(Number(r.cold.ttft_ms))) ? Number(r.cold.ttft_ms) : null,
+        ts: r.ts || null,
+      };
+    }
+    const models = Object.values(byModel);
+    if (!models.length) return null;
+    let latest = null;
+    for (const m of models) {
+      if (m.tps == null) continue;
+      if (!latest || String(m.ts || '') > String(latest.ts || '')) latest = m;
+    }
+    return { models, latest, count: models.length };
+  } catch { return null; }
+}
+
 // DETERMINISTIC project OVERALL from the per-session rolling summaries already on disk (PASSO 5):
 // joins each session's first summary line. Instant, no on-demand call, no echo. null when no
 // session has a summary yet (caller falls back to ollamaProjectSynth → deterministic counts).
@@ -1943,4 +1980,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
-  readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState };
+  readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed };
