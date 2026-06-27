@@ -718,7 +718,8 @@ test('WCOCKPIT-3 renderRow: Notion SVG chip present (intchip + N SVG)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('class="intchip"'), 'Notion chip must have .intchip class');
   assert.ok(html.includes('font-family="serif">N</text>'), 'Notion SVG N logo must be present');
-  assert.ok(html.includes('title="Notion · not synced'), 'Notion chip title must indicate not synced when null');
+  // B2 honesto: sem notionPageId o chip diz "sem página ligada" (não finge sync).
+  assert.ok(html.includes('title="Notion · sem página ligada'), 'Notion chip title must be honest when unlinked');
   // WCOCKPIT-7: icon-only — unsynced chip is dim (no .on), no inline link text
   assert.ok(!html.includes('intchip on'), 'unsynced Notion chip must be dim (no .on)');
 });
@@ -727,7 +728,8 @@ test('WCOCKPIT-3 renderRow: Notion chip shows ago time when notionSyncedAt set',
   const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
   const row = Object.assign({}, SAMPLE_ROW, { notionSyncedAt: twoHoursAgo, obsidianSyncedAt: twoHoursAgo });
   const html = rr.renderRow(row, { nowMs: Date.now() });
-  assert.ok(html.includes('title="Notion · synced 2h ago"'), 'Notion chip must show sync time in its title when set');
+  // B2: synced stamp still illuminates (.on) honestly; with no page linked the title says so too.
+  assert.ok(html.includes('title="Notion · synced 2h ago · sem página ligada"'), 'Notion chip must show sync time in its title when set');
   assert.ok(html.includes('class="intchip on"'), 'synced Notion chip must be bright (.on)');
   assert.ok(!html.includes('not synced'), 'must not show not-synced when synced');
 });
@@ -735,14 +737,43 @@ test('WCOCKPIT-3 renderRow: Notion chip shows ago time when notionSyncedAt set',
 test('WCOCKPIT-3 renderRow: Obsidian SVG chip present (purple gem)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('fill="#7c3aed"'), 'Obsidian SVG must have purple polygon');
-  assert.ok(html.includes('title="Obsidian · not synced'), 'Obsidian chip title must indicate not synced');
+  // B2 honesto: sem obsidianPath o chip é informativo ("sem ficheiro ligado"), não finge sync.
+  assert.ok(html.includes('title="Obsidian · sem ficheiro ligado'), 'Obsidian chip title must be honest when unlinked');
+  assert.ok(html.includes('role="img"'), 'unlinked Obsidian chip must be informative (role=img), not actionable');
 });
 
-test('WCOCKPIT-3 renderRow: ↺ refresh button present with data-a=refreshIntegrations', () => {
+test('WCOCKPIT-3 renderRow: integrations refresh button present with data-a=refreshIntegrations (honest "marcar visto")', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
-  assert.ok(html.includes('data-a="refreshIntegrations"'), '↺ refresh button must have correct data-a');
-  assert.ok(html.includes('↺'), 'refresh icon must be present');
+  assert.ok(html.includes('data-a="refreshIntegrations"'), 'refresh button must keep data-a=refreshIntegrations');
+  assert.ok(html.includes('marcar visto'), 'label must be honest — it stamps a local "seen" time, no remote sync');
   assert.ok(html.includes('data-x="' + SAMPLE_ROW.fullId + '"'), 'data-x must be the session fullId');
+});
+
+// ── B2: chips de integração ACCIONÁVEIS e HONESTOS ──────────────────────────────
+test('B2 renderRow: Notion chip is actionable (openUrl) when notionPageId exists', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { notionPageId: '1a2b3c4d5e6f7081920a1b2c3d4e5f60' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('data-a="openUrl:https://www.notion.so/1a2b3c4d5e6f7081920a1b2c3d4e5f60"'), 'Notion chip must openUrl the page when notionPageId is set');
+  assert.ok(html.includes('abrir página'), 'Notion chip must advertise the open action honestly');
+});
+
+test('B2 renderRow: Notion chip accepts a full URL in notionPageId verbatim', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { notionPageId: 'https://notion.so/team/My-Page-abc' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('data-a="openUrl:https://notion.so/team/My-Page-abc"'), 'a full Notion URL must be used as-is');
+});
+
+test('B2 renderRow: Notion chip is informative (role=img, no data-a) when no page linked', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // notionPageId=null
+  assert.ok(html.includes('Notion · sem página ligada'), 'unlinked Notion chip must be honest');
+  assert.ok(!html.includes('data-a="openUrl:'), 'unlinked Notion chip must NOT fake an action');
+});
+
+test('B2 renderRow: Obsidian chip opens the file (openFile) when obsidianPath exists', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { obsidianPath: '/vault/notes/session.md' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('data-a="openFile:/vault/notes/session.md"'), 'Obsidian chip must openFile the path when set');
+  assert.ok(html.includes('abrir ficheiro'), 'Obsidian chip must advertise the open action honestly');
 });
 
 test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {

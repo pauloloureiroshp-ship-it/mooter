@@ -234,6 +234,14 @@ class CockpitProvider {
       if (m.cmd === 'refresh') { this.data.refresh(true); reWarm(); }
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
+      // B2 — abre o ficheiro local de uma integração (Obsidian) no editor. Só ficheiros locais reais.
+      if (m.cmd === 'openFile') {
+        const p = String(m.arg || '');
+        if (p) {
+          try { await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(p)); }
+          catch { vscode.window.setStatusBarMessage('🐮 não consegui abrir ' + p.slice(0, 60), 3500); }
+        }
+      }
       if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
       if (m.cmd === 'pinNext') {
         const r = extra.writePinNext(m.arg);
@@ -525,7 +533,8 @@ class CockpitProvider {
           try { MR.touchSync(sid, 'notion'); } catch {}
           try { MR.touchSync(sid, 'obsidian'); } catch {}
           this.data.refresh(true);
-          vscode.window.setStatusBarMessage('🐮 integrations refreshed · ' + sid.slice(0, 8), 3000);
+          // HONESTO: isto carimba a hora de revisão LOCAL (não há sync remoto a partir do cockpit).
+          vscode.window.setStatusBarMessage('🐮 marcado como visto · ' + sid.slice(0, 8) + ' — carimbo local (sem sync remoto)', 4000);
         }
       }
       // WCOCKPIT-7: close/archive a single session from the cockpit (reversible)
@@ -1015,6 +1024,9 @@ function wireSessControls(root){
   root.querySelectorAll('button.sloop[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var next=b.dataset.mloop!=='true';b.classList.toggle('on',next);b.dataset.mloop=String(next);flashApply(b);send('setLoop',{sid:b.dataset.msess,loop:next});};});
   root.querySelectorAll('.sslash[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('pickSlash',{sid:s.dataset.msess,cmd:s.value});};s.onclick=function(e){e.stopPropagation();};});
   root.querySelectorAll('.srow button.intrefresh').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
+  // B2 — chips de integração accionáveis: clicáveis SÓ quando o renderer pôs um data-a (alvo real).
+  // openUrl: → página Notion · openFile: → ficheiro Obsidian. stopPropagation para não abrir a sessão.
+  root.querySelectorAll('.srow .intchip[data-a]').forEach(function(c){var act=function(e){if(e&&e.stopPropagation)e.stopPropagation();var a=c.getAttribute('data-a')||'';if(a.indexOf('openUrl:')===0)send('openUrl',a.slice(8));else if(a.indexOf('openFile:')===0)send('openFile',a.slice(9));};c.onclick=act;c.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();act(e);}});});
   root.querySelectorAll('.srow button.sarch').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
   root.querySelectorAll('.srow button.sgitbtn').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};}); // WCOCKPIT-9 (Bloco C)
 }
