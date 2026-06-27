@@ -837,7 +837,7 @@ function gitSnapshot(cwd, opts) {
   opts = opts || {};
   const run = opts.runGit || _gitSync;
   const snap = { head: null, baseAhead: 0, baseBehind: 0, pushed: false, prStage: null,
-    filesInHead: [], filesCount: 0, classifyFrozen: null, mixedSessions: false, factsComplete: true };
+    filesInHead: [], filesCount: 0, isMerge: false, classifyFrozen: null, mixedSessions: false, factsComplete: true };
   if (!cwd || typeof cwd !== 'string') { snap.factsComplete = false; return snap; }
   try {
     // HEAD: sha7 + subject (tab-separated). "—" upstream when there is no commit.
@@ -854,8 +854,15 @@ function gitSnapshot(cwd, opts) {
     if (ah && ah.ok && ah.out !== '') snap.baseAhead = parseInt(ah.out, 10) || 0; else snap.factsComplete = false;
     const bh = run(['rev-list', '--count', 'HEAD..origin/main'], cwd);
     if (bh && bh.ok && bh.out !== '') snap.baseBehind = parseInt(bh.out, 10) || 0; else snap.factsComplete = false;
-    // files the HEAD commit touches (basenames, ≤8 + a real total count)
-    const fr = run(['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], cwd);
+    // 4c — merge-commit detection: a merge HEAD has ≥2 parents. "diff-tree HEAD" on a merge is EMPTY
+    // ("HEAD toca 0 fich." era enganador) → for a merge, diff the first parent..HEAD = the files it
+    // BROUGHT IN (the merged branch's changes). Non-merge → the commit's own files.
+    const par = run(['show', '-s', '--format=%P', 'HEAD'], cwd);
+    const parents = (par && par.ok && par.out) ? par.out.trim().split(/\s+/).filter(Boolean) : [];
+    snap.isMerge = parents.length >= 2;
+    const fr = (snap.isMerge && parents[0])
+      ? run(['diff', '--name-only', parents[0], 'HEAD'], cwd)
+      : run(['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], cwd);
     if (fr && fr.ok) {
       const all = fr.out.split('\n').map((s) => s.trim()).filter(Boolean);
       snap.filesCount = all.length;
@@ -870,10 +877,13 @@ function gitSnapshot(cwd, opts) {
     // classify.js frozen guard — tri-state: true (exact sha) | false (changed) | null (absent / non-Mooter repo).
     const g = classifyShaGuard(cwd);
     snap.classifyFrozen = g.checked ? g.ok : null;
-    // mixed-sessions: ≥2 sessions share this cwd+branch (the shared-working-tree case where several
-    // sessions stack commits on the same branch). Derived from gitHarmony over the recent-sessions list.
-    const harmony = gitHarmony(opts.recent, cwd, opts.branch);
-    snap.mixedSessions = !!(harmony && harmony.shared);
+    // 4b — mixed-sessions requires ≥2 ACTIVE sessions WITH OWN COMMITS on this cwd+branch (the real
+    // shared-working-tree collision). 20 IDLE sessions cohabiting a clean/pushed main (baseAhead 0)
+    // must NOT trigger it — that was false "review". A shared working tree has ONE HEAD, so baseAhead
+    // is the branch's own-commit signal for all of them.
+    const activeShared = (Array.isArray(opts.recent) ? opts.recent : []).filter((r) =>
+      r && r.cwd === cwd && String(r.branch || '') === String(opts.branch || '') && (r.working || r.needsYou)).length;
+    snap.mixedSessions = activeShared >= 2 && snap.baseAhead > 0;
   } catch { snap.factsComplete = false; }
   return snap;
 }
@@ -1237,7 +1247,7 @@ function generateHandoff(row, pending, opts) {
     : (snap.pushed === true ? 'pushed' : 'local (no push)');
   const base = _or(row.branch) + ' · ' + pos + ' · ' + pushSeg;
 
-  // ── GATE: classify.js freeze · files touched by HEAD · mixed-sessions ──
+  // ── GATE: classify.js freeze · files touched by HEAD (or brought in by a merge) · mixed-sessions ──
   const gateParts = [];
   if (snap.classifyFrozen === true) gateParts.push('classify.js ✓ frozen');
   else if (snap.classifyFrozen === false) gateParts.push('classify.js ⚠ CHANGED');
@@ -1245,7 +1255,12 @@ function generateHandoff(row, pending, opts) {
   const fc = Number(snap.filesCount) || fhead.length;
   const shownF = fhead.slice(0, 5);
   const moreF = fc - shownF.length;
-  gateParts.push('HEAD toca ' + fc + ' fich.' + (shownF.length ? ': ' + shownF.join(', ') + (moreF > 0 ? ' +' + moreF : '') : ''));
+  // 4c — honest GATE for a merge-commit: "merge-commit (PR #N) · N fich. trazidos" instead of the
+  // misleading "HEAD toca 0 fich." (diff-tree on a merge is empty; we diff first-parent..HEAD instead).
+  const filesLabel = snap.isMerge
+    ? ((typeof snap.pushed === 'number' && snap.pushed > 0 ? 'merge-commit (PR #' + snap.pushed + ')' : 'merge-commit') + ' · ' + fc + ' fich. trazidos')
+    : ('HEAD toca ' + fc + ' fich.');
+  gateParts.push(filesLabel + (shownF.length ? ': ' + shownF.join(', ') + (moreF > 0 ? ' +' + moreF : '') : ''));
   if (snap.mixedSessions) gateParts.push('⚠ mixed-sessions');
   const gate = gateParts.join(' · ');
 
@@ -1301,7 +1316,7 @@ function generateHandoff(row, pending, opts) {
     const saved = (Number(row.saved) || 0).toFixed(2);
     body.push('', 'model ' + _or(row.model) + ' · mode ' + _or(row.mode) + ' · saved $' + saved + ' (sessão)');
     const engine = (opts.genModel && String(opts.genModel).trim())
-      ? ('T0 · ' + String(opts.genModel).trim() + ' · $0')
+      ? ('T0 · ' + String(opts.genModel).trim() + ' · $0' + (opts.bestEffort ? ' · local best-effort' : ''))
       : 'T0 · deterministic — no local gen model · $0';
     const estSaved = (opts.estTokensSaved != null)
       ? (Number(opts.estTokensSaved) || 0)
@@ -1354,27 +1369,43 @@ function generateProjectHandoff(proj, rows, opts) {
   // computa por grupo cwd+branch: total de sessões e quantas estão activas. branchCt alimenta o
   // OVERALL determinístico (branch mais comum). Sem cwd → sem repo real → não pode colidir.
   const _active = (r) => !!(r && (r.working || r.needsYou));
-  const groups = new Map();   // 'cwd\x00branch' -> { total, active, branch }
+  // 4a — a cwd shared by ≥2 sessions = ONE working tree → its dirt is AMBIENT (shared scratch), NOT
+  // any one session's own work. cwdCount drives both the per-row UNCOMMITTED suppression and the
+  // single ambient footer line. 4b — groups also track `ahead` (the branch's own commits; a shared
+  // working tree has ONE HEAD so this is the same for every member) → a DUP needs own commits.
+  const cwdCount = new Map(); // cwd -> nº de sessões (shared working tree when ≥2)
+  const groups = new Map();   // 'cwd\x00branch' -> { total, active, ahead, branch }
   const branchCt = new Map(); // branch -> nº de sessões
   for (const r of rows) {
     if (r && r.branch) branchCt.set(r.branch, (branchCt.get(r.branch) || 0) + 1);
     if (!r || !r.cwd) continue;
+    cwdCount.set(r.cwd, (cwdCount.get(r.cwd) || 0) + 1);
     const k = r.cwd + '\x00' + (r.branch || '');
-    const g = groups.get(k) || { total: 0, active: 0, branch: r.branch || '' };
+    const g = groups.get(k) || { total: 0, active: 0, ahead: 0, branch: r.branch || '' };
     g.total++; if (_active(r)) g.active++;
+    g.ahead = Math.max(g.ahead, Number((r.gitStage || {}).ahead) || 0);
     groups.set(k, g);
   }
   let unc = 0, unp = 0, activeN = 0;
+  const ambient = new Map(); // cwd -> { dirty, sessions } (shared working-tree dirt, counted once)
   const board = [];
   for (const r of rows) {
     const id = (r && r.id) || (r && r.fullId ? String(r.fullId).slice(0, 8) : '?');
     const gs = (r && r.gitStage) || {};
     const flags = [];
     const g = (r && r.cwd) ? groups.get(r.cwd + '\x00' + ((r && r.branch) || '')) : null;
-    const contested = !!(g && g.active >= 2 && _active(r));
+    // 4b — DUP only when ≥2 ACTIVE sessions share repo+branch AND the branch has own commits (ahead>0).
+    const contested = !!(g && g.active >= 2 && g.ahead > 0 && _active(r));
     askCounts[_rowAsk(r, contested)]++; // action-first aggregate (review when contested)
-    if (contested) flags.push('DUP'); // só sessões activas num grupo contestado
-    if ((gs.dirty || 0) > 0) { flags.push('UNCOMMITTED'); unc++; }
+    if (contested) flags.push('DUP');
+    // 4a — UNCOMMITTED is OWN work only: a session that UNIQUELY owns its cwd. Shared-cwd dirt is
+    // ambient → not flagged per-row; recorded once for the footer.
+    const dirty = Number(gs.dirty) || 0;
+    const sharedCwd = r && r.cwd && (cwdCount.get(r.cwd) || 0) >= 2;
+    if (dirty > 0 && sharedCwd) {
+      const cur = ambient.get(r.cwd);
+      if (!cur || dirty > cur.dirty) ambient.set(r.cwd, { dirty, sessions: cwdCount.get(r.cwd) });
+    } else if (dirty > 0) { flags.push('UNCOMMITTED'); unc++; }
     if ((gs.ahead || 0) > 0) { flags.push('UNPUSHED'); unp++; }
     if (_active(r)) activeN++;
     const st = (r && r.working) ? '🟢' : ((r && r.needsYou) ? '🟡' : ((r && r.waitingForCowork) ? '⏳' : '✅'));
@@ -1383,19 +1414,26 @@ function generateProjectHandoff(proj, rows, opts) {
     board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _or(r && r.branch) + ' · ' + _or(r && r.model) + fl);
   }
   if (!board.length) board.push('  — (nenhuma sessão neste projecto)');
-  // DUP tally = nº de GRUPOS com ≥2 activas. Sem nenhum, mas com co-habitação (≥2 na mesma branch
-  // sem colisão activa), mostra o maior grupo informativo "N em <branch>" — nunca um DUP falso.
+  // DUP tally = nº de GRUPOS com ≥2 activas E commits próprios. Sem nenhum, mas com co-habitação (≥2
+  // na mesma branch sem colisão activa), mostra o maior grupo informativo "N em <branch>".
   let dupGroups = 0, coTop = null;
   for (const g of groups.values()) {
-    if (g.active >= 2) dupGroups++;
+    if (g.active >= 2 && g.ahead > 0) dupGroups++;
     else if (g.total >= 2 && (!coTop || g.total > coTop.total)) coTop = g;
   }
   const dupSeg = dupGroups > 0 ? (dupGroups + ' DUP')
     : (coTop ? (coTop.total + ' em ' + (coTop.branch || '—')) : '0 DUP');
+  // 4a — ambient working-tree dirt summarised ONCE (never per-row). One line, joins distinct shared cwds.
+  let ambientLine = null, ambientTotal = 0;
+  if (ambient.size) {
+    const segs = [];
+    for (const [cw, a] of ambient) { ambientTotal += a.dirty; segs.push(path.basename(cw) + ' ' + a.dirty + ' dirty (working-tree partilhado por ' + a.sessions + ' sess)'); }
+    ambientLine = '▸ AMBIENTE: ' + segs.join(' · ');
+  }
   const tail = [];
-  // POLISH 1 — OVERALL sempre limpo. Com síntese local (qwen) → usa-a (1 linha factual). Sem ela
-  // (Ollama-down/frio) → resumo DETERMINÍSTICO dos contadores reais — NUNCA o 1º prompt/texto de
-  // uma sessão. O enrichment de background (#211) re-injecta a síntese qwen exactamente neste campo.
+  // 4d — OVERALL: prefer the real per-session rolling-summary synth (opts.synth, fed by
+  // projectSynthFromSummaries); else a DETERMINISTIC honest line (counts + branch + dirty), NEVER the
+  // echo of a session's 1st prompt. unc here is OWN uncommitted (4a); ambient dirt is reported apart.
   const synthText = (opts.synth && String(opts.synth).trim()) ? String(opts.synth).trim().slice(0, 400) : null;
   if (synthText) {
     tail.push('', '▸ OVERALL (local summary): ' + synthText);
@@ -1403,10 +1441,12 @@ function generateProjectHandoff(proj, rows, opts) {
     let bTop = '—', bMax = 0;
     for (const [b, c] of branchCt) { if (c > bMax) { bMax = c; bTop = b; } }
     const overall = n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' em ' + bTop + ' · '
-      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push';
+      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push'
+      + (ambientTotal > 0 ? ' · ' + ambientTotal + ' dirty ambiente' : '');
     tail.push('', '▸ OVERALL: ' + overall);
   }
   tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
+  if (ambientLine) tail.push(ambientLine);
   tail.push('▸ NEXT FOR COWORK: resolver DUP (mesma branch) · commit UNCOMMITTED · push UNPUSHED');
   tail.push('⇄ END PROJECT HANDOFF');
   // ASK aggregate at the TOP (action-first): "N sessões · a verify+merge · … · X review". review is
@@ -1505,8 +1545,10 @@ async function ollamaDoing(row, timeoutMs, model) {
       name = pickLocalGenModel(tags && tags.models);
     }
     if (!name) return null;
-    const prompt = 'In ONE short line (max 12 words, no preamble), say what this coding session is working on. Topic: "'
-      + String((row && row.name) || '').slice(0, 120) + '". Answer:';
+    // 4e — tight anti-hallucination prompt: anchor to the topic, forbid invention/translation.
+    const prompt = 'Summarise what a coding session is doing in ONE short line (max 12 words, no preamble). '
+      + 'Use ONLY the topic below — do NOT invent, translate, or add anything not in it; if unsure, repeat the topic.\n'
+      + 'Topic: "' + String((row && row.name) || '').slice(0, 120) + '"\nAnswer:';
     const out = await _ollamaGenerate(name, prompt, timeoutMs);
     if (!out) return null;
     const line = String(out).split('\n').map((s) => s.trim()).filter(Boolean)[0] || '';
@@ -1533,8 +1575,9 @@ async function ollamaRecap(row, pending, timeoutMs, model) {
       'Topic: ' + String((row && row.name) || '').slice(0, 160),
       acts ? 'Recent actions: ' + acts.slice(0, 220) : '',
     ].filter(Boolean).join('\n');
-    const prompt = 'You are writing a short handoff recap for a coding session. Resume SO o que esta no '
-      + 'contexto abaixo; nao inventes; se nao souberes, escreve "-". 3 to 5 short lines, no preamble.\n\n'
+    // 4e — tight anti-hallucination prompt: only the context below, never translate/invent.
+    const prompt = 'You are writing a short handoff recap for a coding session. Use ONLY the context below; '
+      + 'do NOT translate, invent, or add anything not present; if unsure, write "-". 3 to 5 short lines, no preamble.\n\n'
       + ctx + '\n\nRecap:';
     const out = await _ollamaGenerate(name, prompt, timeoutMs, 160);
     if (!out) return null;
@@ -1673,7 +1716,9 @@ async function composeHandoff(row, pending, opts) {
   // leaks "Recap:/Preamble:/Topic:" labels even when the qwen summary was generated live here.
   const doingC = got.doing ? (_cleanNarrative(got.doing).split('\n')[0] || null) : null;
   const recapC = got.recap ? (_cleanNarrative(got.recap) || null) : null;
-  const text = generateHandoff(row, pending, Object.assign({}, baseOpts, { doing: doingC, recap: recapC, genModel: ranModel }));
+  // 4e — the on-demand narrative is lower-confidence than the accumulated rolling summary; label it
+  // "(local best-effort)" so a hallucination is never read as ground truth.
+  const text = generateHandoff(row, pending, Object.assign({}, baseOpts, { doing: doingC, recap: recapC, genModel: ranModel, bestEffort: true }));
   return { text, mode, doing: doingC, recap: recapC, timedOut: !!got.deadline, model: ranModel };
 }
 

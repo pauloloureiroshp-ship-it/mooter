@@ -1498,13 +1498,14 @@ test('⇄ Handoff v3 gitSnapshot: mock-injectável; nunca lança; factsComplete 
     return { ok: false, out: '' };
   };
   const recent = [
-    { fullId: 's1', cwd: '/repo', branch: 'wave/x' },
-    { fullId: 's2', cwd: '/repo', branch: 'wave/x' },
+    { fullId: 's1', cwd: '/repo', branch: 'wave/x', working: true },
+    { fullId: 's2', cwd: '/repo', branch: 'wave/x', needsYou: true },
   ];
   const runGit = fakeGit({
     'log -1': { ok: true, out: 'abc1234\tfeat: do the thing' },
     'origin/main..HEAD': { ok: true, out: '3' },
     'HEAD..origin/main': { ok: true, out: '0' },
+    'show -s --format=%P': { ok: true, out: 'parent1sha' }, // ONE parent → not a merge
     'diff-tree': { ok: true, out: 'src/a.js\nsrc/b.js\nsrc/c.js' },
     '@{u}..HEAD': { ok: true, out: '0' },
   });
@@ -1512,11 +1513,17 @@ test('⇄ Handoff v3 gitSnapshot: mock-injectável; nunca lança; factsComplete 
   assert.deepEqual(snap.head, { sha7: 'abc1234', subject: 'feat: do the thing' }, 'HEAD parsed from log');
   assert.equal(snap.baseAhead, 3);
   assert.equal(snap.baseBehind, 0);
+  assert.equal(snap.isMerge, false, 'single parent → not a merge');
   assert.equal(snap.filesCount, 3);
   assert.deepEqual(snap.filesInHead, ['a.js', 'b.js', 'c.js'], 'basenames of HEAD files');
   assert.equal(snap.pushed, true, 'upstream set + nothing un-pushed → pushed');
-  assert.equal(snap.mixedSessions, true, 'gitHarmony: 2 sessions same cwd+branch → mixed-sessions');
+  assert.equal(snap.mixedSessions, true, '2 ACTIVE sessions same cwd+branch + own commits → mixed-sessions');
   assert.equal(snap.factsComplete, true, 'all reads ok');
+  // 4b — IDLE sessions on a clean/pushed main must NOT trigger mixed-sessions (was a false "review").
+  const idle = [{ fullId: 'i1', cwd: '/repo', branch: 'main' }, { fullId: 'i2', cwd: '/repo', branch: 'main' }];
+  const cleanMain = fakeGit({ 'log -1': { ok: true, out: 'm1\tmerge' }, 'origin/main..HEAD': { ok: true, out: '0' }, 'HEAD..origin/main': { ok: true, out: '0' }, '@{u}..HEAD': { ok: true, out: '0' } });
+  const snapIdle = x.gitSnapshot('/repo', { runGit: cleanMain, recent: idle, branch: 'main' });
+  assert.equal(snapIdle.mixedSessions, false, '2 idle sessions on clean main → NOT mixed-sessions');
   // PR object → pushed=prNumber, prStage reused
   const snapPr = x.gitSnapshot('/repo', { runGit, recent: [], branch: 'wave/x', pr: { number: 42, state: 'OPEN', statusCheckRollup: [] } });
   assert.equal(snapPr.pushed, 42, 'PR → prNumber (reuses prStage)');
@@ -1527,6 +1534,30 @@ test('⇄ Handoff v3 gitSnapshot: mock-injectável; nunca lança; factsComplete 
   // never throws on bad cwd
   assert.doesNotThrow(() => x.gitSnapshot(null, {}));
   assert.equal(x.gitSnapshot(null, {}).factsComplete, false);
+});
+
+test('⇄ Handoff v3 gitSnapshot 4c: merge-commit → isMerge + files brought in; GATE honest', () => {
+  const fakeGit = (mapping) => (args) => {
+    const key = args.join(' ');
+    for (const k of Object.keys(mapping)) { if (key.includes(k)) return mapping[k]; }
+    return { ok: false, out: '' };
+  };
+  const runGit = fakeGit({
+    'log -1': { ok: true, out: 'merge12\tMerge pull request #213' },
+    'origin/main..HEAD': { ok: true, out: '0' },
+    'HEAD..origin/main': { ok: true, out: '0' },
+    'show -s --format=%P': { ok: true, out: 'p1sha p2sha' }, // TWO parents → merge-commit
+    'diff --name-only p1sha HEAD': { ok: true, out: 'src/x.js\nsrc/y.js' },
+    '@{u}..HEAD': { ok: true, out: '0' },
+  });
+  const snap = x.gitSnapshot('/repo', { runGit, recent: [], branch: 'main', pr: { number: 213, state: 'MERGED' } });
+  assert.equal(snap.isMerge, true, 'two parents → merge-commit');
+  assert.equal(snap.filesCount, 2, 'files brought in by the merge (first-parent diff), not 0');
+  assert.deepEqual(snap.filesInHead, ['x.js', 'y.js']);
+  const txt = x.generateHandoff({ id: 'm', name: 'merge', branch: 'main' }, {}, { mode: 'quick', snapshot: snap });
+  assert.ok(txt.includes('merge-commit (PR #213) · 2 fich. trazidos: x.js, y.js'), 'GATE: honest merge-commit line');
+  assert.ok(!txt.includes('HEAD toca 0 fich.'), 'never the misleading "HEAD toca 0 fich." for a merge');
+  assert.ok(txt.includes('ASK:    fyi'), 'merged + idle clean → fyi (not review)');
 });
 
 test('⇄ Handoff v3 gitSnapshot classifyFrozen: tri-state via classifyShaGuard', () => {
@@ -1940,8 +1971,9 @@ test('⇄ Handoff v2.1 #2 handler-sim: projHandoff → painel do grupo (sid casa
   // do group header (renderGroupHeader), senão o painel nunca é revelado ("handoff de projecto não aparece").
   const projKey = 'Mooter.ai';
   const rows = [
-    { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', working: true, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
+    { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', working: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 1 } },
     { id: 'bb', fullId: 'bb', name: 'B', cwd: '/repo', branch: 'main', needsYou: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 1 } },
+    { id: 'cc', fullId: 'cc', name: 'C', cwd: '/solo', branch: 'feat', gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
   ];
   const hoffCache = {};
   const posts = [];
@@ -1964,19 +1996,21 @@ test('⇄ Handoff v2.1 #2 handler-sim: projHandoff → painel do grupo (sid casa
 });
 
 test('⇄ Handoff v2 generateProjectHandoff: BOARD com as 3 flags (DUP · UNCOMMITTED · UNPUSHED)', () => {
-  // 2 sessões ACTIVAS (working + needsYou) no mesmo repo+branch → 1 grupo contestado → DUP.
+  // DUP = 2 sessões ACTIVAS com commits próprios (ahead>0) no mesmo repo+branch. UNCOMMITTED só de
+  // trabalho PRÓPRIO (cwd único) — não da sujidade ambiente. UNPUSHED de commits por enviar.
   const rows = [
-    { id: 'aa', fullId: 'aa', name: 'session A', cwd: '/repo', branch: 'main', model: 'claude-opus-4-8', working: true, gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0 } },
+    { id: 'aa', fullId: 'aa', name: 'session A', cwd: '/repo', branch: 'main', model: 'claude-opus-4-8', working: true, gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0 } },
     { id: 'bb', fullId: 'bb', name: 'session B', cwd: '/repo', branch: 'main', model: 'claude-sonnet-4-6', needsYou: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2 } },
+    { id: 'cc', fullId: 'cc', name: 'session C', cwd: '/solo', branch: 'side', model: 'claude-haiku-4-5', gitStage: { state: 'uncommitted', dirty: 3, staged: 0, ahead: 0 } },
   ];
   const txt = x.generateProjectHandoff('Mooter.ai', rows, { now: new Date('2026-06-26T12:00:00') });
   assert.ok(txt.includes('⇄ MOO PROJECT HANDOFF'), 'header present');
-  assert.ok(txt.includes('project: Mooter.ai · 2 sessões'), 'session count + project name');
-  assert.ok(txt.includes('ASK:    2 sessões · '), 'action-first ASK aggregate at the top');
-  assert.ok(txt.includes('DUP'), 'DUP flag (≥2 ACTIVE sessions same repo+branch)');
-  assert.ok(txt.includes('UNCOMMITTED'), 'UNCOMMITTED flag (dirty>0)');
+  assert.ok(txt.includes('project: Mooter.ai · 3 sessões'), 'session count + project name');
+  assert.ok(txt.includes('ASK:    3 sessões · '), 'action-first ASK aggregate at the top');
+  assert.ok(txt.includes('DUP'), 'DUP flag (≥2 ACTIVE sessions + own commits same repo+branch)');
+  assert.ok(txt.includes('UNCOMMITTED'), 'UNCOMMITTED flag (own dirty, unique cwd)');
   assert.ok(txt.includes('UNPUSHED'), 'UNPUSHED flag (ahead>0)');
-  // Tally conta GRUPOS contestados, não linhas: 1 grupo (repo+main) com 2 activas → "1 DUP".
+  // Tally conta GRUPOS contestados, não linhas: 1 grupo (repo+main) com 2 activas+commits → "1 DUP".
   assert.ok(txt.includes('▸ FLAGS: 1 DUP · 1 UNCOMMITTED · 1 UNPUSHED'), 'flag tallies are honest (group-counted)');
   assert.ok(txt.includes('session A (aa) · main · Opus 4.8') || txt.includes('session A (aa) · main · claude-opus-4-8'), 'per-session board line');
   assert.ok(txt.trimEnd().endsWith('⇄ END PROJECT HANDOFF'), 'closes with END marker');
@@ -1990,15 +2024,29 @@ test('⇄ Handoff v3 OVERALL: agrega ASKs no topo (ex.: 3 sessões · 1 verify+m
   ];
   const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-26T00:00:00') });
   assert.ok(txt.includes('ASK:    3 sessões · 1 verify+merge · 2 fyi · 0 review'), 'deterministic ASK aggregate (review always shown)');
-  // a contested group (≥2 active, same cwd+branch) → both count as review (mixed sessions)
+  // a contested group (≥2 active, same cwd+branch, WITH own commits ahead>0) → both count as review
   const contested = [
-    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 0 } },
-    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', needsYou: true, gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 1 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', needsYou: true, gitStage: { dirty: 0, ahead: 1 } },
   ];
   const t2 = x.generateProjectHandoff('P', contested, { now: new Date('2026-06-26T00:00:00') });
-  assert.ok(t2.includes('ASK:    2 sessões · 2 review'), 'contested group → review for both');
+  assert.ok(t2.includes('ASK:    2 sessões · 2 review'), 'contested group (active + own commits) → review for both');
   // no sessions → no ASK aggregate line at all
   assert.ok(!x.generateProjectHandoff('Empty', [], {}).includes('ASK:'), '0 sessions → no ASK line');
+});
+
+test('⇄ Handoff v3 F4a: board NÃO marca [UNCOMMITTED] em massa por sujidade AMBIENTE do working-tree partilhado', () => {
+  // 20 sessões partilham o cwd ~/frugal (91 ficheiros scratch dirty). NENHUMA é marcada UNCOMMITTED —
+  // a sujidade é ambiente (working-tree partilhado), contada UMA vez no rodapé. Uma sessão que possui
+  // um cwd ÚNICO com dirty é a única [UNCOMMITTED].
+  const rows = [];
+  for (let i = 0; i < 20; i++) rows.push({ id: 's' + i, fullId: 's' + i, name: 'sess ' + i, cwd: '/home/p/frugal', branch: 'main', gitStage: { dirty: 91, ahead: 0 } });
+  rows.push({ id: 'own', fullId: 'own', name: 'own work', cwd: '/home/p/solo', branch: 'feat', gitStage: { dirty: 4, ahead: 0 } });
+  const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-27T00:00:00') });
+  assert.equal((txt.match(/\[UNCOMMITTED\]/g) || []).length, 1, 'só a sessão com cwd próprio é [UNCOMMITTED]; as 20 ambiente não');
+  assert.ok(txt.includes('· 1 UNCOMMITTED · 0 UNPUSHED'), 'tally UNCOMMITTED = own work only (não as 20 ambiente)');
+  assert.ok(/▸ AMBIENTE: frugal 91 dirty \(working-tree partilhado por 20 sess\)/.test(txt), 'ambiente contado UMA vez no rodapé');
+  assert.ok(txt.includes('91 dirty ambiente'), 'OVERALL determinístico reporta o dirty ambiente');
 });
 
 test('⇄ Handoff v2 DUP (active-only): 3 idle em main → 0 DUP; 2 working mesma branch → DUP=1', () => {
@@ -2012,14 +2060,14 @@ test('⇄ Handoff v2 DUP (active-only): 3 idle em main → 0 DUP; 2 working mesm
   const tIdle = x.generateProjectHandoff('P', idle, { now: new Date('2026-06-26T00:00:00') });
   assert.ok(!/\[[^\]]*DUP/.test(tIdle), 'nenhuma linha de sessão é marcada [DUP] (idle nunca dispara)');
   assert.ok(tIdle.includes('▸ FLAGS: 3 em main · 0 UNCOMMITTED · 0 UNPUSHED'), '0 DUP → co-habitação informativa');
-  // 2 sessões ACTIVAS na mesma branch → 1 grupo contestado → DUP=1, ambas marcadas.
+  // 2 sessões ACTIVAS com commits próprios (ahead>0) na mesma branch → 1 grupo contestado → DUP=1.
   const active = [
-    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 0 } },
-    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', needsYou: true, gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 1 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', needsYou: true, gitStage: { dirty: 0, ahead: 1 } },
   ];
   const tActive = x.generateProjectHandoff('P', active, { now: new Date('2026-06-26T00:00:00') });
-  assert.ok(tActive.includes('▸ FLAGS: 1 DUP'), '2 activas mesma branch → DUP=1 (group-counted)');
-  assert.equal((tActive.match(/\[DUP\]/g) || []).length, 2, 'ambas as sessões activas marcadas [DUP]');
+  assert.ok(tActive.includes('▸ FLAGS: 1 DUP'), '2 activas+commits mesma branch → DUP=1 (group-counted)');
+  assert.equal((tActive.match(/\[DUP/g) || []).length, 2, 'ambas as sessões activas marcadas DUP');
   // 1 activa + 1 idle na mesma branch → só 1 activa → NÃO é colisão → 0 DUP (informativo "2 em …").
   const mixed = [
     { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 0 } },
@@ -2034,8 +2082,8 @@ test('⇄ Handoff v2 OVERALL fallback: sem LLM → resumo de contagens (NUNCA o 
   // dos contadores, e JAMAIS o nome/1º-prompt da sessão (era o bug que sujava a OVERALL).
   const firstPrompt = 'porque é que o websocket reconnect falha às vezes em produção';
   const rows = [
-    { id: 'aa', fullId: 'aa', name: firstPrompt, cwd: '/r', branch: 'main', working: true, gitStage: { dirty: 1, ahead: 0 } },
-    { id: 'bb', fullId: 'bb', name: 'outra', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 2 } },
+    { id: 'aa', fullId: 'aa', name: firstPrompt, cwd: '/ra', branch: 'main', working: true, gitStage: { dirty: 1, ahead: 0 } },
+    { id: 'bb', fullId: 'bb', name: 'outra', cwd: '/rb', branch: 'main', gitStage: { dirty: 0, ahead: 2 } },
   ];
   const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-26T00:00:00') });
   const overall = txt.split('\n').find((l) => l.includes('▸ OVERALL')) || '';
