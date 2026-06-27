@@ -718,7 +718,8 @@ test('WCOCKPIT-3 renderRow: Notion SVG chip present (intchip + N SVG)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('class="intchip"'), 'Notion chip must have .intchip class');
   assert.ok(html.includes('font-family="serif">N</text>'), 'Notion SVG N logo must be present');
-  assert.ok(html.includes('title="Notion · not synced'), 'Notion chip title must indicate not synced when null');
+  // B2 honesto: sem notionPageId o chip diz "sem página ligada" (não finge sync).
+  assert.ok(html.includes('title="Notion · sem página ligada'), 'Notion chip title must be honest when unlinked');
   // WCOCKPIT-7: icon-only — unsynced chip is dim (no .on), no inline link text
   assert.ok(!html.includes('intchip on'), 'unsynced Notion chip must be dim (no .on)');
 });
@@ -727,7 +728,8 @@ test('WCOCKPIT-3 renderRow: Notion chip shows ago time when notionSyncedAt set',
   const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
   const row = Object.assign({}, SAMPLE_ROW, { notionSyncedAt: twoHoursAgo, obsidianSyncedAt: twoHoursAgo });
   const html = rr.renderRow(row, { nowMs: Date.now() });
-  assert.ok(html.includes('title="Notion · synced 2h ago"'), 'Notion chip must show sync time in its title when set');
+  // B2: synced stamp still illuminates (.on) honestly; with no page linked the title says so too.
+  assert.ok(html.includes('title="Notion · synced 2h ago · sem página ligada"'), 'Notion chip must show sync time in its title when set');
   assert.ok(html.includes('class="intchip on"'), 'synced Notion chip must be bright (.on)');
   assert.ok(!html.includes('not synced'), 'must not show not-synced when synced');
 });
@@ -735,14 +737,74 @@ test('WCOCKPIT-3 renderRow: Notion chip shows ago time when notionSyncedAt set',
 test('WCOCKPIT-3 renderRow: Obsidian SVG chip present (purple gem)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('fill="#7c3aed"'), 'Obsidian SVG must have purple polygon');
-  assert.ok(html.includes('title="Obsidian · not synced'), 'Obsidian chip title must indicate not synced');
+  // B2 honesto: sem obsidianPath o chip é informativo ("sem ficheiro ligado"), não finge sync.
+  assert.ok(html.includes('title="Obsidian · sem ficheiro ligado'), 'Obsidian chip title must be honest when unlinked');
+  assert.ok(html.includes('role="img"'), 'unlinked Obsidian chip must be informative (role=img), not actionable');
 });
 
-test('WCOCKPIT-3 renderRow: ↺ refresh button present with data-a=refreshIntegrations', () => {
+test('WCOCKPIT-3 renderRow: integrations refresh button present with data-a=refreshIntegrations (honest "marcar visto")', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
-  assert.ok(html.includes('data-a="refreshIntegrations"'), '↺ refresh button must have correct data-a');
-  assert.ok(html.includes('↺'), 'refresh icon must be present');
+  assert.ok(html.includes('data-a="refreshIntegrations"'), 'refresh button must keep data-a=refreshIntegrations');
+  assert.ok(html.includes('marcar visto'), 'label must be honest — it stamps a local "seen" time, no remote sync');
   assert.ok(html.includes('data-x="' + SAMPLE_ROW.fullId + '"'), 'data-x must be the session fullId');
+});
+
+// ── B2: chips de integração ACCIONÁVEIS e HONESTOS ──────────────────────────────
+test('B2 renderRow: Notion chip is actionable (openUrl) when notionPageId exists', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { notionPageId: '1a2b3c4d5e6f7081920a1b2c3d4e5f60' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('data-a="openUrl:https://www.notion.so/1a2b3c4d5e6f7081920a1b2c3d4e5f60"'), 'Notion chip must openUrl the page when notionPageId is set');
+  assert.ok(html.includes('abrir página'), 'Notion chip must advertise the open action honestly');
+});
+
+test('B2 renderRow: Notion chip accepts a full URL in notionPageId verbatim', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { notionPageId: 'https://notion.so/team/My-Page-abc' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('data-a="openUrl:https://notion.so/team/My-Page-abc"'), 'a full Notion URL must be used as-is');
+});
+
+test('B2 renderRow: Notion chip is informative (role=img, no data-a) when no page linked', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // notionPageId=null
+  assert.ok(html.includes('Notion · sem página ligada'), 'unlinked Notion chip must be honest');
+  assert.ok(!html.includes('data-a="openUrl:'), 'unlinked Notion chip must NOT fake an action');
+});
+
+test('B2 renderRow: Obsidian chip opens the file (openFile) when obsidianPath exists', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { obsidianPath: '/vault/notes/session.md' });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('data-a="openFile:/vault/notes/session.md"'), 'Obsidian chip must openFile the path when set');
+  assert.ok(html.includes('abrir ficheiro'), 'Obsidian chip must advertise the open action honestly');
+});
+
+// ── B4: vista viva do moo local por sessão (renderRow) ──
+test('B4 renderRow: local-moo view shows journal count + summary + updating flag when localMoo set', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { localMoo: { journalN: 5, summary: 'a ligar tudo ao handoff', model: 'qwen2.5:3b', updating: true, lastTools: [{ name: 'Edit', target: 'x.js' }] } });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('moo local'), 'local-moo header present');
+  assert.ok(html.includes('<b>5</b>'), 'journal turn count shown');
+  assert.ok(html.includes('a ligar tudo ao handoff'), 'rolling summary shown');
+  assert.ok(html.includes('a actualizar'), 'honest "a actualizar…" flag when journal ahead of rollup');
+  assert.ok(html.includes('Edit x.js'), 'last tool from the journal shown');
+});
+
+test('B4 renderRow: local-moo view is honest empty when there is no local activity', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // no localMoo
+  assert.ok(html.includes('sem actividade local ainda'), 'honest empty state when no accumulator data');
+  assert.ok(!html.includes('a actualizar'), 'no fake updating indicator when there is nothing');
+});
+
+// ── B3: declutter — data-state + data-name for client-side filter/search ──
+test('B3 renderRow: emits data-state + searchable data-name per session', () => {
+  const idle = rr.renderRow(SAMPLE_ROW, {}); // not working/needs/cowork → idle
+  assert.ok(idle.includes('data-state="idle"'), 'idle session tagged idle');
+  assert.ok(idle.includes('data-name="'), 'searchable name attr present');
+  assert.ok(idle.includes('test session'), 'name lowercased into data-name for search');
+  const needs = rr.renderRow(Object.assign({}, SAMPLE_ROW, { needsYou: true }), {});
+  assert.ok(needs.includes('data-state="needs"'), 'needs-you tagged needs');
+  const active = rr.renderRow(Object.assign({}, SAMPLE_ROW, { working: true }), {});
+  assert.ok(active.includes('data-state="active"'), 'working tagged active');
+  const cowork = rr.renderRow(Object.assign({}, SAMPLE_ROW, { waitingForCowork: true, coworkStatus: 'cowork_working' }), {});
+  assert.ok(cowork.includes('data-state="cowork"'), 'waiting-for-cowork tagged cowork');
 });
 
 test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {
@@ -2046,7 +2108,26 @@ test('⇄ Handoff v3 F4a: board NÃO marca [UNCOMMITTED] em massa por sujidade A
   assert.equal((txt.match(/\[UNCOMMITTED\]/g) || []).length, 1, 'só a sessão com cwd próprio é [UNCOMMITTED]; as 20 ambiente não');
   assert.ok(txt.includes('· 1 UNCOMMITTED · 0 UNPUSHED'), 'tally UNCOMMITTED = own work only (não as 20 ambiente)');
   assert.ok(/▸ AMBIENTE: frugal 91 dirty \(working-tree partilhado por 20 sess\)/.test(txt), 'ambiente contado UMA vez no rodapé');
-  assert.ok(txt.includes('91 dirty ambiente'), 'OVERALL determinístico reporta o dirty ambiente');
+  // B5 — AMBIENTE sem duplicar: o dirty ambiente aparece SÓ na linha AMBIENTE, NÃO no OVERALL.
+  const overallLine = txt.split('\n').find((l) => l.includes('▸ OVERALL')) || '';
+  assert.ok(!overallLine.includes('dirty ambiente'), 'OVERALL não duplica o dirty ambiente (só a linha AMBIENTE o reporta)');
+});
+
+test('B5 generateProjectHandoff: NEXT FOR COWORK é condicional às flags (não inventa acções)', () => {
+  // Projecto totalmente limpo (idle, sem dirty, sem ahead, sem DUP) → NEXT não diz "resolver DUP/commit/push".
+  const clean = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const tClean = x.generateProjectHandoff('P', clean, { now: new Date('2026-06-27T00:00:00') });
+  assert.ok(tClean.includes('▸ NEXT FOR COWORK: nada pendente — projecto limpo'), 'limpo → NEXT honesto, sem acções fabricadas');
+  assert.ok(!tClean.includes('resolver DUP') && !tClean.includes('commit UNCOMMITTED') && !tClean.includes('push UNPUSHED'), 'nenhuma acção falsa quando nada está pendente');
+  // Só por-push (ahead) → NEXT menciona SÓ push, não DUP nem commit.
+  const aheadOnly = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', gitStage: { dirty: 0, ahead: 2 } },
+  ];
+  const tAhead = x.generateProjectHandoff('P', aheadOnly, { now: new Date('2026-06-27T00:00:00') });
+  assert.ok(tAhead.includes('▸ NEXT FOR COWORK: push UNPUSHED'), 'só ahead → NEXT diz só push');
+  assert.ok(!tAhead.includes('resolver DUP') && !tAhead.includes('commit UNCOMMITTED'), 'sem DUP/commit quando não aplicável');
 });
 
 test('⇄ Handoff v2 DUP (active-only): 3 idle em main → 0 DUP; 2 working mesma branch → DUP=1', () => {

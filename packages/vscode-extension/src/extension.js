@@ -234,6 +234,14 @@ class CockpitProvider {
       if (m.cmd === 'refresh') { this.data.refresh(true); reWarm(); }
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
+      // B2 — abre o ficheiro local de uma integração (Obsidian) no editor. Só ficheiros locais reais.
+      if (m.cmd === 'openFile') {
+        const p = String(m.arg || '');
+        if (p) {
+          try { await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(p)); }
+          catch { vscode.window.setStatusBarMessage('🐮 não consegui abrir ' + p.slice(0, 60), 3500); }
+        }
+      }
       if (m.cmd === 'pin') { const t = String(m.arg || '').replace(/[^a-zA-Z0-9/_.:-]/g, ''); if (t) { await vscode.env.clipboard.writeText(t); vscode.window.setStatusBarMessage('🐮 ' + t + ' copied — paste it in Claude Code for your next prompt', 5000); } }
       if (m.cmd === 'pinNext') {
         const r = extra.writePinNext(m.arg);
@@ -525,7 +533,8 @@ class CockpitProvider {
           try { MR.touchSync(sid, 'notion'); } catch {}
           try { MR.touchSync(sid, 'obsidian'); } catch {}
           this.data.refresh(true);
-          vscode.window.setStatusBarMessage('🐮 integrations refreshed · ' + sid.slice(0, 8), 3000);
+          // HONESTO: isto carimba a hora de revisão LOCAL (não há sync remoto a partir do cockpit).
+          vscode.window.setStatusBarMessage('🐮 marcado como visto · ' + sid.slice(0, 8) + ' — carimbo local (sem sync remoto)', 4000);
         }
       }
       // WCOCKPIT-7: close/archive a single session from the cockpit (reversible)
@@ -856,6 +865,36 @@ function getHtml() {
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
+  /* B1 — optimistic perceived-speed: o controlo salta JÁ; "a aplicar…" pulsa no painel até o snapshot reconciliar */
+  .applytag{font-size:9px;color:#e5c07b;margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
+  @keyframes applypulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .applying{outline:1px solid rgba(229,192,123,.45);outline-offset:1px}
+  @media (prefers-reduced-motion:reduce){.applytag{animation:none}}
+  /* B4 — vista viva do moo local por sessão (estado do acumulador, read-only) */
+  .smoo{margin-top:6px;padding:6px 7px;border:1px dashed var(--vscode-widget-border);border-radius:6px;background:var(--vscode-editorWidget-background)}
+  .smoo-empty{opacity:.5;font-size:9px;border-style:dotted;padding:4px 7px}
+  .smoohd{font-size:9.5px;color:var(--vscode-foreground)}
+  .smoohd b{color:var(--g)}
+  .smooupd{font-size:9px;color:#e5c07b;margin-left:4px;animation:applypulse 1s ease-in-out infinite}
+  .smoosum{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:3px;line-height:1.45;max-height:64px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .smootools{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:3px;font-family:var(--vscode-editor-font-family,monospace);opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media (prefers-reduced-motion:reduce){.smooupd{animation:none}}
+  /* B3 — declutter: barra de filtro/procura + modo compacto */
+  .herdfilter{margin:2px 0 7px}
+  .herdq{width:100%;box-sizing:border-box;font-size:11px;padding:5px 8px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px}
+  .herdq:focus-visible{outline:1px solid var(--r);outline-offset:1px}
+  .herdchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+  button.hf{font-size:9.5px;padding:2px 8px;border-radius:9px;opacity:.6;line-height:1.5;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground)}
+  button.hf:hover{opacity:.85}
+  button.hf.on{opacity:1;border-color:var(--r);color:var(--r);background:var(--rdim)}
+  button.hf b{font-variant-numeric:tabular-nums;margin-left:2px}
+  button.hf.hfcompact.on{border-color:var(--g);color:var(--g);background:var(--gdim)}
+  button.hf:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
+  .herdempty{font-size:10px;color:var(--vscode-descriptionForeground);text-align:center;padding:12px 8px}
+  .herdempty button{font-size:9.5px;padding:2px 9px;margin-left:6px}
+  .srow[hidden],.grpsec[hidden]{display:none!important}
+  /* compacto: esconde as sublines pesadas (mantém nome+estado+modelo na .sline e o drawer na selecção) */
+  .herd.compact .sbody>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
@@ -883,7 +922,7 @@ let curMode='auto';const MORDER=['zen','auto','beast'];
 // session is "working" when its transcript was just written) — no JS tick needed.
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
-$('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
+$('#modeBadge').onclick=()=>{const nx=MORDER[(MORDER.indexOf(curMode)+1)%3];curMode=nx;$('#modeBadge').textContent=MOO[nx]||('🐮 '+nx);flashApply($('#modeBadge'));send('mode',nx);};
 $('#modeBadge').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#modeBadge').onclick();}});
 const inI=$('#intentIn'),inG=$('#intentGo'),inR=$('#intentRes');
 function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';inR.textContent='🐮 thinking…';send('intent',v);}
@@ -902,6 +941,39 @@ let ledgerScope='session';let lastSnap=null;
 // don't care about for a cleaner cockpit. Hero (savings) + mode switch are never collapsible.
 const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||[];}catch{return [];}})());
 function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
+// B3 — declutter: estado do filtro/procura/compacto da herd (persistido como o collapsed). O filtro é
+// puramente client-side: esconde/mostra .srow por data-state + data-name; o pipeline de dados é intocado.
+let herdFilter='atencao',herdQuery='',herdCompact=false;
+(function(){try{const st=vsapi.getState()||{};if(st.herdFilter)herdFilter=st.herdFilter;if(typeof st.herdQuery==='string')herdQuery=st.herdQuery;herdCompact=!!st.herdCompact;}catch{}})();
+function saveHerdPrefs(){try{const st=vsapi.getState()||{};st.herdFilter=herdFilter;st.herdQuery=herdQuery;st.herdCompact=herdCompact;vsapi.setState(st);}catch{}}
+const HFLBL={atencao:'Atenção',needs:'Precisam de ti',active:'Activas',idle:'Idle',all:'Todas'};
+// Re-aplica o filtro após cada render (como hydrateHoff). Sem barra (poucas sessões) → tudo visível.
+function applyHerdFilter(){
+  const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
+  const bar=document.querySelector('#v-cockpit .herdfilter');
+  if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
+  cont.classList.toggle('compact',!!herdCompact);
+  const q=(herdQuery||'').toLowerCase().trim();const f=herdFilter||'atencao';let shown=0;
+  cont.querySelectorAll('.srow[data-state]').forEach(row=>{
+    const st=row.getAttribute('data-state')||'idle';const nm=row.getAttribute('data-name')||'';
+    const okState=f==='all'||(f==='atencao'&&st!=='idle')||(f==='needs'&&st==='needs')||(f==='idle'&&st==='idle')||(f==='active'&&(st==='active'||st==='cowork'));
+    const okQ=!q||nm.indexOf(q)>=0;const vis=okState&&okQ;row.hidden=!vis;if(vis)shown++;
+  });
+  document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{const any=[...g.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);g.hidden=!any;});
+  document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>b.classList.toggle('on',b.dataset.hf===f));
+  const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.classList.toggle('on',!!herdCompact);
+  const emp=document.querySelector('#v-cockpit .herdempty');
+  if(emp){const total=cont.querySelectorAll('.srow[data-state]').length;
+    if(total>0&&shown===0){emp.hidden=false;const et=emp.querySelector('.herdemptytxt');if(et)et.textContent=q?('Nada corresponde a "'+q+'"'):('Nada em '+(HFLBL[f]||f));}
+    else emp.hidden=true;}
+}
+function wireHerdFilter(){
+  const qi=document.querySelector('#v-cockpit .herdq');
+  if(qi)qi.oninput=()=>{herdQuery=qi.value;saveHerdPrefs();applyHerdFilter();};
+  document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();herdFilter=b.dataset.hf;saveHerdPrefs();applyHerdFilter();};});
+  const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.onclick=(e)=>{e.stopPropagation();herdCompact=!herdCompact;saveHerdPrefs();applyHerdFilter();};
+  const ev=document.querySelector('#v-cockpit .herdempty button[data-hf]');if(ev)ev.onclick=(e)=>{e.stopPropagation();herdFilter='all';saveHerdPrefs();applyHerdFilter();};
+}
 function cc(id){return collapsed.has(id)?' collapsed':'';}
 // Build a uniform collapsible header (chevron + title). Click/Enter toggles; clicks on
 // interactive children (e.g. the ledger scope pills [data-ls]) are ignored so they don't collapse.
@@ -977,6 +1049,14 @@ function ledgerHtml(s){
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();wireCollapse(lg);}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
+// B1 — optimistic perceived-speed: depois de aplicar o novo estado JÁ no DOM (.on salta no clique),
+// mostra "⟳ a aplicar…" no PAINEL junto ao controlo até o próximo snapshot reconciliar (o re-render
+// reconstrói #v-cockpit e limpa a tag). Safety timeout caso um refresh demore/falhe. Nunca lança.
+function flashApply(el){try{if(!el)return;el.classList.add('applying');
+  var host=(el.closest&&(el.closest('.sdrawer')||el.closest('.srow')||el.closest('.card')||el.closest('.brand')))||el.parentNode;
+  if(host&&!host.querySelector('.applytag')){var t=document.createElement('span');t.className='applytag';t.textContent='⟳ a aplicar…';host.appendChild(t);
+    setTimeout(function(){try{t.remove();}catch(_){}try{el.classList.remove('applying');}catch(_){}} ,2500);}
+}catch(_){}}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
   if(a.startsWith('term:'))send('term',a.slice(5));
@@ -994,12 +1074,17 @@ const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WCOCKPIT-3: wire per-session mode/model/auto controls (stop-propagation inside srow)
 function wireSessControls(root){
-  root.querySelectorAll('.smode[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();send('setMode',{sid:b.dataset.msess,mode:b.dataset.mmode});};});
-  root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
-  root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mauto==='true';send('setAuto',{sid:b.dataset.msess,auto:!cur});};});
-  root.querySelectorAll('button.sloop[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mloop==='true';send('setLoop',{sid:b.dataset.msess,loop:!cur});};});
+  // B1 — feedback óptimista: o estado visual salta JÁ no clique; flashApply pulsa "a aplicar…" no
+  // painel; o próximo snapshot reconcilia (re-render usa o valor real do registry). Nada parece morto.
+  root.querySelectorAll('.smode[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var seg=b.parentNode;if(seg)seg.querySelectorAll('.smode').forEach(function(x){x.classList.remove('on');});b.classList.add('on');flashApply(b);send('setMode',{sid:b.dataset.msess,mode:b.dataset.mmode});};});
+  root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();flashApply(s);send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
+  root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var next=b.dataset.mauto!=='true';b.classList.toggle('on',next);b.dataset.mauto=String(next);b.textContent=next?'⚡ auto':'auto';flashApply(b);send('setAuto',{sid:b.dataset.msess,auto:next});};});
+  root.querySelectorAll('button.sloop[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var next=b.dataset.mloop!=='true';b.classList.toggle('on',next);b.dataset.mloop=String(next);flashApply(b);send('setLoop',{sid:b.dataset.msess,loop:next});};});
   root.querySelectorAll('.sslash[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('pickSlash',{sid:s.dataset.msess,cmd:s.value});};s.onclick=function(e){e.stopPropagation();};});
   root.querySelectorAll('.srow button.intrefresh').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
+  // B2 — chips de integração accionáveis: clicáveis SÓ quando o renderer pôs um data-a (alvo real).
+  // openUrl: → página Notion · openFile: → ficheiro Obsidian. stopPropagation para não abrir a sessão.
+  root.querySelectorAll('.srow .intchip[data-a]').forEach(function(c){var act=function(e){if(e&&e.stopPropagation)e.stopPropagation();var a=c.getAttribute('data-a')||'';if(a.indexOf('openUrl:')===0)send('openUrl',a.slice(8));else if(a.indexOf('openFile:')===0)send('openFile',a.slice(9));};c.onclick=act;c.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();act(e);}});});
   root.querySelectorAll('.srow button.sarch').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
   root.querySelectorAll('.srow button.sgitbtn').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};}); // WCOCKPIT-9 (Bloco C)
 }
@@ -1077,7 +1162,21 @@ window.addEventListener('message',(e)=>{
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
   const clearableN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).length; // WCOCKPIT-7: old & safe-to-close
-  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  // B3 — declutter: contadores por estado + barra de filtro/procura (só quando há sessões suficientes
+  // para densidade importar; <5 sessões não esconde idle por defeito, para não surpreender).
+  const activeN=rsess.filter(r=>r.working||r.waitingForCowork).length;
+  const idleN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork).length;
+  const showFilter=rsess.length>=5;
+  const hfBar=showFilter?('<div class="herdfilter"><input class="herdq" placeholder="🔎 filtrar sessões…" aria-label="filtrar sessões por nome" value="'+esc(herdQuery)+'"><div class="herdchips" role="toolbar" aria-label="filtrar a herd por estado">'
+    +'<button class="hf" data-hf="atencao" title="precisam de ti + activas (esconde idle/done)">🎯 Atenção</button>'
+    +'<button class="hf" data-hf="needs" title="só as que esperam pela tua resposta">🟡 Precisam <b>'+needN+'</b></button>'
+    +'<button class="hf" data-hf="active" title="a gerar agora ou à espera do Cowork">🟢 Activas <b>'+activeN+'</b></button>'
+    +'<button class="hf" data-hf="idle" title="já fizeram o trabalho (idle)">✅ Idle <b>'+idleN+'</b></button>'
+    +'<button class="hf" data-hf="all" title="mostrar todas">Todas <b>'+rsess.length+'</b></button>'
+    +'<button class="hf hfcompact" data-hfc="1" title="modo compacto — esconde sublines para densidade">▾ compacto</button>'
+    +'</div></div>'):'';
+  const hfEmpty=showFilter?'<div class="herdempty" hidden role="status"><span class="herdemptytxt"></span><button class="sm" data-hf="all">Ver todas</button></div>':'';
+  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div>'+hfBar+'<div class="herd">'+herdRows+allRow+'</div>'+hfEmpty+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -1095,6 +1194,8 @@ window.addEventListener('message',(e)=>{
   if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+esc(localTag(n))+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   const lv=s.live; // executor of the focused session (used by the "Actually ran" line below)
+  // B3 — preserva o foco/cursor do campo de procura através do re-render periódico (7s) para a escrita não saltar.
+  const _qa=document.activeElement;const _qFocused=!!(_qa&&_qa.classList&&_qa.classList.contains('herdq'));const _qCaret=_qFocused?_qa.selectionStart:null;
   $('#v-cockpit').innerHTML=
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
@@ -1134,12 +1235,14 @@ window.addEventListener('message',(e)=>{
   wireButtons($('#v-cockpit'));
   wireSessControls($('#v-cockpit')); // WCOCKPIT-3: per-session mode/model/auto controls
   wireHoff($('#v-cockpit'));hydrateHoff(); // ⇄ Handoff v2: stop-propagation on panels/projBtn + re-apply live text after the re-render
-  document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
-  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
+  document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{const go=()=>{const seg=el.parentNode;if(seg)seg.querySelectorAll('.mo').forEach(x=>x.classList.remove('on'));el.classList.add('on');flashApply(el);send('mode',el.dataset.m);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{flashApply(ps);send('pinNext',ps.value);};})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));
+  wireHerdFilter();applyHerdFilter(); // B3 — declutter: filtro/procura/compacto (re-aplicado após cada render)
+  if(_qFocused){const _q2=document.querySelector('#v-cockpit .herdq');if(_q2){try{_q2.focus();const _n=_qCaret==null?_q2.value.length:_qCaret;_q2.setSelectionRange(_n,_n);}catch(_){}}}
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};
@@ -1183,7 +1286,7 @@ window.addEventListener('message',(e)=>{
     '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px">Refresh quant</button> <button class="sm" data-a="term:mooter forge install">Forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
-  document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
+  document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>{document.querySelectorAll('#v-models button[data-eff]').forEach(x=>{x.style.borderColor='';x.style.color='';});el.style.borderColor='var(--g)';el.style.color='var(--g)';flashApply(el);send('effort',el.dataset.eff);});
   wireButtons($('#v-models'));
 
   // ── 🧵 SESSIONS: recent Claude Code sessions by activity (honest replacement for the

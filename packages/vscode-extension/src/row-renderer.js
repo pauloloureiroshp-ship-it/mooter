@@ -239,10 +239,21 @@ function renderRow(r, opts) {
   var obsSvg = '<svg width="11" height="11" viewBox="0 0 100 100" class="intlogo"><polygon points="50,5 90,38 72,95 28,95 10,38" fill="#7c3aed" opacity="0.85"/><polygon points="50,5 90,38 50,58" fill="#a78bfa" opacity="0.65"/></svg>';
   var notionAgo = r.notionSyncedAt ? agoFmt(nowMs - new Date(r.notionSyncedAt).getTime()) : null;
   var obsAgo = r.obsidianSyncedAt ? agoFmt(nowMs - new Date(r.obsidianSyncedAt).getTime()) : null;
-  var notionChip = '<span class="intchip' + (notionAgo ? ' on' : '') + '" role="img" aria-label="Notion ' + (notionAgo ? 'synced ' + notionAgo + ' ago' : 'not synced') + '" title="Notion' + (notionAgo ? ' · synced ' + notionAgo + ' ago' : ' · not synced — use ↺') + '">' + notionSvg + '</span>';
-  var obsChip = '<span class="intchip' + (obsAgo ? ' on' : '') + '" role="img" aria-label="Obsidian ' + (obsAgo ? 'synced ' + obsAgo + ' ago' : 'not synced') + '" title="Obsidian' + (obsAgo ? ' · synced ' + obsAgo + ' ago' : ' · not synced — use ↺') + '">' + obsSvg + '</span>';
+  // ── B2: chips de integração ACCIONÁVEIS e HONESTOS ──────────────────────────────
+  // Notion: clicável SÓ se houver uma página real (notionPageId → URL) → abre via openUrl. Obsidian:
+  // clicável SÓ se houver um ficheiro (obsidianPath) → abre no editor via openFile. Sem alvo → chip
+  // informativo (role=img), NUNCA finge ser accionável. O carimbo "synced ago" continua a iluminar
+  // (.on) honestamente. NÃO há sync remoto a partir do cockpit (o ↺ é "marcar visto" — ver refreshBtn).
+  var notionUrl = r.notionPageId ? (/^https?:\/\//i.test(r.notionPageId) ? r.notionPageId : ('https://www.notion.so/' + String(r.notionPageId).replace(/-/g, ''))) : null;
+  var notionTip = 'Notion' + (notionAgo ? ' · synced ' + notionAgo + ' ago' : '') + (notionUrl ? ' · abrir página' : ' · sem página ligada');
+  var notionAttr = notionUrl ? (' data-a="openUrl:' + esc(notionUrl) + '" role="button" tabindex="0" style="cursor:pointer"') : ' role="img"';
+  var notionChip = '<span class="intchip' + (notionAgo ? ' on' : '') + '"' + notionAttr + ' aria-label="' + esc(notionTip) + '" title="' + esc(notionTip) + '">' + notionSvg + '</span>';
+  var obsTip = 'Obsidian' + (obsAgo ? ' · synced ' + obsAgo + ' ago' : '') + (r.obsidianPath ? ' · abrir ficheiro' : ' · sem ficheiro ligado');
+  var obsAttr = r.obsidianPath ? (' data-a="openFile:' + esc(r.obsidianPath) + '" role="button" tabindex="0" style="cursor:pointer"') : ' role="img"';
+  var obsChip = '<span class="intchip' + (obsAgo ? ' on' : '') + '"' + obsAttr + ' aria-label="' + esc(obsTip) + '" title="' + esc(obsTip) + '">' + obsSvg + '</span>';
   var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree: ' + esc(r.worktree) + '">⌥' + esc(r.worktree) + '</span>' : '';
-  var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="refresh Notion and Obsidian sync" title="refresh Notion/Obsidian sync">↺</button>';
+  // ↺→👁 HONESTO: não há sync remoto a partir do cockpit; isto carimba a hora de revisão local ("marcar visto").
+  var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="marcar Notion e Obsidian como vistos agora (carimbo local)" title="marcar visto — carimba a hora de revisão local. Não há sync remoto a partir do cockpit; clica o chip para abrir a página/ficheiro.">👁</button>';
   var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="close this session (archive, reversible)" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
   var ctrl = '<div class="sctrl">' + modelSel + autoBtn + loopBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
 
@@ -308,6 +319,29 @@ function renderRow(r, opts) {
     + '<pre class="hoffp-pre"></pre>'
     + '<button class="sgitbtn hoffcopy" data-a="hoffCopy" data-x="' + esc(sid) + '" aria-label="copy this handoff to the clipboard again" title="copia outra vez este handoff para o clipboard">📋 Copiar</button>'
     + '</div>';
+
+  // ── B4: vista viva do "moo local" por sessão (estado do acumulador; read-only, $0) ───────────────
+  // Mostra o que o moo LOCAL fez/está a fazer SEM abrir terminal: nº de turns no journal + último
+  // rolling summary + flag honesta "a actualizar…" (journal à frente do último rollup). O streaming ao
+  // vivo do handoff (F2) reusa o painel inline acima. Sem dados → "sem actividade local ainda".
+  // Sem template-literals (a fonte é embebida no webview via fn.toString()).
+  var lm = r.localMoo;
+  var localMooBlock;
+  if (lm && (lm.journalN || lm.summary)) {
+    var lmModel = lm.model ? (' · ' + esc(lm.model)) : '';
+    var lmUpd = lm.updating ? '<span class="smooupd" title="o journal tem turns que o último rollup local ainda não absorveu — a próxima sumarização ($0) apanha-os">⟳ a actualizar…</span>' : '';
+    var lmHead = '<div class="smoohd">🐮 moo local · <b>' + (lm.journalN || 0) + '</b> turn' + ((lm.journalN || 0) === 1 ? '' : 's') + ' no journal' + lmModel + ' ' + lmUpd + '</div>';
+    var lmSum = lm.summary ? '<div class="smoosum" title="rolling summary local (qwen) — $0, gerado pelo hook de fim-de-turno">' + esc(lm.summary) + '</div>' : '';
+    var lmTools = '';
+    if (lm.lastTools && lm.lastTools.length) {
+      var tparts = [];
+      for (var tmi = 0; tmi < lm.lastTools.length; tmi++) { var tmt = lm.lastTools[tmi]; tparts.push(esc(tmt.name) + (tmt.target ? ' ' + esc(tmt.target) : '')); }
+      lmTools = '<div class="smootools" title="últimas ferramentas registadas no journal local">▸ ' + tparts.join(' · ') + '</div>';
+    }
+    localMooBlock = '<div class="smoo">' + lmHead + lmSum + lmTools + '</div>';
+  } else {
+    localMooBlock = '<div class="smoo smoo-empty" title="o acumulador local ainda não escreveu journal/summary para esta sessão">🐮 sem actividade local ainda</div>';
+  }
 
   // ── Git stage chip (WCOCKPIT-4) — suppressed when identical to the group's (header shows it once) ──
   var gsChip = '';
@@ -391,8 +425,12 @@ function renderRow(r, opts) {
   // (antes eram duas linhas .stop + .ssub). O drawer (.sdrawer) continua só na selecção
   // (.on / :focus-within — ver CSS). aria-label preserva o nome completo (a11y).
   var pin = sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '';
+  // B3 — declutter: estado canónico + nome-pesquisável em data-attrs para o filtro/procura client-side
+  // (needs-you / active / idle / cowork). Aditivo; o filtro vive no webview e só esconde/mostra .srow.
+  var _rowState = r.waitingForCowork ? 'cowork' : (r.working ? 'active' : (r.needsYou ? 'needs' : 'idle'));
+  var _searchName = esc(String((nm || '') + ' ' + (r.id || '') + ' ' + (firstPrompt || '')).toLowerCase().slice(0, 200));
   return '<div class="srow' + (sel ? ' on' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
-    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
+    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" data-state="' + _rowState + '" data-name="' + _searchName + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
     + '<span class="livecow' + cowCls + '">🐮</span>'
     + '<div class="sbody">'
     + '<div class="sline">'
@@ -404,7 +442,7 @@ function renderRow(r, opts) {
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
     + coworkSub + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
-    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + '</div>'
+    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + localMooBlock + '</div>'
     + hoffPanel
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'

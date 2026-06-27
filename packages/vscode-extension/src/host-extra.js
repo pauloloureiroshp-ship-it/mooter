@@ -1020,6 +1020,7 @@ async function recentSessions(maxN = 8) {
     } else { row.gitStage = null; }
     modeRegistry().decorate(row, _cwMap);  // WCOCKPIT: junta mode/model/auto/project/brainTitle + cowork mirror + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
+    row.localMoo = localMooState(row.fullId); // B4: estado vivo do moo local (acumulador, read-only, $0)
     if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
     // Drop throwaway probe sessions: a one-shot transcript whose only prompt is a
     // CLI management/status echo (e.g. `mooter slash-commands status` mis-routed
@@ -1440,14 +1441,20 @@ function generateProjectHandoff(proj, rows, opts) {
   } else if (n > 0) {
     let bTop = '—', bMax = 0;
     for (const [b, c] of branchCt) { if (c > bMax) { bMax = c; bTop = b; } }
+    // B5 — AMBIENTE sem duplicar: o dirty ambiente vive SÓ na linha dedicada "▸ AMBIENTE:" (abaixo);
+    // o OVERALL deixa de o repetir (era a mesma contagem em dois sítios).
     const overall = n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' em ' + bTop + ' · '
-      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push'
-      + (ambientTotal > 0 ? ' · ' + ambientTotal + ' dirty ambiente' : '');
+      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push';
     tail.push('', '▸ OVERALL: ' + overall);
   }
   tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
   if (ambientLine) tail.push(ambientLine);
-  tail.push('▸ NEXT FOR COWORK: resolver DUP (mesma branch) · commit UNCOMMITTED · push UNPUSHED');
+  // B5 — NEXT condicional às flags: nunca dizer "resolver DUP · commit · push" quando é 0/0/sem-DUP.
+  const nextSegs = [];
+  if (dupGroups > 0) nextSegs.push('resolver DUP (mesma branch)');
+  if (unc > 0) nextSegs.push('commit UNCOMMITTED');
+  if (unp > 0) nextSegs.push('push UNPUSHED');
+  tail.push(nextSegs.length ? ('▸ NEXT FOR COWORK: ' + nextSegs.join(' · ')) : '▸ NEXT FOR COWORK: nada pendente — projecto limpo');
   tail.push('⇄ END PROJECT HANDOFF');
   // ASK aggregate at the TOP (action-first): "N sessões · a verify+merge · … · X review". review is
   // ALWAYS shown (safety), the rest only when > 0. Omitted entirely when there are no sessions.
@@ -1746,6 +1753,43 @@ function readJournalLast(sid) {
   } catch { return null; }
 }
 
+// ── B4: estado vivo do "moo local" por sessão (read-only, $0) ──────────────────────────────────
+// O que o moo LOCAL fez/está a fazer SEM abrir terminal: último rolling summary + nº de entradas do
+// journal + flag HONESTA "a actualizar…" (o journal está à frente do último rollup → a próxima
+// sumarização local apanha-o). NUNCA lança; null quando não há actividade local ainda (sem journal
+// nem summary). Só LÊ os artefactos do acumulador (não escreve, não toca nos hooks).
+function localMooState(sid) {
+  try {
+    const id = _handoffSafeId(sid); if (!id) return null;
+    const dir = _handoffDir();
+    let journalN = 0, lastSnippet = '', lastTools = [];
+    try {
+      const lines = fs.readFileSync(path.join(dir, id + '.jsonl'), 'utf8').split('\n').filter(Boolean);
+      journalN = lines.length;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try { const e = JSON.parse(lines[i]); lastSnippet = String(e.assistant_snippet || '').slice(0, 160); lastTools = Array.isArray(e.tools) ? e.tools.slice(-3) : []; break; } catch { /* skip bad line */ }
+      }
+    } catch { /* no journal yet */ }
+    const summ = readRollingSummary(sid); // { text, model } | null
+    let rollupTurns = null, rollupModel = null, rollupAt = null;
+    try {
+      const ts = JSON.parse(fs.readFileSync(path.join(dir, id + '.rollup-ts'), 'utf8')) || {};
+      rollupTurns = Number.isFinite(ts.turns) ? ts.turns : null; rollupModel = ts.model || null; rollupAt = ts.updated_at || null;
+    } catch { /* rollup-ts optional */ }
+    if (!journalN && !(summ && summ.text)) return null; // sem actividade local ainda
+    const updating = journalN > 0 && (rollupTurns == null || journalN > rollupTurns);
+    return {
+      journalN,
+      summary: summ && summ.text ? String(summ.text).slice(0, 400) : null,
+      model: (summ && summ.model) || rollupModel || null,
+      updating,
+      lastSnippet,
+      lastTools: lastTools.map((t) => ({ name: String((t && t.name) || 'tool').slice(0, 24), target: String((t && t.target) || '').slice(0, 48) })),
+      rollupAt,
+    };
+  } catch { return null; }
+}
+
 // DETERMINISTIC project OVERALL from the per-session rolling summaries already on disk (PASSO 5):
 // joins each session's first summary line. Instant, no on-demand call, no echo. null when no
 // session has a summary yet (caller falls back to ollamaProjectSynth → deterministic counts).
@@ -1899,4 +1943,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
-  readRollingSummary, readJournalLast, projectSynthFromSummaries };
+  readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState };

@@ -79,3 +79,24 @@ test('projectSynthFromSummaries aggregates the ready per-session summaries (no e
   assert.equal(extra.projectSynthFromSummaries([{ fullId: 'none-1' }, { fullId: 'none-2' }]), null, 'no summaries → null (caller falls back)');
   assert.equal(extra.projectSynthFromSummaries([]), null);
 });
+
+// ── B4: localMooState — estado vivo do moo local por sessão (read-only) ──
+test('B4 localMooState: journal count + rolling summary + honest updating flag', () => {
+  // acc-1: journal 1 entry, rollup turns 3 → rollup já absorveu → NOT updating; summary presente.
+  const s1 = extra.localMooState('acc-1');
+  assert.ok(s1 && s1.journalN === 1, 'journal entry counted');
+  assert.ok(s1.summary && s1.summary.includes('acumulador'), 'rolling summary surfaced');
+  assert.equal(s1.model, 'qwen2.5:3b', 'honest engine model from rollup-ts');
+  assert.equal(s1.updating, false, 'rollup absorbed the journal → não está a actualizar');
+  assert.ok(Array.isArray(s1.lastTools) && s1.lastTools[0].name === 'Edit', 'last tools surfaced from the journal');
+  // sessão cujo journal está À FRENTE do último rollup → updating true ("a actualizar…").
+  fs.writeFileSync(path.join(HOFF, 'b4-upd.summary.txt'), 'old summary');
+  fs.writeFileSync(path.join(HOFF, 'b4-upd.rollup-ts'), JSON.stringify({ ts: 1, turns: 1, model: 'qwen2.5:3b' }));
+  fs.writeFileSync(path.join(HOFF, 'b4-upd.jsonl'), [JSON.stringify({ n_turn: 1, tools: [] }), JSON.stringify({ n_turn: 2, tools: [] }), JSON.stringify({ n_turn: 3, tools: [] })].join('\n') + '\n');
+  const s2 = extra.localMooState('b4-upd');
+  assert.equal(s2.journalN, 3, '3 journal entries counted');
+  assert.equal(s2.updating, true, 'journal ahead of rollup → a actualizar…');
+  // sem journal nem summary → null (honest empty), nunca lança.
+  assert.equal(extra.localMooState('b4-nothing'), null, 'no journal nor summary → null');
+  assert.equal(extra.localMooState(''), null, 'empty id → null (never throws)');
+});
