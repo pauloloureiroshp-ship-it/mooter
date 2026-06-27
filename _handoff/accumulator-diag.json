@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-06-27",
+  "passo": 0,
+  "question": "Is the Live Context Accumulator (handoff journal + rolling summary) actually firing at turn-end?",
+  "verdict": "NOT RUNNING — wired Stop hook is a stale copy that lacks the accumulator",
+  "hookWired": true,
+  "wiredHookPath": "C:/Users/Paulo Loureiro/.claude/hooks/gsd-turn-end.js",
+  "wiredHook": {
+    "mtime": "2026-06-14T16:55:20-03:00",
+    "size": 11004,
+    "hasAccumulateHandoff": false,
+    "hasHandoffJournalRequire": false,
+    "hasHandoffRollupSpawn": false,
+    "note": "only appendTurn present is the unrelated Wave-65 session-context bridge (session-context.js), NOT handoff-journal.js"
+  },
+  "syncedRouterCopy": {
+    "path": "C:/Users/Paulo Loureiro/.claude/tools/router/gsd-turn-end.js",
+    "mtime": "2026-06-27T00:33:07-03:00",
+    "size": 16414,
+    "hasAccumulateHandoff": true,
+    "hasHandoffJournalRequire": true,
+    "hasHandoffRollupSpawn": true,
+    "note": "this is the correct accumulator-enabled copy, but it is NOT the one settings.json wires"
+  },
+  "journalsFound": 0,
+  "summariesFound": 0,
+  "journalDirsChecked": [
+    "C:/Users/Paulo Loureiro/.claude/tools/router/handoff (0/0)",
+    "C:/Users/Paulo Loureiro/.claude/hooks/handoff (0/0)",
+    "C:/Users/Paulo Loureiro/.mooter/handoff (0/0)"
+  ],
+  "lastTurnTs": "2026-06-27T12:05 (after fix, verified live)",
+  "realSessionTranscripts": 63,
+  "postFixProof": {
+    "verified": true,
+    "method": "manually invoked the (now-synced) wired hook with a real Stop payload (session_id + transcript_path + cwd)",
+    "journalWritten": "C:/Users/Paulo Loureiro/.claude/tools/router/handoff/d836dee3-...jsonl (580 bytes, n_turn=1)",
+    "rollupStarted": true,
+    "sampleGitFacts": { "head": "c88c98c2be9d", "branch": "main" },
+    "note": "git:{head,branch} present in the journal entry — exactly what host-extra.sessionGitFromJournal reads for the per-session honest branch/SHA"
+  },
+  "sample": { "n_turn": 1, "git": { "head": "c88c98c2be9d", "branch": "main" }, "snippet": "classify.js sha intact..." },
+  "rootCause": "settings.json Stop hook points at ~/.claude/hooks/gsd-turn-end.js (last updated 2026-06-14, before the accumulator existed). /mooter-update's glob syncs ~/.claude/tools/router/*.js but NOT the ~/.claude/hooks/ mirror, so the wired Stop hook never gained accumulateHandoff(). 63 sessions ran; 0 journals were ever written.",
+  "decision": "FIX = sync the accumulator-enabled router copy over the stale hooks copy (harness-only, ~/.claude/, backup kept as gsd-turn-end.js.bak). The router copy requires handoff-journal.js/handoff-rollup.js by ABSOLUTE ROUTER_DIR, so it works unchanged from the hooks/ location. After the fix, the next turn-end writes <sid>.jsonl + (throttled) <sid>.summary.txt to ~/.claude/tools/router/handoff/, which host-extra.js already reads.",
+  "mooterUpdateGap": "DOCUMENTED: /mooter-update does not mirror ~/.claude/hooks/. Until that glob is extended, hooks/gsd-turn-end.js must be re-synced manually after any turn-end change."
+}
