@@ -856,6 +856,11 @@ function getHtml() {
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
+  /* B1 — optimistic perceived-speed: o controlo salta JÁ; "a aplicar…" pulsa no painel até o snapshot reconciliar */
+  .applytag{font-size:9px;color:#e5c07b;margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
+  @keyframes applypulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .applying{outline:1px solid rgba(229,192,123,.45);outline-offset:1px}
+  @media (prefers-reduced-motion:reduce){.applytag{animation:none}}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
@@ -883,7 +888,7 @@ let curMode='auto';const MORDER=['zen','auto','beast'];
 // session is "working" when its transcript was just written) — no JS tick needed.
 $('#modeBadge').style.cursor='pointer';$('#modeBadge').title='click to switch mode (LazyMoo · Moo · CrazyMoo)';
 $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
-$('#modeBadge').onclick=()=>send('mode',MORDER[(MORDER.indexOf(curMode)+1)%3]);
+$('#modeBadge').onclick=()=>{const nx=MORDER[(MORDER.indexOf(curMode)+1)%3];curMode=nx;$('#modeBadge').textContent=MOO[nx]||('🐮 '+nx);flashApply($('#modeBadge'));send('mode',nx);};
 $('#modeBadge').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#modeBadge').onclick();}});
 const inI=$('#intentIn'),inG=$('#intentGo'),inR=$('#intentRes');
 function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';inR.textContent='🐮 thinking…';send('intent',v);}
@@ -977,6 +982,14 @@ function ledgerHtml(s){
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();wireCollapse(lg);}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
+// B1 — optimistic perceived-speed: depois de aplicar o novo estado JÁ no DOM (.on salta no clique),
+// mostra "⟳ a aplicar…" no PAINEL junto ao controlo até o próximo snapshot reconciliar (o re-render
+// reconstrói #v-cockpit e limpa a tag). Safety timeout caso um refresh demore/falhe. Nunca lança.
+function flashApply(el){try{if(!el)return;el.classList.add('applying');
+  var host=(el.closest&&(el.closest('.sdrawer')||el.closest('.srow')||el.closest('.card')||el.closest('.brand')))||el.parentNode;
+  if(host&&!host.querySelector('.applytag')){var t=document.createElement('span');t.className='applytag';t.textContent='⟳ a aplicar…';host.appendChild(t);
+    setTimeout(function(){try{t.remove();}catch(_){}try{el.classList.remove('applying');}catch(_){}} ,2500);}
+}catch(_){}}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
   if(a.startsWith('term:'))send('term',a.slice(5));
@@ -994,10 +1007,12 @@ const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WCOCKPIT-3: wire per-session mode/model/auto controls (stop-propagation inside srow)
 function wireSessControls(root){
-  root.querySelectorAll('.smode[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();send('setMode',{sid:b.dataset.msess,mode:b.dataset.mmode});};});
-  root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
-  root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mauto==='true';send('setAuto',{sid:b.dataset.msess,auto:!cur});};});
-  root.querySelectorAll('button.sloop[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var cur=b.dataset.mloop==='true';send('setLoop',{sid:b.dataset.msess,loop:!cur});};});
+  // B1 — feedback óptimista: o estado visual salta JÁ no clique; flashApply pulsa "a aplicar…" no
+  // painel; o próximo snapshot reconcilia (re-render usa o valor real do registry). Nada parece morto.
+  root.querySelectorAll('.smode[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var seg=b.parentNode;if(seg)seg.querySelectorAll('.smode').forEach(function(x){x.classList.remove('on');});b.classList.add('on');flashApply(b);send('setMode',{sid:b.dataset.msess,mode:b.dataset.mmode});};});
+  root.querySelectorAll('.smodsel[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();flashApply(s);send('setModel',{sid:s.dataset.msess,model:s.value});};s.onclick=function(e){e.stopPropagation();};});
+  root.querySelectorAll('button.sauto[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var next=b.dataset.mauto!=='true';b.classList.toggle('on',next);b.dataset.mauto=String(next);b.textContent=next?'⚡ auto':'auto';flashApply(b);send('setAuto',{sid:b.dataset.msess,auto:next});};});
+  root.querySelectorAll('button.sloop[data-msess]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var next=b.dataset.mloop!=='true';b.classList.toggle('on',next);b.dataset.mloop=String(next);flashApply(b);send('setLoop',{sid:b.dataset.msess,loop:next});};});
   root.querySelectorAll('.sslash[data-msess]').forEach(function(s){s.onchange=function(e){e.stopPropagation();send('pickSlash',{sid:s.dataset.msess,cmd:s.value});};s.onclick=function(e){e.stopPropagation();};});
   root.querySelectorAll('.srow button.intrefresh').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
   root.querySelectorAll('.srow button.sarch').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
@@ -1134,8 +1149,8 @@ window.addEventListener('message',(e)=>{
   wireButtons($('#v-cockpit'));
   wireSessControls($('#v-cockpit')); // WCOCKPIT-3: per-session mode/model/auto controls
   wireHoff($('#v-cockpit'));hydrateHoff(); // ⇄ Handoff v2: stop-propagation on panels/projBtn + re-apply live text after the re-render
-  document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{el.onclick=()=>send('mode',el.dataset.m);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();send('mode',el.dataset.m);}});});
-  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>send('pinNext',ps.value);})();
+  document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{const go=()=>{const seg=el.parentNode;if(seg)seg.querySelectorAll('.mo').forEach(x=>x.classList.remove('on'));el.classList.add('on');flashApply(el);send('mode',el.dataset.m);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{flashApply(ps);send('pinNext',ps.value);};})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
   wireLedgerToggle();
@@ -1183,7 +1198,7 @@ window.addEventListener('message',(e)=>{
     '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px">Refresh quant</button> <button class="sm" data-a="term:mooter forge install">Forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
-  document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>send('effort',el.dataset.eff));
+  document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>{document.querySelectorAll('#v-models button[data-eff]').forEach(x=>{x.style.borderColor='';x.style.color='';});el.style.borderColor='var(--g)';el.style.color='var(--g)';flashApply(el);send('effort',el.dataset.eff);});
   wireButtons($('#v-models'));
 
   // ── 🧵 SESSIONS: recent Claude Code sessions by activity (honest replacement for the
