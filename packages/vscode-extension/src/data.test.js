@@ -776,6 +776,23 @@ test('B2 renderRow: Obsidian chip opens the file (openFile) when obsidianPath ex
   assert.ok(html.includes('abrir ficheiro'), 'Obsidian chip must advertise the open action honestly');
 });
 
+// ── B4: vista viva do moo local por sessão (renderRow) ──
+test('B4 renderRow: local-moo view shows journal count + summary + updating flag when localMoo set', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { localMoo: { journalN: 5, summary: 'a ligar tudo ao handoff', model: 'qwen2.5:3b', updating: true, lastTools: [{ name: 'Edit', target: 'x.js' }] } });
+  const html = rr.renderRow(row, {});
+  assert.ok(html.includes('moo local'), 'local-moo header present');
+  assert.ok(html.includes('<b>5</b>'), 'journal turn count shown');
+  assert.ok(html.includes('a ligar tudo ao handoff'), 'rolling summary shown');
+  assert.ok(html.includes('a actualizar'), 'honest "a actualizar…" flag when journal ahead of rollup');
+  assert.ok(html.includes('Edit x.js'), 'last tool from the journal shown');
+});
+
+test('B4 renderRow: local-moo view is honest empty when there is no local activity', () => {
+  const html = rr.renderRow(SAMPLE_ROW, {}); // no localMoo
+  assert.ok(html.includes('sem actividade local ainda'), 'honest empty state when no accumulator data');
+  assert.ok(!html.includes('a actualizar'), 'no fake updating indicator when there is nothing');
+});
+
 test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {
   const row = Object.assign({}, SAMPLE_ROW, { worktree: 'wave-WCOCKPIT' });
   const html = rr.renderRow(row, {});

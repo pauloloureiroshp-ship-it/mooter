@@ -870,6 +870,15 @@ function getHtml() {
   @keyframes applypulse{0%,100%{opacity:.4}50%{opacity:1}}
   .applying{outline:1px solid rgba(229,192,123,.45);outline-offset:1px}
   @media (prefers-reduced-motion:reduce){.applytag{animation:none}}
+  /* B4 — vista viva do moo local por sessão (estado do acumulador, read-only) */
+  .smoo{margin-top:6px;padding:6px 7px;border:1px dashed var(--vscode-widget-border);border-radius:6px;background:var(--vscode-editorWidget-background)}
+  .smoo-empty{opacity:.5;font-size:9px;border-style:dotted;padding:4px 7px}
+  .smoohd{font-size:9.5px;color:var(--vscode-foreground)}
+  .smoohd b{color:var(--g)}
+  .smooupd{font-size:9px;color:#e5c07b;margin-left:4px;animation:applypulse 1s ease-in-out infinite}
+  .smoosum{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:3px;line-height:1.45;max-height:64px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .smootools{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:3px;font-family:var(--vscode-editor-font-family,monospace);opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media (prefers-reduced-motion:reduce){.smooupd{animation:none}}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>

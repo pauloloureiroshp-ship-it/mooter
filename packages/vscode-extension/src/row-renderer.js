@@ -320,6 +320,29 @@ function renderRow(r, opts) {
     + '<button class="sgitbtn hoffcopy" data-a="hoffCopy" data-x="' + esc(sid) + '" aria-label="copy this handoff to the clipboard again" title="copia outra vez este handoff para o clipboard">📋 Copiar</button>'
     + '</div>';
 
+  // ── B4: vista viva do "moo local" por sessão (estado do acumulador; read-only, $0) ───────────────
+  // Mostra o que o moo LOCAL fez/está a fazer SEM abrir terminal: nº de turns no journal + último
+  // rolling summary + flag honesta "a actualizar…" (journal à frente do último rollup). O streaming ao
+  // vivo do handoff (F2) reusa o painel inline acima. Sem dados → "sem actividade local ainda".
+  // Sem template-literals (a fonte é embebida no webview via fn.toString()).
+  var lm = r.localMoo;
+  var localMooBlock;
+  if (lm && (lm.journalN || lm.summary)) {
+    var lmModel = lm.model ? (' · ' + esc(lm.model)) : '';
+    var lmUpd = lm.updating ? '<span class="smooupd" title="o journal tem turns que o último rollup local ainda não absorveu — a próxima sumarização ($0) apanha-os">⟳ a actualizar…</span>' : '';
+    var lmHead = '<div class="smoohd">🐮 moo local · <b>' + (lm.journalN || 0) + '</b> turn' + ((lm.journalN || 0) === 1 ? '' : 's') + ' no journal' + lmModel + ' ' + lmUpd + '</div>';
+    var lmSum = lm.summary ? '<div class="smoosum" title="rolling summary local (qwen) — $0, gerado pelo hook de fim-de-turno">' + esc(lm.summary) + '</div>' : '';
+    var lmTools = '';
+    if (lm.lastTools && lm.lastTools.length) {
+      var tparts = [];
+      for (var tmi = 0; tmi < lm.lastTools.length; tmi++) { var tmt = lm.lastTools[tmi]; tparts.push(esc(tmt.name) + (tmt.target ? ' ' + esc(tmt.target) : '')); }
+      lmTools = '<div class="smootools" title="últimas ferramentas registadas no journal local">▸ ' + tparts.join(' · ') + '</div>';
+    }
+    localMooBlock = '<div class="smoo">' + lmHead + lmSum + lmTools + '</div>';
+  } else {
+    localMooBlock = '<div class="smoo smoo-empty" title="o acumulador local ainda não escreveu journal/summary para esta sessão">🐮 sem actividade local ainda</div>';
+  }
+
   // ── Git stage chip (WCOCKPIT-4) — suppressed when identical to the group's (header shows it once) ──
   var gsChip = '';
   var gsTip = '';
@@ -415,7 +438,7 @@ function renderRow(r, opts) {
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
     + coworkSub + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
-    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + '</div>'
+    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + localMooBlock + '</div>'
     + hoffPanel
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'
