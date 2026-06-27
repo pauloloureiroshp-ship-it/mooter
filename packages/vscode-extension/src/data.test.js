@@ -2077,7 +2077,26 @@ test('⇄ Handoff v3 F4a: board NÃO marca [UNCOMMITTED] em massa por sujidade A
   assert.equal((txt.match(/\[UNCOMMITTED\]/g) || []).length, 1, 'só a sessão com cwd próprio é [UNCOMMITTED]; as 20 ambiente não');
   assert.ok(txt.includes('· 1 UNCOMMITTED · 0 UNPUSHED'), 'tally UNCOMMITTED = own work only (não as 20 ambiente)');
   assert.ok(/▸ AMBIENTE: frugal 91 dirty \(working-tree partilhado por 20 sess\)/.test(txt), 'ambiente contado UMA vez no rodapé');
-  assert.ok(txt.includes('91 dirty ambiente'), 'OVERALL determinístico reporta o dirty ambiente');
+  // B5 — AMBIENTE sem duplicar: o dirty ambiente aparece SÓ na linha AMBIENTE, NÃO no OVERALL.
+  const overallLine = txt.split('\n').find((l) => l.includes('▸ OVERALL')) || '';
+  assert.ok(!overallLine.includes('dirty ambiente'), 'OVERALL não duplica o dirty ambiente (só a linha AMBIENTE o reporta)');
+});
+
+test('B5 generateProjectHandoff: NEXT FOR COWORK é condicional às flags (não inventa acções)', () => {
+  // Projecto totalmente limpo (idle, sem dirty, sem ahead, sem DUP) → NEXT não diz "resolver DUP/commit/push".
+  const clean = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const tClean = x.generateProjectHandoff('P', clean, { now: new Date('2026-06-27T00:00:00') });
+  assert.ok(tClean.includes('▸ NEXT FOR COWORK: nada pendente — projecto limpo'), 'limpo → NEXT honesto, sem acções fabricadas');
+  assert.ok(!tClean.includes('resolver DUP') && !tClean.includes('commit UNCOMMITTED') && !tClean.includes('push UNPUSHED'), 'nenhuma acção falsa quando nada está pendente');
+  // Só por-push (ahead) → NEXT menciona SÓ push, não DUP nem commit.
+  const aheadOnly = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', gitStage: { dirty: 0, ahead: 2 } },
+  ];
+  const tAhead = x.generateProjectHandoff('P', aheadOnly, { now: new Date('2026-06-27T00:00:00') });
+  assert.ok(tAhead.includes('▸ NEXT FOR COWORK: push UNPUSHED'), 'só ahead → NEXT diz só push');
+  assert.ok(!tAhead.includes('resolver DUP') && !tAhead.includes('commit UNCOMMITTED'), 'sem DUP/commit quando não aplicável');
 });
 
 test('⇄ Handoff v2 DUP (active-only): 3 idle em main → 0 DUP; 2 working mesma branch → DUP=1', () => {

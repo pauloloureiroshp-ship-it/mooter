@@ -1440,14 +1440,20 @@ function generateProjectHandoff(proj, rows, opts) {
   } else if (n > 0) {
     let bTop = '—', bMax = 0;
     for (const [b, c] of branchCt) { if (c > bMax) { bMax = c; bTop = b; } }
+    // B5 — AMBIENTE sem duplicar: o dirty ambiente vive SÓ na linha dedicada "▸ AMBIENTE:" (abaixo);
+    // o OVERALL deixa de o repetir (era a mesma contagem em dois sítios).
     const overall = n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' em ' + bTop + ' · '
-      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push'
-      + (ambientTotal > 0 ? ' · ' + ambientTotal + ' dirty ambiente' : '');
+      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push';
     tail.push('', '▸ OVERALL: ' + overall);
   }
   tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
   if (ambientLine) tail.push(ambientLine);
-  tail.push('▸ NEXT FOR COWORK: resolver DUP (mesma branch) · commit UNCOMMITTED · push UNPUSHED');
+  // B5 — NEXT condicional às flags: nunca dizer "resolver DUP · commit · push" quando é 0/0/sem-DUP.
+  const nextSegs = [];
+  if (dupGroups > 0) nextSegs.push('resolver DUP (mesma branch)');
+  if (unc > 0) nextSegs.push('commit UNCOMMITTED');
+  if (unp > 0) nextSegs.push('push UNPUSHED');
+  tail.push(nextSegs.length ? ('▸ NEXT FOR COWORK: ' + nextSegs.join(' · ')) : '▸ NEXT FOR COWORK: nada pendente — projecto limpo');
   tail.push('⇄ END PROJECT HANDOFF');
   // ASK aggregate at the TOP (action-first): "N sessões · a verify+merge · … · X review". review is
   // ALWAYS shown (safety), the rest only when > 0. Omitted entirely when there are no sessions.
