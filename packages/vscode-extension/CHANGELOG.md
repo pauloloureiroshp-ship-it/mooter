@@ -2,6 +2,18 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.37] — 2026-06-27 — Sessions always visible: runtime-diagnosed collapse + bullet-proof invariant
+
+### Fixed
+
+- **The herd showed 0 sessions even with the filter set to "all".** Runtime diagnosis (`_handoff/herd-diag.json`, the real `applyHerdFilter` + `cc()` bytes executed against a faithful mini-DOM) proved the filter was innocent — with `filter=all` `hiddenByAttr=0`, yet `collapsedAncestor=5` and `effectivelyVisible=0`. The cause: a **persisted collapse** key (`grp:*` project group, or the `herd` card) survives reload and is **born collapsed** via `cc()`, so the CSS rule `.grpsec.collapsed>*{display:none}` hid every `.srow` while the filter reported them as not-hidden. Two-layer fix:
+  - **PASSO 1 — project groups are opt-in collapse** (like the B3 filter): `purgeStaleGroupCollapse` strips stale `grp:*` keys at startup, so the **default is expanded**. Manual collapse still works within the session (the Set survives the 7s re-render); a reload resets it. The `herd` card collapse (deliberate declutter) is preserved.
+  - **PASSO 2 — bullet-proof invariant** (`enforceHerdVisible`): after the filter + collapse layers each render, if there are session rows but **zero are effectively visible** and there is **no active search**, it drops `[hidden]`, expands every collapsed ancestor that holds session rows, and purges those keys so the fix sticks. The cockpit never shows 0 sessions when sessions exist; an active search keeps its own empty-state.
+
+### Added
+
+- **`herdDiag` dev instrumentation** (gated behind `HERD_DIAG`, default **off**): the first render with ≥1 session ships a one-shot ground-truth report (`totalSrow`/`hiddenByAttr`/`collapsedAncestor`/`displayNone`/`collapsedSet`) to the host, which writes `<workspace>/_handoff/herd-diag.json`. Costs nothing when off.
+
 ## [0.16.28] — 2026-06-26 — Handoff v2 polish: gen-model narrative (skip embeddings) + copy feedback + project panel
 
 ### Fixed

@@ -2485,6 +2485,7 @@ function _el(tag, opts) {
   for (const k of Object.keys(node.attrs)) if (k.indexOf('data-') === 0) node.dataset[k.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = node.attrs[k];
   node.classList = { add: (c) => node.classes.add(c), remove: (c) => node.classes.delete(c), contains: (c) => node.classes.has(c), toggle: (c, f) => { const on = f === undefined ? !node.classes.has(c) : !!f; if (on) node.classes.add(c); else node.classes.delete(c); return on; } };
   Object.defineProperty(node, 'hidden', { get() { return node._hidden; }, set(v) { node._hidden = !!v; } });
+  Object.defineProperty(node, 'parentElement', { get() { return node.parent; } }); // collapse ancestor-walk (PASSO 2)
   node.getAttribute = (k) => (k in node.attrs ? node.attrs[k] : null);
   node.append = (child) => { child.parent = node; node.children.push(child); return child; };
   node.querySelector = (sel) => _qsa(node, sel)[0] || null;
@@ -2576,4 +2577,124 @@ test('B3 herd-fix webview-sim: no filter bar (<5 sessions) → every row visible
   const r = _runApply(['idle', 'idle', 'idle'], 'atencao', '', { bar: false });
   assert.equal(r.hidden, 0, 'without the bar, applyHerdFilter shows all rows');
   assert.equal(r.shown, 3);
+});
+
+// ── Sessions-always-visible (wave/cockpit-sessions-visible): the COLLAPSE layer + invariant ──
+// Runtime-diagnosed via _handoff/herd-diag.json: with filter='all' the herd STILL showed 0
+// sessions because a persisted 'grp:*' (or 'herd') collapse is BORN collapsed → the CSS rule
+// .grpsec.collapsed>*:not(.collaphead){display:none} hid every .srow while the filter reported
+// hiddenByAttr=0. These tests run the REAL purgeStaleGroupCollapse + enforceHerdVisible + cc()
+// bytes from extension.js against a faithful card[data-collap=herd]>herd>grpsec[data-collap=grp:k]
+// >rows mini-DOM — the exact render hierarchy, the exact runtime path.
+const _PURGE_SRC = _extractFn(_EXT_SRC, 'purgeStaleGroupCollapse');
+const _ENFORCE_SRC = _extractFn(_EXT_SRC, 'enforceHerdVisible');
+const _ROWVIS_SRC = _extractFn(_EXT_SRC, 'herdRowVisible');
+const _ANCCOL_SRC = _extractFn(_EXT_SRC, 'herdAncestorCollapsed');
+const _CC_SRC = (_EXT_SRC.match(/function cc\(id\)\{[^}]*\}/) || [])[0];
+const _makePurge = () => new Function('return (' + _PURGE_SRC.replace(/^function purgeStaleGroupCollapse/, 'function') + ')')();
+const _makeCc = (set) => new Function('collapsed', 'return (' + _CC_SRC.replace(/^function cc/, 'function') + ')')(set);
+const _G = (states, key) => [{ key: key || 'frugal', states }];
+
+// Build the real render hierarchy; collapse is driven EXACTLY by cc() — like the live cc('herd')/cc('grp:'+k).
+function _buildHerdTree(groups, collapsedSet) {
+  const cc = _makeCc(collapsedSet);
+  const root = _el('div');
+  const cockpit = _el('div', { id: 'v-cockpit' }); root.append(cockpit);
+  const cardCls = ['card']; if (cc('herd').indexOf('collapsed') >= 0) cardCls.push('collapsed');
+  const card = _el('div', { cls: cardCls, attrs: { 'data-collap': 'herd' } }); cockpit.append(card);
+  card.append(_el('div', { cls: ['lbl', 'collaphead'] })); // card header survives the card collapse
+  const herd = _el('div', { cls: ['herd'] }); card.append(herd);
+  const grps = {};
+  groups.forEach((g) => {
+    const grpCls = ['grpsec']; if (cc('grp:' + g.key).indexOf('collapsed') >= 0) grpCls.push('collapsed');
+    const grp = _el('div', { cls: grpCls, attrs: { 'data-collap': 'grp:' + g.key } }); herd.append(grp); grps[g.key] = grp;
+    grp.append(_el('div', { cls: ['ghd', 'collaphead'] })); // group header survives the group collapse
+    g.states.forEach((st, i) => grp.append(_el('div', { cls: ['srow'], attrs: { 'data-state': st, 'data-name': g.key + i } })));
+  });
+  herd.append(_el('div', { cls: ['srow'], attrs: { 'data-sess': 'all' } })); // allRow — never filtered
+  return { root, herd, card, grps, document: { querySelector: (s) => _qsa(root, s)[0] || null, querySelectorAll: (s) => _qsa(root, s) } };
+}
+// "effectively visible" = the exact CSS truth: not [hidden] AND no .card/.grpsec.collapsed ancestor.
+function _rowEffectivelyVisible(row) {
+  if (row.hidden) return false;
+  let n = row.parentElement;
+  while (n && n.id !== 'v-cockpit') { if (n.classes.has('collapsed') && (n.classes.has('card') || n.classes.has('grpsec'))) return false; n = n.parentElement; }
+  return true;
+}
+function _runEnforce(groups, collapsedPersisted, filter, query) {
+  const set = new Set(collapsedPersisted || []);
+  const dom = _buildHerdTree(groups, set);
+  const runner = new Function('document', 'collapsed', '__f', '__q',
+    'let herdFilter=__f,herdQuery=__q,_herdGuardLogged=false;function saveCollapsed(){}\n' +
+    _ANCCOL_SRC + '\n' + _ROWVIS_SRC + '\n' + _ENFORCE_SRC + '\nenforceHerdVisible();return {herdFilter:herdFilter};');
+  const res = runner(dom.document, set, filter || 'all', query || '');
+  const rows = dom.herd.querySelectorAll('.srow[data-state]');
+  return { res, dom, collapsedSet: [...set], visible: rows.filter(_rowEffectivelyVisible).length, total: rows.length, cardCollapsed: dom.card.classes.has('collapsed') };
+}
+
+test('sessions-visible PASSO1: purgeStaleGroupCollapse drops every grp:* (opt-in) but keeps the herd card collapse', () => {
+  const purge = _makePurge();
+  const set = new Set(['grp:frugal', 'grp:other', 'herd', 'pin']);
+  assert.equal(purge(set), true, 'purge reports it removed stale group keys → triggers a single save');
+  assert.ok(!set.has('grp:frugal') && !set.has('grp:other'), 'all grp:* keys removed → project groups default EXPANDED');
+  assert.ok(set.has('herd'), 'the herd-card collapse is a deliberate declutter — preserved');
+  assert.ok(set.has('pin'), 'unrelated card collapses (pin/score/recs) are untouched');
+  assert.equal(purge(new Set(['herd'])), false, 'no grp:* keys → no change, no needless save');
+});
+
+test('sessions-visible PASSO1 webview-sim: a persisted grp:* collapse + sessions → rows VISIBLE by default (startup purge)', () => {
+  const purge = _makePurge();
+  const persisted = new Set(['grp:frugal']); // stale group collapse from a previous session
+  purge(persisted);                           // startup purge (the IIFE at module init)
+  const r = _runEnforce(_G(['needs', 'idle', 'idle', 'idle', 'idle']), [...persisted], 'all', '');
+  assert.equal(r.total, 5);
+  assert.equal(r.visible, 5, 'all 5 rows visible — the stale grp:* collapse was purged at startup');
+  assert.equal(r.dom.grps.frugal.classes.has('collapsed'), false, 'project group is expanded by default');
+});
+
+test('sessions-visible PASSO2 invariant: herd CARD collapsed + sessions + no search → forced all visible, key purged', () => {
+  const r = _runEnforce(_G(['needs', 'idle', 'idle', 'idle', 'idle']), ['herd'], 'all', '');
+  assert.equal(r.total, 5);
+  assert.equal(r.visible, 5, 'invariant force-expanded the herd card → every session visible (never 0)');
+  assert.equal(r.cardCollapsed, false, 'herd card un-collapsed by the invariant');
+  assert.ok(r.collapsedSet.indexOf('herd') < 0, 'the herd collapse key was purged so the fix sticks across re-renders');
+});
+
+test('sessions-visible PASSO2 invariant: the ONLY project group collapsed (no search) → forced visible, never empty', () => {
+  const r = _runEnforce(_G(['idle', 'idle', 'idle']), ['grp:frugal'], 'all', '');
+  assert.equal(r.visible, 3, 'invariant expands the lone collapsed group rather than stranding an empty herd');
+  assert.equal(r.dom.grps.frugal.classes.has('collapsed'), false, 'group expanded by the invariant');
+});
+
+test('sessions-visible PASSO2 invariant: N sessions + ANY persisted collapse/filter → effectively-visible rows > 0', () => {
+  for (const persisted of [[], ['herd'], ['grp:frugal'], ['herd', 'grp:frugal']]) {
+    const r = _runEnforce(_G(['needs', 'idle', 'idle', 'idle', 'idle']), persisted, 'all', '');
+    assert.ok(r.visible > 0, 'invariant holds for persisted=' + JSON.stringify(persisted) + ' → visible=' + r.visible);
+  }
+});
+
+test('sessions-visible PASSO2 invariant: an active search that matches nothing is NOT overridden (search owns the empty-state)', () => {
+  const r = _runEnforce(_G(['idle', 'idle', 'idle']), ['grp:frugal'], 'all', 'zzz-nomatch');
+  assert.equal(r.dom.grps.frugal.classes.has('collapsed'), true, 'with an active search the invariant defers — the search empty-state is the legit zero');
+});
+
+test('sessions-visible: manual collapse of ONE group is preserved while a sibling group stays visible', () => {
+  const r = _runEnforce([{ key: 'frugal', states: ['idle', 'idle'] }, { key: 'other', states: ['needs'] }], ['grp:frugal'], 'all', '');
+  assert.equal(r.dom.grps.frugal.classes.has('collapsed'), true, 'manual collapse respected when siblings remain visible');
+  assert.equal(r.dom.grps.other.classes.has('collapsed'), false, 'sibling group stays expanded');
+  assert.ok(r.visible >= 1, 'herd is not empty → invariant correctly stays out of the way');
+});
+
+test('sessions-visible: manual collapse persists within a session (cc honors the Set) but a reload resets it', () => {
+  const ccLive = _makeCc(new Set(['grp:frugal']));
+  assert.ok(ccLive('grp:frugal').indexOf('collapsed') >= 0, 'mid-session: a manually-collapsed group stays collapsed across the 7s re-render');
+  const reload = new Set(['grp:frugal']); _makePurge()(reload);
+  assert.equal(_makeCc(reload)('grp:frugal'), '', 'reload: startup purge expands the group again (default expanded)');
+});
+
+test('sessions-visible: herdDiag is wired end-to-end (webview send ↔ host handler ↔ _handoff/herd-diag.json)', () => {
+  assert.ok(/send\('herdDiag'/.test(_EXT_SRC), "webview emits send('herdDiag', …) (PASSO 0 instrumentation)");
+  assert.ok(/m\.cmd === 'herdDiag'/.test(_EXT_SRC), "host has a matching m.cmd === 'herdDiag' handler");
+  assert.ok(/herd-diag\.json/.test(_EXT_SRC), 'handler writes _handoff/herd-diag.json');
+  assert.ok(/const HERD_DIAG=false/.test(_EXT_SRC), 'herdDiag is gated behind a dev flag, default OFF (PASSO 4)');
 });

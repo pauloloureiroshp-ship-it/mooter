@@ -1,0 +1,58 @@
+{
+  "generatedBy": "herd-diag-runtime.js (faithful mini-DOM executing real applyHerdFilter + real cc())",
+  "note": "VSCode webview cannot be launched headless here; this executes the identical filter+collapse bytes from extension.js against the reproduced persisted state. filter=all in every scenario (matches the user report).",
+  "defaultFilter": "all",
+  "scenarios": [
+    {
+      "scenario": "A · filter=all, NO collapse (control)",
+      "totalSrow": 5,
+      "hiddenByAttr": 0,
+      "collapsedAncestor": 0,
+      "displayNone": 0,
+      "effectivelyVisible": 5,
+      "herdFilter": "all",
+      "herdQuery": "",
+      "collapsedSet": []
+    },
+    {
+      "scenario": "B · filter=all, project group collapsed (grp:frugal in persisted Set)",
+      "totalSrow": 5,
+      "hiddenByAttr": 0,
+      "collapsedAncestor": 5,
+      "displayNone": 5,
+      "effectivelyVisible": 0,
+      "herdFilter": "all",
+      "herdQuery": "",
+      "collapsedSet": [
+        "grp:frugal"
+      ]
+    },
+    {
+      "scenario": "C · filter=all, herd CARD collapsed (herd in persisted Set)",
+      "totalSrow": 5,
+      "hiddenByAttr": 0,
+      "collapsedAncestor": 5,
+      "displayNone": 5,
+      "effectivelyVisible": 0,
+      "herdFilter": "all",
+      "herdQuery": "",
+      "collapsedSet": [
+        "herd"
+      ]
+    },
+    {
+      "scenario": "D · filter=all, BOTH herd card + group collapsed",
+      "totalSrow": 5,
+      "hiddenByAttr": 0,
+      "collapsedAncestor": 5,
+      "displayNone": 5,
+      "effectivelyVisible": 0,
+      "herdFilter": "all",
+      "herdQuery": "",
+      "collapsedSet": [
+        "herd",
+        "grp:frugal"
+      ]
+    }
+  ]
+}

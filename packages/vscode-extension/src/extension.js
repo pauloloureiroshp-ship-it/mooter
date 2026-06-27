@@ -288,6 +288,17 @@ class CockpitProvider {
         const res = await extra.intentResolve(m.arg);
         try { view.webview.postMessage({ type: 'intent', res }); } catch {}
       }
+      // PASSO 0 — dev diagnostic sink (gated webview-side by HERD_DIAG, default off). Persists the
+      // one-shot ground-truth report of why herd rows may be hidden to <workspace>/_handoff/herd-diag.json.
+      if (m.cmd === 'herdDiag') {
+        try {
+          const wfs = vscode.workspace.workspaceFolders || [];
+          if (wfs.length && m.arg) {
+            const out = path.join(wfs[0].uri.fsPath, '_handoff', 'herd-diag.json');
+            fs.writeFileSync(out, JSON.stringify(Object.assign({ ts: new Date().toISOString() }, m.arg), null, 2));
+          }
+        } catch { /* best-effort */ }
+      }
       // WCOCKPIT: per-session auto-pilot controls
       if (m.cmd === 'setMode') {
         const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
@@ -941,6 +952,17 @@ let ledgerScope='session';let lastSnap=null;
 // don't care about for a cleaner cockpit. Hero (savings) + mode switch are never collapsible.
 const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||[];}catch{return [];}})());
 function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
+// Sessions-always-visible (runtime-diagnosed via _handoff/herd-diag.json): a persisted 'grp:*'
+// project-group collapse survives reload and is BORN collapsed (cc()→.grpsec.collapsed → the CSS
+// rule .grpsec.collapsed>*:not(.collaphead){display:none} hides every .srow), so the herd shows 0
+// sessions even with filter='all'. The diag proved it: with filter='all' hiddenByAttr=0 but
+// collapsedAncestor=5 → effectivelyVisible=0. Fix: project groups are OPT-IN collapse, exactly
+// like the B3 filter — purge stale 'grp:*' keys at startup so the DEFAULT is expanded. Manual
+// collapse still works within the session (the Set survives the 7s re-render); a reload resets it.
+// The 'herd' card collapse is a deliberate top-level declutter and is NOT purged here — the PASSO 2
+// invariant (enforceHerdVisible) catches it if it would ever empty the herd.
+function purgeStaleGroupCollapse(set){let purged=false;for(const id of [...set])if(id.indexOf('grp:')===0){set.delete(id);purged=true;}return purged;}
+(function(){try{if(purgeStaleGroupCollapse(collapsed))saveCollapsed();}catch{}})();
 // B3 — declutter: estado do filtro/procura/compacto da herd (persistido como o collapsed). O filtro é
 // puramente client-side: esconde/mostra .srow por data-state + data-name; o pipeline de dados é intocado.
 // B3 regression fix (herd-fix): o filtro é OPT-IN — cada arranque mostra SEMPRE todas as sessões.
@@ -981,6 +1003,39 @@ function applyHerdFilter(){
     // acima, por isso nunca encalha numa herd vazia.
     if(total>0&&shown===0&&q){emp.hidden=false;const et=emp.querySelector('.herdemptytxt');if(et)et.textContent='Nada corresponde a "'+q+'"';}
     else emp.hidden=true;}
+}
+// PASSO 0 — herd diagnostic (dev-only, default OFF). Flip HERD_DIAG to true to make the FIRST
+// render with ≥1 session ship a one-shot ground-truth report to the host (m.cmd 'herdDiag'),
+// which writes <workspace>/_handoff/herd-diag.json. Costs nothing when false. Mirrors exactly
+// the numbers the offline runtime harness computes: why each .srow may be hidden.
+const HERD_DIAG=false;let _herdDiagSent=false;
+function herdAncestorCollapsed(row){let n=row.parentElement;while(n&&n.id!=='v-cockpit'){if(n.classList&&n.classList.contains('collapsed')&&(n.classList.contains('card')||n.classList.contains('grpsec')))return true;n=n.parentElement;}return false;}
+function herdDiag(){
+  if(!HERD_DIAG||_herdDiagSent)return;
+  const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
+  const rows=[...cont.querySelectorAll('.srow[data-state]')];if(!rows.length)return;
+  _herdDiagSent=true;
+  const dn=(r)=>{try{return getComputedStyle(r).display==='none';}catch{return r.hidden||herdAncestorCollapsed(r);}};
+  try{send('herdDiag',{totalSrow:rows.length,hiddenByAttr:rows.filter(r=>r.hidden).length,collapsedAncestor:rows.filter(r=>herdAncestorCollapsed(r)).length,displayNone:rows.filter(dn).length,herdFilter:herdFilter,herdQuery:herdQuery,collapsedSet:[...collapsed]});}catch(e){}
+}
+// PASSO 2 — bulletproof invariant: the cockpit NEVER shows 0 sessions when sessions exist. Runs
+// after the filter + collapse layers each render. If there are session rows but ZERO are
+// EFFECTIVELY visible (not [hidden], not under a .card/.grpsec.collapsed ancestor) AND there is no
+// active search (a search legitimately narrows to its own empty-state), force them visible: drop
+// [hidden], expand every collapsed ancestor that holds session rows, and purge those collapse keys
+// so the fix sticks across re-renders. Manual collapse stays allowed while ≥1 row is still visible.
+let _herdGuardLogged=false;
+function herdRowVisible(row){return !row.hidden && !herdAncestorCollapsed(row);}
+function enforceHerdVisible(){
+  const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
+  const rows=[...cont.querySelectorAll('.srow[data-state]')];if(!rows.length)return; // no sessions → nothing to guard
+  if((herdQuery||'').trim())return;        // an active search owns the empty-state; never override it
+  if(rows.some(herdRowVisible))return;     // ≥1 already visible → invariant already holds
+  let purged=false;
+  rows.forEach(r=>{r.hidden=false;let n=r.parentElement;while(n&&n.id!=='v-cockpit'){if(n.classList&&n.classList.contains('collapsed')&&(n.classList.contains('card')||n.classList.contains('grpsec'))){n.classList.remove('collapsed');const id=n.dataset&&n.dataset.collap;if(id&&collapsed.has(id)){collapsed.delete(id);purged=true;}}n=n.parentElement;}});
+  if(herdFilter!=='all')herdFilter='all';
+  if(purged)saveCollapsed();
+  if(!_herdGuardLogged){_herdGuardLogged=true;try{console.warn('[mooter] herd invariant fired: forced '+rows.length+' session(s) visible — a persisted collapse/filter would have emptied the herd');}catch(e){}}
 }
 function wireHerdFilter(){
   const qi=document.querySelector('#v-cockpit .herdq');
@@ -1256,7 +1311,7 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));
-  wireHerdFilter();applyHerdFilter(); // B3 — declutter: filtro/procura/compacto (re-aplicado após cada render)
+  wireHerdFilter();applyHerdFilter();herdDiag();enforceHerdVisible(); // B3 filter · PASSO0 dev diag (capture) · PASSO2 invariant (force-visible if collapse/filter emptied the herd)
   if(_qFocused){const _q2=document.querySelector('#v-cockpit .herdq');if(_q2){try{_q2.focus();const _n=_qCaret==null?_q2.value.length:_qCaret;_q2.setSelectionRange(_n,_n);}catch(_){}}}
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
