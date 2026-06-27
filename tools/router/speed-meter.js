@@ -194,6 +194,11 @@ async function measureOllamaOnce(o = {}) {
     model,
     prompt,
     stream: true,
+    // think:false disables reasoning so TTFT/throughput measure raw DECODE speed
+    // comparably across models (a thinking model would otherwise emit reasoning
+    // into a separate `thinking` field, leaving `response` empty → TTFT unmeasured
+    // and inflated). This matches how the router calls locals (ollama_call_node.js).
+    think: false,
     options: { temperature, num_predict: numPredict },
   };
   if (o.system) body.system = o.system;
