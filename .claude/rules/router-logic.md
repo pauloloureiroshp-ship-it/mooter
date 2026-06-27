@@ -36,11 +36,11 @@ The router lives in **three** filesystem locations. Edit the canonical one; the 
 |---|---|---|
 | `frugal/tools/router/*.js` | **Canonical (versioned)** | ✅ Yes — all changes start here |
 | `~/.claude/tools/router/*.js` | Runtime (what `inject_context.js` hook actually loads) | ❌ No — will be overwritten by `/mooter-update` |
-| `~/.claude/hooks/*.js` | Wired by `settings.json` (`PostToolUse.js`, `exec-logger.js`, `frugal-turn-header.js`, `gsd-*-guard.js`) | Edit via frugal mirror + sync |
+| `~/.claude/hooks/*.js` | Wired by `settings.json` (`gsd-turn-end.js`, `gsd-statusline.js`, `mooter-turn-header.js`, `exec-logger.js`, `PostToolUse.js`) | Auto-mirrored by `/mooter-update` (`sync-hooks.js`) from the canonical `tools/router/<name>` |
 
 **Drift protocol** (AUDIT-MOOTER-2026-04-19 F1.1):
 1. Edit canonical under `frugal/tools/router/`.
-2. For files wired in `settings.json` that live in `~/.claude/hooks/`, edit both the frugal mirror and the hooks copy until `/mooter-update` automates it.
+2. Files wired in `settings.json` that live in `~/.claude/hooks/` are now mirrored automatically: `/mooter-update` Step 5 runs `tools/router/sync-hooks.js`, which copies the wired-hook list (`WIRED_HOOKS`) into `~/.claude/hooks/` (idempotent, additive, `.bak` backup) and self-checks that the Stop hook still carries the accumulator. Keep `WIRED_HOOKS` in lockstep with the hook list in `install.sh`. (Before this, the wired Stop hook silently went stale and dropped the Live Context Accumulator — 63 sessions, 0 journals.)
 3. Stale legacy copies (`~/.claude/hooks/gsd-statusline.js`, `~/.claude/hooks/inject_context.js`) are not wired — safe to remove when confirmed.
 4. `~/.claude/tools/router/classify.js.bak` is an expected artifact produced by `update-router.js` — not drift.
 

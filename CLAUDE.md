@@ -51,16 +51,23 @@ tier — local Ollama first, cloud only when it earns its cost. Mission:
 
 ## After every release (keep `~/.claude/` in sync)
 
-`/mooter-update` syncs **files only** (router `*.js`, skills, agents) — it never
-sets environment variables, and runtime mirrors live outside the repo. After any
-release that touches `tools/router/`:
+`/mooter-update` syncs **files** (router `*.js`, skills, agents) **and mirrors the
+wired `~/.claude/hooks/` copies** (`sync-hooks.js`), then **self-checks the turn-end
+accumulator** — it never sets environment variables, and runtime mirrors live
+outside the repo. (The hooks mirror exists because `settings.json` wires the Stop
+hook at `~/.claude/hooks/gsd-turn-end.js`; the plain router glob only refreshes
+`~/.claude/tools/router/`, so the wired Stop hook used to go stale and silently
+drop the Live Context Accumulator — 63 sessions, 0 journals.) After any release
+that touches `tools/router/`:
 
 1. `git pull origin main` in `~/frugal`.
 2. In Claude Code, run `/mooter-update` (idempotent — safe to run twice).
 3. Verify the new runtime files landed:
    `Test-Path ~/.claude/tools/router/<new-file>.js`
-4. Kill stale CC sessions: `Get-Process claude | Stop-Process -Force`.
-5. Open a **fresh** CC terminal and confirm the statusline.
+4. Confirm the wired accumulator is intact:
+   `node ~/.claude/tools/router/sync-hooks.js --check` (must print `OK self-check`).
+5. Kill stale CC sessions: `Get-Process claude | Stop-Process -Force`.
+6. Open a **fresh** CC terminal and confirm the statusline.
 
 **Statusline depends on machine state `/mooter-update` cannot restore** — if it
 drops to 3 lines after a fresh profile/OS, re-apply (see `~/.claude/PREFERENCES.md`):
