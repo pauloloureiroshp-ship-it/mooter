@@ -793,6 +793,20 @@ test('B4 renderRow: local-moo view is honest empty when there is no local activi
   assert.ok(!html.includes('a actualizar'), 'no fake updating indicator when there is nothing');
 });
 
+// ── B3: declutter — data-state + data-name for client-side filter/search ──
+test('B3 renderRow: emits data-state + searchable data-name per session', () => {
+  const idle = rr.renderRow(SAMPLE_ROW, {}); // not working/needs/cowork → idle
+  assert.ok(idle.includes('data-state="idle"'), 'idle session tagged idle');
+  assert.ok(idle.includes('data-name="'), 'searchable name attr present');
+  assert.ok(idle.includes('test session'), 'name lowercased into data-name for search');
+  const needs = rr.renderRow(Object.assign({}, SAMPLE_ROW, { needsYou: true }), {});
+  assert.ok(needs.includes('data-state="needs"'), 'needs-you tagged needs');
+  const active = rr.renderRow(Object.assign({}, SAMPLE_ROW, { working: true }), {});
+  assert.ok(active.includes('data-state="active"'), 'working tagged active');
+  const cowork = rr.renderRow(Object.assign({}, SAMPLE_ROW, { waitingForCowork: true, coworkStatus: 'cowork_working' }), {});
+  assert.ok(cowork.includes('data-state="cowork"'), 'waiting-for-cowork tagged cowork');
+});
+
 test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {
   const row = Object.assign({}, SAMPLE_ROW, { worktree: 'wave-WCOCKPIT' });
   const html = rr.renderRow(row, {});

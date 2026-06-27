@@ -879,6 +879,22 @@ function getHtml() {
   .smoosum{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:3px;line-height:1.45;max-height:64px;overflow:auto;white-space:pre-wrap;word-break:break-word}
   .smootools{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:3px;font-family:var(--vscode-editor-font-family,monospace);opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media (prefers-reduced-motion:reduce){.smooupd{animation:none}}
+  /* B3 — declutter: barra de filtro/procura + modo compacto */
+  .herdfilter{margin:2px 0 7px}
+  .herdq{width:100%;box-sizing:border-box;font-size:11px;padding:5px 8px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px}
+  .herdq:focus-visible{outline:1px solid var(--r);outline-offset:1px}
+  .herdchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+  button.hf{font-size:9.5px;padding:2px 8px;border-radius:9px;opacity:.6;line-height:1.5;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground)}
+  button.hf:hover{opacity:.85}
+  button.hf.on{opacity:1;border-color:var(--r);color:var(--r);background:var(--rdim)}
+  button.hf b{font-variant-numeric:tabular-nums;margin-left:2px}
+  button.hf.hfcompact.on{border-color:var(--g);color:var(--g);background:var(--gdim)}
+  button.hf:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
+  .herdempty{font-size:10px;color:var(--vscode-descriptionForeground);text-align:center;padding:12px 8px}
+  .herdempty button{font-size:9.5px;padding:2px 9px;margin-left:6px}
+  .srow[hidden],.grpsec[hidden]{display:none!important}
+  /* compacto: esconde as sublines pesadas (mantém nome+estado+modelo na .sline e o drawer na selecção) */
+  .herd.compact .sbody>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
@@ -925,6 +941,39 @@ let ledgerScope='session';let lastSnap=null;
 // don't care about for a cleaner cockpit. Hero (savings) + mode switch are never collapsible.
 const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||[];}catch{return [];}})());
 function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
+// B3 — declutter: estado do filtro/procura/compacto da herd (persistido como o collapsed). O filtro é
+// puramente client-side: esconde/mostra .srow por data-state + data-name; o pipeline de dados é intocado.
+let herdFilter='atencao',herdQuery='',herdCompact=false;
+(function(){try{const st=vsapi.getState()||{};if(st.herdFilter)herdFilter=st.herdFilter;if(typeof st.herdQuery==='string')herdQuery=st.herdQuery;herdCompact=!!st.herdCompact;}catch{}})();
+function saveHerdPrefs(){try{const st=vsapi.getState()||{};st.herdFilter=herdFilter;st.herdQuery=herdQuery;st.herdCompact=herdCompact;vsapi.setState(st);}catch{}}
+const HFLBL={atencao:'Atenção',needs:'Precisam de ti',active:'Activas',idle:'Idle',all:'Todas'};
+// Re-aplica o filtro após cada render (como hydrateHoff). Sem barra (poucas sessões) → tudo visível.
+function applyHerdFilter(){
+  const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
+  const bar=document.querySelector('#v-cockpit .herdfilter');
+  if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
+  cont.classList.toggle('compact',!!herdCompact);
+  const q=(herdQuery||'').toLowerCase().trim();const f=herdFilter||'atencao';let shown=0;
+  cont.querySelectorAll('.srow[data-state]').forEach(row=>{
+    const st=row.getAttribute('data-state')||'idle';const nm=row.getAttribute('data-name')||'';
+    const okState=f==='all'||(f==='atencao'&&st!=='idle')||(f==='needs'&&st==='needs')||(f==='idle'&&st==='idle')||(f==='active'&&(st==='active'||st==='cowork'));
+    const okQ=!q||nm.indexOf(q)>=0;const vis=okState&&okQ;row.hidden=!vis;if(vis)shown++;
+  });
+  document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{const any=[...g.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);g.hidden=!any;});
+  document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>b.classList.toggle('on',b.dataset.hf===f));
+  const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.classList.toggle('on',!!herdCompact);
+  const emp=document.querySelector('#v-cockpit .herdempty');
+  if(emp){const total=cont.querySelectorAll('.srow[data-state]').length;
+    if(total>0&&shown===0){emp.hidden=false;const et=emp.querySelector('.herdemptytxt');if(et)et.textContent=q?('Nada corresponde a "'+q+'"'):('Nada em '+(HFLBL[f]||f));}
+    else emp.hidden=true;}
+}
+function wireHerdFilter(){
+  const qi=document.querySelector('#v-cockpit .herdq');
+  if(qi)qi.oninput=()=>{herdQuery=qi.value;saveHerdPrefs();applyHerdFilter();};
+  document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();herdFilter=b.dataset.hf;saveHerdPrefs();applyHerdFilter();};});
+  const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.onclick=(e)=>{e.stopPropagation();herdCompact=!herdCompact;saveHerdPrefs();applyHerdFilter();};
+  const ev=document.querySelector('#v-cockpit .herdempty button[data-hf]');if(ev)ev.onclick=(e)=>{e.stopPropagation();herdFilter='all';saveHerdPrefs();applyHerdFilter();};
+}
 function cc(id){return collapsed.has(id)?' collapsed':'';}
 // Build a uniform collapsible header (chevron + title). Click/Enter toggles; clicks on
 // interactive children (e.g. the ledger scope pills [data-ls]) are ignored so they don't collapse.
@@ -1113,7 +1162,21 @@ window.addEventListener('message',(e)=>{
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
   const needN=rsess.filter(r=>r.needsYou).length;
   const clearableN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).length; // WCOCKPIT-7: old & safe-to-close
-  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div><div class="herd">'+herdRows+allRow+'</div>'+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  // B3 — declutter: contadores por estado + barra de filtro/procura (só quando há sessões suficientes
+  // para densidade importar; <5 sessões não esconde idle por defeito, para não surpreender).
+  const activeN=rsess.filter(r=>r.working||r.waitingForCowork).length;
+  const idleN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork).length;
+  const showFilter=rsess.length>=5;
+  const hfBar=showFilter?('<div class="herdfilter"><input class="herdq" placeholder="🔎 filtrar sessões…" aria-label="filtrar sessões por nome" value="'+esc(herdQuery)+'"><div class="herdchips" role="toolbar" aria-label="filtrar a herd por estado">'
+    +'<button class="hf" data-hf="atencao" title="precisam de ti + activas (esconde idle/done)">🎯 Atenção</button>'
+    +'<button class="hf" data-hf="needs" title="só as que esperam pela tua resposta">🟡 Precisam <b>'+needN+'</b></button>'
+    +'<button class="hf" data-hf="active" title="a gerar agora ou à espera do Cowork">🟢 Activas <b>'+activeN+'</b></button>'
+    +'<button class="hf" data-hf="idle" title="já fizeram o trabalho (idle)">✅ Idle <b>'+idleN+'</b></button>'
+    +'<button class="hf" data-hf="all" title="mostrar todas">Todas <b>'+rsess.length+'</b></button>'
+    +'<button class="hf hfcompact" data-hfc="1" title="modo compacto — esconde sublines para densidade">▾ compacto</button>'
+    +'</div></div>'):'';
+  const hfEmpty=showFilter?'<div class="herdempty" hidden role="status"><span class="herdemptytxt"></span><button class="sm" data-hf="all">Ver todas</button></div>':'';
+  const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div>'+hfBar+'<div class="herd">'+herdRows+allRow+'</div>'+hfEmpty+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -1131,6 +1194,8 @@ window.addEventListener('message',(e)=>{
   if(locals.length)pinOpts+='<optgroup label="Local (Ollama)">'+locals.map(n=>'<option value="'+esc(n)+'"'+selAttr(n)+'>'+esc(n)+esc(localTag(n))+'</option>').join('')+'</optgroup>';
   pinOpts+='<optgroup label="Claude">'+Object.keys(PIN_CLOUD).map(k=>{const id='claude-'+PIN_CLOUD[k].replace(/^mooter-/,'');return '<option value="'+esc(id)+'"'+selAttr(id)+'>'+esc(k)+'</option>';}).join('')+'</optgroup>';
   const lv=s.live; // executor of the focused session (used by the "Actually ran" line below)
+  // B3 — preserva o foco/cursor do campo de procura através do re-render periódico (7s) para a escrita não saltar.
+  const _qa=document.activeElement;const _qFocused=!!(_qa&&_qa.classList&&_qa.classList.contains('herdq'));const _qCaret=_qFocused?_qa.selectionStart:null;
   $('#v-cockpit').innerHTML=
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
@@ -1176,6 +1241,8 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));
+  wireHerdFilter();applyHerdFilter(); // B3 — declutter: filtro/procura/compacto (re-aplicado após cada render)
+  if(_qFocused){const _q2=document.querySelector('#v-cockpit .herdq');if(_q2){try{_q2.focus();const _n=_qCaret==null?_q2.value.length:_qCaret;_q2.setSelectionRange(_n,_n);}catch(_){}}}
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};

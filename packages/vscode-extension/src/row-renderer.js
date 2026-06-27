@@ -425,8 +425,12 @@ function renderRow(r, opts) {
   // (antes eram duas linhas .stop + .ssub). O drawer (.sdrawer) continua só na selecção
   // (.on / :focus-within — ver CSS). aria-label preserva o nome completo (a11y).
   var pin = sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '';
+  // B3 — declutter: estado canónico + nome-pesquisável em data-attrs para o filtro/procura client-side
+  // (needs-you / active / idle / cowork). Aditivo; o filtro vive no webview e só esconde/mostra .srow.
+  var _rowState = r.waitingForCowork ? 'cowork' : (r.working ? 'active' : (r.needsYou ? 'needs' : 'idle'));
+  var _searchName = esc(String((nm || '') + ' ' + (r.id || '') + ' ' + (firstPrompt || '')).toLowerCase().slice(0, 200));
   return '<div class="srow' + (sel ? ' on' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
-    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
+    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" data-state="' + _rowState + '" data-name="' + _searchName + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
     + '<span class="livecow' + cowCls + '">🐮</span>'
     + '<div class="sbody">'
     + '<div class="sline">'
