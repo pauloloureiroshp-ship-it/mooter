@@ -1,0 +1,404 @@
+{
+  "generated_at": "2026-06-27T14:19:24.022Z",
+  "methodology": "RouterBench Pareto baselines + NVIDIA/BentoML speed metrics (TTFT/TPOT/throughput). COST computed (frozen classifier + pricing.js); SPEED measured-local + estimated-cloud; QUALITY = prior curated A/B (not re-run). See docs/strategy/MOOTER_PERF_VALIDATION.md.",
+  "sample": {
+    "n": 12,
+    "source": "benchmark v2 corpus (benchmark.sh): 3 trivial · 3 simple · 3 medium · 3 complex"
+  },
+  "rows": [
+    {
+      "prompt": "que horas são?",
+      "promptLen": 14,
+      "expected": "T0",
+      "got": "T0",
+      "category": "trivial_local",
+      "model": "qwen2.5:3b",
+      "confidence": 0.8
+    },
+    {
+      "prompt": "resume o que faz a função handleConnect",
+      "promptLen": 39,
+      "expected": "T0",
+      "got": "T0",
+      "category": "simple_transform_or_explain",
+      "model": "qwen2.5:3b",
+      "confidence": 0.85
+    },
+    {
+      "prompt": "compara estes dois snippets de código rapidamente",
+      "promptLen": 49,
+      "expected": "T0",
+      "got": "T2",
+      "category": "reasoning_intermediate",
+      "model": "claude-sonnet-4-6",
+      "confidence": 0.7
+    },
+    {
+      "prompt": "gera uma commit message para esta mudança",
+      "promptLen": 41,
+      "expected": "T0",
+      "got": "T1",
+      "category": "cheap_task",
+      "model": "claude-haiku-4-5-20251001",
+      "confidence": 0.9
+    },
+    {
+      "prompt": "escreve uma docstring para a função getUser",
+      "promptLen": 43,
+      "expected": "T0",
+      "got": "T0",
+      "category": "simple_transform_or_explain",
+      "model": "qwen2.5:3b",
+      "confidence": 0.85
+    },
+    {
+      "prompt": "cria um regex para validar email",
+      "promptLen": 32,
+      "expected": "T0",
+      "got": "T0",
+      "category": "simple_transform_or_explain",
+      "model": "qwen2.5:3b",
+      "confidence": 0.85
+    },
+    {
+      "prompt": "porque é que o websocket reconnect falha às vezes",
+      "promptLen": 49,
+      "expected": "T2",
+      "got": "T2",
+      "category": "reasoning_intermediate",
+      "model": "claude-sonnet-4-6",
+      "confidence": 0.7
+    },
+    {
+      "prompt": "investiga a causa raiz deste bug intermitente no STT",
+      "promptLen": 52,
+      "expected": "T2",
+      "got": "T2",
+      "category": "reasoning_intermediate",
+      "model": "claude-sonnet-4-6",
+      "confidence": 0.7
+    },
+    {
+      "prompt": "decompõe o sprint 9 em tarefas executáveis",
+      "promptLen": 42,
+      "expected": "T2",
+      "got": "T2",
+      "category": "reasoning_intermediate",
+      "model": "claude-sonnet-4-6",
+      "confidence": 0.7
+    },
+    {
+      "prompt": "refator a arquitetura do hub para suportar multi-tenant",
+      "promptLen": 55,
+      "expected": "T3",
+      "got": "T3",
+      "category": "architecture_or_critical",
+      "model": "claude-opus-4-6",
+      "confidence": 0.9
+    },
+    {
+      "prompt": "audita o sistema de auth antes do deploy de produção",
+      "promptLen": 52,
+      "expected": "T3",
+      "got": "T3",
+      "category": "architecture_or_critical",
+      "model": "claude-opus-4-6",
+      "confidence": 0.9
+    },
+    {
+      "prompt": "review final antes de fazer push para main",
+      "promptLen": 42,
+      "expected": "T3",
+      "got": "T3",
+      "category": "architecture_or_critical",
+      "model": "claude-opus-4-6",
+      "confidence": 0.9
+    }
+  ],
+  "cost": {
+    "n": 12,
+    "mooter_usd": 0.415142,
+    "opus_usd": 1.020745,
+    "saved_usd": 0.605603,
+    "saved_pct": 59.3,
+    "accuracy_pct": 83.3,
+    "correct": 10,
+    "perTier": {
+      "T0": {
+        "n": 4,
+        "usd": 0
+      },
+      "T1": {
+        "n": 1,
+        "usd": 0.009762
+      },
+      "T2": {
+        "n": 4,
+        "usd": 0.150165
+      },
+      "T3": {
+        "n": 3,
+        "usd": 0.255215
+      }
+    }
+  },
+  "strategies": {
+    "all_opus": {
+      "label": "all-Opus (no router)",
+      "usd": 1.020745
+    },
+    "all_sonnet": {
+      "label": "BestSingle (all-Sonnet)",
+      "usd": 0.450447
+    },
+    "all_haiku": {
+      "label": "all-Haiku",
+      "usd": 0.117149
+    },
+    "random": {
+      "label": "Random tier",
+      "usd": 0.397085
+    },
+    "mooter": {
+      "label": "Mooter (routed)",
+      "usd": 0.415142
+    },
+    "oracle": {
+      "label": "Oracle (perfect routing)",
+      "usd": 0.367838
+    }
+  },
+  "quality": {
+    "available": true,
+    "source": "mooter-quality-matrix.json (PRIOR curated A/B — not re-run this session)",
+    "note": "local-model vs cloud A/B; win = local matched-or-beat cloud, tie = equivalent. A fresh LLM-judge run (randomised order + criterion-separated rubric + ensemble) requires an API key, which is absent here.",
+    "comparisons": 112,
+    "wins": 20,
+    "ties": 72,
+    "losses": 20,
+    "non_regression_pct": 82.1,
+    "win_pct": 17.9,
+    "byCategory": {
+      "3b:simple_transform_or_explain": {
+        "wins": 3,
+        "ties": 2,
+        "losses": 0
+      },
+      "14b:simple_transform_or_explain": {
+        "wins": 0,
+        "ties": 7,
+        "losses": 0
+      },
+      "30b:architecture_or_critical": {
+        "wins": 4,
+        "ties": 4,
+        "losses": 4
+      },
+      "e4b:architecture_or_critical": {
+        "wins": 4,
+        "ties": 14,
+        "losses": 4
+      },
+      "14b:reasoning_intermediate": {
+        "wins": 0,
+        "ties": 5,
+        "losses": 0
+      },
+      "12b:reasoning_intermediate": {
+        "wins": 5,
+        "ties": 4,
+        "losses": 0
+      },
+      "14b:architecture_or_critical": {
+        "wins": 0,
+        "ties": 12,
+        "losses": 0
+      },
+      "14b:cheap_task": {
+        "wins": 0,
+        "ties": 5,
+        "losses": 0
+      },
+      "7b:cheap_task": {
+        "wins": 0,
+        "ties": 4,
+        "losses": 0
+      },
+      "e4b:reasoning_intermediate": {
+        "wins": 1,
+        "ties": 3,
+        "losses": 2
+      },
+      "7b:simple_transform_or_explain": {
+        "wins": 0,
+        "ties": 4,
+        "losses": 2
+      },
+      "7b:reasoning_intermediate": {
+        "wins": 1,
+        "ties": 1,
+        "losses": 5
+      },
+      "12b:simple_transform_or_explain": {
+        "wins": 1,
+        "ties": 1,
+        "losses": 2
+      },
+      "3b:cheap_task": {
+        "wins": 1,
+        "ties": 0,
+        "losses": 0
+      },
+      "12b:cheap_task": {
+        "wins": 0,
+        "ties": 1,
+        "losses": 1
+      },
+      "14b:ambiguous_medium": {
+        "wins": 0,
+        "ties": 2,
+        "losses": 0
+      },
+      "7b:ambiguous_medium": {
+        "wins": 0,
+        "ties": 1,
+        "losses": 0
+      },
+      "30b:reasoning_intermediate": {
+        "wins": 0,
+        "ties": 1,
+        "losses": 0
+      },
+      "12b:ambiguous_medium": {
+        "wins": 0,
+        "ties": 1,
+        "losses": 0
+      }
+    }
+  },
+  "speed": {
+    "local": [
+      {
+        "model": "qwen2.5:3b",
+        "tier": "T0",
+        "source": "measured",
+        "estimated": false,
+        "warm": {
+          "source": "measured",
+          "estimated": false,
+          "n": 3,
+          "ttft_ms": 133,
+          "tpot_ms": 4.14,
+          "tps": 241.7,
+          "tokens_out": 160,
+          "decode_ms": 662,
+          "total_ms": 796
+        },
+        "cold": {
+          "ttft_ms": 1885,
+          "load_ms": 1828,
+          "tps": 237.2
+        }
+      },
+      {
+        "model": "qwen3:30b",
+        "tier": "T0",
+        "source": "measured",
+        "estimated": false,
+        "warm": {
+          "source": "measured",
+          "estimated": false,
+          "n": 3,
+          "ttft_ms": 135,
+          "tpot_ms": 4.85,
+          "tps": 206.1,
+          "tokens_out": 160,
+          "decode_ms": 776,
+          "total_ms": 914
+        },
+        "cold": {
+          "ttft_ms": 3956,
+          "load_ms": 3835,
+          "tps": 202.6
+        }
+      }
+    ],
+    "cloud": [
+      {
+        "model": "claude-haiku-4-5",
+        "tier": "T1",
+        "source": "estimated",
+        "estimated": true,
+        "ttft_ms": 400,
+        "tps": 110,
+        "tpot_ms": 9.09,
+        "basis": "public 2026 streaming-latency figures (provider status pages / community benchmarks); NOT measured here — no streaming API key available"
+      },
+      {
+        "model": "claude-sonnet-4-6",
+        "tier": "T2",
+        "source": "estimated",
+        "estimated": true,
+        "ttft_ms": 600,
+        "tps": 75,
+        "tpot_ms": 13.33,
+        "basis": "public 2026 streaming-latency figures (provider status pages / community benchmarks); NOT measured here — no streaming API key available"
+      },
+      {
+        "model": "claude-opus-4-6[1m]",
+        "tier": "T3",
+        "source": "estimated",
+        "estimated": true,
+        "ttft_ms": 1100,
+        "tps": 42,
+        "tpot_ms": 23.81,
+        "basis": "public 2026 streaming-latency figures (provider status pages / community benchmarks); NOT measured here — no streaming API key available"
+      }
+    ],
+    "has_local_measurement": true
+  },
+  "pareto": [
+    {
+      "strategy": "Oracle (perfect)",
+      "cost_usd": 0.367838,
+      "cost_pct_of_opus": 36,
+      "quality_pct": 100,
+      "quality_basis": "definitional (perfect routing preserves quality)"
+    },
+    {
+      "strategy": "Mooter (routed)",
+      "cost_usd": 0.415142,
+      "cost_pct_of_opus": 40.7,
+      "quality_pct": 82.1,
+      "quality_basis": "prior curated A/B (non-regression %)"
+    },
+    {
+      "strategy": "BestSingle (Sonnet)",
+      "cost_usd": 0.450447,
+      "cost_pct_of_opus": 44.1,
+      "quality_pct": null,
+      "quality_basis": "cost-only (quality not measured here)"
+    },
+    {
+      "strategy": "all-Haiku",
+      "cost_usd": 0.117149,
+      "cost_pct_of_opus": 11.5,
+      "quality_pct": null,
+      "quality_basis": "cost-only (quality not measured here)"
+    },
+    {
+      "strategy": "Random",
+      "cost_usd": 0.397085,
+      "cost_pct_of_opus": 38.9,
+      "quality_pct": null,
+      "quality_basis": "cost-only (expected over uniform tier)"
+    },
+    {
+      "strategy": "all-Opus (baseline)",
+      "cost_usd": 1.020745,
+      "cost_pct_of_opus": 100,
+      "quality_pct": 100,
+      "quality_basis": "reference baseline"
+    }
+  ]
+}
