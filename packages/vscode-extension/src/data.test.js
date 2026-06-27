@@ -2423,3 +2423,157 @@ test('⇄ F2 handler-sim (project): ready → ≥1 handoff-stream → handoff-do
   assert.ok(donePost && donePost.sid === projKey, 'handoff-done keyed by the project key (matches the panel data-hoff)');
   assert.ok(donePost.text.includes('overall synth'), 'final board carries the streamed OVERALL synth');
 });
+
+// ── B3 herd-fix: herd shows ALL sessions by default (declutter regression) ──
+// The filter is opt-in: every fresh load shows every open session. These tests run the REAL
+// applyHerdFilter source (extracted from extension.js) against a focused mini-DOM — the exact
+// runtime path that broke when the default 'atencao' silently hid every idle row.
+const _EXT_SRC = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+const _DEFAULT_FILTER = (_EXT_SRC.match(/let herdFilter='([^']*)'/) || [])[1];
+const _HF_VALID_SRC = (_EXT_SRC.match(/const HF_VALID=\[[^\]]*\];/) || [])[0];
+
+// Extract a top-level function declaration with string- and comment-aware brace matching.
+function _extractFn(src, name) {
+  const i = src.indexOf('function ' + name + '(');
+  if (i < 0) throw new Error('fn not found: ' + name);
+  let k = src.indexOf('{', i), depth = 0, inS = null, started = false;
+  for (; k < src.length; k++) {
+    const c = src[k], n = src[k + 1], p = src[k - 1];
+    if (inS) { if (c === inS && p !== '\\') inS = null; continue; }
+    if (c === '/' && n === '/') { const nl = src.indexOf('\n', k); k = nl < 0 ? src.length : nl; continue; }
+    if (c === '/' && n === '*') { const e = src.indexOf('*/', k + 2); k = e < 0 ? src.length : e + 1; continue; }
+    if (c === '\'' || c === '"') { inS = c; continue; }
+    if (c === '{') { depth++; started = true; }
+    else if (c === '}') { depth--; if (started && depth === 0) { k++; break; } }
+  }
+  return src.slice(i, k);
+}
+const _APPLY_SRC = _extractFn(_EXT_SRC, 'applyHerdFilter');
+
+// Minimal DOM supporting exactly the selectors applyHerdFilter uses (descendant + compound .a[b]).
+function _parseStep(s) {
+  const out = { id: null, classes: [], attrs: [], tag: null };
+  const re = /(\[[\w-]+\]|[#.]?[\w-]+)/g; let m;
+  while ((m = re.exec(s))) { const t = m[1];
+    if (t[0] === '#') out.id = t.slice(1);
+    else if (t[0] === '.') out.classes.push(t.slice(1));
+    else if (t[0] === '[') out.attrs.push(t.slice(1, -1));
+    else out.tag = t; }
+  return out;
+}
+function _matchStep(node, step) {
+  const p = _parseStep(step);
+  if (p.id && node.id !== p.id) return false;
+  for (const c of p.classes) if (!node.classes.has(c)) return false;
+  for (const a of p.attrs) if (!(a in node.attrs)) return false;
+  if (p.tag && node.tag !== p.tag) return false;
+  return true;
+}
+function _descendants(node, out) { out = out || []; for (const c of node.children) { out.push(c); _descendants(c, out); } return out; }
+function _qsa(root, sel) {
+  let current = [root];
+  for (const step of sel.trim().split(/\s+/)) {
+    const next = [], seen = new Set();
+    for (const node of current) for (const d of _descendants(node)) if (_matchStep(d, step) && !seen.has(d)) { seen.add(d); next.push(d); }
+    current = next;
+  }
+  return current;
+}
+function _el(tag, opts) {
+  opts = opts || {};
+  const node = { tag: tag || 'div', id: opts.id || '', classes: new Set(opts.cls || []), attrs: Object.assign({}, opts.attrs || {}), dataset: {}, children: [], parent: null, _hidden: false, textContent: '' };
+  for (const k of Object.keys(node.attrs)) if (k.indexOf('data-') === 0) node.dataset[k.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = node.attrs[k];
+  node.classList = { add: (c) => node.classes.add(c), remove: (c) => node.classes.delete(c), contains: (c) => node.classes.has(c), toggle: (c, f) => { const on = f === undefined ? !node.classes.has(c) : !!f; if (on) node.classes.add(c); else node.classes.delete(c); return on; } };
+  Object.defineProperty(node, 'hidden', { get() { return node._hidden; }, set(v) { node._hidden = !!v; } });
+  node.getAttribute = (k) => (k in node.attrs ? node.attrs[k] : null);
+  node.append = (child) => { child.parent = node; node.children.push(child); return child; };
+  node.querySelector = (sel) => _qsa(node, sel)[0] || null;
+  node.querySelectorAll = (sel) => _qsa(node, sel);
+  return node;
+}
+function _buildCockpit(states, opts) {
+  opts = opts || {};
+  const root = _el('div');
+  const cockpit = _el('div', { id: 'v-cockpit' }); root.append(cockpit);
+  if (opts.bar !== false) {
+    const hfbar = _el('div', { cls: ['herdfilter'] }); cockpit.append(hfbar);
+    hfbar.append(_el('input', { cls: ['herdq'] }));
+    ['atencao', 'needs', 'active', 'idle', 'all'].forEach((hf) => hfbar.append(_el('button', { cls: ['hf'], attrs: { 'data-hf': hf } })));
+    hfbar.append(_el('button', { cls: ['hf', 'hfcompact'], attrs: { 'data-hfc': '1' } }));
+  }
+  const herd = _el('div', { cls: ['herd'] }); cockpit.append(herd);
+  const grp = _el('div', { cls: ['grpsec'] }); herd.append(grp);
+  grp.append(_el('div', { cls: ['ghd'] })); // group header — NO data-state
+  states.forEach((st, i) => grp.append(_el('div', { cls: ['srow'], attrs: { 'data-state': st, 'data-name': 'sess' + i + ' work' + i } })));
+  herd.append(_el('div', { cls: ['srow'], attrs: { 'data-sess': 'all' } })); // allRow — NO data-state, never filtered
+  if (opts.bar !== false) { const emp = _el('div', { cls: ['herdempty'] }); emp.hidden = true; emp.append(_el('span', { cls: ['herdemptytxt'] })); cockpit.append(emp); }
+  return { root, herd, grp, document: { querySelector: (s) => _qsa(root, s)[0] || null, querySelectorAll: (s) => _qsa(root, s) } };
+}
+function _runApply(states, filter, query, opts) {
+  opts = opts || {};
+  const dom = _buildCockpit(states, opts);
+  const runner = new Function('document', '__f', '__q', '__c',
+    'let herdFilter=__f,herdQuery=__q,herdCompact=__c;\n' + _HF_VALID_SRC + '\n' + _APPLY_SRC + '\n' +
+    'applyHerdFilter();\nreturn {herdFilter:herdFilter,herdQuery:herdQuery};');
+  const res = runner(dom.document, filter, query, !!opts.compact);
+  const rows = dom.herd.querySelectorAll('.srow[data-state]');
+  const emp = dom.document.querySelector('.herdempty');
+  return { res, hidden: rows.filter((r) => r.hidden).length, shown: rows.filter((r) => !r.hidden).length, total: rows.length,
+    grpHidden: dom.grp.hidden, empVisible: emp ? !emp.hidden : false, empText: emp ? emp.querySelector('.herdemptytxt').textContent : '' };
+}
+
+test('B3 herd-fix: default herdFilter is "all" + startup never restores a persisted filter/query (reload shows all)', () => {
+  assert.equal(_DEFAULT_FILTER, 'all', 'default herdFilter must be "all" — filter is opt-in, never hides idle');
+  assert.ok(!/herdFilter\s*=\s*st\.herdFilter/.test(_EXT_SRC), 'startup must NOT restore a persisted herdFilter (a stale "atencao" must never re-hide the herd)');
+  assert.ok(!/herdQuery\s*=\s*st\.herdQuery/.test(_EXT_SRC), 'startup must NOT restore a persisted search query (search is transient)');
+});
+
+test('B3 herd-fix webview-sim: ≥5 sessions (3 needs + 5 idle) + DEFAULT → all 8 rows visible, none hidden', () => {
+  const r = _runApply(['needs', 'needs', 'needs', 'idle', 'idle', 'idle', 'idle', 'idle'], _DEFAULT_FILTER, '', {});
+  assert.equal(r.total, 8, '8 session rows present');
+  assert.equal(r.hidden, 0, 'ZERO hidden by default — every open session shows');
+  assert.equal(r.shown, 8, 'all 8 visible');
+  assert.equal(r.grpHidden, false, 'project group header stays visible when there are sessions');
+  assert.equal(r.empVisible, false, 'no empty-state while sessions are shown');
+});
+
+test('B3 herd-fix webview-sim: explicit state filter "needs" narrows (opt-in works), group stays', () => {
+  const r = _runApply(['needs', 'needs', 'needs', 'idle', 'idle', 'idle', 'idle', 'idle'], 'needs', '', {});
+  assert.equal(r.shown, 3, 'only the 3 needs rows show');
+  assert.equal(r.hidden, 5, 'the 5 idle rows hidden by explicit choice');
+  assert.equal(r.res.herdFilter, 'needs', 'filter respected (shown>0 → no fallback)');
+  assert.equal(r.grpHidden, false, 'group with ≥1 visible row stays');
+});
+
+test('B3 herd-fix webview-sim: a state filter that would empty the herd falls back to ALL (never empty)', () => {
+  const r = _runApply(['needs', 'needs', 'idle', 'idle', 'idle'], 'active', '', {}); // nothing is active
+  assert.equal(r.hidden, 0, 'fallback shows every row instead of stranding an empty herd');
+  assert.equal(r.shown, 5, 'all 5 visible after the never-empty fallback');
+  assert.equal(r.res.herdFilter, 'all', 'herdFilter reset to "all" by the guard');
+  assert.equal(r.empVisible, false, 'no empty-state for a state filter (only search shows it)');
+});
+
+test('B3 herd-fix webview-sim: invalid/legacy herdFilter → coerced to "all" (shows everything)', () => {
+  const r = _runApply(['needs', 'idle', 'idle', 'idle', 'idle'], 'garbage-legacy', '', {});
+  assert.equal(r.hidden, 0, 'unknown filter never hides — shows all');
+  assert.equal(r.shown, 5);
+});
+
+test('B3 herd-fix webview-sim: search with no match → empty-state ("Ver todas"), not a silent blank', () => {
+  const r = _runApply(['needs', 'idle', 'idle', 'idle', 'idle'], 'all', 'zzz-nomatch', {});
+  assert.equal(r.shown, 0, 'no row matches the search');
+  assert.equal(r.empVisible, true, 'empty-state shown for search-no-match');
+  assert.ok(r.empText.indexOf('zzz-nomatch') >= 0, 'empty-state names the query');
+});
+
+test('B3 herd-fix webview-sim: search WITH match shows matching rows, no empty-state', () => {
+  const r = _runApply(['needs', 'idle', 'idle', 'idle', 'idle'], 'all', 'sess2', {});
+  assert.equal(r.shown, 1, 'only the matching row shows');
+  assert.equal(r.empVisible, false, 'match → no empty-state');
+});
+
+test('B3 herd-fix webview-sim: no filter bar (<5 sessions) → every row visible regardless of filter', () => {
+  const r = _runApply(['idle', 'idle', 'idle'], 'atencao', '', { bar: false });
+  assert.equal(r.hidden, 0, 'without the bar, applyHerdFilter shows all rows');
+  assert.equal(r.shown, 3);
+});
