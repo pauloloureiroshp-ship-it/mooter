@@ -943,28 +943,43 @@ const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed|
 function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
 // B3 — declutter: estado do filtro/procura/compacto da herd (persistido como o collapsed). O filtro é
 // puramente client-side: esconde/mostra .srow por data-state + data-name; o pipeline de dados é intocado.
-let herdFilter='atencao',herdQuery='',herdCompact=false;
-(function(){try{const st=vsapi.getState()||{};if(st.herdFilter)herdFilter=st.herdFilter;if(typeof st.herdQuery==='string')herdQuery=st.herdQuery;herdCompact=!!st.herdCompact;}catch{}})();
+// B3 regression fix (herd-fix): o filtro é OPT-IN — cada arranque mostra SEMPRE todas as sessões.
+// Default 'all' (era 'atencao', que escondia toda a sessão idle e esvaziava a herd no caso real).
+const HF_VALID=['all','atencao','needs','active','idle'];
+let herdFilter='all',herdQuery='',herdCompact=false;
+(function(){try{const st=vsapi.getState()||{};
+  // O filtro NÃO sobrevive a um reload: cada webview novo arranca em 'all' (opt-in, nunca opt-out).
+  // Só restauramos o modo compacto (que nunca esconde sessões — apenas sublines). Assim um 'atencao'
+  // preso de uma versão anterior nunca volta a esconder a herd, e a procura arranca sempre vazia.
+  herdCompact=!!st.herdCompact;
+}catch{}})();
 function saveHerdPrefs(){try{const st=vsapi.getState()||{};st.herdFilter=herdFilter;st.herdQuery=herdQuery;st.herdCompact=herdCompact;vsapi.setState(st);}catch{}}
-const HFLBL={atencao:'Atenção',needs:'Precisam de ti',active:'Activas',idle:'Idle',all:'Todas'};
 // Re-aplica o filtro após cada render (como hydrateHoff). Sem barra (poucas sessões) → tudo visível.
 function applyHerdFilter(){
   const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
   const bar=document.querySelector('#v-cockpit .herdfilter');
   if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
   cont.classList.toggle('compact',!!herdCompact);
-  const q=(herdQuery||'').toLowerCase().trim();const f=herdFilter||'atencao';let shown=0;
-  cont.querySelectorAll('.srow[data-state]').forEach(row=>{
+  const q=(herdQuery||'').toLowerCase().trim();
+  let f=herdFilter||'all';if(HF_VALID.indexOf(f)<0)f='all'; // filtro inválido/legado → 'all' (nunca esconde por acidente)
+  const rows=[...cont.querySelectorAll('.srow[data-state]')];const total=rows.length;let shown=0;
+  rows.forEach(row=>{
     const st=row.getAttribute('data-state')||'idle';const nm=row.getAttribute('data-name')||'';
     const okState=f==='all'||(f==='atencao'&&st!=='idle')||(f==='needs'&&st==='needs')||(f==='idle'&&st==='idle')||(f==='active'&&(st==='active'||st==='cowork'));
     const okQ=!q||nm.indexOf(q)>=0;const vis=okState&&okQ;row.hidden=!vis;if(vis)shown++;
   });
+  // PASSO 2 — defensivo, nunca esconder tudo: um filtro de ESTADO (não procura) que esconderia TODAS
+  // as sessões reverte para mostrar todas. O cockpit nunca pode deixar a herd vazia sem o user escolher.
+  // Procura sem match é o ÚNICO estado-vazio (mostra o "Ver todas"); um filtro de estado nunca lá chega.
+  if(f!=='all'&&!q&&shown===0&&total>0){rows.forEach(r=>{r.hidden=false;});shown=total;f='all';herdFilter='all';}
   document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{const any=[...g.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);g.hidden=!any;});
   document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>b.classList.toggle('on',b.dataset.hf===f));
   const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.classList.toggle('on',!!herdCompact);
   const emp=document.querySelector('#v-cockpit .herdempty');
-  if(emp){const total=cont.querySelectorAll('.srow[data-state]').length;
-    if(total>0&&shown===0){emp.hidden=false;const et=emp.querySelector('.herdemptytxt');if(et)et.textContent=q?('Nada corresponde a "'+q+'"'):('Nada em '+(HFLBL[f]||f));}
+  if(emp){
+    // Só uma PROCURA sem match mostra o estado-vazio (com "Ver todas"). Um filtro de estado já reverteu
+    // acima, por isso nunca encalha numa herd vazia.
+    if(total>0&&shown===0&&q){emp.hidden=false;const et=emp.querySelector('.herdemptytxt');if(et)et.textContent='Nada corresponde a "'+q+'"';}
     else emp.hidden=true;}
 }
 function wireHerdFilter(){
@@ -972,7 +987,7 @@ function wireHerdFilter(){
   if(qi)qi.oninput=()=>{herdQuery=qi.value;saveHerdPrefs();applyHerdFilter();};
   document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();herdFilter=b.dataset.hf;saveHerdPrefs();applyHerdFilter();};});
   const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.onclick=(e)=>{e.stopPropagation();herdCompact=!herdCompact;saveHerdPrefs();applyHerdFilter();};
-  const ev=document.querySelector('#v-cockpit .herdempty button[data-hf]');if(ev)ev.onclick=(e)=>{e.stopPropagation();herdFilter='all';saveHerdPrefs();applyHerdFilter();};
+  const ev=document.querySelector('#v-cockpit .herdempty button[data-hf]');if(ev)ev.onclick=(e)=>{e.stopPropagation();herdFilter='all';herdQuery='';const qi2=document.querySelector('#v-cockpit .herdq');if(qi2)qi2.value='';saveHerdPrefs();applyHerdFilter();}; // "Ver todas" limpa filtro + procura → mostra mesmo tudo
 }
 function cc(id){return collapsed.has(id)?' collapsed':'';}
 // Build a uniform collapsible header (chevron + title). Click/Enter toggles; clicks on
