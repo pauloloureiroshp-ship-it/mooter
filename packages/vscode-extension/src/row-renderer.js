@@ -504,4 +504,68 @@ function renderGroupHeader(key, group, opts) {
   return '<div class="ghd collaphead"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + projBtn + '</div>' + hoffPanel;
 }
 
-module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, MODES_UI, SESS_MODELS, deriveStages, STAGE_META };
+// ── WS3: Local Moo Fleet ─────────────────────────────────────────────────────────
+// A live view of the LOCAL moos working on handoffs IN PARALLEL with the cloud CC, on
+// the free GPU ($0). Read-only: aggregates the per-session localMoo state (B4, already
+// on each row) + the measured local tok/s (WS1 speed-meter, via opts.localSpeed). The
+// PROOF of the local-first thesis: free, parallel work off the cloud critical path.
+// Idle-safe (→ "moos locais ociosos"); never blocks. Concatenation/literals only (no
+// template-literals — its source is embedded into the webview script via fn.toString()).
+// opts: { localSpeed, nowMs }. Calls esc — must be in scope (it is, in both module + webview).
+function renderLocalFleet(recent, opts) {
+  opts = opts || {};
+  recent = Array.isArray(recent) ? recent : [];
+  var ls = opts.localSpeed || null;
+  var active = [];
+  for (var i = 0; i < recent.length; i++) {
+    var rr = recent[i];
+    var lm0 = rr && rr.localMoo;
+    if (lm0 && (lm0.journalN || lm0.summary)) active.push(rr);
+  }
+  // Measured local throughput (WS1) — honest SINGLE-STREAM rate (moos share one GPU,
+  // so we never fabricate an N× linear "total"). Labelled "medido"; n/d when absent.
+  var tps = (ls && ls.latest && ls.latest.tps != null) ? ls.latest.tps : null;
+  var tpsModel = (ls && ls.latest && ls.latest.model) ? ls.latest.model : null;
+  var tpsTxt = tps != null
+    ? ('~' + tps + ' tok/s local' + (tpsModel ? ' (' + esc(tpsModel) + ', medido)' : ' (medido)'))
+    : 'tok/s local n/d — corre o speed-meter';
+
+  if (!active.length) {
+    return '<div class="card" data-fleet="idle" style="padding:8px 11px;margin-bottom:8px">'
+      + '<div class="lbl">🐮 Local Moo Fleet</div>'
+      + '<div class="sub" style="margin-top:4px;opacity:.7" title="os moos locais moem journal/rollup/handoff no GPU livre, em paralelo ao CC, a $0">moos locais ociosos — nenhum a moer handoffs agora · ' + tpsTxt + ' · $0 · GPU livre</div>'
+      + '</div>';
+  }
+
+  var rows = '';
+  for (var j = 0; j < active.length; j++) {
+    var s = active[j];
+    var l = s.localMoo;
+    var nm = s.coworkTitle || s.name || ('session ' + s.id);
+    var stage = l.updating ? '⟳ a acumular journal' : (l.summary ? '✓ rollup local' : '· journal');
+    var jn = l.journalN || 0;
+    var mtps = null;
+    if (ls && ls.models) {
+      for (var k = 0; k < ls.models.length; k++) {
+        if (ls.models[k].model === l.model && ls.models[k].tps != null) { mtps = ls.models[k].tps; break; }
+      }
+    }
+    if (mtps == null) mtps = tps;
+    var mtpsTxt = mtps != null ? (mtps + ' tok/s') : '—';
+    rows += '<div class="fleetmoo" style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;border-top:1px solid var(--vscode-widget-border,rgba(127,127,127,.18))">'
+      + '<span class="livecow working" style="font-size:13px">🐮</span>'
+      + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(nm) + '">' + esc(nm) + '</span>'
+      + '<span style="opacity:.8">' + esc(stage) + ' · ' + jn + ' turn' + (jn === 1 ? '' : 's') + '</span>'
+      + '<span style="opacity:.7" title="modelo local Ollama ($0)">' + (l.model ? esc(l.model) : '—') + '</span>'
+      + '<span style="color:var(--g);white-space:nowrap" title="velocidade local medida (WS1) · não consome cloud">' + mtpsTxt + ' · $0</span>'
+      + '</div>';
+  }
+
+  var plural = active.length === 1 ? '' : 's';
+  var head = '<div class="lbl">🐮 Local Moo Fleet · <b>' + active.length + '</b> moo' + plural + ' local' + (active.length === 1 ? '' : 'is') + ' a trabalhar</div>'
+    + '<div class="sub" style="margin:2px 0 4px;opacity:.78" title="trabalho local fora da rota crítica do cloud — grátis e em paralelo">' + tpsTxt + ' · $0 · paralelo ao CC · GPU livre</div>';
+
+  return '<div class="card" data-fleet="active" style="padding:8px 11px;margin-bottom:8px">' + head + rows + '</div>';
+}
+
+module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, renderLocalFleet, MODES_UI, SESS_MODELS, deriveStages, STAGE_META };

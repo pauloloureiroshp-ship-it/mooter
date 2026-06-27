@@ -596,6 +596,7 @@ function project(s) {
     herd: s.herd, recent: s.recent || [],
     loopActive: !!s.loopActive, // WCOCKPIT-9 (Bloco F)
     localTok: s.localTok || null,
+    localSpeed: extra.localSpeed(), // WS3: measured local tok/s (WS1 speed-meter) for the Local Moo Fleet
     ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
     activeSession: s.activeSession || null, selectedSession: s.selectedSession || 'auto', effectiveSession: effSid,
     live: extra.liveRouting(lastForCow, { hostModel, lastExecution: s.lastExec }),
@@ -1142,6 +1143,8 @@ const STAGE_META=${RR?JSON.stringify(RR.STAGE_META):'[]'};
 const deriveStages=${RR?RR.deriveStages.toString():'function deriveStages(){return {stages:{},safe:{level:"green",label:"",action:null},behind:null};}'};
 const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
+// WS3: Local Moo Fleet renderer (sibling of renderRow — read-only, idle-safe, concat-only)
+const renderLocalFleet=${RR&&RR.renderLocalFleet?RR.renderLocalFleet.toString():'function renderLocalFleet(){return "";}'};
 // WCOCKPIT-3: wire per-session mode/model/auto controls (stop-propagation inside srow)
 function wireSessControls(root){
   // B1 — feedback óptimista: o estado visual salta JÁ no clique; flashApply pulsa "a aplicar…" no
@@ -1247,6 +1250,10 @@ window.addEventListener('message',(e)=>{
     +'</div></div>'):'';
   const hfEmpty=showFilter?'<div class="herdempty" hidden role="status"><span class="herdemptytxt"></span><button class="sm" data-hf="all">Ver todas</button></div>':'';
   const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div>'+hfBar+'<div class="herd">'+herdRows+allRow+'</div>'+hfEmpty+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
+  // WS3: Local Moo Fleet — local moos working on handoffs in PARALLEL with the cloud CC ($0).
+  // Read-only render from the snapshot (recent rows carry .localMoo; s.localSpeed = measured tok/s).
+  // Guarded so a render error never blanks the cockpit; idle-safe inside the renderer.
+  const fleetCard=(function(){try{return renderLocalFleet(rsess,{localSpeed:s.localSpeed,nowMs:Date.now()});}catch(er){return '';}})();
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
   const installed=(s.ollama||[]).map(x=>x.name);
@@ -1295,6 +1302,7 @@ window.addEventListener('message',(e)=>{
     })()+
     '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b>'+(isHeavyLocal(curPin)?' <span style="opacity:.65;font-size:9px">\u00b7 modelo pesado: 1\u00aa resposta pode levar ~1-2min (cold-load + CPU)</span>':'')+'</div>':'')+'</div>'+
+    fleetCard+
     herdCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
