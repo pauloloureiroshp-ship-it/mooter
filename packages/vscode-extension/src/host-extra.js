@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const { httpJson, isProbePrompt } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
@@ -812,6 +812,87 @@ function prStage(pr) {
   return 'open';
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ⇄ HANDOFF v3 — deterministic git snapshot (verification-grade facts). SYNC, best-effort,
+// NEVER throws. Runs on the handoff BUTTON (not the refresh hot path), so a few bounded sync
+// git reads are acceptable. Every read is guarded; any failure flips factsComplete=false —
+// the handoff footer says so and NEVER fabricates a fact.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Sync git runner: { ok, out }. Bounded (2.5s), stderr discarded, never throws. Overridable
+// via gitSnapshot/vaultFreshness opts.runGit so tests inject a deterministic mock (no real git).
+function _gitSync(args, cwd) {
+  try {
+    if (!cwd) return { ok: false, out: '' };
+    const out = execFileSync('git', ['-C', cwd].concat(args),
+      { timeout: 2500, maxBuffer: 1024 * 256, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    return { ok: true, out: String(out || '').trim() };
+  } catch { return { ok: false, out: '' }; }
+}
+
+// gitSnapshot(cwd, opts) → { head:{sha7,subject}|null, baseAhead, baseBehind, pushed:bool|prNumber,
+//   prStage:string|null, filesInHead:[≤8 basenames], filesCount, classifyFrozen:true|false|null,
+//   mixedSessions:bool, factsComplete:bool }. opts (all injectable): { runGit, recent, branch, pr }.
+function gitSnapshot(cwd, opts) {
+  opts = opts || {};
+  const run = opts.runGit || _gitSync;
+  const snap = { head: null, baseAhead: 0, baseBehind: 0, pushed: false, prStage: null,
+    filesInHead: [], filesCount: 0, classifyFrozen: null, mixedSessions: false, factsComplete: true };
+  if (!cwd || typeof cwd !== 'string') { snap.factsComplete = false; return snap; }
+  try {
+    // HEAD: sha7 + subject (tab-separated). "—" upstream when there is no commit.
+    const h = run(['log', '-1', '--format=%h%x09%s'], cwd);
+    if (h && h.ok && h.out) {
+      const tab = h.out.indexOf('\t');
+      const sha7 = (tab >= 0 ? h.out.slice(0, tab) : h.out).trim();
+      const subject = (tab >= 0 ? h.out.slice(tab + 1) : '').trim();
+      if (sha7) snap.head = { sha7: sha7.slice(0, 12), subject: subject.slice(0, 80) };
+      else snap.factsComplete = false;
+    } else snap.factsComplete = false;
+    // position vs origin/main
+    const ah = run(['rev-list', '--count', 'origin/main..HEAD'], cwd);
+    if (ah && ah.ok && ah.out !== '') snap.baseAhead = parseInt(ah.out, 10) || 0; else snap.factsComplete = false;
+    const bh = run(['rev-list', '--count', 'HEAD..origin/main'], cwd);
+    if (bh && bh.ok && bh.out !== '') snap.baseBehind = parseInt(bh.out, 10) || 0; else snap.factsComplete = false;
+    // files the HEAD commit touches (basenames, ≤8 + a real total count)
+    const fr = run(['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], cwd);
+    if (fr && fr.ok) {
+      const all = fr.out.split('\n').map((s) => s.trim()).filter(Boolean);
+      snap.filesCount = all.length;
+      snap.filesInHead = all.slice(0, 8).map((p) => p.split('/').pop());
+    } else snap.factsComplete = false;
+    // pushed / prNumber — reuse prStage on the session's PR object; else probe the upstream.
+    if (opts.pr && opts.pr.number) { snap.pushed = opts.pr.number; snap.prStage = prStage(opts.pr); }
+    else {
+      const up = run(['rev-list', '--count', '@{u}..HEAD'], cwd);
+      snap.pushed = !!(up && up.ok && up.out !== '' && parseInt(up.out, 10) === 0); // upstream set + nothing un-pushed
+    }
+    // classify.js frozen guard — tri-state: true (exact sha) | false (changed) | null (absent / non-Mooter repo).
+    const g = classifyShaGuard(cwd);
+    snap.classifyFrozen = g.checked ? g.ok : null;
+    // mixed-sessions: ≥2 sessions share this cwd+branch (the shared-working-tree case where several
+    // sessions stack commits on the same branch). Derived from gitHarmony over the recent-sessions list.
+    const harmony = gitHarmony(opts.recent, cwd, opts.branch);
+    snap.mixedSessions = !!(harmony && harmony.shared);
+  } catch { snap.factsComplete = false; }
+  return snap;
+}
+
+// ⇄ Handoff v3 FRESH: best-effort ms-epoch of the vault repo's last commit (git log -1 --format=%ct
+// on ~/Documents/paulo-vault). null when the vault is absent / not a repo / git slow. Never throws.
+// opts injectable for tests: { dir, runGit }.
+const VAULT_DIR = path.join(os.homedir(), 'Documents', 'paulo-vault');
+function vaultFreshness(opts) {
+  opts = opts || {};
+  const dir = opts.dir || VAULT_DIR;
+  const run = opts.runGit || _gitSync;
+  try {
+    const r = run(['log', '-1', '--format=%ct'], dir);
+    if (r && r.ok && r.out) { const t = parseInt(r.out, 10); return Number.isFinite(t) && t > 0 ? t * 1000 : null; }
+    return null;
+  } catch { return null; }
+}
+
 // Per-session live state from decisions.log: pairs `classified` (prompt entered) with
 // `turn_end` (Stop hook → turn finished). Last event per session tells us:
 //   classified (no turn_end after) → Claude is WORKING (generating now)
@@ -1063,67 +1144,173 @@ function _fmtK(n) {
   return (k >= 10 ? Math.round(k) : Math.round(k * 10) / 10).toString().replace(/\.0$/, '') + 'k';
 }
 
-// PURA (testável): monta o texto de handoff no FORMATO FIXO. ESQUELETO determinístico de `row`
-// + `pending` (autoritativo). A NARRATIVA é do LLM local e ENTRA POR `opts` (nunca chamada aqui):
-//   opts.doing → linha DOING (fallback: 1º prompt) · opts.recap → linha RECAP (só mode 'full').
-// REGRA DURA: o PENDING é SEMPRE verbatim de pending.lastAssistantText — o LLM NUNCA lhe toca.
-// opts.mode 'quick'|'full' (default por tamanho da sessão); opts.estTokensSaved fixa/omite (≤0) o
-// rodapé §SAVINGS, senão estima do tamanho do texto. opts.now fixa o timestamp (testes). Campo em
-// falta → "—". Nunca lança (row/pending null → tratados como {}).
+// ── ⇄ Handoff v3 pure helpers ───────────────────────────────────────────────
+// PURE: a short 3–5 word tag from the session's first prompt (row.name). '' when none.
+function sessionTag(name) {
+  const words = String(name || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!words.length) return '';
+  return words.slice(0, 5).join(' ').slice(0, 48);
+}
+const STALE_MS = 7 * 86400000; // freshness ⚠ threshold (7 days)
+// PURE: human "ago" from a ms-epoch ts relative to nowMs. null/invalid → null (caller renders "—").
+function _ago(tsMs, nowMs) {
+  const n = Number(tsMs);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  let d = (Number(nowMs) || 0) - n; if (d < 0) d = 0;
+  if (d >= 86400000) return Math.floor(d / 86400000) + 'd ago';
+  if (d >= 3600000) return Math.floor(d / 3600000) + 'h ago';
+  if (d >= 60000) return Math.floor(d / 60000) + 'm ago';
+  return 'agora';
+}
+// PURE: strip the qwen preamble labels from an on-demand narrative line/block (mirrors
+// handoff-rollup.cleanSummary — NO cross-package require). Keeps the content, drops "Recap:/Topic:/…".
+function _cleanNarrative(out) {
+  if (!out) return '';
+  const lines = String(out).split('\n').map((s) => s.trim())
+    .map((s) => s.replace(/^(resumo actualizado|resumo actual|resumo|summary|preamble|topic|recap|output|doing)\s*[:\-]\s*/i, ''))
+    .filter(Boolean);
+  return lines.slice(0, 5).join('\n').slice(0, 600);
+}
+// PURE (testable): the action-first ASK verb for a session, derived from its deterministic git
+// snapshot + the verbatim pending. SAFE — it never proposes a blind merge:
+//   classify.js CHANGED        → review   (frozen invariant broken)
+//   mixed-sessions             → review   (shared working tree — another session may have stacked commits)
+//   stopped on a question      → answer
+//   HEAD + ahead + !pushed + frozen + !mixed → verify+merge
+//   ahead + pushed/PR          → push-ok  (merged PR → fyi)
+//   otherwise                  → fyi
+function deriveAsk(snapshot, pending, row) {
+  const s = snapshot || {}; const p = pending || {};
+  if (s.classifyFrozen === false) return 'review';
+  if (s.mixedSessions) return 'review';
+  const txt = (p.lastAssistantText && String(p.lastAssistantText).trim()) ? String(p.lastAssistantText).trim() : '';
+  if (p.stopped && txt && txt !== '—' && /\?/.test(txt)) return 'answer';
+  const ahead = Number(s.baseAhead) || 0;
+  if (s.prStage === 'merged ✓') return 'fyi';
+  if (ahead > 0 && !s.pushed && s.head) return 'verify+merge';
+  if (ahead > 0 && s.pushed) return 'push-ok';
+  return 'fyi';
+}
+// PURE: the concrete one-line NEXT for the Cowork, keyed to the ASK.
+function _nextForAsk(ask) {
+  switch (ask) {
+    case 'verify+merge': return 'correr o gate (final-reviewer) e mergear se verde';
+    case 'review':       return 'rever antes de tocar — invariante/sessões mistas em jogo';
+    case 'answer':       return 'responder à pergunta pendente acima';
+    case 'push-ok':      return 'acompanhar o PR / push até verde';
+    default:             return 'nada a fazer — contexto para alinhar';
+  }
+}
+
+// PURA (testável): monta o texto de handoff v3 (PIRÂMIDE INVERTIDA — acção primeiro). ESQUELETO
+// determinístico de `row` + `pending` + `opts.snapshot` (gitSnapshot, mock-injectável). A NARRATIVA
+// local entra por opts: opts.doing → linha DOING (fallback: 1º prompt) · opts.recap → bloco RECAP
+// (só mode 'full'). REGRA DURA: o PENDING é SEMPRE verbatim de pending.lastAssistantText — o LLM
+// NUNCA lhe toca. opts.mode 'quick'|'full' (default por tamanho da sessão). opts.vaultMtime (ms) e
+// row.notionSyncedAt/obsidianSyncedAt alimentam o FRESH; opts.deltaTurns (n_turn do journal) o DELTA.
+// TOKEN-LEAN: quick = factos + FRESH + DELTA + PENDING + DOING + NEXT; RECAP, model/mode/saved$ e o
+// footer (facts/savings) só em 'full'. opts.now fixa o timestamp (testes). Campo em falta → "—".
+// Nunca lança (row/pending/snapshot null → tratados como {}).
 function generateHandoff(row, pending, opts) {
   row = row || {}; pending = pending || {}; opts = opts || {};
   const now = opts.now || new Date();
+  const nowMs = (now && now.getTime) ? now.getTime() : Date.now();
+  const snap = opts.snapshot || {};
   const id = row.id || (row.fullId ? String(row.fullId).slice(0, 8) : '?');
   const proj = row.cwd ? path.basename(String(row.cwd)) : '—';
-  const name = row.name || ('session ' + id);
-  const gs = row.gitStage || {};
-  const auto = row.auto ? 'on' : 'off';
-  const loop = row.loop ? 'on' : 'off';
-  const saved = (Number(row.saved) || 0).toFixed(2);
+  const tag = sessionTag(row.name) || ('session ' + id);
   const hmode = (opts.mode === 'full' || opts.mode === 'quick')
     ? opts.mode
     : ((Number(row.turns) || 0) >= HANDOFF_FULL_TURNS ? 'full' : 'quick');
-  const state = row.working ? '🟢 working'
-    : (row.needsYou ? '🟡 needs you'
-      : (row.waitingForCowork ? '⏳ waiting for you' : '✅ idle'));
+
+  // ── ASK (action-first, SAFE heuristic) ──
+  const ask = deriveAsk(snap, pending, row);
+
+  // ── HEAD ──
+  const head = (snap.head && snap.head.sha7)
+    ? (snap.head.sha7 + (snap.head.subject ? ' "' + snap.head.subject + '"' : '')) : '—';
+
+  // ── BASE: branch · position vs origin/main · PR/local ──
+  const ahead = Number(snap.baseAhead) || 0, behind = Number(snap.baseBehind) || 0;
+  const pos = ahead > 0 ? ('main+' + ahead) : (behind > 0 ? ('behind ' + behind) : 'main±0');
+  const pushSeg = (typeof snap.pushed === 'number' && snap.pushed > 0) ? ('PR #' + snap.pushed)
+    : (snap.pushed === true ? 'pushed' : 'local (no push)');
+  const base = _or(row.branch) + ' · ' + pos + ' · ' + pushSeg;
+
+  // ── GATE: classify.js freeze · files touched by HEAD · mixed-sessions ──
+  const gateParts = [];
+  if (snap.classifyFrozen === true) gateParts.push('classify.js ✓ frozen');
+  else if (snap.classifyFrozen === false) gateParts.push('classify.js ⚠ CHANGED');
+  const fhead = Array.isArray(snap.filesInHead) ? snap.filesInHead : [];
+  const fc = Number(snap.filesCount) || fhead.length;
+  const shownF = fhead.slice(0, 5);
+  const moreF = fc - shownF.length;
+  gateParts.push('HEAD toca ' + fc + ' fich.' + (shownF.length ? ': ' + shownF.join(', ') + (moreF > 0 ? ' +' + moreF : '') : ''));
+  if (snap.mixedSessions) gateParts.push('⚠ mixed-sessions');
+  const gate = gateParts.join(' · ');
+
+  // ── TREE: uncommitted working-tree changes (environment, NOT part of HEAD) ──
+  const gs = row.gitStage || {};
+  const unc = Number(gs.dirty) || 0;
+  const tree = unc > 0 ? ('⚠ ' + unc + ' uncommitted fora do HEAD (ambiente)') : 'clean';
+
+  // ── FRESH: vault (obsidianSyncedAt → vault repo mtime) · Notion · handoff agora ; ⚠ > 7d ──
+  const vaultTs = (row.obsidianSyncedAt && Date.parse(row.obsidianSyncedAt))
+    || (opts.vaultMtime != null ? Number(opts.vaultMtime) : null);
+  const notionTs = (row.notionSyncedAt && Date.parse(row.notionSyncedAt)) || null;
+  const vAgo = _ago(vaultTs, nowMs), nAgo = _ago(notionTs, nowMs);
+  const vSeg = 'vault ' + (vAgo ? (vAgo + ((nowMs - vaultTs) > STALE_MS ? ' ⚠' : '')) : '—');
+  const nSeg = 'Notion ' + (nAgo ? (nAgo + ((nowMs - notionTs) > STALE_MS ? ' ⚠' : '')) : '—');
+  const fresh = vSeg + ' · ' + nSeg + ' · handoff agora';
+
+  // ── DELTA: turns (journal n_turn || session turns) · commits ahead of main ──
+  const dTurns = (opts.deltaTurns != null && Number.isFinite(Number(opts.deltaTurns)))
+    ? Number(opts.deltaTurns) : ((Number(row.turns) || 0) || null);
+  const delta = (dTurns == null && !ahead) ? '—'
+    : ((dTurns != null ? dTurns : 0) + ' turnos · ' + ahead + ' commits desde o último handoff');
+
+  // ── PENDING (verbatim ≤300c, ground-truth — the LLM never touches it) ──
+  const stopRaw = pending.lastAssistantText && String(pending.lastAssistantText).trim();
+  const stop = (stopRaw && stopRaw !== '—') ? stopRaw.slice(0, 300) : '—';
+
+  // ── DOING (from the rolling summary's first line; fallback to the 1st prompt) ──
   const doing = (opts.doing && String(opts.doing).trim()) ? String(opts.doing).trim().slice(0, 160) : _or(row.name);
-  // RECAP só em 'full' E só quando o LLM devolveu algo — timeout/Ollama-down → recap omitido.
-  const recap = (hmode === 'full' && opts.recap && String(opts.recap).trim())
-    ? String(opts.recap).trim().slice(0, 600) : null;
-  const last = (Array.isArray(pending.lastToolActions) && pending.lastToolActions.length)
-    ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(' · ')
-    : '—';
-  const stop = (pending.lastAssistantText && String(pending.lastAssistantText).trim()) ? String(pending.lastAssistantText).slice(0, 400) : '—';
+
   const body = [
-    '⇄ MOOTER HANDOFF → cola no Cowork',
-    'project: ' + proj + ' · session: ' + name + ' (' + id + ') · ' + _fmtTs(now),
-    'branch: ' + _or(row.branch) + ' · model: ' + _or(row.model) + ' · mode: ' + _or(row.mode) + ' · auto:' + auto + ' loop:' + loop,
-    'git: staged ' + (gs.staged || 0) + ' · ahead ' + (gs.ahead || 0) + ' · dirty ' + (gs.dirty || 0) + '  |  turns: ' + (row.turns || 0) + ' · saved $' + saved + ' (sessão)',
-    'state: ' + state,
-    '',
-    '▸ DOING: ' + doing,
+    '⇄ MOO HANDOFF · ' + proj + ' · ' + tag + '/' + id + ' · ' + _fmtTs(now),
+    'ASK:    ' + ask,
+    'HEAD:   ' + head,
+    'BASE:   ' + base,
+    'GATE:   ' + gate,
+    'TREE:   ' + tree,
+    'FRESH:  ' + fresh,
+    'DELTA:  ' + delta,
+    'PENDING:"' + stop + '"',
+    'DOING:  ' + doing,
+    'NEXT:   ' + _nextForAsk(ask),
   ];
-  if (recap) body.push('▸ RECAP (local summary): ' + recap);
-  body.push('▸ LAST STEP: ' + last);
-  body.push('▸ PENDING / STOPPED AT: ' + stop);
-  body.push('▸ NEXT FOR COWORK: verificar gate · responder à pergunta · push após OK');
-  body.push('▸ PERSIST: Cowork → regista este handoff no Notion (' + _or(row.notionPageId) + ') e no vault (' + _or(row.obsidianPath) + ')');
-  // §SAVINGS rodapé — estimativa rotulada do custo evitado vs colar um screenshot. Sem estimativa
-  // positiva (estTokensSaved ≤ 0) → omite (nunca um número fabricado).
-  const estSaved = (opts.estTokensSaved != null)
-    ? (Number(opts.estTokensSaved) || 0)
-    : Math.max(0, HANDOFF_SCREENSHOT_TOK - Math.ceil(body.join('\n').length / 4));
-  // Rotula HONESTAMENTE o motor: se a narrativa local correu, mostra o modelo de geração usado
-  // (T0 · <model> · $0); sem narrativa (Ollama down/timeout/só-embedding) cai no rótulo
-  // determinístico. opts.genModel = nome do modelo OU ausente. Nunca um modelo inventado.
-  const engine = (opts.genModel && String(opts.genModel).trim())
-    ? ('T0 · ' + String(opts.genModel).trim() + ' · $0')
-    : 'T0 · deterministic — no local gen model · $0';
-  const tail = [''];
-  if (estSaved > 0) tail.push('compressed locally (' + engine + ') · ~' + _fmtK(estSaved) + ' tok saved vs screenshot (est.)');
-  tail.push('links: SYNC.md  ·  branch ' + _or(row.branch));
-  tail.push('⇄ END HANDOFF');
-  return body.concat(tail).join('\n');
+  // ── full only: LAST STEP (journal-backfilled) + RECAP + model/mode/saved$ + §SAVINGS + facts footer ──
+  if (hmode === 'full') {
+    // LAST STEP — the last 1–3 tool calls (name + honest target), from the transcript pending or
+    // backfilled from the journal's last entry (PASSO 3). Quick mode omits it (token-lean).
+    const lastStep = (Array.isArray(pending.lastToolActions) && pending.lastToolActions.length)
+      ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(' · ') : null;
+    if (lastStep) body.push('LAST:   ' + lastStep);
+    const recap = (opts.recap && String(opts.recap).trim()) ? String(opts.recap).trim().slice(0, 600) : null;
+    if (recap) { body.push('', 'RECAP:'); recap.split('\n').forEach((l) => body.push('  ' + l)); }
+    const saved = (Number(row.saved) || 0).toFixed(2);
+    body.push('', 'model ' + _or(row.model) + ' · mode ' + _or(row.mode) + ' · saved $' + saved + ' (sessão)');
+    const engine = (opts.genModel && String(opts.genModel).trim())
+      ? ('T0 · ' + String(opts.genModel).trim() + ' · $0')
+      : 'T0 · deterministic — no local gen model · $0';
+    const estSaved = (opts.estTokensSaved != null)
+      ? (Number(opts.estTokensSaved) || 0)
+      : Math.max(0, HANDOFF_SCREENSHOT_TOK - Math.ceil(body.join('\n').length / 4));
+    if (estSaved > 0) body.push('compressed locally (' + engine + ') · ~' + _fmtK(estSaved) + ' tok saved vs screenshot (est.)');
+    body.push('facts: ' + (snap.factsComplete === false ? 'partial — git facts incompletos (não fabricados)' : 'complete'));
+  }
+  body.push('⇄ END HANDOFF');
+  return body.join('\n');
 }
 
 // PURA (testável): BOARD de handoff do PROJECTO (todas as sessões de um grupo → um texto). Uma
@@ -1143,11 +1330,25 @@ function generateProjectHandoff(proj, rows, opts) {
   const now = opts.now || new Date();
   const n = rows.length;
   const head = [
-    '⇄ MOOTER PROJECT HANDOFF → cola no Cowork',
+    '⇄ MOO PROJECT HANDOFF → cola no Cowork',
     'project: ' + _or(proj) + ' · ' + n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' · ' + _fmtTs(now),
-    '',
-    '▸ BOARD:',
   ];
+  // PASSO 5 — action-first: a per-session ASK derived from row state (no per-row git snapshot needed;
+  // a contested group = mixed-sessions → review). Counts feed the deterministic aggregate at the top.
+  const askCounts = { 'verify+merge': 0, 'push-ok': 0, answer: 0, review: 0, fyi: 0 };
+  const _rowAsk = (r, contested) => {
+    if (contested) return 'review';
+    const p = (r && r.pending) || {};
+    const txt = p.lastAssistantText && String(p.lastAssistantText).trim();
+    if (p.stopped && txt && txt !== '—' && /\?/.test(txt)) return 'answer';
+    const gs2 = (r && r.gitStage) || {};
+    const ahead2 = Number(gs2.ahead) || 0;
+    const pr2 = r && r.pr;
+    if (pr2 && pr2.stage === 'merged ✓') return 'fyi';
+    if (ahead2 > 0 && pr2) return 'push-ok';
+    if (ahead2 > 0 && !pr2) return 'verify+merge';
+    return 'fyi';
+  };
   // POLISH 2 — DUP só sinaliza COLISÃO REAL: ≥2 sessões ACTIVAS (working||needsYou) a partilhar
   // repo (cwd) + branch. Idle (✅) na mesma branch — sobretudo main — NÃO conta (era ruído). Pré-
   // computa por grupo cwd+branch: total de sessões e quantas estão activas. branchCt alimenta o
@@ -1170,7 +1371,9 @@ function generateProjectHandoff(proj, rows, opts) {
     const gs = (r && r.gitStage) || {};
     const flags = [];
     const g = (r && r.cwd) ? groups.get(r.cwd + '\x00' + ((r && r.branch) || '')) : null;
-    if (g && g.active >= 2 && _active(r)) flags.push('DUP'); // só sessões activas num grupo contestado
+    const contested = !!(g && g.active >= 2 && _active(r));
+    askCounts[_rowAsk(r, contested)]++; // action-first aggregate (review when contested)
+    if (contested) flags.push('DUP'); // só sessões activas num grupo contestado
     if ((gs.dirty || 0) > 0) { flags.push('UNCOMMITTED'); unc++; }
     if ((gs.ahead || 0) > 0) { flags.push('UNPUSHED'); unp++; }
     if (_active(r)) activeN++;
@@ -1206,7 +1409,16 @@ function generateProjectHandoff(proj, rows, opts) {
   tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
   tail.push('▸ NEXT FOR COWORK: resolver DUP (mesma branch) · commit UNCOMMITTED · push UNPUSHED');
   tail.push('⇄ END PROJECT HANDOFF');
-  return head.concat(board).concat(tail).join('\n');
+  // ASK aggregate at the TOP (action-first): "N sessões · a verify+merge · … · X review". review is
+  // ALWAYS shown (safety), the rest only when > 0. Omitted entirely when there are no sessions.
+  const askLine = [];
+  if (n > 0) {
+    const order = ['verify+merge', 'push-ok', 'answer', 'fyi'];
+    const segs = order.filter((k) => askCounts[k] > 0).map((k) => askCounts[k] + ' ' + k);
+    segs.push(askCounts.review + ' review');
+    askLine.push('ASK:    ' + n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' · ' + segs.join(' · '));
+  }
+  return head.concat(askLine).concat(['', '▸ BOARD:']).concat(board).concat(tail).join('\n');
 }
 
 function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1399,12 +1611,21 @@ function projectSynthFromSummaries(rows) {
 async function composeHandoff(row, pending, opts) {
   opts = opts || {};
   const mode = opts.mode || ((Number(row && row.turns) || 0) >= 12 ? 'full' : 'quick');
+  const sid = (row && (row.fullId || row.id)) || null;
+  // ⇄ v3 deterministic facts — computed ONCE here (or injected by the handler/tests so a single git
+  // read feeds both the skeleton and the enriched text). snapshot is best-effort (cwd null → empty,
+  // never blocks). deltaTurns comes from the journal's last entry (n_turn); vaultMtime from the handler.
+  const snapshot = (opts.snapshot !== undefined) ? opts.snapshot
+    : gitSnapshot(row && row.cwd, { recent: opts.recent, branch: row && row.branch, pr: row && row.pr });
+  const vaultMtime = (opts.vaultMtime !== undefined) ? opts.vaultMtime : null;
+  let deltaTurns = (opts.deltaTurns !== undefined) ? opts.deltaTurns : null;
+  if (deltaTurns == null && sid) { const jl = readJournalLast(sid); if (jl && Number.isFinite(jl.n_turn)) deltaTurns = jl.n_turn; }
+  const baseOpts = { mode, now: opts.now, snapshot, vaultMtime, deltaTurns };
   // ⇄ Live Context Accumulator (PASSO 4): if the turn-end hook already built a rolling summary in
   // the background, USE IT — instant, no cold-start, no on-demand Ollama call. PENDING stays
   // verbatim from the transcript; the journal backfills LAST STEP only when the live pending is thin.
   // opts.noSummary forces the on-demand path (the runtime smoke proves the Ollama-down/hung guards).
   if (!opts.noSummary) {
-    const sid = (row && (row.fullId || row.id)) || null;
     const summ = sid ? readRollingSummary(sid) : null;
     if (summ && summ.text) {
       let pend = pending || {};
@@ -1415,7 +1636,7 @@ async function composeHandoff(row, pending, opts) {
       const doing = String(summ.text).split('\n').map((s) => s.trim()).filter(Boolean)[0] || summ.text;
       const recap = mode === 'full' ? summ.text : null;
       const genModel = summ.model || 'local rolling summary';
-      const text = generateHandoff(row, pend, { doing, recap, mode, now: opts.now, genModel });
+      const text = generateHandoff(row, pend, Object.assign({}, baseOpts, { doing, recap, genModel }));
       return { text, mode, doing, recap, timedOut: false, model: summ.model || 'local', fromSummary: true };
     }
   }
@@ -1448,8 +1669,12 @@ async function composeHandoff(row, pending, opts) {
   // Modelo no rodapé só quando a narrativa local PRODUZIU texto (honesto — um modelo escolhido que
   // expirou/devolveu nada cai no rótulo determinístico, nunca um motor fabricado).
   const ranModel = (got.genModel && (got.doing || got.recap)) ? got.genModel : null;
-  const text = generateHandoff(row, pending, { doing: got.doing, recap: got.recap, mode, now: opts.now, genModel: ranModel });
-  return { text, mode, doing: got.doing, recap: got.recap, timedOut: !!got.deadline, model: ranModel };
+  // PASSO 3: even the on-demand fallback narrative passes through _cleanNarrative → the handoff never
+  // leaks "Recap:/Preamble:/Topic:" labels even when the qwen summary was generated live here.
+  const doingC = got.doing ? (_cleanNarrative(got.doing).split('\n')[0] || null) : null;
+  const recapC = got.recap ? (_cleanNarrative(got.recap) || null) : null;
+  const text = generateHandoff(row, pending, Object.assign({}, baseOpts, { doing: doingC, recap: recapC, genModel: ranModel }));
+  return { text, mode, doing: doingC, recap: recapC, timedOut: !!got.deadline, model: ranModel };
 }
 
 // OPCIONAL (handoff de PROJECTO): 1–2 linhas de síntese OVERALL via Ollama local. Lê APENAS o
@@ -1503,6 +1728,7 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
+  gitSnapshot, vaultFreshness, sessionTag, deriveAsk,
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   readRollingSummary, readJournalLast, projectSynthFromSummaries };
