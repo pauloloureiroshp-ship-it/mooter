@@ -1513,6 +1513,42 @@ function _ollamaGenerate(model, prompt, timeoutMs, numPredict) {
   });
 }
 
+// ⇄ Handoff F2 (live streaming): STREAMING variant of _ollamaGenerate. POSTs with stream:true and
+// parses the NDJSON token stream from Ollama, invoking opts.onChunk(token) for EACH token as it
+// arrives → the cockpit panel shows the narrative building live. Best-effort, bounded, NEVER throws:
+// on socket error / timeout it resolves { ok, text } with whatever accumulated so far (partial text
+// is still usable). keep_alive '30m' renews the keep-warm window like _ollamaGenerate. opts:
+// { onChunk, timeoutMs, numPredict, port } (port overridable so a smoke/test can point at a fake server).
+function _ollamaGenerateStream(model, prompt, opts) {
+  opts = opts || {};
+  const onChunk = (typeof opts.onChunk === 'function') ? opts.onChunk : function () {};
+  const port = opts.port || OLLAMA_PORT;
+  const timeoutMs = opts.timeoutMs || 11000;
+  return new Promise((resolve) => {
+    let text = ''; let buf = '';
+    const consume = (line) => {
+      const s = String(line || '').trim(); if (!s) return;
+      try { const j = JSON.parse(s); if (j && typeof j.response === 'string' && j.response) { text += j.response; onChunk(j.response); } } catch { /* tolerate a partial/non-JSON line */ }
+    };
+    try {
+      const payload = JSON.stringify({ model, prompt, stream: true, keep_alive: '30m', options: { num_predict: opts.numPredict || 40 } });
+      const req = http.request({ host: '127.0.0.1', port, path: '/api/generate', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: timeoutMs },
+        (res) => {
+          res.on('data', (c) => {
+            buf += c.toString();
+            let nl;
+            while ((nl = buf.indexOf('\n')) >= 0) { consume(buf.slice(0, nl)); buf = buf.slice(nl + 1); }
+          });
+          res.on('end', () => { consume(buf); resolve({ ok: true, text }); });
+        });
+      req.on('error', () => resolve({ ok: !!text, text }));
+      req.on('timeout', () => { req.destroy(); resolve({ ok: !!text, text }); });
+      req.write(payload); req.end();
+    } catch { resolve({ ok: false, text: '' }); }
+  });
+}
+
 // Escolhe um modelo de GERAÇÃO (texto) do /api/tags do Ollama — NUNCA um modelo de embedding.
 // Modelos de embedding (nomic-embed-text, bge, gte, e5, *-minilm, ou qualquer /embed/i) devolvem
 // vectores, não texto: passar-lhes o prompt da narrativa do handoff dá lixo (era o bug). Filtra-os
@@ -1584,6 +1620,92 @@ async function ollamaRecap(row, pending, timeoutMs, model) {
     const lines = String(out).split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 5);
     return lines.length ? lines.join('\n').slice(0, 600) : null;
   } catch { return null; }
+}
+
+// ⇄ Handoff F2 (live streaming): the SESSION narrative, generated LIVE token-by-token so the cockpit
+// panel shows the handoff being written. Resolves the local GEN model once (excludes embeddings),
+// streams DOING (always) and — in 'full' mode — RECAP, calling opts.onChunk(token) for every token of
+// both. Returns { ok, model, doing, recap }: ok=false (→ caller falls back to the deterministic
+// skeleton / composeHandoff) when no gen model is available or nothing was produced. NEVER blocks
+// beyond the per-piece timeouts and NEVER throws. Mirrors the anti-hallucination prompts of
+// ollamaDoing/ollamaRecap (anchor to the topic; never invent/translate). The PENDING is never touched
+// here — it stays verbatim in generateHandoff. Injectable for tests: opts.model fixes the model,
+// opts.tagsModels feeds pickLocalGenModel, opts.streamGen overrides _ollamaGenerateStream, opts.port
+// the HTTP port. opts.doingMs/recapMs bound each stream; opts.mode 'quick'|'full' (default by size).
+async function streamHandoffNarrative(row, opts) {
+  opts = opts || {};
+  row = row || {};
+  const onChunk = (typeof opts.onChunk === 'function') ? opts.onChunk : function () {};
+  const mode = (opts.mode === 'full' || opts.mode === 'quick')
+    ? opts.mode
+    : ((Number(row.turns) || 0) >= HANDOFF_FULL_TURNS ? 'full' : 'quick');
+  try {
+    // resolve the gen model — injectable (opts.model fixes it; opts.tagsModels feeds the picker).
+    let model = opts.model || null;
+    if (!model) {
+      let tags = null;
+      try { tags = opts.tagsModels ? { models: opts.tagsModels } : await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, opts.deadlineMs || 12000)); } catch { tags = null; }
+      model = pickLocalGenModel(tags && tags.models);
+    }
+    if (!model) return { ok: false, model: null, doing: null, recap: null };
+    const streamGen = opts.streamGen || _ollamaGenerateStream;
+    // DOING (short, ≤12 words) — same anchor as ollamaDoing.
+    const doingPrompt = 'Summarise what a coding session is doing in ONE short line (max 12 words, no preamble). '
+      + 'Use ONLY the topic below — do NOT invent, translate, or add anything not in it; if unsure, repeat the topic.\n'
+      + 'Topic: "' + String(row.name || '').slice(0, 120) + '"\nAnswer:';
+    let dBuf = '';
+    const dres = await streamGen(model, doingPrompt, { onChunk: (c) => { dBuf += c; onChunk(c); }, timeoutMs: opts.doingMs || 8000, numPredict: 40, port: opts.port }).catch(() => ({ ok: false, text: '' }));
+    const doing = _cleanNarrative((dres && dres.text) || dBuf).split('\n').map((s) => s.trim()).filter(Boolean)[0] || null;
+    // RECAP (3–5 lines) only in full mode — same anchor/context as ollamaRecap.
+    let recap = null;
+    if (mode === 'full') {
+      const acts = (Array.isArray(opts.lastToolActions) && opts.lastToolActions.length)
+        ? opts.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(', ') : '';
+      const ctx = ['Topic: ' + String(row.name || '').slice(0, 160), acts ? 'Recent actions: ' + acts.slice(0, 220) : ''].filter(Boolean).join('\n');
+      const recapPrompt = 'You are writing a short handoff recap for a coding session. Use ONLY the context below; '
+        + 'do NOT translate, invent, or add anything not present; if unsure, write "-". 3 to 5 short lines, no preamble.\n\n'
+        + ctx + '\n\nRecap:';
+      let rBuf = '';
+      const rres = await streamGen(model, recapPrompt, { onChunk: (c) => { rBuf += c; onChunk(c); }, timeoutMs: opts.recapMs || 10000, numPredict: 160, port: opts.port }).catch(() => ({ ok: false, text: '' }));
+      recap = _cleanNarrative((rres && rres.text) || rBuf) || null;
+    }
+    return { ok: !!(doing || recap), model, doing, recap };
+  } catch { return { ok: false, model: null, doing: null, recap: null }; }
+}
+
+// ⇄ Handoff F2 (live streaming, per-project): the OVERALL synth line for a project board, generated
+// LIVE token-by-token (same visual pattern as streamHandoffNarrative). Reads ONLY the deterministic
+// per-session state (name + branch + dirty/ahead) — never invents. Returns { ok, model, synth }; ok=false
+// (→ caller falls back to projectSynthFromSummaries / ollamaProjectSynth / deterministic counts) when no
+// model or nothing produced. NEVER blocks/throws. Injectable like streamHandoffNarrative.
+async function streamProjectSynth(rows, opts) {
+  opts = opts || {};
+  rows = Array.isArray(rows) ? rows : [];
+  const onChunk = (typeof opts.onChunk === 'function') ? opts.onChunk : function () {};
+  if (!rows.length) return { ok: false, model: null, synth: null };
+  try {
+    let model = opts.model || null;
+    if (!model) {
+      let tags = null;
+      try { tags = opts.tagsModels ? { models: opts.tagsModels } : await httpJson(OLLAMA_PORT, '/api/tags', Math.min(1500, opts.deadlineMs || 11500)); } catch { tags = null; }
+      model = pickLocalGenModel(tags && tags.models);
+    }
+    if (!model) return { ok: false, model: null, synth: null };
+    const streamGen = opts.streamGen || _ollamaGenerateStream;
+    const ctx = rows.slice(0, 12).map((r) => {
+      const id = (r && r.id) || (r && r.fullId ? String(r.fullId).slice(0, 8) : '?');
+      const gs = (r && r.gitStage) || {};
+      return '- ' + String((r && r.name) || ('session ' + id)).slice(0, 60)
+        + ' (branch ' + ((r && r.branch) || '-') + ', dirty ' + (gs.dirty || 0) + ', ahead ' + (gs.ahead || 0) + ')';
+    }).join('\n');
+    const prompt = 'You are writing ONE short overall line for a multi-session project handoff. '
+      + 'Resume SO o que esta no contexto abaixo; nao inventes. 1 to 2 short lines, no preamble.\n\nSessions:\n'
+      + ctx + '\n\nOverall:';
+    let buf = '';
+    const res = await streamGen(model, prompt, { onChunk: (c) => { buf += c; onChunk(c); }, timeoutMs: opts.timeoutMs || 10000, numPredict: 80, port: opts.port }).catch(() => ({ ok: false, text: '' }));
+    const synth = (String((res && res.text) || buf).split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' ') || '').slice(0, 300) || null;
+    return { ok: !!synth, model, synth };
+  } catch { return { ok: false, model: null, synth: null }; }
 }
 
 // ── Live Context Accumulator readers (PASSO 4/5) ───────────────────────────────────────────────
@@ -1776,4 +1898,5 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk,
   extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
+  _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
   readRollingSummary, readJournalLast, projectSynthFromSummaries };

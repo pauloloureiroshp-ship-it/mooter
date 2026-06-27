@@ -411,18 +411,39 @@ class CockpitProvider {
         try { view.webview.postMessage({ type: 'handoff', sid, status: 'ready', text: text0 }); } catch {}
         try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
         try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch {}
-        vscode.window.setStatusBarMessage('🐮 handoff copiado — a enriquecer com LLM local…', 5000);
+        vscode.window.setStatusBarMessage('🐮 handoff copiado — a gerar narrativa local…', 5000);
         let best = text0;
+        // ⇄ F2 LIVE STREAMING — o handoff a construir-se ao vivo no painel: os FACTOS determinísticos
+        // (ASK/HEAD/BASE/GATE/TREE/FRESH/DELTA/PENDING) já apareceram e foram copiados (skeleton
+        // 'ready'); agora a NARRATIVA local stream-a token-a-token ('handoff-stream' por chunk →
+        // DOING/RECAP a aparecer). Quando produz texto, reconstrói o handoff enriquecido (PENDING
+        // SEMPRE verbatim; narrativa marcada "(local best-effort)") e fixa-o ('handoff-done') +
+        // re-copia. Stream indisponível/falhou → fallback ao caminho actual (composeHandoff: rolling
+        // summary instantâneo ou determinístico). Em qualquer caso 'handoff-done' dispara → o painel
+        // nunca fica preso em "a gerar". NUNCA bloqueia (o clipboard já tem o skeleton).
+        let streamed = false;
         try {
-          const c = await extra.composeHandoff(row, pending, Object.assign({ mode, deadlineMs: 12000, doingMs: 11000, recapMs: 11500 }, v3));
-          if (c && c.model && c.text && c.text !== text0) {
-            best = c.text;
-            hoffCache[sid] = best;
-            try { view.webview.postMessage({ type: 'handoff', sid, status: 'enriched', text: best, model: c.model }); } catch {}
-            try { await vscode.env.clipboard.writeText(best); } catch { /* clipboard best-effort */ }
-            vscode.window.setStatusBarMessage('✓ enriquecido (' + c.model + ') — recopiado', 5000);
+          const sres = await extra.streamHandoffNarrative(row, { mode, doingMs: 8000, recapMs: 10000,
+            lastToolActions: (pending && pending.lastToolActions) || [],
+            onChunk: (chunk) => { try { view.webview.postMessage({ type: 'handoff-stream', sid, chunk }); } catch {} } });
+          if (sres && sres.ok && (sres.doing || sres.recap)) {
+            const enriched = extra.generateHandoff(row, pending, Object.assign({ mode, doing: sres.doing, recap: sres.recap, genModel: sres.model, bestEffort: true }, v3));
+            if (enriched && enriched !== text0) {
+              best = enriched; hoffCache[sid] = best;
+              try { await vscode.env.clipboard.writeText(best); } catch { /* clipboard best-effort */ }
+              vscode.window.setStatusBarMessage('✓ narrativa local (' + sres.model + ') — recopiado', 5000);
+            }
+            try { view.webview.postMessage({ type: 'handoff-done', sid, text: best, model: sres.model }); } catch {}
+            streamed = true;
           }
-        } catch { /* Ollama down/lento → fica o esqueleto (nunca hang/vazio) */ }
+        } catch { /* stream falhou → fallback abaixo (nunca hang) */ }
+        if (!streamed) {
+          try {
+            const c = await extra.composeHandoff(row, pending, Object.assign({ mode, deadlineMs: 12000, doingMs: 11000, recapMs: 11500 }, v3));
+            if (c && c.model && c.text && c.text !== text0) { best = c.text; hoffCache[sid] = best; try { await vscode.env.clipboard.writeText(best); } catch {} vscode.window.setStatusBarMessage('✓ enriquecido (' + c.model + ') — recopiado', 5000); }
+          } catch { /* Ollama down/lento → fica o esqueleto (nunca hang/vazio) */ }
+          try { view.webview.postMessage({ type: 'handoff-done', sid, text: best, model: null }); } catch {}
+        }
         // SYNC.md upsert com o MELHOR texto (enriquecido se houve, senão o esqueleto) — rota local
         // "o contexto nunca se perde". §SAVINGS: o rodapé visível ("~Xk tok saved vs screenshot
         // (est.)") já viaja no texto; o registo advisory no savings-tracker fica deferido até a sua
@@ -446,28 +467,33 @@ class CockpitProvider {
         hoffCache[proj] = text0;
         try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'ready', text: text0 }); } catch {}
         try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
-        vscode.window.setStatusBarMessage('🐮 handoff do projecto ' + proj.slice(0, 24) + ' copiado — a enriquecer com LLM local…', 5000);
+        vscode.window.setStatusBarMessage('🐮 handoff do projecto ' + proj.slice(0, 24) + ' copiado — a gerar síntese local…', 5000);
         // PASSO 2: recentSessions(30) capta sessões além das visíveis + síntese local. Deadline longo
         //  (~11.5s) — o webview já tem a board. SÓ re-copia/substitui se o texto enriquecido mudou.
         let prows = snapRows;
         try { const all = await extra.recentSessions(30); const f = all.filter((r) => projOf(r) === proj); if (f.length) prows = f; } catch { /* mantém snapRows */ }
-        // PASSO 5 (live context): prefer the per-session rolling summaries already on disk —
-        // instant, deterministic, no echo. Only fall back to the on-demand local synth when no
-        // session has a summary yet (and that itself falls back to deterministic counts).
+        // ⇄ F2 LIVE STREAMING (per-projecto = mesmo padrão visual): a síntese OVERALL a aparecer ao
+        // vivo ('handoff-stream' por chunk). Falha/indisponível → fallback ao caminho actual: rolling
+        // summaries on-disk (instantâneo, sem eco) → ollamaProjectSynth (deadline ~11.5s) → contadores
+        // determinísticos. 'handoff-done' fixa a board. NUNCA bloqueia (a board já foi copiada).
         let synth = null;
-        try { synth = extra.projectSynthFromSummaries(prows); } catch { synth = null; }
+        try {
+          const pres = await extra.streamProjectSynth(prows, { onChunk: (chunk) => { try { view.webview.postMessage({ type: 'handoff-stream', sid: proj, chunk }); } catch {} } });
+          if (pres && pres.ok && pres.synth) synth = pres.synth;
+        } catch { synth = null; }
+        if (!synth) { try { synth = extra.projectSynthFromSummaries(prows); } catch { synth = null; } }
         if (!synth) { try { synth = await extra.ollamaProjectSynth(prows, 11500); } catch { synth = null; } }
         let best = text0;
         const enriched = extra.generateProjectHandoff(proj, prows, { synth });
         if (enriched && enriched !== text0) {
           best = enriched;
           hoffCache[proj] = best;
-          try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'enriched', text: best, model: synth ? 'local' : null }); } catch {}
           try { await vscode.env.clipboard.writeText(best); } catch { /* clipboard best-effort */ }
           vscode.window.setStatusBarMessage(synth
             ? '✓ enriquecido (síntese local) — recopiado'
             : '🐮 handoff do projecto ' + proj.slice(0, 24) + ' actualizado — recopiado', 5000);
         }
+        try { view.webview.postMessage({ type: 'handoff-done', sid: proj, text: best, model: synth ? 'local' : null }); } catch {}
         const cwd = (prows.find((r) => r && r.cwd) || {}).cwd;
         if (cwd) { try { extra.writeHandoffToSync(cwd, '__fleet__', best, { name: proj }); } catch { /* SYNC.md best-effort */ } }
         this.data.refresh(true);
@@ -689,6 +715,10 @@ function getHtml() {
   .hoffp-st{font-size:9px;font-weight:600;color:#a78bfa;margin-bottom:5px;letter-spacing:.03em}
   .hoffp-pre{margin:0;max-height:260px;overflow:auto;font-family:var(--vscode-editor-font-family,monospace);font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--vscode-foreground)}
   .hoffp .hoffcopy{margin-top:7px;width:auto;padding:2px 10px}
+  /* ⇄ F2 live streaming: pulsing "a gerar narrativa…" indicator next to the status line */
+  .hoffp-st .gendot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#a78bfa;margin-right:5px;vertical-align:middle;animation:hoffgen 1s ease-in-out infinite}
+  @keyframes hoffgen{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+  @media (prefers-reduced-motion:reduce){.hoffp-st .gendot{animation:none}}
   /* WCOCKPIT-7: compact drawer — integrations inline & icon-only, per-session close, bulk clear */
   .sdrawer{margin-top:4px;padding-top:4px}
   .sseg{margin-top:0}
@@ -884,7 +914,23 @@ function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').f
 // skeleton → enriched via postMessage({type:'handoff'}); we never fabricate text webview-side.
 const hoffState={};
 function hoffPanelFor(id){const all=document.querySelectorAll('.hoffp');for(let i=0;i<all.length;i++){if(all[i].getAttribute('data-hoff')===id)return all[i];}return null;}
-function hoffApply(id,st){const p=hoffPanelFor(id);if(!p||!st)return;const pre=p.querySelector('.hoffp-pre');const stx=p.querySelector('.hoffp-st');if(pre)pre.textContent=st.text||'';if(stx){const s=st.status;stx.textContent=s==='enriched'?('✓ enriquecido'+(st.model?' com '+st.model:'')+' · recopiado'):(s==='ready'?'📋 copiado · a enriquecer com LLM local…':(s==='done'?'✓ copiado para o clipboard':'🐮 a gerar… (esqueleto pronto · narrativa local a encher)'));}p.hidden=false;if(pre)pre.scrollTop=pre.scrollHeight;}
+// ⇄ F2 live streaming states: 'ready' (skeleton — factos prontos+copiados · narrativa a gerar) →
+// 'streaming' (chunks a chegar — DOING/RECAP a aparecer sob o esqueleto) → 'done' (texto final fixo ·
+// recopiado · factos autoritativos · narrativa local best-effort). 'enriched'/'generating' = legacy compat.
+function hoffApply(id,st){const p=hoffPanelFor(id);if(!p||!st)return;const pre=p.querySelector('.hoffp-pre');const stx=p.querySelector('.hoffp-st');const s=st.status;const NL=String.fromCharCode(10);
+  // While generating, the deterministic skeleton (authoritative facts) stays on top and the local
+  // narrative concatenates LIVE underneath (marked best-effort). On 'done'/'enriched' the final text replaces it.
+  // NL via fromCharCode — a backslash-n escape here would be consumed by the getHtml template literal.
+  const live=(st.stream&&(s==='streaming'||s==='ready'))?(NL+NL+'⚡ narrativa (local best-effort):'+NL+st.stream):'';
+  if(pre)pre.textContent=(s==='done'||s==='enriched')?(st.text||''):((st.text||'')+live);
+  if(stx){
+    if(s==='done')stx.textContent='✓ '+(st.model?'narrativa '+st.model+' · ':'')+'recopiado · factos autoritativos · narrativa local best-effort';
+    else if(s==='enriched')stx.textContent='✓ enriquecido'+(st.model?' com '+st.model:'')+' · recopiado';
+    else if(s==='streaming')stx.innerHTML='<span class="gendot"></span>⚡ a gerar narrativa… ('+esc(st.model||'qwen local')+' · $0)';
+    else if(s==='ready')stx.innerHTML='<span class="gendot"></span>⚡ a gerar narrativa… (qwen local · $0) · factos prontos, copiados';
+    else stx.textContent='🐮 a gerar… (esqueleto pronto · narrativa local a encher)';
+  }
+  p.hidden=false;if(pre)pre.scrollTop=pre.scrollHeight;}
 function hydrateHoff(){for(const id in hoffState)hoffApply(id,hoffState[id]);}
 // Clicks inside a panel must not bubble to the session row (openSession) or the group collapse toggle.
 function wireHoff(root){(root||document).querySelectorAll('.hoffp').forEach(p=>{p.onclick=(e)=>{e.stopPropagation();};});(root||document).querySelectorAll('.projhandoff').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(o)o.call(b,e);};});
@@ -960,7 +1006,11 @@ function wireSessControls(root){
 window.addEventListener('message',(e)=>{
   // ⇄ Handoff v2.1 — live panel stream: skeleton 'ready' (copiado já) → 'enriched' (narrativa LLM
   // local · recopiado). 'generating'/'done' continuam suportados (compat). Store + apply.
-  if(e.data.type==='handoff'){const id=e.data.sid;if(id!=null){hoffState[id]={status:e.data.status,text:e.data.text||'',model:e.data.model||null};hoffApply(id,hoffState[id]);}return;}
+  if(e.data.type==='handoff'){const id=e.data.sid;if(id!=null){hoffState[id]={status:e.data.status,text:e.data.text||'',stream:'',model:e.data.model||null};hoffApply(id,hoffState[id]);}return;}
+  // ⇄ F2 live streaming: each token of the local narrative arrives as a 'handoff-stream' chunk and is
+  // concatenated under the skeleton; 'handoff-done' fixes the final text (facts + narrative) and re-enables Copiar.
+  if(e.data.type==='handoff-stream'){const id=e.data.sid;if(id!=null){const st=hoffState[id]||(hoffState[id]={status:'streaming',text:'',stream:'',model:null});st.status='streaming';st.stream=(st.stream||'')+(e.data.chunk||'');if(e.data.model)st.model=e.data.model;hoffApply(id,st);}return;}
+  if(e.data.type==='handoff-done'){const id=e.data.sid;if(id!=null){const st=hoffState[id]||(hoffState[id]={status:'done',text:'',stream:'',model:null});st.status='done';st.text=e.data.text||st.text||'';st.stream='';if(e.data.model)st.model=e.data.model;hoffApply(id,st);}return;}
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
