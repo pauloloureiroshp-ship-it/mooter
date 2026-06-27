@@ -1490,6 +1490,54 @@ test('WCOCKPIT-9 (Bloco C) gitHarmony: ≥2 sessões mesmo repo+branch → share
   assert.equal(x.gitHarmony(recent, '/elsewhere', 'main').shared, false, 'single session → not shared');
 });
 
+test('⇄ Handoff v3 gitSnapshot: mock-injectável; nunca lança; factsComplete false on failure', () => {
+  // Deterministic fake git: maps an args-substring to canned { ok, out }.
+  const fakeGit = (mapping) => (args) => {
+    const key = args.join(' ');
+    for (const k of Object.keys(mapping)) { if (key.includes(k)) return mapping[k]; }
+    return { ok: false, out: '' };
+  };
+  const recent = [
+    { fullId: 's1', cwd: '/repo', branch: 'wave/x' },
+    { fullId: 's2', cwd: '/repo', branch: 'wave/x' },
+  ];
+  const runGit = fakeGit({
+    'log -1': { ok: true, out: 'abc1234\tfeat: do the thing' },
+    'origin/main..HEAD': { ok: true, out: '3' },
+    'HEAD..origin/main': { ok: true, out: '0' },
+    'diff-tree': { ok: true, out: 'src/a.js\nsrc/b.js\nsrc/c.js' },
+    '@{u}..HEAD': { ok: true, out: '0' },
+  });
+  const snap = x.gitSnapshot('/repo', { runGit, recent, branch: 'wave/x' });
+  assert.deepEqual(snap.head, { sha7: 'abc1234', subject: 'feat: do the thing' }, 'HEAD parsed from log');
+  assert.equal(snap.baseAhead, 3);
+  assert.equal(snap.baseBehind, 0);
+  assert.equal(snap.filesCount, 3);
+  assert.deepEqual(snap.filesInHead, ['a.js', 'b.js', 'c.js'], 'basenames of HEAD files');
+  assert.equal(snap.pushed, true, 'upstream set + nothing un-pushed → pushed');
+  assert.equal(snap.mixedSessions, true, 'gitHarmony: 2 sessions same cwd+branch → mixed-sessions');
+  assert.equal(snap.factsComplete, true, 'all reads ok');
+  // PR object → pushed=prNumber, prStage reused
+  const snapPr = x.gitSnapshot('/repo', { runGit, recent: [], branch: 'wave/x', pr: { number: 42, state: 'OPEN', statusCheckRollup: [] } });
+  assert.equal(snapPr.pushed, 42, 'PR → prNumber (reuses prStage)');
+  // a failing read → factsComplete false (never fabricated)
+  const snapFail = x.gitSnapshot('/repo', { runGit: () => ({ ok: false, out: '' }), recent: [] });
+  assert.equal(snapFail.factsComplete, false, 'any failed read → factsComplete false');
+  assert.equal(snapFail.head, null, 'no head when log fails');
+  // never throws on bad cwd
+  assert.doesNotThrow(() => x.gitSnapshot(null, {}));
+  assert.equal(x.gitSnapshot(null, {}).factsComplete, false);
+});
+
+test('⇄ Handoff v3 gitSnapshot classifyFrozen: tri-state via classifyShaGuard', () => {
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const runGit = () => ({ ok: false, out: '' }); // classifyShaGuard reads disk, not git
+  const snap = x.gitSnapshot(repoRoot, { runGit, recent: [] });
+  assert.ok(snap.classifyFrozen === true || snap.classifyFrozen === null, 'frozen sha intact → true (or null if absent in this checkout)');
+  const none = x.gitSnapshot(path.join(os.tmpdir(), 'no-classify-' + process.pid), { runGit, recent: [] });
+  assert.equal(none.classifyFrozen, null, 'non-Mooter repo → null (never false)');
+});
+
 test('WCOCKPIT-9 (Bloco C) classifyShaGuard: frozen classify.js intacta → ok; repo sem ele → não bloqueia', () => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const g = x.classifyShaGuard(repoRoot);
@@ -1590,44 +1638,75 @@ test('⇄ Handoff extractPending: tail vazio / lixo → "—", [], stopped:false
   assert.equal(mid.stopped, false, 'assistant mid-work (last line is a tool_result) → not stopped');
 });
 
-test('⇄ Handoff generateHandoff: bate no §FORMATO exacto, campos presentes', () => {
-  const row = { fullId: 'abcd1234-dead-beef', id: 'abcd1234', name: 'fix the auth bug', cwd: '/home/p/myrepo',
-    branch: 'wave/x', model: 'claude-opus-4-8', mode: 'moo', auto: true, loop: false, turns: 12, saved: 1.2345,
-    gitStage: { state: 'uncommitted', dirty: 3, staged: 1, ahead: 0, behind: 0 }, notionPageId: 'np1', obsidianPath: '/vault/n.md' };
+test('⇄ Handoff v3 generateHandoff: bate no NOVO §FORMATO (pirâmide invertida), campos presentes', () => {
+  const row = { fullId: 'abcd1234-dead-beef', id: 'abcd1234', name: 'fix the auth bug now', cwd: '/home/p/myrepo',
+    branch: 'wave/x', model: 'claude-opus-4-8', mode: 'moo', turns: 20, saved: 1.2345,
+    gitStage: { state: 'uncommitted', dirty: 3, staged: 1, ahead: 0, behind: 0 },
+    notionSyncedAt: '2026-06-26T10:00:00', obsidianSyncedAt: '2026-06-26T12:00:00' };
+  const snapshot = { head: { sha7: 'c0ffee1', subject: 'fix the auth bug' }, baseAhead: 2, baseBehind: 0,
+    pushed: false, prStage: null, filesInHead: ['a.ts', 'b.ts'], filesCount: 2, classifyFrozen: true,
+    mixedSessions: false, factsComplete: true };
   const pending = { lastAssistantText: 'Should I push?', lastToolActions: [{ name: 'Edit', target: 'a.ts' }, { name: 'Bash', target: 'npm test' }], stopped: true };
-  const txt = x.generateHandoff(row, pending, { now: new Date('2026-06-26T14:05:00') });
-  assert.ok(txt.startsWith('⇄ MOOTER HANDOFF → cola no Cowork'), 'header line exact');
-  assert.ok(txt.includes('project: myrepo · session: fix the auth bug (abcd1234) · 2026-06-26 14:05'));
-  assert.ok(txt.includes('branch: wave/x · model: claude-opus-4-8 · mode: moo · auto:on loop:off'));
-  assert.ok(txt.includes('git: staged 1 · ahead 0 · dirty 3  |  turns: 12 · saved $1.23 (sessão)'));
-  assert.ok(txt.includes('state: 🟡 needs you') || txt.includes('state: ✅ idle'), 'state line present (no live flags on row → idle)');
-  assert.ok(txt.includes('▸ DOING: fix the auth bug'), 'no Ollama → falls back to the 1st prompt');
-  assert.ok(txt.includes('▸ LAST STEP: Edit a.ts · Bash npm test'));
-  assert.ok(txt.includes('▸ PENDING / STOPPED AT: Should I push?'));
-  assert.ok(txt.includes('▸ NEXT FOR COWORK: verificar gate · responder à pergunta · push após OK'));
-  assert.ok(txt.includes('▸ PERSIST: Cowork → regista este handoff no Notion (np1) e no vault (/vault/n.md)'));
-  assert.ok(txt.includes('links: SYNC.md  ·  branch wave/x'));
+  const txt = x.generateHandoff(row, pending, { mode: 'full', snapshot, deltaTurns: 18, now: new Date('2026-06-26T14:05:00') });
+  assert.ok(txt.startsWith('⇄ MOO HANDOFF · myrepo · fix the auth bug now/abcd1234 · 2026-06-26 14:05'), 'header pyramid line exact');
+  assert.ok(txt.includes('ASK:    answer'), 'ASK derived (stopped on a question)');
+  assert.ok(txt.includes('HEAD:   c0ffee1 "fix the auth bug"'), 'HEAD sha + subject');
+  assert.ok(txt.includes('BASE:   wave/x · main+2 · local (no push)'), 'BASE branch+position+push');
+  assert.ok(txt.includes('GATE:   classify.js ✓ frozen · HEAD toca 2 fich.: a.ts, b.ts'), 'GATE freeze + files');
+  assert.ok(txt.includes('TREE:   ⚠ 3 uncommitted fora do HEAD (ambiente)'), 'TREE uncommitted env changes');
+  assert.ok(txt.includes('FRESH:  vault') && txt.includes('Notion') && txt.includes('handoff agora'), 'FRESH stamps');
+  assert.ok(txt.includes('DELTA:  18 turnos · 2 commits desde o último handoff'), 'DELTA turns+commits');
+  assert.ok(txt.includes('PENDING:"Should I push?"'), 'PENDING verbatim, quoted');
+  assert.ok(txt.includes('DOING:  fix the auth bug now'), 'no opts.doing → DOING falls back to the 1st prompt');
+  assert.ok(txt.includes('LAST:   Edit a.ts · Bash npm test'), 'full mode shows LAST STEP (tool calls)');
+  assert.ok(txt.includes('NEXT:   responder à pergunta pendente acima'), 'NEXT keyed to the ASK');
+  assert.ok(txt.includes('model claude-opus-4-8 · mode moo · saved $1.23 (sessão)'), 'full: model/mode/saved line');
+  assert.ok(txt.includes('facts: complete'), 'full: facts footer present');
   assert.ok(txt.trimEnd().endsWith('⇄ END HANDOFF'));
 });
 
-test('⇄ Handoff generateHandoff: campos em falta → "—"; Ollama doing sobrepõe; nunca lança', () => {
+test('⇄ Handoff v3 generateHandoff: campos em falta → "—"; opts.doing sobrepõe; nunca lança', () => {
   const txt = x.generateHandoff({ fullId: 'x9', id: 'x9' }, { lastAssistantText: '—', lastToolActions: [], stopped: false }, { now: new Date('2026-01-01T00:00:00'), doing: 'wiring the handoff button' });
-  assert.ok(txt.includes('branch: — · model: — · mode: —'), 'missing fields rendered as —');
-  assert.ok(txt.includes('git: staged 0 · ahead 0 · dirty 0  |  turns: 0 · saved $0.00 (sessão)'));
-  assert.ok(txt.includes('▸ DOING: wiring the handoff button'), 'opts.doing (Ollama) overrides DOING');
-  assert.ok(txt.includes('▸ LAST STEP: —'));
-  assert.ok(txt.includes('▸ PENDING / STOPPED AT: —'));
-  assert.ok(txt.includes('no Notion (—) e no vault (—)'));
+  assert.ok(txt.includes('HEAD:   —'), 'no snapshot → HEAD —');
+  assert.ok(txt.includes('BASE:   — · main±0 · local (no push)'), 'no branch/ahead → — · main±0 · local');
+  assert.ok(txt.includes('GATE:   HEAD toca 0 fich.'), 'no files → 0 (classify.js segment absent when frozen unknown)');
+  assert.ok(txt.includes('TREE:   clean'), 'no gitStage → clean');
+  assert.ok(txt.includes('FRESH:  vault — · Notion — · handoff agora'), 'no stamps → —');
+  assert.ok(txt.includes('DELTA:  —'), 'no turns/commits → —');
+  assert.ok(txt.includes('PENDING:"—"'), 'empty pending → —');
+  assert.ok(txt.includes('DOING:  wiring the handoff button'), 'opts.doing overrides DOING');
+  assert.ok(txt.includes('ASK:    fyi'), 'no facts → fyi');
   assert.doesNotThrow(() => x.generateHandoff(null, null, {}), 'null row/pending must not throw');
   assert.ok(typeof x.generateHandoff(null, null, {}) === 'string');
 });
 
-test('⇄ Handoff generateHandoff: state reflecte working/needsYou/waitingForCowork (precedência)', () => {
-  const base = { id: 'a', name: 'n' };
-  assert.ok(x.generateHandoff(Object.assign({}, base, { working: true }), {}, {}).includes('state: 🟢 working'));
-  assert.ok(x.generateHandoff(Object.assign({}, base, { needsYou: true }), {}, {}).includes('state: 🟡 needs you'));
-  assert.ok(x.generateHandoff(Object.assign({}, base, { waitingForCowork: true }), {}, {}).includes('state: ⏳ waiting for you'));
-  assert.ok(x.generateHandoff(base, {}, {}).includes('state: ✅ idle'));
+test('⇄ Handoff v3 deriveAsk: os 6 casos (review p/ classify-changed E mixed-sessions)', () => {
+  assert.equal(x.deriveAsk({ classifyFrozen: false }, {}, {}), 'review', 'classify.js changed → review (nunca merge cego)');
+  assert.equal(x.deriveAsk({ mixedSessions: true }, {}, {}), 'review', 'mixed-sessions → review');
+  assert.equal(x.deriveAsk({}, { stopped: true, lastAssistantText: 'run tests?' }, {}), 'answer', 'stopped on a question → answer');
+  assert.equal(x.deriveAsk({ baseAhead: 2, pushed: false, head: { sha7: 'a' }, classifyFrozen: true }, {}, {}), 'verify+merge', 'fresh HEAD + ahead + not-pushed + frozen → verify+merge');
+  assert.equal(x.deriveAsk({ baseAhead: 1, pushed: 42 }, {}, {}), 'push-ok', 'ahead + PR → push-ok');
+  assert.equal(x.deriveAsk({ baseAhead: 1, pushed: 1, prStage: 'merged ✓' }, {}, {}), 'fyi', 'merged PR → fyi');
+  assert.equal(x.deriveAsk({ baseAhead: 0, pushed: false }, {}, {}), 'fyi', 'clean + nothing pending → fyi');
+  // SAFETY precedence: review wins over a pending question.
+  assert.equal(x.deriveAsk({ classifyFrozen: false }, { stopped: true, lastAssistantText: 'merge?' }, {}), 'review', 'review over answer');
+});
+
+test('⇄ Handoff v3 generateHandoff FRESH: ⚠ quando vault/Notion > 7d; em falta → —', () => {
+  const now = new Date('2026-06-27T00:00:00');
+  const stale = '2026-06-10T00:00:00';   // 17d ago → ⚠
+  const fresh = '2026-06-26T00:00:00';   // 1d ago → no ⚠
+  const txtStale = x.generateHandoff({ id: 'f', name: 'n', notionSyncedAt: stale, obsidianSyncedAt: stale }, {}, { now });
+  const fl = txtStale.split('\n').find((l) => l.startsWith('FRESH:'));
+  assert.ok(/vault \d+d ago ⚠/.test(fl), 'vault > 7d → ⚠');
+  assert.ok(/Notion \d+d ago ⚠/.test(fl), 'Notion > 7d → ⚠');
+  const txtFresh = x.generateHandoff({ id: 'f', name: 'n', notionSyncedAt: fresh, obsidianSyncedAt: fresh }, {}, { now });
+  const fl2 = txtFresh.split('\n').find((l) => l.startsWith('FRESH:'));
+  assert.ok(fl2.includes('vault 1d ago') && !fl2.includes('vault 1d ago ⚠'), 'fresh vault → no ⚠');
+  // vault mtime fallback (opts.vaultMtime) when no obsidianSyncedAt; absent → —
+  const txtMtime = x.generateHandoff({ id: 'f', name: 'n' }, {}, { now, vaultMtime: new Date(fresh).getTime() });
+  assert.ok(txtMtime.split('\n').find((l) => l.startsWith('FRESH:')).includes('vault 1d ago'), 'opts.vaultMtime feeds vault freshness');
+  assert.ok(x.generateHandoff({ id: 'f', name: 'n' }, {}, { now }).includes('FRESH:  vault — · Notion — · handoff agora'), 'no stamps → —');
 });
 
 test('⇄ Handoff writeHandoffToSync: UPSERT por sid (2ª chamada substitui, não acumula); atómico', () => {
@@ -1703,24 +1782,25 @@ test('⇄ Handoff webview-sim: botão sobrevive ao path fn.toString()+new Functi
   assert.ok(html.includes('⇄ Handoff'), 'label survives serialization');
 });
 
-test('⇄ Handoff host-side flow (handler sim): clipboard + handoffSentAt + SYNC.md upsert', () => {
+test('⇄ Handoff v3 host-side flow (handler sim): clipboard + handoffSentAt + SYNC.md upsert', () => {
   // Espelha a sequência do handler m.cmd==="handoff" SEM vscode: generate → clipboard(mock)
   // → setHandoff → writeHandoffToSync. (O handler real adiciona apenas clipboard.writeText + toast.)
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-handoff-'));
   const sid = 'handoff-sim-' + process.pid;
   const row = { fullId: sid, id: sid.slice(0, 8), name: 'wire the handoff button', cwd: tmpDir,
-    branch: 'wave/cockpit-handoff', model: 'claude-opus-4-8', mode: 'moo', auto: false, loop: false,
+    branch: 'wave/cockpit-handoff', model: 'claude-opus-4-8', mode: 'moo',
     turns: 7, saved: 0.9, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0, behind: 0 },
-    notionPageId: null, obsidianPath: null,
+    notionSyncedAt: null, obsidianSyncedAt: null,
     pending: { lastAssistantText: 'Ready to commit?', lastToolActions: [{ name: 'Write', target: 'host-extra.js' }], stopped: true } };
+  const snapshot = { head: null, baseAhead: 0, baseBehind: 0, pushed: false, prStage: null, filesInHead: [], filesCount: 0, classifyFrozen: null, mixedSessions: false, factsComplete: true };
   let clipboard = null; // mock de vscode.env.clipboard.writeText
-  const text = x.generateHandoff(row, row.pending, { now: new Date('2026-06-26T09:00:00') });
+  const text = x.generateHandoff(row, row.pending, { snapshot, now: new Date('2026-06-26T09:00:00') });
   clipboard = text;
   mr.setHandoff(sid);
   const w = x.writeHandoffToSync(row.cwd, sid, text, { name: row.name });
-  assert.ok(clipboard.includes('⇄ MOOTER HANDOFF'), 'clipboard holds the handoff text');
-  assert.ok(clipboard.includes('▸ PENDING / STOPPED AT: Ready to commit?'), 'pending question copied verbatim');
-  assert.ok(clipboard.includes('▸ LAST STEP: Write host-extra.js'), 'last tool-call copied');
+  assert.ok(clipboard.includes('⇄ MOO HANDOFF'), 'clipboard holds the handoff text');
+  assert.ok(clipboard.includes('PENDING:"Ready to commit?"'), 'pending question copied verbatim');
+  assert.ok(clipboard.includes('ASK:    answer'), 'action-first ASK present');
   const after = mr.get(sid);
   assert.ok(typeof after.handoffSentAt === 'string' && after.handoffSentAt.includes('T'), 'handoffSentAt recorded in the registry');
   assert.equal(w.ok, true, 'SYNC.md write ok');
@@ -1730,43 +1810,44 @@ test('⇄ Handoff host-side flow (handler sim): clipboard + handoffSentAt + SYNC
 });
 
 // ── ⇄ Handoff HÍBRIDO (esqueleto determinístico + narrativa local) — RECAP / SAVINGS / mode ──
-test('⇄ Handoff híbrido: full inclui RECAP (opts.recap); quick NÃO; LLM nunca toca no PENDING', () => {
+test('⇄ Handoff v3 híbrido: full inclui RECAP (opts.recap); quick NÃO; LLM nunca toca no PENDING', () => {
   const row = { id: 'h1', name: 'first prompt', turns: 20, branch: 'b' };
   const pending = { lastAssistantText: 'EXACT pending question?', lastToolActions: [], stopped: true };
   const full = x.generateHandoff(row, pending, { mode: 'full', doing: 'DOING line', recap: 'line1\nline2\nline3', now: new Date('2026-06-26T00:00:00') });
-  assert.ok(full.includes('▸ RECAP (local summary): line1'), 'full mode renders the RECAP line');
-  assert.ok(full.includes('line2') && full.includes('line3'), 'RECAP keeps its 3–5 lines');
+  assert.ok(full.includes('RECAP:') && full.includes('  line1'), 'full mode renders the RECAP block');
+  assert.ok(full.includes('  line2') && full.includes('  line3'), 'RECAP keeps its 3–5 lines');
   // quick mode DROPS the RECAP even when a recap string is supplied
   const quick = x.generateHandoff(row, pending, { mode: 'quick', recap: 'line1\nline2', now: new Date('2026-06-26T00:00:00') });
-  assert.ok(!quick.includes('▸ RECAP'), 'quick mode omits RECAP');
+  assert.ok(!quick.includes('RECAP:'), 'quick mode omits RECAP');
   // REGRA DURA: o LLM (doing/recap) NUNCA toca no PENDING — fica verbatim em ambos os modos
-  assert.ok(full.includes('▸ PENDING / STOPPED AT: EXACT pending question?'), 'PENDING verbatim under full');
-  assert.ok(quick.includes('▸ PENDING / STOPPED AT: EXACT pending question?'), 'PENDING verbatim under quick');
+  assert.ok(full.includes('PENDING:"EXACT pending question?"'), 'PENDING verbatim under full');
+  assert.ok(quick.includes('PENDING:"EXACT pending question?"'), 'PENDING verbatim under quick');
 });
 
-test('⇄ Handoff híbrido: LLM ausente (sem recap) → RECAP omitido mesmo em full; DOING cai no 1º prompt', () => {
+test('⇄ Handoff v3 híbrido: LLM ausente (sem recap) → RECAP omitido mesmo em full; DOING cai no 1º prompt', () => {
   const txt = x.generateHandoff({ id: 'h2', name: 'p', turns: 50 }, { lastAssistantText: 'q?', lastToolActions: [], stopped: true }, { mode: 'full', now: new Date('2026-06-26T00:00:00') });
-  assert.ok(!txt.includes('▸ RECAP'), 'no recap supplied (timeout/Ollama-down) → RECAP omitted');
-  assert.ok(txt.includes('▸ DOING: p'), 'DOING falls back to the 1st prompt');
+  assert.ok(!txt.includes('RECAP:'), 'no recap supplied (timeout/Ollama-down) → RECAP omitted');
+  assert.ok(txt.includes('DOING:  p'), 'DOING falls back to the 1st prompt');
 });
 
-test('⇄ Handoff §SAVINGS: rodapé só com estimativa positiva (estTokensSaved:0 → omite), antes de links', () => {
-  const row = { id: 'h3', name: 'p', turns: 3 };
+test('⇄ Handoff v3 §SAVINGS+facts: full only; estTokensSaved:0 → savings omitido; quick token-lean', () => {
+  const row = { id: 'h3', name: 'p', turns: 20 };
   const pending = { lastAssistantText: 'q?', lastToolActions: [], stopped: true };
   // Sem genModel (narrativa não correu) → rótulo determinístico HONESTO (nunca um motor inventado).
-  const withEst = x.generateHandoff(row, pending, { estTokensSaved: 1000, now: new Date('2026-06-26T00:00:00') });
+  const withEst = x.generateHandoff(row, pending, { mode: 'full', estTokensSaved: 1000, now: new Date('2026-06-26T00:00:00') });
   assert.ok(withEst.includes('compressed locally (T0 · deterministic — no local gen model · $0) · ~1k tok saved vs screenshot (est.)'), 'footer labelled estimate + deterministic engine');
-  assert.ok(withEst.indexOf('compressed locally') < withEst.indexOf('links: SYNC.md'), 'footer precedes the links line');
+  assert.ok(withEst.indexOf('compressed locally') < withEst.indexOf('facts:'), 'savings precedes the facts footer');
   assert.ok(withEst.trimEnd().endsWith('⇄ END HANDOFF'));
-  const noEst = x.generateHandoff(row, pending, { estTokensSaved: 0, now: new Date('2026-06-26T00:00:00') });
-  assert.ok(!noEst.includes('compressed locally'), 'sem estimativa → rodapé omitido (nunca um número fabricado)');
-  // default (no estTokensSaved) → estimated from text size → a positive footer is present
-  const def = x.generateHandoff(row, pending, { now: new Date('2026-06-26T00:00:00') });
-  assert.ok(def.includes('compressed locally (T0 · deterministic — no local gen model · $0)') && def.includes('tok saved vs screenshot (est.)'), 'default path estimates from text size');
+  const noEst = x.generateHandoff(row, pending, { mode: 'full', estTokensSaved: 0, now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!noEst.includes('compressed locally'), 'sem estimativa → savings omitido (nunca um número fabricado)');
+  assert.ok(noEst.includes('facts: complete'), 'facts footer still present without savings');
   // #3b — quando a narrativa local correu, o rodapé nomeia o modelo de geração REAL usado (T0 · <model> · $0).
-  const withModel = x.generateHandoff(row, pending, { estTokensSaved: 1000, genModel: 'qwen2.5:3b', now: new Date('2026-06-26T00:00:00') });
+  const withModel = x.generateHandoff(row, pending, { mode: 'full', estTokensSaved: 1000, genModel: 'qwen2.5:3b', now: new Date('2026-06-26T00:00:00') });
   assert.ok(withModel.includes('compressed locally (T0 · qwen2.5:3b · $0) · ~1k tok saved vs screenshot (est.)'), 'LLM ran → footer names the real gen model');
   assert.ok(!withModel.includes('deterministic'), 'model footer never also claims deterministic');
+  // TOKEN-LEAN: quick has NO savings/facts/model-saved line
+  const quick = x.generateHandoff(row, pending, { mode: 'quick', estTokensSaved: 1000, now: new Date('2026-06-26T00:00:00') });
+  assert.ok(!quick.includes('compressed locally') && !quick.includes('facts:') && !quick.includes('saved $'), 'quick is token-lean: no savings/facts/model-saved line');
 });
 
 test('⇄ Handoff #3 pickLocalGenModel: exclui embeddings, escolhe modelo de geração; só-embedding → null', () => {
@@ -1783,11 +1864,11 @@ test('⇄ Handoff #3 pickLocalGenModel: exclui embeddings, escolhe modelo de ger
   assert.equal(x.pickLocalGenModel([{ size: 1 }]), null, 'entrada sem nome → ignorada');
 });
 
-test('⇄ Handoff híbrido: mode default segue o tamanho da sessão (turns≥12 → full, senão quick)', () => {
+test('⇄ Handoff v3 híbrido: mode default segue o tamanho da sessão (turns≥12 → full, senão quick)', () => {
   const big = x.generateHandoff({ id: 'h4', name: 'p', turns: 12 }, { lastAssistantText: 'q?' }, { recap: 'R', now: new Date('2026-06-26T00:00:00') });
-  assert.ok(big.includes('▸ RECAP (local summary): R'), 'turns≥12 defaults to full → RECAP shown when supplied');
+  assert.ok(big.includes('RECAP:') && big.includes('  R'), 'turns≥12 defaults to full → RECAP shown when supplied');
   const small = x.generateHandoff({ id: 'h5', name: 'p', turns: 4 }, { lastAssistantText: 'q?' }, { recap: 'R', now: new Date('2026-06-26T00:00:00') });
-  assert.ok(!small.includes('▸ RECAP'), 'turns<12 defaults to quick → no RECAP');
+  assert.ok(!small.includes('RECAP:'), 'turns<12 defaults to quick → no RECAP');
 });
 
 test('⇄ Handoff ollamaRecap: contrato — Promise; Ollama-down → null (nunca lança/bloqueia)', async () => {
@@ -1837,18 +1918,19 @@ test('⇄ Handoff v2.1 handler-sim: 2 postMessages — esqueleto (ready) → enr
     model: 'claude-opus-4-8', turns: 20, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } };
   const pending = { lastAssistantText: 'EXACT pending verbatim?', lastToolActions: [{ name: 'Write', target: 'extension.js' }], stopped: true };
   const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+  const snapshot = { head: null, baseAhead: 0, baseBehind: 0, pushed: false, prStage: null, filesInHead: [], filesCount: 0, classifyFrozen: null, mixedSessions: false, factsComplete: true };
   const posts = [];
-  const skeleton = x.generateHandoff(row, pending, { mode });
+  const skeleton = x.generateHandoff(row, pending, { mode, snapshot });
   posts.push({ type: 'handoff', sid: row.fullId, status: 'ready', text: skeleton });
-  const enriched = x.generateHandoff(row, pending, { doing: 'narrativa local', recap: null, mode, genModel: 'qwen2.5:3b' });
+  const enriched = x.generateHandoff(row, pending, { doing: 'narrativa local', recap: null, mode, snapshot, genModel: 'qwen2.5:3b' });
   posts.push({ type: 'handoff', sid: row.fullId, status: 'enriched', text: enriched, model: 'qwen2.5:3b' });
   assert.equal(posts.length, 2, 'exactly two postMessages');
   assert.equal(posts[0].status, 'ready');
   assert.equal(posts[1].status, 'enriched');
   assert.equal(posts[1].model, 'qwen2.5:3b', 'enriched carries the local gen model name');
-  assert.ok(posts[0].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'skeleton carries PENDING verbatim');
-  assert.ok(posts[1].text.includes('▸ PENDING / STOPPED AT: EXACT pending verbatim?'), 'enriched keeps PENDING verbatim');
-  assert.ok(posts[0].text.includes('▸ LAST STEP: Write extension.js'), 'deterministic LAST STEP already in the skeleton');
+  assert.ok(posts[0].text.includes('PENDING:"EXACT pending verbatim?"'), 'skeleton carries PENDING verbatim');
+  assert.ok(posts[1].text.includes('PENDING:"EXACT pending verbatim?"'), 'enriched keeps PENDING verbatim');
+  assert.ok(posts[0].text.includes('LAST:   Write extension.js'), 'deterministic LAST STEP already in the full skeleton');
   assert.ok(posts[1].text !== posts[0].text, 'enriched text differs from the skeleton');
 });
 
@@ -1888,8 +1970,9 @@ test('⇄ Handoff v2 generateProjectHandoff: BOARD com as 3 flags (DUP · UNCOMM
     { id: 'bb', fullId: 'bb', name: 'session B', cwd: '/repo', branch: 'main', model: 'claude-sonnet-4-6', needsYou: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 2 } },
   ];
   const txt = x.generateProjectHandoff('Mooter.ai', rows, { now: new Date('2026-06-26T12:00:00') });
-  assert.ok(txt.includes('⇄ MOOTER PROJECT HANDOFF'), 'header present');
+  assert.ok(txt.includes('⇄ MOO PROJECT HANDOFF'), 'header present');
   assert.ok(txt.includes('project: Mooter.ai · 2 sessões'), 'session count + project name');
+  assert.ok(txt.includes('ASK:    2 sessões · '), 'action-first ASK aggregate at the top');
   assert.ok(txt.includes('DUP'), 'DUP flag (≥2 ACTIVE sessions same repo+branch)');
   assert.ok(txt.includes('UNCOMMITTED'), 'UNCOMMITTED flag (dirty>0)');
   assert.ok(txt.includes('UNPUSHED'), 'UNPUSHED flag (ahead>0)');
@@ -1897,6 +1980,25 @@ test('⇄ Handoff v2 generateProjectHandoff: BOARD com as 3 flags (DUP · UNCOMM
   assert.ok(txt.includes('▸ FLAGS: 1 DUP · 1 UNCOMMITTED · 1 UNPUSHED'), 'flag tallies are honest (group-counted)');
   assert.ok(txt.includes('session A (aa) · main · Opus 4.8') || txt.includes('session A (aa) · main · claude-opus-4-8'), 'per-session board line');
   assert.ok(txt.trimEnd().endsWith('⇄ END PROJECT HANDOFF'), 'closes with END marker');
+});
+
+test('⇄ Handoff v3 OVERALL: agrega ASKs no topo (ex.: 3 sessões · 1 verify+merge · 2 fyi · 0 review)', () => {
+  const rows = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r1', branch: 'main', working: true, gitStage: { dirty: 0, ahead: 1 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r2', branch: 'x', gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'c', fullId: 'c', name: 'C', cwd: '/r3', branch: 'y', gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(txt.includes('ASK:    3 sessões · 1 verify+merge · 2 fyi · 0 review'), 'deterministic ASK aggregate (review always shown)');
+  // a contested group (≥2 active, same cwd+branch) → both count as review (mixed sessions)
+  const contested = [
+    { id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat', working: true, gitStage: { dirty: 0, ahead: 0 } },
+    { id: 'b', fullId: 'b', name: 'B', cwd: '/r', branch: 'feat', needsYou: true, gitStage: { dirty: 0, ahead: 0 } },
+  ];
+  const t2 = x.generateProjectHandoff('P', contested, { now: new Date('2026-06-26T00:00:00') });
+  assert.ok(t2.includes('ASK:    2 sessões · 2 review'), 'contested group → review for both');
+  // no sessions → no ASK aggregate line at all
+  assert.ok(!x.generateProjectHandoff('Empty', [], {}).includes('ASK:'), '0 sessions → no ASK line');
 });
 
 test('⇄ Handoff v2 DUP (active-only): 3 idle em main → 0 DUP; 2 working mesma branch → DUP=1', () => {

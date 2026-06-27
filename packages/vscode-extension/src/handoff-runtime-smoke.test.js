@@ -110,7 +110,7 @@ test('Ollama DOWN: clipboard non-empty < 5s, PENDING verbatim, deterministic ske
   const ms = Date.now() - t0;
   assert.ok(ms < 5000, `handoff must ship < 5s with Ollama down (took ${ms}ms)`);
   assert.ok(text && text.length > 0, 'clipboard text is NON-EMPTY (never "nothing generated")');
-  assert.ok(text.includes('⇄ MOOTER HANDOFF'), 'deterministic skeleton present');
+  assert.ok(text.includes('⇄ MOO HANDOFF'), 'deterministic skeleton present');
   assert.ok(text.includes('EXACT pending question — verbatim?'), 'PENDING copied verbatim');
   assert.equal(mode, 'quick', 'turns 7 → quick mode');
 });
@@ -121,7 +121,7 @@ test('Ollama HUNG generate (quick): timeout aborts, clipboard < 5s, PENDING verb
   const { text } = await extra.composeHandoff(ROW_QUICK, ROW_QUICK.pending);
   const ms = Date.now() - t0;
   assert.ok(ms < 5000, `hung Ollama must not hang the clipboard (took ${ms}ms)`);
-  assert.ok(text && text.includes('⇄ MOOTER HANDOFF'), 'skeleton shipped despite hung Ollama');
+  assert.ok(text && text.includes('⇄ MOO HANDOFF'), 'skeleton shipped despite hung Ollama');
   assert.ok(text.includes('EXACT pending question — verbatim?'), 'PENDING verbatim under hang');
 });
 
@@ -133,7 +133,7 @@ test('Ollama HUNG generate (full/RECAP path): parallel doing+recap + deadline st
   // full mode would be ~6s if doing(2s) and recap(4s) ran SEQUENTIALLY — the bug. Parallel = ~4s.
   assert.ok(ms < 5000, `full-mode handoff must ship < 5s even when Ollama hangs (took ${ms}ms)`);
   assert.equal(mode, 'full', 'turns 20 → full mode');
-  assert.ok(text.includes('⇄ MOOTER HANDOFF'), 'skeleton shipped');
+  assert.ok(text.includes('⇄ MOO HANDOFF'), 'skeleton shipped');
   assert.ok(text.includes('EXACT pending question — verbatim?'), 'PENDING verbatim in full mode');
   assert.ok(timedOut === false || timedOut === true, 'timedOut flag is reported (telemetry)');
 });
@@ -164,7 +164,7 @@ test('keep-warm: every /api/generate body carries keep_alive "30m" (via composeH
   assert.ok(lastGenBody, 'live Ollama /api/generate was reached');
   assert.equal(lastGenBody.keep_alive, '30m', 'keep_alive "30m" renews the warm model on every generate');
   assert.equal(c.model, 'qwen2.5:3b', 'composeHandoff reports the local gen model when the narrative ran');
-  assert.ok(c.text.includes('⇄ MOOTER HANDOFF'), 'enriched text is still a valid handoff');
+  assert.ok(c.text.includes('⇄ MOO HANDOFF'), 'enriched text is still a valid handoff');
 });
 
 test('keep-warm: warmLocalGenModel fires a tiny generate with keep_alive "30m" (renew on warm)', async () => {
@@ -224,5 +224,5 @@ test('handler-sim (Ollama down): ready+clipboard only, NO enriched (skeleton sta
   assert.equal(posts.length, 1, 'no enriched post when Ollama is down');
   assert.equal(clips.length, 1, 'clipboard holds only the skeleton');
   assert.equal(c.model, null, 'composeHandoff reports a null model when no narrative ran');
-  assert.ok(clips[0].includes('⇄ MOOTER HANDOFF'), 'skeleton is non-empty (never "nothing generated")');
+  assert.ok(clips[0].includes('⇄ MOO HANDOFF'), 'skeleton is non-empty (never "nothing generated")');
 });

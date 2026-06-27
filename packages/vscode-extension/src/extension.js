@@ -391,6 +391,14 @@ class CockpitProvider {
         if (!row) { vscode.window.showWarningMessage('🐮 sessão não encontrada — refresca o cockpit e tenta outra vez.'); return; }
         const pending = row.pending || extra.extractPending([]);
         const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+        // ⇄ v3 deterministic facts (sync, best-effort) — computed ONCE so the skeleton AND the enriched
+        //  text share a single git read: HEAD/BASE/GATE/TREE snapshot, vault freshness, journal delta.
+        const recent = (this.data.snapshot && this.data.snapshot.recent) || [];
+        const snapshot = extra.gitSnapshot(row.cwd, { recent, branch: row.branch, pr: row.pr });
+        const vaultMtime = extra.vaultFreshness();
+        let deltaTurns = null;
+        try { const jl = extra.readJournalLast(row.fullId); if (jl && Number.isFinite(jl.n_turn)) deltaTurns = jl.n_turn; } catch { /* best-effort */ }
+        const v3 = { snapshot, vaultMtime, deltaTurns, recent };
         // ⇄ v2.1 BACKGROUND ENRICHMENT — o handoff copia SEMPRE, e enriquece DEPOIS:
         //  PASSO 1: esqueleto determinístico (git/branch/ficheiros + PENDING verbatim) revelado no
         //   painel ('ready') e COPIADO já, ANTES de qualquer await de LLM → o clipboard nunca espera.
@@ -398,7 +406,7 @@ class CockpitProvider {
         //   tem o esqueleto) corre a narrativa LLM local; SÓ quando ela CORREU (c.model!=null) e o
         //   texto mudou, substitui o painel ('enriched') e RE-COPIA. Ollama down/lento → fica o
         //   esqueleto (já copiado). O LLM NUNCA toca no PENDING. mode segue o tamanho da sessão.
-        const text0 = extra.generateHandoff(row, pending, { mode });
+        const text0 = extra.generateHandoff(row, pending, Object.assign({ mode }, v3));
         hoffCache[sid] = text0;
         try { view.webview.postMessage({ type: 'handoff', sid, status: 'ready', text: text0 }); } catch {}
         try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
@@ -406,7 +414,7 @@ class CockpitProvider {
         vscode.window.setStatusBarMessage('🐮 handoff copiado — a enriquecer com LLM local…', 5000);
         let best = text0;
         try {
-          const c = await extra.composeHandoff(row, pending, { mode, deadlineMs: 12000, doingMs: 11000, recapMs: 11500 });
+          const c = await extra.composeHandoff(row, pending, Object.assign({ mode, deadlineMs: 12000, doingMs: 11000, recapMs: 11500 }, v3));
           if (c && c.model && c.text && c.text !== text0) {
             best = c.text;
             hoffCache[sid] = best;

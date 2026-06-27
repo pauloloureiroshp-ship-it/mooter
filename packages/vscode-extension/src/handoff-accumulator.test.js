@@ -43,9 +43,9 @@ test('composeHandoff USES the rolling summary (instant, no Ollama) — DOING + R
   assert.ok(ms < 1000, `summary path is instant (took ${ms}ms, no cold-start)`);
   assert.equal(c.mode, 'full', 'turns 20 → full');
   assert.equal(c.model, 'qwen2.5:3b');
-  assert.ok(c.text.includes('▸ DOING: a ligar o acumulador ao handoff'), 'DOING = first summary line');
-  assert.ok(c.text.includes('▸ RECAP (local summary):'), 'RECAP present in full mode');
-  assert.ok(c.text.includes('EXACT pending question — verbatim?'), 'PENDING copied verbatim (LLM never touches it)');
+  assert.ok(c.text.includes('DOING:  a ligar o acumulador ao handoff'), 'DOING = first summary line');
+  assert.ok(c.text.includes('RECAP:'), 'RECAP present in full mode');
+  assert.ok(c.text.includes('PENDING:"EXACT pending question — verbatim?"'), 'PENDING copied verbatim (LLM never touches it)');
   assert.ok(c.text.includes('T0 · qwen2.5:3b · $0'), 'honest engine label from the rolling-summary model');
 });
 
@@ -53,7 +53,7 @@ test('composeHandoff backfills LAST STEP from the journal when live pending has 
   const row = { fullId: 'acc-1', id: 'acc-1', name: 'live context', turns: 20 };
   const pending = { lastAssistantText: 'Q?', lastToolActions: [] };
   const c = await extra.composeHandoff(row, pending);
-  assert.ok(c.text.includes('▸ LAST STEP: Edit host-extra.js'), 'LAST STEP backfilled from the journal entry');
+  assert.ok(c.text.includes('LAST:   Edit host-extra.js'), 'LAST STEP (full mode) backfilled from the journal entry');
 });
 
 test('fallback: no summary → on-demand path (Ollama down) ships the deterministic skeleton', async () => {
@@ -62,8 +62,8 @@ test('fallback: no summary → on-demand path (Ollama down) ships the determinis
   const c = await extra.composeHandoff(row, pending);
   assert.ok(!c.fromSummary, 'no summary → not the summary path');
   assert.equal(c.model, null, 'Ollama down → no narrative model');
-  assert.ok(c.text.includes('⇄ MOOTER HANDOFF'), 'deterministic skeleton present');
-  assert.ok(c.text.includes('still verbatim?'), 'PENDING verbatim on the fallback path too');
+  assert.ok(c.text.includes('⇄ MOO HANDOFF'), 'deterministic skeleton present');
+  assert.ok(c.text.includes('PENDING:"still verbatim?"'), 'PENDING verbatim on the fallback path too');
 });
 
 test('opts.noSummary forces the on-demand path even when a summary exists', async () => {
