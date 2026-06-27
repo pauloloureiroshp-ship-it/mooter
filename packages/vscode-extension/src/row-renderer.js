@@ -126,13 +126,22 @@ function renderRow(r, opts) {
   var _SMOD = [['','🐮 Auto'],['claude-opus-4-6','Opus'],['claude-sonnet-4-6','Sonnet'],['claude-haiku-4-5','Haiku']];
 
   var sel = (selSess === 'auto' && effSess === r.fullId) || selSess === r.fullId;
-  var nm = r.name || ('session ' + r.id);
+  // F1 (cowork title mirror): the REAL Cowork conversation title (durable mirror written by the
+  // Cowork side into .cowork-sessions.json, surfaced by mode-registry.decorate) LEADS the row name.
+  // Falls back to the CC 1st prompt (r.name), then to a synthetic id. NEVER fabricated — coworkTitle
+  // is null unless the Cowork side actually wrote it (producer documents that gap honestly). The 1st
+  // prompt is preserved as a subline (coworkSub below) + the row tooltip, so provenance stays visible.
+  var firstPrompt = r.name || ('session ' + r.id);
+  var nm = r.coworkTitle || firstPrompt;
 
   // Badge: cowork > working > needsYou > ago
   var badge;
   if (r.waitingForCowork) {
+    // The conversation title now leads the row name → don't repeat it in the badge when it is the
+    // same string (não dupliques o título); show just the live state. Badge itself always continues.
+    var cwTitleDup = !!(r.coworkTitle && r.coworkTitle === nm);
     var cLabel = r.coworkStatus === 'cowork_working'
-      ? ('waiting for Cowork — ' + esc(r.coworkTitle || 'deciding…'))
+      ? (cwTitleDup ? 'waiting for Cowork' : ('waiting for Cowork — ' + esc(r.coworkTitle || 'deciding…')))
       : (r.coworkStatus === 'pending' ? 'signalled Cowork…' : 'waiting for Cowork');
     badge = '<span class="coworkdot"></span><span class="coworktitle">' + cLabel + '</span>';
   } else if (r.working) {
@@ -236,6 +245,14 @@ function renderRow(r, opts) {
   var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="refresh Notion and Obsidian sync" title="refresh Notion/Obsidian sync">↺</button>';
   var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="close this session (archive, reversible)" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
   var ctrl = '<div class="sctrl">' + modelSel + autoBtn + loopBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
+
+  // ── F1: 1st-prompt subline (only when a Cowork title was promoted to the name) ──
+  // The conversation title leads; the CC prompt that started it stays one glance away (honest
+  // provenance), as a dim subline whose tooltip carries the full first prompt. Suppressed when there
+  // is no Cowork title (the name already IS the 1st prompt) or when they coincide.
+  var coworkSub = (r.coworkTitle && firstPrompt && firstPrompt !== nm)
+    ? '<div class="ssub coworksub" style="opacity:.6" title="' + esc(firstPrompt) + '">↳ ' + esc(firstPrompt) + '</div>'
+    : '';
 
   // ── Brain title ──
   var brainLine = (r.brainTitle && r.brainTitle !== nm)
@@ -386,7 +403,7 @@ function renderRow(r, opts) {
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
-    + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
+    + coworkSub + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + '</div>'
     + hoffPanel
     + '</div>'

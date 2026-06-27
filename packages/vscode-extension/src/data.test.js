@@ -2147,3 +2147,198 @@ test('⇄ Handoff v2 hoffCopy: re-copia da cache host-side (sessão ou projecto)
   // unknown id → nothing to copy (handler shows the honest "gera primeiro" toast)
   assert.equal(hoffCache['missing'], undefined, 'unknown id → no cached text');
 });
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ⇄ F1 — Cowork conversation title mirrored on the row (CONSUMER). The REAL Cowork title
+// LEADS the name; the CC 1st prompt is preserved as a ↳ subline; brain line + waiting badge
+// stay intact; nothing is fabricated (coworkTitle null → falls back to the 1st prompt).
+// Producer (loop sdk-runner.mjs writeCoworkSession + signal.ps1) already writes the durable
+// mirror honestly; these tests lock the consumer half (webview-sim path = exact runtime path).
+// ════════════════════════════════════════════════════════════════════════════════
+
+test('⇄ F1 renderRow: coworkTitle LEADS the name; 1st prompt preserved as ↳ subline', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { name: 'fix the auth bug now', coworkTitle: 'Cowork · auth refactor' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('<span class="sname">Cowork · auth refactor</span>'), 'cowork title is the primary name');
+  assert.ok(html.includes('↳ fix the auth bug now'), '1st prompt preserved as a ↳ subline');
+  assert.ok(html.includes('class="ssub coworksub"'), 'subline uses the coworksub class');
+  assert.ok(html.includes('open session: Cowork · auth refactor'), 'aria-label/tooltip leads with the cowork title');
+});
+
+test('⇄ F1 renderRow: no coworkTitle → name = 1st prompt; NO subline (never fabricated)', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { name: 'fix the auth bug now', coworkTitle: null });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('<span class="sname">fix the auth bug now</span>'), 'name falls back to the 1st prompt');
+  assert.ok(!html.includes('coworksub'), 'no cowork subline when there is no cowork title');
+  assert.ok(!html.includes('↳ '), 'no ↳ subline');
+});
+
+test('⇄ F1 renderRow: coworkTitle === 1st prompt → no redundant subline', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { name: 'same text', coworkTitle: 'same text' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('<span class="sname">same text</span>'));
+  assert.ok(!html.includes('coworksub'), 'identical title and prompt → no duplicate subline');
+});
+
+test('⇄ F1 renderRow: waiting-for-Cowork badge intact; title not duplicated when it IS the name', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { name: '1st prompt', coworkTitle: 'Deciding the merge', waitingForCowork: true, coworkStatus: 'cowork_working' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('class="coworkdot"') && html.includes('waiting for Cowork'), 'waiting badge continues');
+  assert.ok(html.includes('<span class="sname">Deciding the merge</span>'), 'cowork title is the name');
+  assert.ok(!html.includes('waiting for Cowork — Deciding the merge'), 'title not duplicated in the badge when it is the name');
+});
+
+test('⇄ F1 renderRow: brain line stays when brainTitle differs from the (cowork) name', () => {
+  const row = Object.assign({}, SAMPLE_ROW, { name: '1st prompt', coworkTitle: 'cowork title', brainTitle: 'a brain name' });
+  const html = _wvRenderRow(row, {});
+  assert.ok(html.includes('🧠 a brain name'), 'brain line intact when distinct from the name');
+  assert.ok(html.includes('<span class="sname">cowork title</span>'));
+});
+
+test('⇄ F1 renderRow: webview-sim stays concat-only after the F1 change (no backticks/${})', () => {
+  const src = rr.renderRow.toString();
+  assert.ok(!src.includes('`') && !src.includes('${'), 'renderRow source stays concat-only (embeds in getHtml template)');
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ⇄ F2 — Handoff narrative generated VISUALLY LIVE (token stream). Facts are deterministic
+// and instant (skeleton); the local narrative streams token-by-token; on failure/timeout it
+// falls back to the deterministic skeleton. Facts are authoritative; narrative is best-effort.
+// ════════════════════════════════════════════════════════════════════════════════
+
+test('⇄ F2 _ollamaGenerateStream: parses NDJSON → onChunk per token + assembled text (mock server)', async () => {
+  const chunks = [];
+  const srv = http.createServer((_q, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+    res.write(JSON.stringify({ response: 'fix ' }) + '\n');
+    res.write(JSON.stringify({ response: 'the ' }) + '\n');
+    res.write(JSON.stringify({ response: 'bug', done: true }) + '\n');
+    res.end();
+  });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+  const r = await x._ollamaGenerateStream('m', 'p', { port: srv.address().port, onChunk: (c) => chunks.push(c), timeoutMs: 2000 });
+  srv.close();
+  assert.equal(r.ok, true);
+  assert.equal(r.text, 'fix the bug', 'tokens assembled in order');
+  assert.deepEqual(chunks, ['fix ', 'the ', 'bug'], 'onChunk fired once per token (live)');
+});
+
+test('⇄ F2 _ollamaGenerateStream: server down → {ok:false,text:""} (never throws/hangs)', async () => {
+  const r = await x._ollamaGenerateStream('m', 'p', { port: 59998, timeoutMs: 400 });
+  assert.ok(r && r.ok === false && r.text === '', 'graceful failure → caller falls back to the skeleton');
+});
+
+test('⇄ F2 streamHandoffNarrative: streams chunks via onChunk + returns assembled doing (mock gen)', async () => {
+  const chunks = [];
+  const fakeStream = (model, prompt, opts) => { ['fix', 'ing ', 'auth'].forEach((c) => opts.onChunk(c)); return Promise.resolve({ ok: true, text: 'fixing auth' }); };
+  const r = await x.streamHandoffNarrative({ name: 'fix auth', turns: 2 }, { model: 'qwen2.5:3b', streamGen: fakeStream, onChunk: (c) => chunks.push(c) });
+  assert.ok(chunks.length >= 1, 'onChunk called ≥1 time → narrative builds live');
+  assert.equal(r.ok, true);
+  assert.equal(r.model, 'qwen2.5:3b', 'returns the local gen model name (honest §SAVINGS label)');
+  assert.ok(typeof r.doing === 'string' && r.doing.length > 0, 'assembled DOING line returned');
+});
+
+test('⇄ F2 streamHandoffNarrative: full mode streams DOING + RECAP (2 gen calls)', async () => {
+  let calls = 0;
+  const fakeStream = (model, prompt, opts) => { calls++; opts.onChunk('x'); return Promise.resolve({ ok: true, text: 'line one' }); };
+  const r = await x.streamHandoffNarrative({ name: 'big session', turns: 50 }, { mode: 'full', model: 'm', streamGen: fakeStream });
+  assert.equal(calls, 2, 'full mode streams both DOING and RECAP');
+  assert.ok(r.doing && r.recap, 'both narrative pieces present');
+});
+
+test('⇄ F2 streamHandoffNarrative: no gen model → ok:false (handler falls back), never throws', async () => {
+  const r = await x.streamHandoffNarrative({ name: 'n' }, { tagsModels: [] }); // pickLocalGenModel([]) → null
+  assert.equal(r.ok, false);
+  assert.equal(r.model, null);
+  assert.equal(r.doing, null);
+});
+
+test('⇄ F2 streamHandoffNarrative: stream rejects → ok:false (never throws → handler fallback)', async () => {
+  const boom = () => Promise.reject(new Error('stream died'));
+  const r = await x.streamHandoffNarrative({ name: 'n', turns: 2 }, { model: 'm', streamGen: boom });
+  assert.ok(r && r.ok === false, 'stream failure surfaced as ok:false, not an exception');
+});
+
+test('⇄ F2 streamHandoffNarrative: contract — Ollama-down → ok:false (bounded, never blocks)', async () => {
+  // No injection: hits the resolver against the real port; in CI nothing answers → ok:false fast.
+  const r = await x.streamHandoffNarrative({ name: 'n', turns: 2 }, { doingMs: 300, deadlineMs: 300 });
+  assert.ok(r && typeof r.ok === 'boolean');
+  if (!r.ok) { assert.equal(r.doing, null); }
+});
+
+test('⇄ F2 handler-sim (session): ready → ≥1 handoff-stream → handoff-done (final · PENDING verbatim · best-effort)', async () => {
+  // Mirrors m.cmd==="handoff": skeleton 'ready' (facts instant + copied) → live 'handoff-stream'
+  // per token → 'handoff-done' with the enriched text. PENDING stays verbatim; narrative best-effort.
+  const row = { fullId: 'f2', id: 'f2', name: 'wire live handoff', branch: 'wave/cockpit-cowork-live',
+    model: 'claude-opus-4-8', turns: 20, saved: 0.5, gitStage: { state: 'clean', dirty: 0, staged: 0, ahead: 0 } };
+  const pending = { lastAssistantText: 'EXACT pending?', lastToolActions: [{ name: 'Edit', target: 'host-extra.js' }], stopped: true };
+  const snapshot = { head: { sha7: 'abc1234', subject: 'live handoff' }, baseAhead: 1, baseBehind: 0, pushed: false, prStage: null, filesInHead: ['host-extra.js'], filesCount: 1, classifyFrozen: true, mixedSessions: false, factsComplete: true };
+  const mode = 'full';
+  const posts = [];
+  const text0 = x.generateHandoff(row, pending, { mode, snapshot });
+  posts.push({ type: 'handoff', sid: row.fullId, status: 'ready', text: text0 }); // facts skeleton, copied already
+  const fakeStream = (m2, p2, o2) => { ['fix', 'ing ', 'live'].forEach((c) => o2.onChunk(c)); return Promise.resolve({ ok: true, text: 'fixing live' }); };
+  const sres = await x.streamHandoffNarrative(row, { mode, model: 'qwen2.5:3b', streamGen: fakeStream,
+    lastToolActions: pending.lastToolActions, onChunk: (chunk) => posts.push({ type: 'handoff-stream', sid: row.fullId, chunk }) });
+  assert.ok(sres.ok, 'stream produced narrative');
+  const best = x.generateHandoff(row, pending, { mode, doing: sres.doing, recap: sres.recap, genModel: sres.model, bestEffort: true, snapshot });
+  posts.push({ type: 'handoff-done', sid: row.fullId, text: best, model: sres.model });
+  const streamPosts = posts.filter((p) => p.type === 'handoff-stream');
+  const donePost = posts.find((p) => p.type === 'handoff-done');
+  assert.equal(posts[0].status, 'ready', 'facts skeleton posted first (instant)');
+  assert.ok(posts[0].text.includes('HEAD:   abc1234'), 'deterministic facts present in the instant skeleton');
+  assert.ok(streamPosts.length >= 1, '≥1 handoff-stream emitted (live generation visible)');
+  assert.ok(donePost && donePost.text, 'handoff-done carries the final text');
+  assert.ok(donePost.text.includes('PENDING:"EXACT pending?"'), 'PENDING stays verbatim in the final text');
+  assert.ok(donePost.text.includes('local best-effort'), 'narrative marked (local best-effort) — facts authoritative');
+});
+
+test('⇄ F2 handler-sim (session): stream fails → handoff-done finalizes on the skeleton (never stuck)', async () => {
+  const row = { fullId: 'f3', id: 'f3', name: 'n', turns: 4 };
+  const pending = { lastAssistantText: 'q?', lastToolActions: [], stopped: true };
+  const snapshot = { head: null, baseAhead: 0, baseBehind: 0, pushed: false, prStage: null, filesInHead: [], filesCount: 0, classifyFrozen: null, mixedSessions: false, factsComplete: true };
+  const posts = [];
+  const text0 = x.generateHandoff(row, pending, { mode: 'quick', snapshot });
+  posts.push({ type: 'handoff', sid: row.fullId, status: 'ready', text: text0 });
+  const boom = () => Promise.reject(new Error('down'));
+  const sres = await x.streamHandoffNarrative(row, { mode: 'quick', model: 'm', streamGen: boom });
+  let best = text0; // fallback keeps the deterministic skeleton (facts always survive)
+  posts.push({ type: 'handoff-done', sid: row.fullId, text: best });
+  assert.equal(sres.ok, false, 'stream failure → ok:false');
+  const donePost = posts.find((p) => p.type === 'handoff-done');
+  assert.ok(donePost, 'handoff-done still fires → panel never stuck in "a gerar"');
+  assert.equal(donePost.text, text0, 'finalizes on the deterministic skeleton');
+});
+
+test('⇄ F2 streamProjectSynth: streams chunks + returns synth (mock); empty/no-model → ok:false', async () => {
+  const chunks = [];
+  const fakeStream = (m2, p2, o2) => { o2.onChunk('two sessions, '); o2.onChunk('one ahead'); return Promise.resolve({ ok: true, text: 'two sessions, one ahead' }); };
+  const rows = [{ id: 'a', name: 'A', branch: 'main', gitStage: { dirty: 0, ahead: 1 } }, { id: 'b', name: 'B', branch: 'main', gitStage: { dirty: 2, ahead: 0 } }];
+  const r = await x.streamProjectSynth(rows, { model: 'm', streamGen: fakeStream, onChunk: (c) => chunks.push(c) });
+  assert.ok(chunks.length >= 1, 'project synth streams live');
+  assert.equal(r.ok, true);
+  assert.ok(r.synth && r.synth.includes('two sessions'), 'assembled OVERALL synth returned');
+  assert.deepEqual(await x.streamProjectSynth([], {}), { ok: false, model: null, synth: null }, 'no rows → ok:false');
+  const noModel = await x.streamProjectSynth(rows, { tagsModels: [] });
+  assert.equal(noModel.ok, false, 'no gen model → ok:false (handler falls back to deterministic board)');
+});
+
+test('⇄ F2 handler-sim (project): ready → ≥1 handoff-stream → handoff-done (board, same visual pattern)', async () => {
+  const projKey = 'Mooter.ai';
+  const rows = [
+    { id: 'aa', fullId: 'aa', name: 'A', cwd: '/repo', branch: 'main', working: true, gitStage: { state: 'ahead', dirty: 0, staged: 0, ahead: 1 } },
+    { id: 'bb', fullId: 'bb', name: 'B', cwd: '/solo', branch: 'feat', gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0 } },
+  ];
+  const posts = [];
+  const text0 = x.generateProjectHandoff(projKey, rows, {});
+  posts.push({ type: 'handoff', sid: projKey, status: 'ready', text: text0 });
+  const fakeStream = (m2, p2, o2) => { o2.onChunk('overall '); o2.onChunk('synth'); return Promise.resolve({ ok: true, text: 'overall synth' }); };
+  const pres = await x.streamProjectSynth(rows, { model: 'm', streamGen: fakeStream, onChunk: (chunk) => posts.push({ type: 'handoff-stream', sid: projKey, chunk }) });
+  const best = x.generateProjectHandoff(projKey, rows, { synth: pres.synth });
+  posts.push({ type: 'handoff-done', sid: projKey, text: best, model: 'local' });
+  assert.equal(posts[0].status, 'ready', 'board skeleton posted first');
+  assert.ok(posts.filter((p) => p.type === 'handoff-stream').length >= 1, '≥1 handoff-stream (project live)');
+  const donePost = posts.find((p) => p.type === 'handoff-done');
+  assert.ok(donePost && donePost.sid === projKey, 'handoff-done keyed by the project key (matches the panel data-hoff)');
+  assert.ok(donePost.text.includes('overall synth'), 'final board carries the streamed OVERALL synth');
+});
