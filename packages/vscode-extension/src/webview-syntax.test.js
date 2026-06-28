@@ -16,7 +16,7 @@ function renderHtml() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const req = (name) => { if (name === 'vscode') return vscodeStub; if (name === './cowork-waiting' || name === './mode-registry' || name === './row-renderer') return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
+  const req = (name) => { if (name === 'vscode') return vscodeStub; if (name === './cowork-waiting' || name === './mode-registry' || name === './row-renderer' || name === './arch-tree') return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
