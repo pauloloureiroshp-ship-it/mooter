@@ -336,7 +336,7 @@ export default function CockpitSection() {
         .cockpit-section{
           --bg:#0B0A09; --bg2:#121110; --bg3:#1A1816; --line:#2A2724;
           --ink:#F4EFE7; --ink2:#B8AFA2; --ink3:#7C746A;
-          --moo:#E8B04B; --moo2:#F2C66A; --save:#5FB87A;
+          --moo:var(--color-accent); --moo2:var(--color-accent-2); --save:#5FB87A;
           --local:#5FB87A; --haiku:#6FA8DC; --sonnet:#C39BD3; --opus:#E8835A;
           --cs-mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
           --cs-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
@@ -360,14 +360,14 @@ export default function CockpitSection() {
         /* floating mock + soft amber glow (Conductor-style, no OS chrome) */
         .cockpit-section .cs-stage{position:relative;display:flex;justify-content:center}
         .cockpit-section .cs-stage::before{content:"";position:absolute;inset:-44px -24px;
-          background:radial-gradient(60% 55% at 50% 26%, rgba(232,176,75,.16), transparent 70%);
+          background:radial-gradient(60% 55% at 50% 26%, rgba(232,136,138,.16), transparent 70%);
           z-index:0;pointer-events:none}
         .cockpit-section .cs-cockpit{position:relative;z-index:1;background:var(--bg2);border:1px solid var(--line);
           border-radius:14px;overflow:hidden;width:300px;max-width:100%;font-size:12px;
-          box-shadow:0 28px 60px -26px rgba(0,0,0,.85), 0 0 0 1px rgba(232,176,75,.04);
+          box-shadow:0 28px 60px -26px rgba(0,0,0,.85), 0 0 0 1px rgba(232,136,138,.04);
           transition:transform .25s ease, box-shadow .25s ease}
         .cockpit-section .cs-cockpit:hover{transform:translateY(-3px);
-          box-shadow:0 38px 72px -26px rgba(0,0,0,.9), 0 0 0 1px rgba(232,176,75,.12)}
+          box-shadow:0 38px 72px -26px rgba(0,0,0,.9), 0 0 0 1px rgba(232,136,138,.12)}
         .cockpit-section .cs-cock-h{display:flex;align-items:center;gap:7px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg3);font-family:var(--cs-mono);font-size:11px;color:var(--ink2)}
         .cockpit-section .cs-cock-h .cs-score{margin-left:auto;color:var(--moo)}
 
@@ -392,7 +392,7 @@ export default function CockpitSection() {
         .cockpit-section .cs-codeline .cs-d{color:var(--moo)}
 
         /* approvals — Mission-Control control-plane feel, not a passive dashboard */
-        .cockpit-section .cs-approve{background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.35);border-radius:9px;padding:9px 10px;margin-bottom:10px}
+        .cockpit-section .cs-approve{background:rgba(232,136,138,.08);border:1px solid rgba(232,136,138,.35);border-radius:9px;padding:9px 10px;margin-bottom:10px}
         .cockpit-section .cs-approve .cs-ah{font-family:var(--cs-mono);font-size:10px;color:var(--moo);display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.06em}
         .cockpit-section .cs-led{width:7px;height:7px;border-radius:50%;background:var(--moo);box-shadow:0 0 8px var(--moo);display:inline-block}
         .cockpit-section .cs-approve .cs-an{font-size:11.5px;color:var(--ink);margin:5px 0 2px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -414,7 +414,7 @@ export default function CockpitSection() {
         .cockpit-section .cs-sess .cs-meta{color:var(--ink3);font-size:10px;padding-left:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .cockpit-section .cs-sess .cs-out{color:var(--ink2)}
         .cockpit-section .cs-state{font-size:9.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--ink3);white-space:nowrap}
-        .cockpit-section .cs-state.cs-needs{color:var(--moo);border-color:rgba(232,176,75,.5)}
+        .cockpit-section .cs-state.cs-needs{color:var(--moo);border-color:var(--color-accent-25)}
         .cockpit-section .cs-state.cs-run{color:var(--save);border-color:rgba(95,184,122,.4)}
 
         .cockpit-section .cs-badge{font-family:var(--cs-mono);font-size:9.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--line)}
@@ -427,8 +427,8 @@ export default function CockpitSection() {
         .cockpit-section .cs-handoff-demo .cs-hh{color:var(--moo)}
         .cockpit-section .cs-handoff-demo .cs-ok{color:var(--save)}
         .cockpit-section .cs-handoff-demo .cs-yl{color:var(--moo2)}
-        .cockpit-section .cs-handoff-btn{width:100%;margin:10px 0 0;background:rgba(232,176,75,.08);border:1px dashed rgba(232,176,75,.5);color:var(--moo);border-radius:8px;padding:8px;font-family:var(--cs-mono);font-size:11px;cursor:pointer;transition:.15s}
-        .cockpit-section .cs-handoff-btn:hover{background:rgba(232,176,75,.14)}
+        .cockpit-section .cs-handoff-btn{width:100%;margin:10px 0 0;background:var(--color-accent-08);border:1px dashed var(--color-accent-25);color:var(--moo);border-radius:8px;padding:8px;font-family:var(--cs-mono);font-size:11px;cursor:pointer;transition:.15s}
+        .cockpit-section .cs-handoff-btn:hover{background:rgba(232,136,138,.14)}
 
         .cockpit-section .cs-doc{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-family:var(--cs-mono);font-size:11px}
         .cockpit-section .cs-doc:first-child{border-top:0}
