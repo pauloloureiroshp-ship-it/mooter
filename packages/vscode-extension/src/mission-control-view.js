@@ -51,6 +51,37 @@ function renderMissionControl(snapshot) {
     var t = title ? ' title="' + esc(title) + '"' : '';
     return '<button class="mc-btn ' + (cls || '') + '" data-a="' + esc(cmd) + '"' + x + t + '>' + label + '</button>';
   }
+  // Clean a path-y name to its last segment ("…/frugal" → "frugal"). Render-only, honest.
+  function cleanName(p) {
+    var x = String(p == null ? '' : p).replace(/[\\/]+$/, '');
+    var i = Math.max(x.lastIndexOf('/'), x.lastIndexOf('\\'));
+    return i >= 0 ? x.slice(i + 1) : x;
+  }
+  // Loop kind → icon (mock identity): 🔁 autorev/inspection · ⚙️ evaluator · 🛸 fleet · 🔍 inspection.
+  function loopIcon(kind) {
+    var k = String(kind || '').toLowerCase();
+    if (/fleet/.test(k)) return '🛸';
+    if (/eval/.test(k)) return '⚙️';
+    if (/inspect/.test(k)) return '🔍';
+    return '🔁';
+  }
+  // Pillar (arquitectura) de uma sessão — derivado do tópico/nome (best-effort, honesto).
+  function pillarOf(ss) {
+    var x = String((ss && (ss.topic || ss.name)) || '').toLowerCase();
+    if (/ux|\bui\b|cockpit|webview|css|design|interface|component|visual|polish|landing/.test(x)) return { id: 'ui', emoji: '🎨', name: 'UI/UX' };
+    if (/router|routing|classif|algo|tier|pastor|\bmodel\b|prompt|eval/.test(x)) return { id: 'router', emoji: '🧮', name: 'Router' };
+    if (/infra|hub|deploy|\bci\b|devops|sync|handoff|server|\bapi\b|pipeline|release|secur/.test(x)) return { id: 'infra', emoji: '🤝', name: 'Infra' };
+    return { id: 'outros', emoji: '🧩', name: 'Outros' };
+  }
+  // Git state → branch colour class (git-graph): need > working > ahead > dirty > idle.
+  function gitStateMc(ss) {
+    var g = (ss && ss.git) || {};
+    if (ss && ss.needsYou) return 'mc-st-need';
+    if (ss && ss.status === 'working') return 'mc-st-work';
+    if (g.ahead != null && g.ahead > 0) return 'mc-st-ahead';
+    if (g.dirty != null && g.dirty > 0) return 'mc-st-dirty';
+    return 'mc-st-idle';
+  }
 
   var s = snapshot || {};
   var sessions = Array.isArray(s.sessions) ? s.sessions : [];
@@ -67,7 +98,7 @@ function renderMissionControl(snapshot) {
 
   // ── 1 · Cabeçalho + pilot actions ─────────────────────────────────────────
   out += '<div class="mc-head">'
-    + '<div class="mc-title">🎛️ Mission Control <span class="mc-proj">' + nd(s.project) + '</span></div>'
+    + '<div class="mc-title">🎛️ Mission Control <span class="mc-proj">' + nd(cleanName(s.project)) + '</span></div>'
     + '<div class="mc-pilot">'
     + btn('⏸ Pausar tudo', 'pauseAll', null, 'mc-warn', 'escreve a flag global de pausa (os runners honram-na)')
     + btn('▶ Retomar', 'resumeAll', null, '', 'limpa a flag de pausa')
@@ -92,14 +123,24 @@ function renderMissionControl(snapshot) {
 
   // ── 3 · Breakdown por projecto ────────────────────────────────────────────
   out += '<div class="mc-card"><div class="mc-lbl">📦 Por projecto</div><div class="mc-chips">';
+  var realProj = {};
   if (projects.length) {
     for (var pi = 0; pi < projects.length; pi++) {
       var p = projects[pi] || {};
+      var pn0 = p.name || '?';
+      realProj[String(pn0).toLowerCase()] = true;
       var pdot = (p.status === 'active') ? '<span class="mc-dot mc-work"></span>' : '<span class="mc-dot mc-idle">⚪</span>';
-      out += '<span class="mc-chip">' + pdot + esc(p.name || '?') + ' <b>' + (p.sessions != null ? esc(p.sessions) : '0') + '</b></span>';
+      out += '<span class="mc-chip">' + pdot + esc(cleanName(pn0)) + ' <b>' + (p.sessions != null ? esc(p.sessions) : '0') + '</b></span>';
     }
   } else {
     out += '<span class="mc-nd">n/d — sem projectos no snapshot</span>';
+  }
+  // Frozen portfolio (mock identity): projectos sem sessões vivas → ❄ sem contagem (honesto, n/d).
+  var PORTFOLIO = ['frugal', 'Cloude Home', 'Speaker', 'Marley'];
+  for (var fz = 0; fz < PORTFOLIO.length; fz++) {
+    if (!realProj[PORTFOLIO[fz].toLowerCase()]) {
+      out += '<span class="mc-chip mc-frozen" title="portfolio — sem sessões vivas aqui (n/d, honesto)">❄ ' + esc(PORTFOLIO[fz]) + '</span>';
+    }
   }
   out += '</div>';
 
@@ -136,7 +177,7 @@ function renderMissionControl(snapshot) {
       }
       out += '</div>';
     }
-    out += '<div class="mc-gpuact">' + btn('＋ spawn moo na GPU', 'spawnMoo', 'qwen3:30b', 'mc-ok') + '</div>';
+    out += '<div class="mc-gpuact">' + btn('🔥 Overclock · Full Moo', 'spawnMoo', 'qwen3:30b', 'mc-ok mc-overclock', 'enche a GPU de workers locais — overclock total ($0)') + '</div>';
   } else {
     out += '<div class="mc-nd">⚪ n/d — nvidia-smi não escreveu cache (sem GPU NVIDIA ou monitor parado)</div>';
   }
@@ -151,6 +192,7 @@ function renderMissionControl(snapshot) {
       var rnd = (num(lp.round) != null) ? (lp.round + (num(lp.maxRounds) != null ? '/' + lp.maxRounds : '')) : null;
       out += '<div class="mc-loop ' + (lp.active ? 'mc-on' : '') + '">'
         + (lp.active ? '<span class="mc-dot mc-work"></span>' : '<span class="mc-dot mc-idle">⚪</span>')
+        + '<span class="mc-loopico" title="tipo de loop">' + loopIcon(lp.kind || lp.id) + '</span>'
         + '<b>' + esc(lp.kind || lp.id || 'loop') + '</b>'
         + ' · ronda ' + (rnd == null ? nd(null) : rnd)
         + ' · ' + nd(lp.model)
@@ -163,32 +205,37 @@ function renderMissionControl(snapshot) {
   }
   out += '</div>';
 
-  // ── 6 · Git-graph de worktrees (clicar ramo → openSession) ────────────────
+  // ── 6 · Git-graph de worktrees — spine vertical do 🌿 main + ramos coloridos por estado
+  //         (✎dirty ↑ahead · modelo·tokens · clicar ramo → openSession) ──────────────────
   var wtRows = [];
   for (var wi = 0; wi < sessions.length; wi++) {
     var ws = sessions[wi] || {};
     var wg = ws.git || {};
     if (ws.worktree || wg.branch) wtRows.push(ws);
   }
-  out += '<div class="mc-card"><div class="mc-lbl">🌳 Worktrees</div>';
+  out += '<div class="mc-card"><div class="mc-lbl">🌳 Git-graph · worktrees</div>';
   if (wtRows.length) {
-    out += '<div class="mc-tree">';
+    out += '<div class="mc-git"><div class="mc-gmain"><span class="mc-gnode mc-main"></span><b>🌿 main</b></div>';
     for (var wj = 0; wj < wtRows.length; wj++) {
       var t = wtRows[wj] || {};
       var tg = t.git || {};
       var marks = '';
-      if (num(tg.dirty) != null && tg.dirty > 0) marks += ' <span class="mc-mark mc-warn">✎' + tg.dirty + '</span>';
-      if (num(tg.ahead) != null && tg.ahead > 0) marks += ' <span class="mc-mark">↑' + tg.ahead + '</span>';
+      if (num(tg.dirty) != null && tg.dirty > 0) marks += ' <span class="mc-mark mc-warn" title="por commitar">✎' + tg.dirty + '</span>';
+      if (num(tg.ahead) != null && tg.ahead > 0) marks += ' <span class="mc-mark" title="por enviar (push)">↑' + tg.ahead + '</span>';
       if (tg.pushNeeded === true) marks += ' <span class="mc-mark mc-warn">push</span>';
-      var label = '<span class="mc-twt">🌳 ' + nd(t.worktree) + '</span>'
+      var tmodel = t.model ? (' <span class="mc-gmodel" title="modelo">' + esc(t.model) + '</span>') : '';
+      var ttok = (num(t.tokIn) != null || num(t.tokOut) != null) ? (' <span class="mc-gtok" title="tokens in/out">' + fmtk(t.tokIn || 0) + '↓ ' + fmtk(t.tokOut || 0) + '↑</span>') : '';
+      var label = '<span class="mc-gnode ' + gitStateMc(t) + '"></span>'
         + '<span class="mc-tbr">' + esc('⎇ ') + nd(tg.branch) + '</span>'
         + (tg.sha ? '<span class="mc-tsha">' + esc(String(tg.sha).slice(0, 7)) + '</span>' : '')
-        + marks;
+        + marks
+        + (t.worktree ? ' <span class="mc-twt" title="worktree">🌳 ' + esc(cleanName(t.worktree)) + '</span>' : '')
+        + tmodel + ttok;
       // clicar → abre a sessão exacta deste ramo (openSession aceita o sid).
       if (t.sid) {
-        out += '<button class="mc-treerow" data-a="openSession" data-x="' + esc(t.sid) + '" title="abrir esta sessão no VSCode">' + label + '</button>';
+        out += '<button class="mc-gitrow mc-treerow ' + gitStateMc(t) + '" data-a="openSession" data-x="' + esc(t.sid) + '" title="abrir esta sessão no VSCode">' + label + '</button>';
       } else {
-        out += '<div class="mc-treerow mc-nolink" title="sem sessão ligada">' + label + '</div>';
+        out += '<div class="mc-gitrow mc-treerow mc-nolink" title="sem sessão ligada">' + label + '</div>';
       }
     }
     out += '</div>';
@@ -197,16 +244,17 @@ function renderMissionControl(snapshot) {
   }
   out += '</div>';
 
-  // ── 7 · Sessões (agrupadas por worktree quando há; senão lista única) ──────
+  // ── 7 · Sessões agrupadas por arquitectura (🎨 UI/UX · 🧮 Router · 🤝 Infra · 🧩 Outros) ──
+  //         Cada card: emoji+nome · modelo · tokens(ctx%) · 🐮 vaquinha · 🔁 loop · estado · N/O · 🔗git · 🌳+subtree.
   out += '<div class="mc-card"><div class="mc-lbl">🧵 Sessões <span class="mc-cnt">' + sessions.length + '</span></div>';
   if (sessions.length) {
     var CAP = 40;
     var shown = sessions.slice(0, CAP);
-    out += '<div class="mc-sess">';
-    for (var si = 0; si < shown.length; si++) {
-      var ss = shown[si] || {};
+    function sessionCard(ss) {
+      ss = ss || {};
       var sg = ss.git || {};
       var syn = ss.sync || {};
+      var pil = pillarOf(ss);
       var nflag = (syn.notion ? '<span class="mc-syn mc-ok" title="Notion sincronizado">N</span>' : '<span class="mc-syn mc-off" title="Notion n/d">N</span>');
       var oflag = (syn.obsidian ? '<span class="mc-syn mc-ok" title="Obsidian sincronizado">O</span>' : '<span class="mc-syn mc-off" title="Obsidian n/d">O</span>');
       var dev = ss.device ? ('<span class="mc-dev" title="dispositivo remoto">🛰️ ' + esc(ss.device) + '</span>') : '<span class="mc-dev mc-local" title="esta máquina">💻</span>';
@@ -220,8 +268,9 @@ function renderMissionControl(snapshot) {
         : '<span class="mc-nd">🔗 n/d</span>';
       var loopBadge = ss.loop ? '<span class="mc-badge" title="loop">🔁</span>' : '';
       var autoBadge = ss.auto ? '<span class="mc-badge" title="auto">⚡</span>' : '';
-      out += '<div class="mc-srow">'
+      return '<div class="mc-srow ' + gitStateMc(ss) + '">'
         + '<div class="mc-sl">' + statusDot(ss.status) + '<span class="mc-cow" title="modo ' + esc(ss.mode || 'n/d') + '">' + mooEmoji(ss.mode) + '</span>'
+        + '<span class="mc-stop" title="' + esc(pil.name) + '">' + pil.emoji + '</span>'
         + '<b class="mc-sname">' + nd(ss.name) + '</b>' + loopBadge + autoBadge + '</div>'
         + '<div class="mc-sm">' + tierChip(ss.tier) + ' <span class="mc-model">' + nd(ss.model) + '</span>'
         + ' · ' + (tok == null ? '<span class="mc-nd">tokens n/d</span>' : tok)
@@ -230,7 +279,21 @@ function renderMissionControl(snapshot) {
         + (ss.sid ? ' ' + btn('🌳＋', 'subtree', ss.sid, 'mc-mini', 'liga uma subárvore de moos a esta sessão') : '')
         + '</div></div>';
     }
-    out += '</div>';
+    var order = ['ui', 'router', 'infra', 'outros'];
+    var meta = { ui: { emoji: '🎨', name: 'UI/UX' }, router: { emoji: '🧮', name: 'Router' }, infra: { emoji: '🤝', name: 'Infra' }, outros: { emoji: '🧩', name: 'Outros' } };
+    var groups = { ui: [], router: [], infra: [], outros: [] };
+    for (var gi2 = 0; gi2 < shown.length; gi2++) {
+      var pid = pillarOf(shown[gi2]).id;
+      (groups[pid] || groups.outros).push(shown[gi2]);
+    }
+    for (var oi = 0; oi < order.length; oi++) {
+      var key = order[oi];
+      var arr = groups[key];
+      if (!arr.length) continue;
+      out += '<div class="mc-pgrp"><div class="mc-pgrp-h">' + meta[key].emoji + ' ' + esc(meta[key].name) + ' <span class="mc-cnt">' + arr.length + '</span></div><div class="mc-sess">';
+      for (var ci = 0; ci < arr.length; ci++) out += sessionCard(arr[ci]);
+      out += '</div></div>';
+    }
     if (sessions.length > CAP) out += '<div class="mc-sub">+' + (sessions.length - CAP) + ' sessões não mostradas</div>';
   } else {
     out += '<div class="mc-nd">⚪ sem sessões no snapshot</div>';

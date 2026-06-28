@@ -128,6 +128,29 @@ function renderArchTree(snapshot, mode) {
     if (sess && sess.auto) out += '<span class="arch-flow auto" title="auto-pilot: Moo adapta o modelo à tarefa">⚡</span>';
     return out;
   }
+  // Clean a possibly-path-y name to its last segment ("…/frugal" → "frugal"). Render-only, honest.
+  function cleanName(p) {
+    var x = String(p == null ? '' : p).replace(/[\\/]+$/, '');
+    var i = Math.max(x.lastIndexOf('/'), x.lastIndexOf('\\'));
+    return i >= 0 ? x.slice(i + 1) : x;
+  }
+  // Pulsing status dot — 🟢 trabalha · 🟡 precisa-de-ti · 🔵 feito (mock identity).
+  function statusDotA(sess) {
+    var needs = sess && sess.needsYou;
+    var work = sess && sess.status === 'working';
+    var cls = needs ? 'need' : (work ? 'work' : 'done');
+    var tip = needs ? 'precisa de ti' : (work ? 'a trabalhar agora' : 'feito · em pausa');
+    return '<span class="arch-sdot ' + cls + '" title="' + tip + '"></span>';
+  }
+  // Git state → branch colour class (working-tree graph): need > working > ahead > dirty > idle.
+  function gitState(sess) {
+    var g = (sess && sess.git) || {};
+    if (sess && sess.needsYou) return 'st-need';
+    if (sess && sess.status === 'working') return 'st-work';
+    if (g.ahead != null && g.ahead > 0) return 'st-ahead';
+    if (g.dirty != null && g.dirty > 0) return 'st-dirty';
+    return 'st-idle';
+  }
 
   // ── One session leaf (shared by Árvore + CEO) — clickable → openSession ──
   function sessionLeaf(sess) {
@@ -151,6 +174,7 @@ function renderArchTree(snapshot, mode) {
     return '<div class="arch-leaf' + (sess.needsYou ? ' needs' : '') + '"' + open
       + ' aria-label="abrir sessão: ' + esc(name) + '" title="abrir esta sessão no Claude Code — ' + esc(name) + '">'
       + '<span class="arch-twig">└─</span>'
+      + statusDotA(sess)
       + '<span class="livecow' + mc.cls + '" style="font-size:15px">' + mc.emoji + '</span>'
       + '<span class="arch-topic" title="tópico">' + temoji + '</span>'
       + '<span class="arch-name">' + esc(name) + '</span>'
@@ -190,18 +214,26 @@ function renderArchTree(snapshot, mode) {
 
   var body = '';
 
+  // Canonical portfolio (mock identity). Projects without live data render frozen (❄, honest n/d).
+  var PORTFOLIO = ['frugal', 'Cloude Home', 'Speaker', 'Marley'];
+
   if (cur === 'tree') {
-    // 🌳 ÁRVORE — root → project branches (portfolio summary) → session leaves (detail).
-    var projLine = '';
-    if (projects.length) {
-      var pchips = '';
-      for (var pi = 0; pi < projects.length; pi++) {
-        var p = projects[pi];
-        var dot = p.status === 'active' ? 'var(--g)' : 'var(--vscode-descriptionForeground)';
-        pchips += '<span class="arch-proj" title="projecto — ' + esc(String(p.status || 'idle')) + '"><span class="arch-dot" style="background:' + dot + '"></span>' + esc(p.name || p.id || '?') + ' <b>' + (p.sessions != null ? p.sessions : '?') + '</b></span>';
-      }
-      projLine = '<div class="arch-branchrow">├─ <span style="opacity:.7">projectos:</span> ' + pchips + '</div>';
+    // 🌳 ÁRVORE — root (🐮 Cowork · ✨ Opus) → 🌿 main → frentes (clickable session leaves).
+    var realNames = {};
+    var pchips = '';
+    for (var pi = 0; pi < projects.length; pi++) {
+      var p = projects[pi];
+      var pname = p.name || p.id || '?';
+      realNames[String(pname).toLowerCase()] = true;
+      var dot = p.status === 'active' ? 'var(--g)' : 'var(--vscode-descriptionForeground)';
+      pchips += '<span class="arch-proj" title="projecto — ' + esc(String(p.status || 'idle')) + '"><span class="arch-dot" style="background:' + dot + '"></span>' + esc(cleanName(pname)) + ' <b>' + (p.sessions != null ? p.sessions : '?') + '</b></span>';
     }
+    for (var fz = 0; fz < PORTFOLIO.length; fz++) {
+      if (!realNames[PORTFOLIO[fz].toLowerCase()]) {
+        pchips += '<span class="arch-proj frozen" title="portfolio — sem sessões vivas aqui (n/d, honesto)">❄ ' + esc(PORTFOLIO[fz]) + '</span>';
+      }
+    }
+    var projLine = '<div class="arch-branchrow">├─ <span style="opacity:.7">projectos:</span> ' + pchips + '</div>';
     var leaves = '';
     if (sessions.length) {
       for (var li = 0; li < sessions.length; li++) leaves += sessionLeaf(sessions[li]);
@@ -209,8 +241,10 @@ function renderArchTree(snapshot, mode) {
       leaves = '<div class="arch-leaf" style="opacity:.7"><span class="arch-twig">└─</span> 😴 sem sessões vivas agora</div>';
     }
     body = '<div class="card" data-arch="tree" style="padding:10px 12px">'
-      + '<div class="arch-root">🌳 <b>' + esc(rootName) + '</b>' + (deviceOs ? ' <span class="arch-dev" title="dispositivo">· ' + esc(deviceOs) + '</span>' : '') + '</div>'
-      + projLine + leaves
+      + '<div class="arch-root">🐮 <b>Cowork</b> <span class="arch-rootmodel" title="orquestrador">✨ Opus</span>' + (deviceOs ? ' <span class="arch-dev" title="dispositivo">· ' + esc(deviceOs) + '</span>' : '') + '</div>'
+      + '<div class="arch-mainline">└─ 🌿 <b>main</b> · <span class="arch-mainproj">' + esc(cleanName(rootName)) + '</span></div>'
+      + projLine
+      + '<div class="arch-frentes">' + leaves + '</div>'
       + '</div>';
   } else if (cur === 'ceo') {
     // 📊 CEO — KPIs from totals (honest n/d) + attention-first + portfolio.
@@ -229,16 +263,24 @@ function renderArchTree(snapshot, mode) {
       + kpi('To push', (typeof totals.pushPending === 'number' ? String(totals.pushPending) : null), 'sessões com commits por enviar')
       + '</div>';
 
-    var needs = [];
-    for (var ni = 0; ni < sessions.length; ni++) if (sessions[ni] && sessions[ni].needsYou) needs.push(sessions[ni]);
-    var attn = '';
-    if (needs.length) {
-      var arows = '';
-      for (var ai = 0; ai < needs.length; ai++) arows += sessionLeaf(needs[ai]);
-      attn = '<div class="arch-attn"><div class="lbl" style="color:#E5C07B">🎯 Precisam de ti · ' + needs.length + '</div>' + arows + '</div>';
-    } else {
-      attn = '<div class="arch-attn"><div class="lbl" style="color:var(--g)">✓ Ninguém à espera de ti</div><div class="sub" style="opacity:.7">toda a herd está a trabalhar ou ociosa.</div></div>';
+    // Attention-first partition: 🟡 precisam de ti (topo) · 🟢 a trabalhar · ✅ feito/❄ pausa.
+    var gNeed = [], gWork = [], gDone = [];
+    for (var ni = 0; ni < sessions.length; ni++) {
+      var sx = sessions[ni];
+      if (!sx) continue;
+      if (sx.needsYou) gNeed.push(sx);
+      else if (sx.status === 'working') gWork.push(sx);
+      else gDone.push(sx);
     }
+    function ceoSec(emoji, title, color, list, emptyMsg) {
+      var rows = '';
+      if (list.length) { for (var k = 0; k < list.length; k++) rows += sessionLeaf(list[k]); }
+      else rows = '<div class="sub" style="opacity:.6;padding:2px 4px">' + esc(emptyMsg) + '</div>';
+      return '<div class="arch-sec' + (list.length ? '' : ' empty') + '"><div class="arch-seclbl" style="color:' + color + '">' + emoji + ' ' + esc(title) + ' <span class="arch-seccnt">' + list.length + '</span></div>' + rows + '</div>';
+    }
+    var attn = ceoSec('🟡', 'Precisam de ti', '#E5C07B', gNeed, 'ninguém à espera de ti')
+      + ceoSec('🟢', 'A trabalhar', 'var(--g)', gWork, 'nenhuma sessão a gerar agora')
+      + ceoSec('✅', 'Feito · ❄ pausa', 'var(--vscode-descriptionForeground)', gDone, 'sem sessões ociosas');
 
     var portfolio = '';
     if (projects.length) {
@@ -257,26 +299,50 @@ function renderArchTree(snapshot, mode) {
     }
 
     body = '<div class="card" data-arch="ceo" style="padding:10px 12px">'
-      + '<div class="arch-root">📊 <b>' + esc(rootName) + '</b> · command center</div>'
+      + '<div class="arch-root">📊 <b>' + esc(cleanName(rootName)) + '</b> · command center</div>'
       + kpis + attn + portfolio
       + '</div>';
   } else {
-    // 🔌 WORKING-TREE — connections/dependencies with animated dash-flow connectors.
+    // 🔌 WORKING-TREE — git-graph REAL: spine vertical do 🌿 main + ramos coloridos por estado,
+    // cada frente clicável → openSession; à direita os nós/fluxos (contratos · hub→devices ·
+    // registo→Notion/Obsidian) com setas animadas. remote/sync null → "sync pending" honesto.
     function conn(from, arrow, to, tip) {
       return '<div class="arch-conn" title="' + esc(tip || '') + '"><span class="arch-node">' + from + '</span>'
         + '<span class="arch-wire" aria-hidden="true">' + (arrow || '——') + '</span>'
         + '<span class="arch-node to">' + to + '</span></div>';
     }
-    var mainFrentes = '';
-    if (projects.length) {
-      for (var wi = 0; wi < projects.length; wi++) {
-        var wp = projects[wi];
-        var lit = wp.status === 'active';
-        mainFrentes += conn('🌳 ' + esc(rootName), '<span class="arch-dash' + (lit ? ' live' : '') + '"></span>', (lit ? '🟢 ' : '⚪ ') + esc(wp.name || wp.id || '?') + ' <span style="opacity:.6">(' + (wp.sessions != null ? wp.sessions : '?') + ')</span>', 'projecto ligado à raiz — ' + (lit ? 'activo' : 'idle'));
-      }
-    } else {
-      mainFrentes = '<div class="sub" style="opacity:.7">sem frentes mapeadas.</div>';
+    // One branch in the git-graph (clickable → openSession via the .arch-leaf wiring).
+    function gitRow(sess) {
+      if (!sess) return '';
+      var g = sess.git || {};
+      var sid = sess.sid || '';
+      var marks = '';
+      if (g.dirty != null && g.dirty > 0) marks += '<span class="arch-mk dirty" title="ficheiros por commitar">✎' + g.dirty + '</span>';
+      if (g.ahead != null && g.ahead > 0) marks += '<span class="arch-mk ahead" title="commits por enviar (push)">↑' + g.ahead + '</span>';
+      var model = sess.model ? ('<span class="arch-model">' + famEmojiL(sess.model) + ' ' + esc(modelShort(sess.model)) + '</span>') : ('<span class="arch-model">' + nd + '</span>');
+      var tin = fmtTok(sess.tokIn), tout = fmtTok(sess.tokOut);
+      var tok = (tin != null || tout != null) ? ('<span class="arch-tok">↓' + (tin != null ? tin : 'n/d') + ' ↑' + (tout != null ? tout : 'n/d') + '</span>') : '';
+      var open = sid ? ' data-arch-sid="' + esc(sid) + '" role="button" tabindex="0"' : '';
+      var name = sess.topic || sess.name || '';
+      return '<div class="arch-leaf arch-gitrow ' + gitState(sess) + '"' + open + ' aria-label="abrir ramo: ' + esc(name) + '" title="abrir esta sessão — ' + esc(name) + '">'
+        + '<span class="arch-gnode" aria-hidden="true"></span>'
+        + '<span class="arch-gbr">⎇ ' + esc(g.branch || '?') + '</span>'
+        + marks + model + tok
+        + (sid ? '<span class="arch-open">↗</span>' : '')
+        + '</div>';
     }
+    var gitRows = '', anyGit = false;
+    for (var wi = 0; wi < sessions.length; wi++) {
+      var ws = sessions[wi];
+      if (ws && ((ws.git && ws.git.branch) || ws.sid)) { gitRows += gitRow(ws); anyGit = true; }
+    }
+    if (!anyGit) gitRows = '<div class="sub" style="opacity:.7;padding:3px 4px">sem ramos vivos.</div>';
+    var graph = '<div class="arch-gitsec"><div class="lbl">🌿 main → frentes</div>'
+      + '<div class="arch-git"><div class="arch-gitmain"><span class="arch-gnode main"></span><b>main</b> <span style="opacity:.6">· ' + esc(cleanName(rootName)) + '</span></div>'
+      + gitRows + '</div></div>';
+
+    // contratos — nó estrutural (todas as vistas renderizam do MESMO snapshot §6). Sem métricas inventadas.
+    var contratos = conn('📜 contratos', '<span class="arch-dash live"></span>', '🧩 schema §6 · 1 snapshot', 'contrato de dados — Árvore/CEO/Working-tree renderizam do mesmo snapshot');
 
     // hub → devices (Frente F). null → honest "sync pending".
     var remoteBlock;
@@ -304,8 +370,9 @@ function renderArchTree(snapshot, mode) {
     } else {
       regBlock = '<div class="arch-pending" title="sem sincronização de registo detectada ainda (collector de sync — Frente F)">🔌 sync pending · registo→Notion/Obsidian</div>';
     }
+    var nodes = '<div class="arch-gitsec"><div class="lbl">🔗 nós &amp; fluxos</div>' + contratos + remoteBlock + regBlock + '</div>';
 
-    // loops (autopilot) as connections.
+    // loops (autopilot) as flow connections.
     var loopBlock = '';
     var loops = Array.isArray(s.loops) ? s.loops.filter(Boolean) : [];
     if (loops.length) {
@@ -315,15 +382,12 @@ function renderArchTree(snapshot, mode) {
         var rnd = (typeof lp.round === 'number') ? (lp.round + (lp.maxRounds != null ? '/' + lp.maxRounds : '')) : 'n/d';
         lrows += conn('🔁 ' + esc(lp.kind || 'loop'), '<span class="arch-dash' + (lp.active ? ' live' : '') + '"></span>', (lp.active ? '🟢 round ' : '⚪ round ') + esc(rnd) + (lp.model ? ' · ' + esc(modelShort(lp.model)) : ''), 'loop-runner — ' + (lp.active ? 'activo' : 'inactivo'));
       }
-      loopBlock = '<div class="arch-wtsec"><div class="lbl">🔁 Loops</div>' + lrows + '</div>';
+      loopBlock = '<div class="arch-gitsec"><div class="lbl">🔁 Loops</div>' + lrows + '</div>';
     }
 
     body = '<div class="card" data-arch="wt" style="padding:10px 12px">'
-      + '<div class="arch-root">🔌 <b>' + esc(rootName) + '</b> · working-tree</div>'
-      + '<div class="arch-wtsec"><div class="lbl">main → frentes</div>' + mainFrentes + '</div>'
-      + '<div class="arch-wtsec"><div class="lbl">hub → devices</div>' + remoteBlock + '</div>'
-      + '<div class="arch-wtsec"><div class="lbl">registo → Notion / Obsidian</div>' + regBlock + '</div>'
-      + loopBlock
+      + '<div class="arch-root">🔌 <b>' + esc(cleanName(rootName)) + '</b> · working-tree</div>'
+      + '<div class="arch-wtgrid">' + graph + '<div class="arch-wtright">' + nodes + loopBlock + '</div></div>'
       + '</div>';
   }
 

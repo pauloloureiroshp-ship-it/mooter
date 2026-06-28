@@ -1114,6 +1114,67 @@ function getHtml() {
   .arch-dash.live{border-top-style:dashed;background:repeating-linear-gradient(90deg,var(--g) 0 6px,transparent 6px 12px) 0/14px 2px no-repeat;border-top:0;height:2px}
   .arch-pending{font-size:10px;color:var(--vscode-descriptionForeground);opacity:.8;padding:4px 6px;border:1px dashed var(--vscode-widget-border);border-radius:6px;background:var(--surface2)}
   @media (prefers-reduced-motion:reduce){.arch-dash.live{animation:none}}
+  /* ── MC VISUAL POLISH (feat/mc-visual-polish) — render-only approximation to the Cowork mocks ── */
+  /* Árvore: root Cowork·Opus → main → frentes + pulsing status dots + frozen portfolio chips */
+  .arch-rootmodel{font-size:10px;font-weight:600;color:#E5C07B}
+  .arch-mainline{font-size:11px;margin:2px 0 6px;font-family:var(--vscode-editor-font-family,monospace)}
+  .arch-mainproj{font-weight:600}
+  .arch-frentes{display:flex;flex-direction:column;gap:2px}
+  .arch-proj.frozen{opacity:.6;font-style:italic}
+  .arch-sdot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+  .arch-sdot.work{background:var(--g);animation:archpulse 1.5s infinite}
+  .arch-sdot.need{background:#E5C07B;animation:archpulse 1.1s infinite}
+  .arch-sdot.done{background:#5B9BD5}
+  @keyframes archpulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.arch-sdot.work,.arch-sdot.need{animation:none}}
+  /* CEO: attention-first sections */
+  .arch-sec{margin:6px 0;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-editor-background)}
+  .arch-sec.empty{opacity:.7}
+  .arch-seclbl{font-size:10.5px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+  .arch-seccnt{font-size:9px;opacity:.7;font-weight:400}
+  /* Working-tree: real git-graph (spine + coloured branch nodes) + right-side flow nodes */
+  .arch-wtgrid{display:flex;gap:12px;flex-wrap:wrap}
+  .arch-wtgrid>.arch-gitsec{flex:1 1 240px;min-width:200px}
+  .arch-wtright{flex:1 1 240px;min-width:200px;display:flex;flex-direction:column}
+  .arch-gitsec{margin-bottom:9px}
+  .arch-gitsec>.lbl{font-size:10px;font-weight:700;color:var(--vscode-descriptionForeground);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  .arch-git{display:flex;flex-direction:column;gap:3px;margin-top:4px;border-left:2px solid var(--vscode-widget-border);padding-left:10px}
+  .arch-gitmain{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700}
+  .arch-gnode{width:9px;height:9px;border-radius:50%;flex:none;background:var(--vscode-descriptionForeground);margin-left:-15px;margin-right:2px;border:2px solid var(--vscode-editorWidget-background)}
+  .arch-gnode.main{background:var(--vscode-foreground)}
+  .arch-gitrow.st-work .arch-gnode{background:var(--g)}
+  .arch-gitrow.st-need .arch-gnode{background:#E5C07B}
+  .arch-gitrow.st-ahead .arch-gnode{background:#5B9BD5}
+  .arch-gitrow.st-dirty .arch-gnode{background:#D19A66}
+  .arch-gbr{font-family:var(--vscode-editor-font-family,monospace);font-weight:600;flex:none}
+  .arch-mk{font-size:9px;padding:0 4px;border-radius:4px;background:var(--surface2);flex:none}
+  .arch-mk.dirty{color:#D19A66}.arch-mk.ahead{color:#5B9BD5}
+  /* MC tab: frozen chips · overclock button · loop icon · git-graph · pillar groups · session state edge */
+  .mc-chip.mc-frozen{opacity:.6;font-style:italic}
+  .mc-btn.mc-overclock{border-color:#D19A66;color:#D19A66;font-weight:700}
+  .mc-loopico{font-size:11px}
+  .mc-git{display:flex;flex-direction:column;gap:3px;margin-top:4px;border-left:2px solid var(--vscode-widget-border);padding-left:10px}
+  .mc-gmain{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;margin-bottom:2px}
+  .mc-gnode{width:9px;height:9px;border-radius:50%;flex:none;background:var(--vscode-descriptionForeground);margin-left:-15px;margin-right:2px;border:2px solid var(--vscode-editorWidget-background)}
+  .mc-gnode.mc-main{background:var(--vscode-foreground)}
+  .mc-gitrow.mc-st-work .mc-gnode{background:var(--g)}
+  .mc-gitrow.mc-st-need .mc-gnode{background:#E5C07B}
+  .mc-gitrow.mc-st-ahead .mc-gnode{background:#5B9BD5}
+  .mc-gitrow.mc-st-dirty .mc-gnode{background:#D19A66}
+  .mc-treerow.mc-st-work{border-left-color:var(--g)}
+  .mc-treerow.mc-st-need{border-left-color:#E5C07B}
+  .mc-treerow.mc-st-ahead{border-left-color:#5B9BD5}
+  .mc-treerow.mc-st-dirty{border-left-color:#D19A66}
+  .mc-treerow.mc-st-idle{border-left-color:var(--vscode-widget-border)}
+  .mc-gmodel{font-size:9px;color:var(--vscode-descriptionForeground)}
+  .mc-gtok{font-size:9px;font-family:var(--vscode-editor-font-family,monospace);opacity:.8}
+  .mc-pgrp{margin-top:8px}
+  .mc-pgrp-h{font-size:10px;font-weight:700;color:var(--vscode-descriptionForeground);text-transform:uppercase;letter-spacing:.03em;margin:4px 0;display:flex;align-items:center;gap:6px}
+  .mc-stop{font-size:12px;flex:none}
+  .mc-srow.mc-st-work{border-left:3px solid var(--g)}
+  .mc-srow.mc-st-need{border-left:3px solid #E5C07B}
+  .mc-srow.mc-st-ahead{border-left:3px solid #5B9BD5}
+  .mc-srow.mc-st-dirty{border-left:3px solid #D19A66}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
