@@ -29,6 +29,7 @@ import { handleModels } from './routes/models.js';
 import { handleVersion } from './routes/version.js';
 import { handleSubmitEvents, handleAggregateStats } from './routes/events.js';
 import { handleSyncEvents } from './routes/sync_events.js';
+import { handleLiveSessions } from './routes/live_sessions.js';
 import { handleWorkflows } from './routes/workflows.js';
 import { handlePastorV2 } from './routes/pastor-v2.js';
 import { handlePastorAdapters } from './routes/pastor-adapters.js';
@@ -112,6 +113,9 @@ const handler = {
           break;
         case '/v1/events':
           response = await handleSyncEvents(request, env);
+          break;
+        case '/v1/live-sessions':   // Frente F: cross-machine live-session mirror (POST upsert / GET by owner)
+          response = await handleLiveSessions(request, env);
           break;
         case '/v1/workflows':
           response = await handleWorkflows(request, env);

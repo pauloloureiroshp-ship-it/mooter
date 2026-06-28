@@ -1208,6 +1208,20 @@ function deriveAsk(snapshot, pending, row) {
   if (ahead > 0 && s.pushed) return 'push-ok';
   return 'fyi';
 }
+// PURE (testável): is `cwd` OUTSIDE the `expected` worktree root? True only when both are present
+// and cwd is neither equal to nor nested under expected (different drive on win32 → absolute rel →
+// outside). Drives the worktree guard. Never throws (bad input → false = no false alarm).
+function _outsideWorktree(cwd, expected) {
+  if (!cwd || !expected) return false;
+  let c, e;
+  try { c = path.resolve(String(cwd)); e = path.resolve(String(expected)); } catch { return false; }
+  if (c === e) return false;
+  let rel;
+  try { rel = path.relative(e, c); } catch { return false; }
+  if (!rel) return false;
+  return rel === '..' || rel.startsWith('..' + path.sep) || rel.startsWith('../') || path.isAbsolute(rel);
+}
+
 // PURE: the concrete one-line NEXT for the Cowork, keyed to the ASK.
 function _nextForAsk(ask) {
   switch (ask) {
@@ -1310,8 +1324,19 @@ function generateHandoff(row, pending, opts) {
   // ── DOING (from the rolling summary's first line; fallback to the 1st prompt) ──
   const doing = (opts.doing && String(opts.doing).trim()) ? String(opts.doing).trim().slice(0, 160) : _or(row.name);
 
+  // ── WORKTREE GUARD (opt-in): warn prominently when the session drifted OUT of its expected
+  // worktree (cwd ≠ worktree root) — a commit here could land on the wrong tree. Fires only when an
+  // expected root is known (opts.expectedCwd || row.worktreePath); absent → no line (back-compat).
+  const expectedWt = opts.expectedCwd || row.worktreePath || null;
+  const wtGuard = _outsideWorktree(row.cwd, expectedWt)
+    ? '⚠ WORKTREE: sessão fora da worktree — cwd ' + (row.cwd ? path.basename(String(row.cwd)) : '—')
+        + ' ≠ ' + path.basename(String(expectedWt)) + ' (commits podem ir para a árvore errada)'
+    : null;
   const body = [
     '⇄ MOO HANDOFF · ' + proj + ' · ' + tag + '/' + id + ' · ' + _fmtTs(now),
+  ];
+  if (wtGuard) body.push(wtGuard);
+  body.push(
     'ASK:    ' + ask,
     'HEAD:   ' + head,
     'BASE:   ' + base,
@@ -1322,7 +1347,7 @@ function generateHandoff(row, pending, opts) {
     'PENDING:"' + stop + '"',
     'DOING:  ' + doing,
     'NEXT:   ' + _nextForAsk(ask),
-  ];
+  );
   // ── full only: LAST STEP (journal-backfilled) + RECAP + model/mode/saved$ + §SAVINGS + facts footer ──
   if (hmode === 'full') {
     // LAST STEP — the last 1–3 tool calls (name + honest target), from the transcript pending or
@@ -1344,7 +1369,14 @@ function generateHandoff(row, pending, opts) {
     body.push('facts: ' + (snap.factsComplete === false ? 'partial — git facts incompletos (não fabricados)' : 'complete'));
   }
   body.push('⇄ END HANDOFF');
-  return body.join('\n');
+  const out = body.join('\n');
+  // ── NOTA header (opt-in, editable): the line Paulo fills in before pasting to the Cowork.
+  // opts.note === true → placeholder '____'; a string → that text (≤200c). Absent → no line.
+  if (opts.note) {
+    const noteTxt = (typeof opts.note === 'string' && opts.note.trim()) ? opts.note.trim().slice(0, 200) : '____';
+    return '▸ NOTA PARA O COWORK: ' + noteTxt + '\n' + out;
+  }
+  return out;
 }
 
 // PURA (testável): BOARD de handoff do PROJECTO (todas as sessões de um grupo → um texto). Uma
@@ -1517,6 +1549,26 @@ function generateProjectHandoff(proj, rows, opts) {
     }
   }
   return head.concat(askLine).concat(riskLine).concat(['', '▸ BOARD:']).concat(board).concat(tail).join('\n');
+}
+
+// PURA (testável): HANDOFF COMBINADO — sessão + projecto num só texto para colar no Cowork (Frente F).
+// Reusa generateHandoff (NOTA editável no topo + worktree-guard) e ANEXA o BOARD do projecto
+// (generateProjectHandoff → estado das outras frentes/sessões, branch, gates pendentes). opts:
+//   · note            → header editável (default true → '____'; string → texto)
+//   · expectedCwd     → raiz da worktree esperada para o guard (senão row.worktreePath)
+//   · project:{ proj, rows, synth } → alimenta o BOARD; sem rows → devolve só a parte da sessão
+//   · now             → fixa o timestamp (testes)
+// Nunca lança (row/pending/opts null → tratados como {}; rows não-array → só sessão).
+function generateCombinedHandoff(row, pending, opts) {
+  row = row || {}; pending = pending || {}; opts = opts || {};
+  const note = (opts.note != null) ? opts.note : true; // combinado defaulta ao header editável
+  const sessionText = generateHandoff(row, pending, Object.assign({}, opts, { note }));
+  const projOpts = opts.project || {};
+  const rows = Array.isArray(projOpts.rows) ? projOpts.rows : [];
+  if (!rows.length) return sessionText; // sem outras frentes conhecidas → só a sessão (honesto)
+  const proj = projOpts.proj || (row.cwd ? path.basename(String(row.cwd)) : '—');
+  const board = generateProjectHandoff(proj, rows, { synth: projOpts.synth, now: opts.now || projOpts.now });
+  return sessionText + '\n\n── PROJECTO (estado das outras frentes) ──\n' + board;
 }
 
 function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -2100,7 +2152,7 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk,
-  extractPending, generateHandoff, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
+  extractPending, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
   readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed,

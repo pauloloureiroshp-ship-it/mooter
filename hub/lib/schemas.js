@@ -269,6 +269,47 @@ export const pastorAdapterSchema = z.object({
 
 export const pastorAdaptersBatchSchema = z.array(pastorAdapterSchema).min(1).max(100);
 
+// ── POST/GET /v1/live-sessions — cross-machine live-session mirror (Frente F) ─
+//
+// One device upserts its current live-session snapshot; the owner's OTHER
+// device polls by owner_hash. METADATA ONLY — session topic, model, tier,
+// branch, status — plus an optional handoff text (the same surface already
+// shown locally). The privacy refine rejects any prompt/code/file content;
+// the bg writer's client allowlist is the first line of defence, this the second.
+
+const OS_TYPE_RE = /^(windows|macos|linux|unknown)$/;
+const LIVE_SESSION_PRIVACY_FIELDS = [
+  'prompt', 'prompt_text', 'prompt_content', 'prompt_raw', 'content', 'text',
+  'body', 'messages', 'response', 'response_text', 'completion', 'file_path', 'stack_trace', 'code',
+];
+
+export const liveSessionRowSchema = z.object({
+  sid: z.string().min(1).max(128),
+  name: z.string().max(200).optional(),       // short topic tag, already user-visible
+  model: z.string().max(64).nullable().optional(),
+  tier: z.string().max(8).nullable().optional(),
+  branch: z.string().max(200).nullable().optional(),
+  status: z.string().max(32).nullable().optional(),
+  ctxPct: z.number().min(0).max(100).nullable().optional(),
+}).passthrough().refine(
+  (r) => !LIVE_SESSION_PRIVACY_FIELDS.some((k) => k in r),
+  { message: `live session row must not contain any privacy field: ${LIVE_SESSION_PRIVACY_FIELDS.join(', ')}` },
+);
+
+export const liveSessionStateSchema = z.object({
+  device_id: z.string().regex(CLIENT_ID_RE, 'device_id must be 8-128 hex chars'),
+  owner_hash: z.string().regex(CLIENT_ID_RE, 'owner_hash must be 8-128 hex chars'),
+  os_type: z.string().regex(OS_TYPE_RE).optional(),
+  device_label: z.string().max(64).nullable().optional(),
+  sessions: z.array(liveSessionRowSchema).max(64),
+  handoff: z.string().max(8000).nullable().optional(),
+  totals: z.record(z.unknown()).optional(),
+  at: z.string().max(40).optional(),          // client ISO (informational only)
+}).passthrough().refine(
+  (s) => !LIVE_SESSION_PRIVACY_FIELDS.some((k) => k in s),
+  { message: `live session state must not contain any privacy field: ${LIVE_SESSION_PRIVACY_FIELDS.join(', ')}` },
+);
+
 // ── Export schema set for test harness use ─────────────────────────────
 
 export const schemas = {
@@ -283,4 +324,6 @@ export const schemas = {
   deviceSetupProfile: deviceSetupProfileSchema,
   pastorAdapter: pastorAdapterSchema,
   pastorAdaptersBatch: pastorAdaptersBatchSchema,
+  liveSessionRow: liveSessionRowSchema,
+  liveSessionState: liveSessionStateSchema,
 };
