@@ -29,6 +29,11 @@ try { MR = require('./mode-registry'); } catch { MR = { byProject: (rows) => ({ 
 // WCOCKPIT-3: row renderer module (serialised into webview via fn.toString())
 let RR = null;
 try { RR = require('./row-renderer'); } catch { RR = null; }
+// Mission Control · Frente 0 (additive; safe fallback if files absent). The snapshot
+// assembler + the local scoped Moo assistant. Both fail-soft — the cockpit works without them.
+let MCSNAP = null, MCA = null;
+try { MCSNAP = require('./mc-snapshot'); } catch { MCSNAP = null; }
+try { MCA = require('./mc-assistant'); } catch { MCA = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -68,6 +73,35 @@ function loopRunnerActive() {
     }
   } catch { /* no workspace */ }
   return false;
+}
+
+// Mission Control · Frente 0: honest loop STATE (round/maxRounds/model) from the loop-runner's
+// own file (<workspace>/_handoff/loop/STATE.json). Cheap read, fail-soft → null (no fabrication).
+function readLoopState() {
+  try {
+    const wfs = vscode.workspace.workspaceFolders || [];
+    for (const wf of wfs) {
+      try {
+        const st = path.join(wf.uri.fsPath, '_handoff', 'loop', 'STATE.json');
+        return JSON.parse(fs.readFileSync(st, 'utf8'));
+      } catch { /* try next folder */ }
+    }
+  } catch { /* no workspace */ }
+  return null;
+}
+
+// Mission Control · Frente 0: write an honest, reversible flag/request to ~/.mooter/cache/flags
+// (file-bus). Pilot actions (pauseAll/subtree) write here; runners/views honor it. Best-effort.
+function writeMcFlag(name, obj) {
+  try {
+    const dir = (MCSNAP && typeof MCSNAP.mooterCacheDir === 'function')
+      ? path.join(MCSNAP.mooterCacheDir(), 'flags')
+      : path.join(require('os').homedir(), '.mooter', 'cache', 'flags');
+    try { fs.mkdirSync(dir, { recursive: true }); } catch { /* exists */ }
+    const safe = String(name || 'flag').replace(/[^a-zA-Z0-9._-]/g, '');
+    fs.writeFileSync(path.join(dir, safe + '.json'), JSON.stringify(obj || {}));
+    return true;
+  } catch { return false; }
 }
 
 class DataService {
@@ -139,6 +173,28 @@ class DataService {
       loopActive: loopRunnerActive(), // WCOCKPIT-9 (Bloco F): honest LoopMoo liveness
       decisions: data_.readDecisions(),
     };
+    // Mission Control · Frente 0: assemble the single MissionControlSnapshot (additive). Cheap —
+    // it REUSES the collectors already computed above (recent/herd/ledger/localTok) and only adds
+    // pure mapping + small cache reads (gpu/remote/sync), so the render tick stays <50ms. Deep-gated
+    // like the other heavy slices; reuses prev.mc on shallow ticks. Fail-soft → null (never blocks).
+    try {
+      if (MCSNAP && doDeep) {
+        const mcCwd = (recent && recent[0] && recent[0].cwd)
+          || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath)
+          || process.cwd();
+        this.snapshot.mc = await MCSNAP.buildSnapshot(mcCwd, {
+          extra,
+          recent: this.snapshot.recent,
+          herd: this.snapshot.herd,
+          ledger: this.snapshot.ledger,
+          localTok: this.snapshot.localTok,
+          loopActive: this.snapshot.loopActive,
+          loopState: readLoopState(),
+        });
+      } else if (MCSNAP) {
+        this.snapshot.mc = (prev && prev.mc) || null;
+      }
+    } catch { this.snapshot.mc = (prev && prev.mc) || null; }
     try {
       // WCOCKPIT polish: pull the founder back when a parallel session newly needs a reply.
       // Fires only on the false->true transition (per session), capped, never on first snapshot.
@@ -561,6 +617,47 @@ class CockpitProvider {
         this.data.refresh(true);
         vscode.window.setStatusBarMessage(n ? ('🐮 cleared ' + n + ' done session' + (n === 1 ? '' : 's') + ' — they return if active again') : '🐮 nothing safe to clear', 4000);
       }
+      // ── Mission Control · Frente 0 — pilot actions (additive; reuse the {cmd,arg} bus) ──
+      // 🐮 Ask the local Moo. Scoped + $0: streams from Ollama using ONLY the snapshot as context,
+      // re-using the handoff-stream mechanism (moo-stream chunks → moo-done). Refuses out-of-snapshot.
+      if (m.cmd === 'askMoo') {
+        const q = String(m.arg || '').slice(0, 800);
+        const snap = (this.data.snapshot && this.data.snapshot.mc) || null;
+        if (!MCA) { try { view.webview.postMessage({ type: 'moo-done', text: '🐮 assistente local indisponível.', model: null }); } catch {} }
+        else if (!snap) { try { view.webview.postMessage({ type: 'moo-done', text: '🐮 ainda não há snapshot — abre o painel e espera o primeiro refresh.', model: null }); } catch {} }
+        else {
+          try { view.webview.postMessage({ type: 'moo', status: 'thinking' }); } catch {}
+          try {
+            const res = await MCA.askMoo(q, snap, { onChunk: (chunk) => { try { view.webview.postMessage({ type: 'moo-stream', chunk }); } catch {} } });
+            const txt = (res && res.text) ? res.text : (res && res.ok ? '' : '🐮 não consegui responder localmente (Ollama em baixo?).');
+            view.webview.postMessage({ type: 'moo-done', text: txt, model: (res && res.model) || null });
+          } catch { try { view.webview.postMessage({ type: 'moo-done', text: '🐮 erro local.', model: null }); } catch {} }
+        }
+      }
+      // + spawn moo (encher a GPU com um worker local, $0). Abre um Ollama no terminal.
+      if (m.cmd === 'spawnMoo') {
+        const model = String(m.arg || '').replace(/[^a-zA-Z0-9._:\-]/g, '') || 'qwen3:30b';
+        runInTerminal('ollama run ' + model, 'moo ' + model);
+        vscode.window.setStatusBarMessage('🐮 a encher a GPU com ' + model + ' (local, $0)', 4000);
+      }
+      // ⏸ pausar tudo / ▶ retomar — escreve uma flag reversível no file-bus (runners honram-na).
+      // HONESTO: o cockpit não mata processos; carimba o pedido e quem corre os loops lê a flag.
+      if (m.cmd === 'pauseAll' || m.cmd === 'resumeAll') {
+        const paused = m.cmd === 'pauseAll';
+        writeMcFlag('pause-all', { paused, at: Date.now() });
+        this.data.refresh(true);
+        vscode.window.setStatusBarMessage(paused
+          ? '⏸ Mooter — pausa global pedida (flag escrita; os runners honram-na)'
+          : '▶ Mooter — retomado', 4000);
+      }
+      // 🌳+ subtree ligada a uma sessão — pede uma sub-fila de moos para o sid (fila local, $0).
+      if (m.cmd === 'subtree') {
+        const sid = String((m.arg && m.arg.sid) || m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (sid) {
+          writeMcFlag('subtree-' + sid, { sid, requested: true, at: Date.now() });
+          vscode.window.setStatusBarMessage('🌳 subtree pedida para ' + sid.slice(0, 8) + ' (fila local)', 4000);
+        }
+      }
     });
     this.data.refresh(true);
   }
@@ -594,6 +691,7 @@ function project(s) {
     // (resolved host-side in recentSessions; stage from the pure prStage). No global PR
     // list and no cross-repo branch-name matching in the webview.
     herd: s.herd, recent: s.recent || [],
+    mc: s.mc || null, // Mission Control · Frente 0: the single snapshot the 4 views render from
     loopActive: !!s.loopActive, // WCOCKPIT-9 (Bloco F)
     localTok: s.localTok || null,
     localSpeed: extra.localSpeed(), // WS3: measured local tok/s (WS1 speed-meter) for the Local Moo Fleet
