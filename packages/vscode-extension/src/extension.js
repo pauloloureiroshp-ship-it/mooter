@@ -648,6 +648,52 @@ class CockpitProvider {
         runInTerminal('ollama run ' + model, 'moo ' + model);
         vscode.window.setStatusBarMessage('🐮 a encher a GPU com ' + model + ' (local, $0)', 4000);
       }
+      // 🔥 Overclock Moo — reclaims idle GPU with local moos ($0, --idle-fill mode).
+      // Spawns: tsx src/runner.mjs --idle-fill  (in the overclock-moo package dir).
+      // On completion, refreshes the webview so snapshot.gpu.overclock updates.
+      if (m.cmd === 'overclockMoo') {
+        try {
+          // Resolve the overclock-moo package dir relative to this extension's install dir.
+          // __dirname = packages/vscode-extension/src  → go up 2 → packages/ → overclock-moo/
+          const pkgDir = path.join(__dirname, '..', '..', 'overclock-moo');
+          // tsx binary: prefer local node_modules in the CLI package (same as npm run test),
+          // then check the cli package, then fall back to a global 'tsx'.
+          const tsxLocal = path.join(pkgDir, '..', 'cli', 'node_modules', '.bin',
+            process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+          const tsxPkg = path.join(pkgDir, 'node_modules', '.bin',
+            process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+          let tsxBin = 'tsx'; // fallback to PATH
+          try {
+            if (require('fs').existsSync(tsxLocal)) tsxBin = tsxLocal;
+            else if (require('fs').existsSync(tsxPkg)) tsxBin = tsxPkg;
+          } catch { /* keep PATH fallback */ }
+          const runnerScript = path.join(pkgDir, 'src', 'runner.mjs');
+          // Warn if OLLAMA_NUM_PARALLEL is unset or low (batching may be limited).
+          const numPar = process.env.OLLAMA_NUM_PARALLEL;
+          if (!numPar || parseInt(numPar, 10) < 2) {
+            vscode.window.setStatusBarMessage('⚠ OLLAMA_NUM_PARALLEL não configurado — batching pode ser limitado (define ≥2 para maior saturação)', 7000);
+          }
+          vscode.window.setStatusBarMessage('🔥 Overclock Moo — a saturar GPU ociosa (idle-fill, $0)…', 6000);
+          const cp = require('child_process').spawn(tsxBin, [runnerScript, '--idle-fill'], {
+            cwd: pkgDir, stdio: 'ignore', windowsHide: true,
+            env: Object.assign({}, process.env),
+          });
+          cp.on('error', (err) => {
+            vscode.window.showWarningMessage('🔥 Overclock Moo: não foi possível lançar o runner — ' + String(err && err.message || err).slice(0, 120) + '. Verifica se tsx está instalado (cd packages/overclock-moo && npm install).');
+          });
+          const dataRef = this.data;
+          const viewRef = view;
+          cp.on('close', (code) => {
+            try { dataRef.refresh(true); } catch { /* best-effort */ }
+            const msg = (code === 0 || code == null)
+              ? '🔥 Overclock Moo concluído — snapshot atualizado ($0 local)'
+              : '🔥 Overclock Moo terminou (código ' + code + ') — verifica o output do runner';
+            try { vscode.window.setStatusBarMessage(msg, 5000); } catch { /* best-effort */ }
+          });
+        } catch (err) {
+          vscode.window.showWarningMessage('🔥 Overclock Moo: erro ao lançar — ' + String(err && err.message || err).slice(0, 120));
+        }
+      }
       // ⏸ pausar tudo / ▶ retomar — escreve uma flag reversível no file-bus (runners honram-na).
       // HONESTO: o cockpit não mata processos; carimba o pedido e quem corre os loops lê a flag.
       if (m.cmd === 'pauseAll' || m.cmd === 'resumeAll') {

@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { appendMetric, honestSummaryLines, metricsPath, readMetrics, summarize, METR_CAVEAT, type JobResult } from "../src/metrics.ts";
+import { appendMetric, honestSummaryLines, metricsPath, readMetrics, summarize, METR_CAVEAT, THROUGHPUT_NOTE, type JobResult, type GpuContext } from "../src/metrics.ts";
 
 function r(partial: Partial<JobResult>): JobResult {
   return {
@@ -96,4 +96,87 @@ test("append + read roundtrip under an isolated MOOTER_HOME", () => {
   assert.equal(back[0].project, "demo");
   // raw line is valid JSONL
   assert.doesNotThrow(() => JSON.parse(readFileSync(file, "utf8").trim()));
+});
+
+// ── Phase 2 additions ────────────────────────────────────────────────────────
+
+test("cloudUsdAvoided sums per-job estimates; null when none present", () => {
+  // Two GPU jobs each with a cloudUsdAvoidedEst
+  const m1 = summarize(
+    [
+      r({ id: "g1", resource: "gpu", localTokens: 500, cloudUsdAvoidedEst: 0.0012 }),
+      r({ id: "g2", resource: "gpu", localTokens: 400, cloudUsdAvoidedEst: 0.0008 }),
+    ],
+    ctx,
+  );
+  assert.ok(m1.measured.cloudUsdAvoided !== null, "should have a sum");
+  assert.ok(
+    Math.abs((m1.measured.cloudUsdAvoided as number) - 0.002) < 1e-9,
+    `expected ~0.002, got ${m1.measured.cloudUsdAvoided}`,
+  );
+
+  // No job carries cloudUsdAvoidedEst → null (not fabricated 0)
+  const m2 = summarize([r({ id: "cpu-only", resource: "cpu" })], ctx);
+  assert.equal(m2.measured.cloudUsdAvoided, null);
+});
+
+test("gpuSecondsBusy equals gpuSecondsReclaimed (contract alias)", () => {
+  const m = summarize(
+    [r({ id: "gpu-job", resource: "gpu", wallSeconds: 7.5 })],
+    ctx,
+  );
+  assert.equal(m.measured.gpuSecondsBusy, m.measured.gpuSecondsReclaimed);
+  assert.equal(m.measured.gpuSecondsBusy, 7.5);
+});
+
+test("secondary.throughputX is null by default and carries THROUGHPUT_NOTE; ctx.throughputX flows through", () => {
+  // Default: no throughputX in ctx
+  const m1 = summarize([r({})], ctx);
+  assert.equal(m1.secondary.throughputX, null);
+  assert.equal(m1.secondary.note, THROUGHPUT_NOTE);
+
+  // With throughputX provided
+  const m2 = summarize([r({})], { ...ctx, throughputX: 1.37 });
+  assert.equal(m2.secondary.throughputX, 1.37);
+  assert.equal(m2.secondary.note, THROUGHPUT_NOTE);
+
+  // Explicit null still null
+  const m3 = summarize([r({})], { ...ctx, throughputX: null });
+  assert.equal(m3.secondary.throughputX, null);
+});
+
+test("utilDuring flows into the metric and into honestSummaryLines", () => {
+  const gpu: GpuContext = {
+    utilBefore: 38,
+    utilAfter: 42,
+    utilDuring: 97,
+    totalMb: 24000,
+    vramBudgetMb: 20000,
+    gpuSlots: 2,
+    cpuSlots: 4,
+  };
+  const m = summarize([r({ resource: "gpu" })], { ...ctx, gpu });
+  assert.equal(m.gpu?.utilDuring, 97);
+  const lines = honestSummaryLines(m);
+  // The idle-reclaim headline must contain "38%→97%"
+  assert.ok(
+    lines.some((l) => l.includes("38%→97%")),
+    `Expected a line with "38%→97%" in: ${JSON.stringify(lines)}`,
+  );
+});
+
+test("honest line labels throughput as secondary and cloud-$ as avoided/est", () => {
+  const m = summarize(
+    [r({ resource: "gpu", localTokens: 300, cloudUsdAvoidedEst: 0.0015 })],
+    { ...ctx, throughputX: 1.1 },
+  );
+  const lines = honestSummaryLines(m);
+  assert.ok(
+    lines.some((l) => /secondary/i.test(l)),
+    "Expected a line containing 'secondary'",
+  );
+  assert.ok(
+    lines.some((l) => /avoided|evitado/i.test(l)),
+    "Expected a line containing 'avoided' or 'evitado' (est label)",
+  );
 });

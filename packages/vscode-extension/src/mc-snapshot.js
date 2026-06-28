@@ -49,6 +49,48 @@ function readCache(name, cacheDir) {
   return _readJsonCapped(path.join(dir, name + '-snapshot.json'));
 }
 
+// Read the LAST line of the overclock-metrics.jsonl ledger (tail; fail-soft → null).
+// Returns the `overclock` sub-object the GPU card expects, or null if no data.
+function readLastOverclockMetric(cacheDir) {
+  try {
+    const dir = cacheDir || mooterCacheDir();
+    const file = path.join(dir, 'overclock-metrics.jsonl');
+    const st = fs.statSync(file);
+    if (!st.isFile() || st.size === 0) return null;
+    // Tail: read last 8kB max (one JSONL line is always much smaller).
+    const tail = 8192;
+    const buf = Buffer.alloc(Math.min(tail, st.size));
+    const fd = fs.openSync(file, 'r');
+    try {
+      fs.readSync(fd, buf, 0, buf.length, Math.max(0, st.size - tail));
+    } finally {
+      fs.closeSync(fd);
+    }
+    const raw = buf.toString('utf8');
+    const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    if (!lines.length) return null;
+    const m = JSON.parse(lines[lines.length - 1]);
+    if (!m || typeof m !== 'object') return null;
+    const gpu = m.gpu || null;
+    const measured = m.measured || null;
+    const estimated = m.estimated || null;
+    const quality = m.quality || null;
+    const secondary = m.secondary || null;
+    return {
+      at: n(m.at) != null ? m.at : null,
+      idleBefore: (gpu && n(gpu.utilBefore) != null) ? gpu.utilBefore : null,
+      utilDuring: (gpu && n(gpu.utilDuring) != null) ? gpu.utilDuring : null,
+      gpuSecondsBusy: (measured && n(measured.gpuSecondsBusy) != null) ? measured.gpuSecondsBusy : null,
+      humanMinRecovered: (estimated && n(estimated.humanMinutesRecovered) != null) ? estimated.humanMinutesRecovered : null,
+      cloudUsdAvoided: (measured && n(measured.cloudUsdAvoided) != null) ? measured.cloudUsdAvoided : null,
+      passRate: (quality && n(quality.passRate) != null) ? quality.passRate : null,
+      jobs: (measured && n(measured.jobsRun) != null) ? measured.jobsRun : null,
+      throughputX: (secondary && n(secondary.throughputX) != null) ? secondary.throughputX : null,
+      usd: 0,
+    };
+  } catch { return null; }
+}
+
 // Map a model id → tier label (honest: unknown → null). Mirrors the tier ladder.
 function modelTier(model) {
   const m = String(model || '').toLowerCase();
@@ -222,7 +264,14 @@ async function buildSnapshot(cwd, opts) {
     scope: buildScope(sessions, recent),
     sessions,
     loops: mapLoops(opts.loopActive, opts.loopState),
-    gpu: readCache('gpu', cacheDir),
+    gpu: (() => {
+      const g = readCache('gpu', cacheDir);
+      const oc = readLastOverclockMetric(cacheDir);
+      if (g && typeof g === 'object') { g.overclock = oc; return g; }
+      // gpu cache absent but we have overclock data → wrap minimally so card can render n/d + counter
+      if (oc) return { overclock: oc };
+      return g; // null
+    })(),
     remote: readCache('remote', cacheDir),
     sync: readCache('sync', cacheDir), // top-level vault sync (Frente F bg writer); per-session sync lives on each session
     totals: buildTotals(sessions, opts),
@@ -239,5 +288,6 @@ module.exports = {
   ctxPct,
   sessionStatus,
   readCache,
+  readLastOverclockMetric,
   mooterCacheDir,
 };

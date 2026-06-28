@@ -137,6 +137,7 @@ function renderMissionControl(snapshot) {
     + btn('❚❚ pausar tudo', 'pauseAll', null, 'mc-warn', 'escreve a flag global de pausa (os runners honram-na)')
     + btn('▶ retomar', 'resumeAll', null, '', 'limpa a flag de pausa')
     + btn('＋ spawn moo', 'spawnMoo', 'qwen3:30b', 'mc-ok', 'enche a GPU com um worker local ($0)')
+    + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
     + btn('⇄ handoff geral', 'projHandoff', (s.project || ''), '', 'gera o handoff do projecto e copia')
     + btn('🔄', 'refresh', null, '', 'força um refresh do snapshot')
     + '</div>';
@@ -172,9 +173,31 @@ function renderMissionControl(snapshot) {
     + '<span>🍅 ' + (totals.needYou != null ? esc(totals.needYou) : '0') + ' a precisar de ti</span></div>'
     + '</div>';
 
-  // ── 4 · GPU gauge (segmentado) ────────────────────────────────────────────
+  // ── 4 · GPU gauge (segmentado) + Overclock Moo counter ──────────────────
+  // overclock sub-object: set by mc-snapshot when there is a recent run (nullable all fields).
+  var oc = (gpu && gpu.overclock) ? gpu.overclock : null;
+  // Honest overclock counter string. ALL null fields render as n/d. METR caveat mandatory.
+  function ocCounter(o) {
+    if (!o) return null;
+    var idleB = (o.idleBefore != null) ? esc(String(o.idleBefore)) + '%' : 'n/d';
+    var utilD = (o.utilDuring != null) ? esc(String(o.utilDuring)) + '%' : 'n/d';
+    var jobsN = (o.jobs != null) ? esc(String(o.jobs)) : 'n/d';
+    var minR = (o.humanMinRecovered != null) ? esc(String(o.humanMinRecovered)) : 'n/d';
+    var usdA = (o.cloudUsdAvoided != null) ? ('$' + esc(Number(o.cloudUsdAvoided).toFixed(4))) : 'n/d';
+    var parts = 'GPU ociosa ' + idleB + '→' + utilD
+      + ' · ' + jobsN + ' moos'
+      + ' · ⏳ ~' + minR + ' min recuperados <span style="font-size:9px;opacity:.75">(est, METR)</span>'
+      + ' · 💰 ~' + usdA + ' cloud evitado'
+      + ' · <span style="color:var(--g)">$0 local</span>';
+    // throughputX: secondary, labelled, omitted if null
+    if (o.throughputX != null) {
+      parts += ' <span style="font-size:9px;opacity:.6">· throughput ~' + esc(String(o.throughputX)) + '× (secundário)</span>';
+    }
+    return '<div class="mcf-oc-counter" style="font-size:10.5px;margin-top:6px;line-height:1.55;border-top:1px solid var(--vscode-widget-border);padding-top:5px">'
+      + '🔥 <b>Overclock Moo</b> · ' + parts + '</div>';
+  }
   out += '<div class="mc-card">';
-  if (gpu) {
+  if (gpu && (gpu.totalMb != null || gpu.freeMb != null || gpu.gpus)) {
     var totMb = num(gpu.totalMb), freeMb = num(gpu.freeMb);
     var usedMb = (totMb != null && freeMb != null) ? Math.max(0, totMb - freeMb) : null;
     var usedPct = (totMb && usedMb != null) ? Math.max(0, Math.min(100, Math.round(usedMb / totMb * 100))) : null;
@@ -183,13 +206,16 @@ function renderMissionControl(snapshot) {
     var tps = null;
     for (var ti = 0; ti < sessions.length; ti++) { var v = num(sessions[ti].tokPerSec); if (v != null) tps = (tps || 0) + v; }
     var gpuName = (Array.isArray(gpu.gpus) && gpu.gpus[0] && gpu.gpus[0].name) ? gpu.gpus[0].name : 'GPU';
-    out += '<div class="mcf-gpuhead">'
-      + '<span>🖥️ <b>' + esc(gpuName) + '</b></span>'
+    // When there is a recent overclock run the head visually lights up (orange glow accent).
+    var headStyle = oc ? ' style="background:linear-gradient(90deg,transparent,rgba(209,154,102,.08))"' : '';
+    out += '<div class="mcf-gpuhead"' + headStyle + '>'
+      + '<span>🖥️ <b>' + esc(gpuName) + '</b>' + (oc ? ' <span style="color:#D19A66;font-size:10px">🔥</span>' : '') + '</span>'
       + '<span class="mcf-bk">VRAM <b>' + (usedMb == null || totMb == null ? nd(null) : ((usedMb / 1024).toFixed(1) + ' / ' + (totMb / 1024).toFixed(1) + ' GB')) + '</b>' + (usedPct == null ? '' : ' (' + usedPct + '%)') + '</span>'
       + (tps == null ? '' : '<span class="mcf-bk"><b>' + Math.round(tps) + '</b> tok/s</span>')
       + '<span class="mcf-spacer"></span>'
       + '<span class="mcf-star">🏆 ' + (freeMb == null ? nd(null) : (freeMb / 1024).toFixed(1) + ' GB livre') + ' → cabem <b>' + (fits == null ? 'n/d' : ('+' + fits)) + '</b> moos</span>'
       + btn('＋ spawn', 'spawnMoo', 'qwen3:30b', 'mc-ok')
+      + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
       + '</div>';
     // segmented gauge: 10 slots; filled = used VRAM; trailing fits slots = ghost capacity.
     var SEG = 10;
@@ -207,8 +233,23 @@ function renderMissionControl(snapshot) {
       + '<span><i class="mcf-swatch" style="background:var(--g)"></i>VRAM em uso (compute)</span>'
       + (freeSlots ? '<span><i class="mcf-swatch mcf-gfree"></i>folga p/ +' + freeSlots + ' (Overclock)</span>' : '')
       + '</div>';
+    // Overclock counter — only when there is recent data; otherwise silent.
+    var ocHtml = ocCounter(oc);
+    if (ocHtml) out += ocHtml;
+  } else if (gpu && gpu.overclock) {
+    // gpu-snapshot absent (no nvidia-smi) but we have overclock data — show minimal header + counter.
+    out += '<div class="mc-lbl">🖥️ GPU</div>'
+      + '<div class="mc-nd" style="font-size:10.5px">⚪ n/d — nvidia-smi cache ausente (monitor parado?)</div>';
+    var ocHtml2 = ocCounter(oc);
+    if (ocHtml2) out += ocHtml2;
+    out += '<div style="margin-top:6px">'
+      + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
+      + '</div>';
   } else {
     out += '<div class="mc-lbl">🖥️ GPU</div><div class="mc-nd">⚪ n/d — nvidia-smi não escreveu cache (sem GPU NVIDIA ou monitor parado)</div>';
+    out += '<div style="margin-top:6px">'
+      + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
+      + '</div>';
   }
   out += '</div>';
 

@@ -12,10 +12,44 @@
 //
 // $0 GUARANTEE: tes-calculator.priceStatusForModel must return "free" for the
 // local picks — that is the read-only proof, per pick, that Fase 1 spends $0.
+//
+// CLOUD-$ HELPER (Phase 2, additive): cloudUsdAvoided computes the counterfactual
+// cost of the locally-produced tokens on the CHEAPEST cloud tier (Haiku). This is
+// the ONLY place that imports cost.ts — metrics.ts stays router-decoupled.
+// Conservative: we price at the cheapest tier so as to NEVER over-claim savings.
+// Unknown/zero tokens → null (n/d), never fabricated.
 
 import { getCell } from "../../router/src/specialization-matrix.ts";
 import { priceStatusForModel } from "../../router/src/tes-calculator.ts";
+import { computeCostMicros, isLocalModel } from "../../router/src/cost.ts";
 import type { ModelPick } from "./types.ts";
+
+/** Cheapest cloud tier — conservative (we never over-claim savings). */
+export const CLOUD_AVOIDED_TIER = "claude-haiku-4-5";
+
+/**
+ * Counterfactual USD these local tokens WOULD cost on the cheapest cloud tier.
+ * null if both token counts are null/unknown, or if the tier is unpriced (never
+ * fabricated). Conservative: pricing at Haiku (cheapest) means the estimate is
+ * a lower bound, never inflated.
+ *
+ * @param tokensIn   Prompt tokens (null = unknown).
+ * @param tokensOut  Eval/completion tokens (null = unknown).
+ * @param tier       Cloud tier to price against (default: CLOUD_AVOIDED_TIER).
+ */
+export function cloudUsdAvoided(
+  tokensIn: number | null,
+  tokensOut: number | null,
+  tier = CLOUD_AVOIDED_TIER,
+): number | null {
+  if (tokensIn == null && tokensOut == null) return null;
+  // isLocalModel guard: if somehow a local tag is passed as the tier, return null
+  // instead of silently reporting $0 as a real cloud cost (never fabricate).
+  if (isLocalModel(tier)) return null;
+  const micros = computeCostMicros(tier, tokensIn ?? 0, tokensOut ?? 0);
+  if (!(micros > 0)) return null;
+  return Math.round(micros) / 1e6; // USD
+}
 
 /** Local (free) models that can serve a continuous-batching slot in Fase 1. */
 export const DEFAULT_LOCAL_MODELS = ["qwen3-30b", "qwen3.6"] as const;

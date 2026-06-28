@@ -1,10 +1,19 @@
-// runner.mjs — local $0 executor for an Overclock Moo plan.
+// runner.mjs — local $0 executor for an Overclock Moo plan. Phase 2.
 //
 // Pipeline: read the live GPU slice (cache) → discover REAL pending work →
-// planAllocation() → run each job's DETERMINISTIC gate locally ($0), measuring
-// wall-clock + pass/fail → write the honest metric. GPU LLM jobs run only when
-// Ollama is up (else honest skip, never a fabricated result). Tokens come from
-// the Ollama API's real eval counts; nothing is invented.
+// planAllocation() → run jobs through runOverlapped() (GPU ∥ CPU pool) →
+// GPU util sampler during execution → write the honest metric.
+//
+// Phase 2 additions (ADDITIVE — all existing behaviour preserved):
+//   • runOverlapped replaces the sequential for-loop: GPU and CPU pools run in
+//     parallel (CPU verification while GPU generates). Hard slot caps still apply.
+//   • GPU util sampler polls nvidia-smi ~250ms during job execution; reports max
+//     (peak saturation reached while reclaiming idle) as utilDuring in the metric.
+//   • --idle-fill flag: runIdleFill loop re-discovers pending work each round and
+//     stops honestly when idle or a guard fires (VRAM > 85%, temp > 84°C).
+//   • cloudUsdAvoidedEst per GPU job: counterfactual at the cheapest cloud tier
+//     (Haiku) — conservative, never inflated. Null for CPU / token-less jobs.
+//   • OLLAMA_NUM_PARALLEL warning when the env value is below gpuSlots.
 //
 // Run (demo, real): npm run demo   (= tsx src/runner.mjs --demo)
 // tsx resolves the .ts imports below; plain node would need a TS loader.
@@ -17,6 +26,8 @@ import { join } from "node:path";
 import { planAllocation } from "./allocator.ts";
 import { discoverPendingJobs, makeJob } from "./job-catalogue.ts";
 import { appendMetric, honestSummaryLines, summarize } from "./metrics.ts";
+import { cloudUsdAvoided } from "./matrix-bridge.ts";
+import { runOverlapped, runIdleFill } from "./pool.mjs";
 
 const OLLAMA = process.env.OLLAMA_HOST?.replace(/\/$/, "") || "http://127.0.0.1:11434";
 
@@ -44,6 +55,46 @@ function queryUtilNow() {
   if (r.status !== 0 || !r.stdout) return null;
   const vals = r.stdout.trim().split("\n").map((s) => parseInt(s, 10)).filter(Number.isFinite);
   return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+}
+
+/**
+ * GPU util sampler: polls nvidia-smi every ~250ms while `fn` runs.
+ * Returns { utilMax, utilAvg } (both null if no GPU / nvidia-smi absent).
+ * Uses the MAX as utilDuring — the peak saturation reached (most conservative
+ * meaningful reading: shows the highest the idle GPU was driven).
+ */
+async function withUtilSampling(fn) {
+  const samples = [];
+  let live = true;
+
+  // Sampling loop runs concurrently with fn.
+  const samplerDone = (async () => {
+    while (live) {
+      const r = spawnSync(
+        "nvidia-smi",
+        ["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+        { encoding: "utf8" },
+      );
+      if (r.status === 0 && r.stdout) {
+        const vals = r.stdout.trim().split("\n").map((s) => parseInt(s, 10)).filter(Number.isFinite);
+        if (vals.length) samples.push(Math.round(vals.reduce((a, b) => a + b, 0) / vals.length));
+      }
+      await new Promise((res) => setTimeout(res, 250));
+    }
+  })();
+
+  const result = await fn();
+  live = false;
+  // Wait for one last sample after fn completes.
+  await new Promise((res) => setTimeout(res, 300));
+  await samplerDone;
+
+  const utilMax = samples.length ? Math.max(...samples) : null;
+  const utilAvg = samples.length
+    ? Math.round(samples.reduce((a, b) => a + b, 0) / samples.length)
+    : null;
+
+  return { result, utilMax, utilAvg };
 }
 
 async function ollamaModels() {
@@ -101,12 +152,16 @@ function runCpuGate(job) {
     r.status === 127 ||
     /could not determine executable to run/i.test(out);
   if (toolMissing) {
-    return { wallSeconds, skipped: "tool-unavailable", gatePassed: false, localTokens: null };
+    return { wallSeconds, skipped: "tool-unavailable", gatePassed: false, localTokens: null, promptTokens: null, evalTokens: null };
   }
-  return { wallSeconds, gatePassed: r.status === 0, localTokens: null };
+  return { wallSeconds, gatePassed: r.status === 0, localTokens: null, promptTokens: null, evalTokens: null };
 }
 
-/** Run a GPU LLM job via the Ollama API; tokens are REAL eval counts. */
+/**
+ * Run a GPU LLM job via the Ollama API; tokens are REAL eval counts.
+ * Returns promptTokens and evalTokens separately (for cloud-$ estimate) plus
+ * localTokens = prompt+eval (for metrics, consistent with Phase 1 contract).
+ */
 async function runGpuLlmJob(job, model, prompt) {
   const t0 = Date.now();
   try {
@@ -119,15 +174,17 @@ async function runGpuLlmJob(job, model, prompt) {
       signal: AbortSignal.timeout(120_000),
     });
     const wallSeconds = (Date.now() - t0) / 1000;
-    if (!res.ok) return { wallSeconds, skipped: `ollama-http-${res.status}`, gatePassed: false, localTokens: null };
+    if (!res.ok) return { wallSeconds, skipped: `ollama-http-${res.status}`, gatePassed: false, localTokens: null, promptTokens: null, evalTokens: null };
     const j = await res.json();
     const text = String(j.response || "").trim();
-    const localTokens = (j.prompt_eval_count || 0) + (j.eval_count || 0) || null;
+    const promptTokens = typeof j.prompt_eval_count === "number" ? j.prompt_eval_count : null;
+    const evalTokens = typeof j.eval_count === "number" ? j.eval_count : null;
+    const localTokens = (promptTokens ?? 0) + (evalTokens ?? 0) || null;
     // Deterministic gate: the draft must be non-empty (a real artifact produced).
-    return { wallSeconds, gatePassed: text.length > 0, localTokens, runtimeModel: model, artifact: text };
+    return { wallSeconds, gatePassed: text.length > 0, localTokens, promptTokens, evalTokens, runtimeModel: model, artifact: text };
   } catch (e) {
     const wallSeconds = (Date.now() - t0) / 1000;
-    return { wallSeconds, skipped: "ollama-unavailable", gatePassed: false, localTokens: null };
+    return { wallSeconds, skipped: "ollama-unavailable", gatePassed: false, localTokens: null, promptTokens: null, evalTokens: null };
   }
 }
 
@@ -136,11 +193,147 @@ function gitDiffStat(root) {
   return r.status === 0 ? r.stdout.trim().slice(-1500) : "";
 }
 
+/**
+ * Read GPU temperature and VRAM used from a cached GPU slice or live nvidia-smi.
+ * Returns { tempC: number|null, usedMb: number|null, totalMb: number|null }.
+ */
+function readGpuStatus(gpu) {
+  // Try to read temp+VRAM from nvidia-smi directly (most up-to-date).
+  const r = spawnSync(
+    "nvidia-smi",
+    ["--query-gpu=temperature.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
+    { encoding: "utf8" },
+  );
+  if (r.status === 0 && r.stdout) {
+    const first = r.stdout.trim().split("\n")[0] || "";
+    const parts = first.split(",").map((s) => parseInt(s.trim(), 10));
+    if (parts.length >= 3 && parts.every(Number.isFinite)) {
+      return { tempC: parts[0], usedMb: parts[1], totalMb: parts[2] };
+    }
+  }
+  // Fall back to cached slice (best-effort).
+  if (gpu) {
+    const totalMb = typeof gpu.totalMb === "number" ? gpu.totalMb : null;
+    const freeMb = typeof gpu.freeMb === "number" ? gpu.freeMb : null;
+    const usedMb = totalMb !== null && freeMb !== null ? Math.max(0, totalMb - freeMb) : null;
+    return { tempC: null, usedMb, totalMb };
+  }
+  return { tempC: null, usedMb: null, totalMb: null };
+}
+
+/**
+ * shouldStop guard for runIdleFill.
+ * Reads live VRAM via nvidia-smi; if used > 85% of total OR temp > 84°C, stops.
+ * If unreadable → never stops on a fabricated reading (honest).
+ */
+function makeShouldStop(gpu) {
+  return async function shouldStop() {
+    const { tempC, usedMb, totalMb } = readGpuStatus(gpu);
+    if (tempC !== null && tempC > 84) {
+      return { stop: true, reason: `thermal: GPU temp ${tempC}°C > 84°C` };
+    }
+    if (usedMb !== null && totalMb !== null && totalMb > 0) {
+      const frac = usedMb / totalMb;
+      if (frac > 0.85) {
+        return { stop: true, reason: `vram: ${Math.round(frac * 100)}% used > 85% threshold` };
+      }
+    }
+    // Unreadable → do not stop; never fabricate.
+    return { stop: false };
+  };
+}
+
+/**
+ * comfort function for runIdleFill: if GPU temp over threshold, return reduced
+ * concurrency (≥1). If temp unreadable, return full gpuSlots (never stop on fiction).
+ */
+function makeComfort(gpu, gpuSlots) {
+  return async function comfort() {
+    const { tempC } = readGpuStatus(gpu);
+    if (tempC !== null && tempC > 80) {
+      // Thermal comfort: reduce to half-capacity (floor 1) above 80°C.
+      return Math.max(1, Math.floor(gpuSlots / 2));
+    }
+    return gpuSlots;
+  };
+}
+
+/**
+ * Warn if OLLAMA_NUM_PARALLEL is set below the planned gpuSlots — the batching
+ * would be limited by the server before our slot cap matters.
+ */
+function warnOllamaParallel(gpuSlots) {
+  const env = process.env.OLLAMA_NUM_PARALLEL;
+  // Default when unset is typically 4 in Ollama; we use 4 as the known default.
+  const knownDefault = 4;
+  const effective = env ? parseInt(env, 10) : knownDefault;
+  if (Number.isFinite(effective) && effective < gpuSlots) {
+    console.warn(
+      `⚠ batching limitado: OLLAMA_NUM_PARALLEL=${effective} < gpuSlots=${gpuSlots} ` +
+      `(sobe e reinicia o Ollama para saturar o batch)`,
+    );
+  }
+}
+
+/**
+ * Build the runGpuJob and runCpuJob closures that match runOverlapped's signature.
+ * Each closure captures the diff/model context and returns a JobResult-shaped object.
+ */
+function makeJobClosures(plan, ollamaModel, diff) {
+  const base = plan.baseModel;
+
+  async function runGpuJob(job) {
+    if (!ollamaModel) {
+      return {
+        id: job.id, kind: job.kind, category: job.category,
+        model: job.pick.model, runtimeBase: base, resource: "gpu",
+        gate: job.gate, humanMinutesEst: job.humanMinutes, usd: 0,
+        wallSeconds: 0, gatePassed: false, localTokens: null, skipped: "ollama-unavailable",
+        cloudUsdAvoidedEst: null,
+      };
+    }
+    const prompt = `Write a single concise conventional-commit subject line (max 72 chars, no body) for this diff. Output only the line.\n\n${diff}`;
+    const r = await runGpuLlmJob(job, ollamaModel, prompt);
+    const cloudEst = cloudUsdAvoided(r.promptTokens, r.evalTokens);
+    return {
+      id: job.id, kind: job.kind, category: job.category,
+      model: job.pick.model,
+      runtimeBase: r.runtimeModel || ollamaModel,
+      resource: "gpu",
+      gate: job.gate,
+      humanMinutesEst: job.humanMinutes,
+      usd: 0,
+      wallSeconds: round1(r.wallSeconds),
+      gatePassed: r.gatePassed,
+      localTokens: r.localTokens,
+      ...(r.skipped ? { skipped: r.skipped } : {}),
+      cloudUsdAvoidedEst: r.skipped ? null : cloudEst,
+    };
+  }
+
+  function runCpuJob(job) {
+    const r = runCpuGate(job);
+    return Promise.resolve({
+      id: job.id, kind: job.kind, category: job.category,
+      model: job.pick.model, runtimeBase: base, resource: "cpu",
+      gate: job.gate, humanMinutesEst: job.humanMinutes, usd: 0,
+      wallSeconds: round1(r.wallSeconds),
+      gatePassed: r.gatePassed,
+      localTokens: r.localTokens,
+      ...(r.skipped ? { skipped: r.skipped } : {}),
+      cloudUsdAvoidedEst: null, // CPU jobs produce no tokens → no cloud counterfactual
+    });
+  }
+
+  return { runGpuJob, runCpuJob };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const demo = args.includes("--demo");
   const dryRun = args.includes("--dry-run");
   const asJson = args.includes("--json");
+  const idleFill = args.includes("--idle-fill");
   const onlyIdx = args.indexOf("--only");
   const only = onlyIdx >= 0 ? args[onlyIdx + 1] : demo ? "overclock-moo" : null;
 
@@ -174,33 +367,75 @@ async function main() {
     return;
   }
 
-  // ── Execute the plan, measuring honestly ──────────────────────────────────
+  // ── OLLAMA_NUM_PARALLEL warning ───────────────────────────────────────────
+  if (plan.capacity.gpuSlots > 1) warnOllamaParallel(plan.capacity.gpuSlots);
+
   const utilBefore = gpu && typeof gpu.utilPct === "number" ? gpu.utilPct : null;
-  const results = [];
-  for (const job of plan.jobs) {
-    const base = { id: job.id, kind: job.kind, category: job.category, model: job.pick.model, runtimeBase: plan.baseModel, resource: job.resource, gate: job.gate, humanMinutesEst: job.humanMinutes, usd: 0 };
-    if (job.resource === "cpu") {
-      const r = runCpuGate(job);
-      results.push({ ...base, wallSeconds: round1(r.wallSeconds), gatePassed: r.gatePassed, localTokens: r.localTokens, ...(r.skipped ? { skipped: r.skipped } : {}) });
-    } else {
-      if (!ollamaModel) {
-        results.push({ ...base, wallSeconds: 0, gatePassed: false, localTokens: null, skipped: "ollama-unavailable" });
-        continue;
-      }
-      const prompt = `Write a single concise conventional-commit subject line (max 72 chars, no body) for this diff. Output only the line.\n\n${diff}`;
-      const r = await runGpuLlmJob(job, ollamaModel, prompt);
-      results.push({ ...base, runtimeBase: r.runtimeModel || ollamaModel, wallSeconds: round1(r.wallSeconds), gatePassed: r.gatePassed, localTokens: r.localTokens, ...(r.skipped ? { skipped: r.skipped } : {}) });
+
+  // ── Execute the plan ─────────────────────────────────────────────────────
+  //
+  // --idle-fill: loop until real pending work empties or a guard fires.
+  // Normal run: one pass through runOverlapped (same semantics as Phase 1,
+  //             but GPU ∥ CPU instead of sequential).
+
+  let allResults = [];
+  let utilDuring = null;
+
+  if (idleFill) {
+    const shouldStop = makeShouldStop(gpu);
+    const comfort = makeComfort(gpu, plan.capacity.gpuSlots);
+
+    // Each round re-discovers pending work and plans fresh.
+    const planRound = async () => {
+      const freshJobs = discoverPendingJobs(root);
+      return planAllocation(snapshot, { jobs: freshJobs });
+    };
+
+    // We sample util across the whole idle-fill run (not per-round, for simplicity).
+    const { result: rounds, utilMax } = await withUtilSampling(async () => {
+      return await runIdleFill({
+        planRound,
+        shouldStop,
+        comfort,
+        maxRounds: 50,
+        // runGpuJob and runCpuJob are injected per-round via the plan's job list
+        // BUT runIdleFill calls runOverlapped which needs closures. We pass them
+        // here keyed to the initial plan; each round re-runs with updated plan.
+        runGpuJob: async (job) => {
+          const { runGpuJob } = makeJobClosures(plan, ollamaModel, diff);
+          return await runGpuJob(job);
+        },
+        runCpuJob: async (job) => {
+          const { runCpuJob } = makeJobClosures(plan, ollamaModel, diff);
+          return await runCpuJob(job);
+        },
+      });
+    });
+
+    utilDuring = utilMax;
+    // Flatten results from all rounds.
+    for (const round of rounds) {
+      if (round.results) allResults.push(...round.results.filter(Boolean));
     }
+  } else {
+    // Normal single-pass: runOverlapped (GPU ∥ CPU, replaces the sequential for-loop).
+    const { runGpuJob, runCpuJob } = makeJobClosures(plan, ollamaModel, diff);
+    const { result: out, utilMax } = await withUtilSampling(async () => {
+      return await runOverlapped(plan, { runGpuJob, runCpuJob });
+    });
+    utilDuring = utilMax;
+    allResults = out.results.filter(Boolean);
   }
 
   const utilAfter = queryUtilNow();
-  const metric = summarize(results, {
+  const metric = summarize(allResults, {
     at: Date.now(),
     project: snapshot.project,
     baseModel: plan.baseModel,
     gpu: {
       utilBefore,
       utilAfter,
+      utilDuring,
       totalMb: gpu && typeof gpu.totalMb === "number" ? gpu.totalMb : null,
       vramBudgetMb: plan.capacity.vramBudgetMb,
       gpuSlots: plan.capacity.gpuSlots,
@@ -214,7 +449,7 @@ async function main() {
     console.log(JSON.stringify(metric, null, 2));
     return;
   }
-  console.log("🐂 Overclock Moo — Fase 1 (batch, local, $0)");
+  console.log("🐂 Overclock Moo — Fase 2 (overlap, idle-fill, $0)");
   console.log(`   plan: ${plan.reason}`);
   for (const line of honestSummaryLines(metric)) console.log("   " + line);
   console.log(`   ledger: ${file}`);

@@ -7,7 +7,8 @@
   "scripts": {
     "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
     "test:local": "tsx --test tests/*.test.ts",
-    "demo": "../cli/node_modules/.bin/tsx src/runner.mjs --demo"
+    "demo": "../cli/node_modules/.bin/tsx src/runner.mjs --demo",
+    "benchmark": "../cli/node_modules/.bin/tsx src/benchmark.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
