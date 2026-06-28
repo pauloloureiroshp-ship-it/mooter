@@ -29,6 +29,10 @@ try { MR = require('./mode-registry'); } catch { MR = { byProject: (rows) => ({ 
 // WCOCKPIT-3: row renderer module (serialised into webview via fn.toString())
 let RR = null;
 try { RR = require('./row-renderer'); } catch { RR = null; }
+// Frente E · Arquitectura Viva: renderArchTree(snapshot, mode) — serialised into the webview
+// via fn.toString() (concat-only). Fail-soft: cockpit works without it (stub fallback).
+let ARCH = null;
+try { ARCH = require('./arch-tree'); } catch { ARCH = null; }
 // Mission Control · Frente 0 (additive; safe fallback if files absent). The snapshot
 // assembler + the local scoped Moo assistant. Both fail-soft — the cockpit works without them.
 let MCSNAP = null, MCA = null;
@@ -1054,14 +1058,72 @@ function getHtml() {
   .mc-moobubble{padding:8px 10px;border-radius:8px;background:var(--vscode-editor-background);border:1px solid var(--g);white-space:pre-wrap;line-height:1.45}
   .mc-moomodel{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:4px}.mc-cursor{animation:mcblink 1s step-end infinite}@keyframes mcblink{50%{opacity:0}}
   .mc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 2px 12px}.mc-flinks{margin-left:auto;display:flex;gap:4px}
+  /* ── ARCH TREE TAB (Frente E · Arquitectura Viva) — concat-only render from the snapshot ── */
+  .arch-wrap{margin-top:2px}
+  .arch-seg{display:flex;gap:4px;margin-bottom:9px;flex-wrap:wrap}
+  button.arch-mode{font-size:10.5px;padding:4px 10px;border-radius:9px;opacity:.62;line-height:1.5;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);cursor:pointer}
+  button.arch-mode:hover{opacity:.9}
+  button.arch-mode.on{opacity:1;border-color:var(--r);color:var(--r);background:var(--rdim);font-weight:700}
+  button.arch-mode:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
+  .arch-root{font-size:12px;font-weight:700;margin-bottom:6px}
+  .arch-dev{font-size:9.5px;font-weight:400;color:var(--vscode-descriptionForeground)}
+  .arch-branchrow{font-size:10px;margin:2px 0 7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--vscode-editor-font-family,monospace)}
+  .arch-proj{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:8px;padding:1px 7px;font-family:var(--vscode-font-family)}
+  .arch-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .arch-leaf{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;border:1px solid transparent;cursor:pointer;font-size:11px}
+  .arch-leaf[data-arch-sid]:hover{background:var(--vscode-list-hoverBackground);border-color:var(--vscode-widget-border)}
+  .arch-leaf.needs{background:rgba(229,192,123,.08)}
+  .arch-twig{color:var(--vscode-descriptionForeground);opacity:.5;font-family:var(--vscode-editor-font-family,monospace);flex:none}
+  .arch-topic{flex:none}
+  .arch-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:30px;flex:0 1 auto}
+  .arch-badge{font-size:8.5px;font-weight:700;padding:1px 6px;border-radius:8px;flex:none;display:inline-flex;align-items:center;gap:3px}
+  .arch-badge.needs{color:#E5C07B;background:rgba(229,192,123,.12)}
+  .arch-badge.work{color:var(--g);background:var(--gdim)}
+  .arch-badge.idle{color:var(--vscode-descriptionForeground);background:var(--surface2)}
+  .arch-model{font-size:9.5px;color:var(--vscode-descriptionForeground);flex:none;white-space:nowrap}
+  .arch-tier{font-weight:700}
+  .arch-tok{font-size:9px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family,monospace);flex:none;white-space:nowrap}
+  .arch-ctx{font-size:9px;color:var(--vscode-descriptionForeground);flex:none}
+  .arch-ctx.hot{color:#E06C75;font-weight:700}
+  .arch-int{display:inline-flex;align-items:center;gap:3px;margin-left:auto;flex:none}
+  .arch-flow{font-size:10px}
+  .arch-sync{font-size:10px;opacity:.85}
+  .arch-sync.on{opacity:1;color:var(--g)}
+  .arch-open{font-size:11px;color:var(--vscode-descriptionForeground);opacity:.45;flex:none}
+  .arch-leaf:hover .arch-open{opacity:1;color:var(--g)}
+  .arch-nd{font-size:9px;color:var(--vscode-descriptionForeground);opacity:.65;font-style:italic}
+  /* CEO */
+  .arch-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0 10px}
+  .arch-kpi{background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:7px 8px;text-align:center}
+  .arch-kpiv{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .arch-kpik{font-size:8.5px;color:var(--vscode-descriptionForeground);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+  .arch-attn{margin:4px 0 10px;padding:7px 8px;border:1px solid rgba(229,192,123,.3);border-radius:7px;background:rgba(229,192,123,.04)}
+  .arch-attn .lbl{font-size:10.5px;font-weight:700;margin-bottom:4px}
+  .arch-portfolio .lbl{font-size:10.5px;font-weight:700;margin-bottom:4px}
+  .arch-pfrow{display:flex;align-items:center;gap:7px;padding:3px 4px;font-size:10.5px;border-top:1px solid var(--vscode-widget-border)}
+  /* Working-tree */
+  .arch-wtsec{margin-bottom:9px}
+  .arch-wtsec .lbl{font-size:10px;font-weight:700;color:var(--vscode-descriptionForeground);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  .arch-conn{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:10.5px;flex-wrap:wrap}
+  .arch-node{flex:none}
+  .arch-node.to{font-weight:600}
+  .arch-wire{display:inline-flex;align-items:center;color:var(--vscode-descriptionForeground)}
+  .arch-dash{display:inline-block;width:34px;height:0;border-top:2px dashed var(--vscode-descriptionForeground);opacity:.45}
+  .arch-dash.live{border-top-color:var(--g);opacity:1;background-image:none;animation:archflow 0.9s linear infinite}
+  @keyframes archflow{0%{background-position:0 0}100%{background-position:14px 0}}
+  .arch-dash.live{border-top-style:dashed;background:repeating-linear-gradient(90deg,var(--g) 0 6px,transparent 6px 12px) 0/14px 2px no-repeat;border-top:0;height:2px}
+  .arch-pending{font-size:10px;color:var(--vscode-descriptionForeground);opacity:.8;padding:4px 6px;border:1px dashed var(--vscode-widget-border);border-radius:6px;background:var(--surface2)}
+  @media (prefers-reduced-motion:reduce){.arch-dash.live{animation:none}}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G (não tocar na região da Frente E) --><div class="tab" data-v="mc">🎛️ Mission Control</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
+<!-- ARCH TREE TAB (Frente E · Arquitectura Viva) — renders purely from s.mc (MissionControlSnapshot). Separate from the Frente G Mission Control region. -->
+<div class="view" id="view-arch"><div id="v-arch"><div class="empty">🌳 Arquitectura viva — connecting…</div></div></div>
 <div class="view" id="view-setup"><div id="v-setup"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Install</div><div id="v-install"></div><div class="lbl" style="margin:14px 2px 6px">Models</div><div id="v-models"></div></div>
 <div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
 <div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
@@ -1077,6 +1139,8 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
 try{var _rt=(vsapi.getState()||{}).tab;if(_rt&&_rt!=='cockpit')goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
+// ARCH TREE TAB (Frente E): persisted mode for the Arquitectura Viva view (🌳 tree · 📊 ceo · 🔌 wt).
+let archModeCur='tree';try{var _am=(vsapi.getState()||{}).archMode;if(_am)archModeCur=_am;}catch(e){}
 let curMode='auto';const MORDER=['zen','auto','beast'];
 // Each live-session cow walks via the CSS .working class set at render time (the
 // session is "working" when its transcript was just written) — no JS tick needed.
@@ -1293,6 +1357,8 @@ const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WS3: Local Moo Fleet renderer (sibling of renderRow — read-only, idle-safe, concat-only)
 const renderLocalFleet=${RR&&RR.renderLocalFleet?RR.renderLocalFleet.toString():'function renderLocalFleet(){return "";}'};
+// ARCH TREE TAB (Frente E): renderArchTree(snapshot, mode) — concat-only, embedded sibling.
+const renderArchTree=${ARCH&&ARCH.renderArchTree?ARCH.renderArchTree.toString():'function renderArchTree(){return "";}'};
 // ── MISSION CONTROL TAB · Frente G — Mission Control renderer (concat-only/CSP-safe; renders
 // PURELY from snapshot.mc). Self-contained (its own esc), so safe under .toString() injection.
 const renderMissionControl=${MCV?MCV.renderMissionControl.toString():'function renderMissionControl(){return "<div class=\\"mc-nd\\">Mission Control indisponível</div>";}'};
@@ -1323,6 +1389,17 @@ function wireSessControls(root){
   root.querySelectorAll('.srow button.sarch').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};});
   root.querySelectorAll('.srow button.sgitbtn').forEach(function(b){var o=b.onclick;b.onclick=function(e){e.stopPropagation();if(o)o.call(b,e);};}); // WCOCKPIT-9 (Bloco C)
 }
+// ARCH TREE TAB (Frente E): render the Arquitectura Viva view PURELY from s.mc (MissionControlSnapshot),
+// then wire the 3-mode switcher (client re-render + persist + {cmd:'archMode'}) and clickable leaves→openSession.
+// Guarded so a bad render never blanks the tab. Separate from the Frente G Mission Control region.
+function renderArchView(s){
+  const host=$('#v-arch');if(!host)return;
+  const snap=(s&&s.mc)||null;
+  let html;try{html=renderArchTree(snap,archModeCur);}catch(er){html='<div class="empty">⚠ arch render error · '+esc(String(er&&er.message||er))+'</div>';}
+  host.innerHTML=html;
+  host.querySelectorAll('.arch-mode[data-arch-mode]').forEach(function(b){b.onclick=function(){const m=b.dataset.archMode;archModeCur=m;try{var _st=vsapi.getState()||{};_st.archMode=m;vsapi.setState(_st);}catch(e){}send('archMode',m);renderArchView(lastSnap);};});
+  host.querySelectorAll('.arch-leaf[data-arch-sid]').forEach(function(el){const go=function(){send('openSession',el.dataset.archSid);};el.onclick=go;el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+}
 window.addEventListener('message',(e)=>{
   // ⇄ Handoff v2.1 — live panel stream: skeleton 'ready' (copiado já) → 'enriched' (narrativa LLM
   // local · recopiado). 'generating'/'done' continuam suportados (compat). Store + apply.
@@ -1341,6 +1418,9 @@ window.addEventListener('message',(e)=>{
     else inR.textContent='🐮 could not resolve — try the Terminal tab';
     return;}
   if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
+  // ARCH TREE TAB (Frente E): render the Arquitectura Viva view every snapshot (before any early
+  // return below), guarded so it can never blank the cockpit. Renders purely from s.mc.
+  try{renderArchView(s);}catch(e){}
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   $('#proj').textContent='· '+(s.projectName||'—');
   const pr=s.paired||{};
