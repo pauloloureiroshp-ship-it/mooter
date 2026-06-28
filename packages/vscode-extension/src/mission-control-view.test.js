@@ -86,7 +86,7 @@ test('renders the full snapshot without throwing, non-empty HTML', () => {
     assert.ok(html.indexOf('data-a="' + cmd + '"') !== -1, 'pilot action ' + cmd + ' present');
   }
   // GPU gauge + fitsMoos
-  assert.ok(html.indexOf('cabem <b>3</b> moos') !== -1, 'GPU fitsMoos rendered');
+  assert.ok(html.indexOf('cabem <b>+3</b> moos') !== -1, 'GPU fitsMoos rendered');
   // loops band
   assert.ok(html.indexOf('review') !== -1, 'loop kind rendered');
   // Moo assistant input + example chips
