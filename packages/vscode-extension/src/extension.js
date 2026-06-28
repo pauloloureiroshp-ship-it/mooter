@@ -34,6 +34,10 @@ try { RR = require('./row-renderer'); } catch { RR = null; }
 let MCSNAP = null, MCA = null;
 try { MCSNAP = require('./mc-snapshot'); } catch { MCSNAP = null; }
 try { MCA = require('./mc-assistant'); } catch { MCA = null; }
+// ── MISSION CONTROL TAB · Frente G — the Mission Control view renderer (serialised into the
+// webview via .toString(), same trick as row-renderer). Fail-soft: absent → tab shows n/d.
+let MCV = null;
+try { MCV = require('./mission-control-view'); } catch { MCV = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1005,11 +1009,56 @@ function getHtml() {
   .srow[hidden],.grpsec[hidden]{display:none!important}
   /* compacto: esconde as sublines pesadas (mantém nome+estado+modelo na .sline e o drawer na selecção) */
   .herd.compact .sbody>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
+  /* ── MISSION CONTROL TAB · Frente G ── */
+  .mc-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px}
+  .mc-title{font-size:13px;font-weight:700;color:var(--r)}.mc-proj{font-size:11px;color:var(--vscode-descriptionForeground);font-weight:400}
+  .mc-pilot{display:flex;flex-wrap:wrap;gap:5px;margin-left:auto}
+  .mc-btn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);color:var(--vscode-foreground);cursor:pointer}
+  .mc-btn:hover{border-color:var(--r)}.mc-btn.mc-ok{border-color:var(--g);color:var(--g)}.mc-btn.mc-warn{border-color:var(--t3);color:var(--t3)}
+  .mc-btn.mc-mini{font-size:10px;padding:1px 7px}
+  .mc-card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:11px;margin-bottom:8px}
+  .mc-lbl{font-size:11px;font-weight:700;color:var(--vscode-foreground);margin-bottom:7px}.mc-lbl2{margin-top:11px}
+  .mc-cnt{float:right;opacity:.6;font-weight:400}.mc-sub2{font-weight:400;opacity:.6;font-size:9.5px}
+  .mc-nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic;font-size:11px}
+  .mc-sub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:5px}
+  .mc-totals{display:flex;flex-wrap:wrap;gap:4px}.mc-tot{flex:1;min-width:64px;text-align:center;padding:5px 4px;border-radius:6px;background:var(--vscode-editor-background)}
+  .mc-totv{font-size:14px;font-weight:700}.mc-totl{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:1px}
+  .mc-tot.mc-ok .mc-totv{color:var(--g)}.mc-tot.mc-warn .mc-totv{color:var(--t3)}.mc-tot.mc-need .mc-totv{color:#E5C07B}
+  .mc-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .mc-chip{font-size:10.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--vscode-widget-border);display:inline-flex;align-items:center;gap:4px}
+  .mc-chip.mc-q,.mc-eg .mc-chip{cursor:pointer;background:var(--vscode-editor-background)}.mc-chip.mc-q:hover{border-color:var(--g)}
+  .mc-dot{display:inline-block;width:8px;height:8px;border-radius:50%;font-size:8px;line-height:8px}
+  .mc-dot.mc-work{background:var(--g);box-shadow:0 0 0 0 rgba(76,175,106,.5);animation:mcpulse 1.6s infinite}
+  @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(76,175,106,.5)}70%{box-shadow:0 0 0 5px rgba(76,175,106,0)}100%{box-shadow:0 0 0 0 rgba(76,175,106,0)}}
+  .mc-tier{font-size:9px;font-weight:700;padding:1px 5px;border-radius:5px}
+  .mc-T0{background:var(--gdim);color:var(--t0)}.mc-T1{color:var(--t1)}.mc-T2{color:var(--t2)}.mc-T3{background:var(--rdim);color:var(--t3)}.mc-T5{color:#E5C07B}.mc-tnd{color:var(--vscode-descriptionForeground)}
+  .mc-gpubar{height:10px;border-radius:5px;background:var(--vscode-editor-background);overflow:hidden;border:1px solid var(--vscode-widget-border)}
+  .mc-gpufill{height:100%;background:linear-gradient(90deg,var(--g),var(--t3))}
+  .mc-gpumeta{font-size:10.5px;margin-top:5px}.mc-gpuact{margin-top:7px}
+  .mc-loops{display:flex;flex-direction:column;gap:4px}.mc-loop{font-size:10.5px;display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:6px;background:var(--vscode-editor-background)}.mc-loop.mc-on{border-left:3px solid var(--g)}
+  .mc-tree{display:flex;flex-direction:column;gap:4px}
+  .mc-treerow{width:100%;text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:10.5px;padding:4px 7px;border:1px solid var(--vscode-widget-border);border-left:3px solid var(--g);border-radius:6px;background:var(--vscode-editorWidget-background);color:var(--vscode-foreground);cursor:pointer}
+  .mc-treerow:hover{background:var(--vscode-list-hoverBackground)}.mc-treerow.mc-nolink{cursor:default;border-left-color:var(--vscode-widget-border);opacity:.8}
+  .mc-twt{font-weight:600}.mc-tbr{color:var(--g)}.mc-tsha{font-family:monospace;opacity:.7}
+  .mc-mark{font-size:9px;padding:0 4px;border-radius:4px;background:var(--vscode-editor-background)}.mc-mark.mc-warn{color:var(--t3)}
+  .mc-sess{display:flex;flex-direction:column;gap:5px}
+  .mc-srow{padding:5px 7px;border:1px solid var(--vscode-widget-border);border-radius:6px;background:var(--vscode-editorWidget-background)}
+  .mc-sl{display:flex;align-items:center;gap:6px}.mc-cow{font-size:15px}.mc-sname{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-sm{font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .mc-model{color:var(--vscode-foreground);opacity:.85}
+  .mc-badge{font-size:10px}.mc-syn{font-size:9px;font-weight:700;padding:0 3px;border-radius:3px}.mc-syn.mc-ok{color:var(--g);background:var(--gdim)}.mc-syn.mc-off{color:var(--vscode-descriptionForeground);opacity:.5}
+  .mc-dev{font-size:10px}.mc-dev.mc-local{opacity:.6}
+  .mc-link{font-size:10px;border:none;background:none;color:var(--g);cursor:pointer;padding:0;text-decoration:underline}.mc-link.mc-nolink{color:var(--vscode-descriptionForeground);cursor:default;text-decoration:none}
+  .mc-mooin{display:flex;gap:5px;margin:7px 0}.mc-mooin input{flex:1;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:6px;padding:5px 8px;font-size:11.5px}
+  .mc-eg{margin-bottom:7px}.mc-mooout{font-size:11.5px}
+  .mc-moobubble{padding:8px 10px;border-radius:8px;background:var(--vscode-editor-background);border:1px solid var(--g);white-space:pre-wrap;line-height:1.45}
+  .mc-moomodel{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:4px}.mc-cursor{animation:mcblink 1s step-end infinite}@keyframes mcblink{50%{opacity:0}}
+  .mc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 2px 12px}.mc-flinks{margin-left:auto;display:flex;gap:4px}
 </style></head><body>
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G (não tocar na região da Frente E) --><div class="tab" data-v="mc">🎛️ Mission Control</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
@@ -1017,6 +1066,7 @@ function getHtml() {
 <div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
 <div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
 <div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
+<!-- MISSION CONTROL TAB · Frente G — view container (renderMissionControl preenche #v-mc) --><div class="view" id="view-mc"><div id="v-mc"><div class="empty">Mission Control — à espera do primeiro snapshot…</div></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
 function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));try{var _st=vsapi.getState()||{};_st.tab=name;vsapi.setState(_st);}catch(e){}}
@@ -1243,6 +1293,20 @@ const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WS3: Local Moo Fleet renderer (sibling of renderRow — read-only, idle-safe, concat-only)
 const renderLocalFleet=${RR&&RR.renderLocalFleet?RR.renderLocalFleet.toString():'function renderLocalFleet(){return "";}'};
+// ── MISSION CONTROL TAB · Frente G — Mission Control renderer (concat-only/CSP-safe; renders
+// PURELY from snapshot.mc). Self-contained (its own esc), so safe under .toString() injection.
+const renderMissionControl=${MCV?MCV.renderMissionControl.toString():'function renderMissionControl(){return "<div class=\\"mc-nd\\">Mission Control indisponível</div>";}'};
+// ── MISSION CONTROL TAB · Frente G — Moo assistant state + wiring (survives the 7s re-render).
+// Stream comes back as moo/moo-stream/moo-done (Frente 0 host handlers); mcApply re-paints.
+let mcMoo={q:'',out:'',status:'idle',model:null,focused:false};
+function mcApply(){var o=document.getElementById('mcMooOut');if(o){if(mcMoo.out){o.innerHTML='<div class="mc-moobubble">'+esc(mcMoo.out)+(mcMoo.status==='thinking'?' <span class="mc-cursor">▍</span>':'')+'</div>'+(mcMoo.model?'<div class="mc-moomodel">🐮 '+esc(mcMoo.model)+' · local · $0</div>':'');}else if(mcMoo.status==='thinking'){o.innerHTML='<div class="mc-moobubble">🐮 a pensar… <span class="mc-cursor">▍</span></div>';}else{o.innerHTML='';}}var i=document.getElementById('mcMooIn');if(i&&mcMoo.focused){try{i.focus();}catch(e){}}}
+function mcAsk(q){var i=document.getElementById('mcMooIn');var v=(q!=null?q:(i?i.value:'')).trim();if(!v)return;mcMoo.q=v;mcMoo.out='';mcMoo.model=null;mcMoo.status='thinking';mcApply();send('askMoo',v);}
+function wireMc(root){if(!root)return;wireButtons(root);
+  var i=root.querySelector('#mcMooIn');var g=root.querySelector('#mcMooGo');
+  if(i){i.value=mcMoo.q||'';i.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();mcAsk();}};i.onfocus=function(){mcMoo.focused=true;};i.onblur=function(){mcMoo.focused=false;};}
+  if(g)g.onclick=function(){mcAsk();};
+  root.querySelectorAll('.mc-chip.mc-q[data-q]').forEach(function(c){c.onclick=function(){mcAsk(c.getAttribute('data-q'));};});
+  mcApply();}
 // WCOCKPIT-3: wire per-session mode/model/auto controls (stop-propagation inside srow)
 function wireSessControls(root){
   // B1 — feedback óptimista: o estado visual salta JÁ no clique; flashApply pulsa "a aplicar…" no
@@ -1267,6 +1331,10 @@ window.addEventListener('message',(e)=>{
   // concatenated under the skeleton; 'handoff-done' fixes the final text (facts + narrative) and re-enables Copiar.
   if(e.data.type==='handoff-stream'){const id=e.data.sid;if(id!=null){const st=hoffState[id]||(hoffState[id]={status:'streaming',text:'',stream:'',model:null});st.status='streaming';st.stream=(st.stream||'')+(e.data.chunk||'');if(e.data.model)st.model=e.data.model;hoffApply(id,st);}return;}
   if(e.data.type==='handoff-done'){const id=e.data.sid;if(id!=null){const st=hoffState[id]||(hoffState[id]={status:'done',text:'',stream:'',model:null});st.status='done';st.text=e.data.text||st.text||'';st.stream='';if(e.data.model)st.model=e.data.model;hoffApply(id,st);}return;}
+  // ── MISSION CONTROL TAB · Frente G — Moo assistant stream (reuses the handoff-stream pattern).
+  if(e.data.type==='moo'){if(e.data.status==='thinking'){mcMoo.status='thinking';mcMoo.out='';mcApply();}return;}
+  if(e.data.type==='moo-stream'){mcMoo.status='thinking';mcMoo.out=(mcMoo.out||'')+(e.data.chunk||'');mcApply();return;}
+  if(e.data.type==='moo-done'){mcMoo.status='idle';mcMoo.out=e.data.text||mcMoo.out||'';if(e.data.model)mcMoo.model=e.data.model;mcApply();return;}
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
@@ -1582,6 +1650,13 @@ window.addEventListener('message',(e)=>{
     (s.security?'<div class="card"><div class="lbl">🛡️ Sandbox security (4-layer)</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.security)+'</div></div>':'')+
     '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1">Full doctor →</button><button data-a="refresh" style="flex:1">Refresh</button></div>';
   wireButtons($('#v-doctor'));
+
+  // ── MISSION CONTROL TAB · Frente G — render the Mission Control tab PURELY from s.mc.
+  // Honest: no snapshot.mc yet → "sem snapshot". Never throws (guarded); wires Moo + pilot bus.
+  try{
+    const vmc=$('#v-mc');
+    if(vmc){ vmc.innerHTML=s.mc?renderMissionControl(s.mc):'<div class="empty">Mission Control — sem snapshot ainda (espera o próximo refresh)…</div>'; wireMc(vmc); }
+  }catch(_mc){ try{const vmc2=$('#v-mc');if(vmc2)vmc2.innerHTML='<div class="mc-nd">Mission Control — erro de render</div>';}catch(__mc){} }
 });
 send('refresh');
 </script></body></html>`;
