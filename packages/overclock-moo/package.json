@@ -1,0 +1,16 @@
+{
+  "name": "@mooter/overclock-moo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Overclock Moo — Fase 1 (Batch). Allocator (asymmetry-safe jobs × specialization-matrix × knapsack over VRAM/compute slots) + local $0 runner with deterministic gates + an HONEST recovered-time metric (measured, not assumed — METR caveat). Saturates compute via continuous batching, never loads N models. classify.js FROZEN; this package is additive and read-only against packages/router/src.",
+  "scripts": {
+    "test": "../cli/node_modules/.bin/tsx --test tests/*.test.ts",
+    "test:local": "tsx --test tests/*.test.ts",
+    "demo": "../cli/node_modules/.bin/tsx src/runner.mjs --demo"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3"
+  }
+}
