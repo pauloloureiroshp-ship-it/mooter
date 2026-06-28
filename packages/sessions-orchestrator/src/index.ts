@@ -6,6 +6,7 @@ export * from "./quota.ts";
 export * from "./terminal.ts";
 export * from "./workflow-chip.ts";
 export * from "./aggregator.ts";
+export * from "./remote.ts";
 export * from "./state.ts";
 export * from "./tui.ts";
 export * from "./commands.ts";

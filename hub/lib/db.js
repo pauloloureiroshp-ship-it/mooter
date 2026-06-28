@@ -432,6 +432,60 @@ export async function countRecentPastorAdaptersByDevice(db, deviceId, sinceMs) {
   return row && typeof row.cnt === 'number' ? row.cnt : 0;
 }
 
+// ── Live session state (Frente F — cross-machine mirror, per device) ────────
+
+const UPSERT_LIVE_SESSION_SQL = `
+  INSERT INTO live_session_state (device_id, owner_hash, os_type, device_label, payload, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+  ON CONFLICT(device_id) DO UPDATE SET
+    owner_hash = excluded.owner_hash, os_type = excluded.os_type,
+    device_label = excluded.device_label, payload = excluded.payload,
+    updated_at = excluded.updated_at
+`;
+
+/** Upsert a device's current live-session snapshot (latest wins, one row/device). */
+export async function upsertLiveSession(db, s, receivedAt) {
+  const payload = JSON.stringify({
+    sessions: Array.isArray(s.sessions) ? s.sessions : [],
+    handoff: s.handoff ?? null,
+    totals: s.totals ?? null,
+    at: s.at ?? receivedAt,
+  });
+  return db.prepare(UPSERT_LIVE_SESSION_SQL).bind(
+    s.device_id, s.owner_hash, s.os_type ?? null, s.device_label ?? null, payload, receivedAt
+  ).run();
+}
+
+/**
+ * List the owner's OTHER devices' live-session rows (newest first). Scoped to a
+ * single owner_hash and never returns the caller's own device. Caps at `limit`.
+ */
+export async function listLiveSessionsByOwner(db, ownerHash, excludeDeviceId, limit) {
+  const cap = Math.max(1, Math.min(50, Number(limit) || 20));
+  const res = /** @type {any} */ (
+    await db.prepare(
+      `SELECT device_id, os_type, device_label, payload, updated_at
+         FROM live_session_state
+        WHERE owner_hash = ? AND device_id != ?
+        ORDER BY updated_at DESC
+        LIMIT ?`
+    ).bind(ownerHash, excludeDeviceId ?? '', cap).all()
+  );
+  return (res && Array.isArray(res.results)) ? res.results : [];
+}
+
+/** Rate-limit: count a device's recent upserts (fail-open at caller). */
+export async function countRecentLiveSessionsByDevice(db, deviceId, sinceMs) {
+  const window = typeof sinceMs === 'number' ? sinceMs : 60000;
+  const cutoff = new Date(Date.now() - window).toISOString();
+  const row = /** @type {any} */ (
+    await db.prepare(
+      'SELECT COUNT(*) as cnt FROM live_session_state WHERE device_id = ? AND updated_at > ?'
+    ).bind(deviceId, cutoff).first()
+  );
+  return row && typeof row.cnt === 'number' ? row.cnt : 0;
+}
+
 // ── Device setup profiles (Wave 29 29.K — federated cohort) ─────────────────
 
 const UPSERT_DEVICE_SETUP_SQL = `
