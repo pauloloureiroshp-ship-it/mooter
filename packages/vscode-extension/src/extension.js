@@ -38,6 +38,11 @@ try { ARCH = require('./arch-tree'); } catch { ARCH = null; }
 let MCSNAP = null, MCA = null;
 try { MCSNAP = require('./mc-snapshot'); } catch { MCSNAP = null; }
 try { MCA = require('./mc-assistant'); } catch { MCA = null; }
+// ── GUARDIAN:F2 ── Moo pre-bakes the handoff in background ($0, idle GPU) for filling
+// sessions, so the F3 jump is instant. Additive; fail-soft (cockpit works without it).
+let GUARDIAN_PREBAKE = null;
+try { GUARDIAN_PREBAKE = require('./guardian-prebake'); } catch { GUARDIAN_PREBAKE = null; }
+const GUARDIAN_PREBAKE_DEBOUNCE_MS = 15000; // cap pre-bake ticks to ~1/15s — never on the render path
 // ── MISSION CONTROL TAB · Frente G — the Mission Control view renderer (serialised into the
 // webview via .toString(), same trick as row-renderer). Fail-soft: absent → tab shows n/d.
 let MCV = null;
@@ -215,7 +220,35 @@ class DataService {
       this._lastNeeds = new Set(_rec.filter((_r) => _r && _r.needsYou).map((_r) => _r.fullId));
     } catch { /* notifications are best-effort */ }
     for (const fn of this.listeners) { try { fn(this.snapshot); } catch { /* never */ } }
+    // ── GUARDIAN:F2 ── pre-bake the handoff for filling sessions ($0, idle GPU), AFTER
+    // the panel has already painted — debounced, fire-and-forget, never on the render path.
+    try { this._guardianPrebakeTick(); } catch { /* best-effort, never blocks the refresh */ }
     } finally { this.busy = false; }
+  }
+  // ── GUARDIAN:F2 ── one debounced, fire-and-forget pre-bake pass over the current
+  // sessions. Reuses the existing handoff generator (composeHandoff/generateHandoff) and
+  // the F1 advisor; writes _handoff/guardian/<sid>.md atomically. Honest: $0 maintenance
+  // work, never counted as "time recovered". All side effects live in guardian-prebake.js.
+  _guardianPrebakeTick() {
+    if (!GUARDIAN_PREBAKE || typeof GUARDIAN_PREBAKE.tickPrebake !== 'function') return;
+    const now = Date.now();
+    if (this._gpLast && (now - this._gpLast) < GUARDIAN_PREBAKE_DEBOUNCE_MS) return;
+    this._gpLast = now;
+    const recent = (this.snapshot && this.snapshot.recent) || [];
+    if (!recent.length) return;
+    const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath)
+      || path.resolve(__dirname, '..', '..', '..');
+    const baseDir = path.join(wsRoot, '_handoff', 'guardian');
+    Promise.resolve(GUARDIAN_PREBAKE.tickPrebake(recent, {
+      generateHandoff: extra.generateHandoff,
+      composeHandoff: extra.composeHandoff, // $0 local narrative (rolling summary / bounded Ollama)
+      gitSnapshot: extra.gitSnapshot,
+      vaultFreshness: extra.vaultFreshness,
+      readJournalLast: extra.readJournalLast,
+      extractPending: extra.extractPending,
+      recent,
+      baseDir,
+    })).catch(() => { /* never throws into the refresh loop */ });
   }
   schedule() {
     if (this.timer) clearInterval(this.timer);
