@@ -440,6 +440,8 @@ function renderRow(r, opts) {
       + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
+      // -- GUARDIAN:F1 -- pressure chip, only for 200k-window (claude) models; ctxPct = tokens/200k. guardianChip is a webview-injected sibling (typeof-guarded so host-side renderRow calls skip it). Concat-only: no backticks here (renderRow.toString() must stay template-literal-free).
+      + ((typeof guardianChip === 'function' && r.ctxTokens && /opus|sonnet|haiku|claude/i.test(String(r.model || ''))) ? guardianChip(100 * r.ctxTokens / 200000, esc) : '')
     + '</div>'
     + coworkSub + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + localMooBlock + '</div>'

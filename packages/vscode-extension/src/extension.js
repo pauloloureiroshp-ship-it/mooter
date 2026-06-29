@@ -42,6 +42,10 @@ try { MCA = require('./mc-assistant'); } catch { MCA = null; }
 // webview via .toString(), same trick as row-renderer). Fail-soft: absent → tab shows n/d.
 let MCV = null;
 try { MCV = require('./mission-control-view'); } catch { MCV = null; }
+// ── GUARDIAN:F1 ── Compaction-pressure chip 🪶 (reads ctxPct → advisor.pressureLadder).
+// Serialised into the webview via fn.toString() (see the sibling injection below). Fail-soft.
+let GCHIP = null;
+try { GCHIP = require('./guardian-chip'); } catch { GCHIP = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1192,6 +1196,9 @@ function getHtml() {
   .mcf-pushbtn{font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--g);color:var(--g);background:var(--gdim);cursor:pointer;margin-left:auto}
   .mcf-cost{color:var(--g)}
   .mcf-ctxhot{color:var(--r);font-weight:700}
+  /* ── GUARDIAN:F1 ── 🪶 compaction-pressure chip (rung colour set inline per session) ── */
+  .g-chip{display:inline-flex;align-items:center;gap:3px;font-size:9px;line-height:1;padding:1px 5px;margin-left:5px;border:1px solid currentColor;border-radius:7px;white-space:nowrap;vertical-align:middle;opacity:.92}
+  .g-chip.g-advise,.g-chip.g-emergency{font-weight:700}
   /* ── ARCH TREE TAB (Frente E · Arquitectura Viva) — concat-only render from the snapshot ── */
   .arch-wrap{margin-top:2px}
   .arch-seg{display:flex;gap:4px;margin-bottom:9px;flex-wrap:wrap}
@@ -1552,6 +1559,11 @@ const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WS3: Local Moo Fleet renderer (sibling of renderRow — read-only, idle-safe, concat-only)
 const renderLocalFleet=${RR&&RR.renderLocalFleet?RR.renderLocalFleet.toString():'function renderLocalFleet(){return "";}'};
+// ── GUARDIAN:F1 ── pressure ladder + 🪶 chip embedded as webview siblings. In dev the
+// real advisor fn is injected (single source of truth); the inline mirror is the fallback
+// when guardian-chip.js / the advisor are absent. Shared by renderRow (herd) + sessionCard (MC).
+const pressureLadder=${GCHIP?GCHIP.pressureLadder.toString():'function pressureLadder(t){var p=Number(t);if(!Number.isFinite(p))return "monitor";if(p>=99)return "emergency";if(p>=90)return "advise";if(p>=85)return "prune";if(p>=80)return "mask";return "monitor";}'};
+const guardianChip=${GCHIP?GCHIP.guardianChip.toString():'function guardianChip(){return "";}'};
 // ARCH TREE TAB (Frente E): renderArchTree(snapshot, mode) — concat-only, embedded sibling.
 const renderArchTree=${ARCH&&ARCH.renderArchTree?ARCH.renderArchTree.toString():'function renderArchTree(){return "";}'};
 // ── MISSION CONTROL TAB · Frente G — Mission Control renderer (concat-only/CSP-safe; renders

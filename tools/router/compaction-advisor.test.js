@@ -1,0 +1,235 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// Isolate breadcrumb IO to a temp MOOTER_HOME so we never touch a live ~/.mooter
+// that a parallel session may be reading.
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-compact-'));
+process.env.MOOTER_HOME = TMP;
+
+const A = require('./compaction-advisor.js');
+
+test('pressureLadder — thresholds + graceful unknown', () => {
+  assert.strictEqual(A.pressureLadder(null), 'monitor');
+  assert.strictEqual(A.pressureLadder(undefined), 'monitor');
+  assert.strictEqual(A.pressureLadder(50), 'monitor');
+  assert.strictEqual(A.pressureLadder(80), 'mask');
+  assert.strictEqual(A.pressureLadder(85), 'prune');
+  assert.strictEqual(A.pressureLadder(90), 'advise');
+  assert.strictEqual(A.pressureLadder(99), 'emergency');
+});
+
+test('commitTestPRSignal — detects EN + PT work-boundary language', () => {
+  for (const s of ['just committed the fix', 'all tests pass now', 'opened a PR', 'merged to main',
+    'fiz commit do fix', 'os testes passaram', 'abri um PR']) {
+    assert.ok(A.commitTestPRSignal(s), `should fire: ${s}`);
+  }
+  assert.ok(!A.commitTestPRSignal('add a new button'));
+  assert.ok(!A.commitTestPRSignal(''));
+});
+
+test('stage1Boundary — no prior state → score 0', () => {
+  const r = A.stage1Boundary(null, { category: 'x', prompt: 'hi' }, Date.now());
+  assert.strictEqual(r.score, 0);
+  assert.ok(r.signals.includes('no_prior_state'));
+});
+
+test('stage1Boundary — a commit signal alone is a strong boundary', () => {
+  const prev = { category: 'code_generation', cwd: '/a', ts: Date.now() };
+  const r = A.stage1Boundary(prev, { category: 'code_generation', cwd: '/a', prompt: 'committed it' }, Date.now());
+  assert.ok(r.score >= A.STRONG, `score ${r.score}`);
+  assert.ok(r.signals.includes('commit_test_pr'));
+});
+
+test('stage1Boundary — category transition + focus change accumulate', () => {
+  const prev = { category: 'code_generation', cwd: '/a', ts: Date.now() };
+  const r = A.stage1Boundary(prev, { category: 'debugging', cwd: '/b', prompt: 'why does x fail' }, Date.now());
+  assert.ok(r.signals.some((s) => s.startsWith('category:')));
+  assert.ok(r.signals.includes('focus_change'));
+  assert.ok(r.score >= A.STRONG);
+});
+
+test('stage1Boundary — user-away temporal gap fires', () => {
+  const t0 = 1_000_000;
+  const prev = { category: 'docs', cwd: '/a', ts: t0 };
+  const r = A.stage1Boundary(prev, { category: 'docs', cwd: '/a', prompt: 'continue' }, t0 + A.GAP_MS + 1);
+  assert.ok(r.signals.includes('user_away_gap'));
+});
+
+test('stage1Boundary — same everything, no gap → continuous (no boundary)', () => {
+  const t = Date.now();
+  const prev = { category: 'docs', cwd: '/a', ts: t };
+  const r = A.stage1Boundary(prev, { category: 'docs', cwd: '/a', prompt: 'keep going' }, t + 1000);
+  assert.strictEqual(r.score, 0);
+  assert.deepStrictEqual(r.signals, ['continuous']);
+});
+
+test('compactionDecision — branches', () => {
+  assert.strictEqual(A.compactionDecision({ boundary: 0.1, pressure: 'monitor' }), 'HOLD');
+  assert.strictEqual(A.compactionDecision({ boundary: 0.6, pressure: 'monitor', cacheCold: 'hot' }), 'PREP_SNAPSHOT');
+  assert.strictEqual(A.compactionDecision({ boundary: 0.6, pressure: 'monitor', cacheCold: 'cold' }), 'ADVISE_NOW');
+  assert.strictEqual(A.compactionDecision({ boundary: 0.6, pressure: 'monitor', cacheCold: 'unknown' }), 'ADVISE_NOW');
+  assert.strictEqual(A.compactionDecision({ boundary: 0.1, pressure: 'advise' }), 'ADVISE_NOW');
+  assert.strictEqual(A.compactionDecision({ boundary: 0.1, pressure: 'emergency' }), 'ADVISE_NOW');
+});
+
+test('compactionDecision — NEVER advises mid-HIGH_RISK', () => {
+  // Even a strong boundary + emergency pressure must HOLD when risk is high.
+  assert.strictEqual(A.compactionDecision({ boundary: 1, pressure: 'emergency', cacheCold: 'cold', risk_level: 'high' }), 'HOLD');
+});
+
+test('buildSnapshot — restorable, deterministic, JSON-safe', () => {
+  const s = { session_id: 's1', category: 'debugging', cwd: '/repo', turns: 7, last_event: 'commit_test_pr', file_index: ['a.js', 'b.js'] };
+  const snap = A.buildSnapshot(s);
+  const round = JSON.parse(JSON.stringify(snap));
+  assert.deepStrictEqual(round, snap);
+  assert.strictEqual(snap.category, 'debugging');
+  assert.strictEqual(snap.turns, 7);
+  assert.ok(snap.previously_on.includes('debugging') && snap.previously_on.includes('/repo'));
+});
+
+test('breadcrumb — write/read round-trips, stale ignored', () => {
+  const sid = 'sess-A';
+  assert.strictEqual(A.readState(sid), null);
+  const now = 5_000_000_000;
+  A.writeState(sid, { category: 'code_generation', cwd: '/a' }, now);
+  const back = A.readState(sid, now + 1000);
+  assert.strictEqual(back.category, 'code_generation');
+  // stale (older than the window) → null
+  assert.strictEqual(A.readState(sid, now + 13 * 60 * 60 * 1000), null);
+});
+
+test('advise — accumulates turns across calls and returns a decision', () => {
+  const sid = 'sess-turns';
+  const t = 6_000_000_000;
+  const r1 = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'write x' }, t);
+  assert.strictEqual(r1.turns, 1);
+  const r2 = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why fail' }, t + 2000);
+  assert.strictEqual(r2.turns, 2);
+  assert.ok(['HOLD', 'PREP_SNAPSHOT', 'ADVISE_NOW'].includes(r2.decision));
+});
+
+test('advise — path traversal in session id is neutralized', () => {
+  A.advise('../../evil', { category: 'x', cwd: '/a', prompt: 'hi' }, Date.now());
+  // safeId strips path separators (/ \ → _), so every state file resolves INSIDE
+  // the compaction dir — no escape. Literal dots in the name are harmless.
+  const compactDir = path.resolve(path.join(TMP, 'compaction'));
+  for (const f of fs.readdirSync(compactDir)) {
+    assert.ok(!f.includes('/') && !f.includes('\\'), `separator survived: ${f}`);
+    assert.ok(path.resolve(compactDir, f).startsWith(compactDir), `escaped dir: ${f}`);
+  }
+});
+
+// --- Fase 3: cache-aware gate ---
+test('cacheState — hot / cooling / cold / unknown by inter-turn gap', () => {
+  const now = 1_000_000_000;
+  assert.strictEqual(A.cacheState(null, now), 'unknown');
+  assert.strictEqual(A.cacheState(now - 10_000, now), 'hot');        // 10s ago
+  assert.strictEqual(A.cacheState(now - 2 * 60 * 1000, now), 'cooling'); // 2 min ago
+  assert.strictEqual(A.cacheState(now - 6 * 60 * 1000, now), 'cold');    // 6 min ago (> TTL)
+});
+
+test('advise — hot cache + strong boundary → PREP_SNAPSHOT (do not churn the warm prefix)', () => {
+  const sid = 'sess-cache';
+  const t = 7_000_000_000;
+  A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'write x' }, t); // seed prev.ts = t
+  // Next turn 10s later (cache hot) WITH a strong boundary (commit signal): prepare, not advise.
+  const hot = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'committed it' }, t + 10_000);
+  assert.strictEqual(hot.cacheCold, 'hot');
+  assert.ok(hot.boundary >= A.STRONG);
+  assert.strictEqual(hot.decision, 'PREP_SNAPSHOT');
+});
+
+test('advise — cold cache + strong boundary → ADVISE_NOW (cache gone anyway)', () => {
+  const sid = 'sess-cold';
+  const t = 8_000_000_000;
+  A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'write x' }, t);
+  // 6 min later (cache cold) + commit boundary → advise now.
+  const cold = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'tests pass' }, t + 6 * 60 * 1000);
+  assert.strictEqual(cold.cacheCold, 'cold');
+  assert.ok(cold.boundary >= A.STRONG);
+  assert.strictEqual(cold.decision, 'ADVISE_NOW');
+});
+
+test('advise — explicit caller cacheCold overrides the derived one', () => {
+  const sid = 'sess-ovr';
+  const t = 9_000_000_000;
+  A.advise(sid, { category: 'x', cwd: '/a', prompt: 'hi' }, t);
+  const r = A.advise(sid, { category: 'x', cwd: '/a', prompt: 'committed', cacheCold: 'cold' }, t + 10_000);
+  assert.strictEqual(r.cacheCold, 'cold'); // caller wins over the 'hot' that the 10s gap would derive
+});
+
+// --- Fase 2: grey-zone embedding drift (injected vectors; no live Ollama) ---
+test('advise — embedding drift is OFF by default and fires on a pivot when enabled', () => {
+  const sid = 'sess-drift';
+  const t = 9_500_000_000;
+  const seed = () => A.writeState(sid, {
+    category: 'code_generation', cwd: '/a', turns: 5,
+    drift: { centroid: [1, 0, 0], count: 6, distances: [0.01, 0.02, 0.01, 0.03, 0.02, 0.01] },
+  }, t);
+
+  // (1) embedEnabled OFF → no drift even with a grey-zone category transition (0.4).
+  seed();
+  const off = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why fail', embedding: [0, 1, 0] }, t + 1000);
+  assert.strictEqual(off.drift, null);
+  assert.ok(off.boundary < A.STRONG); // stays grey, not boosted
+
+  // (2) embedEnabled ON + grey-zone + orthogonal pivot → drift fires → boundary boosted to strong.
+  seed();
+  const on = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why fail', embedEnabled: true, embedding: [0, 1, 0] }, t + 2000);
+  assert.ok(on.drift && on.drift.fired === true, `drift=${JSON.stringify(on.drift)}`);
+  assert.ok(on.boundary >= A.STRONG, `boosted boundary=${on.boundary}`);
+  assert.ok(on.signals.includes('embedding_drift'));
+});
+
+test('advise — embedding drift does NOT run outside the grey zone (strong boundary already)', () => {
+  const sid = 'sess-drift2';
+  const t = 9_600_000_000;
+  A.writeState(sid, { category: 'code_generation', cwd: '/a', turns: 5,
+    drift: { centroid: [1, 0, 0], count: 6, distances: [0.01, 0.02, 0.01, 0.03, 0.02, 0.01] } }, t);
+  // a commit signal makes Stage 1 already strong (0.5) → Stage 2 is skipped (no embedding cost)
+  const r = A.advise(sid, { category: 'code_generation', cwd: '/a', prompt: 'committed it', embedEnabled: true, embedding: [0, 1, 0] }, t + 1000);
+  assert.strictEqual(r.drift, null); // skipped — already strong, no need to embed
+});
+
+// --- Fase 3: arbiter overrides a borderline Stage-2 verdict (injected verdict; no Ollama) ---
+test('advise — Stage-3 arbiter: SAME suppresses, NEW rescues a borderline drift', () => {
+  const sid = 'sess-arb';
+  const t = 9_700_000_000;
+  // p90 of distances ≈ 0.5; injected embedding gives drift exactly 0.5 → borderline (needsArbiter true),
+  // and drift is NOT > threshold so Stage 2 alone would NOT fire. The arbiter decides.
+  const seed = () => A.writeState(sid, {
+    category: 'code_generation', cwd: '/a', turns: 5, topic_anchor: 'fix the parser',
+    drift: { centroid: [1, 0, 0], count: 6, distances: [0.4, 0.5, 0.45, 0.5, 0.5, 0.5] },
+  }, t);
+  const emb = [0.5, 0.8660254, 0]; // unit vector; cosine with [1,0,0] = 0.5 → distance 0.5
+
+  seed();
+  const same = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'why does the parser fail',
+    embedEnabled: true, arbiterEnabled: true, embedding: emb, arbiterVerdict: 'SAME' }, t + 1000);
+  assert.strictEqual(same.drift.fired, false, `SAME must not fire: ${JSON.stringify(same.drift)}`);
+
+  seed();
+  const neu = A.advise(sid, { category: 'debugging', cwd: '/a', prompt: 'now switch to writing docs',
+    embedEnabled: true, arbiterEnabled: true, embedding: emb, arbiterVerdict: 'NEW' }, t + 2000);
+  assert.strictEqual(neu.drift.fired, true, `NEW must fire: ${JSON.stringify(neu.drift)}`);
+  assert.ok(neu.signals.includes('arbiter_new'));
+  assert.ok(neu.boundary >= A.STRONG);
+});
+
+test('advise — topic anchor is stored sanitized and reset on a fired boundary (arbiter on)', () => {
+  const sid = 'sess-anchor';
+  const t = 9_800_000_000;
+  // first turn with arbiter on → seeds the anchor from the prompt
+  A.advise(sid, { category: 'x', cwd: '/a', prompt: 'build the login form', arbiterEnabled: true }, t);
+  const st = A.readState(sid, t + 100);
+  assert.strictEqual(st.topic_anchor, 'build the login form');
+  // a strong Stage-1 boundary (commit) resets the anchor to the new topic seed
+  A.advise(sid, { category: 'x', cwd: '/a', prompt: 'committed; now the dashboard', arbiterEnabled: true }, t + 200);
+  const st2 = A.readState(sid, t + 300);
+  assert.strictEqual(st2.topic_anchor, 'committed; now the dashboard');
+});

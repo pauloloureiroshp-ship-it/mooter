@@ -337,7 +337,11 @@ function renderMissionControl(snapshot) {
       : '';
     var tok = (num(ss.tokIn) != null || num(ss.tokOut) != null) ? fmtk((ss.tokIn || 0) + (ss.tokOut || 0)) : null;
     var costTxt = (tok == null && num(ss.cost) != null) ? ('<span class="mcf-cost">' + usdp(ss.cost) + '</span>') : (tok == null ? '<span class="mc-nd">tokens n/d</span>' : tok);
-    var modelLine = tierChip(ss.tier) + ' ' + (ss.model ? (famEmoji(ss.model) + ' ' + esc(modelShort(ss.model))) : nd(null)) + ' · ' + costTxt + (ctxBlock ? ' ' + ctxBlock : '');
+    // -- GUARDIAN:F1 -- pressure chip next to the ctx bar. guardianChip is a webview-injected
+    // sibling (shared with the herd); typeof-guarded so a host-side render simply omits the chip.
+    // Concat-only: no backticks here (renderMissionControl is embedded via fn.toString()).
+    var gChip = (typeof guardianChip === 'function' && ctxv != null) ? guardianChip(ctxv, esc) : '';
+    var modelLine = tierChip(ss.tier) + ' ' + (ss.model ? (famEmoji(ss.model) + ' ' + esc(modelShort(ss.model))) : nd(null)) + ' · ' + costTxt + (ctxBlock ? ' ' + ctxBlock : '') + gChip;
     var cow = '<span class="mcf-cow ' + (ss.loop && ss.status === 'working' ? 'loop' : (ss.status === 'working' ? 'work' : '')) + '" title="modo ' + esc(ss.mode || 'n/d') + '">' + mooEmoji(ss.mode) + '</span>';
     var loopBadge = ss.loop ? '<span title="loop">🔁</span>' : '';
     var autoBadge = ss.auto ? '<span title="auto">⚡</span>' : '';
