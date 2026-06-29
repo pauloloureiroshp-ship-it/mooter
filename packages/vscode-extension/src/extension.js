@@ -56,6 +56,12 @@ try { MCV = require('./mission-control-view'); } catch { MCV = null; }
 // Serialised into the webview via fn.toString() (see the sibling injection below). Fail-soft.
 let GCHIP = null;
 try { GCHIP = require('./guardian-chip'); } catch { GCHIP = null; }
+// ── Cockpit Doctor & Self-Heal — 6 filesystem/git diagnostics (stale .git locks, truncated
+// sources, vsix drift, classify.js frozen-sha, worktree/branch hygiene, false-green tests).
+// Pure module: detection is automatic; the destructive cure is a `term:` button the human
+// clicks. Additive; fail-soft (cockpit works without it — the slice is just absent).
+let DOCTOR = null;
+try { DOCTOR = require('./doctor-checks'); } catch { DOCTOR = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -217,6 +223,24 @@ class DataService {
         this.snapshot.mc = (prev && prev.mc) || null;
       }
     } catch { this.snapshot.mc = (prev && prev.mc) || null; }
+    // Cockpit Doctor & Self-Heal — gather the 6 diagnostic checks during the deep tick only
+    // (git shell-outs are heavy). Reuse prev.doctor on shallow ticks. Fail-soft → [] (the
+    // Doctor tab simply shows the original setup checks, never crashes). Scoped to the
+    // active session's repo (recent[0].cwd), falling back to the workspace folder.
+    try {
+      if (DOCTOR && doDeep) {
+        const docCwd = (recent && recent[0] && recent[0].cwd)
+          || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath)
+          || process.cwd();
+        const inputs = await DOCTOR.gatherDoctorInputs(docCwd, {
+          exec: extra.execTool, fs, path,
+          extRoot: path.join(__dirname, '..'), // packages/vscode-extension (src/.. )
+        });
+        this.snapshot.doctor = DOCTOR.runChecks(inputs);
+      } else {
+        this.snapshot.doctor = (prev && prev.doctor) || [];
+      }
+    } catch { this.snapshot.doctor = (prev && prev.doctor) || []; }
     try {
       // WCOCKPIT polish: pull the founder back when a parallel session newly needs a reply.
       // Fires only on the false->true transition (per session), capped, never on first snapshot.
@@ -841,7 +865,7 @@ class CockpitProvider {
 function project(s) {
   const base = data_.publicSnapshot(s);
   const sub = s.sub ? { profile: s.sub.sub_profile || s.sub.profile || ((s.sub.profiles && s.sub.profiles.anthropic && s.sub.profiles.anthropic !== 'unknown') ? s.sub.profiles.anthropic : ((s.sub.profiles || s.sub.budget_strategy) ? 'configured' : 'unknown')), raw: s.sub } : null;
-  const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash };
+  const ctx = { runtimeInstalled: s.runtimeInstalled, trackerUp: s.trackerUp, ollama: s.ollama, hw: s.hw, sub, budget: s.budget, slash: s.slash, doctorChecks: s.doctor || [] };
   // Session scope: when a session is in effect, the Live cow reads THAT session's
   // host model (its ledger) and THAT session's most-recent decision (not the global
   // /last, which could belong to another terminal) — so the cow is coherent with the
@@ -2055,7 +2079,7 @@ window.addEventListener('message',(e)=>{
   // ── DOCTOR + 10 slash (req 10)
   const ok=(b)=>b?'✅':(b===null?'🟡':'❌');const sl=s.slash||{};
   $('#v-doctor').innerHTML='<div class="card">'+(function(){var ck=score.checks||[];var pass=ck.filter(function(c){return c.ok===true;}).length;var bad=ck.some(function(c){return c.ok===false;});var warn=ck.some(function(c){return c.ok===null;});var col=bad?'#E06C75':(warn?'#E5C07B':'var(--g)');var lbl=bad?'needs attention':(warn?'check warnings':'all checks passing');return '<div class="drsum" role="status" aria-live="polite" style="display:flex;align-items:center;gap:8px;font-weight:700;margin:2px 0 9px;color:'+col+'"><span style="font-size:14px">'+(bad?'❌':(warn?'🟡':'✅'))+'</span><span>'+pass+'/'+ck.length+' — '+lbl+'</span></div>';})()+
-    (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+'</div>'+(c.ok?'':'<button class="sm" data-a="'+esc(c.fix)+'">fix</button>')+'</div>').join('')+'</div>'+
+    (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+(c.detail?'<small>'+esc(c.detail)+'</small>':'')+'</div>'+(c.ok||!c.fix?'':'<button class="sm" data-a="'+esc(c.fix)+'">fix</button>')+'</div>').join('')+'</div>'+
     '<div class="card"><div class="lbl">Slash commands · '+(sl.installed?'installed ✓':'NOT installed')+'</div>'+
     '<div class="sub" style="margin:7px 0 3px">Modes</div><div>'+['zen','auto','beast'].map(mo=>'<span class="pill ok">'+MOO[mo]+'</span>').join('')+'</div>'+
     '<div class="sub" style="margin:8px 0 3px">/mooter sub-commands</div><div>'+(s.slashCmds||[]).map(c=>'<span class="pill'+(sl.installed?' ok':'')+'">/'+esc(c)+'</span>').join('')+'</div>'+

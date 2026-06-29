@@ -292,8 +292,16 @@ function mooterScore(ctx) {
     { k: 'slash',   t: '/mooter slash commands',          ok: !!(ctx.slash && ctx.slash.installed), fix: 'slashInstall' },
     { k: 'packs',   t: 'At least one Moo Pack installed', ok: !!(installedPacks() && Object.keys(installedPacks() || {}).length > 0), fix: 'packInstall' },
   ];
-  const done = checks.filter((c) => c.ok).length;
-  return { pct: Math.round((100 * done) / checks.length), done, total: checks.length, checks };
+  // Doctor & Self-Heal: append the 6 diagnostic checks (filesystem/git health) computed
+  // during the deep refresh. They share the exact { k, t, ok, fix } shape the renderer reads,
+  // so they slot into the same Doctor list. Pass-only (ok:true) checks still count toward the
+  // score; warns (ok:null) and fails (ok:false) surface their 1-click fix button.
+  const doctor = (ctx && Array.isArray(ctx.doctorChecks)) ? ctx.doctorChecks : [];
+  const all = checks.concat(doctor);
+  // Score counts only checks that explicitly passed (ok===true) — a warn (null) is neither
+  // pass nor fail, so it neither boosts nor tanks the percentage unfairly.
+  const done = all.filter((c) => c.ok === true).length;
+  return { pct: Math.round((100 * done) / all.length), done, total: all.length, checks: all };
 }
 
 // ── v0.4 'Brand & Brain' services ───────────────────────────────────────
