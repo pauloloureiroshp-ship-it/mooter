@@ -276,7 +276,12 @@ class CockpitProvider {
   constructor(ctx, data) { this.ctx = ctx; this.data = data; }
   resolveWebviewView(view) {
     view.webview.options = { enableScripts: true };
-    view.webview.html = getHtml();
+    // ── GUARDIAN:F0 ── current auto-compact override (read once at view creation — env changes
+    // via SetEnvironmentVariable only land in NEW processes, so process.env IS the honest "active" value).
+    const _gPctRaw = process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE;
+    const guardianPct = (_gPctRaw && /^\d+$/.test(_gPctRaw)) ? parseInt(_gPctRaw, 10) : null;
+    view.webview.html = getHtml(guardianPct);
+    // ── /GUARDIAN:F0 ──
     // ⇄ Handoff v2 (#3b): pré-aquece o modelo de geração local (best-effort, nunca bloqueia) para o
     // 1º handoff já vir do LLM em vez do fallback determinístico por cold-start do Ollama.
     // ⇄ v2.1 KEEP-WARM: re-aquece quando o cockpit fica visível / no refresh, THROTTLED (máx 1×/8min)
@@ -342,6 +347,20 @@ class CockpitProvider {
         if (r.ok) vscode.window.setStatusBarMessage('🐮 budget set: $' + r.value + '/month', 4000);
         this.data.refresh(true);
       }
+      // ── GUARDIAN:F0 ── context guardrail: lower CC's auto-compact threshold by writing the
+      // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE User env var (the only reliable way to compact BEFORE the
+      // ~83% delirium line). CLAUDE_AUTOCOMPACT_PCT_OVERRIDE is Math.min-clamped by CC → only lowers.
+      // Values above ~83 are ignored by CC, so we validate 1..82 and warn. Applies to NEW sessions only.
+      if (m.cmd === 'setAutoCompact') {
+        const pct = parseInt(String(m.arg), 10);
+        if (!Number.isFinite(pct) || pct < 1 || pct > 82) {
+          vscode.window.setStatusBarMessage('🛡️ guardrail — valor inválido (usa 1–82; acima de ~83% o Claude Code ignora)', 6000);
+        } else {
+          runInTerminal("[Environment]::SetEnvironmentVariable('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE','" + pct + "','User')", 'mooter guardrail');
+          vscode.window.setStatusBarMessage('🛡️ guardrail → auto-compact aos ' + pct + '% · aplica-se a sessões NOVAS (reabre o VS Code)', 8000);
+        }
+      }
+      // ── /GUARDIAN:F0 ──
       if (m.cmd === 'pull') runInTerminal('ollama pull ' + String(m.arg || '').replace(/[^a-zA-Z0-9:._-]/g, ''));
       if (m.cmd === 'effort') { await extra.effortSet(m.arg); this.data.refresh(true); }
       if (m.cmd === 'rate') {
@@ -785,7 +804,7 @@ module.exports = { activate, deactivate };
 
 // ───────────────────────── webview ─────────────────────────
 // ───────────────────────── webview v0.3 ─────────────────────────
-function getHtml() {
+function getHtml(guardianPct = null) {
   const nonce = String(Math.random()).slice(2);
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
@@ -1351,6 +1370,8 @@ function tc(d){const c={T0:0,T1:0,T2:0,T3:0};for(const x of d)if(c[x.tier]!=null
 function localSpark(ds){if(!ds||ds.length<4)return '';var a=ds.filter(function(d){return d&&d.tier;});if(a.length<4)return '';a=a.slice().sort(function(x,y){return (Date.parse(x.ts)||+x.ts||0)-(Date.parse(y.ts)||+y.ts||0);});var per=Math.max(1,Math.ceil(a.length/12)),lv=' \u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588',out='',fp=null,lp=null;for(var i=0;i<a.length;i+=per){var s=a.slice(i,i+per),loc=0;for(var j=0;j<s.length;j++)if(s[j].tier==='T0')loc++;var p=loc/s.length;if(fp===null)fp=p;lp=p;out+=lv.charAt(1+Math.min(7,Math.round(p*7)));}var dir=lp>fp+0.05?'\u2191 more local':(lp<fp-0.05?'\u2193 less local':'steady');return '<div class="sub" style="font-size:10px;margin-top:5px;font-family:var(--vscode-editor-font-family,monospace)" title="local (T0) share across your last '+a.length+' router decisions \u2014 left=older, right=newer">\uD83C\uDF31 local trend '+out+' <span style="opacity:.6">'+dir+'</span></div>';}
 const TCOL={T0:'var(--t0)',T1:'var(--t1)',T2:'var(--t2)',T3:'var(--t3)'};
 const MOO={auto:'🐮 Moo',zen:'🐄 LazyMoo',beast:'🐂 CrazyMoo'};
+// ── GUARDIAN:F0 ── active CLAUDE_AUTOCOMPACT_PCT_OVERRIDE for this VS Code process (null = unset → CC default ~83%).
+const GUARDIAN_AUTOCOMPACT_PCT=${JSON.stringify(guardianPct)};
 const PIN_LOCAL={'qwen3:30b':'mooter-qwen3-30b','qwen2.5:3b':'mooter-qwen2-5-3b','qwen2.5-coder:7b':'mooter-qwen2-5-coder-7b','qwen2.5-coder:14b':'mooter-qwen2-5-coder-14b','gemma3:12b':'mooter-gemma3-12b','gemma4:e4b':'mooter-gemma4-e4b','deepseek-r1:7b':'mooter-deepseek-r1-7b'};
 const PIN_CLOUD={Haiku:'mooter-haiku-4-5',Sonnet:'mooter-sonnet-4-6','Opus 4.7':'mooter-opus-4-7'};
 const openDecs=new Set();// decision keys (ts) the user expanded — must survive the periodic re-render
@@ -1772,7 +1793,13 @@ window.addEventListener('message',(e)=>{
       (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
     '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',(s.ollama||[]).length?'running · '+(s.ollama.length)+' models':(sw.ollama_installed?'installed (stopped)':'offline'))+'</div>'+
     '<div class="card"><div class="lbl">🔑 Subscriptions</div>'+kv('Anthropic',subs.anthropic||(s.sub&&s.sub.profile))+kv('OpenAI',subs.openai)+kv('Gemini',subs.gemini)+kv('Ollama',subs.ollama)+'<div class="sub" style="margin-top:5px">keys & tiers drive T1-T3 budgets</div></div>'+
-    '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>';
+    '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>'+
+    // ── GUARDIAN:F0 ── context guardrail card — write CLAUDE_AUTOCOMPACT_PCT_OVERRIDE so CC auto-compacts BEFORE the ~83% delirium line.
+    '<div class="card"><div class="lbl">🛡️ Context guardrail — auto-compact antecipado</div>'+
+      '<div class="sub" style="margin-top:6px">Estado actual: <b>'+(GUARDIAN_AUTOCOMPACT_PCT!=null?('auto-compact aos '+GUARDIAN_AUTOCOMPACT_PCT+'%'):'default do Claude Code (~83%)')+'</b></div>'+
+      '<div style="display:flex;gap:6px;margin-top:8px">'+[70,75,80].map(p=>'<button class="sm'+(GUARDIAN_AUTOCOMPACT_PCT===p?'" style="border-color:var(--g);color:var(--g)':'')+'" data-a="setAutoCompact" data-x="'+p+'">'+p+'%</button>').join('')+'</div>'+
+      '<div class="sub" style="margin-top:7px">Baixa o limiar do auto-compact do Claude Code para a sessão compactar <b>antes</b> da zona de delírio. Só baixa (nunca sobe). Aplica-se a <b>sessões NOVAS</b> — reabre o VS Code.</div></div>';
+    // ── /GUARDIAN:F0 ──
   const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>send('budget',bi.value);
   wireButtons($('#v-setup'));
 
