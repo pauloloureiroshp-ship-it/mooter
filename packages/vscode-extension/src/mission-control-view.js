@@ -93,6 +93,71 @@ function renderMissionControl(snapshot) {
     var t = title ? ' title="' + esc(title) + '"' : '';
     return '<button class="mc-btn ' + (cls || '') + '" data-a="' + esc(cmd) + '"' + x + t + '>' + label + '</button>';
   }
+  // ── MCV2 helpers (serialised with the function — concat-only, no module-scope refs) ──
+  // Dependency state from the Lineage deps field (contrato Ledger/Lineage). Honest:
+  // unknown/absent → independente (🟢); never fabricate a warning we can't back from deps.
+  // deps may be an object ({ irreversibleAhead, waitMerge, waitPush, blockedBy[] }) or an
+  // array of edge strings ("merge", "push", "irreversible", …). Worst state wins (⚠ > 🟡 > 🟢).
+  function depState(deps) {
+    if (deps == null) return { dot: '🟢', label: 'independente', cls: 'mcv2-dep-ok' };
+    var irrev = false, wait = false;
+    function scanStr(x) {
+      var v = String(x || '').toLowerCase();
+      if (/irrevers|irreversible|destruct|drop|reset|force.?push|migrat/.test(v)) irrev = true;
+      else if (/merge|push|rebase|pull|depend|block|wait|espera/.test(v)) wait = true;
+    }
+    if (Array.isArray(deps)) {
+      for (var di = 0; di < deps.length; di++) {
+        var e = deps[di];
+        if (e && typeof e === 'object') { scanStr(e.kind || e.type || e.label || e.on); }
+        else scanStr(e);
+      }
+    } else if (typeof deps === 'object') {
+      if (deps.irreversibleAhead === true || deps.irreversible === true) irrev = true;
+      if (deps.waitMerge === true || deps.waitPush === true || deps.waitsMerge === true ||
+          deps.waitsPush === true || deps.blocked === true) wait = true;
+      if (Array.isArray(deps.blockedBy) && deps.blockedBy.length) wait = true;
+      if (Array.isArray(deps.edges)) {
+        for (var dj = 0; dj < deps.edges.length; dj++) {
+          var ed = deps.edges[dj];
+          if (ed && typeof ed === 'object') scanStr(ed.kind || ed.type || ed.label || ed.on);
+          else scanStr(ed);
+        }
+      }
+    } else {
+      scanStr(deps);
+    }
+    if (irrev) return { dot: '⚠️', label: 'irreversível à frente', cls: 'mcv2-dep-irr' };
+    if (wait) return { dot: '🟡', label: 'espera merge/push', cls: 'mcv2-dep-wait' };
+    return { dot: '🟢', label: 'independente', cls: 'mcv2-dep-ok' };
+  }
+  // Heartbeat → alive/idle. Honest: explicit alive flag wins; else infer from recency of
+  // lastEventTs (≤90s ⇒ vivo, matching the loop heartbeat window), else n/d (⚪).
+  function fleetAlive(m) {
+    if (m && (m.alive === true)) return { dot: '🟢', label: 'vivo' };
+    if (m && (m.alive === false)) return { dot: '⚪', label: 'idle' };
+    var ts = (m && num(m.lastEventTs)) != null ? num(m.lastEventTs) : null;
+    if (ts != null) {
+      var ageMs = Date.now() - ts;
+      if (ageMs >= 0 && ageMs <= 90000) return { dot: '🟢', label: 'vivo' };
+      return { dot: '⚪', label: 'idle' };
+    }
+    return { dot: '⚪', label: 'n/d' };
+  }
+  function agoTxt(ts) {
+    var t = num(ts);
+    if (t == null) return null;
+    var sec = Math.round((Date.now() - t) / 1000);
+    if (sec < 0) return null;
+    if (sec < 60) return sec + 's';
+    if (sec < 3600) return Math.round(sec / 60) + 'm';
+    return Math.round(sec / 3600) + 'h';
+  }
+  function tsTxt(ts) {
+    var t = num(ts);
+    if (t == null) return null;
+    try { return new Date(t).toISOString().slice(11, 19); } catch (e) { return null; }
+  }
 
   var s = snapshot || {};
   var sessions = Array.isArray(s.sessions) ? s.sessions.filter(Boolean) : [];
@@ -103,6 +168,9 @@ function renderMissionControl(snapshot) {
   var loops = Array.isArray(s.loops) ? s.loops : [];
   var gpu = s.gpu || null;
   var remote = s.remote || null;
+  // ── MCV2 snapshot reads (optional; render n/d until the live Ledger/Lineage lands) ──
+  var fleet = Array.isArray(s.fleet) ? s.fleet.filter(Boolean) : [];
+  var ledger = Array.isArray(s.audit) ? s.audit : (Array.isArray(s.ledger) ? s.ledger : []);
 
   // Stable per-session letter (mock A,B,C…) + derived topic/group, computed once.
   for (var i0 = 0; i0 < sessions.length; i0++) {
@@ -172,6 +240,144 @@ function renderMissionControl(snapshot) {
     + '<div class="mcf-mini"><span>🖥️ ' + sessions.length + ' sessões</span>'
     + '<span>🍅 ' + (totals.needYou != null ? esc(totals.needYou) : '0') + ' a precisar de ti</span></div>'
     + '</div>';
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── MCV2 ── "bater-o-olho-e-saber": poupança em destaque + saúde da frota +
+  // sessões agrupadas por task_group (deps) + painel Audit (replay do ledger).
+  // Attention-first: o que precisa de ti / o que pode correr mal fica em cima.
+  // Tudo PURELY do snapshot; cada campo nullable → n/d. Live data (fleet/ledger/
+  // deps/task_group) chega com o Ledger+Lineage; até lá, rende n/d honesto.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── MCV2 · A · Poupança em destaque (strip attention-first) ──────────────
+  var mcv2Saved = usd(num(totals.savedToday));
+  var mcv2Pct = (num(totals.pctLocal) == null) ? null : (totals.pctLocal + '%');
+  out += '<div class="mc-card mcv2-savings">'
+    + '<span class="mcv2-sv-k">💰 poupado hoje</span> '
+    + '<span class="mcv2-sv-hero">' + (mcv2Saved == null ? '<span class="mc-nd">n/d</span>' : mcv2Saved) + '</span>'
+    + '<span class="mcf-vrule"></span>'
+    + '<span class="mcv2-sv-k">local</span> '
+    + '<span class="mcv2-sv-pct">' + (mcv2Pct == null ? '<span class="mc-nd">n/d</span>' : esc(mcv2Pct)) + '</span>'
+    + '<span class="mcv2-sv-tag">$0 = moo local</span>'
+    + '</div>';
+
+  // ── MCV2 · B · Saúde da frota de moos (heartbeat · fila · tok/s · $0) ─────
+  out += '<div class="mc-card mcv2-fleet"><div class="mc-lbl">🚜 Frota de moos <span class="mc-sub">— heartbeat · fila · tok/s · custo local</span></div>';
+  if (fleet.length) {
+    out += '<div class="mcv2-fleetrows">';
+    for (var fi = 0; fi < fleet.length; fi++) {
+      var fm = fleet[fi] || {};
+      var alive = fleetAlive(fm);
+      var fname = (fm.name || fm.id);
+      var last = agoTxt(fm.lastEventTs);
+      var lastLbl = (last != null) ? ('há ' + last) : (fm.lastEvent ? esc(fm.lastEvent) : '<span class="mc-nd">n/d</span>');
+      var qd = num(fm.queueDepth);
+      var tps = num(fm.toksPerSec);
+      var fcost = (fm.costUsd === 0 || num(fm.costUsd) === 0) ? '$0' : (num(fm.costUsd) != null ? usdp(fm.costUsd) : null);
+      out += '<div class="mcv2-fleetrow">'
+        + '<span class="mcv2-fhb" title="' + esc(alive.label) + '">' + alive.dot + '</span>'
+        + '<span class="mcv2-fname">' + nd(fname) + '</span>'
+        + '<span class="mcv2-fk">último</span> <span class="mcv2-fv">' + lastLbl + '</span>'
+        + '<span class="mcv2-fk">fila</span> <span class="mcv2-fv">' + (qd == null ? '<span class="mc-nd">n/d</span>' : esc(qd)) + '</span>'
+        + '<span class="mcv2-fk">tok/s</span> <span class="mcv2-fv">' + (tps == null ? '<span class="mc-nd">n/d</span>' : Math.round(tps)) + '</span>'
+        + '<span class="mcv2-f0">' + (fcost == null ? '<span class="mc-nd">n/d</span>' : esc(fcost)) + '</span>'
+        + '</div>';
+    }
+    out += '</div>';
+  } else {
+    out += '<div class="mc-nd">⚪ n/d — supervisor heartbeat ainda não aterrou (chega com o Ledger)</div>';
+  }
+  out += '</div>';
+
+  // ── MCV2 · C · Sessões agrupadas por task_group (estado de dependência) ──
+  out += '<div class="mc-card mcv2-tg"><div class="mc-lbl">🧬 Sessões por tarefa <span class="mc-sub">— task_group · 🟢 indep · 🟡 espera merge/push · ⚠️ irreversível à frente</span></div>';
+  if (sessions.length) {
+    var tgMap = {}, tgOrder = [];
+    for (var tgi = 0; tgi < sessions.length; tgi++) {
+      var tss = sessions[tgi];
+      var gkey = (tss.taskGroup != null && tss.taskGroup !== '') ? String(tss.taskGroup) : '__nogroup';
+      if (!tgMap[gkey]) { tgMap[gkey] = []; tgOrder.push(gkey); }
+      tgMap[gkey].push(tss);
+    }
+    for (var tgj = 0; tgj < tgOrder.length; tgj++) {
+      var gk2 = tgOrder[tgj];
+      var rows = tgMap[gk2];
+      // worst dep state in the group bubbles to the header (attention-first)
+      var hdrWorst = 0;
+      for (var hwi = 0; hwi < rows.length; hwi++) {
+        var dsw = depState(rows[hwi].deps);
+        var rank = (dsw.dot === '⚠️') ? 2 : (dsw.dot === '🟡' ? 1 : 0);
+        if (rank > hdrWorst) hdrWorst = rank;
+      }
+      var hdrDot = hdrWorst === 2 ? '⚠️' : (hdrWorst === 1 ? '🟡' : '🟢');
+      var gLabel = (gk2 === '__nogroup') ? '<span class="mc-nd">n/d — sem task_group</span>' : esc(gk2);
+      out += '<div class="mcv2-tghd"><span class="mcv2-tgdot">' + hdrDot + '</span>🧬 <b>' + gLabel + '</b> <span class="mcv2-tgcnt">' + rows.length + '</span></div>';
+      out += '<div class="mcv2-tgrows">';
+      for (var tri = 0; tri < rows.length; tri++) {
+        var rss = rows[tri];
+        var ds = depState(rss.deps);
+        var rname = nd(rss.name);
+        var rmodel = rss.model ? (famEmoji(rss.model) + ' ' + esc(modelShort(rss.model))) : nd(null);
+        var openTail = rss.sid
+          ? '<button class="mcv2-tgopen" data-a="openSession" data-x="' + esc(rss.sid) + '" title="abrir esta sessão">🔗</button>'
+          : '<span class="mc-nd">🔗 n/d</span>';
+        out += '<div class="mcv2-tgrow ' + ds.cls + '" title="' + esc(ds.label) + '">'
+          + '<span class="mcv2-depdot">' + ds.dot + '</span>'
+          + '<span class="mcv2-tgname">' + rname + '</span>'
+          + '<span class="mcv2-deplbl">' + esc(ds.label) + '</span>'
+          + '<span class="mcv2-tgmodel">' + tierChip(rss.tier) + ' ' + rmodel + '</span>'
+          + openTail
+          + '</div>';
+      }
+      out += '</div>';
+    }
+  } else {
+    out += '<div class="mc-nd">⚪ sem sessões no snapshot</div>';
+  }
+  out += '</div>';
+
+  // ── MCV2 · D · Painel Audit (replay do ledger · read-only · who/model/tier/kind/ts) ──
+  out += '<div class="mc-card mcv2-audit"><div class="mc-lbl">🧾 Audit <span class="mc-sub">— replay do ledger · read-only · registo auditável</span></div>';
+  if (ledger.length) {
+    // Filter chips: "all" + distinct task_group/sid seen in the ledger. Presentation +
+    // host-wire affordance (data-a="auditFilter"); host filtering is follow-up — replay is full.
+    var seenF = {}, chips = '<button class="mc-btn mcv2-afilter on" data-a="auditFilter" data-x="all" title="mostrar todos os eventos">todos</button>';
+    for (var fci = 0; fci < ledger.length; fci++) {
+      var fev = ledger[fci] || {};
+      var fkey = (fev.taskGroup != null && fev.taskGroup !== '') ? String(fev.taskGroup)
+        : ((fev.sid != null && fev.sid !== '') ? String(fev.sid) : null);
+      if (fkey && !seenF[fkey]) {
+        seenF[fkey] = 1;
+        chips += '<button class="mc-btn mcv2-afilter" data-a="auditFilter" data-x="' + esc(fkey) + '" title="filtrar por ' + esc(fkey) + '">' + esc(fkey) + '</button>';
+      }
+    }
+    out += '<div class="mcv2-afilters">' + chips + '</div>';
+    out += '<div class="mcv2-audrows">';
+    var AUDIT_CAP = 60;
+    var shown = Math.min(ledger.length, AUDIT_CAP);
+    for (var evi = 0; evi < shown; evi++) {
+      var ev = ledger[evi] || {};
+      var who = (ev.agent != null && ev.agent !== '') ? ev.agent : (ev.who != null ? ev.who : null);
+      var when = tsTxt(ev.ts);
+      var kind = (ev.kind != null && ev.kind !== '') ? ev.kind : null;
+      var emodel = ev.model ? (famEmoji(ev.model) + ' ' + esc(modelShort(ev.model))) : nd(null);
+      out += '<div class="mcv2-audrow">'
+        + '<span class="mcv2-audts">' + (when == null ? '<span class="mc-nd">n/d</span>' : esc(when)) + '</span>'
+        + '<span class="mcv2-audkind">' + (kind == null ? '<span class="mc-nd">n/d</span>' : esc(kind)) + '</span>'
+        + '<span class="mcv2-audwho">' + nd(who) + '</span>'
+        + '<span class="mcv2-audtier">' + (ev.tier ? tierChip(ev.tier) : '<span class="mc-nd">n/d</span>') + '</span>'
+        + '<span class="mcv2-audmodel">' + emodel + '</span>'
+        + '</div>';
+    }
+    out += '</div>';
+    if (ledger.length > AUDIT_CAP) {
+      out += '<div class="mcv2-audmore">+' + (ledger.length - AUDIT_CAP) + ' mais</div>';
+    }
+  } else {
+    out += '<div class="mc-nd">⚪ n/d — ledger vazio (replay chega quando o Ledger+Lineage aterrar)</div>';
+  }
+  out += '</div>';
+  // ══════════════════════════════════ end ── MCV2 ── ══════════════════════════
 
   // ── 4 · GPU gauge (segmentado) + Overclock Moo counter ──────────────────
   // overclock sub-object: set by mc-snapshot when there is a recent run (nullable all fields).
