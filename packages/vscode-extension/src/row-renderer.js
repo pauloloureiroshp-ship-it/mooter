@@ -308,6 +308,21 @@ function renderRow(r, opts) {
   // NOTA: sem template-literals/backticks neste ficheiro (a fonte e embebida no webview).
   var handoffBtn = '<div class="sgitrow"><button class="sgitbtn handoff" data-a="handoff" data-x="' + esc(sid) + '" aria-label="generate a Cowork handoff for this session" title="Gera um handoff (estado + última acção + pergunta pendente) → mostra-o no painel inline aqui em baixo, copia para o clipboard e faz upsert no SYNC.md. Cola no Cowork para dar contexto total sem screenshots.">⇄ Handoff</button></div>';
 
+  // ── GUARDIAN:F3 ── "⇄ Saltar para fresca": surge SÓ no limiar de delírio (advise ≥90, contrato
+  // F1 pressureLadder). ctx% derivado de ctxPct (se o host já o trouxer) OU de ctxTokens+model
+  // (mirror de mc-snapshot / guardian-jump.ctxPctOf — self-contained porque renderRow é serializado
+  // para o webview via fn.toString(); sem template-literals/backticks). ctx desconhecido →
+  // 'monitor' → sem botão (defensivo). Clique → handler guardianJump: abre sessão CC nova + entrega
+  // o handoff pré-cozinhado (semeado no input; Ctrl+V se não aparecer — já vai no clipboard).
+  var _gjPct = (typeof r.ctxPct === 'number' && isFinite(r.ctxPct))
+    ? r.ctxPct
+    : ((typeof r.ctxTokens === 'number' && isFinite(r.ctxTokens))
+      ? Math.max(0, Math.min(100, Math.round((r.ctxTokens / ((/\[1m\]|\b1m\b/.test(String(r.model || '').toLowerCase())) ? 1000000 : 200000)) * 100)))
+      : null);
+  var jumpBtn = (_gjPct != null && _gjPct >= 90)
+    ? '<div class="sgitrow"><button class="sgitbtn jump" data-a="guardianJump" data-x="' + esc(sid) + '" aria-label="jump to a fresh Claude Code session carrying this context" title="A janela de contexto está a ' + _gjPct + '% — perto do limiar de delírio (a sessão começa a perder coerência). Abre uma sessão CC NOVA e entrega-lhe o handoff pré-cozinhado (semeado no input da sessão nova; se não aparecer, Ctrl+V — já vai no clipboard). A sessão velha fica intacta.">⇄ Saltar para fresca · ' + _gjPct + '%</button></div>'
+    : '';
+
   // ── ⇄ Handoff v2: painel inline POR SESSÃO ──────────────────────────────────────
   // Mostra EXACTAMENTE o texto que vai para o clipboard (mesma fonte: generateHandoff). Fica
   // FORA do drawer (irmão, dentro de .sbody) para sobreviver às re-renderizações periódicas e
@@ -442,7 +457,7 @@ function renderRow(r, opts) {
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
     + '</div>'
     + coworkSub + brainLine + nextSlashLine + scm + gitLine + railLine + nowLine + behindLine
-    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + localMooBlock + '</div>'
+    + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + jumpBtn + localMooBlock + '</div>'
     + hoffPanel
     + '</div>'
     + '<span class="sopen" title="open in Claude Code">↗</span>'

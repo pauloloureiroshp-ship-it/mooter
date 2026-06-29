@@ -29,6 +29,11 @@ try { MR = require('./mode-registry'); } catch { MR = { byProject: (rows) => ({ 
 // WCOCKPIT-3: row renderer module (serialised into webview via fn.toString())
 let RR = null;
 try { RR = require('./row-renderer'); } catch { RR = null; }
+// ── GUARDIAN:F3 ── pre-baked handoff reader + F1 pressure ladder (defensive copy). Fail-soft:
+// if the module is missing the jump handler falls back to a live handoff and never offers the
+// button (shouldOfferJump returns false on unknown fill).
+let GJ = null;
+try { GJ = require('./guardian-jump'); } catch { GJ = null; }
 // Frente E · Arquitectura Viva: renderArchTree(snapshot, mode) — serialised into the webview
 // via fn.toString() (concat-only). Fail-soft: cockpit works without it (stub fallback).
 let ARCH = null;
@@ -625,6 +630,64 @@ class CockpitProvider {
         this.data.refresh(true);
         vscode.window.setStatusBarMessage(n ? ('🐮 cleared ' + n + ' done session' + (n === 1 ? '' : 's') + ' — they return if active again') : '🐮 nothing safe to clear', 4000);
       }
+      // ── GUARDIAN:F3 ── Salto para sessão fresca no limiar de delírio (advise ≥90).
+      // Entrega o handoff pré-cozinhado da F2 (_handoff/guardian/<sid>.md) — ou, na ausência,
+      // gera-o ao vivo (mesmo esqueleto determinístico do botão ⇄ Handoff) — e SEMEIA uma sessão
+      // CC nova com ele. Research-gate (verificado no bundle do plugin 2.1.195): o comando
+      // `claude-vscode.primaryEditor.open(session, prompt)` ACEITA um 2º argumento `prompt` e, para
+      // uma sessão NOVA (session=undefined), entrega-o ao input da nova sessão (createPanel →
+      // setupPanel → getHtmlForWebview(webview, session, prompt, …)). O deep-link
+      // `vscode://anthropic.claude-code/open?prompt=<enc>` faz a MESMA chamada. É seed real, não
+      // clipboard-only. Mesmo assim copiamos SEMPRE para o clipboard como rede de segurança (builds
+      // antigos do plugin ignoram o 2º arg → Ctrl+V recupera). NUNCA editamos o .jsonl da sessão.
+      if (m.cmd === 'guardianJump') {
+        const sid = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const rows = (this.data.snapshot && this.data.snapshot.recent) || [];
+        const row = rows.find((r) => r.fullId === sid);
+        if (!row) { vscode.window.showWarningMessage('🐮 sessão não encontrada — refresca o cockpit e tenta outra vez.'); return; }
+        // 1) Texto: F2 pré-cozinhado primeiro; senão, esqueleto determinístico ao vivo (sync,
+        //    instantâneo — o MESMO generateHandoff que o botão ⇄ Handoff copia como 'ready').
+        const roots = [];
+        try { (vscode.workspace.workspaceFolders || []).forEach((wf) => roots.push(wf.uri.fsPath)); } catch { /* no folders */ }
+        if (row.cwd) roots.push(row.cwd);
+        let text = null; let source = 'live';
+        if (GJ && GJ.readPrebakedHandoff) { const pre = GJ.readPrebakedHandoff(roots, sid); if (pre && pre.text) { text = pre.text; source = 'prebaked'; } }
+        if (!text) {
+          const pending = row.pending || extra.extractPending([]);
+          const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
+          const snapshot = extra.gitSnapshot(row.cwd, { recent: rows, branch: row.branch, pr: row.pr });
+          const vaultMtime = extra.vaultFreshness();
+          let deltaTurns = null;
+          try { const jl = extra.readJournalLast(row.fullId); if (jl && Number.isFinite(jl.n_turn)) deltaTurns = jl.n_turn; } catch { /* best-effort */ }
+          text = extra.generateHandoff(row, pending, { mode, snapshot, vaultMtime, deltaTurns, recent: rows });
+        }
+        hoffCache[sid] = text;
+        // 2) Entrega: clipboard SEMPRE (rede de segurança) + seed da sessão nova (comando → deep-link).
+        try { await vscode.env.clipboard.writeText(text); } catch { /* clipboard best-effort */ }
+        const ext = vscode.extensions.getExtension('anthropic.claude-code');
+        let delivered = false;
+        if (ext) {
+          try { await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', undefined, text); delivered = true; }
+          catch {
+            try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?prompt=' + encodeURIComponent(text))); delivered = true; }
+            catch { /* cai no clipboard-only abaixo */ }
+          }
+        } else {
+          vscode.commands.executeCommand('mooter.newSession');
+        }
+        const tag = source === 'prebaked' ? 'pré-cozinhado' : 'ao vivo';
+        vscode.window.setStatusBarMessage(
+          delivered
+            ? '🐮 sessão nova aberta · handoff ' + tag + ' entregue (Ctrl+V se não aparecer — já copiado)'
+            : '🐮 handoff ' + tag + ' copiado — abre o Claude Code e Ctrl+V na sessão nova',
+          7000);
+        try { (MR.setHandoff ? MR.setHandoff(sid) : MR.set(sid, { handoffSentAt: new Date().toISOString() })); } catch { /* registry best-effort */ }
+        // 3) Opcional (não-bloqueante): arquivar a sessão velha (reusa a lógica de archiveSession).
+        Promise.resolve(vscode.window.showInformationMessage('🐮 Saltaste para uma sessão fresca com o contexto entregue.', 'Arquivar a antiga')).then((pick) => {
+          if (pick === 'Arquivar a antiga') { try { MR.archive(sid); } catch { /* best-effort */ } this.data.refresh(true); }
+        });
+        this.data.refresh(true);
+      }
       // ── Mission Control · Frente 0 — pilot actions (additive; reuse the {cmd,arg} bus) ──
       // 🐮 Ask the local Moo. Scoped + $0: streams from Ollama using ONLY the snapshot as context,
       // re-using the handoff-stream mechanism (moo-stream chunks → moo-done). Refuses out-of-snapshot.
@@ -880,6 +943,9 @@ function getHtml() {
   /* ⇄ Handoff: distinct accent (purple ⇄), reuses .sgitbtn layout */
   .sgitbtn.handoff{border-color:#a78bfa;color:var(--vscode-foreground)}
   .sgitbtn.handoff:hover{border-color:#c4b5fd;color:#c4b5fd}
+  /* ── GUARDIAN:F3 ── ⇄ Saltar para fresca: amber accent, only rendered at the delirium threshold */
+  .sgitbtn.jump{border-color:#E5C07B;color:var(--vscode-foreground);font-weight:700}
+  .sgitbtn.jump:hover{border-color:#f0d090;color:#f0d090}
   /* ⇄ Handoff v2 — per-project button in the group header (own full-width line) */
   .ghd .projhandoff{flex:0 0 100%;margin-top:3px;font-size:9px;padding:2px 8px;opacity:.85}
   .ghd .projhandoff:hover{opacity:1}
@@ -1286,6 +1352,9 @@ function getHtml() {
   /* MC tab: frozen chips · overclock button · loop icon · git-graph · pillar groups · session state edge */
   .mc-chip.mc-frozen{opacity:.6;font-style:italic}
   .mc-btn.mc-overclock{border-color:#D19A66;color:#D19A66;font-weight:700}
+  /* ── GUARDIAN:F3 ── ⇄ Saltar para fresca (MC): amber accent, only rendered at the delirium threshold */
+  .mc-btn.mc-jump{border-color:#E5C07B;color:#E5C07B;font-weight:700}
+  .mcf-jumprow{margin-top:5px}
   .mc-loopico{font-size:11px}
   .mc-git{display:flex;flex-direction:column;gap:3px;margin-top:4px;border-left:2px solid var(--vscode-widget-border);padding-left:10px}
   .mc-gmain{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;margin-bottom:2px}

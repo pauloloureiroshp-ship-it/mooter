@@ -354,10 +354,19 @@ function renderMissionControl(snapshot) {
         : (ss.sid
           ? '<button class="mcf-gitlink" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir sessão">🔗 git</button>'
           : '<span class="mc-nd">🔗 n/d</span>'));
+    // ── GUARDIAN:F3 ── "⇄ Saltar para fresca": surge SÓ no limiar de delírio (advise ≥90,
+    // contrato F1 pressureLadder). ss.ctxPct já vem do snapshot MC (mc-snapshot). Clique → handler
+    // guardianJump: abre sessão CC nova + entrega o handoff pré-cozinhado (semeado no input; Ctrl+V
+    // se não aparecer — já vai no clipboard). A sessão velha fica intacta.
+    var jumpRow = (num(ss.ctxPct) != null && ss.ctxPct >= 90 && ss.sid)
+      ? '<div class="mcf-jumprow">' + btn('⇄ Saltar para fresca · ' + ss.ctxPct + '%', 'guardianJump', ss.sid, 'mc-jump mc-mini',
+          'A janela de contexto está a ' + ss.ctxPct + '% — perto do limiar de delírio (a sessão começa a perder coerência). Abre uma sessão CC NOVA e entrega-lhe o handoff pré-cozinhado (semeado no input da sessão nova; se não aparecer, Ctrl+V — já vai no clipboard). A sessão velha fica intacta.') + '</div>'
+      : '';
     return '<div class="' + cardCls + '">'
       + '<div class="mcf-stop"><span class="mcf-sname"><span class="mcf-let">' + esc(ss.__letter) + '</span> ' + ss.__temoji + ' ' + nd(ss.name) + '</span>' + (hot ? '<span class="mcf-warnx mcf-spacer">⚠️</span>' : '') + '</div>'
       + '<div class="mcf-smodel">' + modelLine + '</div>'
       + '<div class="mcf-sicons">' + icons + '</div>'
+      + jumpRow
       + '<div class="mcf-sfoot">' + foot + '</div>'
       + '</div>';
   }
