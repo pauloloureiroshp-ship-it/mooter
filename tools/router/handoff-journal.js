@@ -185,9 +185,118 @@ function readSummary(sessionId) {
   catch { return null; }
 }
 
+// ── Ledger Spine L0 — provenance EVENTS (additive, back-compat) ───────────────
+// The journal becomes the event ledger (MOO_LEDGER_AND_ORCHESTRATION.md): moos
+// EMIT events here; a single reducer (ledger-reduce.js) projects MD/SQLite/etc.
+// Event entries carry a `kind` field (intent|turn|decision|outcome|handoff|
+// compact|summary|extract) and mechanical provenance — which is the ONLY thing
+// distinguishing them from the legacy turn entries appendTurn writes (those have
+// no `kind`). readEvents/lastEventOfKind filter on it, so the two coexist in one
+// file with zero interference. appendTurn stays byte-identical (untouched).
+
+// Lazy, never-throwing handle to the pure provenance helpers. Kept lazy so the
+// hot turn-end path that only calls appendTurn never pays for the require, and so
+// a missing module degrades (null hashes) instead of breaking the never-throws.
+let _prov;
+function _provMod() {
+  if (_prov !== undefined) return _prov;
+  try { _prov = require('./ledger-prov.js'); } catch { _prov = null; }
+  return _prov;
+}
+
+// EVENT field clamps — generous (events are the source of truth, not a snippet).
+const AGENT_MAX = 64, MODEL_MAX = 64, TIER_MAX = 8, KIND_MAX = 24, IDEM_MAX = 160;
+const EVENT_KINDS = ['intent', 'turn', 'decision', 'outcome', 'handoff', 'compact', 'summary', 'extract'];
+
+// Normalize one event entry. The input/output PAYLOADS are retained verbatim
+// (the journal is the truth — the reducer reads them); the hashes are the
+// content address over the same payloads. Never throws.
+function _normEvent(ev) {
+  ev = ev || {};
+  const entry = {
+    ts: (ev.ts && String(ev.ts)) || new Date().toISOString(),
+    kind: String(ev.kind || 'turn').slice(0, KIND_MAX),
+    agent: ev.agent != null ? String(ev.agent).slice(0, AGENT_MAX) : null,
+    model: ev.model != null ? String(ev.model).slice(0, MODEL_MAX) : null,
+    tier: ev.tier != null ? String(ev.tier).slice(0, TIER_MAX) : null,
+    cost_usd: Number.isFinite(ev.cost_usd) ? ev.cost_usd : null,
+    input_hash: ev.input_hash != null ? String(ev.input_hash) : null,
+    output_hash: ev.output_hash != null ? String(ev.output_hash) : null,
+    idem_key: ev.idem_key != null ? String(ev.idem_key).slice(0, IDEM_MAX) : null,
+    gate: ev.gate !== undefined ? ev.gate : null,
+  };
+  if (ev.input !== undefined) entry.input = ev.input;
+  if (ev.output !== undefined) entry.output = ev.output;
+  return entry;
+}
+
+// Append ONE provenance event. The runner stamps ts + input_hash/output_hash
+// MECHANICALLY (over the canonicalized payloads) — the caller never supplies its
+// own lineage. Idempotent by idem_key: a second event with the same idem_key
+// already present in the (bounded) journal is a no-op. Same bound + atomic roll
+// as appendTurn. Returns { ok, deduped }; never throws.
+function appendEvent(ev) {
+  try {
+    ev = ev || {};
+    const sid = ev.sid || ev.sessionId;
+    if (!sid) return { ok: false, deduped: false };
+
+    // Mechanical provenance: hash the payloads unless the caller already pinned a
+    // hash (e.g. replaying a known event). The LLM never writes these.
+    let input_hash = ev.input_hash != null ? ev.input_hash : null;
+    let output_hash = ev.output_hash != null ? ev.output_hash : null;
+    const prov = _provMod();
+    if (prov) {
+      try { if (input_hash == null && ev.input !== undefined) input_hash = prov.provHash(ev.input); } catch { /* degrade */ }
+      try { if (output_hash == null && ev.output !== undefined) output_hash = prov.provHash(ev.output); } catch { /* degrade */ }
+    }
+
+    const entry = _normEvent({ ...ev, input_hash, output_hash });
+
+    // Idempotency: dedupe on idem_key against the current journal window.
+    if (entry.idem_key) {
+      for (const e of readJournal(sid)) {
+        if (e && e.idem_key && e.idem_key === entry.idem_key) {
+          return { ok: true, deduped: true };
+        }
+      }
+    }
+
+    const dir = _dir();
+    fs.mkdirSync(dir, { recursive: true });
+    const file = journalPath(sid);
+    fs.appendFileSync(file, JSON.stringify(entry) + '\n');
+
+    // Roll if over the bound (atomic temp+rename), exactly like appendTurn.
+    let lines;
+    try { lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch { return { ok: true, deduped: false }; }
+    if (lines.length > JOURNAL_MAX) {
+      const kept = lines.slice(-JOURNAL_MAX).join('\n') + '\n';
+      const tmp = file + '.tmp';
+      fs.writeFileSync(tmp, kept);
+      fs.renameSync(tmp, file);
+    }
+    return { ok: true, deduped: false };
+  } catch { return { ok: false, deduped: false }; }
+}
+
+// Read journal entries that are provenance EVENTS (have a `kind`), oldest→newest.
+// Legacy turn entries (no `kind`) are excluded. Optional `kind` filter. [] on error.
+function readEvents(sessionId, kind) {
+  const evs = readJournal(sessionId).filter((e) => e && typeof e.kind === 'string');
+  return kind ? evs.filter((e) => e.kind === kind) : evs;
+}
+
+// The most recent event of a given kind for a session, or null.
+function lastEventOfKind(sessionId, kind) {
+  const evs = readEvents(sessionId, kind);
+  return evs.length ? evs[evs.length - 1] : null;
+}
+
 module.exports = {
   appendTurn, readJournal, lastEntry, deriveTurn, gitInfo, readSummary,
+  appendEvent, readEvents, lastEventOfKind,
   journalPath, summaryPath, rollupTsPath,
-  JOURNAL_MAX, SNIPPET_MAX,
+  JOURNAL_MAX, SNIPPET_MAX, EVENT_KINDS,
 };
 Object.defineProperty(module.exports, 'DIR', { enumerable: true, get: _dir });

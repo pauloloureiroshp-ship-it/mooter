@@ -363,6 +363,53 @@ function accumulateHandoff() {
 }
 try { accumulateHandoff(); } catch { /* never block the turn */ }
 
+// ── Ledger Spine L0 — MECHANICAL decision capture ───────────────────────────
+// Derive any AskUserQuestion → answer from the transcript tail the host already
+// wrote and emit ONE kind:decision event per answered question into the session
+// journal (idempotent by a stable idem_key, so re-scanning on later turns never
+// duplicates). The WHY of a choice becomes immutable + attributed + replayable
+// instead of evaporating when the context clears — the next session stops
+// re-litigating decisions already made. Derived from the transcript, NEVER
+// invented; best-effort, never blocks/breaks the turn. (Runs AFTER the turn
+// append so the journal's last line stays a turn entry for the cockpit reader.)
+function accumulateDecisions() {
+  if (!sessionId || sessionId === 'unknown') return;
+  let journal, decision, prov;
+  try { journal = require(path.join(ROUTER_DIR, 'handoff-journal.js')); } catch { return; }
+  if (typeof journal.appendEvent !== 'function') return; // pre-ledger runtime → skip
+  try { decision = require(path.join(ROUTER_DIR, 'ledger-decision.js')); } catch { return; }
+  try { prov = require(path.join(ROUTER_DIR, 'ledger-prov.js')); } catch { prov = null; }
+
+  // Transcript tail — the same host-written source the journal/footer read.
+  let lines = [];
+  try {
+    const tp = payload.transcript_path || payload.transcriptPath || null;
+    if (tp && fs.existsSync(tp)) lines = tailLines(tp, 262144);
+  } catch { return; }
+  if (!lines.length) return;
+
+  let decisions = [];
+  try { decisions = decision.deriveDecisions(lines) || []; } catch { return; }
+  if (!decisions.length) return;
+
+  // Mechanical provenance: stamp the architect (cc) + the turn's routed model/tier.
+  let model = null, tier = null;
+  try {
+    const st = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, '.last-classified.json'), 'utf8'));
+    if (st && st.session_id === sessionId) { model = st.recommended_model || st.model || null; tier = st.tier || null; }
+  } catch { /* optional */ }
+
+  for (const dec of decisions) {
+    try {
+      const idem_key = 'decision:' + (prov
+        ? prov.provHash({ sid: sessionId, q: dec.question, chosen: dec.chosen })
+        : (String(dec.question).slice(0, 80) + '|' + String(dec.chosen).slice(0, 40)));
+      journal.appendEvent({ sid: sessionId, agent: 'cc', model, tier, kind: 'decision', output: dec, idem_key });
+    } catch { /* never */ }
+  }
+}
+try { accumulateDecisions(); } catch { /* never block the turn */ }
+
 // ── PEÇA 4: Auto-sync silencioso (a cada 25 chamadas) ────────────────────
 function autoSync() {
   const { spawn } = require('child_process');
