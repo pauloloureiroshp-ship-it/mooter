@@ -559,6 +559,9 @@ function renderLocalFleet(recent, opts) {
     var s = active[j];
     var l = s.localMoo;
     var nm = s.coworkTitle || s.name || ('session ' + s.id);
+    // B7 — each moo says WHAT it is doing (stage), tagged with its source session id below.
+    // The "why" (grinds the journal into a rollup/handoff on the free GPU, parallel to the
+    // cloud CC, at $0) is stated once in the card head — kept here as the stable contract copy.
     var stage = l.updating ? '⟳ a acumular journal' : (l.summary ? '✓ rollup local' : '· journal');
     var jn = l.journalN || 0;
     var mtps = null;
@@ -572,9 +575,10 @@ function renderLocalFleet(recent, opts) {
     rows += '<div class="fleetmoo" style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;border-top:1px solid var(--vscode-widget-border,rgba(127,127,127,.18))">'
       + '<span class="livecow working" style="font-size:13px">🐮</span>'
       + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(nm) + '">' + esc(nm) + '</span>'
-      + '<span style="opacity:.8">' + esc(stage) + ' · ' + jn + ' turn' + (jn === 1 ? '' : 's') + '</span>'
-      + '<span style="opacity:.7" title="modelo local Ollama ($0)">' + (l.model ? esc(l.model) : '—') + '</span>'
-      + '<span style="color:var(--g);white-space:nowrap" title="velocidade local medida (WS1) · não consome cloud">' + mtpsTxt + ' · $0</span>'
+      + (s.id ? '<span style="flex:none;opacity:.5;font-family:var(--vscode-editor-font-family,monospace);font-size:9px" title="sessão de origem">' + esc(String(s.id)) + '</span>' : '')
+      + '<span style="flex:none;opacity:.8" title="tarefa real do moo · ' + jn + ' turn' + (jn === 1 ? '' : 's') + ' acumulados">' + esc(stage) + ' · ' + jn + ' turn' + (jn === 1 ? '' : 's') + '</span>'
+      + '<span style="flex:none;opacity:.7" title="modelo local Ollama ($0)">' + (l.model ? esc(l.model) : '—') + '</span>'
+      + '<span style="flex:none;color:var(--g);white-space:nowrap" title="velocidade local medida (WS1) · não consome cloud">' + mtpsTxt + ' · $0</span>'
       + '</div>';
   }
 
