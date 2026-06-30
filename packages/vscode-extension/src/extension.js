@@ -952,6 +952,14 @@ function getHtml(guardianPct = null) {
   .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
   .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--r)}
+  /* B6 — header frozen: identity + tab switcher stay pinned; the body scrolls under them. */
+  .chrome{position:sticky;top:0;z-index:30;background:var(--vscode-sideBar-background,var(--vscode-editor-background));margin:0 -10px;padding:0 10px}
+  .chrome .brand{margin-left:0;margin-right:0}
+  .chrome .tabs{margin-left:0;margin-right:0;margin-bottom:0}
+  /* B5 — router mix as one compact segmented bar (was 4 stacked rows); detail opens on expand. */
+  .tiermix{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:6px 0 4px;background:var(--vscode-input-background)}
+  .tiermix>span{display:block;min-width:2px}
+  .tiermixl{display:flex;gap:11px;font-size:9px;flex-wrap:wrap;font-variant-numeric:tabular-nums;opacity:.9}
   .view{display:none}.view.on{display:block}
   .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
   .hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g);color:var(--btext)}
@@ -1468,12 +1476,16 @@ function getHtml(guardianPct = null) {
   .mc-srow.mc-st-ahead{border-left:3px solid #5B9BD5}
   .mc-srow.mc-st-dirty{border-left:3px solid #D19A66}
 </style></head><body>
+<!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
+<div class="chrome">
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
   <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div>
 </div>
-<div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
+</div>
+<!-- B9 — command bar (not a chatbot): natural language OR a /command resolves to a real Mooter command via the classifier; a leading "/" runs straight through. -->
+<div class="intentwrap"><input id="intentIn" placeholder="🐮 run a command, or describe it… (→ /mooter command)"><button class="sm" id="intentGo" title="resolve to a Mooter command and offer to run it">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
 <!-- ARCH TREE TAB (Frente E · Arquitectura Viva) — renders purely from s.mc (MissionControlSnapshot). Separate from the Frente G Mission Control region. -->
 <div class="view" id="view-arch"><div id="v-arch"><div class="empty">🌳 Arquitectura viva — connecting…</div></div></div>
@@ -1502,7 +1514,9 @@ $('#modeBadge').setAttribute('role','button');$('#modeBadge').tabIndex=0;
 $('#modeBadge').onclick=()=>{const nx=MORDER[(MORDER.indexOf(curMode)+1)%3];curMode=nx;$('#modeBadge').textContent=MOO[nx]||('🐮 '+nx);flashApply($('#modeBadge'));send('mode',nx);};
 $('#modeBadge').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#modeBadge').onclick();}});
 const inI=$('#intentIn'),inG=$('#intentGo'),inR=$('#intentRes');
-function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';inR.textContent='🐮 thinking…';send('intent',v);}
+// B9 — command bar: a leading "/" is already a real command → run it straight; otherwise
+// resolve the natural-language phrase to a Mooter command via the classifier (host 'intent').
+function intentAsk(){const v=inI.value.trim();if(!v)return;inR.style.display='block';if(v.charAt(0)==='/'){inR.innerHTML='→ running <b>'+esc(v)+'</b> in the Terminal';send('term',v);return;}inR.textContent='🐮 resolving to a command…';send('intent',v);}
 inG.onclick=intentAsk; inI.addEventListener('keydown',e=>{if(e.key==='Enter')intentAsk();});
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function tc(d){const c={T0:0,T1:0,T2:0,T3:0};for(const x of d)if(c[x.tier]!=null)c[x.tier]++;return c;}
@@ -1775,9 +1789,14 @@ window.addEventListener('message',(e)=>{
   if(e.data.type==='intent'){const r=e.data.res;
     if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
-    else inR.textContent='🐮 could not resolve — try the Terminal tab';
+    else {inR.innerHTML='🐮 not a known command — <button class="sm" id="intentTerm">open Terminal</button> to run it manually';var _it=document.getElementById('intentTerm');if(_it)_it.onclick=function(){goTab('doctor');};}
     return;}
   if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
+  // B2 — stable scroll: the periodic snapshot re-renders every view's innerHTML, which
+  // resets the document scroll and makes the panel jump/flicker. Capture the active scroll
+  // now and restore it after all views are rebuilt (only the visible view has height, so a
+  // single document-level capture/restore covers the cockpit AND the other tabs).
+  const _preScroll=(function(){try{return window.scrollY||document.documentElement.scrollTop||0;}catch(_){return 0;}})();
   // ARCH TREE TAB (Frente E): render the Arquitectura Viva view every snapshot (before any early
   // return below), guarded so it can never blank the cockpit. Renders purely from s.mc.
   try{renderArchView(s);}catch(e){}
@@ -1861,7 +1880,10 @@ window.addEventListener('message',(e)=>{
   // Guarded so a render error never blanks the cockpit; idle-safe inside the renderer.
   const fleetCard=(function(){try{return renderLocalFleet(rsess,{localSpeed:s.localSpeed,nowMs:Date.now()});}catch(er){return '';}})();
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
-  let bars='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);bars+='<div class="bar"><span class="t">'+t+(t==='T0'?' local':'')+'</span><div class="tr"><div class="f" style="width:'+p+'%;background:'+TCOL[t]+'"></div></div><span class="p">'+p+'%</span></div>';}
+  // B5 — compact tier mix: one slim segmented bar + tiny labels (was 4 full-width stacked bars).
+  let mixSeg='',mixLab='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);if(cnt[t]>0)mixSeg+='<span title="'+t+(t==='T0'?' local':'')+' · '+p+'%" style="flex:'+cnt[t]+';background:'+TCOL[t]+'"></span>';mixLab+='<span style="color:'+TCOL[t]+'">'+t+(t==='T0'?' local':'')+' '+p+'%</span>';}
+  const mixBar='<div class="tiermix" role="img" aria-label="router tier mix, last '+decScoped.length+' decisions">'+mixSeg+'</div>';
+  const mixLabels='<div class="tiermixl">'+mixLab+'</div>';
   const installed=(s.ollama||[]).map(x=>x.name);
   const curPin=(s.pinNext&&s.pinNext.model)||'';
   const selAttr=(v)=>v===curPin?' selected':'';
@@ -1880,6 +1902,10 @@ window.addEventListener('message',(e)=>{
   // B3 — preserva o foco/cursor do campo de procura através do re-render periódico (7s) para a escrita não saltar.
   const _qa=document.activeElement;const _qFocused=!!(_qa&&_qa.classList&&_qa.classList.contains('herdq'));const _qCaret=_qFocused?_qa.selectionStart:null;
   $('#v-cockpit').innerHTML=
+    // B1 — primary action at the TOP (was buried at the bottom), full-width CTA weight.
+    // B8 — caption: what it does + what happens next (Mooter routes every prompt).
+    '<button class="go" data-a="launch" style="margin-bottom:4px">✱&nbsp; New Claude Code session</button>'+
+    '<div class="hint" style="margin:0 0 10px">opens a fresh Claude Code tab — Mooter routes every prompt to the cheapest tier that fits · '+esc(MOO[s.mode]||s.mode)+' active</div>'+
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
       // recommended tier". The host model actually answers in a CC session, so the only
@@ -1906,16 +1932,16 @@ window.addEventListener('message',(e)=>{
         + '<div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ this machine:</span> ~<b>' + gTok.toLocaleString() + '</b> ctx-tokens saved · ' + gRes + ' graph-resolved</div>'
         + '</div>';
     })()+
-    '<div class="seg" style="margin-bottom:8px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
+    '<div class="seg" style="margin-bottom:2px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
+    '<div class="hint" style="margin:0 0 8px;text-align:left;font-size:9px">🐄 LazyMoo saves most · 🐮 Moo balances · 🐂 CrazyMoo always strongest — sets the default tier for new prompts</div>'+
     '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b>'+(isHeavyLocal(curPin)?' <span style="opacity:.65;font-size:9px">\u00b7 modelo pesado: 1\u00aa resposta pode levar ~1-2min (cold-load + CPU)</span>':'')+'</div>':'')+'</div>'+
     fleetCard+
     herdCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
-    '<div class="card'+cc('recs')+'" data-collap="recs"><div class="lbl collaphead"><span class="chev">▾</span>Router recommendations · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span></div>'+bars+localSpark(decScoped)+'<div class="sub" style="font-size:9.5px;margin-top:5px">↑ what the router <b>suggested</b> (T0 = local) — not what ran. <b>Actually ran:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model))+' (host)':'host model')+' · '+realLocalN+' real local dispatch'+(realLocalN===1?'':'es')+'</div></div>'+
-    '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
-    '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
+    '<div class="card'+cc('recs')+'" data-collap="recs"><div class="lbl collaphead"><span class="chev">▾</span>Router mix · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span>'+mixBar+'</div>'+mixLabels+localSpark(decScoped)+'<div class="sub" style="font-size:9px;margin-top:5px">T0 = local · the host model answers, so the tier is a suggestion not a bill. <b>Ran last:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model)):'host model')+' · '+realLocalN+' real local</div></div>'+
+    '<div id="tokLedger">'+ledgerHtml(s)+'</div>';
   wireButtons($('#v-cockpit'));
   wireSessControls($('#v-cockpit')); // WCOCKPIT-3: per-session mode/model/auto controls
   wireHoff($('#v-cockpit'));hydrateHoff(); // ⇄ Handoff v2: stop-propagation on panels/projBtn + re-apply live text after the re-render
@@ -2103,6 +2129,8 @@ window.addEventListener('message',(e)=>{
     const vmc=$('#v-mc');
     if(vmc){ vmc.innerHTML=s.mc?renderMissionControl(s.mc):'<div class="empty">Mission Control — sem snapshot ainda (espera o próximo refresh)…</div>'; wireMc(vmc); }
   }catch(_mc){ try{const vmc2=$('#v-mc');if(vmc2)vmc2.innerHTML='<div class="mc-nd">Mission Control — erro de render</div>';}catch(__mc){} }
+  // B2 — restore the scroll captured before this snapshot rebuilt the views (no jump/flicker).
+  try{if(_preScroll)window.scrollTo(0,_preScroll);}catch(_s){}
 });
 send('refresh');
 </script></body></html>`;
