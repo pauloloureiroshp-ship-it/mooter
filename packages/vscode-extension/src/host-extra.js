@@ -1120,6 +1120,7 @@ function extractPending(tailLines) {
   const lines = Array.isArray(tailLines) ? tailLines : [];
   let lastAssistantText = '';
   const allTools = [];
+  let lastMsgTools = [];        // tool_uses of the LAST assistant message (final turn) — for endsWithAsk
   let lastMeaningfulRole = null;
   for (const ln of lines) {
     if (!ln || !ln.trim()) continue;
@@ -1131,18 +1132,25 @@ function extractPending(tailLines) {
     if (role !== 'assistant') continue;
     const content = msg && msg.content;
     let textHere = '';
+    const msgTools = [];        // tool_uses of THIS assistant message (reset per message → final turn only)
     if (Array.isArray(content)) {
       for (const b of content) {
         if (!b) continue;
         if (b.type === 'text' && typeof b.text === 'string') textHere += b.text;
-        else if (b.type === 'tool_use') allTools.push({ name: String(b.name || 'tool'), target: _toolTarget(b.input) });
+        else if (b.type === 'tool_use') { const t = { name: String(b.name || 'tool'), target: _toolTarget(b.input) }; allTools.push(t); msgTools.push(t); }
       }
     } else if (typeof content === 'string') { textHere += content; }
     if (textHere.trim()) lastAssistantText = textHere.trim().replace(/\s+/g, ' ').slice(0, 400);
+    lastMsgTools = msgTools;    // overwrite each assistant message → ends as the FINAL assistant turn's tools
   }
   return {
     lastAssistantText: lastAssistantText || '—',
     lastToolActions: allTools.slice(-3),
+    // GATE #3 (anti-lie, scoped): is the session blocked on an OPEN AskUserQuestion? Keyed on the FINAL
+    // assistant turn's own tools (lastMsgTools), NOT the tail-wide buffer — so a session that asked, was
+    // answered, then ran a post-answer turn is correctly "not asking" (its final turn carries no open Q).
+    endsWithAsk: lastMeaningfulRole === 'assistant' && lastMsgTools.length > 0
+      && String(lastMsgTools[lastMsgTools.length - 1].name || '') === 'AskUserQuestion',
     stopped: lastMeaningfulRole === 'assistant',
   };
 }
@@ -1208,6 +1216,10 @@ function _cleanNarrative(out) {
 function _isAskingUser(pending) {
   const p = pending || {};
   if (!p.stopped) return false;
+  // Prefer the FINAL-turn-scoped signal from extractPending. The tail-wide lastToolActions buffer
+  // false-positives when the session asked, was answered, then took a post-answer turn (the stale ask
+  // still sits in the last-3 buffer). Hand-built pendings (tests/back-compat) lack endsWithAsk → fall back.
+  if (typeof p.endsWithAsk === 'boolean') return p.endsWithAsk;
   const tools = Array.isArray(p.lastToolActions) ? p.lastToolActions : [];
   const last = tools.length ? tools[tools.length - 1] : null;
   return !!(last && String((last && last.name) || '') === 'AskUserQuestion');
@@ -1535,7 +1547,12 @@ function generateProjectHandoff(proj, rows, opts) {
   const haveBranchData = Array.isArray(opts.branches);
   const parkedBranches = haveBranchData ? opts.branches.filter((b) => b && (Number(b.unpushed) || 0) > 0) : [];
   const parkedCommits = parkedBranches.reduce((s, b) => s + (Number(b.unpushed) || 0), 0);
-  const unpFlag = haveBranchData ? parkedCommits : unp;
+  // Anti-lie reconciliation (NOT replacement): worktreeParked branch data is ADDITIVE visibility for
+  // parked branches no live session sits on. If it returns [] (git timeout, no linked worktree, no
+  // remotes) we must STILL surface each session's own unpushed (`unp`), or the exact lie this gate kills —
+  // "0 UNPUSHED · projecto limpo" with real unpushed work — silently returns. Floor at the larger of the
+  // two independent signals; never under-report. No branch data at all → unp (byte-identical back-compat).
+  const unpFlag = Math.max(unp, parkedCommits);
   const parkedSection = [];
   if (parkedBranches.length) {
     parkedSection.push('', '▸ PARKED (trabalho por push — nenhum remote tem estes commits):');
@@ -1570,9 +1587,10 @@ function generateProjectHandoff(proj, rows, opts) {
   const nextSegs = [];
   if (dupGroups > 0) nextSegs.push('resolver DUP (mesma branch)');
   if (unc > 0) nextSegs.push('commit UNCOMMITTED');
-  if (haveBranchData) {
-    if (parkedBranches.length) nextSegs.push('push ' + parkedBranches.length + ' branch' + (parkedBranches.length === 1 ? '' : 'es') + ' parked (' + parkedCommits + ' commit' + (parkedCommits === 1 ? '' : 's') + ')');
-  } else if (unp > 0) nextSegs.push('push UNPUSHED');
+  // Parked branches drive the explicit push action; but a session's own unpushed (unp) must ALSO surface
+  // even when branch enumeration was empty/failed — otherwise "projecto limpo" reappears with work parked.
+  if (parkedBranches.length) nextSegs.push('push ' + parkedBranches.length + ' branch' + (parkedBranches.length === 1 ? '' : 'es') + ' parked (' + parkedCommits + ' commit' + (parkedCommits === 1 ? '' : 's') + ')');
+  else if (unp > 0) nextSegs.push('push UNPUSHED');
   tail.push(nextSegs.length ? ('▸ NEXT FOR COWORK: ' + nextSegs.join(' · ')) : '▸ NEXT FOR COWORK: nada pendente — projecto limpo');
   tail.push('⇄ END PROJECT HANDOFF');
   // ASK aggregate at the TOP (action-first): "N sessões · a verify+merge · … · X review". review is
@@ -2018,19 +2036,20 @@ async function worktreeParked(cwds, opts) {
     if (!list.length) return [];
     // Distinct worktrees across all the project's cwds (worktrees(cwd) returns the repo's full list).
     const byPath = new Map(); // resolved worktree path -> { path, head, branch }
-    const reposChecked = new Set();
+    const repoRemotes = new Map(); // cwd -> hasRemotes (bool); cache the REAL result, never assume true on a re-seen cwd
     for (const cwd of list) {
       let wts; try { wts = modeRegistry().worktrees(cwd) || []; } catch { wts = []; }
-      // Detect whether THIS repo has any remote-tracking refs; if none, "unpushed" is undefined → skip.
-      let hasRemotes = reposChecked.has(cwd) ? true : null;
       for (const wt of wts) {
         if (!wt || !wt.branch || !wt.path) continue;
         const key = path.resolve(wt.path);
         if (byPath.has(key)) continue;
-        if (hasRemotes === null) {
+        // Does THIS repo have any remote-tracking refs? If none, "unpushed" is undefined → skip. Cache the
+        // real boolean per cwd (a re-seen cwd reuses its actual result, never silently assumed to be true).
+        let hasRemotes = repoRemotes.get(cwd);
+        if (hasRemotes === undefined) {
           try { const rr = await execTool('git', ['-C', cwd, 'for-each-ref', '--count', '1', 'refs/remotes'], 2000); hasRemotes = !!(rr && rr.ok && (rr.out || '').trim()); }
           catch { hasRemotes = false; }
-          reposChecked.add(cwd);
+          repoRemotes.set(cwd, hasRemotes);
         }
         if (!hasRemotes) continue; // can't honestly call anything "unpushed" without a remote
         byPath.set(key, { path: wt.path, head: wt.head || null, branch: wt.branch });

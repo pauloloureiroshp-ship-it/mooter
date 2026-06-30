@@ -266,3 +266,40 @@ test('GATE #3: a session blocked on AskUserQuestion renders 🔵, never ✅', ()
   assert.ok(!line.includes('✅'), 'NEVER marked ✅ done while waiting on the human');
   assert.ok(/· 1 answer/.test(txt), 'the ASK aggregate counts it as needing an answer');
 });
+
+// ── REGRESSION (final-reviewer NO-SHIP HIGH): worktreeParked returning [] (git timeout / no linked
+//    worktree / no remotes) must NOT erase a session's OWN unpushed. Production ALWAYS passes opts.branches,
+//    so an empty array used to force "0 UNPUSHED · projecto limpo" — the exact lie this gate exists to kill. ─
+test('GATE #1: branches:[] (worktreeParked empty/failed) + a session ahead of upstream → still UNPUSHED, never "projecto limpo"', () => {
+  const rows = [{ id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'feat/x', gitStage: { dirty: 0, ahead: 2 } }];
+  const txt = x.generateProjectHandoff('P', rows, { branches: [], now: new Date('2026-06-30T00:00:00') });
+  assert.ok(!/0 UNPUSHED/.test(txt), 'empty branch data must NOT erase the session-level unpushed');
+  assert.ok(!/projecto limpo/.test(txt), 'never "projecto limpo" while a session is ahead of its upstream');
+  assert.ok(/push UNPUSHED/.test(txt), 'NEXT FOR COWORK still names the push when branch enumeration came back empty');
+});
+
+// ── REGRESSION (final-reviewer NO-SHIP MED): the "asking" signal must be scoped to the FINAL assistant
+//    turn, not the tail-wide last-3 buffer. A session that asked, was answered, then ran a post-answer
+//    turn is NOT blocked on the human — it must not false-positive to 🔵. ──────────────────────────────
+test('GATE #3: answered-then-continued session is NOT asking (endsWithAsk scopes to the final turn)', () => {
+  const tail = [
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'qual abordagem?' }, { type: 'tool_use', name: 'AskUserQuestion', input: {} }] } }),
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'a opção 2' }] } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/r/x.js' } }, { type: 'text', text: 'feito.' }] } }),
+  ];
+  const p = x.extractPending(tail);
+  assert.equal(p.endsWithAsk, false, 'final turn was Edit+text, not an open AskUserQuestion');
+  assert.equal(x._isAskingUser(p), false, 'answered-then-continued → not blocked on the human (no false 🔵)');
+  // and the genuinely-open case: the very last turn ends with an AskUserQuestion → asking
+  const open = [
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'escolhe:' }, { type: 'tool_use', name: 'AskUserQuestion', input: {} }] } }),
+  ];
+  const po = x.extractPending(open);
+  assert.equal(po.endsWithAsk, true, 'final turn ends with an open AskUserQuestion');
+  assert.equal(x._isAskingUser(po), true);
+});
+
+test('GATE #3: _isAskingUser prefers endsWithAsk over the stale lastToolActions tail buffer', () => {
+  assert.equal(x._isAskingUser({ stopped: true, endsWithAsk: false, lastToolActions: [{ name: 'AskUserQuestion' }] }), false, 'scoped signal wins: a stale ask in the buffer is ignored');
+  assert.equal(x._isAskingUser({ stopped: true, endsWithAsk: true, lastToolActions: [] }), true, 'scoped signal wins: open ask even with an empty buffer');
+});
