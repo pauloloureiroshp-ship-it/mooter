@@ -605,9 +605,14 @@ class CockpitProvider {
         const projOf = (r) => (r && r.coworkProject) ? r.coworkProject
           : ((r && r.repoFolder && (r.branch || r.gitStage)) ? r.repoFolder : 'Unassigned');
         const snapRows = ((this.data.snapshot && this.data.snapshot.recent) || []).filter((r) => projOf(r) === proj);
+        // GATE #1 (worktree-aware honesty): enumerate the project's PARKED branches (commits on no
+        // remote, across every linked worktree — even those no live session sits on) so the board can
+        // never falsely read "0 UNPUSHED · projecto limpo". Bounded (parallel git reads); [] on failure.
+        const projBranches = async (rws) => { try { const cwds = Array.from(new Set((rws || []).map((r) => r && r.cwd).filter(Boolean))); return await extra.worktreeParked(cwds); } catch { return []; } };
         // ⇄ v2.1 BACKGROUND ENRICHMENT (mesmo padrão do handoff de sessão):
         //  PASSO 1: board instantânea (determinística) revelada ('ready') + COPIADA já, antes de awaits LLM.
-        const text0 = extra.generateProjectHandoff(proj, snapRows, {});
+        let branches = await projBranches(snapRows);
+        const text0 = extra.generateProjectHandoff(proj, snapRows, { branches });
         hoffCache[proj] = text0;
         try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'ready', text: text0 }); } catch {}
         try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
@@ -616,6 +621,7 @@ class CockpitProvider {
         //  (~11.5s) — o webview já tem a board. SÓ re-copia/substitui se o texto enriquecido mudou.
         let prows = snapRows;
         try { const all = await extra.recentSessions(30); const f = all.filter((r) => projOf(r) === proj); if (f.length) prows = f; } catch { /* mantém snapRows */ }
+        if (prows !== snapRows) { branches = await projBranches(prows); } // re-enumerate over the wider session set
         // ⇄ F2 LIVE STREAMING (per-projecto = mesmo padrão visual): a síntese OVERALL a aparecer ao
         // vivo ('handoff-stream' por chunk). Falha/indisponível → fallback ao caminho actual: rolling
         // summaries on-disk (instantâneo, sem eco) → ollamaProjectSynth (deadline ~11.5s) → contadores
@@ -628,7 +634,7 @@ class CockpitProvider {
         if (!synth) { try { synth = extra.projectSynthFromSummaries(prows); } catch { synth = null; } }
         if (!synth) { try { synth = await extra.ollamaProjectSynth(prows, 11500); } catch { synth = null; } }
         let best = text0;
-        const enriched = extra.generateProjectHandoff(proj, prows, { synth });
+        const enriched = extra.generateProjectHandoff(proj, prows, { synth, branches });
         if (enriched && enriched !== text0) {
           best = enriched;
           hoffCache[proj] = best;

@@ -185,3 +185,84 @@ test('renderRow + renderLocalFleet remain concat-only (no template literals — 
   assert.equal(RR.renderRow.toString().indexOf('`'), -1, 'renderRow must stay backtick-free');
   assert.equal(RR.renderLocalFleet.toString().indexOf('`'), -1, 'renderLocalFleet must stay backtick-free');
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🪞 HANDOFF TRUTH — anti-lie GATE (blindagem). The handoff used to attribute everything to the
+// shared tree, claim "0 UNPUSHED · projecto limpo" with green work parked in other worktrees, and
+// mark "✅" sessions that were actually asking the human. These three tests fail the moment any of
+// those lies returns. They are the trunfo — perfect handoff, never fabricated.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// ── GATE #1: a branch with unpushed commits → NEVER "0 UNPUSHED" / "projecto limpo"; listed 🟡 parked ─
+test('GATE #1: a branch with 1 unpushed commit → never "0 UNPUSHED" nor "projecto limpo"; 🟡 parked', () => {
+  const rows = [{ id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } }];
+  const branches = [{ branch: 'feat/cockpit-doctor-selfheal', sha: '2155edc0abcd', unpushed: 1, worktree: 'frugal-cockpit-doctor', aheadOfMain: 12 }];
+  const txt = x.generateProjectHandoff('P', rows, { branches, now: new Date('2026-06-30T00:00:00') });
+  assert.ok(!/0 UNPUSHED/.test(txt), 'must NOT claim 0 UNPUSHED while a branch is parked');
+  assert.ok(!/projecto limpo/.test(txt), 'must NOT claim projecto limpo while a branch is parked');
+  assert.ok(/▸ PARKED/.test(txt), 'has a PARKED section');
+  assert.ok(/🟡 feat\/cockpit-doctor-selfheal @2155edc/.test(txt), 'parked branch listed 🟡 with its short sha');
+  assert.ok(/1 UNPUSHED/.test(txt), 'FLAGS reports the real unpushed count');
+  assert.ok(/push 1 branch parked/.test(txt), 'NEXT FOR COWORK names the parked push');
+});
+
+test('GATE #1: two parked branches sum honestly; a clean branch set still allows "projecto limpo"', () => {
+  const rows = [{ id: 'a', fullId: 'a', name: 'A', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 } }];
+  const parked = [
+    { branch: 'feat/cockpit-doctor-selfheal', sha: '2155edc0abcd', unpushed: 3, worktree: 'wt1' },
+    { branch: 'feat/mission-control-v2', sha: 'b07a49b0abcd', unpushed: 2, worktree: 'wt2' },
+  ];
+  const t1 = x.generateProjectHandoff('P', rows, { branches: parked, now: new Date('2026-06-30T00:00:00') });
+  assert.ok(/5 UNPUSHED/.test(t1), 'sums all parked commits (3+2)');
+  assert.ok(/feat\/mission-control-v2 @b07a49b/.test(t1), 'second parked branch also listed');
+  // branch data present but all pushed → 0 UNPUSHED is TRUE → projecto limpo is allowed (honest both ways)
+  const clean = x.generateProjectHandoff('P', rows, { branches: [], now: new Date('2026-06-30T00:00:00') });
+  assert.ok(/0 UNPUSHED/.test(clean) && /projecto limpo/.test(clean), 'truly clean → honest "projecto limpo"');
+  assert.ok(!/▸ PARKED/.test(clean), 'no PARKED section when nothing is parked');
+});
+
+// ── GATE #2: a session in a linked worktree shows the WORKTREE branch, not the shared tree ─────────
+test('GATE #2: reconcileSessionGit — no journal but a dedicated worktree → certain worktree branch', () => {
+  const r = x.reconcileSessionGit(null, 'main', 'aaaaaaaaaaaa', { branch: 'feat/mission-control-v2', sha: 'b07a49b0abcd' });
+  assert.equal(r.source, 'worktree');
+  assert.equal(r.uncertain, false, 'a dedicated worktree branch is CERTAIN, not "incerto"');
+  assert.equal(r.branch, 'feat/mission-control-v2');
+  assert.equal(r.diverged, false);
+  // journal still wins over worktree (the session's own recorded provenance)
+  const j = x.reconcileSessionGit({ branch: 'wave/j', head: 'cccccccccccc' }, 'main', 'mmmmmmmmmmmm', { branch: 'feat/wt' });
+  assert.equal(j.source, 'journal');
+  assert.equal(j.branch, 'wave/j');
+});
+
+test('GATE #2: BOARD shows the worktree branch, never "tree partilhado", for a worktree session', () => {
+  const rows = [{ id: 'w', fullId: 'w', name: 'W', cwd: '/wt', branch: 'main', gitStage: { dirty: 0, ahead: 0 },
+    sessionGit: { source: 'worktree', branch: 'feat/mission-control-v2', sha: 'b07a49b0abcd', uncertain: false, diverged: false } }];
+  const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-30T00:00:00') });
+  assert.ok(/feat\/mission-control-v2 @b07a49b/.test(txt), 'worktree branch + sha shown');
+  assert.ok(!/branch incerto \(tree partilhado\)/.test(txt), 'a dedicated worktree is NOT "tree partilhado"');
+  // and in the per-session handoff BASE it is labelled (worktree)
+  const base = x.generateHandoff({ id: 'w', fullId: 'w', name: 'W', branch: 'main', cwd: '/wt', turns: 3 },
+    { lastAssistantText: '—' }, { now: new Date('2026-06-30T00:00:00'), snapshot: {},
+      sessionGit: { source: 'worktree', branch: 'feat/mission-control-v2', sha: 'b07a49b0abcd', diverged: false } });
+  assert.ok(/BASE:.*feat\/mission-control-v2 @b07a49b \(worktree\)/.test(base), 'per-session BASE labelled (worktree)');
+});
+
+// ── GATE #3: a session with an OPEN AskUserQuestion → 🔵 (à-espera-de-ti), never ✅ ────────────────
+test('GATE #3: open AskUserQuestion → _isAskingUser true; resolved/other → false', () => {
+  assert.equal(x._isAskingUser({ stopped: true, lastToolActions: [{ name: 'Read' }, { name: 'AskUserQuestion' }] }), true);
+  assert.equal(x._isAskingUser({ stopped: false, lastToolActions: [{ name: 'AskUserQuestion' }] }), false, 'answered → later user turn → not asking');
+  assert.equal(x._isAskingUser({ stopped: true, lastToolActions: [{ name: 'Edit' }] }), false, 'last tool not AskUserQuestion');
+  assert.equal(x._isAskingUser({ stopped: true, lastToolActions: [] }), false);
+  assert.equal(x._isAskingUser(null), false);
+});
+
+test('GATE #3: a session blocked on AskUserQuestion renders 🔵, never ✅', () => {
+  const asking = { stopped: true, lastAssistantText: 'qual abordagem preferes?', lastToolActions: [{ name: 'AskUserQuestion', target: '' }] };
+  const rows = [{ id: 'q', fullId: 'q', name: 'Q', cwd: '/r', branch: 'main', gitStage: { dirty: 0, ahead: 0 }, pending: asking }];
+  const txt = x.generateProjectHandoff('P', rows, { now: new Date('2026-06-30T00:00:00') });
+  const line = txt.split('\n').find((l) => l.includes('(q)'));
+  assert.ok(line, 'the session row is present');
+  assert.ok(line.includes('🔵'), 'asking session rendered 🔵 (à-espera-de-ti)');
+  assert.ok(!line.includes('✅'), 'NEVER marked ✅ done while waiting on the human');
+  assert.ok(/· 1 answer/.test(txt), 'the ASK aggregate counts it as needing an answer');
+});

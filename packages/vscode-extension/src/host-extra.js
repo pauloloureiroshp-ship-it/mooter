@@ -1003,17 +1003,21 @@ async function recentSessions(maxN = 8) {
       const match = prs.find((p) => p && p.headRefName === branch);
       if (match) pr = { number: match.number, title: String(match.title || '').slice(0, 80), state: match.state, isDraft: match.isDraft, stage: prStage(match) };
     }
-    // WCOCKPIT-2: worktree detection (per cwd, cached; shows chip only for linked worktrees)
-    let worktree = null;
+    // WCOCKPIT-2: worktree detection (per cwd, cached; shows chip only for linked worktrees).
+    // Correção A: when the session's cwd IS a dedicated linked worktree, capture that worktree's
+    // branch+head — it's the CERTAIN per-session branch (reconcileSessionGit uses it instead of the
+    // misleading shared-tree HEAD when there's no journal).
+    let worktree = null, worktreeGit = null;
     if (cwd) {
       if (!wtCache.has(cwd)) wtCache.set(cwd, modeRegistry().worktrees(cwd));
       const wts = wtCache.get(cwd);
       const thisWt = wts.find(wt => wt.linked && path.resolve(wt.path) === path.resolve(cwd));
-      if (thisWt) worktree = path.basename(thisWt.path);
+      if (thisWt) { worktree = path.basename(thisWt.path); worktreeGit = { branch: thisWt.branch || null, sha: thisWt.head || null }; }
     }
     const row = { id: sid.slice(0, 8), fullId: sid, name: names[sid] || _firstPrompt(f.file) || null, project: (proj || '?').slice(-34), model: lastModel, turns, ageMs: now - f.mtime, lastActiveTs: f.mtime, working, needsYou, cwd, branch, pr, worktree, tokIn: tin, tokOut: tout, ctxTokens: lastCtx, cost: scost, saved: ssaved, tokPerSec };
     row.repoFolder = cwd ? path.basename(cwd) : null; // WCOCKPIT-3: clean folder name for grouping
     row.pending = pendingForRow || { lastAssistantText: '—', lastToolActions: [], stopped: false }; // ⇄ Handoff source (no re-read)
+    row.askingUser = _isAskingUser(row.pending); // GATE #3: open AskUserQuestion → 🔵 (never ✅ done)
     // WCOCKPIT-4/5: async git stage (non-blocking; cached per cwd to avoid redundant git calls)
     if (cwd) {
       if (!gsCache.has(cwd)) gsCache.set(cwd, gitStage(cwd)); // store Promise, start only once per cwd
@@ -1026,7 +1030,7 @@ async function recentSessions(maxN = 8) {
     // tree HEAD). Reconciled vs the tree → uncertain (no journal) / diverged (tree moved under it).
     let _treeSha = null;
     if (cwd) { if (!treeShaCache.has(cwd)) treeShaCache.set(cwd, _treeHeadSha(cwd)); _treeSha = treeShaCache.get(cwd); }
-    row.sessionGit = reconcileSessionGit(sessionGitFromJournal(row.fullId), branch, _treeSha);
+    row.sessionGit = reconcileSessionGit(sessionGitFromJournal(row.fullId), branch, _treeSha, worktreeGit);
     if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
     // Drop throwaway probe sessions: a one-shot transcript whose only prompt is a
     // CLI management/status echo (e.g. `mooter slash-commands status` mis-routed
@@ -1196,10 +1200,23 @@ function _cleanNarrative(out) {
 //   HEAD + ahead + !pushed + frozen + !mixed → verify+merge
 //   ahead + pushed/PR          → push-ok  (merged PR → fyi)
 //   otherwise                  → fyi
+// PURE (testable): is the session BLOCKED on the human right now? True when the last meaningful turn
+// was the assistant (stopped) AND its most-recent tool call was AskUserQuestion — an OPEN question
+// awaiting the user's answer. A session that asked and was answered has a later user turn → stopped=false
+// → not asking. This is the anti-lie signal: such a session must read 🔵 "à-espera-de-ti", never "✅"
+// done. Never throws (bad input → false = no false alarm).
+function _isAskingUser(pending) {
+  const p = pending || {};
+  if (!p.stopped) return false;
+  const tools = Array.isArray(p.lastToolActions) ? p.lastToolActions : [];
+  const last = tools.length ? tools[tools.length - 1] : null;
+  return !!(last && String((last && last.name) || '') === 'AskUserQuestion');
+}
 function deriveAsk(snapshot, pending, row) {
   const s = snapshot || {}; const p = pending || {};
   if (s.classifyFrozen === false) return 'review';
   if (s.mixedSessions) return 'review';
+  if (_isAskingUser(p)) return 'answer'; // open AskUserQuestion → it's the human's turn
   const txt = (p.lastAssistantText && String(p.lastAssistantText).trim()) ? String(p.lastAssistantText).trim() : '';
   if (p.stopped && txt && txt !== '—' && /\?/.test(txt)) return 'answer';
   const ahead = Number(s.baseAhead) || 0;
@@ -1271,8 +1288,9 @@ function generateHandoff(row, pending, opts) {
   // → ⚠ marker. Back-compat: no sessionGit → the tree branch as before.
   const _sg = opts.sessionGit || row.sessionGit || null;
   let branchSeg;
-  if (_sg && _sg.source === 'journal' && (_sg.branch || _sg.sha)) {
-    branchSeg = _or(_sg.branch) + (_sg.sha ? ' @' + String(_sg.sha).slice(0, 7) : '') + ' (journal)' + (_sg.diverged ? ' ⚠ diverge do tree' : '');
+  if (_sg && (_sg.source === 'journal' || _sg.source === 'worktree') && (_sg.branch || _sg.sha)) {
+    const _src = _sg.source === 'worktree' ? ' (worktree)' : ' (journal)';
+    branchSeg = _or(_sg.branch) + (_sg.sha ? ' @' + String(_sg.sha).slice(0, 7) : '') + _src + (_sg.diverged ? ' ⚠ diverge do tree' : '');
   } else if (_sg && _sg.uncertain) {
     branchSeg = _or(_sg.branch || row.branch) + ' (branch incerto · tree partilhado)';
   } else {
@@ -1396,7 +1414,9 @@ function generateHandoff(row, pending, opts) {
 // no sessionGit → plain tree branch (_or(r.branch)). Never throws.
 function _sessionBranchLabel(r) {
   const sg = (r && r.sessionGit) || null;
-  if (sg && sg.source === 'journal' && (sg.branch || sg.sha)) {
+  // 'journal' = the session's own recorded history; 'worktree' = a DEDICATED linked worktree whose
+  // checked-out branch is certain (it IS that checkout — never "tree partilhado"). Both are honest.
+  if (sg && (sg.source === 'journal' || sg.source === 'worktree') && (sg.branch || sg.sha)) {
     return _or(sg.branch) + (sg.sha ? ' @' + String(sg.sha).slice(0, 7) : '') + (sg.diverged ? ' ⚠ diverge do tree' : '');
   }
   if (sg && sg.uncertain) {
@@ -1420,6 +1440,7 @@ function generateProjectHandoff(proj, rows, opts) {
   const _rowAsk = (r, contested) => {
     if (contested) return 'review';
     const p = (r && r.pending) || {};
+    if ((r && r.askingUser) || _isAskingUser(p)) return 'answer'; // open AskUserQuestion → human's turn
     const txt = p.lastAssistantText && String(p.lastAssistantText).trim();
     if (p.stopped && txt && txt !== '—' && /\?/.test(txt)) return 'answer';
     const gs2 = (r && r.gitStage) || {};
@@ -1474,7 +1495,14 @@ function generateProjectHandoff(proj, rows, opts) {
     } else if (dirty > 0) { flags.push('UNCOMMITTED'); unc++; }
     if ((gs.ahead || 0) > 0) { flags.push('UNPUSHED'); unp++; }
     if (_active(r)) activeN++;
-    const st = (r && r.working) ? '🟢' : ((r && r.needsYou) ? '🟡' : ((r && r.waitingForCowork) ? '⏳' : '✅'));
+    // GATE #3 (anti-lie): a session with an OPEN AskUserQuestion is BLOCKED on the human → 🔵
+    // "à-espera-de-ti", NEVER "✅" done. It outranks every other glyph (the human is the bottleneck).
+    const asking = (r && r.askingUser) || _isAskingUser(r && r.pending);
+    const st = asking ? '🔵'
+      : (r && r.working) ? '🟢'
+      : (r && r.needsYou) ? '🟡'
+      : (r && r.waitingForCowork) ? '⏳'
+      : '✅';
     const fl = flags.length ? '  [' + flags.join(' ') + ']' : '';
     const nm = String((r && r.name) || ('session ' + id)).replace(/\s+/g, ' ').slice(0, 56);
     // PASSO 2 — HONEST per-session branch: prefer the session's OWN journal branch (+sha), not the
@@ -1499,6 +1527,25 @@ function generateProjectHandoff(proj, rows, opts) {
     for (const [cw, a] of ambient) { ambientTotal += a.dirty; segs.push(path.basename(cw) + ' ' + a.dirty + ' dirty (working-tree partilhado por ' + a.sessions + ' sess)'); }
     ambientLine = '▸ AMBIENTE: ' + segs.join(' · ');
   }
+  // GATE #1 (the big lie killed): PARKED = branches that carry commits on NO remote (worktree-aware,
+  // from worktreeParked → git rev-list --not --remotes). When this branch data is supplied it is the
+  // AUTHORITATIVE unpushed count — so green work parked in a worktree no live session sits on can never
+  // be hidden behind "0 UNPUSHED · projecto limpo". Without it, fall back to the per-row session count
+  // (back-compat — every existing caller/test passes no opts.branches → byte-identical output).
+  const haveBranchData = Array.isArray(opts.branches);
+  const parkedBranches = haveBranchData ? opts.branches.filter((b) => b && (Number(b.unpushed) || 0) > 0) : [];
+  const parkedCommits = parkedBranches.reduce((s, b) => s + (Number(b.unpushed) || 0), 0);
+  const unpFlag = haveBranchData ? parkedCommits : unp;
+  const parkedSection = [];
+  if (parkedBranches.length) {
+    parkedSection.push('', '▸ PARKED (trabalho por push — nenhum remote tem estes commits):');
+    for (const b of parkedBranches) {
+      const sha = b.sha ? ' @' + String(b.sha).slice(0, 7) : '';
+      const wt = b.worktree ? ' · ' + b.worktree : '';
+      const nn = Number(b.unpushed) || 0;
+      parkedSection.push('  🟡 ' + _or(b.branch) + sha + ' · ' + nn + ' commit' + (nn === 1 ? '' : 's') + ' por push' + wt);
+    }
+  }
   const tail = [];
   // 4d — OVERALL: prefer the real per-session rolling-summary synth (opts.synth, fed by
   // projectSynthFromSummaries); else a DETERMINISTIC honest line (counts + branch + dirty), NEVER the
@@ -1512,16 +1559,20 @@ function generateProjectHandoff(proj, rows, opts) {
     // B5 — AMBIENTE sem duplicar: o dirty ambiente vive SÓ na linha dedicada "▸ AMBIENTE:" (abaixo);
     // o OVERALL deixa de o repetir (era a mesma contagem em dois sítios).
     const overall = n + ' sess' + (n === 1 ? 'ão' : 'ões') + ' em ' + bTop + ' · '
-      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unp + ' por push';
+      + activeN + ' activa' + (activeN === 1 ? '' : 's') + ' · ' + unc + ' por commitar · ' + unpFlag + ' por push';
     tail.push('', '▸ OVERALL: ' + overall);
   }
-  tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unp + ' UNPUSHED');
+  tail.push('', '▸ FLAGS: ' + dupSeg + ' · ' + unc + ' UNCOMMITTED · ' + unpFlag + ' UNPUSHED');
   if (ambientLine) tail.push(ambientLine);
   // B5 — NEXT condicional às flags: nunca dizer "resolver DUP · commit · push" quando é 0/0/sem-DUP.
+  // GATE #1: with branch data, PARKED branches drive the "push" action (authoritative, worktree-aware);
+  // so the board can never say "projecto limpo" while a branch has unpushed commits.
   const nextSegs = [];
   if (dupGroups > 0) nextSegs.push('resolver DUP (mesma branch)');
   if (unc > 0) nextSegs.push('commit UNCOMMITTED');
-  if (unp > 0) nextSegs.push('push UNPUSHED');
+  if (haveBranchData) {
+    if (parkedBranches.length) nextSegs.push('push ' + parkedBranches.length + ' branch' + (parkedBranches.length === 1 ? '' : 'es') + ' parked (' + parkedCommits + ' commit' + (parkedCommits === 1 ? '' : 's') + ')');
+  } else if (unp > 0) nextSegs.push('push UNPUSHED');
   tail.push(nextSegs.length ? ('▸ NEXT FOR COWORK: ' + nextSegs.join(' · ')) : '▸ NEXT FOR COWORK: nada pendente — projecto limpo');
   tail.push('⇄ END PROJECT HANDOFF');
   // ASK aggregate at the TOP (action-first): "N sessões · a verify+merge · … · X review". review is
@@ -1548,7 +1599,7 @@ function generateProjectHandoff(proj, rows, opts) {
       riskLine.push('⚠ RISCO: HIGH — ' + reasons.join(' · '));
     }
   }
-  return head.concat(askLine).concat(riskLine).concat(['', '▸ BOARD:']).concat(board).concat(tail).join('\n');
+  return head.concat(askLine).concat(riskLine).concat(['', '▸ BOARD:']).concat(board).concat(parkedSection).concat(tail).join('\n');
 }
 
 // PURA (testável): HANDOFF COMBINADO — sessão + projecto num só texto para colar no Cowork (Frente F).
@@ -1915,7 +1966,7 @@ function _treeHeadSha(cwd) {
 //   • journal absent  → the tree branch is returned but flagged `uncertain` ("incerto (tree
 //     partilhado)") — NEVER asserted as the session's own branch.
 // Returns { branch, sha, source:'journal'|'tree', uncertain:bool, diverged:bool }. Never throws.
-function reconcileSessionGit(journalGit, treeBranch, treeSha) {
+function reconcileSessionGit(journalGit, treeBranch, treeSha, worktreeGit) {
   const tb = treeBranch != null ? String(treeBranch) : null;
   const ts = treeSha != null ? String(treeSha).slice(0, 12) : null;
   const jg = journalGit || null;
@@ -1925,7 +1976,83 @@ function reconcileSessionGit(journalGit, treeBranch, treeSha) {
     const diverged = !!((jb && tb && jb !== tb) || (jh && ts && jh !== ts));
     return { branch: jb || tb, sha: jh, source: 'journal', uncertain: false, diverged };
   }
+  // No journal, but the session ran in its OWN dedicated worktree → the worktree's checked-out branch
+  // IS certain (it is literally that checkout, not a shared tree another session moved). Honest, not
+  // "incerto (tree partilhado)". The branch label this produces is the worktree branch, never the tree's.
+  const wg = worktreeGit || null;
+  if (wg && (wg.branch != null || wg.sha != null)) {
+    return {
+      branch: wg.branch != null ? String(wg.branch) : tb,
+      sha: wg.sha != null ? String(wg.sha).slice(0, 12) : null,
+      source: 'worktree', uncertain: false, diverged: false,
+    };
+  }
   return { branch: tb, sha: ts, source: 'tree', uncertain: true, diverged: false };
+}
+
+// Count commits for a rev-list spec in a repo (e.g. ['<branch>','--not','--remotes'] = unpushed, or
+// ['main..<branch>'] = ahead of main). null on any failure (git absent/slow/no such ref). Read-only,
+// 3s timeout, never throws.
+async function _countRevs(cwd, args) {
+  try {
+    const r = await execTool('git', ['-C', cwd, 'rev-list', '--count'].concat(args), 3000);
+    if (!r || !r.ok) return null;
+    const n = parseInt((r.out || '').trim(), 10);
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
+}
+
+// IMPURE (worktree-aware): enumerate the PARKED branches across a project's repos — branches that
+// carry commits on NO remote ("unpushed"), so the project handoff can never falsely read "0 UNPUSHED ·
+// projecto limpo" while green work sits parked in a linked worktree no live session happens to sit on.
+//   • "unpushed"     = git rev-list --count <branch> --not --remotes  (commits on no remote ref)
+//   • "aheadOfMain"  = git rev-list --count main..<branch>            (own commits since main)
+// Each linked worktree is a real active checkout → its parked commits are real even with no session on
+// it. Bounded: dedupes worktrees by path, runs the per-worktree git reads in PARALLEL, skips repos with
+// no remotes (where "unpushed" is undefined → we don't fabricate). Returns [] on any failure; sorted by
+// most-unpushed first. opts.includeZero (tests) keeps unpushed===0 entries. Never throws.
+async function worktreeParked(cwds, opts) {
+  opts = opts || {};
+  try {
+    const list = Array.isArray(cwds) ? cwds.filter((c) => c && typeof c === 'string') : [];
+    if (!list.length) return [];
+    // Distinct worktrees across all the project's cwds (worktrees(cwd) returns the repo's full list).
+    const byPath = new Map(); // resolved worktree path -> { path, head, branch }
+    const reposChecked = new Set();
+    for (const cwd of list) {
+      let wts; try { wts = modeRegistry().worktrees(cwd) || []; } catch { wts = []; }
+      // Detect whether THIS repo has any remote-tracking refs; if none, "unpushed" is undefined → skip.
+      let hasRemotes = reposChecked.has(cwd) ? true : null;
+      for (const wt of wts) {
+        if (!wt || !wt.branch || !wt.path) continue;
+        const key = path.resolve(wt.path);
+        if (byPath.has(key)) continue;
+        if (hasRemotes === null) {
+          try { const rr = await execTool('git', ['-C', cwd, 'for-each-ref', '--count', '1', 'refs/remotes'], 2000); hasRemotes = !!(rr && rr.ok && (rr.out || '').trim()); }
+          catch { hasRemotes = false; }
+          reposChecked.add(cwd);
+        }
+        if (!hasRemotes) continue; // can't honestly call anything "unpushed" without a remote
+        byPath.set(key, { path: wt.path, head: wt.head || null, branch: wt.branch });
+      }
+    }
+    const entries = Array.from(byPath.values());
+    if (!entries.length) return [];
+    const counted = await Promise.all(entries.map(async (e) => {
+      const unpushed = await _countRevs(e.path, [e.branch, '--not', '--remotes']);
+      const aheadOfMain = await _countRevs(e.path, ['main..' + e.branch]);
+      return {
+        branch: e.branch,
+        sha: e.head ? String(e.head).slice(0, 12) : null,
+        worktree: path.basename(e.path),
+        unpushed: Number.isFinite(unpushed) ? unpushed : 0,
+        aheadOfMain: Number.isFinite(aheadOfMain) ? aheadOfMain : null,
+      };
+    }));
+    const kept = opts.includeZero ? counted : counted.filter((b) => (Number(b.unpushed) || 0) > 0);
+    kept.sort((a, b) => (Number(b.unpushed) || 0) - (Number(a.unpushed) || 0));
+    return kept;
+  } catch { return []; }
 }
 
 // ── B4: estado vivo do "moo local" por sessão (read-only, $0) ──────────────────────────────────
@@ -2151,9 +2278,9 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
-  gitSnapshot, vaultFreshness, sessionTag, deriveAsk,
+  gitSnapshot, vaultFreshness, sessionTag, deriveAsk, _isAskingUser,
   extractPending, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
   readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed,
-  sessionGitFromJournal, reconcileSessionGit, _treeHeadSha, _sessionBranchLabel };
+  sessionGitFromJournal, reconcileSessionGit, _treeHeadSha, _sessionBranchLabel, worktreeParked };
