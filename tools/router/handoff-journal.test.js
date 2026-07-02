@@ -108,3 +108,144 @@ test('readSummary returns null when no rolling summary exists yet', () => {
   const j = fresh();
   assert.equal(j.readSummary('never-summarized'), null);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🎯 PERFECT HANDOFF v2.5 — CAPTURE fix (mata a raiz do worktree-crossing). The Stop hook used to
+// journal git from payload.cwd (the CC launch dir), not the worktree the session cd'd into to commit.
+// These tests fail the moment the journal records the launch branch instead of the real worktree.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// Build a throwaway git worktree with a given branch+sha (plain .git dir; supports slashed branches).
+function makeRepo(branch, sha) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-wt-'));
+  const ref = 'refs/heads/' + branch;
+  fs.mkdirSync(path.join(dir, '.git', path.dirname(ref)), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.git', 'HEAD'), 'ref: ' + ref + '\n');
+  fs.writeFileSync(path.join(dir, '.git', ref), sha + '\n');
+  return dir;
+}
+function bashTurn(cmd) {
+  return JSON.stringify({ message: { role: 'assistant', content: [
+    { type: 'tool_use', name: 'Bash', input: { command: cmd } },
+  ] } });
+}
+
+test('_extractCwdPaths: cd / git -C, quoted & bare, in order; ignores cd - / cd ~', () => {
+  const j = fresh();
+  assert.deepEqual(j._extractCwdPaths('cd "/c/Users/Paulo Loureiro/frugal-X" && git commit -m y'), ['/c/Users/Paulo Loureiro/frugal-X']);
+  assert.deepEqual(j._extractCwdPaths('cd ../frugal-A && cd packages/vscode-extension && npm i'), ['../frugal-A', 'packages/vscode-extension']);
+  assert.deepEqual(j._extractCwdPaths("git -C '/path with space' status"), ['/path with space']);
+  assert.deepEqual(j._extractCwdPaths('cd - ; cd ~ ; ls'), [], 'cd -/~ carry no worktree signal');
+  assert.deepEqual(j._extractCwdPaths('echo abcd; record-cd foo'), [], 'no false-match inside words');
+  assert.doesNotThrow(() => j._extractCwdPaths(null));
+});
+
+test('_cwdCandidates: only Bash tool_use commands, transcript order', () => {
+  const j = fresh();
+  const lines = [
+    JSON.stringify({ message: { role: 'user', content: 'go' } }),
+    bashTurn('cd /repo-1 && git status'),
+    JSON.stringify({ message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'cd /not-a-command' } }] } }),
+    bashTurn('git -C /repo-2 rev-parse HEAD'),
+  ];
+  assert.deepEqual(j._cwdCandidates(lines), ['/repo-1', '/repo-2'], 'Read input is not scanned; order preserved');
+});
+
+test('effectiveCwd: prefers the LAST cd that resolves a real branch (newest-wins, grounded)', () => {
+  const j = fresh();
+  const repo = makeRepo('feat/real', 'a'.repeat(40));
+  try {
+    const lines = [
+      bashTurn('cd /does/not/exist && git log'),       // unresolvable → skipped
+      bashTurn('cd "' + repo + '" && git commit -m x'), // real worktree → wins
+      bashTurn('grep -n foo bar.js'),                    // no cd
+    ];
+    assert.equal(j.effectiveCwd(lines, '/some/launch/dir'), repo, 'the real worktree wins');
+    assert.equal(j.gitInfo(j.effectiveCwd(lines, '/some/launch/dir')).branch, 'feat/real');
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('effectiveCwd: no resolvable cd → falls back to payloadCwd (byte-identical old behaviour)', () => {
+  const j = fresh();
+  const launch = makeRepo('feat/launch', 'b'.repeat(40));
+  try {
+    const lines = [bashTurn('grep -n foo bar.js'), bashTurn('node --check x.js')];
+    assert.equal(j.effectiveCwd(lines, launch), launch, 'no cd → payloadCwd');
+    assert.equal(j.effectiveCwd([], launch), launch, 'empty tail → payloadCwd');
+    assert.equal(j.effectiveCwd(null, null), null, 'nothing at all → null, never throws');
+  } finally { fs.rmSync(launch, { recursive: true, force: true }); }
+});
+
+test('E2E (o teste-ouro): payload.cwd=tree-A but the turn cd tree-B → journal grava feat/B, NUNCA feat/A', () => {
+  const j = fresh();
+  const treeA = makeRepo('feat/overclock-moo-p1', '85e238a' + '0'.repeat(33)); // the CC launch dir (the lie)
+  const treeB = makeRepo('feat/perfect-handoff', 'ab12cd3' + '0'.repeat(33));  // where commits ACTUALLY happen
+  try {
+    // The transcript the Stop hook reads: the session cd'd into tree-B and committed there.
+    const tail = [
+      JSON.stringify({ message: { role: 'user', content: 'segue o masterprompt' } }),
+      bashTurn('cd "' + treeB + '" && git add -- x.js && git commit -m "feat: y"'),
+      JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: 'committed em tree-B' }] } }),
+    ];
+    // Replicate the hook's exact derivation (gsd-turn-end.js:accumulateHandoff).
+    const payloadCwd = treeA; // payload.cwd = the launch dir
+    const cwd = j.effectiveCwd(tail, payloadCwd);
+    const git = cwd ? j.gitInfo(cwd) : {};
+    j.appendTurn('sess-e2e', { assistant_snippet: 'committed em tree-B', tools: [], git, n_turn: 1 });
+
+    const e = j.lastEntry('sess-e2e');
+    assert.equal(e.git.branch, 'feat/perfect-handoff', 'journal records the REAL worktree branch');
+    assert.equal(e.git.head, 'ab12cd300000', 'and the REAL worktree head sha (clamped to 12)');
+    assert.notEqual(e.git.branch, 'feat/overclock-moo-p1', 'NEVER the CC launch branch (the old lie)');
+
+    // Control: the OLD behaviour (gitInfo(payload.cwd)) would have lied.
+    assert.equal(j.gitInfo(payloadCwd).branch, 'feat/overclock-moo-p1', 'proof the launch dir WAS the wrong branch');
+  } finally {
+    fs.rmSync(treeA, { recursive: true, force: true });
+    fs.rmSync(treeB, { recursive: true, force: true });
+  }
+});
+
+test('_normMsys: win32 /c/foo → c:/foo; no-op off win32 and on native paths', () => {
+  const j = fresh();
+  const r = j._normMsys('/c/Users/Paulo Loureiro/frugal');
+  if (process.platform === 'win32') assert.equal(r, 'c:/Users/Paulo Loureiro/frugal');
+  else assert.equal(r, '/c/Users/Paulo Loureiro/frugal');
+  assert.equal(j._normMsys('relative/path'), 'relative/path');
+  assert.doesNotThrow(() => j._normMsys(null));
+});
+
+// (c) — the ONLY cd is a non-worktree (no .git). Must fall back to payloadCwd and NEVER
+// return the unresolved path. Grounded: effectiveCwd only ever returns a path gitInfo resolves.
+test('effectiveCwd: sole cd is a non-worktree (no .git) → falls back, NEVER invents that path', () => {
+  const j = fresh();
+  const launch = makeRepo('feat/launch', 'c'.repeat(40));
+  const bogus = path.join(os.tmpdir(), 'mooter-nope-does-not-exist-zzz'); // never created → no .git
+  try {
+    const lines = [bashTurn('cd "' + bogus + '" && git status')];
+    const res = j.effectiveCwd(lines, launch);
+    assert.equal(res, launch, 'unresolvable cd → payloadCwd (byte-identical old behaviour)');
+    assert.notEqual(res, bogus, 'NEVER returns a path it could not resolve to a real branch');
+  } finally { fs.rmSync(launch, { recursive: true, force: true }); }
+});
+
+// (d) — integration: a Git-Bash `cd /c/Users/…` must be msys-normalized BEFORE gitInfo, else the
+// real worktree is invisible and the journal lies. This is the exact scenario seen in the real handoff.
+test('effectiveCwd: resolves an msys /c/… cd via _normMsys (the real-handoff scenario)', () => {
+  const j = fresh();
+  const repo = makeRepo('feat/msys', 'd'.repeat(40));
+  try {
+    // Rewrite the native tmp path into its Git-Bash /c/… twin to simulate what the transcript holds.
+    let msysPath = repo;
+    if (process.platform === 'win32') {
+      const m = /^([a-zA-Z]):[\\/](.*)$/.exec(repo);
+      if (m) msysPath = '/' + m[1].toLowerCase() + '/' + m[2].replace(/\\/g, '/');
+    }
+    const lines = [bashTurn('cd "' + msysPath + '" && git commit -m x')];
+    const res = j.effectiveCwd(lines, '/some/launch/dir');
+    assert.equal(j.gitInfo(res).branch, 'feat/msys', 'the msys cd resolved to the real worktree branch');
+    if (process.platform === 'win32') {
+      assert.ok(!String(res).startsWith('/c/'), 'the /c/… form was normalized (never handed raw to fs)');
+    }
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
