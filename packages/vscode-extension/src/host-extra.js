@@ -1617,7 +1617,10 @@ function generateHandoff(row, pending, opts) {
   // from the mechanical fields (n/d stays n/d — never invented). Legacy callers omit opts.perfect →
   // byte-identical output. ──
   if (opts.perfect) {
-    const tldr = _stateLabel(state) + ' · ' + base.split(' · ')[0] + (ledger.decisions.length ? (' · ' + ledger.decisions.length + ' decis' + (ledger.decisions.length === 1 ? 'ão' : 'ões')) : ' · 0 decisões');
+    // branchSeg (not base.split(' · ')[0]): an uncertain session's label is "(branch incerto · tree
+    // partilhado)" — it CONTAINS ' · ', so splitting truncated it to "(branch incerto". Byte-identical
+    // for journal/worktree labels (no ' · '); for uncertain sessions the TL;DR now carries the full qualifier.
+    const tldr = _stateLabel(state) + ' · ' + branchSeg + (ledger.decisions.length ? (' · ' + ledger.decisions.length + ' decis' + (ledger.decisions.length === 1 ? 'ão' : 'ões')) : ' · 0 decisões');
     body.push('STATE:  ' + _stateLabel(state));
     body.push('TL;DR:  ' + tldr);
     body.push('── PARA TI ──');

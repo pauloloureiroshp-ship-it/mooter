@@ -83,6 +83,21 @@ test('worktree-crossing: no journal (uncertain) → HEAD/BASE = n/d (sem journal
   assert.ok(/branch incerto/.test(txt), 'branch flagged uncertain');
 });
 
+// The perfect-layer TL;DR used base.split(' · ')[0]; the uncertain label CONTAINS ' · ' → it truncated
+// to "(branch incerto". No honesty debt in the perfect-handoff release itself: TL;DR carries the FULL
+// qualifier now, and Onde: (already honest) stays so.
+test('uncertain + perfect: TL;DR carries the FULL "(branch incerto · tree partilhado)" — never truncated at the inner ·', () => {
+  const row = { id: 'u', fullId: 'u', name: 'U', turns: 5, branch: 'feat/overclock', cwd: '/repo', gitStage: { dirty: 0 } };
+  const txt = x.generateHandoff(row, { lastAssistantText: '—' }, {
+    now: NOW, perfect: true, snapshot: { head: { sha7: 'deadbee' }, baseAhead: 9, pushed: false },
+    sessionGit: { source: 'tree', branch: 'feat/overclock', uncertain: true },
+  });
+  const tldr = txt.split('\n').find((l) => l.startsWith('TL;DR:'));
+  assert.ok(tldr && /branch incerto · tree partilhado\)/.test(tldr), 'TL;DR shows the full qualifier, closing paren included');
+  assert.ok(!/\(branch incerto · \d+ dec/.test(tldr), 'never the old truncated "(branch incerto · N decisões"');
+  assert.ok(/Onde:.*branch incerto · tree partilhado\)/.test(txt), 'Onde: keeps the full qualifier');
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // ANTI-BUG-2 — CONTAGEM COERENTE: one source (origin/main..<branch>), never @{u}=0 next to main+5.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════

@@ -203,6 +203,18 @@ Alternativa tática (sem refactor): antes do sync, extrair do runtime `classify.
 
 ---
 
+### 2026-07-02-effectivecwd-heuristica-cwd-mais-recente
+
+**Contexto:** Perfect Handoff LAND & PROVE — a captura (`effectiveCwd` em `tools/router/handoff-journal.js`) journala o worktree onde a sessão realmente commitou, derivado do transcript (Bash `cd` / `git -C`). Regra actual: escolhe o candidato git-context **mais RECENTE** que `gitInfo` resolve a um branch real.
+
+**Resultado observado:** o final-reviewer (Opus) apontou que, se o ÚLTIMO comando git de um turno inspeccionar um worktree DIFERENTE (`git -C /outro/repo log`) DEPOIS de a sessão já ter commitado noutro, o journal pode registar um branch real-mas-errado. Continua *grounded* (nunca inventa um path — só devolve o que `gitInfo` resolve) e é estritamente melhor que o antigo `payload.cwd` fixo. Não re-introduz A Mentira (nunca vaza sha/contagem da árvore partilhada para um campo por-sessão).
+
+**Quem observou:** final-reviewer subagent durante o gate de FASE 4 (verdict SHIP-WITH-NITS; este é um LOW não-bloqueante).
+
+**Status:** aceite como débito técnico conhecido por decisão explícita do Paulo (Opção 1 do gate — não bloqueia o merge). Backlog: pesar candidatos por **proximidade ao commit** (o `cd` imediatamente antes do `git commit …`, não o último `git -C` de leitura) em vez de "mais recente ganha". Alternativa: exigir que o candidato tenha um `git commit`/`git add` no mesmo comando.
+
+---
+
 ## HIPÓTESE
 
 ### Sobre 2026-04-21-classifier-gastou-opus-em-tarefa-descritiva
