@@ -562,11 +562,19 @@ class CockpitProvider {
         // ⇄ v3 deterministic facts (sync, best-effort) — computed ONCE so the skeleton AND the enriched
         //  text share a single git read: HEAD/BASE/GATE/TREE snapshot, vault freshness, journal delta.
         const recent = (this.data.snapshot && this.data.snapshot.recent) || [];
-        const snapshot = extra.gitSnapshot(row.cwd, { recent, branch: row.branch, pr: row.pr });
+        // PERFECT HANDOFF v2 / FASE 1: resolve git facts against the session's OWN branch (journal/
+        // worktree ground-truth), NEVER the live tree HEAD another session may have swapped. Only when
+        // certain (journal or dedicated worktree); uncertain (tree-only) → null → generateHandoff prints
+        // `n/d (sem journal)` rather than a shared-tree lie.
+        const _sgb = (row.sessionGit && !row.sessionGit.uncertain && row.sessionGit.branch) ? row.sessionGit.branch : null;
+        const snapshot = extra.gitSnapshot(row.cwd, { recent, branch: row.branch, pr: row.pr, sessionBranch: _sgb });
         const vaultMtime = extra.vaultFreshness();
         let deltaTurns = null;
         try { const jl = extra.readJournalLast(row.fullId); if (jl && Number.isFinite(jl.n_turn)) deltaTurns = jl.n_turn; } catch { /* best-effort */ }
-        const v3 = { snapshot, vaultMtime, deltaTurns, recent };
+        // PERFECT HANDOFF v2 — enrich the render: STATE + PARA TI banner + PENDING-completo + qwen demoted
+        // (perfect:true), and PROJECT the session's Ledger events (INTENT/DECISIONS/mechanical GATE).
+        let ledgerEvents = []; try { ledgerEvents = extra.sessionLedgerEvents(row.fullId); } catch { /* best-effort */ }
+        const v3 = { snapshot, vaultMtime, deltaTurns, recent, perfect: true, ledgerEvents, sessionGit: row.sessionGit };
         // ⇄ v2.1 BACKGROUND ENRICHMENT — o handoff copia SEMPRE, e enriquece DEPOIS:
         //  PASSO 1: esqueleto determinístico (git/branch/ficheiros + PENDING verbatim) revelado no
         //   painel ('ready') e COPIADO já, ANTES de qualquer await de LLM → o clipboard nunca espera.
@@ -636,7 +644,7 @@ class CockpitProvider {
         // ⇄ v2.1 BACKGROUND ENRICHMENT (mesmo padrão do handoff de sessão):
         //  PASSO 1: board instantânea (determinística) revelada ('ready') + COPIADA já, antes de awaits LLM.
         let branches = await projBranches(snapRows);
-        const text0 = extra.generateProjectHandoff(proj, snapRows, { branches });
+        const text0 = extra.generateProjectHandoff(proj, snapRows, { branches, perfect: true });
         hoffCache[proj] = text0;
         try { view.webview.postMessage({ type: 'handoff', sid: proj, status: 'ready', text: text0 }); } catch {}
         try { await vscode.env.clipboard.writeText(text0); } catch { /* clipboard best-effort */ }
@@ -658,7 +666,7 @@ class CockpitProvider {
         if (!synth) { try { synth = extra.projectSynthFromSummaries(prows); } catch { synth = null; } }
         if (!synth) { try { synth = await extra.ollamaProjectSynth(prows, 11500); } catch { synth = null; } }
         let best = text0;
-        const enriched = extra.generateProjectHandoff(proj, prows, { synth, branches });
+        const enriched = extra.generateProjectHandoff(proj, prows, { synth, branches, perfect: true });
         if (enriched && enriched !== text0) {
           best = enriched;
           hoffCache[proj] = best;
@@ -741,11 +749,13 @@ class CockpitProvider {
         if (!text) {
           const pending = row.pending || extra.extractPending([]);
           const mode = (Number(row.turns) || 0) >= 12 ? 'full' : 'quick';
-          const snapshot = extra.gitSnapshot(row.cwd, { recent: rows, branch: row.branch, pr: row.pr });
+          const _sgb = (row.sessionGit && !row.sessionGit.uncertain && row.sessionGit.branch) ? row.sessionGit.branch : null;
+          const snapshot = extra.gitSnapshot(row.cwd, { recent: rows, branch: row.branch, pr: row.pr, sessionBranch: _sgb });
           const vaultMtime = extra.vaultFreshness();
           let deltaTurns = null;
           try { const jl = extra.readJournalLast(row.fullId); if (jl && Number.isFinite(jl.n_turn)) deltaTurns = jl.n_turn; } catch { /* best-effort */ }
-          text = extra.generateHandoff(row, pending, { mode, snapshot, vaultMtime, deltaTurns, recent: rows });
+          let ledgerEvents = []; try { ledgerEvents = extra.sessionLedgerEvents(row.fullId); } catch { /* best-effort */ }
+          text = extra.generateHandoff(row, pending, { mode, snapshot, vaultMtime, deltaTurns, recent: rows, perfect: true, ledgerEvents, sessionGit: row.sessionGit });
         }
         hoffCache[sid] = text;
         // 2) Entrega: clipboard SEMPRE (rede de segurança) + seed da sessão nova (comando → deep-link).

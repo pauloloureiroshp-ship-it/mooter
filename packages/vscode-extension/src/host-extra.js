@@ -840,16 +840,27 @@ function _gitSync(args, cwd) {
 
 // gitSnapshot(cwd, opts) → { head:{sha7,subject}|null, baseAhead, baseBehind, pushed:bool|prNumber,
 //   prStage:string|null, filesInHead:[≤8 basenames], filesCount, classifyFrozen:true|false|null,
-//   mixedSessions:bool, factsComplete:bool }. opts (all injectable): { runGit, recent, branch, pr }.
+//   mixedSessions:bool, factsComplete:bool, crossed:bool, sessionBranch:string|null }.
+//   opts (all injectable): { runGit, recent, branch, pr, sessionBranch }.
+// PERFECT HANDOFF v2 / FASE 1 (worktree-crossing kill): when opts.sessionBranch is given (the session's
+// OWN branch, from its journal — the ground-truth of what it actually saw), HEAD/ahead/behind/files are
+// resolved against THAT ref, NEVER the live cwd HEAD (which another session may have moved under it). The
+// live tree HEAD is still read — ONLY to DETECT divergence (snap.crossed = tree moved) — never as a value.
+// Absent sessionBranch → byte-identical legacy behaviour (HEAD-based), so every existing caller/test is unchanged.
 function gitSnapshot(cwd, opts) {
   opts = opts || {};
   const run = opts.runGit || _gitSync;
   const snap = { head: null, baseAhead: 0, baseBehind: 0, pushed: false, prStage: null,
-    filesInHead: [], filesCount: 0, isMerge: false, classifyFrozen: null, mixedSessions: false, factsComplete: true };
+    filesInHead: [], filesCount: 0, isMerge: false, classifyFrozen: null, mixedSessions: false,
+    factsComplete: true, crossed: false, sessionBranch: null };
   if (!cwd || typeof cwd !== 'string') { snap.factsComplete = false; return snap; }
+  // FASE 1: the REV all facts hang off. sessionBranch (journal ground-truth) when present, else HEAD.
+  const sb = (opts.sessionBranch != null && String(opts.sessionBranch).trim()) ? String(opts.sessionBranch).trim() : null;
+  const rev = sb || 'HEAD';
+  if (sb) snap.sessionBranch = sb;
   try {
-    // HEAD: sha7 + subject (tab-separated). "—" upstream when there is no commit.
-    const h = run(['log', '-1', '--format=%h%x09%s'], cwd);
+    // HEAD: sha7 + subject (tab-separated) of the SESSION's rev. "—" upstream when there is no commit.
+    const h = run(['log', '-1', '--format=%h%x09%s', rev], cwd);
     if (h && h.ok && h.out) {
       const tab = h.out.indexOf('\t');
       const sha7 = (tab >= 0 ? h.out.slice(0, tab) : h.out).trim();
@@ -857,28 +868,41 @@ function gitSnapshot(cwd, opts) {
       if (sha7) snap.head = { sha7: sha7.slice(0, 12), subject: subject.slice(0, 80) };
       else snap.factsComplete = false;
     } else snap.factsComplete = false;
-    // position vs origin/main
-    const ah = run(['rev-list', '--count', 'origin/main..HEAD'], cwd);
+    // FASE 1: worktree-crossing detection — the session's rev head vs the LIVE tree HEAD. When they
+    // differ, another session swapped the shared tree under this one → mark crossed (never a value).
+    if (sb) {
+      const th = run(['rev-list', '-1', 'HEAD'], cwd);
+      const treeSha = (th && th.ok && th.out) ? th.out.trim().slice(0, 12) : null;
+      const revSha = snap.head && snap.head.sha7 ? String(snap.head.sha7).slice(0, 12) : null;
+      if (treeSha && revSha && treeSha !== revSha) snap.crossed = true;
+    }
+    // position vs origin/main — the SINGLE SOURCE OF COUNT (FASE 2): origin/main..<rev>, never @{u}.
+    const ah = run(['rev-list', '--count', 'origin/main..' + rev], cwd);
     if (ah && ah.ok && ah.out !== '') snap.baseAhead = parseInt(ah.out, 10) || 0; else snap.factsComplete = false;
-    const bh = run(['rev-list', '--count', 'HEAD..origin/main'], cwd);
+    const bh = run(['rev-list', '--count', rev + '..origin/main'], cwd);
     if (bh && bh.ok && bh.out !== '') snap.baseBehind = parseInt(bh.out, 10) || 0; else snap.factsComplete = false;
-    // 4c — merge-commit detection: a merge HEAD has ≥2 parents. "diff-tree HEAD" on a merge is EMPTY
-    // ("HEAD toca 0 fich." era enganador) → for a merge, diff the first parent..HEAD = the files it
+    // 4c — merge-commit detection: a merge head has ≥2 parents. "diff-tree <rev>" on a merge is EMPTY
+    // ("toca 0 fich." era enganador) → for a merge, diff the first parent..<rev> = the files it
     // BROUGHT IN (the merged branch's changes). Non-merge → the commit's own files.
-    const par = run(['show', '-s', '--format=%P', 'HEAD'], cwd);
+    const par = run(['show', '-s', '--format=%P', rev], cwd);
     const parents = (par && par.ok && par.out) ? par.out.trim().split(/\s+/).filter(Boolean) : [];
     snap.isMerge = parents.length >= 2;
     const fr = (snap.isMerge && parents[0])
-      ? run(['diff', '--name-only', parents[0], 'HEAD'], cwd)
-      : run(['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], cwd);
+      ? run(['diff', '--name-only', parents[0], rev], cwd)
+      : run(['diff-tree', '--no-commit-id', '--name-only', '-r', rev], cwd);
     if (fr && fr.ok) {
       const all = fr.out.split('\n').map((s) => s.trim()).filter(Boolean);
       snap.filesCount = all.length;
       snap.filesInHead = all.slice(0, 8).map((p) => p.split('/').pop());
     } else snap.factsComplete = false;
-    // pushed / prNumber — reuse prStage on the session's PR object; else probe the upstream.
+    // pushed / prNumber — reuse prStage on the session's PR object; else probe the remotes.
     if (opts.pr && opts.pr.number) { snap.pushed = opts.pr.number; snap.prStage = prStage(opts.pr); }
-    else {
+    else if (sb) {
+      // FASE 2: NEVER @{u} (0-falso quando a branch nunca foi pushed). "pushed" = the session branch
+      // carries NO commit absent from every remote (rev-list <rev> --not --remotes === 0).
+      const up = run(['rev-list', '--count', rev, '--not', '--remotes'], cwd);
+      snap.pushed = !!(up && up.ok && up.out !== '' && parseInt(up.out, 10) === 0);
+    } else {
       const up = run(['rev-list', '--count', '@{u}..HEAD'], cwd);
       snap.pushed = !!(up && up.ok && up.out !== '' && parseInt(up.out, 10) === 0); // upstream set + nothing un-pushed
     }
@@ -950,6 +974,7 @@ async function recentSessions(maxN = 8) {
   const wtCache = new Map();     // WCOCKPIT-2: cwd → worktrees[], resolved once per cwd
   const gsCache = new Map();     // WCOCKPIT-4/5: cwd → gitStage result, once per cwd (async, non-blocking)
   const treeShaCache = new Map(); // PASSO 2: cwd → tree HEAD sha (cheap .git read, once per cwd)
+  const aheadCache = new Map();   // FASE 2: cwd\x00branch → commits ahead of origin/main (once per pair)
   for (const f of listSessionFiles().slice(0, maxN + 8)) {
     if (out.length >= maxN) break; // WCOCKPIT-7: stop once we have maxN visible (archived are skipped below)
     let lastModel = null; let turns = 0; let lastCtx = 0;
@@ -1039,6 +1064,17 @@ async function recentSessions(maxN = 8) {
     let _treeSha = null;
     if (cwd) { if (!treeShaCache.has(cwd)) treeShaCache.set(cwd, _treeHeadSha(cwd)); _treeSha = treeShaCache.get(cwd); }
     row.sessionGit = reconcileSessionGit(sessionGitFromJournal(row.fullId), branch, _treeSha, worktreeGit);
+    // FASE 2 — SINGLE SOURCE OF COUNT: the session's commits ahead of origin/main, from the CERTAIN
+    // session branch (journal/worktree), computed once per (cwd,branch). Never @{u}. Attached to
+    // sessionGit so the BOARD/FLAGS/GATE all read one number. Uncertain (tree-only) → left undefined
+    // → callers fall back to gitStage.ahead (back-compat).
+    const _sgCertain = row.sessionGit && !row.sessionGit.uncertain && row.sessionGit.branch;
+    if (cwd && _sgCertain) {
+      const ak = cwd + '\x00' + row.sessionGit.branch;
+      if (!aheadCache.has(ak)) aheadCache.set(ak, await _countRevs(cwd, ['origin/main..' + row.sessionGit.branch]));
+      const av = aheadCache.get(ak);
+      if (Number.isFinite(av)) row.sessionGit.aheadOfMain = av;
+    }
     if (modeRegistry().isArchived(sid, f.mtime)) continue; // WCOCKPIT-7: hide sessions closed from the cockpit (until active again)
     // Drop throwaway probe sessions: a one-shot transcript whose only prompt is a
     // CLI management/status echo (e.g. `mooter slash-commands status` mis-routed
@@ -1129,6 +1165,7 @@ function extractPending(tailLines) {
   let lastAssistantText = '';
   const allTools = [];
   let lastMsgTools = [];        // tool_uses of the LAST assistant message (final turn) — for endsWithAsk
+  let lastAskInput = null;      // raw input of the FINAL assistant turn's AskUserQuestion — for PENDING-completo
   let lastMeaningfulRole = null;
   for (const ln of lines) {
     if (!ln || !ln.trim()) continue;
@@ -1141,26 +1178,60 @@ function extractPending(tailLines) {
     const content = msg && msg.content;
     let textHere = '';
     const msgTools = [];        // tool_uses of THIS assistant message (reset per message → final turn only)
+    let msgAskInput = null;     // raw input of THIS message's LAST AskUserQuestion (for PENDING-completo)
     if (Array.isArray(content)) {
       for (const b of content) {
         if (!b) continue;
         if (b.type === 'text' && typeof b.text === 'string') textHere += b.text;
-        else if (b.type === 'tool_use') { const t = { name: String(b.name || 'tool'), target: _toolTarget(b.input) }; allTools.push(t); msgTools.push(t); }
+        else if (b.type === 'tool_use') {
+          const t = { name: String(b.name || 'tool'), target: _toolTarget(b.input) }; allTools.push(t); msgTools.push(t);
+          if (t.name === 'AskUserQuestion' && b.input) msgAskInput = b.input;
+        }
       }
     } else if (typeof content === 'string') { textHere += content; }
     if (textHere.trim()) lastAssistantText = textHere.trim().replace(/\s+/g, ' ').slice(0, 400);
     lastMsgTools = msgTools;    // overwrite each assistant message → ends as the FINAL assistant turn's tools
+    lastAskInput = msgAskInput; // carries the FINAL turn's AskUserQuestion input (null when it wasn't one)
   }
+  const endsWithAsk = lastMeaningfulRole === 'assistant' && lastMsgTools.length > 0
+    && String(lastMsgTools[lastMsgTools.length - 1].name || '') === 'AskUserQuestion';
   return {
     lastAssistantText: lastAssistantText || '—',
     lastToolActions: allTools.slice(-3),
     // GATE #3 (anti-lie, scoped): is the session blocked on an OPEN AskUserQuestion? Keyed on the FINAL
     // assistant turn's own tools (lastMsgTools), NOT the tail-wide buffer — so a session that asked, was
     // answered, then ran a post-answer turn is correctly "not asking" (its final turn carries no open Q).
-    endsWithAsk: lastMeaningfulRole === 'assistant' && lastMsgTools.length > 0
-      && String(lastMsgTools[lastMsgTools.length - 1].name || '') === 'AskUserQuestion',
+    endsWithAsk,
+    // PERFECT HANDOFF v2 / FASE 3.3 — PENDING-completo: when the final turn is an OPEN AskUserQuestion,
+    // capture the WHOLE question + ALL options VERBATIM (never the ≤300c summary), so the Cowork can act
+    // without a screenshot. null when the last turn wasn't an open ask. Bounded per-field, never throws.
+    ask: (endsWithAsk && lastAskInput) ? _parseAskInput(lastAskInput) : null,
     stopped: lastMeaningfulRole === 'assistant',
   };
+}
+
+// PURE (testable): normalize an AskUserQuestion tool input into { questions:[{question, options:[..]}] }
+// VERBATIM (bounded, never fabricated). Tolerates the single-question and multi-question shapes and a
+// couple of legacy field names. Returns null when nothing usable is present. Never throws.
+function _parseAskInput(input) {
+  try {
+    if (!input || typeof input !== 'object') return null;
+    const qs = Array.isArray(input.questions) ? input.questions
+      : (input.question ? [input] : []);
+    const out = [];
+    for (const q of qs) {
+      if (!q || typeof q !== 'object') continue;
+      const question = String(q.question || q.header || '').trim().slice(0, 600);
+      const rawOpts = Array.isArray(q.options) ? q.options : [];
+      const options = rawOpts.map((o) => {
+        if (o == null) return '';
+        if (typeof o === 'string') return o.trim().slice(0, 300);
+        return String(o.label || o.title || '').trim().slice(0, 300);
+      }).filter(Boolean).slice(0, 12);
+      if (question || options.length) out.push({ question, options });
+    }
+    return out.length ? { questions: out } : null;
+  } catch { return null; }
 }
 
 function _two(n) { return (n < 10 ? '0' : '') + n; }
@@ -1270,6 +1341,145 @@ function _nextForAsk(ask) {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// PERFECT HANDOFF v2 — STATE machine + PARA TI helpers + Ledger projection (all PURE, testable).
+// ════════════════════════════════════════════════════════════════════════════
+
+// PURE (FASE 3.1): the MECHANICAL session STATE from the truthful facts. Priority: the human bottleneck
+// first (awaiting-you), then whether the work is saved, then whether it landed. A 0-commit session can
+// NEVER read as done — it is `empty` (or `needs-save` when there is uncommitted work in its worktree).
+// `_uncertain` (no journal) → in-progress (we refuse to assert done/empty on a shared-tree guess). Never throws.
+function _deriveState(row, snap, pending, opts) {
+  row = row || {}; snap = snap || {}; opts = opts || {};
+  const sg = (opts && opts.sessionGit) || row.sessionGit || null;
+  if (sg && sg.uncertain) return 'in-progress';       // can't honestly claim done/empty without a journal
+  if (_isAskingUser(pending)) return 'awaiting-you';   // open AskUserQuestion → the human is the bottleneck
+  const ahead = Number(snap.baseAhead) || 0;
+  const dirty = Number((row.gitStage || {}).dirty) || 0;
+  const merged = opts.landed === true || snap.prStage === 'merged ✓';
+  if (ahead > 0) {
+    if (merged) return 'landed';
+    if (row.working) return 'in-progress';
+    return 'parked';                                   // committed work not yet in main
+  }
+  // ahead === 0 (nothing ahead of origin/main)
+  if (merged) return 'landed';                         // its commits are already in main
+  if (dirty > 0) return 'needs-save';                  // 0 commits BUT uncommitted work — the worst false-positive
+  return 'empty';                                      // genuinely 0 commits — never ✅ "feito"
+}
+
+// PURE: short STATE label with glyph (the STATE: line).
+function _stateLabel(state) {
+  switch (state) {
+    case 'awaiting-you': return '🔵 awaiting-you (à-espera-de-ti)';
+    case 'parked':       return '🟡 parked (por aterrar)';
+    case 'landed':       return '✅ landed (já em main)';
+    case 'in-progress':  return '🟢 in-progress';
+    case 'needs-save':   return '⚠ needs-save (uncommitted no worktree)';
+    case 'empty':        return '⚪ empty (0 commits — sem trabalho salvo)';
+    default:             return String(state || '—');
+  }
+}
+
+// PURE: the fuller human sentence for the PARA TI banner.
+function _stateHuman(state) {
+  switch (state) {
+    case 'awaiting-you': return 'está à tua espera — há uma pergunta aberta para responderes';
+    case 'parked':       return 'tem trabalho commitado por aterrar (correr o gate e mergear)';
+    case 'landed':       return 'já aterrou em main — nada a fazer';
+    case 'in-progress':  return 'ainda a trabalhar (ou sem journal para confirmar)';
+    case 'needs-save':   return 'sem-trabalho-salvo: 0 commits mas há uncommitted no worktree — verifica antes de fechar';
+    case 'empty':        return 'sem-trabalho-salvo: 0 commits · verifica uncommitted';
+    default:             return '—';
+  }
+}
+
+// PURE (FASE 3.2): translate the ASK verb into the human action word.
+function _askHuman(ask) {
+  switch (ask) {
+    case 'verify+merge': return '✅ Verificar e juntar';
+    case 'push-ok':      return '⤴ Acompanhar o push/PR';
+    case 'answer':       return '💬 Responder à pergunta';
+    case 'review':       return '🔎 Rever (invariante em jogo)';
+    default:             return 'ℹ️ só para saberes';
+  }
+}
+
+// PURE: the copy-paste "A-seguir" line for the banner, keyed to STATE (falls back to the ASK next).
+function _resumeFor(state, ask, askFull) {
+  if (state === 'awaiting-you') {
+    const q = askFull && askFull.questions && askFull.questions[0] && askFull.questions[0].question;
+    return q ? ('responde: "' + String(q).slice(0, 120) + '"') : 'responder à pergunta pendente acima';
+  }
+  if (state === 'parked') return 'correr o gate (final-reviewer) e — se verde — push/merge para main';
+  if (state === 'needs-save') return 'inspecciona o worktree: git status; commita o que interessa antes de fechar';
+  if (state === 'empty') return 'nada salvo — confirma se havia trabalho (git status) antes de arquivar';
+  if (state === 'landed') return 'nada a fazer — já em main';
+  return _nextForAsk(ask);
+}
+
+// PURE (FASE 4): extract the human text of an event (intent/decision payloads are free-form JSON).
+function _eventText(e) {
+  if (!e) return null;
+  const o = e.output !== undefined ? e.output : e.input;
+  if (typeof o === 'string') return o.trim().slice(0, 400) || null;
+  if (o && typeof o === 'object') {
+    const t = o.goal || o.intent || o.text || o.summary || o.title;
+    if (typeof t === 'string' && t.trim()) return t.trim().slice(0, 400);
+  }
+  return null;
+}
+
+// PURE (FASE 4): a decision event → { question, chosen, why }. Tolerates a few field-name variants.
+function _decisionOf(e) {
+  const o = (e && (e.output !== undefined ? e.output : e.input)) || null;
+  if (!o || typeof o !== 'object') return null;
+  const question = String(o.question || o.q || '').trim().slice(0, 300);
+  const chosen = String(o.chosen || o.choice || o.answer || o.decision || '').trim().slice(0, 200);
+  const why = String(o.why || o.rationale || o.reason || '').trim().slice(0, 200);
+  if (!question && !chosen) return null;
+  return { question: question || '—', chosen: chosen || '—', why: why || null };
+}
+
+// PURE (FASE 4): project a session's raw ledger events → { intent, decisions[], outcome }. The last
+// intent/outcome win; decisions accumulate in order. Never throws. [] / non-array → empty projection.
+function _projectLedger(events) {
+  const evs = Array.isArray(events) ? events : [];
+  let intent = null, outcome = null; const decisions = [];
+  for (const e of evs) {
+    if (!e || typeof e.kind !== 'string') continue;
+    if (e.kind === 'intent') { const t = _eventText(e); if (t) intent = t; }
+    else if (e.kind === 'outcome') {
+      outcome = (e.output && typeof e.output === 'object') ? e.output
+        : (e.gate && typeof e.gate === 'object') ? e.gate
+        : (_eventText(e) ? { summary: _eventText(e) } : outcome);
+    } else if (e.kind === 'decision') { const d = _decisionOf(e); if (d) decisions.push(d); }
+  }
+  return { intent, decisions, outcome };
+}
+
+// PURE (FASE 4): the MECHANICAL gate line from a kind:outcome payload. Tolerant of field names:
+// { nodeCheck|node_check, tests (string "389/389" or {pass,total}), sha|classifySha (bool|string),
+// vsix (bool) }. Returns null when nothing renderable (caller omits the line — never fabricates).
+function _ledgerGateLine(outcome) {
+  if (!outcome || typeof outcome !== 'object') return null;
+  const parts = [];
+  const nc = outcome.nodeCheck != null ? outcome.nodeCheck : outcome.node_check;
+  if (nc === true) parts.push('node --check ✓');
+  else if (nc === false) parts.push('node --check ✗');
+  const t = outcome.tests;
+  if (typeof t === 'string' && t.trim()) parts.push('tests ' + t.trim().slice(0, 24));
+  else if (t && typeof t === 'object' && (t.pass != null || t.total != null)) parts.push('tests ' + (t.pass != null ? t.pass : '?') + '/' + (t.total != null ? t.total : '?'));
+  const sha = outcome.sha != null ? outcome.sha : outcome.classifySha;
+  if (sha === true) parts.push('classify.js sha ✓');
+  else if (sha === false) parts.push('classify.js sha ✗');
+  else if (typeof sha === 'string' && sha.trim()) parts.push('classify.js sha ' + (sha.trim() === FROZEN_CLASSIFY_SHA ? '✓' : '⚠'));
+  if (outcome.vsix === true) parts.push('vsix byte-idêntico ✓');
+  else if (outcome.vsix === false) parts.push('vsix ✗');
+  if (!parts.length && typeof outcome.summary === 'string' && outcome.summary.trim()) parts.push(outcome.summary.trim().slice(0, 120));
+  return parts.length ? parts.join(' · ') : null;
+}
+
 // PURA (testável): monta o texto de handoff v3 (PIRÂMIDE INVERTIDA — acção primeiro). ESQUELETO
 // determinístico de `row` + `pending` + `opts.snapshot` (gitSnapshot, mock-injectável). A NARRATIVA
 // local entra por opts: opts.doing → linha DOING (fallback: 1º prompt) · opts.recap → bloco RECAP
@@ -1294,9 +1504,18 @@ function generateHandoff(row, pending, opts) {
   // ── ASK (action-first, SAFE heuristic) ──
   const ask = deriveAsk(snap, pending, row);
 
+  // PASSO 2 / FASE 1 — HONEST per-session provenance. `_uncertain` = the session has NO journal (source
+  // 'tree') → we CANNOT know its HEAD/position honestly, so those fields become `n/d (sem journal)`,
+  // NEVER the shared-tree value. Only fires when a sessionGit was supplied (back-compat: no sessionGit
+  // → legacy tree-value path unchanged).
+  const _sg = opts.sessionGit || row.sessionGit || null;
+  const _uncertain = !!(_sg && _sg.uncertain);
+  const ND = 'n/d (sem journal)';
+
   // ── HEAD ──
-  const head = (snap.head && snap.head.sha7)
-    ? (snap.head.sha7 + (snap.head.subject ? ' "' + snap.head.subject + '"' : '')) : '—';
+  const head = _uncertain ? ND
+    : ((snap.head && snap.head.sha7)
+      ? (snap.head.sha7 + (snap.head.subject ? ' "' + snap.head.subject + '"' : '')) : '—');
 
   // ── BASE: branch · position vs origin/main · PR/local ──
   const ahead = Number(snap.baseAhead) || 0, behind = Number(snap.baseBehind) || 0;
@@ -1306,7 +1525,6 @@ function generateHandoff(row, pending, opts) {
   // PASSO 2 — HONEST per-session branch: prefer the session's OWN journal git (opts.sessionGit ||
   // row.sessionGit) over the shared tree branch. No journal → "incerto (tree partilhado)"; divergence
   // → ⚠ marker. Back-compat: no sessionGit → the tree branch as before.
-  const _sg = opts.sessionGit || row.sessionGit || null;
   let branchSeg;
   if (_sg && (_sg.source === 'journal' || _sg.source === 'worktree') && (_sg.branch || _sg.sha)) {
     const _src = _sg.source === 'worktree' ? ' (worktree)' : ' (journal)';
@@ -1316,7 +1534,12 @@ function generateHandoff(row, pending, opts) {
   } else {
     branchSeg = _or(row.branch);
   }
-  const base = branchSeg + ' · ' + pos + ' · ' + pushSeg;
+  // FASE 1: worktree-crossing marker — the live tree was swapped under the session (snap.crossed). The
+  // branch/HEAD we report come from the session's OWN rev; the ⚠ warns that the CWD no longer matches.
+  const crossedMark = snap.crossed ? ' · ⚠ tree trocado' : '';
+  const base = _uncertain
+    ? (branchSeg + ' · ' + ND + crossedMark)
+    : (branchSeg + ' · ' + pos + ' · ' + pushSeg + crossedMark);
 
   // ── GATE: classify.js freeze · files touched by HEAD (or brought in by a merge) · mixed-sessions ──
   const gateParts = [];
@@ -1352,15 +1575,28 @@ function generateHandoff(row, pending, opts) {
   // ── DELTA: turns (journal n_turn || session turns) · commits ahead of main ──
   const dTurns = (opts.deltaTurns != null && Number.isFinite(Number(opts.deltaTurns)))
     ? Number(opts.deltaTurns) : ((Number(row.turns) || 0) || null);
-  const delta = (dTurns == null && !ahead) ? '—'
-    : ((dTurns != null ? dTurns : 0) + ' turnos · ' + ahead + ' commits desde o último handoff');
+  const delta = _uncertain
+    ? ((dTurns != null ? dTurns : 0) + ' turnos · ' + ND + ' commits')  // no journal → commit count unknowable
+    : ((dTurns == null && !ahead) ? '—'
+      : ((dTurns != null ? dTurns : 0) + ' turnos · ' + ahead + ' commits desde o último handoff'));
 
-  // ── PENDING (verbatim ≤300c, ground-truth — the LLM never touches it) ──
+  // ── PENDING (ground-truth — the LLM never touches it) ──────────────────────────────────────────
+  // FASE 3.3 — PENDING-COMPLETO: when the session is BLOCKED on an open AskUserQuestion (awaiting-you)
+  // and we captured the structured ask, emit the WHOLE question + ALL options VERBATIM (never ≤300c) so
+  // the Cowork can decide without a screenshot. Otherwise the verbatim ≤300c stop-text as before.
   const stopRaw = pending.lastAssistantText && String(pending.lastAssistantText).trim();
   const stop = (stopRaw && stopRaw !== '—') ? stopRaw.slice(0, 300) : '—';
+  const askFull = (_isAskingUser(pending) && pending.ask && Array.isArray(pending.ask.questions) && pending.ask.questions.length)
+    ? pending.ask : null;
 
-  // ── DOING (from the rolling summary's first line; fallback to the 1st prompt) ──
-  const doing = (opts.doing && String(opts.doing).trim()) ? String(opts.doing).trim().slice(0, 160) : _or(row.name);
+  // ── FASE 4 — Ledger PROJECTION: when the session's events are supplied (opts.ledgerEvents), the
+  // handoff PROJECTS them instead of recomputing. INTENT (goal), DECISIONS (Q→choice→why), and a
+  // MECHANICAL GATE from the last kind:outcome. Absent → the deterministic fields above stand alone.
+  const ledger = _projectLedger(opts.ledgerEvents);
+
+  // ── DOING (rolling summary's first line; fallback to the 1st prompt) — qwen GUARNIÇÃO, best-effort ──
+  const doingRaw = (opts.doing && String(opts.doing).trim()) ? String(opts.doing).trim().slice(0, 160) : null;
+  const doing = doingRaw || _or(row.name);
 
   // ── WORKTREE GUARD (opt-in): warn prominently when the session drifted OUT of its expected
   // worktree (cwd ≠ worktree root) — a commit here could land on the wrong tree. Fires only when an
@@ -1370,22 +1606,65 @@ function generateHandoff(row, pending, opts) {
     ? '⚠ WORKTREE: sessão fora da worktree — cwd ' + (row.cwd ? path.basename(String(row.cwd)) : '—')
         + ' ≠ ' + path.basename(String(expectedWt)) + ' (commits podem ir para a árvore errada)'
     : null;
+  // ── STATE (FASE 3.1) — the single most important field, derived MECHANICALLY from the truthful
+  // facts above: landed | awaiting-you | parked | in-progress | empty | needs-save. ──
+  const state = _deriveState(row, snap, pending, opts);
   const body = [
     '⇄ MOO HANDOFF · ' + proj + ' · ' + tag + '/' + id + ' · ' + _fmtTs(now),
   ];
   if (wtGuard) body.push(wtGuard);
+  // ── PERFECT layer (opt-in via opts.perfect) — the human banner + STATE + TL;DR. Built EXCLUSIVELY
+  // from the mechanical fields (n/d stays n/d — never invented). Legacy callers omit opts.perfect →
+  // byte-identical output. ──
+  if (opts.perfect) {
+    const tldr = _stateLabel(state) + ' · ' + base.split(' · ')[0] + (ledger.decisions.length ? (' · ' + ledger.decisions.length + ' decis' + (ledger.decisions.length === 1 ? 'ão' : 'ões')) : ' · 0 decisões');
+    body.push('STATE:  ' + _stateLabel(state));
+    body.push('TL;DR:  ' + tldr);
+    body.push('── PARA TI ──');
+    body.push('  Estado:  ' + _stateHuman(state));
+    body.push('  Onde:    ' + branchSeg + (row.cwd ? ' · ' + path.basename(String(row.cwd)) : ''));
+    body.push('  Pediste: ' + _or(ledger.intent));
+    body.push('  Moo fez: ' + _or(doingRaw));
+    body.push('  A-seguir:' + _resumeFor(state, ask, askFull));
+  }
   body.push(
-    'ASK:    ' + ask,
+    'ASK:    ' + ask + (opts.perfect ? ' → ' + _askHuman(ask) : ''),
     'HEAD:   ' + head,
     'BASE:   ' + base,
     'GATE:   ' + gate,
+  );
+  // FASE 4 — mechanical GATE line from the ledger's last kind:outcome (node --check/tests/sha/vsix).
+  const ledgerGate = _ledgerGateLine(ledger.outcome);
+  if (ledgerGate) body.push('GATE✓:  ' + ledgerGate);
+  // FASE 4 — INTENT (goal) — only when the ledger provided one (never fabricated).
+  if (ledger.intent) body.push('INTENT: ' + String(ledger.intent).slice(0, 200));
+  body.push(
     'TREE:   ' + tree,
     'FRESH:  ' + fresh,
     'DELTA:  ' + delta,
-    'PENDING:"' + stop + '"',
-    'DOING:  ' + doing,
-    'NEXT:   ' + _nextForAsk(ask),
   );
+  // FASE 3.3 — PENDING-completo (full question + all options verbatim) when awaiting-you; else ≤300c.
+  if (askFull) {
+    for (const q of askFull.questions) {
+      body.push('PENDING Q:"' + q.question + '"');
+      if (q.options.length) {
+        body.push('  opções: ' + q.options.map((o, i) => (i + 1) + ')' + o).join(' '));
+      }
+    }
+  } else {
+    body.push('PENDING:"' + stop + '"');
+  }
+  // FASE 4 — DECISIONS from the ledger (Q → choice → why). Only when present.
+  if (ledger.decisions.length) {
+    body.push('DECISIONS:');
+    for (const d of ledger.decisions.slice(0, 8)) {
+      body.push('  Q:"' + d.question + '" → escolheu:"' + d.chosen + '"' + (d.why ? ' · porquê:' + d.why : ''));
+    }
+  }
+  // FASE 3.4 — qwen DEMOVIDO to guarnição: in perfect mode the narrative line is explicitly labelled
+  // best-effort/optional (never load-bearing). Legacy (no perfect) keeps the byte-stable 'DOING:' prefix.
+  body.push(opts.perfect ? ('~narrativa (qwen · best-effort): ' + doing) : ('DOING:  ' + doing));
+  body.push('NEXT:   ' + _nextForAsk(ask));
   // ── full only: LAST STEP (journal-backfilled) + RECAP + model/mode/saved$ + §SAVINGS + facts footer ──
   if (hmode === 'full') {
     // LAST STEP — the last 1–3 tool calls (name + honest target), from the transcript pending or
@@ -1394,7 +1673,7 @@ function generateHandoff(row, pending, opts) {
       ? pending.lastToolActions.map((t) => (String(t.name || 'tool') + (t.target ? ' ' + t.target : ''))).join(' · ') : null;
     if (lastStep) body.push('LAST:   ' + lastStep);
     const recap = (opts.recap && String(opts.recap).trim()) ? String(opts.recap).trim().slice(0, 600) : null;
-    if (recap) { body.push('', 'RECAP:'); recap.split('\n').forEach((l) => body.push('  ' + l)); }
+    if (recap) { body.push('', opts.perfect ? '~RECAP (qwen · best-effort):' : 'RECAP:'); recap.split('\n').forEach((l) => body.push('  ' + l)); }
     const saved = (Number(row.saved) || 0).toFixed(2);
     body.push('', 'model ' + _or(row.model) + ' · mode ' + _or(row.mode) + ' · saved $' + saved + ' (sessão)');
     const engine = (opts.genModel && String(opts.genModel).trim())
@@ -1445,6 +1724,17 @@ function _sessionBranchLabel(r) {
   return _or(r && r.branch);
 }
 
+// PURE (FASE 2 — SINGLE SOURCE OF COUNT): the session's commits ahead of origin/main. Prefers the
+// authoritative `sessionGit.aheadOfMain` (git rev-list origin/main..<sessionBranch>, computed off the
+// journal branch — never @{u}, which is 0-false on a never-pushed branch). Falls back to the legacy
+// gitStage.ahead ONLY when the authoritative field is absent (back-compat: existing rows/tests that
+// pass gitStage:{ahead} keep their behaviour byte-identical). Never throws.
+function _sessionAhead(r) {
+  const sg = (r && r.sessionGit) || null;
+  if (sg && Number.isFinite(Number(sg.aheadOfMain))) return Number(sg.aheadOfMain);
+  return Number(((r && r.gitStage) || {}).ahead) || 0;
+}
+
 function generateProjectHandoff(proj, rows, opts) {
   opts = opts || {};
   rows = Array.isArray(rows) ? rows : [];
@@ -1463,8 +1753,7 @@ function generateProjectHandoff(proj, rows, opts) {
     if ((r && r.askingUser) || _isAskingUser(p)) return 'answer'; // open AskUserQuestion → human's turn
     const txt = p.lastAssistantText && String(p.lastAssistantText).trim();
     if (p.stopped && txt && txt !== '—' && /\?/.test(txt)) return 'answer';
-    const gs2 = (r && r.gitStage) || {};
-    const ahead2 = Number(gs2.ahead) || 0;
+    const ahead2 = _sessionAhead(r);   // FASE 2: single count source (origin/main..<sessionBranch>)
     const pr2 = r && r.pr;
     if (pr2 && pr2.stage === 'merged ✓') return 'fyi';
     if (ahead2 > 0 && pr2) return 'push-ok';
@@ -1490,7 +1779,7 @@ function generateProjectHandoff(proj, rows, opts) {
     const k = r.cwd + '\x00' + (r.branch || '');
     const g = groups.get(k) || { total: 0, active: 0, ahead: 0, branch: r.branch || '' };
     g.total++; if (_active(r)) g.active++;
-    g.ahead = Math.max(g.ahead, Number((r.gitStage || {}).ahead) || 0);
+    g.ahead = Math.max(g.ahead, _sessionAhead(r)); // FASE 2: single count source
     groups.set(k, g);
   }
   let unc = 0, unp = 0, activeN = 0;
@@ -1513,7 +1802,7 @@ function generateProjectHandoff(proj, rows, opts) {
       const cur = ambient.get(r.cwd);
       if (!cur || dirty > cur.dirty) ambient.set(r.cwd, { dirty, sessions: cwdCount.get(r.cwd) });
     } else if (dirty > 0) { flags.push('UNCOMMITTED'); unc++; }
-    if ((gs.ahead || 0) > 0) { flags.push('UNPUSHED'); unp++; }
+    if (_sessionAhead(r) > 0) { flags.push('UNPUSHED'); unp++; } // FASE 2: single count source
     if (_active(r)) activeN++;
     // GATE #3 (anti-lie): a session with an OPEN AskUserQuestion is BLOCKED on the human → 🔵
     // "à-espera-de-ti", NEVER "✅" done. It outranks every other glyph (the human is the bottleneck).
@@ -1525,10 +1814,19 @@ function generateProjectHandoff(proj, rows, opts) {
       : '✅';
     const fl = flags.length ? '  [' + flags.join(' ') + ']' : '';
     const nm = String((r && r.name) || ('session ' + id)).replace(/\s+/g, ' ').slice(0, 56);
+    // FASE 2.3 (anti-lie): a session that reads ✅ "feito" but whose branch is 0 commits ahead of main
+    // is hiding "sem trabalho salvo" — the worst false-positive. Mark it explicitly. Scoped to a
+    // MEASURED aheadOfMain === 0 (from the journal branch): rows that never measured it (legacy/back-
+    // compat) are byte-identical. 0 commits + uncommitted → needs-save; else empty.
+    const _sg = (r && r.sessionGit) || null;
+    const _measured0 = _sg && Number.isFinite(Number(_sg.aheadOfMain)) && Number(_sg.aheadOfMain) === 0;
+    const stMark = (st === '✅' && _measured0)
+      ? (dirty > 0 ? ' · ⚠ 0 commits · uncommitted (verifica)' : ' · ⚪ 0 commits (nada salvo)')
+      : '';
     // PASSO 2 — HONEST per-session branch: prefer the session's OWN journal branch (+sha), not the
     // shared tree HEAD. No journal → the tree branch flagged "incerto (tree partilhado)". Divergence
     // (tree moved under the session) → ⚠ marker. Falls back to r.branch when no sessionGit (back-compat).
-    board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _sessionBranchLabel(r) + ' · ' + _or(r && r.model) + fl);
+    board.push('  ' + st + ' ' + nm + ' (' + id + ') · ' + _sessionBranchLabel(r) + ' · ' + _or(r && r.model) + fl + stMark);
   }
   if (!board.length) board.push('  — (nenhuma sessão neste projecto)');
   // DUP tally = nº de GRUPOS com ≥2 activas E commits próprios. Sem nenhum, mas com co-habitação (≥2
@@ -1553,7 +1851,17 @@ function generateProjectHandoff(proj, rows, opts) {
   // be hidden behind "0 UNPUSHED · projecto limpo". Without it, fall back to the per-row session count
   // (back-compat — every existing caller/test passes no opts.branches → byte-identical output).
   const haveBranchData = Array.isArray(opts.branches);
-  const parkedBranches = haveBranchData ? opts.branches.filter((b) => b && (Number(b.unpushed) || 0) > 0) : [];
+  // FASE 2.2 — "por aterrar" HONESTO: a branch only counts as parked when it carries commits genuinely
+  // ABSENT from origin/main. When aheadOfMain was measured (finite) and is 0, its content is already in
+  // main (merged) → EXCLUDE it (never "push 9" when 4 are real). aheadOfMain null/absent → keep on the
+  // unpushed signal (can't prove it merged — back-compat with callers that don't measure it). `archive`
+  // opt-out excludes branches explicitly flagged for archiving.
+  const parkedBranches = haveBranchData ? opts.branches.filter((b) => {
+    if (!b || (Number(b.unpushed) || 0) <= 0) return false;
+    if (Number.isFinite(Number(b.aheadOfMain)) && Number(b.aheadOfMain) === 0) return false;
+    if (b.archive === true) return false;
+    return true;
+  }) : [];
   const parkedCommits = parkedBranches.reduce((s, b) => s + (Number(b.unpushed) || 0), 0);
   // Anti-lie reconciliation (NOT replacement): worktreeParked branch data is ADDITIVE visibility for
   // parked branches no live session sits on. If it returns [] (git timeout, no linked worktree, no
@@ -1625,7 +1933,28 @@ function generateProjectHandoff(proj, rows, opts) {
       riskLine.push('⚠ RISCO: HIGH — ' + reasons.join(' · '));
     }
   }
-  return head.concat(askLine).concat(riskLine).concat(['', '▸ BOARD:']).concat(board).concat(parkedSection).concat(tail).join('\n');
+  // ── PERFECT anti-overwhelm header (opt-in via opts.perfect) — 🎯 A ÚNICA COISA + GOAL + TRIAGE. Built
+  // purely from the mechanical counts above (no fabrication). Legacy callers omit perfect → unchanged. ──
+  const perfectTop = [];
+  if (opts.perfect && n > 0) {
+    let theOne;
+    if (askCounts.answer > 0) theOne = 'responder a ' + askCounts.answer + ' sessão à-espera-de-ti (🔵 abaixo)';
+    else if (parkedBranches.length) theOne = 'push ' + parkedBranches.length + ' branch parked (' + parkedCommits + ' commits) para main';
+    else if (unpFlag > 0) theOne = 'push ' + unpFlag + ' commits por aterrar';
+    else if (dupGroups > 0) theOne = 'resolver ' + dupGroups + ' colisão de branch (DUP)';
+    else if (unc > 0) theOne = 'commitar ' + unc + ' sessão com trabalho por guardar';
+    else theOne = 'nada crítico — projecto limpo, segue o teu foco';
+    perfectTop.push('🎯 A ÚNICA COISA: ' + theOne);
+    if (opts.goal && String(opts.goal).trim()) perfectTop.push('GOAL:   ' + String(opts.goal).trim().slice(0, 160));
+    const triage = [];
+    if (askCounts.answer > 0) triage.push('⏱~2min responder ' + askCounts.answer);
+    const toPush = parkedBranches.length || unpFlag;
+    if (toPush > 0) triage.push('⏱~5min push ' + toPush);
+    const idle = Math.max(0, n - activeN - askCounts.answer);
+    if (idle > 0) triage.push('💤 idle ' + idle);
+    if (triage.length) perfectTop.push('TRIAGE: ' + triage.join(' · '));
+  }
+  return head.concat(perfectTop).concat(askLine).concat(riskLine).concat(['', '▸ BOARD:']).concat(board).concat(parkedSection).concat(tail).join('\n');
 }
 
 // PURA (testável): HANDOFF COMBINADO — sessão + projecto num só texto para colar no Cowork (Frente F).
@@ -1931,6 +2260,24 @@ function readJournalLast(sid) {
     for (let i = lines.length - 1; i >= 0; i--) { try { return JSON.parse(lines[i]); } catch { /* skip */ } }
     return null;
   } catch { return null; }
+}
+
+// FASE 4 — the session's Ledger EVENTS (kind-bearing entries: intent/decision/outcome/…), oldest→newest.
+// Same file the Live Context Accumulator + the Ledger Spine (tools/router/handoff-journal.appendEvent)
+// write to; we read the FORMAT here (no cross-package require, mirroring the rest of these readers). The
+// handoff PROJECTS these instead of recomputing (INTENT/DECISIONS/GATE). [] when there is no journal or
+// no events. Read-only; never throws.
+function sessionLedgerEvents(sid) {
+  try {
+    const id = _handoffSafeId(sid); if (!id) return [];
+    const lines = fs.readFileSync(path.join(_handoffDir(), id + '.jsonl'), 'utf8').split('\n').filter(Boolean);
+    const out = [];
+    for (const ln of lines) {
+      let e; try { e = JSON.parse(ln); } catch { continue; }
+      if (e && typeof e.kind === 'string') out.push(e);
+    }
+    return out;
+  } catch { return []; }
 }
 
 // ── PASSO 2 (Mac feedback): HONEST per-session branch/SHA, read from the session's OWN journal ──
@@ -2310,4 +2657,7 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
   readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed,
-  sessionGitFromJournal, reconcileSessionGit, _treeHeadSha, _sessionBranchLabel, worktreeParked };
+  sessionGitFromJournal, reconcileSessionGit, _treeHeadSha, _sessionBranchLabel, worktreeParked,
+  // PERFECT HANDOFF v2 — pure helpers (STATE machine · PARA TI · Ledger projection · single count):
+  _deriveState, _stateLabel, _stateHuman, _askHuman, _resumeFor, _sessionAhead, _parseAskInput,
+  _projectLedger, _ledgerGateLine, sessionLedgerEvents };
