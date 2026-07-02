@@ -108,17 +108,109 @@ function gitInfo(cwd) {
     if (!refM) return { head: headRaw.slice(0, 12), branch: 'HEAD' }; // detached
     const ref = refM[1].trim();
     const branch = ref.replace(/^refs\/heads\//, '');
+    // Linked worktree: HEAD is per-worktree (read above) but refs/heads live in the COMMON dir
+    // (<gitdir>/commondir → ../..). Search BOTH so a worktree session records a real HEAD sha, not null.
+    const refDirs = [gitDir];
+    try {
+      const cd = fs.readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim();
+      if (cd) { const cdir = path.resolve(gitDir, cd); if (cdir !== gitDir) refDirs.push(cdir); }
+    } catch { /* not a linked worktree — gitDir already holds the refs */ }
     let head = '';
-    try { head = fs.readFileSync(path.join(gitDir, ref), 'utf8').trim().slice(0, 12); }
-    catch {
-      // packed-refs fallback
+    for (const d of refDirs) {               // loose ref, worktree gitdir then common dir
+      try { const h = fs.readFileSync(path.join(d, ref), 'utf8').trim().slice(0, 12); if (h) { head = h; break; } } catch { /* try next */ }
+    }
+    if (!head) for (const d of refDirs) {     // packed-refs fallback, same order
       try {
-        const packed = fs.readFileSync(path.join(gitDir, 'packed-refs'), 'utf8').split('\n');
+        const packed = fs.readFileSync(path.join(d, 'packed-refs'), 'utf8').split('\n');
         for (const l of packed) { const mm = l.match(/^([0-9a-f]{40})\s+(.+)$/); if (mm && mm[2] === ref) { head = mm[1].slice(0, 12); break; } }
-      } catch { /* none */ }
+        if (head) break;
+      } catch { /* try next */ }
     }
     return { head: head || null, branch: branch || null };
   } catch { return {}; }
+}
+
+// ── PERFECT HANDOFF v2.5 — CAPTURE fix (mata a raiz do worktree-crossing) ──────
+// The Stop hook used to read git facts from payload.cwd = the CC PROCESS launch
+// dir (e.g. ~/frugal), not the worktree the session actually `cd`'d into to commit
+// (e.g. ~/frugal-X). So the journal recorded the WRONG branch, and every honest
+// consumer downstream inherited the lie. The truth is already in the transcript:
+// the Bash `cd <path>` / `git -C <path>` the session ran. These helpers recover it.
+
+// PURE (testable): win32 Git-Bash absolute path (/c/Users/…) → C:/Users/… so Node's
+// win32 fs/path understand it. No-op off win32 (there /c/… is a legit absolute path).
+function _normMsys(p) {
+  const s = String(p == null ? '' : p);
+  if (process.platform !== 'win32') return s;
+  const m = /^\/([a-zA-Z])\/(.*)$/.exec(s);
+  return m ? (m[1] + ':/' + m[2]) : s;
+}
+
+// PURE (testable): the cd / git -C path arguments in ONE shell command string, in order.
+// Handles "double"/'single' quotes (paths with spaces) and bare tokens (stop at ; & | < > ws).
+// `cd`/`pushd` are anchored to a command boundary so `abc-cd` / `record` never false-match. Never throws.
+function _extractCwdPaths(cmd) {
+  const out = [];
+  const s = String(cmd == null ? '' : cmd);
+  const re = /(?:(?:^|[;&|(]|\s)(?:cd|pushd)|\bgit\s+-C)\s+(?:"([^"]*)"|'([^']*)'|([^\s;&|<>]+))/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const p = m[1] || m[2] || m[3];
+    if (p && p !== '-' && p !== '~') out.push(p); // `cd -` / `cd ~` carry no worktree signal
+  }
+  return out;
+}
+
+// PURE (testable): all git-context working-dir candidates in a transcript tail's Bash
+// commands, oldest→newest. Only assistant tool_use blocks with name 'Bash' are scanned.
+// Never throws.
+function _cwdCandidates(lines) {
+  const out = [];
+  const arr = Array.isArray(lines) ? lines : [];
+  for (const ln of arr) {
+    if (!ln || !String(ln).trim()) continue;
+    let d; try { d = JSON.parse(ln); } catch { continue; }
+    const msg = d && d.message;
+    const role = (msg && msg.role) || (d && d.type);
+    if (role !== 'assistant') continue;
+    const content = msg && msg.content;
+    if (!Array.isArray(content)) continue;
+    for (const b of content) {
+      if (!b || b.type !== 'tool_use') continue;
+      if (String(b.name || '') !== 'Bash') continue;
+      const cmd = b.input && typeof b.input.command === 'string' ? b.input.command : '';
+      if (!cmd) continue;
+      for (const p of _extractCwdPaths(cmd)) out.push(p);
+    }
+  }
+  return out;
+}
+
+// Derive the EFFECTIVE working dir for a turn: the most-RECENT git-context path in the
+// transcript tail (Bash cd / git -C) whose resolved path is a REAL git worktree (gitInfo
+// resolves a branch). This is the root fix — the journal records the branch where commits
+// ACTUALLY happen, not the CC launch dir. Grounded: only ever returns a path gitInfo
+// resolves; never invents. Falls back to payloadCwd when no candidate resolves (byte-
+// identical to the old behaviour for cd-less sessions → no regression). opts.base roots
+// relative paths (default payloadCwd || process.cwd()); opts.gitInfo injects the resolver
+// (tests). Never throws — the Stop hook must never break a turn.
+function effectiveCwd(lines, payloadCwd, opts) {
+  opts = opts || {};
+  const resolveGit = (typeof opts.gitInfo === 'function') ? opts.gitInfo : gitInfo;
+  const base = opts.base || payloadCwd || process.cwd();
+  let cands;
+  try { cands = _cwdCandidates(lines); } catch { cands = []; }
+  // newest-first: the LAST git-context dir the session touched wins.
+  for (let i = cands.length - 1; i >= 0; i--) {
+    let p = cands[i];
+    try {
+      p = _normMsys(p);
+      p = path.isAbsolute(p) ? p : path.resolve(_normMsys(base), p);
+    } catch { continue; }
+    let g; try { g = resolveGit(p); } catch { g = null; }
+    if (g && g.branch) return p; // grounded: a real worktree with a real branch
+  }
+  return payloadCwd || null;
 }
 
 function _normEntry(turn) {
@@ -298,5 +390,7 @@ module.exports = {
   appendEvent, readEvents, lastEventOfKind,
   journalPath, summaryPath, rollupTsPath,
   JOURNAL_MAX, SNIPPET_MAX, EVENT_KINDS,
+  // Perfect Handoff v2.5 — CAPTURE fix (worktree-crossing at the root):
+  effectiveCwd, _cwdCandidates, _extractCwdPaths, _normMsys,
 };
 Object.defineProperty(module.exports, 'DIR', { enumerable: true, get: _dir });

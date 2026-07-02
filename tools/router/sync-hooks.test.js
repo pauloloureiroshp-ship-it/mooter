@@ -18,7 +18,9 @@ const {
   findWiredStopHook,
 } = require('./sync-hooks.js');
 
-const ACCUMULATOR_BODY = 'function accumulateHandoff(){ require("./handoff-journal.js"); }';
+// A COMPLETE wired hook: journaling (accumulateHandoff + handoff-journal) AND the v2.5 CAPTURE fix
+// (journal.effectiveCwd) — the marker set the self-check now requires.
+const ACCUMULATOR_BODY = 'function accumulateHandoff(){ const j = require("./handoff-journal.js"); j.effectiveCwd([], null); }';
 const STALE_BODY = '// old turn-end, no journaling here';
 
 function tmp(prefix) {
