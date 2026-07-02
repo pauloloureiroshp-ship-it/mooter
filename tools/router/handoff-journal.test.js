@@ -214,3 +214,38 @@ test('_normMsys: win32 /c/foo → c:/foo; no-op off win32 and on native paths', 
   assert.equal(j._normMsys('relative/path'), 'relative/path');
   assert.doesNotThrow(() => j._normMsys(null));
 });
+
+// (c) — the ONLY cd is a non-worktree (no .git). Must fall back to payloadCwd and NEVER
+// return the unresolved path. Grounded: effectiveCwd only ever returns a path gitInfo resolves.
+test('effectiveCwd: sole cd is a non-worktree (no .git) → falls back, NEVER invents that path', () => {
+  const j = fresh();
+  const launch = makeRepo('feat/launch', 'c'.repeat(40));
+  const bogus = path.join(os.tmpdir(), 'mooter-nope-does-not-exist-zzz'); // never created → no .git
+  try {
+    const lines = [bashTurn('cd "' + bogus + '" && git status')];
+    const res = j.effectiveCwd(lines, launch);
+    assert.equal(res, launch, 'unresolvable cd → payloadCwd (byte-identical old behaviour)');
+    assert.notEqual(res, bogus, 'NEVER returns a path it could not resolve to a real branch');
+  } finally { fs.rmSync(launch, { recursive: true, force: true }); }
+});
+
+// (d) — integration: a Git-Bash `cd /c/Users/…` must be msys-normalized BEFORE gitInfo, else the
+// real worktree is invisible and the journal lies. This is the exact scenario seen in the real handoff.
+test('effectiveCwd: resolves an msys /c/… cd via _normMsys (the real-handoff scenario)', () => {
+  const j = fresh();
+  const repo = makeRepo('feat/msys', 'd'.repeat(40));
+  try {
+    // Rewrite the native tmp path into its Git-Bash /c/… twin to simulate what the transcript holds.
+    let msysPath = repo;
+    if (process.platform === 'win32') {
+      const m = /^([a-zA-Z]):[\\/](.*)$/.exec(repo);
+      if (m) msysPath = '/' + m[1].toLowerCase() + '/' + m[2].replace(/\\/g, '/');
+    }
+    const lines = [bashTurn('cd "' + msysPath + '" && git commit -m x')];
+    const res = j.effectiveCwd(lines, '/some/launch/dir');
+    assert.equal(j.gitInfo(res).branch, 'feat/msys', 'the msys cd resolved to the real worktree branch');
+    if (process.platform === 'win32') {
+      assert.ok(!String(res).startsWith('/c/'), 'the /c/… form was normalized (never handed raw to fs)');
+    }
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
