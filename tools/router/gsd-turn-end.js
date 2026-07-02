@@ -321,17 +321,26 @@ function accumulateHandoff() {
   // Derive snippet + last tool calls from the transcript tail (same source the
   // cockpit's extractPending reads). Best-effort; empty when no transcript.
   let derived = { assistant_snippet: '', tools: [] };
+  let tail = [];
   try {
     const tp = payload.transcript_path || payload.transcriptPath || null;
     if (tp && fs.existsSync(tp)) {
-      derived = journal.deriveTurn(tailLines(tp, 262144)) || derived;
+      tail = tailLines(tp, 262144);
+      derived = journal.deriveTurn(tail) || derived;
     }
   } catch { /* best-effort */ }
 
   // Cheap git facts (branch + head sha from .git — no subprocess, no latency).
+  // PERFECT HANDOFF v2.5 — CAPTURE fix (mata a raiz do worktree-crossing): read git from
+  // the EFFECTIVE worktree the turn actually cd'd into (recovered from the transcript's
+  // Bash `cd` / `git -C`), NOT payload.cwd — which is only the CC PROCESS launch dir, so
+  // a session that `cd frugal-X && git commit` used to be journalled under the launch
+  // branch. effectiveCwd falls back to payload.cwd when the tail shows no worktree → byte-
+  // identical to the old behaviour for cd-less sessions (no regression). Grounded, never throws.
   let git = {};
   try {
-    const cwd = (typeof payload.cwd === 'string' && payload.cwd) ? payload.cwd : null;
+    const payloadCwd = (typeof payload.cwd === 'string' && payload.cwd) ? payload.cwd : null;
+    const cwd = journal.effectiveCwd(tail, payloadCwd);
     if (cwd) git = journal.gitInfo(cwd) || {};
   } catch { /* best-effort */ }
 

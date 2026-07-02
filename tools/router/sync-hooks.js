@@ -38,9 +38,12 @@ const WIRED_HOOKS = [
 ];
 
 // The Stop hook that carries the Live Context Accumulator. If the WIRED copy of
-// this file lacks these markers, turn-end journaling dies silently.
+// this file lacks these markers, turn-end journaling dies silently. `effectiveCwd`
+// is the Perfect Handoff v2.5 CAPTURE fix — its presence proves the wired hook
+// records the REAL worktree (not the CC launch dir); a stale copy without it would
+// silently re-introduce the worktree-crossing lie, so the self-check flags it.
 const ACCUMULATOR_HOOK = 'gsd-turn-end.js';
-const ACCUMULATOR_MARKERS = ['accumulateHandoff', 'handoff-journal'];
+const ACCUMULATOR_MARKERS = ['accumulateHandoff', 'handoff-journal', 'effectiveCwd'];
 
 function homeDir() {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();
