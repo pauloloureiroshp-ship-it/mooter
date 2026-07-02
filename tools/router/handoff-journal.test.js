@@ -249,3 +249,34 @@ test('effectiveCwd: resolves an msys /c/… cd via _normMsys (the real-handoff s
     }
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
+
+// A linked git worktree (the feature's PRIMARY target): `.git` is a FILE → gitdir under
+// <common>/.git/worktrees/<name>; HEAD is per-worktree but refs/heads/* live in the COMMON dir.
+function makeLinkedWorktree(branch, sha) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-lwt-'));
+  const commonGit = path.join(root, 'main', '.git');
+  const ref = 'refs/heads/' + branch;
+  fs.mkdirSync(path.join(commonGit, path.dirname(ref)), { recursive: true });
+  fs.writeFileSync(path.join(commonGit, ref), sha + '\n');                 // loose ref ONLY in the common dir
+  const wtGitDir = path.join(commonGit, 'worktrees', 'wt1');
+  fs.mkdirSync(wtGitDir, { recursive: true });
+  fs.writeFileSync(path.join(wtGitDir, 'HEAD'), 'ref: ' + ref + '\n');     // per-worktree HEAD
+  fs.writeFileSync(path.join(wtGitDir, 'commondir'), path.relative(wtGitDir, commonGit) + '\n');
+  const wtDir = path.join(root, 'wt1');
+  fs.mkdirSync(wtDir, { recursive: true });
+  fs.writeFileSync(path.join(wtDir, '.git'), 'gitdir: ' + wtGitDir + '\n');
+  return { root, wtDir };
+}
+
+// REGRESSION (proof-revealed): a linked worktree used to journal branch-with-NULL-sha because gitInfo
+// searched only the per-worktree gitdir. Now it follows commondir → real HEAD sha. Without this the
+// handoff shows `feat/X` with no `@sha` for exactly the worktree sessions the feature exists to serve.
+test('gitInfo: linked worktree — resolves HEAD sha via commondir (refs live in the common dir)', () => {
+  const j = fresh();
+  const { root, wtDir } = makeLinkedWorktree('feat/perfect-handoff-land', 'e'.repeat(40));
+  try {
+    const g = j.gitInfo(wtDir);
+    assert.equal(g.branch, 'feat/perfect-handoff-land', 'branch from the per-worktree HEAD');
+    assert.equal(g.head, 'e'.repeat(12), 'HEAD sha resolved from the COMMON dir ref — never null');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

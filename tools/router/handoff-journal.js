@@ -108,14 +108,23 @@ function gitInfo(cwd) {
     if (!refM) return { head: headRaw.slice(0, 12), branch: 'HEAD' }; // detached
     const ref = refM[1].trim();
     const branch = ref.replace(/^refs\/heads\//, '');
+    // Linked worktree: HEAD is per-worktree (read above) but refs/heads live in the COMMON dir
+    // (<gitdir>/commondir → ../..). Search BOTH so a worktree session records a real HEAD sha, not null.
+    const refDirs = [gitDir];
+    try {
+      const cd = fs.readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim();
+      if (cd) { const cdir = path.resolve(gitDir, cd); if (cdir !== gitDir) refDirs.push(cdir); }
+    } catch { /* not a linked worktree — gitDir already holds the refs */ }
     let head = '';
-    try { head = fs.readFileSync(path.join(gitDir, ref), 'utf8').trim().slice(0, 12); }
-    catch {
-      // packed-refs fallback
+    for (const d of refDirs) {               // loose ref, worktree gitdir then common dir
+      try { const h = fs.readFileSync(path.join(d, ref), 'utf8').trim().slice(0, 12); if (h) { head = h; break; } } catch { /* try next */ }
+    }
+    if (!head) for (const d of refDirs) {     // packed-refs fallback, same order
       try {
-        const packed = fs.readFileSync(path.join(gitDir, 'packed-refs'), 'utf8').split('\n');
+        const packed = fs.readFileSync(path.join(d, 'packed-refs'), 'utf8').split('\n');
         for (const l of packed) { const mm = l.match(/^([0-9a-f]{40})\s+(.+)$/); if (mm && mm[2] === ref) { head = mm[1].slice(0, 12); break; } }
-      } catch { /* none */ }
+        if (head) break;
+      } catch { /* try next */ }
     }
     return { head: head || null, branch: branch || null };
   } catch { return {}; }
