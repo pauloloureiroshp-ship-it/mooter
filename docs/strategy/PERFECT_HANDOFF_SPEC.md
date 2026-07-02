@@ -90,3 +90,26 @@ escassa a re-ambientar. O handoff **É** esse valor. Por isso, além dos campos 
 `Ledger Spine` (captura mecânica) → `Handoff Truth` (git exacto) → `Perfect Handoff Render`
 (projecta o ledger no formato acima: STATE + GATE-detail + WORK + DECISIONS + PENDING-completo;
 qwen demovido a guarnição). Ver `_handoff/PERFECT_HANDOFF_MASTERPROMPT.md`.
+
+## Convenção do Ledger (FASE 4 — fecha o ciclo · IMPLEMENTADO em Perfect Handoff v2)
+O handoff perfeito é uma **projecção do Ledger**: `generateHandoff` lê os eventos da sessão
+(`sessionLedgerEvents(sid)` → entradas com `kind`) e projecta-os em vez de recomputar. Para o GATE
+ser sempre mecânico e completo, **o passo de gate de QUALQUER masterprompt emite um evento**:
+
+```js
+// no fim do gate (tools/router/handoff-journal.js):
+appendEvent({ sid, kind: 'outcome', output: {
+  nodeCheck: true,        // node --check passou  (bool)
+  tests: '417/417',       // "pass/total"          (string) ou { pass, total }
+  sha: true,              // classify.js sha frozen intacta (bool) ou a própria sha (string)
+  vsix: true,             // .vsix byte-idêntico ao source (bool; omite se não empacotou)
+} });
+```
+
+O render projecta assim (fonte única, nunca fabricado):
+- `kind:intent`  → **INTENT** (`output.goal|intent|text|summary`).
+- `kind:decision`→ **DECISIONS** (`output.{question, chosen, why}`; tolera `q/choice/answer/rationale`).
+- `kind:outcome` → **GATE✓** mecânico (`_ledgerGateLine`). Sem outcome → o GATE fica só com os factos
+  git; **nunca inventa** um "verde" que o gate não emitiu.
+
+Régua: se um campo não tem evento, o handoff diz `n/d` — jamais um palpite.
