@@ -9,6 +9,7 @@ import TwoTerminalDemo from './_components/TwoTerminalDemo';
 import PulseStrip from './_components/PulseStrip';
 import CommunityPulse from './_components/CommunityPulse';
 import WhyLocalCards from './_components/WhyLocalCards';
+import HandoffStory from './_components/HandoffStory';
 import AuthErrorBanner from './_components/AuthErrorBanner';
 
 const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
@@ -142,6 +143,8 @@ export default function Page() {
           <PulseStrip />
 
           <WhyLocalCards />
+
+          <HandoffStory />
 
           <CommunityPulse />
         </section>
