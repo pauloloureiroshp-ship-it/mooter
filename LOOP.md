@@ -215,6 +215,24 @@ Alternativa tática (sem refactor): antes do sync, extrair do runtime `classify.
 
 ---
 
+### 2026-07-03-low1-effectivecwd-work-aware-resolvido
+
+REFINES: 2026-07-02-effectivecwd-heuristica-cwd-mais-recente
+
+**Contexto:** Perfect Handoff v3 (work-aware). O LOW#1 (a "Alternativa" do backlog acima) foi implementado em `tools/router/handoff-journal.js` — só ADIÇÕES, `effectiveCwd` invertido para **work > navigation**.
+
+**Resultado observado:** o LOW#1 morde no vivo — provado com os worktrees reais em disco. Cenário: sessão lançada de `~/frugal` (feat/overclock-moo-p1 @85e238a), turno `cd ../frugal-ph-v3 && git commit` (o TRABALHO) seguido de `cd ~/frugal && git branch -d …` (navegação/limpeza no tree partilhado).
+- **ANTES (regra v2.5 "mais recente ganha"):** `Onde: feat/overclock-moo-p1 @85e238a` → o handoff CRUZA (a navegação venceu).
+- **DEPOIS (v3 work-aware):** `Onde: feat/perfect-handoff-v3 @3a6d2fb` → o worktree do git-WRITE.
+
+A cura: `_isGitWrite(cmd)` (commit|merge|rebase|cherry-pick|am|revert|worktree add|checkout/switch -b|-c|stash; `status|log|branch -d/-D|rev-parse|show|diff|fetch|remote` e `cd` nu NÃO contam) + `_workCwdCandidates(lines)` (cwd por comando git-write) + `effectiveCwd` na ordem `(a) git-write newest-first → (b) fallback navegação v2.5 → (c) payloadCwd`. Grounded, never-throws, back-compat total (a alínea (b) é byte-identical à v2.5 → zero regressão para sessões sem commit). +7 testes deterministas. `node --test` completo: 15 falhas env pré-existentes idênticas a main, todos os testes de handoff verdes.
+
+**Quem observou:** Terminal 1 (Opus) na sessão PH v3, worktree `../frugal-ph-v3` @ `feat/perfect-handoff-v3` `3a6d2fb`.
+
+**Status:** **RESOLVIDO** (não backlog). Falta apenas a propagação runtime (`/mooter-update` sincroniza `handoff-journal.js` para `~/.claude/tools/router/`) — post-merge; o hook wired `gsd-turn-end.js` já chama `effectiveCwd` (self-check `OK`), por isso o fix conta assim que o ficheiro aterrar em main.
+
+---
+
 ## HIPÓTESE
 
 ### Sobre 2026-04-21-classifier-gastou-opus-em-tarefa-descritiva
