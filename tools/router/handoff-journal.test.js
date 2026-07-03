@@ -298,7 +298,11 @@ test('_isGitWrite: WRITE ops are writes; inspection & navigation are NOT', () =>
   assert.equal(j._isGitWrite('git worktree add ../wt -b feat/z main'), true, 'worktree add');
   assert.equal(j._isGitWrite('git checkout -b feat/new'), true, 'checkout -b');
   assert.equal(j._isGitWrite('git switch -c feat/new'), true, 'switch -c');
-  assert.equal(j._isGitWrite('git stash'), true, 'stash');
+  assert.equal(j._isGitWrite('git stash'), true, 'stash (bare)');
+  assert.equal(j._isGitWrite('git stash push -m wip'), true, 'stash push');
+  assert.equal(j._isGitWrite('git stash pop'), true, 'stash pop');
+  assert.equal(j._isGitWrite('git stash list'), false, 'stash list is inspection');
+  assert.equal(j._isGitWrite('cd /other && git stash show -p'), false, 'stash show is inspection');
   // NOT writes — inspection / navigation
   assert.equal(j._isGitWrite('cd ~/tree && git branch -d velha'), false, 'branch -d is cleanup, not work');
   assert.equal(j._isGitWrite('git branch -D old'), false, 'branch -D');

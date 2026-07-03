@@ -200,7 +200,9 @@ function _cwdCandidates(lines) {
 // fetch | remote, or a bare `cd`. `-C <path>` between `git` and the verb is tolerated. Never throws.
 function _isGitWrite(cmd) {
   const s = String(cmd == null ? '' : cmd);
-  const re = /\bgit\s+(?:-C\s+(?:"[^"]*"|'[^']*'|[^\s;&|<>]+)\s+)?(?:commit|merge|rebase|cherry-pick|am|revert|worktree\s+add|(?:checkout|switch)\s+-[bc]\b|stash)\b/;
+  // `stash` is a write EXCEPT its read subcommands (`stash list` / `stash show`) — those inspect,
+  // so a `cd /other && git stash show` must not masquerade as work and steal provenance.
+  const re = /\bgit\s+(?:-C\s+(?:"[^"]*"|'[^']*'|[^\s;&|<>]+)\s+)?(?:commit|merge|rebase|cherry-pick|am|revert|worktree\s+add|(?:checkout|switch)\s+-[bc]\b|stash(?!\s+(?:list|show)\b))\b/;
   return re.test(s);
 }
 
