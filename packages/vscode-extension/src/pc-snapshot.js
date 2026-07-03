@@ -85,20 +85,23 @@ function loadLedgerEvents(dir) {
 // The forecast record omits effort/worktree/goal/type (roadmap's richer Modo string). Merge
 // them in by wave_id. Pure. When the parser is unavailable → return waves untouched.
 function mergeRoadmap(waves, roadmapMd) {
-  if (!parseRoadmap || !roadmapMd) return waves.map((w) => Object.assign({}, w));
+  // Squad + Estado come from our own content-driven parse (independent of roadmap.js, so they
+  // survive even in a packaged build where roadmap.js is absent).
+  const extras = parseWaveExtras(roadmapMd);
+  const attach = (w, r) => Object.assign({}, w, {
+    effort: w.effort != null ? w.effort : (r.effort != null ? r.effort : null),
+    worktree: w.worktree != null ? w.worktree : (r.worktree != null ? r.worktree : null),
+    goal: w.goal != null ? w.goal : (r.goal != null ? r.goal : null),
+    type: r.mode != null ? r.mode : (w.mode != null ? w.mode : null),
+    squad: (extras[String(w.wave_id).toUpperCase()] || {}).squad || null,
+    estado: (extras[String(w.wave_id).toUpperCase()] || {}).estado || null,
+  });
+  if (!parseRoadmap || !roadmapMd) return waves.map((w) => attach(w, {}));
   let rm = [];
   try { rm = parseRoadmap(roadmapMd) || []; } catch { rm = []; }
   const byId = {};
   for (const r of rm) if (r && r.wave_id) byId[String(r.wave_id).toUpperCase()] = r;
-  return waves.map((w) => {
-    const r = byId[String(w.wave_id).toUpperCase()] || {};
-    return Object.assign({}, w, {
-      effort: w.effort != null ? w.effort : (r.effort != null ? r.effort : null),
-      worktree: w.worktree != null ? w.worktree : (r.worktree != null ? r.worktree : null),
-      goal: w.goal != null ? w.goal : (r.goal != null ? r.goal : null),
-      type: r.mode != null ? r.mode : (w.mode != null ? w.mode : null),
-    });
-  });
+  return waves.map((w) => attach(w, byId[String(w.wave_id).toUpperCase()] || {}));
 }
 
 // ── session ↔ wave association ───────────────────────────────────────────────
@@ -204,6 +207,194 @@ function depsWithMet(deps, progressByWave) {
   });
 }
 
+// ══ v2 · EIXO SQUAD + FLUXO/WIP ═══════════════════════════════════════════════
+// Everything below derives from REAL signals only (roadmap columns · live Ledger
+// sessions · git worktree list · recent git log). No signal → 💤 dormant / n/d,
+// NEVER a painted-green dot. Pure over its inputs; the git signals are gathered by
+// the host (extension.js) and passed in (opts.gitSignals) so this stays testable.
+
+const WIP_HEALTHY_LIMIT = 3; // roadmap principle #5: "baixar WIP — a régua nº1".
+                             // 3 concurrent in-flight streams is the kanban-ish ceiling;
+                             // above it, context-switching tax > throughput. Alert, don't block.
+
+// -- roadmap table parsing (Squad + Estado columns; content-driven, never throws) --
+function _clean(cell) { return String(cell == null ? '' : cell).replace(/`/g, '').replace(/\*\*/g, '').replace(/^\s+|\s+$/g, ''); }
+function _cells(line) {
+  const raw = String(line);
+  if (raw.indexOf('|') < 0) return null;
+  let parts = raw.split('|');
+  if (parts.length && parts[0].trim() === '') parts = parts.slice(1);
+  if (parts.length && parts[parts.length - 1].trim() === '') parts = parts.slice(0, -1);
+  return parts.map((c) => c.trim());
+}
+function _isSep(cells) { return cells.length > 0 && cells.every((c) => /^:?-{2,}:?$/.test(c.replace(/\s/g, ''))); }
+const _WAVE_ID_RE = /^W\d+(?:\.\d+)?$/i;
+
+// The leading emoji/symbol cluster of a squad label (the stable join key: wave rows and the
+// squad-def table share the emoji even when the text differs, e.g. "Obs" vs "Observability").
+function squadEmoji(raw) {
+  const s = String(raw || '');
+  const m = s.match(/^([^A-Za-z0-9]+)/);
+  return m ? m[1].replace(/\s+/g, '').trim() : '';
+}
+function squadLabel(raw) {
+  const s = String(raw || '');
+  const m = s.match(/[A-Za-z0-9].*$/);
+  return m ? m[0].trim() : s.trim();
+}
+function squadKey(raw) { const e = squadEmoji(raw); return (e || squadLabel(raw).slice(0, 3).toLowerCase()) || 'squad'; }
+
+// Per-wave Squad + Estado from the roadmap wave tables (header-driven column indices).
+function parseWaveExtras(md) {
+  const out = {};
+  const lines = String(md == null ? '' : md).split(/\r?\n/);
+  let hdr = null;
+  for (const line of lines) {
+    const cells = _cells(line);
+    if (!cells) continue;
+    if (_isSep(cells)) continue;
+    const lower = cells.map((c) => _clean(c).toLowerCase());
+    if (lower.some((c) => /\bwave\b/.test(c)) && lower.some((c) => /squad/.test(c))) {
+      hdr = {};
+      lower.forEach((c, i) => {
+        if (/squad/.test(c) && hdr.squad == null) hdr.squad = i;
+        else if (/estado|state|status/.test(c) && hdr.estado == null) hdr.estado = i;
+      });
+      continue;
+    }
+    const idIdx = cells.findIndex((c) => _WAVE_ID_RE.test(_clean(c)));
+    if (idIdx < 0 || !hdr) continue;
+    const id = _clean(cells[idIdx]).toUpperCase();
+    if (out[id]) continue;
+    out[id] = {
+      squad: (hdr.squad != null && hdr.squad < cells.length) ? _clean(cells[hdr.squad]) : null,
+      estado: (hdr.estado != null && hdr.estado < cells.length) ? _clean(cells[hdr.estado]) : null,
+    };
+  }
+  return out;
+}
+
+// The Squads definition table (Squad | Tipo | Frente) → keyed by emoji.
+function parseSquadDefs(md) {
+  const defs = {};
+  const lines = String(md == null ? '' : md).split(/\r?\n/);
+  let hdr = null;
+  for (const line of lines) {
+    const cells = _cells(line);
+    if (!cells) continue;
+    if (_isSep(cells)) continue;
+    const lower = cells.map((c) => _clean(c).toLowerCase());
+    if (lower[0] === 'squad' && lower.some((c) => /tipo|type/.test(c)) && lower.some((c) => /frente|front|remit/.test(c))) {
+      hdr = { squad: 0, tipo: lower.findIndex((c) => /tipo|type/.test(c)), frente: lower.findIndex((c) => /frente|front|remit/.test(c)) };
+      continue;
+    }
+    if (!hdr) continue;
+    const raw = _clean(cells[0] || '');
+    if (!raw || /^phase|^fase|^#$/i.test(raw)) continue;
+    const emoji = squadEmoji(raw);
+    if (!emoji) continue; // squad rows all carry an emoji; skips stray tables
+    defs[emoji] = {
+      label: squadLabel(raw), emoji,
+      type: (hdr.tipo >= 0 && hdr.tipo < cells.length) ? _clean(cells[hdr.tipo]) : null,
+      frente: (hdr.frente >= 0 && hdr.frente < cells.length) ? _clean(cells[hdr.frente]) : null,
+    };
+  }
+  return defs;
+}
+
+// -- git signals (worktree list + recent log). parseWorktrees is pure over the porcelain
+// string so the host can shell out and this stays testable. --
+function parseWorktrees(porcelain) {
+  const out = [];
+  let cur = null;
+  for (const raw of String(porcelain || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.indexOf('worktree ') === 0) { if (cur) out.push(cur); cur = { path: line.slice(9), branch: null, sha: null, bare: false, detached: false }; }
+    else if (!cur) continue;
+    else if (line.indexOf('HEAD ') === 0) cur.sha = line.slice(5);
+    else if (line.indexOf('branch ') === 0) cur.branch = line.slice(7).replace(/^refs\/heads\//, '');
+    else if (line === 'bare') cur.bare = true;
+    else if (line === 'detached') cur.detached = true;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// Health of a squad — DERIVED, with its evidence attached (auditable, never a bare dot).
+//   active 🟢  = ≥1 live session (working/needs-you) on the squad's waves  (Ledger)
+//   warm   🟡  = no live session but a live worktree OR a recent commit in the area (git)
+//   dormant 💤 = no real signal at all — honest, NEVER painted green
+function deriveSquadHealth(squadWaveRecs, gitSignals) {
+  const worktrees = (gitSignals && Array.isArray(gitSignals.worktrees)) ? gitSignals.worktrees : [];
+  const commits = (gitSignals && Array.isArray(gitSignals.commits)) ? gitSignals.commits : [];
+  const recentShas = new Set(commits.map((c) => String(c.sha)));
+  let live = 0, wt = 0, recent = 0;
+  const slugs = [], ids = [];
+  for (const w of squadWaveRecs) {
+    ids.push(String(w.wave_id).toUpperCase());
+    if (w.worktree) slugs.push(String(w.worktree).replace(/[`]/g, '').trim().toLowerCase());
+    for (const s of (w.sessions || [])) { if (s && (s.status === 'working' || s.status === 'needs-you')) live++; }
+  }
+  const matchesArea = (txt) => {
+    const t = String(txt || '').toLowerCase();
+    for (const sl of slugs) { if (sl && sl.length > 3 && t.indexOf(sl) >= 0) return true; }
+    for (const id of ids) { const e = id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); if (new RegExp('\\b' + e + '\\b').test(t)) return true; }
+    return false;
+  };
+  for (const w of worktrees) { if (matchesArea(w.path) || matchesArea(w.branch)) { wt++; if (recentShas.has(String(w.sha))) recent++; } }
+  for (const c of commits) { if (matchesArea(c.subject)) recent++; }
+  const level = live > 0 ? 'active' : ((wt > 0 || recent > 0) ? 'warm' : 'dormant');
+  return { level, evidence: { live, worktrees: wt, recentCommits: recent } };
+}
+
+// Flow/WIP — DORA-flavoured, from real signals. WIP = non-main worktrees; "active WIP" =
+// those recently committed to or holding a live session (the real in-flight streams). Alert
+// fires on active WIP above the healthy ceiling — the honest "you're spread too thin" signal.
+function buildFlow(waveRecs, allSessions, gitSignals, now) {
+  const worktrees = (gitSignals && Array.isArray(gitSignals.worktrees)) ? gitSignals.worktrees : [];
+  const commits = (gitSignals && Array.isArray(gitSignals.commits)) ? gitSignals.commits : [];
+  const _now = num(now) != null ? now : Date.now();
+  const WEEK = 7 * 24 * 3600 * 1000;
+  const recent7 = new Set(commits.filter((c) => num(c.ts) != null && (_now - c.ts * 1000) <= WEEK).map((c) => String(c.sha)));
+  const liveBranches = new Set((allSessions || []).filter((s) => s && (s.status === 'working' || s.status === 'needs-you') && s.git && s.git.branch).map((s) => String(s.git.branch)));
+
+  // WIP is worktree-derived. A live repo ALWAYS lists ≥1 worktree (main), so an empty list means
+  // git could not be read (missing/timeout/not-a-repo) → WIP is UNKNOWN, render n/d. Never 0-as-fact
+  // (honesty: "0 because we looked and found none" ≠ "n/d because we couldn't look"). A legit 0
+  // in-flight streams (only main checked out) still reports total 0 — we DID look. (DC honesty rule.)
+  const nonMain = worktrees.filter((w) => !w.bare && w.branch && !/^(main|master)$/.test(w.branch));
+  const active = nonMain.filter((w) => recent7.has(String(w.sha)) || liveBranches.has(String(w.branch)));
+  const wip = (worktrees.length === 0)
+    ? { total: null, active: null, stale: null, limit: WIP_HEALTHY_LIMIT, over: false, sample: [], no_signal: true }
+    : {
+      total: nonMain.length,
+      active: active.length,
+      stale: Math.max(0, nonMain.length - active.length),
+      limit: WIP_HEALTHY_LIMIT,
+      over: active.length > WIP_HEALTHY_LIMIT,
+      sample: active.slice(0, 6).map((w) => (w.branch || (w.path ? w.path.split(/[\\/]/).pop() : '?'))),
+    };
+
+  // deploy frequency: merges in the last 30d → per week (real, from git).
+  const MONTH = 30 * 24 * 3600 * 1000;
+  const merges30 = commits.filter((c) => c.isMerge && num(c.ts) != null && (_now - c.ts * 1000) <= MONTH).length;
+  const deployFreqPerWeek = (worktrees.length || commits.length) ? Number((merges30 / (30 / 7)).toFixed(1)) : null;
+
+  // waves shipped: declared ✅ in the roadmap Estado column (real, human-authored).
+  const wavesDone = waveRecs.filter((w) => /✅|done|shipped|aterr/i.test(String(w.estado || ''))).length;
+
+  const needYou = (allSessions || []).filter((s) => s && s.status === 'needs-you').map(mapWaveSession);
+
+  return {
+    need_you: needYou,
+    wip,
+    deploy_freq_per_week: deployFreqPerWeek,
+    merges_30d: (worktrees.length || commits.length) ? merges30 : null,
+    waves_done: wavesDone,
+    cycle_time: null, // n/d until the Ledger carries intent→outcome spans (honest cold-start)
+  };
+}
+
 // ── main assembler ───────────────────────────────────────────────────────────
 function buildProjectCommand(opts) {
   const o = opts || {};
@@ -219,10 +410,11 @@ function buildProjectCommand(opts) {
   if (!fc || !Array.isArray(fc.waves)) {
     // No forecast.json yet → honest "run the CLI" state (never fabricate a cone).
     return {
-      schema: 'mooter.projectcommand/1',
+      schema: 'mooter.projectcommand/2',
       forecast_missing: true,
       generated_ts: null, scope_hash: null, injection_rate: null, k: null, window: null,
-      stale: null, phases: [], unassigned_sessions: sessions, counts: { total: 0, cone: 0, calibrating: 0, no_base: 0 },
+      stale: null, phases: [], squads: [], flow: buildFlow([], sessions, o.gitSignals || null, o.now),
+      unassigned_sessions: sessions.map(mapWaveSession), counts: { total: 0, cone: 0, calibrating: 0, no_base: 0 },
       cli_hint: 'node tools/router/forecast/forecast.js --out tools/router/forecast/forecast.json',
     };
   }
@@ -259,6 +451,10 @@ function buildProjectCommand(opts) {
       name: w.name || null,
       goal: w.goal || null,
       phase: w.phase || null,
+      squad: w.squad || null,
+      squad_key: w.squad ? squadKey(w.squad) : null,
+      squad_emoji: w.squad ? squadEmoji(w.squad) : null,
+      estado: w.estado || null,
       type: w.type || w.mode || null,
       mode: w.mode || null,
       class: w.class || null,
@@ -286,14 +482,43 @@ function buildProjectCommand(opts) {
     };
   };
 
+  // Materialise every wave record ONCE, then group two ways (Fase and Squad) over the same set.
+  const allRecs = merged.map(recordFor);
+  const recById = {};
+  for (const r of allRecs) recById[r.wave_id] = r;
+
   const phases = PHASE_ORDER.map((key) => ({
     key,
     label: PHASE_LABEL[key] || key,
-    waves: merged.filter((w) => String(w.phase || '').toUpperCase() === key).map(recordFor),
+    waves: allRecs.filter((r) => String(r.phase || '').toUpperCase() === key),
   })).filter((p) => p.waves.length);
 
+  // ── EIXO SQUAD: lanes per declared squad, health DERIVED from real signals ──
+  const gitSignals = o.gitSignals || null;
+  const squadDefs = parseSquadDefs(roadmapMd);
+  const squadOrder = [];
+  const squadMap = {};
+  for (const r of allRecs) {
+    if (!r.squad) { (squadMap.__none = squadMap.__none || { key: '__none', emoji: '🗂️', label: 'Sem squad', waves: [] }); squadMap.__none.waves.push(r); if (squadOrder.indexOf('__none') < 0) squadOrder.push('__none'); continue; }
+    const em = r.squad_emoji || squadEmoji(r.squad);
+    const key = em || squadKey(r.squad);
+    if (!squadMap[key]) {
+      const def = squadDefs[em] || {};
+      squadMap[key] = { key, emoji: em || '🗂️', label: squadLabel(r.squad), type: def.type || null, frente: def.frente || null, waves: [] };
+      squadOrder.push(key);
+    }
+    squadMap[key].waves.push(r);
+  }
+  const squads = squadOrder.map((k) => {
+    const sq = squadMap[k];
+    sq.health = (k === '__none') ? { level: 'dormant', evidence: { live: 0, worktrees: 0, recentCommits: 0 } } : deriveSquadHealth(sq.waves, gitSignals);
+    return sq;
+  });
+
+  const flow = buildFlow(allRecs, sessions, gitSignals, o.now);
+
   return {
-    schema: 'mooter.projectcommand/1',
+    schema: 'mooter.projectcommand/2',
     forecast_missing: false,
     generated_ts: fc.generated_ts || null,
     scope_hash: fc.scope_hash || null,
@@ -301,6 +526,8 @@ function buildProjectCommand(opts) {
     k: num(fc.k), window: num(fc.window),
     stale,
     phases,
+    squads,
+    flow,
     unassigned_sessions: assoc.unassigned.map(mapWaveSession),
     counts,
   };
@@ -337,4 +564,14 @@ module.exports = {
   loadLedgerEvents,
   defaultLedgerDir,
   PHASE_ORDER,
+  // v2 · squad axis + flow/WIP (pure; testable)
+  parseWaveExtras,
+  parseSquadDefs,
+  parseWorktrees,
+  deriveSquadHealth,
+  buildFlow,
+  squadEmoji,
+  squadLabel,
+  squadKey,
+  WIP_HEALTHY_LIMIT,
 };

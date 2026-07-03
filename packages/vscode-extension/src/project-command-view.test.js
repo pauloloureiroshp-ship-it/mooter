@@ -94,4 +94,66 @@ test('Safe wrapper never throws on garbage', () => {
   assert.doesNotThrow(() => V.renderProjectCommandSafe(null));
   assert.doesNotThrow(() => V.renderProjectCommandSafe({ phases: 'nope' }));
   assert.doesNotThrow(() => V.renderProjectCommandSafe(undefined));
+  assert.doesNotThrow(() => V.renderProjectCommandSafe({ squads: 'nope', flow: 'nope' }, { axis: 'squad' }));
+});
+
+// ══ v2 · EIXO SQUAD + FLUXO/WIP ═══════════════════════════════════════════════
+function pcV2(over) {
+  return {
+    schema: 'mooter.projectcommand/2', forecast_missing: false, generated_ts: '2026-07-03T10:00',
+    scope_hash: 'abcdef0123456789', injection_rate: 0.4, k: 8, window: 40, stale: false,
+    counts: { total: 2, cone: 0, calibrating: 0, no_base: 2 },
+    unassigned_sessions: [],
+    phases: [{ key: 'NOW', label: 'Agora', waves: [wave({ squad: '🛩️ Cockpit & UX', squad_emoji: '🛩️', estado: '🟡 em curso' })] }],
+    squads: [
+      { key: '🛩️', emoji: '🛩️', label: 'Cockpit & UX', type: 'stream-aligned', frente: 'a cabine',
+        health: { level: 'active', evidence: { live: 1, worktrees: 2, recentCommits: 5 } },
+        waves: [wave({ squad: '🛩️ Cockpit & UX', squad_emoji: '🛩️', estado: '🟡 em curso' })] },
+      { key: '🧭', emoji: '🧭', label: 'Routing & Inference', type: 'stream-aligned', frente: 'motor $0',
+        health: { level: 'dormant', evidence: { live: 0, worktrees: 0, recentCommits: 0 } },
+        waves: [wave({ wave_id: 'W11', squad: '🧭 Routing & Inference', squad_emoji: '🧭' })] },
+    ],
+    flow: {
+      need_you: [{ sid: 'ny1', name: 'comms', branch: 'feat/comms', sha: 'c0ffee1', dirty: 0, ahead: 3, status: 'needs-you' }],
+      wip: { total: 40, active: over ? 34 : 2, stale: 6, limit: 3, over: !!over, sample: ['feat/a', 'feat/b'] },
+      deploy_freq_per_week: 10.5, merges_30d: 45, waves_done: 3, cycle_time: null,
+    },
+  };
+}
+
+test('squad axis: lanes with health; dormant shows 💤 (never green); evidence attached', () => {
+  const html = V.renderProjectCommand(pcV2(true), { axis: 'squad' });
+  assert.match(html, /pc-lane pc-h-active/, 'active lane rendered');
+  assert.match(html, /pc-lane pc-h-dormant/, 'dormant lane rendered');
+  assert.match(html, /💤/, 'dormant dot present (not a green fabrication)');
+  assert.ok(!/pc-h-active[^]*Routing/.test(html) || /pc-h-dormant[^]*Routing/.test(html), 'Routing lane is dormant, not active');
+  assert.match(html, /vivas/, 'health evidence (live sessions) shown');
+  assert.match(html, /stream-aligned/, 'squad type from defs');
+  assert.match(html, /pc-phchip/, 'phase chip on the wave in squad axis');
+});
+
+test('phase axis: squad chip on each wave + declared estado', () => {
+  const html = V.renderProjectCommand(pcV2(true), { axis: 'phase' });
+  assert.match(html, /pc-sqchip/, 'squad chip present in phase axis');
+  assert.match(html, /estado<\/span>/, 'declared estado line present');
+});
+
+test('flow band: WIP alert only when over the limit; "precisa de ti" strip; frontier framing', () => {
+  const over = V.renderProjectCommand(pcV2(true), { axis: 'phase' });
+  assert.match(over, /🌀 WIP/, 'WIP chip');
+  assert.match(over, /⚠ acima/, 'WIP alert when over');
+  assert.match(over, /pc-wip alert/, 'alert class applied');
+  assert.match(over, /precisa de ti/, 'awaiting-you counter');
+  assert.match(over, /merges\/sem/, 'deploy frequency (real)');
+  assert.match(over, /A jornada/, 'frontier framing (journey vs now)');
+
+  const ok = V.renderProjectCommand(pcV2(false), { axis: 'phase' });
+  assert.ok(!/⚠ acima/.test(ok), 'no alert when WIP within limit');
+});
+
+test('axis toggle control present with both options', () => {
+  const html = V.renderProjectCommand(pcV2(false), { axis: 'squad' });
+  assert.match(html, /data-axis="phase"/);
+  assert.match(html, /data-axis="squad"/);
+  assert.match(html, /pc-axbtn on" data-axis="squad"/, 'active axis reflected in the toggle');
 });

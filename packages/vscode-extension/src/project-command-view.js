@@ -1,25 +1,28 @@
 'use strict';
 // project-command-view.js — Delivery Cockpit · Frente B (🛩️ Project command tab).
 //
-// `renderProjectCommand(pc)` renders the WHOLE Project Command tab PURELY from the
-// ProjectCommandSnapshot (pc-snapshot.js). It is the cabine: the roadmap's waves grouped by
-// phase (now/next/frontier) with state·type·effort·deps + an HONEST forecast (P50/P90 work AND
-// wall, or "a calibrar n/k", or "sem base comparável" — never a fake cone), a per-wave play that
-// respects deps + confirms cost, an HONEST progress bar (fases-que-passaram-o-gate do Ledger,
-// never decorative time), and sub-sessions that expand to the wave's real CC sessions
-// (branch@sha7 · git chips · click-to-tab).
+// `renderProjectCommand(pc, opts)` renders the WHOLE Project Command tab PURELY from the
+// ProjectCommandSnapshot (pc-snapshot.js). It is the CTO cabin — the JOURNEY (the plan over
+// time), the sibling of Mission Control (the live NOW). It answers three questions honestly:
+//   · o que FAZER  — the backlog of waves, forecast (P50/P90 work+wall, or calibrating/no-base)
+//   · o que ESTÁ a ser feito — flow/WIP from real signals, "precisa de ti", live sub-sessions
+//   · o que VEM   — deps, locked play, the critical path
 //
-// It is **concat-only / CSP-safe**: no template literals, no `${}`, no inline handlers — every
-// host action is a `<button data-a=… data-x=…>` (wired host-side) and the chevron is a
-// `<button class="pc-chev" data-wave=…>` (wired client-side by wirePc). The host serialises this
-// via `.toString()` straight INTO the getHtml() template literal; a backtick or `${` here would
-// break the outer template and the webview-syntax test.
+// TWO AXES over the same waves (client toggle): **por Fase** (now/next/frontier) and **por
+// Squad** (Team Topologies lanes, each with health DERIVED from real signals — live sessions +
+// git worktrees + recent commits — never a painted-green dot; no signal → 💤 dormant).
 //
-// Honesty rule: EVERY field is nullable → n/d. Cold-start (empty Ledger) renders every wave as
-// calibrating/no_base with n/d progress — respected, never faked. Identity: 🐮 brand · sentence
-// case · number-never-naked · dark-native · restraint (cada elemento é uma feature).
+// **Concat-only / CSP-safe**: no template literals, no `${}`, no inline handlers — host actions
+// are `<button data-a=… data-x=…>` (wired host-side); the chevron/axis toggle are `data-*`
+// buttons wired client-side by wirePc. Serialised via `.toString()` into getHtml(); a backtick
+// or `${` here would break the outer template and the webview-syntax test.
+//
+// Honesty rule: EVERY field nullable → n/d. Health/WIP ALWAYS from real signals (zero fabrication).
+// Identity: 🐮 brand · 🐢/🐮/🔥 modes align · sentence case · number-never-naked · dark · restraint.
 
-function renderProjectCommand(pc) {
+function renderProjectCommand(pc, opts) {
+  var axis = (opts && opts.axis === 'squad') ? 'squad' : 'phase';
+
   // ── self-contained helpers (serialised with the function — no module-scope refs) ──
   function esc(x) {
     return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) {
@@ -31,7 +34,6 @@ function renderProjectCommand(pc) {
     return esc(v) + (suffix || '');
   }
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : null; }
-  // ms → honest short human string (mirrors forecast.js _human so copy matches the engine).
   function human(ms) {
     var v = num(ms);
     if (v == null || v <= 0) return null;
@@ -46,7 +48,6 @@ function renderProjectCommand(pc) {
     if (x === 'S') return '🟢'; if (x === 'M') return '🟡'; if (x === 'L') return '🟠'; if (x === 'XL') return '🔴';
     return '·';
   }
-  // Roadmap Modo → a compact type badge (CC-once / Loop / Schedule / dynamic-workflow).
   function typeBadge(t) {
     var x = String(t || '').toLowerCase();
     if (/schedule/.test(x)) return { icon: '⏰', label: 'schedule' };
@@ -55,7 +56,6 @@ function renderProjectCommand(pc) {
     if (/cc|once/.test(x)) return { icon: '🖥️', label: 'CC-once' };
     return { icon: '·', label: (t ? String(t).slice(0, 14) : 'n/d') };
   }
-  // Per-wave state chip: running > cone > calibrating > no_base.
   function stateChip(w) {
     if (w.running) return '<span class="pc-st pc-run">▶ a correr</span>';
     var st = w.forecast && w.forecast.state;
@@ -63,11 +63,22 @@ function renderProjectCommand(pc) {
     if (st === 'calibrating') return '<span class="pc-st pc-cal">◐ a calibrar</span>';
     return '<span class="pc-st pc-nob">○ sem base</span>';
   }
+  function healthDot(level) {
+    if (level === 'active') return { dot: '🟢', label: 'ativo' };
+    if (level === 'warm') return { dot: '🟡', label: 'morno' };
+    return { dot: '💤', label: 'dormente' };
+  }
+  function phaseChip(phase) {
+    var p = String(phase || '').toUpperCase();
+    var lbl = p === 'NOW' ? 'agora' : (p === 'NEXT' ? 'a seguir' : (p === 'FRONTIER' ? 'fronteira' : p.toLowerCase()));
+    if (!lbl) return '';
+    return '<span class="pc-phchip">' + esc(lbl) + '</span>';
+  }
   function topicEmoji(s) {
     var x = String((s && (s.topic || s.name)) || '').toLowerCase() + ' ' + String((s && s.branch) || '').toLowerCase();
     if (/\bui\b|\bux\b|cockpit|webview|css|render|design|lane/.test(x)) return '🎨';
     if (/router|algo|classif|council|adapter|forge|pastor|lora|fleet/.test(x)) return '🧮';
-    if (/handoff|sync|bridge|infra|deploy|\bci\b|hub/.test(x)) return '🤝';
+    if (/handoff|sync|bridge|infra|deploy|\bci\b|hub|comms|comm/.test(x)) return '🤝';
     if (/budget|cost|saving|observ/.test(x)) return '💰';
     if (/loop|schedule/.test(x)) return '🔁';
     return '·';
@@ -88,15 +99,26 @@ function renderProjectCommand(pc) {
   var out = '';
   out += '<div class="pc-wrap">';
 
-  // ── header: 🐮 brand + title + honest scope band ──────────────────────────
+  // ── header: 🐮 brand + title + axis toggle + refresh ──────────────────────
   var counts = s.counts || {};
   out += '<div class="pc-head">'
     + '<span class="pc-brand" title="Mooter">🐮</span>'
     + '<span class="pc-title">🛩️ Project command</span>'
     + '<span class="pc-headcount">' + (num(counts.total) != null ? counts.total : 0) + ' waves</span>'
     + '<span class="pc-spacer"></span>'
+    + '<span class="pc-axis" role="tablist" aria-label="eixo de agrupamento">'
+    + '<button class="pc-axbtn' + (axis === 'phase' ? ' on' : '') + '" data-axis="phase" title="agrupar por fase (now/next/frontier)">Fase</button>'
+    + '<button class="pc-axbtn' + (axis === 'squad' ? ' on' : '') + '" data-axis="squad" title="agrupar por squad (Team Topologies)">Squad</button>'
+    + '</span>'
     + '<button class="pc-btn pc-mini" data-a="refresh" title="regenera o snapshot (o forecast.json continua a ser a verdade base)">🔄</button>'
     + '</div>';
+
+  // ── FRONTEIRA: a jornada, não o agora (não duplica o Mission Control) ──────
+  out += '<div class="pc-frontier">🛩️ <b>A jornada</b> — o plano ao longo do tempo (waves · squads · forecast). '
+    + 'Para o <b>agora</b> vivo (sessões deste instante) → aba 🎛️ Mission Control.</div>';
+
+  // ── FLUXO / WIP band + "precisa de ti" (real signals) ─────────────────────
+  out += flowBand(s.flow);
 
   // ── scope banner — the never-nu premise: distribution, not a promise ───────
   var scopeShort = s.scope_hash ? String(s.scope_hash).slice(0, 12) : null;
@@ -115,28 +137,15 @@ function renderProjectCommand(pc) {
     + (injTxt ? '<span class="pc-vr"></span><span class="pc-sk" title="injection rate — waves não-planeadas históricas / planeadas">📈 ' + esc(injTxt) + '</span>' : '')
     + '</div>';
 
-  // legend for the wave states (so a cold-start board reads honestly, not as "empty")
   out += '<div class="pc-legend">'
     + '<span class="pc-st pc-cone">● forecast</span> P50/P90 com base'
     + '<span class="pc-vr"></span><span class="pc-st pc-cal">◐ a calibrar</span> ' + (num(counts.calibrating) != null ? counts.calibrating : 0) + ' waves (n&lt;k eventos)'
     + '<span class="pc-vr"></span><span class="pc-st pc-nob">○ sem base</span> ' + (num(counts.no_base) != null ? counts.no_base : 0) + ' waves (classe não declarada)'
     + '</div>';
 
-  // ── phases: NOW / NEXT / FRONTIER ─────────────────────────────────────────
-  var phases = Array.isArray(s.phases) ? s.phases : [];
-  if (!phases.length) {
-    out += '<div class="pc-nd" style="padding:14px 2px">⚪ sem waves no roadmap (verifica docs/strategy/MOOTER_ROADMAP.md)</div>';
-  }
-  for (var pi = 0; pi < phases.length; pi++) {
-    var ph = phases[pi] || {};
-    var phEmoji = ph.key === 'NOW' ? '🎯' : (ph.key === 'NEXT' ? '🧱' : '🔭');
-    out += '<div class="pc-phase"><div class="pc-phhd">' + phEmoji + ' <b>' + esc(ph.label || ph.key) + '</b>'
-      + ' <span class="pc-phk">' + esc(ph.key || '') + '</span>'
-      + ' <span class="pc-phcnt">' + (Array.isArray(ph.waves) ? ph.waves.length : 0) + '</span></div>';
-    var waves = Array.isArray(ph.waves) ? ph.waves : [];
-    for (var wi = 0; wi < waves.length; wi++) out += waveCard(waves[wi]);
-    out += '</div>';
-  }
+  // ── AXIS: por Fase ↔ por Squad ─────────────────────────────────────────────
+  if (axis === 'squad') out += renderSquadAxis(s);
+  else out += renderPhaseAxis(s);
 
   // ── unassigned sessions (honest: not every live session maps to a wave) ────
   var un = Array.isArray(s.unassigned_sessions) ? s.unassigned_sessions : [];
@@ -163,12 +172,98 @@ function renderProjectCommand(pc) {
   out += '</div>';
   return out;
 
-  // ── wave card ─────────────────────────────────────────────────────────────
-  function waveCard(w) {
+  // ══ FLOW / WIP band ═══════════════════════════════════════════════════════
+  function flowBand(flow) {
+    var f = flow || {};
+    var html = '<div class="pc-flow">';
+
+    // "precisa de ti" — awaiting-you sessions (Ledger). Attention-first.
+    var ny = Array.isArray(f.need_you) ? f.need_you : [];
+    html += '<div class="pc-flowrow">';
+    html += '<span class="pc-flowk pc-need' + (ny.length ? ' on' : '') + '" title="sessões CC à tua espera (Ledger)">🍅 precisa de ti <b>' + ny.length + '</b></span>';
+
+    // WIP chip — real worktrees; alert above the healthy ceiling.
+    var wip = f.wip || {};
+    var over = wip.over === true;
+    html += '<span class="pc-flowk pc-wip' + (over ? ' alert' : '') + '" title="worktrees com commit &lt;7d (streams em voo) · limite saudável ' + (num(wip.limit) != null ? wip.limit : 3) + ' · baixar WIP é a régua nº1 do roadmap">'
+      + '🌀 WIP <b>' + (num(wip.active) != null ? wip.active : '<span class="pc-nd">n/d</span>') + '</b>'
+      + (num(wip.total) != null ? ' <span class="pc-dim">/ ' + wip.total + ' worktrees</span>' : '')
+      + ' <span class="pc-dim">· limite ' + (num(wip.limit) != null ? wip.limit : 3) + '</span>'
+      + (over ? ' <span class="pc-wipx">⚠ acima</span>' : '') + '</span>';
+
+    // DORA-flavoured flow (real from git) + honest n/d where the Ledger is cold.
+    html += '<span class="pc-flowk" title="merges no main por semana (últimos 30d)">🚀 <b>' + (num(f.deploy_freq_per_week) != null ? f.deploy_freq_per_week : '<span class="pc-nd">n/d</span>') + '</b> <span class="pc-dim">merges/sem</span></span>';
+    html += '<span class="pc-flowk" title="waves marcadas ✅ no roadmap">✅ <b>' + (num(f.waves_done) != null ? f.waves_done : 0) + '</b> <span class="pc-dim">entregues</span></span>';
+    html += '<span class="pc-flowk" title="tempo de ciclo intent→gate (chega quando o Ledger tiver spans)">⏱ <span class="pc-dim">cycle</span> ' + (num(f.cycle_time) != null ? esc(f.cycle_time) : '<span class="pc-nd">n/d — Ledger a calibrar</span>') + '</span>';
+    html += '</div>';
+
+    // "precisa de ti" strip: the actual sessions, click-to-tab.
+    if (ny.length) {
+      html += '<div class="pc-needstrip">';
+      for (var i = 0; i < ny.length; i++) html += sessionRow(ny[i]);
+      html += '</div>';
+    }
+    if (num(wip.stale) != null && wip.stale > 0) {
+      html += '<div class="pc-wiphint">' + wip.stale + ' worktrees sem commit recente — poda-as (W2 Housekeeping) para baixar o WIP.</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // ══ AXIS: por Fase ════════════════════════════════════════════════════════
+  function renderPhaseAxis(sn) {
+    var html = '';
+    var phases = Array.isArray(sn.phases) ? sn.phases : [];
+    if (!phases.length) return '<div class="pc-nd" style="padding:14px 2px">⚪ sem waves no roadmap (verifica docs/strategy/MOOTER_ROADMAP.md)</div>';
+    for (var pi = 0; pi < phases.length; pi++) {
+      var ph = phases[pi] || {};
+      var phEmoji = ph.key === 'NOW' ? '🎯' : (ph.key === 'NEXT' ? '🧱' : '🔭');
+      html += '<div class="pc-phase"><div class="pc-phhd">' + phEmoji + ' <b>' + esc(ph.label || ph.key) + '</b>'
+        + ' <span class="pc-phk">' + esc(ph.key || '') + '</span>'
+        + ' <span class="pc-phcnt">' + (Array.isArray(ph.waves) ? ph.waves.length : 0) + '</span></div>';
+      var waves = Array.isArray(ph.waves) ? ph.waves : [];
+      for (var wi = 0; wi < waves.length; wi++) html += waveCard(waves[wi], 'phase');
+      html += '</div>';
+    }
+    return html;
+  }
+
+  // ══ AXIS: por Squad (lanes; health DERIVED, evidence attached) ═════════════
+  function renderSquadAxis(sn) {
+    var html = '';
+    var squads = Array.isArray(sn.squads) ? sn.squads : [];
+    if (!squads.length) return '<div class="pc-nd" style="padding:14px 2px">⚪ sem squads no roadmap (coluna Squad ausente)</div>';
+    for (var si = 0; si < squads.length; si++) {
+      var sq = squads[si] || {};
+      var h = healthDot(sq.health && sq.health.level);
+      var ev = (sq.health && sq.health.evidence) || {};
+      html += '<div class="pc-lane pc-h-' + esc((sq.health && sq.health.level) || 'dormant') + '">';
+      html += '<div class="pc-lanehd">'
+        + '<span class="pc-lanedot" title="' + esc(h.label) + '">' + h.dot + '</span>'
+        + '<span class="pc-lanename">' + esc(sq.emoji || '') + ' <b>' + esc(sq.label || 'squad') + '</b></span>'
+        + (sq.type ? '<span class="pc-lanetype" title="Team Topologies">' + esc(sq.type) + '</span>' : '')
+        + '<span class="pc-spacer"></span>'
+        + '<span class="pc-laneev" title="saúde derivada de sinais reais — sessões vivas · worktrees · commits recentes">'
+        + '🟢 ' + (num(ev.live) != null ? ev.live : 0) + ' <span class="pc-dim">vivas</span>'
+        + ' · ⎇ ' + (num(ev.worktrees) != null ? ev.worktrees : 0) + ' <span class="pc-dim">wt</span>'
+        + ' · ⟳ ' + (num(ev.recentCommits) != null ? ev.recentCommits : 0) + ' <span class="pc-dim">commits</span></span>'
+        + '<span class="pc-phcnt">' + (Array.isArray(sq.waves) ? sq.waves.length : 0) + '</span>'
+        + '</div>';
+      if (sq.frente) html += '<div class="pc-lanefrente">' + esc(sq.frente) + '</div>';
+      var waves = Array.isArray(sq.waves) ? sq.waves : [];
+      for (var wi = 0; wi < waves.length; wi++) html += waveCard(waves[wi], 'squad');
+      html += '</div>';
+    }
+    return html;
+  }
+
+  // ── wave card (shared by both axes) ────────────────────────────────────────
+  function waveCard(w, ctx) {
     if (!w) return '';
     var id = esc(w.wave_id || '?');
     var tb = typeBadge(w.type);
     var f = w.forecast || {};
+
     // deps chips (met ✓ / waiting ○)
     var depHtml = '';
     var deps = Array.isArray(w.deps) ? w.deps : [];
@@ -183,7 +278,7 @@ function renderProjectCommand(pc) {
       depHtml = '<span class="pc-deps"><span class="pc-depk">deps</span><span class="pc-dep none">— nenhuma</span></span>';
     }
 
-    // forecast line — never a fake cone; honest calibrating / no_base.
+    // forecast line — never a fake cone.
     var fcLine;
     if (f.state === 'cone') {
       var workTxt = (f.human && f.human.work) ? esc(f.human.work)
@@ -193,8 +288,7 @@ function renderProjectCommand(pc) {
       var relTxt = (num(f.reliability) != null) ? (' <span class="pc-rel" title="cobertura empírica dos teus P90">· fiabilidade ' + Math.round(f.reliability * 100) + '%</span>') : '';
       fcLine = '<div class="pc-fc pc-fc-cone" title="' + (f.premises && f.premises.reading ? esc(f.premises.reading) : 'distribuição se as premissas se mantiverem') + '">'
         + '<span class="pc-fk">⏱ trabalho</span> ' + workTxt
-        + ' <span class="pc-fk">🕰 relógio</span> ' + wallTxt
-        + relTxt
+        + ' <span class="pc-fk">🕰 relógio</span> ' + wallTxt + relTxt
         + '<div class="pc-await">o wall inclui a espera por ti; o work são só os moos activos</div></div>';
     } else if (f.state === 'calibrating') {
       fcLine = '<div class="pc-fc pc-fc-cal">📊 a calibrar <b>' + esc(f.calibrating_progress || ((num(f.samples_n) != null ? f.samples_n : 0) + '/' + (num(s.k) != null ? s.k : 8))) + '</b>'
@@ -234,20 +328,29 @@ function renderProjectCommand(pc) {
       + '<span class="pc-chevi">▸</span> ' + sess.length + ' ' + (sess.length === 1 ? 'sessão' : 'sessões') + '</button>';
 
     var subs = '<div class="pc-subs" data-wave-subs="' + id + '" hidden>';
-    if (sess.length) { for (var si = 0; si < sess.length; si++) subs += sessionRow(sess[si]); }
+    if (sess.length) { for (var xi = 0; xi < sess.length; xi++) subs += sessionRow(sess[xi]); }
     else subs += '<div class="pc-nd" style="padding:6px 8px">⚪ nenhuma sessão ligada — associa-se via masterprompt no Ledger (kind:intent) ou nome/worktree</div>';
     subs += '</div>';
+
+    // squad chip (phase axis) / phase chip (squad axis) — the wave↔squad↔phase linkage, visible.
+    var ctxChip = (ctx === 'squad') ? phaseChip(w.phase)
+      : (w.squad ? '<span class="pc-sqchip" title="squad: ' + esc(w.squad) + '">' + esc(w.squad_emoji || '🗂️') + '</span>' : '');
+    var estadoLine = w.estado
+      ? '<div class="pc-estado" title="estado declarado no roadmap (humano) — distinto do forecast derivado"><span class="pc-fk">estado</span> ' + esc(w.estado) + '</div>'
+      : '';
 
     return '<div class="pc-wave' + (w.running ? ' running' : '') + (w.locked ? ' locked' : '') + '">'
       + '<div class="pc-wtop">'
       + '<span class="pc-wid">' + id + '</span>'
       + '<span class="pc-wname">' + nd(w.name) + '</span>'
+      + ctxChip
       + '<span class="pc-wbadge pc-type" title="modo: ' + esc(w.type || w.mode || 'n/d') + '">' + tb.icon + ' ' + esc(tb.label) + '</span>'
       + '<span class="pc-wbadge pc-eff" title="esforço estimado">' + effortDot(w.effort) + ' ' + (w.effort ? esc(w.effort) : '<span class="pc-nd">n/d</span>') + '</span>'
       + '<span class="pc-spacer"></span>'
       + stateChip(w)
       + '</div>'
       + (w.goal ? '<div class="pc-wgoal">' + esc(w.goal) + '</div>' : '')
+      + estadoLine
       + fcLine
       + '<div class="pc-wmeta">' + depHtml + '</div>'
       + progHtml
@@ -272,7 +375,6 @@ function renderProjectCommand(pc) {
     var gitPin = (ss.branch != null)
       ? '<span class="pc-gitpin"><span class="pc-branch">' + esc(ss.branch) + '</span>' + (ss.sha ? '<span class="pc-sha">@' + esc(ss.sha) + '</span>' : '') + '</span>'
       : '<span class="pc-nd">sem branch</span>';
-    // uncommitted (✎ > 0) a vermelho é o alerta-mãe (trabalho não salvo = o único que se perde).
     var chips = '<span class="pc-chip' + (dirty ? ' pc-red' : '') + '" title="uncommitted — alterações por guardar num commit">✎ ' + (dirty == null ? '<span class="pc-nd">n/d</span>' : dirty) + '</span>'
       + '<span class="pc-chip' + (ahead ? ' pc-amber' : '') + '" title="unpushed — commits por enviar ao remoto">↑ ' + (ahead == null ? '<span class="pc-nd">n/d</span>' : ahead) + '</span>';
     var tail = ss.sid
@@ -292,8 +394,8 @@ function renderProjectCommand(pc) {
 }
 
 // Defensive wrapper: the host calls this; it must NEVER throw on the render path.
-function renderProjectCommandSafe(pc) {
-  try { return renderProjectCommand(pc); }
+function renderProjectCommandSafe(pc, opts) {
+  try { return renderProjectCommand(pc, opts); }
   catch (e) { return '<div class="pc-nd">Project command — erro de render (' + String(e && e.message || e) + ')</div>'; }
 }
 
