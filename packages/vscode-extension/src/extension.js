@@ -38,6 +38,10 @@ try { GJ = require('./guardian-jump'); } catch { GJ = null; }
 // via fn.toString() (concat-only). Fail-soft: cockpit works without it (stub fallback).
 let ARCH = null;
 try { ARCH = require('./arch-tree'); } catch { ARCH = null; }
+// 🔁 Moo Loop Sessions: typed-masterprompt generator + loop contract (host-side, pure).
+// Fail-soft: the two new buttons no-op with a status message if the module is absent.
+let MOOLOOP = null;
+try { MOOLOOP = require('./moo-loop'); } catch { MOOLOOP = null; }
 // Mission Control · Frente 0 (additive; safe fallback if files absent). The snapshot
 // assembler + the local scoped Moo assistant. Both fail-soft — the cockpit works without them.
 let MCSNAP = null, MCA = null;
@@ -366,6 +370,8 @@ class CockpitProvider {
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
+      if (m.cmd === 'launchLoop') vscode.commands.executeCommand('mooter.newLoopSession');
+      if (m.cmd === 'launchSchedule') vscode.commands.executeCommand('mooter.newScheduleSession');
       if (m.cmd === 'refresh') { this.data.refresh(true); reWarm(); }
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
@@ -928,6 +934,37 @@ async function newSession() {
   if (pick === 'Use terminal') runInTerminal('claude', 'claude');
 }
 
+// 🔁 Moo Loop / ⏰ Moo Schedule: the cockpit GENERATES a typed masterprompt (mode declared at
+// the head + the 5 loop declarations, contract-validated) and opens a new CC session with it
+// on the clipboard — the session is born already knowing what it is. Since the CC extension's
+// open URI takes no prompt, clipboard is the honest bridge: generate → copy → open → paste.
+async function newTypedSession(mode) {
+  const M = MOOLOOP && MOOLOOP.MODES[mode];
+  if (!M) return void vscode.window.showWarningMessage('🐮 Moo Loop module unavailable — reinstall the cockpit.');
+  const task = await vscode.window.showInputBox({
+    title: M.emoji + ' ' + M.button,
+    prompt: 'O que deve esta ' + M.label + ' Session fazer? (objectivo do ' + (mode === 'schedule' ? 'ciclo agendado' : 'loop') + ')',
+    placeHolder: mode === 'schedule' ? 'ex.: varrer PRs abertos e triar (1 ciclo por disparo)' : 'ex.: melhorar o pilar Routing — 1 proposta-com-prova por ciclo',
+    ignoreFocusOut: true,
+  });
+  if (task == null || !task.trim()) return; // cancelled
+  const spec = MOOLOOP.defaultSpec(mode, task.trim());
+  const v = MOOLOOP.validateLoopContract(spec);
+  if (!v.ok) return void vscode.window.showErrorMessage('🐮 contrato inválido — sessão rejeitada: ' + v.errors.join(' · '));
+  const masterprompt = MOOLOOP.buildMasterprompt(v.spec);
+  await vscode.env.clipboard.writeText(masterprompt);
+  const ext = vscode.extensions.getExtension('anthropic.claude-code');
+  if (ext) vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open'));
+  const pick = await vscode.window.showInformationMessage(
+    M.emoji + ' ' + M.label + ' masterprompt gerado e copiado — cola-o na nova sessão Claude Code. STOP: ' + MOOLOOP.stopSummary(v.spec.stop),
+    'Copiar de novo', 'Ver masterprompt');
+  if (pick === 'Copiar de novo') await vscode.env.clipboard.writeText(masterprompt);
+  if (pick === 'Ver masterprompt') {
+    const doc = await vscode.workspace.openTextDocument({ content: masterprompt, language: 'markdown' });
+    vscode.window.showTextDocument(doc, { preview: true });
+  }
+}
+
 function activate(ctx) {
   const data = new DataService();
   ctx.subscriptions.push({ dispose: () => data.dispose() });
@@ -935,6 +972,8 @@ function activate(ctx) {
   ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', new CockpitProvider(ctx, data)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openCockpit', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newSession', newSession));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newLoopSession', () => newTypedSession('loop')));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newScheduleSession', () => newTypedSession('schedule')));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   data.start();
@@ -1157,6 +1196,9 @@ function getHtml(guardianPct = null) {
   button{font-family:inherit;cursor:pointer;border-radius:5px;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);padding:5px 10px;font-size:11.5px}
   button.go{width:100%;background:var(--r);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
   button.go:hover{filter:brightness(1.08)}button.sm{padding:3px 9px;font-size:10.5px}
+  .looprow{display:flex;gap:6px;margin-top:6px}
+  button.go.loop,button.go.sched{background:var(--surface2);color:var(--btext);border:1px solid var(--vscode-widget-border);font-size:11.5px;padding:8px}
+  button.go.loop{border-left:3px solid var(--t2)}button.go.sched{border-left:3px solid var(--t1)}
   .hint{text-align:center;font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:6px}
   .dec{border:1px solid var(--vscode-widget-border);border-radius:5px;margin-bottom:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
   .dec:hover{background:var(--vscode-list-hoverBackground)}
@@ -1925,7 +1967,10 @@ window.addEventListener('message',(e)=>{
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card'+cc('recs')+'" data-collap="recs"><div class="lbl collaphead"><span class="chev">▾</span>Router recommendations · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span></div>'+bars+localSpark(decScoped)+'<div class="sub" style="font-size:9.5px;margin-top:5px">↑ what the router <b>suggested</b> (T0 = local) — not what ran. <b>Actually ran:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model))+' (host)':'host model')+' · '+realLocalN+' real local dispatch'+(realLocalN===1?'':'es')+'</div></div>'+
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>'+
-    '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button><div class="hint">'+esc(MOO[s.mode]||s.mode)+' active</div>';
+    '<button class="go" data-a="launch">✱&nbsp; New Claude Code session</button>'+
+    '<div class="looprow"><button class="go loop" data-a="launchLoop" title="Gera um masterprompt tipado de LOOP (com as 5 declarações trigger/check/action/stop/escalate) e abre uma sessão CC que já sabe o que é.">🔁&nbsp; Moo Loop Session</button>'+
+    '<button class="go sched" data-a="launchSchedule" title="Gera um masterprompt tipado de SCHEDULE (cron/heartbeat/hook · wake-work-sleep) e abre uma sessão CC bounded por disparo.">⏰&nbsp; Moo Schedule Session</button></div>'+
+    '<div class="hint">'+esc(MOO[s.mode]||s.mode)+' active · o loop/schedule nasce já a saber o seu modo</div>';
   wireButtons($('#v-cockpit'));
   wireSessControls($('#v-cockpit')); // WCOCKPIT-3: per-session mode/model/auto controls
   wireHoff($('#v-cockpit'));hydrateHoff(); // ⇄ Handoff v2: stop-propagation on panels/projBtn + re-apply live text after the re-render
