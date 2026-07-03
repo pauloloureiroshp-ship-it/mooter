@@ -94,6 +94,16 @@
         "category": "Mooter"
       },
       {
+        "command": "mooter.newLoopSession",
+        "title": "New Claude Code Moo Loop Session",
+        "category": "Mooter"
+      },
+      {
+        "command": "mooter.newScheduleSession",
+        "title": "New Claude Code Moo Schedule Session",
+        "category": "Mooter"
+      },
+      {
         "command": "mooter.refresh",
         "title": "Refresh Data",
         "category": "Mooter",
