@@ -239,7 +239,18 @@ class DataService {
           || (recent && recent[0] && recent[0].cwd)
           || process.cwd();
         const pcSessions = (this.snapshot.mc && Array.isArray(this.snapshot.mc.sessions)) ? this.snapshot.mc.sessions : [];
-        this.snapshot.pc = PCSNAP.buildProjectCommand({ repoRoot: pcRoot, sessions: pcSessions });
+        // v2 · real git signals for squad HEALTH + WIP (worktree list + recent log). Two cheap
+        // shell-outs, deep-tick only (same budget as the Doctor slice). Best-effort → [] (honest
+        // dormant/n-d, never a fabricated dot). \x1f is the field separator git writes literally.
+        let gitSignals = { worktrees: [], commits: [] };
+        try {
+          const wt = await extra.execTool('git', ['-C', pcRoot, 'worktree', 'list', '--porcelain'], 4000);
+          const lg = await extra.execTool('git', ['-C', pcRoot, 'log', '--all', '--since=30.days', '--format=%H%x1f%ct%x1f%p%x1f%s', '--max-count=300'], 5000);
+          const worktrees = (wt && wt.ok) ? PCSNAP.parseWorktrees(wt.out) : [];
+          const commits = (lg && lg.ok) ? String(lg.out || '').split('\n').filter(Boolean).map((l) => { const a = l.split('\x1f'); return { sha: a[0], ts: parseInt(a[1], 10), isMerge: String(a[2] || '').trim().split(/\s+/).length >= 2, subject: a[3] }; }) : [];
+          gitSignals = { worktrees, commits };
+        } catch { /* git signals best-effort → dormant/n-d, honest */ }
+        this.snapshot.pc = PCSNAP.buildProjectCommand({ repoRoot: pcRoot, sessions: pcSessions, gitSignals, now: Date.now() });
       } else if (PCSNAP) {
         this.snapshot.pc = (prev && prev.pc) || null;
       }
@@ -1639,6 +1650,42 @@ function getHtml(guardianPct = null) {
   .pc-gloss{font-size:9.5px;color:var(--bmuted);line-height:1.6;margin-bottom:8px}
   .pc-gloss b{color:var(--vscode-foreground);font-weight:600}
   .pc-acts{display:flex;gap:7px;flex-wrap:wrap}
+  /* ── v2 · eixo Squad + Fluxo/WIP ── */
+  .pc-dim{color:var(--bmuted);font-weight:400}
+  .pc-axis{display:inline-flex;border:1px solid var(--vscode-widget-border);border-radius:7px;overflow:hidden;margin-right:6px}
+  .pc-axbtn{font-size:10px;border:none;background:none;color:var(--bmuted);cursor:pointer;padding:3px 10px}
+  .pc-axbtn.on{background:var(--gdim);color:var(--g);font-weight:600}
+  .pc-axbtn:hover{color:var(--vscode-foreground)}
+  .pc-frontier{font-size:10px;color:var(--bmuted);line-height:1.5;margin-bottom:8px;padding:6px 9px;border-left:2px solid var(--vscode-widget-border);background:var(--surface2);border-radius:0 6px 6px 0}
+  .pc-frontier b{color:var(--vscode-foreground);font-weight:600}
+  /* flow / WIP band */
+  .pc-flow{border:1px solid var(--vscode-widget-border);border-radius:8px;padding:9px 10px;margin-bottom:10px;background:var(--vscode-editorWidget-background)}
+  .pc-flowrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:10.5px}
+  .pc-flowk{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums;color:var(--vscode-foreground)}
+  .pc-flowk b{font-weight:700}
+  .pc-need{color:var(--bmuted)}
+  .pc-need.on{color:#E5C07B;font-weight:600}
+  .pc-wip{padding:2px 8px;border-radius:6px;background:var(--surface2)}
+  .pc-wip.alert{background:var(--rdim);color:var(--r2)}
+  .pc-wipx{color:var(--r);font-weight:700}
+  .pc-needstrip{margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px}
+  .pc-wiphint{font-size:9.5px;color:var(--bmuted);margin-top:6px;font-style:italic}
+  /* squad lanes */
+  .pc-lane{border:1px solid var(--vscode-widget-border);border-radius:9px;padding:9px 10px;margin-bottom:9px;background:var(--vscode-editorWidget-background)}
+  .pc-lane.pc-h-active{border-left:3px solid var(--g)}
+  .pc-lane.pc-h-warm{border-left:3px solid #E5C07B}
+  .pc-lane.pc-h-dormant{border-left:3px solid var(--vscode-widget-border);opacity:.9}
+  .pc-lanehd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px}
+  .pc-lanedot{font-size:12px}
+  .pc-lanename{font-size:12px}
+  .pc-lanetype{font-size:9px;color:var(--bmuted);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:0 5px;text-transform:lowercase}
+  .pc-laneev{font-size:9.5px;color:var(--vscode-foreground);font-variant-numeric:tabular-nums}
+  .pc-lanefrente{font-size:9.5px;color:var(--bmuted);margin:2px 0 8px}
+  /* wave chips: squad (phase axis) + phase (squad axis) + declared estado */
+  .pc-sqchip{font-size:11px}
+  .pc-phchip{font-size:8.5px;color:var(--bmuted);background:var(--surface2);border-radius:5px;padding:1px 6px;text-transform:uppercase;letter-spacing:.04em}
+  .pc-estado{font-size:9.5px;color:var(--bmuted);margin:2px 0 5px}
+  .pc-estado .pc-fk{color:var(--bmuted)}
 </style></head><body>
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
@@ -1671,6 +1718,8 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
 try{var _rt=(vsapi.getState()||{}).tab;if(_rt&&_rt!=='cockpit')goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
 // ARCH TREE TAB (Frente E): persisted mode for the Arquitectura Viva view (🌳 tree · 📊 ceo · 🔌 wt).
 let archModeCur='tree';try{var _am=(vsapi.getState()||{}).archMode;if(_am)archModeCur=_am;}catch(e){}
+// DELIVERY COCKPIT · Frente B v2 — persisted grouping axis for the Project command tab (Fase↔Squad).
+let pcAxis='phase';try{var _px=(vsapi.getState()||{}).pcAxis;if(_px==='squad')pcAxis='squad';}catch(e){}
 let curMode='auto';const MORDER=['zen','auto','beast'];
 // Each live-session cow walks via the CSS .working class set at render time (the
 // session is "working" when its transcript was just written) — no JS tick needed.
@@ -1910,6 +1959,16 @@ function wirePc(root){if(!root)return;wireButtons(root);
   root.querySelectorAll('.pc-chev[data-wave]').forEach(function(c){c.onclick=function(){var id=c.getAttribute('data-wave');var box=root.querySelector('.pc-subs[data-wave-subs="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');if(!box){root.querySelectorAll('.pc-subs[data-wave-subs]').forEach(function(b){if(b.getAttribute('data-wave-subs')===id)box=b;});}if(!box)return;var open=box.hasAttribute('hidden');if(open){box.removeAttribute('hidden');c.classList.add('open');c.setAttribute('aria-expanded','true');var ci=c.querySelector('.pc-chevi');if(ci)ci.textContent='▾';}else{box.setAttribute('hidden','');c.classList.remove('open');c.setAttribute('aria-expanded','false');var ci2=c.querySelector('.pc-chevi');if(ci2)ci2.textContent='▸';}};});
   // clickable session rows (whole row → openSession); keyboard-accessible.
   root.querySelectorAll('.pc-srow.link[data-a="openSession"]').forEach(function(r){var go=function(){send('openSession',r.getAttribute('data-x'));};r.onclick=go;r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  // v2 · axis toggle Fase↔Squad — client-side re-render + persist (like archMode). No host round-trip.
+  root.querySelectorAll('.pc-axbtn[data-axis]').forEach(function(b){b.onclick=function(){pcAxis=(b.getAttribute('data-axis')==='squad')?'squad':'phase';try{var _st=vsapi.getState()||{};_st.pcAxis=pcAxis;vsapi.setState(_st);}catch(e){}renderPcView(lastSnap);};});
+}
+// DELIVERY COCKPIT TAB · Frente B — render the Project command view PURELY from s.pc at the
+// persisted axis, then wire it. Guarded so a bad render never blanks the tab (mirrors renderArchView).
+function renderPcView(s){
+  const host=$('#v-pc');if(!host)return;
+  if(!s||!s.pc){host.innerHTML='<div class="empty">🛩️ Project command — sem snapshot ainda (espera o próximo refresh)…</div>';return;}
+  let html;try{html=renderProjectCommand(s.pc,{axis:pcAxis});}catch(er){html='<div class="pc-nd">Project command — erro de render · '+esc(String(er&&er.message||er))+'</div>';}
+  host.innerHTML=html;try{wirePc(host);}catch(e){}
 }
 // ── MISSION CONTROL TAB · Frente G — Moo assistant state + wiring (survives the 7s re-render).
 // Stream comes back as moo/moo-stream/moo-done (Frente 0 host handlers); mcApply re-paints.
@@ -2314,10 +2373,7 @@ window.addEventListener('message',(e)=>{
   }catch(_mc){ try{const vmc2=$('#v-mc');if(vmc2)vmc2.innerHTML='<div class="mc-nd">Mission Control — erro de render</div>';}catch(__mc){} }
   // ── DELIVERY COCKPIT TAB · Frente B — render the Project command tab PURELY from s.pc.
   // Honest: no snapshot.pc yet → "sem snapshot". Never throws (guarded); wires chevron + rows.
-  try{
-    const vpc=$('#v-pc');
-    if(vpc){ vpc.innerHTML=s.pc?renderProjectCommand(s.pc):'<div class="empty">🛩️ Project command — sem snapshot ainda (espera o próximo refresh)…</div>'; wirePc(vpc); }
-  }catch(_pc){ try{const vpc2=$('#v-pc');if(vpc2)vpc2.innerHTML='<div class="pc-nd">Project command — erro de render</div>';}catch(__pc){} }
+  try{ renderPcView(s); }catch(_pc){ try{const vpc2=$('#v-pc');if(vpc2)vpc2.innerHTML='<div class="pc-nd">Project command — erro de render</div>';}catch(__pc){} }
   // B2 — restore the scroll captured before this snapshot rebuilt the views (no jump/flicker).
   try{if(_preScroll)window.scrollTo(0,_preScroll);}catch(_s){}
 });
