@@ -186,30 +186,87 @@ function _cwdCandidates(lines) {
   return out;
 }
 
-// Derive the EFFECTIVE working dir for a turn: the most-RECENT git-context path in the
-// transcript tail (Bash cd / git -C) whose resolved path is a REAL git worktree (gitInfo
-// resolves a branch). This is the root fix — the journal records the branch where commits
-// ACTUALLY happen, not the CC launch dir. Grounded: only ever returns a path gitInfo
-// resolves; never invents. Falls back to payloadCwd when no candidate resolves (byte-
-// identical to the old behaviour for cd-less sessions → no regression). opts.base roots
-// relative paths (default payloadCwd || process.cwd()); opts.gitInfo injects the resolver
-// (tests). Never throws — the Stop hook must never break a turn.
+// ── PERFECT HANDOFF v3 — WORK-AWARE (mata o LOW#1: navegação nunca rouba a proveniência) ──
+// v2.5 killed the payload.cwd lie but left one: effectiveCwd took the LAST git-context `cd`,
+// so a session that did `cd ../wt-A && git commit` (the WORK) then `cd ~/tree && git branch -d x`
+// (navigation/cleanup in the shared tree) was journalled under ~/tree — the last dir it merely
+// LOOKED at, not the one it WORKED in. The cure: provenance is the worktree of the last git-WRITE,
+// and inspection/navigation can NEVER steal it. Additive, grounded, never throws.
+
+// PURE (testable): true iff a shell command runs a git operation that CHANGES the worktree/branch
+// of WORK — the session's real provenance: commit | merge | rebase | cherry-pick | am | revert |
+// worktree add | checkout/switch -b|-c (new branch) | stash. Inspection & navigation are NOT writes
+// and must never steal provenance: status | log | branch -d/-D/--list | rev-parse | show | diff |
+// fetch | remote, or a bare `cd`. `-C <path>` between `git` and the verb is tolerated. Never throws.
+function _isGitWrite(cmd) {
+  const s = String(cmd == null ? '' : cmd);
+  const re = /\bgit\s+(?:-C\s+(?:"[^"]*"|'[^']*'|[^\s;&|<>]+)\s+)?(?:commit|merge|rebase|cherry-pick|am|revert|worktree\s+add|(?:checkout|switch)\s+-[bc]\b|stash)\b/;
+  return re.test(s);
+}
+
+// PURE (testable): the per-command working-dir for every Bash command that IS a git-WRITE
+// (_isGitWrite), oldest→newest. A command's cwd = the LAST `cd`/`git -C` IN THAT SAME command
+// (via _extractCwdPaths) — because each CC Bash is a fresh shell, the real pattern is
+// `cd X && git commit` in one command. A write with no `cd`/`-C` yields `null`, a sentinel for
+// "the process cwd (payloadCwd)": a bare `git commit` commits where CC launched = real provenance.
+// Non-write commands (navigation/inspection) are skipped entirely. Never throws.
+function _workCwdCandidates(lines) {
+  const out = [];
+  const arr = Array.isArray(lines) ? lines : [];
+  for (const ln of arr) {
+    if (!ln || !String(ln).trim()) continue;
+    let d; try { d = JSON.parse(ln); } catch { continue; }
+    const msg = d && d.message;
+    const role = (msg && msg.role) || (d && d.type);
+    if (role !== 'assistant') continue;
+    const content = msg && msg.content;
+    if (!Array.isArray(content)) continue;
+    for (const b of content) {
+      if (!b || b.type !== 'tool_use') continue;
+      if (String(b.name || '') !== 'Bash') continue;
+      const cmd = b.input && typeof b.input.command === 'string' ? b.input.command : '';
+      if (!cmd || !_isGitWrite(cmd)) continue;
+      const paths = _extractCwdPaths(cmd);
+      out.push(paths.length ? paths[paths.length - 1] : null); // last cd/-C in the write cmd, else payloadCwd
+    }
+  }
+  return out;
+}
+
+// Derive the EFFECTIVE working dir for a turn. WORK-AWARE order (v3):
+//   (a) the most-RECENT git-WRITE worktree whose path gitInfo resolves to a branch — the dir where
+//       commits ACTUALLY happened. A later navigation `cd` can never override it (kills LOW#1).
+//   (b) if no git-write resolves (session hasn't committed yet, or cd-less) → the most-recent
+//       git-context `cd` (navigation), newest-first — BYTE-IDENTICAL to the v2.5 behaviour → zero
+//       regression for sessions that never wrote.
+//   (c) fallback payloadCwd. Grounded: only ever returns a path gitInfo resolves; never invents.
+// opts.base roots relative paths (default payloadCwd || process.cwd()); opts.gitInfo injects the
+// resolver (tests). Never throws — the Stop hook must never break a turn.
 function effectiveCwd(lines, payloadCwd, opts) {
   opts = opts || {};
   const resolveGit = (typeof opts.gitInfo === 'function') ? opts.gitInfo : gitInfo;
   const base = opts.base || payloadCwd || process.cwd();
-  let cands;
-  try { cands = _cwdCandidates(lines); } catch { cands = []; }
-  // newest-first: the LAST git-context dir the session touched wins.
-  for (let i = cands.length - 1; i >= 0; i--) {
-    let p = cands[i];
+  // Resolve one raw candidate to a grounded worktree path, or null. A null/'' candidate means
+  // "the process cwd" (a cd-less git-write commits where the CC process launched).
+  const resolve = (raw) => {
+    let p = (raw == null || raw === '') ? payloadCwd : raw;
+    if (!p) return null;
     try {
       p = _normMsys(p);
       p = path.isAbsolute(p) ? p : path.resolve(_normMsys(base), p);
-    } catch { continue; }
+    } catch { return null; }
     let g; try { g = resolveGit(p); } catch { g = null; }
-    if (g && g.branch) return p; // grounded: a real worktree with a real branch
-  }
+    return (g && g.branch) ? p : null; // grounded: a real worktree with a real branch
+  };
+  // (a) work > navigation: the newest resolvable git-WRITE wins.
+  let work;
+  try { work = _workCwdCandidates(lines); } catch { work = []; }
+  for (let i = work.length - 1; i >= 0; i--) { const r = resolve(work[i]); if (r) return r; }
+  // (b) no git-write → the newest resolvable git-context cd (v2.5 navigation behaviour).
+  let cands;
+  try { cands = _cwdCandidates(lines); } catch { cands = []; }
+  for (let i = cands.length - 1; i >= 0; i--) { const r = resolve(cands[i]); if (r) return r; }
+  // (c) nothing resolved.
   return payloadCwd || null;
 }
 
@@ -392,5 +449,7 @@ module.exports = {
   JOURNAL_MAX, SNIPPET_MAX, EVENT_KINDS,
   // Perfect Handoff v2.5 — CAPTURE fix (worktree-crossing at the root):
   effectiveCwd, _cwdCandidates, _extractCwdPaths, _normMsys,
+  // Perfect Handoff v3 — WORK-AWARE (navigation never steals provenance from a git-write):
+  _isGitWrite, _workCwdCandidates,
 };
 Object.defineProperty(module.exports, 'DIR', { enumerable: true, get: _dir });

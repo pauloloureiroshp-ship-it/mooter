@@ -280,3 +280,122 @@ test('gitInfo: linked worktree — resolves HEAD sha via commondir (refs live in
     assert.equal(g.head, 'e'.repeat(12), 'HEAD sha resolved from the COMMON dir ref — never null');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🎯 PERFECT HANDOFF v3 — WORK-AWARE. The LOW#1 (v2.5 backlog): a later navigation `cd` stole the
+// provenance from the worktree that actually committed. These tests fail the instant navigation wins.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+test('_isGitWrite: WRITE ops are writes; inspection & navigation are NOT', () => {
+  const j = fresh();
+  // writes
+  assert.equal(j._isGitWrite('cd ../wt-A && git commit -m x'), true, 'commit');
+  assert.equal(j._isGitWrite('git -C "/c/p A" commit -m y'), true, 'git -C … commit');
+  assert.equal(j._isGitWrite('git merge feat/x'), true, 'merge');
+  assert.equal(j._isGitWrite('git rebase main'), true, 'rebase');
+  assert.equal(j._isGitWrite('git cherry-pick abc123'), true, 'cherry-pick');
+  assert.equal(j._isGitWrite('git revert HEAD'), true, 'revert');
+  assert.equal(j._isGitWrite('git worktree add ../wt -b feat/z main'), true, 'worktree add');
+  assert.equal(j._isGitWrite('git checkout -b feat/new'), true, 'checkout -b');
+  assert.equal(j._isGitWrite('git switch -c feat/new'), true, 'switch -c');
+  assert.equal(j._isGitWrite('git stash'), true, 'stash');
+  // NOT writes — inspection / navigation
+  assert.equal(j._isGitWrite('cd ~/tree && git branch -d velha'), false, 'branch -d is cleanup, not work');
+  assert.equal(j._isGitWrite('git branch -D old'), false, 'branch -D');
+  assert.equal(j._isGitWrite('git branch --list'), false, 'branch --list');
+  assert.equal(j._isGitWrite('git status'), false, 'status');
+  assert.equal(j._isGitWrite('git log --oneline -5'), false, 'log');
+  assert.equal(j._isGitWrite('git rev-parse --short HEAD'), false, 'rev-parse');
+  assert.equal(j._isGitWrite('git show HEAD'), false, 'show');
+  assert.equal(j._isGitWrite('git diff'), false, 'diff');
+  assert.equal(j._isGitWrite('git fetch origin'), false, 'fetch');
+  assert.equal(j._isGitWrite('git checkout -- file.js'), false, 'checkout -- (restore) is not -b/-c');
+  assert.equal(j._isGitWrite('cd ../frugal'), false, 'bare cd');
+  assert.equal(j._isGitWrite('legit-tool commit things'), false, 'no false-match inside a word');
+  assert.doesNotThrow(() => j._isGitWrite(null));
+});
+
+test('_workCwdCandidates: only git-WRITE commands; last cd/-C in the cmd; cd-less write → null', () => {
+  const j = fresh();
+  const lines = [
+    bashTurn('cd /wt-A && git commit -m x'),        // write, has cd → /wt-A
+    bashTurn('cd ~/tree && git branch -d velha'),    // navigation → skipped
+    bashTurn('git -C /wt-B merge feat/y'),           // write via -C → /wt-B
+    bashTurn('git commit --amend'),                  // write, no cd → null (payloadCwd sentinel)
+    JSON.stringify({ message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'cd /not-scanned' } }] } }),
+  ];
+  assert.deepEqual(j._workCwdCandidates(lines), ['/wt-A', '/wt-B', null], 'writes only, in order; cd-less → null');
+  assert.doesNotThrow(() => j._workCwdCandidates(null));
+});
+
+// THE anti-LOW#1 test: WORK happened in wt-A (commit); a LATER navigation cd into the shared tree
+// (branch -d cleanup) must NOT steal provenance. Fails the moment navigation wins again.
+test('effectiveCwd (anti-LOW#1): git-write worktree wins over a later navigation cd', () => {
+  const j = fresh();
+  const wtA = makeRepo('feat/delivery-forecast', 'f'.repeat(40)); // the WORK
+  const tree = makeRepo('feat/overclock-moo-p1', '1'.repeat(40)); // the shared tree merely navigated to
+  try {
+    const tail = [
+      bashTurn('cd "' + wtA + '" && git add -- x.js && git commit -m "feat: y"'), // WORK here
+      bashTurn('cd "' + tree + '" && git branch -d velha'),                        // navigation/cleanup AFTER
+    ];
+    const res = j.effectiveCwd(tail, tree); // payload.cwd = the shared tree (the trap)
+    assert.equal(res, wtA, 'the git-write worktree wins — navigation never steals it');
+    assert.equal(j.gitInfo(res).branch, 'feat/delivery-forecast');
+    assert.notEqual(j.gitInfo(res).branch, 'feat/overclock-moo-p1', 'NEVER the navigated tree (the LOW#1 lie)');
+    // Control: the v2.5 rule (last git-context cd) WOULD have returned the navigated tree.
+    const cands = j._cwdCandidates(tail);
+    assert.equal(cands[cands.length - 1], tree, 'proof: newest git-context cd was the navigated tree');
+  } finally { fs.rmSync(wtA, { recursive: true, force: true }); fs.rmSync(tree, { recursive: true, force: true }); }
+});
+
+// Regression: with NO git-write in the tail, the v2.5 navigation behaviour is preserved exactly
+// (the newest resolvable git-context cd wins).
+test('effectiveCwd (regression): no git-write → newest navigation cd (v2.5 behaviour intact)', () => {
+  const j = fresh();
+  const a = makeRepo('feat/a', 'a'.repeat(40));
+  const b = makeRepo('feat/b', 'b'.repeat(40));
+  try {
+    const tail = [bashTurn('cd "' + a + '" && git status'), bashTurn('cd "' + b + '" && git log')];
+    assert.equal(j.effectiveCwd(tail, '/launch'), b, 'no write → last inspection cd wins (unchanged)');
+  } finally { fs.rmSync(a, { recursive: true, force: true }); fs.rmSync(b, { recursive: true, force: true }); }
+});
+
+// A bare `git commit` (no cd) commits in the process cwd → provenance is payloadCwd.
+test('effectiveCwd: cd-less git commit → payloadCwd (the process cwd is the real provenance)', () => {
+  const j = fresh();
+  const launch = makeRepo('feat/launch-committed', 'c'.repeat(40));
+  try {
+    const tail = [bashTurn('git add -A && git commit -m "in place"')];
+    assert.equal(j.effectiveCwd(tail, launch), launch, 'bare commit → payloadCwd');
+    assert.equal(j.gitInfo(j.effectiveCwd(tail, launch)).branch, 'feat/launch-committed');
+  } finally { fs.rmSync(launch, { recursive: true, force: true }); }
+});
+
+// Two writes: the LATEST git-write worktree wins (commit in A, then merge in B → B).
+test('effectiveCwd: two git-writes → the newest write worktree wins', () => {
+  const j = fresh();
+  const a = makeRepo('feat/first', 'a'.repeat(40));
+  const b = makeRepo('feat/second', 'b'.repeat(40));
+  try {
+    const tail = [
+      bashTurn('cd "' + a + '" && git commit -m first'),
+      bashTurn('cd "' + b + '" && git merge feat/x'),
+    ];
+    assert.equal(j.gitInfo(j.effectiveCwd(tail, '/launch')).branch, 'feat/second', 'last write wins');
+  } finally { fs.rmSync(a, { recursive: true, force: true }); fs.rmSync(b, { recursive: true, force: true }); }
+});
+
+// Write then navigate elsewhere (inspection) → the write worktree keeps provenance.
+test('effectiveCwd: write in A, then `cd B && git log` → A (inspection does not steal)', () => {
+  const j = fresh();
+  const a = makeRepo('feat/worked', 'a'.repeat(40));
+  const b = makeRepo('feat/looked', 'b'.repeat(40));
+  try {
+    const tail = [
+      bashTurn('cd "' + a + '" && git commit -m work'),
+      bashTurn('cd "' + b + '" && git log --oneline'),
+    ];
+    assert.equal(j.gitInfo(j.effectiveCwd(tail, '/launch')).branch, 'feat/worked', 'A keeps provenance');
+  } finally { fs.rmSync(a, { recursive: true, force: true }); fs.rmSync(b, { recursive: true, force: true }); }
+});
