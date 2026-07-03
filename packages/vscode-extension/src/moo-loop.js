@@ -222,7 +222,7 @@ function evaluateStop(raw, state) {
   const stop = spec.stop;
   const b = stop.budget || {};
   if (st.escalated) return { stop: true, reason: 'escalate (gate humano — irreversível/incerto)' };
-  if (st.goalMet || (_s(stop.goal) && st.goalMet)) return { stop: true, reason: 'goal-achievement (meta atingida)' };
+  if (st.goalMet) return { stop: true, reason: 'goal-achievement (meta atingida)' };
   if (_int(stop.maxIterations) > 0 && _int(st.iteration) >= stop.maxIterations) {
     return { stop: true, reason: 'max-iterations (' + stop.maxIterations + ')' };
   }

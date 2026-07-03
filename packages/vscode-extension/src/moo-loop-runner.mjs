@@ -20,6 +20,7 @@
 //   node moo-loop-runner.mjs --demo --json            machine-readable result on stdout
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -34,7 +35,9 @@ const hasFlag = (f) => argv.includes(f);
 const argVal = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : null; };
 const DRY = hasFlag('--dry') || process.env.MOO_LOOP_DRY === '1';
 const JSON_OUT = hasFlag('--json');
-const OUT_DIR = resolve(argVal('--out') || process.env.MOO_LOOP_DIR || join(HERE, '.moo-loop'));
+// Ledger lands in the OS temp dir by default (never under src/): a run is disposable
+// telemetry, not source. Override with --out or MOO_LOOP_DIR (the plugin/Fleet passes a real one).
+const OUT_DIR = resolve(argVal('--out') || process.env.MOO_LOOP_DIR || join(tmpdir(), 'moo-loop'));
 
 const log = (...a) => { if (!JSON_OUT) console.log('[moo-loop]', ...a); };
 
@@ -114,7 +117,7 @@ function emitHandoff(spec, state, stop, events) {
   lines.push('STOP:   ' + (stop.reason || 'n/d'));
   lines.push('DID:    ' + (state.lastDid || 'n/d'));
   lines.push('CHECK:  ' + (state.lastSignal || 'n/d') + ' (observado, não inventado)');
-  lines.push('GATE:   classify.js FROZEN não tocado · ' + (ranTests ? 'testes: ' + state.lastTests : 'sem testes nesta run'));
+  lines.push('GATE:   classify.js não escrito por esta run (o runner nunca o toca) · ' + (ranTests ? 'testes: ' + state.lastTests : 'sem testes nesta run'));
   lines.push('O QUE NÃO VERIFIQUEI / pode falhar se:');
   for (const nv of notVerified) lines.push('  · ' + nv);
   lines.push('NEXT:   ' + (state.lastNext || (M.needsContract ? 'rever a proposta e decidir (humano)' : 'n/d')));
