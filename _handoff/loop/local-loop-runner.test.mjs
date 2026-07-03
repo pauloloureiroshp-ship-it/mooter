@@ -30,7 +30,8 @@ const J = (o) => JSON.stringify(o);
 // ── Governor ──────────────────────────────────────────────────────────────
 test("governor: bashIsDestructive matches the exact sdk-runner bank", () => {
   for (const cmd of ["git push origin main", "git merge main", "rm -rf x", "npm publish",
-    "gh pr merge 1", "git push --force", "vercel deploy", "docker push img", "git reset --hard"]) {
+    "gh pr merge 1", "git push --force", "vercel deploy", "docker push img", "git reset --hard",
+    "rm -fr build", "rm --recursive node_modules", "rm -f secret"]) {  // flag-order + long-flag gaps closed
     assert.equal(bashIsDestructive(cmd), true, `should deny: ${cmd}`);
   }
   for (const cmd of ["git status", "npm test", "ls -la", "git add file.js", "node --test"]) {
@@ -47,7 +48,10 @@ test("governor: gateAction denies classify.js writes, off-allowlist tools, destr
   // classify.js: WRITES frozen, READS harmless (faithful to sdk-runner semantics)
   assert.equal(gateAction({ tool: "run_shell", args: { command: "echo x > tools/router/classify.js" } }).behavior, "deny", "shell write to classify.js");
   assert.equal(gateAction({ tool: "run_shell", args: { command: "sed -i s/a/b/ tools/router/classify.js" } }).behavior, "deny", "sed -i on classify.js");
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "python -c \"open('tools/router/classify.js','w')\"" } }).behavior, "deny", "interpreter write to classify.js");
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "perl -i -pe s/a/b/ tools/router/classify.js" } }).behavior, "deny", "perl -i on classify.js");
   assert.equal(gateAction({ tool: "run_shell", args: { command: "cat tools/router/classify.js" } }).behavior, "allow", "reading classify.js is harmless");
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "grep foo tools/router/classify.js" } }).behavior, "allow", "grep-reading classify.js is harmless");
   assert.equal(gateAction({ tool: "read_file", args: { path: "tools/router/classify.js" } }).behavior, "allow", "reading classify.js is harmless");
   assert.deepEqual(TOOL_ALLOWLIST, ["read_file", "run_shell", "note", "finish"]);
 });

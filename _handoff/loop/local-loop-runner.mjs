@@ -48,15 +48,23 @@ export const DESTRUCTIVE_BASH = [
 export const CLASSIFY_FROZEN = /classify\.js/;
 
 export function bashIsDestructive(cmd = "") {
-  return DESTRUCTIVE_BASH.some((re) => re.test(String(cmd)));
+  const s = String(cmd);
+  if (DESTRUCTIVE_BASH.some((re) => re.test(s))) return true;
+  // Local hardening beyond the cloud bank — a $0 autonomous loop is held STRICTER:
+  // rm with ANY recursive/force flag regardless of order (-rf, -fr, -r, -f, --recursive,
+  // --force). Closes the `rm -fr` flag-order gap the cloud `-rf?` regex misses.
+  return /\brm\s+(-\w*[rf]|--(recursive|force))\b/.test(s);
 }
 
-// A shell command that WRITES classify.js (redirect / tee / sed -i / cp / mv / dd /
-// truncate). This catches the vector a naive path-check misses: `echo x > classify.js`.
-// Reading classify.js is harmless and stays ALLOWED — only writes are frozen.
-export function shellWritesClassify(cmd = "") {
+// classify.js is FROZEN. A loop may only READ it — ANY other shell verb touching it
+// is denied. We ALLOWLIST pure-read commands rather than blocklist write verbs, so the
+// interpreter-write vector a write-verb list misses (`python -c "open('classify.js','w')"`,
+// `perl -i`, `awk`) is closed by construction: not a read ⇒ denied.
+const CLASSIFY_READ_OK = /^\s*(cat|grep|rg|egrep|less|more|head|tail|diff|wc|git|ls|stat|file|sha256sum|md5sum)\b/;
+export function shellTouchesClassify(cmd = "") {
   const s = String(cmd);
-  return CLASSIFY_FROZEN.test(s) && /(>>?|\btee\b|\bsed\b[^|]*\s-i\b|\bcp\b|\bmv\b|\bdd\b|\btruncate\b)/.test(s);
+  if (!CLASSIFY_FROZEN.test(s)) return false;     // doesn't mention classify.js
+  return !CLASSIFY_READ_OK.test(s);               // mentions it and isn't a pure read → deny
 }
 
 // The tools a local loop may ever call. Anything outside this list is denied — an
@@ -77,7 +85,7 @@ export function gateAction(action) {
   const args = (action && action.args) || {};
   if (tool === "run_shell") {
     if (bashIsDestructive(args.command)) return { behavior: "deny", reason: "destructive/irreversible bash — deferred to the human gate" };
-    if (shellWritesClassify(args.command)) return { behavior: "deny", reason: "classify.js is FROZEN (sha-enforced) — never written by a loop" };
+    if (shellTouchesClassify(args.command)) return { behavior: "deny", reason: "classify.js is FROZEN (sha-enforced) — a loop may only READ it, never write it" };
     return { behavior: "allow" };
   }
   // Write-intent tools (none in the F0.5 allowlist yet, but future-proof): a path
