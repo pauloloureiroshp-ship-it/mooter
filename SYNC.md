@@ -3013,3 +3013,42 @@ Side effects: upsert em D1 `devices` table
 - ✅ VS Code ext F0 PASS · Kill Frugal W1-W3 em prod no Mac · heartbeat restaurado (1º real da história) · npm installer e2e validado
 - 🔜 Ler: docs/rebrand/{RECONCILE-BRIEF,KILL-FRUGAL-MASTERPROMPT}, packages/vscode-extension/docs/, docs/community/GOOD-FIRST-ISSUES.md
 - ⚠️ packs WIP (_packhint_entry.ts) continua unstaged no Mac — terminar antes de mais waves
+
+<!-- mooter-handoff:e34b25b9-b779-46bd-be5b-34bcc974043b -->
+### ⇄ Handoff · ⇄ COWORK → CC · Project Command (Delivery Cockpit ·  · 2026-07-03 10:16
+
+```
+⇄ MOO HANDOFF · frugal · ⇄ COWORK → CC ·/e34b25b9 · 2026-07-03 10:16
+STATE:  🟡 parked (por aterrar)
+TL;DR:  🟡 parked (por aterrar) · feat/delivery-cockpit-ui @107130f (journal) ⚠ diverge do tree · 0 decisões
+── PARA TI ──
+  Estado:  tem trabalho commitado por aterrar (correr o gate e mergear)
+  Onde:    feat/delivery-cockpit-ui @107130f (journal) ⚠ diverge do tree · frugal
+  Pediste: —
+  Moo fez: CC·Project Command receives updates from CO.
+  A-seguir:correr o gate (final-reviewer) e — se verde — push/merge para main
+ASK:    verify+merge → ✅ Verificar e juntar
+HEAD:   107130f "feat(cockpit): Project Command v1 — eixo Fase (forecast honesto + play + sub-ses"
+BASE:   feat/delivery-cockpit-ui @107130f (journal) ⚠ diverge do tree · main+1 · local (no push) · ⚠ tree trocado
+GATE:   classify.js ✓ frozen · HEAD toca 7 fich.: .gitignore, extension.js, pc-snapshot.js, pc-snapshot.test.js, project-command-view.js +2
+TREE:   ⚠ 2 uncommitted fora do HEAD (ambiente)
+FRESH:  vault 13h ago · Notion — · handoff agora
+DELTA:  2 turnos · 1 commits desde o último handoff
+PENDING:"SALVO. Aba renderizada e verificada visualmente contra dados reais. ## ⇄ CC → COWORK · Frente B commitada + screenshot **Commit** `107130f` (full `107130fe4ca9fb575b89baf16dfd8d3457960d71`) na branch `feat/delivery-cockpit-ui` — **sem push** (à espera do teu OK). **Add selectivo (nunca -A) — 7 fiche"
+~narrativa (qwen · best-effort): CC·Project Command receives updates from CO.
+NEXT:   correr o gate (final-reviewer) e mergear se verde
+LAST:   Bash cd "c:/Users/Paulo Loureiro/frugal-cockpit-tab"  · Read pc-tab.png · Bash SP="C:/Users/PAULOL~1/AppData/Local/Temp/claude/
+
+~RECAP (qwen · best-effort):
+  COWORK → CC · Project Command
+  Recent actions:
+  - cd "c:/Users/Paulo Loureiro/frugal-cockpit-tab"
+  - Read pc-tab.png
+  - SP="C:/Users/PAULOL~1/AppData/Local/Temp/claude/"
+
+model claude-opus-4-8 · mode moo · saved $-10.11 (sessão)
+compressed locally (T0 · qwen2.5:3b · $0 · local best-effort) · ~0.7k tok saved vs screenshot (est.)
+facts: complete
+⇄ END HANDOFF
+```
+<!-- /mooter-handoff:e34b25b9-b779-46bd-be5b-34bcc974043b -->

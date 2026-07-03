@@ -1,0 +1,47 @@
+{
+  "mode": "dryrun",
+  "input": 560,
+  "excluded_secret": 0,
+  "redacted_pii": 0,
+  "quarantined": {},
+  "dropped_provenance": {
+    "score<8": 348
+  },
+  "after_filters": 212,
+  "split": {
+    "train": 172,
+    "held_out": 40
+  },
+  "dedupe": {
+    "train_dropped": 0,
+    "held_dropped": 0
+  },
+  "diversity": {
+    "cap_per_category": 68,
+    "dropped": 0,
+    "distribution": {
+      "other": 66,
+      "summarize": 45,
+      "api": 43,
+      "test": 17,
+      "architecture": 1
+    }
+  },
+  "output": {
+    "train": 172,
+    "held_out": 40
+  },
+  "generated_at": "2026-07-03T02:55:54.233Z",
+  "input_path": "C:\\Users\\Paulo Loureiro\\frugal\\audit\\lora_train.jsonl",
+  "input_sha256": "bc441fc3d1f6ed6c2ea1a949120e7aab9521406bfbc7dcaed466e6020b01f5db",
+  "output_path": "C:\\Users\\Paulo Loureiro\\frugal\\audit\\forge\\lora_train.curated.jsonl",
+  "output_sha256": "ca68777687040cc858a9e3aef6d6cb31b0266668acfe3b3a7befa74257a7905b",
+  "heldout_path": "C:\\Users\\Paulo Loureiro\\frugal\\audit\\forge\\lora_train.curated.heldout.jsonl",
+  "params": {
+    "minScore": 8,
+    "valFrac": 0.2,
+    "maxCategoryFrac": 0.4,
+    "dedupeThreshold": 0.85,
+    "seed": 3407
+  }
+}

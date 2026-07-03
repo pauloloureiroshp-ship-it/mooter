@@ -1,0 +1,64 @@
+{
+  "n": 4,
+  "epsilon": 0,
+  "verifiable": {
+    "n": 4,
+    "accA": 0.75,
+    "accB": 0.75,
+    "delta": 0,
+    "ciA": {
+      "lo": 0.30063605244263664,
+      "hi": 0.9544139373553638,
+      "p": 0.75
+    },
+    "ciB": {
+      "lo": 0.30063605244263664,
+      "hi": 0.9544139373553638,
+      "p": 0.75
+    }
+  },
+  "open": {
+    "n": 0,
+    "decisive": 0,
+    "cand_wins": 0,
+    "base_wins": 0,
+    "cand_win_share": {
+      "lo": 0,
+      "hi": 0,
+      "p": 0
+    }
+  },
+  "slices": {
+    "reasoning": {
+      "verif_n": 2,
+      "accA": 0.5,
+      "accB": 0.5,
+      "open_n": 0,
+      "cand_wins": 0,
+      "base_wins": 0,
+      "regressed": false
+    },
+    "format_adherence": {
+      "verif_n": 2,
+      "accA": 1,
+      "accB": 1,
+      "open_n": 0,
+      "cand_wins": 0,
+      "base_wins": 0,
+      "regressed": false
+    }
+  },
+  "slice_regression": null,
+  "gate": {
+    "core_ok": true,
+    "verdict": "PASS"
+  },
+  "meta": {
+    "base": "qwen2.5-coder:7b",
+    "candidate": "qwen2.5-coder:7b",
+    "judge": "gemma3:12b",
+    "null_calibration": true,
+    "golden": "audit\\forge\\golden\\core-frozen.jsonl",
+    "generated_at": "2026-07-03T03:29:09.504Z"
+  }
+}
