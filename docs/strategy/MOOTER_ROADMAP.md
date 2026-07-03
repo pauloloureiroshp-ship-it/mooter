@@ -1,73 +1,70 @@
-# 🐮🗺️ MOOTER — Roadmap de Waves (backlog confrontado com a arquitetura)
+# 🐮🗺️ MOOTER — Roadmap de Waves (v3, breakdown por Squad)
 
 > O plano vivo. Todo o backlog organizado em waves priorizadas, **alinhadas com a tese** e o confronto
-> SOTA 2026. Cada wave declara o **modo de execução** (CC / Loop / Schedule / dynamic-workflow), worktree,
-> effort e dependências. Fonte de verdade da arquitectura: `MOOTER_ARCHITECTURE.md`.
+> SOTA 2026, com um **dono de squad** por wave (Team Topologies). Cada wave declara o **modo de execução**
+> (CC / Loop / Schedule / dynamic-workflow), squad, worktree, effort e dependências. Fonte de verdade da
+> arquitectura: `MOOTER_ARCHITECTURE.md`.
 
 ## A tese (a régua de toda a wave)
-Decidir a $0, empurrar o máximo para local, **provar** cada poupança, e **melhorar sozinho** (aprende de
-ti · de todos · treina-se). O quarteto: Cowork (design, raro) · CC (irreversível) · moos locais ($0,
-mão-de-obra) · Mooter (o maestro). Uma wave só entra se avança isto. Veredito do confronto SOTA: **estamos
-no caminho certo (alinhados 5/6, adiante em honestidade)** — ver `MOOTER_ARCHITECTURE.md` §evolução.
+Decidir a $0, empurrar o máximo para local, **provar** cada poupança, e **melhorar sozinho**. O quarteto:
+Cowork (design, raro) · CC (irreversível) · moos locais ($0, mão-de-obra) · Mooter (o maestro). Uma wave só
+entra se avança isto. Veredito SOTA 2026: **no caminho certo, adiante em honestidade**.
 
-## Princípios de priorização (porque uma wave sobe)
-1. **Performance/custo primeiro** — o que baixa custo ou latência para o vibe coder.
-2. **Alavanca** — o que desbloqueia outras waves sobe (fundações antes de folhas).
-3. **Velocidade de entrega** — preferir o que corre **local $0 em Loop/Schedule** (não gasta limite, corre
-   em paralelo) ao que exige sessão CC (cérebro, limite). Máxima velocidade = máxima delegação ao local.
-4. **Prova > promessa** — waves com métrica medível e gate honesto sobem; as difusas descem.
-5. **Aterrar > começar** — fechar o verde antes de abrir o novo (baixar WIP).
+## Princípios de priorização
+1. **Performance/custo primeiro.** 2. **Alavanca** (fundações antes de folhas). 3. **Velocidade local $0**
+(Loop/Schedule > CC). 4. **Prova > promessa.** 5. **Aterrar > começar** (baixar WIP — a régua nº1 agora).
 
-## Como escolher o modo de execução (a régua)
+## Modo de execução
 | Modo | Quando | Custo |
 |---|---|---|
-| **CC-once** (sessão) | coding não-trivial, merges, arquitectura, o irreversível | 🧠 limite |
-| **Loop** (Moo Loop Session) | trabalho iterativo autónomo: auditar, medir, limpar, destilar insights | 🐮 $0 |
-| **Schedule** | recorrente: treino nightly, eval semanal, digests | 🐮 $0 |
-| **dynamic-workflow** | multi-passo com dependências/gates (ex.: aterragem ordenada) | misto |
-| Sempre: **worktree dedicado** · gate humano no irreversível · classify.js frozen |
+| **CC-once** | coding não-trivial, merges, arquitectura, irreversível | 🧠 limite |
+| **Loop** | trabalho iterativo autónomo ($0) | 🐮 $0 |
+| **Schedule** | recorrente (treino, eval, digests) | 🐮 $0 |
+| **dynamic-workflow** | multi-passo com deps/gates | misto |
+
+## Squads (Team Topologies · cada squad = Paulo + moos + CC numa frente)
+| Squad | Tipo | Frente |
+|---|---|---|
+| 🧭 Routing & Inference | stream-aligned | motor de decisão $0-first |
+| 🧠 Auto-Evolution | stream-aligned | aprende sozinho |
+| 🛩️ Cockpit & UX | stream-aligned | a cabine (plugin) |
+| 📦 Site & Distribution | stream-aligned | chegar ao vibe coder |
+| ⚙️ Platform & Data | platform | Ledger · hub · memória |
+| 🔀 Agent Comms | enabling | protocolo · handoff · loops |
+| 🛡️ Security & Privacy | complicated-subsystem | GDPR · DP · supply-chain |
+| 📊 Observability & Sustentação | cross-cutting | savings · spans · housekeeping |
 
 ---
 
-## FASE NOW — aterrar valor + limpar a base (P0)
-| # | Wave | Objectivo (tese) | Modo | Worktree | Effort | Dep |
-|---|---|---|---|---|---|---|
-| **W1** | Aterrar polish + frentes verdes | F1+F3→Site→MP0 em prod (valor já construído) | **dynamic-workflow** (fundir F1+F3 · merge ordenado) | `frugal-land-polish` | M | — |
-| **W2** | 🧹 Housekeeping da base | arquivar ~40 masterprompts legacy · consolidar `docs/strategy` + MD · rever skills/context/goal — **ganhar eficiência** | **Loop $0** (mão-de-obra: audita, propõe moves, nunca deleta sozinho) | `frugal-housekeep` | M | — |
-| **W3** | Distribuição p/ o amigo | republicar `0.16.45` no Marketplace + Site Install-Ready (Windows) | **CC-once** | `frugal-dist` | S | W1 |
+## FASE NOW — o foco actual (P0)
+| # | Wave | Squad | Objectivo | Modo | Worktree | Effort | Dep | Estado |
+|---|---|---|---|---|---|---|---|---|
+| W1 | Aterrar polish + verdes | 🛩️ Cockpit & UX | F1+F3+Site+MP0+forecast em prod | dynamic-workflow | frugal-land | M | — | ✅ done (06aec7a) |
+| W13 | 🛩️ Delivery Cockpit | 🛩️ Cockpit & UX | forecast (A) + Project Command (B) + adapters (C) | CC-once | frugal-cockpit-tab | L | W1 | 🟡 A✅ · B v1 salva · squad+WIP a fazer |
+| W14 | 🔀 Comunicação | 🔀 Agent Comms | protocolo + P1+P2 + Níveis 2-4 | CC-once | frugal-comms | M | — | 🟡 protocolo✅ · P1+P2 |
+| W2 | 🧹 Housekeeping | 📊 Obs & Sustentação | arquivar legacy + consolidar docs + podar worktrees | Loop $0 | frugal-housekeep | M | — | 🔜 |
+| W3 | Distribuição + onboarding | 📦 Site & Distribution | republicar 0.16.45 + Install-Ready + onboarding educativo | CC-once | frugal-dist | S | W1 | 🔜 |
 
-## FASE NEXT — as fundações multiplicadoras (P1)
-| # | Wave | Objectivo | Modo | Worktree | Effort | Dep |
-|---|---|---|---|---|---|---|
-| **W4** | Evolution Fleet · F1 | Fleet Commander + 3 loops (routing/budget/eval) que fecham medir→propor→medir | **CC-once** p/ construir → depois **Loop** | `frugal-fleet` | L | W2 |
-| **W5** | Moo Loop Sessions | os botões `New CC Moo Loop/Schedule Session` + pin + Fleet Console | **CC-once** | `frugal-loop-sessions` | M | — |
-| **W6** | Budget Cockpit + observability | usage breakdown span-level (SOTA: MLflow/Langfuse-style) · alerta proactivo · liga aos modos Moo | **CC-once** + moo local | `frugal-budget` | M | W5 |
-| **W7** | Adapter Forge · F1 | 1 adapter (moo de mão-de-obra) · OSFT/DoRA · prova ganho sem regressão | **Schedule nightly** (treino) + CC p/ construir | `frugal-forge` | L | W4 |
+## FASE NEXT — fundações multiplicadoras (P1)
+| # | Wave | Squad | Objectivo | Modo | Worktree | Effort | Dep | Estado |
+|---|---|---|---|---|---|---|---|---|
+| W5 | Moo Loop Sessions | 🔀 Agent Comms | botões New CC Loop/Schedule + pin + Fleet Console + Loop→CC escalation | CC-once | frugal-loop-sessions | M | — | 🔜 fundação |
+| W4 | Evolution Fleet F1 | 🧠 Auto-Evolution | Fleet Commander + 3 loops (routing/budget/eval) | CC→Loop | frugal-fleet | L | W5 | 🔜 |
+| W9 | 🧠 Gradient-free TTL | 🧠 Auto-Evolution | insight-distiller sobre o Ledger (ReasoningBank/JitRL, $0) | Loop $0 | frugal-ttl | M | W4 | 🔜 (subiu) |
+| W7 | Adapter Forge F1 | 🧠 Auto-Evolution | 1 adapter real (O-LoRA/OPLoRA, anti-forgetting) | Schedule | frugal-forge | L | W4 | 🔜 (base: adapter/) |
+| W6 | Budget Cockpit + obs | 📊 Obs & Sustentação | span-level + alerta + benchmarking contínuo | CC-once | frugal-budget | M | W5 | 🔜 (base: observability.ts) |
 
-## FASE FRONTIER — as apostas SOTA de alta alavanca (P2)
-| # | Wave | Objectivo | Modo | Worktree | Effort | Dep |
-|---|---|---|---|---|---|---|
-| **W8** | ⚡ Edge-cloud speculative | draft local $0 → verifica no cloud: velocidade local + qualidade cloud a custo mínimo (nova via de poupança ao nível do token) | **CC-once** (experimental) + benchmark local | `frugal-spec` | L | W6 |
-| **W9** | 🧠 Gradient-free TTL | insight-distiller sobre o Ledger: aprende de trajectórias (sucesso+falha) **sem re-treino**, $0, instantâneo — via leve que complementa o Forge | **Loop $0** | `frugal-ttl` | M | W4 |
-| **W10** | Graph-temporal memory | unir Graphify (grafo de código) + Ledger → memória temporal/tiered | **CC-once** | `frugal-graphmem` | L | W2 |
-| **W11** | Router upgrade | bandit/Thompson (substitui EWMA estático) + speculative+AWQ no T0 local | **CC-once** | `frugal-router-v2` | M | W7 |
-| **W12** | Differential privacy no hub | garantia formal nos deltas federados (não só anonimização) | **CC-once** | `frugal-dp-hub` | S | — |
+## FASE FRONTIER — apostas SOTA (P2)
+| # | Wave | Squad | Objectivo | Modo | Worktree | Effort | Dep | Estado |
+|---|---|---|---|---|---|---|---|---|
+| W11 | Router bandit + AWQ | 🧭 Routing & Inference | promover bandit (W32) + dueling (FGTS/OrcaRouter) + AWQ | CC-once | frugal-router-v2 | M | W7 | 🔜 (base: validation) |
+| W8 | ⚡ Edge-cloud speculative | 🧭 Routing & Inference | draft local $0 → verifica cloud (FlexSpec/PicoSpec) | CC-once | frugal-spec | L | W6 | 🔜 |
+| W10 | Graph-temporal memory | ⚙️ Platform & Data | une graph-aware-decide + Ledger | CC-once | frugal-graphmem | L | W2 | 🔜 (base: graph-aware) |
+| W12 | Differential privacy hub | 🛡️ Security & Privacy | garantia formal DP + incentivos + sharding | CC-once | frugal-dp-hub | S | — | 🔜 |
 
----
+## VISÃO (pós-W12, parked)
+Meta-learning (router que aprende o próprio router) · 3rd Brain como produto.
 
-## As 6 frentes SOTA → mapeadas às waves (rastreabilidade)
-① routing → W11 · ② local inference → W8, W11 · ③ memória → W10 · ④ auto-evolução → W4, W7, W9 ·
-⑤ economia/obs → W6 · ⑥ federated → W12. **Cada frente tem dono.** Adiante em honestidade (③) = manter, não copiar.
-
-## 🧹 W2 detalhada (a base defasada — o Paulo pediu)
-- **Arquivar legacy:** os masterprompts já superados (COCKPIT_HANDOFF_V1/V2/V3, waves antigas do cockpit)
-  movem para `_handoff/_archive/` — **mover, nunca apagar** (regra do vault).
-- **Consolidar docs/strategy:** um índice (`_INDEX.md`) que aponta os vivos (ARCHITECTURE, ROADMAP,
-  EVOLUTION_FLEET, ADAPTER_FORGE, LEDGER, PERFECT_HANDOFF_SPEC) e marca os históricos.
-- **Rever skills/context/goal:** os `/moo-*` e os packs — o que ainda serve, o que duplica, o que falta um rótulo.
-- **Régua "cada ficheiro é uma feature ou vai para archive"** — a mesma que aplicamos ao cockpit, aplicada aos MD.
-- Modo Loop $0: um moo audita, produz o plano de moves com proveniência, e **pára para o teu OK** (nunca move sozinho).
-
-## Manutenção deste roadmap
-Vivo. Cada wave que fecha → marca ✅ + regista o `measured` real. Nova frente SOTA (o radar de LLMs/ecossistema
-da Fleet) → entra aqui priorizada. Se uma wave não avança a tese, sai. Ordem pode mudar; a régua não.
+## Manutenção
+Vivo. Cada wave que fecha → ✅ + regista o `measured` real. Nova frente SOTA → entra priorizada. A régua não muda.
+Detalhe estratégico + masterprompt-specs + validação SOTA: vault `40-strategy/mooter-roadmap-v3-2026-07-03`.

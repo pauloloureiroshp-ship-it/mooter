@@ -84,6 +84,37 @@ cd packages/mooter-bench && npm install && npm test
 # then see its README / package.json scripts for the benchmark run itself
 ```
 
+## Communication protocol (orchestrator ⇄ this agent)
+
+Mooter is developed across two agents plus a human gate:
+
+- **Cowork** (Claude Desktop) — orchestrator/architect: designs, red-teams, writes masterprompts, confronts the git/Ledger, keeps memory.
+- **Claude Code** (this agent) — executor: worktrees, code, tests, merges; delegates iterative work to local moos ($0).
+- **Paulo** (human) — authorizes every irreversible action (merge, push, delete). Never self-authorize these.
+
+**Inbound (Cowork → you)** arrives as a typed handoff:
+
+```
+⇄ COWORK → CC · <task>
+🎯 GOAL   one line, tied to the thesis
+📍 WHERE  worktree ../frugal-X · branch feat/X · from main
+▶  DO     steps, or "read and follow _handoff/X.md"
+🔒 GUARD  classify.js frozen · selective git add · no push without OK
+✅ GATE   node --test · sha intact · required proof
+⏭  NEXT   what comes next
+📋 BACK   what to paste back for Cowork to validate
+```
+
+**Outbound (you → Cowork) — the handoff that never lies:**
+
+- Report the branch where **work** happened (the git-write worktree), never where you last `cd`'d. Provenance is the Ledger (`tools/router/*ledger*`).
+- Include real git state (unpushed / uncommitted / PR / CI), completed steps (for dedup), and a confidence signal. Reference context, don't dump it.
+- `uncommitted` is the red alert — it is the only work that can be lost.
+- **Confront before you emit:** before issuing a handoff that touches a front, read that front's real state (git/worktree/last handoff). Never assume it is undone; if it exists, iterate — don't restart.
+
+**Rule of thumb:** structured handoff for execution; prose for deciding. The human authorizes the irreversible. Conceptual source: Cowork vault `00-core/protocolo-comunicacao`; this section is its repo-side mirror.
+
+
 ## Cross-references
 
 - `CLAUDE.md` — Claude Code-specific project instructions (lean; pointers).
