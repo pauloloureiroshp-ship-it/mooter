@@ -161,7 +161,12 @@ evento, a seguinte pára** (groundedness mecânica — H7).
 - **Shadow mode:** o candidato corre em paralelo ao incumbente sobre tráfego real, **sem servir** —
   compara decisões/qualidade a frio.
 - **Suite adversarial + Golden Set + A/B por-slice** (AF-08/05): ganho **medido**, não opinião.
-  Reusa `quality-eval-paired.ts` **com arms adapter-vs-base** (cablagem greenfield). Falha → descartado.
+  ✅ **BUILT** — `scripts/forge_eval.mjs` (+test, 10/10): arms **base vs candidate**, verificáveis
+  graduados deterministicamente, abertos por juiz cego pairwise (ambas as ordens, cross-vendor),
+  Wilson CI, **gate por-slice** (falha se QUALQUER capacidade regride >ε). Standalone (reusa a
+  metodologia do council; **não** modifica `quality-eval-paired.ts` — decisão aberta #4 fica em aberto).
+  **Null-calibration ao vivo ($0, Ollama)** provou o harness não-enviesado: base==candidate → `delta=0`,
+  gate PASS. Falta só um adapter **real** para medir (depende do Ledger `measured` + treino na 4090).
 - **Gate humano** na troca do default de routing (irreversível — H1: 1 item, cool-down, a tua razão
   **antes** do veredito, ≤N/dia).
 
@@ -302,8 +307,9 @@ prova o pipeline $0/sem-GPU, sem fingir ganho-medido.
    asymmetry-safe. Precisa de checkpoint/resume + preempção que **suspende** (não mata) o treino. Desenho a validar.
 3. **Base model para F1:** manter `qwen2.5-coder:7b` (menor atrito, o trainer já aponta) ou saltar já para
    **Qwen3-14B dense**? Trade-off: atrito vs qualidade/headroom.
-4. **Council em `main`:** o harness A/B vive no worktree `frugal-council`. Merge selectivo do
-   `quality-eval-paired.ts` ou manter cross-worktree? (necessário para o gate F4.)
+4. **Council em `main`:** o gate F4 foi resolvido com um harness **standalone** (`forge_eval.mjs`, reusa a
+   metodologia) → o merge do `quality-eval-paired.ts` do worktree `frugal-council` deixa de ser bloqueante.
+   Fica em aberto **só** se quiseres unificar os dois harnesses num só (dedupe de metodologia).
 5. **OSFT vs LoRA para F1:** OSFT é a base default do design, mas o `train_lora.py` actual é LoRA r=16.
    F1 arranca em LoRA (prova o loop) e migra para OSFT em F1.1, ou já nasce OSFT?
 
@@ -319,11 +325,14 @@ prova o pipeline $0/sem-GPU, sem fingir ganho-medido.
      Construir o extractor contra um schema inexistente = "construir no ar" (invariante Fleet). Até lá, a
      prova possível é a **curadoria em dry-run** sobre `audit/lora_train.jsonl` (§5 F1 ponte).
   2. **CC nunca executa treino GPU** — é o passo manual do Paulo na 4090 (`train_lora.py:7`).
-- **`git add` selectivo · sem push/troca-de-default sem OK.** — este turno só escreve
-  `docs/strategy/ADAPTER_FORGE.md` (nada staged, nada empurrado).
-- **Próximo degrau executável ($0, sem GPU, à espera do teu OK):** o **extractor de curadoria** +
-  **Golden Set de 2 camadas (AF-01)** + cablar **arms adapter-vs-base** no `quality-eval-paired.ts`.
-  Estes três não precisam de GPU nem de cloud e desbloqueiam o gate F4.
+- **Fundação F1 executável — ✅ BUILT ($0, sem GPU, sem cloud):**
+  1. **Extractor de curadoria** — `scripts/forge_curate.mjs` (+test, 8/8). Dry-run real: 560→212→172/40.
+  2. **Golden Set de 2 camadas (AF-01)** — `scripts/forge_golden.mjs` + `audit/forge/golden/` (hash-gate).
+  3. **Gate F4 A/B por-slice** — `scripts/forge_eval.mjs` (+test, 10/10). Null-calibration ao vivo: `delta=0`.
+- **`git add` selectivo · sem push de default de routing sem OK.** Tudo aditivo; `classify.js` intacta.
+- **O que falta para a "demo real":** um adapter **treinado** — bloqueado por (a) o Ledger `measured`
+  (greenfield na Fleet F1) e (b) treino manual na 4090. O `forge_curate` comuta para `--mode=measured`
+  e o `forge_eval` troca `--candidate` do modelo-base para o adapter, sem mais código.
 
 ---
 
