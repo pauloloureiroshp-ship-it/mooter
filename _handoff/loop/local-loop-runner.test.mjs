@@ -31,7 +31,7 @@ const J = (o) => JSON.stringify(o);
 test("governor: bashIsDestructive matches the exact sdk-runner bank", () => {
   for (const cmd of ["git push origin main", "git merge main", "rm -rf x", "npm publish",
     "gh pr merge 1", "git push --force", "vercel deploy", "docker push img", "git reset --hard",
-    "rm -fr build", "rm --recursive node_modules", "rm -f secret"]) {  // flag-order + long-flag gaps closed
+    "rm -fr build", "rm --recursive node_modules", "rm -f secret", "rm plainfile.txt"]) {  // flag-order + bare rm
     assert.equal(bashIsDestructive(cmd), true, `should deny: ${cmd}`);
   }
   for (const cmd of ["git status", "npm test", "ls -la", "git add file.js", "node --test"]) {
@@ -53,6 +53,11 @@ test("governor: gateAction denies classify.js writes, off-allowlist tools, destr
   assert.equal(gateAction({ tool: "run_shell", args: { command: "cat tools/router/classify.js" } }).behavior, "allow", "reading classify.js is harmless");
   assert.equal(gateAction({ tool: "run_shell", args: { command: "grep foo tools/router/classify.js" } }).behavior, "allow", "grep-reading classify.js is harmless");
   assert.equal(gateAction({ tool: "read_file", args: { path: "tools/router/classify.js" } }).behavior, "allow", "reading classify.js is harmless");
+  // compound-command bypasses of the classify.js read-allowlist — MUST be denied
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "cat tools/router/classify.js && echo pwn > tools/router/classify.js" } }).behavior, "deny", "chain write to classify.js");
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "head tools/router/classify.js; rm tools/router/classify.js" } }).behavior, "deny", "chained rm of classify.js");
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "grep x tools/router/classify.js | tee tools/router/classify.js" } }).behavior, "deny", "piped tee to classify.js");
+  assert.equal(gateAction({ tool: "run_shell", args: { command: "cat $(echo tools/router/classify.js)" } }).behavior, "deny", "subshell referencing classify.js");
   assert.deepEqual(TOOL_ALLOWLIST, ["read_file", "run_shell", "note", "finish"]);
 });
 

@@ -36,9 +36,10 @@ import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-// ───────────────────────── Governor (ported byte-for-byte from sdk-runner.mjs) ─────────────────────────
-// The mechanical guardrail: main is read-only at the CREDENTIAL level. These are
-// the exact same patterns the cloud runner denies — the local runner is no laxer.
+// ───────────────────────── Governor (based on sdk-runner.mjs, held STRICTER) ─────────────────────────
+// The mechanical guardrail: main is read-only at the CREDENTIAL level. DESTRUCTIVE_BASH
+// is the cloud runner's bank verbatim; bashIsDestructive + shellTouchesClassify then add
+// local hardening on top — never laxer than the cloud runner, deliberately stricter.
 export const DESTRUCTIVE_BASH = [
   /\bgit\s+push\b/, /\bgit\s+merge\b/, /\bgit\s+tag\b/, /\bgit\s+reset\s+--hard\b/,
   /--force\b/, /\bgh\s+pr\s+(merge|create)\b/, /\brm\s+-rf?\b/, /\bnpm\s+publish\b/,
@@ -51,20 +52,23 @@ export function bashIsDestructive(cmd = "") {
   const s = String(cmd);
   if (DESTRUCTIVE_BASH.some((re) => re.test(s))) return true;
   // Local hardening beyond the cloud bank — a $0 autonomous loop is held STRICTER:
-  // rm with ANY recursive/force flag regardless of order (-rf, -fr, -r, -f, --recursive,
-  // --force). Closes the `rm -fr` flag-order gap the cloud `-rf?` regex misses.
-  return /\brm\s+(-\w*[rf]|--(recursive|force))\b/.test(s);
+  // deny ANY `rm` with an argument. A proposal-generating loop never needs to delete,
+  // so this closes both the `rm -fr` flag-order gap AND bare `rm <file>` in one rule.
+  return /\brm\s+\S/.test(s);
 }
 
-// classify.js is FROZEN. A loop may only READ it — ANY other shell verb touching it
-// is denied. We ALLOWLIST pure-read commands rather than blocklist write verbs, so the
-// interpreter-write vector a write-verb list misses (`python -c "open('classify.js','w')"`,
-// `perl -i`, `awk`) is closed by construction: not a read ⇒ denied.
+// classify.js is FROZEN. A loop may only READ it, and only via a SINGLE pure-read
+// command. ANY compound command (chain / pipe / subshell / redirection) that mentions
+// classify.js is denied outright — a genuine read never needs one, and inspecting only
+// the first verb (anchored ^) let `cat classify.js && echo x > classify.js` slip past.
+// So: deny-by-shape first, then require a lone read verb. This closes the interpreter-
+// write vector (`python -c open(...,'w')`, `perl -i`, `awk`) AND compound bypasses.
 const CLASSIFY_READ_OK = /^\s*(cat|grep|rg|egrep|less|more|head|tail|diff|wc|git|ls|stat|file|sha256sum|md5sum)\b/;
 export function shellTouchesClassify(cmd = "") {
   const s = String(cmd);
-  if (!CLASSIFY_FROZEN.test(s)) return false;     // doesn't mention classify.js
-  return !CLASSIFY_READ_OK.test(s);               // mentions it and isn't a pure read → deny
+  if (!CLASSIFY_FROZEN.test(s)) return false;             // doesn't mention classify.js
+  if (/[;&|>]|\$\(|`|\bxargs\b/.test(s)) return true;     // any chain/redirect/subshell → deny
+  return !CLASSIFY_READ_OK.test(s);                       // single command → must be a pure read
 }
 
 // The tools a local loop may ever call. Anything outside this list is denied — an
