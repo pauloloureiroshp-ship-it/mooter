@@ -1481,7 +1481,7 @@ function getHtml(guardianPct = null) {
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🧵 Sessions</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🤖 Agents</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div>
 </div>
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 ask mooter anything… (natural language → command)"><button class="sm" id="intentGo">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
@@ -1989,27 +1989,14 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>{document.querySelectorAll('#v-models button[data-eff]').forEach(x=>{x.style.borderColor='';x.style.color='';});el.style.borderColor='var(--g)';el.style.color='var(--g)';flashApply(el);send('effort',el.dataset.eff);});
   wireButtons($('#v-models'));
 
-  // ── 🧵 SESSIONS: recent Claude Code sessions by activity (honest replacement for the
-  // old Herd facade — spawns/heartbeats/worktrees don't exist on disk, so we don't
-  // pretend they do). We CANNOT detect the focused VS Code tab (no extension API), so
-  // this is "recent by activity", never "active". Token matrix shows only when real.
+  // ── 🤖 AGENTS tab (POLISH_F3 · D1): the live-session list used to live here AND in the
+  // Cockpit (both render s.recent) — pure duplication. The Cockpit herd is the superior
+  // component (attention-first, filter, clear, click→open), so it is now the SINGLE home
+  // of live sessions. This tab keeps only the block with a distinct role: 🤖 Agents
+  // (parallel run / live fan-out). The duplicate "recent sessions" list and the unreadable
+  // tokens×LLM×agent matrix (D2) are removed; the $ breakdown moves to Decisions.
   const h=s.herd||{};const mx=h.matrix||{llms:[],rows:[]};
   const fmtk=(n)=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
-  const rs=s.recent||[];
-  const fmtAge=(ms)=>{const t=Math.round(ms/1000);if(t<60)return t+'s ago';const mi=Math.round(t/60);if(mi<60)return mi+'m ago';const hr=Math.round(mi/60);if(hr<24)return hr+'h ago';return Math.round(hr/24)+'d ago';};
-  const sessHtml=rs.length?rs.map(x=>{
-    const nm=esc(x.name||('session '+x.id));
-    const dot=x.working?'<span class="pulse" title="working — active in the last 90s"></span>':(x.needsYou?'<span class="alertdot" title="your turn"></span> ':'⚪ ');
-    // Coherent per-session line — all from THIS session JSONL, same formulas as the Token Ledger.
-    const tokLine=(x.tokIn||x.tokOut)
-      ?('<span title="input / output tokens this session">'+fmtk(x.tokIn||0)+' in · '+fmtk(x.tokOut||0)+' out</span> · <span title="estimated spend — token-estimated, advisory">$'+(x.cost||0).toFixed(2)+'</span>'+((x.saved>0)?' · <span class="sv" title="counterfactual vs all-Opus 4.8 — same formula as the Token Ledger">saved $'+x.saved.toFixed(2)+'</span>':'')+(x.tokPerSec?' · <span title="throughput over the active span of this session">'+fmtk(x.tokPerSec)+' tok/s</span>':''))
-      :'<span style="opacity:.55">no model usage logged</span>';
-    return '<div class="dr"><div class="w"><div>'+dot+'<b>'+nm+'</b> <span class="meta">'+esc(x.id)+'</span></div><small>'+(x.model?famEmoji(x.model)+' '+esc(modelLabel(x.model)):'no model yet')+' · '+x.turns+' turns · '+fmtAge(x.ageMs)+((x.project&&x.project!=='?')?' · '+esc(x.project):'')+'</small><div class="sub" style="font-size:10px;margin-top:2px">'+tokLine+'</div></div></div>';
-  }).join('')
-    :'<div class="sub" style="margin-top:5px">no recent sessions found in ~/.claude/projects</div>';
-  let mxHtml='';
-  if(mx.rows.length){mxHtml='<table class="mx"><tr><th>agent</th>'+mx.llms.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr>'+
-    mx.rows.map(r=>'<tr><td title="'+esc(r.via)+'">'+esc(r.via)+'</td>'+r.cells.map(c=>'<td'+(c?' title="'+c.n+' decisions"':'')+'>'+(c?fmtk(c.tok):'—')+'</td>').join('')+'</tr>').join('')+'</table>';}
   // 🤖 Agents — live parallel agents (local Moos + subscription) for THIS herd. Honest:
   // built only from real sources (active-run.json run progress, spawns/*/state.json,
   // last-subagent in-flight, decisions_v2 matrix). Per-agent shows real status (working
@@ -2050,10 +2037,8 @@ window.addEventListener('message',(e)=>{
     return '<div class="card'+cc('agents')+'" data-collap="agents"><div class="lbl collaphead"><span class="chev">▾</span>🤖 Agents — live '+par+'</div>'+runBar+rows+empty+'</div>';
   })();
   $('#v-herd').innerHTML=
-    '<div class="card"><div class="lbl">🧵 Recent sessions <span style="float:right;opacity:.6;font-size:9px">by activity</span></div>'+sessHtml+
-    '<div class="sub" style="font-size:9px;margin-top:7px">● = active in the last 90s · ⚪ = last activity (heuristic from file mtime). The cockpit reads transcripts in ~/.claude/projects — it <b>cannot tell which Claude Code tab is focused</b> (the extension exposes no such API), and cross-session messaging is not tracked, so neither is shown.</div></div>'+
-    agentsCard+
-    (mx.rows.length?'<div class="card"><div class="lbl">Tokens × LLM × agent · last '+(h.v2count||0)+' decisions</div>'+mxHtml+'</div>':'');
+    '<div class="sub" style="margin:2px 2px 9px;opacity:.75">Parallel agents Mooter fans out for you — local 🦙 ($0) + subscription ✨. <b>Live sessions live in the 🐮 Cockpit.</b></div>'+
+    agentsCard;
   wireButtons($('#v-herd'));
   wireCollapse($('#v-herd'));
 
@@ -2061,6 +2046,29 @@ window.addEventListener('message',(e)=>{
   const ins=s.insights||{};const qa=ins.quantAll||[];
   const confDelta=(ins.confNow!=null&&ins.confPrev!=null)?(ins.confNow-ins.confPrev):null;
   $('#v-insights').innerHTML=
+    (function(){
+      // D2 (POLISH_F3) — "Onde foi o teu $": replaces the unreadable tokens×LLM×agent matrix
+      // with a decision-useful view — how much of your token volume stayed local (free) vs
+      // cloud (paid), the $ saved vs all-Opus, and whether you're trending more local.
+      // Built from the same s.herd.matrix the table used + m.saved + the existing localSpark.
+      const isLoc=(mm)=>/qwen|llama|gemma|deepseek|mistral|phi|ollama|:/i.test(String(mm||''));
+      let locTok=0,cloudTok=0;
+      (mx.rows||[]).forEach(r=>(r.cells||[]).forEach((c,i)=>{if(!c)return;const llm=(mx.llms||[])[i];if(isLoc(llm))locTok+=(c.tok||0);else cloudTok+=(c.tok||0);}));
+      const totTok=locTok+cloudTok;
+      if(totTok<=0)return '<div class="card"><div class="lbl">💸 Onde foi o teu $ <span style="float:right;opacity:.6;font-size:9px">advisory</span></div><div class="sub" style="margin-top:5px;opacity:.7">sem decisões com tokens registados ainda — corre alguns prompts e isto enche-se.</div></div>';
+      const pLoc=Math.round(100*locTok/totTok),pCloud=100-pLoc;
+      const saved=(typeof m.saved==='number')?m.saved:0;
+      const bar='<div style="display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--vscode-input-background);margin:8px 0 5px">'
+        +(locTok>0?'<span style="flex:'+locTok+';background:var(--t0)" title="local 🦙 '+pLoc+'% · $0"></span>':'')
+        +(cloudTok>0?'<span style="flex:'+cloudTok+';background:var(--t2)" title="cloud ✨ '+pCloud+'%"></span>':'')
+        +'</div>';
+      return '<div class="card"><div class="lbl">💸 Onde foi o teu $ · last '+(h.v2count||0)+' decisions <span style="float:right;opacity:.6;font-size:9px">advisory · by tokens</span></div>'
+        +bar
+        +'<div class="sub" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:2px"><span style="color:var(--t0)">🦙 local '+pLoc+'% · $0</span><span style="color:var(--t2)">✨ cloud '+pCloud+'%</span></div>'
+        +'<div class="sub" style="margin-top:5px">🦙 local é grátis · ✨ cloud é onde gastas. Poupaste <b style="color:var(--g)">$'+saved.toFixed(2)+'</b> vs all-Opus.</div>'
+        +localSpark(decs)
+        +'</div>';
+    })()+
     '<div class="card hero"><div class="lbl">Routing intelligence</div><div class="big">'+(ins.cacheRate!=null?ins.cacheRate+'%':'—')+'</div><div class="sub">classifier cache-hit rate · confidence <b>'+(ins.confNow!=null?ins.confNow:'—')+'</b>'+(confDelta!=null?' <span style="color:'+(confDelta>=0?'var(--g)':'var(--t3)')+'">'+(confDelta>=0?'▲':'▼')+Math.abs(confDelta).toFixed(2)+'</span> vs previous window':'')+'</div></div>'+
     '<div class="card"><div class="lbl">📦 Quantization (all local models)</div>'+(qa.length?qa.map(q=>'<div class="kv"><span>'+esc(q.name)+'</span><span>'+esc(q.quant||'?')+(q.sizeGb?' · '+q.sizeGb+'GB':'')+'</span></div>').join(''):'<div class="sub" style="margin-top:5px">no snapshot — <button class="sm" data-a="term:mooter quant status">run quant status</button></div>')+'</div>'+
     '<div class="card"><div class="lbl">🧠 Pastor learning · TF-IDF (not neural LoRA)</div>'+
