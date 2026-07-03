@@ -52,6 +52,12 @@ const GUARDIAN_PREBAKE_DEBOUNCE_MS = 15000; // cap pre-bake ticks to ~1/15s — 
 // webview via .toString(), same trick as row-renderer). Fail-soft: absent → tab shows n/d.
 let MCV = null;
 try { MCV = require('./mission-control-view'); } catch { MCV = null; }
+// ── DELIVERY COCKPIT · Frente B (🛩️ Project command) — the wave-timeline view renderer
+// (serialised into the webview via .toString()) + its host-side snapshot builder (reads the
+// RUNTIME forecast.json, the roadmap, and the Ledger). Both fail-soft: absent → tab shows n/d.
+let PCV = null, PCSNAP = null;
+try { PCV = require('./project-command-view'); } catch { PCV = null; }
+try { PCSNAP = require('./pc-snapshot'); } catch { PCSNAP = null; }
 // ── GUARDIAN:F1 ── Compaction-pressure chip 🪶 (reads ctxPct → advisor.pressureLadder).
 // Serialised into the webview via fn.toString() (see the sibling injection below). Fail-soft.
 let GCHIP = null;
@@ -223,6 +229,21 @@ class DataService {
         this.snapshot.mc = (prev && prev.mc) || null;
       }
     } catch { this.snapshot.mc = (prev && prev.mc) || null; }
+    // DELIVERY COCKPIT · Frente B — assemble the ProjectCommandSnapshot (additive). Cheap: it
+    // REUSES the sessions already mapped for the mc snapshot (branch@sha/git chips), only ADDS
+    // three small reads (runtime forecast.json + roadmap MD + the Ledger dir). Deep-gated like
+    // the other heavy slices; reuses prev.pc on shallow ticks. Fail-soft → null (never blocks).
+    try {
+      if (PCSNAP && doDeep) {
+        const pcRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath)
+          || (recent && recent[0] && recent[0].cwd)
+          || process.cwd();
+        const pcSessions = (this.snapshot.mc && Array.isArray(this.snapshot.mc.sessions)) ? this.snapshot.mc.sessions : [];
+        this.snapshot.pc = PCSNAP.buildProjectCommand({ repoRoot: pcRoot, sessions: pcSessions });
+      } else if (PCSNAP) {
+        this.snapshot.pc = (prev && prev.pc) || null;
+      }
+    } catch { this.snapshot.pc = (prev && prev.pc) || null; }
     // Cockpit Doctor & Self-Heal — gather the 6 diagnostic checks during the deep tick only
     // (git shell-outs are heavy). Reuse prev.doctor on shallow ticks. Fail-soft → [] (the
     // Doctor tab simply shows the original setup checks, never crashes). Scoped to the
@@ -395,6 +416,49 @@ class CockpitProvider {
           catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
           this.data.selectedSession = id; this.data.refresh(true);
         }
+      }
+      // ── DELIVERY COCKPIT · Frente B — play a wave: ⚠️ acção com CUSTO (sessão CC / GPU) that
+      // RESPECTS dependencies. A locked wave (unproven upstream in the Ledger) warns and never
+      // launches into the void; an unlocked wave confirms cost, seeds the wave masterprompt
+      // scaffold into the clipboard, and opens a fresh CC session (reusing mooter.newSession —
+      // the same "New CC Moo Loop Session" affordance). Honest: the extension never claims to
+      // auto-run the masterprompt; it hands you a seeded session to launch it.
+      if (m.cmd === 'playWave') {
+        const wid = String(m.arg || '').toUpperCase().replace(/[^A-Z0-9.]/g, '');
+        const pc = (this.data.snapshot && this.data.snapshot.pc) || null;
+        const wave = pc && Array.isArray(pc.phases)
+          ? pc.phases.reduce((acc, p) => acc || (p.waves || []).find((w) => w.wave_id === wid), null) : null;
+        if (!wave) { vscode.window.setStatusBarMessage('🛩️ wave ' + wid + ' não encontrada no forecast', 4000); return; }
+        if (wave.locked) {
+          vscode.window.showWarningMessage('🔒 ' + wid + ' está bloqueada — ' + (wave.lock_reason || 'dependência por concluir') + '. Fecha a dependência primeiro (o gate regista-se no Ledger).');
+          return;
+        }
+        const eff = wave.effort ? (' · esforço ' + wave.effort) : '';
+        const pick = await vscode.window.showWarningMessage(
+          '▶ Play ' + wid + ' — ' + (wave.name || '') + eff + '. Isto abre uma sessão Claude Code (conta para o teu limite; se for Loop/Schedule usa GPU local). O scaffold do masterprompt vai para o clipboard. Continuar?',
+          { modal: true }, 'Abrir sessão CC', 'Cancelar');
+        if (pick !== 'Abrir sessão CC') return;
+        const seed = '# ' + wid + ' · ' + (wave.name || '') + '\n'
+          + (wave.goal ? ('Objectivo: ' + wave.goal + '\n') : '')
+          + (wave.worktree ? ('Worktree sugerida: ' + String(wave.worktree).replace(/[`]/g, '') + '\n') : '')
+          + (wave.type ? ('Modo: ' + wave.type + '\n') : '')
+          + (Array.isArray(wave.deps) && wave.deps.length ? ('Depende de: ' + wave.deps.map((d) => d.id).join(', ') + '\n') : '')
+          + '\nEscreve/expande o masterprompt desta wave e executa-o nesta sessão.';
+        try { await vscode.env.clipboard.writeText(seed); } catch { /* best-effort */ }
+        vscode.commands.executeCommand('mooter.newSession');
+        vscode.window.setStatusBarMessage('🛩️ ' + wid + ' — scaffold no clipboard · cola-o (Ctrl+V) na sessão nova', 8000);
+        return;
+      }
+      // "design a new wave" / "re-prioritise" — seed a Cowork/CC prompt into the clipboard and
+      // open a session (the human assembles strategy → masterprompt). Honest: no silent write-back.
+      if (m.cmd === 'designWave' || m.cmd === 'reprioritise') {
+        const prompt = (m.cmd === 'designWave')
+          ? 'Desenha uma NOVA wave para o roadmap do Mooter (docs/strategy/MOOTER_ROADMAP.md): tese, modo (CC-once/Loop/Schedule), worktree, effort, deps — e escreve o masterprompt. Confronta com a arquitectura antes de propor.'
+          : 'Re-prioritiza as waves do roadmap por performance-por-esforço (usa o forecast.json + o Ledger). Mostra o caminho crítico e propõe a nova ordem — não reescrevas o roadmap sem o meu OK.';
+        try { await vscode.env.clipboard.writeText(prompt); } catch { /* best-effort */ }
+        vscode.commands.executeCommand('mooter.newSession');
+        vscode.window.setStatusBarMessage('🛩️ prompt no clipboard — cola-o (Ctrl+V) na sessão nova para o Cowork', 7000);
+        return;
       }
       if (m.cmd === 'mode') { await extra.setMode(m.arg); this.data.refresh(true); }
       if (m.cmd === 'slashInstall') {
@@ -907,6 +971,7 @@ function project(s) {
     // list and no cross-repo branch-name matching in the webview.
     herd: s.herd, recent: s.recent || [],
     mc: s.mc || null, // Mission Control · Frente 0: the single snapshot the 4 views render from
+    pc: s.pc || null, // Delivery Cockpit · Frente B: the ProjectCommandSnapshot the 🛩️ tab renders from
     loopActive: !!s.loopActive, // WCOCKPIT-9 (Bloco F)
     localTok: s.localTok || null,
     localSpeed: extra.localSpeed(), // WS3: measured local tok/s (WS1 speed-meter) for the Local Moo Fleet
@@ -1485,13 +1550,102 @@ function getHtml(guardianPct = null) {
   .mc-srow.mc-st-need{border-left:3px solid #E5C07B}
   .mc-srow.mc-st-ahead{border-left:3px solid #5B9BD5}
   .mc-srow.mc-st-dirty{border-left:3px solid #D19A66}
+  /* ── DELIVERY COCKPIT · Frente B (🛩️ Project command) — restraint: cada elemento é uma feature ── */
+  .pc-wrap{font-size:11.5px}
+  .pc-head{display:flex;align-items:center;gap:8px;margin:2px 0 8px}
+  .pc-brand{font-size:15px}
+  .pc-title{font-weight:700;font-size:13px}
+  .pc-headcount{font-size:10px;color:var(--bmuted);font-variant-numeric:tabular-nums}
+  .pc-spacer{flex:1}
+  .pc-banner{border-radius:7px;padding:8px 10px;margin-bottom:8px;font-size:11px;line-height:1.5;border:1px solid var(--vscode-widget-border)}
+  .pc-banner.pc-warn{background:rgba(229,192,123,.06);border-color:rgba(229,192,123,.3)}
+  .pc-banner.pc-stale{background:var(--rdim);border-color:var(--r);color:var(--r2)}
+  .pc-cli{font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px;background:var(--ttybg);color:#8fd6a0;border-radius:6px;padding:8px 10px;word-break:break-all}
+  .pc-scope{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--bmuted);margin-bottom:6px}
+  .pc-scope b{color:var(--vscode-foreground);font-weight:600}
+  .pc-sk{font-variant-numeric:tabular-nums}
+  .pc-vr{width:1px;height:11px;background:var(--vscode-widget-border)}
+  .pc-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:9.5px;color:var(--bmuted);margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--vscode-widget-border)}
+  .pc-phase{margin-bottom:14px}
+  .pc-phhd{font-size:11px;font-weight:600;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+  .pc-phk{font-size:8.5px;color:var(--bmuted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .pc-phcnt{font-size:9.5px;color:var(--bmuted);background:var(--surface2);border-radius:9px;padding:1px 7px;font-variant-numeric:tabular-nums}
+  .pc-sub{font-size:9.5px;color:var(--bmuted);font-weight:400}
+  .pc-nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic;font-size:10.5px}
+  .pc-red{color:var(--r)!important}
+  .pc-amber{color:#D19A66!important}
+  /* wave card */
+  .pc-wave{border:1px solid var(--vscode-widget-border);border-radius:8px;padding:10px 11px;margin-bottom:7px;background:var(--vscode-editorWidget-background)}
+  .pc-wave.running{border-left:3px solid var(--g)}
+  .pc-wave.locked{opacity:.82}
+  .pc-wtop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .pc-wid{font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;color:var(--vscode-foreground)}
+  .pc-wname{font-weight:600;font-size:11.5px}
+  .pc-wbadge{font-size:9.5px;border:1px solid var(--vscode-widget-border);border-radius:6px;padding:1px 6px;color:var(--bmuted)}
+  .pc-st{font-size:9.5px;border-radius:6px;padding:1px 7px;font-weight:600}
+  .pc-st.pc-run{color:var(--g);background:var(--gdim)}
+  .pc-st.pc-cone{color:var(--g);background:var(--gdim)}
+  .pc-st.pc-cal{color:#D19A66;background:rgba(209,154,102,.12)}
+  .pc-st.pc-nob{color:var(--bmuted);background:var(--surface2)}
+  .pc-wgoal{font-size:10.5px;color:var(--bmuted);margin:5px 0 6px;line-height:1.45}
+  .pc-fc{font-size:10.5px;border-radius:6px;padding:6px 8px;margin-bottom:6px;line-height:1.5}
+  .pc-fc-cone{background:var(--gdim)}
+  .pc-fc-cal{background:rgba(209,154,102,.08);color:var(--vscode-foreground)}
+  .pc-fc-nob{background:var(--surface2);color:var(--bmuted)}
+  .pc-fk{font-size:9px;color:var(--bmuted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
+  .pc-await{font-size:9px;color:var(--bmuted);margin-top:3px;font-style:italic}
+  .pc-rel{font-size:9.5px;color:var(--bmuted)}
+  .pc-wmeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .pc-deps{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .pc-depk{font-size:9px;color:var(--bmuted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
+  .pc-dep{font-size:9.5px;border-radius:6px;padding:1px 6px;font-variant-numeric:tabular-nums}
+  .pc-dep.met{color:var(--g);background:var(--gdim)}
+  .pc-dep.wait{color:#D19A66;background:rgba(209,154,102,.1)}
+  .pc-dep.none{color:var(--bmuted)}
+  .pc-prog{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .pc-progk{font-size:9.5px;color:var(--bmuted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pc-progbar{flex:1;height:6px;background:var(--surface2);border-radius:4px;overflow:hidden;min-width:60px}
+  .pc-progfill{display:block;height:100%;background:var(--g);border-radius:4px;transition:width .5s ease}
+  .pc-progpct{font-size:9.5px;color:var(--g);font-variant-numeric:tabular-nums;font-weight:600}
+  .pc-wacts{display:flex;align-items:center;gap:7px;margin-top:2px}
+  .pc-btn{font-size:10px;border:1px solid var(--vscode-widget-border);border-radius:6px;padding:3px 9px;cursor:pointer;background:var(--vscode-button-secondaryBackground,var(--surface2));color:var(--vscode-foreground)}
+  .pc-btn:hover{border-color:var(--g)}
+  .pc-btn.pc-mini{padding:2px 7px}
+  .pc-play{color:var(--g);border-color:rgba(76,175,106,.4);font-weight:600}
+  .pc-lock{font-size:10px;color:#D19A66;background:rgba(209,154,102,.1);border-radius:6px;padding:3px 9px}
+  .pc-chev{font-size:10px;border:none;background:none;color:var(--bmuted);cursor:pointer;padding:3px 4px;font-variant-numeric:tabular-nums}
+  .pc-chev:hover{color:var(--vscode-foreground)}
+  .pc-chev.open{color:var(--vscode-foreground)}
+  .pc-chevi{display:inline-block;width:9px}
+  .pc-subs{margin-top:7px;border-top:1px solid var(--vscode-widget-border);padding-top:6px}
+  .pc-subs.open{border-top:0;padding-top:0}
+  .pc-srow{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;font-size:10.5px}
+  .pc-srow.link{cursor:pointer}
+  .pc-srow.link:hover{background:var(--vscode-list-hoverBackground)}
+  .pc-srow.dirty{border-left:2px solid var(--r)}
+  .pc-sdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--bmuted)}
+  .pc-sdot.work{background:var(--g)}
+  .pc-sdot.warn{background:#E5C07B}
+  .pc-sdot.idle{background:var(--bmuted);opacity:.5}
+  .pc-stopic{flex:none}
+  .pc-sname{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+  .pc-gitpin{font-family:var(--vscode-editor-font-family,monospace);font-size:9.5px;display:inline-flex;gap:1px;align-items:baseline}
+  .pc-branch{color:var(--vscode-foreground)}
+  .pc-sha{color:var(--bmuted)}
+  .pc-chip{font-size:9.5px;font-variant-numeric:tabular-nums;color:var(--bmuted);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:0 5px}
+  .pc-chip.pc-red{border-color:rgba(232,136,138,.5)}
+  .pc-open{font-size:11px;flex:none}
+  .pc-foot{margin-top:14px;padding-top:10px;border-top:1px solid var(--vscode-widget-border)}
+  .pc-gloss{font-size:9.5px;color:var(--bmuted);line-height:1.6;margin-bottom:8px}
+  .pc-gloss b{color:var(--vscode-foreground);font-weight:600}
+  .pc-acts{display:flex;gap:7px;flex-wrap:wrap}
 </style></head><body>
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
 <div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🤖 Agents</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🤖 Agents</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div>
 </div>
 </div>
 <!-- B9 — command bar (not a chatbot): natural language OR a /command resolves to a real Mooter command via the classifier; a leading "/" runs straight through. -->
@@ -1504,6 +1658,7 @@ function getHtml(guardianPct = null) {
 <div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
 <div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
 <!-- MISSION CONTROL TAB · Frente G — view container (renderMissionControl preenche #v-mc) --><div class="view" id="view-mc"><div id="v-mc"><div class="empty">Mission Control — à espera do primeiro snapshot…</div></div></div>
+<!-- DELIVERY COCKPIT TAB · Frente B — view container (renderProjectCommand preenche #v-pc) --><div class="view" id="view-pc"><div id="v-pc"><div class="empty">🛩️ Project command — à espera do primeiro snapshot…</div></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
 function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));try{var _st=vsapi.getState()||{};_st.tab=name;vsapi.setState(_st);}catch(e){}}
@@ -1746,6 +1901,16 @@ const renderArchTree=${ARCH&&ARCH.renderArchTree?ARCH.renderArchTree.toString():
 // ── MISSION CONTROL TAB · Frente G — Mission Control renderer (concat-only/CSP-safe; renders
 // PURELY from snapshot.mc). Self-contained (its own esc), so safe under .toString() injection.
 const renderMissionControl=${MCV?MCV.renderMissionControl.toString():'function renderMissionControl(){return "<div class=\\"mc-nd\\">Mission Control indisponível</div>";}'};
+// ── DELIVERY COCKPIT TAB · Frente B — Project command renderer (concat-only/CSP-safe; renders
+// PURELY from snapshot.pc). Self-contained (own esc), so safe under .toString() injection.
+const renderProjectCommand=${PCV&&PCV.renderProjectCommand?PCV.renderProjectCommand.toString():'function renderProjectCommand(){return "<div class=\\"pc-nd\\">Project command indisponível</div>";}'};
+// wirePc: chevron toggles the wave's sub-sessions client-side; clickable session rows +
+// data-a buttons go through wireButtons → the host (playWave/openSession/designWave/reprioritise).
+function wirePc(root){if(!root)return;wireButtons(root);
+  root.querySelectorAll('.pc-chev[data-wave]').forEach(function(c){c.onclick=function(){var id=c.getAttribute('data-wave');var box=root.querySelector('.pc-subs[data-wave-subs="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');if(!box){root.querySelectorAll('.pc-subs[data-wave-subs]').forEach(function(b){if(b.getAttribute('data-wave-subs')===id)box=b;});}if(!box)return;var open=box.hasAttribute('hidden');if(open){box.removeAttribute('hidden');c.classList.add('open');c.setAttribute('aria-expanded','true');var ci=c.querySelector('.pc-chevi');if(ci)ci.textContent='▾';}else{box.setAttribute('hidden','');c.classList.remove('open');c.setAttribute('aria-expanded','false');var ci2=c.querySelector('.pc-chevi');if(ci2)ci2.textContent='▸';}};});
+  // clickable session rows (whole row → openSession); keyboard-accessible.
+  root.querySelectorAll('.pc-srow.link[data-a="openSession"]').forEach(function(r){var go=function(){send('openSession',r.getAttribute('data-x'));};r.onclick=go;r.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+}
 // ── MISSION CONTROL TAB · Frente G — Moo assistant state + wiring (survives the 7s re-render).
 // Stream comes back as moo/moo-stream/moo-done (Frente 0 host handlers); mcApply re-paints.
 let mcMoo={q:'',out:'',status:'idle',model:null,focused:false};
@@ -2147,6 +2312,12 @@ window.addEventListener('message',(e)=>{
     const vmc=$('#v-mc');
     if(vmc){ vmc.innerHTML=s.mc?renderMissionControl(s.mc):'<div class="empty">Mission Control — sem snapshot ainda (espera o próximo refresh)…</div>'; wireMc(vmc); }
   }catch(_mc){ try{const vmc2=$('#v-mc');if(vmc2)vmc2.innerHTML='<div class="mc-nd">Mission Control — erro de render</div>';}catch(__mc){} }
+  // ── DELIVERY COCKPIT TAB · Frente B — render the Project command tab PURELY from s.pc.
+  // Honest: no snapshot.pc yet → "sem snapshot". Never throws (guarded); wires chevron + rows.
+  try{
+    const vpc=$('#v-pc');
+    if(vpc){ vpc.innerHTML=s.pc?renderProjectCommand(s.pc):'<div class="empty">🛩️ Project command — sem snapshot ainda (espera o próximo refresh)…</div>'; wirePc(vpc); }
+  }catch(_pc){ try{const vpc2=$('#v-pc');if(vpc2)vpc2.innerHTML='<div class="pc-nd">Project command — erro de render</div>';}catch(__pc){} }
   // B2 — restore the scroll captured before this snapshot rebuilt the views (no jump/flicker).
   try{if(_preScroll)window.scrollTo(0,_preScroll);}catch(_s){}
 });
