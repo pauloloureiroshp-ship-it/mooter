@@ -339,10 +339,12 @@ function renderMissionControl(snapshot) {
   // ── MCV2 · D · Painel Audit (replay do ledger · read-only · who/model/tier/kind/ts) ──
   out += '<div class="mc-card mcv2-audit"><div class="mc-lbl">🧾 Audit <span class="mc-sub">— replay do ledger · read-only · registo auditável</span></div>';
   if (ledger.length) {
-    // Filter chips: "all" + distinct task_group/sid seen in the ledger. Presentation +
-    // host-wire affordance (data-a="auditFilter"); host filtering is follow-up — replay is full.
+    var AUDIT_CAP = 60;
+    var shown = Math.min(ledger.length, AUDIT_CAP);
+    // Filter chips: "all" + distinct task_group/sid — built from the SHOWN slice only (Phase 5 nit:
+    // chips from beyond the row cap would filter the visible set to empty = a dead-looking chip).
     var seenF = {}, chips = '<button class="mc-btn mcv2-afilter on" data-a="auditFilter" data-x="all" title="mostrar todos os eventos">todos</button>';
-    for (var fci = 0; fci < ledger.length; fci++) {
+    for (var fci = 0; fci < shown; fci++) {
       var fev = ledger[fci] || {};
       var fkey = (fev.taskGroup != null && fev.taskGroup !== '') ? String(fev.taskGroup)
         : ((fev.sid != null && fev.sid !== '') ? String(fev.sid) : null);
@@ -353,8 +355,6 @@ function renderMissionControl(snapshot) {
     }
     out += '<div class="mcv2-afilters">' + chips + '</div>';
     out += '<div class="mcv2-audrows">';
-    var AUDIT_CAP = 60;
-    var shown = Math.min(ledger.length, AUDIT_CAP);
     for (var evi = 0; evi < shown; evi++) {
       var ev = ledger[evi] || {};
       var who = (ev.agent != null && ev.agent !== '') ? ev.agent : (ev.who != null ? ev.who : null);
