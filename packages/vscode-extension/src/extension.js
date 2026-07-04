@@ -1025,16 +1025,59 @@ function getHtml(guardianPct = null) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
-  /* Official mooter design system — landing/app/globals.css verbatim (v0.4) */
-  :root{--g:#4CAF6A;--r:#E8888A;--r2:#F2A5A5;--ink:#0B0A09;--surface:#141311;--surface2:#1C1A17;
-    --btext:#F2EDE6;--bmuted:#8A8076;--gdim:rgba(76,175,106,.14);--rdim:rgba(232,136,138,.12);
-    --t0:#4CAF6A;--t1:#5A9BD4;--t2:#A88BD4;--t3:#D46A5A;--ttybg:#0d1117;--ttyhd:#161b22}
+  /* Deck design tokens (Phase 0) — theme-aware. Every colour defers to the VS Code
+     theme (charts/editor vars) and falls back to the Mooter brand hex only when the
+     theme omits it. This :root layer is the ONLY sanctioned home for a colour literal. */
+  :root{
+    /* structural — track the editor theme so light/dark/high-contrast all stay legible */
+    --ink:var(--vscode-editor-background,#0B0A09);
+    --surface:var(--vscode-editorWidget-background,#141311);
+    --surface2:var(--vscode-input-background,#1C1A17);
+    --btext:var(--vscode-foreground,#F2EDE6);
+    --bmuted:var(--vscode-descriptionForeground,#8A8076);
+    --ttybg:var(--vscode-terminal-background,var(--vscode-editor-background,#0d1117));
+    --ttyhd:var(--vscode-sideBarSectionHeader-background,#161b22);
+    --ttyfg:var(--vscode-terminal-foreground,var(--vscode-foreground,#DDDDDD));
+    --on-bright:#0B0A09; /* fixed dark ink for text sitting on a saturated brand chip */
+    /* semantic status — follow the theme chart palette; brand hex only as fallback */
+    --ok:var(--vscode-charts-green,#4CAF6A);
+    --danger:var(--vscode-charts-red,#E8888A);
+    --danger-2:var(--vscode-charts-red,#F2A5A5);
+    --danger-strong:var(--vscode-errorForeground,#D9484B);
+    --warn:var(--vscode-charts-orange,#D19A66);
+    --acc-warm:var(--vscode-charts-yellow,#E5C07B);
+    --acc-orange:var(--vscode-charts-orange,#D19A66);
+    --blue:var(--vscode-charts-blue,#5A9BD4);
+    --blue-bright:var(--vscode-charts-blue,#61AFEF);
+    --purple:var(--vscode-charts-purple,#A78BFA);
+    --purple-bright:var(--vscode-charts-purple,#C4B5FD);
+    --teal:var(--vscode-charts-blue,#56B6C2);
+    /* back-compat aliases (used widely as --g/--r) */
+    --g:var(--ok);--r:var(--danger);--r2:var(--danger-2);
+    /* tier ladder */
+    --t0:var(--ok);--t1:var(--blue);--t2:var(--purple);--t3:var(--vscode-charts-red,#D46A5A);--t5:var(--acc-warm);
+    /* dim tints (translucent overlays — stay subtle in every theme) */
+    --gdim:rgba(76,175,106,.14);--rdim:rgba(232,136,138,.12);
+    --warmdim:rgba(229,192,123,.12);--bluedim:rgba(90,155,212,.12);--orangedim:rgba(209,154,102,.1);
+    /* categorical worktree/model palette — theme chart series, brand fallback */
+    --wt-1:var(--vscode-charts-blue,#5A9BD4);--wt-2:var(--vscode-charts-orange,#D4A05A);
+    --wt-3:var(--vscode-charts-purple,#A05AD4);--wt-4:var(--vscode-charts-green,#5AD4A0);
+    --wt-5:var(--vscode-charts-red,#D4605A);--wt-6:var(--vscode-charts-yellow,#D4C05A);
+    --wt-7:var(--vscode-charts-green,#60A05A);
+  }
+  /* High-contrast: VS Code adds .vscode-high-contrast* to <body>. Drop the subtle
+     tint overlays so text sits on the real HC background at maximum contrast. */
+  body.vscode-high-contrast, body.vscode-high-contrast-light{
+    --gdim:transparent;--rdim:transparent;--warmdim:transparent;--bluedim:transparent;--orangedim:transparent;
+  }
+  /* Reduced motion — global kill switch covering every animation/transition. */
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
   body{font:13px var(--vscode-font-family);color:var(--vscode-foreground);padding:0 10px 12px;margin:0}
   .brand{display:flex;align-items:center;gap:7px;margin:8px -10px 0;padding:2px 12px 9px;border-bottom:1px solid var(--vscode-widget-border)}
   .brand b{color:var(--r);font-size:13.5px}.brand .proj{font-size:11px;color:var(--vscode-descriptionForeground);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .right{margin-left:auto;display:flex;gap:5px;align-items:center}
   .badge{font-size:10px;padding:2px 8px;border-radius:8px}
-  .b-mode{color:var(--r);background:var(--rdim)}.b-score{color:var(--ink);background:var(--g);font-weight:700;cursor:pointer}
+  .b-mode{color:var(--r);background:var(--rdim)}.b-score{color:var(--on-bright);background:var(--g);font-weight:700;cursor:pointer}
   .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
   .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--r)}
@@ -1070,9 +1113,9 @@ function getHtml(guardianPct = null) {
   .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .scmpr{font-weight:600;font-size:9.5px}
-  .alertdot{width:8px;height:8px;border-radius:50%;background:#E5C07B;flex:none;animation:alertpulse 1.6s infinite}
+  .alertdot{width:8px;height:8px;border-radius:50%;background:var(--acc-warm);flex:none;animation:alertpulse 1.6s infinite}
   @keyframes alertpulse{0%,100%{opacity:1}50%{opacity:.3}}
-  .needsyou{color:#E5C07B;font-weight:700}
+  .needsyou{color:var(--acc-warm);font-weight:700}
   .srow.needs:not(.on){background:rgba(229,192,123,.08)}
   .sopen{font-size:12px;color:var(--vscode-descriptionForeground);flex:none;opacity:.45}
   .srow:hover .sopen{opacity:1;color:var(--g)}
@@ -1090,8 +1133,8 @@ function getHtml(guardianPct = null) {
   .intchip{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
   .intchip:hover{opacity:1}
   .intlogo{display:inline-block;vertical-align:middle;flex:none}
-  .intcta{color:#e5c07b;font-size:9px;font-weight:600}
-  .wtchip{font-size:9px;background:rgba(90,155,212,.15);color:#5A9BD4;border:1px solid rgba(90,155,212,.3);border-radius:7px;padding:1px 5px;font-family:var(--vscode-editor-font-family,monospace)}
+  .intcta{color:var(--acc-warm);font-size:9px;font-weight:600}
+  .wtchip{font-size:9px;background:rgba(90,155,212,.15);color:var(--blue);border:1px solid rgba(90,155,212,.3);border-radius:7px;padding:1px 5px;font-family:var(--vscode-editor-font-family,monospace)}
   button.intrefresh{padding:0 4px;font-size:10px;border-radius:3px;opacity:.45;min-width:0;line-height:1.4}
   button.intrefresh:hover{opacity:1}
   /* WCOCKPIT-3: per-session mode segmented + model select + auto toggle */
@@ -1105,8 +1148,8 @@ function getHtml(guardianPct = null) {
   button.sauto.on{opacity:1;color:var(--g);border-color:var(--g)}
   /* WCOCKPIT-9 (Bloco F): LoopMoo toggle — ON=azul activo, armado=âmbar tracejado (loop não activo) */
   button.sloop{font-size:9px;padding:2px 7px;opacity:.5;white-space:nowrap}
-  button.sloop.on{opacity:1;color:#61afef;border-color:#61afef}
-  button.sloop.on.armed{color:#e5c07b;border-color:#e5c07b;border-style:dashed}
+  button.sloop.on{opacity:1;color:var(--blue-bright);border-color:var(--blue-bright)}
+  button.sloop.on.armed{color:var(--acc-warm);border-color:var(--acc-warm);border-style:dashed}
   button.sloop:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
   .livecow.loop{animation:mooloop 1.1s linear infinite}
   @keyframes mooloop{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
@@ -1114,30 +1157,30 @@ function getHtml(guardianPct = null) {
   /* WCOCKPIT-9 (Bloco E): per-session slash-command picker + armed "next" feedback chip */
   .sslashrow{margin-top:4px}
   .sslash{width:100%;font-size:9.5px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:4px}
-  .snext{font-size:9px;margin-top:3px;color:#61afef;font-family:var(--vscode-editor-font-family,monospace);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .snext{font-size:9px;margin-top:3px;color:var(--blue-bright);font-family:var(--vscode-editor-font-family,monospace);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* WCOCKPIT-9 (Bloco C): per-session Commit & Push button (drawer-only; shown only when work) */
   .sgitrow{margin-top:5px}
-  .sgitbtn{width:100%;font-size:9.5px;padding:3px 7px;border-radius:5px;cursor:pointer;font-weight:600;background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);border:1px solid #5A9BD4;opacity:.9;line-height:1.5}
+  .sgitbtn{width:100%;font-size:9.5px;padding:3px 7px;border-radius:5px;cursor:pointer;font-weight:600;background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);border:1px solid var(--blue);opacity:.9;line-height:1.5}
   .sgitbtn:hover{opacity:1;border-color:var(--g);color:var(--g)}
   .sgitbtn:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
   /* ⇄ Handoff: distinct accent (purple ⇄), reuses .sgitbtn layout */
-  .sgitbtn.handoff{border-color:#a78bfa;color:var(--vscode-foreground)}
-  .sgitbtn.handoff:hover{border-color:#c4b5fd;color:#c4b5fd}
+  .sgitbtn.handoff{border-color:var(--purple);color:var(--vscode-foreground)}
+  .sgitbtn.handoff:hover{border-color:var(--purple-bright);color:var(--purple-bright)}
   /* ── GUARDIAN:F3 ── ⇄ Saltar para fresca: amber accent, only rendered at the delirium threshold */
-  .sgitbtn.jump{border-color:#E5C07B;color:var(--vscode-foreground);font-weight:700}
-  .sgitbtn.jump:hover{border-color:#f0d090;color:#f0d090}
+  .sgitbtn.jump{border-color:var(--acc-warm);color:var(--vscode-foreground);font-weight:700}
+  .sgitbtn.jump:hover{border-color:var(--acc-warm);color:var(--acc-warm)}
   /* ⇄ Handoff v2 — per-project button in the group header (own full-width line) */
   .ghd .projhandoff{flex:0 0 100%;margin-top:3px;font-size:9px;padding:2px 8px;opacity:.85}
   .ghd .projhandoff:hover{opacity:1}
   /* ⇄ Handoff v2 — inline live panel (per-session + per-project). Shows EXACTLY the clipboard
      text (same source: generateHandoff/generateProjectHandoff). Revealed by the host stream. */
-  .hoffp{margin-top:6px;border:1px solid #a78bfa;border-radius:6px;background:var(--vscode-editorWidget-background,var(--vscode-input-background));padding:7px 8px}
+  .hoffp{margin-top:6px;border:1px solid var(--purple);border-radius:6px;background:var(--vscode-editorWidget-background,var(--vscode-input-background));padding:7px 8px}
   .hoffp[hidden]{display:none}
-  .hoffp-st{font-size:9px;font-weight:600;color:#a78bfa;margin-bottom:5px;letter-spacing:.03em}
+  .hoffp-st{font-size:9px;font-weight:600;color:var(--purple);margin-bottom:5px;letter-spacing:.03em}
   .hoffp-pre{margin:0;max-height:260px;overflow:auto;font-family:var(--vscode-editor-font-family,monospace);font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--vscode-foreground)}
   .hoffp .hoffcopy{margin-top:7px;width:auto;padding:2px 10px}
   /* ⇄ F2 live streaming: pulsing "a gerar narrativa…" indicator next to the status line */
-  .hoffp-st .gendot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#a78bfa;margin-right:5px;vertical-align:middle;animation:hoffgen 1s ease-in-out infinite}
+  .hoffp-st .gendot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--purple);margin-right:5px;vertical-align:middle;animation:hoffgen 1s ease-in-out infinite}
   @keyframes hoffgen{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
   @media (prefers-reduced-motion:reduce){.hoffp-st .gendot{animation:none}}
   /* WCOCKPIT-7: compact drawer — integrations inline & icon-only, per-session close, bulk clear */
@@ -1159,10 +1202,10 @@ function getHtml(guardianPct = null) {
   .sgit{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}
   .gstage{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600}
   .gstage.clean{color:var(--g);background:var(--gdim)}
-  .gstage.dirty{color:#e5c07b;background:rgba(229,192,123,.12)}
-  .gstage.staged{color:#5A9BD4;background:rgba(90,155,212,.12)}
-  .gstage.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
-  .gtip{font-size:9px;color:#e5c07b;font-weight:600}
+  .gstage.dirty{color:var(--acc-warm);background:rgba(229,192,123,.12)}
+  .gstage.staged{color:var(--blue);background:rgba(90,155,212,.12)}
+  .gstage.ahead{color:var(--blue);background:rgba(90,155,212,.12)}
+  .gtip{font-size:9px;color:var(--acc-warm);font-weight:600}
   /* WCOCKPIT-10: Project Stage Rail + safe-to-close chip + plain next-move */
   .srail{display:flex;justify-content:space-between;position:relative;margin:6px 3px 2px}
   .srail::before{content:"";position:absolute;left:11px;right:11px;top:11px;height:2px;background:var(--vscode-widget-border);z-index:0}
@@ -1175,12 +1218,12 @@ function getHtml(guardianPct = null) {
   .snowtxt{opacity:.9}
   .snowbtn{font-size:9.5px;padding:1px 8px;border-radius:9px;background:var(--rdim);color:var(--r);border:1px solid var(--r);cursor:pointer;line-height:1.6}
   .snowbtn:hover{opacity:.85}
-  .snowhint{font-size:9.5px;color:#5A9BD4;opacity:.85}
-  .sbehind{font-size:9.5px;color:#5A9BD4;margin:2px 2px 0;opacity:.85}
+  .snowhint{font-size:9.5px;color:var(--blue);opacity:.85}
+  .sbehind{font-size:9.5px;color:var(--blue);margin:2px 2px 0;opacity:.85}
   .ssafe{font-size:9px;border-radius:10px;padding:1px 7px;margin-left:6px;font-weight:600}
   .ssafe.green{color:var(--g);background:var(--gdim)}
-  .ssafe.amber{color:#e5c07b;background:rgba(229,192,123,.12)}
-  .ssafe.blue{color:#5A9BD4;background:rgba(90,155,212,.12)}
+  .ssafe.amber{color:var(--acc-warm);background:rgba(229,192,123,.12)}
+  .ssafe.blue{color:var(--blue);background:rgba(90,155,212,.12)}
   /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
      (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
      height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
@@ -1194,18 +1237,18 @@ function getHtml(guardianPct = null) {
   .ghd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:11px 2px 4px;font-size:9px;letter-spacing:.04em}
   .ghkey{text-transform:uppercase;opacity:.65;font-weight:600}
   .ghsrc{font-weight:600;text-transform:none;letter-spacing:0;font-size:8.5px;opacity:.85}
-  .ghsrc.cw{color:#61afef}
+  .ghsrc.cw{color:var(--blue-bright)}
   .ghsrc.repo{color:var(--vscode-descriptionForeground)}
-  .ghsrc.none{color:#e5c07b}
+  .ghsrc.none{color:var(--acc-warm)}
   .ghrepo{font-family:var(--vscode-editor-font-family,monospace);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0;opacity:.7}
   .ghcount{margin-left:auto;opacity:.55;text-transform:uppercase;white-space:nowrap}
   .ghmeta{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .ghbr{font-family:var(--vscode-editor-font-family,monospace);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ghg{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:8px;font-weight:600}
   .ghg.clean{color:var(--g);background:var(--gdim)}
-  .ghg.dirty{color:#e5c07b;background:rgba(229,192,123,.12)}
-  .ghg.staged,.ghg.ahead{color:#5A9BD4;background:rgba(90,155,212,.12)}
-  .ghtip{color:#e5c07b;font-weight:600}
+  .ghg.dirty{color:var(--acc-warm);background:rgba(229,192,123,.12)}
+  .ghg.staged,.ghg.ahead{color:var(--blue);background:rgba(90,155,212,.12)}
+  .ghtip{color:var(--acc-warm);font-weight:600}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
   .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
@@ -1239,7 +1282,7 @@ function getHtml(guardianPct = null) {
   .bar .t{width:58px;color:var(--vscode-descriptionForeground)}.bar .tr{flex:1;height:6px;background:var(--vscode-input-background);border-radius:3px;overflow:hidden}
   .bar .f{height:100%}.bar .p{width:56px;text-align:right;color:var(--vscode-descriptionForeground)}
   button{font-family:inherit;cursor:pointer;border-radius:5px;border:1px solid var(--vscode-widget-border);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));color:var(--vscode-foreground);padding:5px 10px;font-size:11.5px}
-  button.go{width:100%;background:var(--r);color:var(--ink);border:none;padding:9px;font-size:12.5px;font-weight:700}
+  button.go{width:100%;background:var(--r);color:var(--on-bright);border:none;padding:9px;font-size:12.5px;font-weight:700}
   button.go:hover{filter:brightness(1.08)}button.sm{padding:3px 9px;font-size:10.5px}
   .hint{text-align:center;font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:6px}
   .dec{border:1px solid var(--vscode-widget-border);border-radius:5px;margin-bottom:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
@@ -1265,20 +1308,20 @@ function getHtml(guardianPct = null) {
   .pinsel:focus-visible{outline:2px solid var(--r);outline-offset:1px}
   .pinnow{font-size:10px;color:var(--r);margin-top:6px}
   .pill{display:inline-block;font-size:10.5px;border:1px solid var(--vscode-widget-border);border-radius:9px;padding:2px 9px;margin:2px 3px 2px 0}
-  .pill.ok{border-color:var(--g);color:var(--g)}.pill.warn{border-color:#e5c07b;color:#e5c07b}
-  .term{background:var(--ink);border-radius:7px;padding:10px 12px;font:11.5px var(--vscode-editor-font-family);color:#ddd;overflow-x:auto;white-space:pre;line-height:1.7}
+  .pill.ok{border-color:var(--g);color:var(--g)}.pill.warn{border-color:var(--acc-warm);color:var(--acc-warm)}
+  .term{background:var(--ink);border-radius:7px;padding:10px 12px;font:11.5px var(--vscode-editor-font-family);color:var(--ttyfg);overflow-x:auto;white-space:pre;line-height:1.7}
   .wstep{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--vscode-widget-border)}
   .wstep:last-child{border:none}.wstep .n{width:20px;height:20px;border-radius:50%;background:var(--gdim);color:var(--g);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
-  .wstep.done .n{background:var(--g);color:var(--ink)}
+  .wstep.done .n{background:var(--g);color:var(--on-bright)}
   .wstep .w{flex:1;font-size:12px}.wstep small{display:block;color:var(--vscode-descriptionForeground);font-size:10.5px;margin-top:1px}
   .scorebar{height:8px;background:var(--vscode-input-background);border-radius:4px;overflow:hidden;margin:8px 0 4px}
-  .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),#e5c07b 50%,var(--g));border-radius:4px}
+  .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),var(--acc-warm) 50%,var(--g));border-radius:4px}
   input[type=number]{width:90px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:5px 8px;font:12px var(--vscode-font-family)}
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);animation:pu 1.6s infinite;margin-right:6px}@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
   /* B1 — optimistic perceived-speed: o controlo salta JÁ; "a aplicar…" pulsa no painel até o snapshot reconciliar */
-  .applytag{font-size:9px;color:#e5c07b;margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
+  .applytag{font-size:9px;color:var(--acc-warm);margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
   @keyframes applypulse{0%,100%{opacity:.4}50%{opacity:1}}
   .applying{outline:1px solid rgba(229,192,123,.45);outline-offset:1px}
   @media (prefers-reduced-motion:reduce){.applytag{animation:none}}
@@ -1287,7 +1330,7 @@ function getHtml(guardianPct = null) {
   .smoo-empty{opacity:.5;font-size:9px;border-style:dotted;padding:4px 7px}
   .smoohd{font-size:9.5px;color:var(--vscode-foreground)}
   .smoohd b{color:var(--g)}
-  .smooupd{font-size:9px;color:#e5c07b;margin-left:4px;animation:applypulse 1s ease-in-out infinite}
+  .smooupd{font-size:9px;color:var(--acc-warm);margin-left:4px;animation:applypulse 1s ease-in-out infinite}
   .smoosum{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:3px;line-height:1.45;max-height:64px;overflow:auto;white-space:pre-wrap;word-break:break-word}
   .smootools{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:3px;font-family:var(--vscode-editor-font-family,monospace);opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media (prefers-reduced-motion:reduce){.smooupd{animation:none}}
@@ -1321,7 +1364,7 @@ function getHtml(guardianPct = null) {
   .mc-sub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:5px}
   .mc-totals{display:flex;flex-wrap:wrap;gap:4px}.mc-tot{flex:1;min-width:64px;text-align:center;padding:5px 4px;border-radius:6px;background:var(--vscode-editor-background)}
   .mc-totv{font-size:14px;font-weight:700}.mc-totl{font-size:9px;color:var(--vscode-descriptionForeground);margin-top:1px}
-  .mc-tot.mc-ok .mc-totv{color:var(--g)}.mc-tot.mc-warn .mc-totv{color:var(--t3)}.mc-tot.mc-need .mc-totv{color:#E5C07B}
+  .mc-tot.mc-ok .mc-totv{color:var(--g)}.mc-tot.mc-warn .mc-totv{color:var(--t3)}.mc-tot.mc-need .mc-totv{color:var(--acc-warm)}
   .mc-chips{display:flex;flex-wrap:wrap;gap:5px}
   .mc-chip{font-size:10.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--vscode-widget-border);display:inline-flex;align-items:center;gap:4px}
   .mc-chip.mc-q,.mc-eg .mc-chip{cursor:pointer;background:var(--vscode-editor-background)}.mc-chip.mc-q:hover{border-color:var(--g)}
@@ -1329,7 +1372,7 @@ function getHtml(guardianPct = null) {
   .mc-dot.mc-work{background:var(--g);box-shadow:0 0 0 0 rgba(76,175,106,.5);animation:mcpulse 1.6s infinite}
   @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(76,175,106,.5)}70%{box-shadow:0 0 0 5px rgba(76,175,106,0)}100%{box-shadow:0 0 0 0 rgba(76,175,106,0)}}
   .mc-tier{font-size:9px;font-weight:700;padding:1px 5px;border-radius:5px}
-  .mc-T0{background:var(--gdim);color:var(--t0)}.mc-T1{color:var(--t1)}.mc-T2{color:var(--t2)}.mc-T3{background:var(--rdim);color:var(--t3)}.mc-T5{color:#E5C07B}.mc-tnd{color:var(--vscode-descriptionForeground)}
+  .mc-T0{background:var(--gdim);color:var(--t0)}.mc-T1{color:var(--t1)}.mc-T2{color:var(--t2)}.mc-T3{background:var(--rdim);color:var(--t3)}.mc-T5{color:var(--acc-warm)}.mc-tnd{color:var(--vscode-descriptionForeground)}
   .mc-gpubar{height:10px;border-radius:5px;background:var(--vscode-editor-background);overflow:hidden;border:1px solid var(--vscode-widget-border)}
   .mc-gpufill{height:100%;background:linear-gradient(90deg,var(--g),var(--t3))}
   .mc-gpumeta{font-size:10.5px;margin-top:5px}.mc-gpuact{margin-top:7px}
@@ -1415,7 +1458,7 @@ function getHtml(guardianPct = null) {
   .mcf-scard:hover{border-color:var(--vscode-descriptionForeground)}
   .mcf-scard.attn{border-left-color:var(--t1)}
   .mcf-scard.hot{border-left-color:var(--t3)}
-  .mcf-scard.gui{border-left-color:#9d7cd8}.mcf-scard.grouter{border-left-color:var(--t2)}.mcf-scard.ginfra{border-left-color:var(--t3)}
+  .mcf-scard.gui{border-left-color:var(--purple)}.mcf-scard.grouter{border-left-color:var(--t2)}.mcf-scard.ginfra{border-left-color:var(--t3)}
   .mcf-stop{display:flex;align-items:center;gap:7px}
   .mcf-sname{font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mcf-sname .mcf-let{color:var(--vscode-descriptionForeground);font-weight:700}
@@ -1460,14 +1503,14 @@ function getHtml(guardianPct = null) {
   .arch-topic{flex:none}
   .arch-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:30px;flex:0 1 auto}
   .arch-badge{font-size:8.5px;font-weight:700;padding:1px 6px;border-radius:8px;flex:none;display:inline-flex;align-items:center;gap:3px}
-  .arch-badge.needs{color:#E5C07B;background:rgba(229,192,123,.12)}
+  .arch-badge.needs{color:var(--acc-warm);background:rgba(229,192,123,.12)}
   .arch-badge.work{color:var(--g);background:var(--gdim)}
   .arch-badge.idle{color:var(--vscode-descriptionForeground);background:var(--surface2)}
   .arch-model{font-size:9.5px;color:var(--vscode-descriptionForeground);flex:none;white-space:nowrap}
   .arch-tier{font-weight:700}
   .arch-tok{font-size:9px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family,monospace);flex:none;white-space:nowrap}
   .arch-ctx{font-size:9px;color:var(--vscode-descriptionForeground);flex:none}
-  .arch-ctx.hot{color:#E06C75;font-weight:700}
+  .arch-ctx.hot{color:var(--danger);font-weight:700}
   .arch-int{display:inline-flex;align-items:center;gap:3px;margin-left:auto;flex:none}
   .arch-flow{font-size:10px}
   .arch-sync{font-size:10px;opacity:.85}
@@ -1499,15 +1542,15 @@ function getHtml(guardianPct = null) {
   @media (prefers-reduced-motion:reduce){.arch-dash.live{animation:none}}
   /* ── MC VISUAL POLISH (feat/mc-visual-polish) — render-only approximation to the Cowork mocks ── */
   /* Árvore: root Cowork·Opus → main → frentes + pulsing status dots + frozen portfolio chips */
-  .arch-rootmodel{font-size:10px;font-weight:600;color:#E5C07B}
+  .arch-rootmodel{font-size:10px;font-weight:600;color:var(--acc-warm)}
   .arch-mainline{font-size:11px;margin:2px 0 6px;font-family:var(--vscode-editor-font-family,monospace)}
   .arch-mainproj{font-weight:600}
   .arch-frentes{display:flex;flex-direction:column;gap:2px}
   .arch-proj.frozen{opacity:.6;font-style:italic}
   .arch-sdot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
   .arch-sdot.work{background:var(--g);animation:archpulse 1.5s infinite}
-  .arch-sdot.need{background:#E5C07B;animation:archpulse 1.1s infinite}
-  .arch-sdot.done{background:#5B9BD5}
+  .arch-sdot.need{background:var(--acc-warm);animation:archpulse 1.1s infinite}
+  .arch-sdot.done{background:var(--blue)}
   @keyframes archpulse{0%,100%{opacity:1}50%{opacity:.35}}
   @media (prefers-reduced-motion:reduce){.arch-sdot.work,.arch-sdot.need{animation:none}}
   /* CEO: attention-first sections */
@@ -1526,17 +1569,17 @@ function getHtml(guardianPct = null) {
   .arch-gnode{width:9px;height:9px;border-radius:50%;flex:none;background:var(--vscode-descriptionForeground);margin-left:-15px;margin-right:2px;border:2px solid var(--vscode-editorWidget-background)}
   .arch-gnode.main{background:var(--vscode-foreground)}
   .arch-gitrow.st-work .arch-gnode{background:var(--g)}
-  .arch-gitrow.st-need .arch-gnode{background:#E5C07B}
-  .arch-gitrow.st-ahead .arch-gnode{background:#5B9BD5}
-  .arch-gitrow.st-dirty .arch-gnode{background:#D19A66}
+  .arch-gitrow.st-need .arch-gnode{background:var(--acc-warm)}
+  .arch-gitrow.st-ahead .arch-gnode{background:var(--blue)}
+  .arch-gitrow.st-dirty .arch-gnode{background:var(--acc-orange)}
   .arch-gbr{font-family:var(--vscode-editor-font-family,monospace);font-weight:600;flex:none}
   .arch-mk{font-size:9px;padding:0 4px;border-radius:4px;background:var(--surface2);flex:none}
-  .arch-mk.dirty{color:#D19A66}.arch-mk.ahead{color:#5B9BD5}
+  .arch-mk.dirty{color:var(--acc-orange)}.arch-mk.ahead{color:var(--blue)}
   /* MC tab: frozen chips · overclock button · loop icon · git-graph · pillar groups · session state edge */
   .mc-chip.mc-frozen{opacity:.6;font-style:italic}
-  .mc-btn.mc-overclock{border-color:#D19A66;color:#D19A66;font-weight:700}
+  .mc-btn.mc-overclock{border-color:var(--acc-orange);color:var(--acc-orange);font-weight:700}
   /* ── GUARDIAN:F3 ── ⇄ Saltar para fresca (MC): amber accent, only rendered at the delirium threshold */
-  .mc-btn.mc-jump{border-color:#E5C07B;color:#E5C07B;font-weight:700}
+  .mc-btn.mc-jump{border-color:var(--acc-warm);color:var(--acc-warm);font-weight:700}
   .mcf-jumprow{margin-top:5px}
   .mc-loopico{font-size:11px}
   .mc-git{display:flex;flex-direction:column;gap:3px;margin-top:4px;border-left:2px solid var(--vscode-widget-border);padding-left:10px}
@@ -1544,13 +1587,13 @@ function getHtml(guardianPct = null) {
   .mc-gnode{width:9px;height:9px;border-radius:50%;flex:none;background:var(--vscode-descriptionForeground);margin-left:-15px;margin-right:2px;border:2px solid var(--vscode-editorWidget-background)}
   .mc-gnode.mc-main{background:var(--vscode-foreground)}
   .mc-gitrow.mc-st-work .mc-gnode{background:var(--g)}
-  .mc-gitrow.mc-st-need .mc-gnode{background:#E5C07B}
-  .mc-gitrow.mc-st-ahead .mc-gnode{background:#5B9BD5}
-  .mc-gitrow.mc-st-dirty .mc-gnode{background:#D19A66}
+  .mc-gitrow.mc-st-need .mc-gnode{background:var(--acc-warm)}
+  .mc-gitrow.mc-st-ahead .mc-gnode{background:var(--blue)}
+  .mc-gitrow.mc-st-dirty .mc-gnode{background:var(--acc-orange)}
   .mc-treerow.mc-st-work{border-left-color:var(--g)}
-  .mc-treerow.mc-st-need{border-left-color:#E5C07B}
-  .mc-treerow.mc-st-ahead{border-left-color:#5B9BD5}
-  .mc-treerow.mc-st-dirty{border-left-color:#D19A66}
+  .mc-treerow.mc-st-need{border-left-color:var(--acc-warm)}
+  .mc-treerow.mc-st-ahead{border-left-color:var(--blue)}
+  .mc-treerow.mc-st-dirty{border-left-color:var(--acc-orange)}
   .mc-treerow.mc-st-idle{border-left-color:var(--vscode-widget-border)}
   .mc-gmodel{font-size:9px;color:var(--vscode-descriptionForeground)}
   .mc-gtok{font-size:9px;font-family:var(--vscode-editor-font-family,monospace);opacity:.8}
@@ -1558,9 +1601,9 @@ function getHtml(guardianPct = null) {
   .mc-pgrp-h{font-size:10px;font-weight:700;color:var(--vscode-descriptionForeground);text-transform:uppercase;letter-spacing:.03em;margin:4px 0;display:flex;align-items:center;gap:6px}
   .mc-stop{font-size:12px;flex:none}
   .mc-srow.mc-st-work{border-left:3px solid var(--g)}
-  .mc-srow.mc-st-need{border-left:3px solid #E5C07B}
-  .mc-srow.mc-st-ahead{border-left:3px solid #5B9BD5}
-  .mc-srow.mc-st-dirty{border-left:3px solid #D19A66}
+  .mc-srow.mc-st-need{border-left:3px solid var(--acc-warm)}
+  .mc-srow.mc-st-ahead{border-left:3px solid var(--blue)}
+  .mc-srow.mc-st-dirty{border-left:3px solid var(--acc-orange)}
   /* ── DELIVERY COCKPIT · Frente B (🛩️ Project command) — restraint: cada elemento é uma feature ── */
   .pc-wrap{font-size:11.5px}
   .pc-head{display:flex;align-items:center;gap:8px;margin:2px 0 8px}
@@ -1571,7 +1614,7 @@ function getHtml(guardianPct = null) {
   .pc-banner{border-radius:7px;padding:8px 10px;margin-bottom:8px;font-size:11px;line-height:1.5;border:1px solid var(--vscode-widget-border)}
   .pc-banner.pc-warn{background:rgba(229,192,123,.06);border-color:rgba(229,192,123,.3)}
   .pc-banner.pc-stale{background:var(--rdim);border-color:var(--r);color:var(--r2)}
-  .pc-cli{font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px;background:var(--ttybg);color:#8fd6a0;border-radius:6px;padding:8px 10px;word-break:break-all}
+  .pc-cli{font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px;background:var(--ttybg);color:var(--ok);border-radius:6px;padding:8px 10px;word-break:break-all}
   .pc-scope{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--bmuted);margin-bottom:6px}
   .pc-scope b{color:var(--vscode-foreground);font-weight:600}
   .pc-sk{font-variant-numeric:tabular-nums}
@@ -1584,7 +1627,7 @@ function getHtml(guardianPct = null) {
   .pc-sub{font-size:9.5px;color:var(--bmuted);font-weight:400}
   .pc-nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic;font-size:10.5px}
   .pc-red{color:var(--r)!important}
-  .pc-amber{color:#D19A66!important}
+  .pc-amber{color:var(--acc-orange)!important}
   /* wave card */
   .pc-wave{border:1px solid var(--vscode-widget-border);border-radius:8px;padding:10px 11px;margin-bottom:7px;background:var(--vscode-editorWidget-background)}
   .pc-wave.running{border-left:3px solid var(--g)}
@@ -1596,7 +1639,7 @@ function getHtml(guardianPct = null) {
   .pc-st{font-size:9.5px;border-radius:6px;padding:1px 7px;font-weight:600}
   .pc-st.pc-run{color:var(--g);background:var(--gdim)}
   .pc-st.pc-cone{color:var(--g);background:var(--gdim)}
-  .pc-st.pc-cal{color:#D19A66;background:rgba(209,154,102,.12)}
+  .pc-st.pc-cal{color:var(--acc-orange);background:rgba(209,154,102,.12)}
   .pc-st.pc-nob{color:var(--bmuted);background:var(--surface2)}
   .pc-wgoal{font-size:10.5px;color:var(--bmuted);margin:5px 0 6px;line-height:1.45}
   .pc-fc{font-size:10.5px;border-radius:6px;padding:6px 8px;margin-bottom:6px;line-height:1.5}
@@ -1611,7 +1654,7 @@ function getHtml(guardianPct = null) {
   .pc-depk{font-size:9px;color:var(--bmuted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
   .pc-dep{font-size:9.5px;border-radius:6px;padding:1px 6px;font-variant-numeric:tabular-nums}
   .pc-dep.met{color:var(--g);background:var(--gdim)}
-  .pc-dep.wait{color:#D19A66;background:rgba(209,154,102,.1)}
+  .pc-dep.wait{color:var(--acc-orange);background:rgba(209,154,102,.1)}
   .pc-dep.none{color:var(--bmuted)}
   .pc-prog{display:flex;align-items:center;gap:8px;margin-bottom:7px}
   .pc-progk{font-size:9.5px;color:var(--bmuted);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -1623,7 +1666,7 @@ function getHtml(guardianPct = null) {
   .pc-btn:hover{border-color:var(--g)}
   .pc-btn.pc-mini{padding:2px 7px}
   .pc-play{color:var(--g);border-color:rgba(76,175,106,.4);font-weight:600}
-  .pc-lock{font-size:10px;color:#D19A66;background:rgba(209,154,102,.1);border-radius:6px;padding:3px 9px}
+  .pc-lock{font-size:10px;color:var(--acc-orange);background:rgba(209,154,102,.1);border-radius:6px;padding:3px 9px}
   .pc-chev{font-size:10px;border:none;background:none;color:var(--bmuted);cursor:pointer;padding:3px 4px;font-variant-numeric:tabular-nums}
   .pc-chev:hover{color:var(--vscode-foreground)}
   .pc-chev.open{color:var(--vscode-foreground)}
@@ -1636,7 +1679,7 @@ function getHtml(guardianPct = null) {
   .pc-srow.dirty{border-left:2px solid var(--r)}
   .pc-sdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--bmuted)}
   .pc-sdot.work{background:var(--g)}
-  .pc-sdot.warn{background:#E5C07B}
+  .pc-sdot.warn{background:var(--acc-warm)}
   .pc-sdot.idle{background:var(--bmuted);opacity:.5}
   .pc-stopic{flex:none}
   .pc-sname{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
@@ -1664,7 +1707,7 @@ function getHtml(guardianPct = null) {
   .pc-flowk{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums;color:var(--vscode-foreground)}
   .pc-flowk b{font-weight:700}
   .pc-need{color:var(--bmuted)}
-  .pc-need.on{color:#E5C07B;font-weight:600}
+  .pc-need.on{color:var(--acc-warm);font-weight:600}
   .pc-wip{padding:2px 8px;border-radius:6px;background:var(--surface2)}
   .pc-wip.alert{background:var(--rdim);color:var(--r2)}
   .pc-wipx{color:var(--r);font-weight:700}
@@ -1673,7 +1716,7 @@ function getHtml(guardianPct = null) {
   /* squad lanes */
   .pc-lane{border:1px solid var(--vscode-widget-border);border-radius:9px;padding:9px 10px;margin-bottom:9px;background:var(--vscode-editorWidget-background)}
   .pc-lane.pc-h-active{border-left:3px solid var(--g)}
-  .pc-lane.pc-h-warm{border-left:3px solid #E5C07B}
+  .pc-lane.pc-h-warm{border-left:3px solid var(--acc-warm)}
   .pc-lane.pc-h-dormant{border-left:3px solid var(--vscode-widget-border);opacity:.9}
   .pc-lanehd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px}
   .pc-lanedot{font-size:12px}
@@ -1878,7 +1921,7 @@ function wireHoff(root){(root||document).querySelectorAll('.hoffp').forEach(p=>{
 const MLABEL={'claude-opus-4-8':'Opus 4.8','claude-opus-4-7':'Opus 4.7','claude-opus-4-6':'Opus 4.6','claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku 4.5','claude-haiku-4-5-20251001':'Haiku 4.5','claude-fable-5':'Fable 5'};
 function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'').replace(/^claude-/,'').replace(/-/g,' ');}
 // PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
-function stageColor(st){const x=String(st||'');if(x.indexOf('merged')===0)return 'var(--g)';if(x.indexOf('ready')===0)return 'var(--g)';if(x.indexOf('❌')>=0)return 'var(--t3)';if(x.indexOf('⏳')>=0)return '#e5c07b';if(x==='draft')return 'var(--vscode-descriptionForeground)';return 'var(--vscode-descriptionForeground)';}
+function stageColor(st){const x=String(st||'');if(x.indexOf('merged')===0)return 'var(--g)';if(x.indexOf('ready')===0)return 'var(--g)';if(x.indexOf('❌')>=0)return 'var(--t3)';if(x.indexOf('⏳')>=0)return 'var(--acc-warm)';if(x==='draft')return 'var(--vscode-descriptionForeground)';return 'var(--vscode-descriptionForeground)';}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
 function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(/claude|opus|sonnet|haiku/.test(x))return '✨';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
 function agoFmt(ms){const t=Math.round((+ms||0)/1000);if(t<60)return t+'s';const mi=Math.round(t/60);if(mi<60)return mi+'m';const h=Math.round(mi/60);return h<24?h+'h':Math.round(h/24)+'d';}
@@ -2153,7 +2196,7 @@ window.addEventListener('message',(e)=>{
       const execN=M.option_a_hits||0;
       const realSaved=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0;
       const scopeChip=effSess?'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · this session</span>':'<span style="float:right;opacity:.6;font-size:9px">ⓘ advisory · estimativa</span>';
-      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big" role="status" aria-live="polite" aria-label="savings versus all-Opus this session">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:#e5c07b">⚠ tracker offline, last known</div>')+'</div>';
+      return '<div class="card hero" title="'+esc((s.trail&&s.trail.saved&&s.trail.saved.formula)||'savings-tracker /metrics — token-estimated, advisory: the host model answers; the tier is a recommendation, not a billed execution')+'"><div class="lbl">Saved vs all-Opus '+scopeChip+'</div><div class="big" role="status" aria-live="polite" aria-label="savings versus all-Opus this session">$'+(M.saved||0).toFixed(2)+'</div><div class="sub"><b>'+(M.saved_pct||0)+'%</b> below all-Opus · <span title="what you would save IF every prompt ran on its recommended tier — token-estimated, not billed">advisory</span></div><div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ real executed:</span> <b>$'+realSaved.toFixed(2)+'</b> · '+execN+' local dispatch'+(execN===1?'':'es')+(execN?'':' yet')+'</div>'+(s.trackerUp?'':'<div class="sub" style="color:var(--acc-warm)">⚠ tracker offline, last known</div>')+'</div>';
     })()+
     (function(){
       const gTok = M.graph_saved_tokens_est || 0;
@@ -2352,7 +2395,7 @@ window.addEventListener('message',(e)=>{
 
   // ── DOCTOR + 10 slash (req 10)
   const ok=(b)=>b?'✅':(b===null?'🟡':'❌');const sl=s.slash||{};
-  $('#v-doctor').innerHTML='<div class="card">'+(function(){var ck=score.checks||[];var pass=ck.filter(function(c){return c.ok===true;}).length;var bad=ck.some(function(c){return c.ok===false;});var warn=ck.some(function(c){return c.ok===null;});var col=bad?'#E06C75':(warn?'#E5C07B':'var(--g)');var lbl=bad?'needs attention':(warn?'check warnings':'all checks passing');return '<div class="drsum" role="status" aria-live="polite" style="display:flex;align-items:center;gap:8px;font-weight:700;margin:2px 0 9px;color:'+col+'"><span style="font-size:14px">'+(bad?'❌':(warn?'🟡':'✅'))+'</span><span>'+pass+'/'+ck.length+' — '+lbl+'</span></div>';})()+
+  $('#v-doctor').innerHTML='<div class="card">'+(function(){var ck=score.checks||[];var pass=ck.filter(function(c){return c.ok===true;}).length;var bad=ck.some(function(c){return c.ok===false;});var warn=ck.some(function(c){return c.ok===null;});var col=bad?'var(--danger)':(warn?'var(--acc-warm)':'var(--g)');var lbl=bad?'needs attention':(warn?'check warnings':'all checks passing');return '<div class="drsum" role="status" aria-live="polite" style="display:flex;align-items:center;gap:8px;font-weight:700;margin:2px 0 9px;color:'+col+'"><span style="font-size:14px">'+(bad?'❌':(warn?'🟡':'✅'))+'</span><span>'+pass+'/'+ck.length+' — '+lbl+'</span></div>';})()+
     (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+(c.detail?'<small>'+esc(c.detail)+'</small>':'')+'</div>'+(c.ok||!c.fix?'':'<button class="sm" data-a="'+esc(c.fix)+'">fix</button>')+'</div>').join('')+'</div>'+
     '<div class="card"><div class="lbl">Slash commands · '+(sl.installed?'installed ✓':'NOT installed')+'</div>'+
     '<div class="sub" style="margin:7px 0 3px">Modes</div><div>'+['zen','auto','beast'].map(mo=>'<span class="pill ok">'+MOO[mo]+'</span>').join('')+'</div>'+

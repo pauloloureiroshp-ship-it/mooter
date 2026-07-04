@@ -38,12 +38,12 @@ function guardianChip(ctxPct, esc) {
   if (!Number.isFinite(p)) return '';
   var rung = pressureLadder(p);
   var R = {
-    monitor:   ['#54b56a', 'vigia',      'contexto saudável'],
-    mask:      ['#e5c07b', 'a vigiar',   'contexto a encher (≥80%) — a vigiar'],
-    prune:     ['#e09b3a', 'a podar',    'contexto alto (≥85%) — handoff a pré-cozinhar'],
-    advise:    ['#e0564f', 'saltar',     'contexto crítico (≥90%) — saltar p/ sessão fresca'],
-    emergency: ['#d9484b', 'emergência', 'quase cheio (≥99%) — auto-compact iminente'],
-  }[rung] || ['#54b56a', 'vigia', 'contexto'];
+    monitor:   ['var(--ok)', 'vigia',      'contexto saudável'],
+    mask:      ['var(--acc-warm)', 'a vigiar',   'contexto a encher (≥80%) — a vigiar'],
+    prune:     ['var(--warn)', 'a podar',    'contexto alto (≥85%) — handoff a pré-cozinhar'],
+    advise:    ['var(--danger)', 'saltar',     'contexto crítico (≥90%) — saltar p/ sessão fresca'],
+    emergency: ['var(--danger-strong)', 'emergência', 'quase cheio (≥99%) — auto-compact iminente'],
+  }[rung] || ['var(--ok)', 'vigia', 'contexto'];
   var E = (typeof esc === 'function') ? esc : function (x) { return String(x); };
   return '<span class="g-chip g-' + rung + '" title="' + E(R[2] + ' · ' + Math.round(p) + '%') +
     '" style="border-color:' + R[0] + ';color:' + R[0] + '">\u{1FAB6} ' + E(R[1]) + '</span>';

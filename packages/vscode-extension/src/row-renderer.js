@@ -46,7 +46,7 @@ function stageColor(st) {
   if (x.indexOf('merged') === 0) return 'var(--g)';
   if (x.indexOf('ready') === 0) return 'var(--g)';
   if (x.indexOf('❌') >= 0) return 'var(--t3)';
-  if (x.indexOf('⏳') >= 0) return '#e5c07b';
+  if (x.indexOf('⏳') >= 0) return 'var(--acc-warm)';
   if (x === 'draft') return 'var(--vscode-descriptionForeground)';
   return 'var(--vscode-descriptionForeground)';
 }
@@ -427,7 +427,7 @@ function renderRow(r, opts) {
   }
 
   // ── Worktree accent (WCOCKPIT-4: consistent border-left color per worktree name) ──
-  var _WTA = ['#5A9BD4','#D4A05A','#A05AD4','#5AD4A0','#D4605A','#D4C05A','#60A05A'];
+  var _WTA = ['var(--wt-1)','var(--wt-2)','var(--wt-3)','var(--wt-4)','var(--wt-5)','var(--wt-6)','var(--wt-7)'];
   var wtStyle = '';
   if (r.worktree) {
     var _wth = 0;
@@ -454,7 +454,7 @@ function renderRow(r, opts) {
       + safeChip
       + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
-      + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
+      + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? 'var(--danger)' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
       // -- GUARDIAN:F1 -- pressure chip, only for 200k-window (claude) models; ctxPct = tokens/200k. guardianChip is a webview-injected sibling (typeof-guarded so host-side renderRow calls skip it). Concat-only: no backticks here (renderRow.toString() must stay template-literal-free).
       + ((typeof guardianChip === 'function' && r.ctxTokens && /opus|sonnet|haiku|claude/i.test(String(r.model || ''))) ? guardianChip(100 * r.ctxTokens / 200000, esc) : '')
     + '</div>'
@@ -495,7 +495,7 @@ function renderGroupHeader(key, group, opts) {
     else if (st === 'ahead') { gChip = '<span class="ghg ahead">↑' + a + ' to push</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
   }
   var meta = (brChip || gChip) ? '<span class="ghmeta">' + brChip + (brChip && gChip ? ' ' : '') + gChip + (gTip ? ' ' + gTip : '') + '</span>' : '';
-  var count = '<span class="ghcount">' + group.length + '</span>' + (gneed ? '<span class="ghneed" role="status" aria-live="polite" style="color:#E5C07B;font-weight:700;margin-left:7px" title="sessions waiting for your reply">⬤ ' + gneed + ' your turn</span>' : '');
+  var count = '<span class="ghcount">' + group.length + '</span>' + (gneed ? '<span class="ghneed" role="status" aria-live="polite" style="color:var(--acc-warm);font-weight:700;margin-left:7px" title="sessions waiting for your reply">⬤ ' + gneed + ' your turn</span>' : '');
   // Origin-aware key + honest source tag + repo sub-label.
   var icon, srcTag, repoSub = '';
   if (origin === 'cowork') {
