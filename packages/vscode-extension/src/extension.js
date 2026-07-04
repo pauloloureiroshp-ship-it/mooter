@@ -1235,6 +1235,21 @@ function getHtml(guardianPct = null) {
   .spin.on{opacity:1;filter:none}
   .spin:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
   .srow.pinned{border-left-color:var(--acc-warm)}
+  /* Deck Phase 3 · Lentes ligadas — collapsible diagnostic lenses; each reads a real source
+     ("o que mudou · porquê · o que faço"). Every number is real or renders .nd (n/d). */
+  .lens .lens-body{margin-top:6px;font-size:11px;display:flex;flex-direction:column;gap:5px}
+  .lens .lrow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .lens .lk{color:var(--vscode-descriptionForeground);font-size:10.5px;min-width:70px;flex:none}
+  .lens .lv{font-weight:600;font-variant-numeric:tabular-nums}
+  .lens .nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic;font-weight:400}
+  .lens .lbar{height:7px;border-radius:4px;overflow:hidden;display:flex;background:var(--vscode-input-background);margin:1px 0;min-width:120px;flex:1}
+  .lens .lbar>span{display:block;min-width:1px}
+  .lens .lchip{font-size:10px;padding:1px 7px;border-radius:8px;border:1px solid var(--vscode-widget-border);display:inline-flex;gap:4px;align-items:center}
+  .lens .lsoon{font-size:9.5px;color:var(--acc-warm);opacity:.9}
+  .lens .lwhy{font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
+  .lens .llink{font-size:10px;color:var(--vscode-descriptionForeground);cursor:pointer;opacity:.75}
+  .lens .llink:hover{opacity:1;color:var(--acc-warm)}
+  .lens .llink:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:3px}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
@@ -2121,6 +2136,96 @@ function renderFleetConsole(fleet){
     +'<div class="sub" style="opacity:.7;margin:2px 0 4px">read-only · agrega _handoff/fleet/*/STATE.json · idle quando o último run &gt; 6h</div>'
     +rows+'</div>';
 }
+// ── Deck Phase 3 · Lentes ligadas ────────────────────────────────────────────
+// Each lens is a compact diagnostic reading its REAL data-source; every number is real or
+// renders n/d (lNd). Collapsible via the shared cc()/data-collap/wireCollapse mechanism.
+function lNd(){return '<span class="nd">n/d</span>';}
+function msHuman(ms){if(ms==null||!isFinite(ms))return null;var h=ms/3600000;if(h<1)return Math.max(1,Math.round(ms/60000))+'m';if(h<48)return (Math.round(h*10)/10)+'h';return (Math.round(h/2.4)/10)+'d';}
+// 📊 Flow — pc-snapshot (WIP · frente · forecast). Honest: WIP null = git-unreadable (n/d) vs 0 =
+// measured; forecast is per-wave P50/P90 wall (there is no "P85" in the engine — never fabricate one).
+function renderFlowLens(s){
+  var pc=s&&s.pc,body='';
+  if(!pc){body='<div class="nd">sem snapshot de Project Command</div>';}
+  else if(pc.forecast_missing){body='<div class="nd">forecast por gerar</div>'+(pc.cli_hint?'<div class="lwhy">'+esc(String(pc.cli_hint))+'</div>':'');}
+  else{
+    var w=(pc.flow&&pc.flow.wip)||{};
+    var wipTxt=(w.active==null&&w.total==null)?lNd():('<b>'+(w.active==null?'—':w.active)+'</b> em curso · '+(w.total==null?'—':w.total)+' wt (lim '+(w.limit||3)+')'+(w.over?' <span style="color:var(--warn)">⚠ acima</span>':''));
+    body+='<div class="lrow"><span class="lk">WIP</span><span class="lv">'+wipTxt+'</span></div>';
+    var needN=(pc.flow&&pc.flow.need_you)?pc.flow.need_you.length:0;
+    var dep=pc.flow&&pc.flow.deploy_freq_per_week,wd=pc.flow&&pc.flow.waves_done;
+    body+='<div class="lrow"><span class="lk">Precisa de ti</span><span class="lv">'+(needN>0?('🙋 '+needN):'🟢 0')+'</span></div>';
+    body+='<div class="lrow"><span class="lk">Fluxo</span><span class="lv">'+(dep==null?lNd():('~'+dep+' merges/sem'))+' · '+(wd==null?lNd():(wd+' waves ✅'))+'</span></div>';
+    var nowWave=null,ph=pc.phases||[],i,j,k;
+    for(i=0;i<ph.length&&!nowWave;i++){if(ph[i].key==='NOW'&&ph[i].waves&&ph[i].waves.length)nowWave=ph[i].waves[0];}
+    if(!nowWave){for(j=0;j<ph.length&&!nowWave;j++){var ws=ph[j].waves||[];for(k=0;k<ws.length&&!nowWave;k++)if(ws[k].running)nowWave=ws[k];}}
+    if(nowWave){
+      body+='<div class="lrow"><span class="lk">Frente</span><span class="lv">'+esc(String(nowWave.wave_id||''))+' '+esc(String(nowWave.name||''))+(nowWave.squad?' · '+esc(String(nowWave.squad)):'')+(nowWave.estado?' · '+esc(String(nowWave.estado)):'')+(nowWave.locked?' 🔒':'')+'</span></div>';
+      var fc=nowWave.forecast||{},fcTxt;
+      if(fc.state==='cone')fcTxt='P50 '+(msHuman(fc.p50_wall)||'—')+' · P90 '+(msHuman(fc.p90_wall)||'—')+' <span class="lwhy">(wall)</span>';
+      else if(fc.state==='calibrating')fcTxt='<span class="nd">a calibrar'+(fc.calibrating_progress?' '+esc(String(fc.calibrating_progress)):'')+'</span>';
+      else fcTxt='<span class="nd">sem base</span>';
+      body+='<div class="lrow"><span class="lk">Forecast</span><span class="lv">'+fcTxt+'</span></div>';
+    }
+  }
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="pc" role="button" tabindex="0">Project command ↗</span></div>';
+  return '<div class="card lens'+cc('lens-flow')+'" data-collap="lens-flow" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>📊 Flow</div><div class="lens-body">'+body+'</div></div>';
+}
+// 💰 Economics — savings (advisory) + real executed ($0 dispatches) + router mix (COUNTS, not $ —
+// there is no per-tier $ source) + budget ceiling (spend = n/d until W6) + plan. Authored attribution.
+function renderEconomicsLens(s){
+  var m=(s&&s.metrics)||{},eff=s&&s.effectiveSession;var M=(eff&&s.sessionMetrics)?s.sessionMetrics:m;
+  var decs=(s&&s.decisions)||[],decScoped=eff?decs.filter(function(d){return d&&d.sid===eff;}):decs;
+  var body='';
+  body+='<div class="lrow"><span class="lk">Poupança</span><span class="lv">$'+Number(M.saved||0).toFixed(2)+' <span class="lwhy">('+(M.saved_pct||0)+'% abaixo de all-Opus · advisory)</span></span></div>';
+  if(!(s&&s.trackerUp))body+='<div class="lwhy" style="color:var(--acc-warm)">⚠ tracker offline — último conhecido</div>';
+  var gs=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0,oa=M.option_a_hits||0;
+  body+='<div class="lrow"><span class="lk">Real ✓</span><span class="lv" style="color:var(--ok)">$'+gs.toFixed(2)+' · '+oa+' dispatch'+(oa===1?'':'es')+' local'+(oa===1?'':'is')+' reais</span></div>';
+  var c={T0:0,T1:0,T2:0,T3:0},i;for(i=0;i<decScoped.length;i++){var t=decScoped[i]&&decScoped[i].tier;if(c[t]!=null)c[t]++;}
+  var tot=c.T0+c.T1+c.T2+c.T3;
+  if(tot>0){var ord=[['T0','var(--t0)'],['T1','var(--t1)'],['T2','var(--t2)'],['T3','var(--t3)']],seg='',q;for(q=0;q<4;q++){var pct=Math.round(100*c[ord[q][0]]/tot);if(pct>0)seg+='<span style="width:'+pct+'%;background:'+ord[q][1]+'" title="'+ord[q][0]+' '+c[ord[q][0]]+'"></span>';}
+    body+='<div class="lrow"><span class="lk">Router mix</span><span class="lbar">'+seg+'</span><span class="lwhy">'+tot+' decisões (contagens, não $)</span></div>';
+  } else body+='<div class="lrow"><span class="lk">Router mix</span><span class="lv">'+lNd()+'</span></div>';
+  var bud=(s&&s.budget&&s.budget.monthly_budget_usd)||0;
+  body+='<div class="lrow"><span class="lk">Budget</span><span class="lv">'+(bud>0?('tecto $'+bud+'/mês'):lNd())+' · <span class="lwhy">gasto n/d</span> <span class="lsoon">🌊 W6</span></span></div>';
+  var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
+  body+='<div class="lrow"><span class="lk">Plano</span><span class="lv">'+(plan||lNd())+' <span class="lwhy">· %/sem n/d</span></span></div>';
+  body+='<div class="lwhy" style="margin-top:2px">a poupança vem do <b>routing</b> (a máquina responde; o tier é recomendação, não fatura) — não de trade-off de qualidade.</div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Decisions ↗</span></div>';
+  return '<div class="card lens'+cc('lens-econ')+'" data-collap="lens-econ" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>💰 Economics</div><div class="lens-body">'+body+'</div></div>';
+}
+// 🏗️ Foundations — chips from real probes. Security shows summary presence only (there is NO
+// differential-privacy datum in the engine — never invent a DP metric). Arch/Doctor from s.score.checks.
+function renderFoundationsLens(s){
+  var checks=(s&&s.score&&s.score.checks)||[],i,sha=null;
+  for(i=0;i<checks.length;i++){if(checks[i].k==='classifysha'){sha=checks[i];break;}}
+  var archChip=sha?(sha.ok===true?'<span class="lchip" style="border-color:var(--ok)" title="'+esc(String(sha.detail||''))+'">🏛️ classify frozen ✓</span>':(sha.ok===false?'<span class="lchip" style="border-color:var(--danger)">🏛️ classify ALTERADO ⚠</span>':'<span class="lchip">🏛️ classify '+lNd()+'</span>')):'<span class="lchip">🏛️ classify '+lNd()+'</span>';
+  var pass=0,fail=0,warn=0,j;for(j=0;j<checks.length;j++){if(checks[j].ok===true)pass++;else if(checks[j].ok===false)fail++;else warn++;}
+  var docColor=fail?'var(--danger)':(warn?'var(--warn)':'var(--ok)');
+  var docChip='<span class="lchip" style="border-color:'+docColor+'" title="'+fail+' a falhar · '+warn+' avisos">🩺 Doctor '+pass+'/'+checks.length+(fail?' · '+fail+' ✗':' ✓')+'</span>';
+  var secChip=(s&&s.security&&String(s.security).trim())?'<span class="lchip" title="resumo do CLI mooter security (sandbox 4-layer)">🛡️ Security · sandbox 4-layer</span>':'<span class="lchip">🛡️ Security · '+lNd()+'</span>';
+  var gpu=(s&&s.hw&&s.hw.name)||(s&&s.device&&s.device.hardware&&s.device.hardware.gpu)||null;
+  var setup=(gpu?esc(String(gpu)):lNd())+' · '+((s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):lNd())+' · '+Object.keys((s&&s.packs)||{}).length+' packs';
+  var body='<div class="lrow" style="flex-wrap:wrap;gap:6px">'+archChip+docChip+secChip+'<span class="lchip" title="hardware · subscription · packs">⚙️ '+setup+'</span></div>';
+  body+='<div class="lrow" style="margin-top:3px"><span class="llink" data-goto="doctor" role="button" tabindex="0">Doctor ↗</span></div>';
+  return '<div class="card lens'+cc('lens-found')+'" data-collap="lens-found" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🏗️ Foundations</div><div class="lens-body">'+body+'</div></div>';
+}
+// 🧠 Brain — Pastor (TF-IDF, real) · Guardian (deck signal = s.mc.totals.ctxFull) · Ledger. Handoff
+// is honest by level: sessão ✓ · projeto ✓ (ação) · wave 🌊 (não existe artefacto ainda). Adapters(W7)
+// /Insights-TTL(W9)/Graph(W10) have no data source → explicit 🌊 placeholders, never fabricated numbers.
+function renderBrainLens(s){
+  var ins=(s&&s.insights)||{},nDec=((s&&s.decisions)||[]).length,body='';
+  body+='<div class="lrow"><span class="lk">🧠 Pastor</span><span class="lv">conf '+(ins.confNow!=null?esc(String(ins.confNow)):'—')+' · cache '+(ins.cacheRate!=null?esc(String(ins.cacheRate)):'—')+' · N='+nDec+' <span class="lwhy">TF-IDF, não neural</span></span></div>';
+  var gf=(s&&s.mc&&s.mc.totals&&s.mc.totals.ctxFull);
+  var gTxt=(gf==null)?lNd():(gf>0?('⚠ '+gf+' sessõe'+(gf===1?'':'s')+' ≥80% ctx'):'🟢 contexto saudável');
+  var ac=(typeof GUARDIAN_AUTOCOMPACT_PCT==='number')?(' · auto-compact @'+GUARDIAN_AUTOCOMPACT_PCT+'%'):'';
+  body+='<div class="lrow"><span class="lk">🛡️ Guardian</span><span class="lv">'+gTxt+ac+'</span></div>';
+  var led=s&&s.ledger,lsess=(led&&led.sessions!=null)?led.sessions:null,hm=(led&&led.session&&led.session.lastModel)||null;
+  body+='<div class="lrow"><span class="lk">📒 Ledger</span><span class="lv">'+(lsess==null?lNd():(lsess+' sessões'))+(hm?(' · host '+esc(String(hm))):'')+'</span></div>';
+  body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv">sessão ✓ · projeto ✓ <span class="lwhy">(ação)</span> · wave <span class="lsoon">🌊</span></span></div>';
+  body+='<div class="lrow" style="flex-wrap:wrap;gap:6px;margin-top:1px"><span class="lchip">🧬 Adapters <span class="lsoon">🌊 W7</span></span><span class="lchip">💡 Insights <span class="lsoon">🌊 W9 TTL</span></span><span class="lchip">🕸️ Graph <span class="lsoon">🌊 W10</span></span></div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Insights ↗</span></div>';
+  return '<div class="card lens'+cc('lens-brain')+'" data-collap="lens-brain" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">'+body+'</div></div>';
+}
 // ── GUARDIAN:F1 ── pressure ladder + 🪶 chip embedded as webview siblings. In dev the
 // real advisor fn is injected (single source of truth); the inline mirror is the fallback
 // when guardian-chip.js / the advisor are absent. Shared by renderRow (herd) + sessionCard (MC).
@@ -2345,6 +2450,11 @@ window.addEventListener('message',(e)=>{
   // Guarded so a render error never blanks the cockpit; idle-safe inside the renderer.
   const fleetCard=(function(){try{return renderLocalFleet(rsess,{localSpeed:s.localSpeed,nowMs:Date.now(),readyN:(s.ollama||[]).length,dispatchN:(M.option_a_hits||0)});}catch(er){return '';}})();
   const fleetConsoleCard=(function(){try{return renderFleetConsole(s.fleet);}catch(er){return '';}})();
+  // Deck Phase 3 · Lentes ligadas — each guarded so a bad source can never blank the cockpit.
+  const flowLens=(function(){try{return renderFlowLens(s);}catch(er){return '';}})();
+  const economicsLens=(function(){try{return renderEconomicsLens(s);}catch(er){return '';}})();
+  const brainLens=(function(){try{return renderBrainLens(s);}catch(er){return '';}})();
+  const foundationsLens=(function(){try{return renderFoundationsLens(s);}catch(er){return '';}})();
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   // B5 — compact tier mix: one slim segmented bar + tiny labels (was 4 full-width stacked bars).
   let mixSeg='',mixLab='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);if(cnt[t]>0)mixSeg+='<span title="'+t+(t==='T0'?' local':'')+' · '+p+'%" style="flex:'+cnt[t]+';background:'+TCOL[t]+'"></span>';mixLab+='<span style="color:'+TCOL[t]+'">'+t+(t==='T0'?' local':'')+' '+p+'%</span>';}
@@ -2404,6 +2514,10 @@ window.addEventListener('message',(e)=>{
     fleetCard+
     fleetConsoleCard+
     herdCard+
+    flowLens+
+    economicsLens+
+    brainLens+
+    foundationsLens+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
@@ -2418,6 +2532,8 @@ window.addEventListener('message',(e)=>{
   // Deck Floor (Fase 2): persistent pin toggle — stops row-open propagation; persists via host→mode-registry.
   document.querySelectorAll('#v-cockpit .spin[data-psess]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const next=b.dataset.pinned!=='true';b.classList.toggle('on',next);b.dataset.pinned=String(next);b.setAttribute('aria-pressed',String(next));flashApply(b);send('pinSession',{sid:b.dataset.psess,pinned:next});};b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
+  // Deck Phase 3 · lens quick-nav links → jump to the matching tab (Flow→pc, Economics/Brain→decisions, Foundations→doctor).
+  document.querySelectorAll('#v-cockpit .lens .llink[data-goto]').forEach(el=>{const go=()=>goTab(el.dataset.goto);el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));
   wireHerdFilter();applyHerdFilter();herdDiag();enforceHerdVisible(); // B3 filter · PASSO0 dev diag (capture) · PASSO2 invariant (force-visible if collapse/filter emptied the herd)
