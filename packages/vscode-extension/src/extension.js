@@ -1184,9 +1184,15 @@ class LivePreviewPanel {
     this.stageTimer = null;  // slower App Stage re-probe (TCP sweep)
     this.watcher = null;
     this.overrideUrl = null; // user-pasted URL (already origin-validated) or null = auto-detect
-    this.urlError = null;    // honest note when a pasted URL is rejected by the origin lock
+    this.urlError = null;    // transient origin-lock rejection note (its OWN channel — never
+                             // folded into stage.reason, so it can't mislabel a stale/degraded state)
     this.stage = null;       // last resolved App Stage state (lp-stage.resolveStage output)
     this._detecting = false;
+    // Shared secret stamped into the webview HTML and onto every host→webview message. The
+    // App Stage <iframe> is a DIFFERENT origin (http://localhost) and cannot read this token
+    // (same-origin policy), so it cannot forge a message the webview will trust — closing the
+    // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
+    this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
     this._wire();
   }
   static createOrReveal() {
@@ -1206,8 +1212,10 @@ class LivePreviewPanel {
   _post() {
     try {
       const s = livePreviewSnapshot();
-      s.stage = this.stage; // MP2: attach the App Stage state alongside the bus/Brain snapshot
-      this.panel.webview.postMessage({ type: 'lp-snapshot', s });
+      s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
+      s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
+      // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
+      this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
   }
   // App Stage detection: read config → probe candidate ports → resolveStage() (all fail-soft).
@@ -1223,7 +1231,8 @@ class LivePreviewPanel {
       const probeList = LPS.candidatePortList({ overrideUrl: this.overrideUrl, stickyUrl, configPort });
       const livePorts = await probePorts(probeList, 500);
       const next = LPS.resolveStage({ overrideUrl: this.overrideUrl, stickyUrl, configPort, livePorts });
-      if (this.urlError) next.reason = this.urlError; // surface a rejected paste honestly
+      // urlError travels on s.stageError (see _post), NOT on next.reason — folding it in here
+      // used to mislabel an unrelated stale/degraded state as "URL inválido".
       this.stage = next;
     } catch { /* keep last stage */ }
     finally { this._detecting = false; }
@@ -1245,7 +1254,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-redetect') { this._detectStage(); return; }
   }
   _wire() {
-    this.panel.webview.html = getLivePreviewHtml();
+    this.panel.webview.html = getLivePreviewHtml(this.token);
     this._post();
     this._detectStage();
     // Visibility-aware polling (mirrors data.js's pollIntervalMs idea) — only tick while shown.
@@ -1273,25 +1282,33 @@ class LivePreviewPanel {
 }
 LivePreviewPanel.current = null;
 
-// getLivePreviewHtml() — MP2 App Stage. Same nonce'd script-src / default-src 'none' shape as
-// the cockpit's getHtml(), PLUS `frame-src http://localhost:*` so the App Stage <iframe> may
-// embed the local dev server (red-team loop hole #2 mitigation (a); mitigation (b) — dropping
-// the landing dev X-Frame-Options — lives in landing/next.config.ts). Serialises
+// getLivePreviewHtml(token) — MP2 App Stage. Same nonce'd script-src / default-src 'none' shape
+// as the cockpit's getHtml(), PLUS `frame-src {http,https}://{localhost,127.0.0.1}:*` so the App
+// Stage <iframe> may embed the local dev server (red-team loop hole #2 mitigation (a); mitigation
+// (b) — dropping the landing dev X-Frame-Options — lives in landing/next.config.ts). The CSP host
+// set is kept EXACTLY equal to what lp-stage.normalizeStageUrl() accepts, so a validated URL can
+// always render (no "green server up" over a CSP-blocked blank frame). Serialises
 // renderDirectorsCut/renderBrain/renderStageStatus via fn.toString() exactly like the cockpit
 // injects row-renderer.js's renderRow — those three ARE the concat-only contract; this outer
 // template literal is the host template (free to use normal JS).
+//
+// SECURITY: the message listener accepts ONLY host messages carrying the shared secret `token`
+// (HOST_TOKEN). The App Stage <iframe> is a separate origin and cannot read HOST_TOKEN, so framed
+// content cannot postMessage the panel into re-pointing the iframe — the host stays the sole
+// authority over what is framed.
 //
 // LAYOUT: a persistent left <iframe> (the App Stage — its src is set ONCE per URL change so a
 // bus/Brain poll never reloads it and native HMR survives) + a right rail (Brain + Director's
 // Cut, innerHTML-refreshed each poll). The iframe is deliberately NOT sandboxed: it frames the
 // user's OWN trusted dev server and needs same-origin scripts + websockets for HMR to work.
-function getLivePreviewHtml() {
+function getLivePreviewHtml(token) {
   const nonce = String(Math.random()).slice(2);
+  const hostToken = JSON.stringify(String(token == null ? '' : token));
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
   const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
   const renderStageStatusSrc = LPS ? LPS.renderStageStatus.toString() : 'function renderStageStatus(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:*;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
   html,body{height:100%}
@@ -1321,6 +1338,7 @@ function getLivePreviewHtml() {
   .lps-off{background:var(--vscode-descriptionForeground)}
   .lps-stale{background:var(--vscode-charts-yellow,#E5C07B)}
   .lps-wait{background:var(--vscode-charts-blue,#5A9BD4)}
+  #lp-error{flex-basis:100%;order:9;color:var(--vscode-inputValidation-errorForeground,var(--vscode-errorForeground,#D9484B));font-size:11.5px;padding:1px 2px}
   .lpbr,.lpdc{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
   .lpbr-hd,.lpdc-hd{font-weight:700;margin-bottom:6px}
   .lpbr-row{margin:3px 0;font-size:12px}
@@ -1351,6 +1369,7 @@ function getLivePreviewHtml() {
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
       </div>
+      <div id="lp-error" role="alert" style="display:none"></div>
     </div>
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
@@ -1364,6 +1383,7 @@ function getLivePreviewHtml() {
 </div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();
+const HOST_TOKEN=${hostToken};
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const renderDirectorsCut=${renderDirectorsCutSrc};
 const renderBrain=${renderBrainSrc};
@@ -1374,7 +1394,13 @@ function render(s){
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
   if(dcEl) dcEl.innerHTML = renderDirectorsCut((s && s.events) || [], { sidKnown: !!(s && s.sidKnown) });
 }
-let curSrc=null;
+function applyError(err){
+  const el=document.getElementById('lp-error');
+  if(!el) return;
+  if(err){ el.textContent=String(err); el.style.display='block'; }
+  else { el.textContent=''; el.style.display='none'; }
+}
+let curSrc=null, lastDegradeHtml=null;
 function applyStage(stage){
   const st=stage||null;
   const statusEl=document.getElementById('lp-status');
@@ -1387,19 +1413,25 @@ function applyStage(stage){
     degrade.style.display = hasUrl ? 'none' : 'flex';
     if(!hasUrl){
       const reason = (st && st.reason) ? st.reason : 'nenhum dev server detetado';
-      degrade.innerHTML = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
+      const html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
         + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
         + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
         + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
         + 'ou cola o URL na barra acima. Entretanto o Director’s Cut continua a fazer stream à direita.</div></div>';
-    }
+      // Only rewrite when the copy changes — otherwise a poll wipes any text selection in the hint.
+      if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html; }
+    } else { lastDegradeHtml = null; }
   }
   // Only touch the iframe when the URL actually changes — preserves HMR/scroll across polls.
   if(hasUrl && frame && curSrc !== st.url){ curSrc = st.url; frame.setAttribute('src', st.url); }
 }
 window.addEventListener('message', (ev) => {
   const m = ev.data;
-  if (m && m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); }
+  // Origin lock: accept ONLY host messages bearing the shared secret. The framed dev-server
+  // iframe is a different origin and cannot read HOST_TOKEN, so it cannot forge this — its
+  // postMessage attempts are dropped here and can never reach applyStage/iframe.src.
+  if (!m || m.__t !== HOST_TOKEN) return;
+  if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); }
 });
 const urlInput=document.getElementById('lp-url');
 function submitUrl(){ if(urlInput) vsapi.postMessage({ type:'lp-set-url', url: urlInput.value }); }

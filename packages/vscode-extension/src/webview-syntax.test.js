@@ -46,12 +46,26 @@ test('Live Preview (MP2 App Stage) webview script parses as delivered', () => {
 
 test('Live Preview CSP allows framing localhost + hosts the App Stage iframe (loop hole #2a)', () => {
   const sandbox = loadExtension();
-  const html = sandbox.getLivePreviewHtml();
+  const html = sandbox.getLivePreviewHtml('tok');
   // Mitigation (a): the webview CSP must let the iframe embed the local dev server.
   assert.ok(/frame-src\s+http:\/\/localhost:\*/.test(html), 'CSP frame-src must allow http://localhost:*');
+  // CSP host set must stay === normalizeStageUrl's accepted set (http+https × localhost+127.0.0.1)
+  // so a validated URL never lands as a "green server up" over a CSP-blocked blank frame.
+  for (const src of ['http://localhost:*', 'http://127.0.0.1:*', 'https://localhost:*', 'https://127.0.0.1:*']) {
+    assert.ok(html.includes(src), 'CSP frame-src must include ' + src);
+  }
   // The persistent App Stage iframe + its manual-URL override control must be present.
   assert.ok(html.includes('id="lp-frame"'), 'App Stage iframe present');
   assert.ok(html.includes('id="lp-url"'), 'manual URL override input present (port-detector cascade rung d)');
   // default-src stays locked down (no wildcard everything).
   assert.ok(html.includes("default-src 'none'"), "default-src stays 'none'");
+});
+
+test('Live Preview webview message listener is origin-locked by a host token (loop hole #3)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('secret-xyz');
+  // The token must be embedded and the listener must gate on it BEFORE acting on any message,
+  // so the embedded (cross-origin) dev-server iframe cannot forge a message the panel trusts.
+  assert.ok(html.includes('HOST_TOKEN="secret-xyz"'), 'host token embedded into the webview');
+  assert.ok(/m\.__t\s*!==\s*HOST_TOKEN/.test(html), 'listener rejects messages lacking the host token');
 });

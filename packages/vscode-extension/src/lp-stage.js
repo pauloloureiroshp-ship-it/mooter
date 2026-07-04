@@ -13,8 +13,11 @@
 //
 // ── SECURITY (red-team loop hole #3 — origin lock) ───────────────────────────────────────
 //   normalizeStageUrl / isLocalhostUrl are the ONLY sanctioned way a URL enters the stage.
-//   They accept ONLY http(s)://{localhost|127.0.0.1|[::1]}:PORT — every other scheme/host
+//   They accept ONLY http(s)://{localhost|127.0.0.1}:PORT — every other scheme/host
 //   (javascript:, file:, data:, vscode-webview:, a remote host, an SSRF target) returns null.
+//   IPv6 loopback ([::1]) is intentionally rejected: it must stay IN LOCKSTEP with the webview
+//   CSP frame-src host-list, and the CSP cannot match [::1] without drift — accepting it here
+//   would let the status strip claim a live server for a frame the CSP silently blocks.
 //   The webview never sets iframe.src to anything the host did not first pass through here.
 //
 // ── HONESTY (red-team loop hole #4) ──────────────────────────────────────────────────────
@@ -69,7 +72,8 @@ function parseConfigPort(text) {
 // ── normalizeStageUrl(input) — PURE + SECURITY-CRITICAL. Accepts a user-pasted string OR a
 // bare port number and returns { url, host, port, scheme } canonicalised, or null if it is not
 // a localhost dev URL. This is the origin lock (loop hole #3): anything that is not
-// http(s)://{localhost|127.0.0.1|[::1]}:PORT is rejected. Never throws.
+// http(s)://{localhost|127.0.0.1}:PORT is rejected (IPv6 loopback included — see header note).
+// Never throws.
 function normalizeStageUrl(input) {
   if (typeof input === 'number' && isValidPort(input)) {
     return { url: 'http://localhost:' + input, host: 'localhost', port: input, scheme: 'http' };
@@ -100,26 +104,21 @@ function normalizeStageUrl(input) {
 
   // host[:port][/...]. Strip any path/query/hash — only host:port matters for the origin.
   var authority = rest.split('/')[0].split('?')[0].split('#')[0];
-  var host = null, portStr = null;
-  var ipv6 = /^\[([0-9a-f:]+)\](?::(\d{1,5}))?$/i.exec(authority);
-  if (ipv6) {
-    host = ipv6[1].toLowerCase();
-    portStr = ipv6[2] || null;
-  } else {
-    var hp = /^([a-z0-9.-]+)(?::(\d{1,5}))?$/i.exec(authority);
-    if (!hp) return null;
-    host = hp[1].toLowerCase();
-    portStr = hp[2] || null;
-  }
+  // A bracketed IPv6 authority ([::1]:port) never matches this grammar → falls through to null.
+  var hp = /^([a-z0-9.-]+)(?::(\d{1,5}))?$/i.exec(authority);
+  if (!hp) return null;
+  var host = hp[1].toLowerCase();
+  var portStr = hp[2] || null;
 
-  var isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0:0:0:0:0:0:0:1';
-  if (!isLocal) return null;
+  // Origin lock: ONLY localhost / 127.0.0.1 — the exact host set the webview CSP frame-src
+  // whitelists. Keeping this set === the CSP set is what stops a "green server up" over a frame
+  // the CSP would silently block (loop hole #4 honesty). The liveness probe hits 127.0.0.1.
+  if (host !== 'localhost' && host !== '127.0.0.1') return null;
   if (!portStr) return null; // a dev server always has an explicit port — reject bare host.
   var port = parseInt(portStr, 10);
   if (!isValidPort(port)) return null;
 
-  var canonHost = (host === '::1' || host === '0:0:0:0:0:0:0:1') ? '[::1]' : host;
-  return { url: scheme + '://' + canonHost + ':' + port, host: canonHost, port: port, scheme: scheme };
+  return { url: scheme + '://' + host + ':' + port, host: host, port: port, scheme: scheme };
 }
 
 function isLocalhostUrl(url) {
@@ -245,8 +244,10 @@ function renderStageStatus(stage) {
     return '<span class="lps-dot lps-stale"></span><span class="lps-txt">⚠️ <b>' + esc(s.url) + '</b>'
       + srcTxt + (s.reason ? (' · <span class="lps-nd">' + esc(s.reason) + '</span>') : '') + '</span>';
   }
+  // Honest copy (loop hole #4): we only know the PORT answered a TCP probe — not that the frame
+  // rendered or that HMR is wired. "porta ativa" states exactly what was measured, no more.
   return '<span class="lps-dot lps-on"></span><span class="lps-txt">🌐 <b>' + esc(s.url) + '</b>'
-    + srcTxt + ' · HMR nativo</span>';
+    + srcTxt + ' · porta ativa</span>';
 }
 
 module.exports = {

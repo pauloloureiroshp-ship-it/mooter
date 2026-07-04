@@ -46,7 +46,6 @@ test('normalizeStageUrl: accepts localhost forms and canonicalises', () => {
   assert.deepStrictEqual(LPS.normalizeStageUrl('127.0.0.1:5173'), { url: 'http://127.0.0.1:5173', host: '127.0.0.1', port: 5173, scheme: 'http' });
   assert.deepStrictEqual(LPS.normalizeStageUrl('https://localhost:7819'), { url: 'https://localhost:7819', host: 'localhost', port: 7819, scheme: 'https' });
   assert.strictEqual(LPS.normalizeStageUrl('http://localhost:7819/some/path?q=1#h').url, 'http://localhost:7819');
-  assert.strictEqual(LPS.normalizeStageUrl('[::1]:7819').url, 'http://[::1]:7819');
 });
 
 test('normalizeStageUrl: a bare port number or numeric string → localhost URL', () => {
@@ -63,6 +62,11 @@ test('normalizeStageUrl: REJECTS non-localhost hosts and dangerous schemes (SSRF
   assert.strictEqual(LPS.normalizeStageUrl('data:text/html,<script>'), null);
   assert.strictEqual(LPS.normalizeStageUrl('vscode-webview://x'), null);
   assert.strictEqual(LPS.normalizeStageUrl('localhost'), null); // no explicit port → reject
+  // IPv6 loopback is rejected on purpose — it must stay === the CSP frame-src host set
+  // (which cannot cover [::1] without drift), else the status strip would claim a live
+  // server for a frame the webview CSP silently blocks. See lp-stage.js header note.
+  assert.strictEqual(LPS.normalizeStageUrl('[::1]:7819'), null);
+  assert.strictEqual(LPS.normalizeStageUrl('http://[::1]:7819'), null);
   assert.strictEqual(LPS.normalizeStageUrl(''), null);
   assert.strictEqual(LPS.normalizeStageUrl(null), null);
 });
@@ -157,11 +161,12 @@ test('resolveStage: never throws on garbage input', () => {
 
 // ── renderStageStatus (honest, XSS-safe, concat-only) ─────────────────────────────────────
 
-test('renderStageStatus: live server shows the URL + source + HMR, no fabricated claims', () => {
+test('renderStageStatus: live server shows the URL + source + honest "porta ativa", no over-claim', () => {
   const html = LPS.renderStageStatus({ url: 'http://localhost:7819', source: 'config', degraded: false, stale: false });
   assert.ok(html.includes('http://localhost:7819'));
   assert.ok(html.includes('config'));
-  assert.ok(html.includes('HMR'));
+  assert.ok(html.includes('porta ativa'), 'states only what was measured (a live port), not a rendered-frame/HMR claim');
+  assert.ok(html.indexOf('HMR') === -1, 'does not assert HMR from a bare TCP probe (loop hole #4)');
   assert.ok(html.includes('lps-on'));
 });
 
