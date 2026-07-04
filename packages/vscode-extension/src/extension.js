@@ -205,6 +205,7 @@ class DataService {
       sessionLedger: effSid ? extra.tokenLedger(effSid, { sessionOnly: true }) : null,
       claudeCli: detectClaude(),
       loopActive: loopRunnerActive(), // WCOCKPIT-9 (Bloco F): honest LoopMoo liveness
+      fleet: doDeep ? fleetSnapshot() : prev.fleet, // Deck Floor (Fase 2): read-only pillar aggregate
       decisions: data_.readDecisions(),
     };
     // Mission Control · Frente 0: assemble the single MissionControlSnapshot (additive). Cheap —
@@ -368,6 +369,54 @@ function mooterCmd(cmd) {
 function runInTerminal(cmd, name = 'mooter') {
   const t = vscode.window.terminals.find((x) => x.name === name) || vscode.window.createTerminal(name);
   t.show(); t.sendText(cmd);
+}
+
+// ── Deck Floor (Fase 2) ──────────────────────────────────────────────────────
+// openSessionTab: the deep-link that makes wave = sessão = aba. Opens/focuses the CC editor for
+// a session id — claude-vscode's custom editor is a singleton per session, so re-opening the same
+// id focuses the existing tab instead of duplicating it (coherence, law 4). Registered as a
+// first-class command so every surface (Floor row, Project Command wave, palette, keybinding)
+// lands on the SAME tab. Honest: never spawns a second session.
+function openSessionTab(arg) {
+  let id = '', title = '';
+  if (arg && typeof arg === 'object') { id = String(arg.id || ''); title = String(arg.title || ''); }
+  else id = String(arg || '');
+  id = id.replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!id) return;
+  try { vscode.commands.executeCommand('claude-vscode.primaryEditor.open', id); }
+  catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
+  vscode.window.setStatusBarMessage('🐮 a abrir a aba' + (title ? ' · ' + title : '') + ' em Claude Code', 4000);
+}
+
+// fleetSnapshot: read-only aggregate of the pillar fleet (_handoff/fleet/*/STATE.json). Never
+// throws; null when there is no fleet dir. A pillar is "loop" (in-flight) only when it ran within
+// the last 6h — a stale STATE file reads as idle, never fabricated as a live loop (honest-copy).
+function fleetSnapshot() {
+  try {
+    const folders = (vscode.workspace.workspaceFolders || []).map((f) => f.uri && f.uri.fsPath).filter(Boolean);
+    for (const root of folders) {
+      const dir = path.join(root, '_handoff', 'fleet');
+      let names = [];
+      try { names = fs.readdirSync(dir); } catch { continue; }
+      const pillars = [];
+      const ACTIVE_MS = 6 * 3600 * 1000;
+      for (const n of names) {
+        let st;
+        try { st = JSON.parse(fs.readFileSync(path.join(dir, n, 'STATE.json'), 'utf8')); } catch { continue; }
+        if (!st || typeof st !== 'object') continue;
+        const ts = Date.parse(st.last_run_ts || st.updated_at || '') || 0;
+        const ageMs = ts ? (Date.now() - ts) : null;
+        pillars.push({ pillar: String(st.pillar || n), status: String(st.status || 'unknown'),
+          lastOk: st.lastOk === true, round: Number(st.round) || 0, ageMs,
+          active: ageMs != null && ageMs <= ACTIVE_MS });
+      }
+      if (!pillars.length) continue;
+      pillars.sort((a, b) => (a.ageMs == null ? 1 : b.ageMs == null ? -1 : a.ageMs - b.ageMs));
+      const activeN = pillars.filter((p) => p.active).length;
+      return { count: pillars.length, activeN, idleN: pillars.length - activeN, pillars };
+    }
+  } catch { /* never throws — the Floor degrades to no Fleet Console */ }
+  return null;
 }
 
 class CockpitProvider {
@@ -569,6 +618,23 @@ class CockpitProvider {
             ? (loopRunnerActive() ? '🔁 LoopMoo ON · ' + sid.slice(0, 8) : '🔁 LoopMoo armado · ' + sid.slice(0, 8) + ' — loop-runner não está activo')
             : '🔁 LoopMoo OFF · ' + sid.slice(0, 8), 4000);
         }
+      }
+      // Deck Floor (Fase 2): persistent session pin (mode-registry — survives reload).
+      if (m.cmd === 'pinSession') {
+        const sid = String(m.arg && m.arg.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (sid) {
+          const on = !!(m.arg && m.arg.pinned);
+          try { (MR.setPinned ? MR.setPinned(sid, on) : MR.set(sid, { pinned: on })); } catch {}
+          this.data.refresh(true);
+          vscode.window.setStatusBarMessage(on ? '📌 sessão fixada · ' + sid.slice(0, 8) + ' — fica no topo, não arquiva' : '📌 sessão solta · ' + sid.slice(0, 8), 4000);
+        }
+      }
+      // Deck Floor (Fase 2): deep-link — click a Floor row → focus/open the CC tab of the same
+      // session (wave=sessão=aba). Routes through the registered mooter.openSessionTab command.
+      if (m.cmd === 'openSessionTab') {
+        vscode.commands.executeCommand('mooter.openSessionTab', m.arg);
+        const _id = String((m.arg && m.arg.id) || m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        if (_id) { this.data.selectedSession = _id; this.data.refresh(true); }
       }
       // ════════════════════════════════════════════════════════════════════════
       // WCOCKPIT-9 (Bloco C): fluxo Commit & Push por sessão. SEMPRE host-side (execFile git,
@@ -984,6 +1050,7 @@ function project(s) {
     mc: s.mc || null, // Mission Control · Frente 0: the single snapshot the 4 views render from
     pc: s.pc || null, // Delivery Cockpit · Frente B: the ProjectCommandSnapshot the 🛩️ tab renders from
     loopActive: !!s.loopActive, // WCOCKPIT-9 (Bloco F)
+    fleet: s.fleet || null, // Deck Floor (Fase 2): pillar aggregate for the Fleet Console
     localTok: s.localTok || null,
     localSpeed: extra.localSpeed(), // WS3: measured local tok/s (WS1 speed-meter) for the Local Moo Fleet
     ledger: s.ledger, sessionLedger: s.sessionLedger || null, sessionMetrics: s.sessionMetrics || null,
@@ -1011,6 +1078,7 @@ function activate(ctx) {
   ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', new CockpitProvider(ctx, data)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openCockpit', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newSession', newSession));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openSessionTab', openSessionTab)); // Deck Floor (Fase 2): wave=sessão=aba deep-link
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   data.start();
@@ -1159,6 +1227,14 @@ function getHtml(guardianPct = null) {
   .srow.needs:not(.on){background:rgba(229,192,123,.08)}
   .sopen{font-size:12px;color:var(--vscode-descriptionForeground);flex:none;opacity:.45}
   .srow:hover .sopen{opacity:1;color:var(--g)}
+  /* Deck Floor (Fase 2): session type glyph + persistent pin. Pinned = filled 📌 + warm left rail
+     (shape marker, not colour-only — WCAG 1.4.1). */
+  .stype{font-size:11px;flex:none;margin-right:1px}
+  .spin{all:unset;cursor:pointer;font-size:12px;flex:none;opacity:.28;padding:0 3px;line-height:1;filter:grayscale(1)}
+  .spin:hover{opacity:.85;filter:none}
+  .spin.on{opacity:1;filter:none}
+  .spin:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
+  .srow.pinned{border-left-color:var(--acc-warm)}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
@@ -2024,6 +2100,27 @@ const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // WS3: Local Moo Fleet renderer (sibling of renderRow — read-only, idle-safe, concat-only)
 const renderLocalFleet=${RR&&RR.renderLocalFleet?RR.renderLocalFleet.toString():'function renderLocalFleet(){return "";}'};
+// Deck Floor (Fase 2): Fleet Console — read-only aggregate of the pillar fleet (s.fleet from
+// _handoff/fleet/*/STATE.json). Collapsible via the shared cc()/wireCollapse mechanism. Honest:
+// no fleet dir → no card (never a fake "0 pilares"); "loop" only when a pillar ran within 6h.
+function fleetAgo(ms){if(ms==null)return 'n/d';if(ms<3600000)return Math.max(1,Math.round(ms/60000))+'m';var h=ms/3600000;if(h<48)return Math.round(h)+'h';return Math.round(h/24)+'d';}
+function renderFleetConsole(fleet){
+  if(!fleet||!fleet.count)return '';
+  var rows='';
+  for(var i=0;i<fleet.pillars.length;i++){var p=fleet.pillars[i];
+    rows+='<div class="fleetpil" style="display:flex;align-items:center;gap:7px;font-size:10.5px;padding:3px 0;border-top:1px solid var(--vscode-widget-border)">'
+      +'<span style="width:7px;height:7px;border-radius:50%;background:'+(p.active?'var(--ok)':'var(--vscode-descriptionForeground)')+';flex:none"></span>'
+      +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+esc(p.pillar)+'</span>'
+      +'<span style="flex:none;opacity:.8">'+esc(p.status)+'</span>'
+      +'<span style="flex:none;opacity:.6">'+(p.active?'🟢 loop':'💤 idle')+' · '+fleetAgo(p.ageMs)+'</span>'
+      +(p.lastOk?'':'<span style="flex:none;color:var(--danger)" title="último run falhou">⚠</span>')
+      +'</div>';
+  }
+  return '<div class="card'+cc('fleet')+'" data-collap="fleet" style="padding:8px 11px;margin-bottom:8px">'
+    +'<div class="lbl collaphead"><span class="chev">▾</span>🚜 Fleet Console · <b>'+fleet.count+'</b> pilar'+(fleet.count===1?'':'es')+' · '+fleet.activeN+' loop · '+fleet.idleN+' idle</div>'
+    +'<div class="sub" style="opacity:.7;margin:2px 0 4px">read-only · agrega _handoff/fleet/*/STATE.json · idle quando o último run &gt; 6h</div>'
+    +rows+'</div>';
+}
 // ── GUARDIAN:F1 ── pressure ladder + 🪶 chip embedded as webview siblings. In dev the
 // real advisor fn is injected (single source of truth); the inline mirror is the fallback
 // when guardian-chip.js / the advisor are absent. Shared by renderRow (herd) + sessionCard (MC).
@@ -2209,7 +2306,7 @@ window.addEventListener('message',(e)=>{
   const localModels=s.ollama||[];const loopActive=!!s.loopActive;const slashCommands=s.slashList||[];
   const rowFor=(r,gctx)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey,localModels,loopActive,slashCommands});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
   // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
-  const sorted=[...rsess].sort((a,b)=>{if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
+  const sorted=[...rsess].sort((a,b)=>{if(!!a.pinned!==!!b.pinned)return a.pinned?-1:1;if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
   // WCOCKPIT-9 (Bloco A): agrupa por PROJETO COWORK real (espelho). O repoFolder deixa de
   // mascarar-se de projeto: é fallback ROTULADO ('repo (sem Cowork)') só quando há repo git
   // real (branch/gitStage); um cwd qualquer (ex.: System32) cai em 'Unassigned · sem Cowork'.
@@ -2246,7 +2343,8 @@ window.addEventListener('message',(e)=>{
   // WS3: Local Moo Fleet — local moos working on handoffs in PARALLEL with the cloud CC ($0).
   // Read-only render from the snapshot (recent rows carry .localMoo; s.localSpeed = measured tok/s).
   // Guarded so a render error never blanks the cockpit; idle-safe inside the renderer.
-  const fleetCard=(function(){try{return renderLocalFleet(rsess,{localSpeed:s.localSpeed,nowMs:Date.now()});}catch(er){return '';}})();
+  const fleetCard=(function(){try{return renderLocalFleet(rsess,{localSpeed:s.localSpeed,nowMs:Date.now(),readyN:(s.ollama||[]).length,dispatchN:(M.option_a_hits||0)});}catch(er){return '';}})();
+  const fleetConsoleCard=(function(){try{return renderFleetConsole(s.fleet);}catch(er){return '';}})();
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   // B5 — compact tier mix: one slim segmented bar + tiny labels (was 4 full-width stacked bars).
   let mixSeg='',mixLab='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);if(cnt[t]>0)mixSeg+='<span title="'+t+(t==='T0'?' local':'')+' · '+p+'%" style="flex:'+cnt[t]+';background:'+TCOL[t]+'"></span>';mixLab+='<span style="color:'+TCOL[t]+'">'+t+(t==='T0'?' local':'')+' '+p+'%</span>';}
@@ -2304,6 +2402,7 @@ window.addEventListener('message',(e)=>{
     '<div class="hint" style="margin:0 0 8px;text-align:left;font-size:9px">🐄 LazyMoo saves most · 🐮 Moo balances · 🐂 CrazyMoo always strongest — sets the default tier for new prompts</div>'+
     '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b>'+(isHeavyLocal(curPin)?' <span style="opacity:.65;font-size:9px">\u00b7 modelo pesado: 1\u00aa resposta pode levar ~1-2min (cold-load + CPU)</span>':'')+'</div>':'')+'</div>'+
     fleetCard+
+    fleetConsoleCard+
     herdCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
@@ -2315,7 +2414,9 @@ window.addEventListener('message',(e)=>{
   wireHoff($('#v-cockpit'));hydrateHoff(); // ⇄ Handoff v2: stop-propagation on panels/projBtn + re-apply live text after the re-render
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{const go=()=>{const seg=el.parentNode;if(seg)seg.querySelectorAll('.mo').forEach(x=>x.classList.remove('on'));el.classList.add('on');flashApply(el);send('mode',el.dataset.m);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{flashApply(ps);send('pinNext',ps.value);};})();
-  document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSession',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSessionTab',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  // Deck Floor (Fase 2): persistent pin toggle — stops row-open propagation; persists via host→mode-registry.
+  document.querySelectorAll('#v-cockpit .spin[data-psess]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const next=b.dataset.pinned!=='true';b.classList.toggle('on',next);b.dataset.pinned=String(next);b.setAttribute('aria-pressed',String(next));flashApply(b);send('pinSession',{sid:b.dataset.psess,pinned:next});};b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));

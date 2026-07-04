@@ -444,11 +444,21 @@ function renderRow(r, opts) {
   // (needs-you / active / idle / cowork). Aditivo; o filtro vive no webview e só esconde/mostra .srow.
   var _rowState = r.waitingForCowork ? 'cowork' : (r.working ? 'active' : (r.needsYou ? 'needs' : 'idle'));
   var _searchName = esc(String((nm || '') + ' ' + (r.id || '') + ' ' + (firstPrompt || '')).toLowerCase().slice(0, 200));
-  return '<div class="srow' + (sel ? ' on' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
+  // Deck Floor (Fase 2): session type glyph (💬 CC · ♾️ LoopMoo). ⏰ Schedule has no per-session
+  // source yet, so it is never fabricated — a plain session reads as 💬.
+  var _stype = r.loop
+    ? '<span class="stype" title="tipo: LoopMoo (autopilot loop)" aria-label="type: loop">♾️</span>'
+    : '<span class="stype" title="tipo: sessão Claude Code" aria-label="type: CC session">💬</span>';
+  // Deck Floor (Fase 2): persistent pin toggle (📌). Filled = pinned (mode-registry, survives reload).
+  var _pinBtn = '<button class="spin' + (r.pinned ? ' on' : '') + '" data-psess="' + esc(r.fullId) + '" data-pinned="' + String(!!r.pinned)
+    + '" title="' + (r.pinned ? 'sessão fixada — clica para soltar' : 'fixar sessão (fica no topo, nunca auto-arquiva)')
+    + '" aria-label="' + (r.pinned ? 'unpin session' : 'pin session') + '" aria-pressed="' + (r.pinned ? 'true' : 'false') + '">📌</button>';
+  return '<div class="srow' + (sel ? ' on' : '') + (r.pinned ? ' pinned' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
     + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" data-state="' + _rowState + '" data-name="' + _searchName + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
     + '<span class="livecow' + cowCls + '">🐮</span>'
     + '<div class="sbody">'
     + '<div class="sline">'
+      + _stype
       + '<span class="sname">' + esc(nm) + '</span>'
       + '<span class="sstate">' + badge + '</span>'
       + safeChip
@@ -462,6 +472,7 @@ function renderRow(r, opts) {
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + jumpBtn + localMooBlock + '</div>'
     + hoffPanel
     + '</div>'
+    + _pinBtn
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';
 }
@@ -548,9 +559,20 @@ function renderLocalFleet(recent, opts) {
     : 'tok/s local n/d — corre o speed-meter';
 
   if (!active.length) {
+    // Honest idle copy (Fase 2): the fleet is ADVISORY when nothing has actually dispatched.
+    // "N prontos" = local Ollama models available; "X dispatches reais" = real local executions
+    // (Option-A deflections) — never inflated. 0 dispatches ⇒ explicitly advisory.
+    var readyN = (opts.readyN != null) ? opts.readyN : null;
+    var dispN = (opts.dispatchN != null) ? Number(opts.dispatchN) : null;
+    var readyTxt = (readyN != null)
+      ? (readyN + ' pronto' + (readyN === 1 ? '' : 's') + ' (modelo' + (readyN === 1 ? '' : 's') + ' local' + (readyN === 1 ? '' : 'is') + ')')
+      : 'modelos locais n/d';
+    var dispTxt = (dispN != null ? dispN : 0) + ' dispatch' + ((dispN === 1) ? '' : 'es') + ' rea' + ((dispN === 1) ? 'l' : 'is');
+    var advisory = (dispN == null || dispN === 0) ? ' · <b>advisory</b>' : '';
     return '<div class="card" data-fleet="idle" style="padding:8px 11px;margin-bottom:8px">'
       + '<div class="lbl">🐮 Local Moo Fleet</div>'
-      + '<div class="sub" style="margin-top:4px;opacity:.7" title="os moos locais moem journal/rollup/handoff no GPU livre, em paralelo ao CC, a $0">moos locais ociosos — nenhum a moer handoffs agora · ' + tpsTxt + ' · $0 · GPU livre</div>'
+      + '<div class="sub" style="margin-top:4px;opacity:.75" title="os moos locais moem journal/rollup/handoff no GPU livre, em paralelo ao CC, a $0 — advisory até haver um dispatch real">'
+      + readyTxt + advisory + ' · ' + dispTxt + ' · nenhum moo a moer agora · ' + tpsTxt + ' · $0 · GPU livre</div>'
       + '</div>';
   }
 

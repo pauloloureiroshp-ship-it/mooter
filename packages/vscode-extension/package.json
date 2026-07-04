@@ -94,6 +94,11 @@
         "category": "Mooter"
       },
       {
+        "command": "mooter.openSessionTab",
+        "title": "Open Session Tab (focus the CC tab for a session)",
+        "category": "Mooter"
+      },
+      {
         "command": "mooter.refresh",
         "title": "Refresh Data",
         "category": "Mooter",
