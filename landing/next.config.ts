@@ -2,9 +2,16 @@ import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 import { execSync } from 'child_process';
 
+// Live Preview MP2 · red-team loop hole #2(b): the Mooter cockpit's App Stage frames this
+// dev server in a VS Code webview <iframe>. `X-Frame-Options: DENY` would make Chromium refuse
+// to render the frame regardless of the webview's own CSP, so we OMIT it in development only.
+// Production is unchanged — clickjacking protection stays on for the deployed mooter.ai site.
+// `next dev` sets NODE_ENV=development; `next build`/`start` set production.
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-Frame-Options', value: 'DENY' },
+  ...(IS_DEV ? [] : [{ key: 'X-Frame-Options', value: 'DENY' }]),
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
 ];
