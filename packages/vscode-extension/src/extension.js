@@ -1298,6 +1298,17 @@ function getHtml(guardianPct = null) {
   .chrome{position:sticky;top:0;z-index:30;background:var(--vscode-sideBar-background,var(--vscode-editor-background));margin:0 -10px;padding:0 10px}
   .chrome .brand{margin-left:0;margin-right:0}
   .chrome .tabs{margin-left:0;margin-right:0;margin-bottom:0}
+  /* R1 · tabs priority-collapse — the delivery surfaces (Cockpit · Mission · Project · Arch) stay
+     in the bar; config/diagnostic tabs (Setup · Agents · Decisions · Doctor) live under a ···
+     overflow (details/summary → free keyboard + CSP-safe). GitLens pattern: nothing loses access. */
+  .taboverflow{position:relative;display:inline-block;align-self:flex-end}
+  .taboverflow>summary{list-style:none;cursor:pointer;font-size:12px;line-height:1;padding:5px 8px;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;white-space:nowrap}
+  .taboverflow>summary::-webkit-details-marker{display:none}
+  .taboverflow>summary:hover{color:var(--vscode-foreground)}
+  .taboverflow.activein>summary{color:var(--vscode-foreground);border-bottom-color:var(--r)}
+  .taboverflow>summary:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
+  .taboverflow .menu{left:auto;right:0}
+  .taboverflow .mi[aria-checked="true"]{color:var(--r);font-weight:700}
   /* ── Deck Phase 1 · header spine: project switcher · +New · inbox-by-exception ──
      Disclosure menus use <details>/<summary> for free keyboard + focus semantics.
      Every state carries a glyph + label (not colour alone) — WCAG 1.4.1. */
@@ -1338,6 +1349,11 @@ function getHtml(guardianPct = null) {
   .inbox-chip.flow{border-color:var(--ok)}
   .inbox-calm{font-size:11.5px;color:var(--ok);display:flex;align-items:center;gap:7px;font-weight:600}
   .inbox-calm .ic{font-size:13px}
+  /* R2 · NOW barra destacada — when a session is waiting on you, the inbox becomes a prominent
+     warning-tinted bar (warm inset rail) so 🙋 your-turn is the single loudest signal. Calm state
+     stays flat/green (no tint) — loud only when it must be. */
+  .inbox.hasturn{background:var(--warmdim);box-shadow:inset 3px 0 0 var(--acc-warm);border-bottom-color:var(--acc-warm);padding-top:8px}
+  .inbox.hasturn .inbox-turn{font-size:12.5px}
   /* B5 — router mix as one compact segmented bar (was 4 stacked rows); detail opens on expand. */
   .tiermix{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:6px 0 4px;background:var(--vscode-input-background)}
   .tiermix>span{display:block;min-width:2px}
@@ -2036,7 +2052,8 @@ function getHtml(guardianPct = null) {
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
 <div class="tabs">
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🤖 Agents</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div>
+  <!-- R1 · priority-collapse: 4 delivery tabs stay in the bar; the rest fold into ··· (nothing loses access). -->
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div><div class="tab" data-v="arch">🌳 Arquitectura</div><details class="taboverflow" id="taboverflow"><summary aria-haspopup="menu" aria-label="mais separadores (Setup · Agents · Decisions · Doctor)" title="mais — Setup · Agents · Decisions · Doctor">··· <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="Mais separadores"><button class="mi" role="menuitemradio" data-v="setup">⚙️ Setup</button><button class="mi" role="menuitemradio" data-v="herd">🤖 Agents</button><button class="mi" role="menuitemradio" data-v="decisions">🔬 Decisions</button><button class="mi" role="menuitemradio" data-v="doctor">🩺 Doctor</button></div></details>
 </div>
 </div>
 <!-- B9 — command bar (not a chatbot): natural language OR a /command resolves to a real Mooter command via the classifier; a leading "/" runs straight through. -->
@@ -2052,13 +2069,23 @@ function getHtml(guardianPct = null) {
 <!-- DELIVERY COCKPIT TAB · Frente B — view container (renderProjectCommand preenche #v-pc) --><div class="view" id="view-pc"><div id="v-pc"><div class="empty">🛩️ Project command — à espera do primeiro snapshot…</div></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
-function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));try{var _st=vsapi.getState()||{};_st.tab=name;vsapi.setState(_st);}catch(e){}}
+function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));
+  // R1 · reflect the active tab in the ··· overflow when a folded (config/diagnostic) tab is open.
+  var _ov=document.getElementById('taboverflow');if(_ov){var inOv=false;_ov.querySelectorAll('.mi[data-v]').forEach(function(m){var mo=m.dataset.v===name;m.setAttribute('aria-checked',mo?'true':'false');if(mo)inOv=true;});_ov.classList.toggle('activein',inOv);}
+  try{var _st=vsapi.getState()||{};_st.tab=name;vsapi.setState(_st);}catch(e){}}
 (function(){const tl=document.querySelector('.tabs');if(tl)tl.setAttribute('role','tablist');
   const tabs=[...document.querySelectorAll('.tab')];
   document.querySelectorAll('.view').forEach(v=>v.setAttribute('role','tabpanel'));
   tabs.forEach((t,i)=>{const on=t.classList.contains('on');t.setAttribute('role','tab');t.setAttribute('aria-controls','view-'+t.dataset.v);t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;
     t.onclick=()=>goTab(t.dataset.v);
     t.addEventListener('keydown',e=>{let j=null;if(e.key==='ArrowRight')j=(i+1)%tabs.length;else if(e.key==='ArrowLeft')j=(i-1+tabs.length)%tabs.length;else if(e.key==='Home')j=0;else if(e.key==='End')j=tabs.length-1;if(j!=null){e.preventDefault();goTab(tabs[j].dataset.v);tabs[j].focus();}});});})();
+// R1 · ··· overflow menu — folded tabs (Setup/Agents/Decisions/Doctor) reachable via a CSP-safe
+// details/summary. Single-open, Escape closes + refocuses summary, outside-click closes. goTab keeps
+// the view + persistence identical to a bar tab, so nothing loses access.
+(function(){var ov=document.getElementById('taboverflow');if(!ov)return;var sm=ov.querySelector('summary');
+  ov.querySelectorAll('.mi[data-v]').forEach(function(m){var go=function(){goTab(m.dataset.v);ov.open=false;if(sm)sm.focus();};m.onclick=go;m.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  ov.addEventListener('keydown',function(e){if(e.key==='Escape'){ov.open=false;if(sm)sm.focus();}});
+  document.addEventListener('click',function(e){if(ov.open&&!ov.contains(e.target))ov.open=false;});})();
 try{var _rt=(vsapi.getState()||{}).tab;if(_rt&&_rt!=='cockpit')goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
 // ARCH TREE TAB (Frente E): persisted mode for the Arquitectura Viva view (🌳 tree · 📊 ceo · 🔌 wt).
 let archModeCur='tree';try{var _am=(vsapi.getState()||{}).archMode;if(_am)archModeCur=_am;}catch(e){}
@@ -2090,7 +2117,10 @@ let ledgerScope='session';let lastSnap=null;
 // Collapsible cards: ids the user hid. Survives the periodic re-render (module Set) AND
 // window reload (persisted via the webview state API). Lets the user hide sections they
 // don't care about for a cleaner cockpit. Hero (savings) + mode switch are never collapsible.
-const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||[];}catch{return [];}})());
+// R6 · Mooter Score collapsed by DEFAULT (seeded on fresh state only) so its 6 items + fix buttons
+// stop stealing the cockpit — a 🎯 Score X/Y ⌄ chip that expands on click. Once the user toggles any
+// section, their persisted set wins (no re-surprise).
+const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||['score'];}catch{return ['score'];}})());
 function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
 // Sessions-always-visible (runtime-diagnosed via _handoff/herd-diag.json): a persisted 'grp:*'
 // project-group collapse survives reload and is BORN collapsed (cc()→.grpsec.collapsed → the CSS
@@ -2346,6 +2376,10 @@ function renderEconomicsLens(s){
   var decs=(s&&s.decisions)||[],decScoped=eff?decs.filter(function(d){return d&&d.sid===eff;}):decs;
   var body='';
   body+='<div class="lrow"><span class="lk">Poupança</span><span class="lv">$'+Number(M.saved||0).toFixed(2)+' <span class="lwhy">('+(M.saved_pct||0)+'% abaixo de all-Opus · advisory)</span></span></div>';
+  // R5 · densidade — mini-barra do % poupado vs all-Opus. saved_pct é real/advisory; sem fonte → n/d (honesto).
+  var svRaw=(M&&M.saved_pct!=null)?Number(M.saved_pct):null;
+  if(svRaw==null){body+='<div class="lrow"><span class="lk"></span><span class="lv">'+lNd()+' <span class="lwhy">% vs all-Opus</span></span></div>';}
+  else{var svPct=Math.max(0,Math.min(100,svRaw));body+='<div class="lrow"><span class="lk"></span><span class="lbar" title="'+svPct+'% abaixo de all-Opus (advisory)"><span style="width:'+svPct+'%;background:var(--ok)"></span></span><span class="lwhy">'+svPct+'% vs all-Opus</span></div>';}
   if(!(s&&s.trackerUp))body+='<div class="lwhy" style="color:var(--acc-warm)">⚠ tracker offline — último conhecido</div>';
   var gs=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0,oa=M.option_a_hits||0;
   body+='<div class="lrow"><span class="lk">Real ✓</span><span class="lv" style="color:var(--ok)">$'+gs.toFixed(2)+' · '+oa+' dispatch'+(oa===1?'':'es')+' local'+(oa===1?'':'is')+' reais</span></div>';
@@ -2383,7 +2417,8 @@ function renderFoundationsLens(s){
 // /Insights-TTL(W9)/Graph(W10) have no data source → explicit 🌊 placeholders, never fabricated numbers.
 function renderBrainLens(s){
   var ins=(s&&s.insights)||{},nDec=((s&&s.decisions)||[]).length,body='';
-  body+='<div class="lrow"><span class="lk">🧠 Pastor</span><span class="lv">conf '+(ins.confNow!=null?esc(String(ins.confNow)):'—')+' · cache '+(ins.cacheRate!=null?esc(String(ins.cacheRate)):'—')+' · N='+nDec+' <span class="lwhy">TF-IDF, não neural</span></span></div>';
+  // R5 · densidade — Pastor como chips (conf · cache · N) em vez de uma linha corrida; mesma honestidade.
+  body+='<div class="lrow" style="flex-wrap:wrap;gap:6px"><span class="lk">🧠 Pastor</span><span class="lchip" title="confiança do Pastor (s.insights)">conf '+(ins.confNow!=null?esc(String(ins.confNow)):'—')+'</span><span class="lchip" title="taxa de cache do Pastor">cache '+(ins.cacheRate!=null?esc(String(ins.cacheRate)):'—')+'</span><span class="lchip" title="decisões observadas">N='+nDec+'</span><span class="lwhy">TF-IDF, não neural</span></div>';
   var gf=(s&&s.mc&&s.mc.totals&&s.mc.totals.ctxFull);
   var gTxt=(gf==null)?lNd():(gf>0?('⚠ '+gf+' sessõe'+(gf===1?'':'s')+' ≥80% ctx'):'🟢 contexto saudável');
   var ac=(typeof GUARDIAN_AUTOCOMPACT_PCT==='number')?(' · auto-compact @'+GUARDIAN_AUTOCOMPACT_PCT+'%'):'';
@@ -2441,7 +2476,7 @@ function renderPipeline(s){
     segs+='<span class="pstage'+(isB?' bott':'')+'" title="'+key+' · '+n+' sessõe'+(n===1?'':'s')+(isB?' · gargalo':'')+'">'+stages[q][1]+' '+key+' <b>'+n+'</b>'+(isB?' ⛔':'')+'</span>';
     if(q<stages.length-1)segs+='<span class="parrow">→</span>';
   }
-  var foot=placed?(placed+'/'+rows.length+' sessões colocadas · derivado de git/estado'):'sem sinal de etapa por sessão — n/d';
+  var foot=placed?(placed+'/'+rows.length+' sessões colocadas · derivado de git/estado'):(rows.length?'sem sinal de etapa por sessão — n/d':'sem sessão ativa · as 5 etapas iluminam-se quando abres uma');
   return '<div class="pipeline" role="group" aria-label="pipeline spec plan exec review ship"><div class="prail">'+segs+'</div><span class="lwhy">🏁 '+foot+'</span></div>';
 }
 // ⇄ Handoff flow — the context river (Cowork→CC→moos→Ledger) with a particle down each pipe. Purely
@@ -2568,7 +2603,7 @@ function renderInbox(s){
   if(flowing>0)chips+='<button class="inbox-chip flow" data-inbox="cockpit" title="sessões a fluir (a trabalhar / com o Cowork)">🟢 <span class="n">'+flowing+'</span> flui</button>';
   if(chips)out+='<div class="inbox-chips">'+chips+'</div>';
   if(!out){box.className='inbox calm';box.innerHTML='<div class="inbox-calm"><span class="ic">🟢</span> Tela calma — a frota flui'+(rows.length?(' ('+rows.length+' '+(rows.length===1?'sessão':'sessões')+')'):'')+'</div>';}
-  else{box.className='inbox';box.innerHTML=out;}
+  else{box.className='inbox'+(yt>0?' hasturn':'');box.innerHTML=out;}
   box.querySelectorAll('[data-inbox]').forEach(function(b){b.onclick=function(){goTab('cockpit');var h=document.querySelector('#v-cockpit .herd');if(h&&h.scrollIntoView)h.scrollIntoView({block:'nearest'});};});
 }
 // Header disclosure menus: single-open, Escape closes, outside-click closes, +New actions.
@@ -2661,7 +2696,7 @@ window.addEventListener('message',(e)=>{
   // WCOCKPIT-6: roll up branch + git stage to the group header; pass as context so cards dedup.
   const gitKeyOf=(r)=>r.gitStage?(r.gitStage.state+':'+(r.gitStage.dirty||0)+':'+(r.gitStage.ahead||0)):'';
   const groupCtx=(gr)=>{let branch=null,gitKey=null;for(const r of gr){if(!branch&&r.branch)branch=r.branch;if(!gitKey&&r.gitStage)gitKey=gitKeyOf(r);}return{branch,gitKey};};
-  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('')+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">No live sessions yet</div><div class="sub" style="margin:4px 0 10px">Open a Claude Code tab and send a prompt — Mooter routes it and the herd lights up.</div><button class="go" data-a="launch">✱&nbsp; New Claude Code session</button></div>';
+  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('')+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">Nenhuma sessão ativa</div><div class="sub" style="margin:4px 0 10px">Abre um separador Claude Code e envia um prompt — o Mooter roteia-o e a herd acende-se.</div><button class="go" data-a="launch">★&nbsp; New CC — começar</button></div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
@@ -2763,7 +2798,7 @@ window.addEventListener('message',(e)=>{
     brainLens+
     foundationsLens+
     handoffFlowCard+
-    '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
+    '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>🎯 Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card'+cc('recs')+'" data-collap="recs"><div class="lbl collaphead"><span class="chev">▾</span>Router mix · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span>'+mixBar+'</div>'+mixLabels+localSpark(decScoped)+'<div class="sub" style="font-size:9px;margin-top:5px">T0 = local · the host model answers, so the tier is a suggestion not a bill. <b>Ran last:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model)):'host model')+' · '+realLocalN+' real local</div></div>'+
