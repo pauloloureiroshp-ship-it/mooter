@@ -1085,6 +1085,46 @@ function getHtml(guardianPct = null) {
   .chrome{position:sticky;top:0;z-index:30;background:var(--vscode-sideBar-background,var(--vscode-editor-background));margin:0 -10px;padding:0 10px}
   .chrome .brand{margin-left:0;margin-right:0}
   .chrome .tabs{margin-left:0;margin-right:0;margin-bottom:0}
+  /* ── Deck Phase 1 · header spine: project switcher · +New · inbox-by-exception ──
+     Disclosure menus use <details>/<summary> for free keyboard + focus semantics.
+     Every state carries a glyph + label (not colour alone) — WCAG 1.4.1. */
+  .pswitch,.pnew{position:relative;display:inline-block}
+  .pswitch>summary,.pnew>summary{list-style:none;cursor:pointer;font-size:11px;padding:2px 7px;border-radius:7px;
+    border:1px solid var(--vscode-widget-border);color:var(--vscode-foreground);background:var(--vscode-input-background);
+    display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .pswitch>summary::-webkit-details-marker,.pnew>summary::-webkit-details-marker{display:none}
+  .pswitch>summary:hover,.pnew>summary:hover{border-color:var(--acc-warm)}
+  .pswitch>summary:focus-visible,.pnew>summary:focus-visible,.mi:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px}
+  #proj{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .caret{font-size:9px;opacity:.7}
+  .menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;min-width:164px;max-width:240px;
+    background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:8px;
+    padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:1px;max-height:60vh;overflow:auto}
+  .pnew .menu{left:auto;right:0}
+  .mi{all:unset;box-sizing:border-box;cursor:pointer;font-size:11.5px;padding:6px 9px;border-radius:6px;color:var(--vscode-foreground);display:flex;align-items:center;gap:7px;justify-content:space-between}
+  .mi:hover:not([disabled]){background:var(--vscode-list-hoverBackground)}
+  .mi[aria-checked="true"]{font-weight:700}
+  .mi[aria-checked="true"] .tick{color:var(--acc-warm)}
+  .mi[disabled]{opacity:.55;cursor:default}
+  .mi .soon{font-size:9.5px;opacity:.85;color:var(--acc-warm)}
+  .mi .mcount{font-size:10.5px;opacity:.7;font-variant-numeric:tabular-nums}
+  /* Inbox — gestão por exceção. Calm by default; the your-turn line is the loudest signal. */
+  .inbox{margin:0 -10px;padding:6px 12px 8px;border-bottom:1px solid var(--vscode-widget-border);display:flex;flex-direction:column;gap:5px}
+  .inbox-turn{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--acc-warm);cursor:pointer;background:none;border:none;text-align:left;padding:0;width:100%}
+  .inbox-turn .dot{width:9px;height:9px;border-radius:50%;background:var(--acc-warm);flex:none;animation:inboxpulse 1.5s infinite}
+  .inbox-turn:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:2px;border-radius:5px}
+  @keyframes inboxpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.82)}}
+  .inbox-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .inbox-chip{font-size:11px;padding:2px 8px;border-radius:9px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+    border:1px solid var(--vscode-widget-border);color:var(--vscode-foreground);background:var(--vscode-input-background);font-variant-numeric:tabular-nums}
+  .inbox-chip:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px}
+  .inbox-chip .n{font-weight:700}
+  .inbox-chip.gate{border-color:var(--danger)}
+  .inbox-chip.unsaved{border-color:var(--warn)}
+  .inbox-chip.budget{border-color:var(--acc-warm)}
+  .inbox-chip.flow{border-color:var(--ok)}
+  .inbox-calm{font-size:11.5px;color:var(--ok);display:flex;align-items:center;gap:7px;font-weight:600}
+  .inbox-calm .ic{font-size:13px}
   /* B5 — router mix as one compact segmented bar (was 4 stacked rows); detail opens on expand. */
   .tiermix{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:6px 0 4px;background:var(--vscode-input-background)}
   .tiermix>span{display:block;min-width:2px}
@@ -1732,8 +1772,9 @@ function getHtml(guardianPct = null) {
 </style></head><body>
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
-<div class="brand"><span>🐮</span><b>mooter</b><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><span class="proj" id="proj">—</span>
+<div class="brand"><span id="brandCow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
+<div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
 <div class="tabs">
   <div class="tab on" data-v="cockpit">🐮 Cockpit</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="setup">⚙️ Setup</div><div class="tab" data-v="herd">🤖 Agents</div><div class="tab" data-v="decisions">🔬 Decisions</div><div class="tab" data-v="doctor">🩺 Doctor</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div>
 </div>
@@ -2051,6 +2092,56 @@ function renderArchView(s){
   host.querySelectorAll('.arch-mode[data-arch-mode]').forEach(function(b){b.onclick=function(){const m=b.dataset.archMode;archModeCur=m;try{var _st=vsapi.getState()||{};_st.archMode=m;vsapi.setState(_st);}catch(e){}send('archMode',m);renderArchView(lastSnap);};});
   host.querySelectorAll('.arch-leaf[data-arch-sid]').forEach(function(el){const go=function(){send('openSession',el.dataset.archSid);};el.onclick=go;el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 }
+// ── Deck Phase 1 · header spine (project switcher + inbox-by-exception) ──
+// deckProject scopes the inbox to one Cowork project (null = all). Persisted like archMode/pcAxis.
+let deckProject=null;try{var _dp=(vsapi.getState()||{}).deckProject;if(_dp)deckProject=_dp;}catch(e){}
+function projOf(r){return (r&&(r.project||r.coworkProject))||null;}
+function deckRows(s){var rs=(s&&s.recent)||[];return deckProject?rs.filter(function(r){return projOf(r)===deckProject;}):rs;}
+function setDeckProject(p){deckProject=p||null;try{var st=vsapi.getState()||{};st.deckProject=deckProject;vsapi.setState(st);}catch(e){}if(lastSnap){renderSwitcher(lastSnap);renderInbox(lastSnap);}}
+// Project switcher — options are the real Cowork projects seen across sessions (mode-registry projeto-por-sessão).
+function renderSwitcher(s){
+  var rs=(s&&s.recent)||[];var seen={};var projs=[];
+  for(var i=0;i<rs.length;i++){var p=projOf(rs[i]);if(p&&p!=='Unassigned'&&!seen[p]){seen[p]=1;projs.push(p);}}
+  projs.sort(function(a,b){return a.toLowerCase()<b.toLowerCase()?-1:1;});
+  if(deckProject&&!seen[deckProject])deckProject=null; // persisted scope vanished → fall back to all
+  var pj=$('#proj');if(pj)pj.textContent=deckProject||(s&&s.projectName)||'All projects';
+  var menu=$('#pswitchMenu');if(!menu)return;
+  function opt(label,val,isAll){var on=isAll?!deckProject:(deckProject===val);
+    var cnt=isAll?rs.length:rs.filter(function(r){return projOf(r)===val;}).length;
+    return '<button class="mi" role="radio" aria-checked="'+(on?'true':'false')+'" data-proj="'+esc(val||'')+'"><span><span class="tick">'+(on?'✓ ':'')+'</span>'+esc(label)+'</span><span class="mcount">'+cnt+'</span></button>';}
+  var html=opt('All projects','',true);
+  for(var k=0;k<projs.length;k++)html+=opt(projs[k],projs[k],false);
+  menu.innerHTML=html;
+  menu.querySelectorAll('.mi[data-proj]').forEach(function(b){b.onclick=function(){setDeckProject(b.dataset.proj);var d=$('#pswitch');if(d)d.open=false;};});
+}
+// Inbox — gestão por exceção. Every number is real (session flags + git); nothing fabricated.
+// budget% is intentionally absent until W6 (no spend source exists yet — honest, not a placeholder number).
+function renderInbox(s){
+  var box=$('#inbox');if(!box)return;var rows=deckRows(s);
+  var yourTurn=rows.filter(function(r){return r&&r.needsYou;});
+  var mergeGate=rows.filter(function(r){return r&&r.sessionGit&&!r.sessionGit.uncertain&&Number(r.sessionGit.aheadOfMain)>0;}).length;
+  var unsaved=rows.filter(function(r){return r&&r.gitStage&&Number(r.gitStage.dirty)>0;}).length;
+  var flowing=rows.filter(function(r){return r&&(r.working||r.waitingForCowork);}).length;
+  var yt=yourTurn.length,out='';
+  if(yt>0){var who=esc(String(yourTurn[0].coworkTitle||yourTurn[0].brainTitle||yourTurn[0].name||yourTurn[0].id||'')).slice(0,40);
+    out+='<button class="inbox-turn" data-inbox="turn" title="Claude terminou e espera a tua resposta"><span class="dot"></span>🙋 '+yt+' '+(yt===1?'sessão à tua espera':'sessões à tua espera')+' <span style="font-weight:600;opacity:.8">(your turn'+(yt===1&&who?' · '+who:'')+')</span></button>';}
+  var chips='';
+  if(mergeGate>0)chips+='<button class="inbox-chip gate" data-inbox="cockpit" title="ramos com commits à frente de main — decisão de merge à espera">🔴 <span class="n">'+mergeGate+'</span> merge gate</button>';
+  if(unsaved>0)chips+='<button class="inbox-chip unsaved" data-inbox="cockpit" title="trabalho por guardar (working tree suja)">⚠️ <span class="n">'+unsaved+'</span> unsaved</button>';
+  if(flowing>0)chips+='<button class="inbox-chip flow" data-inbox="cockpit" title="sessões a fluir (a trabalhar / com o Cowork)">🟢 <span class="n">'+flowing+'</span> flui</button>';
+  if(chips)out+='<div class="inbox-chips">'+chips+'</div>';
+  if(!out){box.className='inbox calm';box.innerHTML='<div class="inbox-calm"><span class="ic">🟢</span> Tela calma — a frota flui'+(rows.length?(' ('+rows.length+' '+(rows.length===1?'sessão':'sessões')+')'):'')+'</div>';}
+  else{box.className='inbox';box.innerHTML=out;}
+  box.querySelectorAll('[data-inbox]').forEach(function(b){b.onclick=function(){goTab('cockpit');var h=document.querySelector('#v-cockpit .herd');if(h&&h.scrollIntoView)h.scrollIntoView({block:'nearest'});};});
+}
+// Header disclosure menus: single-open, Escape closes, outside-click closes, +New actions.
+(function(){
+  var sw=$('#pswitch'),nw=$('#pnew');var dets=[sw,nw].filter(Boolean);
+  dets.forEach(function(d){d.addEventListener('toggle',function(){if(d.open)dets.forEach(function(o){if(o!==d)o.open=false;});});
+    d.addEventListener('keydown',function(e){if(e.key==='Escape'){d.open=false;var sm=d.querySelector('summary');if(sm)sm.focus();}});});
+  document.addEventListener('click',function(e){dets.forEach(function(d){if(d.open&&!d.contains(e.target))d.open=false;});});
+  if(nw)nw.querySelectorAll('.mi[data-new]').forEach(function(b){b.onclick=function(){if(b.disabled)return;if(b.dataset.new==='cc')send('launch');nw.open=false;};});
+})();
 window.addEventListener('message',(e)=>{
   // ⇄ Handoff v2.1 — live panel stream: skeleton 'ready' (copiado já) → 'enriched' (narrativa LLM
   // local · recopiado). 'generating'/'done' continuam suportados (compat). Store + apply.
@@ -2078,7 +2169,7 @@ window.addEventListener('message',(e)=>{
   // return below), guarded so it can never blank the cockpit. Renders purely from s.mc.
   try{renderArchView(s);}catch(e){}
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
-  $('#proj').textContent='· '+(s.projectName||'—');
+  renderSwitcher(s);renderInbox(s);
   const pr=s.paired||{};
   $('#pair').innerHTML=pr.ok?'<span title="paired with Claude Code '+esc(pr.version)+'" style="color:var(--g)">✕ ✱ Claude Code ✓</span>':'<span title="Claude Code extension not found" style="color:var(--t3)">✕ ✱ not paired</span>';
   curMode=s.mode||'auto';$('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
