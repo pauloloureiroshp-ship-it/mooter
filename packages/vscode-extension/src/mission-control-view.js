@@ -415,7 +415,7 @@ function renderMissionControl(snapshot) {
     // When there is a recent overclock run the head visually lights up (orange glow accent).
     var headStyle = oc ? ' style="background:linear-gradient(90deg,transparent,rgba(209,154,102,.08))"' : '';
     out += '<div class="mcf-gpuhead"' + headStyle + '>'
-      + '<span>🖥️ <b>' + esc(gpuName) + '</b>' + (oc ? ' <span style="color:#D19A66;font-size:10px">🔥</span>' : '') + '</span>'
+      + '<span>🖥️ <b>' + esc(gpuName) + '</b>' + (oc ? ' <span style="color:var(--acc-orange);font-size:10px">🔥</span>' : '') + '</span>'
       + '<span class="mcf-bk">VRAM <b>' + (usedMb == null || totMb == null ? nd(null) : ((usedMb / 1024).toFixed(1) + ' / ' + (totMb / 1024).toFixed(1) + ' GB')) + '</b>' + (usedPct == null ? '' : ' (' + usedPct + '%)') + '</span>'
       + (tps == null ? '' : '<span class="mcf-bk"><b>' + Math.round(tps) + '</b> tok/s</span>')
       + '<span class="mcf-spacer"></span>'
@@ -462,7 +462,7 @@ function renderMissionControl(snapshot) {
   // ── 5 · Worktree git-graph ────────────────────────────────────────────────
   var wtRows = [];
   for (var wi = 0; wi < sessions.length; wi++) { var ws = sessions[wi]; if (ws.worktree || (ws.git && ws.git.branch)) wtRows.push(ws); }
-  var WTCOL = ['#54b56a', '#56b6c2', '#e5c07b', '#61afef', '#9d7cd8', '#d19a66'];
+  var WTCOL = ['var(--ok)', 'var(--teal)', 'var(--acc-warm)', 'var(--blue-bright)', 'var(--purple)', 'var(--acc-orange)'];
   out += '<div class="mc-card"><div class="mc-lbl">⛙ Worktree · ' + nd(s.project) + ' <span class="mc-sub">— clica num ramo para abrir a sessão</span></div>';
   out += '<div class="mcf-graph">';
   // root (main)

@@ -73,7 +73,7 @@ function readSubProfile() {
 
 // ANSI → safe HTML spans (covers the SGR codes statusline-multi emits:
 // 38;2;r;g;b truecolor fg, 1 bold, 2 dim, 3x basic colors, 0 reset).
-const BASIC = { 30:'#666',31:'#e06c75',32:'#4ec97a',33:'#e5c07b',34:'#61afef',35:'#c678dd',36:'#56b6c2',37:'#ddd',90:'#888' };
+const BASIC = { 30:'var(--vscode-terminal-ansiBrightBlack,#666)',31:'var(--vscode-terminal-ansiRed,#e06c75)',32:'var(--vscode-terminal-ansiGreen,#4ec97a)',33:'var(--vscode-terminal-ansiYellow,#e5c07b)',34:'var(--vscode-terminal-ansiBlue,#61afef)',35:'var(--vscode-terminal-ansiMagenta,#c678dd)',36:'var(--vscode-terminal-ansiCyan,#56b6c2)',37:'var(--vscode-foreground,#ddd)',90:'var(--vscode-descriptionForeground,#888)' };
 function ansiToHtml(text) {
   const esc = (x) => x.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   let html = '', open = 0;
@@ -159,7 +159,7 @@ function _emoji() {
   try { _emojiMod = require(path.join(ROUTER, 'llm-emoji-map.js')); } catch { _emojiMod = null; }
   return _emojiMod;
 }
-const FAMILY_HEX = { amber: '#E5C07B', tan: '#C9A876', blue: '#5A9BD4', green: '#4CAF6A', gold: '#F2C94C', pink: '#E8888A', gray: '#8A8076' };
+const FAMILY_HEX = { amber: 'var(--acc-warm)', tan: 'var(--acc-orange)', blue: 'var(--blue)', green: 'var(--ok)', gold: 'var(--vscode-charts-yellow,#F2C94C)', pink: 'var(--danger)', gray: 'var(--bmuted)' };
 function _fam(model) {
   const em = _emoji();
   const d = (em && em.emojiForModel) ? em.emojiForModel(model) : { emoji: '🤖', label: 'Model', color: 'gray' };

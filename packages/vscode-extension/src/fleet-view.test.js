@@ -19,14 +19,23 @@ test('renderLocalFleet is concat-only (no template literals — webview-embeddab
   assert.ok(src.indexOf('`') === -1, 'no backticks allowed in webview-embedded source');
 });
 
-test('renderLocalFleet idle: no active local moos → "ociosos", never throws', () => {
-  const html = RR.renderLocalFleet([], { localSpeed: null });
+test('renderLocalFleet idle: honest advisory copy (N prontos · advisory · 0 dispatches reais), never throws', () => {
+  // Deck Floor (Fase 2) honest-copy: idle with 0 real dispatches ⇒ explicitly ADVISORY.
+  const html = RR.renderLocalFleet([], { localSpeed: null, readyN: 3, dispatchN: 0 });
   assert.ok(/Local Moo Fleet/.test(html));
-  assert.ok(/ociosos/.test(html));
+  assert.ok(/3 prontos/.test(html), 'surfaces N local models ready');
+  assert.ok(/<b>advisory<\/b>/.test(html), '0 dispatches ⇒ advisory tag (no fabricated work)');
+  assert.ok(/0 dispatches reais/.test(html), 'states the real dispatch count honestly');
   assert.ok(/data-fleet="idle"/.test(html));
   // garbage input must not throw
   assert.doesNotThrow(() => RR.renderLocalFleet(null, null));
   assert.doesNotThrow(() => RR.renderLocalFleet([{}, null, { localMoo: null }], {}));
+});
+
+test('renderLocalFleet idle: a real dispatch drops the advisory tag (honest)', () => {
+  const html = RR.renderLocalFleet([], { localSpeed: null, readyN: 2, dispatchN: 4 });
+  assert.ok(/4 dispatches reais/.test(html));
+  assert.ok(!/<b>advisory<\/b>/.test(html), 'once work really dispatched, it is no longer advisory');
 });
 
 test('renderLocalFleet active: aggregates working moos with measured tok/s and $0', () => {

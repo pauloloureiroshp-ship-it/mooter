@@ -18,7 +18,7 @@ const MODES = ["lazy", "moo", "crazy"];           // LazyMoo | Moo | CrazyMoo
 const DEFAULT = { mode: "moo", model: null, auto: false, project: null, brainTitle: null,
   notionPageId: null, notionSyncedAt: null, obsidianPath: null, obsidianSyncedAt: null, archivedAt: null,
   coworkProject: null, coworkTitle: null, coworkConversationId: null, coworkUpdatedAt: null, loop: false,
-  nextSlash: null, handoffSentAt: null };
+  nextSlash: null, handoffSentAt: null, pinned: false };
 
 function readAll() {
   try { const j = JSON.parse(fs.readFileSync(FILE, "utf8")); return j && typeof j === "object" ? j : {}; }
@@ -61,6 +61,9 @@ function setCowork(sessionId, info) {
 }
 // WCOCKPIT-9 (Bloco F): arma/desarma o LoopMoo para a sessão (estado persistente; o runner inscreve).
 function setLoop(sessionId, on) { if (!sessionId) return false; return set(sessionId, { loop: !!on }); }
+// Deck Floor (Fase 2): pin/unpin a session. Persistent (on-disk) — survives reload; the Floor
+// keeps pinned sessions first and never auto-archives them. Read back via decorate() → row.pinned.
+function setPinned(sessionId, on) { if (!sessionId) return false; return set(sessionId, { pinned: !!on }); }
 // WCOCKPIT-9 (Bloco E): regista o slash-command escolhido para usar no PRÓXIMO prompt da sessão.
 // '' / null limpa. A ponte CC pode consumi-lo; o cartão mostra "next ▶ /x" como feedback honesto.
 function setNextSlash(sessionId, cmd) { if (!sessionId) return false; const c = cmd ? String(cmd) : null; return set(sessionId, { nextSlash: c }); }
@@ -73,6 +76,7 @@ function decorate(row, coworkMap) {
   row.mode = e.mode; row.model = e.model || row.model || null; row.auto = !!e.auto;
   row.project = e.project || row.project || "Unassigned"; row.brainTitle = e.brainTitle || null;
   row.loop = !!e.loop; // WCOCKPIT-9 (Bloco F)
+  row.pinned = !!e.pinned; // Deck Floor (Fase 2): persistent session pin — kept visible/first, exempt from clear
   row.nextSlash = e.nextSlash || null; // WCOCKPIT-9 (Bloco E)
   row.handoffSentAt = e.handoffSentAt || null; // ⇄ Handoff
   // WCOCKPIT-2: integration fields
@@ -127,4 +131,4 @@ function unarchive(sessionId) { return set(sessionId, { archivedAt: null }); }
 function isArchived(sessionId, lastActiveTs) { const e = get(sessionId); return !!(e.archivedAt && e.archivedAt >= (lastActiveTs || 0)); }
 
 module.exports = { readAll, writeAll, get, set, decorate, byProject, worktrees, touchSync, archive, unarchive, isArchived,
-  readCoworkMap, setCowork, setLoop, setNextSlash, setHandoff, MODES, DEFAULT, FILE, COWORK_MAP };
+  readCoworkMap, setCowork, setLoop, setPinned, setNextSlash, setHandoff, MODES, DEFAULT, FILE, COWORK_MAP };

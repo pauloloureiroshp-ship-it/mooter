@@ -46,7 +46,7 @@ function stageColor(st) {
   if (x.indexOf('merged') === 0) return 'var(--g)';
   if (x.indexOf('ready') === 0) return 'var(--g)';
   if (x.indexOf('❌') >= 0) return 'var(--t3)';
-  if (x.indexOf('⏳') >= 0) return '#e5c07b';
+  if (x.indexOf('⏳') >= 0) return 'var(--acc-warm)';
   if (x === 'draft') return 'var(--vscode-descriptionForeground)';
   return 'var(--vscode-descriptionForeground)';
 }
@@ -427,7 +427,7 @@ function renderRow(r, opts) {
   }
 
   // ── Worktree accent (WCOCKPIT-4: consistent border-left color per worktree name) ──
-  var _WTA = ['#5A9BD4','#D4A05A','#A05AD4','#5AD4A0','#D4605A','#D4C05A','#60A05A'];
+  var _WTA = ['var(--wt-1)','var(--wt-2)','var(--wt-3)','var(--wt-4)','var(--wt-5)','var(--wt-6)','var(--wt-7)'];
   var wtStyle = '';
   if (r.worktree) {
     var _wth = 0;
@@ -444,17 +444,27 @@ function renderRow(r, opts) {
   // (needs-you / active / idle / cowork). Aditivo; o filtro vive no webview e só esconde/mostra .srow.
   var _rowState = r.waitingForCowork ? 'cowork' : (r.working ? 'active' : (r.needsYou ? 'needs' : 'idle'));
   var _searchName = esc(String((nm || '') + ' ' + (r.id || '') + ' ' + (firstPrompt || '')).toLowerCase().slice(0, 200));
-  return '<div class="srow' + (sel ? ' on' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
+  // Deck Floor (Fase 2): session type glyph (💬 CC · ♾️ LoopMoo). ⏰ Schedule has no per-session
+  // source yet, so it is never fabricated — a plain session reads as 💬.
+  var _stype = r.loop
+    ? '<span class="stype" title="tipo: LoopMoo (autopilot loop)" aria-label="type: loop">♾️</span>'
+    : '<span class="stype" title="tipo: sessão Claude Code" aria-label="type: CC session">💬</span>';
+  // Deck Floor (Fase 2): persistent pin toggle (📌). Filled = pinned (mode-registry, survives reload).
+  var _pinBtn = '<button class="spin' + (r.pinned ? ' on' : '') + '" data-psess="' + esc(r.fullId) + '" data-pinned="' + String(!!r.pinned)
+    + '" title="' + (r.pinned ? 'sessão fixada — clica para soltar' : 'fixar sessão (fica no topo, nunca auto-arquiva)')
+    + '" aria-label="' + (r.pinned ? 'unpin session' : 'pin session') + '" aria-pressed="' + (r.pinned ? 'true' : 'false') + '">📌</button>';
+  return '<div class="srow' + (sel ? ' on' : '') + (r.pinned ? ' pinned' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
     + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" data-state="' + _rowState + '" data-name="' + _searchName + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
     + '<span class="livecow' + cowCls + '">🐮</span>'
     + '<div class="sbody">'
     + '<div class="sline">'
+      + _stype
       + '<span class="sname">' + esc(nm) + '</span>'
       + '<span class="sstate">' + badge + '</span>'
       + safeChip
       + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
       + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
-      + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? '#E06C75' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
+      + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? 'var(--danger)' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
       // -- GUARDIAN:F1 -- pressure chip, only for 200k-window (claude) models; ctxPct = tokens/200k. guardianChip is a webview-injected sibling (typeof-guarded so host-side renderRow calls skip it). Concat-only: no backticks here (renderRow.toString() must stay template-literal-free).
       + ((typeof guardianChip === 'function' && r.ctxTokens && /opus|sonnet|haiku|claude/i.test(String(r.model || ''))) ? guardianChip(100 * r.ctxTokens / 200000, esc) : '')
     + '</div>'
@@ -462,6 +472,7 @@ function renderRow(r, opts) {
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + jumpBtn + localMooBlock + '</div>'
     + hoffPanel
     + '</div>'
+    + _pinBtn
     + '<span class="sopen" title="open in Claude Code">↗</span>'
     + '</div>';
 }
@@ -495,7 +506,7 @@ function renderGroupHeader(key, group, opts) {
     else if (st === 'ahead') { gChip = '<span class="ghg ahead">↑' + a + ' to push</span>'; gTip = '<span class="ghtip" title="trabalho por guardar — não fechar">⚠ não fechar</span>'; }
   }
   var meta = (brChip || gChip) ? '<span class="ghmeta">' + brChip + (brChip && gChip ? ' ' : '') + gChip + (gTip ? ' ' + gTip : '') + '</span>' : '';
-  var count = '<span class="ghcount">' + group.length + '</span>' + (gneed ? '<span class="ghneed" role="status" aria-live="polite" style="color:#E5C07B;font-weight:700;margin-left:7px" title="sessions waiting for your reply">⬤ ' + gneed + ' your turn</span>' : '');
+  var count = '<span class="ghcount">' + group.length + '</span>' + (gneed ? '<span class="ghneed" role="status" aria-live="polite" style="color:var(--acc-warm);font-weight:700;margin-left:7px" title="sessions waiting for your reply">⬤ ' + gneed + ' your turn</span>' : '');
   // Origin-aware key + honest source tag + repo sub-label.
   var icon, srcTag, repoSub = '';
   if (origin === 'cowork') {
@@ -548,9 +559,20 @@ function renderLocalFleet(recent, opts) {
     : 'tok/s local n/d — corre o speed-meter';
 
   if (!active.length) {
+    // Honest idle copy (Fase 2): the fleet is ADVISORY when nothing has actually dispatched.
+    // "N prontos" = local Ollama models available; "X dispatches reais" = real local executions
+    // (Option-A deflections) — never inflated. 0 dispatches ⇒ explicitly advisory.
+    var readyN = (opts.readyN != null) ? opts.readyN : null;
+    var dispN = (opts.dispatchN != null) ? Number(opts.dispatchN) : null;
+    var readyTxt = (readyN != null)
+      ? (readyN + ' pronto' + (readyN === 1 ? '' : 's') + ' (modelo' + (readyN === 1 ? '' : 's') + ' local' + (readyN === 1 ? '' : 'is') + ')')
+      : 'modelos locais n/d';
+    var dispTxt = (dispN != null ? dispN : 0) + ' dispatch' + ((dispN === 1) ? '' : 'es') + ' rea' + ((dispN === 1) ? 'l' : 'is');
+    var advisory = (dispN == null || dispN === 0) ? ' · <b>advisory</b>' : '';
     return '<div class="card" data-fleet="idle" style="padding:8px 11px;margin-bottom:8px">'
       + '<div class="lbl">🐮 Local Moo Fleet</div>'
-      + '<div class="sub" style="margin-top:4px;opacity:.7" title="os moos locais moem journal/rollup/handoff no GPU livre, em paralelo ao CC, a $0">moos locais ociosos — nenhum a moer handoffs agora · ' + tpsTxt + ' · $0 · GPU livre</div>'
+      + '<div class="sub" style="margin-top:4px;opacity:.75" title="os moos locais moem journal/rollup/handoff no GPU livre, em paralelo ao CC, a $0 — advisory até haver um dispatch real">'
+      + readyTxt + advisory + ' · ' + dispTxt + ' · nenhum moo a moer agora · ' + tpsTxt + ' · $0 · GPU livre</div>'
       + '</div>';
   }
 

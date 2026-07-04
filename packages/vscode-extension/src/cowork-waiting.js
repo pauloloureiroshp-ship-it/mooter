@@ -39,9 +39,9 @@ function badge(r) {
 }
 // CSS a juntar ao bloco de estilos do getHtml() (escopado, nao vaza).
 const CSS = [
-  ".coworkdot{width:8px;height:8px;border-radius:50%;background:#61afef;flex:none;animation:coworkpulse 1.2s ease-in-out infinite}",
+  ".coworkdot{width:8px;height:8px;border-radius:50%;background:var(--blue-bright);flex:none;animation:coworkpulse 1.2s ease-in-out infinite}",
   "@keyframes coworkpulse{0%,100%{opacity:.45}50%{opacity:1}}",
-  ".coworktitle{color:#61afef;font-weight:600;font-size:11px}",
+  ".coworktitle{color:var(--blue-bright);font-weight:600;font-size:11px}",
   ".livecow.cowork{animation:moowait 1.6s ease-in-out infinite}",
   "@keyframes moowait{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px) rotate(8deg)}}",
   "@media (prefers-reduced-motion:reduce){.livecow.cowork{animation:none}}",
