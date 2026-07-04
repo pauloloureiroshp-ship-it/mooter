@@ -73,7 +73,7 @@ var SESS_MODELS = [
 // `const deriveStages=…` as siblings of renderRow — see extension.js getHtml().
 // Columns: [key, label, git-term, plain-language, icon].
 var STAGE_META = [
-  ['edit',   'Edit',   'working changes', 'The AI just changed your files — nothing saved yet',    '✎'],
+  ['edit',   'Edit',   'working changes', 'Working changes in the repo that are not saved yet',    '✎'],
   ['save',   'Save',   'commit',          'Bundle changes into a restore point you can return to', '◆'],
   ['backup', 'Backup', 'push',            'Send your restore points to GitHub so they are safe',   '↑'],
   ['branch', 'Branch', 'branch',          'A safe side-copy that does not touch the real version', '⎇'],
@@ -81,10 +81,21 @@ var STAGE_META = [
   ['live',   'Live',   'deploy',          'Publish it for the world to use',                        '◉']
 ];
 
-// PURE: gitStage + branch → {stages, safe, behind}. Concatenation/literals only (no
-// template-literals — its source is embedded into the webview script). INVARIANT: at most
-// one stage is 'now', and 'branch' is never 'now'.
-function deriveStages(gitStage, branch) {
+// PURE: gitStage + branch (+ optional attribution) → {stages, safe, behind}. Concatenation/
+// literals only (no template-literals — its source is embedded into the webview script).
+// INVARIANT: at most one stage is 'now', and 'branch' is never 'now'.
+//
+// HONEST-CONTROLS D3 — attribution (3rd arg, ADDITIVE / back-compat):
+//   attr = { unsavedOwn:number, partial:boolean } | null|undefined
+//   • attr absent           → behaves BYTE-IDENTICALLY to before (safe object unchanged).
+//   • attr.unsavedOwn > 0    → this session owns dirty work → amber + "Save my work" (true CTA).
+//   • attr.unsavedOwn === 0
+//     and the tree is dirty  → the dirt is NOT this session's (shared working tree). safe.level
+//                              becomes 'repo' (an info fact, NO per-session CTA — a commit is a
+//                              repo action, not this session's). safe.repoFact/partial carry the
+//                              honesty so renderRow can phrase the copy without asserting "the AI
+//                              changed YOUR files".
+function deriveStages(gitStage, branch, attr) {
   var g = gitStage || { state: 'clean', dirty: 0, staged: 0, ahead: 0, behind: 0 };
   var onBranch = !!branch && !/^(main|master|trunk)$/i.test(branch);
   var stages = {
@@ -95,11 +106,22 @@ function deriveStages(gitStage, branch) {
     merge:  (onBranch && g.dirty === 0 && g.staged === 0 && g.ahead === 0) ? 'now' : 'todo',
     live:   'todo'
   };
-  var safe = (g.dirty > 0 || g.staged > 0)
-    ? { level: 'amber', label: 'unsaved work', action: 'gitFlow', move: 'Save my work' }
-    : (g.ahead > 0
-        ? { level: 'blue', label: 'saved, not backed up', action: null, hint: 'push to back up' }
-        : { level: 'green', label: 'safe to close', action: null });
+  var treeDirty = (g.dirty > 0 || g.staged > 0);
+  var hasAttr = !!attr && typeof attr === 'object';
+  var ownUnsaved = hasAttr ? (Number(attr.unsavedOwn) || 0) : null;
+  var safe;
+  if (treeDirty && hasAttr && ownUnsaved === 0) {
+    // Repo is dirty but NOT because of this session → a repo fact, not this session's unsaved work.
+    var n = g.dirty || g.staged || 0;
+    safe = { level: 'repo', label: 'repo · ' + n + ' uncommitted', action: null,
+             repoFact: true, partial: !!attr.partial };
+  } else if (treeDirty) {
+    safe = { level: 'amber', label: 'unsaved work', action: 'gitFlow', move: 'Save my work' };
+  } else if (g.ahead > 0) {
+    safe = { level: 'blue', label: 'saved, not backed up', action: null, hint: 'push to back up' };
+  } else {
+    safe = { level: 'green', label: 'safe to close', action: null };
+  }
   var behind = g.behind > 0 ? { n: g.behind } : null;
   return { stages: stages, safe: safe, behind: behind };
 }
@@ -363,6 +385,12 @@ function renderRow(r, opts) {
   var gsTip = '';
   var rowGitKey = r.gitStage ? (r.gitStage.state + ':' + (r.gitStage.dirty || 0) + ':' + (r.gitStage.ahead || 0)) : '';
   var gitDeduped = groupGitKey != null && rowGitKey !== '' && groupGitKey === rowGitKey;
+  // HONEST-CONTROLS D5: the "⚠ não fechar" (don't close — you'd lose work) tip is a per-session
+  // claim. It's only true when THIS session has dirty work of its own (unsavedOwn). When the tree
+  // is dirty but none of it is this session's, closing the session loses nothing → no scary tip.
+  // Attribution unknown (no touchedFiles field — e.g. a legacy/test row) → keep the tip (conservative).
+  var _own = Array.isArray(r.unsavedOwn) ? r.unsavedOwn.length : null;
+  var _warnClose = (_own === null) ? true : (_own > 0);
   if (r.gitStage && !gitDeduped) {
     var gsState = r.gitStage.state;
     var gsDirty = r.gitStage.dirty || 0;
@@ -372,12 +400,12 @@ function renderRow(r, opts) {
       gsChip = '<span class="gstage clean">✓ clean</span>';
     } else if (gsState === 'uncommitted') {
       gsChip = '<span class="gstage dirty">● ' + gsDirty + ' uncommitted</span>';
-      gsTip  = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
+      if (_warnClose) gsTip = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
     } else if (gsState === 'staged') {
       gsChip = '<span class="gstage staged">◐ ' + gsStaged + ' staged</span>';
     } else if (gsState === 'ahead') {
       gsChip = '<span class="gstage ahead">↑' + gsAhead + ' to push</span>';
-      gsTip  = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
+      if (_warnClose) gsTip = '<span class="gtip">⚠ trabalho por guardar — não fechar</span>';
     }
   }
   var gitLine = gsChip ? '<div class="sgit">' + gsChip + (gsTip ? ' ' + gsTip : '') + '</div>' : '';
@@ -388,7 +416,13 @@ function renderRow(r, opts) {
   // gitStage signal the chip above already uses — same source, same truth, zero new backend.
   var railLine = '', nowLine = '', safeChip = '', behindLine = '';
   if (r.gitStage) {
-    var _ds = deriveStages(r.gitStage, r.branch);
+    // HONEST-CONTROLS D3: feed attribution to deriveStages so the safe-chip/copy stop asserting this
+    // session owns shared-tree dirt. attr is built ONLY when attribution was actually computed
+    // (r.touchedFiles present) — otherwise attr stays null and deriveStages keeps its old behaviour.
+    var _attr = Array.isArray(r.touchedFiles)
+      ? { unsavedOwn: (Array.isArray(r.unsavedOwn) ? r.unsavedOwn.length : 0), partial: !!r.touchedPartial }
+      : null;
+    var _ds = deriveStages(r.gitStage, r.branch, _attr);
     var _stg = _ds.stages;
     // Which single stage is the current step (invariant: ≤1 'now'; 'branch'/'live' never 'now').
     // Computed BEFORE the rail so the rail's aria-label can name the actual state to a
@@ -402,7 +436,16 @@ function renderRow(r, opts) {
       backup: 'Saved on your machine — not backed up to GitHub yet',
       merge:  'Your side-copy is clean — ready to fold into the official version'
     };
-    var _nowMsg = _nowKey ? _NOWTXT[_nowKey] : (_ds.safe.level === 'green' ? 'All caught up — nothing pending' : _ds.safe.label);
+    // HONEST-CONTROLS D3: when the dirt isn't this session's (repoFact), NEVER say "The AI changed
+    // your files" — phrase it as a repo fact. Otherwise the per-stage message stands (it's true).
+    var _nowMsg;
+    if (_ds.safe.repoFact) {
+      _nowMsg = _ds.safe.partial
+        ? ('The repo has uncommitted files — not clearly attributed to this session')
+        : (_ds.safe.label + ' — none from this session');
+    } else {
+      _nowMsg = _nowKey ? _NOWTXT[_nowKey] : (_ds.safe.level === 'green' ? 'All caught up — nothing pending' : _ds.safe.label);
+    }
 
     var _dots = '';
     for (var _si = 0; _si < STAGE_META.length; _si++) {
@@ -611,4 +654,46 @@ function renderLocalFleet(recent, opts) {
   return '<div class="card" data-fleet="active" style="padding:8px 11px;margin-bottom:8px">' + head + rows + '</div>';
 }
 
-module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, renderLocalFleet, MODES_UI, SESS_MODELS, deriveStages, STAGE_META };
+// ── HONEST-CONTROLS D2: inbox counts REPOS, not sessions ─────────────────────────
+// PURE (testable), serialised into the webview (concat/regex-literals only — no template-literals).
+// isMetaPath: is a dirty path "meta" (docs/handoff/markdown/manifests) rather than real code? A repo
+// whose entire dirt is meta reads calm 📝, never a scary ⚠️. The set matches the wave brief D2:
+// SYNC.md, _handoff/**, docs/**, any *.md, package.json / package-lock.json / lockfiles.
+function isMetaPath(p) {
+  var s = String(p == null ? '' : p).replace(/\\/g, '/').replace(/^"|"$/g, '').toLowerCase();
+  if (!s) return false;
+  if (/(^|\/)_handoff\//.test(s)) return true;
+  if (/(^|\/)docs\//.test(s)) return true;
+  if (/\.md$/.test(s)) return true;
+  if (/(^|\/)package(-lock)?\.json$/.test(s)) return true;
+  if (/(^|\/)(yarn\.lock|pnpm-lock\.yaml)$/.test(s)) return true;
+  return false;
+}
+
+// PURE (testable): collapse the session rows into ONE entry per dirty repo (keyed by cwd — all N
+// sessions of a shared working tree carry the SAME gitStage, so dedupe by cwd). The inbox then shows
+// "1 repo · N por commitar", not "N sessions unsaved". Each entry says whether ALL its dirt is meta
+// (→ calm tone) and carries a ≤5-path sample for the tooltip. Order = first-seen. Never throws.
+function inboxRepoSummary(rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  var map = {}; var order = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r || !r.gitStage || !(Number(r.gitStage.dirty) > 0)) continue;
+    var key = r.cwd || r.repoFolder || ('#' + i);
+    if (map[key]) continue;
+    var repo = r.repoFolder || (r.cwd ? String(r.cwd).replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() : 'repo');
+    map[key] = { repo: repo || 'repo', files: (Array.isArray(r.gitStage.files) ? r.gitStage.files : []), dirty: Number(r.gitStage.dirty) || 0 };
+    order.push(key);
+  }
+  var out = [];
+  for (var j = 0; j < order.length; j++) {
+    var m = map[order[j]];
+    var allMeta = m.files.length > 0 && m.files.every(function (f) { return isMetaPath(f && f.path); });
+    var sample = m.files.slice(0, 5).map(function (f) { return f && f.path; }).filter(Boolean);
+    out.push({ repo: m.repo, dirty: m.dirty, files: m.files, meta: allMeta, sample: sample });
+  }
+  return out;
+}
+
+module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, renderLocalFleet, MODES_UI, SESS_MODELS, deriveStages, STAGE_META, isMetaPath, inboxRepoSummary };

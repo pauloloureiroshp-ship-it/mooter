@@ -1345,6 +1345,7 @@ function getHtml(guardianPct = null) {
   .inbox-chip .n{font-weight:700}
   .inbox-chip.gate{border-color:var(--danger)}
   .inbox-chip.unsaved{border-color:var(--warn)}
+  .inbox-chip.meta{border-color:var(--vscode-panel-border,rgba(128,128,128,.35));opacity:.82}
   .inbox-chip.budget{border-color:var(--acc-warm)}
   .inbox-chip.flow{border-color:var(--ok)}
   .inbox-calm{font-size:11.5px;color:var(--ok);display:flex;align-items:center;gap:7px;font-weight:600}
@@ -1540,6 +1541,7 @@ function getHtml(guardianPct = null) {
   .ssafe.green{color:var(--g);background:var(--gdim)}
   .ssafe.amber{color:var(--acc-warm);background:rgba(229,192,123,.12)}
   .ssafe.blue{color:var(--blue);background:rgba(90,155,212,.12)}
+  .ssafe.repo{color:var(--vscode-descriptionForeground);background:rgba(128,128,128,.12);font-weight:500}
   /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
      (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
      height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
@@ -2312,6 +2314,9 @@ const STAGE_META=${RR?JSON.stringify(RR.STAGE_META):'[]'};
 const deriveStages=${RR?RR.deriveStages.toString():'function deriveStages(){return {stages:{},safe:{level:"green",label:"",action:null},behind:null};}'};
 const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
+// HONEST-CONTROLS D2: inbox meta-classifier + per-repo collapse (siblings — renderInbox calls them)
+const isMetaPath=${RR&&RR.isMetaPath?RR.isMetaPath.toString():'function isMetaPath(){return false;}'};
+const inboxRepoSummary=${RR&&RR.inboxRepoSummary?RR.inboxRepoSummary.toString():'function inboxRepoSummary(){return [];}'};
 // WS3: Local Moo Fleet renderer (sibling of renderRow — read-only, idle-safe, concat-only)
 const renderLocalFleet=${RR&&RR.renderLocalFleet?RR.renderLocalFleet.toString():'function renderLocalFleet(){return "";}'};
 // Deck Floor (Fase 2): Fleet Console — read-only aggregate of the pillar fleet (s.fleet from
@@ -2592,14 +2597,20 @@ function renderInbox(s){
   var box=$('#inbox');if(!box)return;var rows=deckRows(s);
   var yourTurn=rows.filter(function(r){return r&&r.needsYou;});
   var mergeGate=rows.filter(function(r){return r&&r.sessionGit&&!r.sessionGit.uncertain&&Number(r.sessionGit.aheadOfMain)>0;}).length;
-  var unsaved=rows.filter(function(r){return r&&r.gitStage&&Number(r.gitStage.dirty)>0;}).length;
+  // HONEST-CONTROLS D2: "unsaved" is a REPO fact — one dirty working tree, not N sessions. Collapse
+  // by cwd (r.gitStage.dirty grouped once per repo) so 1 dirty repo = 1 chip. A repo whose whole
+  // dirt is meta (SYNC.md/_handoff/docs/*.md/manifests) reads calm 📝, never a scary ⚠️.
+  var dirtyRepos=inboxRepoSummary(rows);
   var flowing=rows.filter(function(r){return r&&(r.working||r.waitingForCowork);}).length;
   var yt=yourTurn.length,out='';
   if(yt>0){var who=esc(String(yourTurn[0].coworkTitle||yourTurn[0].brainTitle||yourTurn[0].name||yourTurn[0].id||'')).slice(0,40);
     out+='<button class="inbox-turn" data-inbox="turn" title="Claude terminou e espera a tua resposta"><span class="dot"></span>🙋 '+yt+' '+(yt===1?'sessão à tua espera':'sessões à tua espera')+' <span style="font-weight:600;opacity:.8">(your turn'+(yt===1&&who?' · '+who:'')+')</span></button>';}
   var chips='';
   if(mergeGate>0)chips+='<button class="inbox-chip gate" data-inbox="cockpit" title="ramos com commits à frente de main — decisão de merge à espera">🔴 <span class="n">'+mergeGate+'</span> merge gate</button>';
-  if(unsaved>0)chips+='<button class="inbox-chip unsaved" data-inbox="cockpit" title="trabalho por guardar (working tree suja)">⚠️ <span class="n">'+unsaved+'</span> unsaved</button>';
+  for(var ri=0;ri<dirtyRepos.length;ri++){var rm=dirtyRepos[ri];
+    var tip=esc(rm.repo+' · '+rm.dirty+' por commitar'+(rm.sample.length?(' — '+rm.sample.join(', ')):''));
+    if(rm.meta)chips+='<button class="inbox-chip meta" data-inbox="cockpit" title="'+tip+'">📝 <span class="n">'+rm.dirty+'</span> '+esc(rm.repo)+' meta</button>';
+    else chips+='<button class="inbox-chip unsaved" data-inbox="cockpit" title="'+tip+'">⚠️ <span class="n">'+rm.dirty+'</span> '+esc(rm.repo)+'</button>';}
   if(flowing>0)chips+='<button class="inbox-chip flow" data-inbox="cockpit" title="sessões a fluir (a trabalhar / com o Cowork)">🟢 <span class="n">'+flowing+'</span> flui</button>';
   if(chips)out+='<div class="inbox-chips">'+chips+'</div>';
   if(!out){box.className='inbox calm';box.innerHTML='<div class="inbox-calm"><span class="ic">🟢</span> Tela calma — a frota flui'+(rows.length?(' ('+rows.length+' '+(rows.length===1?'sessão':'sessões')+')'):'')+'</div>';}

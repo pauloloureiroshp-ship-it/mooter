@@ -666,6 +666,12 @@ async function gitStage(cwd) {
       if (x !== ' ' && x !== '?') staged++;   // col1 ≠ space = staged change
       if (y !== ' ' || x === '?') dirty++;     // col2 ≠ space or untracked = dirty
     }
+    // HONEST-CONTROLS D1: expose the actual porcelain paths [{x,y,path}] (reuse parsePorcelain,
+    // hoisted below) so per-session attribution (touchedFiles ∩ dirty) and the inbox meta/code
+    // classifier can read them. NO extra git call — parsed from the same porcelain output already
+    // fetched. Capped at 200 to bound the snapshot serialised to the webview (the counts above stay
+    // exact; `files` is a bounded sample used only for classification/attribution).
+    const files = parsePorcelain(sr.out).slice(0, 200);
     let ahead = 0, behind = 0;
     try {
       const rr = await execTool('git', ['-C', cwd, 'rev-list', '--count', '--left-right', '@{u}...HEAD'], 3000);
@@ -679,7 +685,7 @@ async function gitStage(cwd) {
     if      (dirty  > 0) state = 'uncommitted';
     else if (staged > 0) state = 'staged';
     else if (ahead  > 0) state = 'ahead';
-    return { state, dirty, staged, ahead, behind };
+    return { state, dirty, staged, ahead, behind, files };
   } catch { return null; }
 }
 
@@ -980,12 +986,16 @@ async function recentSessions(maxN = 8) {
     let lastModel = null; let turns = 0; let lastCtx = 0;
     let tin = 0, tout = 0; const sm = {}; let firstTs = null, lastTs = null;
     let pendingForRow = null; // ⇄ Handoff: derived from the SAME tail (no second open)
+    let touchedForRow = [];   // HONEST-CONTROLS D1: files THIS session edited (Edit/Write/NotebookEdit)
+    let touchedPartial = false; // true when the 1MB tail didn't cover the whole transcript → attribution incomplete
     try {
       const st = fs.statSync(f.file); const start = Math.max(0, st.size - 1024 * 1024);
+      touchedPartial = start > 0; // transcript longer than the tail window → touchedFiles may be incomplete
       const fd = fs.openSync(f.file, 'r'); const buf = Buffer.alloc(st.size - start);
       fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
       const _tailLines = buf.toString('utf8').split('\n');
       pendingForRow = extractPending(_tailLines); // ⇄ Handoff: last assistant turn + tool-calls
+      touchedForRow = extractTouchedFiles(_tailLines); // HONEST-CONTROLS D1: same pass, no re-open
       for (const line of _tailLines) {
         if (!line) continue;
         let d; try { d = JSON.parse(line); } catch { continue; }
@@ -1056,6 +1066,15 @@ async function recentSessions(maxN = 8) {
       if (!gsCache.has(cwd)) gsCache.set(cwd, gitStage(cwd)); // store Promise, start only once per cwd
       row.gitStage = await gsCache.get(cwd);
     } else { row.gitStage = null; }
+    // HONEST-CONTROLS D1: attribute the shared working-tree dirt to THIS session. touchedFiles is
+    // this session's own edits (from its transcript); unsavedOwn = those that are STILL dirty in the
+    // porcelain (gitStage.files). A shared repo dirty with SYNC.md/package.json this session never
+    // touched → unsavedOwn=[] → the row stops claiming "unsaved work" (see deriveStages attribution).
+    row.touchedFiles = touchedForRow;         // JSON-safe array (relative paths as recorded); [] when nothing edited
+    row.touchedPartial = touchedPartial;      // honest degrade signal: tail didn't cover the whole transcript
+    row.unsavedOwn = (row.gitStage && Array.isArray(row.gitStage.files))
+      ? sessionUnsaved(touchedForRow, row.gitStage.files, cwd)
+      : [];
     modeRegistry().decorate(row, _cwMap);  // WCOCKPIT: junta mode/model/auto/project/brainTitle + cowork mirror + integration fields
     coworkWaiting().decorate(row, _cwPend); // WCOCKPIT: junta waitingForCowork/coworkStatus/coworkTitle
     row.localMoo = localMooState(row.fullId); // B4: estado vivo do moo local (acumulador, read-only, $0)
@@ -1208,6 +1227,70 @@ function extractPending(tailLines) {
     ask: (endsWithAsk && lastAskInput) ? _parseAskInput(lastAskInput) : null,
     stopped: lastMeaningfulRole === 'assistant',
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// HONEST-CONTROLS D1 — per-session attribution. The cockpit's git stage is a per-CWD fact
+// (one working tree, N sessions). To stop every session in a shared repo from claiming the
+// same dirt as its own "unsaved work", we attribute the dirty paths to the session that
+// actually EDITED them. The signal is the transcript: Edit/Write/NotebookEdit tool_use carry
+// input.file_path. We read them from the SAME 1MB tail recentSessions already loaded (no
+// re-open) and intersect with the porcelain paths (gitStage.files). Pure + testable.
+// ════════════════════════════════════════════════════════════════════════════
+
+// PURE (testable): file-mutating tool_use targets from the tail JSONL recentSessions already read.
+// Collects input.file_path / notebook_path / path for Edit·Write·MultiEdit·NotebookEdit only
+// (NOT Read/Grep/Bash — those don't dirty the tree). Deduped, capped (200), original strings kept
+// (absolute or relative as the transcript recorded them — sessionUnsaved normalises them). Never throws.
+const _EDIT_TOOLS = { Edit: 1, Write: 1, MultiEdit: 1, NotebookEdit: 1 };
+function extractTouchedFiles(tailLines) {
+  const lines = Array.isArray(tailLines) ? tailLines : [];
+  const out = []; const seen = new Set();
+  for (const ln of lines) {
+    if (!ln || !ln.trim()) continue;
+    let d; try { d = JSON.parse(ln); } catch { continue; }
+    const msg = d && d.message;
+    const role = (msg && msg.role) || d.type;
+    if (role !== 'assistant') continue;
+    const content = msg && msg.content;
+    if (!Array.isArray(content)) continue;
+    for (const b of content) {
+      if (!b || b.type !== 'tool_use' || !_EDIT_TOOLS[b.name]) continue;
+      const inp = b.input || {};
+      const fp = inp.file_path || inp.notebook_path || inp.path;
+      if (!fp) continue;
+      const s = String(fp).trim();
+      if (s && !seen.has(s)) { seen.add(s); out.push(s); if (out.length >= 200) return out; }
+    }
+  }
+  return out;
+}
+
+// PURE (testable): make a (possibly absolute) transcript path relative to cwd, forward-slashed.
+// Porcelain paths are already repo-root-relative + forward-slashed; this brings touchedFiles onto
+// the same footing so the intersection is apples-to-apples. Case-normalisation is left to the caller.
+function _relForCwd(p, cwd) {
+  let s = String(p == null ? '' : p).replace(/\\/g, '/');
+  const c = String(cwd == null ? '' : cwd).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (c && (s.toLowerCase() === c.toLowerCase() || s.toLowerCase().startsWith(c.toLowerCase() + '/'))) {
+    s = s.slice(c.length).replace(/^\/+/, '');
+  }
+  return s.replace(/^\.\//, '');
+}
+
+// PURE (testable): the dirty paths THIS session actually touched = gitStage.files ∩ touchedFiles.
+// Returns the porcelain-relative paths (original case) that intersect. [] when either side is empty
+// or disjoint. Comparison is case-insensitive (Windows working trees) + separator-agnostic. Never throws.
+function sessionUnsaved(touched, gitFiles, cwd) {
+  if (!Array.isArray(touched) || !Array.isArray(gitFiles) || !touched.length || !gitFiles.length) return [];
+  const norm = (x) => String(x == null ? '' : x).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '').toLowerCase();
+  const touchedSet = new Set(touched.map((t) => norm(_relForCwd(t, cwd))).filter(Boolean));
+  const out = [];
+  for (const f of gitFiles) {
+    const p = f && f.path; if (!p) continue;
+    if (touchedSet.has(norm(p))) out.push(p);
+  }
+  return out;
 }
 
 // PURE (testable): normalize an AskUserQuestion tool input into { questions:[{question, options:[..]}] }
@@ -2656,7 +2739,7 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk, _isAskingUser,
-  extractPending, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
+  extractPending, extractTouchedFiles, sessionUnsaved, _relForCwd, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
   readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed,
