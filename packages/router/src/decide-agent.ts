@@ -44,6 +44,12 @@ import { TASK_CATEGORIES, type TaskCategory, parseTaskCategory } from "./task-ca
 import { computeTES, priceStatusForModel, type PriceStatus } from "./tes-calculator.ts";
 import { isLocalModel } from "./cost.ts";
 import { maxTier } from "./policy.ts";
+// Wave 58 (A.12) → wired here (default-off): the adaptive-learner's local,
+// n-bounded overrides layer ON TOP of the cited baseline matrix. decideAgent
+// consults them ONLY when use_learned is set; the lookup itself falls back to
+// getCell when a cell has no override, so with an empty/absent overrides file
+// (today's state) behaviour is byte-identical to the pre-wiring engine.
+import { getLearnedCell, readOverrides, type LearnedCell } from "./adaptive-learner.ts";
 
 // ---------------------------------------------------------------------------
 // Snapshot tier probe (for the heuristic fallback + per-model tier band).
@@ -197,6 +203,17 @@ export interface DecideAgentArgs {
    *  result is flagged (reason notes the override) and still reports the model's
    *  measured/heuristic standing honestly. */
   force_model?: string;
+  /** When true, layer the adaptive-learner's local overrides
+   *  (~/.mooter/specialization-overrides.json) ON TOP of the cited baseline
+   *  matrix before selecting. Default false → identical to the pre-wiring
+   *  engine. A learned cell carries source:"adaptive-learned" so provenance
+   *  stays honest (never presented as a cited benchmark). */
+  use_learned?: boolean;
+  /** Inject already-read overrides (tests / callers who read once). When absent
+   *  and use_learned is true, they are read from `overrides_path`. */
+  overrides?: LearnedCell[];
+  /** Override the overrides-file path (tests). */
+  overrides_path?: string;
 }
 
 export interface AgentAlternative {
@@ -271,8 +288,17 @@ function blendedCost(per1kIn: number | null, per1kOut: number | null): number | 
  *                                           flagged measured:false.
  * TES + price status come straight from computeTES (no fabrication).
  */
-function buildCandidate(model: string, category: TaskCategory): Candidate {
-  const cell = getCell(model, category); // null only if model out of roster
+function buildCandidate(
+  model: string,
+  category: TaskCategory,
+  overrides?: LearnedCell[],
+): Candidate {
+  // Override-aware lookup when overrides are supplied (use_learned): a learned
+  // cell wins over the baseline, else getLearnedCell falls back to getCell. With
+  // no overrides we call getCell directly — zero behaviour change from before.
+  const cell = overrides
+    ? getLearnedCell(model, category, { overrides })
+    : getCell(model, category); // null only if model out of roster
   const measuredScore =
     cell && cell.measured && typeof cell.score === "number" ? cell.score : null;
   const measured = measuredScore !== null;
@@ -299,6 +325,18 @@ function buildCandidate(model: string, category: TaskCategory): Candidate {
     price_status: tesResult.price_status,
     blended_cost: blendedCost(tesResult.cost_per_1k_in, tesResult.cost_per_1k_out),
   };
+}
+
+/**
+ * Resolve the learner overrides for this call. undefined (→ no override layer,
+ * getCell used directly) unless use_learned is set. When set, prefer injected
+ * overrides, else read the file once (best-effort, never throws → [] on
+ * absent/corrupt, which behaves exactly like no overrides). Read ONCE here so
+ * buildCandidate does not re-parse the file per roster model.
+ */
+function resolveOverrides(args: DecideAgentArgs): LearnedCell[] | undefined {
+  if (!args.use_learned) return undefined;
+  return args.overrides ?? readOverrides(args.overrides_path);
 }
 
 /** A candidate is rankable by TES only when its TES is a finite number. */
@@ -356,7 +394,10 @@ export function decideAgent(args: DecideAgentArgs): DecideAgentResult {
   }
 
   // --- step 1: build all candidates ------------------------------------------
-  const all: Candidate[] = MATRIX_MODELS.map((m: MatrixModel) => buildCandidate(m, category));
+  // Read learner overrides at most once (undefined unless use_learned) and thread
+  // them into every candidate so the override layer is consistent + cheap.
+  const overrides = resolveOverrides(args);
+  const all: Candidate[] = MATRIX_MODELS.map((m: MatrixModel) => buildCandidate(m, category, overrides));
   const anyMeasured = all.some((c) => c.measured);
 
   // --- force_model short-circuit (step 6, applied first if present) ----------
