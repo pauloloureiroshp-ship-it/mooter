@@ -151,7 +151,9 @@ DoRun "Copy router .js" {
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
-$hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js')
+# Keep in lockstep with WIRED_HOOKS (tools/router/sync-hooks.js) and install.sh.
+# live-preview-tap.js (Live Preview MP0) is the file-bus tap - additive/read-only/fail-soft.
+$hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js','live-preview-tap.js')
 foreach ($h in $hookNames) {
     $src = Join-Path $SrcDir "tools\router\$h"
     if (Test-Path $src) {

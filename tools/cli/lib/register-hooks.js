@@ -67,6 +67,26 @@ for (const entry of (s.hooks.UserPromptSubmit || [])) {
 ensure('UserPromptSubmit', 'pack-hint.cjs', `node "${hooksFwd}/pack-hint.cjs"`);
 ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
 
+// Live Preview · MP0 — arm the file-bus tap alongside the existing hooks. Each
+// entry passes the hook name as argv so hook-collector.mapEvent maps it to the
+// right event kind (UserPromptSubmit→reason, PostToolUse→file, Stop/SubagentStop→
+// server). ADDITIVE, read-only, fail-soft: the tap never blocks a turn and a
+// missing collector just yields no events. Idempotent — skips if the target hook
+// array already references the tap (needle checked per-key, so all 4 wire once).
+const tapCmd = (evt) => `node "${hooksFwd}/live-preview-tap.js" ${evt}`;
+const ensureTap = (key, entry) => {
+  s.hooks[key] = s.hooks[key] || [];
+  if (JSON.stringify(s.hooks[key]).includes('live-preview-tap.js')) return;
+  s.hooks[key].push(entry);
+  added++;
+};
+ensureTap('UserPromptSubmit', { hooks: [{ type: 'command', command: tapCmd('UserPromptSubmit'), timeout: 3 }] });
+// Matcher scopes the extra node spawn to edit-family tools; the collector also
+// filters to Write|Edit internally, so an unmatched tool is a no-op either way.
+ensureTap('PostToolUse', { matcher: 'Write|Edit|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: tapCmd('PostToolUse'), timeout: 3 }] });
+ensureTap('Stop', { hooks: [{ type: 'command', command: tapCmd('Stop'), timeout: 3 }] });
+ensureTap('SubagentStop', { hooks: [{ type: 'command', command: tapCmd('SubagentStop'), timeout: 3 }] });
+
 // Matcher migration: existing hooks that reference exec-logger.js, PostToolUse.js
 // or post_tool_badge.js with matcher "Bash" need "Bash|Agent|Task" so subagent
 // spawns get tracked. Wave 21 (C1): post_tool_badge.js was MISSING from this list,

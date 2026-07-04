@@ -35,6 +35,12 @@ const WIRED_HOOKS = [
   'frugal-turn-header.js',
   'exec-logger.js',
   'PostToolUse.js',
+  // Live Preview · MP0 — the file-bus tap. Wired next to the existing hooks
+  // (UserPromptSubmit/PostToolUse/Stop/SubagentStop) by register-hooks.js; this
+  // entry keeps its WIRED ~/.claude/hooks/ copy fresh on every /mooter-update so
+  // the tap can never go stale the way the accumulator hook once did. ADDITIVE,
+  // read-only, fail-soft — a missing copy just means no events, never a broken turn.
+  'live-preview-tap.js',
 ];
 
 // The Stop hook that carries the Live Context Accumulator. If the WIRED copy of
