@@ -103,12 +103,23 @@
         "title": "Refresh Data",
         "category": "Mooter",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "mooter.openLivePreview",
+        "title": "Open Live Preview 🎬",
+        "category": "Mooter",
+        "icon": "$(preview)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "mooter.refresh",
+          "when": "view == mooterCockpit",
+          "group": "navigation"
+        },
+        {
+          "command": "mooter.openLivePreview",
           "when": "view == mooterCockpit",
           "group": "navigation"
         }
