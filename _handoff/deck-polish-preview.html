@@ -1,0 +1,451 @@
+<!DOCTYPE html><html lang="pt-PT"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deck Polish Preview — 7 refinamentos (idle+rico × Dark/Light/HC)</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   PREVIEW CHROME (não faz parte do deck — só a moldura de validação)
+   ───────────────────────────────────────────────────────────────────────────── */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;transition:background .15s,color .15s;padding:0 0 60px}
+.pv-top{position:sticky;top:0;z-index:100;padding:14px 20px;border-bottom:1px solid rgba(128,128,128,.35);backdrop-filter:blur(6px)}
+.pv-top h1{margin:0 0 3px;font-size:16px}
+.pv-top .pv-sub{font-size:12px;opacity:.7}
+.pv-ctrls{margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.pv-seg{display:inline-flex;border:1px solid rgba(128,128,128,.5);border-radius:8px;overflow:hidden}
+.pv-seg button{all:unset;cursor:pointer;padding:6px 12px;font-size:12px;font-weight:600;opacity:.65}
+.pv-seg button.on{opacity:1;background:rgba(128,128,128,.22)}
+.pv-lab{font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.55;margin-right:2px}
+.pv-legend{font-size:11px;opacity:.7;margin-top:8px}
+.pv-legend code{background:rgba(128,128,128,.2);padding:1px 5px;border-radius:4px}
+main{max-width:1180px;margin:0 auto;padding:22px 20px 0}
+.pv-sec{margin:0 0 34px;border:1px solid rgba(128,128,128,.28);border-radius:12px;overflow:hidden}
+.pv-sec>header{padding:12px 16px;border-bottom:1px solid rgba(128,128,128,.24)}
+.pv-sec>header .pv-r{font-size:13px;font-weight:700}
+.pv-sec>header .pv-r .pv-tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:6px;background:#6b8afd;color:#fff;margin-right:8px;vertical-align:middle}
+.pv-sec>header .pv-gate{font-size:11.5px;opacity:.75;margin-top:4px}
+.pv-sec>header .pv-gate b{color:#3aa76d}
+.pv-states{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media(max-width:820px){.pv-states{grid-template-columns:1fr}}
+.pv-state{padding:18px 16px}
+.pv-state+.pv-state{border-left:1px solid rgba(128,128,128,.2)}
+@media(max-width:820px){.pv-state+.pv-state{border-left:none;border-top:1px solid rgba(128,128,128,.2)}}
+.pv-state>.pv-h{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;opacity:.55;margin:0 0 12px;display:flex;gap:7px;align-items:center}
+.pv-state>.pv-h .pv-dot{width:7px;height:7px;border-radius:50%}
+.pv-idle .pv-dot{background:#8a8a8a}.pv-rich .pv-dot{background:#3aa76d}
+/* the "deck" frame — mimics the narrow VS Code side panel, so components render at real proportions */
+.deck{width:100%;max-width:360px;margin:0 auto;border:1px solid var(--vscode-widget-border);border-radius:10px;padding:0 10px 12px;
+  background:var(--vscode-editor-background);color:var(--vscode-foreground);font:13px var(--vscode-font-family);overflow:hidden}
+.deck.wide{max-width:360px}
+.pv-note{font-size:10.5px;opacity:.6;margin:10px auto 0;max-width:360px;font-style:italic}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THEME PALETTES — approximate VS Code Dark+ / Light+ / High-Contrast so the deck's
+   theme-deferring tokens resolve the same way the live webview would.
+   ───────────────────────────────────────────────────────────────────────────── */
+body.theme-dark{background:#181818;color:#ddd;
+  --vscode-editor-background:#1e1e1e;--vscode-editorWidget-background:#252526;--vscode-input-background:#3c3c3c;
+  --vscode-foreground:#cccccc;--vscode-descriptionForeground:#9d9d9d;--vscode-widget-border:#454545;
+  --vscode-focusBorder:#007fd4;--vscode-list-hoverBackground:#2a2d2e;--vscode-sideBar-background:#252526;
+  --vscode-charts-green:#89d185;--vscode-charts-red:#f14c4c;--vscode-charts-yellow:#e2c08d;--vscode-charts-orange:#d18616;
+  --vscode-charts-blue:#3794ff;--vscode-charts-purple:#b180d7;--vscode-errorForeground:#f48771;
+  --vscode-font-family:"Segoe UI",system-ui,sans-serif;--vscode-editor-font-family:Consolas,"Courier New",monospace}
+body.theme-light{background:#fafafa;color:#333;
+  --vscode-editor-background:#ffffff;--vscode-editorWidget-background:#f3f3f3;--vscode-input-background:#ffffff;
+  --vscode-foreground:#3b3b3b;--vscode-descriptionForeground:#616161;--vscode-widget-border:#c8c8c8;
+  --vscode-focusBorder:#0090f1;--vscode-list-hoverBackground:#e8e8e8;--vscode-sideBar-background:#f3f3f3;
+  --vscode-charts-green:#388a34;--vscode-charts-red:#d13438;--vscode-charts-yellow:#996f00;--vscode-charts-orange:#d18616;
+  --vscode-charts-blue:#1a85ff;--vscode-charts-purple:#652d90;--vscode-errorForeground:#e51400;
+  --vscode-font-family:"Segoe UI",system-ui,sans-serif;--vscode-editor-font-family:Consolas,"Courier New",monospace}
+body.theme-hc{background:#000;color:#fff;
+  --vscode-editor-background:#000000;--vscode-editorWidget-background:#0c0c0c;--vscode-input-background:#000000;
+  --vscode-foreground:#ffffff;--vscode-descriptionForeground:#cfcfcf;--vscode-widget-border:#6fc3df;
+  --vscode-focusBorder:#f38518;--vscode-list-hoverBackground:#1a1a1a;--vscode-sideBar-background:#000000;
+  --vscode-charts-green:#33ff99;--vscode-charts-red:#ff5050;--vscode-charts-yellow:#ffff66;--vscode-charts-orange:#ffa040;
+  --vscode-charts-blue:#66c0ff;--vscode-charts-purple:#c090ff;--vscode-errorForeground:#ff6d6d;
+  --vscode-font-family:"Segoe UI",system-ui,sans-serif;--vscode-editor-font-family:Consolas,"Courier New",monospace}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   REAL DECK CSS — copied verbatim from packages/vscode-extension/src/extension.js
+   (Phase-0 tokens + the components touched by the 7 refinements). NEW polish rules
+   are marked /* R# NEW *​/ so the diff is auditable.
+   ───────────────────────────────────────────────────────────────────────────── */
+.deck :root,.deck{
+  --ink:var(--vscode-editor-background,#0B0A09);--surface:var(--vscode-editorWidget-background,#141311);
+  --surface2:var(--vscode-input-background,#1C1A17);--btext:var(--vscode-foreground,#F2EDE6);
+  --bmuted:var(--vscode-descriptionForeground,#8A8076);--on-bright:#0B0A09;
+  --ok:var(--vscode-charts-green,#4CAF6A);--danger:var(--vscode-charts-red,#E8888A);--danger-2:var(--vscode-charts-red,#F2A5A5);
+  --danger-strong:var(--vscode-errorForeground,#D9484B);--warn:var(--vscode-charts-orange,#D19A66);
+  --acc-warm:var(--vscode-charts-yellow,#E5C07B);--acc-orange:var(--vscode-charts-orange,#D19A66);
+  --blue:var(--vscode-charts-blue,#5A9BD4);--blue-bright:var(--vscode-charts-blue,#61AFEF);
+  --purple:var(--vscode-charts-purple,#A78BFA);--purple-bright:var(--vscode-charts-purple,#C4B5FD);
+  --g:var(--ok);--r:var(--danger);--r2:var(--danger-2);
+  --t0:var(--ok);--t1:var(--blue);--t2:var(--purple);--t3:var(--vscode-charts-red,#D46A5A);--t5:var(--acc-warm);
+  --gdim:rgba(76,175,106,.14);--rdim:rgba(232,136,138,.12);
+  --warmdim:rgba(229,192,123,.12);--bluedim:rgba(90,155,212,.12);--orangedim:rgba(209,154,102,.1)}
+body.theme-hc .deck{--gdim:transparent;--rdim:transparent;--warmdim:transparent;--bluedim:transparent;--orangedim:transparent}
+
+/* tabs + R1 overflow */
+.deck .tabs{display:flex;gap:0;margin:0 -10px 10px;padding:4px 8px 0;border-bottom:1px solid var(--vscode-widget-border);flex-wrap:wrap}
+.deck .tab{padding:5px 8px;cursor:pointer;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;font-size:11.5px}
+.deck .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--r)}
+.deck .taboverflow{position:relative;display:inline-block;align-self:flex-end}          /* R1 NEW */
+.deck .taboverflow>summary{list-style:none;cursor:pointer;font-size:12px;line-height:1;padding:5px 8px;color:var(--vscode-descriptionForeground);border-bottom:2px solid transparent;white-space:nowrap}
+.deck .taboverflow>summary::-webkit-details-marker{display:none}
+.deck .taboverflow>summary:hover{color:var(--vscode-foreground)}
+.deck .taboverflow.activein>summary{color:var(--vscode-foreground);border-bottom-color:var(--r)}
+.deck .taboverflow .menu{left:auto;right:0}
+.deck .taboverflow .mi[aria-checked="true"]{color:var(--r);font-weight:700}
+.deck .caret{font-size:9px;opacity:.7}
+.deck .menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;min-width:164px;max-width:240px;
+  background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:8px;
+  padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:1px}
+.deck .mi{all:unset;box-sizing:border-box;cursor:pointer;font-size:11.5px;padding:6px 9px;border-radius:6px;color:var(--vscode-foreground);display:flex;align-items:center;gap:7px;justify-content:space-between}
+.deck .mi:hover{background:var(--vscode-list-hoverBackground)}
+
+/* inbox + R2 hasturn */
+.deck .inbox{margin:0 -10px;padding:6px 12px 8px;border-bottom:1px solid var(--vscode-widget-border);display:flex;flex-direction:column;gap:5px}
+.deck .inbox-turn{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--acc-warm);cursor:pointer;background:none;border:none;text-align:left;padding:0;width:100%}
+.deck .inbox-turn .dot{width:9px;height:9px;border-radius:50%;background:var(--acc-warm);flex:none;animation:inboxpulse 1.5s infinite}
+@keyframes inboxpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.82)}}
+.deck .inbox-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.deck .inbox-chip{font-size:11px;padding:2px 8px;border-radius:9px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  border:1px solid var(--vscode-widget-border);color:var(--vscode-foreground);background:var(--vscode-input-background)}
+.deck .inbox-chip .n{font-weight:700}
+.deck .inbox-chip.gate{border-color:var(--danger)}.deck .inbox-chip.unsaved{border-color:var(--warn)}.deck .inbox-chip.flow{border-color:var(--ok)}
+.deck .inbox-calm{font-size:11.5px;color:var(--ok);display:flex;align-items:center;gap:7px;font-weight:600}
+.deck .inbox-calm .ic{font-size:13px}
+.deck .inbox.hasturn{background:var(--warmdim);box-shadow:inset 3px 0 0 var(--acc-warm);border-bottom-color:var(--acc-warm);padding-top:8px}  /* R2 NEW */
+.deck .inbox.hasturn .inbox-turn{font-size:12.5px}
+
+/* cards / collapse / score */
+.deck .card{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:12px;margin-bottom:8px}
+.deck .card.hero{background:linear-gradient(160deg,var(--ink),var(--surface2));border:1px solid var(--g)}
+.deck .lbl{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--vscode-descriptionForeground)}
+.deck .big{font-size:27px;font-weight:700;color:var(--g);font-variant-numeric:tabular-nums}
+.deck .sub{font-size:12px;color:var(--vscode-descriptionForeground)}.deck .sub b{color:var(--vscode-foreground)}
+.deck .hint{text-align:center;font-size:10.5px;color:var(--vscode-descriptionForeground);margin-top:6px}
+.deck .collaphead{cursor:pointer;user-select:none;outline:none}
+.deck .chev{display:inline-block;font-size:8px;opacity:.5;margin-right:6px;transition:transform .15s ease;vertical-align:middle}
+.deck .card.collapsed .chev{transform:rotate(-90deg)}
+.deck .card.collapsed>*:not(.collaphead){display:none!important}
+.deck .card.collapsed{padding-bottom:12px}
+.deck .scorebar{height:8px;background:var(--vscode-input-background);border-radius:4px;overflow:hidden;margin:8px 0 4px}
+.deck .scorebar .f{height:100%;background:linear-gradient(90deg,var(--r),var(--acc-warm) 50%,var(--g));border-radius:4px}
+.deck .dr{display:flex;gap:8px;padding:7px 4px;border-bottom:1px solid var(--vscode-widget-border);font-size:12px;align-items:center}
+.deck .dr:last-child{border:none}.deck .dr .w{flex:1}
+.deck button.sm{padding:3px 9px;font-size:10.5px;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:5px;cursor:pointer}
+.deck button.go{width:100%;background:var(--r);color:var(--on-bright);border:none;padding:9px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer}
+
+/* lenses + R5 density */
+.deck .lens .lens-body{margin-top:6px;font-size:11px;display:flex;flex-direction:column;gap:5px}
+.deck .lens .lrow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.deck .lens .lk{color:var(--vscode-descriptionForeground);font-size:10.5px;min-width:70px;flex:none}
+.deck .lens .lv{font-weight:600;font-variant-numeric:tabular-nums}
+.deck .lens .nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic;font-weight:400}
+.deck .lens .lbar{height:7px;border-radius:4px;overflow:hidden;display:flex;background:var(--vscode-input-background);margin:1px 0;min-width:120px;flex:1}
+.deck .lens .lbar>span{display:block;min-width:1px}
+.deck .lens .lchip{font-size:10px;padding:1px 7px;border-radius:8px;border:1px solid var(--vscode-widget-border);display:inline-flex;gap:4px;align-items:center}
+.deck .lens .lsoon{font-size:9.5px;color:var(--acc-warm);opacity:.9}
+.deck .lens .lwhy{font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
+.deck .lens .llink{font-size:10px;color:var(--vscode-descriptionForeground);cursor:pointer;opacity:.75}
+
+/* hardware strip (R3) */
+.deck .hwstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+.deck .hwc{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-variant-numeric:tabular-nums}
+.deck .hwbar{display:inline-block;width:46px;height:7px;border-radius:4px;overflow:hidden;background:var(--vscode-input-background)}
+.deck .hwbar>span{display:block;height:100%}
+.deck .hwstrip .nd{font-style:italic;opacity:.7}
+.deck .hwstrip .lwhy,.deck .hwc .lwhy{font-size:9px;color:var(--vscode-descriptionForeground);opacity:.8}
+.deck .nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic}
+
+/* pipeline (R3) */
+.deck .pipeline{margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+.deck .prail{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.deck .pstage{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--vscode-widget-border);background:var(--vscode-input-background)}
+.deck .pstage.bott{border-color:var(--warn);color:var(--warn)}
+.deck .parrow{opacity:.4;font-size:10px}
+.deck .pipeline .lwhy{font-size:9px;margin-top:4px;display:block;color:var(--vscode-descriptionForeground);opacity:.85}
+
+/* handoff flow (R7) */
+.deck .hoflow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0 4px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+.deck .hnode{font-size:10.5px;font-weight:600;white-space:nowrap}
+.deck .hpipe{position:relative;flex:1;min-width:16px;height:2px;background:var(--vscode-widget-border);border-radius:2px;overflow:hidden}
+.deck .hpart{position:absolute;top:-2px;left:0;width:6px;height:6px;border-radius:50%;background:var(--acc-warm);animation:hoflowpart 2.2s linear infinite}
+@keyframes hoflowpart{0%{left:-8px;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:100%;opacity:0}}
+.deck .hoflow .lwhy{font-size:9px;width:100%;margin-top:3px;color:var(--vscode-descriptionForeground);opacity:.85}
+
+/* herd / floor (R4) */
+.deck .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
+.deck .srow{display:flex;align-items:center;gap:9px;padding:5px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;background:var(--vscode-editorWidget-background)}
+.deck .srow.needs{border-left-color:var(--acc-warm);background:var(--warmdim)}
+.deck .srow.working{border-left-color:var(--ok)}
+.deck .livecow{font-size:18px}
+.deck .sbody{flex:1;min-width:0}
+.deck .sname{font-size:11.5px;font-weight:600}
+.deck .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px}
+.deck .needsyou{color:var(--acc-warm);font-weight:700}
+
+/* reduced-motion toggle (emulates the deck's global @media prefers-reduced-motion kill switch) */
+body.reduce .deck *,body.reduce .deck *::before,body.reduce .deck *::after{animation:none!important;transition:none!important}
+</style></head>
+<body class="theme-dark">
+<div class="pv-top">
+  <h1>🐮 Deck Polish Preview — 7 refinamentos</h1>
+  <div class="pv-sub">CTO Command Deck · cada refinamento em <b>idle/vazio</b> vs <b>rico</b>, sob os 3 temas. CSS real do cockpit embebido. Gate humano: valida e diz OK antes de merge.</div>
+  <div class="pv-ctrls">
+    <span class="pv-lab">Tema</span>
+    <div class="pv-seg" id="themeSeg">
+      <button data-theme="theme-dark" class="on">🌙 Dark</button>
+      <button data-theme="theme-light">☀️ Light</button>
+      <button data-theme="theme-hc">◐ High-Contrast</button>
+    </div>
+    <span class="pv-lab">Movimento</span>
+    <div class="pv-seg" id="motionSeg">
+      <button data-motion="0" class="on">▶ animado</button>
+      <button data-motion="1">⏸ reduced-motion</button>
+    </div>
+  </div>
+  <div class="pv-legend">R7 (partícula do handoff) só se vê com <code>▶ animado</code>; carrega em <code>⏸ reduced-motion</code> para confirmar que a animação morre (WCAG). Honest-copy: onde não há fonte, lê-se <code>n/d</code> — nunca um número inventado.</div>
+</div>
+<main>
+
+<!-- R1 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R1</span>Tabs → priority-collapse (overflow ···)</div>
+    <div class="pv-gate">Gate: <b>≤5 tabs visíveis</b> · o ··· abre o resto · nada perde acesso. Delivery (Cockpit·Mission·Project·Arch) fica na barra; Setup/Agents/Decisions/Doctor dobram sob ···.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Barra normal — ··· fechado</div>
+      <div class="deck"><div class="tabs">
+        <div class="tab on">🐮 Cockpit</div><div class="tab">🎛️ Mission Control</div><div class="tab">🛩️ Project command</div><div class="tab">🌳 Arquitectura</div>
+        <details class="taboverflow"><summary>··· <span class="caret">▾</span></summary></details>
+      </div></div>
+      <div class="pv-note">4 delivery tabs + ··· = 5 slots. Antes eram 8 tabs planas.</div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>··· aberto (Doctor ativo, dobrado)</div>
+      <div class="deck"><div class="tabs">
+        <div class="tab">🐮 Cockpit</div><div class="tab">🎛️ Mission Control</div><div class="tab">🛩️ Project command</div><div class="tab">🌳 Arquitectura</div>
+        <details class="taboverflow activein" open><summary>··· <span class="caret">▾</span></summary>
+          <div class="menu"><button class="mi">⚙️ Setup</button><button class="mi">🤖 Agents</button><button class="mi">🔬 Decisions</button><button class="mi" aria-checked="true">🩺 Doctor</button></div>
+        </details>
+      </div></div>
+      <div class="pv-note">Tab dobrado ativo ⇒ ··· acende (border-bottom). details/summary = teclado grátis + CSP-safe.</div>
+    </div>
+  </div>
+</section>
+
+<!-- R2 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R2</span>NOW → barra destacada (your-turn domina)</div>
+    <div class="pv-gate">Gate: a linha <b>🙋 your-turn</b> domina quando existe (acima do merge gate); tela calma quando vazio. Warning tint só quando precisa de ti.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Vazio — tela calma</div>
+      <div class="deck"><div class="inbox calm"><div class="inbox-calm"><span class="ic">🟢</span> Tela calma — a frota flui (5 sessões)</div></div></div>
+      <div class="pv-note">Sem your-turn ⇒ sem tint, verde, discreto.</div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>Rico — barra warning (hasturn)</div>
+      <div class="deck"><div class="inbox hasturn">
+        <button class="inbox-turn"><span class="dot"></span>🙋 2 sessões à tua espera <span style="font-weight:600;opacity:.8">(your turn · fix auth flow)</span></button>
+        <div class="inbox-chips">
+          <button class="inbox-chip gate">🔴 <span class="n">3</span> merge gate</button>
+          <button class="inbox-chip unsaved">⚠️ <span class="n">1</span> unsaved</button>
+          <button class="inbox-chip flow">🟢 <span class="n">4</span> flui</button>
+        </div>
+      </div></div>
+      <div class="pv-note">Rail âmbar + tint (var(--warmdim)); your-turn no topo, chips por baixo. Números = flags reais das sessões.</div>
+    </div>
+  </div>
+</section>
+
+<!-- R3 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R3</span>Hardware strip + Pipeline SEMPRE visíveis</div>
+    <div class="pv-gate">Gate: <b>ambos visíveis no estado idle</b> · zero número fabricado. GPU real do nvidia-smi; ausente ⇒ <code>n/d</code>. As 5 etapas aparecem mesmo a zero.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Idle — sem GPU / sem sessão</div>
+      <div class="deck">
+        <div class="hwstrip">
+          <span class="hwc">🎮 GPU <span class="nd">n/d</span> <span class="lwhy">nvidia-smi ausente</span></span>
+          <span class="hwc">🌡️ <span class="nd">n/d</span></span><span class="hwc">CPU <span class="nd">n/d</span></span>
+          <span class="hwc">💳 <span class="nd">n/d</span> <span class="lwhy">%/sem n/d</span></span>
+        </div>
+        <div class="pipeline"><div class="prail">
+          <span class="pstage">📋 spec <b>0</b></span><span class="parrow">→</span><span class="pstage">🗺️ plan <b>0</b></span><span class="parrow">→</span><span class="pstage">⚙️ exec <b>0</b></span><span class="parrow">→</span><span class="pstage">🔍 review <b>0</b></span><span class="parrow">→</span><span class="pstage">🚀 ship <b>0</b></span>
+        </div><span class="lwhy">🏁 sem sessão ativa · as 5 etapas iluminam-se quando abres uma</span></div>
+      </div>
+      <div class="pv-note">Nunca desaparecem: idle mostra a estrutura honesta (n/d), não um espaço vazio.</div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>Rico — GPU + gargalo no exec</div>
+      <div class="deck">
+        <div class="hwstrip">
+          <span class="hwc">🎮 <b>34%</b> <span class="hwbar"><span style="width:34%;background:var(--ok)"></span></span></span>
+          <span class="hwc">🧠 <b>41%</b> VRAM</span>
+          <span class="hwc">🟢 cabem <b>+3</b> moos</span>
+          <span class="hwc">⚡ <b>62</b> tok/s</span>
+          <span class="hwc">💳 max-5x <span class="lwhy">%/sem n/d</span></span>
+        </div>
+        <div class="pipeline"><div class="prail">
+          <span class="pstage">📋 spec <b>0</b></span><span class="parrow">→</span><span class="pstage">🗺️ plan <b>0</b></span><span class="parrow">→</span><span class="pstage bott">⚙️ exec <b>3</b> ⛔</span><span class="parrow">→</span><span class="pstage">🔍 review <b>1</b></span><span class="parrow">→</span><span class="pstage">🚀 ship <b>2</b></span>
+        </div><span class="lwhy">🏁 6/7 sessões colocadas · derivado de git/estado</span></div>
+      </div>
+      <div class="pv-note">"cabem +3" vem do allocator; GPU% do nvidia-smi. Gargalo = a etapa mais cheia (border warn).</div>
+    </div>
+  </div>
+</section>
+
+<!-- R4 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R4</span>Floor com empty state convidativo</div>
+    <div class="pv-gate">Gate: <b>Floor sempre visível</b>. Sem sessões ⇒ convite (não um vazio) com CTA ★ New CC.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Vazio — convite</div>
+      <div class="deck"><div class="card" style="padding:9px 11px">
+        <div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">0 recent</span></div>
+        <div class="herd"><div role="status" style="text-align:center;padding:16px 10px">
+          <div style="font-size:28px;line-height:1">🐮</div>
+          <div style="font-weight:600;margin-top:6px">Nenhuma sessão ativa</div>
+          <div class="sub" style="margin:4px 0 10px">Abre um separador Claude Code e envia um prompt — o Mooter roteia-o e a herd acende-se.</div>
+          <button class="go">★&nbsp; New CC — começar</button>
+        </div></div>
+      </div></div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>Rico — sessões vivas</div>
+      <div class="deck"><div class="card" style="padding:9px 11px">
+        <div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;opacity:.6;font-size:9px">3 recent · 1 need you</span></div>
+        <div class="herd">
+          <div class="srow needs"><span class="livecow">🐮</span><div class="sbody"><div class="sname">fix auth flow <span class="needsyou">⬤ your turn</span></div><div class="ssub">feat/auth · aguarda resposta</div></div></div>
+          <div class="srow working"><span class="livecow">🐄</span><div class="sbody"><div class="sname">deck polish · a gerar…</div><div class="ssub">feat/deck-polish · exec</div></div></div>
+          <div class="srow"><span class="livecow">🐄</span><div class="sbody"><div class="sname">landing copy</div><div class="ssub">main · idle 22m</div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- R5 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R5</span>Densidade das lentes (chips + mini-barras)</div>
+    <div class="pv-gate">Gate: <b>densidade aproximada do mock</b>, mesma honestidade. Economics ganha barra de poupança (n/d sem fonte); Brain mostra Pastor como chips.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Sem fonte — n/d honesto</div>
+      <div class="deck">
+        <div class="card lens" style="padding:9px 11px"><div class="lbl collaphead"><span class="chev">▾</span>💰 Economics</div><div class="lens-body">
+          <div class="lrow"><span class="lk">Poupança</span><span class="lv">$0.00 <span class="lwhy">(0% abaixo de all-Opus · advisory)</span></span></div>
+          <div class="lrow"><span class="lk"></span><span class="lv"><span class="nd">n/d</span> <span class="lwhy">% vs all-Opus</span></span></div>
+          <div class="lrow"><span class="lk">Router mix</span><span class="lv"><span class="nd">n/d</span></span></div>
+        </div></div>
+        <div class="card lens" style="padding:9px 11px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">
+          <div class="lrow" style="flex-wrap:wrap;gap:6px"><span class="lk">🧠 Pastor</span><span class="lchip">conf —</span><span class="lchip">cache —</span><span class="lchip">N=0</span><span class="lwhy">TF-IDF, não neural</span></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>Rico — barras + chips</div>
+      <div class="deck">
+        <div class="card lens" style="padding:9px 11px"><div class="lbl collaphead"><span class="chev">▾</span>💰 Economics</div><div class="lens-body">
+          <div class="lrow"><span class="lk">Poupança</span><span class="lv">$12.84 <span class="lwhy">(89% abaixo de all-Opus · advisory)</span></span></div>
+          <div class="lrow"><span class="lk"></span><span class="lbar" title="89% abaixo de all-Opus"><span style="width:89%;background:var(--ok)"></span></span><span class="lwhy">89% vs all-Opus</span></div>
+          <div class="lrow"><span class="lk">Real ✓</span><span class="lv" style="color:var(--ok)">$4.10 · 37 dispatches locais reais</span></div>
+          <div class="lrow"><span class="lk">Router mix</span><span class="lbar"><span style="width:58%;background:var(--t0)"></span><span style="width:20%;background:var(--t1)"></span><span style="width:14%;background:var(--t2)"></span><span style="width:8%;background:var(--t3)"></span></span><span class="lwhy">120 decisões (contagens, não $)</span></div>
+        </div></div>
+        <div class="card lens" style="padding:9px 11px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">
+          <div class="lrow" style="flex-wrap:wrap;gap:6px"><span class="lk">🧠 Pastor</span><span class="lchip">conf 0.82</span><span class="lchip">cache 74%</span><span class="lchip">N=120</span><span class="lwhy">TF-IDF, não neural</span></div>
+          <div class="lrow" style="flex-wrap:wrap;gap:6px"><span class="lchip">🧬 Adapters <span class="lsoon">🌊 W7</span></span><span class="lchip">💡 Insights <span class="lsoon">🌊 W9</span></span><span class="lchip">🕸️ Graph <span class="lsoon">🌊 W10</span></span></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- R6 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R6</span>Mooter Score → colapsado por default</div>
+    <div class="pv-gate">Gate: <b>não domina o cockpit</b>. Default = chip 🎯 Score X/Y ⌄; expande no clique. Os 6 itens + fix deixam de roubar o topo.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Default — colapsado (chip)</div>
+      <div class="deck"><div class="card collapsed">
+        <div class="lbl collaphead"><span class="chev">▾</span>🎯 Mooter Score · 8/14</div>
+        <div class="scorebar"><div class="f" style="width:57%"></div></div>
+        <div class="dr"><span>◻︎</span><div class="w">Ollama a correr</div><button class="sm">fix</button></div>
+      </div></div>
+      <div class="pv-note">Só o chip 🎯 Score 8/14 ⌄ ocupa espaço; conteúdo escondido até expandir.</div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>Expandido (clique)</div>
+      <div class="deck"><div class="card">
+        <div class="lbl collaphead"><span class="chev">▾</span>🎯 Mooter Score · 8/14</div>
+        <div class="scorebar"><div class="f" style="width:57%"></div></div>
+        <div class="dr"><span>◻︎</span><div class="w">Ollama a correr</div><button class="sm">fix</button></div>
+        <div class="dr"><span>◻︎</span><div class="w">Budget mensal definido</div><button class="sm">fix</button></div>
+        <div class="dr"><span>◻︎</span><div class="w">Perfil de hardware detetado</div><button class="sm">fix</button></div>
+      </div></div>
+      <div class="pv-note">Expandido é o comportamento antigo — agora é opt-in, não o default.</div>
+    </div>
+  </div>
+</section>
+
+<!-- R7 ─────────────────────────────────────────────────────────────────────── -->
+<section class="pv-sec">
+  <header>
+    <div class="pv-r"><span class="pv-tag">R7</span>Handoff flow animado (partícula CSS)</div>
+    <div class="pv-gate">Gate: <b>partícula visível</b> · reduced-motion mata-a. O rio Cowork→CC→moos→Ledger, CSS-only.</div>
+  </header>
+  <div class="pv-states">
+    <div class="pv-state pv-idle">
+      <div class="pv-h"><span class="pv-dot"></span>Animado (▶) — partícula a correr</div>
+      <div class="deck"><div class="hoflow">
+        <span class="hnode">🧠 Cowork</span><span class="hpipe"><span class="hpart"></span></span><span class="hnode">💬 CC</span><span class="hpipe"><span class="hpart"></span></span><span class="hnode">🐮 moos</span><span class="hpipe"><span class="hpart"></span></span><span class="hnode">📒 Ledger</span>
+        <span class="lwhy">nunca seca · nunca mente (work-aware)</span>
+      </div></div>
+      <div class="pv-note">Já em prod no deck 0.16.48 (partícula + kill switch). Aqui provamos o toggle.</div>
+    </div>
+    <div class="pv-state pv-rich">
+      <div class="pv-h"><span class="pv-dot"></span>O mesmo bloco — muda o toggle de movimento acima</div>
+      <div class="deck"><div class="hoflow">
+        <span class="hnode">🧠 Cowork</span><span class="hpipe"><span class="hpart"></span></span><span class="hnode">💬 CC</span><span class="hpipe"><span class="hpart"></span></span><span class="hnode">🐮 moos</span><span class="hpipe"><span class="hpart"></span></span><span class="hnode">📒 Ledger</span>
+        <span class="lwhy">nunca seca · nunca mente (work-aware)</span>
+      </div></div>
+      <div class="pv-note">Com <code>⏸ reduced-motion</code> a partícula pára (fica no início, sem animação) — WCAG 2.3.3.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script>
+(function(){
+  var body=document.body;
+  document.getElementById('themeSeg').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    body.classList.remove('theme-dark','theme-light','theme-hc');
+    body.classList.add(b.dataset.theme);
+    this.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});
+  });
+  document.getElementById('motionSeg').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    body.classList.toggle('reduce',b.dataset.motion==='1');
+    this.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});
+  });
+})();
+</script>
+</body></html>
