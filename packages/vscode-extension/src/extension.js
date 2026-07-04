@@ -68,6 +68,14 @@ try { GCHIP = require('./guardian-chip'); } catch { GCHIP = null; }
 // clicks. Additive; fail-soft (cockpit works without it — the slice is just absent).
 let DOCTOR = null;
 try { DOCTOR = require('./doctor-checks'); } catch { DOCTOR = null; }
+// ── LIVE PREVIEW · MP1 (additive, read-only) — Director's Cut + Brain render module
+// (serialised into its OWN webview panel via fn.toString(), same trick as row-renderer.js)
+// + the file-bus producer's eventsPath() helper (MP0 foundation). Both fail-soft: absent →
+// the command still registers but the panel shows nothing to render (no crash).
+let LPV = null;
+try { LPV = require('./live-preview-view.js'); } catch { LPV = null; }
+let HC = null;
+try { HC = require('./hook-collector.js'); } catch { HC = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1071,6 +1079,141 @@ async function newSession() {
   if (pick === 'Use terminal') runInTerminal('claude', 'claude');
 }
 
+// ── LIVE PREVIEW · MP1 (additive, read-only) ────────────────────────────────────────────
+// Tail-read the file-bus (last ~128KB max — never the whole file), mirroring data.js's
+// readDecisions() / hook-collector.js's capFile() tail technique. Fail-soft: any error
+// (missing dir, corrupted file, not-yet-armed bus) returns '' — the panel then renders the
+// honest "nenhum evento ainda" empty state instead of throwing.
+function readBusTail(busFile, maxBytes) {
+  const cap = maxBytes || 128 * 1024;
+  try {
+    const st = fs.statSync(busFile);
+    if (!st.isFile() || st.size === 0) return '';
+    const start = Math.max(0, st.size - cap);
+    const fd = fs.openSync(busFile, 'r');
+    try {
+      const buf = Buffer.alloc(st.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      return buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+  } catch { return ''; }
+}
+
+// Assemble the payload the Live Preview panel renders PURELY from: the file-bus events
+// (filtered to the active session — see detectActiveSid's heuristic doc in
+// live-preview-view.js), and the Brain overlay (decisions.log + the EXISTING GPU-snapshot
+// cache reader from mc-snapshot.js — reused, not reinvented). Never throws.
+function livePreviewSnapshot() {
+  try {
+    const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+    const busFile = HC ? HC.eventsPath(wsRoot) : path.join(wsRoot, '_handoff', 'live-preview', 'events.jsonl');
+    const raw = readBusTail(busFile, 128 * 1024);
+    const events = LPV ? LPV.parseBusJsonl(raw, 500) : [];
+    const sid = LPV ? LPV.detectActiveSid(events) : null;
+    const scoped = LPV ? LPV.filterBySession(events, sid) : events;
+    const decisions = data_.readDecisions(80);
+    let gpu = null;
+    try { if (MCSNAP) gpu = MCSNAP.readCache('gpu', MCSNAP.mooterCacheDir()); } catch { gpu = null; }
+    const brain = LPV ? LPV.buildBrainData(decisions, sid, events, gpu) : null;
+    return { events: scoped, sid, sidKnown: !!sid, brain };
+  } catch {
+    return { events: [], sid: null, sidKnown: false, brain: null };
+  }
+}
+
+// Singleton WebviewPanel (editor area, ViewColumn.Beside — MP2 will host an <iframe> there
+// that needs the width). Read-only over the runtime: only ever posts livePreviewSnapshot()
+// to the webview; never writes user code or routing state. retainContextWhenHidden keeps the
+// stream/scroll position across tab switches.
+class LivePreviewPanel {
+  constructor(panel) {
+    this.panel = panel;
+    this.timer = null;
+    this.watcher = null;
+    this._wire();
+  }
+  static createOrReveal() {
+    if (LivePreviewPanel.current) {
+      LivePreviewPanel.current.panel.reveal(vscode.ViewColumn.Beside);
+      return LivePreviewPanel.current;
+    }
+    const panel = vscode.window.createWebviewPanel(
+      'mooterLivePreview', 'Mooter — Live Preview 🎬', vscode.ViewColumn.Beside,
+      { enableScripts: true, retainContextWhenHidden: true });
+    LivePreviewPanel.current = new LivePreviewPanel(panel);
+    return LivePreviewPanel.current;
+  }
+  _post() { try { this.panel.webview.postMessage({ type: 'lp-snapshot', s: livePreviewSnapshot() }); } catch { /* best-effort */ } }
+  _wire() {
+    this.panel.webview.html = getLivePreviewHtml();
+    this._post();
+    // Visibility-aware polling (mirrors data.js's pollIntervalMs idea) — only tick while shown.
+    this.timer = setInterval(() => { if (this.panel.visible) this._post(); }, data_.pollIntervalMs(true));
+    this.panel.onDidChangeViewState(() => { if (this.panel.visible) this._post(); });
+    // Best-effort fs.watch on the bus directory for near-live updates between polls — a missed
+    // event (dir not created yet, watcher error) is still covered by the poll above, so this
+    // never blocks or throws. Read-only: never creates the directory itself.
+    try {
+      const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+      const busFile = HC ? HC.eventsPath(wsRoot) : path.join(wsRoot, '_handoff', 'live-preview', 'events.jsonl');
+      this.watcher = fs.watch(path.dirname(busFile), { persistent: false }, (_e, f) => {
+        if (f === 'events.jsonl' && this.panel.visible) this._post();
+      });
+    } catch { this.watcher = null; }
+    this.panel.onDidDispose(() => {
+      if (this.timer) clearInterval(this.timer);
+      try { if (this.watcher) this.watcher.close(); } catch { /* best-effort */ }
+      LivePreviewPanel.current = null;
+    });
+  }
+}
+LivePreviewPanel.current = null;
+
+// getLivePreviewHtml() — same CSP shape as the cockpit's getHtml() (nonce'd script-src,
+// default-src 'none'), no iframe yet (MP2). Serialises renderDirectorsCut/renderBrain via
+// fn.toString() exactly like the cockpit injects row-renderer.js's renderRow (see getHtml()
+// below) — the two functions ARE the concat-only contract; this outer template literal is
+// the host template, not itself embedded anywhere, so it is free to use normal JS.
+function getLivePreviewHtml() {
+  const nonce = String(Math.random()).slice(2);
+  const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
+  const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<style>
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+  body{font:13px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-editor-background);margin:0;padding:12px 16px}
+  .lpbr,.lpdc{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
+  .lpbr-hd,.lpdc-hd{font-weight:700;margin-bottom:6px}
+  .lpbr-row{margin:3px 0;font-size:12px}
+  .lpbr-nd,.lpdc-nd{color:var(--vscode-descriptionForeground);font-style:italic}
+  .lpbr-tier{font-size:10px;padding:1px 6px;border-radius:6px;background:var(--vscode-input-background)}
+  .lpbr-mix{display:flex;height:7px;border-radius:4px;overflow:hidden;margin:6px 0;background:var(--vscode-input-background)}
+  .lpbr-mix>span{display:block;min-width:2px}
+  .lpdc-stream{max-height:70vh;overflow:auto;margin-top:6px}
+  .lpdc-row{display:flex;gap:8px;align-items:baseline;padding:3px 0;border-top:1px solid var(--vscode-widget-border);font-size:12px}
+  .lpdc-time{opacity:.6;font-variant-numeric:tabular-nums;flex:none}
+  .lpdc-glyph{flex:none}
+  .lpdc-body{flex:1;min-width:0;word-break:break-word}
+  .lpdc-meta{opacity:.7;font-size:10.5px}
+</style>
+</head><body>
+<div id="root">a carregar…</div>
+<script nonce="${nonce}">
+const vsapi=acquireVsCodeApi();
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+const renderDirectorsCut=${renderDirectorsCutSrc};
+const renderBrain=${renderBrainSrc};
+function render(s){
+  const root=document.getElementById('root');
+  if(!root) return;
+  root.innerHTML = renderBrain(s && s.brain) + renderDirectorsCut((s && s.events) || [], { sidKnown: !!(s && s.sidKnown) });
+}
+window.addEventListener('message', (ev) => { const m = ev.data; if (m && m.type === 'lp-snapshot') render(m.s); });
+</script>
+</body></html>`;
+}
+
 function activate(ctx) {
   const data = new DataService();
   ctx.subscriptions.push({ dispose: () => data.dispose() });
@@ -1081,6 +1224,8 @@ function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openSessionTab', openSessionTab)); // Deck Floor (Fase 2): wave=sessão=aba deep-link
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
+  // Live Preview · MP1 — singleton WebviewPanel, ViewColumn.Beside (reveals if already open).
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => LivePreviewPanel.createOrReveal()));
   data.start();
 }
 function deactivate() {}
