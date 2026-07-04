@@ -1250,6 +1250,30 @@ function getHtml(guardianPct = null) {
   .lens .llink{font-size:10px;color:var(--vscode-descriptionForeground);cursor:pointer;opacity:.75}
   .lens .llink:hover{opacity:1;color:var(--acc-warm)}
   .lens .llink:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:3px}
+  /* Deck Phase 4 · Vida — hardware strip · pipeline · handoff flow. All motion is CSS-only, so the
+     Phase-0 global prefers-reduced-motion kill switch disables every one of them. */
+  .hwstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .hwc{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-variant-numeric:tabular-nums}
+  .hwbar{display:inline-block;width:46px;height:7px;border-radius:4px;overflow:hidden;background:var(--vscode-input-background)}
+  .hwbar>span{display:block;height:100%;transition:width .5s ease}
+  .hwstrip .nd{font-style:italic;opacity:.7}
+  .hwstrip .lwhy{font-size:9px}
+  /* 🏁 Pipeline conveyor */
+  .pipeline{margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .prail{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .pstage{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--vscode-widget-border);background:var(--vscode-input-background)}
+  .pstage.bott{border-color:var(--warn);color:var(--warn)}
+  .parrow{opacity:.4;font-size:10px}
+  .pipeline .lwhy{font-size:9px;margin-top:4px;display:block}
+  /* ⇄ Handoff flow — animated particle down each pipe (reduced-motion disables it globally). */
+  .hoflow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0 4px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .hnode{font-size:10.5px;font-weight:600;white-space:nowrap}
+  .hpipe{position:relative;flex:1;min-width:16px;height:2px;background:var(--vscode-widget-border);border-radius:2px;overflow:hidden}
+  .hpart{position:absolute;top:-2px;left:0;width:6px;height:6px;border-radius:50%;background:var(--acc-warm);animation:hoflowpart 2.2s linear infinite}
+  @keyframes hoflowpart{0%{left:-8px;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:100%;opacity:0}}
+  .hoflow .lwhy{font-size:9px}
+  /* Header cow animates by mode (moowalk/moolazy/moocrazy keyframes already defined). */
+  #brandCow{display:inline-block;font-size:15px;line-height:1}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
@@ -1863,7 +1887,7 @@ function getHtml(guardianPct = null) {
 </style></head><body>
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
-<div class="brand"><span id="brandCow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
+<div class="brand"><span id="brandCow" class="livecow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
 <div class="tabs">
@@ -2226,6 +2250,63 @@ function renderBrainLens(s){
   body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Insights ↗</span></div>';
   return '<div class="card lens'+cc('lens-brain')+'" data-collap="lens-brain" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">'+body+'</div></div>';
 }
+// ── Deck Phase 4 · Vida ──────────────────────────────────────────────────────
+// 🎮 Hardware strip — nvidia-smi via s.mc.gpu. GPU util/VRAM/cabem-N are REAL; temp/CPU/Max have no
+// source in this snapshot (the nvidia-smi parser captures no temp; no CPU sampling; no weekly limit)
+// so they render n/d, never fabricated. nvidia-smi absent ⇒ whole strip degrades to n/d (no crash).
+function renderHwStrip(s){
+  var gpu=(s&&s.mc&&s.mc.gpu)||null,chips='';
+  if(gpu&&(gpu.totalMb!=null||gpu.gpus)){
+    var g0=(Array.isArray(gpu.gpus)&&gpu.gpus[0])||{};
+    var util=(g0.utilPct!=null)?g0.utilPct:null;
+    var totMb=(gpu.totalMb!=null)?gpu.totalMb:null,freeMb=(gpu.freeMb!=null)?gpu.freeMb:null;
+    var usedPct=(totMb&&freeMb!=null)?Math.max(0,Math.min(100,Math.round((totMb-freeMb)/totMb*100))):null;
+    var fits=(gpu.fitsMoos!=null)?gpu.fitsMoos:null,name=g0.name||'GPU';
+    var barPct=(util!=null)?util:(usedPct!=null?usedPct:0);
+    var barColor=barPct>=85?'var(--danger)':(barPct>=60?'var(--warn)':'var(--ok)');
+    chips+='<span class="hwc" title="'+esc(String(name))+' · utilização de compute (nvidia-smi)">🎮 '+(util!=null?('<b>'+util+'%</b>'):lNd())+' <span class="hwbar"><span style="width:'+barPct+'%;background:'+barColor+'"></span></span></span>';
+    chips+='<span class="hwc" title="VRAM em uso">🧠 '+((usedPct!=null)?('<b>'+usedPct+'%</b> VRAM'):lNd())+'</span>';
+    chips+='<span class="hwc" title="quantos moos locais cabem na VRAM livre (overclock)">🟢 cabem <b>'+(fits!=null?('+'+fits):'n/d')+'</b> moos</span>';
+  } else {
+    chips+='<span class="hwc" title="nvidia-smi não escreveu cache — sem GPU NVIDIA ou monitor parado">🎮 GPU '+lNd()+' <span class="lwhy">nvidia-smi ausente</span></span>';
+  }
+  var tps=(s&&s.localSpeed&&s.localSpeed.latest&&s.localSpeed.latest.tps!=null)?s.localSpeed.latest.tps:null;
+  if(tps!=null)chips+='<span class="hwc" title="tok/s local medido (WS1)">⚡ <b>'+tps+'</b> tok/s</span>';
+  chips+='<span class="hwc" title="a nvidia-smi neste cache não reporta temperatura">🌡️ '+lNd()+'</span>';
+  chips+='<span class="hwc" title="sem amostragem de CPU no snapshot">CPU '+lNd()+'</span>';
+  var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
+  chips+='<span class="hwc" title="plano de subscrição · limite semanal não exposto">💳 '+(plan||lNd())+' <span class="lwhy">%/sem n/d</span></span>';
+  return '<div class="hwstrip" role="group" aria-label="hardware">'+chips+'</div>';
+}
+// 🏁 Pipeline — spec→plan→exec→review→ship. Load is derived from each session's REAL git/state signal
+// (needsYou→review · commits-ahead→ship · dirty/working→exec); sessions with no stage signal are not
+// placed (honest count in the footnote). Bottleneck = the fullest stage. spec/plan stay 0 until a
+// per-session stage signal exists — never faked.
+function renderPipeline(s){
+  var rows=(s&&s.recent)||[],stages=[['spec','📋'],['plan','🗺️'],['exec','⚙️'],['review','🔍'],['ship','🚀']];
+  var load={spec:0,plan:0,exec:0,review:0,ship:0},placed=0,i;
+  for(i=0;i<rows.length;i++){var r=rows[i];if(!r)continue;var st=null;
+    var dirty=r.gitStage&&Number(r.gitStage.dirty)>0;
+    var ahead=r.sessionGit&&!r.sessionGit.uncertain&&Number(r.sessionGit.aheadOfMain)>0;
+    if(r.needsYou)st='review';else if(ahead)st='ship';else if(dirty||r.working)st='exec';
+    if(st){load[st]++;placed++;}
+  }
+  var max=0,bott=null,k;for(k in load){if(load[k]>max){max=load[k];bott=k;}}
+  var segs='',q;for(q=0;q<stages.length;q++){var key=stages[q][0],n=load[key],isB=(bott===key&&max>0);
+    segs+='<span class="pstage'+(isB?' bott':'')+'" title="'+key+' · '+n+' sessõe'+(n===1?'':'s')+(isB?' · gargalo':'')+'">'+stages[q][1]+' '+key+' <b>'+n+'</b>'+(isB?' ⛔':'')+'</span>';
+    if(q<stages.length-1)segs+='<span class="parrow">→</span>';
+  }
+  var foot=placed?(placed+'/'+rows.length+' sessões colocadas · derivado de git/estado'):'sem sinal de etapa por sessão — n/d';
+  return '<div class="pipeline" role="group" aria-label="pipeline spec plan exec review ship"><div class="prail">'+segs+'</div><span class="lwhy">🏁 '+foot+'</span></div>';
+}
+// ⇄ Handoff flow — the context river (Cowork→CC→moos→Ledger) with a particle down each pipe. Purely
+// decorative + honest legend; the animation is CSS-only so reduced-motion switches it off globally.
+function renderHandoffFlow(){
+  var pipe='<span class="hpipe"><span class="hpart"></span></span>';
+  return '<div class="hoflow" role="img" aria-label="fluxo de handoff: Cowork → CC → moos → Ledger">'
+    +'<span class="hnode">🧠 Cowork</span>'+pipe+'<span class="hnode">💬 CC</span>'+pipe+'<span class="hnode">🐮 moos</span>'+pipe+'<span class="hnode">📒 Ledger</span>'
+    +'<span class="lwhy" style="width:100%;margin-top:3px">nunca seca · nunca mente (work-aware)</span></div>';
+}
 // ── GUARDIAN:F1 ── pressure ladder + 🪶 chip embedded as webview siblings. In dev the
 // real advisor fn is injected (single source of truth); the inline mirror is the fallback
 // when guardian-chip.js / the advisor are absent. Shared by renderRow (herd) + sessionCard (MC).
@@ -2375,6 +2456,9 @@ window.addEventListener('message',(e)=>{
   const pr=s.paired||{};
   $('#pair').innerHTML=pr.ok?'<span title="paired with Claude Code '+esc(pr.version)+'" style="color:var(--g)">✕ ✱ Claude Code ✓</span>':'<span title="Claude Code extension not found" style="color:var(--t3)">✕ ✱ not paired</span>';
   curMode=s.mode||'auto';$('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
+  // Deck Phase 4 · vaca por modo — the header cow animates by mode (crazy=frantic · lazy=relaxed ·
+  // moo/auto=gentle walk). CSS-only, so reduced-motion stills it globally.
+  (function(){var cw=$('#brandCow');if(cw)cw.className='livecow '+(s.mode==='crazy'?'crazy':(s.mode==='lazy'?'lazy':'working'));})();
   $('#scoreBadge').textContent=score.pct+'%';
 
   // WIZARD quando engine falta
@@ -2455,6 +2539,10 @@ window.addEventListener('message',(e)=>{
   const economicsLens=(function(){try{return renderEconomicsLens(s);}catch(er){return '';}})();
   const brainLens=(function(){try{return renderBrainLens(s);}catch(er){return '';}})();
   const foundationsLens=(function(){try{return renderFoundationsLens(s);}catch(er){return '';}})();
+  // Deck Phase 4 · Vida — guarded so a bad hardware/pc source can never blank the cockpit.
+  const hwStripCard=(function(){try{return renderHwStrip(s);}catch(er){return '';}})();
+  const pipelineCard=(function(){try{return renderPipeline(s);}catch(er){return '';}})();
+  const handoffFlowCard=(function(){try{return renderHandoffFlow();}catch(er){return '';}})();
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   // B5 — compact tier mix: one slim segmented bar + tiny labels (was 4 full-width stacked bars).
   let mixSeg='',mixLab='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);if(cnt[t]>0)mixSeg+='<span title="'+t+(t==='T0'?' local':'')+' · '+p+'%" style="flex:'+cnt[t]+';background:'+TCOL[t]+'"></span>';mixLab+='<span style="color:'+TCOL[t]+'">'+t+(t==='T0'?' local':'')+' '+p+'%</span>';}
@@ -2482,6 +2570,8 @@ window.addEventListener('message',(e)=>{
     // B8 — caption: what it does + what happens next (Mooter routes every prompt).
     '<button class="go" data-a="launch" style="margin-bottom:4px">✱&nbsp; New Claude Code session</button>'+
     '<div class="hint" style="margin:0 0 10px">opens a fresh Claude Code tab — Mooter routes every prompt to the cheapest tier that fits · '+esc(MOO[s.mode]||s.mode)+' active</div>'+
+    hwStripCard+
+    pipelineCard+
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
       // recommended tier". The host model actually answers in a CC session, so the only
@@ -2518,6 +2608,7 @@ window.addEventListener('message',(e)=>{
     economicsLens+
     brainLens+
     foundationsLens+
+    handoffFlowCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
