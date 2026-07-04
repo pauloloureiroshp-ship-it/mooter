@@ -1235,6 +1235,45 @@ function getHtml(guardianPct = null) {
   .spin.on{opacity:1;filter:none}
   .spin:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
   .srow.pinned{border-left-color:var(--acc-warm)}
+  /* Deck Phase 3 · Lentes ligadas — collapsible diagnostic lenses; each reads a real source
+     ("o que mudou · porquê · o que faço"). Every number is real or renders .nd (n/d). */
+  .lens .lens-body{margin-top:6px;font-size:11px;display:flex;flex-direction:column;gap:5px}
+  .lens .lrow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .lens .lk{color:var(--vscode-descriptionForeground);font-size:10.5px;min-width:70px;flex:none}
+  .lens .lv{font-weight:600;font-variant-numeric:tabular-nums}
+  .lens .nd{color:var(--vscode-descriptionForeground);opacity:.7;font-style:italic;font-weight:400}
+  .lens .lbar{height:7px;border-radius:4px;overflow:hidden;display:flex;background:var(--vscode-input-background);margin:1px 0;min-width:120px;flex:1}
+  .lens .lbar>span{display:block;min-width:1px}
+  .lens .lchip{font-size:10px;padding:1px 7px;border-radius:8px;border:1px solid var(--vscode-widget-border);display:inline-flex;gap:4px;align-items:center}
+  .lens .lsoon{font-size:9.5px;color:var(--acc-warm);opacity:.9}
+  .lens .lwhy{font-size:9.5px;color:var(--vscode-descriptionForeground);opacity:.8}
+  .lens .llink{font-size:10px;color:var(--vscode-descriptionForeground);cursor:pointer;opacity:.75}
+  .lens .llink:hover{opacity:1;color:var(--acc-warm)}
+  .lens .llink:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:3px}
+  /* Deck Phase 4 · Vida — hardware strip · pipeline · handoff flow. All motion is CSS-only, so the
+     Phase-0 global prefers-reduced-motion kill switch disables every one of them. */
+  .hwstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .hwc{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-variant-numeric:tabular-nums}
+  .hwbar{display:inline-block;width:46px;height:7px;border-radius:4px;overflow:hidden;background:var(--vscode-input-background)}
+  .hwbar>span{display:block;height:100%;transition:width .5s ease}
+  .hwstrip .nd{font-style:italic;opacity:.7}
+  .hwstrip .lwhy{font-size:9px}
+  /* 🏁 Pipeline conveyor */
+  .pipeline{margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .prail{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .pstage{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--vscode-widget-border);background:var(--vscode-input-background)}
+  .pstage.bott{border-color:var(--warn);color:var(--warn)}
+  .parrow{opacity:.4;font-size:10px}
+  .pipeline .lwhy{font-size:9px;margin-top:4px;display:block}
+  /* ⇄ Handoff flow — animated particle down each pipe (reduced-motion disables it globally). */
+  .hoflow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0 4px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .hnode{font-size:10.5px;font-weight:600;white-space:nowrap}
+  .hpipe{position:relative;flex:1;min-width:16px;height:2px;background:var(--vscode-widget-border);border-radius:2px;overflow:hidden}
+  .hpart{position:absolute;top:-2px;left:0;width:6px;height:6px;border-radius:50%;background:var(--acc-warm);animation:hoflowpart 2.2s linear infinite}
+  @keyframes hoflowpart{0%{left:-8px;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:100%;opacity:0}}
+  .hoflow .lwhy{font-size:9px}
+  /* Header cow animates by mode (moowalk/moolazy/moocrazy keyframes already defined). */
+  #brandCow{display:inline-block;font-size:15px;line-height:1}
   .livedot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--g));flex:none;animation:livepulse 1.6s infinite}
   @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}
   .livecow.working{animation:moowalk 0.85s ease-in-out infinite}
@@ -1848,7 +1887,7 @@ function getHtml(guardianPct = null) {
 </style></head><body>
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
-<div class="brand"><span id="brandCow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
+<div class="brand"><span id="brandCow" class="livecow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
 <div class="tabs">
@@ -2121,6 +2160,153 @@ function renderFleetConsole(fleet){
     +'<div class="sub" style="opacity:.7;margin:2px 0 4px">read-only · agrega _handoff/fleet/*/STATE.json · idle quando o último run &gt; 6h</div>'
     +rows+'</div>';
 }
+// ── Deck Phase 3 · Lentes ligadas ────────────────────────────────────────────
+// Each lens is a compact diagnostic reading its REAL data-source; every number is real or
+// renders n/d (lNd). Collapsible via the shared cc()/data-collap/wireCollapse mechanism.
+function lNd(){return '<span class="nd">n/d</span>';}
+function msHuman(ms){if(ms==null||!isFinite(ms))return null;var h=ms/3600000;if(h<1)return Math.max(1,Math.round(ms/60000))+'m';if(h<48)return (Math.round(h*10)/10)+'h';return (Math.round(h/2.4)/10)+'d';}
+// 📊 Flow — pc-snapshot (WIP · frente · forecast). Honest: WIP null = git-unreadable (n/d) vs 0 =
+// measured; forecast is per-wave P50/P90 wall (there is no "P85" in the engine — never fabricate one).
+function renderFlowLens(s){
+  var pc=s&&s.pc,body='';
+  if(!pc){body='<div class="nd">sem snapshot de Project Command</div>';}
+  else if(pc.forecast_missing){body='<div class="nd">forecast por gerar</div>'+(pc.cli_hint?'<div class="lwhy">'+esc(String(pc.cli_hint))+'</div>':'');}
+  else{
+    var w=(pc.flow&&pc.flow.wip)||{};
+    var wipTxt=(w.active==null&&w.total==null)?lNd():('<b>'+(w.active==null?'—':w.active)+'</b> em curso · '+(w.total==null?'—':w.total)+' wt (lim '+(w.limit||3)+')'+(w.over?' <span style="color:var(--warn)">⚠ acima</span>':''));
+    body+='<div class="lrow"><span class="lk">WIP</span><span class="lv">'+wipTxt+'</span></div>';
+    var needN=(pc.flow&&pc.flow.need_you)?pc.flow.need_you.length:0;
+    var dep=pc.flow&&pc.flow.deploy_freq_per_week,wd=pc.flow&&pc.flow.waves_done;
+    body+='<div class="lrow"><span class="lk">Precisa de ti</span><span class="lv">'+(needN>0?('🙋 '+needN):'🟢 0')+'</span></div>';
+    body+='<div class="lrow"><span class="lk">Fluxo</span><span class="lv">'+(dep==null?lNd():('~'+dep+' merges/sem'))+' · '+(wd==null?lNd():(wd+' waves ✅'))+'</span></div>';
+    var nowWave=null,ph=pc.phases||[],i,j,k;
+    for(i=0;i<ph.length&&!nowWave;i++){if(ph[i].key==='NOW'&&ph[i].waves&&ph[i].waves.length)nowWave=ph[i].waves[0];}
+    if(!nowWave){for(j=0;j<ph.length&&!nowWave;j++){var ws=ph[j].waves||[];for(k=0;k<ws.length&&!nowWave;k++)if(ws[k].running)nowWave=ws[k];}}
+    if(nowWave){
+      body+='<div class="lrow"><span class="lk">Frente</span><span class="lv">'+esc(String(nowWave.wave_id||''))+' '+esc(String(nowWave.name||''))+(nowWave.squad?' · '+esc(String(nowWave.squad)):'')+(nowWave.estado?' · '+esc(String(nowWave.estado)):'')+(nowWave.locked?' 🔒':'')+'</span></div>';
+      var fc=nowWave.forecast||{},fcTxt;
+      if(fc.state==='cone')fcTxt='P50 '+(msHuman(fc.p50_wall)||'—')+' · P90 '+(msHuman(fc.p90_wall)||'—')+' <span class="lwhy">(wall)</span>';
+      else if(fc.state==='calibrating')fcTxt='<span class="nd">a calibrar'+(fc.calibrating_progress?' '+esc(String(fc.calibrating_progress)):'')+'</span>';
+      else fcTxt='<span class="nd">sem base</span>';
+      body+='<div class="lrow"><span class="lk">Forecast</span><span class="lv">'+fcTxt+'</span></div>';
+    }
+  }
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="pc" role="button" tabindex="0">Project command ↗</span></div>';
+  return '<div class="card lens'+cc('lens-flow')+'" data-collap="lens-flow" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>📊 Flow</div><div class="lens-body">'+body+'</div></div>';
+}
+// 💰 Economics — savings (advisory) + real executed ($0 dispatches) + router mix (COUNTS, not $ —
+// there is no per-tier $ source) + budget ceiling (spend = n/d until W6) + plan. Authored attribution.
+function renderEconomicsLens(s){
+  var m=(s&&s.metrics)||{},eff=s&&s.effectiveSession;var M=(eff&&s.sessionMetrics)?s.sessionMetrics:m;
+  var decs=(s&&s.decisions)||[],decScoped=eff?decs.filter(function(d){return d&&d.sid===eff;}):decs;
+  var body='';
+  body+='<div class="lrow"><span class="lk">Poupança</span><span class="lv">$'+Number(M.saved||0).toFixed(2)+' <span class="lwhy">('+(M.saved_pct||0)+'% abaixo de all-Opus · advisory)</span></span></div>';
+  if(!(s&&s.trackerUp))body+='<div class="lwhy" style="color:var(--acc-warm)">⚠ tracker offline — último conhecido</div>';
+  var gs=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0,oa=M.option_a_hits||0;
+  body+='<div class="lrow"><span class="lk">Real ✓</span><span class="lv" style="color:var(--ok)">$'+gs.toFixed(2)+' · '+oa+' dispatch'+(oa===1?'':'es')+' local'+(oa===1?'':'is')+' reais</span></div>';
+  var c={T0:0,T1:0,T2:0,T3:0},i;for(i=0;i<decScoped.length;i++){var t=decScoped[i]&&decScoped[i].tier;if(c[t]!=null)c[t]++;}
+  var tot=c.T0+c.T1+c.T2+c.T3;
+  if(tot>0){var ord=[['T0','var(--t0)'],['T1','var(--t1)'],['T2','var(--t2)'],['T3','var(--t3)']],seg='',q;for(q=0;q<4;q++){var pct=Math.round(100*c[ord[q][0]]/tot);if(pct>0)seg+='<span style="width:'+pct+'%;background:'+ord[q][1]+'" title="'+ord[q][0]+' '+c[ord[q][0]]+'"></span>';}
+    body+='<div class="lrow"><span class="lk">Router mix</span><span class="lbar">'+seg+'</span><span class="lwhy">'+tot+' decisões (contagens, não $)</span></div>';
+  } else body+='<div class="lrow"><span class="lk">Router mix</span><span class="lv">'+lNd()+'</span></div>';
+  var bud=(s&&s.budget&&s.budget.monthly_budget_usd)||0;
+  body+='<div class="lrow"><span class="lk">Budget</span><span class="lv">'+(bud>0?('tecto $'+bud+'/mês'):lNd())+' · <span class="lwhy">gasto n/d</span> <span class="lsoon">🌊 W6</span></span></div>';
+  var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
+  body+='<div class="lrow"><span class="lk">Plano</span><span class="lv">'+(plan||lNd())+' <span class="lwhy">· %/sem n/d</span></span></div>';
+  body+='<div class="lwhy" style="margin-top:2px">a poupança vem do <b>routing</b> (a máquina responde; o tier é recomendação, não fatura) — não de trade-off de qualidade.</div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Decisions ↗</span></div>';
+  return '<div class="card lens'+cc('lens-econ')+'" data-collap="lens-econ" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>💰 Economics</div><div class="lens-body">'+body+'</div></div>';
+}
+// 🏗️ Foundations — chips from real probes. Security shows summary presence only (there is NO
+// differential-privacy datum in the engine — never invent a DP metric). Arch/Doctor from s.score.checks.
+function renderFoundationsLens(s){
+  var checks=(s&&s.score&&s.score.checks)||[],i,sha=null;
+  for(i=0;i<checks.length;i++){if(checks[i].k==='classifysha'){sha=checks[i];break;}}
+  var archChip=sha?(sha.ok===true?'<span class="lchip" style="border-color:var(--ok)" title="'+esc(String(sha.detail||''))+'">🏛️ classify frozen ✓</span>':(sha.ok===false?'<span class="lchip" style="border-color:var(--danger)">🏛️ classify ALTERADO ⚠</span>':'<span class="lchip">🏛️ classify '+lNd()+'</span>')):'<span class="lchip">🏛️ classify '+lNd()+'</span>';
+  var pass=0,fail=0,warn=0,j;for(j=0;j<checks.length;j++){if(checks[j].ok===true)pass++;else if(checks[j].ok===false)fail++;else warn++;}
+  var docColor=fail?'var(--danger)':(warn?'var(--warn)':'var(--ok)');
+  var docChip='<span class="lchip" style="border-color:'+docColor+'" title="'+fail+' a falhar · '+warn+' avisos">🩺 Doctor '+pass+'/'+checks.length+(fail?' · '+fail+' ✗':' ✓')+'</span>';
+  var secChip=(s&&s.security&&String(s.security).trim())?'<span class="lchip" title="resumo do CLI mooter security (sandbox 4-layer)">🛡️ Security · sandbox 4-layer</span>':'<span class="lchip">🛡️ Security · '+lNd()+'</span>';
+  var gpu=(s&&s.hw&&s.hw.name)||(s&&s.device&&s.device.hardware&&s.device.hardware.gpu)||null;
+  var setup=(gpu?esc(String(gpu)):lNd())+' · '+((s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):lNd())+' · '+Object.keys((s&&s.packs)||{}).length+' packs';
+  var body='<div class="lrow" style="flex-wrap:wrap;gap:6px">'+archChip+docChip+secChip+'<span class="lchip" title="hardware · subscription · packs">⚙️ '+setup+'</span></div>';
+  body+='<div class="lrow" style="margin-top:3px"><span class="llink" data-goto="doctor" role="button" tabindex="0">Doctor ↗</span></div>';
+  return '<div class="card lens'+cc('lens-found')+'" data-collap="lens-found" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🏗️ Foundations</div><div class="lens-body">'+body+'</div></div>';
+}
+// 🧠 Brain — Pastor (TF-IDF, real) · Guardian (deck signal = s.mc.totals.ctxFull) · Ledger. Handoff
+// is honest by level: sessão ✓ · projeto ✓ (ação) · wave 🌊 (não existe artefacto ainda). Adapters(W7)
+// /Insights-TTL(W9)/Graph(W10) have no data source → explicit 🌊 placeholders, never fabricated numbers.
+function renderBrainLens(s){
+  var ins=(s&&s.insights)||{},nDec=((s&&s.decisions)||[]).length,body='';
+  body+='<div class="lrow"><span class="lk">🧠 Pastor</span><span class="lv">conf '+(ins.confNow!=null?esc(String(ins.confNow)):'—')+' · cache '+(ins.cacheRate!=null?esc(String(ins.cacheRate)):'—')+' · N='+nDec+' <span class="lwhy">TF-IDF, não neural</span></span></div>';
+  var gf=(s&&s.mc&&s.mc.totals&&s.mc.totals.ctxFull);
+  var gTxt=(gf==null)?lNd():(gf>0?('⚠ '+gf+' sessõe'+(gf===1?'':'s')+' ≥80% ctx'):'🟢 contexto saudável');
+  var ac=(typeof GUARDIAN_AUTOCOMPACT_PCT==='number')?(' · auto-compact @'+GUARDIAN_AUTOCOMPACT_PCT+'%'):'';
+  body+='<div class="lrow"><span class="lk">🛡️ Guardian</span><span class="lv">'+gTxt+ac+'</span></div>';
+  var led=s&&s.ledger,lsess=(led&&led.sessions!=null)?led.sessions:null,hm=(led&&led.session&&led.session.lastModel)||null;
+  body+='<div class="lrow"><span class="lk">📒 Ledger</span><span class="lv">'+(lsess==null?lNd():(lsess+' sessões'))+(hm?(' · host '+esc(String(hm))):'')+'</span></div>';
+  body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv">sessão ✓ · projeto ✓ <span class="lwhy">(ação)</span> · wave <span class="lsoon">🌊</span></span></div>';
+  body+='<div class="lrow" style="flex-wrap:wrap;gap:6px;margin-top:1px"><span class="lchip">🧬 Adapters <span class="lsoon">🌊 W7</span></span><span class="lchip">💡 Insights <span class="lsoon">🌊 W9 TTL</span></span><span class="lchip">🕸️ Graph <span class="lsoon">🌊 W10</span></span></div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Insights ↗</span></div>';
+  return '<div class="card lens'+cc('lens-brain')+'" data-collap="lens-brain" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">'+body+'</div></div>';
+}
+// ── Deck Phase 4 · Vida ──────────────────────────────────────────────────────
+// 🎮 Hardware strip — nvidia-smi via s.mc.gpu. GPU util/VRAM/cabem-N are REAL; temp/CPU/Max have no
+// source in this snapshot (the nvidia-smi parser captures no temp; no CPU sampling; no weekly limit)
+// so they render n/d, never fabricated. nvidia-smi absent ⇒ whole strip degrades to n/d (no crash).
+function renderHwStrip(s){
+  var gpu=(s&&s.mc&&s.mc.gpu)||null,chips='';
+  if(gpu&&(gpu.totalMb!=null||gpu.gpus)){
+    var g0=(Array.isArray(gpu.gpus)&&gpu.gpus[0])||{};
+    var util=(g0.utilPct!=null)?g0.utilPct:null;
+    var totMb=(gpu.totalMb!=null)?gpu.totalMb:null,freeMb=(gpu.freeMb!=null)?gpu.freeMb:null;
+    var usedPct=(totMb&&freeMb!=null)?Math.max(0,Math.min(100,Math.round((totMb-freeMb)/totMb*100))):null;
+    var fits=(gpu.fitsMoos!=null)?gpu.fitsMoos:null,name=g0.name||'GPU';
+    var barPct=(util!=null)?util:(usedPct!=null?usedPct:0);
+    var barColor=barPct>=85?'var(--danger)':(barPct>=60?'var(--warn)':'var(--ok)');
+    chips+='<span class="hwc" title="'+esc(String(name))+' · utilização de compute (nvidia-smi)">🎮 '+(util!=null?('<b>'+util+'%</b>'):lNd())+' <span class="hwbar"><span style="width:'+barPct+'%;background:'+barColor+'"></span></span></span>';
+    chips+='<span class="hwc" title="VRAM em uso">🧠 '+((usedPct!=null)?('<b>'+usedPct+'%</b> VRAM'):lNd())+'</span>';
+    chips+='<span class="hwc" title="quantos moos locais cabem na VRAM livre (overclock)">🟢 cabem <b>'+(fits!=null?('+'+fits):'n/d')+'</b> moos</span>';
+  } else {
+    chips+='<span class="hwc" title="nvidia-smi não escreveu cache — sem GPU NVIDIA ou monitor parado">🎮 GPU '+lNd()+' <span class="lwhy">nvidia-smi ausente</span></span>';
+  }
+  var tps=(s&&s.localSpeed&&s.localSpeed.latest&&s.localSpeed.latest.tps!=null)?s.localSpeed.latest.tps:null;
+  if(tps!=null)chips+='<span class="hwc" title="tok/s local medido (WS1)">⚡ <b>'+tps+'</b> tok/s</span>';
+  chips+='<span class="hwc" title="a nvidia-smi neste cache não reporta temperatura">🌡️ '+lNd()+'</span>';
+  chips+='<span class="hwc" title="sem amostragem de CPU no snapshot">CPU '+lNd()+'</span>';
+  var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
+  chips+='<span class="hwc" title="plano de subscrição · limite semanal não exposto">💳 '+(plan||lNd())+' <span class="lwhy">%/sem n/d</span></span>';
+  return '<div class="hwstrip" role="group" aria-label="hardware">'+chips+'</div>';
+}
+// 🏁 Pipeline — spec→plan→exec→review→ship. Load is derived from each session's REAL git/state signal
+// (needsYou→review · commits-ahead→ship · dirty/working→exec); sessions with no stage signal are not
+// placed (honest count in the footnote). Bottleneck = the fullest stage. spec/plan stay 0 until a
+// per-session stage signal exists — never faked.
+function renderPipeline(s){
+  var rows=(s&&s.recent)||[],stages=[['spec','📋'],['plan','🗺️'],['exec','⚙️'],['review','🔍'],['ship','🚀']];
+  var load={spec:0,plan:0,exec:0,review:0,ship:0},placed=0,i;
+  for(i=0;i<rows.length;i++){var r=rows[i];if(!r)continue;var st=null;
+    var dirty=r.gitStage&&Number(r.gitStage.dirty)>0;
+    var ahead=r.sessionGit&&!r.sessionGit.uncertain&&Number(r.sessionGit.aheadOfMain)>0;
+    if(r.needsYou)st='review';else if(ahead)st='ship';else if(dirty||r.working)st='exec';
+    if(st){load[st]++;placed++;}
+  }
+  var max=0,bott=null,k;for(k in load){if(load[k]>max){max=load[k];bott=k;}}
+  var segs='',q;for(q=0;q<stages.length;q++){var key=stages[q][0],n=load[key],isB=(bott===key&&max>0);
+    segs+='<span class="pstage'+(isB?' bott':'')+'" title="'+key+' · '+n+' sessõe'+(n===1?'':'s')+(isB?' · gargalo':'')+'">'+stages[q][1]+' '+key+' <b>'+n+'</b>'+(isB?' ⛔':'')+'</span>';
+    if(q<stages.length-1)segs+='<span class="parrow">→</span>';
+  }
+  var foot=placed?(placed+'/'+rows.length+' sessões colocadas · derivado de git/estado'):'sem sinal de etapa por sessão — n/d';
+  return '<div class="pipeline" role="group" aria-label="pipeline spec plan exec review ship"><div class="prail">'+segs+'</div><span class="lwhy">🏁 '+foot+'</span></div>';
+}
+// ⇄ Handoff flow — the context river (Cowork→CC→moos→Ledger) with a particle down each pipe. Purely
+// decorative + honest legend; the animation is CSS-only so reduced-motion switches it off globally.
+function renderHandoffFlow(){
+  var pipe='<span class="hpipe"><span class="hpart"></span></span>';
+  return '<div class="hoflow" role="img" aria-label="fluxo de handoff: Cowork → CC → moos → Ledger">'
+    +'<span class="hnode">🧠 Cowork</span>'+pipe+'<span class="hnode">💬 CC</span>'+pipe+'<span class="hnode">🐮 moos</span>'+pipe+'<span class="hnode">📒 Ledger</span>'
+    +'<span class="lwhy" style="width:100%;margin-top:3px">nunca seca · nunca mente (work-aware)</span></div>';
+}
 // ── GUARDIAN:F1 ── pressure ladder + 🪶 chip embedded as webview siblings. In dev the
 // real advisor fn is injected (single source of truth); the inline mirror is the fallback
 // when guardian-chip.js / the advisor are absent. Shared by renderRow (herd) + sessionCard (MC).
@@ -2157,6 +2343,15 @@ let mcMoo={q:'',out:'',status:'idle',model:null,focused:false};
 function mcApply(){var o=document.getElementById('mcMooOut');if(o){if(mcMoo.out){o.innerHTML='<div class="mc-moobubble">'+esc(mcMoo.out)+(mcMoo.status==='thinking'?' <span class="mc-cursor">▍</span>':'')+'</div>'+(mcMoo.model?'<div class="mc-moomodel">🐮 '+esc(mcMoo.model)+' · local · $0</div>':'');}else if(mcMoo.status==='thinking'){o.innerHTML='<div class="mc-moobubble">🐮 a pensar… <span class="mc-cursor">▍</span></div>';}else{o.innerHTML='';}}var i=document.getElementById('mcMooIn');if(i&&mcMoo.focused){try{i.focus();}catch(e){}}}
 function mcAsk(q){var i=document.getElementById('mcMooIn');var v=(q!=null?q:(i?i.value:'')).trim();if(!v)return;mcMoo.q=v;mcMoo.out='';mcMoo.model=null;mcMoo.status='thinking';mcApply();send('askMoo',v);}
 function wireMc(root){if(!root)return;wireButtons(root);
+  // Deck Phase 5 (Sem-erro): the Audit filter chips filter rows CLIENT-SIDE (read-only) — override the
+  // generic wireButtons send() (which hit a no-op host: a dead control) so the chip does what it says.
+  var afil=root.querySelectorAll('.mcv2-afilter[data-a="auditFilter"]');
+  if(afil.length){var arows=root.querySelectorAll('.mcv2-audrow');
+    afil.forEach(function(b){b.onclick=function(){var x=b.dataset.x||'all';
+      afil.forEach(function(o){o.classList.toggle('on',o===b);});
+      arows.forEach(function(r){r.hidden=!(x==='all'||r.getAttribute('data-af')===x);});
+    };});
+  }
   var i=root.querySelector('#mcMooIn');var g=root.querySelector('#mcMooGo');
   if(i){i.value=mcMoo.q||'';i.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();mcAsk();}};i.onfocus=function(){mcMoo.focused=true;};i.onblur=function(){mcMoo.focused=false;};}
   if(g)g.onclick=function(){mcAsk();};
@@ -2270,6 +2465,9 @@ window.addEventListener('message',(e)=>{
   const pr=s.paired||{};
   $('#pair').innerHTML=pr.ok?'<span title="paired with Claude Code '+esc(pr.version)+'" style="color:var(--g)">✕ ✱ Claude Code ✓</span>':'<span title="Claude Code extension not found" style="color:var(--t3)">✕ ✱ not paired</span>';
   curMode=s.mode||'auto';$('#modeBadge').textContent=MOO[s.mode]||('🐮 '+s.mode);
+  // Deck Phase 4 · vaca por modo — the header cow animates by mode (crazy=frantic · lazy=relaxed ·
+  // moo/auto=gentle walk). CSS-only, so reduced-motion stills it globally.
+  (function(){var cw=$('#brandCow');if(cw)cw.className='livecow '+(s.mode==='crazy'?'crazy':(s.mode==='lazy'?'lazy':'working'));})();
   $('#scoreBadge').textContent=score.pct+'%';
 
   // WIZARD quando engine falta
@@ -2345,6 +2543,15 @@ window.addEventListener('message',(e)=>{
   // Guarded so a render error never blanks the cockpit; idle-safe inside the renderer.
   const fleetCard=(function(){try{return renderLocalFleet(rsess,{localSpeed:s.localSpeed,nowMs:Date.now(),readyN:(s.ollama||[]).length,dispatchN:(M.option_a_hits||0)});}catch(er){return '';}})();
   const fleetConsoleCard=(function(){try{return renderFleetConsole(s.fleet);}catch(er){return '';}})();
+  // Deck Phase 3 · Lentes ligadas — each guarded so a bad source can never blank the cockpit.
+  const flowLens=(function(){try{return renderFlowLens(s);}catch(er){return '';}})();
+  const economicsLens=(function(){try{return renderEconomicsLens(s);}catch(er){return '';}})();
+  const brainLens=(function(){try{return renderBrainLens(s);}catch(er){return '';}})();
+  const foundationsLens=(function(){try{return renderFoundationsLens(s);}catch(er){return '';}})();
+  // Deck Phase 4 · Vida — guarded so a bad hardware/pc source can never blank the cockpit.
+  const hwStripCard=(function(){try{return renderHwStrip(s);}catch(er){return '';}})();
+  const pipelineCard=(function(){try{return renderPipeline(s);}catch(er){return '';}})();
+  const handoffFlowCard=(function(){try{return renderHandoffFlow();}catch(er){return '';}})();
   const cnt=tc(decScoped);const tot=Math.max(1,cnt.T0+cnt.T1+cnt.T2+cnt.T3);
   // B5 — compact tier mix: one slim segmented bar + tiny labels (was 4 full-width stacked bars).
   let mixSeg='',mixLab='';for(const t of['T0','T1','T2','T3']){const p=Math.round(100*cnt[t]/tot);if(cnt[t]>0)mixSeg+='<span title="'+t+(t==='T0'?' local':'')+' · '+p+'%" style="flex:'+cnt[t]+';background:'+TCOL[t]+'"></span>';mixLab+='<span style="color:'+TCOL[t]+'">'+t+(t==='T0'?' local':'')+' '+p+'%</span>';}
@@ -2372,6 +2579,8 @@ window.addEventListener('message',(e)=>{
     // B8 — caption: what it does + what happens next (Mooter routes every prompt).
     '<button class="go" data-a="launch" style="margin-bottom:4px">✱&nbsp; New Claude Code session</button>'+
     '<div class="hint" style="margin:0 0 10px">opens a fresh Claude Code tab — Mooter routes every prompt to the cheapest tier that fits · '+esc(MOO[s.mode]||s.mode)+' active</div>'+
+    hwStripCard+
+    pipelineCard+
     (function(){
       // Honesty: the headline is ADVISORY — "what you'd save IF each prompt ran on its
       // recommended tier". The host model actually answers in a CC session, so the only
@@ -2404,6 +2613,11 @@ window.addEventListener('message',(e)=>{
     fleetCard+
     fleetConsoleCard+
     herdCard+
+    flowLens+
+    economicsLens+
+    brainLens+
+    foundationsLens+
+    handoffFlowCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
     (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
@@ -2418,6 +2632,8 @@ window.addEventListener('message',(e)=>{
   // Deck Floor (Fase 2): persistent pin toggle — stops row-open propagation; persists via host→mode-registry.
   document.querySelectorAll('#v-cockpit .spin[data-psess]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const next=b.dataset.pinned!=='true';b.classList.toggle('on',next);b.dataset.pinned=String(next);b.setAttribute('aria-pressed',String(next));flashApply(b);send('pinSession',{sid:b.dataset.psess,pinned:next});};b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
+  // Deck Phase 3 · lens quick-nav links → jump to the matching tab (Flow→pc, Economics/Brain→decisions, Foundations→doctor).
+  document.querySelectorAll('#v-cockpit .lens .llink[data-goto]').forEach(el=>{const go=()=>goTab(el.dataset.goto);el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   wireLedgerToggle();
   wireCollapse($('#v-cockpit'));
   wireHerdFilter();applyHerdFilter();herdDiag();enforceHerdVisible(); // B3 filter · PASSO0 dev diag (capture) · PASSO2 invariant (force-visible if collapse/filter emptied the herd)

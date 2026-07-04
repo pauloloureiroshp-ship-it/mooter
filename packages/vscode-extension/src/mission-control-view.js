@@ -339,10 +339,12 @@ function renderMissionControl(snapshot) {
   // ── MCV2 · D · Painel Audit (replay do ledger · read-only · who/model/tier/kind/ts) ──
   out += '<div class="mc-card mcv2-audit"><div class="mc-lbl">🧾 Audit <span class="mc-sub">— replay do ledger · read-only · registo auditável</span></div>';
   if (ledger.length) {
-    // Filter chips: "all" + distinct task_group/sid seen in the ledger. Presentation +
-    // host-wire affordance (data-a="auditFilter"); host filtering is follow-up — replay is full.
+    var AUDIT_CAP = 60;
+    var shown = Math.min(ledger.length, AUDIT_CAP);
+    // Filter chips: "all" + distinct task_group/sid — built from the SHOWN slice only (Phase 5 nit:
+    // chips from beyond the row cap would filter the visible set to empty = a dead-looking chip).
     var seenF = {}, chips = '<button class="mc-btn mcv2-afilter on" data-a="auditFilter" data-x="all" title="mostrar todos os eventos">todos</button>';
-    for (var fci = 0; fci < ledger.length; fci++) {
+    for (var fci = 0; fci < shown; fci++) {
       var fev = ledger[fci] || {};
       var fkey = (fev.taskGroup != null && fev.taskGroup !== '') ? String(fev.taskGroup)
         : ((fev.sid != null && fev.sid !== '') ? String(fev.sid) : null);
@@ -353,15 +355,16 @@ function renderMissionControl(snapshot) {
     }
     out += '<div class="mcv2-afilters">' + chips + '</div>';
     out += '<div class="mcv2-audrows">';
-    var AUDIT_CAP = 60;
-    var shown = Math.min(ledger.length, AUDIT_CAP);
     for (var evi = 0; evi < shown; evi++) {
       var ev = ledger[evi] || {};
       var who = (ev.agent != null && ev.agent !== '') ? ev.agent : (ev.who != null ? ev.who : null);
       var when = tsTxt(ev.ts);
       var kind = (ev.kind != null && ev.kind !== '') ? ev.kind : null;
       var emodel = ev.model ? (famEmoji(ev.model) + ' ' + esc(modelShort(ev.model))) : nd(null);
-      out += '<div class="mcv2-audrow">'
+      // Deck Phase 5 (Sem-erro): carry the filter key so the audit filter chips work CLIENT-SIDE
+      // (read-only presentation filter) instead of dispatching a dead host message.
+      var afkey = (ev.taskGroup != null && ev.taskGroup !== '') ? String(ev.taskGroup) : ((ev.sid != null && ev.sid !== '') ? String(ev.sid) : '');
+      out += '<div class="mcv2-audrow" data-af="' + esc(afkey) + '">'
         + '<span class="mcv2-audts">' + (when == null ? '<span class="mc-nd">n/d</span>' : esc(when)) + '</span>'
         + '<span class="mcv2-audkind">' + (kind == null ? '<span class="mc-nd">n/d</span>' : esc(kind)) + '</span>'
         + '<span class="mcv2-audwho">' + nd(who) + '</span>'
