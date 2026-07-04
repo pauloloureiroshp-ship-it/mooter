@@ -361,7 +361,10 @@ function renderMissionControl(snapshot) {
       var when = tsTxt(ev.ts);
       var kind = (ev.kind != null && ev.kind !== '') ? ev.kind : null;
       var emodel = ev.model ? (famEmoji(ev.model) + ' ' + esc(modelShort(ev.model))) : nd(null);
-      out += '<div class="mcv2-audrow">'
+      // Deck Phase 5 (Sem-erro): carry the filter key so the audit filter chips work CLIENT-SIDE
+      // (read-only presentation filter) instead of dispatching a dead host message.
+      var afkey = (ev.taskGroup != null && ev.taskGroup !== '') ? String(ev.taskGroup) : ((ev.sid != null && ev.sid !== '') ? String(ev.sid) : '');
+      out += '<div class="mcv2-audrow" data-af="' + esc(afkey) + '">'
         + '<span class="mcv2-audts">' + (when == null ? '<span class="mc-nd">n/d</span>' : esc(when)) + '</span>'
         + '<span class="mcv2-audkind">' + (kind == null ? '<span class="mc-nd">n/d</span>' : esc(kind)) + '</span>'
         + '<span class="mcv2-audwho">' + nd(who) + '</span>'

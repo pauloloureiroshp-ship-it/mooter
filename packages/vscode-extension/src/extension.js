@@ -2343,6 +2343,15 @@ let mcMoo={q:'',out:'',status:'idle',model:null,focused:false};
 function mcApply(){var o=document.getElementById('mcMooOut');if(o){if(mcMoo.out){o.innerHTML='<div class="mc-moobubble">'+esc(mcMoo.out)+(mcMoo.status==='thinking'?' <span class="mc-cursor">▍</span>':'')+'</div>'+(mcMoo.model?'<div class="mc-moomodel">🐮 '+esc(mcMoo.model)+' · local · $0</div>':'');}else if(mcMoo.status==='thinking'){o.innerHTML='<div class="mc-moobubble">🐮 a pensar… <span class="mc-cursor">▍</span></div>';}else{o.innerHTML='';}}var i=document.getElementById('mcMooIn');if(i&&mcMoo.focused){try{i.focus();}catch(e){}}}
 function mcAsk(q){var i=document.getElementById('mcMooIn');var v=(q!=null?q:(i?i.value:'')).trim();if(!v)return;mcMoo.q=v;mcMoo.out='';mcMoo.model=null;mcMoo.status='thinking';mcApply();send('askMoo',v);}
 function wireMc(root){if(!root)return;wireButtons(root);
+  // Deck Phase 5 (Sem-erro): the Audit filter chips filter rows CLIENT-SIDE (read-only) — override the
+  // generic wireButtons send() (which hit a no-op host: a dead control) so the chip does what it says.
+  var afil=root.querySelectorAll('.mcv2-afilter[data-a="auditFilter"]');
+  if(afil.length){var arows=root.querySelectorAll('.mcv2-audrow');
+    afil.forEach(function(b){b.onclick=function(){var x=b.dataset.x||'all';
+      afil.forEach(function(o){o.classList.toggle('on',o===b);});
+      arows.forEach(function(r){r.hidden=!(x==='all'||r.getAttribute('data-af')===x);});
+    };});
+  }
   var i=root.querySelector('#mcMooIn');var g=root.querySelector('#mcMooGo');
   if(i){i.value=mcMoo.q||'';i.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();mcAsk();}};i.onfocus=function(){mcMoo.focused=true;};i.onblur=function(){mcMoo.focused=false;};}
   if(g)g.onclick=function(){mcAsk();};
