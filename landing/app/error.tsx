@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import * as Sentry from '@sentry/nextjs';
+import LpBoundaryReport from './_components/LpBoundaryReport';
 
 // Next.js App Router error boundary — catches render-time errors in any
 // Server or Client component under /app. Previously the site fell through
@@ -40,6 +41,8 @@ export default function Error({
         fontFamily: 'var(--font-sans), system-ui, sans-serif',
       }}
     >
+      {/* MP4.1 — dev-only, embedded-only relay of the caught error to the cockpit strip (tree-shaken in prod). */}
+      <LpBoundaryReport error={error} />
       <div style={{ maxWidth: 520, textAlign: 'center' }}>
         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🫠</div>
         <h1 style={{ fontSize: '1.75rem', marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>

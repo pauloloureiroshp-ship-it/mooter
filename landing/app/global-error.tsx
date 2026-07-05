@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import * as Sentry from '@sentry/nextjs';
+import LpBoundaryReport from './_components/LpBoundaryReport';
 
 // Next.js App Router global error — only rendered when the root layout itself
 // explodes (error.tsx runs under /app, but not for layout failures). Must
@@ -37,6 +38,10 @@ export default function GlobalError({
           fontFamily: 'system-ui, -apple-system, sans-serif',
         }}
       >
+        {/* MP4.1 — dev-only, embedded-only relay of the fatal to the cockpit strip. This is the boundary
+            that renders when a Server Component throw hard-reloads the framed iframe (the tap can't mount
+            here); it is the channel that makes a server-side throw appear in the strip. Tree-shaken in prod. */}
+        <LpBoundaryReport error={error} />
         <div style={{ maxWidth: 520, textAlign: 'center' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>mooter is down.</h1>
           <p style={{ color: '#6B5F55', marginBottom: '1.5rem', lineHeight: 1.55 }}>

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono, Caveat } from 'next/font/google';
 import './globals.css';
 import CmdKPalette from './_components/CmdKPalette';
+import LpErrorTap from './_components/LpErrorTap';
 import versionInfo from './version.json';
 
 const spaceGrotesk = Space_Grotesk({
@@ -122,6 +123,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <CmdKPalette />
+        {/* Live Preview MP4 — dev-only Honest Diagnostics tap (tree-shaken from production). */}
+        <LpErrorTap />
       </body>
     </html>
   );
