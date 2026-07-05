@@ -17,7 +17,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -68,4 +68,28 @@ test('Live Preview webview message listener is origin-locked by a host token (lo
   // so the embedded (cross-origin) dev-server iframe cannot forge a message the panel trusts.
   assert.ok(html.includes('HOST_TOKEN="secret-xyz"'), 'host token embedded into the webview');
   assert.ok(/m\.__t\s*!==\s*HOST_TOKEN/.test(html), 'listener rejects messages lacking the host token');
+});
+
+test('Live Preview MP4 diagnostics strip is hosted + parses as delivered (concat-only)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The strip container lives BETWEEN the toolbar and the iframe and is hidden until it has an error.
+  assert.ok(html.includes('id="lp-diag"'), 'diagnostics strip container present');
+  // The honest strip renderer is serialised in via fn.toString() exactly like renderStageStatus.
+  assert.ok(/const renderErrorStrip=function/.test(html), 'renderErrorStrip serialised into the webview');
+  // The whole inline script (incl. the serialised renderErrorStrip) still parses as delivered.
+  parseInlineScript(html);
+});
+
+test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The untrusted iframe (the dev-only error tap) is accepted ONLY when the message truly comes
+  // from OUR iframe window AND its origin is EXACTLY the framed localhost origin — never '*',
+  // never a stale port. This is the MP4 origin lock (host cannot read a cross-origin iframe's DOM).
+  assert.ok(/ev\.source\s*===\s*_frame\.contentWindow/.test(html), 'tap branch requires ev.source === the iframe window');
+  assert.ok(/ev\.origin\s*!==\s*curOrigin/.test(html), 'tap branch rejects any origin != the framed origin');
+  // The tap branch must feed only the local strip / restore — never the host-trusted lp-snapshot path.
+  assert.ok(html.includes("m.type === 'lp-error'"), 'tap runtime/build errors ingested');
+  assert.ok(html.includes("m.type === 'lp-restore'") || html.includes("type:'lp-restore'"), 'state-preserving restore wired');
 });

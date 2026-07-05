@@ -82,6 +82,12 @@ try { HC = require('./hook-collector.js'); } catch { HC = null; }
 // and the App Stage stays in its honest "a detetar…" state (no crash).
 let LPS = null;
 try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
+// ── LIVE PREVIEW · MP4 (Honest Diagnostics) — the PURE normaliser + ×N grouper + honest strip
+// renderer + the tap-message ORIGIN LOCK (acceptTapOrigin) + the file-open resolver. The
+// fs.existsSync (file resolve) and the clipboard write live host-side below; this module only
+// decides. Fail-soft: absent → the strip stays hidden and the App Stage is unchanged (no crash).
+let LPD = null;
+try { LPD = require('./lp-diagnostics.js'); } catch { LPD = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1187,6 +1193,8 @@ class LivePreviewPanel {
     this.urlError = null;    // transient origin-lock rejection note (its OWN channel — never
                              // folded into stage.reason, so it can't mislabel a stale/degraded state)
     this.stage = null;       // last resolved App Stage state (lp-stage.resolveStage output)
+    this.lastState = null;   // MP4: last {path, scrollY} the dev-only tap reported (for a
+                             // state-preserving reload — the webview restores it after a reload)
     this._detecting = false;
     // Shared secret stamped into the webview HTML and onto every host→webview message. The
     // App Stage <iframe> is a DIFFERENT origin (http://localhost) and cannot read this token
@@ -1252,6 +1260,74 @@ class LivePreviewPanel {
     }
     if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage(); return; }
     if (m.type === 'lp-redetect') { this._detectStage(); return; }
+    // ── MP4 (Honest Diagnostics) host commands. Each is a REAL action (honest-controls: no dead
+    //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
+    //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
+    if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
+    if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
+    if (m.type === 'lp-state') {
+      // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
+      const p = (typeof m.path === 'string') ? m.path.slice(0, 2048) : null;
+      const y = (typeof m.scrollY === 'number' && isFinite(m.scrollY)) ? m.scrollY : 0;
+      if (p != null) this.lastState = { path: p, scrollY: y };
+      return;
+    }
+  }
+  // Resolve a tap error's file→a real workspace file and reveal the line. MP5's first brick: a
+  // best-effort resolver (lp-diagnostics.resolveErrorFileCandidates → fs.existsSync under the
+  // workspace roots). Honest: when nothing resolves we say so instead of opening the wrong file.
+  async _openErrorFile(m) {
+    try {
+      if (!LPD) return;
+      const cands = LPD.resolveErrorFileCandidates(m && m.file);
+      const line = (m && Number.isInteger(m.line) && m.line > 0) ? m.line : null;
+      // Containment guard (path traversal defence-in-depth): `path.relative` avoids the sibling-dir
+      // trap of a raw prefix check (`C:\ws` must NOT accept `C:\ws-evil`), and realpath re-checks
+      // after resolving symlinks so a workspace symlink cannot point the open outside the workspace.
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const roots = [this._wsRoot()];
+      let hit = null;
+      for (const root of roots) {
+        for (const rel of cands) {
+          const abs = path.join(root, rel);
+          if (!contained(root, abs)) continue;
+          try {
+            if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+              const real = fs.realpathSync(abs);
+              const rootReal = fs.realpathSync(root);
+              if (!contained(rootReal, real)) continue; // symlink escaped the workspace — refuse
+              hit = real; break;
+            }
+          } catch { /* skip */ }
+        }
+        if (hit) break;
+      }
+      if (!hit) {
+        vscode.window.showWarningMessage('Live Preview: não encontrei o ficheiro do erro no workspace' + (m && m.file ? (' (' + String(m.file).slice(0, 120) + ')') : '') + '. Abre a consola do dev server.');
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(hit));
+      const opts = {};
+      if (line != null) {
+        const pos = new vscode.Position(line - 1, 0);
+        opts.selection = new vscode.Range(pos, pos);
+      }
+      await vscode.window.showTextDocument(doc, opts);
+    } catch { /* best-effort — never crash the panel over an open */ }
+  }
+  // Format the error (message + location + stack) and put it on the clipboard, ready to paste
+  // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
+  // seam). Honest toast confirms exactly what happened.
+  async _copyErrorToClipboard(m) {
+    try {
+      if (!LPD) return;
+      const txt = LPD.formatForClipboard(m && m.error ? m.error : m);
+      await vscode.env.clipboard.writeText(txt);
+      vscode.window.showInformationMessage('Live Preview: erro copiado — cola no Claude Code (Ctrl/Cmd+V).');
+    } catch {
+      // Honest-controls: never let the button silently no-op — say the copy failed.
+      try { vscode.window.showWarningMessage('Live Preview: não consegui copiar o erro para o clipboard.'); } catch { /* noop */ }
+    }
   }
   _wire() {
     this.panel.webview.html = getLivePreviewHtml(this.token);
@@ -1307,6 +1383,7 @@ function getLivePreviewHtml(token) {
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
   const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
   const renderStageStatusSrc = LPS ? LPS.renderStageStatus.toString() : 'function renderStageStatus(){return "";}';
+  const renderErrorStripSrc = LPD ? LPD.renderErrorStrip.toString() : 'function renderErrorStrip(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1339,6 +1416,29 @@ function getLivePreviewHtml(token) {
   .lps-stale{background:var(--vscode-charts-yellow,#E5C07B)}
   .lps-wait{background:var(--vscode-charts-blue,#5A9BD4)}
   #lp-error{flex-basis:100%;order:9;color:var(--vscode-inputValidation-errorForeground,var(--vscode-errorForeground,#D9484B));font-size:11.5px;padding:1px 2px}
+  /* MP4 — Honest Diagnostics strip. Sits BETWEEN the toolbar and the iframe; hidden when 0 errors. */
+  #lp-diag{display:none;flex-direction:column;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);font-size:12px;max-height:34%;overflow:auto}
+  #lp-diag.lpd-show{display:flex}
+  .lpd-head{display:flex;align-items:center;gap:8px;padding:4px 10px;border-bottom:1px solid var(--vscode-widget-border)}
+  .lpd-sum{font-weight:700}
+  .lpd-spacer{flex:1 1 auto}
+  .lpd-x{font:11.5px var(--vscode-font-family);color:var(--vscode-foreground);background:transparent;border:1px solid var(--vscode-widget-border);border-radius:5px;padding:1px 8px;cursor:pointer}
+  .lpd-x:hover{background:var(--vscode-list-hoverBackground)}
+  .lpd-row{display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px solid var(--vscode-widget-border);border-left:3px solid transparent}
+  .lpd-row:first-child{border-top:0}
+  .lpd-runtime,.lpd-promise{border-left-color:var(--vscode-inputValidation-errorBorder,#D9484B);background:var(--vscode-inputValidation-errorBackground,rgba(217,72,75,.10))}
+  .lpd-build{border-left-color:var(--vscode-inputValidation-warningBorder,#E5C07B);background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12))}
+  .lpd-console{border-left-color:var(--vscode-descriptionForeground);background:transparent}
+  .lpd-badge{flex:none;font-weight:700;font-variant-numeric:tabular-nums}
+  .lpd-msg{flex:1 1 auto;min-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lpd-n{flex:none;opacity:.75;font-variant-numeric:tabular-nums}
+  .lpd-loc{flex:none;font-family:var(--vscode-editor-font-family,monospace);opacity:.85;font-size:11px}
+  .lpd-loc-nd{opacity:.5;font-style:italic}
+  .lpd-acts{flex:none;display:flex;gap:5px}
+  .lpd-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 8px;cursor:pointer}
+  .lpd-btn:hover:not([disabled]){background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lpd-btn[disabled]{opacity:.45;cursor:not-allowed}
+  .lpd-x:focus-visible,.lpd-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   .lpbr,.lpdc{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
   .lpbr-hd,.lpdc-hd{font-weight:700;margin-bottom:6px}
   .lpbr-row{margin:3px 0;font-size:12px}
@@ -1371,6 +1471,7 @@ function getLivePreviewHtml(token) {
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
     </div>
+    <div id="lp-diag" role="log" aria-label="Diagnóstico do preview (erros de runtime e build)"></div>
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
       <div id="lp-degrade" class="lp-degrade"></div>
@@ -1388,6 +1489,7 @@ function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','
 const renderDirectorsCut=${renderDirectorsCutSrc};
 const renderBrain=${renderBrainSrc};
 const renderStageStatus=${renderStageStatusSrc};
+const renderErrorStrip=${renderErrorStripSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -1400,7 +1502,7 @@ function applyError(err){
   if(err){ el.textContent=String(err); el.style.display='block'; }
   else { el.textContent=''; el.style.display='none'; }
 }
-let curSrc=null, lastDegradeHtml=null;
+let curSrc=null, curOrigin=null, lastDegradeHtml=null;
 function applyStage(stage){
   const st=stage||null;
   const statusEl=document.getElementById('lp-status');
@@ -1422,15 +1524,113 @@ function applyStage(stage){
       if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html; }
     } else { lastDegradeHtml = null; }
   }
-  // Only touch the iframe when the URL actually changes — preserves HMR/scroll across polls.
-  if(hasUrl && frame && curSrc !== st.url){ curSrc = st.url; frame.setAttribute('src', st.url); }
+  // Only touch the iframe when the URL actually changes — preserves HMR/scroll across polls
+  // (MP2 invariant, gate #5). A same-URL re-detect/poll never re-points the frame, so it never
+  // reloads. When the URL DOES change we also recompute curOrigin — the exact origin the MP4
+  // tap-message lock accepts — and drop stale errors that belonged to the previous origin.
+  if(hasUrl && frame && curSrc !== st.url){
+    curSrc = st.url;
+    try { curOrigin = new URL(st.url).origin; } catch(e) { curOrigin = null; }
+    lpClearErrors('all');
+    lpState = null; lpPendingRestore = null; // a different URL is a different app — never restore the old route/scroll onto it
+    frame.setAttribute('src', st.url);
+  }
 }
+// ── MP4 Honest Diagnostics (webview side) ──────────────────────────────────────────────────
+// The App Stage <iframe> is cross-origin, so the dev-only tap inside the landing relays its
+// captured errors here via window.parent.postMessage. We accumulate + render the honest strip
+// locally ($0, no host round-trip per console.error); only the two real actions (open a file,
+// copy to the CC clipboard) and the state mirror go to the host.
+let lpErrors=[]; let lpExpanded=false;
+function lpErrKey(e){ return String(e.kind||'runtime')+'|'+String(e.message||'')+'|'+String(e.file||'')+'|'+String(e.line==null?'':e.line); }
+function lpRenderStrip(){
+  const el=document.getElementById('lp-diag');
+  if(!el) return;
+  const html=renderErrorStrip({ errors: lpErrors, expanded: lpExpanded });
+  if(html){ el.innerHTML=html; el.classList.add('lpd-show'); }
+  else { el.innerHTML=''; el.classList.remove('lpd-show'); lpExpanded=false; }
+}
+function lpIngest(raw){
+  // Mirror lp-diagnostics.normalizeTapError's contract (clamped, fail-soft) then group ×N.
+  const o=(raw && typeof raw==='object')?raw:{};
+  const kind=(o.kind==='build'||o.kind==='console'||o.kind==='promise')?o.kind:'runtime';
+  const li=parseInt(o.line,10), co=parseInt(o.col,10);
+  const e={
+    kind, message:(String(o.message==null?'':o.message).slice(0,2000).trim())||'(erro sem mensagem)',
+    file:String(o.file==null?'':o.file).slice(0,1024).trim(),
+    line:(Number.isInteger(li)&&li>0)?li:null, col:(Number.isInteger(co)&&co>0)?co:null,
+    stack:String(o.stack==null?'':o.stack).slice(0,8000),
+    ts:(typeof o.ts==='number'&&isFinite(o.ts))?o.ts:null, count:1,
+  };
+  const k=lpErrKey(e);
+  const idx=lpErrors.findIndex((x)=>lpErrKey(x)===k);
+  if(idx!==-1){ const prev=lpErrors[idx]; lpErrors.splice(idx,1); e.count=(prev.count||1)+1; e.stack=e.stack||prev.stack; e.ts=e.ts!=null?e.ts:prev.ts; }
+  lpErrors.unshift(e);
+  if(lpErrors.length>50) lpErrors=lpErrors.slice(0,50);
+  lpRenderStrip();
+}
+function lpClearErrors(kind){
+  if(!kind||kind==='all') lpErrors=[]; else lpErrors=lpErrors.filter((e)=>e && e.kind!==kind);
+  lpRenderStrip();
+}
+// Delegated, CSP-safe click handler for the strip buttons — reads data-act/data-idx, looks the
+// full error (incl. stack) up in lpErrors, and dispatches a REAL action to the host.
+const diagEl=document.getElementById('lp-diag');
+if(diagEl) diagEl.addEventListener('click',(ev)=>{
+  const btn=ev.target && ev.target.closest ? ev.target.closest('[data-act]') : null;
+  if(!btn) return;
+  const act=btn.getAttribute('data-act');
+  if(act==='dismiss'){ lpClearErrors('all'); return; }
+  if(act==='toggle'){ lpExpanded=!lpExpanded; lpRenderStrip(); return; }
+  const idx=parseInt(btn.getAttribute('data-idx'),10);
+  const e=(Number.isInteger(idx)&&idx>=0)?lpErrors[idx]:null;
+  if(!e) return;
+  if(act==='open') vsapi.postMessage({ type:'lp-open-file', file:e.file, line:e.line });
+  else if(act==='copy') vsapi.postMessage({ type:'lp-copy-error', error:{ kind:e.kind, message:e.message, file:e.file, line:e.line, col:e.col, stack:e.stack } });
+});
+// State-preserving reload: keep the tap's last {path, scrollY}; after the iframe reloads (its
+// load event, or a tap 'lp-ready' handshake — whichever wins the race) send it back so the route
+// and scroll are restored. Origin-targeted postMessage (never '*').
+let lpState=null, lpPendingRestore=null;
+function lpSendRestore(){
+  const f=document.getElementById('lp-frame');
+  const w=f && f.contentWindow;
+  const s=lpPendingRestore||lpState;
+  if(!w || !s || !curOrigin) return;
+  try{ w.postMessage({ type:'lp-restore', path:s.path, scrollY:s.scrollY }, curOrigin); }catch(e){}
+}
+(function(){ const f=document.getElementById('lp-frame'); if(f) f.addEventListener('load',()=>{
+  // Snapshot the pre-reload state so the fresh page's first lp-state can't clobber the restore
+  // target before the restore is delivered (honest-controls: the scroll must actually return).
+  if(lpState){ lpPendingRestore=lpState; setTimeout(()=>{ lpPendingRestore=null; }, 1500); }
+  lpSendRestore();
+}); })();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
-  // Origin lock: accept ONLY host messages bearing the shared secret. The framed dev-server
-  // iframe is a different origin and cannot read HOST_TOKEN, so it cannot forge this — its
-  // postMessage attempts are dropped here and can never reach applyStage/iframe.src.
-  if (!m || m.__t !== HOST_TOKEN) return;
+  if (!m || typeof m !== 'object') return;
+  // ── UNTRUSTED iframe branch (MP4 tap). The framed dev server is a DIFFERENT origin; accept its
+  //    messages ONLY when (1) they truly come from OUR iframe window (ev.source === its
+  //    contentWindow — a sibling frame cannot spoof this) AND (2) ev.origin is EXACTLY the framed
+  //    localhost origin (never '*', never a stale port). This branch feeds ONLY the local strip /
+  //    state-restore — it can never reach the host-trusted actions below, so even a leaked token
+  //    could not let framed content re-point the iframe.
+  const _frame = document.getElementById('lp-frame');
+  if (_frame && ev.source === _frame.contentWindow){
+    if (!curOrigin || ev.origin !== curOrigin) return; // ORIGIN LOCK (event.origin validated)
+    if (m.type === 'lp-error'){ lpIngest(m); }
+    else if (m.type === 'lp-error-clear'){ lpClearErrors(m.kind); }
+    else if (m.type === 'lp-state'){
+      if (typeof m.path === 'string'){
+        lpState = { path: m.path.slice(0,2048), scrollY: (typeof m.scrollY === 'number' && isFinite(m.scrollY)) ? m.scrollY : 0 };
+        vsapi.postMessage({ type:'lp-state', path: lpState.path, scrollY: lpState.scrollY });
+      }
+    }
+    else if (m.type === 'lp-ready'){ lpSendRestore(); }
+    return;
+  }
+  // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from
+  //    MP2). The framed iframe cannot read HOST_TOKEN, so it cannot forge this.
+  if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); }
 });
 const urlInput=document.getElementById('lp-url');
