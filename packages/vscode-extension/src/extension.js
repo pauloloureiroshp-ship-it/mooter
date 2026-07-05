@@ -1428,6 +1428,10 @@ function getLivePreviewHtml(token) {
   const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
   const renderStageStatusSrc = LPS ? LPS.renderStageStatus.toString() : 'function renderStageStatus(){return "";}';
   const renderErrorStripSrc = LPD ? LPD.renderErrorStrip.toString() : 'function renderErrorStrip(){return "";}';
+  // MP4-polish — the honest-severity predicates, serialised so the webview's lpIngest classifies
+  // with the SAME source of truth as the pure decision layer (no JS drift between them).
+  const isSelfNoiseSrc = LPD ? LPD.isLivePreviewSelfNoise.toString() : 'function isLivePreviewSelfNoise(){return false;}';
+  const isBenignCssSrc = LPD ? LPD.isBenignCssWarning.toString() : 'function isBenignCssWarning(){return false;}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1474,6 +1478,7 @@ function getLivePreviewHtml(token) {
   .lpd-row:first-child{border-top:0}
   .lpd-runtime,.lpd-promise{border-left-color:var(--vscode-inputValidation-errorBorder,#D9484B);background:var(--vscode-inputValidation-errorBackground,rgba(217,72,75,.10))}
   .lpd-build{border-left-color:var(--vscode-inputValidation-warningBorder,#E5C07B);background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12))}
+  .lpd-warning{border-left-color:var(--vscode-charts-yellow,#E5C07B);background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.10))}
   .lpd-console{border-left-color:var(--vscode-descriptionForeground);background:transparent}
   .lpd-badge{flex:none;font-weight:700;font-variant-numeric:tabular-nums}
   .lpd-msg{flex:1 1 auto;min-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1539,6 +1544,8 @@ const renderDirectorsCut=${renderDirectorsCutSrc};
 const renderBrain=${renderBrainSrc};
 const renderStageStatus=${renderStageStatusSrc};
 const renderErrorStrip=${renderErrorStripSrc};
+const isLivePreviewSelfNoise=${isSelfNoiseSrc};
+const isBenignCssWarning=${isBenignCssSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -1645,10 +1652,17 @@ function lpRenderStrip(){
 function lpIngest(raw){
   // Mirror lp-diagnostics.normalizeTapError's contract (clamped, fail-soft) then group ×N.
   const o=(raw && typeof raw==='object')?raw:{};
-  const kind=(o.kind==='build'||o.kind==='console'||o.kind==='promise')?o.kind:'runtime';
+  const msg0=String(o.message==null?'':o.message);
+  // MP4-polish: drop the Live Preview highlight's OWN shadow-DOM noise (:host all:initial) — it is
+  // never the app's problem, so it must not light the strip (not even amber).
+  if(isLivePreviewSelfNoise(msg0)) return;
+  let kind=(o.kind==='build'||o.kind==='console'||o.kind==='promise'||o.kind==='warning')?o.kind:'runtime';
+  const message=(msg0.slice(0,2000).trim())||'(erro sem mensagem)';
+  // A benign CSS parse warning is a styling nit, not a runtime error → amber warning, never red.
+  if((kind==='runtime'||kind==='console') && isBenignCssWarning(message)) kind='warning';
   const li=parseInt(o.line,10), co=parseInt(o.col,10);
   const e={
-    kind, message:(String(o.message==null?'':o.message).slice(0,2000).trim())||'(erro sem mensagem)',
+    kind, message,
     file:String(o.file==null?'':o.file).slice(0,1024).trim(),
     line:(Number.isInteger(li)&&li>0)?li:null, col:(Number.isInteger(co)&&co>0)?co:null,
     stack:String(o.stack==null?'':o.stack).slice(0,8000),
