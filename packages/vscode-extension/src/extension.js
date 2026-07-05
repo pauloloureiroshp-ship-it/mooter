@@ -82,6 +82,13 @@ try { HC = require('./hook-collector.js'); } catch { HC = null; }
 // and the App Stage stays in its honest "a detetar…" state (no crash).
 let LPS = null;
 try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
+// ── LIVE EDIT · MP5.0/5.1 (additive) — the host-side glue for click-to-code + deterministic $0
+// AST edits: path-clamp to the workspace, apply/undo, and the honest model chip. Pure/VS-Code-
+// agnostic so it unit-tests. Fail-soft: absent → the Live Preview still runs; select-mode just
+// can't open/apply (the toolbar button shows the honest reason). NEVER touches classify.js — it
+// only ever INVOKES it (frozen).
+let LEH = null;
+try { LEH = require('./live-edit-host.js'); } catch { LEH = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1193,6 +1200,11 @@ class LivePreviewPanel {
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
     // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
     this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
+    // Live Edit (MP5): select-mode toggle, the last-clicked source location, and the last applied
+    // edit's rollback bytes (atomic undo). All host-side; the framed dev server can never set them.
+    this.selectMode = false;
+    this.selection = null;   // { file, line, col, tag } — last lp-select (host re-clamps on use)
+    this.lastEdit = null;    // { absPath, prev } — undo snapshot of the most recent $0 edit
     this._wire();
   }
   static createOrReveal() {
@@ -1252,6 +1264,46 @@ class LivePreviewPanel {
     }
     if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage(); return; }
     if (m.type === 'lp-redetect') { this._detectStage(); return; }
+    // ── Live Edit (MP5) — these arrive from the webview, which has ALREADY origin-locked them to
+    // the framed dev server. The host re-clamps every path to the workspace (defense in depth) and
+    // can ONLY open/edit source files — never re-point the iframe or forge a snapshot.
+    if (m.type === 'lp-set-mode') { this.selectMode = !!m.on; return; }
+    if (m.type === 'lp-select') { this.selection = { file: m.file, line: Number(m.line), col: Number(m.col), tag: m.tag }; return; }
+    if (m.type === 'lp-open') { this._openInEditor(m); return; }
+    if (m.type === 'lp-apply') { this._applyLiveEdit(m); return; }
+    if (m.type === 'lp-undo') { this._undoLiveEdit(); return; }
+  }
+  // Click-to-code: reveal file:line in the editor. Path is clamped to the workspace; an out-of-tree
+  // path is silently refused (a foreign framed page must not steer the editor anywhere it likes).
+  _openInEditor(m) {
+    if (!LEH) return;
+    const abs = LEH.clampToWorkspace(this._wsRoot(), m && m.file);
+    if (!abs) return;
+    try {
+      const line = Math.max(0, (Number(m.line) || 1) - 1);
+      const col = Math.max(0, (Number(m.col) || 1) - 1);
+      const range = new vscode.Range(line, col, line, col);
+      vscode.window.showTextDocument(vscode.Uri.file(abs), { selection: range, preview: true, viewColumn: vscode.ViewColumn.One });
+    } catch { /* best-effort */ }
+  }
+  // Deterministic $0 edit: read → AST mutate (recast) → write, with a captured rollback snapshot.
+  // ZERO LLM. HMR in the framed dev server reflects the write on its own.
+  _applyLiveEdit(m) {
+    if (!LEH) { this._postApplied({ ok: false, reason: 'AST host indisponível' }); return; }
+    const sel = { file: m && m.file, line: Number(m && m.line), col: Number(m && m.col), tag: m && m.tag };
+    const op = (m && m.op) || {};
+    const r = LEH.applyEditToFile(fs, this._wsRoot(), sel, op);
+    if (r.ok && r.changed) this.lastEdit = { absPath: r.absPath, prev: r.prev };
+    this._postApplied({ ok: r.ok, changed: !!r.changed, touched: r.touched || [], reason: r.reason || null, canUndo: !!(r.ok && r.changed) });
+  }
+  _undoLiveEdit() {
+    if (!LEH || !this.lastEdit) { this._postApplied({ ok: false, reason: 'nada para desfazer', canUndo: false }); return; }
+    const r = LEH.undoEditToFile(fs, this.lastEdit.absPath, this.lastEdit.prev);
+    if (r.ok) this.lastEdit = null;
+    this._postApplied({ ok: r.ok, undone: !!r.ok, reason: r.reason || null, canUndo: false });
+  }
+  _postApplied(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-applied', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   _wire() {
     this.panel.webview.html = getLivePreviewHtml(this.token);
@@ -1352,6 +1404,33 @@ function getLivePreviewHtml(token) {
   .lpdc-glyph{flex:none}
   .lpdc-body{flex:1;min-width:0;word-break:break-word}
   .lpdc-meta{opacity:.7;font-size:10.5px}
+  /* Live Edit (MP5) — toolbar toggle + inline edit panel anchored over the App Stage. */
+  #lp-edit{font:12px var(--vscode-font-family);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer;color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background))}
+  #lp-edit.on{color:var(--vscode-button-foreground);background:var(--vscode-button-background);border-color:var(--vscode-button-background)}
+  #lp-edit:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #le-panel{position:fixed;z-index:50;width:280px;max-width:92vw;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.35);padding:10px 11px;display:none;font-size:12px}
+  #le-panel.show{display:block}
+  .le-hd{display:flex;align-items:baseline;gap:6px;margin-bottom:7px}
+  .le-file{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+  .le-tag{opacity:.6;font-size:10.5px;flex:none}
+  .le-x{margin-left:auto;cursor:pointer;opacity:.7;flex:none;border:0;background:none;color:inherit;font-size:13px}
+  .le-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--vscode-input-background);border:1px solid var(--vscode-widget-border);margin-bottom:8px}
+  .le-chip.cloud{background:var(--vscode-inputValidation-warningBackground,var(--vscode-input-background))}
+  .le-sec{margin:7px 0}
+  .le-sec label{display:block;opacity:.75;font-size:10.5px;margin-bottom:3px}
+  .le-row{display:flex;gap:5px;align-items:center}
+  .le-row input{flex:1;min-width:0;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
+  .le-btn{font:12px var(--vscode-font-family);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));flex:none}
+  .le-btn.primary{color:var(--vscode-button-foreground);background:var(--vscode-button-background);border-color:var(--vscode-button-background)}
+  .le-btn:hover{filter:brightness(1.08)}
+  .le-swatches{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+  .le-sw{width:18px;height:18px;border-radius:4px;border:1px solid var(--vscode-widget-border);cursor:pointer;padding:0}
+  .le-open{width:100%;margin-top:4px}
+  .le-status{margin-top:8px;font-size:10.5px;min-height:14px}
+  .le-status.ok{color:var(--vscode-charts-green,#4CAF6A)}
+  .le-status.warn{color:var(--vscode-inputValidation-warningForeground,var(--vscode-descriptionForeground))}
+  .le-status .le-undo{margin-left:8px;cursor:pointer;text-decoration:underline}
+  #le-hint{font-size:10.5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-descriptionForeground));flex-basis:100%;order:10;display:none}
   @media (max-width:820px){
     #lp-root{flex-direction:column}
     #lp-stagewrap{flex:1 1 auto;border-right:0;border-bottom:1px solid var(--vscode-widget-border)}
@@ -1368,12 +1447,44 @@ function getLivePreviewHtml(token) {
         <button id="lp-go" title="Abrir este URL no App Stage">Abrir</button>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
+        <button id="lp-edit" title="Selecionar um elemento para editar (Live Edit)" aria-pressed="false">✏️ Editar</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
+      <div id="le-hint">sem source-map — arranca com <code>npm run dev:inspect</code> para o click-to-code funcionar</div>
     </div>
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
       <div id="lp-degrade" class="lp-degrade"></div>
+      <div id="le-panel" role="dialog" aria-label="Live Edit — editar elemento">
+        <div class="le-hd">
+          <span class="le-file" id="le-file">—</span>
+          <span class="le-tag" id="le-tag"></span>
+          <button class="le-x" id="le-x" title="Fechar" aria-label="Fechar">✕</button>
+        </div>
+        <div class="le-chip" id="le-chip">🐮 local · $0 · sem LLM</div>
+        <div class="le-sec">
+          <label for="le-text">Texto</label>
+          <div class="le-row"><input id="le-text" type="text" placeholder="texto do elemento" /><button class="le-btn primary" id="le-text-go">Aplicar</button></div>
+        </div>
+        <div class="le-sec">
+          <label for="le-class">Classe Tailwind (cor/estilo)</label>
+          <div class="le-row"><input id="le-class" type="text" placeholder="ex.: bg-red-500" /><button class="le-btn primary" id="le-class-go">Aplicar</button></div>
+          <div class="le-swatches" id="le-swatches"></div>
+        </div>
+        <div class="le-sec">
+          <label>Espaçamento</label>
+          <div class="le-row">
+            <span style="opacity:.7">padding</span>
+            <button class="le-btn" data-bump="p" data-dir="-1" title="menos padding">−</button>
+            <button class="le-btn" data-bump="p" data-dir="1" title="mais padding">+</button>
+            <span style="opacity:.7;margin-left:6px">margin</span>
+            <button class="le-btn" data-bump="m" data-dir="-1" title="menos margin">−</button>
+            <button class="le-btn" data-bump="m" data-dir="1" title="mais margin">+</button>
+          </div>
+        </div>
+        <button class="le-btn le-open" id="le-open">↗ Abrir no editor (file:line)</button>
+        <div class="le-status" id="le-status"></div>
+      </div>
     </div>
   </section>
   <aside id="lp-side">
@@ -1427,11 +1538,17 @@ function applyStage(stage){
 }
 window.addEventListener('message', (ev) => {
   const m = ev.data;
-  // Origin lock: accept ONLY host messages bearing the shared secret. The framed dev-server
-  // iframe is a different origin and cannot read HOST_TOKEN, so it cannot forge this — its
-  // postMessage attempts are dropped here and can never reach applyStage/iframe.src.
-  if (!m || m.__t !== HOST_TOKEN) return;
+  if (!m) return;
+  // (A) Live Edit — messages from the framed dev server's in-app tap. They CANNOT carry HOST_TOKEN
+  // (different origin), so they take their OWN strictly-scoped path, origin-locked to the current
+  // iframe host inside onTap(). They may only open the edit panel / report source-map readiness —
+  // never re-point the iframe or forge a snapshot (those still require HOST_TOKEN, below).
+  if (m.source === 'mooter-liveedit') { onTap(ev); return; }
+  // (B) Host messages — must bear the shared secret. The framed iframe cannot read HOST_TOKEN, so
+  // it cannot forge these; its postMessage attempts are dropped here and never reach applyStage.
+  if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); }
+  else if (m.type === 'lp-applied'){ onApplied(m); }
 });
 const urlInput=document.getElementById('lp-url');
 function submitUrl(){ if(urlInput) vsapi.postMessage({ type:'lp-set-url', url: urlInput.value }); }
@@ -1442,6 +1559,80 @@ const reBtn=document.getElementById('lp-redetect');
 if(reBtn) reBtn.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-redetect' }));
 const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
+
+// ── Live Edit (MP5) — select-mode toggle · origin-locked tap · inline $0 edit panel ──────────
+const frameEl=document.getElementById('lp-frame');
+const editBtn=document.getElementById('lp-edit');
+const panel=document.getElementById('le-panel');
+const leHint=document.getElementById('le-hint');
+let selectMode=false, curSel=null, hasInsp=false;
+function iframeOrigin(){ try { return curSrc ? new URL(curSrc).origin : null; } catch { return null; } }
+// Origin-lock the tap path: only accept messages whose origin is EXACTLY the current iframe host,
+// and only localhost/127.0.0.1. A page framed from anywhere else can't drive select/open/apply.
+function tapOriginOk(origin){ try { if(!curSrc) return false; const a=new URL(origin), b=new URL(curSrc); return a.host===b.host && (a.hostname==='localhost'||a.hostname==='127.0.0.1'); } catch { return false; } }
+function relayMode(on){ try { const w=frameEl&&frameEl.contentWindow, o=iframeOrigin(); if(w&&o) w.postMessage({ source:'mooter-host', type:'liveedit-mode', on:!!on }, o); } catch {} }
+function updateHint(){ if(leHint) leHint.style.display=(selectMode && !hasInsp)?'block':'none'; }
+function setMode(on){
+  selectMode=!!on;
+  editBtn.classList.toggle('on', selectMode);
+  editBtn.setAttribute('aria-pressed', selectMode?'true':'false');
+  editBtn.textContent=selectMode?'✏️ A selecionar…':'✏️ Editar';
+  relayMode(selectMode);
+  vsapi.postMessage({ type:'lp-set-mode', on:selectMode });
+  if(!selectMode) closePanel();
+  updateHint();
+}
+if(editBtn) editBtn.addEventListener('click', ()=> setMode(!selectMode));
+// The framed page reloads on HMR (incl. after our own $0 edit) → its tap re-mounts inactive. Re-arm.
+if(frameEl) frameEl.addEventListener('load', ()=>{ if(selectMode) relayMode(true); });
+function onTap(ev){
+  if(!tapOriginOk(ev.origin)) return;
+  const m=ev.data;
+  if(m.type==='lp-ready'){ hasInsp=!!m.hasInsp; updateHint(); return; }
+  if(m.type==='lp-cancel'){ closePanel(); return; }
+  if(m.type==='lp-select'){ openPanel(m); return; }
+}
+function openPanel(m){
+  curSel={ file:m.file, line:m.line, col:m.col, tag:m.tag };
+  vsapi.postMessage({ type:'lp-select', file:m.file, line:m.line, col:m.col, tag:m.tag });
+  const base=String(m.file||'').split(/[\\\\/]/).pop()||m.file;
+  const fEl=document.getElementById('le-file'); fEl.textContent=base+':'+m.line; fEl.title=m.file+':'+m.line+':'+m.col;
+  document.getElementById('le-tag').textContent=m.tag?('<'+m.tag+'>'):'';
+  document.getElementById('le-text').value=(m.text||'');
+  setStatus('','');
+  const fr=frameEl.getBoundingClientRect();
+  const rx=(m.rect&&m.rect.x)||0, ry=(m.rect&&m.rect.y)||0, rh=(m.rect&&m.rect.height)||0;
+  const pw=280, vw=window.innerWidth, vh=window.innerHeight;
+  let left=fr.left+rx; if(left+pw>vw-8) left=Math.max(8, vw-pw-8); if(left<8) left=8;
+  panel.style.left=left+'px';
+  panel.style.top=Math.min(fr.top+ry+rh+6, vh-60)+'px';
+  panel.classList.add('show');
+}
+function closePanel(){ if(panel){ panel.classList.remove('show'); } curSel=null; }
+function setStatus(msg, kind, canUndo){
+  const el=document.getElementById('le-status'); if(!el) return;
+  el.className='le-status'+(kind?(' '+kind):''); el.textContent=msg||'';
+  if(canUndo){ const u=document.createElement('span'); u.className='le-undo'; u.textContent='desfazer'; u.setAttribute('role','button'); u.tabIndex=0; u.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-undo' })); el.appendChild(document.createTextNode(' ')); el.appendChild(u); }
+}
+function apply(op){ if(!curSel) return; setStatus('a aplicar…',''); vsapi.postMessage({ type:'lp-apply', file:curSel.file, line:curSel.line, col:curSel.col, tag:curSel.tag, op:op }); }
+function onApplied(m){
+  if(m.undone){ setStatus('↩ revertido · $0','ok'); return; }
+  if(!m.ok){ setStatus('⚠ '+(m.reason||'falhou'),'warn'); return; }
+  if(!m.changed){ setStatus('sem alteração'+(m.reason?(' — '+m.reason):''),'warn'); return; }
+  const n=(m.touched||[]).length;
+  setStatus('✓ tocou '+n+' linha'+(n===1?'':'s')+' · $0 · sem tokens','ok', m.canUndo);
+}
+if(panel){
+  document.getElementById('le-x').addEventListener('click', closePanel);
+  document.getElementById('le-text-go').addEventListener('click', ()=> apply({ kind:'setText', text:document.getElementById('le-text').value }));
+  document.getElementById('le-class-go').addEventListener('click', ()=>{ const c=document.getElementById('le-class').value.trim(); if(c) apply({ kind:'setClass', classes:c }); });
+  document.getElementById('le-open').addEventListener('click', ()=>{ if(curSel) vsapi.postMessage({ type:'lp-open', file:curSel.file, line:curSel.line, col:curSel.col }); });
+  Array.prototype.forEach.call(document.querySelectorAll('#le-panel [data-bump]'), (b)=> b.addEventListener('click', ()=> apply({ kind:'bumpSpacing', prefix:b.getAttribute('data-bump'), dir:Number(b.getAttribute('data-dir')) })));
+  const SW=[['bg-red-500','#ef4444'],['bg-orange-500','#f97316'],['bg-yellow-400','#facc15'],['bg-green-500','#22c55e'],['bg-blue-500','#3b82f6'],['bg-indigo-500','#6366f1'],['bg-purple-500','#a855f7'],['bg-slate-900','#0f172a'],['bg-white','#ffffff']];
+  const swWrap=document.getElementById('le-swatches');
+  SW.forEach((p)=>{ const b=document.createElement('button'); b.className='le-sw'; b.style.background=p[1]; b.title=p[0]; b.addEventListener('click', ()=> apply({ kind:'setClass', classes:p[0] })); swWrap.appendChild(b); });
+  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && panel.classList.contains('show')) closePanel(); });
+}
 </script>
 </body></html>`;
 }

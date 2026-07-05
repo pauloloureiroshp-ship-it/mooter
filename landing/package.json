@@ -5,6 +5,7 @@
   "description": "Legacy Next.js landing for mooter — will be deprecated with 301 redirect to mooter.ai.",
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 7819",
+    "dev:inspect": "next dev --turbopack -H 127.0.0.1 -p 7819",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 7819",
     "lint": "eslint .",
@@ -27,6 +28,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitest/ui": "^2.1.9",
+    "code-inspector-plugin": "^1.6.4",
     "eslint": "^9.39.4",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.58.2",

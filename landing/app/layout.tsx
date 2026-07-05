@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono, Caveat } from 'next/font/google';
 import './globals.css';
 import CmdKPalette from './_components/CmdKPalette';
+import LiveEditTap from './_components/LiveEditTap';
 import versionInfo from './version.json';
 
 const spaceGrotesk = Space_Grotesk({
@@ -122,6 +123,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <CmdKPalette />
+        {/* Live Edit (MP5.0) — dev-only in-app select agent. Renders null in production
+            (the component itself also guards on NODE_ENV), so it is dead code in the prod bundle. */}
+        {process.env.NODE_ENV !== 'production' && <LiveEditTap />}
       </body>
     </html>
   );

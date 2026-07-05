@@ -29,8 +29,29 @@ function resolveBuildSha() {
   }
 }
 
+// Live Edit (MP5.0) — dev-only source-location stamping. code-inspector-plugin stamps
+// `data-insp-path="file:line:col:tag"` on every JSX element so the Live Preview's in-app tap can
+// map a clicked element back to its source. Wired ONLY when Turbopack runs (`npm run dev:inspect`);
+// plain `next dev` (webpack) and `next build` ignore the `turbopack` key, and NODE_ENV=production
+// short-circuits it here too, so the attribute NEVER ships to production. `hotKeys:false` disables
+// the plugin's own overlay/hotkey — our origin-locked tap is the sole driver. Lazy `require` so a
+// prod build with pruned devDeps never has to resolve the module; absent plugin → click-to-code
+// degrades honestly (the tap reports "sem source-map").
+function liveEditTurbopack(): NextConfig['turbopack'] | undefined {
+  if (!IS_DEV) return undefined;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { codeInspectorPlugin } = require('code-inspector-plugin');
+    return { rules: codeInspectorPlugin({ bundler: 'turbopack', hotKeys: false }) } as NextConfig['turbopack'];
+  } catch {
+    return undefined;
+  }
+}
+const liveEditTB = liveEditTurbopack();
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
+  ...(liveEditTB && { turbopack: liveEditTB }),
   // Vercel deployment works out of the box; standalone output is used when
   // self-hosting (Docker, Railway, Fly). Toggled via env.
   ...(process.env.FRUGAL_LANDING_STANDALONE === '1' && { output: 'standalone' as const }),
