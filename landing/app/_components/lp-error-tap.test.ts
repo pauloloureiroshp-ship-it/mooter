@@ -11,6 +11,7 @@ import {
   parseHmrError,
   buildBoundaryErrorPayload,
   reportBoundaryError,
+  buildNavPath,
 } from './lp-error-tap';
 
 describe('parseStackForSource', () => {
@@ -189,5 +190,19 @@ describe('reportBoundaryError (runtime relay to the embedding cockpit)', () => {
     w.parent = w; // top-level window: parent is itself
     withWindow(w, () => reportBoundaryError(new Error('x')));
     expect(posts).toHaveLength(0);
+  });
+});
+
+describe('buildNavPath (MP3.3 route sync)', () => {
+  it('joins pathname + search, defaulting to "/"', () => {
+    expect(buildNavPath('/install', '')).toBe('/install');
+    expect(buildNavPath('/packs', '?id=7')).toBe('/packs?id=7');
+    expect(buildNavPath('/', '')).toBe('/');
+  });
+  it('degrades honestly on missing/garbage input (never throws, always a leading slash)', () => {
+    expect(buildNavPath(undefined, undefined)).toBe('/');
+    expect(buildNavPath('', '')).toBe('/');
+    expect(buildNavPath(null, null)).toBe('/');
+    expect(buildNavPath('install', '')).toBe('/install'); // guarantees the leading slash
   });
 });

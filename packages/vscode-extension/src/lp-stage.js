@@ -250,6 +250,100 @@ function renderStageStatus(stage) {
     + srcTxt + ' · porta ativa</span>';
 }
 
+// ── MP3.3 multi-page navigation — PURE helpers (route discovery + address-bar resolution) ──────
+// The App Stage detector resolves the ORIGIN (root URL). These helpers add the second half: which
+// ROUTES the site has, and what a value typed in the address bar means — WITHOUT ever letting a
+// non-localhost origin in (they defer to normalizeStageUrl for the origin lock). Host-side only
+// (route discovery reads files host-side; nav resolution keeps the origin lock in one place).
+
+// pagePathToRoute(relPath) — PURE. Map a Next App-Router page file path (relative to landing/app,
+// e.g. "(marketing)/install/page.tsx" or "page.tsx") to its navigable URL route ("/install", "/").
+// Route groups "(name)" are folder-only and contribute NOTHING to the URL. Dynamic segments
+// ("[id]", "[[...slug]]") are not literally navigable → null (honest: we cannot fill the param, so
+// it never enters the "known routes" picker). Parallel-route slots ("@modal") are dropped too.
+function pagePathToRoute(relPath) {
+  var s = String(relPath == null ? '' : relPath).replace(/\\/g, '/').trim();
+  if (!s) return null;
+  s = s.replace(/^\/+/, '').replace(/^landing\/app\//, '').replace(/^app\//, '');
+  var m = /(^|\/)page\.(tsx|ts|jsx|js|mjs)$/.exec(s);
+  if (!m) return null; // not a page file
+  var dir = s.slice(0, s.length - m[0].length); // strip the trailing "/page.tsx" (or bare "page.tsx")
+  var segs = dir.split('/').filter(Boolean);
+  var out = [];
+  for (var i = 0; i < segs.length; i++) {
+    var seg = segs[i];
+    if (/^\(.*\)$/.test(seg)) continue;        // route group — folder only, no URL segment
+    if (seg.charAt(0) === '@') continue;        // parallel-route slot — no URL segment
+    if (seg.indexOf('[') !== -1) return null;   // dynamic segment — not a literally-navigable route
+    out.push(seg);
+  }
+  return '/' + out.join('/');
+}
+
+// discoverRoutes(relPaths) — PURE. Map a list of page-file paths (relative to landing/app) to a
+// sorted, de-duplicated list of navigable routes. Non-pages / dynamic routes are dropped. "/" is
+// pinned first (the home); the rest alphabetical. Never throws.
+function discoverRoutes(relPaths) {
+  var list = Array.isArray(relPaths) ? relPaths : [];
+  var seen = {};
+  var routes = [];
+  for (var i = 0; i < list.length; i++) {
+    var r = pagePathToRoute(list[i]);
+    if (r == null || seen[r]) continue;
+    seen[r] = true;
+    routes.push(r);
+  }
+  routes.sort(function (a, b) {
+    if (a === '/') return -1;
+    if (b === '/') return 1;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  });
+  return routes;
+}
+
+// sanitizeNavPath(input) — PURE. Coerce a user-typed path into a safe same-origin path: a single
+// leading "/", no control chars/whitespace, capped length. Never throws.
+function sanitizeNavPath(input) {
+  var s = String(input == null ? '' : input).trim();
+  s = s.replace(/[\s\x00-\x1f\x7f]/g, '');
+  if (!s) return '/';
+  if (s.charAt(0) !== '/') s = '/' + s;
+  return s.slice(0, 2048);
+}
+
+// extractPath(raw) — PURE. The path+query (no host) from a URL-ish string; "" when there is none
+// (so a bare "localhost:7819" navigates to the root, not "/").
+function extractPath(raw) {
+  var s = String(raw == null ? '' : raw).trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  var slash = s.indexOf('/');
+  if (slash === -1) return '';
+  return sanitizeNavPath(s.slice(slash));
+}
+
+// resolveNavTarget(currentOrigin, input) — PURE + SECURITY-relevant. Decide what a value typed in
+// the address bar (or a picked route) means, WITHOUT ever letting a non-localhost origin enter:
+//   • { kind:'path',   url } — same-origin navigation (bare path, or a full URL whose origin === the
+//                              current stage origin): the frame just moves, the stage is NOT re-pointed.
+//   • { kind:'origin', url } — a DIFFERENT localhost origin: the caller re-points the stage through
+//                              the normal override lock (normalizeStageUrl re-runs host-side).
+//   • { kind:'invalid' }     — not localhost / unparseable → refuse (honest error, no navigation).
+// currentOrigin is the resolved stage root (normalizeStageUrl output .url). Never throws.
+function resolveNavTarget(currentOrigin, input) {
+  var origin = normalizeStageUrl(currentOrigin);
+  var raw = String(input == null ? '' : input).trim();
+  if (!raw) return { kind: 'invalid' };
+  if (raw.charAt(0) === '/') { // a bare path is always same-origin navigation
+    if (!origin) return { kind: 'invalid' };
+    return { kind: 'path', url: origin.url + sanitizeNavPath(raw) };
+  }
+  var target = normalizeStageUrl(raw); // origin lock — drops the path; recover it below
+  if (!target) return { kind: 'invalid' };
+  if (origin && target.url === origin.url) {
+    return { kind: 'path', url: target.url + extractPath(raw) };
+  }
+  return { kind: 'origin', url: target.url };
+}
+
 module.exports = {
   esc: esc,
   commonDevPorts: commonDevPorts,
@@ -262,4 +356,9 @@ module.exports = {
   pickDevServer: pickDevServer,
   resolveStage: resolveStage,
   renderStageStatus: renderStageStatus,
+  pagePathToRoute: pagePathToRoute,
+  discoverRoutes: discoverRoutes,
+  sanitizeNavPath: sanitizeNavPath,
+  extractPath: extractPath,
+  resolveNavTarget: resolveNavTarget,
 };

@@ -45,16 +45,45 @@ function normLineNo(v) {
   return Number.isInteger(n) && n > 0 && n < 10000000 ? n : null;
 }
 
+// ── MP4-polish · honest severity — fatal (red) vs warning (amber), and DROP our own noise ────────
+// The strip once lit RED for `:host { all: initial }` — a benign CSS warning the browser emits about
+// the Live Preview's OWN shadow-DOM highlight (the `direction`/`unicode-bidi` shorthand it drops).
+// That is not the app's problem and must never light the strip; a CSS PARSE warning from the app's
+// styles is a nit, not a runtime error, so it goes amber, never red. These two PURE predicates are
+// the single source of truth (serialised into the webview's lpIngest too — no JS/TS drift).
+
+// isLivePreviewSelfNoise(message) — PURE. True when the message is the Live Preview highlight's OWN
+// injected shadow-DOM CSS noise (`:host { all: initial }` + the `direction`/`unicode-bidi` shorthand
+// warning Chromium raises for it). We generated it — so we drop it (never shown, not even amber).
+function isLivePreviewSelfNoise(message) {
+  var m = String(message == null ? '' : message);
+  if (!m) return false;
+  var hasAllInitial = /\ball\s*:\s*initial\b/i.test(m);
+  if (!hasAllInitial) return false;
+  return /:host\b/.test(m) || /\bdirection\b/i.test(m) || /\bunicode-bidi\b/i.test(m);
+}
+
+// isBenignCssWarning(message) — PURE. True when the message is a CSS PARSE warning (the browser
+// dropping a declaration/selector it could not parse) — a styling nit, NEVER a runtime error of the
+// app. We demote these red→amber `warning` instead of lighting the fatal runtime strip.
+function isBenignCssWarning(message) {
+  var m = String(message == null ? '' : message);
+  if (!m) return false;
+  return /error in parsing value for|declaration dropped|invalid property value|unknown property|ruleset ignored due to bad selector|expected .*but found|was not declared/i.test(m);
+}
+
 // ── normalizeTapError(m) — PURE. Coerce a raw lp-error payload from the tap into the normalized
 // shape the strip renders and the host acts on. Fail-soft; clamps every field so a hostile/huge
 // payload can neither stall nor inject. Never throws.
-//   { kind:'runtime'|'build'|'console'|'promise', message, file, line, col, stack, ts }
+//   { kind:'runtime'|'build'|'console'|'promise'|'warning', message, file, line, col, stack, ts }
 function normalizeTapError(m) {
   var o = m && typeof m === 'object' ? m : {};
   var kind =
-    o.kind === 'build' || o.kind === 'console' || o.kind === 'promise' ? o.kind : 'runtime';
+    o.kind === 'build' || o.kind === 'console' || o.kind === 'promise' || o.kind === 'warning' ? o.kind : 'runtime';
   var message = clampStr(o.message, 2000).trim();
   if (!message) message = '(erro sem mensagem)';
+  // A benign CSS parse warning is a styling nit, not a runtime failure → demote red→amber `warning`.
+  if ((kind === 'runtime' || kind === 'console') && isBenignCssWarning(message)) kind = 'warning';
   var file = clampStr(o.file, 1024).trim();
   var stack = clampStr(o.stack, 8000);
   var ts = typeof o.ts === 'number' && isFinite(o.ts) ? o.ts : null;
@@ -89,6 +118,8 @@ function tapErrorKey(e) {
 // error is unshifted; the list is capped (default 50) most-recent-first. Never throws.
 function ingestErrors(list, incoming, cap) {
   var arr = Array.isArray(list) ? list.slice() : [];
+  // Drop the Live Preview highlight's OWN shadow-DOM noise before it can ever reach the strip.
+  if (isLivePreviewSelfNoise(incoming && incoming.message)) return arr;
   var e = normalizeTapError(incoming);
   var k = tapErrorKey(e);
   var max = typeof cap === 'number' && cap > 0 ? cap : 50;
@@ -198,16 +229,18 @@ function renderErrorStrip(state) {
   var expanded = !!s.expanded;
   var shown = expanded ? live : live.slice(0, 1);
 
-  var runtimeN = 0, buildN = 0, consoleN = 0;
+  var runtimeN = 0, buildN = 0, consoleN = 0, warnN = 0;
   for (var a = 0; a < live.length; a++) {
     var kA = live[a].kind;
     if (kA === 'build') buildN++;
     else if (kA === 'console') consoleN++;
+    else if (kA === 'warning') warnN++; // amber CSS/parse warning — NOT the red fatal count
     else runtimeN++; // runtime + promise → the red count
   }
   var sum = [];
   if (runtimeN) sum.push('⛔ ' + runtimeN + ' runtime');
   if (buildN) sum.push('⚠ ' + buildN + ' build');
+  if (warnN) sum.push('⚠ ' + warnN + ' aviso');
   if (consoleN) sum.push('⚠ ' + consoleN + ' console');
   var head =
     '<div class="lpd-head"><span class="lpd-sum">' + esc(sum.join(' · ')) + '</span>' +
@@ -221,9 +254,9 @@ function renderErrorStrip(state) {
   var rows = '';
   for (var j = 0; j < shown.length; j++) {
     var e = shown[j];
-    var kind = e.kind === 'build' ? 'build' : e.kind === 'console' ? 'console' : e.kind === 'promise' ? 'promise' : 'runtime';
-    var rowCls = kind === 'build' ? 'lpd-build' : kind === 'console' ? 'lpd-console' : 'lpd-runtime';
-    var badge = kind === 'build' ? '⚠ build' : kind === 'console' ? '⚠ console' : kind === 'promise' ? '⛔ promise' : '⛔ runtime';
+    var kind = e.kind === 'build' ? 'build' : e.kind === 'console' ? 'console' : e.kind === 'warning' ? 'warning' : e.kind === 'promise' ? 'promise' : 'runtime';
+    var rowCls = kind === 'build' ? 'lpd-build' : kind === 'warning' ? 'lpd-warning' : kind === 'console' ? 'lpd-console' : 'lpd-runtime';
+    var badge = kind === 'build' ? '⚠ build' : kind === 'warning' ? '⚠ aviso' : kind === 'console' ? '⚠ console' : kind === 'promise' ? '⛔ promise' : '⛔ runtime';
     // Index into the ORIGINAL errors array so the webview can recover the full object by data-idx.
     var origIdx = live.indexOf(e);
     var count = e.count && e.count > 1 ? '<span class="lpd-n">×' + esc(e.count) + '</span>' : '';
@@ -253,6 +286,8 @@ function renderErrorStrip(state) {
 
 module.exports = {
   esc: esc,
+  isLivePreviewSelfNoise: isLivePreviewSelfNoise,
+  isBenignCssWarning: isBenignCssWarning,
   normalizeTapError: normalizeTapError,
   tapErrorKey: tapErrorKey,
   ingestErrors: ingestErrors,

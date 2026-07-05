@@ -229,12 +229,68 @@ test('renderErrorStrip: never throws on garbage rows', () => {
   assert.doesNotThrow(() => LPD.renderErrorStrip({ errors: [null, undefined, {}] }));
 });
 
+// ── MP4-polish · honest severity (fatal red vs warning amber) + self-noise filter ──────────────
+
+test('isLivePreviewSelfNoise: true for our own :host{all:initial} highlight noise, false for real errors', () => {
+  assert.strictEqual(LPD.isLivePreviewSelfNoise(':host { all: initial }'), true);
+  assert.strictEqual(LPD.isLivePreviewSelfNoise("Error in parsing value for 'direction'. Declaration dropped. (all: initial on :host)"), true);
+  assert.strictEqual(LPD.isLivePreviewSelfNoise('all: initial affects unicode-bidi'), true);
+  assert.strictEqual(LPD.isLivePreviewSelfNoise('TypeError: x is not a function'), false);
+  assert.strictEqual(LPD.isLivePreviewSelfNoise(':host { color: red }'), false, 'a :host without all:initial is not our noise');
+  assert.strictEqual(LPD.isLivePreviewSelfNoise(null), false);
+});
+
+test('isBenignCssWarning: true for CSS parse warnings, false for JS runtime errors', () => {
+  assert.strictEqual(LPD.isBenignCssWarning("Error in parsing value for 'gap'. Declaration dropped."), true);
+  assert.strictEqual(LPD.isBenignCssWarning('Invalid property value'), true);
+  assert.strictEqual(LPD.isBenignCssWarning('Unknown property "foo"'), true);
+  assert.strictEqual(LPD.isBenignCssWarning('TypeError: undefined is not an object'), false);
+  assert.strictEqual(LPD.isBenignCssWarning('ReferenceError: x is not defined'), false);
+});
+
+test('ingestErrors: DROPS the Live Preview highlight self-noise (never enters the strip)', () => {
+  const before = LPD.ingestErrors([], { kind: 'runtime', message: 'real boom', file: 'app/page.tsx', line: 3 });
+  assert.strictEqual(before.length, 1);
+  const after = LPD.ingestErrors(before, { kind: 'runtime', message: ':host { all: initial } — direction dropped' });
+  assert.deepStrictEqual(after, before, 'self-noise is dropped: the list is unchanged');
+});
+
+test('normalizeTapError: a benign CSS parse warning is demoted red(runtime)→amber(warning)', () => {
+  const e = LPD.normalizeTapError({ kind: 'runtime', message: "Error in parsing value for 'gap'. Declaration dropped." });
+  assert.strictEqual(e.kind, 'warning', 'CSS parse warning is amber, never a red runtime row');
+  const real = LPD.normalizeTapError({ kind: 'runtime', message: 'TypeError: boom', file: 'app/x.tsx', line: 9 });
+  assert.strictEqual(real.kind, 'runtime', 'a real runtime error stays red');
+});
+
+test('GATE: strip does NOT light red for a benign CSS warning but STILL lights red for a real error', () => {
+  // The benign CSS warning renders as an amber "aviso" row (⚠), never the red ⛔ runtime.
+  let list = LPD.ingestErrors([], { kind: 'runtime', message: "Error in parsing value for 'direction'. Declaration dropped." });
+  let html = LPD.renderErrorStrip({ errors: list, expanded: true });
+  assert.ok(html.includes('lpd-warning'), 'CSS warning → amber lpd-warning row');
+  assert.ok(html.includes('⚠ aviso'), 'amber "aviso" badge');
+  assert.ok(html.indexOf('lpd-runtime') === -1 && html.indexOf('⛔') === -1, 'never the red runtime strip for a benign CSS warning');
+  // A REAL runtime error STILL lights red (the strip is not disarmed).
+  list = LPD.ingestErrors(list, { kind: 'runtime', message: 'TypeError: real boom', file: 'app/page.tsx', line: 7 });
+  html = LPD.renderErrorStrip({ errors: list, expanded: true });
+  assert.ok(html.includes('lpd-runtime'), 'a real runtime error still renders the red row');
+  assert.ok(html.includes('⛔ runtime'), 'red runtime badge present');
+  assert.ok(html.includes('TypeError: real boom'), 'the real error message is shown');
+});
+
 // ── concat-only contract (safe to embed in getLivePreviewHtml's outer template literal) ─────────
 
 test('concat-only guard: renderErrorStrip source has no backticks or ${} interpolation', () => {
   const src = LPD.renderErrorStrip.toString();
   assert.ok(src.indexOf('`') === -1, 'renderErrorStrip source has no backticks');
   assert.ok(src.indexOf('${') === -1, 'renderErrorStrip source has no ${ interpolation');
+});
+
+test('concat-only guard: the severity predicates serialise safely into the webview (no backticks/${})', () => {
+  for (const fn of [LPD.isLivePreviewSelfNoise, LPD.isBenignCssWarning]) {
+    const src = fn.toString();
+    assert.ok(src.indexOf('`') === -1, fn.name + ' source has no backticks');
+    assert.ok(src.indexOf('${') === -1, fn.name + ' source has no ${ interpolation');
+  }
 });
 
 // ── webview-sim: fn.toString() + new Function() (exact webview path, esc as a free var) ─────────
