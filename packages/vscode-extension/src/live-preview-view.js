@@ -151,9 +151,17 @@ function renderDirectorsCut(events, opts) {
     return '•'; // •
   }
 
+  // Local timezone, honest. The old impl sliced chars 11..19 of the ISO string = ALWAYS UTC
+  // (an event at 08:29 Sao Paulo showed 11:29). Now: new Date(ts).toLocaleTimeString honours the
+  // OS/browser timezone both in Node (respects TZ) and in the serialised webview. ts == null is
+  // guarded explicitly because new Date(null) is a VALID date (epoch 1970) -- never fabricate a
+  // time; an absent/unparseable ts degrades to an honest n/d. (No backticks: this comment travels
+  // inside renderDirectorsCut.toString() and must stay concat-safe.)
   function clock(ts) {
-    var s = String(ts == null ? '' : ts);
-    return (s.length >= 19) ? s.slice(11, 19) : '';
+    if (ts == null) return 'n/d';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return 'n/d';
+    return d.toLocaleTimeString(undefined, { hour12: false });
   }
 
   function line(e) {

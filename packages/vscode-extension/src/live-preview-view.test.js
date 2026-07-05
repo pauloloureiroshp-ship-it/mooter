@@ -138,6 +138,31 @@ test('renderDirectorsCut: escapes HTML in path/summary/tool (no injection)', () 
   assert.ok(html.includes('&lt;script&gt;bad&lt;/script&gt;'), 'escaped tool present');
 });
 
+// ── clock() timezone (MP3.1) — rendered via renderDirectorsCut (clock is nested so it travels
+//    with the fn.toString() into the webview; we assert through the real render path) ──────────
+
+test('renderDirectorsCut clock: renders the OS-local time, NOT the UTC slice (São Paulo scenario)', () => {
+  const prevTZ = process.env.TZ;
+  process.env.TZ = 'America/Sao_Paulo'; // UTC-3
+  try {
+    const iso = '2026-07-05T11:29:00.000Z'; // 11:29 UTC = 08:29 in São Paulo
+    const expectedLocal = new Date(iso).toLocaleTimeString(undefined, { hour12: false });
+    const html = LPV.renderDirectorsCut([{ ts: iso, sid: 's', kind: 'file', path: '/a.js' }], { sidKnown: true });
+    assert.ok(html.includes('>' + expectedLocal + '<'), 'time column shows the local (São Paulo) time');
+    assert.ok(html.indexOf('>11:29:00<') === -1, 'must NOT show the raw UTC slice 11:29:00');
+    assert.ok(expectedLocal !== iso.slice(11, 19), 'local tz differs from UTC for this fixture');
+  } finally {
+    if (prevTZ === undefined) delete process.env.TZ; else process.env.TZ = prevTZ;
+  }
+});
+
+test('renderDirectorsCut clock: absent/unparseable ts degrades to an honest n/d (never a fabricated time)', () => {
+  const nullTs = LPV.renderDirectorsCut([{ ts: null, sid: 's', kind: 'file', path: '/a.js' }], { sidKnown: true });
+  assert.ok(nullTs.includes('>n/d<'), 'null ts -> n/d (new Date(null)=epoch 1970 must NOT leak a fabricated time)');
+  const badTs = LPV.renderDirectorsCut([{ ts: 'not-a-date', sid: 's', kind: 'file', path: '/a.js' }], { sidKnown: true });
+  assert.ok(badTs.includes('>n/d<'), 'unparseable ts -> n/d');
+});
+
 // ── buildBrainData / renderBrain ─────────────────────────────────────────────────────────
 
 const DECISIONS = [
