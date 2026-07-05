@@ -1195,6 +1195,7 @@ class LivePreviewPanel {
     this.stage = null;       // last resolved App Stage state (lp-stage.resolveStage output)
     this.lastState = null;   // MP4: last {path, scrollY} the dev-only tap reported (for a
                              // state-preserving reload — the webview restores it after a reload)
+    this.routes = null;      // MP3.3: cached list of the site's navigable routes (landing/app/**/page.*)
     this._detecting = false;
     // Shared secret stamped into the webview HTML and onto every host→webview message. The
     // App Stage <iframe> is a DIFFERENT origin (http://localhost) and cannot read this token
@@ -1222,9 +1223,36 @@ class LivePreviewPanel {
       const s = livePreviewSnapshot();
       s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
       s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
+      s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
+  }
+  // MP3.3 — discover the site's navigable routes by walking landing/app for Next page files, then
+  // mapping them via the PURE lp-stage.discoverRoutes (route groups stripped, dynamic routes dropped).
+  // Cached (routes rarely change); a lp-redetect refreshes it. Bounded + fail-soft: any fs error →
+  // the last list (or []). Read-only — never writes into the workspace.
+  _discoverRoutes() {
+    try {
+      if (!LPS) return this.routes || [];
+      const base = path.join(this._wsRoot(), 'landing', 'app');
+      if (!fs.existsSync(base)) { this.routes = this.routes || []; return this.routes; }
+      const rels = [];
+      const walk = (dir, depth) => {
+        if (depth > 8 || rels.length > 500) return;
+        let ents;
+        try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of ents) {
+          if (e.name === 'node_modules' || e.name.charAt(0) === '.') continue;
+          const abs = path.join(dir, e.name);
+          if (e.isDirectory()) walk(abs, depth + 1);
+          else if (/^page\.(tsx|ts|jsx|js|mjs)$/.test(e.name)) rels.push(path.relative(base, abs).split(path.sep).join('/'));
+        }
+      };
+      walk(base, 0);
+      this.routes = LPS.discoverRoutes(rels);
+      return this.routes;
+    } catch { return this.routes || []; }
   }
   // App Stage detection: read config → probe candidate ports → resolveStage() (all fail-soft).
   // The last-good URL stays sticky so a transient server restart never tears down the iframe
@@ -1259,7 +1287,23 @@ class LivePreviewPanel {
       return;
     }
     if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage(); return; }
-    if (m.type === 'lp-redetect') { this._detectStage(); return; }
+    if (m.type === 'lp-redetect') { this.routes = null; this._detectStage(); return; } // also refresh routes
+    // MP3.3 — address bar / route picker. resolveNavTarget keeps the localhost origin lock in ONE
+    // place: a same-origin path navigates the frame (lp-goto, no re-point); a different localhost
+    // origin re-points the stage through the existing override lock; anything else is refused.
+    if (m.type === 'lp-nav-input') {
+      const origin = (this.stage && this.stage.url) ? this.stage.url : null;
+      const r = LPS ? LPS.resolveNavTarget(origin, m.input) : { kind: 'invalid' };
+      if (r.kind === 'path') {
+        this.urlError = null;
+        this.panel.webview.postMessage({ type: 'lp-goto', __t: this.token, url: r.url });
+      } else if (r.kind === 'origin') {
+        this.overrideUrl = r.url; this.urlError = null; this._detectStage(); // r.url is already normalized
+      } else {
+        this.urlError = 'Rota/URL inválido — usa /rota ou http://localhost:<porta>'; this._post();
+      }
+      return;
+    }
     // ── MP4 (Honest Diagnostics) host commands. Each is a REAL action (honest-controls: no dead
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
@@ -1400,7 +1444,9 @@ function getLivePreviewHtml(token) {
   #lp-url{width:190px;max-width:40vw;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
   #lp-controls button{font:12px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-controls button:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
-  #lp-controls button:focus-visible,#lp-url:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-back,#lp-fwd{padding:3px 7px;font-weight:700}
+  #lp-routes{font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 5px;max-width:24vw;cursor:pointer}
+  #lp-controls button:focus-visible,#lp-url:focus-visible,#lp-routes:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
@@ -1464,8 +1510,11 @@ function getLivePreviewHtml(token) {
     <div id="lp-toolbar">
       <div id="lp-status" class="lp-status"><span class="lps-dot lps-wait"></span><span class="lps-txt lps-nd">a detetar o dev server…</span></div>
       <div id="lp-controls">
-        <input id="lp-url" type="text" placeholder="http://localhost:7819" aria-label="URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
-        <button id="lp-go" title="Abrir este URL no App Stage">Abrir</button>
+        <button id="lp-back" title="Recuar no site" aria-label="Recuar">‹</button>
+        <button id="lp-fwd" title="Avançar no site" aria-label="Avançar">›</button>
+        <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
+        <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
+        <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
       </div>
@@ -1535,6 +1584,49 @@ function applyStage(stage){
     lpState = null; lpPendingRestore = null; // a different URL is a different app — never restore the old route/scroll onto it
     frame.setAttribute('src', st.url);
   }
+}
+// ── MP3.3 multi-page navigation (webview side) ──────────────────────────────────────────────
+// Navigate the frame WITHIN the current stage origin. curSrc stays = the stage root, so the App
+// Stage poll (applyStage) never fights this move (its guard is curSrc !== st.url). The host already
+// vetted the URL (resolveNavTarget origin lock) — we re-assert same-origin here as defence in depth.
+function navFrameTo(url){
+  const frame=document.getElementById('lp-frame');
+  if(!frame||!curOrigin) return;
+  let u; try{ u=new URL(url); }catch(e){ return; }
+  if(u.origin!==curOrigin) return; // same-origin only — a re-point goes through the stage detector
+  const p=u.pathname+u.search;
+  lpState={ path:p, scrollY:0 }; lpPendingRestore=null; // the target IS the new route — no stale restore
+  frame.setAttribute('src', url);
+  reflectRoute(p);
+}
+// Reflect the framed site's current route in the address bar (when not being typed in) + the picker.
+function reflectRoute(path){
+  const p=path||'/';
+  const inp=document.getElementById('lp-url');
+  if(inp && document.activeElement!==inp) inp.value=p;
+  const sel=document.getElementById('lp-routes');
+  if(sel){ let has=false; for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===p){ has=true; break; } } sel.value=has?p:''; }
+}
+// Rebuild the routes picker ONLY when the set changes (never wipe a mid-poll selection). esc-safe.
+let lpRoutesSig=null;
+function populateRoutes(routes){
+  const sel=document.getElementById('lp-routes');
+  if(!sel) return;
+  const list=Array.isArray(routes)?routes:[];
+  const sig=list.join('|');
+  if(sig===lpRoutesSig) return;
+  lpRoutesSig=sig;
+  const cur=sel.value;
+  let html='<option value="">rotas…</option>';
+  for(let i=0;i<list.length;i++){ const r=esc(list[i]); html+='<option value="'+r+'">'+r+'</option>'; }
+  sel.innerHTML=html;
+  if(cur){ for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===cur){ sel.value=cur; break; } } }
+}
+// Back/forward drive the framed site's own history via the tap (cross-origin: the parent cannot call
+// frame.contentWindow.history directly). Origin-targeted postMessage, never '*'.
+function frameHistory(dir){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-history', dir }, curOrigin); }catch(e){} }
 }
 // ── MP4 Honest Diagnostics (webview side) ──────────────────────────────────────────────────
 // The App Stage <iframe> is cross-origin, so the dev-only tap inside the landing relays its
@@ -1619,6 +1711,7 @@ window.addEventListener('message', (ev) => {
     if (!curOrigin || ev.origin !== curOrigin) return; // ORIGIN LOCK (event.origin validated)
     if (m.type === 'lp-error'){ lpIngest(m); }
     else if (m.type === 'lp-error-clear'){ lpClearErrors(m.kind); }
+    else if (m.type === 'lp-nav'){ if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav)
     else if (m.type === 'lp-state'){
       if (typeof m.path === 'string'){
         lpState = { path: m.path.slice(0,2048), scrollY: (typeof m.scrollY === 'number' && isFinite(m.scrollY)) ? m.scrollY : 0 };
@@ -1631,13 +1724,22 @@ window.addEventListener('message', (ev) => {
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from
   //    MP2). The framed iframe cannot read HOST_TOKEN, so it cannot forge this.
   if (m.__t !== HOST_TOKEN) return;
-  if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); }
+  if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes); }
+  else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
 });
 const urlInput=document.getElementById('lp-url');
-function submitUrl(){ if(urlInput) vsapi.postMessage({ type:'lp-set-url', url: urlInput.value }); }
+// The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin
+// path moves the frame; a different localhost origin re-points the stage; anything else is refused).
+function submitUrl(){ if(urlInput) vsapi.postMessage({ type:'lp-nav-input', input: urlInput.value }); }
 const goBtn=document.getElementById('lp-go');
 if(goBtn) goBtn.addEventListener('click', submitUrl);
 if(urlInput) urlInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitUrl(); });
+const routesSel=document.getElementById('lp-routes');
+if(routesSel) routesSel.addEventListener('change', ()=>{ const v=routesSel.value; if(v) vsapi.postMessage({ type:'lp-nav-input', input:v }); });
+const backBtn=document.getElementById('lp-back');
+if(backBtn) backBtn.addEventListener('click', ()=> frameHistory('back'));
+const fwdBtn=document.getElementById('lp-fwd');
+if(fwdBtn) fwdBtn.addEventListener('click', ()=> frameHistory('forward'));
 const reBtn=document.getElementById('lp-redetect');
 if(reBtn) reBtn.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-redetect' }));
 const autoBtn=document.getElementById('lp-auto');

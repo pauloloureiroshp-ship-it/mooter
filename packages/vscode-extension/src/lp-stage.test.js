@@ -197,6 +197,69 @@ test('renderStageStatus: escapes HTML in url/reason (no injection)', () => {
   assert.ok(evil.includes('&lt;img'));
 });
 
+// ── MP3.3 multi-page navigation — route discovery + address-bar resolution ─────────────────
+
+test('pagePathToRoute: maps page files to routes; strips route groups; drops non-pages', () => {
+  assert.strictEqual(LPS.pagePathToRoute('app/page.tsx'), '/');
+  assert.strictEqual(LPS.pagePathToRoute('(marketing)/install/page.tsx'), '/install');
+  assert.strictEqual(LPS.pagePathToRoute('app/(app)/dashboard/page.tsx'), '/dashboard');
+  assert.strictEqual(LPS.pagePathToRoute('landing/app/(marketing)/under-the-hood/page.tsx'), '/under-the-hood', 'hyphens preserved');
+  assert.strictEqual(LPS.pagePathToRoute('app/(marketing)/layout.tsx'), null, 'layout is not a page');
+  assert.strictEqual(LPS.pagePathToRoute('app/foo/route.ts'), null, 'API route handler is not a page');
+});
+
+test('pagePathToRoute: dynamic + parallel segments are not literally navigable (null)', () => {
+  assert.strictEqual(LPS.pagePathToRoute('(marketing)/packs/[id]/page.tsx'), null);
+  assert.strictEqual(LPS.pagePathToRoute('app/blog/[[...slug]]/page.tsx'), null);
+  assert.strictEqual(LPS.pagePathToRoute('app/@modal/page.tsx'), '/', 'parallel slot folder contributes no URL segment');
+});
+
+test('discoverRoutes: sorted + de-duplicated, home first, dynamic dropped', () => {
+  const routes = LPS.discoverRoutes([
+    'app/(marketing)/install/page.tsx',
+    'app/page.tsx',
+    'app/(app)/dashboard/page.tsx',
+    'app/(marketing)/packs/[id]/page.tsx', // dropped (dynamic)
+    'app/(marketing)/packs/page.tsx',
+    'app/page.tsx', // dup
+    'app/(marketing)/layout.tsx', // not a page
+  ]);
+  assert.deepStrictEqual(routes, ['/', '/dashboard', '/install', '/packs']);
+});
+
+test('discoverRoutes: never throws on garbage input', () => {
+  assert.deepStrictEqual(LPS.discoverRoutes(null), []);
+  assert.deepStrictEqual(LPS.discoverRoutes(['', null, 'not-a-page.tsx', 42]), []);
+});
+
+test('sanitizeNavPath: single leading slash, strips whitespace/control, keeps hyphens', () => {
+  assert.strictEqual(LPS.sanitizeNavPath('  /under-the-hood  '), '/under-the-hood');
+  assert.strictEqual(LPS.sanitizeNavPath('install'), '/install');
+  assert.strictEqual(LPS.sanitizeNavPath(''), '/');
+  assert.strictEqual(LPS.sanitizeNavPath(null), '/');
+  assert.strictEqual(LPS.sanitizeNavPath('/a\tb\nc'), '/abc', 'embedded whitespace removed');
+});
+
+test('resolveNavTarget: same-origin path/URL navigates within the stage (never re-points)', () => {
+  const o = 'http://localhost:7819';
+  assert.deepStrictEqual(LPS.resolveNavTarget(o, '/install'), { kind: 'path', url: 'http://localhost:7819/install' });
+  assert.deepStrictEqual(LPS.resolveNavTarget(o, 'http://localhost:7819/packs'), { kind: 'path', url: 'http://localhost:7819/packs' });
+  assert.deepStrictEqual(LPS.resolveNavTarget(o, 'localhost:7819'), { kind: 'path', url: 'http://localhost:7819' }, 'bare current origin → root, no trailing slash fabricated');
+});
+
+test('resolveNavTarget: a DIFFERENT localhost origin is a stage re-point (host lock re-runs)', () => {
+  const r = LPS.resolveNavTarget('http://localhost:7819', 'localhost:3000/x');
+  assert.strictEqual(r.kind, 'origin');
+  assert.strictEqual(r.url, 'http://localhost:3000');
+});
+
+test('resolveNavTarget: origin lock — non-localhost / unparseable is refused (never navigates)', () => {
+  assert.deepStrictEqual(LPS.resolveNavTarget('http://localhost:7819', 'http://evil.com/x'), { kind: 'invalid' });
+  assert.deepStrictEqual(LPS.resolveNavTarget('http://localhost:7819', 'javascript:alert(1)'), { kind: 'invalid' });
+  assert.deepStrictEqual(LPS.resolveNavTarget(null, '/install'), { kind: 'invalid' }, 'a bare path with no known origin cannot navigate');
+  assert.deepStrictEqual(LPS.resolveNavTarget('http://localhost:7819', ''), { kind: 'invalid' });
+});
+
 // ── concat-only contract (safe to embed in getLivePreviewHtml's outer template literal) ────
 
 test('concat-only guard: renderStageStatus source has no backticks or ${} interpolation', () => {

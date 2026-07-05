@@ -170,6 +170,18 @@ export function reportBoundaryError(error: unknown, kind: TapKind = 'runtime'): 
   }
 }
 
+/**
+ * buildNavPath — PURE. The route string the tap reports to the cockpit for the address bar / route
+ * picker: pathname + search, defaulting to "/". Kept tiny + pure so the MP3.3 sync is unit-provable
+ * without a DOM (mirrors why parseOverlay/parseHmrError live here).
+ */
+export function buildNavPath(pathname?: string | null, search?: string | null): string {
+  const p = typeof pathname === 'string' && pathname ? pathname : '/';
+  const s = typeof search === 'string' ? search : '';
+  const path = (p.charAt(0) === '/' ? p : '/' + p) + s;
+  return path.slice(0, 2048);
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -345,10 +357,35 @@ export function installLpErrorTap(): void {
   // scrollY:0 and clobber the host's retained pre-reload position before the restore is delivered.
   // The host restores from what it already holds (see lpSendRestore); the first real scroll re-syncs.
 
+  // ── 5b. Route sync (MP3.3 multi-page nav). Tell the cockpit which route the framed site is on so
+  //    its address bar + route picker track reality — on back/forward (popstate) AND on Next <Link>
+  //    client navigations, which use history.pushState and do NOT fire popstate. Unlike lp-state
+  //    (scroll restore), an initial lp-nav is safe + wanted (the picker shows the landing route at
+  //    once), and it carries no scroll, so it can never clobber a restore.
+  const emitNav = (): void => post({ type: 'lp-nav', path: buildNavPath(location.pathname, location.search) });
+  window.addEventListener('popstate', emitNav);
+  (['pushState', 'replaceState'] as const).forEach((k) => {
+    const orig = history[k] as (...a: unknown[]) => unknown;
+    if (typeof orig !== 'function') return;
+    history[k] = function (this: History, ...a: unknown[]) {
+      const r = orig.apply(this, a);
+      try { emitNav(); } catch { /* diagnostics must never break navigation */ }
+      return r;
+    } as History[typeof k];
+  });
+  emitNav(); // initial route
+
   window.addEventListener('message', (ev: MessageEvent) => {
-    if (ev.source !== window.parent) return; // only the embedding cockpit may drive a restore
+    if (ev.source !== window.parent) return; // only the embedding cockpit may drive us
     const d = ev.data;
-    if (!d || typeof d !== 'object' || d.type !== 'lp-restore') return;
+    if (!d || typeof d !== 'object') return;
+    // MP3.3 — the cockpit's back/forward buttons drive the framed site's OWN history (the parent
+    // cannot touch a cross-origin frame's history object directly). Benign: only back()/forward().
+    if (d.type === 'lp-history') {
+      try { if (d.dir === 'back') history.back(); else if (d.dir === 'forward') history.forward(); } catch { /* best-effort */ }
+      return;
+    }
+    if (d.type !== 'lp-restore') return;
     try {
       const cur = location.pathname + location.search;
       if (typeof d.path === 'string' && d.path && d.path !== cur) history.replaceState(null, '', d.path);
