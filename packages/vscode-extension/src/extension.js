@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const data_ = require('./data.js');
 const extra = require('./host-extra.js');
+let DISPATCH; try { DISPATCH = require('./dispatch.js'); } catch { DISPATCH = null; } // ⇄ Moo Dispatch F0 — pure parser/validators/launch-ladder + renderDispatch (host plumbing below)
 // WCOCKPIT: cowork-waiting + mode-registry (aditivo; fallback seguro se ficheiros ausentes)
 let COWORK = null, MR = null;
 try { COWORK = require('./cowork-waiting'); } catch { COWORK = { badge: () => null, CSS: '' }; }
@@ -294,6 +295,17 @@ class DataService {
         this.snapshot.doctor = (prev && prev.doctor) || [];
       }
     } catch { this.snapshot.doctor = (prev && prev.doctor) || []; }
+    // ⇄ MOO DISPATCH F0 — monta a fila de dispatch (aditivo). Deep-gated (lista _handoff/dispatch +
+    // probes `where claude`/reg). Reusa prev nos ticks shallow. Fail-soft → null (nunca bloqueia).
+    try {
+      if (DISPATCH && doDeep) {
+        const dspRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath)
+          || (recent && recent[0] && recent[0].cwd) || process.cwd();
+        this.snapshot.dispatch = await dispatchSnapshot(dspRoot);
+      } else if (DISPATCH) {
+        this.snapshot.dispatch = (prev && prev.dispatch) || null;
+      }
+    } catch { this.snapshot.dispatch = (prev && prev.dispatch) || null; }
     try {
       // WCOCKPIT polish: pull the founder back when a parallel session newly needs a reply.
       // Fires only on the false->true transition (per session), capped, never on first snapshot.
@@ -439,6 +451,96 @@ function fleetSnapshot() {
   return null;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ⇄ MOO DISPATCH F0 — host-side plumbing (pure logic lives in dispatch.js, testável sem vscode).
+// Aqui vivem os side-effects (fs/git/probes); dispatch.js só recebe seams. Fail-soft everywhere:
+// um erro nunca deve poder branquear o cockpit. GUARD: git host-side = APENAS `worktree add`.
+// ════════════════════════════════════════════════════════════════════════════
+function _dspExists(p) { try { return fs.existsSync(p); } catch { return false; } }
+
+// Pre-flight probes cacheados: `where claude` (Plano A viável?) + registo do deep-link claude-cli://
+// (Plano B viável?). Baratos mas não gratuitos — cache 60s para o tick de refresh não os martelar.
+let _dspProbe = { ts: 0, claudeOnPath: false, deepLink: false, done: false };
+async function dispatchProbe() {
+  const now = Date.now();
+  if (_dspProbe.done && (now - _dspProbe.ts) < 60000) return _dspProbe;
+  let claudeOnPath = false, deepLink = false;
+  try { const r = await extra.execTool(process.platform === 'win32' ? 'where' : 'which', ['claude'], 2500); claudeOnPath = !!(r && r.ok && r.out); } catch { /* fail-soft */ }
+  if (process.platform === 'win32') { try { const r = await extra.execTool('reg', ['query', 'HKCU\\Software\\Classes\\claude-cli', '/ve'], 2500); deepLink = !!(r && r.ok); } catch { /* fail-soft */ } }
+  _dspProbe = { ts: now, claudeOnPath, deepLink, done: true };
+  return _dspProbe;
+}
+
+// .jsonl das sessões com mtime (host-extra.listSessionFiles não é exportado — mesmo readdir).
+function _dspSessionFiles() {
+  const root = path.join(require('os').homedir(), '.claude', 'projects');
+  const out = [];
+  try {
+    for (const proj of fs.readdirSync(root)) {
+      const pdir = path.join(root, proj);
+      let st; try { st = fs.statSync(pdir); } catch { continue; }
+      if (!st.isDirectory()) continue;
+      for (const f of fs.readdirSync(pdir)) {
+        if (!f.endsWith('.jsonl')) continue;
+        try { out.push({ file: path.join(pdir, f), mtime: fs.statSync(path.join(pdir, f)).mtimeMs }); } catch { /* skip */ }
+      }
+    }
+  } catch { /* no projects dir */ }
+  return out;
+}
+
+// cwds recentes das sessões — a MESMA ground truth de recentSessions (_sessionCwd sobre o head do
+// transcript). Limitado aos ficheiros tocados nos últimos 45min → a janela de ocupação (30min) e o
+// poll do launch só resolvem uma mão-cheia de heads (barato). [{ file, cwd, mtime }].
+function _dspSessionCwds() {
+  const now = Date.now();
+  const WINDOW = 45 * 60 * 1000;
+  const out = [];
+  for (const f of _dspSessionFiles()) {
+    if ((now - f.mtime) > WINDOW) continue;
+    let cwd = null; try { cwd = extra._sessionCwd(f.file); } catch { /* skip */ }
+    if (cwd) out.push({ file: f.file, cwd, mtime: f.mtime });
+  }
+  return out;
+}
+
+// Monta a snapshot ⇄ Dispatch para o webview: lista _handoff/dispatch/*.md → parse → pré-voo por
+// cartão (existência da worktree via disco · ocupação via cwds recentes · plano via probes).
+async function dispatchSnapshot(wsRoot) {
+  if (!DISPATCH || !wsRoot) return null;
+  const dispatchDir = path.join(wsRoot, '_handoff', 'dispatch');
+  // Cria o dir uma vez (não a cada tick — evita write-on-read no loop de refresh passivo).
+  if (!_dspExists(dispatchDir)) { try { fs.mkdirSync(dispatchDir, { recursive: true }); } catch { /* fail-soft */ } }
+  const probe = await dispatchProbe();
+  const now = Date.now();
+  const recentCwds = _dspSessionCwds();
+  const parent = path.dirname(wsRoot);
+  let names = [];
+  try { names = fs.readdirSync(dispatchDir).filter((n) => /\.md$/i.test(n)); } catch { /* empty */ }
+  const cards = [];
+  for (const name of names) {
+    const file = path.join(dispatchDir, name);
+    let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
+    const parsed = DISPATCH.parseMasterprompt(text);
+    parsed.id = name; parsed.file = file;
+    let worktreeExists = false, occ = { occupied: false, ageMs: null };
+    if (parsed.worktree) {
+      const san = DISPATCH.sanitizeWorktreeName(parsed.worktree);
+      if (san.ok) {
+        const wtAbs = path.join(parent, san.name);
+        worktreeExists = _dspExists(wtAbs);
+        occ = DISPATCH.isWorktreeOccupied({ files: recentCwds, targetCwd: wtAbs, now });
+      }
+    }
+    cards.push(DISPATCH.buildPreflight(parsed, {
+      worktreeExists, occupied: occ.occupied, occupiedAgeMs: occ.ageMs,
+      claudeOnPath: probe.claudeOnPath, deepLinkAvailable: probe.deepLink,
+    }));
+  }
+  cards.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+  return { cards, dispatchDir, claudeOnPath: probe.claudeOnPath, deepLinkAvailable: probe.deepLink };
+}
+
 class CockpitProvider {
   constructor(ctx, data) { this.ctx = ctx; this.data = data; }
   resolveWebviewView(view) {
@@ -463,7 +565,18 @@ class CockpitProvider {
     // Throttle polling to the panel's visibility (fewer background CLI spawns when hidden).
     this.data.setVisible(view.visible);
     const vis = view.onDidChangeVisibility(() => { this.data.setVisible(view.visible); reWarm(); });
-    view.onDidDispose(() => { sub.dispose(); vis.dispose(); });
+    // ⇄ MOO DISPATCH F0 — watcher de _handoff/dispatch/*.md: largar um masterprompt lá faz o cartão
+    // aparecer JÁ (o deep-refresh também o apanharia, mas isto é instantâneo). Best-effort, guardado.
+    let dspWatcher = null;
+    try {
+      const _wf = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+      if (_wf) {
+        dspWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(_wf, '_handoff/dispatch/*.md'));
+        const bump = () => { try { this.data.refresh(true); } catch { /* best-effort */ } };
+        dspWatcher.onDidCreate(bump); dspWatcher.onDidDelete(bump); dspWatcher.onDidChange(bump);
+      }
+    } catch { /* watcher best-effort — o refresh já re-lista a fila */ }
+    view.onDidDispose(() => { sub.dispose(); vis.dispose(); try { if (dspWatcher) dspWatcher.dispose(); } catch { /* no-op */ } });
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
@@ -655,6 +768,97 @@ class CockpitProvider {
         vscode.commands.executeCommand('mooter.openSessionTab', m.arg);
         const _id = String((m.arg && m.arg.id) || m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
         if (_id) { this.data.selectedSession = _id; this.data.refresh(true); }
+      }
+      // ════════════════════════════════════════════════════════════════════════
+      // ⇄ MOO DISPATCH F0 — masterprompt → worktree → terminal integrado PRÉ-PREENCHIDO.
+      // Segurança: re-parse no clique · nome saneado · base sem arg-injection + rev-parse --verify ·
+      // `git worktree add` host-side (execFile, nunca -f) · o texto digitado é a CONSTANTE buildBootstrap
+      // e SÓ depois de detectar o .jsonl da sessão (nunca às cegas para o shell). Enter = do Paulo.
+      // ════════════════════════════════════════════════════════════════════════
+      if (m.cmd === 'dispatchRun' && DISPATCH) {
+        const file = String(m.arg || '');
+        let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { vscode.window.showWarningMessage('🐮 masterprompt não encontrado — refresca a fila.'); return; }
+        const parsed = DISPATCH.parseMasterprompt(text); parsed.file = file;
+        if (parsed.needsInput) { vscode.window.showWarningMessage('🐮 sem worktree/base — usa "Indicar worktree + base".'); return; }
+        const san = DISPATCH.sanitizeWorktreeName(parsed.worktree);
+        if (!san.ok) { vscode.window.showErrorMessage('🛑 nome de worktree inválido: ' + san.reason); return; }
+        // base: sem arg-injection (não pode começar por '-' → seria opção do git) e ref válida.
+        if (!/^[A-Za-z0-9._/-]+$/.test(String(parsed.base)) || String(parsed.base).charAt(0) === '-') {
+          vscode.window.showErrorMessage('🛑 base inválida: "' + String(parsed.base).slice(0, 40) + '"'); return;
+        }
+        const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+        const bv = await extra.execTool('git', ['-C', wsRoot, 'rev-parse', '--verify', '--quiet', String(parsed.base) + '^{commit}'], 4000);
+        if (!bv.ok) { vscode.window.showErrorMessage('🛑 base "' + parsed.base + '" não existe neste repo (git rev-parse falhou).'); return; }
+        const parent = path.dirname(wsRoot);
+        const worktreeAbs = path.join(parent, san.name);
+        const probe = await dispatchProbe();
+        const registry = path.join(wsRoot, '_handoff', 'dispatch', 'dispatch.jsonl');
+        const res = await DISPATCH.orchestrateLaunch(
+          { title: parsed.title, worktree: san.name, base: parsed.base, file, needsInput: false },
+          {
+            worktreeAbs, base: parsed.base, worktreeExists: _dspExists(worktreeAbs),
+            claudeOnPath: probe.claudeOnPath, deepLinkAvailable: probe.deepLink,
+            listSessionCwds: () => _dspSessionCwds(),
+            worktreeAdd: async (name, base) => { const r = await extra.execTool('git', ['-C', wsRoot, 'worktree', 'add', path.join(parent, name), base], 25000); return { ok: r.ok, out: r.out }; },
+            writeMasterprompt: async () => { try { const dd = path.join(worktreeAbs, '_dispatch'); fs.mkdirSync(dd, { recursive: true }); fs.writeFileSync(path.join(dd, 'MASTERPROMPT.md'), text, 'utf8'); return { ok: true }; } catch (e) { return { ok: false, out: String((e && e.message) || e) }; } },
+            createTerminal: (o) => vscode.window.createTerminal({ cwd: o.cwd, name: o.name }),
+            openExternal: (u) => { try { vscode.env.openExternal(vscode.Uri.parse(u)); } catch { /* no-op */ } },
+            planC: async () => { try { await vscode.env.clipboard.writeText(DISPATCH.buildBootstrap()); } catch { /* no-op */ } vscode.commands.executeCommand('mooter.newSession'); },
+            record: (entry) => { try { fs.appendFileSync(registry, JSON.stringify(entry) + '\n', 'utf8'); } catch { /* rasto best-effort */ } },
+            status: (msg) => vscode.window.setStatusBarMessage(msg, 6000),
+            now: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+            timeoutMs: 15000, pollMs: 700,
+          }
+        );
+        if (res && res.blocked) vscode.window.showWarningMessage('🐮 worktree ocupada por uma sessão viva — dispatch bloqueado (evita pisar trabalho).');
+        this.data.refresh(true);
+      }
+      // ⇄ Dispatch — importar *MASTERPROMPT*.md existentes de _handoff/ para a fila (retrocompat).
+      if (m.cmd === 'dispatchImport' && DISPATCH) {
+        const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+        const hoff = path.join(wsRoot, '_handoff');
+        let names = []; try { names = fs.readdirSync(hoff).filter((n) => /MASTERPROMPT.*\.md$/i.test(n)); } catch { /* none */ }
+        if (!names.length) { vscode.window.showInformationMessage('🐮 nenhum *MASTERPROMPT*.md em _handoff/.'); return; }
+        const pick = await vscode.window.showQuickPick(names, { placeHolder: 'Importar masterprompt para a fila de dispatch' });
+        if (!pick) return;
+        try { const dst = path.join(hoff, 'dispatch', pick); fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(path.join(hoff, pick), dst); vscode.window.setStatusBarMessage('🐮 ' + pick + ' → fila de dispatch', 4000); } catch (e) { vscode.window.showErrorMessage('🛑 não consegui importar: ' + String((e && e.message) || e)); }
+        this.data.refresh(true);
+      }
+      // ⇄ Dispatch — colar do clipboard: grava para _handoff/dispatch/ e o refresh apanha.
+      if (m.cmd === 'dispatchPaste' && DISPATCH) {
+        let clip = ''; try { clip = await vscode.env.clipboard.readText(); } catch { /* empty */ }
+        if (!clip || clip.trim().length < 20) { vscode.window.showWarningMessage('🐮 clipboard vazio ou curto demais para um masterprompt.'); return; }
+        const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+        const parsed = DISPATCH.parseMasterprompt(clip);
+        const slug = (parsed.worktree || 'pasted').replace(/[^A-Za-z0-9._-]/g, '-').slice(0, 40);
+        const dst = path.join(wsRoot, '_handoff', 'dispatch', slug + '-' + Date.now() + '.md');
+        try { fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.writeFileSync(dst, clip, 'utf8'); vscode.window.setStatusBarMessage('🐮 masterprompt colado → fila', 4000); } catch (e) { vscode.window.showErrorMessage('🛑 não consegui gravar: ' + String((e && e.message) || e)); }
+        this.data.refresh(true);
+      }
+      // ⇄ Dispatch — masterprompt sem worktree: pergunta worktree+base e injecta o front-matter canónico.
+      if (m.cmd === 'dispatchAsk' && DISPATCH) {
+        const file = String(m.arg || '');
+        const wt = await vscode.window.showInputBox({ prompt: 'Nome da worktree (ex.: frugal-mp3)', ignoreFocusOut: true });
+        if (!wt) return;
+        const san = DISPATCH.sanitizeWorktreeName(wt);
+        if (!san.ok) { vscode.window.showErrorMessage('🛑 nome inválido: ' + san.reason); return; }
+        const base = await vscode.window.showInputBox({ prompt: 'Base (branch/ref)', value: 'main', ignoreFocusOut: true });
+        if (!base) return;
+        const baseClean = String(base).replace(/[^A-Za-z0-9._/-]/g, '');
+        if (!baseClean || baseClean.charAt(0) === '-') { vscode.window.showErrorMessage('🛑 base inválida.'); return; }
+        try {
+          let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { /* novo */ }
+          const fm = '---\ndispatch: { worktree: ' + san.name + ', base: ' + baseClean + ', model: sonnet, mode: fresh }\n---\n';
+          fs.writeFileSync(file, fm + text, 'utf8');
+          vscode.window.setStatusBarMessage('🐮 worktree+base gravados no masterprompt', 4000);
+        } catch (e) { vscode.window.showErrorMessage('🛑 não consegui gravar: ' + String((e && e.message) || e)); }
+        this.data.refresh(true);
+      }
+      // ⇄ Dispatch — cancelar cartão: NÃO apaga o ficheiro, só o tira da fila (.md → .md.done).
+      if (m.cmd === 'dispatchDismiss' && DISPATCH) {
+        const file = String(m.arg || '');
+        try { if (file && /\.md$/i.test(file)) { fs.renameSync(file, file + '.done'); vscode.window.setStatusBarMessage('🐮 cartão removido da fila (ficheiro preservado .md.done)', 4000); } } catch (e) { vscode.window.showErrorMessage('🛑 não consegui remover: ' + String((e && e.message) || e)); }
+        this.data.refresh(true);
       }
       // ════════════════════════════════════════════════════════════════════════
       // WCOCKPIT-9 (Bloco C): fluxo Commit & Push por sessão. SEMPRE host-side (execFile git,
@@ -1069,6 +1273,7 @@ function project(s) {
     herd: s.herd, recent: s.recent || [],
     mc: s.mc || null, // Mission Control · Frente 0: the single snapshot the 4 views render from
     pc: s.pc || null, // Delivery Cockpit · Frente B: the ProjectCommandSnapshot the 🛩️ tab renders from
+    dispatch: s.dispatch || null, // ⇄ Moo Dispatch F0: fila de masterprompts → cartões de pré-voo
     loopActive: !!s.loopActive, // WCOCKPIT-9 (Bloco F)
     fleet: s.fleet || null, // Deck Floor (Fase 2): pillar aggregate for the Fleet Console
     localTok: s.localTok || null,
@@ -2487,7 +2692,7 @@ function getHtml(guardianPct = null) {
 <div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
 <div class="tabs">
   <!-- R1 · priority-collapse: 4 delivery tabs stay in the bar; the rest fold into ··· (nothing loses access). -->
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div><div class="tab" data-v="arch">🌳 Arquitectura</div><details class="taboverflow" id="taboverflow"><summary aria-haspopup="menu" aria-label="mais separadores (Setup · Agents · Decisions · Doctor)" title="mais — Setup · Agents · Decisions · Doctor">··· <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="Mais separadores"><button class="mi" role="menuitemradio" data-v="setup">⚙️ Setup</button><button class="mi" role="menuitemradio" data-v="herd">🤖 Agents</button><button class="mi" role="menuitemradio" data-v="decisions">🔬 Decisions</button><button class="mi" role="menuitemradio" data-v="doctor">🩺 Doctor</button></div></details>
+  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div><div class="tab" data-v="arch">🌳 Arquitectura</div><div class="tab" data-v="dispatch">⇄ Dispatch</div><details class="taboverflow" id="taboverflow"><summary aria-haspopup="menu" aria-label="mais separadores (Setup · Agents · Decisions · Doctor)" title="mais — Setup · Agents · Decisions · Doctor">··· <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="Mais separadores"><button class="mi" role="menuitemradio" data-v="setup">⚙️ Setup</button><button class="mi" role="menuitemradio" data-v="herd">🤖 Agents</button><button class="mi" role="menuitemradio" data-v="decisions">🔬 Decisions</button><button class="mi" role="menuitemradio" data-v="doctor">🩺 Doctor</button></div></details>
 </div>
 </div>
 <!-- B9 — command bar (not a chatbot): natural language OR a /command resolves to a real Mooter command via the classifier; a leading "/" runs straight through. -->
@@ -2501,6 +2706,7 @@ function getHtml(guardianPct = null) {
 <div class="view" id="view-doctor"><div id="v-doctor"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Terminal</div><div id="v-terminal"></div></div>
 <!-- MISSION CONTROL TAB · Frente G — view container (renderMissionControl preenche #v-mc) --><div class="view" id="view-mc"><div id="v-mc"><div class="empty">Mission Control — à espera do primeiro snapshot…</div></div></div>
 <!-- DELIVERY COCKPIT TAB · Frente B — view container (renderProjectCommand preenche #v-pc) --><div class="view" id="view-pc"><div id="v-pc"><div class="empty">🛩️ Project command — à espera do primeiro snapshot…</div></div></div>
+<!-- ⇄ MOO DISPATCH TAB · F0 — view container (renderDispatchView preenche #v-dispatch a partir de s.dispatch) --><div class="view" id="view-dispatch"><div id="v-dispatch"><div class="empty">⇄ Dispatch — à espera do primeiro snapshot…</div></div></div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();const $=(q)=>document.querySelector(q);
 function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.v===name;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false');x.tabIndex=on?0:-1;});document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+name));
@@ -2746,6 +2952,10 @@ const STAGE_META=${RR?JSON.stringify(RR.STAGE_META):'[]'};
 const deriveStages=${RR?RR.deriveStages.toString():'function deriveStages(){return {stages:{},safe:{level:"green",label:"",action:null},behind:null};}'};
 const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
+// ⇄ MOO DISPATCH F0 — renderDispatch serializado (concat-only, sem backticks; usa esc() global do webview).
+// Guarda a fonte válida (começa por "function") — sob os stubs de teste que fazem mock de dispatch.js,
+// String(proxy)='' e cairíamos num "const renderDispatch=;" inválido; nesses casos usa o fallback.
+const renderDispatch=${(DISPATCH && DISPATCH.renderDispatch && String(DISPATCH.renderDispatch).indexOf('function') === 0) ? String(DISPATCH.renderDispatch) : 'function renderDispatch(){return "";}'};
 // HONEST-CONTROLS D2: inbox meta-classifier + per-repo collapse (siblings — renderInbox calls them)
 const isMetaPath=${RR&&RR.isMetaPath?RR.isMetaPath.toString():'function isMetaPath(){return false;}'};
 const inboxRepoSummary=${RR&&RR.inboxRepoSummary?RR.inboxRepoSummary.toString():'function inboxRepoSummary(){return [];}'};
@@ -2954,6 +3164,10 @@ function renderPcView(s){
   let html;try{html=renderProjectCommand(s.pc,{axis:pcAxis});}catch(er){html='<div class="pc-nd">Project command — erro de render · '+esc(String(er&&er.message||er))+'</div>';}
   host.innerHTML=html;try{wirePc(host);}catch(e){}
 }
+// ⇄ MOO DISPATCH TAB · F0 — renderiza a fila de cartões (s.dispatch) e liga os botões. renderDispatch
+// é serializado de dispatch.js (concat-only). wireDispatch traduz data-dcmd → send() ao host.
+function wireDispatch(root){if(!root)return;root.querySelectorAll('[data-dcmd]').forEach(function(b){b.onclick=function(){var cmd=b.dataset.dcmd;var f=b.dataset.dfile||'';if(cmd==='run')send('dispatchRun',f);else if(cmd==='import')send('dispatchImport');else if(cmd==='paste')send('dispatchPaste');else if(cmd==='ask')send('dispatchAsk',f);else if(cmd==='dismiss')send('dispatchDismiss',f);};});}
+function renderDispatchView(s){var host=document.getElementById('v-dispatch');if(!host)return;var d=(s&&s.dispatch)||{cards:[]};var html;try{html=renderDispatch(d);}catch(er){html='<div class="empty">⇄ Dispatch — erro de render · '+esc(String(er&&er.message||er))+'</div>';}host.innerHTML=html;try{wireDispatch(host);}catch(e){}}
 // ── MISSION CONTROL TAB · Frente G — Moo assistant state + wiring (survives the 7s re-render).
 // Stream comes back as moo/moo-stream/moo-done (Frente 0 host handlers); mcApply re-paints.
 let mcMoo={q:'',out:'',status:'idle',model:null,focused:false};
@@ -3083,6 +3297,7 @@ window.addEventListener('message',(e)=>{
   // ARCH TREE TAB (Frente E): render the Arquitectura Viva view every snapshot (before any early
   // return below), guarded so it can never blank the cockpit. Renders purely from s.mc.
   try{renderArchView(s);}catch(e){}
+  try{renderDispatchView(s);}catch(e){} // ⇄ Moo Dispatch F0 — pinta a fila de cartões (guardado, nunca branqueia)
   const m=s.metrics||{};const me=s.me||{};const decs=s.decisions||[];const score=s.score||{pct:0,checks:[]};
   renderSwitcher(s);renderInbox(s);
   const pr=s.paired||{};
