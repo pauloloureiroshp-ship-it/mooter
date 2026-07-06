@@ -94,6 +94,12 @@ try { LPD = require('./lp-diagnostics.js'); } catch { LPD = null; }
 // select panel still opens files (click-to-code), and lp-edit reports 'engine-unavailable' honestly.
 let LEA = null;
 try { LEA = require('./live-edit-ast.js'); } catch { LEA = null; }
+// LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
+// parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
+function leaFailReason(res) {
+  if (res && res.reason === 'parse-error' && res.detail === 'parser-unavailable') return 'parser-unavailable';
+  return (res && res.reason) || 'refused';
+}
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1422,7 +1428,7 @@ class LivePreviewPanel {
       if (!real) { this._postEditResult(false, 'file-not-in-workspace'); return; }
       const source = fs.readFileSync(real, 'utf8');
       const res = LEA.applyDeterministicEdit(source, { line: m.line, col: m.col, tag: m.tag }, edit);
-      if (!res.ok) { this._postEditResult(false, res.reason || 'refused'); return; }
+      if (!res.ok) { this._postEditResult(false, leaFailReason(res)); return; }
       if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'applied');
@@ -1466,7 +1472,7 @@ class LivePreviewPanel {
       if (!preview && (typeof m.h !== 'string' || !m.h)) { fail('bad-request'); return; }
       const stale = !preview && m.h !== h; // apply against a moved file → NEVER write; re-preview
       const res = LEA.deleteNode(source, { line: m.line, col: m.col, tag: m.tag });
-      if (!res.ok) { fail(res.reason || 'refused'); return; }
+      if (!res.ok) { fail(leaFailReason(res)); return; }
       if (preview || stale) {
         // Fail-closed recovery on stale: the diff the user approved no longer matches the disk,
         // so nothing is written — instead the preview is REGENERATED from the disk as it is now,
@@ -2042,6 +2048,7 @@ function showEditResult(ok, reason){
     'unsafe-text':'o texto tem < > { } — precisa do modo estrutural', 'unsafe-class':'classe inválida (< > { } ou aspas)',
     'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
     'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
+    'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)',
     'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição' };
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
