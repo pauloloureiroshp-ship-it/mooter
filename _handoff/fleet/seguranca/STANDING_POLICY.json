@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "pillar": "seguranca",
+  "squad": "Security",
+  "charter": "Continuous 3-promise audit + supply-chain surveillance of packs/MCP.",
+  "success_criteria": ["0 leaks", "audit 100%"],
+  "auto": [
+    "run the next round",
+    "local scans and local evals",
+    "commits on the pillar branch",
+    "new files under the pillar workdir"
+  ],
+  "digest": [
+    "push", "merge", "deploy", "secrets", "delete or archive files"
+  ],
+  "digest_rule": "any destructive/irreversible intent becomes ONE line in DECISIONS.md — the fleet NEVER executes it",
+  "two_factor": "merge to main only with Paulo's explicit OK"
+}

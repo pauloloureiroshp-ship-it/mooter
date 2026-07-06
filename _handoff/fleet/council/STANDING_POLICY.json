@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "pillar": "council",
+  "squad": "Auto-Evolution",
+  "charter": "Improve council quality + calibration (length-neutral, ACT, cost) without regression.",
+  "success_criteria": ["oracle_gap <= 5%", "p99 <= 100ms"],
+  "auto": [
+    "run the next round",
+    "local refactors and local evals",
+    "commits on the pillar branch",
+    "new files under the pillar workdir"
+  ],
+  "digest": [
+    "push", "merge", "deploy", "secrets", "delete or archive files"
+  ],
+  "digest_rule": "any destructive/irreversible intent becomes ONE line in DECISIONS.md — the fleet NEVER executes it",
+  "two_factor": "merge to main only with Paulo's explicit OK"
+}

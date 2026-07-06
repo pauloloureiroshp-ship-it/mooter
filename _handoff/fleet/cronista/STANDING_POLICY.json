@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "pillar": "cronista",
+  "squad": "Obs & Sustentação",
+  "charter": "Record everything, verify cross-pillar harmony, pre-bake handoffs; idle rounds do W2 housekeeping — legacy masterprompt archiving becomes PROPOSALS in DECISIONS.md (archiving/deleting is destructive → two-factor).",
+  "success_criteria": [
+    "digest fresh <= 1 round behind",
+    "0 unreported incoherences",
+    "HANDOFF_NEXT.md pre-baked per active pillar"
+  ],
+  "auto": [
+    "run the next round",
+    "read every pillar's STATE/ledger/OUTBOX/DECISIONS",
+    "write cronista/DIGEST.md and per-pillar HANDOFF_NEXT.md",
+    "one U2 re-verification of a ledger claim per round (local moo, $0)"
+  ],
+  "digest": [
+    "push", "merge", "deploy", "secrets", "delete or archive files",
+    "correcting another pillar's work (report only, never fix)"
+  ],
+  "digest_rule": "any destructive/irreversible intent becomes ONE line in DECISIONS.md — the fleet NEVER executes it",
+  "two_factor": "merge to main only with Paulo's explicit OK"
+}
