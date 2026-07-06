@@ -27,8 +27,8 @@
  * works, then EXACTLY ONE verdict line {ok:true, kind:'answer'|'edits', text, filesRead, edits,
  * denied, model} | {ok:false, reason, detail?}. Exit 0 always — fail-soft; the host parses.
  */
-import { readFileSync, writeFileSync, mkdtempSync, realpathSync } from 'node:fs';
-import { join, resolve, relative, isAbsolute, sep } from 'node:path';
+import { readFileSync, writeFileSync, mkdtempSync, realpathSync, lstatSync } from 'node:fs';
+import { join, resolve, relative, isAbsolute, sep, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
@@ -74,8 +74,33 @@ function inWorkspace(root, p) {
     const real = realpathSync(abs);
     const rr = relative(realpathSync(root), real);
     if (rr !== '' && (rr.startsWith('..') || isAbsolute(rr))) return false;
-  } catch { /* target does not exist (yet) — the lexical check already vetted the location */ }
+  } catch {
+    // realpath failed (dangling target). A truly-nonexistent path (no reparse point anywhere in
+    // it) is fine — the lexical check already vetted its location. BUT if ANY existing path
+    // component between `abs` and `root` is a symlink/junction (review L1-c), the path can be
+    // redirected outside the workspace after this approval: a later-filled junction target is then
+    // read/edited through this already-blessed path (TOCTOU). The reparse point is usually an
+    // ANCESTOR (junction `root/link` under path `root/link/secret.txt`), so a single lstat(abs)
+    // misses it — walk the ancestry. lstat (unlike realpath/existsSync, which follow the link)
+    // sees the reparse point itself.
+    if (hasReparsePointUnderRoot(root, abs)) return false;
+  }
   return true;
+}
+
+// Any symlink/junction component from `abs` up to (but not past) `root`. Bounded climb; a
+// component that does not exist is skipped (keep climbing) — only an EXISTING reparse point denies.
+function hasReparsePointUnderRoot(root, abs) {
+  let cur = abs;
+  for (let i = 0; i < 128; i++) {
+    const relToRoot = relative(root, cur);
+    if (relToRoot === '' || relToRoot.startsWith('..') || isAbsolute(relToRoot)) break; // reached/left root
+    try { if (lstatSync(cur).isSymbolicLink()) return true; } catch { /* this component is absent — keep climbing */ }
+    const parent = dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return false;
 }
 
 const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'LS', 'Edit', 'MultiEdit'];

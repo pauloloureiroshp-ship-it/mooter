@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
 
 const LET = require('./live-edit-task.js');
 
@@ -83,6 +84,19 @@ function plantFakeSdk(root, mode) {
       "  await ask({ pattern: 'landing/**/*.ts' });",                     // legit relative prefix inside ws -> ALLOW
       "  await ask({ pattern: join(ws, 'landing') + '/**/*.ts' });",      // legit absolute inside ws -> ALLOW
       "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ asks }));",
+      "  yield { result: 'done' };",
+      '}',
+    ].join('\n');
+  } else if (mode === 'junction') {
+    // L1-c probe: try to Read through a path whose ancestor is a (dangling) junction the TEST plants.
+    body = [
+      "import { writeFileSync } from 'node:fs';",
+      "import { dirname, join } from 'node:path';",
+      "import { fileURLToPath } from 'node:url';",
+      'export async function* query({ options }) {',
+      "  const here = dirname(fileURLToPath(import.meta.url));",
+      "  const r = await options.canUseTool('Read', { file_path: join(options.cwd, 'link', 'secret.txt') });",
+      "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ behavior: r.behavior }));",
       "  yield { result: 'done' };",
       '}',
     ].join('\n');
@@ -233,6 +247,24 @@ test('L1-a/L1-b: Glob containment — relative ../ AND absolute wildcard-before-
     assert.strictEqual(b[5], 'allow', 'absolute prefix inside ws allowed');
     assert.ok(r.denied.filter((d) => d.tool === 'Glob' && d.why === 'outside-workspace').length >= 3, 'the 3 traversal denials are reported honestly');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('L1-c: a dangling junction ancestor inside the workspace is DENIED at approval (Windows; skipped elsewhere)', async (t) => {
+  if (process.platform !== 'win32') { t.skip('junction/reparse-point test is Windows-only'); return; }
+  const { root, sdkDir } = mkWorkspace('junction');
+  const outsideTarget = path.join(root, '..', 'le-junction-target-' + process.pid); // OUTSIDE root, does NOT exist yet
+  const link = path.join(root, 'link');
+  const mk = spawnSync('cmd', ['/c', 'mklink', '/J', link, outsideTarget], { encoding: 'utf8', windowsHide: true });
+  if (mk.status !== 0) { t.skip('mklink unavailable: ' + (mk.stderr || mk.stdout || '')); fs.rmSync(root, { recursive: true, force: true }); return; }
+  try {
+    await LET.runAnchoredTask(INPUT, { wsRoot: root, trusted: true, timeoutMs: 30000 });
+    const spy = JSON.parse(fs.readFileSync(path.join(sdkDir, 'spy.json'), 'utf8'));
+    assert.strictEqual(spy.behavior, 'deny', 'Read through a dangling junction ancestor is denied at approval (TOCTOU closed)');
+  } finally {
+    try { fs.rmSync(link, { recursive: true, force: true }); } catch { /* junction cleanup best-effort */ }
+    try { fs.rmSync(outsideTarget, { recursive: true, force: true }); } catch { /* may not exist */ }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('question mode: no edits → kind answer, zero writes, text returned', async () => {
