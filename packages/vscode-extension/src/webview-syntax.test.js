@@ -81,6 +81,21 @@ test('Live Preview MP4 diagnostics strip is hosted + parses as delivered (concat
   parseInlineScript(html);
 });
 
+test('Live Preview MP5.2a breadcrumb — chips rendered, re-select is origin-targeted, honest shared-component warning', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The selection panel carries the root→leaf breadcrumb and each chip re-selects via the tap.
+  assert.ok(html.includes('lp-crumbs'), 'breadcrumb container rendered by renderSelection');
+  assert.ok(html.includes("type:'lp-reselect'"), 're-select message wired to the tap');
+  // Cross-origin discipline: the re-select goes to the frame origin-targeted, never '*'.
+  assert.ok(/postMessage\(\{ type:'lp-reselect'[^)]*\}, curOrigin\)/.test(html), 'lp-reselect is origin-targeted');
+  // The lp-select ingest keeps the tap's path (bounded) so the panel can render the chips.
+  assert.ok(/path:Array\.isArray\(m\.path\)\?m\.path\.slice\(0,12\):\[\]/.test(html), 'lp-select path ingested + bounded');
+  // Honest shared-component warning (§1D component scope): the copy must say the edit hits all usages.
+  assert.ok(html.includes('afeta todos os usos'), 'honest component-scope warning present');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

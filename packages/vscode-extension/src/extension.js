@@ -1531,6 +1531,14 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-sel-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-sel .lp-sel-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   #lp-sel .lp-sel-btn:focus-visible,#lp-select-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* MP5.2a — breadcrumb chips (root→leaf) + honest shared-component warning. */
+  #lp-sel .lp-crumbs{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin:7px 0 2px}
+  #lp-sel .lp-crumb{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:999px;padding:1px 8px;cursor:pointer}
+  #lp-sel .lp-crumb:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  #lp-sel .lp-crumb.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700;cursor:default}
+  #lp-sel .lp-crumb:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-sel .lp-crumb-sep{opacity:.55;font-size:10.5px}
+  #lp-sel .lp-sel-warn{font-size:11px;line-height:1.45;margin-top:7px;padding:6px 8px;border-radius:5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   #lp-sel .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   #lp-sel .lp-ed-row{display:flex;gap:6px;align-items:center}
   #lp-sel .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -1825,6 +1833,13 @@ function setSelectMode(on){
   if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
   sendSelectMode(lpSelectOn);
 }
+// MP5.2a — a breadcrumb chip asks the tap to re-select an ancestor node (re-pin + fresh lp-select).
+// Origin-targeted postMessage into the frame, exactly like sendSelectMode (cross-origin, never '*').
+function sendReselect(c){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-reselect', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
   if(!el) return;
@@ -1832,8 +1847,28 @@ function renderSelection(sel){
   const loc=esc(sel.file||'?')+':'+esc(sel.line==null?'?':sel.line)+(sel.col!=null?(':'+esc(sel.col)):'');
   const tag=esc(sel.tag||'elemento');
   const curText=sel.text||''; const curClass=sel.className||'';
+  // MP5.2a — breadcrumb chips (root→leaf). The leaf is the current selection; clicking any other
+  // chip re-selects that ancestor in the tap (re-pin + fresh lp-select round-trip).
+  const pth=Array.isArray(sel.path)?sel.path:[];
+  let crumbs='';
+  for(let i=0;i<pth.length;i++){
+    const c=pth[i]||{}; const last=(i===pth.length-1);
+    crumbs+=(i?'<span class="lp-crumb-sep">›</span>':'')
+      +'<button type="button" class="lp-crumb'+(last?' on':'')+'" data-crumb="'+i+'"'
+      +(last?' aria-current="true" disabled':'')
+      +' title="'+esc((c.file||'')+':'+(c.line==null?'':c.line))+'">'+esc(c.label||c.tag||'nó')+'</button>';
+  }
+  // Honest shared-component warning: when the node's file differs from the breadcrumb root (the
+  // route's page file), the node lives inside a reused component — an edit lands on the DEFINITION
+  // and affects every usage. Say it; don't let the edit surprise.
+  const rootFile=pth.length?(pth[0]&&pth[0].file):null;
+  const warn=(rootFile&&sel.file&&rootFile!==sel.file)
+    ?'<div class="lp-sel-warn">⚠ este nó vive em <b>'+esc(baseName(sel.file))+'</b> — a edição afeta todos os usos deste componente.</div>'
+    :'';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
+    +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
+    +warn
     +'<div id="lp-chip" class="lp-chip"></div>'
     +'<div class="lp-ed-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
@@ -1849,6 +1884,11 @@ function renderSelection(sel){
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+  const cbs=el.querySelectorAll('[data-crumb]');
+  for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
+    const c=pth[parseInt(this.getAttribute('data-crumb'),10)];
+    if(c && !this.disabled) sendReselect(c);
+  }); }
   renderChip();
 }
 // MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
@@ -1908,7 +1948,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ lpSendRestore(); }
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className }; renderSelection(lpSelection); }
+    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[] }; renderSelection(lpSelection); }
     else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }
