@@ -158,6 +158,128 @@ function applyDeterministicEdit(source, target, edit) {
   return { ok: false, reason: 'unknown-kind' };
 }
 
+// ── MP5.2a — byte-bounded structural primitives. Still ZERO LLM in this module. ─────────────────
+// locateRange/deleteNode are the deterministic gesture ("delete exactly this node", $0), and
+// spliceNodeRange is the FENCE any future model path (MP5.2b) must pass through: whatever text a
+// model returns, the write is physically bounded to one VERIFIED JSX node span — or it is refused.
+// Fail-closed: every exit is { ok:false, reason }, and both mutators re-parse their OUTPUT before
+// returning it, so a write that would break the file can never leave this module.
+
+// Resolve target {line, col, tag} to the exact byte span of its JSXElement subtree.
+function locateRange(source, target) {
+  if (typeof source !== 'string' || !source) return { ok: false, reason: 'no-source' };
+  const p = parse(source);
+  if (p.error) return { ok: false, reason: 'parse-error', detail: p.error };
+  const el = locate(collectJsxElements(p.ast), target || {});
+  if (!el) return { ok: false, reason: 'not-found' };
+  return { ok: true, start: el.start, end: el.end, el };
+}
+
+// Delete the node's exact span. If the element sat alone on its line(s), the orphaned indentation
+// and the trailing newline go with it (no blank line left behind); an inline element among siblings
+// loses only its own bytes. The result must still parse — deleting a structurally mandatory node
+// (e.g. the sole argument of `return (…)`) is refused instead of writing a broken file.
+function deleteNode(source, target) {
+  const r = locateRange(source, target);
+  if (!r.ok) return r;
+  let start = r.start;
+  let end = r.end;
+  const lineStart = source.lastIndexOf('\n', start - 1) + 1;
+  const nlAfter = source.indexOf('\n', end);
+  const beforeOnLine = source.slice(lineStart, start);
+  const afterOnLine = nlAfter === -1 ? source.slice(end) : source.slice(end, nlAfter);
+  if (!beforeOnLine.trim() && !afterOnLine.trim()) {
+    start = lineStart;
+    end = nlAfter === -1 ? source.length : nlAfter + 1;
+  }
+  const code = source.slice(0, start) + source.slice(end);
+  const check = parse(code);
+  if (check.error) return { ok: false, reason: 'delete-breaks-parse', detail: check.error };
+  return { ok: true, code, changed: code !== source, kind: 'delete' };
+}
+
+// The fence. Replace EXACTLY one verified JSX node span with a replacement that (a) parses as JSX,
+// (b) is a single root element, (c) leaves every byte outside start..end untouched — and the
+// spliced result must re-parse. Any failed condition rejects WITHOUT writing. A model can
+// hallucinate content; it cannot escape the span.
+function spliceNodeRange(source, range, replacement) {
+  if (typeof source !== 'string' || !source) return { ok: false, reason: 'no-source' };
+  if (!range || !Number.isInteger(range.start) || !Number.isInteger(range.end)) return { ok: false, reason: 'bad-range' };
+  const start = range.start;
+  const end = range.end;
+  if (start < 0 || end > source.length || start >= end) return { ok: false, reason: 'bad-range' };
+  const p = parse(source);
+  if (p.error) return { ok: false, reason: 'parse-error', detail: p.error };
+  // The range must be the exact span of a real JSXElement — a fabricated range cannot write.
+  const el = collectJsxElements(p.ast).find((e) => e.start === start && e.end === end);
+  if (!el) return { ok: false, reason: 'range-not-a-node' };
+  const repl = typeof replacement === 'string' ? replacement.trim() : '';
+  if (!repl) return { ok: false, reason: 'empty-replacement' };
+  const rp = parse(repl);
+  if (rp.error) return { ok: false, reason: 'replacement-parse-error', detail: rp.error };
+  // A replacement smuggling a comment (`<img/> //` or `/* … */`) parses standalone AND re-parses
+  // after the splice, yet the trailing `//` would comment OUT sibling code beyond the span — the
+  // one way a byte-bounded write could still neutralise outside bytes. Fail-closed: no comments.
+  const comments = (rp.ast && rp.ast.comments) || [];
+  if (comments.length > 0) return { ok: false, reason: 'replacement-has-comments' };
+  const body = (rp.ast.program && rp.ast.program.body) || [];
+  const single =
+    body.length === 1 &&
+    body[0].type === 'ExpressionStatement' &&
+    body[0].expression &&
+    body[0].expression.type === 'JSXElement';
+  if (!single) return { ok: false, reason: 'not-single-root' };
+  // Belt and braces: the single statement must cover the WHOLE replacement text — any leading or
+  // trailing trivia that is not part of the element (whatever it is) has no business in the span.
+  if (body[0].start !== 0 || body[0].end !== repl.length) return { ok: false, reason: 'replacement-trailing-junk' };
+  const code = source.slice(0, start) + repl + source.slice(end);
+  const check = parse(code);
+  if (check.error) return { ok: false, reason: 'splice-breaks-parse', detail: check.error };
+  return { ok: true, code, changed: code !== source, kind: 'splice' };
+}
+
+// Whether the target node sits inside a JSX expression container ({…} — a .map(), a ternary, an
+// &&-guard). The panel uses this for the honest warning (spec §5.2): deleting JSX inside a .map()
+// removes it from the template — i.e. from EVERY rendered item, not just the one that was clicked.
+// Fail-soft: any doubt (parse error, not found) returns false rather than a fabricated warning.
+function isInsideExpression(source, target) {
+  if (typeof source !== 'string' || !source) return false;
+  const p = parse(source);
+  if (p.error) return false;
+  const el = locate(collectJsxElements(p.ast), target || {});
+  if (!el) return false;
+  let found = false;
+  const seen = new Set();
+  (function walk(n) {
+    if (found || !n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { for (const x of n) walk(x); return; }
+    if (seen.has(n)) return;
+    seen.add(n);
+    if (n.type === 'JSXExpressionContainer' && Number.isInteger(n.start) && Number.isInteger(n.end)
+        && n.start < el.start && el.end <= n.end) { found = true; return; }
+    for (const k in n) {
+      if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments' || k === 'innerComments') continue;
+      const v = n[k];
+      if (v && typeof v === 'object') walk(v);
+    }
+  })(p.ast);
+  return found;
+}
+
+// Line-level diff of a single contiguous splice (all this engine ever produces): trim the common
+// prefix/suffix and report whatever differs in between as removed/added lines (1-based start).
+// Exactly enough for the panel's honest mini-diff — deliberately NOT a general diff algorithm.
+function diffRemovedLines(before, after) {
+  const a = String(before == null ? '' : before).split('\n');
+  const b = String(after == null ? '' : after).split('\n');
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  let ja = a.length - 1;
+  let jb = b.length - 1;
+  while (ja >= i && jb >= i && a[ja] === b[jb]) { ja--; jb--; }
+  return { start: i + 1, removed: a.slice(i, ja + 1), added: b.slice(i, jb + 1) };
+}
+
 module.exports = {
   applyDeterministicEdit,
   locate,
@@ -165,5 +287,10 @@ module.exports = {
   tagNameOf,
   editText,
   editClass,
+  locateRange,
+  deleteNode,
+  spliceNodeRange,
+  diffRemovedLines,
+  isInsideExpression,
   PARSE_OPTS,
 };

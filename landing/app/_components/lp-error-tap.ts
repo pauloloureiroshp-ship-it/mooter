@@ -198,6 +198,33 @@ export function parseInspPath(
   return { file: m[1], line: parseInt(m[2], 10), col: parseInt(m[3], 10), tag: m[4] || undefined };
 }
 
+/**
+ * buildBreadcrumbPath — PURE. Turn the chain of `data-insp-path` attribute values collected while
+ * climbing from the picked element to the root (leaf→root, as a DOM walk yields them) into the
+ * breadcrumb the cockpit renders: root→leaf crumbs { file, line, col, tag, label } (MP5.2a).
+ * Consecutive duplicates (a wrapper re-stamped with the same source location) collapse into one
+ * crumb. Fail-soft: junk entries are skipped, never thrown; capped so a pathological DOM cannot
+ * flood the postMessage payload.
+ */
+export function buildBreadcrumbPath(
+  attrs: Array<string | null | undefined>,
+): Array<{ file: string; line: number; col: number; tag?: string; label: string }> {
+  const crumbs: Array<{ file: string; line: number; col: number; tag?: string; label: string }> = [];
+  if (!Array.isArray(attrs)) return crumbs;
+  for (const attr of attrs) {
+    const p = parseInspPath(attr);
+    if (!p) continue;
+    const last = crumbs[crumbs.length - 1];
+    if (last && last.file === p.file && last.line === p.line && last.col === p.col) continue;
+    crumbs.push({ file: p.file, line: p.line, col: p.col, tag: p.tag, label: p.tag || 'node' });
+  }
+  const full = crumbs.reverse();
+  // Cap keeps the TRUE ROOT + the 11 leaf-most crumbs: the cockpit's shared-component warning
+  // compares against full[0], so the root must never be dropped by a pathological chain.
+  if (full.length > 12) return [full[0]].concat(full.slice(full.length - 11));
+  return full;
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -401,6 +428,12 @@ export function installLpErrorTap(): void {
     let on = false;
     let shadowHost: HTMLElement | null = null;
     let box: HTMLElement | null = null;
+    // MP5.2a select-lock: a SECOND overlay box that stays put once a node is clicked. The hover
+    // box keeps tracking the cursor; this one only moves on re-pin (new click / breadcrumb chip),
+    // repositions on scroll/resize, and clears on Esc or teardown — the selection can no longer
+    // evaporate on mouseout.
+    let pinBox: HTMLElement | null = null;
+    let pinned: Element | null = null;
     const ensure = (): void => {
       if (shadowHost) return;
       shadowHost = document.createElement('div');
@@ -411,16 +444,56 @@ export function installLpErrorTap(): void {
       box.style.cssText =
         'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
       root.appendChild(box);
+      pinBox = document.createElement('div');
+      pinBox.style.cssText =
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px solid #E8888A;background:rgba(232,136,138,0.07);border-radius:3px;box-shadow:0 0 0 2px rgba(232,136,138,0.28);';
+      root.appendChild(pinBox);
       document.documentElement.appendChild(shadowHost);
     };
     const teardown = (): void => {
       if (shadowHost && shadowHost.parentNode) shadowHost.parentNode.removeChild(shadowHost);
       shadowHost = null;
       box = null;
+      pinBox = null;
+      pinned = null;
     };
+    const drawPin = (): void => {
+      if (!pinBox) return;
+      // isConnected: HMR may swap the node out from under the pin — hide instead of lying.
+      if (!pinned || !pinned.isConnected) { pinBox.style.display = 'none'; return; }
+      const r = pinned.getBoundingClientRect();
+      pinBox.style.display = 'block';
+      pinBox.style.left = r.left + 'px';
+      pinBox.style.top = r.top + 'px';
+      pinBox.style.width = r.width + 'px';
+      pinBox.style.height = r.height + 'px';
+    };
+    const pin = (el: Element | null): void => { pinned = el; drawPin(); };
+    const onReflow = (): void => { if (on && pinned) drawPin(); };
     const resolve = (x: number, y: number): Element | null => {
+      // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
+      // elementsFromPoint lists the whole hit stack (deepest painted first), so the first stamped
+      // entry is the leaf the user is actually pointing at — an unstamped decorative wrapper can
+      // no longer hijack the pick up to its component root. Nearest stamped ancestor of the top
+      // element stays as the fallback (the MP5.1 behaviour) for sparsely stamped pages.
+      const stack = typeof document.elementsFromPoint === 'function' ? document.elementsFromPoint(x, y) : [];
+      for (let i = 0; i < stack.length; i++) {
+        if (stack[i].hasAttribute('data-insp-path')) return stack[i];
+      }
       const el = document.elementFromPoint(x, y);
       return el ? el.closest('[data-insp-path]') : null;
+    };
+    // Climb from the picked element to the root collecting every stamped ancestor's attribute
+    // (leaf→root); buildBreadcrumbPath flips + parses it into the root→leaf crumbs the cockpit
+    // renders as clickable chips (`section › CrookOutline › img`).
+    const attrChain = (el: Element): Array<string | null> => {
+      const chain: Array<string | null> = [];
+      let cur: Element | null = el;
+      while (cur && chain.length < 24) {
+        chain.push(cur.getAttribute('data-insp-path'));
+        cur = cur.parentElement ? cur.parentElement.closest('[data-insp-path]') : null;
+      }
+      return chain;
     };
     const draw = (el: Element | null): void => {
       if (!box) return;
@@ -433,12 +506,9 @@ export function installLpErrorTap(): void {
       box.style.height = r.height + 'px';
     };
     const onMove = (ev: MouseEvent): void => { if (on) draw(resolve(ev.clientX, ev.clientY)); };
-    const onClick = (ev: MouseEvent): void => {
-      if (!on) return;
-      const el = resolve(ev.clientX, ev.clientY);
-      if (!el) return;
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
+    // The single select path — used by a real click AND by a breadcrumb re-select from the cockpit
+    // (MP5.2a), so both produce the identical lp-select payload and the identical pin.
+    const selectEl = (el: Element): void => {
       const parsed = parseInspPath(el.getAttribute('data-insp-path'));
       if (!parsed) return;
       const r = el.getBoundingClientRect();
@@ -451,7 +521,32 @@ export function installLpErrorTap(): void {
         rect: { x: r.left, y: r.top, w: r.width, h: r.height },
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
         className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
+        path: buildBreadcrumbPath(attrChain(el)), // MP5.2a — root→leaf breadcrumb for the cockpit
       });
+      pin(el); // MP5.2a select-lock — the frame stays put until Esc or a new selection
+    };
+    const onClick = (ev: MouseEvent): void => {
+      if (!on) return;
+      const el = resolve(ev.clientX, ev.clientY);
+      if (!el) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      selectEl(el);
+    };
+    // MP5.2a — a breadcrumb chip in the cockpit asks to re-select an ancestor by its stamped
+    // location. Read-only DOM scan for the matching [data-insp-path]; a stale location (HMR moved
+    // the code) simply finds nothing — no fabricated selection.
+    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown }): void => {
+      if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
+      const file = typeof d.file === 'string' ? d.file : '';
+      const line = typeof d.line === 'number' ? d.line : NaN;
+      const col = typeof d.col === 'number' ? d.col : NaN;
+      if (!file || !isFinite(line) || !isFinite(col)) return;
+      const all = document.querySelectorAll('[data-insp-path]');
+      for (let i = 0; i < all.length; i++) {
+        const p = parseInspPath(all[i].getAttribute('data-insp-path'));
+        if (p && p.file === file && p.line === line && p.col === col) { selectEl(all[i]); return; }
+      }
     };
     const onKey = (ev: KeyboardEvent): void => {
       if (on && ev.key === 'Escape') { set(false); post({ type: 'lp-select-mode-off' }); }
@@ -464,16 +559,21 @@ export function installLpErrorTap(): void {
         document.addEventListener('mousemove', onMove, true);
         document.addEventListener('click', onClick, true);
         document.addEventListener('keydown', onKey, true);
+        // capture-phase scroll catches nested scroll containers, not just the window
+        document.addEventListener('scroll', onReflow, true);
+        window.addEventListener('resize', onReflow);
         document.documentElement.style.cursor = 'crosshair';
       } else {
         document.removeEventListener('mousemove', onMove, true);
         document.removeEventListener('click', onClick, true);
         document.removeEventListener('keydown', onKey, true);
+        document.removeEventListener('scroll', onReflow, true);
+        window.removeEventListener('resize', onReflow);
         document.documentElement.style.cursor = '';
         teardown();
       }
     };
-    return { set };
+    return { set, reselect };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -483,6 +583,12 @@ export function installLpErrorTap(): void {
     // MP5.1 — the cockpit toggles select-to-edit mode. Benign: only flips hover/click capture.
     if (d.type === 'lp-select-mode') {
       try { select.set(!!d.on); } catch { /* select mode is best-effort, never breaks the page */ }
+      return;
+    }
+    // MP5.2a — a breadcrumb chip re-selects an ancestor node (re-pin + fresh lp-select). Benign:
+    // read-only DOM lookup, same origin-locked sender as everything else here.
+    if (d.type === 'lp-reselect') {
+      try { select.reselect(d); } catch { /* best-effort — a stale crumb selects nothing */ }
       return;
     }
     // MP3.3 — the cockpit's back/forward buttons drive the framed site's OWN history (the parent

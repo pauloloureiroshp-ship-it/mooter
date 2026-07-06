@@ -81,6 +81,41 @@ test('Live Preview MP4 diagnostics strip is hosted + parses as delivered (concat
   parseInlineScript(html);
 });
 
+test('Live Preview MP5.2a breadcrumb — chips rendered, re-select is origin-targeted, honest shared-component warning', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The selection panel carries the root→leaf breadcrumb and each chip re-selects via the tap.
+  assert.ok(html.includes('lp-crumbs'), 'breadcrumb container rendered by renderSelection');
+  assert.ok(html.includes("type:'lp-reselect'"), 're-select message wired to the tap');
+  // Cross-origin discipline: the re-select goes to the frame origin-targeted, never '*'.
+  assert.ok(/postMessage\(\{ type:'lp-reselect'[^)]*\}, curOrigin\)/.test(html), 'lp-reselect is origin-targeted');
+  // The lp-select ingest keeps the tap's path (bounded) so the panel can render the chips.
+  assert.ok(/path:Array\.isArray\(m\.path\)\?m\.path\.slice\(0,12\):\[\]/.test(html), 'lp-select path ingested + bounded');
+  // Honest shared-component warning (§1D component scope): the copy must say the edit hits all usages.
+  assert.ok(html.includes('afeta todos os usos'), 'honest component-scope warning present');
+  parseInlineScript(html);
+});
+
+test('Live Preview MP5.2a delete — 🗑 button, diff-before-write flow, honest $0 copy', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The panel offers the deterministic delete and the flow is preview (mini-diff) → apply (write).
+  assert.ok(html.includes('id="lp-sel-del"'), 'delete button present in the selection panel');
+  assert.ok(html.includes("type:'lp-delete', preview:true"), 'preview request wired (diff first)');
+  assert.ok(html.includes("type:'lp-delete', preview:false"), 'apply request wired (write only on OK)');
+  assert.ok(html.includes("m.type === 'lp-delete-diff'"), 'host-trusted diff result handled');
+  // Apply must target the selection CAPTURED at preview time and echo the preview's source hash —
+  // the host refuses the write if the file changed since the approved diff (no diff/apply skew).
+  assert.ok(html.includes('lpDeleteTarget'), 'apply targets the capture, not the live selection');
+  assert.ok(html.includes('h:m.h'), 'staleness hash echoed on apply');
+  // A >40-line diff must say it was truncated (honest preview, never a silent cut).
+  assert.ok(html.includes('linhas removidas (o apagar leva TODAS)'), 'truncation is announced');
+  // Honest copy: delete is deterministic — $0, no tokens. Never a fabricated cost, never an LLM.
+  assert.ok(html.includes('apagar é determinístico'), 'honest deterministic copy');
+  assert.ok(html.includes('$0, sem tokens'), 'honest $0 copy');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

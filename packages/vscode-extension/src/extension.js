@@ -20,6 +20,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const data_ = require('./data.js');
 const extra = require('./host-extra.js');
 // WCOCKPIT: cowork-waiting + mode-registry (aditivo; fallback seguro se ficheiros ausentes)
@@ -1315,6 +1316,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
+    if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1429,6 +1431,58 @@ class LivePreviewPanel {
   _postEditResult(ok, reason) {
     try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || '') }); } catch { /* best-effort */ }
   }
+  // MP5.2a deterministic $0 delete — same containment guard as _applyEdit, but TWO-PHASE and
+  // stateless: preview computes the exact removed/added lines for the panel's mini-diff; apply
+  // re-reads + re-computes from disk at click time (no held state → no preview/apply divergence)
+  // and only then writes. ZERO LLM in either phase; every refusal carries its honest reason
+  // (deleteNode itself refuses a delete that would break the parse).
+  async _deleteNode(m) {
+    const preview = !!(m && m.preview);
+    const fail = (reason) => {
+      if (preview) this._postDeleteDiff({ ok: false, reason: String(reason || 'refused') });
+      else this._postEditResult(false, reason);
+    };
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (!raw) { fail('bad-request'); return; }
+      if (!LEA || typeof LEA.deleteNode !== 'function') { fail('engine-unavailable'); return; }
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const root = this._wsRoot();
+      const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
+      let real = null;
+      try {
+        if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+          const r = fs.realpathSync(abs);
+          if (contained(fs.realpathSync(root), r)) real = r;
+        }
+      } catch { /* fall through to the honest result */ }
+      if (!real) { fail('file-not-in-workspace'); return; }
+      const source = fs.readFileSync(real, 'utf8');
+      // Staleness fence between the two phases: preview stamps a hash of the source it diffed;
+      // apply refuses unless the disk still matches EXACTLY that content. Without it, an edit (or
+      // HMR write) landing between preview and apply could make locate() resolve a DIFFERENT node
+      // than the one the user approved in the mini-diff — the delete must be the diff, always.
+      const h = crypto.createHash('sha256').update(source, 'utf8').digest('hex');
+      if (!preview) {
+        if (typeof m.h !== 'string' || !m.h) { fail('bad-request'); return; }
+        if (m.h !== h) { fail('file-changed'); return; }
+      }
+      const res = LEA.deleteNode(source, { line: m.line, col: m.col, tag: m.tag });
+      if (!res.ok) { fail(res.reason || 'refused'); return; }
+      if (preview) {
+        const d = LEA.diffRemovedLines(source, res.code);
+        const inExpr = typeof LEA.isInsideExpression === 'function'
+          ? LEA.isInsideExpression(source, { line: m.line, col: m.col, tag: m.tag }) : false;
+        this._postDeleteDiff({ ok: true, start: d.start, removed: d.removed, added: d.added, h, inExpr });
+        return;
+      }
+      fs.writeFileSync(real, res.code, 'utf8');
+      this._postEditResult(true, 'deleted');
+    } catch { fail('error'); }
+  }
+  _postDeleteDiff(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-delete-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
   // seam). Honest toast confirms exactly what happened.
@@ -1531,6 +1585,14 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-sel-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-sel .lp-sel-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   #lp-sel .lp-sel-btn:focus-visible,#lp-select-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* MP5.2a — breadcrumb chips (root→leaf) + honest shared-component warning. */
+  #lp-sel .lp-crumbs{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin:7px 0 2px}
+  #lp-sel .lp-crumb{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:999px;padding:1px 8px;cursor:pointer}
+  #lp-sel .lp-crumb:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  #lp-sel .lp-crumb.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700;cursor:default}
+  #lp-sel .lp-crumb:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-sel .lp-crumb-sep{opacity:.55;font-size:10.5px}
+  #lp-sel .lp-sel-warn{font-size:11px;line-height:1.45;margin-top:7px;padding:6px 8px;border-radius:5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   #lp-sel .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   #lp-sel .lp-ed-row{display:flex;gap:6px;align-items:center}
   #lp-sel .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -1539,6 +1601,12 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-ed-ok{color:var(--vscode-charts-green,#4CAF6A)}
   #lp-sel .lp-ed-no{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B))}
   #lp-sel .lp-ed-pending{opacity:.7}
+  /* MP5.2a — delete mini-diff: exactly the lines that would go, before anything is written. */
+  #lp-sel .lp-diff{margin-top:9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:7px 9px;overflow-x:auto}
+  #lp-sel .lp-diff-hd{font-size:10.5px;opacity:.8;margin-bottom:5px}
+  #lp-sel .lp-diff-l{font:11px var(--vscode-editor-font-family,monospace);white-space:pre;line-height:1.5}
+  #lp-sel .lp-diff-rm{color:var(--vscode-errorForeground,#D9484B);background:var(--vscode-inputValidation-errorBackground,rgba(217,72,75,.10))}
+  #lp-sel .lp-diff-ad{color:var(--vscode-charts-green,#4CAF6A)}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
   #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
   #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -1815,6 +1883,9 @@ function lpSendRestore(){
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
 let lpSelection=null, lpSelectOn=false, lpTier='local';
+// MP5.2a — the delete flow's target is CAPTURED at preview time (not read from the mutable
+// lpSelection at apply time), so the node deleted is always the node whose diff was approved.
+let lpDeleteTarget=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -1825,6 +1896,13 @@ function setSelectMode(on){
   if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
   sendSelectMode(lpSelectOn);
 }
+// MP5.2a — a breadcrumb chip asks the tap to re-select an ancestor node (re-pin + fresh lp-select).
+// Origin-targeted postMessage into the frame, exactly like sendSelectMode (cross-origin, never '*').
+function sendReselect(c){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-reselect', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
   if(!el) return;
@@ -1832,14 +1910,38 @@ function renderSelection(sel){
   const loc=esc(sel.file||'?')+':'+esc(sel.line==null?'?':sel.line)+(sel.col!=null?(':'+esc(sel.col)):'');
   const tag=esc(sel.tag||'elemento');
   const curText=sel.text||''; const curClass=sel.className||'';
+  // MP5.2a — breadcrumb chips (root→leaf). The leaf is the current selection; clicking any other
+  // chip re-selects that ancestor in the tap (re-pin + fresh lp-select round-trip).
+  const pth=Array.isArray(sel.path)?sel.path:[];
+  let crumbs='';
+  for(let i=0;i<pth.length;i++){
+    const c=pth[i]||{}; const last=(i===pth.length-1);
+    crumbs+=(i?'<span class="lp-crumb-sep">›</span>':'')
+      +'<button type="button" class="lp-crumb'+(last?' on':'')+'" data-crumb="'+i+'"'
+      +(last?' aria-current="true" disabled':'')
+      +' title="'+esc((c.file||'')+':'+(c.line==null?'':c.line))+'">'+esc(c.label||c.tag||'nó')+'</button>';
+  }
+  // Honest shared-component warning. The signal is the crumb immediately ABOVE the leaf — the
+  // USAGE site: when it lives in a different file than the node itself, the node's file is a
+  // component DEFINITION used from elsewhere, so an edit lands on the definition and affects
+  // every usage. (Comparing against the breadcrumb ROOT would misfire — in Next the chain crosses
+  // layout.tsx above every page node, which would scream the warning on everything.)
+  const parentCrumb=pth.length>1?pth[pth.length-2]:null;
+  const warn=(parentCrumb&&parentCrumb.file&&sel.file&&parentCrumb.file!==sel.file)
+    ?'<div class="lp-sel-warn">⚠ este nó vive em <b>'+esc(baseName(sel.file))+'</b> — a edição afeta todos os usos deste componente.</div>'
+    :'';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
+    +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
+    +warn
     +'<div id="lp-chip" class="lp-chip"></div>'
     +'<div class="lp-ed-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
+    +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
   const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
@@ -1849,7 +1951,55 @@ function renderSelection(sel){
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+  const cbs=el.querySelectorAll('[data-crumb]');
+  for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
+    // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
+    // instead of a silent no-op.
+    if(!lpSelectOn){ showEditResult(false,'select-off'); return; }
+    const c=pth[parseInt(this.getAttribute('data-crumb'),10)];
+    if(c && !this.disabled) sendReselect(c);
+  }); }
+  const db=document.getElementById('lp-sel-del');
+  if(db) db.addEventListener('click', function(){
+    lpDeleteTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag };
+    vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
+    showEditResult(null,'pending');
+  });
   renderChip();
+}
+// MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
+// partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
+// at click time and writes only then. Honest copy: delete is deterministic — $0, no tokens.
+function renderDeleteDiff(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
+  let rows='';
+  for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas removidas (o apagar leva TODAS)</div>';
+  for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
+  if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  // Honest .map() warning (spec §5.2): the JSX inside an expression renders once per item —
+  // deleting it deletes it from the template, i.e. from every item.
+  const exprWarn=m.inExpr?'<div class="lp-sel-warn">⚠ este nó está dentro de uma expressão {…} (ex.: .map()) — apagá-lo remove-o do template, ou seja de TODOS os itens renderizados.</div>':'';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
+    +'<div class="lp-diff-hd">apagar &lt;'+esc((lpDeleteTarget&&lpDeleteTarget.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +exprWarn
+    +rows
+    +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'</div>';
+  const ap=document.getElementById('lp-del-apply');
+  if(ap) ap.addEventListener('click', function(){
+    if(!lpDeleteTarget) return;
+    // The captured preview target + the source hash: apply is refused server-side if the file
+    // changed since the diff was computed (the delete must be exactly the approved diff).
+    vsapi.postMessage({ type:'lp-delete', preview:false, file:lpDeleteTarget.file, line:lpDeleteTarget.line, col:lpDeleteTarget.col, tag:lpDeleteTarget.tag, h:m.h });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-del-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
 // MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
 // local for $0 with no LLM, so classify.js is never consulted (and never touched/executed here). The
@@ -1875,6 +2025,10 @@ function showEditResult(ok, reason){
   const el=document.getElementById('lp-edit-msg'); if(!el) return;
   if(ok===null){ el.textContent='a aplicar…'; el.className='lp-ed-msg lp-ed-pending'; return; }
   const map={ applied:'✓ aplicado — $0, sem tokens (o HMR atualiza o preview)', 'no-op':'sem alterações a aplicar',
+    deleted:'✓ elemento apagado — $0, sem tokens (o HMR atualiza o preview)',
+    'delete-breaks-parse':'apagar este nó partiria o ficheiro — recusado',
+    'file-changed':'o ficheiro mudou desde a pré-visualização — pré-visualiza de novo',
+    'select-off':'o modo 🎯 está desligado — liga-o para reseleccionar',
     'not-simple-text':'este elemento não é texto simples — edição estrutural chega no MP5.2',
     'dynamic-classname':'className é dinâmico ({…}) — não é editável deterministicamente',
     'unsafe-text':'o texto tem < > { } — precisa do modo estrutural', 'unsafe-class':'classe inválida (< > { } ou aspas)',
@@ -1908,7 +2062,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ lpSendRestore(); }
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className }; renderSelection(lpSelection); }
+    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[] }; renderSelection(lpSelection); }
     else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }
@@ -1917,7 +2071,12 @@ window.addEventListener('message', (ev) => {
   if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes); }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
-  else if (m.type === 'lp-edit-result'){ showEditResult(m.ok, m.reason); } // MP5.1 honest deterministic-edit feedback
+  else if (m.type === 'lp-edit-result'){
+    showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
+    // MP5.2a — once the delete is applied, the pending mini-diff is history: clear it.
+    if (m.ok && m.reason === 'deleted'){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+  }
+  else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin
