@@ -94,6 +94,14 @@ try { LPD = require('./lp-diagnostics.js'); } catch { LPD = null; }
 // select panel still opens files (click-to-code), and lp-edit reports 'engine-unavailable' honestly.
 let LEA = null;
 try { LEA = require('./live-edit-ast.js'); } catch { LEA = null; }
+// ── LIVE EDIT · LP-4 — the anchored-prompt runners. §1 local $0 moo (Ollama via native fetch)
+// and §2 subscription escalation (headless Agent SDK bridge — no API key in the extension).
+// BOTH replies are forced through the same fence (spliceNodeRange + sha256 hash-guard) in
+// _promptEdit/_promptApply below. Fail-soft: absent → lp-prompt reports 'engine-unavailable'.
+let LEM = null;
+try { LEM = require('./live-edit-model.js'); } catch { LEM = null; }
+let LEC = null;
+try { LEC = require('./live-edit-cloud.js'); } catch { LEC = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1323,6 +1331,8 @@ class LivePreviewPanel {
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
     if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
+    if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
+    if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1513,6 +1523,104 @@ class LivePreviewPanel {
   }
   _postDeleteDiff(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-delete-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  // Shared workspace-containment resolver (same guard as _openSourceFile/_applyEdit/_deleteNode):
+  // path.relative (no sibling-dir trap) + realpath re-check (no symlink escape). null = refuse.
+  _resolveContainedFile(raw) {
+    try {
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const root = this._wsRoot();
+      const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
+      if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+        const r = fs.realpathSync(abs);
+        if (contained(fs.realpathSync(root), r)) return r;
+      }
+    } catch { /* refuse below */ }
+    return null;
+  }
+  // ── LP-4 §3 — anchored prompt: the model path, FENCED. The model (local $0 moo OR the
+  // subscription bridge) sees ONLY the selected node's subtree + the instruction — never the
+  // file. Whatever it answers is forced through spliceNodeRange (parse + single root + no
+  // comments + byte-bounded to the verified node span) and the sha256 hash-guard from §0:
+  // preview stamps the CURRENT disk hash; apply re-checks it and refuses 'file-changed' with a
+  // regenerated stale preview. A model can hallucinate content; it cannot escape the span, and
+  // a rejected replacement shows its exact reason and writes NOTHING.
+  async _promptEdit(m) {
+    const fail = (reason, detail) => this._postPromptDiff({ ok: false, reason: String(reason || 'refused'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
+      const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
+      if (!raw || !prompt) { fail('bad-request'); return; }
+      if (!LEA || typeof LEA.locateRange !== 'function' || typeof LEA.spliceNodeRange !== 'function') { fail('engine-unavailable'); return; }
+      if (tier !== 'local' && !(LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier])) { fail('bad-request', 'unknown tier ' + tier); return; }
+      const real = this._resolveContainedFile(raw);
+      if (!real) { fail('file-not-in-workspace'); return; }
+      const s0 = fs.readFileSync(real, 'utf8');
+      const target = { line: m.line, col: m.col, tag: m.tag };
+      const r0 = LEA.locateRange(s0, target);
+      if (!r0.ok) { fail(leaFailReason(r0)); return; }
+      // READ fence: the model gets the node's exact byte span — never one byte more.
+      const nodeSource = s0.slice(r0.start, r0.end);
+      this._postPromptStatus({ phase: 'thinking', tier });
+      let reply;
+      if (tier === 'local') {
+        if (!LEM) { fail('engine-unavailable'); return; }
+        reply = await LEM.rewriteElement({ nodeSource, prompt, file: real, line: m.line });
+      } else {
+        if (!LEC) { fail('sdk-bridge-missing'); return; }
+        reply = await LEC.rewriteElementCloud({ nodeSource, prompt, file: real, line: m.line, tier }, { wsRoot: this._wsRoot() });
+      }
+      if (!reply || !reply.ok) { fail((reply && reply.reason) || 'error', reply && reply.detail); return; }
+      const replacement = (LEM && typeof LEM.cleanModelReply === 'function') ? LEM.cleanModelReply(reply.text) : String(reply.text || '').trim();
+      // WRITE fence + hash-guard: the model call took seconds — re-read the disk NOW, re-locate
+      // the node, and let spliceNodeRange verify the span + the replacement. Nothing is written
+      // in this phase; the panel shows the diff with the CURRENT hash stamped.
+      const s1 = fs.readFileSync(real, 'utf8');
+      const h1 = crypto.createHash('sha256').update(s1, 'utf8').digest('hex');
+      const r1 = LEA.locateRange(s1, target);
+      if (!r1.ok) { fail(leaFailReason(r1)); return; }
+      const res = LEA.spliceNodeRange(s1, { start: r1.start, end: r1.end }, replacement);
+      if (!res.ok) { fail(leaFailReason(res), res.detail); return; }
+      const d = LEA.diffRemovedLines(s1, res.code);
+      this._postPromptDiff({ ok: true, stale: false, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+    } catch { fail('error'); }
+  }
+  // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
+  // still match the disk (else: regenerated stale preview, nothing written), the target must
+  // still be a real node span, and the splice must pass every fence check again at write time.
+  async _promptApply(m) {
+    const fail = (reason) => this._postEditResult(false, reason);
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
+      if (!raw || !replacement.trim()) { fail('bad-request'); return; }
+      if (typeof m.h !== 'string' || !m.h) { fail('bad-request'); return; }
+      if (!LEA || typeof LEA.locateRange !== 'function' || typeof LEA.spliceNodeRange !== 'function') { fail('engine-unavailable'); return; }
+      const real = this._resolveContainedFile(raw);
+      if (!real) { fail('file-not-in-workspace'); return; }
+      const s2 = fs.readFileSync(real, 'utf8');
+      const h2 = crypto.createHash('sha256').update(s2, 'utf8').digest('hex');
+      const stale = m.h !== h2; // apply against a moved file → NEVER write; re-preview
+      const target = { line: m.line, col: m.col, tag: m.tag };
+      const r2 = LEA.locateRange(s2, target);
+      if (!r2.ok) { fail(leaFailReason(r2)); return; }
+      const res = LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement);
+      if (!res.ok) { fail(leaFailReason(res)); return; }
+      if (stale) {
+        const d = LEA.diffRemovedLines(s2, res.code);
+        this._postPromptDiff({ ok: true, stale: true, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
+        return;
+      }
+      fs.writeFileSync(real, res.code, 'utf8');
+      this._postEditResult(true, 'model-applied');
+    } catch { fail('error'); }
+  }
+  _postPromptDiff(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  _postPromptStatus(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
