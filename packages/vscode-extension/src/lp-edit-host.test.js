@@ -102,6 +102,9 @@ test('fresh TEXT apply writes exactly the approved edit and reports applied', as
   assert.ok(!after.includes('Old headline'), 'old text gone');
   assert.ok(after.includes('<p>keep me</p>'), 'sibling intact');
   assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.ok === true && p.reason === 'applied'));
+  // §5 — a fresh write asks the tap to re-pin the SAME node (stamp survives the splice).
+  const repin = posts.find((p) => p.type === 'lp-repin');
+  assert.ok(repin && repin.line === 4 && repin.tag === 'h1', 're-pin stamp posted after the write');
 });
 
 test('fresh CLASS apply writes exactly the approved edit and reports applied', async () => {

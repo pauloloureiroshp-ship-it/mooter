@@ -1469,6 +1469,9 @@ class LivePreviewPanel {
       this._pushUndo(real, source, res.code); // §4 — remember the inverse splice before writing
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'applied');
+      // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
+      // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
+      this._postRepin({ file: raw, line: m.line, col: m.col, tag: m.tag });
     } catch { fail('error'); }
   }
   _postEditResult(ok, reason) {
@@ -1657,6 +1660,17 @@ class LivePreviewPanel {
       this._pushUndo(real, s2, res.code); // §4 — remember the inverse splice before writing
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'model-applied');
+      // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
+      // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
+      let repinTag = (typeof m.tag === 'string') ? m.tag : '';
+      try {
+        const r3 = LEA.locateRange(res.code, { line: m.line, col: m.col });
+        if (r3.ok && r3.el && typeof LEA.tagNameOf === 'function') {
+          const t = LEA.tagNameOf(r3.el.openingElement);
+          if (t) repinTag = t;
+        }
+      } catch { /* keep the old tag — the tap matches tag only when it can */ }
+      this._postRepin({ file: raw, line: m.line, col: m.col, tag: repinTag });
     } catch { fail('error'); }
   }
   _postPromptDiff(payload) {
@@ -1664,6 +1678,9 @@ class LivePreviewPanel {
   }
   _postPromptStatus(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  _postRepin(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-repin', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
@@ -2087,6 +2104,12 @@ function sendReselect(c){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-reselect', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
 }
+// LP-4 §5 — after a write, the host asks the tap to watch through the HMR swap and re-emit a
+// FRESH lp-select for the same node (re-prompt without re-selecting). Origin-targeted, never '*'.
+function sendRepin(c){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
 function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
@@ -2308,6 +2331,7 @@ window.addEventListener('message', (ev) => {
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
+  else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin

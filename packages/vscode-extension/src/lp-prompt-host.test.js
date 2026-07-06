@@ -145,6 +145,19 @@ test('fresh apply writes EXACTLY the approved splice (byte-bounded, siblings int
   assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.ok === true && p.reason === 'model-applied'));
 });
 
+test('§5 re-pin after a model apply carries the FRESH tag when the rewrite changed the element', async () => {
+  const Panel = loadPanelClass({ model: stubModel(REPL) });
+  const root = setup();
+  const { inst, posts } = mkInstance(Panel, root);
+  // The model rewrote the img into a div — the re-pin stamp must say div, not the stale img.
+  await inst._promptApply(Object.assign({ replacement: '<div className="moo">m</div>', h: sha(SRC) }, TARGET));
+  assert.ok(fs.readFileSync(path.join(root, 'page.tsx'), 'utf8').includes('<div className="moo">'), 'write landed');
+  const repin = posts.find((p) => p.type === 'lp-repin');
+  assert.ok(repin, 're-pin posted after the fenced write');
+  assert.strictEqual(repin.line, 4, 'node start line survives the splice');
+  assert.strictEqual(repin.tag, 'div', 'fresh tag read from the spliced output');
+});
+
 test('stale apply is FAIL-CLOSED: file moved after preview → nothing written + regenerated stale diff', async () => {
   const Panel = loadPanelClass({ model: stubModel(REPL) });
   const root = setup();

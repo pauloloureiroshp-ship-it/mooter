@@ -131,6 +131,9 @@ test('Live Preview LP-4 §0 edit — preview-first flow, hash echoed on apply, a
   assert.ok(html.includes('lpEditTarget'), 'apply targets the capture, not the live selection');
   // A7 mitigation: the diff header shows the ABSOLUTE path of the file that will be written.
   assert.ok(html.includes('✍ '), 'absolute-path marker present in the diff header');
+  // §5 — the host-vetted re-pin is forwarded into the frame origin-targeted, never '*'.
+  assert.ok(/postMessage\(\{ type:'lp-repin'[^)]*\}, curOrigin\)/.test(html), 'lp-repin is origin-targeted');
+  assert.ok(html.includes("m.type === 'lp-repin'"), 'host-trusted re-pin handled');
   parseInlineScript(html);
 });
 
