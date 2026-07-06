@@ -1308,6 +1308,7 @@ class LivePreviewPanel {
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
+    if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1356,6 +1357,36 @@ class LivePreviewPanel {
         const pos = new vscode.Position(line - 1, 0);
         opts.selection = new vscode.Range(pos, pos);
       }
+      await vscode.window.showTextDocument(doc, opts);
+    } catch { /* best-effort — never crash the panel over an open */ }
+  }
+  // MP5.1 click-to-code — open the SELECTED element's source at file:line:col. The value comes from
+  // data-insp-path (code-inspector stamps an ABSOLUTE path in dev). Accept it ONLY if it resolves to
+  // a real file INSIDE the workspace: same path.relative + realpath/symlink containment guard as
+  // _openErrorFile (an open can never escape the workspace), then reveal line:col. Honest fallback.
+  async _openSourceFile(m) {
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (!raw) return;
+      const line = (m && Number.isInteger(m.line) && m.line > 0) ? m.line : null;
+      const col = (m && Number.isInteger(m.col) && m.col > 0) ? m.col : null;
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const root = this._wsRoot();
+      const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
+      let real = null;
+      try {
+        if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+          const r = fs.realpathSync(abs);
+          if (contained(fs.realpathSync(root), r)) real = r; // symlink must not escape the workspace
+        }
+      } catch { /* fall through to the honest warning */ }
+      if (!real) {
+        vscode.window.showWarningMessage('Live Preview: não abri a seleção — o ficheiro não está no workspace (' + String(raw).slice(0, 120) + ').');
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(real));
+      const opts = {};
+      if (line != null) { const pos = new vscode.Position(line - 1, col != null ? col - 1 : 0); opts.selection = new vscode.Range(pos, pos); }
       await vscode.window.showTextDocument(doc, opts);
     } catch { /* best-effort — never crash the panel over an open */ }
   }
@@ -1451,6 +1482,16 @@ function getLivePreviewHtml(token) {
   #lp-back,#lp-fwd{padding:3px 7px;font-weight:700}
   #lp-routes{font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 5px;max-width:24vw;cursor:pointer}
   #lp-controls button:focus-visible,#lp-url:focus-visible,#lp-routes:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* MP5.1 — select-to-edit: pressed 🎯 toggle + the selection panel in the side rail. */
+  #lp-select-btn.lp-on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700}
+  #lp-sel{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
+  #lp-sel .lp-sel-hd{font-weight:700;margin-bottom:4px}
+  #lp-sel .lp-sel-loc{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;opacity:.85;word-break:break-all}
+  #lp-sel .lp-sel-txt{font-size:11.5px;opacity:.75;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #lp-sel .lp-sel-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
+  #lp-sel .lp-sel-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
+  #lp-sel .lp-sel-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  #lp-sel .lp-sel-btn:focus-visible,#lp-select-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
@@ -1519,6 +1560,7 @@ function getLivePreviewHtml(token) {
         <button id="lp-fwd" title="Avançar no site" aria-label="Avançar">›</button>
         <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
+        <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
@@ -1532,6 +1574,7 @@ function getLivePreviewHtml(token) {
     </div>
   </section>
   <aside id="lp-side">
+    <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-brain">a carregar…</div>
     <div id="lp-dc"></div>
   </aside>
@@ -1711,6 +1754,35 @@ function lpSendRestore(){
   if(lpState){ lpPendingRestore=lpState; setTimeout(()=>{ lpPendingRestore=null; }, 1500); }
   lpSendRestore();
 }); })();
+// ── MP5.1 Select-to-edit (webview side). The 🎯 toolbar button toggles the dev tap's select mode
+// (origin-targeted postMessage into the frame — the frame is cross-origin, so never '*'). When the
+// tap posts back an lp-select we render the selection panel in the side rail with the source location
+// + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
+let lpSelection=null, lpSelectOn=false;
+function sendSelectMode(on){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
+}
+function setSelectMode(on){
+  lpSelectOn=!!on;
+  const b=document.getElementById('lp-select-btn');
+  if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
+  sendSelectMode(lpSelectOn);
+}
+function renderSelection(sel){
+  const el=document.getElementById('lp-sel');
+  if(!el) return;
+  if(!sel){ el.style.display='none'; el.innerHTML=''; return; }
+  const loc=esc(sel.file||'?')+':'+esc(sel.line==null?'?':sel.line)+(sel.col!=null?(':'+esc(sel.col)):'');
+  const tag=esc(sel.tag||'elemento');
+  const txt=sel.text?('<div class="lp-sel-txt">“'+esc(sel.text)+'”</div>'):'';
+  el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
+    +'<div class="lp-sel-loc">'+loc+'</div>'+txt
+    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button></div>';
+  el.style.display='block';
+  const ob=document.getElementById('lp-sel-open');
+  if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+}
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
@@ -1733,6 +1805,10 @@ window.addEventListener('message', (ev) => {
       }
     }
     else if (m.type === 'lp-ready'){ lpSendRestore(); }
+    // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
+    // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
+    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text }; renderSelection(lpSelection); }
+    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from
@@ -1758,6 +1834,8 @@ const reBtn=document.getElementById('lp-redetect');
 if(reBtn) reBtn.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-redetect' }));
 const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
+const selBtn=document.getElementById('lp-select-btn');
+if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
 </script>
 </body></html>`;
 }
