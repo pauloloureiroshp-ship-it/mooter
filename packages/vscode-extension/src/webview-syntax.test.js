@@ -17,7 +17,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -141,13 +141,20 @@ test('Live Preview LP-4 §0 edit — preview-first flow, hash echoed on apply, a
   parseInlineScript(html);
 });
 
-test('Live Preview LP-4 §6 panel — prompt box, honest chip, fenced prompt flow, undo, honest states', () => {
+test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, undo, honest states', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
-  // The anchored prompt box on the pin.
-  assert.ok(html.includes('id="lp-prompt-in"'), 'prompt input present');
-  assert.ok(html.includes('descreve a mudança'), 'prompt placeholder speaks founder, not jargon');
-  assert.ok(html.includes("type:'lp-prompt'"), 'prompt request wired to the host');
+  // LP-4.5 — the ONE BOX on the pin: any prompt, default AUTO = the anchored-task agent; the
+  // local $0 chip keeps the LP-4 fenced rewrite reachable; the heuristic only SUGGESTS.
+  assert.ok(html.includes('id="lp-box-in"'), 'one-box input present');
+  assert.ok(html.includes('valida estes números'), 'placeholder shows a PROJECT ask (the LP-4.5 case), not only node tweaks');
+  assert.ok(html.includes("type:'lp-task'"), 'anchored task request wired to the host');
+  assert.ok(html.includes("m.type === 'lp-task-result'"), 'agent verdict handled');
+  assert.ok(html.includes("m.type === 'lp-task-status'"), 'live agent progress handled (a ler / a editar)');
+  assert.ok(html.includes('agente · subscrição'), 'honest AUTO chip: agent runs on the subscription');
+  assert.ok(html.includes('local $0 · só este nó'), 'the fenced $0 path is an explicit chip, never a guess');
+  assert.ok(html.includes('suggestLocalChip'), 'heuristic present — and it only suggests');
+  assert.ok(html.includes("type:'lp-prompt'"), 'fenced prompt request still wired (via the local chip)');
   assert.ok(html.includes("type:'lp-prompt-apply'"), 'approved replacement wired (write only on OK)');
   assert.ok(html.includes("m.type === 'lp-prompt-diff'"), 'fenced rewrite preview handled');
   // review P1-B: the apply reads the TARGET from the diff (m), not a mutable global that a second
@@ -160,12 +167,32 @@ test('Live Preview LP-4 §6 panel — prompt box, honest chip, fenced prompt flo
   assert.ok(html.includes('nada sai da máquina'), 'local privacy copy present');
   assert.ok(html.includes('@fable é SEMPRE manual'), 'fable manual-only doctrine in the chip');
   assert.ok(html.includes('ponte SDK ausente'), 'bridge-missing disables cloud with the honest reason');
-  // §4 undo button + honest states.
-  assert.ok(html.includes('id="lp-sel-undo"'), 'undo button present');
+  // §4 → LP-4.5 §4: the single "desfazer último" gave way to the unified session feed — every
+  // write (deterministic/fenced/agent) is one row with time + via + file(s) + per-item revert.
+  assert.ok(!html.includes('id="lp-sel-undo"'), 'single undo button replaced by the feed');
+  assert.ok(html.includes('id="lp-feed"'), 'unified feed container present');
+  assert.ok(html.includes("type:'lp-feed-revert'"), 'per-item feed revert wired');
+  assert.ok(html.includes('renderEditsFeed'), 'feed renderer serialised into the webview');
   assert.ok(html.includes('↩ desfeito'), 'undone state copy');
   assert.ok(html.includes('a pensar… (moo local · $0)'), 'honest thinking state (local $0)');
   assert.ok(html.includes('moo local offline'), 'honest offline state');
   assert.ok(html.includes('recusado pela cerca'), 'fence refusals surface as visible reasons');
+  // LP-4.5 §5 — dynamic-component honesty: the warning BEFORE a fenced rewrite on a component,
+  // the same warning on the diff, the agent escape hatch, and the never-plain-✓ apply copy.
+  assert.ok(html.includes('é um componente — o conteúdo vem de DENTRO dele'), 'component warning at selection time');
+  assert.ok(html.includes('o conteúdo vem de dentro do componente — reescrever este nó não o muda'), 'dynamic warning on the diff');
+  assert.ok(html.includes('id="lp-pr-agent"') && html.includes('id="lp-sel-agent"'), 'resolver-com-o-agente buttons wired');
+  assert.ok(html.includes('se o preview não mudou, resolve com o agente'), 'dynamic apply never reads as a plain ✓ escrito');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.5 §6 device toggle — 390/768/full buttons drive ONLY the iframe width', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-dev-390"') && html.includes('id="lp-dev-768"') && html.includes('id="lp-dev-full"'), 'three device buttons in the toolbar');
+  assert.ok(html.includes('setDevice(390)') && html.includes('setDevice(768)') && html.includes('setDevice(null)'), 'width presets wired');
+  assert.ok(/f\.style\.width=px\+'px'/.test(html), 'the toggle only sets the iframe width (no UA spoofing claimed)');
+  assert.ok(html.includes('só muda a largura do iframe'), 'honest copy: width only');
   parseInlineScript(html);
 });
 

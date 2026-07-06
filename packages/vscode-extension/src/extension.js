@@ -106,6 +106,15 @@ try { LEC = require('./live-edit-cloud.js'); } catch { LEC = null; }
 // absent → 'desfazer' reports engine-unavailable honestly; the edit paths still work.
 let LEU = null;
 try { LEU = require('./live-edit-undo.js'); } catch { LEU = null; }
+// ── LIVE EDIT · LP-4.5 — the ANCHORED TASK bridge (the one-box default): a headless Agent SDK
+// session with cwd = the workspace, hard-gated on Workspace Trust, allowlist-fenced runner-side
+// (Read/Grep/Glob/LS/Edit/MultiEdit inside the workspace; Bash/network NEVER). Fail-soft: absent
+// → lp-task reports 'engine-unavailable' and the AUTO chip disables honestly.
+let LET = null;
+try { LET = require('./live-edit-task.js'); } catch { LET = null; }
+// LP-4.5 — pure one-box view helpers (suggestLocalChip heuristic), serialised into the webview.
+let LTV = null;
+try { LTV = require('./lp-task-view.js'); } catch { LTV = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1249,6 +1258,7 @@ class LivePreviewPanel {
       s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
+      s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
@@ -1338,7 +1348,11 @@ class LivePreviewPanel {
     if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
     if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
     if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
+    if (m.type === 'lp-task') { this._taskRun(m); return; } // LP-4.5 anchored PROJECT task → trusted agent (one-box default)
+    if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
+    if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
+    if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1473,7 +1487,7 @@ class LivePreviewPanel {
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
+      this._pushUndo(real, source, res.code, (edit.kind === 'class' ? 'classe · $0' : 'texto · $0'), raw); // §4 feed item
       this._postEditResult(true, 'applied');
       // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
       // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
@@ -1481,41 +1495,106 @@ class LivePreviewPanel {
     } catch { fail('error'); }
   }
   _postEditResult(ok, reason) {
-    // §4 — every result carries the live undo depth so the panel can enable/disable "desfazer"
-    // without a second round-trip (0 = nothing to undo; the button says so honestly).
-    const undo = (this._undoStack && this._undoStack.length) || 0;
+    // §4 — every result carries the live revertable depth so the panel state reflects facts.
+    const undo = this._undoDepth();
     try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo }); } catch { /* best-effort */ }
   }
-  // §4 — remember the write we are about to make as an inverse-splice entry (LIFO, capped).
-  // Lazy stack init: unit harnesses build instances without running the constructor.
-  _pushUndo(real, before, after) {
+  // ── LP-4.5 §4 — the UNIFIED session feed. ONE list holds every Live Edit write: splice-kind
+  // items (deterministic text/class, delete, fenced rewrite — each carries its LEU inverse-splice
+  // entry) and agent-kind items (an anchored task's edits, referenced by taskId in _taskReg).
+  // The feed replaces the single "desfazer último" button: every item reverts individually,
+  // always sha-guarded fail-closed. Lazy init: unit harnesses skip the constructor.
+  _feedPush(item) {
+    try {
+      if (!this._feed) { this._feed = []; this._feedSeq = 0; this._feedRev = 0; }
+      item.id = 'f' + (++this._feedSeq);
+      item.ts = Date.now();
+      this._feed.push(item);
+      if (this._feed.length > 50) this._feed.shift();
+      this._feedBump();
+      return item;
+    } catch { return null; }
+  }
+  _feedBump() {
+    this._feedRev = (this._feedRev || 0) + 1;
+    this._post(); // the feed rides the snapshot; bumping reposts it immediately
+  }
+  // Renderable view — never leaks host paths or splice internals to the webview.
+  _feedView() {
+    const items = (this._feed || []).map((e) => ({ id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', reason: e.reason || null }));
+    return { rev: this._feedRev || 0, items };
+  }
+  _undoDepth() {
+    let n = 0;
+    for (const e of (this._feed || [])) { if (e.kind === 'splice' && e.status === 'live') n++; }
+    return n;
+  }
+  // Newest LIVE agent feed item for a taskId (end-scan: a stale settled item never shadows).
+  _feedFindAgent(taskId) {
+    const feed = this._feed || [];
+    for (let i = feed.length - 1; i >= 0; i--) {
+      const e = feed[i];
+      if (e.kind === 'agent' && e.taskId === taskId && e.status === 'live') return e;
+    }
+    return null;
+  }
+  // §4 — remember the write we just made as a feed item carrying its inverse-splice entry.
+  _pushUndo(real, before, after, via, relFile) {
     try {
       if (!LEU) return;
       const e = LEU.makeEntry(real, before, after);
       if (!e) return;
-      if (!this._undoStack) this._undoStack = [];
-      this._undoStack.push(e);
-      if (this._undoStack.length > 20) this._undoStack.shift();
-    } catch { /* undo is best-effort bookkeeping — never blocks the write */ }
+      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null });
+    } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
   }
-  // §4 — "desfazer último": inverse byte-splice of the most recent Live Edit write. FAIL-CLOSED:
-  // the file's CURRENT sha must still match the sha stamped at write time; if anything else wrote
-  // it since (HMR, an agent, the editor), we refuse honestly ('undo-stale') and keep the entry —
-  // a blind revert over someone else's bytes is exactly the lie this product exists to avoid.
+  // Inverse byte-splice of ONE feed item. FAIL-CLOSED: the file's CURRENT sha must still match
+  // the sha stamped at write time; if anything else wrote it since (HMR, an agent, the editor),
+  // we refuse honestly ('undo-stale') and keep the item live with its visible reason — a blind
+  // revert over someone else's bytes is exactly the lie this product exists to avoid.
+  _revertSpliceItem(item) {
+    if (!LEU) return { ok: false, reason: 'engine-unavailable' };
+    let cur;
+    try { cur = fs.readFileSync(item.entry.file, 'utf8'); }
+    catch { return { ok: false, reason: 'undo-stale' }; }
+    const r = LEU.applyUndo(item.entry, cur);
+    if (!r.ok) return r;
+    try { fs.writeFileSync(item.entry.file, r.code, 'utf8'); }
+    catch { return { ok: false, reason: 'error' }; }
+    return { ok: true };
+  }
+  // "desfazer último" (kept as host machinery): revert the NEWEST live splice item — identical
+  // to clicking that item's revert in the feed.
   async _undoLast() {
     try {
       if (!LEU) { this._postEditResult(false, 'engine-unavailable'); return; }
-      const stack = this._undoStack || [];
-      const e = stack[stack.length - 1];
-      if (!e) { this._postEditResult(false, 'nothing-to-undo'); return; }
-      let cur;
-      try { cur = fs.readFileSync(e.file, 'utf8'); }
-      catch { this._postEditResult(false, 'undo-stale'); return; }
-      const r = LEU.applyUndo(e, cur);
-      if (!r.ok) { this._postEditResult(false, r.reason); return; }
-      fs.writeFileSync(e.file, r.code, 'utf8');
-      stack.pop();
+      const feed = this._feed || [];
+      let item = null;
+      for (let i = feed.length - 1; i >= 0; i--) { if (feed[i].kind === 'splice' && feed[i].status === 'live') { item = feed[i]; break; } }
+      if (!item) { this._postEditResult(false, 'nothing-to-undo'); return; }
+      const r = this._revertSpliceItem(item);
+      if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
+      item.status = 'reverted'; item.reason = null;
+      this._feedBump();
       this._postEditResult(true, 'undone');
+    } catch { this._postEditResult(false, 'error'); }
+  }
+  // Per-item revert from the feed. Splice items invert their own span; agent items delegate to
+  // the task registry (sha-guarded per file). Unknown/settled items answer honestly.
+  async _feedRevert(m) {
+    try {
+      const id = (m && typeof m.id === 'string') ? m.id : '';
+      const item = (this._feed || []).find((e) => e.id === id) || null;
+      if (!item || item.status !== 'live') { this._postEditResult(false, 'nothing-to-undo'); return; }
+      if (item.kind === 'splice') {
+        const r = this._revertSpliceItem(item);
+        if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
+        item.status = 'reverted'; item.reason = null;
+        this._feedBump();
+        this._postEditResult(true, 'undone');
+        return;
+      }
+      if (item.kind === 'agent') { this._taskRevert({ taskId: item.taskId, all: true }); return; }
+      this._postEditResult(false, 'error');
     } catch { this._postEditResult(false, 'error'); }
   }
   _postEditDiff(payload) {
@@ -1571,7 +1650,7 @@ class LivePreviewPanel {
       }
       // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
+      this._pushUndo(real, source, res.code, 'apagar · $0', raw); // §4 feed item
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
   }
@@ -1619,6 +1698,14 @@ class LivePreviewPanel {
       if (!r0.ok) { fail(leaFailReason(r0)); return; }
       // READ fence: the model gets the node's exact byte span — never one byte more.
       const nodeSource = s0.slice(r0.start, r0.end);
+      // LP-4.5 §5 — dynamic-content signal, computed BEFORE any rewrite: a Component tag
+      // (uppercase) renders from INSIDE itself, and rendered text that is not literal in the
+      // node span comes from props/data — rewriting this node may change nothing on screen.
+      // The flag rides the diff so the panel warns before aplicar and never claims a plain
+      // "✓ escrito" for a write that may not affect the render.
+      const selText = (m && typeof m.selText === 'string') ? m.selText.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+      const isComponent = /^[A-Z]/.test(String(m.tag || ''));
+      const dynamic = isComponent || (!!selText && nodeSource.replace(/\s+/g, ' ').indexOf(selText) === -1);
       // review P3-a: the model gets a WORKSPACE-RELATIVE file:line label as context — never the
       // absolute host path (which would leak the OS username + repo tree to the cloud).
       let relFile = real;
@@ -1646,7 +1733,7 @@ class LivePreviewPanel {
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, dynamic, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -1672,8 +1759,8 @@ class LivePreviewPanel {
       if (!res.ok) { fail(leaFailReason(res)); return; }
       if (stale) {
         const d = LEA.diffRemovedLines(s2, res.code);
-        // review P1-B: carry the target on the regenerated stale preview too.
-        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
+        // review P1-B: carry the target on the regenerated stale preview too (+ §5 dynamic flag).
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic });
         return;
       }
       // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
@@ -1682,8 +1769,14 @@ class LivePreviewPanel {
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom entry that lights the undo button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, s2, res.code); // §4 — inverse splice, recorded only after a real write
-      this._postEditResult(true, 'model-applied');
+      const vlabel = (m.tier && m.tier !== 'local')
+        ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
+        : 'cercada · local $0';
+      this._pushUndo(real, s2, res.code, vlabel, raw); // §4 feed item
+      // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
+      // changed, the render may not have. The flag was computed host-side at preview time and
+      // rode the approved diff; the copy tells the user to verify and offers the agent.
+      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied');
       // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
       // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
       let repinTag = (typeof m.tag === 'string') ? m.tag : '';
@@ -1699,6 +1792,138 @@ class LivePreviewPanel {
   }
   _postPromptDiff(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
+  // nodeSource + breadcrumb), not a fence: the agent runs headless WITH the workspace as cwd,
+  // reads the repo and edits the RIGHT place — which may not be the pinned node. Hard trust gate
+  // here AND in runAnchoredTask (defense in depth); permissions are enforced runner-side via the
+  // canUseTool allowlist (Bash/network NEVER). A question writes NOTHING; an edit comes back as a
+  // per-file git diff the user keeps or reverts (sha-guarded) — never a silent "✓ escrito".
+  async _taskRun(m) {
+    const fail = (reason, detail) => this._postTaskResult({ ok: false, reason: String(reason || 'error'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    try {
+      const instruction = (m && typeof m.instruction === 'string') ? m.instruction.trim() : '';
+      const mode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
+      if (!instruction) { fail('prompt-empty'); return; }
+      if (!LET) { fail('engine-unavailable'); return; }
+      if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
+      // Anchor context (best-effort, never blocks the task): the node's exact source if we can
+      // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
+      // _promptEdit (the absolute host path never travels to the model).
+      let nodeSource = '';
+      let relFile = '';
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (raw) {
+        const real = this._resolveContainedFile(raw);
+        if (real) {
+          try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep '' */ }
+          try {
+            if (LEA && typeof LEA.locateRange === 'function') {
+              const s = fs.readFileSync(real, 'utf8');
+              const r = LEA.locateRange(s, { line: m.line, col: m.col, tag: m.tag });
+              if (r.ok) nodeSource = s.slice(r.start, r.end);
+            }
+          } catch { /* anchor degrades to file:line only */ }
+        }
+      }
+      this._postTaskStatus({ phase: 'thinking', mode });
+      const res = await LET.runAnchoredTask({
+        instruction,
+        file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+        nodeSource,
+        breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+        mode,
+      }, {
+        wsRoot: this._wsRoot(),
+        trusted: this._workspaceTrusted() === true,
+        onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
+      });
+      if (!res || !res.ok) { fail((res && res.reason) || 'error', res && res.detail); return; }
+      // Register the edits HOST-side keyed by taskId: revert must act on OUR record (snapshot +
+      // shaAfter), never on paths a webview message hands back (P1-B discipline, agent flavour).
+      if (!this._taskReg) { this._taskReg = new Map(); this._taskSeq = 0; }
+      const taskId = 'task-' + (++this._taskSeq);
+      const edits = Array.isArray(res.edits) ? res.edits : [];
+      this._taskReg.set(taskId, edits);
+      if (this._taskReg.size > 20) { const k = this._taskReg.keys().next().value; this._taskReg.delete(k); }
+      // §4 — an agent task that edited files is ONE feed item (per-file revert lives in the
+      // result panel; the feed item reverts the whole task, sha-guarded per file).
+      if (edits.length) {
+        const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
+        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null });
+      }
+      // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
+      // file now) — the user's own pre-existing uncommitted changes never pollute it.
+      const view = edits.map((e) => {
+        const d = LET.gitDiffFile(e.snapshot, e.abs);
+        return { file: e.file, diff: (d && d.ok) ? d.lines.slice(0, 400) : null, diffReason: (d && d.ok) ? null : ((d && d.reason) || 'git-unavailable') };
+      });
+      this._postTaskResult({
+        ok: true, taskId, kind: res.kind, text: String(res.text || ''),
+        filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
+        edits: view,
+        denied: Array.isArray(res.denied) ? res.denied.slice(0, 40) : [],
+        model: res.model || null, mode,
+      });
+    } catch { fail('error'); }
+  }
+  _postTaskStatus(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-status', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  _postTaskResult(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-result', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  // LP-4.5 — revert agent edits: per file (m.file) or all (m.all). The webview only names WHICH
+  // registered edit; the write itself uses OUR record (snapshot path + shaAfter) — a forged
+  // message cannot point the revert at an arbitrary file. Sha-guarded fail-closed in revertEdit:
+  // the file must still match the post-agent hash or nothing is written ('revert-stale').
+  _taskRevert(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-revert-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
+      const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
+      if (!LET || !reg || !reg.length) { post({ taskId, results: [], done: false }); return; }
+      const targets = m && m.all ? reg.slice() : reg.filter((e) => e && e.file === m.file);
+      const results = [];
+      for (const e of targets) {
+        const r = LET.revertEdit(e);
+        results.push({ file: e.file, ok: !!(r && r.ok), reason: (r && r.reason) || null });
+        if (r && r.ok) {
+          const i = reg.indexOf(e);
+          if (i !== -1) reg.splice(i, 1);
+          try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ }
+        }
+      }
+      if (!reg.length) this._taskReg.delete(taskId);
+      // §4 — reflect the outcome on the task's feed item: emptied → reverted; a refusal keeps it
+      // live with the honest reason visible. Scan from the end, live-only (newest task wins).
+      const item = this._feedFindAgent(taskId);
+      if (item) {
+        if (!reg.length) { item.status = 'reverted'; item.reason = null; }
+        else {
+          const bad = results.find((r) => !r.ok);
+          if (bad) item.reason = bad.reason || 'error';
+        }
+        this._feedBump();
+      }
+      post({ taskId, results, done: !reg.length });
+    } catch { post({ taskId: (m && m.taskId) || '', results: [], done: false }); }
+  }
+  // LP-4.5 — keep agent edits: the files already hold them (HMR showed them); keeping just drops
+  // our snapshots/record. Honest ok:false when there is nothing registered to keep.
+  _taskKeep(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-keep-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
+      const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
+      if (!reg || !reg.length) { post({ taskId, ok: false }); return; }
+      for (const e of reg) { try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ } }
+      this._taskReg.delete(taskId);
+      // §4 — the feed item settles as kept (facts, not claims).
+      const item = this._feedFindAgent(taskId);
+      if (item) { item.status = 'kept'; item.reason = null; this._feedBump(); }
+      post({ taskId, ok: true });
+    } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
   }
   _postPromptStatus(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
@@ -1801,6 +2026,12 @@ function getLivePreviewHtml(token) {
   // with the SAME source of truth as the pure decision layer (no JS drift between them).
   const isSelfNoiseSrc = LPD ? LPD.isLivePreviewSelfNoise.toString() : 'function isLivePreviewSelfNoise(){return false;}';
   const isBenignCssSrc = LPD ? LPD.isBenignCssWarning.toString() : 'function isBenignCssWarning(){return false;}';
+  // LP-4.5 — the one-box heuristic (SUGGESTS the local chip, never decides) + the safe markdown
+  // renderer for agent answers, same fn.toString() contract as the renderers above (concat-only,
+  // backtick-free source).
+  const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
+  const renderMarkdownSafeSrc = LTV ? LTV.renderMarkdownSafe.toString() : 'function renderMarkdownSafe(t){return esc(t);}';
+  const renderEditsFeedSrc = LTV ? LTV.renderEditsFeed.toString() : 'function renderEditsFeed(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1852,6 +2083,17 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-diff-l{font:11px var(--vscode-editor-font-family,monospace);white-space:pre;line-height:1.5}
   #lp-sel .lp-diff-rm{color:var(--vscode-errorForeground,#D9484B);background:var(--vscode-inputValidation-errorBackground,rgba(217,72,75,.10))}
   #lp-sel .lp-diff-ad{color:var(--vscode-charts-green,#4CAF6A)}
+  #lp-sel .lp-diff-hk{opacity:.6}
+  /* LP-4.5 — one-box hint (the heuristic SUGGESTS the local chip) + agent result blocks. */
+  #lp-sel .lp-hint{font-size:10.5px;margin-top:4px;color:var(--vscode-charts-green,#4CAF6A);line-height:1.4}
+  #lp-sel .lp-task-txt{font-size:12px;line-height:1.55;word-break:break-word;margin:4px 0 6px}
+  #lp-sel .lp-task-txt code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px}
+  #lp-sel .lp-md-ul{margin:3px 0 3px 16px;padding:0}
+  #lp-sel .lp-md-h{font-weight:700;margin:6px 0 2px}
+  #lp-sel .lp-md-sp{height:5px}
+  #lp-sel .lp-task-st{font-size:10.5px;opacity:.9;margin-left:6px}
+  #lp-sel .lp-task-reads{font-size:10.5px;opacity:.8;margin:4px 0;line-height:1.6}
+  #lp-sel .lp-task-reads code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10px}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
   #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
   #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -1863,6 +2105,10 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
+  /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
+  #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
+  #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
+  .lp-dev-btn[aria-pressed="true"]{background:var(--vscode-charts-blue,#5A9BD4)!important;color:#0B0A09!important;border-color:transparent!important;font-weight:700}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
   .lp-degrade-in{max-width:440px}
   .lp-degrade-ico{font-size:34px;margin-bottom:8px;opacity:.85}
@@ -1900,6 +2146,20 @@ function getLivePreviewHtml(token) {
   .lpd-btn:hover:not([disabled]){background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   .lpd-btn[disabled]{opacity:.45;cursor:not-allowed}
   .lpd-x:focus-visible,.lpd-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.5 §4 — the unified session feed (one row per Live Edit write, per-item revert). */
+  .lpfd{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
+  .lpfd-hd{font-weight:700;margin-bottom:4px}
+  .lpfd-nd{color:var(--vscode-descriptionForeground);font-style:italic;font-size:11.5px}
+  .lpfd-list{max-height:26vh;overflow:auto}
+  .lpfd-row{display:flex;gap:7px;align-items:baseline;padding:3px 0;border-top:1px solid var(--vscode-widget-border);font-size:11.5px;flex-wrap:wrap}
+  .lpfd-time{opacity:.6;font-variant-numeric:tabular-nums;flex:none}
+  .lpfd-via{flex:none;font-size:10px;padding:1px 7px;border-radius:999px;background:var(--vscode-input-background);border:1px solid var(--vscode-widget-border)}
+  .lpfd-files{flex:1 1 auto;min-width:80px;font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px;word-break:break-all;opacity:.9}
+  .lpfd-st{flex:none;font-size:10.5px;opacity:.9}
+  .lpfd-why{flex-basis:100%;font-size:10.5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B))}
+  .lpfd-rv{flex:none;font:10.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:1px 8px;cursor:pointer}
+  .lpfd-rv:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lpfd-rv:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   .lpbr,.lpdc{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
   .lpbr-hd,.lpdc-hd{font-weight:700;margin-bottom:6px}
   .lpbr-row{margin:3px 0;font-size:12px}
@@ -1930,6 +2190,9 @@ function getLivePreviewHtml(token) {
         <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
         <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
+        <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
+        <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
+        <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
@@ -1944,6 +2207,7 @@ function getLivePreviewHtml(token) {
   </section>
   <aside id="lp-side">
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
+    <div id="lp-feed" role="region" aria-label="Mudanças desta sessão de preview"></div>
     <div id="lp-brain">a carregar…</div>
     <div id="lp-dc"></div>
   </aside>
@@ -1958,6 +2222,9 @@ const renderStageStatus=${renderStageStatusSrc};
 const renderErrorStrip=${renderErrorStripSrc};
 const isLivePreviewSelfNoise=${isSelfNoiseSrc};
 const isBenignCssWarning=${isBenignCssSrc};
+const suggestLocalChip=${suggestLocalChipSrc};
+const renderMarkdownSafe=${renderMarkdownSafeSrc};
+const renderEditsFeed=${renderEditsFeedSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2127,12 +2394,15 @@ function lpSendRestore(){
 // (origin-targeted postMessage into the frame — the frame is cross-origin, so never '*'). When the
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
-let lpSelection=null, lpSelectOn=false, lpTier='local';
-// LP-4 §6 / review P1-B — honest session state driving the panel: undo depth (from lp-edit-result)
-// and the SDK-bridge status (from the snapshot). The WRITE TARGET is NOT a global anymore: every
-// apply (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m), so a
-// second preview in flight can never move where an approved diff lands.
-let lpUndoDepth=0, lpBridge=null;
+// LP-4.5 one-box mode: 'auto' (anchored-task agent — the default) · 'local' (LP-4 fenced node
+// rewrite, $0) · 't1'/'t2'/'t3'/'fable' (the agent pinned to that subscription model; @fable is
+// manual-only, never auto-routed).
+let lpSelection=null, lpSelectOn=false, lpMode='auto';
+// LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
+// the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
+// a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
+// (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
+let lpFeedRev=-1, lpBridge=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -2156,6 +2426,16 @@ function sendRepin(c){
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
 }
 function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
+// LP-4.5 §5 — the escape hatch from every dynamic-content warning: point the one box at the
+// agent. Honest when it cannot: bridge missing/untrusted → the exact reason, no silent no-op.
+function switchToAgent(){
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  if(!br.available){ showEditResult(false,(br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing'); return; }
+  lpMode='auto';
+  renderModeChips();
+  const bi=document.getElementById('lp-box-in');
+  if(bi) bi.focus();
+}
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
   if(!el) return;
@@ -2186,6 +2466,10 @@ function renderSelection(sel){
   // Honest multi-instance warning: the tap counted the same stamp on N live DOM nodes — the
   // selection is pinned to the FIRST instance, but any edit/delete lands on the template.
   if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a edição afeta o template, ou seja TODOS os itens.</div>';
+  // LP-4.5 §5 — dynamic-component honesty, BEFORE any fenced rewrite: an uppercase tag is a
+  // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
+  // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
+  if(/^[A-Z]/.test(sel.tag||'')) warn+='<div class="lp-sel-warn">⚠ &lt;'+tag+'&gt; é um componente — o conteúdo vem de DENTRO dele: reescrever este nó não o muda. <button type="button" id="lp-sel-agent" class="lp-sel-btn">resolver com o agente</button></div>';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
@@ -2195,11 +2479,11 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div id="lp-prompt-l" class="lp-ed-l">pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':esc(tierModel(lpTier))+' · subscrição')+')</div>'
-    +'<div class="lp-ed-row"><input id="lp-prompt-in" class="lp-ed-in" type="text" placeholder="descreve a mudança… (ex: cantos redondos e borda fina)" /><button id="lp-prompt-b" class="lp-sel-btn" title="o moo reescreve SÓ este elemento — diff cercado antes de escrever">pré-visualizar</button></div>'
+    +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
+    +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button>'
-    +'<button id="lp-sel-undo" class="lp-sel-btn"'+(lpUndoDepth<1?' disabled title="nada para desfazer nesta sessão"':' title="desfazer a última escrita do Live Edit — $0, splice inverso"')+'>↩ desfazer último</button></div>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
@@ -2212,19 +2496,35 @@ function renderSelection(sel){
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
-  // LP-4 §6 — the anchored prompt box: the moo rewrites ONLY this node; the reply comes back as a
-  // fenced diff (lp-prompt-diff) the user approves before anything is written.
-  const pi=document.getElementById('lp-prompt-in'), pb=document.getElementById('lp-prompt-b');
-  const sendPrompt=function(){
-    const v=pi?pi.value.trim():'';
+  // LP-4.5 — the ONE BOX: any prompt lands here. Default AUTO = the anchored-task agent (reads
+  // the repo, answers or edits in the RIGHT place, diff before keeping). The 'local $0 · só este
+  // nó' chip keeps the LP-4 fenced node rewrite intact. The heuristic below only SUGGESTS the
+  // local chip when the ask smells node-local — it never decides.
+  const bi=document.getElementById('lp-box-in'), bb=document.getElementById('lp-box-b');
+  const sendBox=function(){
+    const v=bi?bi.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
-    vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:lpTier });
+    if(lpMode==='local'){
+      // §5 — the rendered text travels so the host can flag dynamic content on the diff.
+      vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
+    } else {
+      const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc });
+    }
     showEditResult(null,'pending');
   };
-  if(pi&&pb){ pb.addEventListener('click', sendPrompt); pi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendPrompt(); } }); }
-  // §4 — undo: $0 inverse byte-splice of the LAST Live Edit write (sha-guarded host-side).
-  const ub=document.getElementById('lp-sel-undo');
-  if(ub) ub.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-undo' }); showEditResult(null,'pending'); });
+  if(bi&&bb){
+    bb.addEventListener('click', sendBox);
+    bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(); } });
+    bi.addEventListener('input', function(){
+      const h=document.getElementById('lp-box-hint'); if(!h) return;
+      if(lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
+      else h.style.display='none';
+    });
+  }
+  // §5 — "resolver com o agente": switch the box to AUTO (honest refusal when the bridge is off).
+  const ag=document.getElementById('lp-sel-agent');
+  if(ag) ag.addEventListener('click', switchToAgent);
   const cbs=el.querySelectorAll('[data-crumb]');
   for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
     // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
@@ -2238,7 +2538,7 @@ function renderSelection(sel){
     vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
     showEditResult(null,'pending');
   });
-  renderChip();
+  renderModeChips();
 }
 // MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
 // partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
@@ -2331,10 +2631,13 @@ function renderPromptDiff(m){
   if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
   const who=(!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição';
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
+  // §5 — dynamic-content honesty BEFORE aplicar: this write may not change what is rendered.
+  const dynWarn=m.dynamic?'<div class="lp-sel-warn">⚠ o conteúdo vem de dentro do componente — reescrever este nó não o muda. <button type="button" id="lp-pr-agent" class="lp-sel-btn">resolver com o agente</button></div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da reescrita">'
     +'<div class="lp-diff-hd">reescrita por prompt · linha '+esc(m.start==null?'?':m.start)+' — '+who+' · cercada: só este nó</div>'
     +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
+    +dynWarn
     +rows
     +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
     +'</div>';
@@ -2343,54 +2646,136 @@ function renderPromptDiff(m){
     // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
     // concurrent preview can no longer make the approved diff land on a different node.
     if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier });
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier, dynamic:!!m.dynamic });
     showEditResult(null,'pending');
   });
+  const ga=document.getElementById('lp-pr-agent');
+  if(ga) ga.addEventListener('click', switchToAgent);
   const ca=document.getElementById('lp-pr-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
-// MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
-// local for $0 with no LLM, so classify.js is never consulted (and never touched/executed here). The
-// override lets you pin the model for STRUCTURAL edits (a prompt → CC), which land in MP5.2; honest
-// copy says so and never fabricates a token cost for the free path.
-const LP_TIERS=[['local','🐮 local · $0'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+// LP-4.5 — the agent verdict. A QUESTION renders as SAFE markdown (esc-first) + the files it
+// read (zero writes — provably: no edits arrive). An EDIT renders every touched file with its
+// git diff (scoped to the task) + 'manter tudo' / 'reverter tudo' / per-file revert. Reverts are
+// sha-guarded HOST-side against OUR snapshot record — never against paths this webview sends.
+function renderTaskResult(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const who=(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · agente · subscrição'+(m.model?(' ('+esc(m.model)+')'):'');
+  let html='<div class="lp-diff" role="region" aria-label="Resultado do agente">'
+    +'<div class="lp-diff-hd">'+(m.kind==='answer'?'resposta do agente':'edições do agente')+' — '+who+'</div>';
+  if(m.text) html+='<div class="lp-task-txt">'+renderMarkdownSafe(m.text)+'</div>';
+  const reads=Array.isArray(m.filesRead)?m.filesRead:[];
+  if(reads.length){
+    html+='<div class="lp-task-reads">ficheiros lidos:';
+    for(let i=0;i<reads.length&&i<20;i++) html+=' <code>'+esc(reads[i])+'</code>';
+    if(reads.length>20) html+=' … +'+(reads.length-20);
+    html+='</div>';
+  }
+  const edits=Array.isArray(m.edits)?m.edits:[];
+  for(let i=0;i<edits.length;i++){
+    const e=edits[i]||{};
+    html+='<div class="lp-diff-hd" style="margin-top:8px">✍ '+esc(e.file||'?')
+      +' <button type="button" class="lp-sel-btn lp-task-rv" data-tfile="'+esc(e.file||'')+'" title="repor os bytes anteriores DESTE ficheiro (sha-guarded)">reverter</button>'
+      +' <span class="lp-task-st" data-tst="'+esc(e.file||'')+'"></span></div>';
+    const lines=Array.isArray(e.diff)?e.diff:null;
+    if(!lines){ html+='<div class="lp-diff-l">(diff indisponível — '+esc(e.diffReason||'git-unavailable')+')</div>'; continue; }
+    for(let j=0;j<lines.length&&j<80;j++){
+      const l=lines[j];
+      const cls=l.charAt(0)==='-'?' lp-diff-rm':(l.charAt(0)==='+'?' lp-diff-ad':(l.indexOf('@@')===0?' lp-diff-hk':''));
+      html+='<div class="lp-diff-l'+cls+'">'+esc(l)+'</div>';
+    }
+    if(lines.length>80) html+='<div class="lp-diff-l">… +'+(lines.length-80)+' linhas</div>';
+  }
+  if(edits.length){
+    html+='<div class="lp-sel-acts">'
+      +'<button id="lp-task-keep" class="lp-sel-btn" title="aceitar — as edições ficam nos ficheiros (o HMR já as mostra)">manter tudo</button>'
+      +'<button id="lp-task-revert-all" class="lp-sel-btn" title="repor os bytes anteriores de TODOS os ficheiros listados (sha-guarded) — nunca fora desta lista">reverter tudo</button>'
+      +'</div>';
+  }
+  html+='</div>';
+  el.innerHTML=html;
+  const tid=m.taskId;
+  const kb=document.getElementById('lp-task-keep');
+  if(kb) kb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-keep', taskId:tid }); showEditResult(null,'pending'); });
+  const rb=document.getElementById('lp-task-revert-all');
+  if(rb) rb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-revert', taskId:tid, all:true }); showEditResult(null,'pending'); });
+  const rvs=el.querySelectorAll('[data-tfile]');
+  for(let i=0;i<rvs.length;i++){ rvs[i].addEventListener('click', function(){
+    vsapi.postMessage({ type:'lp-task-revert', taskId:tid, file:this.getAttribute('data-tfile') });
+    showEditResult(null,'pending');
+  }); }
+}
+// Per-file revert/keep outcomes — update the row states in place, honestly (a stale revert says
+// so and keeps the button; a reverted file disables its button; keep marks everything kept).
+function applyTaskRevertResult(m){
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const results=Array.isArray(m.results)?m.results:[];
+  for(let i=0;i<results.length;i++){
+    const r=results[i]||{};
+    const st=document.querySelector('[data-tst="'+(window.CSS&&CSS.escape?CSS.escape(r.file||''):String(r.file||'').replace(/"/g,''))+'"]');
+    const bt=document.querySelector('[data-tfile="'+(window.CSS&&CSS.escape?CSS.escape(r.file||''):String(r.file||'').replace(/"/g,''))+'"]');
+    if(st){ st.textContent=r.ok?'↩ revertido':('não revertido: '+(r.reason==='revert-stale'?'o ficheiro mudou entretanto':(r.reason||'erro'))); }
+    if(bt&&r.ok) bt.disabled=true;
+  }
+  if(m.done){
+    const kb=document.getElementById('lp-task-keep'); if(kb) kb.disabled=true;
+    const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
+  }
+}
+function applyTaskKeepResult(m){
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=m.ok?'✓ mantido — as edições ficam nos ficheiros':'nada para manter'; msg.className='lp-ed-msg '+(m.ok?'lp-ed-ok':'lp-ed-no'); }
+  const sts=document.querySelectorAll('[data-tst]');
+  for(let i=0;i<sts.length;i++) sts[i].textContent=m.ok?'✓ mantido':'';
+  const bts=document.querySelectorAll('[data-tfile]');
+  for(let i=0;i<bts.length;i++) bts[i].disabled=true;
+  const kb=document.getElementById('lp-task-keep'); if(kb) kb.disabled=true;
+  const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
+}
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
-// LP-4 §6 — router-native advisory chip. The truth: text/class/delete are deterministic ($0, no
-// LLM); the PROMPT runs on the local moo by default ($0, nothing leaves the machine); going cloud
-// is opt-in, runs on the SUBSCRIPTION via the SDK bridge (no API key), and @fable is manual only
-// (never auto-routed). Bridge absent → cloud tiers disabled with the honest reason, never a dead
-// button that fails later.
-function renderChip(){
+// LP-4.5 — the one-box MODE chips. The truth: text/class/delete stay deterministic ($0, no LLM).
+// The BOX defaults to AUTO = the anchored-task agent (subscription via the SDK bridge — honest
+// chip 'agente · subscrição'): it reads the repo and answers or edits in the RIGHT place, every
+// edit behind a diff + revert. 'local $0 · só este nó' is the LP-4 fenced node rewrite, intact.
+// Haiku/Sonnet/Opus pin the AGENT's model; @fable is manual only (never auto-routed). Bridge
+// absent/untrusted → every agent mode disables with the honest reason and local becomes the
+// selection — never a dead button that fails later.
+const LP_MODES=[['auto','🤖 AUTO · agente · subscrição'],['local','🐮 local $0 · só este nó'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+function renderModeChips(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
-  // review P1-A: the cloud disabled-reason is HONEST about which gate failed — trust vs missing SDK.
+  // review P1-A: the disabled-reason is HONEST about which gate failed — trust vs missing SDK.
   const disReason=(br.reason==='workspace-untrusted')
-    ? 'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
-    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
-  let tiers='';
-  for(let i=0;i<LP_TIERS.length;i++){
-    const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]);
+    ? 'workspace não confiável — o agente corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
+    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para ativar o agente';
+  if(lpMode!=='local'&&!br.available) lpMode='local'; // honest fallback, visible in the chips
+  let chips='';
+  for(let i=0;i<LP_MODES.length;i++){
+    const id=LP_MODES[i][0], lb=esc(LP_MODES[i][1]);
     const dis=(id!=='local')&&!br.available;
-    tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'"'
+    chips+='<button type="button" class="lp-tier'+(lpMode===id?' on':'')+'" data-mode="'+id+'" aria-pressed="'+(lpMode===id?'true':'false')+'"'
       +(dis?(' disabled title="'+esc(disReason)+'"'):'')
       +'>'+lb+'</button>';
   }
-  const note = (lpTier==='local')
-    ? 'texto/classe e apagar são determinísticos — $0, sem tokens. O prompt corre no moo local — $0, nada sai da máquina. Subir para cloud é opt-in e gasta subscrição.'
-    : 'o prompt sobe para '+esc(tierModel(lpTier))+' via ponte SDK headless (subscrição — sem API key na extensão); a resposta volta pela MESMA cerca. texto/classe continuam $0.'
-      +(lpTier==='fable'?' @fable é SEMPRE manual — nunca auto-routed.':'');
-  el.innerHTML='<div class="lp-chip-hd">🐮 este prompt: <span class="lp-chip-0">'+(lpTier==='local'?'local · $0 · sem tokens':esc(tierModel(lpTier))+' · subscrição · opt-in')+'</span></div>'
-    +'<div class="lp-tiers" role="group" aria-label="Modelo para o prompt">'+tiers+'</div>'
+  const note = (lpMode==='local')
+    ? 'reescrita cercada SÓ deste nó — moo local, $0, nada sai da máquina. texto/classe/apagar continuam determinísticos.'
+    : (lpMode==='auto'
+      ? 'o agente lê o repo (Read/Grep/Glob) e responde no painel ou edita no sítio CERTO (pode não ser este nó). Bash e rede NUNCA; toda a edição mostra diff + reverter. Corre na subscrição via ponte SDK.'
+      : 'o agente corre em '+esc(tierModel(lpMode))+' (subscrição via ponte SDK). Mesmas regras: só Read/Grep/Glob/Edit no workspace, diff + reverter.'
+        +(lpMode==='fable'?' @fable é SEMPRE manual — nunca auto-routed.':''));
+  el.innerHTML='<div class="lp-chip-hd">🐮 esta caixa: <span class="lp-chip-0">'+(lpMode==='local'?'local · $0 · só este nó':(lpMode==='auto'?'agente · subscrição':esc(tierModel(lpMode))+' · agente · subscrição'))+'</span></div>'
+    +'<div class="lp-tiers" role="group" aria-label="Como resolver este prompt">'+chips+'</div>'
     +'<div class="lp-chip-note">'+note+'</div>';
-  const btns=el.querySelectorAll('[data-tier]');
+  const btns=el.querySelectorAll('[data-mode]');
   for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){
     if(this.disabled) return;
-    lpTier=this.getAttribute('data-tier');
-    renderChip();
-    // Refresh the prompt-box label in place — NEVER re-render the panel here (it would wipe a
+    lpMode=this.getAttribute('data-mode');
+    renderModeChips();
+    // Refresh ONLY the box hint in place — NEVER re-render the panel here (it would wipe a
     // prompt the user already typed).
-    const pl=document.getElementById('lp-prompt-l');
-    if(pl) pl.textContent='pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':tierModel(lpTier)+' · subscrição')+')';
+    const bi2=document.getElementById('lp-box-in'), h=document.getElementById('lp-box-hint');
+    if(h){ if(bi2&&lpMode!=='local'&&suggestLocalChip(bi2.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; } else h.style.display='none'; }
   }); }
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
@@ -2411,6 +2796,7 @@ function showEditResult(ok, reason){
     'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
     // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
     'model-applied':'✓ escrito — o moo reescreveu SÓ este elemento (o HMR atualiza o preview)',
+    'model-applied-dynamic':'✓ escrito no ficheiro — mas o conteúdo rendido vem de dentro do componente: se o preview não mudou, resolve com o agente',
     undone:'↩ desfeito — os bytes anteriores foram repostos ($0, splice inverso)',
     'undo-stale':'o ficheiro mudou desde a última escrita do Live Edit — desfazer recusado (nada foi escrito)',
     'nothing-to-undo':'nada para desfazer nesta sessão',
@@ -2431,7 +2817,13 @@ function showEditResult(ok, reason){
     'replacement-trailing-junk':'o modelo devolveu lixo fora do elemento — recusado pela cerca, nada foi escrito',
     'empty-replacement':'o modelo devolveu vazio — recusado pela cerca',
     'range-not-a-node':'o alvo já não é um nó válido — reselecciona',
-    'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito' };
+    'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito',
+    // LP-4.5 — honest states for the anchored-task agent.
+    'task-timeout':'o agente demorou demasiado (180s) — tenta um pedido mais pequeno',
+    'task-bridge-error':'a ponte do agente falhou — vê a sessão do Claude Code',
+    'task-empty':'o agente devolveu vazio — reformula o pedido',
+    'revert-stale':'o ficheiro mudou desde a edição do agente — reverter recusado (nada foi escrito)',
+    'revert-unavailable':'não consigo garantir o reverter deste ficheiro (sem marca da edição) — recusado para não sobrepor bytes de outrem' };
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
@@ -2471,20 +2863,26 @@ window.addEventListener('message', (ev) => {
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
-    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderChip(); }
+    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); }
     else if(br) lpBridge=br;
+    // LP-4.5 §4 — the unified feed rides the snapshot; re-render ONLY when its revision moves so
+    // a poll never steals focus from a feed button mid-click.
+    const fd=m.s && m.s.feed;
+    if(fd && typeof fd.rev==='number' && fd.rev!==lpFeedRev){
+      lpFeedRev=fd.rev;
+      const fe=document.getElementById('lp-feed');
+      if(fe){
+        fe.innerHTML=renderEditsFeed(fd.items);
+        const bs=fe.querySelectorAll('[data-feed-rv]');
+        for(let i=0;i<bs.length;i++){ bs[i].addEventListener('click', function(){ vsapi.postMessage({ type:'lp-feed-revert', id:this.getAttribute('data-feed-rv') }); }); }
+      }
+    }
   }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
-    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
-    // §4 — the live undo depth drives the button state (facts, not claims).
-    if (typeof m.undo === 'number'){
-      lpUndoDepth=m.undo;
-      const ub=document.getElementById('lp-sel-undo');
-      if(ub){ ub.disabled=lpUndoDepth<1; ub.title=lpUndoDepth<1?'nada para desfazer nesta sessão':'desfazer a última escrita do Live Edit — $0, splice inverso'; }
-    }
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
@@ -2496,6 +2894,20 @@ window.addEventListener('message', (ev) => {
       if(el){ el.textContent=(!m.tier||m.tier==='local')?'a pensar… (moo local · $0)':'a pensar… ('+tierModel(m.tier)+' · subscrição)'; el.className='lp-ed-msg lp-ed-pending'; }
     }
   }
+  else if (m.type === 'lp-task-status'){
+    // LP-4.5 — live agent progress: what it is doing RIGHT NOW (a ler X / a editar Y), plus every
+    // denial (honesty: the fence is visible, not implied).
+    const el=document.getElementById('lp-edit-msg');
+    if(el){
+      if(m.phase==='thinking') el.textContent='agente a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
+      else if(m.phase==='tool') el.textContent=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
+      else if(m.phase==='deny') el.textContent='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
+      el.className='lp-ed-msg lp-ed-pending';
+    }
+  }
+  else if (m.type === 'lp-task-result'){ renderTaskResult(m); } // LP-4.5 agent verdict (answer or per-file diffs)
+  else if (m.type === 'lp-task-revert-result'){ applyTaskRevertResult(m); } // LP-4.5 per-file revert outcomes
+  else if (m.type === 'lp-task-keep-result'){ applyTaskKeepResult(m); } // LP-4.5 keep-all outcome
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
 });
 const urlInput=document.getElementById('lp-url');
@@ -2517,6 +2929,24 @@ const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
+// LP-4.5 §6 — device toggle: 📱390 · 📱768 · 💻 full. Honest and cheap: ONLY the iframe width
+// changes (real responsive breakpoints in the user's own dev server) — no UA spoofing claimed.
+function setDevice(px){
+  const f=document.getElementById('lp-frame'), w=document.getElementById('lp-framewrap');
+  if(!f||!w) return;
+  if(px){ f.style.width=px+'px'; f.style.maxWidth='100%'; w.classList.add('lp-dev-narrow'); }
+  else { f.style.width='100%'; f.style.maxWidth=''; w.classList.remove('lp-dev-narrow'); }
+  const map=[['lp-dev-390',390],['lp-dev-768',768],['lp-dev-full',null]];
+  for(let i=0;i<map.length;i++){ const b=document.getElementById(map[i][0]); if(b) b.setAttribute('aria-pressed', map[i][1]===px?'true':'false'); }
+}
+(function(){
+  const d3=document.getElementById('lp-dev-390');
+  if(d3) d3.addEventListener('click', ()=> setDevice(390));
+  const d7=document.getElementById('lp-dev-768');
+  if(d7) d7.addEventListener('click', ()=> setDevice(768));
+  const df=document.getElementById('lp-dev-full');
+  if(df) df.addEventListener('click', ()=> setDevice(null));
+})();
 </script>
 </body></html>`;
 }
