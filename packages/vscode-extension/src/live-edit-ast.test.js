@@ -106,7 +106,7 @@ test('bad inputs are refused, never thrown', () => {
 
 // ── MP5.2a — locateRange / deleteNode / spliceNodeRange (the byte-bounded AST fence) ────────────
 
-const { locateRange, deleteNode, spliceNodeRange } = require('./live-edit-ast.js');
+const { locateRange, deleteNode, spliceNodeRange, insertImports } = require('./live-edit-ast.js');
 
 const LINES52 = [
   'export default function P() {',
@@ -254,4 +254,63 @@ test('MP5.1 exports are untouched by the MP5.2a additions (engine freeze honoure
   for (const k of ['applyDeterministicEdit', 'editText', 'editClass', 'locate', 'collectJsxElements', 'tagNameOf']) {
     assert.strictEqual(typeof LEA[k], 'function', k + ' still exported');
   }
+});
+
+// ── LP-4.7 — insertImports (the only path a VERIFIED new import takes into the file) ───────────
+
+const IMP_SRC = [
+  "'use client';",
+  "import { useState } from 'react';",
+  "import Link from 'next/link';",
+  '',
+  'export default function P() {',
+  '  return <div>hi</div>;',
+  '}',
+  '',
+].join('\n');
+
+test('insertImports lands after the LAST existing import; result re-parses; bytes elsewhere intact', () => {
+  const r = insertImports(IMP_SRC, ["import { siGithub } from 'simple-icons'"]);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.changed, true);
+  const lines = r.code.split('\n');
+  assert.strictEqual(lines[3], "import { siGithub } from 'simple-icons'", 'right below next/link');
+  assert.ok(r.code.indexOf("'use client';") === 0, 'directive untouched at byte 0');
+  assert.ok(r.code.endsWith('}\n'), 'tail untouched');
+  assert.deepStrictEqual(r.inserted, ["import { siGithub } from 'simple-icons'"]);
+});
+
+test('insertImports without existing imports goes AFTER the directive (never before use client)', () => {
+  const src = "'use client';\nexport default function P(){ return <b>x</b>; }\n";
+  const r = insertImports(src, ["import { Star } from 'lucide-react'"]);
+  assert.strictEqual(r.ok, true);
+  assert.ok(r.code.startsWith("'use client';\nimport { Star } from 'lucide-react'"), r.code.slice(0, 80));
+});
+
+test('insertImports with no directive and no imports prepends at byte 0', () => {
+  const src = 'export default function P(){ return <b>x</b>; }\n';
+  const r = insertImports(src, ["import x from 'react'"]);
+  assert.strictEqual(r.ok, true);
+  assert.ok(r.code.startsWith("import x from 'react'\n"));
+});
+
+test('insertImports is idempotent: fully-bound statements skip; partial collision refuses', () => {
+  const same = insertImports(IMP_SRC, ["import { useState } from 'react'"]);
+  assert.strictEqual(same.ok, true);
+  assert.strictEqual(same.changed, false, 'already imported → no write');
+  const mixed = insertImports(IMP_SRC, ["import { useState, useEffect } from 'react'"]);
+  assert.strictEqual(mixed.ok, false);
+  assert.strictEqual(mixed.reason, 'import-conflicts');
+  const dupNew = insertImports(IMP_SRC, ["import { A } from 'a'", "import { A } from 'b'"]);
+  assert.strictEqual(dupNew.ok, false, 'two NEW statements binding the same local cannot both land');
+});
+
+test('insertImports refuses smuggling — comments, junk, non-imports — and junk inputs', () => {
+  assert.strictEqual(insertImports(IMP_SRC, ["import a from 'x' // hi"]).reason, 'import-has-comments');
+  assert.strictEqual(insertImports(IMP_SRC, ["import a from 'x'; alert(1)"]).reason, 'not-an-import');
+  assert.strictEqual(insertImports(IMP_SRC, ['const a = 1']).reason, 'not-an-import');
+  assert.strictEqual(insertImports(IMP_SRC, ['import {']).reason, 'import-parse-error');
+  assert.strictEqual(insertImports('', ["import a from 'x'"]).reason, 'no-source');
+  assert.strictEqual(insertImports(IMP_SRC, 'not-array').reason, 'bad-imports');
+  assert.strictEqual(insertImports(IMP_SRC, []).changed, false);
 });
