@@ -1921,11 +1921,13 @@ function renderSelection(sel){
       +(last?' aria-current="true" disabled':'')
       +' title="'+esc((c.file||'')+':'+(c.line==null?'':c.line))+'">'+esc(c.label||c.tag||'nó')+'</button>';
   }
-  // Honest shared-component warning: when the node's file differs from the breadcrumb root (the
-  // route's page file), the node lives inside a reused component — an edit lands on the DEFINITION
-  // and affects every usage. Say it; don't let the edit surprise.
-  const rootFile=pth.length?(pth[0]&&pth[0].file):null;
-  const warn=(rootFile&&sel.file&&rootFile!==sel.file)
+  // Honest shared-component warning. The signal is the crumb immediately ABOVE the leaf — the
+  // USAGE site: when it lives in a different file than the node itself, the node's file is a
+  // component DEFINITION used from elsewhere, so an edit lands on the definition and affects
+  // every usage. (Comparing against the breadcrumb ROOT would misfire — in Next the chain crosses
+  // layout.tsx above every page node, which would scream the warning on everything.)
+  const parentCrumb=pth.length>1?pth[pth.length-2]:null;
+  const warn=(parentCrumb&&parentCrumb.file&&sel.file&&parentCrumb.file!==sel.file)
     ?'<div class="lp-sel-warn">⚠ este nó vive em <b>'+esc(baseName(sel.file))+'</b> — a edição afeta todos os usos deste componente.</div>'
     :'';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'

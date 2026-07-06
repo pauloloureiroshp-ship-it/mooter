@@ -229,6 +229,9 @@ function spliceNodeRange(source, range, replacement) {
     body[0].expression &&
     body[0].expression.type === 'JSXElement';
   if (!single) return { ok: false, reason: 'not-single-root' };
+  // Belt and braces: the single statement must cover the WHOLE replacement text — any leading or
+  // trailing trivia that is not part of the element (whatever it is) has no business in the span.
+  if (body[0].start !== 0 || body[0].end !== repl.length) return { ok: false, reason: 'replacement-trailing-junk' };
   const code = source.slice(0, start) + repl + source.slice(end);
   const check = parse(code);
   if (check.error) return { ok: false, reason: 'splice-breaks-parse', detail: check.error };
