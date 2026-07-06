@@ -58,7 +58,7 @@ function plantFakeSdk(root, mode) {
       "    const f = join(ws, 'landing', 'page.tsx');",
       "    writeFileSync(f, readFileSync(f, 'utf8').replace('61 moos', '77 moos'), 'utf8');",
       "  }",
-      "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ prompt, model: options.model, cwd: ws, maxTurns: options.maxTurns, allowedTools: options.allowedTools, asks }));",
+      "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ prompt, model: options.model, cwd: ws, maxTurns: options.maxTurns, allowedTools: options.allowedTools, disallowedTools: options.disallowedTools, asks }));",
       "  yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Atualizei para 77 moos (valor real do repo).' }] } };",
       "  yield { result: 'Atualizei para 77 moos (valor real do repo).' };",
       '}',
@@ -146,7 +146,12 @@ test('e2e ALLOWLIST gauntlet: Bash/WebFetch/WebSearch/Write DENIED; Read/Edit ou
     // The session runs IN the workspace (the whole point of an anchored task)…
     assert.strictEqual(fs.realpathSync(spy.cwd), fs.realpathSync(root), 'agent cwd IS the workspace');
     assert.strictEqual(spy.model, 'claude-sonnet-4-6', 'AUTO mode → Sonnet');
-    assert.deepStrictEqual(spy.allowedTools, ['Read', 'Grep', 'Glob', 'LS', 'Edit', 'MultiEdit']);
+    // Gate finding (live proof a): `allowedTools` makes the SDK AUTO-APPROVE without consulting
+    // canUseTool — an auto-approved Edit would skip the snapshot. It must NEVER be passed.
+    assert.strictEqual(spy.allowedTools, undefined, 'allowedTools NEVER passed (it bypasses canUseTool)');
+    for (const t of ['Bash', 'Write', 'WebFetch', 'WebSearch']) {
+      assert.ok(spy.disallowedTools.includes(t), t + ' hard-blocked via disallowedTools too');
+    }
 
     // …the anchor + the brief's rules travel in the prompt…
     assert.ok(spy.prompt.includes(INPUT.instruction), 'instruction in prompt');

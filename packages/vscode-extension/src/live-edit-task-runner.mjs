@@ -192,7 +192,11 @@ async function main() {
         model,
         cwd: wsRoot, // the whole point: the agent reads THIS repo (trust-gated host-side)
         maxTurns: 40,
-        allowedTools: ALLOWED_TOOLS.slice(), // advisory belt — canUseTool is the enforcement
+        // ⚠ NEVER pass `allowedTools` here: the SDK AUTO-APPROVES those without consulting
+        // canUseTool (proven live in the LP-4.5 gate) — an auto-approved Edit would skip the
+        // snapshot and break the diff/revert promise. canUseTool is the ONE fence; the
+        // known-dangerous tools are additionally hard-blocked below (belt and suspenders).
+        disallowedTools: ['Bash', 'Write', 'WebFetch', 'WebSearch', 'NotebookEdit', 'Task', 'KillShell'],
         canUseTool,
       },
     })) {
