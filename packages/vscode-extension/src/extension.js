@@ -1539,6 +1539,15 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-ed-ok{color:var(--vscode-charts-green,#4CAF6A)}
   #lp-sel .lp-ed-no{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B))}
   #lp-sel .lp-ed-pending{opacity:.7}
+  /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
+  #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
+  #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  #lp-sel .lp-chip-0{color:var(--vscode-charts-green,#4CAF6A);font-weight:700}
+  #lp-sel .lp-tiers{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+  #lp-sel .lp-tier{font:10.5px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:999px;padding:2px 9px;cursor:pointer}
+  #lp-sel .lp-tier.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700}
+  #lp-sel .lp-tier:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-sel .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
@@ -1805,7 +1814,7 @@ function lpSendRestore(){
 // (origin-targeted postMessage into the frame — the frame is cross-origin, so never '*'). When the
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
-let lpSelection=null, lpSelectOn=false;
+let lpSelection=null, lpSelectOn=false, lpTier='local';
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -1825,6 +1834,7 @@ function renderSelection(sel){
   const curText=sel.text||''; const curClass=sel.className||'';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
     +'<div class="lp-sel-loc">'+loc+'</div>'
+    +'<div id="lp-chip" class="lp-chip"></div>'
     +'<div class="lp-ed-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
@@ -1839,6 +1849,26 @@ function renderSelection(sel){
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+  renderChip();
+}
+// MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
+// local for $0 with no LLM, so classify.js is never consulted (and never touched/executed here). The
+// override lets you pin the model for STRUCTURAL edits (a prompt → CC), which land in MP5.2; honest
+// copy says so and never fabricates a token cost for the free path.
+const LP_TIERS=[['local','🐮 local · $0'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
+function renderChip(){
+  const el=document.getElementById('lp-chip'); if(!el) return;
+  let tiers='';
+  for(let i=0;i<LP_TIERS.length;i++){ const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]); tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'">'+lb+'</button>'; }
+  const note = (lpTier==='local')
+    ? 'edição de texto/classe é determinística — $0, sem tokens (o router não precisa da nuvem).'
+    : 'texto/classe continuam $0; a subida para '+esc(tierModel(lpTier))+' aplica-se a edições ESTRUTURAIS (prompt → Claude Code) — chega no MP5.2.';
+  el.innerHTML='<div class="lp-chip-hd">🐮 esta edição: <span class="lp-chip-0">local · $0 · sem tokens</span></div>'
+    +'<div class="lp-tiers" role="group" aria-label="Modelo para esta edição">'+tiers+'</div>'
+    +'<div class="lp-chip-note">'+note+'</div>';
+  const btns=el.querySelectorAll('[data-tier]');
+  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ lpTier=this.getAttribute('data-tier'); renderChip(); }); }
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
 function showEditResult(ok, reason){
