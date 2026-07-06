@@ -17,7 +17,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -141,13 +141,20 @@ test('Live Preview LP-4 §0 edit — preview-first flow, hash echoed on apply, a
   parseInlineScript(html);
 });
 
-test('Live Preview LP-4 §6 panel — prompt box, honest chip, fenced prompt flow, undo, honest states', () => {
+test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, undo, honest states', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
-  // The anchored prompt box on the pin.
-  assert.ok(html.includes('id="lp-prompt-in"'), 'prompt input present');
-  assert.ok(html.includes('descreve a mudança'), 'prompt placeholder speaks founder, not jargon');
-  assert.ok(html.includes("type:'lp-prompt'"), 'prompt request wired to the host');
+  // LP-4.5 — the ONE BOX on the pin: any prompt, default AUTO = the anchored-task agent; the
+  // local $0 chip keeps the LP-4 fenced rewrite reachable; the heuristic only SUGGESTS.
+  assert.ok(html.includes('id="lp-box-in"'), 'one-box input present');
+  assert.ok(html.includes('valida estes números'), 'placeholder shows a PROJECT ask (the LP-4.5 case), not only node tweaks');
+  assert.ok(html.includes("type:'lp-task'"), 'anchored task request wired to the host');
+  assert.ok(html.includes("m.type === 'lp-task-result'"), 'agent verdict handled');
+  assert.ok(html.includes("m.type === 'lp-task-status'"), 'live agent progress handled (a ler / a editar)');
+  assert.ok(html.includes('agente · subscrição'), 'honest AUTO chip: agent runs on the subscription');
+  assert.ok(html.includes('local $0 · só este nó'), 'the fenced $0 path is an explicit chip, never a guess');
+  assert.ok(html.includes('suggestLocalChip'), 'heuristic present — and it only suggests');
+  assert.ok(html.includes("type:'lp-prompt'"), 'fenced prompt request still wired (via the local chip)');
   assert.ok(html.includes("type:'lp-prompt-apply'"), 'approved replacement wired (write only on OK)');
   assert.ok(html.includes("m.type === 'lp-prompt-diff'"), 'fenced rewrite preview handled');
   // review P1-B: the apply reads the TARGET from the diff (m), not a mutable global that a second

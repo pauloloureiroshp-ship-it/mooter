@@ -106,6 +106,15 @@ try { LEC = require('./live-edit-cloud.js'); } catch { LEC = null; }
 // absent → 'desfazer' reports engine-unavailable honestly; the edit paths still work.
 let LEU = null;
 try { LEU = require('./live-edit-undo.js'); } catch { LEU = null; }
+// ── LIVE EDIT · LP-4.5 — the ANCHORED TASK bridge (the one-box default): a headless Agent SDK
+// session with cwd = the workspace, hard-gated on Workspace Trust, allowlist-fenced runner-side
+// (Read/Grep/Glob/LS/Edit/MultiEdit inside the workspace; Bash/network NEVER). Fail-soft: absent
+// → lp-task reports 'engine-unavailable' and the AUTO chip disables honestly.
+let LET = null;
+try { LET = require('./live-edit-task.js'); } catch { LET = null; }
+// LP-4.5 — pure one-box view helpers (suggestLocalChip heuristic), serialised into the webview.
+let LTV = null;
+try { LTV = require('./lp-task-view.js'); } catch { LTV = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1338,6 +1347,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
     if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
     if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
+    if (m.type === 'lp-task') { this._taskRun(m); return; } // LP-4.5 anchored PROJECT task → trusted agent (one-box default)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
@@ -1700,6 +1710,80 @@ class LivePreviewPanel {
   _postPromptDiff(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
+  // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
+  // nodeSource + breadcrumb), not a fence: the agent runs headless WITH the workspace as cwd,
+  // reads the repo and edits the RIGHT place — which may not be the pinned node. Hard trust gate
+  // here AND in runAnchoredTask (defense in depth); permissions are enforced runner-side via the
+  // canUseTool allowlist (Bash/network NEVER). A question writes NOTHING; an edit comes back as a
+  // per-file git diff the user keeps or reverts (sha-guarded) — never a silent "✓ escrito".
+  async _taskRun(m) {
+    const fail = (reason, detail) => this._postTaskResult({ ok: false, reason: String(reason || 'error'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    try {
+      const instruction = (m && typeof m.instruction === 'string') ? m.instruction.trim() : '';
+      const mode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
+      if (!instruction) { fail('prompt-empty'); return; }
+      if (!LET) { fail('engine-unavailable'); return; }
+      if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
+      // Anchor context (best-effort, never blocks the task): the node's exact source if we can
+      // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
+      // _promptEdit (the absolute host path never travels to the model).
+      let nodeSource = '';
+      let relFile = '';
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (raw) {
+        const real = this._resolveContainedFile(raw);
+        if (real) {
+          try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep '' */ }
+          try {
+            if (LEA && typeof LEA.locateRange === 'function') {
+              const s = fs.readFileSync(real, 'utf8');
+              const r = LEA.locateRange(s, { line: m.line, col: m.col, tag: m.tag });
+              if (r.ok) nodeSource = s.slice(r.start, r.end);
+            }
+          } catch { /* anchor degrades to file:line only */ }
+        }
+      }
+      this._postTaskStatus({ phase: 'thinking', mode });
+      const res = await LET.runAnchoredTask({
+        instruction,
+        file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+        nodeSource,
+        breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+        mode,
+      }, {
+        wsRoot: this._wsRoot(),
+        trusted: this._workspaceTrusted() === true,
+        onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
+      });
+      if (!res || !res.ok) { fail((res && res.reason) || 'error', res && res.detail); return; }
+      // Register the edits HOST-side keyed by taskId: revert must act on OUR record (snapshot +
+      // shaAfter), never on paths a webview message hands back (P1-B discipline, agent flavour).
+      if (!this._taskReg) { this._taskReg = new Map(); this._taskSeq = 0; }
+      const taskId = 'task-' + (++this._taskSeq);
+      const edits = Array.isArray(res.edits) ? res.edits : [];
+      this._taskReg.set(taskId, edits);
+      if (this._taskReg.size > 20) { const k = this._taskReg.keys().next().value; this._taskReg.delete(k); }
+      // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
+      // file now) — the user's own pre-existing uncommitted changes never pollute it.
+      const view = edits.map((e) => {
+        const d = LET.gitDiffFile(e.snapshot, e.abs);
+        return { file: e.file, diff: (d && d.ok) ? d.lines.slice(0, 400) : null, diffReason: (d && d.ok) ? null : ((d && d.reason) || 'git-unavailable') };
+      });
+      this._postTaskResult({
+        ok: true, taskId, kind: res.kind, text: String(res.text || ''),
+        filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
+        edits: view,
+        denied: Array.isArray(res.denied) ? res.denied.slice(0, 40) : [],
+        model: res.model || null, mode,
+      });
+    } catch { fail('error'); }
+  }
+  _postTaskStatus(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-status', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  _postTaskResult(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-result', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
   _postPromptStatus(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
@@ -1801,6 +1885,9 @@ function getLivePreviewHtml(token) {
   // with the SAME source of truth as the pure decision layer (no JS drift between them).
   const isSelfNoiseSrc = LPD ? LPD.isLivePreviewSelfNoise.toString() : 'function isLivePreviewSelfNoise(){return false;}';
   const isBenignCssSrc = LPD ? LPD.isBenignCssWarning.toString() : 'function isBenignCssWarning(){return false;}';
+  // LP-4.5 — the one-box heuristic (SUGGESTS the local chip, never decides), same fn.toString()
+  // contract as the renderers above (concat-only source).
+  const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1852,6 +1939,12 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-diff-l{font:11px var(--vscode-editor-font-family,monospace);white-space:pre;line-height:1.5}
   #lp-sel .lp-diff-rm{color:var(--vscode-errorForeground,#D9484B);background:var(--vscode-inputValidation-errorBackground,rgba(217,72,75,.10))}
   #lp-sel .lp-diff-ad{color:var(--vscode-charts-green,#4CAF6A)}
+  #lp-sel .lp-diff-hk{opacity:.6}
+  /* LP-4.5 — one-box hint (the heuristic SUGGESTS the local chip) + agent result blocks. */
+  #lp-sel .lp-hint{font-size:10.5px;margin-top:4px;color:var(--vscode-charts-green,#4CAF6A);line-height:1.4}
+  #lp-sel .lp-task-txt{font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;margin:4px 0 6px}
+  #lp-sel .lp-task-reads{font-size:10.5px;opacity:.8;margin:4px 0;line-height:1.6}
+  #lp-sel .lp-task-reads code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10px}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
   #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
   #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -1958,6 +2051,7 @@ const renderStageStatus=${renderStageStatusSrc};
 const renderErrorStrip=${renderErrorStripSrc};
 const isLivePreviewSelfNoise=${isSelfNoiseSrc};
 const isBenignCssWarning=${isBenignCssSrc};
+const suggestLocalChip=${suggestLocalChipSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2127,7 +2221,10 @@ function lpSendRestore(){
 // (origin-targeted postMessage into the frame — the frame is cross-origin, so never '*'). When the
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
-let lpSelection=null, lpSelectOn=false, lpTier='local';
+// LP-4.5 one-box mode: 'auto' (anchored-task agent — the default) · 'local' (LP-4 fenced node
+// rewrite, $0) · 't1'/'t2'/'t3'/'fable' (the agent pinned to that subscription model; @fable is
+// manual-only, never auto-routed).
+let lpSelection=null, lpSelectOn=false, lpMode='auto';
 // LP-4 §6 / review P1-B — honest session state driving the panel: undo depth (from lp-edit-result)
 // and the SDK-bridge status (from the snapshot). The WRITE TARGET is NOT a global anymore: every
 // apply (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m), so a
@@ -2195,8 +2292,9 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div id="lp-prompt-l" class="lp-ed-l">pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':esc(tierModel(lpTier))+' · subscrição')+')</div>'
-    +'<div class="lp-ed-row"><input id="lp-prompt-in" class="lp-ed-in" type="text" placeholder="descreve a mudança… (ex: cantos redondos e borda fina)" /><button id="lp-prompt-b" class="lp-sel-btn" title="o moo reescreve SÓ este elemento — diff cercado antes de escrever">pré-visualizar</button></div>'
+    +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
+    +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
     +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button>'
     +'<button id="lp-sel-undo" class="lp-sel-btn"'+(lpUndoDepth<1?' disabled title="nada para desfazer nesta sessão"':' title="desfazer a última escrita do Live Edit — $0, splice inverso"')+'>↩ desfazer último</button></div>'
@@ -2212,16 +2310,31 @@ function renderSelection(sel){
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
-  // LP-4 §6 — the anchored prompt box: the moo rewrites ONLY this node; the reply comes back as a
-  // fenced diff (lp-prompt-diff) the user approves before anything is written.
-  const pi=document.getElementById('lp-prompt-in'), pb=document.getElementById('lp-prompt-b');
-  const sendPrompt=function(){
-    const v=pi?pi.value.trim():'';
+  // LP-4.5 — the ONE BOX: any prompt lands here. Default AUTO = the anchored-task agent (reads
+  // the repo, answers or edits in the RIGHT place, diff before keeping). The 'local $0 · só este
+  // nó' chip keeps the LP-4 fenced node rewrite intact. The heuristic below only SUGGESTS the
+  // local chip when the ask smells node-local — it never decides.
+  const bi=document.getElementById('lp-box-in'), bb=document.getElementById('lp-box-b');
+  const sendBox=function(){
+    const v=bi?bi.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
-    vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:lpTier });
+    if(lpMode==='local'){
+      vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local' });
+    } else {
+      const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc });
+    }
     showEditResult(null,'pending');
   };
-  if(pi&&pb){ pb.addEventListener('click', sendPrompt); pi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendPrompt(); } }); }
+  if(bi&&bb){
+    bb.addEventListener('click', sendBox);
+    bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(); } });
+    bi.addEventListener('input', function(){
+      const h=document.getElementById('lp-box-hint'); if(!h) return;
+      if(lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
+      else h.style.display='none';
+    });
+  }
   // §4 — undo: $0 inverse byte-splice of the LAST Live Edit write (sha-guarded host-side).
   const ub=document.getElementById('lp-sel-undo');
   if(ub) ub.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-undo' }); showEditResult(null,'pending'); });
@@ -2238,7 +2351,7 @@ function renderSelection(sel){
     vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
     showEditResult(null,'pending');
   });
-  renderChip();
+  renderModeChips();
 }
 // MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
 // partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
@@ -2349,48 +2462,83 @@ function renderPromptDiff(m){
   const ca=document.getElementById('lp-pr-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
-// MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
-// local for $0 with no LLM, so classify.js is never consulted (and never touched/executed here). The
-// override lets you pin the model for STRUCTURAL edits (a prompt → CC), which land in MP5.2; honest
-// copy says so and never fabricates a token cost for the free path.
-const LP_TIERS=[['local','🐮 local · $0'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+// LP-4.5 — the agent verdict. A QUESTION renders as an answer (esc'd) + the files it read (zero
+// writes — provably: no edits arrive). An EDIT renders the touched files with their git diffs.
+// (Keep/revert controls land in the next piece; nothing here fabricates a "✓ escrito".)
+function renderTaskResult(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const who=(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · agente · subscrição'+(m.model?(' ('+esc(m.model)+')'):'');
+  let html='<div class="lp-diff" role="region" aria-label="Resultado do agente">'
+    +'<div class="lp-diff-hd">'+(m.kind==='answer'?'resposta do agente':'edições do agente')+' — '+who+'</div>';
+  if(m.text) html+='<div class="lp-task-txt">'+esc(m.text)+'</div>';
+  const reads=Array.isArray(m.filesRead)?m.filesRead:[];
+  if(reads.length){
+    html+='<div class="lp-task-reads">ficheiros lidos:';
+    for(let i=0;i<reads.length&&i<20;i++) html+=' <code>'+esc(reads[i])+'</code>';
+    if(reads.length>20) html+=' … +'+(reads.length-20);
+    html+='</div>';
+  }
+  const edits=Array.isArray(m.edits)?m.edits:[];
+  for(let i=0;i<edits.length;i++){
+    const e=edits[i]||{};
+    html+='<div class="lp-diff-hd" style="margin-top:8px">✍ '+esc(e.file||'?')+'</div>';
+    const lines=Array.isArray(e.diff)?e.diff:null;
+    if(!lines){ html+='<div class="lp-diff-l">(diff indisponível — '+esc(e.diffReason||'git-unavailable')+')</div>'; continue; }
+    for(let j=0;j<lines.length&&j<80;j++){
+      const l=lines[j];
+      const cls=l.charAt(0)==='-'?' lp-diff-rm':(l.charAt(0)==='+'?' lp-diff-ad':(l.indexOf('@@')===0?' lp-diff-hk':''));
+      html+='<div class="lp-diff-l'+cls+'">'+esc(l)+'</div>';
+    }
+    if(lines.length>80) html+='<div class="lp-diff-l">… +'+(lines.length-80)+' linhas</div>';
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
-// LP-4 §6 — router-native advisory chip. The truth: text/class/delete are deterministic ($0, no
-// LLM); the PROMPT runs on the local moo by default ($0, nothing leaves the machine); going cloud
-// is opt-in, runs on the SUBSCRIPTION via the SDK bridge (no API key), and @fable is manual only
-// (never auto-routed). Bridge absent → cloud tiers disabled with the honest reason, never a dead
-// button that fails later.
-function renderChip(){
+// LP-4.5 — the one-box MODE chips. The truth: text/class/delete stay deterministic ($0, no LLM).
+// The BOX defaults to AUTO = the anchored-task agent (subscription via the SDK bridge — honest
+// chip 'agente · subscrição'): it reads the repo and answers or edits in the RIGHT place, every
+// edit behind a diff + revert. 'local $0 · só este nó' is the LP-4 fenced node rewrite, intact.
+// Haiku/Sonnet/Opus pin the AGENT's model; @fable is manual only (never auto-routed). Bridge
+// absent/untrusted → every agent mode disables with the honest reason and local becomes the
+// selection — never a dead button that fails later.
+const LP_MODES=[['auto','🤖 AUTO · agente · subscrição'],['local','🐮 local $0 · só este nó'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+function renderModeChips(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
-  // review P1-A: the cloud disabled-reason is HONEST about which gate failed — trust vs missing SDK.
+  // review P1-A: the disabled-reason is HONEST about which gate failed — trust vs missing SDK.
   const disReason=(br.reason==='workspace-untrusted')
-    ? 'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
-    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
-  let tiers='';
-  for(let i=0;i<LP_TIERS.length;i++){
-    const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]);
+    ? 'workspace não confiável — o agente corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
+    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para ativar o agente';
+  if(lpMode!=='local'&&!br.available) lpMode='local'; // honest fallback, visible in the chips
+  let chips='';
+  for(let i=0;i<LP_MODES.length;i++){
+    const id=LP_MODES[i][0], lb=esc(LP_MODES[i][1]);
     const dis=(id!=='local')&&!br.available;
-    tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'"'
+    chips+='<button type="button" class="lp-tier'+(lpMode===id?' on':'')+'" data-mode="'+id+'" aria-pressed="'+(lpMode===id?'true':'false')+'"'
       +(dis?(' disabled title="'+esc(disReason)+'"'):'')
       +'>'+lb+'</button>';
   }
-  const note = (lpTier==='local')
-    ? 'texto/classe e apagar são determinísticos — $0, sem tokens. O prompt corre no moo local — $0, nada sai da máquina. Subir para cloud é opt-in e gasta subscrição.'
-    : 'o prompt sobe para '+esc(tierModel(lpTier))+' via ponte SDK headless (subscrição — sem API key na extensão); a resposta volta pela MESMA cerca. texto/classe continuam $0.'
-      +(lpTier==='fable'?' @fable é SEMPRE manual — nunca auto-routed.':'');
-  el.innerHTML='<div class="lp-chip-hd">🐮 este prompt: <span class="lp-chip-0">'+(lpTier==='local'?'local · $0 · sem tokens':esc(tierModel(lpTier))+' · subscrição · opt-in')+'</span></div>'
-    +'<div class="lp-tiers" role="group" aria-label="Modelo para o prompt">'+tiers+'</div>'
+  const note = (lpMode==='local')
+    ? 'reescrita cercada SÓ deste nó — moo local, $0, nada sai da máquina. texto/classe/apagar continuam determinísticos.'
+    : (lpMode==='auto'
+      ? 'o agente lê o repo (Read/Grep/Glob) e responde no painel ou edita no sítio CERTO (pode não ser este nó). Bash e rede NUNCA; toda a edição mostra diff + reverter. Corre na subscrição via ponte SDK.'
+      : 'o agente corre em '+esc(tierModel(lpMode))+' (subscrição via ponte SDK). Mesmas regras: só Read/Grep/Glob/Edit no workspace, diff + reverter.'
+        +(lpMode==='fable'?' @fable é SEMPRE manual — nunca auto-routed.':''));
+  el.innerHTML='<div class="lp-chip-hd">🐮 esta caixa: <span class="lp-chip-0">'+(lpMode==='local'?'local · $0 · só este nó':(lpMode==='auto'?'agente · subscrição':esc(tierModel(lpMode))+' · agente · subscrição'))+'</span></div>'
+    +'<div class="lp-tiers" role="group" aria-label="Como resolver este prompt">'+chips+'</div>'
     +'<div class="lp-chip-note">'+note+'</div>';
-  const btns=el.querySelectorAll('[data-tier]');
+  const btns=el.querySelectorAll('[data-mode]');
   for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){
     if(this.disabled) return;
-    lpTier=this.getAttribute('data-tier');
-    renderChip();
-    // Refresh the prompt-box label in place — NEVER re-render the panel here (it would wipe a
+    lpMode=this.getAttribute('data-mode');
+    renderModeChips();
+    // Refresh ONLY the box hint in place — NEVER re-render the panel here (it would wipe a
     // prompt the user already typed).
-    const pl=document.getElementById('lp-prompt-l');
-    if(pl) pl.textContent='pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':tierModel(lpTier)+' · subscrição')+')';
+    const bi2=document.getElementById('lp-box-in'), h=document.getElementById('lp-box-hint');
+    if(h){ if(bi2&&lpMode!=='local'&&suggestLocalChip(bi2.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; } else h.style.display='none'; }
   }); }
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
@@ -2431,7 +2579,12 @@ function showEditResult(ok, reason){
     'replacement-trailing-junk':'o modelo devolveu lixo fora do elemento — recusado pela cerca, nada foi escrito',
     'empty-replacement':'o modelo devolveu vazio — recusado pela cerca',
     'range-not-a-node':'o alvo já não é um nó válido — reselecciona',
-    'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito' };
+    'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito',
+    // LP-4.5 — honest states for the anchored-task agent.
+    'task-timeout':'o agente demorou demasiado (180s) — tenta um pedido mais pequeno',
+    'task-bridge-error':'a ponte do agente falhou — vê a sessão do Claude Code',
+    'task-empty':'o agente devolveu vazio — reformula o pedido',
+    'revert-stale':'o ficheiro mudou desde a edição do agente — reverter recusado (nada foi escrito)' };
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
@@ -2471,7 +2624,7 @@ window.addEventListener('message', (ev) => {
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
-    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderChip(); }
+    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); }
     else if(br) lpBridge=br;
   }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
@@ -2496,6 +2649,18 @@ window.addEventListener('message', (ev) => {
       if(el){ el.textContent=(!m.tier||m.tier==='local')?'a pensar… (moo local · $0)':'a pensar… ('+tierModel(m.tier)+' · subscrição)'; el.className='lp-ed-msg lp-ed-pending'; }
     }
   }
+  else if (m.type === 'lp-task-status'){
+    // LP-4.5 — live agent progress: what it is doing RIGHT NOW (a ler X / a editar Y), plus every
+    // denial (honesty: the fence is visible, not implied).
+    const el=document.getElementById('lp-edit-msg');
+    if(el){
+      if(m.phase==='thinking') el.textContent='agente a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
+      else if(m.phase==='tool') el.textContent=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
+      else if(m.phase==='deny') el.textContent='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
+      el.className='lp-ed-msg lp-ed-pending';
+    }
+  }
+  else if (m.type === 'lp-task-result'){ renderTaskResult(m); } // LP-4.5 agent verdict (answer or per-file diffs)
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
 });
 const urlInput=document.getElementById('lp-url');
