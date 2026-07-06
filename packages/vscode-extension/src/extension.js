@@ -1409,12 +1409,23 @@ class LivePreviewPanel {
   // Honest result: every refusal/failure is reported to the panel with its exact reason (no silent
   // no-op, no fabricated success). The write is a single full-source writeFileSync — atomic enough,
   // and the diff is minimal (only the edited span changed), so an editor/git undo is a clean rollback.
+  //
+  // LP-4 §0 — SYMMETRIC staleness fence (audit P1-2 / FIX-MP-2): text/class edits get the exact
+  // sha256 preview→apply hash-guard the delete has had since 5.2a. Preview computes the byte-splice
+  // diff and stamps the source hash; apply re-reads the disk and REFUSES to write when the content
+  // moved ('file-changed' → a REGENERATED stale-flagged preview for re-approval). FAIL-CLOSED: an
+  // edit can never land on a line:col that drifted between the approved diff and the click.
   async _applyEdit(m) {
+    const preview = !!(m && m.preview);
+    const fail = (reason) => {
+      if (preview) this._postEditDiff({ ok: false, reason: String(reason || 'refused') });
+      else this._postEditResult(false, reason);
+    };
     try {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const edit = (m && m.edit && typeof m.edit === 'object') ? m.edit : null;
-      if (!raw || !edit) { this._postEditResult(false, 'bad-request'); return; }
-      if (!LEA) { this._postEditResult(false, 'engine-unavailable'); return; }
+      if (!raw || !edit) { fail('bad-request'); return; }
+      if (!LEA) { fail('engine-unavailable'); return; }
       const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
       const root = this._wsRoot();
       const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
@@ -1425,17 +1436,30 @@ class LivePreviewPanel {
           if (contained(fs.realpathSync(root), r)) real = r;
         }
       } catch { /* fall through to the honest result */ }
-      if (!real) { this._postEditResult(false, 'file-not-in-workspace'); return; }
+      if (!real) { fail('file-not-in-workspace'); return; }
       const source = fs.readFileSync(real, 'utf8');
+      // Same fence order as _deleteNode: hash first, missing echo = bad-request, THEN the engine —
+      // so a broken engine still reports its own honest reason (parser-unavailable etc.).
+      const h = crypto.createHash('sha256').update(source, 'utf8').digest('hex');
+      if (!preview && (typeof m.h !== 'string' || !m.h)) { fail('bad-request'); return; }
+      const stale = !preview && m.h !== h; // apply against a moved file → NEVER write; re-preview
       const res = LEA.applyDeterministicEdit(source, { line: m.line, col: m.col, tag: m.tag }, edit);
-      if (!res.ok) { this._postEditResult(false, leaFailReason(res)); return; }
+      if (!res.ok) { fail(leaFailReason(res)); return; }
       if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      if (preview || stale) {
+        const d = LEA.diffRemovedLines(source, res.code);
+        this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real });
+        return;
+      }
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'applied');
-    } catch { this._postEditResult(false, 'error'); }
+    } catch { fail('error'); }
   }
   _postEditResult(ok, reason) {
     try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || '') }); } catch { /* best-effort */ }
+  }
+  _postEditDiff(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-edit-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // MP5.2a deterministic $0 delete — same containment guard as _applyEdit, but TWO-PHASE and
   // stateless: preview computes the exact removed/added lines for the panel's mini-diff; apply
@@ -1893,6 +1917,9 @@ let lpSelection=null, lpSelectOn=false, lpTier='local';
 // MP5.2a — the delete flow's target is CAPTURED at preview time (not read from the mutable
 // lpSelection at apply time), so the node deleted is always the node whose diff was approved.
 let lpDeleteTarget=null;
+// LP-4 §0 — the edit flow gets the same capture: target+edit are frozen at preview time and the
+// apply echoes the preview's source hash, so the write is always exactly the approved diff.
+let lpEditTarget=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -1954,7 +1981,9 @@ function renderSelection(sel){
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
-  const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
+  // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
+  // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
+  const sendEdit=function(kind,value){ lpEditTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }; vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
   const ti=document.getElementById('lp-ed-text'), tb=document.getElementById('lp-ed-text-b');
   if(ti&&tb){ tb.addEventListener('click', function(){ sendEdit('text', ti.value); }); ti.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('text', ti.value); } }); }
   const ci=document.getElementById('lp-ed-class'), cb=document.getElementById('lp-ed-class-b');
@@ -2013,6 +2042,41 @@ function renderDeleteDiff(m){
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-del-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
+}
+// LP-4 §0 — the text/class edit mini-diff (fence simétrica). Preview shows EXACTLY the lines the
+// byte-splice would change — with the ABSOLUTE PATH of the file that will be written (A7 mitigation:
+// the user sees WHICH tree the write lands on) — before anything touches disk; "aplicar" echoes the
+// preview's source hash and the host refuses the write if the file moved ('file-changed' → this
+// same renderer shows the REGENERATED diff flagged stale for re-approval).
+function renderEditDiff(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
+  let rows='';
+  for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas</div>';
+  for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
+  if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da edição">'
+    +'<div class="lp-diff-hd">editar ('+esc(m.kind||'edit')+') · linha '+esc(m.start==null?'?':m.start)+' — determinístico: $0, sem tokens</div>'
+    +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
+    +staleWarn
+    +rows
+    +'<div class="lp-sel-acts"><button id="lp-ed-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-ed-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'</div>';
+  const ap=document.getElementById('lp-ed-apply');
+  if(ap) ap.addEventListener('click', function(){
+    if(!lpEditTarget) return;
+    // The captured preview target + the source hash: the host refuses the write if the file
+    // changed since the diff was computed (the edit must be exactly the approved diff).
+    vsapi.postMessage({ type:'lp-edit', preview:false, file:lpEditTarget.file, line:lpEditTarget.line, col:lpEditTarget.col, tag:lpEditTarget.tag, edit:lpEditTarget.edit, h:m.h });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-ed-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
 // MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
@@ -2088,10 +2152,11 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
-    // MP5.2a — once the delete is applied, the pending mini-diff is history: clear it.
-    if (m.ok && m.reason === 'deleted'){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
+  else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin

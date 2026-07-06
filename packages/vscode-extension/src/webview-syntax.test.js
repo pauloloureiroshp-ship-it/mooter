@@ -120,6 +120,20 @@ test('Live Preview MP5.2a delete — 🗑 button, diff-before-write flow, honest
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4 §0 edit — preview-first flow, hash echoed on apply, absolute path in the diff header', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The text/class edit is now preview (mini-diff) → apply (write) — symmetric with the delete.
+  assert.ok(html.includes("type:'lp-edit', preview:true"), 'edit preview request wired (diff first)');
+  assert.ok(html.includes("type:'lp-edit', preview:false"), 'edit apply request wired (write only on OK)');
+  assert.ok(html.includes("m.type === 'lp-edit-diff'"), 'host-trusted edit diff result handled');
+  // Apply must target the edit CAPTURED at preview time and echo the preview's source hash.
+  assert.ok(html.includes('lpEditTarget'), 'apply targets the capture, not the live selection');
+  // A7 mitigation: the diff header shows the ABSOLUTE path of the file that will be written.
+  assert.ok(html.includes('✍ '), 'absolute-path marker present in the diff header');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

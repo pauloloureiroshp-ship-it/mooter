@@ -94,7 +94,7 @@ test('missing parser is forwarded as parser-unavailable on edit AND delete — n
   const root = mkWorkspace();
   try {
     const { inst, posts } = mkInstance(Panel, root);
-    await inst._applyEdit({ file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' } });
+    await inst._applyEdit({ preview: false, file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' }, h: 'stamp' });
     await inst._deleteNode({ preview: false, file: 'page.tsx', line: 1, tag: 'div', h: 'stamp' });
     const results = posts.filter((p) => p.type === 'lp-edit-result');
     assert.strictEqual(results.length, 2);
@@ -114,7 +114,7 @@ test('a REAL file parse error still reports parse-error — the reinstall messag
   const root = mkWorkspace();
   try {
     const { inst, posts } = mkInstance(Panel, root);
-    await inst._applyEdit({ file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' } });
+    await inst._applyEdit({ preview: false, file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' }, h: 'stamp' });
     const r = posts.find((p) => p.type === 'lp-edit-result');
     assert.ok(r && r.ok === false && r.reason === 'parse-error');
   } finally {
