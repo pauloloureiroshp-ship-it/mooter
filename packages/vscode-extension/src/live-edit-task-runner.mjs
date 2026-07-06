@@ -124,7 +124,22 @@ async function main() {
       if (typeof inp.file_path === 'string' && inp.file_path) paths.push(inp.file_path);
       if (typeof inp.path === 'string' && inp.path) paths.push(inp.path);
       if (typeof inp.notebook_path === 'string' && inp.notebook_path) paths.push(inp.notebook_path);
-      if (tool === 'Glob' && typeof inp.pattern === 'string' && isAbsolute(inp.pattern)) paths.push(inp.pattern.replace(/[*?[{].*$/, ''));
+      if (tool === 'Glob' && typeof inp.pattern === 'string' && inp.pattern) {
+        // review L1-a/L1-b: the OLD check only ran for isAbsolute(pattern) and only looked at the
+        // literal prefix BEFORE the first wildcard — so (a) a RELATIVE '../' pattern was never
+        // checked at all and (b) an ABSOLUTE pattern with a wildcard BEFORE a '..' (e.g.
+        // /ws/*/../../secret) had its traversal truncated away. Both enumerated paths OUTSIDE the
+        // workspace. Fix: reject any '..' path segment regardless of position/relativity, AND
+        // containment-check the resolved prefix (relative resolves against wsRoot — the SDK session
+        // cwd — never this runner's cwd, which is os.tmpdir()).
+        if (/(^|[\\/])\.\.([\\/]|$)/.test(inp.pattern)) {
+          if (denied.length < 40) denied.push({ tool, why: 'outside-workspace', path: String(inp.pattern).slice(0, 200) });
+          out({ ev: 'deny', tool, why: 'outside-workspace' });
+          return deny('tarefa ancorada: Glob com traversal (..) fora do workspace está negado (' + String(inp.pattern).slice(0, 120) + ')');
+        }
+        const prefix = inp.pattern.replace(/[*?[{].*$/, '');
+        if (prefix) paths.push(isAbsolute(prefix) ? prefix : join(wsRoot, prefix));
+      }
       for (const p of paths) {
         if (!inWorkspace(wsRoot, p)) {
           if (denied.length < 40) denied.push({ tool, why: 'outside-workspace', path: String(p).slice(0, 200) });

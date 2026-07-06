@@ -63,6 +63,29 @@ function plantFakeSdk(root, mode) {
       "  yield { result: 'Atualizei para 77 moos (valor real do repo).' };",
       '}',
     ].join('\n');
+  } else if (mode === 'glob') {
+    // L1-a/L1-b probe: ask canUseTool for a battery of Glob patterns — traversal ones must be
+    // DENIED, legit in-workspace ones ALLOWED. Records every behavior in spy.json.
+    body = [
+      "import { writeFileSync } from 'node:fs';",
+      "import { dirname, join } from 'node:path';",
+      "import { fileURLToPath } from 'node:url';",
+      'export async function* query({ options }) {',
+      "  const here = dirname(fileURLToPath(import.meta.url));",
+      "  const ws = options.cwd;",
+      "  const can = options.canUseTool;",
+      "  const asks = [];",
+      "  const ask = async (input) => { const r = await can('Glob', input); asks.push({ input, behavior: r.behavior }); return r; };",
+      "  await ask({ pattern: '../../**/*.env' });",                       // relative traversal -> DENY
+      "  await ask({ pattern: '../lens-outside-secret.txt' });",          // relative traversal -> DENY
+      "  await ask({ pattern: join(ws, '*') + '/../../lens-outside-secret.txt' });", // absolute, wildcard BEFORE .. -> DENY
+      "  await ask({ pattern: '**/*.tsx' });",                            // legit recursive relative -> ALLOW
+      "  await ask({ pattern: 'landing/**/*.ts' });",                     // legit relative prefix inside ws -> ALLOW
+      "  await ask({ pattern: join(ws, 'landing') + '/**/*.ts' });",      // legit absolute inside ws -> ALLOW
+      "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ asks }));",
+      "  yield { result: 'done' };",
+      '}',
+    ].join('\n');
   } else if (mode === 'qa') {
     body = [
       "import { writeFileSync } from 'node:fs';",
@@ -192,6 +215,23 @@ test('e2e ALLOWLIST gauntlet: Bash/WebFetch/WebSearch/Write DENIED; Read/Edit ou
     assert.ok(progress.some((e) => e.ev === 'deny' && e.tool === 'Bash'), 'deny streamed');
     assert.ok(progress.some((e) => e.ev === 'tool' && e.tool === 'Read' && e.path === 'landing/page.tsx'), 'read streamed');
     assert.ok(progress.some((e) => e.ev === 'tool' && e.tool === 'Edit' && e.path === 'landing/page.tsx'), 'edit streamed');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('L1-a/L1-b: Glob containment — relative ../ AND absolute wildcard-before-.. DENIED; legit patterns allowed', async () => {
+  const { root, sdkDir } = mkWorkspace('glob');
+  try {
+    const r = await LET.runAnchoredTask(INPUT, { wsRoot: root, trusted: true, timeoutMs: 30000 });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    const spy = JSON.parse(fs.readFileSync(path.join(sdkDir, 'spy.json'), 'utf8'));
+    const b = spy.asks.map((a) => a.behavior);
+    assert.strictEqual(b[0], 'deny', 'relative ../../**/*.env DENIED (was silently allowed — L1-a)');
+    assert.strictEqual(b[1], 'deny', 'relative ../lens-outside-secret.txt DENIED (L1-a)');
+    assert.strictEqual(b[2], 'deny', 'absolute wildcard-before-.. DENIED (L1-b prefix-truncation bypass)');
+    assert.strictEqual(b[3], 'allow', 'recursive **/*.tsx still allowed (no false-deny of real globs)');
+    assert.strictEqual(b[4], 'allow', 'relative prefix inside ws allowed');
+    assert.strictEqual(b[5], 'allow', 'absolute prefix inside ws allowed');
+    assert.ok(r.denied.filter((d) => d.tool === 'Glob' && d.why === 'outside-workspace').length >= 3, 'the 3 traversal denials are reported honestly');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
