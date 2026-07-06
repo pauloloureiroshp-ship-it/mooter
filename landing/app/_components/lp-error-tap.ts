@@ -198,6 +198,30 @@ export function parseInspPath(
   return { file: m[1], line: parseInt(m[2], 10), col: parseInt(m[3], 10), tag: m[4] || undefined };
 }
 
+/**
+ * buildBreadcrumbPath — PURE. Turn the chain of `data-insp-path` attribute values collected while
+ * climbing from the picked element to the root (leaf→root, as a DOM walk yields them) into the
+ * breadcrumb the cockpit renders: root→leaf crumbs { file, line, col, tag, label } (MP5.2a).
+ * Consecutive duplicates (a wrapper re-stamped with the same source location) collapse into one
+ * crumb. Fail-soft: junk entries are skipped, never thrown; capped so a pathological DOM cannot
+ * flood the postMessage payload.
+ */
+export function buildBreadcrumbPath(
+  attrs: Array<string | null | undefined>,
+): Array<{ file: string; line: number; col: number; tag?: string; label: string }> {
+  const crumbs: Array<{ file: string; line: number; col: number; tag?: string; label: string }> = [];
+  if (!Array.isArray(attrs)) return crumbs;
+  for (const attr of attrs) {
+    const p = parseInspPath(attr);
+    if (!p) continue;
+    const last = crumbs[crumbs.length - 1];
+    if (last && last.file === p.file && last.line === p.line && last.col === p.col) continue;
+    crumbs.push({ file: p.file, line: p.line, col: p.col, tag: p.tag, label: p.tag || 'node' });
+    if (crumbs.length >= 12) break;
+  }
+  return crumbs.reverse();
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -419,8 +443,29 @@ export function installLpErrorTap(): void {
       box = null;
     };
     const resolve = (x: number, y: number): Element | null => {
+      // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
+      // elementsFromPoint lists the whole hit stack (deepest painted first), so the first stamped
+      // entry is the leaf the user is actually pointing at — an unstamped decorative wrapper can
+      // no longer hijack the pick up to its component root. Nearest stamped ancestor of the top
+      // element stays as the fallback (the MP5.1 behaviour) for sparsely stamped pages.
+      const stack = typeof document.elementsFromPoint === 'function' ? document.elementsFromPoint(x, y) : [];
+      for (let i = 0; i < stack.length; i++) {
+        if (stack[i].hasAttribute('data-insp-path')) return stack[i];
+      }
       const el = document.elementFromPoint(x, y);
       return el ? el.closest('[data-insp-path]') : null;
+    };
+    // Climb from the picked element to the root collecting every stamped ancestor's attribute
+    // (leaf→root); buildBreadcrumbPath flips + parses it into the root→leaf crumbs the cockpit
+    // renders as clickable chips (`section › CrookOutline › img`).
+    const attrChain = (el: Element): Array<string | null> => {
+      const chain: Array<string | null> = [];
+      let cur: Element | null = el;
+      while (cur && chain.length < 24) {
+        chain.push(cur.getAttribute('data-insp-path'));
+        cur = cur.parentElement ? cur.parentElement.closest('[data-insp-path]') : null;
+      }
+      return chain;
     };
     const draw = (el: Element | null): void => {
       if (!box) return;
@@ -451,6 +496,7 @@ export function installLpErrorTap(): void {
         rect: { x: r.left, y: r.top, w: r.width, h: r.height },
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
         className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
+        path: buildBreadcrumbPath(attrChain(el)), // MP5.2a — root→leaf breadcrumb for the cockpit
       });
     };
     const onKey = (ev: KeyboardEvent): void => {

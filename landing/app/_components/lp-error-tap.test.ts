@@ -13,6 +13,7 @@ import {
   reportBoundaryError,
   buildNavPath,
   parseInspPath,
+  buildBreadcrumbPath,
 } from './lp-error-tap';
 
 describe('parseStackForSource', () => {
@@ -229,6 +230,42 @@ describe('parseInspPath (data-insp-path → file:line:col:tag)', () => {
     expect(parseInspPath('')).toBeNull();
     expect(parseInspPath('no-numbers-here')).toBeNull();
     expect(() => parseInspPath('C:\\x')).not.toThrow();
+  });
+});
+
+// ── buildBreadcrumbPath — MP5.2a select-lock: the leaf→root attribute chain the DOM climb yields
+// becomes the root→leaf breadcrumb the cockpit renders as clickable chips. Pure, so the only CI
+// signal for the in-iframe behaviour lives here (same rationale as parseInspPath above).
+describe('buildBreadcrumbPath (attr chain → root→leaf crumbs)', () => {
+  it('flips leaf→root input into root→leaf crumbs with labels from the stamped tag', () => {
+    const path = buildBreadcrumbPath([
+      'app/page.tsx:50:8:img', // leaf (as a DOM climb yields it)
+      'app/_components/CrookOutline.tsx:9:5:CrookOutline',
+      'app/page.tsx:43:17:section',
+    ]);
+    expect(path.map((c) => c.label)).toEqual(['section', 'CrookOutline', 'img']);
+    expect(path[2]).toEqual({ file: 'app/page.tsx', line: 50, col: 8, tag: 'img', label: 'img' });
+  });
+
+  it('collapses consecutive duplicates (a wrapper re-stamped with the same location)', () => {
+    const path = buildBreadcrumbPath([
+      'app/page.tsx:50:8:img',
+      'app/page.tsx:50:8:img',
+      'app/page.tsx:43:17:section',
+    ]);
+    expect(path.map((c) => c.label)).toEqual(['section', 'img']);
+  });
+
+  it('skips junk entries, labels a tagless stamp "node", never throws', () => {
+    const path = buildBreadcrumbPath(['garbage', null, undefined, 'app/page.tsx:12:3', '']);
+    expect(path).toEqual([{ file: 'app/page.tsx', line: 12, col: 3, tag: undefined, label: 'node' }]);
+    expect(() => buildBreadcrumbPath(null as unknown as string[])).not.toThrow();
+    expect(buildBreadcrumbPath(null as unknown as string[])).toEqual([]);
+  });
+
+  it('caps a pathological chain so the postMessage payload stays bounded', () => {
+    const attrs = Array.from({ length: 50 }, (_, i) => `app/page.tsx:${i + 1}:1:div`);
+    expect(buildBreadcrumbPath(attrs).length).toBe(12);
   });
 });
 
