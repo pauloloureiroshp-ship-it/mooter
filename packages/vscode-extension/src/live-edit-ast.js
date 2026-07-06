@@ -253,12 +253,13 @@ function insertImports(source, statements) {
   const p = parse(source);
   if (p.error) return { ok: false, reason: 'parse-error', detail: p.error };
   const body = (p.ast.program && p.ast.program.body) || [];
-  const bound = new Set();
+  const bound = new Map(); // local name → source module (skip is only honest for the SAME source)
   let lastImport = null;
   for (const n of body) {
     if (n.type !== 'ImportDeclaration') continue;
     lastImport = n;
-    for (const s of n.specifiers || []) { if (s.local && s.local.name) bound.add(s.local.name); }
+    const src = String((n.source && n.source.value) || '');
+    for (const s of n.specifiers || []) { if (s.local && s.local.name) bound.set(s.local.name, src); }
   }
   const queued = [];
   const queuedBound = new Set();
@@ -269,11 +270,15 @@ function insertImports(source, statements) {
     const b = (rp.ast.program && rp.ast.program.body) || [];
     if (b.length !== 1 || b[0].type !== 'ImportDeclaration') return { ok: false, reason: 'not-an-import' };
     if (b[0].start !== 0 || b[0].end !== raw.length) return { ok: false, reason: 'import-trailing-junk' };
+    const stmtSource = String((b[0].source && b[0].source.value) || '');
     const locals = (b[0].specifiers || []).map((s) => s.local && s.local.name).filter(Boolean);
-    // "Already in the FILE" skips idempotently; colliding with another QUEUED statement (same
-    // local from a different source) refuses — silently picking one of the two would be a lie.
+    // "Already in the FILE from the SAME module" skips idempotently. The same local bound from a
+    // DIFFERENT module is a conflict (silently keeping the old one would swap the symbol the
+    // model meant), as is colliding with another QUEUED statement.
     const queuedClash = locals.filter((l) => queuedBound.has(l));
     if (queuedClash.length > 0) return { ok: false, reason: 'import-conflicts', detail: queuedClash.join(', ') + ' já importado' };
+    const clash = locals.filter((l) => bound.has(l) && bound.get(l) !== stmtSource);
+    if (clash.length > 0) return { ok: false, reason: 'import-conflicts', detail: clash.map((l) => l + ' já vem de ' + bound.get(l)).join(', ') };
     const already = locals.filter((l) => bound.has(l));
     if (locals.length > 0 && already.length === locals.length) continue; // fully present — idempotent skip
     if (already.length > 0) return { ok: false, reason: 'import-conflicts', detail: already.join(', ') + ' já importado' };
