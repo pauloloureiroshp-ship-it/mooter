@@ -20,6 +20,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const data_ = require('./data.js');
 const extra = require('./host-extra.js');
 // WCOCKPIT: cowork-waiting + mode-registry (aditivo; fallback seguro se ficheiros ausentes)
@@ -1457,11 +1458,22 @@ class LivePreviewPanel {
       } catch { /* fall through to the honest result */ }
       if (!real) { fail('file-not-in-workspace'); return; }
       const source = fs.readFileSync(real, 'utf8');
+      // Staleness fence between the two phases: preview stamps a hash of the source it diffed;
+      // apply refuses unless the disk still matches EXACTLY that content. Without it, an edit (or
+      // HMR write) landing between preview and apply could make locate() resolve a DIFFERENT node
+      // than the one the user approved in the mini-diff — the delete must be the diff, always.
+      const h = crypto.createHash('sha256').update(source, 'utf8').digest('hex');
+      if (!preview) {
+        if (typeof m.h !== 'string' || !m.h) { fail('bad-request'); return; }
+        if (m.h !== h) { fail('file-changed'); return; }
+      }
       const res = LEA.deleteNode(source, { line: m.line, col: m.col, tag: m.tag });
       if (!res.ok) { fail(res.reason || 'refused'); return; }
       if (preview) {
         const d = LEA.diffRemovedLines(source, res.code);
-        this._postDeleteDiff({ ok: true, start: d.start, removed: d.removed, added: d.added });
+        const inExpr = typeof LEA.isInsideExpression === 'function'
+          ? LEA.isInsideExpression(source, { line: m.line, col: m.col, tag: m.tag }) : false;
+        this._postDeleteDiff({ ok: true, start: d.start, removed: d.removed, added: d.added, h, inExpr });
         return;
       }
       fs.writeFileSync(real, res.code, 'utf8');
@@ -1871,6 +1883,9 @@ function lpSendRestore(){
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
 let lpSelection=null, lpSelectOn=false, lpTier='local';
+// MP5.2a — the delete flow's target is CAPTURED at preview time (not read from the mutable
+// lpSelection at apply time), so the node deleted is always the node whose diff was approved.
+let lpDeleteTarget=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -1936,11 +1951,15 @@ function renderSelection(sel){
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
   const cbs=el.querySelectorAll('[data-crumb]');
   for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
+    // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
+    // instead of a silent no-op.
+    if(!lpSelectOn){ showEditResult(false,'select-off'); return; }
     const c=pth[parseInt(this.getAttribute('data-crumb'),10)];
     if(c && !this.disabled) sendReselect(c);
   }); }
   const db=document.getElementById('lp-sel-del');
   if(db) db.addEventListener('click', function(){
+    lpDeleteTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag };
     vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
     showEditResult(null,'pending');
   });
@@ -1956,17 +1975,25 @@ function renderDeleteDiff(m){
   const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
   let rows='';
   for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas removidas (o apagar leva TODAS)</div>';
   for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
   if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  // Honest .map() warning (spec §5.2): the JSX inside an expression renders once per item —
+  // deleting it deletes it from the template, i.e. from every item.
+  const exprWarn=m.inExpr?'<div class="lp-sel-warn">⚠ este nó está dentro de uma expressão {…} (ex.: .map()) — apagá-lo remove-o do template, ou seja de TODOS os itens renderizados.</div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
-    +'<div class="lp-diff-hd">apagar &lt;'+esc((lpSelection&&lpSelection.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +'<div class="lp-diff-hd">apagar &lt;'+esc((lpDeleteTarget&&lpDeleteTarget.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +exprWarn
     +rows
     +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-del-apply');
   if(ap) ap.addEventListener('click', function(){
-    if(!lpSelection) return;
-    vsapi.postMessage({ type:'lp-delete', preview:false, file:lpSelection.file, line:lpSelection.line, col:lpSelection.col, tag:lpSelection.tag });
+    if(!lpDeleteTarget) return;
+    // The captured preview target + the source hash: apply is refused server-side if the file
+    // changed since the diff was computed (the delete must be exactly the approved diff).
+    vsapi.postMessage({ type:'lp-delete', preview:false, file:lpDeleteTarget.file, line:lpDeleteTarget.line, col:lpDeleteTarget.col, tag:lpDeleteTarget.tag, h:m.h });
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-del-cancel');
@@ -1998,6 +2025,8 @@ function showEditResult(ok, reason){
   const map={ applied:'✓ aplicado — $0, sem tokens (o HMR atualiza o preview)', 'no-op':'sem alterações a aplicar',
     deleted:'✓ elemento apagado — $0, sem tokens (o HMR atualiza o preview)',
     'delete-breaks-parse':'apagar este nó partiria o ficheiro — recusado',
+    'file-changed':'o ficheiro mudou desde a pré-visualização — pré-visualiza de novo',
+    'select-off':'o modo 🎯 está desligado — liga-o para reseleccionar',
     'not-simple-text':'este elemento não é texto simples — edição estrutural chega no MP5.2',
     'dynamic-classname':'className é dinâmico ({…}) — não é editável deterministicamente',
     'unsafe-text':'o texto tem < > { } — precisa do modo estrutural', 'unsafe-class':'classe inválida (< > { } ou aspas)',

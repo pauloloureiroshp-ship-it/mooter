@@ -217,9 +217,12 @@ export function buildBreadcrumbPath(
     const last = crumbs[crumbs.length - 1];
     if (last && last.file === p.file && last.line === p.line && last.col === p.col) continue;
     crumbs.push({ file: p.file, line: p.line, col: p.col, tag: p.tag, label: p.tag || 'node' });
-    if (crumbs.length >= 12) break;
   }
-  return crumbs.reverse();
+  const full = crumbs.reverse();
+  // Cap keeps the TRUE ROOT + the 11 leaf-most crumbs: the cockpit's shared-component warning
+  // compares against full[0], so the root must never be dropped by a pathological chain.
+  if (full.length > 12) return [full[0]].concat(full.slice(full.length - 11));
+  return full;
 }
 
 export function installLpErrorTap(): void {
@@ -534,6 +537,7 @@ export function installLpErrorTap(): void {
     // location. Read-only DOM scan for the matching [data-insp-path]; a stale location (HMR moved
     // the code) simply finds nothing — no fabricated selection.
     const reselect = (d: { file?: unknown; line?: unknown; col?: unknown }): void => {
+      if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
       const file = typeof d.file === 'string' ? d.file : '';
       const line = typeof d.line === 'number' ? d.line : NaN;
       const col = typeof d.col === 'number' ? d.col : NaN;

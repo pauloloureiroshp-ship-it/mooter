@@ -195,6 +195,26 @@ test('spliceNodeRange rejects a non-element replacement (expression, prose)', ()
   assert.strictEqual(spliceNodeRange(SRC52, { start: loc.start, end: loc.end }, '').reason, 'empty-replacement');
 });
 
+test('spliceNodeRange rejects a replacement smuggling comments — the fence cannot be escaped', () => {
+  // A trailing `//` parses standalone AND re-parses after the splice, but would comment OUT
+  // sibling code beyond the span — the one byte-bounded write that still hurts outside bytes.
+  const loc = locateRange(SRC52, { line: 4, tag: 'img' });
+  const r1 = spliceNodeRange(SRC52, { start: loc.start, end: loc.end }, '<img alt="x" /> //');
+  assert.strictEqual(r1.ok, false);
+  assert.strictEqual(r1.reason, 'replacement-has-comments');
+  const r2 = spliceNodeRange(SRC52, { start: loc.start, end: loc.end }, '/* pre */ <img alt="x" />');
+  assert.strictEqual(r2.ok, false);
+  assert.strictEqual(r2.reason, 'replacement-has-comments');
+});
+
+test('isInsideExpression flags a node inside {…} (.map / ternary) and not a plain child', () => {
+  const { isInsideExpression } = require('./live-edit-ast.js');
+  const src = '<ul>\n  {items.map((i) => <li key={i}>x</li>)}\n</ul>';
+  assert.strictEqual(isInsideExpression(src, { line: 2, tag: 'li' }), true);
+  assert.strictEqual(isInsideExpression(SRC52, { line: 4, tag: 'img' }), false);
+  assert.strictEqual(isInsideExpression('', { line: 1 }), false); // fail-soft, never a fabricated warning
+});
+
 test('spliceNodeRange rejects a fabricated range — only a real node span can be written', () => {
   const loc = locateRange(SRC52, { line: 4, tag: 'img' });
   const r = spliceNodeRange(SRC52, { start: loc.start + 1, end: loc.end }, '<img alt="x" />');

@@ -263,9 +263,13 @@ describe('buildBreadcrumbPath (attr chain → root→leaf crumbs)', () => {
     expect(buildBreadcrumbPath(null as unknown as string[])).toEqual([]);
   });
 
-  it('caps a pathological chain so the postMessage payload stays bounded', () => {
+  it('caps a pathological chain keeping the TRUE ROOT + leaf-most crumbs (warning anchor intact)', () => {
+    // attrs arrive leaf→root (line 1 is the leaf, line 50 the root)
     const attrs = Array.from({ length: 50 }, (_, i) => `app/page.tsx:${i + 1}:1:div`);
-    expect(buildBreadcrumbPath(attrs).length).toBe(12);
+    const path = buildBreadcrumbPath(attrs);
+    expect(path.length).toBe(12);
+    expect(path[0].line).toBe(50); // the root survives the cap — the cockpit warning compares path[0]
+    expect(path[path.length - 1].line).toBe(1); // the leaf (the actual selection) survives too
   });
 });
 

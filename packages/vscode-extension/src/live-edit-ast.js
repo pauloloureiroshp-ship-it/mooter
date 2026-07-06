@@ -217,6 +217,11 @@ function spliceNodeRange(source, range, replacement) {
   if (!repl) return { ok: false, reason: 'empty-replacement' };
   const rp = parse(repl);
   if (rp.error) return { ok: false, reason: 'replacement-parse-error', detail: rp.error };
+  // A replacement smuggling a comment (`<img/> //` or `/* … */`) parses standalone AND re-parses
+  // after the splice, yet the trailing `//` would comment OUT sibling code beyond the span — the
+  // one way a byte-bounded write could still neutralise outside bytes. Fail-closed: no comments.
+  const comments = (rp.ast && rp.ast.comments) || [];
+  if (comments.length > 0) return { ok: false, reason: 'replacement-has-comments' };
   const body = (rp.ast.program && rp.ast.program.body) || [];
   const single =
     body.length === 1 &&
@@ -228,6 +233,34 @@ function spliceNodeRange(source, range, replacement) {
   const check = parse(code);
   if (check.error) return { ok: false, reason: 'splice-breaks-parse', detail: check.error };
   return { ok: true, code, changed: code !== source, kind: 'splice' };
+}
+
+// Whether the target node sits inside a JSX expression container ({…} — a .map(), a ternary, an
+// &&-guard). The panel uses this for the honest warning (spec §5.2): deleting JSX inside a .map()
+// removes it from the template — i.e. from EVERY rendered item, not just the one that was clicked.
+// Fail-soft: any doubt (parse error, not found) returns false rather than a fabricated warning.
+function isInsideExpression(source, target) {
+  if (typeof source !== 'string' || !source) return false;
+  const p = parse(source);
+  if (p.error) return false;
+  const el = locate(collectJsxElements(p.ast), target || {});
+  if (!el) return false;
+  let found = false;
+  const seen = new Set();
+  (function walk(n) {
+    if (found || !n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { for (const x of n) walk(x); return; }
+    if (seen.has(n)) return;
+    seen.add(n);
+    if (n.type === 'JSXExpressionContainer' && Number.isInteger(n.start) && Number.isInteger(n.end)
+        && n.start < el.start && el.end <= n.end) { found = true; return; }
+    for (const k in n) {
+      if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments' || k === 'innerComments') continue;
+      const v = n[k];
+      if (v && typeof v === 'object') walk(v);
+    }
+  })(p.ast);
+  return found;
 }
 
 // Line-level diff of a single contiguous splice (all this engine ever produces): trim the common
@@ -255,5 +288,6 @@ module.exports = {
   deleteNode,
   spliceNodeRange,
   diffRemovedLines,
+  isInsideExpression,
   PARSE_OPTS,
 };

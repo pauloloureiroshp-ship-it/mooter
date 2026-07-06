@@ -104,6 +104,12 @@ test('Live Preview MP5.2a delete — 🗑 button, diff-before-write flow, honest
   assert.ok(html.includes("type:'lp-delete', preview:true"), 'preview request wired (diff first)');
   assert.ok(html.includes("type:'lp-delete', preview:false"), 'apply request wired (write only on OK)');
   assert.ok(html.includes("m.type === 'lp-delete-diff'"), 'host-trusted diff result handled');
+  // Apply must target the selection CAPTURED at preview time and echo the preview's source hash —
+  // the host refuses the write if the file changed since the approved diff (no diff/apply skew).
+  assert.ok(html.includes('lpDeleteTarget'), 'apply targets the capture, not the live selection');
+  assert.ok(html.includes('h:m.h'), 'staleness hash echoed on apply');
+  // A >40-line diff must say it was truncated (honest preview, never a silent cut).
+  assert.ok(html.includes('linhas removidas (o apagar leva TODAS)'), 'truncation is announced');
   // Honest copy: delete is deterministic — $0, no tokens. Never a fabricated cost, never an LLM.
   assert.ok(html.includes('apagar é determinístico'), 'honest deterministic copy');
   assert.ok(html.includes('$0, sem tokens'), 'honest $0 copy');
