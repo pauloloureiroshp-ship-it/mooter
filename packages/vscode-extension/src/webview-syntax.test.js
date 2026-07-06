@@ -110,6 +110,10 @@ test('Live Preview MP5.2a delete — 🗑 button, diff-before-write flow, honest
   assert.ok(html.includes('h:m.h'), 'staleness hash echoed on apply');
   // A >40-line diff must say it was truncated (honest preview, never a silent cut).
   assert.ok(html.includes('linhas removidas (o apagar leva TODAS)'), 'truncation is announced');
+  // A stale apply must come back as a REGENERATED preview with an honest banner (nothing written).
+  assert.ok(html.includes('o ficheiro mudou desde a pré-visualização'), 'stale re-preview banner present');
+  // A multi-instance stamp (.map / reused component) warns that the edit hits the template.
+  assert.ok(html.includes('elemento repetido no ecrã'), 'multi-instance warning present');
   // Honest copy: delete is deterministic — $0, no tokens. Never a fabricated cost, never an LLM.
   assert.ok(html.includes('apagar é determinístico'), 'honest deterministic copy');
   assert.ok(html.includes('$0, sem tokens'), 'honest $0 copy');
