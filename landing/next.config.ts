@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+import { codeInspectorPlugin } from 'code-inspector-plugin';
 import { execSync } from 'child_process';
 
 // Live Preview MP2 · red-team loop hole #2(b): the Mooter cockpit's App Stage frames this
@@ -41,6 +42,26 @@ const nextConfig: NextConfig = {
     return [
       { source: '/:path*', headers: securityHeaders },
     ];
+  },
+  // Live Edit (MP5.0) · Source mapping — DOM→código como atributo compilado.
+  // `code-inspector-plugin` (MIT) carimba `data-insp-path="ficheiro:linha:coluna:tag"` em
+  // cada elemento JSX no build de DEV. É a verdade que o select-to-edit lê no DOM (sobrevive
+  // ao React 19 e aos Server Components — a verdade vive no DOM, não no fiber).
+  //
+  // Wiring via o hook `webpack`, NÃO `turbopack.rules`: o dev script é `next dev` SEM
+  // `--turbopack`, logo o dev server é webpack. (Se algum dia adoptarmos `--turbopack`,
+  // migrar para `turbopack.rules: codeInspectorPlugin({ bundler: 'turbopack' })`.)
+  //
+  // DEV-ONLY: só é adicionado quando `dev === true`; o build de produção nunca o inclui, por
+  // isso `data-insp-path` e o runtime do plugin são dead-code em prod (nunca chega a mooter.ai).
+  // `hotKeys:false` desliga o overlay/atalho do próprio plugin — a seleção é conduzida pela
+  // nossa `lp-error-tap`, não pela UI dele (evita hijack de cliques). O atributo é carimbado
+  // na mesma (é um transform de build, independente do runtime do plugin).
+  webpack: (config: { plugins: unknown[] }, { dev }: { dev: boolean }) => {
+    if (dev) {
+      config.plugins.push(codeInspectorPlugin({ bundler: 'webpack', hotKeys: false }));
+    }
+    return config;
   },
 };
 
