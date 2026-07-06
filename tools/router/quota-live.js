@@ -64,11 +64,16 @@ function writeAtomic(file, contents) {
 
 /**
  * Q0 — dump the raw statusline stdin payload ONCE.
+ * Only payloads that actually carry `rate_limits` qualify: the sample exists
+ * to pin down the rate_limits shape, and test suites / other tools also pipe
+ * synthetic payloads through the wired statusline (observed 2026-07-06: a
+ * fixture with {model, context, session} poisoned the first capture).
  * @param {any} data parsed stdin JSON from Claude Code
  * @returns {boolean} true when this call wrote the sample
  */
 function captureStdinSample(data) {
   try {
+    if (!data || !data.rate_limits) return false;
     const home = mooterHome();
     const sample = path.join(home, SAMPLE_BASENAME);
     if (fs.existsSync(sample)) return false;

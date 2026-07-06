@@ -73,10 +73,15 @@ test('extract: model-scoped opus/fable window is picked up when present', () => 
 // ── captureStdinSample (Q0) ──────────────────────────────────────────────────
 
 test('sample: written once, second call is a no-op', () => {
-  assert.equal(QL.captureStdinSample({ a: 1 }), true);
-  assert.equal(QL.captureStdinSample({ a: 2 }), false);
+  assert.equal(QL.captureStdinSample({ a: 1, rate_limits: { seven_day: 1 } }), true);
+  assert.equal(QL.captureStdinSample({ a: 2, rate_limits: { seven_day: 2 } }), false);
   const rec = JSON.parse(fs.readFileSync(path.join(TMP, QL.SAMPLE_BASENAME), 'utf8'));
   assert.equal(rec.payload.a, 1, 'first payload wins');
+});
+
+test('sample: payloads without rate_limits never qualify (test-fixture poisoning guard)', () => {
+  assert.equal(QL.captureStdinSample({ model: { id: 'x' }, context: {}, session: {} }), false);
+  assert.equal(fs.existsSync(path.join(TMP, QL.SAMPLE_BASENAME)), false);
 });
 
 // ── writeQuotaLive / readQuotaLive (Q1) ─────────────────────────────────────
