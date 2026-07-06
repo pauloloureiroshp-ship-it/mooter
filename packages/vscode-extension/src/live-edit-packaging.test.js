@@ -122,6 +122,20 @@ test('a REAL file parse error still reports parse-error — the reinstall messag
   }
 });
 
+// LP-4 §2 — the headless SDK runner must SHIP in the vsix (src/*.mjs ships by default — the
+// overclock-fill.mjs precedent), and no ignore rule may silently strip it. The SDK itself is NOT
+// bundled (zero new deps): it is resolved from the workspace at runtime by live-edit-cloud.js.
+test('vsix packaging contract: live-edit-sdk-runner.mjs ships and no ignore rule strips .mjs', () => {
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(__dirname, 'live-edit-sdk-runner.mjs')), 'runner exists in src/');
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  assert.ok(!lines.some((l) => l === '**/*.mjs' || l === 'src/**' || l === 'src/*.mjs'),
+    '.vscodeignore must not strip the src .mjs runners from the vsix');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(!(pkg.dependencies && pkg.dependencies['@anthropic-ai/claude-agent-sdk']),
+    'the Agent SDK must NOT become a bundled dependency — it is resolved from the workspace (no API key, no new deps)');
+});
+
 test('panel copy distinguishes the two failures (reinstall vs unparseable file)', () => {
   const code = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
   assert.ok(code.includes("'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)'"),
