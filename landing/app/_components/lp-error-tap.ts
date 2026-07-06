@@ -509,8 +509,16 @@ export function installLpErrorTap(): void {
     // The single select path — used by a real click AND by a breadcrumb re-select from the cockpit
     // (MP5.2a), so both produce the identical lp-select payload and the identical pin.
     const selectEl = (el: Element): void => {
-      const parsed = parseInspPath(el.getAttribute('data-insp-path'));
+      const attr = el.getAttribute('data-insp-path');
+      const parsed = parseInspPath(attr);
       if (!parsed) return;
+      // Honest multi-instance signal: the SAME stamp on several DOM nodes means the source node
+      // renders more than once (a .map(), a reused component) — any edit/delete hits the template,
+      // i.e. every instance. Counted by attribute equality (not a CSS selector: Windows paths
+      // carry backslashes/colons that break attribute selectors).
+      let repeated = 0;
+      const stamped = document.querySelectorAll('[data-insp-path]');
+      for (let i = 0; i < stamped.length; i++) { if (stamped[i].getAttribute('data-insp-path') === attr) repeated++; }
       const r = el.getBoundingClientRect();
       post({
         type: 'lp-select',
@@ -522,6 +530,7 @@ export function installLpErrorTap(): void {
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
         className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
         path: buildBreadcrumbPath(attrChain(el)), // MP5.2a — root→leaf breadcrumb for the cockpit
+        repeated: repeated > 1 ? repeated : 0, // 0 = unique on screen; N>1 = N live instances
       });
       pin(el); // MP5.2a select-lock — the frame stays put until Esc or a new selection
     };
@@ -536,16 +545,23 @@ export function installLpErrorTap(): void {
     // MP5.2a — a breadcrumb chip in the cockpit asks to re-select an ancestor by its stamped
     // location. Read-only DOM scan for the matching [data-insp-path]; a stale location (HMR moved
     // the code) simply finds nothing — no fabricated selection.
-    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown }): void => {
+    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
       if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
       const file = typeof d.file === 'string' ? d.file : '';
       const line = typeof d.line === 'number' ? d.line : NaN;
       const col = typeof d.col === 'number' ? d.col : NaN;
+      const tag = typeof d.tag === 'string' ? d.tag : '';
       if (!file || !isFinite(line) || !isFinite(col)) return;
+      // Disambiguate on the FULL stamp — file+line+col AND tag when given. Several DOM nodes can
+      // still share the full stamp (a .map()/reused component): pin the first, and selectEl's
+      // `repeated` count tells the cockpit to warn that the edit hits the template.
       const all = document.querySelectorAll('[data-insp-path]');
       for (let i = 0; i < all.length; i++) {
         const p = parseInspPath(all[i].getAttribute('data-insp-path'));
-        if (p && p.file === file && p.line === line && p.col === col) { selectEl(all[i]); return; }
+        if (p && p.file === file && p.line === line && p.col === col && (!tag || (p.tag || '') === tag)) {
+          selectEl(all[i]);
+          return;
+        }
       }
     };
     const onKey = (ev: KeyboardEvent): void => {
