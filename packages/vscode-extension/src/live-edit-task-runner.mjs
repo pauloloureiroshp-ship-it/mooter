@@ -105,6 +105,13 @@ function hasReparsePointUnderRoot(root, abs) {
 
 const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'LS', 'Edit', 'MultiEdit'];
 
+// review L2: even a correctly IN-workspace Edit must not touch high-value files. A prompt-injected
+// instruction (from hostile repo content the agent legitimately reads) could otherwise edit .env,
+// a CI workflow, or credentials exactly like any harmless file — the containment fence alone does
+// not distinguish. Deny edits to these by identity (the workspace-relative path, forward-slashed).
+// Reads are NOT blocked (the agent may need to reason about config); only WRITES are gated.
+const SENSITIVE_EDIT_RE = /(^|\/)\.env(\.[^/]*)?$|(^|\/)\.git(\/|$)|(^|\/)\.github\/workflows\/|(^|\/)\.npmrc$|(^|\/)\.ssh(\/|$)|(^|\/)id_(rsa|dsa|ecdsa|ed25519)(\.|$)|(^|\/)(secrets?|credentials?)(\/|\.[^/]*$)/i;
+
 async function main() {
   const sdkDir = process.env.LE_SDK_DIR || '';
   const wsRoot = process.env.LE_WS_ROOT || '';
@@ -176,6 +183,15 @@ async function main() {
         const target = typeof inp.file_path === 'string' ? inp.file_path : '';
         if (!target) return deny('tarefa ancorada: edição sem file_path — negado');
         const abs = resolve(target);
+        // review L2: sensitive-file guard BEFORE snapshot — .env / .git / CI workflows / creds are
+        // never legitimate targets for a "fix my landing page" task; a prompt-injected edit to them
+        // is refused even when they live inside the workspace.
+        const relT = rel(abs);
+        if (SENSITIVE_EDIT_RE.test(relT)) {
+          if (denied.length < 40) denied.push({ tool, why: 'sensitive-path', path: relT.slice(0, 200) });
+          out({ ev: 'deny', tool, why: 'sensitive-path' });
+          return deny('tarefa ancorada: edição de ficheiro sensível (' + relT + ') negada — .env / .git / CI / credenciais estão protegidos');
+        }
         // Snapshot-or-refuse: the per-file revert the panel promises NEEDS the before-bytes. A
         // file we cannot read now (missing → the agent would be CREATING it, which only Write
         // does — and Write is denied) gets an honest refusal instead of an unrevertable edit.
