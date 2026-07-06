@@ -158,6 +158,78 @@ function applyDeterministicEdit(source, target, edit) {
   return { ok: false, reason: 'unknown-kind' };
 }
 
+// ── MP5.2a — byte-bounded structural primitives. Still ZERO LLM in this module. ─────────────────
+// locateRange/deleteNode are the deterministic gesture ("delete exactly this node", $0), and
+// spliceNodeRange is the FENCE any future model path (MP5.2b) must pass through: whatever text a
+// model returns, the write is physically bounded to one VERIFIED JSX node span — or it is refused.
+// Fail-closed: every exit is { ok:false, reason }, and both mutators re-parse their OUTPUT before
+// returning it, so a write that would break the file can never leave this module.
+
+// Resolve target {line, col, tag} to the exact byte span of its JSXElement subtree.
+function locateRange(source, target) {
+  if (typeof source !== 'string' || !source) return { ok: false, reason: 'no-source' };
+  const p = parse(source);
+  if (p.error) return { ok: false, reason: 'parse-error', detail: p.error };
+  const el = locate(collectJsxElements(p.ast), target || {});
+  if (!el) return { ok: false, reason: 'not-found' };
+  return { ok: true, start: el.start, end: el.end, el };
+}
+
+// Delete the node's exact span. If the element sat alone on its line(s), the orphaned indentation
+// and the trailing newline go with it (no blank line left behind); an inline element among siblings
+// loses only its own bytes. The result must still parse — deleting a structurally mandatory node
+// (e.g. the sole argument of `return (…)`) is refused instead of writing a broken file.
+function deleteNode(source, target) {
+  const r = locateRange(source, target);
+  if (!r.ok) return r;
+  let start = r.start;
+  let end = r.end;
+  const lineStart = source.lastIndexOf('\n', start - 1) + 1;
+  const nlAfter = source.indexOf('\n', end);
+  const beforeOnLine = source.slice(lineStart, start);
+  const afterOnLine = nlAfter === -1 ? source.slice(end) : source.slice(end, nlAfter);
+  if (!beforeOnLine.trim() && !afterOnLine.trim()) {
+    start = lineStart;
+    end = nlAfter === -1 ? source.length : nlAfter + 1;
+  }
+  const code = source.slice(0, start) + source.slice(end);
+  const check = parse(code);
+  if (check.error) return { ok: false, reason: 'delete-breaks-parse', detail: check.error };
+  return { ok: true, code, changed: code !== source, kind: 'delete' };
+}
+
+// The fence. Replace EXACTLY one verified JSX node span with a replacement that (a) parses as JSX,
+// (b) is a single root element, (c) leaves every byte outside start..end untouched — and the
+// spliced result must re-parse. Any failed condition rejects WITHOUT writing. A model can
+// hallucinate content; it cannot escape the span.
+function spliceNodeRange(source, range, replacement) {
+  if (typeof source !== 'string' || !source) return { ok: false, reason: 'no-source' };
+  if (!range || !Number.isInteger(range.start) || !Number.isInteger(range.end)) return { ok: false, reason: 'bad-range' };
+  const start = range.start;
+  const end = range.end;
+  if (start < 0 || end > source.length || start >= end) return { ok: false, reason: 'bad-range' };
+  const p = parse(source);
+  if (p.error) return { ok: false, reason: 'parse-error', detail: p.error };
+  // The range must be the exact span of a real JSXElement — a fabricated range cannot write.
+  const el = collectJsxElements(p.ast).find((e) => e.start === start && e.end === end);
+  if (!el) return { ok: false, reason: 'range-not-a-node' };
+  const repl = typeof replacement === 'string' ? replacement.trim() : '';
+  if (!repl) return { ok: false, reason: 'empty-replacement' };
+  const rp = parse(repl);
+  if (rp.error) return { ok: false, reason: 'replacement-parse-error', detail: rp.error };
+  const body = (rp.ast.program && rp.ast.program.body) || [];
+  const single =
+    body.length === 1 &&
+    body[0].type === 'ExpressionStatement' &&
+    body[0].expression &&
+    body[0].expression.type === 'JSXElement';
+  if (!single) return { ok: false, reason: 'not-single-root' };
+  const code = source.slice(0, start) + repl + source.slice(end);
+  const check = parse(code);
+  if (check.error) return { ok: false, reason: 'splice-breaks-parse', detail: check.error };
+  return { ok: true, code, changed: code !== source, kind: 'splice' };
+}
+
 module.exports = {
   applyDeterministicEdit,
   locate,
@@ -165,5 +237,8 @@ module.exports = {
   tagNameOf,
   editText,
   editClass,
+  locateRange,
+  deleteNode,
+  spliceNodeRange,
   PARSE_OPTS,
 };
