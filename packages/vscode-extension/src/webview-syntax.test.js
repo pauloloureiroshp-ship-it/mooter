@@ -137,6 +137,29 @@ test('Live Preview LP-4 §0 edit — preview-first flow, hash echoed on apply, a
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4 §6 panel — prompt box, honest chip, fenced prompt flow, undo, honest states', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The anchored prompt box on the pin.
+  assert.ok(html.includes('id="lp-prompt-in"'), 'prompt input present');
+  assert.ok(html.includes('descreve a mudança'), 'prompt placeholder speaks founder, not jargon');
+  assert.ok(html.includes("type:'lp-prompt'"), 'prompt request wired to the host');
+  assert.ok(html.includes("type:'lp-prompt-apply'"), 'approved replacement wired (write only on OK)');
+  assert.ok(html.includes('lpPromptTarget'), 'apply targets the capture, not the live selection');
+  assert.ok(html.includes("m.type === 'lp-prompt-diff'"), 'fenced rewrite preview handled');
+  // Router-native advisory chip: local $0 default · cloud opt-in on subscription · @fable manual.
+  assert.ok(html.includes('nada sai da máquina'), 'local privacy copy present');
+  assert.ok(html.includes('@fable é SEMPRE manual'), 'fable manual-only doctrine in the chip');
+  assert.ok(html.includes('ponte SDK ausente'), 'bridge-missing disables cloud with the honest reason');
+  // §4 undo button + honest states.
+  assert.ok(html.includes('id="lp-sel-undo"'), 'undo button present');
+  assert.ok(html.includes('↩ desfeito'), 'undone state copy');
+  assert.ok(html.includes('a pensar… (moo local · $0)'), 'honest thinking state (local $0)');
+  assert.ok(html.includes('moo local offline'), 'honest offline state');
+  assert.ok(html.includes('recusado pela cerca'), 'fence refusals surface as visible reasons');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

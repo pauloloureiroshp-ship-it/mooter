@@ -1248,6 +1248,7 @@ class LivePreviewPanel {
       s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
       s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
+      s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
@@ -1558,7 +1559,7 @@ class LivePreviewPanel {
         const d = LEA.diffRemovedLines(source, res.code);
         const inExpr = typeof LEA.isInsideExpression === 'function'
           ? LEA.isInsideExpression(source, { line: m.line, col: m.col, tag: m.tag }) : false;
-        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr });
+        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr, abs: real });
         return;
       }
       this._pushUndo(real, source, res.code); // §4 — remember the inverse splice before writing
@@ -1681,6 +1682,17 @@ class LivePreviewPanel {
   }
   _postRepin(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-repin', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  // LP-4 §6 — is the subscription bridge usable from this workspace? A cheap fs fact, cached 30s
+  // (it rides every snapshot poll). Fail-soft: absent module → honest 'sdk-bridge-missing'.
+  _leBridgeStatus() {
+    const now = Date.now();
+    if (this._leBridge && this._leBridgeTs && (now - this._leBridgeTs) < 30000) return this._leBridge;
+    this._leBridge = (LEC && typeof LEC.bridgeStatus === 'function')
+      ? LEC.bridgeStatus(this._wsRoot())
+      : { available: false, reason: 'sdk-bridge-missing' };
+    this._leBridgeTs = now;
+    return this._leBridge;
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
@@ -2088,6 +2100,9 @@ let lpDeleteTarget=null;
 // LP-4 §0 — the edit flow gets the same capture: target+edit are frozen at preview time and the
 // apply echoes the preview's source hash, so the write is always exactly the approved diff.
 let lpEditTarget=null;
+// LP-4 §3/§6 — the prompt flow's capture + honest session state: undo depth (from lp-edit-result)
+// and the SDK-bridge status (from the snapshot) drive the button/chip states — facts, not claims.
+let lpPromptTarget=null, lpUndoDepth=0, lpBridge=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -2150,8 +2165,11 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div id="lp-prompt-l" class="lp-ed-l">pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':esc(tierModel(lpTier))+' · subscrição')+')</div>'
+    +'<div class="lp-ed-row"><input id="lp-prompt-in" class="lp-ed-in" type="text" placeholder="descreve a mudança… (ex: cantos redondos e borda fina)" /><button id="lp-prompt-b" class="lp-sel-btn" title="o moo reescreve SÓ este elemento — diff cercado antes de escrever">pré-visualizar</button></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button>'
+    +'<button id="lp-sel-undo" class="lp-sel-btn"'+(lpUndoDepth<1?' disabled title="nada para desfazer nesta sessão"':' title="desfazer a última escrita do Live Edit — $0, splice inverso"')+'>↩ desfazer último</button></div>'
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
@@ -2164,6 +2182,20 @@ function renderSelection(sel){
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+  // LP-4 §6 — the anchored prompt box: the moo rewrites ONLY this node; the reply comes back as a
+  // fenced diff (lp-prompt-diff) the user approves before anything is written.
+  const pi=document.getElementById('lp-prompt-in'), pb=document.getElementById('lp-prompt-b');
+  const sendPrompt=function(){
+    const v=pi?pi.value.trim():'';
+    if(!v){ showEditResult(false,'prompt-empty'); return; }
+    lpPromptTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag };
+    vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:lpTier });
+    showEditResult(null,'pending');
+  };
+  if(pi&&pb){ pb.addEventListener('click', sendPrompt); pi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendPrompt(); } }); }
+  // §4 — undo: $0 inverse byte-splice of the LAST Live Edit write (sha-guarded host-side).
+  const ub=document.getElementById('lp-sel-undo');
+  if(ub) ub.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-undo' }); showEditResult(null,'pending'); });
   const cbs=el.querySelectorAll('[data-crumb]');
   for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
     // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
@@ -2202,6 +2234,7 @@ function renderDeleteDiff(m){
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
     +'<div class="lp-diff-hd">apagar &lt;'+esc((lpDeleteTarget&&lpDeleteTarget.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
     +exprWarn
     +rows
@@ -2253,24 +2286,78 @@ function renderEditDiff(m){
   const ca=document.getElementById('lp-ed-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
+// LP-4 §3/§6 — the anchored-prompt diff. The moo (local $0 or the subscription bridge) rewrote
+// ONLY this node; the header says WHO answered and shows the ABSOLUTE path of the file that will
+// be written (A7 mitigation). "aplicar" echoes the hash — the host re-fences + re-checks at write
+// time and a stale apply comes back here regenerated, flagged, with nothing written.
+function renderPromptDiff(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
+  let rows='';
+  for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas</div>';
+  for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
+  if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  const who=(!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição';
+  const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da reescrita">'
+    +'<div class="lp-diff-hd">reescrita por prompt · linha '+esc(m.start==null?'?':m.start)+' — '+who+' · cercada: só este nó</div>'
+    +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
+    +staleWarn
+    +rows
+    +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'</div>';
+  const ap=document.getElementById('lp-pr-apply');
+  if(ap) ap.addEventListener('click', function(){
+    if(!lpPromptTarget) return;
+    vsapi.postMessage({ type:'lp-prompt-apply', file:lpPromptTarget.file, line:lpPromptTarget.line, col:lpPromptTarget.col, tag:lpPromptTarget.tag, replacement:m.replacement, h:m.h, tier:m.tier });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-pr-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
+}
 // MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
 // local for $0 with no LLM, so classify.js is never consulted (and never touched/executed here). The
 // override lets you pin the model for STRUCTURAL edits (a prompt → CC), which land in MP5.2; honest
 // copy says so and never fabricates a token cost for the free path.
 const LP_TIERS=[['local','🐮 local · $0'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
+// LP-4 §6 — router-native advisory chip. The truth: text/class/delete are deterministic ($0, no
+// LLM); the PROMPT runs on the local moo by default ($0, nothing leaves the machine); going cloud
+// is opt-in, runs on the SUBSCRIPTION via the SDK bridge (no API key), and @fable is manual only
+// (never auto-routed). Bridge absent → cloud tiers disabled with the honest reason, never a dead
+// button that fails later.
 function renderChip(){
   const el=document.getElementById('lp-chip'); if(!el) return;
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
   let tiers='';
-  for(let i=0;i<LP_TIERS.length;i++){ const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]); tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'">'+lb+'</button>'; }
+  for(let i=0;i<LP_TIERS.length;i++){
+    const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]);
+    const dis=(id!=='local')&&!br.available;
+    tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'"'
+      +(dis?' disabled title="ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud"':'')
+      +'>'+lb+'</button>';
+  }
   const note = (lpTier==='local')
-    ? 'edição de texto/classe é determinística — $0, sem tokens (o router não precisa da nuvem).'
-    : 'texto/classe continuam $0; a subida para '+esc(tierModel(lpTier))+' aplica-se a edições ESTRUTURAIS (prompt → Claude Code) — chega no MP5.2.';
-  el.innerHTML='<div class="lp-chip-hd">🐮 esta edição: <span class="lp-chip-0">local · $0 · sem tokens</span></div>'
-    +'<div class="lp-tiers" role="group" aria-label="Modelo para esta edição">'+tiers+'</div>'
+    ? 'texto/classe e apagar são determinísticos — $0, sem tokens. O prompt corre no moo local — $0, nada sai da máquina. Subir para cloud é opt-in e gasta subscrição.'
+    : 'o prompt sobe para '+esc(tierModel(lpTier))+' via ponte SDK headless (subscrição — sem API key na extensão); a resposta volta pela MESMA cerca. texto/classe continuam $0.'
+      +(lpTier==='fable'?' @fable é SEMPRE manual — nunca auto-routed.':'');
+  el.innerHTML='<div class="lp-chip-hd">🐮 este prompt: <span class="lp-chip-0">'+(lpTier==='local'?'local · $0 · sem tokens':esc(tierModel(lpTier))+' · subscrição · opt-in')+'</span></div>'
+    +'<div class="lp-tiers" role="group" aria-label="Modelo para o prompt">'+tiers+'</div>'
     +'<div class="lp-chip-note">'+note+'</div>';
   const btns=el.querySelectorAll('[data-tier]');
-  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ lpTier=this.getAttribute('data-tier'); renderChip(); }); }
+  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){
+    if(this.disabled) return;
+    lpTier=this.getAttribute('data-tier');
+    renderChip();
+    // Refresh the prompt-box label in place — NEVER re-render the panel here (it would wipe a
+    // prompt the user already typed).
+    const pl=document.getElementById('lp-prompt-l');
+    if(pl) pl.textContent='pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':tierModel(lpTier)+' · subscrição')+')';
+  }); }
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
 function showEditResult(ok, reason){
@@ -2287,7 +2374,29 @@ function showEditResult(ok, reason){
     'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
     'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
     'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)',
-    'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição' };
+    'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
+    // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
+    'model-applied':'✓ escrito — o moo reescreveu SÓ este elemento (o HMR atualiza o preview)',
+    undone:'↩ desfeito — os bytes anteriores foram repostos ($0, splice inverso)',
+    'undo-stale':'o ficheiro mudou desde a última escrita do Live Edit — desfazer recusado (nada foi escrito)',
+    'nothing-to-undo':'nada para desfazer nesta sessão',
+    'prompt-empty':'escreve primeiro o que queres mudar',
+    'node-too-large':'este elemento é grande demais para reescrita por prompt — edita no editor',
+    'local-model-offline':'moo local offline — arranca o Ollama (ollama serve) ou sobe para cloud',
+    'local-model-timeout':'o moo local demorou demasiado (30s) — tenta de novo ou sobe para cloud',
+    'local-model-empty':'o moo local devolveu vazio — reformula o prompt',
+    'local-model-error':'o moo local falhou — vê o Ollama',
+    'sdk-bridge-missing':'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud',
+    'cloud-bridge-error':'a ponte cloud falhou — vê a sessão do Claude Code',
+    'cloud-model-timeout':'o modelo cloud demorou demasiado — tenta de novo',
+    'cloud-model-empty':'o modelo cloud devolveu vazio — reformula o prompt',
+    'replacement-has-comments':'o modelo devolveu comentários — recusado pela cerca, nada foi escrito',
+    'replacement-parse-error':'o modelo devolveu JSX inválido — recusado pela cerca, nada foi escrito',
+    'not-single-root':'o modelo devolveu mais do que um elemento — recusado pela cerca, nada foi escrito',
+    'replacement-trailing-junk':'o modelo devolveu lixo fora do elemento — recusado pela cerca, nada foi escrito',
+    'empty-replacement':'o modelo devolveu vazio — recusado pela cerca',
+    'range-not-a-node':'o alvo já não é um nó válido — reselecciona',
+    'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito' };
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
@@ -2322,15 +2431,36 @@ window.addEventListener('message', (ev) => {
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from
   //    MP2). The framed iframe cannot read HOST_TOKEN, so it cannot forge this.
   if (m.__t !== HOST_TOKEN) return;
-  if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes); }
+  if (m.type === 'lp-snapshot'){
+    render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
+    // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
+    // cloud tiers enable/disable from FACTS (never a dead button).
+    const br=m.s && m.s.leBridge;
+    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderChip(); }
+    else if(br) lpBridge=br;
+  }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
-    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    // §4 — the live undo depth drives the button state (facts, not claims).
+    if (typeof m.undo === 'number'){
+      lpUndoDepth=m.undo;
+      const ub=document.getElementById('lp-sel-undo');
+      if(ub){ ub.disabled=lpUndoDepth<1; ub.title=lpUndoDepth<1?'nada para desfazer nesta sessão':'desfazer a última escrita do Live Edit — $0, splice inverso'; }
+    }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
+  else if (m.type === 'lp-prompt-diff'){ renderPromptDiff(m); } // LP-4 §3 fenced model rewrite preview
+  else if (m.type === 'lp-prompt-status'){
+    // §6 — honest thinking state: WHO is thinking and what it costs, while it thinks.
+    if(m.phase==='thinking'){
+      const el=document.getElementById('lp-edit-msg');
+      if(el){ el.textContent=(!m.tier||m.tier==='local')?'a pensar… (moo local · $0)':'a pensar… ('+tierModel(m.tier)+' · subscrição)'; el.className='lp-ed-msg lp-ed-pending'; }
+    }
+  }
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
 });
 const urlInput=document.getElementById('lp-url');
