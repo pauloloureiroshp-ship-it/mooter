@@ -102,6 +102,10 @@ let LEM = null;
 try { LEM = require('./live-edit-model.js'); } catch { LEM = null; }
 let LEC = null;
 try { LEC = require('./live-edit-cloud.js'); } catch { LEC = null; }
+// §4 — $0 undo by inverse byte-splice (pure; the per-panel stack + fs live below). Fail-soft:
+// absent → 'desfazer' reports engine-unavailable honestly; the edit paths still work.
+let LEU = null;
+try { LEU = require('./live-edit-undo.js'); } catch { LEU = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1333,6 +1337,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
     if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
     if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
+    if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1461,12 +1466,48 @@ class LivePreviewPanel {
         this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real });
         return;
       }
+      this._pushUndo(real, source, res.code); // §4 — remember the inverse splice before writing
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'applied');
     } catch { fail('error'); }
   }
   _postEditResult(ok, reason) {
-    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || '') }); } catch { /* best-effort */ }
+    // §4 — every result carries the live undo depth so the panel can enable/disable "desfazer"
+    // without a second round-trip (0 = nothing to undo; the button says so honestly).
+    const undo = (this._undoStack && this._undoStack.length) || 0;
+    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo }); } catch { /* best-effort */ }
+  }
+  // §4 — remember the write we are about to make as an inverse-splice entry (LIFO, capped).
+  // Lazy stack init: unit harnesses build instances without running the constructor.
+  _pushUndo(real, before, after) {
+    try {
+      if (!LEU) return;
+      const e = LEU.makeEntry(real, before, after);
+      if (!e) return;
+      if (!this._undoStack) this._undoStack = [];
+      this._undoStack.push(e);
+      if (this._undoStack.length > 20) this._undoStack.shift();
+    } catch { /* undo is best-effort bookkeeping — never blocks the write */ }
+  }
+  // §4 — "desfazer último": inverse byte-splice of the most recent Live Edit write. FAIL-CLOSED:
+  // the file's CURRENT sha must still match the sha stamped at write time; if anything else wrote
+  // it since (HMR, an agent, the editor), we refuse honestly ('undo-stale') and keep the entry —
+  // a blind revert over someone else's bytes is exactly the lie this product exists to avoid.
+  async _undoLast() {
+    try {
+      if (!LEU) { this._postEditResult(false, 'engine-unavailable'); return; }
+      const stack = this._undoStack || [];
+      const e = stack[stack.length - 1];
+      if (!e) { this._postEditResult(false, 'nothing-to-undo'); return; }
+      let cur;
+      try { cur = fs.readFileSync(e.file, 'utf8'); }
+      catch { this._postEditResult(false, 'undo-stale'); return; }
+      const r = LEU.applyUndo(e, cur);
+      if (!r.ok) { this._postEditResult(false, r.reason); return; }
+      fs.writeFileSync(e.file, r.code, 'utf8');
+      stack.pop();
+      this._postEditResult(true, 'undone');
+    } catch { this._postEditResult(false, 'error'); }
   }
   _postEditDiff(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-edit-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
@@ -1517,6 +1558,7 @@ class LivePreviewPanel {
         this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr });
         return;
       }
+      this._pushUndo(real, source, res.code); // §4 — remember the inverse splice before writing
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
@@ -1612,6 +1654,7 @@ class LivePreviewPanel {
         this._postPromptDiff({ ok: true, stale: true, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
         return;
       }
+      this._pushUndo(real, s2, res.code); // §4 — remember the inverse splice before writing
       fs.writeFileSync(real, res.code, 'utf8');
       this._postEditResult(true, 'model-applied');
     } catch { fail('error'); }
