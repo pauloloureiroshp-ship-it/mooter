@@ -1348,6 +1348,8 @@ class LivePreviewPanel {
     if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
     if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
     if (m.type === 'lp-task') { this._taskRun(m); return; } // LP-4.5 anchored PROJECT task → trusted agent (one-box default)
+    if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
+    if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
@@ -1784,6 +1786,44 @@ class LivePreviewPanel {
   _postTaskResult(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-result', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
+  // LP-4.5 — revert agent edits: per file (m.file) or all (m.all). The webview only names WHICH
+  // registered edit; the write itself uses OUR record (snapshot path + shaAfter) — a forged
+  // message cannot point the revert at an arbitrary file. Sha-guarded fail-closed in revertEdit:
+  // the file must still match the post-agent hash or nothing is written ('revert-stale').
+  _taskRevert(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-revert-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
+      const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
+      if (!LET || !reg || !reg.length) { post({ taskId, results: [], done: false }); return; }
+      const targets = m && m.all ? reg.slice() : reg.filter((e) => e && e.file === m.file);
+      const results = [];
+      for (const e of targets) {
+        const r = LET.revertEdit(e);
+        results.push({ file: e.file, ok: !!(r && r.ok), reason: (r && r.reason) || null });
+        if (r && r.ok) {
+          const i = reg.indexOf(e);
+          if (i !== -1) reg.splice(i, 1);
+          try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ }
+        }
+      }
+      if (!reg.length) this._taskReg.delete(taskId);
+      post({ taskId, results, done: !reg.length });
+    } catch { post({ taskId: (m && m.taskId) || '', results: [], done: false }); }
+  }
+  // LP-4.5 — keep agent edits: the files already hold them (HMR showed them); keeping just drops
+  // our snapshots/record. Honest ok:false when there is nothing registered to keep.
+  _taskKeep(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-keep-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
+      const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
+      if (!reg || !reg.length) { post({ taskId, ok: false }); return; }
+      for (const e of reg) { try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ } }
+      this._taskReg.delete(taskId);
+      post({ taskId, ok: true });
+    } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
+  }
   _postPromptStatus(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
@@ -1885,9 +1925,11 @@ function getLivePreviewHtml(token) {
   // with the SAME source of truth as the pure decision layer (no JS drift between them).
   const isSelfNoiseSrc = LPD ? LPD.isLivePreviewSelfNoise.toString() : 'function isLivePreviewSelfNoise(){return false;}';
   const isBenignCssSrc = LPD ? LPD.isBenignCssWarning.toString() : 'function isBenignCssWarning(){return false;}';
-  // LP-4.5 — the one-box heuristic (SUGGESTS the local chip, never decides), same fn.toString()
-  // contract as the renderers above (concat-only source).
+  // LP-4.5 — the one-box heuristic (SUGGESTS the local chip, never decides) + the safe markdown
+  // renderer for agent answers, same fn.toString() contract as the renderers above (concat-only,
+  // backtick-free source).
   const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
+  const renderMarkdownSafeSrc = LTV ? LTV.renderMarkdownSafe.toString() : 'function renderMarkdownSafe(t){return esc(t);}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1942,7 +1984,12 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-diff-hk{opacity:.6}
   /* LP-4.5 — one-box hint (the heuristic SUGGESTS the local chip) + agent result blocks. */
   #lp-sel .lp-hint{font-size:10.5px;margin-top:4px;color:var(--vscode-charts-green,#4CAF6A);line-height:1.4}
-  #lp-sel .lp-task-txt{font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;margin:4px 0 6px}
+  #lp-sel .lp-task-txt{font-size:12px;line-height:1.55;word-break:break-word;margin:4px 0 6px}
+  #lp-sel .lp-task-txt code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px}
+  #lp-sel .lp-md-ul{margin:3px 0 3px 16px;padding:0}
+  #lp-sel .lp-md-h{font-weight:700;margin:6px 0 2px}
+  #lp-sel .lp-md-sp{height:5px}
+  #lp-sel .lp-task-st{font-size:10.5px;opacity:.9;margin-left:6px}
   #lp-sel .lp-task-reads{font-size:10.5px;opacity:.8;margin:4px 0;line-height:1.6}
   #lp-sel .lp-task-reads code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10px}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
@@ -2052,6 +2099,7 @@ const renderErrorStrip=${renderErrorStripSrc};
 const isLivePreviewSelfNoise=${isSelfNoiseSrc};
 const isBenignCssWarning=${isBenignCssSrc};
 const suggestLocalChip=${suggestLocalChipSrc};
+const renderMarkdownSafe=${renderMarkdownSafeSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2462,9 +2510,10 @@ function renderPromptDiff(m){
   const ca=document.getElementById('lp-pr-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
-// LP-4.5 — the agent verdict. A QUESTION renders as an answer (esc'd) + the files it read (zero
-// writes — provably: no edits arrive). An EDIT renders the touched files with their git diffs.
-// (Keep/revert controls land in the next piece; nothing here fabricates a "✓ escrito".)
+// LP-4.5 — the agent verdict. A QUESTION renders as SAFE markdown (esc-first) + the files it
+// read (zero writes — provably: no edits arrive). An EDIT renders every touched file with its
+// git diff (scoped to the task) + 'manter tudo' / 'reverter tudo' / per-file revert. Reverts are
+// sha-guarded HOST-side against OUR snapshot record — never against paths this webview sends.
 function renderTaskResult(m){
   const el=document.getElementById('lp-del'); if(!el) return;
   if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
@@ -2472,7 +2521,7 @@ function renderTaskResult(m){
   const who=(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · agente · subscrição'+(m.model?(' ('+esc(m.model)+')'):'');
   let html='<div class="lp-diff" role="region" aria-label="Resultado do agente">'
     +'<div class="lp-diff-hd">'+(m.kind==='answer'?'resposta do agente':'edições do agente')+' — '+who+'</div>';
-  if(m.text) html+='<div class="lp-task-txt">'+esc(m.text)+'</div>';
+  if(m.text) html+='<div class="lp-task-txt">'+renderMarkdownSafe(m.text)+'</div>';
   const reads=Array.isArray(m.filesRead)?m.filesRead:[];
   if(reads.length){
     html+='<div class="lp-task-reads">ficheiros lidos:';
@@ -2483,7 +2532,9 @@ function renderTaskResult(m){
   const edits=Array.isArray(m.edits)?m.edits:[];
   for(let i=0;i<edits.length;i++){
     const e=edits[i]||{};
-    html+='<div class="lp-diff-hd" style="margin-top:8px">✍ '+esc(e.file||'?')+'</div>';
+    html+='<div class="lp-diff-hd" style="margin-top:8px">✍ '+esc(e.file||'?')
+      +' <button type="button" class="lp-sel-btn lp-task-rv" data-tfile="'+esc(e.file||'')+'" title="repor os bytes anteriores DESTE ficheiro (sha-guarded)">reverter</button>'
+      +' <span class="lp-task-st" data-tst="'+esc(e.file||'')+'"></span></div>';
     const lines=Array.isArray(e.diff)?e.diff:null;
     if(!lines){ html+='<div class="lp-diff-l">(diff indisponível — '+esc(e.diffReason||'git-unavailable')+')</div>'; continue; }
     for(let j=0;j<lines.length&&j<80;j++){
@@ -2493,8 +2544,50 @@ function renderTaskResult(m){
     }
     if(lines.length>80) html+='<div class="lp-diff-l">… +'+(lines.length-80)+' linhas</div>';
   }
+  if(edits.length){
+    html+='<div class="lp-sel-acts">'
+      +'<button id="lp-task-keep" class="lp-sel-btn" title="aceitar — as edições ficam nos ficheiros (o HMR já as mostra)">manter tudo</button>'
+      +'<button id="lp-task-revert-all" class="lp-sel-btn" title="repor os bytes anteriores de TODOS os ficheiros listados (sha-guarded) — nunca fora desta lista">reverter tudo</button>'
+      +'</div>';
+  }
   html+='</div>';
   el.innerHTML=html;
+  const tid=m.taskId;
+  const kb=document.getElementById('lp-task-keep');
+  if(kb) kb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-keep', taskId:tid }); showEditResult(null,'pending'); });
+  const rb=document.getElementById('lp-task-revert-all');
+  if(rb) rb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-revert', taskId:tid, all:true }); showEditResult(null,'pending'); });
+  const rvs=el.querySelectorAll('[data-tfile]');
+  for(let i=0;i<rvs.length;i++){ rvs[i].addEventListener('click', function(){
+    vsapi.postMessage({ type:'lp-task-revert', taskId:tid, file:this.getAttribute('data-tfile') });
+    showEditResult(null,'pending');
+  }); }
+}
+// Per-file revert/keep outcomes — update the row states in place, honestly (a stale revert says
+// so and keeps the button; a reverted file disables its button; keep marks everything kept).
+function applyTaskRevertResult(m){
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const results=Array.isArray(m.results)?m.results:[];
+  for(let i=0;i<results.length;i++){
+    const r=results[i]||{};
+    const st=document.querySelector('[data-tst="'+(window.CSS&&CSS.escape?CSS.escape(r.file||''):String(r.file||'').replace(/"/g,''))+'"]');
+    const bt=document.querySelector('[data-tfile="'+(window.CSS&&CSS.escape?CSS.escape(r.file||''):String(r.file||'').replace(/"/g,''))+'"]');
+    if(st){ st.textContent=r.ok?'↩ revertido':('não revertido: '+(r.reason==='revert-stale'?'o ficheiro mudou entretanto':(r.reason||'erro'))); }
+    if(bt&&r.ok) bt.disabled=true;
+  }
+  if(m.done){
+    const kb=document.getElementById('lp-task-keep'); if(kb) kb.disabled=true;
+    const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
+  }
+}
+function applyTaskKeepResult(m){
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=m.ok?'✓ mantido — as edições ficam nos ficheiros':'nada para manter'; msg.className='lp-ed-msg '+(m.ok?'lp-ed-ok':'lp-ed-no'); }
+  const sts=document.querySelectorAll('[data-tst]');
+  for(let i=0;i<sts.length;i++) sts[i].textContent=m.ok?'✓ mantido':'';
+  const bts=document.querySelectorAll('[data-tfile]');
+  for(let i=0;i<bts.length;i++) bts[i].disabled=true;
+  const kb=document.getElementById('lp-task-keep'); if(kb) kb.disabled=true;
+  const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
 }
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
 // LP-4.5 — the one-box MODE chips. The truth: text/class/delete stay deterministic ($0, no LLM).
@@ -2661,6 +2754,8 @@ window.addEventListener('message', (ev) => {
     }
   }
   else if (m.type === 'lp-task-result'){ renderTaskResult(m); } // LP-4.5 agent verdict (answer or per-file diffs)
+  else if (m.type === 'lp-task-revert-result'){ applyTaskRevertResult(m); } // LP-4.5 per-file revert outcomes
+  else if (m.type === 'lp-task-keep-result'){ applyTaskKeepResult(m); } // LP-4.5 keep-all outcome
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
 });
 const urlInput=document.getElementById('lp-url');

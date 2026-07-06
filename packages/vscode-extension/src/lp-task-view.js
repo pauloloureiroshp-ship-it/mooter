@@ -38,7 +38,46 @@ function suggestLocalChip(text) {
   return local.test(t);
 }
 
+// ── renderMarkdownSafe(text) — the agent's answer as SAFE minimal markdown. esc() runs FIRST on
+// every line (all HTML is neutralised), then only these transforms apply on the escaped text:
+// **bold**, `code`, bullet lists (-/*/•), #-headings (bold line). Links stay as escaped text —
+// nothing here is clickable or executable. NOTE the serialisation contract: this source contains
+// NO backtick character anywhere (the code-span regex is built via String.fromCharCode(96)) —
+// a literal backtick would terminate the host's outer template literal.
+function renderMarkdownSafe(text) {
+  var t = String(text == null ? '' : text);
+  if (!t.trim()) return '';
+  var bt = String.fromCharCode(96);
+  var codeRe = new RegExp(bt + '([^' + bt + ']+)' + bt, 'g');
+  var lines = t.split('\n');
+  var html = '';
+  var inList = false;
+  function inline(s) {
+    var e = esc(s);
+    e = e.replace(codeRe, function (_m, c) { return '<code>' + c + '</code>'; });
+    e = e.replace(/\*\*([^*]+)\*\*/g, function (_m, b) { return '<b>' + b + '</b>'; });
+    return e;
+  }
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var bullet = line.match(/^\s*[-*•]\s+(.+)$/);
+    var head = line.match(/^\s*#{1,4}\s+(.+)$/);
+    if (bullet) {
+      if (!inList) { html += '<ul class="lp-md-ul">'; inList = true; }
+      html += '<li>' + inline(bullet[1]) + '</li>';
+      continue;
+    }
+    if (inList) { html += '</ul>'; inList = false; }
+    if (head) { html += '<div class="lp-md-h">' + inline(head[1]) + '</div>'; continue; }
+    if (!line.trim()) { html += '<div class="lp-md-sp"></div>'; continue; }
+    html += '<div>' + inline(line) + '</div>';
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
 module.exports = {
   esc: esc,
   suggestLocalChip: suggestLocalChip,
+  renderMarkdownSafe: renderMarkdownSafe,
 };

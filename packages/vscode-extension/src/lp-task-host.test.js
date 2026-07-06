@@ -157,6 +157,101 @@ test('bridge failures are forwarded honestly (timeout, missing sdk, empty)', asy
   }
 });
 
+test('keep/revert flow: sha-guarded per-file revert via OUR record (forged names no-op); keep drops snapshots', async () => {
+  const root = setup();
+  const abs = path.join(root, 'landing', 'page.tsx');
+  const snap = path.join(root, 'snap.bin');
+  const realLET = require('./live-edit-task.js');
+  try {
+    fs.writeFileSync(snap, SRC, 'utf8');                    // before-bytes (the agent snapshot)
+    const edited = SRC.replace('61', '77');
+    fs.writeFileSync(abs, edited, 'utf8');                  // the agent's edit, already on disk
+    const task = {
+      runAnchoredTask: async () => ({ ok: true, kind: 'edits', text: 'ok', filesRead: [], edits: [{ file: 'landing/page.tsx', abs, snapshot: snap, shaAfter: realLET.sha256File(abs) }], denied: [], model: 'm' }),
+      gitDiffFile: () => ({ ok: true, lines: [] }),
+      revertEdit: realLET.revertEdit,
+    };
+    const Panel = loadPanelClass({ task });
+    const { inst, posts } = mkInstance(Panel, root, true);
+    await inst._taskRun(Object.assign({ instruction: 'põe números reais' }, TARGET));
+    const taskId = posts.find((p) => p.type === 'lp-task-result').taskId;
+
+    // A forged/unknown file name matches nothing in OUR record — nothing happens.
+    inst._taskRevert({ taskId, file: '../../outside.txt' });
+    let rr = posts.filter((p) => p.type === 'lp-task-revert-result').pop();
+    assert.strictEqual(rr.results.length, 0, 'forged name → no-op');
+    assert.strictEqual(fs.readFileSync(abs, 'utf8'), edited, 'file untouched');
+
+    // The real per-file revert restores the exact before-bytes and clears the record.
+    inst._taskRevert({ taskId, file: 'landing/page.tsx' });
+    rr = posts.filter((p) => p.type === 'lp-task-revert-result').pop();
+    assert.strictEqual(rr.results.length, 1);
+    assert.strictEqual(rr.results[0].ok, true);
+    assert.strictEqual(rr.done, true, 'record emptied');
+    assert.strictEqual(fs.readFileSync(abs, 'utf8'), SRC, 'before-bytes restored');
+    assert.ok(!fs.existsSync(snap), 'snapshot cleaned up');
+    assert.strictEqual(inst._taskReg.size, 0, 'registry cleared');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('stale revert is FAIL-CLOSED: anything else wrote the file since → refusal, nothing written', async () => {
+  const root = setup();
+  const abs = path.join(root, 'landing', 'page.tsx');
+  const snap = path.join(root, 'snap.bin');
+  const realLET = require('./live-edit-task.js');
+  try {
+    fs.writeFileSync(snap, SRC, 'utf8');
+    const edited = SRC.replace('61', '77');
+    fs.writeFileSync(abs, edited, 'utf8');
+    const task = {
+      runAnchoredTask: async () => ({ ok: true, kind: 'edits', text: 'ok', filesRead: [], edits: [{ file: 'landing/page.tsx', abs, snapshot: snap, shaAfter: realLET.sha256File(abs) }], denied: [], model: 'm' }),
+      gitDiffFile: () => ({ ok: true, lines: [] }),
+      revertEdit: realLET.revertEdit,
+    };
+    const Panel = loadPanelClass({ task });
+    const { inst, posts } = mkInstance(Panel, root, true);
+    await inst._taskRun(Object.assign({ instruction: 'x' }, TARGET));
+    const taskId = posts.find((p) => p.type === 'lp-task-result').taskId;
+    // HMR / the user / another agent writes the file AFTER the verdict…
+    fs.writeFileSync(abs, edited + '// someone else\n', 'utf8');
+    inst._taskRevert({ taskId, all: true });
+    const rr = posts.filter((p) => p.type === 'lp-task-revert-result').pop();
+    assert.strictEqual(rr.results[0].ok, false);
+    assert.strictEqual(rr.results[0].reason, 'revert-stale', 'honest refusal');
+    assert.strictEqual(fs.readFileSync(abs, 'utf8'), edited + '// someone else\n', 'NOTHING written over their bytes');
+    assert.strictEqual(inst._taskReg.size, 1, 'record kept (nothing was undone)');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('keep drops the record + snapshots; a second keep says there is nothing to keep', async () => {
+  const root = setup();
+  const abs = path.join(root, 'landing', 'page.tsx');
+  const snap = path.join(root, 'snap.bin');
+  const realLET = require('./live-edit-task.js');
+  try {
+    fs.writeFileSync(snap, SRC, 'utf8');
+    fs.writeFileSync(abs, SRC.replace('61', '77'), 'utf8');
+    const task = {
+      runAnchoredTask: async () => ({ ok: true, kind: 'edits', text: 'ok', filesRead: [], edits: [{ file: 'landing/page.tsx', abs, snapshot: snap, shaAfter: realLET.sha256File(abs) }], denied: [], model: 'm' }),
+      gitDiffFile: () => ({ ok: true, lines: [] }),
+      revertEdit: realLET.revertEdit,
+    };
+    const Panel = loadPanelClass({ task });
+    const { inst, posts } = mkInstance(Panel, root, true);
+    await inst._taskRun(Object.assign({ instruction: 'x' }, TARGET));
+    const taskId = posts.find((p) => p.type === 'lp-task-result').taskId;
+    inst._taskKeep({ taskId });
+    let kr = posts.filter((p) => p.type === 'lp-task-keep-result').pop();
+    assert.strictEqual(kr.ok, true);
+    assert.ok(!fs.existsSync(snap), 'snapshot dropped');
+    assert.strictEqual(inst._taskReg.size, 0, 'registry cleared');
+    assert.ok(fs.readFileSync(abs, 'utf8').includes('77'), 'the edit stays in the file');
+    inst._taskKeep({ taskId });
+    kr = posts.filter((p) => p.type === 'lp-task-keep-result').pop();
+    assert.strictEqual(kr.ok, false, 'honest: nothing left to keep');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('empty instruction refused before anything runs', async () => {
   const calls = [];
   const task = { runAnchoredTask: async (i) => { calls.push(i); return { ok: true }; }, gitDiffFile: () => ({ ok: true, lines: [] }) };
