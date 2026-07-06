@@ -35,6 +35,25 @@ const SYSTEM_PROMPT = 'Reescreve APENAS este elemento JSX segundo a instrução 
   + 'Devolve SÓ o elemento JSX reescrito — sem prosa, sem markdown, sem comentários, sem explicações. '
   + 'Mantém tudo o que a instrução não pede para mudar.';
 
+// LP-4.7 §4 — the structured ENVELOPE. Ollama structured outputs constrain ONLY the wrapper
+// ({jsx, new_imports}); the JSX inside stays free-form — constraining the grammar itself is
+// the documented "format tax" (study §1). new_imports feeds the §3 import fence downstream.
+const ENVELOPE_SYSTEM_PROMPT = 'Reescreve APENAS este elemento JSX segundo a instrução do utilizador. '
+  + 'Responde SÓ com JSON válido: {"jsx": string, "new_imports": string[]}. '
+  + '"jsx" = o elemento JSX reescrito completo — um único elemento raiz, sem comentários, sem markdown. '
+  + '"new_imports" = declarações ES import completas de que o teu JSX precisa e que o ficheiro ainda não deve ter '
+  + '(ex.: "import { Star } from \'lucide-react\'"); [] se não precisares de nenhuma. '
+  + 'Mantém tudo o que a instrução não pede para mudar.';
+
+const ENVELOPE_FORMAT = {
+  type: 'object',
+  properties: {
+    jsx: { type: 'string' },
+    new_imports: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['jsx'],
+};
+
 function prefsPath() { return path.join(os.homedir(), '.mooter', 'preferences.json'); }
 
 function readPrefs(file) {
@@ -64,10 +83,34 @@ function cleanModelReply(text) {
   return t.trim();
 }
 
+// Envelope reply → { jsx, newImports } | null. Structured outputs give clean JSON on a modern
+// Ollama; a <think> block or an older daemon that ignored `format` degrade to a best-effort
+// brace-scan, and a reply that is not an envelope at all returns null so the caller can fall
+// back to the legacy free-text cleaning — honest downgrade, never a fabricated envelope.
+function parseEnvelope(text) {
+  let t = String(text == null ? '' : text).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  if (!t) return null;
+  const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
+  let obj = tryParse(t);
+  if (!obj) {
+    const a = t.indexOf('{');
+    const b = t.lastIndexOf('}');
+    if (a !== -1 && b > a) obj = tryParse(t.slice(a, b + 1));
+  }
+  if (!obj || typeof obj !== 'object' || typeof obj.jsx !== 'string') return null;
+  const imports = Array.isArray(obj.new_imports)
+    ? obj.new_imports.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.trim())
+    : [];
+  return { jsx: obj.jsx, newImports: imports };
+}
+
 /**
- * rewriteElement({ nodeSource, prompt, file, line }, opts?) → Promise<{ok:true, text, model} |
- * {ok:false, reason, detail?}>. opts (all optional, injectable for tests): baseUrl, model,
- * timeoutMs, prefsFile, fetchImpl.
+ * rewriteElement({ nodeSource, prompt, file, line }, opts?) → Promise<{ok:true, text, model,
+ * newImports, envelope} | {ok:false, reason, detail?}>. opts (all optional, injectable for
+ * tests): baseUrl, model, timeoutMs, prefsFile, fetchImpl, temperature, envelope (structured
+ * {jsx,new_imports} wrapper — LP-4.7 §4), extraBlocks (strings appended between instruction
+ * and element — the §3 asset block, the retry round's exact-error feedback). One call, one
+ * answer: retries belong to the quality engine, never here (no storm against a busy GPU).
  */
 async function rewriteElement(input, opts) {
   const o = opts || {};
@@ -82,12 +125,24 @@ async function rewriteElement(input, opts) {
     ? o.model.trim()
     : localModelName(readPrefs(o.prefsFile));
   const timeoutMs = (Number.isFinite(o.timeoutMs) && o.timeoutMs > 0) ? o.timeoutMs : DEFAULT_TIMEOUT_MS;
+  const temperature = (Number.isFinite(o.temperature) && o.temperature >= 0) ? o.temperature : 0.2;
+  const useEnvelope = o.envelope === true;
+  const blocks = Array.isArray(o.extraBlocks) ? o.extraBlocks.filter((b) => typeof b === 'string' && b.trim()) : [];
   // Context is file:line ONLY — never file content. The element + the instruction is the whole read.
   const where = ((input && input.file) ? String(input.file) : '')
     + ((input && Number.isInteger(input.line)) ? (':' + input.line) : '');
   const userPrompt = 'Instrução: ' + prompt + '\n'
+    + (blocks.length ? (blocks.join('\n') + '\n') : '')
     + (where ? ('Localização (contexto, NÃO leres mais nada): ' + where + '\n') : '')
     + 'Elemento JSX:\n' + nodeSource;
+  const payload = {
+    model,
+    system: useEnvelope ? ENVELOPE_SYSTEM_PROMPT : SYSTEM_PROMPT,
+    prompt: userPrompt,
+    stream: false,
+    options: { temperature },
+  };
+  if (useEnvelope) payload.format = ENVELOPE_FORMAT;
   const ctl = new AbortController();
   const timer = setTimeout(() => { try { ctl.abort(); } catch { /* noop */ } }, timeoutMs);
   try {
@@ -96,7 +151,7 @@ async function rewriteElement(input, opts) {
       res = await fetchImpl(baseUrl + '/api/generate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model, system: SYSTEM_PROMPT, prompt: userPrompt, stream: false, options: { temperature: 0.2 } }),
+        body: JSON.stringify(payload),
         signal: ctl.signal,
       });
     } catch (e) {
@@ -108,9 +163,18 @@ async function rewriteElement(input, opts) {
     if (!res || !res.ok) return { ok: false, reason: 'local-model-error', detail: res ? ('http ' + res.status) : 'no-response' };
     let body;
     try { body = await res.json(); } catch { return { ok: false, reason: 'local-model-error', detail: 'bad-json' }; }
+    if (useEnvelope) {
+      const env = parseEnvelope(body && body.response);
+      if (env) {
+        const text = cleanModelReply(env.jsx);
+        if (!text) return { ok: false, reason: 'local-model-empty' };
+        return { ok: true, text, model, newImports: env.newImports, envelope: true };
+      }
+      // Envelope asked for but not honoured — fall through to the legacy cleaning, honestly flagged.
+    }
     const text = cleanModelReply(body && body.response);
     if (!text) return { ok: false, reason: 'local-model-empty' };
-    return { ok: true, text, model };
+    return { ok: true, text, model, newImports: [], envelope: false };
   } finally { clearTimeout(timer); }
 }
 
@@ -119,8 +183,11 @@ module.exports = {
   localModelName,
   readPrefs,
   cleanModelReply,
+  parseEnvelope,
   prefsPath,
   SYSTEM_PROMPT,
+  ENVELOPE_SYSTEM_PROMPT,
+  ENVELOPE_FORMAT,
   DEFAULT_MODEL,
   DEFAULT_BASE_URL,
   DEFAULT_TIMEOUT_MS,

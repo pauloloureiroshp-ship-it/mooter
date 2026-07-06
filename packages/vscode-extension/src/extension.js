@@ -102,6 +102,15 @@ let LEM = null;
 try { LEM = require('./live-edit-model.js'); } catch { LEM = null; }
 let LEC = null;
 try { LEC = require('./live-edit-cloud.js'); } catch { LEC = null; }
+// ── LIVE EDIT · LP-4.7 — the Moo Quality Engine (best-of-N + retry against the fence, evidence
+// for the escalation OFFER — never an automatic climb) and the asset fence (vendored lucide
+// whitelist + official brand SVGs + import-verifier). Fail-soft: LEQ absent → the local path
+// falls back to the single-call LP-4 behaviour; LEAS absent → declared imports are REFUSED
+// (fail-closed: an unverifiable import never reaches the file).
+let LEQ = null;
+try { LEQ = require('./live-edit-quality.js'); } catch { LEQ = null; }
+let LEAS = null;
+try { LEAS = require('./live-edit-assets.js'); } catch { LEAS = null; }
 // §4 — $0 undo by inverse byte-splice (pure; the per-panel stack + fs live below). Fail-soft:
 // absent → 'desfazer' reports engine-unavailable honestly; the edit paths still work.
 let LEU = null;
@@ -1712,15 +1721,49 @@ class LivePreviewPanel {
       try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep real */ }
       this._postPromptStatus({ phase: 'thinking', tier });
       let reply;
+      let newImports = [];
+      let quality = null;
       if (tier === 'local') {
         if (!LEM) { fail('engine-unavailable'); return; }
-        reply = await LEM.rewriteElement({ nodeSource, prompt, file: relFile, line: m.line });
+        if (LEQ && typeof LEQ.runQualityLoop === 'function') {
+          // LP-4.7 — the Moo Quality Engine: best-of-N + retry against the SAME fence the write
+          // will re-run. Exhaustion returns EVIDENCE the panel turns into an escalation OFFER
+          // ("o moo falhou 2× (motivo) — subir para Sonnet?") — the climb is the user's click,
+          // NEVER taken here. Any infra failure surfaces as-is, same UX as the single call.
+          const q = await LEQ.runQualityLoop(
+            { nodeSource, prompt, file: relFile, line: m.line },
+            {
+              source: s0, range: { start: r0.start, end: r0.end }, wsRoot: this._wsRoot(), absFile: real,
+              rewrite: (inp, ro) => LEM.rewriteElement(inp, ro), // the host's LEM, injectable in tests
+              onStatus: (st) => this._postPromptStatus({ phase: 'thinking', tier, round: st.round, rounds: st.rounds, sample: st.sample, of: st.of }),
+            },
+          );
+          if (!q.ok) {
+            if (q.reason === 'local-quality-exhausted') {
+              // The offer payload carries the original ask so the button can re-fire on t2 —
+              // bound to THIS target (review P1-B discipline), with the evidence verbatim.
+              this._postPromptDiff({ ok: false, reason: 'local-quality-exhausted', evidence: q.evidence, file: raw, line: m.line, col: m.col, tag: m.tag, prompt, selText: (m && typeof m.selText === 'string') ? m.selText.slice(0, 200) : '' });
+              return;
+            }
+            fail(q.reason, q.detail);
+            return;
+          }
+          // Already verified against s0 AND cleaned inside the engine — what was verified is
+          // exactly what goes to the write fence below (no second cleaning that could diverge).
+          reply = { ok: true, text: q.replacement, model: q.model, precleaned: true };
+          newImports = Array.isArray(q.imports) ? q.imports : [];
+          quality = q.passed ? { round: q.passed.round, sample: q.passed.sample, samplesTried: q.samplesTried } : null;
+        } else {
+          reply = await LEM.rewriteElement({ nodeSource, prompt, file: relFile, line: m.line });
+        }
       } else {
         if (!LEC) { fail('sdk-bridge-missing'); return; }
         reply = await LEC.rewriteElementCloud({ nodeSource, prompt, file: relFile, line: m.line, tier }, { wsRoot: this._wsRoot(), trusted: this._workspaceTrusted() });
       }
       if (!reply || !reply.ok) { fail((reply && reply.reason) || 'error', reply && reply.detail); return; }
-      const replacement = (LEM && typeof LEM.cleanModelReply === 'function') ? LEM.cleanModelReply(reply.text) : String(reply.text || '').trim();
+      const replacement = reply.precleaned
+        ? String(reply.text || '')
+        : ((LEM && typeof LEM.cleanModelReply === 'function') ? LEM.cleanModelReply(reply.text) : String(reply.text || '').trim());
       // WRITE fence + hash-guard: the model call took seconds — re-read the disk NOW, re-locate
       // the node, and let spliceNodeRange verify the span + the replacement. Nothing is written
       // in this phase; the panel shows the diff with the CURRENT hash stamped.
@@ -1730,10 +1773,22 @@ class LivePreviewPanel {
       if (!r1.ok) { fail(leaFailReason(r1)); return; }
       const res = LEA.spliceNodeRange(s1, { start: r1.start, end: r1.end }, replacement);
       if (!res.ok) { fail(leaFailReason(res), res.detail); return; }
+      // LP-4.7 — imports the model DECLARED and the asset fence verified: re-verify against the
+      // CURRENT disk (fail-closed without the verifier) and dry-run the insertion. The node diff
+      // stays the node's (a single splice); the import lines ride separately as importsAdded.
+      let importsAdded = [];
+      if (newImports.length > 0) {
+        if (!LEAS || typeof LEAS.verifyImports !== 'function' || typeof LEA.insertImports !== 'function') { fail('import-verifier-unavailable'); return; }
+        const vi = LEAS.verifyImports(newImports, { wsRoot: this._wsRoot(), file: real });
+        if (!vi.ok) { fail(vi.reason, vi.detail); return; }
+        const ins = LEA.insertImports(res.code, newImports);
+        if (!ins.ok) { fail(leaFailReason(ins), ins.detail); return; }
+        importsAdded = ins.inserted;
+      }
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, dynamic, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -1755,12 +1810,27 @@ class LivePreviewPanel {
       const target = { line: m.line, col: m.col, tag: m.tag };
       const r2 = LEA.locateRange(s2, target);
       if (!r2.ok) { fail(leaFailReason(r2)); return; }
-      const res = LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement);
+      let res = LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement);
       if (!res.ok) { fail(leaFailReason(res)); return; }
+      // LP-4.7 — the approved imports re-run the FULL fence at write time (webview payloads are
+      // sanitised and re-verified, never trusted): verifier fail-closed, insertion re-parsed.
+      const newImports = Array.isArray(m.newImports)
+        ? m.newImports.filter((s) => typeof s === 'string' && s.trim()).slice(0, (LEAS && LEAS.MAX_NEW_IMPORTS) || 5)
+        : [];
+      let importsAdded = [];
+      if (newImports.length > 0) {
+        if (!LEAS || typeof LEAS.verifyImports !== 'function' || typeof LEA.insertImports !== 'function') { fail('import-verifier-unavailable'); return; }
+        const vi = LEAS.verifyImports(newImports, { wsRoot: this._wsRoot(), file: real });
+        if (!vi.ok) { fail(vi.reason); return; }
+        const ins = LEA.insertImports(res.code, newImports);
+        if (!ins.ok) { fail(leaFailReason(ins)); return; }
+        importsAdded = ins.inserted;
+        res = { ok: true, code: ins.code, changed: res.changed || ins.changed, kind: res.kind };
+      }
       if (stale) {
-        const d = LEA.diffRemovedLines(s2, res.code);
+        const d = LEA.diffRemovedLines(s2, LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement).code);
         // review P1-B: carry the target on the regenerated stale preview too (+ §5 dynamic flag).
-        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic });
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, newImports, importsAdded, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic });
         return;
       }
       // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
@@ -2620,16 +2690,25 @@ function renderEditDiff(m){
 // time and a stale apply comes back here regenerated, flagged, with nothing written.
 function renderPromptDiff(m){
   const el=document.getElementById('lp-del'); if(!el) return;
+  // LP-4.7 — quality exhausted is NOT a dead end: it is the evidence-based escalation OFFER.
+  if(m && !m.ok && m.reason==='local-quality-exhausted'){ renderEscalationOffer(m, el); return; }
   if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
   const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
   const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
   let rows='';
+  // LP-4.7 — verified NEW imports land at the top of the file: show them first, honestly apart
+  // from the node's own diff (they are a second, deterministic insertion — not part of the node).
+  const imps=Array.isArray(m.importsAdded)?m.importsAdded:[];
+  for(let i=0;i<imps.length&&i<5;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(imps[i])+' <span class="lp-diff-hk">(import verificado — topo do ficheiro)</span></div>';
   for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
   if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas</div>';
   for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
   if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
   if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
-  const who=(!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição';
+  // §1 honesty: when best-of-N worked for it, the header says so — the engine is visible, not magic.
+  const q=(m.quality&&typeof m.quality==='object')?m.quality:null;
+  const qNote=(q&&q.samplesTried>1)?(' · válida à '+q.samplesTried+'ª amostra (ronda '+(q.round||1)+')'):'';
+  const who=((!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição')+qNote;
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
   // §5 — dynamic-content honesty BEFORE aplicar: this write may not change what is rendered.
   const dynWarn=m.dynamic?'<div class="lp-sel-warn">⚠ o conteúdo vem de dentro do componente — reescrever este nó não o muda. <button type="button" id="lp-pr-agent" class="lp-sel-btn">resolver com o agente</button></div>':'';
@@ -2646,12 +2725,42 @@ function renderPromptDiff(m){
     // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
     // concurrent preview can no longer make the approved diff land on a different node.
     if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier, dynamic:!!m.dynamic });
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic });
     showEditResult(null,'pending');
   });
   const ga=document.getElementById('lp-pr-agent');
   if(ga) ga.addEventListener('click', switchToAgent);
   const ca=document.getElementById('lp-pr-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
+}
+// LP-4.7 §2 — the escalation OFFER. The moo local exhausted best-of-N + the exact-error retry;
+// the panel shows the EVIDENCE (how many samples, which fence reason) and offers Sonnet — a
+// click, never automatic. Bridge absent/untrusted → the button disables with the honest reason
+// and the evidence still renders (the user learns WHY it failed either way).
+function renderEscalationOffer(m, el){
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const ev=(m&&m.evidence&&typeof m.evidence==='object')?m.evidence:{};
+  const why=esc(ev.lastReason||'recusado')+(ev.lastDetail?(' — '+esc(String(ev.lastDetail).slice(0,160))):'');
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  const disReason=(br.reason==='workspace-untrusted')
+    ? 'workspace não confiável — confia no workspace (Manage Workspace Trust) para subir para cloud'
+    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Escalação com evidência">'
+    +'<div class="lp-diff-hd">moo local ('+esc(ev.model||'?')+') falhou '+esc(ev.rounds==null?'2':ev.rounds)+'× — '+esc(ev.samplesTried==null?'?':ev.samplesTried)+' amostras recusadas pela cerca</div>'
+    +'<div class="lp-diff-l lp-diff-rm">último motivo: '+why+'</div>'
+    +'<div class="lp-diff-l">nada foi escrito. Subir para Sonnet (subscrição) com o mesmo pedido?</div>'
+    +'<div class="lp-sel-acts">'
+    +'<button id="lp-esc-t2" class="lp-sel-btn"'+(br.available?'':(' disabled title="'+esc(disReason)+'"'))+'>subir para Sonnet · subscrição</button>'
+    +'<button id="lp-esc-cancel" class="lp-sel-btn">cancelar</button>'
+    +'</div></div>';
+  const up=document.getElementById('lp-esc-t2');
+  if(up) up.addEventListener('click', function(){
+    if(this.disabled) return;
+    if(m.file==null||m.line==null||!m.prompt){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-prompt', file:m.file, line:m.line, col:m.col, tag:m.tag, prompt:m.prompt, tier:'t2', selText:m.selText||'' });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-esc-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
 // LP-4.5 — the agent verdict. A QUESTION renders as SAFE markdown (esc-first) + the files it
@@ -2818,6 +2927,20 @@ function showEditResult(ok, reason){
     'empty-replacement':'o modelo devolveu vazio — recusado pela cerca',
     'range-not-a-node':'o alvo já não é um nó válido — reselecciona',
     'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito',
+    // LP-4.7 — the asset/import fence + the quality engine, each refusal with its real cause.
+    'local-quality-exhausted':'o moo local esgotou as tentativas — vê a oferta de escalação',
+    'import-unresolved':'o modelo inventou um package que o projecto não tem — recusado, nada foi escrito',
+    'lucide-name-unknown':'ícone lucide inexistente (a v1.0 removeu os brand icons) — recusado, nada foi escrito',
+    'import-not-an-import':'new_imports trazia algo que não é um import — recusado pela cerca',
+    'import-has-comments':'o import trazia comentários — recusado pela cerca, nada foi escrito',
+    'import-trailing-junk':'o import trazia lixo extra — recusado pela cerca, nada foi escrito',
+    'import-conflicts':'o import colide com um já existente no ficheiro — recusado, nada foi escrito',
+    'import-file-missing':'o import aponta para um ficheiro que não existe — recusado',
+    'import-outside-workspace':'o import sai do workspace — recusado',
+    'too-many-imports':'imports novos a mais — recusado pela cerca',
+    'import-verifier-unavailable':'verificador de imports indisponível — reinstala o plugin (nada foi escrito)',
+    'imports-break-parse':'inserir os imports partiria o ficheiro — recusado pela cerca',
+    'import-parse-error':'import ilegível — recusado pela cerca',
     // LP-4.5 — honest states for the anchored-task agent.
     'task-timeout':'o agente demorou demasiado (180s) — tenta um pedido mais pequeno',
     'task-bridge-error':'a ponte do agente falhou — vê a sessão do Claude Code',
@@ -2889,9 +3012,14 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-prompt-diff'){ renderPromptDiff(m); } // LP-4 §3 fenced model rewrite preview
   else if (m.type === 'lp-prompt-status'){
     // §6 — honest thinking state: WHO is thinking and what it costs, while it thinks.
+    // LP-4.7 — the quality engine narrates round/sample so a best-of-N burst never looks hung.
     if(m.phase==='thinking'){
       const el=document.getElementById('lp-edit-msg');
-      if(el){ el.textContent=(!m.tier||m.tier==='local')?'a pensar… (moo local · $0)':'a pensar… ('+tierModel(m.tier)+' · subscrição)'; el.className='lp-ed-msg lp-ed-pending'; }
+      if(el){
+        const prog=(m.round&&m.sample)?(' · ronda '+m.round+'/'+(m.rounds||2)+' · amostra '+m.sample+'/'+(m.of||5)):'';
+        el.textContent=(!m.tier||m.tier==='local')?('a pensar… (moo local · $0'+prog+')'):'a pensar… ('+tierModel(m.tier)+' · subscrição)';
+        el.className='lp-ed-msg lp-ed-pending';
+      }
     }
   }
   else if (m.type === 'lp-task-status'){

@@ -112,6 +112,79 @@ test('missing prompt or subtree → bad-request', async () => {
   assert.strictEqual((await LEM.rewriteElement({ nodeSource: NODE, prompt: '  ' }, {})).reason, 'bad-request');
 });
 
+// ── LP-4.7 §4 — the structured envelope: only the WRAPPER is constrained, the JSX inside is free.
+test('envelope mode: format schema on the wire, {jsx,new_imports} parsed, temperature honoured', async () => {
+  let seen = null;
+  const { srv, url } = await serve((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      seen = JSON.parse(body);
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ response: JSON.stringify({ jsx: '<img className="rounded" />', new_imports: ["import { Star } from 'lucide-react'"] }) }));
+    });
+  });
+  try {
+    const r = await LEM.rewriteElement(
+      { nodeSource: NODE, prompt: 'x' },
+      { baseUrl: url, model: 'm', envelope: true, temperature: 0.7, extraBlocks: ['REGRAS DE ASSETS: só desta lista'] },
+    );
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.text, '<img className="rounded" />');
+    assert.deepStrictEqual(r.newImports, ["import { Star } from 'lucide-react'"]);
+    assert.strictEqual(r.envelope, true);
+    assert.deepStrictEqual(seen.format, LEM.ENVELOPE_FORMAT, 'structured output constrains ONLY the wrapper');
+    assert.strictEqual(seen.system, LEM.ENVELOPE_SYSTEM_PROMPT);
+    assert.strictEqual(seen.options.temperature, 0.7, 'best-of-N sampling temperature rides through');
+    assert.ok(seen.prompt.indexOf('REGRAS DE ASSETS') !== -1, 'asset block rides the prompt');
+    assert.ok(seen.prompt.indexOf('REGRAS DE ASSETS') < seen.prompt.indexOf('Elemento JSX:'), 'blocks sit before the element');
+  } finally { srv.close(); }
+});
+
+test('envelope not honoured by the daemon → honest fallback to legacy cleaning, envelope:false', async () => {
+  const { srv, url } = await serve((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ response: '```jsx\n<img className="x" />\n```' }));
+  });
+  try {
+    const r = await LEM.rewriteElement({ nodeSource: NODE, prompt: 'x' }, { baseUrl: url, model: 'm', envelope: true });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.text, '<img className="x" />');
+    assert.strictEqual(r.envelope, false, 'no fabricated envelope');
+    assert.deepStrictEqual(r.newImports, []);
+  } finally { srv.close(); }
+});
+
+test('parseEnvelope: think-block + junk tolerance, junk imports filtered, non-envelope → null', () => {
+  const e1 = LEM.parseEnvelope('<think>hmm</think>{"jsx":"<a />","new_imports":[]}');
+  assert.deepStrictEqual(e1, { jsx: '<a />', newImports: [] });
+  const e2 = LEM.parseEnvelope('claro! {"jsx":"<a />","new_imports":["import x from \'y\'", "", 42]} fim');
+  assert.deepStrictEqual(e2, { jsx: '<a />', newImports: ["import x from 'y'"] });
+  assert.strictEqual(LEM.parseEnvelope('<img />'), null);
+  assert.strictEqual(LEM.parseEnvelope('{"nope":1}'), null);
+  assert.strictEqual(LEM.parseEnvelope(''), null);
+});
+
+test('default mode is byte-for-byte the legacy wire contract (no envelope, no format key)', async () => {
+  let seen = null;
+  const { srv, url } = await serve((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      seen = JSON.parse(body);
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ response: '<img />' }));
+    });
+  });
+  try {
+    const r = await LEM.rewriteElement({ nodeSource: NODE, prompt: 'x' }, { baseUrl: url, model: 'm' });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual('format' in seen, false, 'no format key unless envelope is asked for');
+    assert.strictEqual(seen.system, LEM.SYSTEM_PROMPT);
+    assert.strictEqual(seen.options.temperature, 0.2, 'legacy default temperature');
+  } finally { srv.close(); }
+});
+
 test('model comes from ~/.mooter/preferences.json with the doctrine fallback qwen3:30b', () => {
   assert.strictEqual(LEM.localModelName({ live_edit: { model: 'qwen2.5-coder:7b' } }), 'qwen2.5-coder:7b', 'live_edit.model wins');
   assert.strictEqual(LEM.localModelName({ local_model: 'gemma3:12b' }), 'gemma3:12b', 'general local default');

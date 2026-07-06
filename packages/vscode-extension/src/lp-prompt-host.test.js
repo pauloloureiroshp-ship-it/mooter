@@ -18,11 +18,16 @@ function loadPanelClass(stubs) {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./live-edit-ast.js'];
+  const REAL = ['./live-edit-ast.js', './live-edit-assets.js'];
   const req = (name) => {
     if (name === 'vscode') return vscodeStub;
     if (name === './live-edit-model.js' && stubs && stubs.model) return stubs.model;
     if (name === './live-edit-cloud.js' && stubs && stubs.cloud) return stubs.cloud;
+    // LP-4.7 — this file pins the LP-4 single-call contract, which lives on as the FALLBACK
+    // path (quality engine absent). The quality path has its own host suite
+    // (lp-quality-host.test.js) with the REAL engine. An mk() proxy here would silently
+    // impersonate the engine (typeof proxy.anything === 'function'), so: explicit stub or null.
+    if (name === './live-edit-quality.js') return (stubs && stubs.quality) || null;
     if (REAL.indexOf(name) !== -1) return realReq(name);
     if (name.charAt(0) === '.') return mk();
     return realReq(name);

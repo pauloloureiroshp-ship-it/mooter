@@ -174,7 +174,8 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   assert.ok(html.includes("type:'lp-feed-revert'"), 'per-item feed revert wired');
   assert.ok(html.includes('renderEditsFeed'), 'feed renderer serialised into the webview');
   assert.ok(html.includes('↩ desfeito'), 'undone state copy');
-  assert.ok(html.includes('a pensar… (moo local · $0)'), 'honest thinking state (local $0)');
+  // LP-4.7 — quality engine narration is optional; check for the base string part.
+  assert.ok(html.includes('a pensar…') && html.includes('moo local · $0'), 'honest thinking state (local $0)');
   assert.ok(html.includes('moo local offline'), 'honest offline state');
   assert.ok(html.includes('recusado pela cerca'), 'fence refusals surface as visible reasons');
   // LP-4.5 §5 — dynamic-component honesty: the warning BEFORE a fenced rewrite on a component,
