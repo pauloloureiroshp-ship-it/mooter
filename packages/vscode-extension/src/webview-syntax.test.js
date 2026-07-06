@@ -104,10 +104,12 @@ test('Live Preview MP5.2a delete — 🗑 button, diff-before-write flow, honest
   assert.ok(html.includes("type:'lp-delete', preview:true"), 'preview request wired (diff first)');
   assert.ok(html.includes("type:'lp-delete', preview:false"), 'apply request wired (write only on OK)');
   assert.ok(html.includes("m.type === 'lp-delete-diff'"), 'host-trusted diff result handled');
-  // Apply must target the selection CAPTURED at preview time and echo the preview's source hash —
-  // the host refuses the write if the file changed since the approved diff (no diff/apply skew).
-  assert.ok(html.includes('lpDeleteTarget'), 'apply targets the capture, not the live selection');
+  // review P1-B: apply binds the target to THIS diff (m), not a mutable global — and echoes the
+  // preview's source hash so the host refuses on any skew (no diff/apply drift).
+  assert.ok(/type:'lp-delete', preview:false, file:m\.file, line:m\.line, col:m\.col, tag:m\.tag/.test(html),
+    'delete apply target bound to the diff (m), not a global');
   assert.ok(html.includes('h:m.h'), 'staleness hash echoed on apply');
+  assert.ok(!html.includes('lpDeleteTarget'), 'the mutable delete-target global is gone');
   // A >40-line diff must say it was truncated (honest preview, never a silent cut).
   assert.ok(html.includes('linhas removidas (o apagar leva TODAS)'), 'truncation is announced');
   // A stale apply must come back as a REGENERATED preview with an honest banner (nothing written).
@@ -127,8 +129,10 @@ test('Live Preview LP-4 §0 edit — preview-first flow, hash echoed on apply, a
   assert.ok(html.includes("type:'lp-edit', preview:true"), 'edit preview request wired (diff first)');
   assert.ok(html.includes("type:'lp-edit', preview:false"), 'edit apply request wired (write only on OK)');
   assert.ok(html.includes("m.type === 'lp-edit-diff'"), 'host-trusted edit diff result handled');
-  // Apply must target the edit CAPTURED at preview time and echo the preview's source hash.
-  assert.ok(html.includes('lpEditTarget'), 'apply targets the capture, not the live selection');
+  // review P1-B: apply binds target + edit to THIS diff (m), not a mutable global; echoes the hash.
+  assert.ok(/type:'lp-edit', preview:false, file:m\.file, line:m\.line, col:m\.col, tag:m\.tag, edit:m\.edit, h:m\.h/.test(html),
+    'edit apply target + edit bound to the diff (m), not a global');
+  assert.ok(!html.includes('lpEditTarget'), 'the mutable edit-target global is gone');
   // A7 mitigation: the diff header shows the ABSOLUTE path of the file that will be written.
   assert.ok(html.includes('✍ '), 'absolute-path marker present in the diff header');
   // §5 — the host-vetted re-pin is forwarded into the frame origin-targeted, never '*'.

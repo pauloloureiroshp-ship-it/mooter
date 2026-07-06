@@ -137,6 +137,12 @@ test('preview stamps the source hash + absolute path and reports the exact chang
     'the diff header carries the ABSOLUTE path of the file that would be written (A7 mitigation)');
   assert.deepStrictEqual(diff.removed, ['      <h1 className="title">Old headline</h1>']);
   assert.deepStrictEqual(diff.added, ['      <h1 className="title">New headline</h1>']);
+  // review P1-B (parity): the preview payload carries the TARGET + the exact EDIT, so the webview
+  // apply binds to THIS diff (m) rather than a mutable global that a second 'aplicar' could move.
+  assert.strictEqual(diff.file, 'page.tsx');
+  assert.strictEqual(diff.line, 4);
+  assert.strictEqual(diff.tag, 'h1');
+  assert.deepStrictEqual(diff.edit, TEXT_EDIT, 'the exact edit rides the diff so apply writes what was previewed');
 });
 
 test('preview of a refused edit reports the honest reason on the diff channel, writing nothing', async () => {

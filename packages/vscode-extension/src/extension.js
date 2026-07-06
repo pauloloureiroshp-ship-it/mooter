@@ -1464,7 +1464,10 @@ class LivePreviewPanel {
       if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
       if (preview || stale) {
         const d = LEA.diffRemovedLines(source, res.code);
-        this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real });
+        // review P1-B (parity): the TARGET + the exact EDIT ride the diff payload so apply binds to
+        // THIS preview — a second 'aplicar' typed before this one returns can no longer make the
+        // approved diff write a different value (same-node, but the label would otherwise lie).
+        this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real, file: raw, line: m.line, col: m.col, tag: m.tag, edit });
         return;
       }
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
@@ -1561,7 +1564,9 @@ class LivePreviewPanel {
         const d = LEA.diffRemovedLines(source, res.code);
         const inExpr = typeof LEA.isInsideExpression === 'function'
           ? LEA.isInsideExpression(source, { line: m.line, col: m.col, tag: m.tag }) : false;
-        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr, abs: real });
+        // review P1-B (parity): bind the delete TARGET to this diff too (delete is already safe via
+        // the synchronous panel re-render, but this removes the mutable-global write-target pattern).
+        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr, abs: real, file: raw, line: m.line, col: m.col, tag: m.tag });
         return;
       }
       // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
@@ -2123,15 +2128,11 @@ function lpSendRestore(){
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
 let lpSelection=null, lpSelectOn=false, lpTier='local';
-// MP5.2a — the delete flow's target is CAPTURED at preview time (not read from the mutable
-// lpSelection at apply time), so the node deleted is always the node whose diff was approved.
-let lpDeleteTarget=null;
-// LP-4 §0 — the edit flow gets the same capture: target+edit are frozen at preview time and the
-// apply echoes the preview's source hash, so the write is always exactly the approved diff.
-let lpEditTarget=null;
-// LP-4 §3/§6 — the prompt flow's capture + honest session state: undo depth (from lp-edit-result)
-// and the SDK-bridge status (from the snapshot) drive the button/chip states — facts, not claims.
-let lpPromptTarget=null, lpUndoDepth=0, lpBridge=null;
+// LP-4 §6 / review P1-B — honest session state driving the panel: undo depth (from lp-edit-result)
+// and the SDK-bridge status (from the snapshot). The WRITE TARGET is NOT a global anymore: every
+// apply (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m), so a
+// second preview in flight can never move where an approved diff lands.
+let lpUndoDepth=0, lpBridge=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -2204,7 +2205,7 @@ function renderSelection(sel){
   el.style.display='block';
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
-  const sendEdit=function(kind,value){ lpEditTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }; vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
+  const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
   const ti=document.getElementById('lp-ed-text'), tb=document.getElementById('lp-ed-text-b');
   if(ti&&tb){ tb.addEventListener('click', function(){ sendEdit('text', ti.value); }); ti.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('text', ti.value); } }); }
   const ci=document.getElementById('lp-ed-class'), cb=document.getElementById('lp-ed-class-b');
@@ -2217,7 +2218,6 @@ function renderSelection(sel){
   const sendPrompt=function(){
     const v=pi?pi.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
-    lpPromptTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag };
     vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:lpTier });
     showEditResult(null,'pending');
   };
@@ -2235,7 +2235,6 @@ function renderSelection(sel){
   }); }
   const db=document.getElementById('lp-sel-del');
   if(db) db.addEventListener('click', function(){
-    lpDeleteTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag };
     vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
     showEditResult(null,'pending');
   });
@@ -2262,7 +2261,7 @@ function renderDeleteDiff(m){
   // this diff is the REGENERATED one; the user must re-approve it.
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
-    +'<div class="lp-diff-hd">apagar &lt;'+esc((lpDeleteTarget&&lpDeleteTarget.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +'<div class="lp-diff-hd">apagar &lt;'+esc((m&&m.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
     +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
     +exprWarn
@@ -2271,10 +2270,10 @@ function renderDeleteDiff(m){
     +'</div>';
   const ap=document.getElementById('lp-del-apply');
   if(ap) ap.addEventListener('click', function(){
-    if(!lpDeleteTarget) return;
-    // The captured preview target + the source hash: apply is refused server-side if the file
-    // changed since the diff was computed (the delete must be exactly the approved diff).
-    vsapi.postMessage({ type:'lp-delete', preview:false, file:lpDeleteTarget.file, line:lpDeleteTarget.line, col:lpDeleteTarget.col, tag:lpDeleteTarget.tag, h:m.h });
+    // review P1-B (parity): target comes from THIS diff (m), not the mutable capture. The source
+    // hash still gates the write server-side (the delete must be exactly the approved diff).
+    if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-delete', preview:false, file:m.file, line:m.line, col:m.col, tag:m.tag, h:m.h });
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-del-cancel');
@@ -2306,10 +2305,10 @@ function renderEditDiff(m){
     +'</div>';
   const ap=document.getElementById('lp-ed-apply');
   if(ap) ap.addEventListener('click', function(){
-    if(!lpEditTarget) return;
-    // The captured preview target + the source hash: the host refuses the write if the file
-    // changed since the diff was computed (the edit must be exactly the approved diff).
-    vsapi.postMessage({ type:'lp-edit', preview:false, file:lpEditTarget.file, line:lpEditTarget.line, col:lpEditTarget.col, tag:lpEditTarget.tag, edit:lpEditTarget.edit, h:m.h });
+    // review P1-B (parity): target + edit come from THIS diff (m), not the mutable capture — a
+    // second 'aplicar' typed during the preview can no longer change what this button writes.
+    if(m.file==null||m.line==null||!m.edit){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-edit', preview:false, file:m.file, line:m.line, col:m.col, tag:m.tag, edit:m.edit, h:m.h });
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-ed-cancel');
