@@ -138,6 +138,27 @@ test('vsix packaging contract: live-edit-sdk-runner.mjs ships and no ignore rule
     'the Agent SDK must NOT become a bundled dependency — it is resolved from the workspace (no API key, no new deps)');
 });
 
+// LP-4.7 — the asset fence's ground truth must SHIP in the vsix (the whitelist and the brand
+// SVGs are the product's knowledge, not dev fixtures) and no ignore rule may strip it. The
+// dev-only generator script must NOT ship.
+test('vsix packaging contract: vendored live-edit assets ship; the generator script does not', () => {
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'live-edit', 'lucide-icons.llms.txt')), 'whitelist vendored');
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'live-edit', 'brand', 'github.svg')), 'github brand svg vendored');
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  assert.ok(!lines.some((l) => l === 'assets/**' || l === 'assets/live-edit/**' || l === '**/*.svg' || l === '**/*.txt'),
+    '.vscodeignore must not strip the vendored asset fence from the vsix');
+  assert.ok(lines.indexOf('scripts/**') !== -1, 'dev-only scripts/ must be ignored in the vsix');
+});
+
+test('vendored whitelist agrees with the lucide v1.0 brand removal (the class this wave kills)', () => {
+  const txt = fs.readFileSync(path.join(__dirname, '..', 'assets', 'live-edit', 'lucide-icons.llms.txt'), 'utf8');
+  const names = new Set(txt.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && l.charAt(0) !== '#'));
+  assert.ok(names.size > 1000, 'full export surface, not a sample');
+  assert.ok(names.has('ArrowDown') && names.has('Star'), 'real icon names present');
+  assert.ok(!names.has('Github') && !names.has('Twitter'), 'removed brand icons must NOT be importable');
+});
+
 test('panel copy distinguishes the two failures (reinstall vs unparseable file)', () => {
   const code = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
   assert.ok(code.includes("'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)'"),
