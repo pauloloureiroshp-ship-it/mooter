@@ -128,6 +128,8 @@ test('a REAL file parse error still reports parse-error — the reinstall messag
 test('vsix packaging contract: live-edit-sdk-runner.mjs ships and no ignore rule strips .mjs', () => {
   const root = path.join(__dirname, '..');
   assert.ok(fs.existsSync(path.join(__dirname, 'live-edit-sdk-runner.mjs')), 'runner exists in src/');
+  // LP-4.5 — the anchored-task agent runner ships under the same contract.
+  assert.ok(fs.existsSync(path.join(__dirname, 'live-edit-task-runner.mjs')), 'task runner exists in src/');
   const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
   assert.ok(!lines.some((l) => l === '**/*.mjs' || l === 'src/**' || l === 'src/*.mjs'),
     '.vscodeignore must not strip the src .mjs runners from the vsix');
