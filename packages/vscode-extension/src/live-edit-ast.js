@@ -230,6 +230,20 @@ function spliceNodeRange(source, range, replacement) {
   return { ok: true, code, changed: code !== source, kind: 'splice' };
 }
 
+// Line-level diff of a single contiguous splice (all this engine ever produces): trim the common
+// prefix/suffix and report whatever differs in between as removed/added lines (1-based start).
+// Exactly enough for the panel's honest mini-diff — deliberately NOT a general diff algorithm.
+function diffRemovedLines(before, after) {
+  const a = String(before == null ? '' : before).split('\n');
+  const b = String(after == null ? '' : after).split('\n');
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  let ja = a.length - 1;
+  let jb = b.length - 1;
+  while (ja >= i && jb >= i && a[ja] === b[jb]) { ja--; jb--; }
+  return { start: i + 1, removed: a.slice(i, ja + 1), added: b.slice(i, jb + 1) };
+}
+
 module.exports = {
   applyDeterministicEdit,
   locate,
@@ -240,5 +254,6 @@ module.exports = {
   locateRange,
   deleteNode,
   spliceNodeRange,
+  diffRemovedLines,
   PARSE_OPTS,
 };

@@ -1315,6 +1315,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
+    if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1428,6 +1429,47 @@ class LivePreviewPanel {
   }
   _postEditResult(ok, reason) {
     try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || '') }); } catch { /* best-effort */ }
+  }
+  // MP5.2a deterministic $0 delete — same containment guard as _applyEdit, but TWO-PHASE and
+  // stateless: preview computes the exact removed/added lines for the panel's mini-diff; apply
+  // re-reads + re-computes from disk at click time (no held state → no preview/apply divergence)
+  // and only then writes. ZERO LLM in either phase; every refusal carries its honest reason
+  // (deleteNode itself refuses a delete that would break the parse).
+  async _deleteNode(m) {
+    const preview = !!(m && m.preview);
+    const fail = (reason) => {
+      if (preview) this._postDeleteDiff({ ok: false, reason: String(reason || 'refused') });
+      else this._postEditResult(false, reason);
+    };
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (!raw) { fail('bad-request'); return; }
+      if (!LEA || typeof LEA.deleteNode !== 'function') { fail('engine-unavailable'); return; }
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const root = this._wsRoot();
+      const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
+      let real = null;
+      try {
+        if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+          const r = fs.realpathSync(abs);
+          if (contained(fs.realpathSync(root), r)) real = r;
+        }
+      } catch { /* fall through to the honest result */ }
+      if (!real) { fail('file-not-in-workspace'); return; }
+      const source = fs.readFileSync(real, 'utf8');
+      const res = LEA.deleteNode(source, { line: m.line, col: m.col, tag: m.tag });
+      if (!res.ok) { fail(res.reason || 'refused'); return; }
+      if (preview) {
+        const d = LEA.diffRemovedLines(source, res.code);
+        this._postDeleteDiff({ ok: true, start: d.start, removed: d.removed, added: d.added });
+        return;
+      }
+      fs.writeFileSync(real, res.code, 'utf8');
+      this._postEditResult(true, 'deleted');
+    } catch { fail('error'); }
+  }
+  _postDeleteDiff(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-delete-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
@@ -1547,6 +1589,12 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-ed-ok{color:var(--vscode-charts-green,#4CAF6A)}
   #lp-sel .lp-ed-no{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B))}
   #lp-sel .lp-ed-pending{opacity:.7}
+  /* MP5.2a — delete mini-diff: exactly the lines that would go, before anything is written. */
+  #lp-sel .lp-diff{margin-top:9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:7px 9px;overflow-x:auto}
+  #lp-sel .lp-diff-hd{font-size:10.5px;opacity:.8;margin-bottom:5px}
+  #lp-sel .lp-diff-l{font:11px var(--vscode-editor-font-family,monospace);white-space:pre;line-height:1.5}
+  #lp-sel .lp-diff-rm{color:var(--vscode-errorForeground,#D9484B);background:var(--vscode-inputValidation-errorBackground,rgba(217,72,75,.10))}
+  #lp-sel .lp-diff-ad{color:var(--vscode-charts-green,#4CAF6A)}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
   #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
   #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -1874,7 +1922,9 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
+    +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
   const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
@@ -1889,7 +1939,38 @@ function renderSelection(sel){
     const c=pth[parseInt(this.getAttribute('data-crumb'),10)];
     if(c && !this.disabled) sendReselect(c);
   }); }
+  const db=document.getElementById('lp-sel-del');
+  if(db) db.addEventListener('click', function(){
+    vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
+    showEditResult(null,'pending');
+  });
   renderChip();
+}
+// MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
+// partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
+// at click time and writes only then. Honest copy: delete is deterministic — $0, no tokens.
+function renderDeleteDiff(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
+  let rows='';
+  for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
+    +'<div class="lp-diff-hd">apagar &lt;'+esc((lpSelection&&lpSelection.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +rows
+    +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'</div>';
+  const ap=document.getElementById('lp-del-apply');
+  if(ap) ap.addEventListener('click', function(){
+    if(!lpSelection) return;
+    vsapi.postMessage({ type:'lp-delete', preview:false, file:lpSelection.file, line:lpSelection.line, col:lpSelection.col, tag:lpSelection.tag });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-del-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
 // MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
 // local for $0 with no LLM, so classify.js is never consulted (and never touched/executed here). The
@@ -1915,6 +1996,8 @@ function showEditResult(ok, reason){
   const el=document.getElementById('lp-edit-msg'); if(!el) return;
   if(ok===null){ el.textContent='a aplicar…'; el.className='lp-ed-msg lp-ed-pending'; return; }
   const map={ applied:'✓ aplicado — $0, sem tokens (o HMR atualiza o preview)', 'no-op':'sem alterações a aplicar',
+    deleted:'✓ elemento apagado — $0, sem tokens (o HMR atualiza o preview)',
+    'delete-breaks-parse':'apagar este nó partiria o ficheiro — recusado',
     'not-simple-text':'este elemento não é texto simples — edição estrutural chega no MP5.2',
     'dynamic-classname':'className é dinâmico ({…}) — não é editável deterministicamente',
     'unsafe-text':'o texto tem < > { } — precisa do modo estrutural', 'unsafe-class':'classe inválida (< > { } ou aspas)',
@@ -1957,7 +2040,12 @@ window.addEventListener('message', (ev) => {
   if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes); }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
-  else if (m.type === 'lp-edit-result'){ showEditResult(m.ok, m.reason); } // MP5.1 honest deterministic-edit feedback
+  else if (m.type === 'lp-edit-result'){
+    showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
+    // MP5.2a — once the delete is applied, the pending mini-diff is history: clear it.
+    if (m.ok && m.reason === 'deleted'){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+  }
+  else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin

@@ -210,6 +210,25 @@ test('spliceNodeRange rejects malformed ranges and junk inputs, never throws', (
   assert.strictEqual(spliceNodeRange(SRC52, { start: 0, end: SRC52.length }, '<a />').reason, 'range-not-a-node');
 });
 
+test('diffRemovedLines reports exactly the spliced lines (whole-line delete → removed only)', () => {
+  const { diffRemovedLines } = require('./live-edit-ast.js');
+  const del = deleteNode(SRC52, { line: 4, tag: 'img' });
+  const d = diffRemovedLines(SRC52, del.code);
+  assert.deepStrictEqual(d, { start: 4, removed: ['      <img src="/a.png" alt="a" />'], added: [] });
+});
+
+test('diffRemovedLines on an inline delete shows the before/after of the single touched line', () => {
+  const { diffRemovedLines } = require('./live-edit-ast.js');
+  const d = diffRemovedLines('<div>Hi <b>x</b> there</div>', '<div>Hi  there</div>');
+  assert.deepStrictEqual(d, { start: 1, removed: ['<div>Hi <b>x</b> there</div>'], added: ['<div>Hi  there</div>'] });
+});
+
+test('diffRemovedLines is fail-soft: identical/empty inputs → empty diff, never throws', () => {
+  const { diffRemovedLines } = require('./live-edit-ast.js');
+  assert.deepStrictEqual(diffRemovedLines(SRC52, SRC52).removed, []);
+  assert.deepStrictEqual(diffRemovedLines(null, undefined).removed, []);
+});
+
 test('MP5.1 exports are untouched by the MP5.2a additions (engine freeze honoured)', () => {
   const LEA = require('./live-edit-ast.js');
   for (const k of ['applyDeterministicEdit', 'editText', 'editClass', 'locate', 'collectJsxElements', 'tagNameOf']) {

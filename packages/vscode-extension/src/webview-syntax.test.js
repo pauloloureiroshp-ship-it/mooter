@@ -96,6 +96,20 @@ test('Live Preview MP5.2a breadcrumb — chips rendered, re-select is origin-tar
   parseInlineScript(html);
 });
 
+test('Live Preview MP5.2a delete — 🗑 button, diff-before-write flow, honest $0 copy', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The panel offers the deterministic delete and the flow is preview (mini-diff) → apply (write).
+  assert.ok(html.includes('id="lp-sel-del"'), 'delete button present in the selection panel');
+  assert.ok(html.includes("type:'lp-delete', preview:true"), 'preview request wired (diff first)');
+  assert.ok(html.includes("type:'lp-delete', preview:false"), 'apply request wired (write only on OK)');
+  assert.ok(html.includes("m.type === 'lp-delete-diff'"), 'host-trusted diff result handled');
+  // Honest copy: delete is deterministic — $0, no tokens. Never a fabricated cost, never an LLM.
+  assert.ok(html.includes('apagar é determinístico'), 'honest deterministic copy');
+  assert.ok(html.includes('$0, sem tokens'), 'honest $0 copy');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
