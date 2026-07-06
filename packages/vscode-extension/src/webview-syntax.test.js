@@ -145,8 +145,13 @@ test('Live Preview LP-4 §6 panel — prompt box, honest chip, fenced prompt flo
   assert.ok(html.includes('descreve a mudança'), 'prompt placeholder speaks founder, not jargon');
   assert.ok(html.includes("type:'lp-prompt'"), 'prompt request wired to the host');
   assert.ok(html.includes("type:'lp-prompt-apply'"), 'approved replacement wired (write only on OK)');
-  assert.ok(html.includes('lpPromptTarget'), 'apply targets the capture, not the live selection');
   assert.ok(html.includes("m.type === 'lp-prompt-diff'"), 'fenced rewrite preview handled');
+  // review P1-B: the apply reads the TARGET from the diff (m), not a mutable global that a second
+  // concurrent preview could have moved — bind file/line/col/tag from m in the apply message.
+  assert.ok(/type:'lp-prompt-apply', file:m\.file, line:m\.line, col:m\.col, tag:m\.tag/.test(html),
+    'prompt apply binds the write target to THIS diff (m), not lpPromptTarget');
+  // review P1-A: the cloud disabled-reason is honest about WHICH gate failed (trust vs missing SDK).
+  assert.ok(html.includes('workspace não confiável'), 'untrusted-workspace disabled reason present');
   // Router-native advisory chip: local $0 default · cloud opt-in on subscription · @fable manual.
   assert.ok(html.includes('nada sai da máquina'), 'local privacy copy present');
   assert.ok(html.includes('@fable é SEMPRE manual'), 'fable manual-only doctrine in the chip');

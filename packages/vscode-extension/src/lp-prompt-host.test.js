@@ -195,6 +195,9 @@ test('cloud tier routes through the bridge stub with the tier, and the reply pas
   assert.strictEqual(cloudCalls.length, 1, 'cloud bridge consulted');
   assert.strictEqual(cloudCalls[0].tier, 't2');
   assert.strictEqual(cloudCalls[0].nodeSource, NODE, 'cloud sees ONLY the subtree too');
+  // review P3-a: the cloud model gets a workspace-RELATIVE label, never the absolute host path.
+  assert.strictEqual(cloudCalls[0].file, 'page.tsx', 'relative file label — no absolute path leak');
+  assert.ok(!path.isAbsolute(String(cloudCalls[0].file)), 'never an absolute path to the cloud');
   const diff = posts.find((p) => p.type === 'lp-prompt-diff');
   assert.ok(diff && diff.ok === true, 'cloud reply fenced + previewed');
   assert.strictEqual(diff.replacement, REPL, 'markdown fence stripped before the splice fence');
@@ -214,4 +217,45 @@ test('missing/default tier NEVER touches the cloud: local is the default, @fable
   await inst._promptEdit(Object.assign({ prompt: 'x' }, TARGET)); // no tier at all
   assert.strictEqual(cloudCalls.length, 0, 'no tier → cloud untouched');
   assert.strictEqual(localCalls.length, 1, 'no tier → local $0 default');
+});
+
+test('review P1-B: the diff payload carries the write TARGET, so apply binds to THIS preview (not a global)', async () => {
+  const Panel = loadPanelClass({ model: stubModel(REPL) });
+  const root = setup();
+  const { inst, posts } = mkInstance(Panel, root);
+  await inst._promptEdit(Object.assign({ prompt: 'x' }, TARGET));
+  const diff = posts.find((p) => p.type === 'lp-prompt-diff');
+  assert.ok(diff, 'diff posted');
+  // The target rides the payload — a concurrent second preview can no longer move where apply writes.
+  assert.strictEqual(diff.file, 'page.tsx');
+  assert.strictEqual(diff.line, 4);
+  assert.strictEqual(diff.tag, 'img');
+});
+
+test('review P3-b: a model reply identical to the node reports no-op and pushes NO undo entry', async () => {
+  const Panel = loadPanelClass({ model: stubModel(NODE) }); // reply === the node → genuine no-op
+  const root = setup();
+  const { inst, posts } = mkInstance(Panel, root);
+  await inst._promptApply(Object.assign({ replacement: NODE, h: sha(SRC) }, TARGET));
+  assert.strictEqual(fs.readFileSync(path.join(root, 'page.tsx'), 'utf8'), SRC, 'nothing changed on disk');
+  const res = posts.find((p) => p.type === 'lp-edit-result');
+  assert.ok(res && res.ok === true && res.reason === 'no-op', 'honest no-op, not fabricated model-applied');
+  assert.strictEqual(res.undo, 0, 'no phantom undo entry that would revert an EARLIER edit');
+});
+
+test('review P1-A (host): a cloud tier in an UNTRUSTED workspace is refused before the bridge is touched', async () => {
+  const cloudCalls = [];
+  const cloud = {
+    TIER_MODEL: { t2: 'claude-sonnet-4-6' },
+    rewriteElementCloud: async (input) => { cloudCalls.push(input); return { ok: true, text: REPL }; },
+  };
+  const Panel = loadPanelClass({ model: stubModel(REPL), cloud });
+  const root = setup();
+  const { inst, posts } = mkInstance(Panel, root);
+  inst._workspaceTrusted = () => false; // simulate an untrusted workspace
+  await inst._promptEdit(Object.assign({ prompt: 'x', tier: 't2' }, TARGET));
+  assert.strictEqual(cloudCalls.length, 0, 'the workspace SDK is never reached in an untrusted workspace');
+  const diff = posts.find((p) => p.type === 'lp-prompt-diff');
+  assert.ok(diff && diff.ok === false && diff.reason === 'workspace-untrusted', 'honest refusal');
+  assert.strictEqual(fs.readFileSync(path.join(root, 'page.tsx'), 'utf8'), SRC, 'nothing written');
 });

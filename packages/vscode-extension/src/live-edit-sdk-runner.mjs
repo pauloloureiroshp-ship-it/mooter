@@ -7,9 +7,14 @@
  * Claude plan credentials — the extension itself never carries a credential.
  *
  * PRIVACY FENCE (what the model sees): ONLY the selected JSX subtree + the instruction + a
- * file:line label. cwd = a temp dir and EVERY tool call is denied (canUseTool → deny), so the
- * session physically cannot read the repo. The reply is text-only and is then forced through
- * spliceNodeRange + the sha256 hash-guard host-side — the SAME fence as the local moo.
+ * WORKSPACE-RELATIVE file:line label (review P3-a — the host strips the absolute path so no OS
+ * username / repo tree leaks to the cloud). No tool call runs (canUseTool → deny) and the SDK
+ * SESSION's cwd is a temp dir, so the MODEL cannot read the repo. The reply is text-only and is
+ * then forced through spliceNodeRange + the sha256 hash-guard host-side — the SAME fence as local.
+ *
+ * ⚠ This is NOT a sandbox for the SDK MODULE itself: it is `import()`ed from the workspace and its
+ * top-level code runs in THIS process with our env. That is why the host gates the whole bridge on
+ * Workspace Trust (live-edit-cloud.js, review P1-A) — we are only ever spawned for a trusted repo.
  *
  * The SDK is NOT bundled in the vsix (it would be a new runtime dep — forbidden by this wave).
  * The host resolves it from the WORKSPACE (bridgeStatus in live-edit-cloud.js) and passes its

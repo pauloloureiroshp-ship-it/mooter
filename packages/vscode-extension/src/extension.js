@@ -1467,8 +1467,10 @@ class LivePreviewPanel {
         this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real });
         return;
       }
-      this._pushUndo(real, source, res.code); // §4 — remember the inverse splice before writing
+      // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
+      // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
+      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
       this._postEditResult(true, 'applied');
       // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
       // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
@@ -1562,8 +1564,9 @@ class LivePreviewPanel {
         this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr, abs: real });
         return;
       }
-      this._pushUndo(real, source, res.code); // §4 — remember the inverse splice before writing
+      // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
+      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
   }
@@ -1602,20 +1605,27 @@ class LivePreviewPanel {
       if (tier !== 'local' && !(LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier])) { fail('bad-request', 'unknown tier ' + tier); return; }
       const real = this._resolveContainedFile(raw);
       if (!real) { fail('file-not-in-workspace'); return; }
+      // review P1-A: refuse cloud tiers in an untrusted workspace BEFORE anything spawns the
+      // workspace SDK — the chip already disables them, this is the host-side backstop.
+      if (tier !== 'local' && !this._workspaceTrusted()) { fail('workspace-untrusted'); return; }
       const s0 = fs.readFileSync(real, 'utf8');
       const target = { line: m.line, col: m.col, tag: m.tag };
       const r0 = LEA.locateRange(s0, target);
       if (!r0.ok) { fail(leaFailReason(r0)); return; }
       // READ fence: the model gets the node's exact byte span — never one byte more.
       const nodeSource = s0.slice(r0.start, r0.end);
+      // review P3-a: the model gets a WORKSPACE-RELATIVE file:line label as context — never the
+      // absolute host path (which would leak the OS username + repo tree to the cloud).
+      let relFile = real;
+      try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep real */ }
       this._postPromptStatus({ phase: 'thinking', tier });
       let reply;
       if (tier === 'local') {
         if (!LEM) { fail('engine-unavailable'); return; }
-        reply = await LEM.rewriteElement({ nodeSource, prompt, file: real, line: m.line });
+        reply = await LEM.rewriteElement({ nodeSource, prompt, file: relFile, line: m.line });
       } else {
         if (!LEC) { fail('sdk-bridge-missing'); return; }
-        reply = await LEC.rewriteElementCloud({ nodeSource, prompt, file: real, line: m.line, tier }, { wsRoot: this._wsRoot() });
+        reply = await LEC.rewriteElementCloud({ nodeSource, prompt, file: relFile, line: m.line, tier }, { wsRoot: this._wsRoot(), trusted: this._workspaceTrusted() });
       }
       if (!reply || !reply.ok) { fail((reply && reply.reason) || 'error', reply && reply.detail); return; }
       const replacement = (LEM && typeof LEM.cleanModelReply === 'function') ? LEM.cleanModelReply(reply.text) : String(reply.text || '').trim();
@@ -1629,7 +1639,9 @@ class LivePreviewPanel {
       const res = LEA.spliceNodeRange(s1, { start: r1.start, end: r1.end }, replacement);
       if (!res.ok) { fail(leaFailReason(res), res.detail); return; }
       const d = LEA.diffRemovedLines(s1, res.code);
-      this._postPromptDiff({ ok: true, stale: false, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+      // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
+      // never reconstructed from a mutable global that a concurrent second preview could have moved.
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -1655,11 +1667,17 @@ class LivePreviewPanel {
       if (!res.ok) { fail(leaFailReason(res)); return; }
       if (stale) {
         const d = LEA.diffRemovedLines(s2, res.code);
-        this._postPromptDiff({ ok: true, stale: true, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
+        // review P1-B: carry the target on the regenerated stale preview too.
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
         return;
       }
-      this._pushUndo(real, s2, res.code); // §4 — remember the inverse splice before writing
+      // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
+      // honestly and push NO undo entry (else 'desfazer' would revert an EARLIER edit).
+      if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
+      // phantom entry that lights the undo button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
+      this._pushUndo(real, s2, res.code); // §4 — inverse splice, recorded only after a real write
       this._postEditResult(true, 'model-applied');
       // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
       // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
@@ -1688,11 +1706,22 @@ class LivePreviewPanel {
   _leBridgeStatus() {
     const now = Date.now();
     if (this._leBridge && this._leBridgeTs && (now - this._leBridgeTs) < 30000) return this._leBridge;
+    // review P1-A: the cloud bridge runs the workspace's SDK, so it is gated on Workspace Trust.
+    // An untrusted workspace → 'workspace-untrusted', the chip disables cloud with that honest reason.
+    const trusted = this._workspaceTrusted();
     this._leBridge = (LEC && typeof LEC.bridgeStatus === 'function')
-      ? LEC.bridgeStatus(this._wsRoot())
+      ? LEC.bridgeStatus(this._wsRoot(), { trusted })
       : { available: false, reason: 'sdk-bridge-missing' };
     this._leBridgeTs = now;
     return this._leBridge;
+  }
+  // vscode.workspace.isTrusted is a boolean in real VS Code; default to trusted only when the API
+  // does not expose the flag at all (never downgrade a genuine `false`).
+  _workspaceTrusted() {
+    try {
+      const t = vscode.workspace && vscode.workspace.isTrusted;
+      return (typeof t === 'boolean') ? t : true;
+    } catch { return true; }
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
@@ -2312,8 +2341,10 @@ function renderPromptDiff(m){
     +'</div>';
   const ap=document.getElementById('lp-pr-apply');
   if(ap) ap.addEventListener('click', function(){
-    if(!lpPromptTarget) return;
-    vsapi.postMessage({ type:'lp-prompt-apply', file:lpPromptTarget.file, line:lpPromptTarget.line, col:lpPromptTarget.col, tag:lpPromptTarget.tag, replacement:m.replacement, h:m.h, tier:m.tier });
+    // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
+    // concurrent preview can no longer make the approved diff land on a different node.
+    if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier });
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-pr-cancel');
@@ -2333,12 +2364,16 @@ function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus'
 function renderChip(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  // review P1-A: the cloud disabled-reason is HONEST about which gate failed — trust vs missing SDK.
+  const disReason=(br.reason==='workspace-untrusted')
+    ? 'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
+    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
   let tiers='';
   for(let i=0;i<LP_TIERS.length;i++){
     const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]);
     const dis=(id!=='local')&&!br.available;
     tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'"'
-      +(dis?' disabled title="ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud"':'')
+      +(dis?(' disabled title="'+esc(disReason)+'"'):'')
       +'>'+lb+'</button>';
   }
   const note = (lpTier==='local')
@@ -2387,6 +2422,7 @@ function showEditResult(ok, reason){
     'local-model-empty':'o moo local devolveu vazio — reformula o prompt',
     'local-model-error':'o moo local falhou — vê o Ollama',
     'sdk-bridge-missing':'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud',
+    'workspace-untrusted':'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace para ativar',
     'cloud-bridge-error':'a ponte cloud falhou — vê a sessão do Claude Code',
     'cloud-model-timeout':'o modelo cloud demorou demasiado — tenta de novo',
     'cloud-model-empty':'o modelo cloud devolveu vazio — reformula o prompt',

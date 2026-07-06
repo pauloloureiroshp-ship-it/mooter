@@ -58,6 +58,25 @@ test('bridge discovery is honest: absent SDK → sdk-bridge-missing; planted SDK
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('review P1-A: an untrusted workspace disables the bridge and NEVER spawns the runner', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lec-trust-'));
+  try {
+    plantFakeSdk(root, 'ok'); // SDK IS present — trust, not discovery, must be the blocker
+    // bridgeStatus reports the honest reason.
+    assert.deepStrictEqual(LEC.bridgeStatus(root, { trusted: false }), { available: false, reason: 'workspace-untrusted' });
+    // and still available when trusted (or when no signal is passed — a unit harness).
+    assert.strictEqual(LEC.bridgeStatus(root, { trusted: true }).available, true);
+    assert.strictEqual(LEC.bridgeStatus(root).available, true);
+    // rewriteElementCloud refuses on trusted:false BEFORE any spawn — inject a runner that would
+    // throw if ever launched, to prove the runner path is never reached.
+    const r = await LEC.rewriteElementCloud(
+      { nodeSource: NODE, prompt: 'x', tier: 't2' },
+      { wsRoot: root, trusted: false, runner: path.join(root, 'this-runner-must-never-launch.mjs') },
+    );
+    assert.deepStrictEqual({ ok: r.ok, reason: r.reason }, { ok: false, reason: 'workspace-untrusted' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('tier ladder: cloud tiers map to subscription ids; @fable exists but only via the explicit tier; junk tier refused', async () => {
   assert.strictEqual(LEC.TIER_MODEL.t2, 'claude-sonnet-4-6');
   assert.strictEqual(LEC.TIER_MODEL.t3, 'claude-opus-4-6');

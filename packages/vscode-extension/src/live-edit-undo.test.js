@@ -144,3 +144,23 @@ test('empty stack → nothing-to-undo (honest, no fabricated success)', async ()
   const r = posts.find((p) => p.type === 'lp-edit-result');
   assert.ok(r && r.ok === false && r.reason === 'nothing-to-undo');
 });
+
+test('review P3-c: a FAILED disk write leaves NO phantom undo entry (button stays disabled)', async () => {
+  const root = setup();
+  const file = path.join(root, 'page.tsx');
+  const { inst, posts } = mkInstance(Panel, root);
+  const realFs = require('fs');
+  const orig = realFs.writeFileSync;
+  realFs.writeFileSync = () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); };
+  try {
+    await inst._applyEdit({ preview: false, file: 'page.tsx', line: 5, tag: 'h1', edit: { kind: 'text', value: 'New headline' }, h: sha(SRC) });
+  } finally { realFs.writeFileSync = orig; }
+  assert.strictEqual(fs.readFileSync(file, 'utf8'), SRC, 'nothing written');
+  const r = posts.find((p) => p.type === 'lp-edit-result');
+  assert.ok(r && r.ok === false && r.reason === 'error', 'honest failure');
+  assert.strictEqual(r.undo, 0, 'no phantom undo entry after a failed write');
+  // and a follow-up undo has nothing to revert — the button never lit.
+  await inst._undoLast();
+  const u = posts.filter((p) => p.type === 'lp-edit-result').pop();
+  assert.ok(u && u.reason === 'nothing-to-undo', 'no phantom entry to (wrongly) undo');
+});
