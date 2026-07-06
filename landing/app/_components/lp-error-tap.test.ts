@@ -12,6 +12,7 @@ import {
   buildBoundaryErrorPayload,
   reportBoundaryError,
   buildNavPath,
+  parseInspPath,
 } from './lp-error-tap';
 
 describe('parseStackForSource', () => {
@@ -190,6 +191,44 @@ describe('reportBoundaryError (runtime relay to the embedding cockpit)', () => {
     w.parent = w; // top-level window: parent is itself
     withWindow(w, () => reportBoundaryError(new Error('x')));
     expect(posts).toHaveLength(0);
+  });
+});
+
+// ── parseInspPath — MP5.1 select-to-edit: split a `data-insp-path` attribute into {file,line,col,tag}.
+// Gate-critical + Windows-critical (a drive-letter path C:\… carries its own colon), and it runs inside
+// the cross-origin iframe the host cannot see, so unit-proving it here is the only CI signal.
+describe('parseInspPath (data-insp-path → file:line:col:tag)', () => {
+  it('parses a POSIX relative path with a trailing tag', () => {
+    const r = parseInspPath('app/_components/HeroTerminal.tsx:42:10:div');
+    expect(r).not.toBeNull();
+    expect(r!.file).toBe('app/_components/HeroTerminal.tsx');
+    expect(r!.line).toBe(42);
+    expect(r!.col).toBe(10);
+    expect(r!.tag).toBe('div');
+  });
+
+  it('keeps the Windows drive-letter colon inside the file path', () => {
+    const r = parseInspPath('C:\\Users\\p\\frugal\\landing\\app\\page.tsx:7:9:button');
+    expect(r!.file).toBe('C:\\Users\\p\\frugal\\landing\\app\\page.tsx');
+    expect(r!.line).toBe(7);
+    expect(r!.col).toBe(9);
+    expect(r!.tag).toBe('button');
+  });
+
+  it('tolerates a missing tag (file:line:col only)', () => {
+    const r = parseInspPath('app/page.tsx:12:3');
+    expect(r!.file).toBe('app/page.tsx');
+    expect(r!.line).toBe(12);
+    expect(r!.col).toBe(3);
+    expect(r!.tag).toBeUndefined();
+  });
+
+  it('returns null for junk / missing input; never throws', () => {
+    expect(parseInspPath(null)).toBeNull();
+    expect(parseInspPath(undefined)).toBeNull();
+    expect(parseInspPath('')).toBeNull();
+    expect(parseInspPath('no-numbers-here')).toBeNull();
+    expect(() => parseInspPath('C:\\x')).not.toThrow();
   });
 });
 

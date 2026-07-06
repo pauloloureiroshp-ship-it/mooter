@@ -182,6 +182,22 @@ export function buildNavPath(pathname?: string | null, search?: string | null): 
   return path.slice(0, 2048);
 }
 
+/**
+ * parseInspPath — PURE. Split a `data-insp-path` attribute (stamped by code-inspector-plugin in
+ * the dev build, MP5.0) into { file, line, col, tag }. The value is `file:line:col:tag`, but on
+ * Windows the file path itself contains a drive-letter colon (`C:\…`), so a naive split on ':'
+ * breaks. We anchor the trailing `:line:col[:tag]` from the RIGHT (greedy path prefix) so the
+ * drive-letter colon stays inside the file path. Fail-soft: returns null for junk, never throws.
+ */
+export function parseInspPath(
+  attr: string | null | undefined,
+): { file: string; line: number; col: number; tag?: string } | null {
+  if (!attr || typeof attr !== 'string') return null;
+  const m = attr.match(/^(.+):(\d+):(\d+)(?::([^:]*))?$/);
+  if (!m) return null;
+  return { file: m[1], line: parseInt(m[2], 10), col: parseInt(m[3], 10), tag: m[4] || undefined };
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -375,10 +391,99 @@ export function installLpErrorTap(): void {
   });
   emitNav(); // initial route
 
+  // ── 6. Select-to-edit mode (MP5.1). The host toggles this via {type:'lp-select-mode', on}. While
+  //    on, hovering highlights the source element under the cursor (drawn in a shadow DOM so no CSS
+  //    bleeds into the framed site, pointer-events:none so the overlay never eats the click it
+  //    draws), and clicking resolves the nearest [data-insp-path] and posts lp-select. The click is
+  //    captured + swallowed (preventDefault + stopImmediatePropagation) so the framed site itself
+  //    never reacts — no navigation, no button fires. Off by default; enabled only on the host's ask.
+  const select = (() => {
+    let on = false;
+    let shadowHost: HTMLElement | null = null;
+    let box: HTMLElement | null = null;
+    const ensure = (): void => {
+      if (shadowHost) return;
+      shadowHost = document.createElement('div');
+      shadowHost.setAttribute('data-lp-select-overlay', '');
+      shadowHost.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;margin:0;';
+      const root = shadowHost.attachShadow({ mode: 'open' });
+      box = document.createElement('div');
+      box.style.cssText =
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
+      root.appendChild(box);
+      document.documentElement.appendChild(shadowHost);
+    };
+    const teardown = (): void => {
+      if (shadowHost && shadowHost.parentNode) shadowHost.parentNode.removeChild(shadowHost);
+      shadowHost = null;
+      box = null;
+    };
+    const resolve = (x: number, y: number): Element | null => {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest('[data-insp-path]') : null;
+    };
+    const draw = (el: Element | null): void => {
+      if (!box) return;
+      if (!el) { box.style.display = 'none'; return; }
+      const r = el.getBoundingClientRect();
+      box.style.display = 'block';
+      box.style.left = r.left + 'px';
+      box.style.top = r.top + 'px';
+      box.style.width = r.width + 'px';
+      box.style.height = r.height + 'px';
+    };
+    const onMove = (ev: MouseEvent): void => { if (on) draw(resolve(ev.clientX, ev.clientY)); };
+    const onClick = (ev: MouseEvent): void => {
+      if (!on) return;
+      const el = resolve(ev.clientX, ev.clientY);
+      if (!el) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      const parsed = parseInspPath(el.getAttribute('data-insp-path'));
+      if (!parsed) return;
+      const r = el.getBoundingClientRect();
+      post({
+        type: 'lp-select',
+        file: parsed.file,
+        line: parsed.line,
+        col: parsed.col,
+        tag: parsed.tag,
+        rect: { x: r.left, y: r.top, w: r.width, h: r.height },
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      });
+    };
+    const onKey = (ev: KeyboardEvent): void => {
+      if (on && ev.key === 'Escape') { set(false); post({ type: 'lp-select-mode-off' }); }
+    };
+    const set = (v: boolean): void => {
+      if (v === on) return;
+      on = v;
+      if (v) {
+        ensure();
+        document.addEventListener('mousemove', onMove, true);
+        document.addEventListener('click', onClick, true);
+        document.addEventListener('keydown', onKey, true);
+        document.documentElement.style.cursor = 'crosshair';
+      } else {
+        document.removeEventListener('mousemove', onMove, true);
+        document.removeEventListener('click', onClick, true);
+        document.removeEventListener('keydown', onKey, true);
+        document.documentElement.style.cursor = '';
+        teardown();
+      }
+    };
+    return { set };
+  })();
+
   window.addEventListener('message', (ev: MessageEvent) => {
     if (ev.source !== window.parent) return; // only the embedding cockpit may drive us
     const d = ev.data;
     if (!d || typeof d !== 'object') return;
+    // MP5.1 — the cockpit toggles select-to-edit mode. Benign: only flips hover/click capture.
+    if (d.type === 'lp-select-mode') {
+      try { select.set(!!d.on); } catch { /* select mode is best-effort, never breaks the page */ }
+      return;
+    }
     // MP3.3 — the cockpit's back/forward buttons drive the framed site's OWN history (the parent
     // cannot touch a cross-origin frame's history object directly). Benign: only back()/forward().
     if (d.type === 'lp-history') {
