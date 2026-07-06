@@ -1698,6 +1698,14 @@ class LivePreviewPanel {
       if (!r0.ok) { fail(leaFailReason(r0)); return; }
       // READ fence: the model gets the node's exact byte span — never one byte more.
       const nodeSource = s0.slice(r0.start, r0.end);
+      // LP-4.5 §5 — dynamic-content signal, computed BEFORE any rewrite: a Component tag
+      // (uppercase) renders from INSIDE itself, and rendered text that is not literal in the
+      // node span comes from props/data — rewriting this node may change nothing on screen.
+      // The flag rides the diff so the panel warns before aplicar and never claims a plain
+      // "✓ escrito" for a write that may not affect the render.
+      const selText = (m && typeof m.selText === 'string') ? m.selText.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+      const isComponent = /^[A-Z]/.test(String(m.tag || ''));
+      const dynamic = isComponent || (!!selText && nodeSource.replace(/\s+/g, ' ').indexOf(selText) === -1);
       // review P3-a: the model gets a WORKSPACE-RELATIVE file:line label as context — never the
       // absolute host path (which would leak the OS username + repo tree to the cloud).
       let relFile = real;
@@ -1725,7 +1733,7 @@ class LivePreviewPanel {
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, dynamic, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -1751,8 +1759,8 @@ class LivePreviewPanel {
       if (!res.ok) { fail(leaFailReason(res)); return; }
       if (stale) {
         const d = LEA.diffRemovedLines(s2, res.code);
-        // review P1-B: carry the target on the regenerated stale preview too.
-        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
+        // review P1-B: carry the target on the regenerated stale preview too (+ §5 dynamic flag).
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic });
         return;
       }
       // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
@@ -1765,7 +1773,10 @@ class LivePreviewPanel {
         ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
         : 'cercada · local $0';
       this._pushUndo(real, s2, res.code, vlabel, raw); // §4 feed item
-      this._postEditResult(true, 'model-applied');
+      // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
+      // changed, the render may not have. The flag was computed host-side at preview time and
+      // rode the approved diff; the copy tells the user to verify and offers the agent.
+      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied');
       // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
       // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
       let repinTag = (typeof m.tag === 'string') ? m.tag : '';
@@ -2408,6 +2419,16 @@ function sendRepin(c){
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
 }
 function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
+// LP-4.5 §5 — the escape hatch from every dynamic-content warning: point the one box at the
+// agent. Honest when it cannot: bridge missing/untrusted → the exact reason, no silent no-op.
+function switchToAgent(){
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  if(!br.available){ showEditResult(false,(br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing'); return; }
+  lpMode='auto';
+  renderModeChips();
+  const bi=document.getElementById('lp-box-in');
+  if(bi) bi.focus();
+}
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
   if(!el) return;
@@ -2438,6 +2459,10 @@ function renderSelection(sel){
   // Honest multi-instance warning: the tap counted the same stamp on N live DOM nodes — the
   // selection is pinned to the FIRST instance, but any edit/delete lands on the template.
   if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a edição afeta o template, ou seja TODOS os itens.</div>';
+  // LP-4.5 §5 — dynamic-component honesty, BEFORE any fenced rewrite: an uppercase tag is a
+  // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
+  // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
+  if(/^[A-Z]/.test(sel.tag||'')) warn+='<div class="lp-sel-warn">⚠ &lt;'+tag+'&gt; é um componente — o conteúdo vem de DENTRO dele: reescrever este nó não o muda. <button type="button" id="lp-sel-agent" class="lp-sel-btn">resolver com o agente</button></div>';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
@@ -2473,7 +2498,8 @@ function renderSelection(sel){
     const v=bi?bi.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
     if(lpMode==='local'){
-      vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local' });
+      // §5 — the rendered text travels so the host can flag dynamic content on the diff.
+      vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
     } else {
       const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
       vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc });
@@ -2489,6 +2515,9 @@ function renderSelection(sel){
       else h.style.display='none';
     });
   }
+  // §5 — "resolver com o agente": switch the box to AUTO (honest refusal when the bridge is off).
+  const ag=document.getElementById('lp-sel-agent');
+  if(ag) ag.addEventListener('click', switchToAgent);
   const cbs=el.querySelectorAll('[data-crumb]');
   for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
     // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
@@ -2595,10 +2624,13 @@ function renderPromptDiff(m){
   if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
   const who=(!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição';
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
+  // §5 — dynamic-content honesty BEFORE aplicar: this write may not change what is rendered.
+  const dynWarn=m.dynamic?'<div class="lp-sel-warn">⚠ o conteúdo vem de dentro do componente — reescrever este nó não o muda. <button type="button" id="lp-pr-agent" class="lp-sel-btn">resolver com o agente</button></div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da reescrita">'
     +'<div class="lp-diff-hd">reescrita por prompt · linha '+esc(m.start==null?'?':m.start)+' — '+who+' · cercada: só este nó</div>'
     +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
+    +dynWarn
     +rows
     +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
     +'</div>';
@@ -2607,9 +2639,11 @@ function renderPromptDiff(m){
     // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
     // concurrent preview can no longer make the approved diff land on a different node.
     if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier });
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier, dynamic:!!m.dynamic });
     showEditResult(null,'pending');
   });
+  const ga=document.getElementById('lp-pr-agent');
+  if(ga) ga.addEventListener('click', switchToAgent);
   const ca=document.getElementById('lp-pr-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
@@ -2755,6 +2789,7 @@ function showEditResult(ok, reason){
     'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
     // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
     'model-applied':'✓ escrito — o moo reescreveu SÓ este elemento (o HMR atualiza o preview)',
+    'model-applied-dynamic':'✓ escrito no ficheiro — mas o conteúdo rendido vem de dentro do componente: se o preview não mudou, resolve com o agente',
     undone:'↩ desfeito — os bytes anteriores foram repostos ($0, splice inverso)',
     'undo-stale':'o ficheiro mudou desde a última escrita do Live Edit — desfazer recusado (nada foi escrito)',
     'nothing-to-undo':'nada para desfazer nesta sessão',
@@ -2839,7 +2874,7 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
-    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)

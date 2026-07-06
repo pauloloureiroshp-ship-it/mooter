@@ -243,6 +243,55 @@ test('review P3-b: a model reply identical to the node reports no-op and pushes 
   assert.strictEqual(res.undo, 0, 'no phantom undo entry that would revert an EARLIER edit');
 });
 
+// ── LP-4.5 §5 — dynamic-content honesty on the fenced path. The flag is computed HOST-side at
+// preview time (component tag OR rendered text not literal in the node span) and rides the diff;
+// an approved dynamic apply reports 'model-applied-dynamic' — never a plain "✓ escrito".
+test('§5 dynamic flag: component tag → dynamic; text-from-props → dynamic; literal text → not dynamic', async () => {
+  const SRC2 = [
+    'export default function P() {',
+    '  return (',
+    '    <section>',
+    '      <CommunityPulse total={61} />',
+    '      <p>literal text here</p>',
+    '    </section>',
+    '  );',
+    '}',
+    '',
+  ].join('\n');
+  const Panel = loadPanelClass({ model: stubModel('<CommunityPulse total={99} />') });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-dyn-'));
+  try {
+    fs.writeFileSync(path.join(root, 'page.tsx'), SRC2, 'utf8');
+    const { inst, posts } = mkInstance(Panel, root);
+    // (a) uppercase tag = component → dynamic even before any text comparison
+    await inst._promptEdit({ file: 'page.tsx', line: 4, tag: 'CommunityPulse', prompt: 'x', selText: '61 moos $0.00' });
+    let diff = posts.filter((p) => p.type === 'lp-prompt-diff').pop();
+    assert.strictEqual(diff.dynamic, true, 'component tag flags dynamic');
+    // (b) lowercase tag but rendered text is NOT in the node span (props/data) → dynamic
+    const Panel2 = loadPanelClass({ model: stubModel('<p className="x">literal text here</p>') });
+    const { inst: i2, posts: p2 } = mkInstance(Panel2, root);
+    await i2._promptEdit({ file: 'page.tsx', line: 5, tag: 'p', prompt: 'x', selText: '42 items from props' });
+    diff = p2.filter((p) => p.type === 'lp-prompt-diff').pop();
+    assert.strictEqual(diff.dynamic, true, 'rendered text not literal in the span flags dynamic');
+    // (c) lowercase tag AND the rendered text IS the node's literal text → NOT dynamic
+    const { inst: i3, posts: p3 } = mkInstance(Panel2, root);
+    await i3._promptEdit({ file: 'page.tsx', line: 5, tag: 'p', prompt: 'x', selText: 'literal text here' });
+    diff = p3.filter((p) => p.type === 'lp-prompt-diff').pop();
+    assert.strictEqual(diff.dynamic, false, 'literal text stays honest-quiet (no alarm spam)');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('§5 apply on a dynamic node reports model-applied-dynamic — NEVER a plain "✓ escrito"', async () => {
+  const Panel = loadPanelClass({ model: stubModel(REPL) });
+  const root = setup();
+  const { inst, posts } = mkInstance(Panel, root);
+  await inst._promptApply(Object.assign({ replacement: REPL, h: sha(SRC), dynamic: true }, TARGET));
+  assert.strictEqual(fs.readFileSync(path.join(root, 'page.tsx'), 'utf8'), SRC.replace(NODE, REPL), 'write landed');
+  const r = posts.find((p) => p.type === 'lp-edit-result');
+  assert.ok(r && r.ok === true && r.reason === 'model-applied-dynamic', 'the dynamic write gets its own honest reason');
+  assert.ok(!posts.some((p) => p.type === 'lp-edit-result' && p.reason === 'model-applied'), 'no plain model-applied');
+});
+
 test('review P1-A (host): a cloud tier in an UNTRUSTED workspace is refused before the bridge is touched', async () => {
   const cloudCalls = [];
   const cloud = {

@@ -177,6 +177,12 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   assert.ok(html.includes('a pensar… (moo local · $0)'), 'honest thinking state (local $0)');
   assert.ok(html.includes('moo local offline'), 'honest offline state');
   assert.ok(html.includes('recusado pela cerca'), 'fence refusals surface as visible reasons');
+  // LP-4.5 §5 — dynamic-component honesty: the warning BEFORE a fenced rewrite on a component,
+  // the same warning on the diff, the agent escape hatch, and the never-plain-✓ apply copy.
+  assert.ok(html.includes('é um componente — o conteúdo vem de DENTRO dele'), 'component warning at selection time');
+  assert.ok(html.includes('o conteúdo vem de dentro do componente — reescrever este nó não o muda'), 'dynamic warning on the diff');
+  assert.ok(html.includes('id="lp-pr-agent"') && html.includes('id="lp-sel-agent"'), 'resolver-com-o-agente buttons wired');
+  assert.ok(html.includes('se o preview não mudou, resolve com o agente'), 'dynamic apply never reads as a plain ✓ escrito');
   parseInlineScript(html);
 });
 
