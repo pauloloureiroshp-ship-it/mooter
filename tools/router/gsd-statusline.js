@@ -2232,6 +2232,10 @@ process.stdin.on('end', () => {
   clearTimeout(stdinTimeout);
   try {
     const data = JSON.parse(input);
+    // MP-Q — hand the raw payload to quota-live.js (one-time stdin sample;
+    // official rate_limits persistence). Fail-soft: quota capture must
+    // never break the wired statusline.
+    try { require('./quota-live.js').onStatuslineRender(data); } catch { /* fail-soft */ }
     // v6.5 — trailing \n required: Claude Code parses statusline stdout
     // line-by-line, and without a trailing newline the last row is
     // sometimes dropped or treated as a continuation of the previous one.
