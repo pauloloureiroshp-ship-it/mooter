@@ -40,3 +40,18 @@ test('installed layout (no ancestral node_modules): require fails → honest par
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The fix itself, pinned so it cannot silently regress: declaring the dependency is not enough —
+// .vscodeignore's `node_modules/**` used to strip it from the vsix anyway. Both halves must hold.
+test('vsix packaging contract: runtime dependency declared AND .vscodeignore re-includes it', () => {
+  const root = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(pkg.dependencies && pkg.dependencies['@babel/parser'],
+    '@babel/parser must be a RUNTIME dependency — vsce only packs production deps');
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  const ignoreAll = lines.indexOf('node_modules/**');
+  const reinclude = lines.indexOf('!node_modules/@babel/parser/**');
+  assert.notStrictEqual(reinclude, -1,
+    '.vscodeignore must re-include node_modules/@babel/parser or the installed extension ships without its edit engine');
+  assert.ok(ignoreAll === -1 || reinclude > ignoreAll, 'the negation must come AFTER node_modules/** to win');
+});
