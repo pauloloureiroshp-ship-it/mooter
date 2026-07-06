@@ -1463,17 +1463,18 @@ class LivePreviewPanel {
       // HMR write) landing between preview and apply could make locate() resolve a DIFFERENT node
       // than the one the user approved in the mini-diff — the delete must be the diff, always.
       const h = crypto.createHash('sha256').update(source, 'utf8').digest('hex');
-      if (!preview) {
-        if (typeof m.h !== 'string' || !m.h) { fail('bad-request'); return; }
-        if (m.h !== h) { fail('file-changed'); return; }
-      }
+      if (!preview && (typeof m.h !== 'string' || !m.h)) { fail('bad-request'); return; }
+      const stale = !preview && m.h !== h; // apply against a moved file → NEVER write; re-preview
       const res = LEA.deleteNode(source, { line: m.line, col: m.col, tag: m.tag });
       if (!res.ok) { fail(res.reason || 'refused'); return; }
-      if (preview) {
+      if (preview || stale) {
+        // Fail-closed recovery on stale: the diff the user approved no longer matches the disk,
+        // so nothing is written — instead the preview is REGENERATED from the disk as it is now,
+        // flagged stale, and the user re-approves what would really go.
         const d = LEA.diffRemovedLines(source, res.code);
         const inExpr = typeof LEA.isInsideExpression === 'function'
           ? LEA.isInsideExpression(source, { line: m.line, col: m.col, tag: m.tag }) : false;
-        this._postDeleteDiff({ ok: true, start: d.start, removed: d.removed, added: d.added, h, inExpr });
+        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr });
         return;
       }
       fs.writeFileSync(real, res.code, 'utf8');
@@ -1927,9 +1928,12 @@ function renderSelection(sel){
   // every usage. (Comparing against the breadcrumb ROOT would misfire — in Next the chain crosses
   // layout.tsx above every page node, which would scream the warning on everything.)
   const parentCrumb=pth.length>1?pth[pth.length-2]:null;
-  const warn=(parentCrumb&&parentCrumb.file&&sel.file&&parentCrumb.file!==sel.file)
+  let warn=(parentCrumb&&parentCrumb.file&&sel.file&&parentCrumb.file!==sel.file)
     ?'<div class="lp-sel-warn">⚠ este nó vive em <b>'+esc(baseName(sel.file))+'</b> — a edição afeta todos os usos deste componente.</div>'
     :'';
+  // Honest multi-instance warning: the tap counted the same stamp on N live DOM nodes — the
+  // selection is pinned to the FIRST instance, but any edit/delete lands on the template.
+  if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a edição afeta o template, ou seja TODOS os itens.</div>';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
@@ -1984,8 +1988,12 @@ function renderDeleteDiff(m){
   // Honest .map() warning (spec §5.2): the JSX inside an expression renders once per item —
   // deleting it deletes it from the template, i.e. from every item.
   const exprWarn=m.inExpr?'<div class="lp-sel-warn">⚠ este nó está dentro de uma expressão {…} (ex.: .map()) — apagá-lo remove-o do template, ou seja de TODOS os itens renderizados.</div>':'';
+  // Stale re-preview: the apply was refused because the file moved since the approved diff —
+  // this diff is the REGENERATED one; the user must re-approve it.
+  const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
     +'<div class="lp-diff-hd">apagar &lt;'+esc((lpDeleteTarget&&lpDeleteTarget.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +staleWarn
     +exprWarn
     +rows
     +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
@@ -2062,7 +2070,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ lpSendRestore(); }
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[] }; renderSelection(lpSelection); }
+    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); }
     else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }
