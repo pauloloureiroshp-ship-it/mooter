@@ -94,6 +94,18 @@ try { LPD = require('./lp-diagnostics.js'); } catch { LPD = null; }
 // select panel still opens files (click-to-code), and lp-edit reports 'engine-unavailable' honestly.
 let LEA = null;
 try { LEA = require('./live-edit-ast.js'); } catch { LEA = null; }
+// ── LIVE EDIT · LP-4 — the anchored-prompt runners. §1 local $0 moo (Ollama via native fetch)
+// and §2 subscription escalation (headless Agent SDK bridge — no API key in the extension).
+// BOTH replies are forced through the same fence (spliceNodeRange + sha256 hash-guard) in
+// _promptEdit/_promptApply below. Fail-soft: absent → lp-prompt reports 'engine-unavailable'.
+let LEM = null;
+try { LEM = require('./live-edit-model.js'); } catch { LEM = null; }
+let LEC = null;
+try { LEC = require('./live-edit-cloud.js'); } catch { LEC = null; }
+// §4 — $0 undo by inverse byte-splice (pure; the per-panel stack + fs live below). Fail-soft:
+// absent → 'desfazer' reports engine-unavailable honestly; the edit paths still work.
+let LEU = null;
+try { LEU = require('./live-edit-undo.js'); } catch { LEU = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1236,6 +1248,7 @@ class LivePreviewPanel {
       s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
       s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
+      s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
@@ -1323,6 +1336,9 @@ class LivePreviewPanel {
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
     if (m.type === 'lp-delete') { this._deleteNode(m); return; } // MP5.2a deterministic $0 delete (preview → diff, apply → write)
+    if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
+    if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
+    if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1409,12 +1425,23 @@ class LivePreviewPanel {
   // Honest result: every refusal/failure is reported to the panel with its exact reason (no silent
   // no-op, no fabricated success). The write is a single full-source writeFileSync — atomic enough,
   // and the diff is minimal (only the edited span changed), so an editor/git undo is a clean rollback.
+  //
+  // LP-4 §0 — SYMMETRIC staleness fence (audit P1-2 / FIX-MP-2): text/class edits get the exact
+  // sha256 preview→apply hash-guard the delete has had since 5.2a. Preview computes the byte-splice
+  // diff and stamps the source hash; apply re-reads the disk and REFUSES to write when the content
+  // moved ('file-changed' → a REGENERATED stale-flagged preview for re-approval). FAIL-CLOSED: an
+  // edit can never land on a line:col that drifted between the approved diff and the click.
   async _applyEdit(m) {
+    const preview = !!(m && m.preview);
+    const fail = (reason) => {
+      if (preview) this._postEditDiff({ ok: false, reason: String(reason || 'refused') });
+      else this._postEditResult(false, reason);
+    };
     try {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const edit = (m && m.edit && typeof m.edit === 'object') ? m.edit : null;
-      if (!raw || !edit) { this._postEditResult(false, 'bad-request'); return; }
-      if (!LEA) { this._postEditResult(false, 'engine-unavailable'); return; }
+      if (!raw || !edit) { fail('bad-request'); return; }
+      if (!LEA) { fail('engine-unavailable'); return; }
       const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
       const root = this._wsRoot();
       const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
@@ -1425,17 +1452,74 @@ class LivePreviewPanel {
           if (contained(fs.realpathSync(root), r)) real = r;
         }
       } catch { /* fall through to the honest result */ }
-      if (!real) { this._postEditResult(false, 'file-not-in-workspace'); return; }
+      if (!real) { fail('file-not-in-workspace'); return; }
       const source = fs.readFileSync(real, 'utf8');
+      // Same fence order as _deleteNode: hash first, missing echo = bad-request, THEN the engine —
+      // so a broken engine still reports its own honest reason (parser-unavailable etc.).
+      const h = crypto.createHash('sha256').update(source, 'utf8').digest('hex');
+      if (!preview && (typeof m.h !== 'string' || !m.h)) { fail('bad-request'); return; }
+      const stale = !preview && m.h !== h; // apply against a moved file → NEVER write; re-preview
       const res = LEA.applyDeterministicEdit(source, { line: m.line, col: m.col, tag: m.tag }, edit);
-      if (!res.ok) { this._postEditResult(false, leaFailReason(res)); return; }
+      if (!res.ok) { fail(leaFailReason(res)); return; }
       if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      if (preview || stale) {
+        const d = LEA.diffRemovedLines(source, res.code);
+        // review P1-B (parity): the TARGET + the exact EDIT ride the diff payload so apply binds to
+        // THIS preview — a second 'aplicar' typed before this one returns can no longer make the
+        // approved diff write a different value (same-node, but the label would otherwise lie).
+        this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real, file: raw, line: m.line, col: m.col, tag: m.tag, edit });
+        return;
+      }
+      // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
+      // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
+      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
       this._postEditResult(true, 'applied');
-    } catch { this._postEditResult(false, 'error'); }
+      // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
+      // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
+      this._postRepin({ file: raw, line: m.line, col: m.col, tag: m.tag });
+    } catch { fail('error'); }
   }
   _postEditResult(ok, reason) {
-    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || '') }); } catch { /* best-effort */ }
+    // §4 — every result carries the live undo depth so the panel can enable/disable "desfazer"
+    // without a second round-trip (0 = nothing to undo; the button says so honestly).
+    const undo = (this._undoStack && this._undoStack.length) || 0;
+    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo }); } catch { /* best-effort */ }
+  }
+  // §4 — remember the write we are about to make as an inverse-splice entry (LIFO, capped).
+  // Lazy stack init: unit harnesses build instances without running the constructor.
+  _pushUndo(real, before, after) {
+    try {
+      if (!LEU) return;
+      const e = LEU.makeEntry(real, before, after);
+      if (!e) return;
+      if (!this._undoStack) this._undoStack = [];
+      this._undoStack.push(e);
+      if (this._undoStack.length > 20) this._undoStack.shift();
+    } catch { /* undo is best-effort bookkeeping — never blocks the write */ }
+  }
+  // §4 — "desfazer último": inverse byte-splice of the most recent Live Edit write. FAIL-CLOSED:
+  // the file's CURRENT sha must still match the sha stamped at write time; if anything else wrote
+  // it since (HMR, an agent, the editor), we refuse honestly ('undo-stale') and keep the entry —
+  // a blind revert over someone else's bytes is exactly the lie this product exists to avoid.
+  async _undoLast() {
+    try {
+      if (!LEU) { this._postEditResult(false, 'engine-unavailable'); return; }
+      const stack = this._undoStack || [];
+      const e = stack[stack.length - 1];
+      if (!e) { this._postEditResult(false, 'nothing-to-undo'); return; }
+      let cur;
+      try { cur = fs.readFileSync(e.file, 'utf8'); }
+      catch { this._postEditResult(false, 'undo-stale'); return; }
+      const r = LEU.applyUndo(e, cur);
+      if (!r.ok) { this._postEditResult(false, r.reason); return; }
+      fs.writeFileSync(e.file, r.code, 'utf8');
+      stack.pop();
+      this._postEditResult(true, 'undone');
+    } catch { this._postEditResult(false, 'error'); }
+  }
+  _postEditDiff(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-edit-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // MP5.2a deterministic $0 delete — same containment guard as _applyEdit, but TWO-PHASE and
   // stateless: preview computes the exact removed/added lines for the panel's mini-diff; apply
@@ -1480,15 +1564,169 @@ class LivePreviewPanel {
         const d = LEA.diffRemovedLines(source, res.code);
         const inExpr = typeof LEA.isInsideExpression === 'function'
           ? LEA.isInsideExpression(source, { line: m.line, col: m.col, tag: m.tag }) : false;
-        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr });
+        // review P1-B (parity): bind the delete TARGET to this diff too (delete is already safe via
+        // the synchronous panel re-render, but this removes the mutable-global write-target pattern).
+        this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr, abs: real, file: raw, line: m.line, col: m.col, tag: m.tag });
         return;
       }
+      // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
+      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
   }
   _postDeleteDiff(payload) {
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-delete-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  // Shared workspace-containment resolver (same guard as _openSourceFile/_applyEdit/_deleteNode):
+  // path.relative (no sibling-dir trap) + realpath re-check (no symlink escape). null = refuse.
+  _resolveContainedFile(raw) {
+    try {
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const root = this._wsRoot();
+      const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
+      if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+        const r = fs.realpathSync(abs);
+        if (contained(fs.realpathSync(root), r)) return r;
+      }
+    } catch { /* refuse below */ }
+    return null;
+  }
+  // ── LP-4 §3 — anchored prompt: the model path, FENCED. The model (local $0 moo OR the
+  // subscription bridge) sees ONLY the selected node's subtree + the instruction — never the
+  // file. Whatever it answers is forced through spliceNodeRange (parse + single root + no
+  // comments + byte-bounded to the verified node span) and the sha256 hash-guard from §0:
+  // preview stamps the CURRENT disk hash; apply re-checks it and refuses 'file-changed' with a
+  // regenerated stale preview. A model can hallucinate content; it cannot escape the span, and
+  // a rejected replacement shows its exact reason and writes NOTHING.
+  async _promptEdit(m) {
+    const fail = (reason, detail) => this._postPromptDiff({ ok: false, reason: String(reason || 'refused'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
+      const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
+      if (!raw || !prompt) { fail('bad-request'); return; }
+      if (!LEA || typeof LEA.locateRange !== 'function' || typeof LEA.spliceNodeRange !== 'function') { fail('engine-unavailable'); return; }
+      if (tier !== 'local' && !(LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier])) { fail('bad-request', 'unknown tier ' + tier); return; }
+      const real = this._resolveContainedFile(raw);
+      if (!real) { fail('file-not-in-workspace'); return; }
+      // review P1-A: refuse cloud tiers in an untrusted workspace BEFORE anything spawns the
+      // workspace SDK — the chip already disables them, this is the host-side backstop.
+      if (tier !== 'local' && !this._workspaceTrusted()) { fail('workspace-untrusted'); return; }
+      const s0 = fs.readFileSync(real, 'utf8');
+      const target = { line: m.line, col: m.col, tag: m.tag };
+      const r0 = LEA.locateRange(s0, target);
+      if (!r0.ok) { fail(leaFailReason(r0)); return; }
+      // READ fence: the model gets the node's exact byte span — never one byte more.
+      const nodeSource = s0.slice(r0.start, r0.end);
+      // review P3-a: the model gets a WORKSPACE-RELATIVE file:line label as context — never the
+      // absolute host path (which would leak the OS username + repo tree to the cloud).
+      let relFile = real;
+      try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep real */ }
+      this._postPromptStatus({ phase: 'thinking', tier });
+      let reply;
+      if (tier === 'local') {
+        if (!LEM) { fail('engine-unavailable'); return; }
+        reply = await LEM.rewriteElement({ nodeSource, prompt, file: relFile, line: m.line });
+      } else {
+        if (!LEC) { fail('sdk-bridge-missing'); return; }
+        reply = await LEC.rewriteElementCloud({ nodeSource, prompt, file: relFile, line: m.line, tier }, { wsRoot: this._wsRoot(), trusted: this._workspaceTrusted() });
+      }
+      if (!reply || !reply.ok) { fail((reply && reply.reason) || 'error', reply && reply.detail); return; }
+      const replacement = (LEM && typeof LEM.cleanModelReply === 'function') ? LEM.cleanModelReply(reply.text) : String(reply.text || '').trim();
+      // WRITE fence + hash-guard: the model call took seconds — re-read the disk NOW, re-locate
+      // the node, and let spliceNodeRange verify the span + the replacement. Nothing is written
+      // in this phase; the panel shows the diff with the CURRENT hash stamped.
+      const s1 = fs.readFileSync(real, 'utf8');
+      const h1 = crypto.createHash('sha256').update(s1, 'utf8').digest('hex');
+      const r1 = LEA.locateRange(s1, target);
+      if (!r1.ok) { fail(leaFailReason(r1)); return; }
+      const res = LEA.spliceNodeRange(s1, { start: r1.start, end: r1.end }, replacement);
+      if (!res.ok) { fail(leaFailReason(res), res.detail); return; }
+      const d = LEA.diffRemovedLines(s1, res.code);
+      // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
+      // never reconstructed from a mutable global that a concurrent second preview could have moved.
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, abs: real, tier, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+    } catch { fail('error'); }
+  }
+  // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
+  // still match the disk (else: regenerated stale preview, nothing written), the target must
+  // still be a real node span, and the splice must pass every fence check again at write time.
+  async _promptApply(m) {
+    const fail = (reason) => this._postEditResult(false, reason);
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
+      if (!raw || !replacement.trim()) { fail('bad-request'); return; }
+      if (typeof m.h !== 'string' || !m.h) { fail('bad-request'); return; }
+      if (!LEA || typeof LEA.locateRange !== 'function' || typeof LEA.spliceNodeRange !== 'function') { fail('engine-unavailable'); return; }
+      const real = this._resolveContainedFile(raw);
+      if (!real) { fail('file-not-in-workspace'); return; }
+      const s2 = fs.readFileSync(real, 'utf8');
+      const h2 = crypto.createHash('sha256').update(s2, 'utf8').digest('hex');
+      const stale = m.h !== h2; // apply against a moved file → NEVER write; re-preview
+      const target = { line: m.line, col: m.col, tag: m.tag };
+      const r2 = LEA.locateRange(s2, target);
+      if (!r2.ok) { fail(leaFailReason(r2)); return; }
+      const res = LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement);
+      if (!res.ok) { fail(leaFailReason(res)); return; }
+      if (stale) {
+        const d = LEA.diffRemovedLines(s2, res.code);
+        // review P1-B: carry the target on the regenerated stale preview too.
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, abs: real, tier: m.tier || 'local' });
+        return;
+      }
+      // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
+      // honestly and push NO undo entry (else 'desfazer' would revert an EARLIER edit).
+      if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
+      // phantom entry that lights the undo button and later refuses as 'undo-stale'.
+      fs.writeFileSync(real, res.code, 'utf8');
+      this._pushUndo(real, s2, res.code); // §4 — inverse splice, recorded only after a real write
+      this._postEditResult(true, 'model-applied');
+      // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
+      // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
+      let repinTag = (typeof m.tag === 'string') ? m.tag : '';
+      try {
+        const r3 = LEA.locateRange(res.code, { line: m.line, col: m.col });
+        if (r3.ok && r3.el && typeof LEA.tagNameOf === 'function') {
+          const t = LEA.tagNameOf(r3.el.openingElement);
+          if (t) repinTag = t;
+        }
+      } catch { /* keep the old tag — the tap matches tag only when it can */ }
+      this._postRepin({ file: raw, line: m.line, col: m.col, tag: repinTag });
+    } catch { fail('error'); }
+  }
+  _postPromptDiff(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  _postPromptStatus(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  _postRepin(payload) {
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-repin', __t: this.token }, payload)); } catch { /* best-effort */ }
+  }
+  // LP-4 §6 — is the subscription bridge usable from this workspace? A cheap fs fact, cached 30s
+  // (it rides every snapshot poll). Fail-soft: absent module → honest 'sdk-bridge-missing'.
+  _leBridgeStatus() {
+    const now = Date.now();
+    if (this._leBridge && this._leBridgeTs && (now - this._leBridgeTs) < 30000) return this._leBridge;
+    // review P1-A: the cloud bridge runs the workspace's SDK, so it is gated on Workspace Trust.
+    // An untrusted workspace → 'workspace-untrusted', the chip disables cloud with that honest reason.
+    const trusted = this._workspaceTrusted();
+    this._leBridge = (LEC && typeof LEC.bridgeStatus === 'function')
+      ? LEC.bridgeStatus(this._wsRoot(), { trusted })
+      : { available: false, reason: 'sdk-bridge-missing' };
+    this._leBridgeTs = now;
+    return this._leBridge;
+  }
+  // vscode.workspace.isTrusted is a boolean in real VS Code; default to trusted only when the API
+  // does not expose the flag at all (never downgrade a genuine `false`).
+  _workspaceTrusted() {
+    try {
+      const t = vscode.workspace && vscode.workspace.isTrusted;
+      return (typeof t === 'boolean') ? t : true;
+    } catch { return true; }
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
@@ -1890,9 +2128,11 @@ function lpSendRestore(){
 // tap posts back an lp-select we render the selection panel in the side rail with the source location
 // + a click-to-code action; the deterministic edit + model chip (pieces 4–5) hang off this panel.
 let lpSelection=null, lpSelectOn=false, lpTier='local';
-// MP5.2a — the delete flow's target is CAPTURED at preview time (not read from the mutable
-// lpSelection at apply time), so the node deleted is always the node whose diff was approved.
-let lpDeleteTarget=null;
+// LP-4 §6 / review P1-B — honest session state driving the panel: undo depth (from lp-edit-result)
+// and the SDK-bridge status (from the snapshot). The WRITE TARGET is NOT a global anymore: every
+// apply (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m), so a
+// second preview in flight can never move where an approved diff lands.
+let lpUndoDepth=0, lpBridge=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -1908,6 +2148,12 @@ function setSelectMode(on){
 function sendReselect(c){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-reselect', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+// LP-4 §5 — after a write, the host asks the tap to watch through the HMR swap and re-emit a
+// FRESH lp-select for the same node (re-prompt without re-selecting). Origin-targeted, never '*'.
+function sendRepin(c){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
 }
 function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
 function renderSelection(sel){
@@ -1949,18 +2195,36 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div id="lp-prompt-l" class="lp-ed-l">pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':esc(tierModel(lpTier))+' · subscrição')+')</div>'
+    +'<div class="lp-ed-row"><input id="lp-prompt-in" class="lp-ed-in" type="text" placeholder="descreve a mudança… (ex: cantos redondos e borda fina)" /><button id="lp-prompt-b" class="lp-sel-btn" title="o moo reescreve SÓ este elemento — diff cercado antes de escrever">pré-visualizar</button></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button>'
+    +'<button id="lp-sel-undo" class="lp-sel-btn"'+(lpUndoDepth<1?' disabled title="nada para desfazer nesta sessão"':' title="desfazer a última escrita do Live Edit — $0, splice inverso"')+'>↩ desfazer último</button></div>'
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
-  const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
+  // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
+  // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
+  const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
   const ti=document.getElementById('lp-ed-text'), tb=document.getElementById('lp-ed-text-b');
   if(ti&&tb){ tb.addEventListener('click', function(){ sendEdit('text', ti.value); }); ti.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('text', ti.value); } }); }
   const ci=document.getElementById('lp-ed-class'), cb=document.getElementById('lp-ed-class-b');
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+  // LP-4 §6 — the anchored prompt box: the moo rewrites ONLY this node; the reply comes back as a
+  // fenced diff (lp-prompt-diff) the user approves before anything is written.
+  const pi=document.getElementById('lp-prompt-in'), pb=document.getElementById('lp-prompt-b');
+  const sendPrompt=function(){
+    const v=pi?pi.value.trim():'';
+    if(!v){ showEditResult(false,'prompt-empty'); return; }
+    vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:lpTier });
+    showEditResult(null,'pending');
+  };
+  if(pi&&pb){ pb.addEventListener('click', sendPrompt); pi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendPrompt(); } }); }
+  // §4 — undo: $0 inverse byte-splice of the LAST Live Edit write (sha-guarded host-side).
+  const ub=document.getElementById('lp-sel-undo');
+  if(ub) ub.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-undo' }); showEditResult(null,'pending'); });
   const cbs=el.querySelectorAll('[data-crumb]');
   for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
     // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
@@ -1971,7 +2235,6 @@ function renderSelection(sel){
   }); }
   const db=document.getElementById('lp-sel-del');
   if(db) db.addEventListener('click', function(){
-    lpDeleteTarget={ file:sel.file, line:sel.line, col:sel.col, tag:sel.tag };
     vsapi.postMessage({ type:'lp-delete', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag });
     showEditResult(null,'pending');
   });
@@ -1998,7 +2261,8 @@ function renderDeleteDiff(m){
   // this diff is the REGENERATED one; the user must re-approve it.
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização do apagar">'
-    +'<div class="lp-diff-hd">apagar &lt;'+esc((lpDeleteTarget&&lpDeleteTarget.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +'<div class="lp-diff-hd">apagar &lt;'+esc((m&&m.tag)||'elemento')+'&gt; · linha '+esc(m.start==null?'?':m.start)+' — apagar é determinístico: $0, sem tokens</div>'
+    +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
     +exprWarn
     +rows
@@ -2006,13 +2270,83 @@ function renderDeleteDiff(m){
     +'</div>';
   const ap=document.getElementById('lp-del-apply');
   if(ap) ap.addEventListener('click', function(){
-    if(!lpDeleteTarget) return;
-    // The captured preview target + the source hash: apply is refused server-side if the file
-    // changed since the diff was computed (the delete must be exactly the approved diff).
-    vsapi.postMessage({ type:'lp-delete', preview:false, file:lpDeleteTarget.file, line:lpDeleteTarget.line, col:lpDeleteTarget.col, tag:lpDeleteTarget.tag, h:m.h });
+    // review P1-B (parity): target comes from THIS diff (m), not the mutable capture. The source
+    // hash still gates the write server-side (the delete must be exactly the approved diff).
+    if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-delete', preview:false, file:m.file, line:m.line, col:m.col, tag:m.tag, h:m.h });
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-del-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
+}
+// LP-4 §0 — the text/class edit mini-diff (fence simétrica). Preview shows EXACTLY the lines the
+// byte-splice would change — with the ABSOLUTE PATH of the file that will be written (A7 mitigation:
+// the user sees WHICH tree the write lands on) — before anything touches disk; "aplicar" echoes the
+// preview's source hash and the host refuses the write if the file moved ('file-changed' → this
+// same renderer shows the REGENERATED diff flagged stale for re-approval).
+function renderEditDiff(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
+  let rows='';
+  for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas</div>';
+  for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
+  if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da edição">'
+    +'<div class="lp-diff-hd">editar ('+esc(m.kind||'edit')+') · linha '+esc(m.start==null?'?':m.start)+' — determinístico: $0, sem tokens</div>'
+    +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
+    +staleWarn
+    +rows
+    +'<div class="lp-sel-acts"><button id="lp-ed-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-ed-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'</div>';
+  const ap=document.getElementById('lp-ed-apply');
+  if(ap) ap.addEventListener('click', function(){
+    // review P1-B (parity): target + edit come from THIS diff (m), not the mutable capture — a
+    // second 'aplicar' typed during the preview can no longer change what this button writes.
+    if(m.file==null||m.line==null||!m.edit){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-edit', preview:false, file:m.file, line:m.line, col:m.col, tag:m.tag, edit:m.edit, h:m.h });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-ed-cancel');
+  if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
+}
+// LP-4 §3/§6 — the anchored-prompt diff. The moo (local $0 or the subscription bridge) rewrote
+// ONLY this node; the header says WHO answered and shows the ABSOLUTE path of the file that will
+// be written (A7 mitigation). "aplicar" echoes the hash — the host re-fences + re-checks at write
+// time and a stale apply comes back here regenerated, flagged, with nothing written.
+function renderPromptDiff(m){
+  const el=document.getElementById('lp-del'); if(!el) return;
+  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
+  const rem=Array.isArray(m.removed)?m.removed:[]; const add=Array.isArray(m.added)?m.added:[];
+  let rows='';
+  for(let i=0;i<rem.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-rm">− '+esc(rem[i])+'</div>';
+  if(rem.length>40) rows+='<div class="lp-diff-l lp-diff-rm">… +'+(rem.length-40)+' linhas</div>';
+  for(let i=0;i<add.length&&i<40;i++) rows+='<div class="lp-diff-l lp-diff-ad">+ '+esc(add[i])+'</div>';
+  if(add.length>40) rows+='<div class="lp-diff-l lp-diff-ad">… +'+(add.length-40)+' linhas</div>';
+  if(!rows) rows='<div class="lp-diff-l">(sem alterações)</div>';
+  const who=(!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição';
+  const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
+  el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da reescrita">'
+    +'<div class="lp-diff-hd">reescrita por prompt · linha '+esc(m.start==null?'?':m.start)+' — '+who+' · cercada: só este nó</div>'
+    +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
+    +staleWarn
+    +rows
+    +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'</div>';
+  const ap=document.getElementById('lp-pr-apply');
+  if(ap) ap.addEventListener('click', function(){
+    // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
+    // concurrent preview can no longer make the approved diff land on a different node.
+    if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, h:m.h, tier:m.tier });
+    showEditResult(null,'pending');
+  });
+  const ca=document.getElementById('lp-pr-cancel');
   if(ca) ca.addEventListener('click', function(){ el.innerHTML=''; const g=document.getElementById('lp-edit-msg'); if(g){ g.textContent=''; g.className='lp-ed-msg'; } });
 }
 // MP5.1 router-native model chip. The truth: a text/class edit is DETERMINISTIC — the router runs it
@@ -2021,18 +2355,43 @@ function renderDeleteDiff(m){
 // copy says so and never fabricates a token cost for the free path.
 const LP_TIERS=[['local','🐮 local · $0'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
+// LP-4 §6 — router-native advisory chip. The truth: text/class/delete are deterministic ($0, no
+// LLM); the PROMPT runs on the local moo by default ($0, nothing leaves the machine); going cloud
+// is opt-in, runs on the SUBSCRIPTION via the SDK bridge (no API key), and @fable is manual only
+// (never auto-routed). Bridge absent → cloud tiers disabled with the honest reason, never a dead
+// button that fails later.
 function renderChip(){
   const el=document.getElementById('lp-chip'); if(!el) return;
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  // review P1-A: the cloud disabled-reason is HONEST about which gate failed — trust vs missing SDK.
+  const disReason=(br.reason==='workspace-untrusted')
+    ? 'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
+    : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
   let tiers='';
-  for(let i=0;i<LP_TIERS.length;i++){ const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]); tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'">'+lb+'</button>'; }
+  for(let i=0;i<LP_TIERS.length;i++){
+    const id=LP_TIERS[i][0], lb=esc(LP_TIERS[i][1]);
+    const dis=(id!=='local')&&!br.available;
+    tiers+='<button type="button" class="lp-tier'+(lpTier===id?' on':'')+'" data-tier="'+id+'" aria-pressed="'+(lpTier===id?'true':'false')+'"'
+      +(dis?(' disabled title="'+esc(disReason)+'"'):'')
+      +'>'+lb+'</button>';
+  }
   const note = (lpTier==='local')
-    ? 'edição de texto/classe é determinística — $0, sem tokens (o router não precisa da nuvem).'
-    : 'texto/classe continuam $0; a subida para '+esc(tierModel(lpTier))+' aplica-se a edições ESTRUTURAIS (prompt → Claude Code) — chega no MP5.2.';
-  el.innerHTML='<div class="lp-chip-hd">🐮 esta edição: <span class="lp-chip-0">local · $0 · sem tokens</span></div>'
-    +'<div class="lp-tiers" role="group" aria-label="Modelo para esta edição">'+tiers+'</div>'
+    ? 'texto/classe e apagar são determinísticos — $0, sem tokens. O prompt corre no moo local — $0, nada sai da máquina. Subir para cloud é opt-in e gasta subscrição.'
+    : 'o prompt sobe para '+esc(tierModel(lpTier))+' via ponte SDK headless (subscrição — sem API key na extensão); a resposta volta pela MESMA cerca. texto/classe continuam $0.'
+      +(lpTier==='fable'?' @fable é SEMPRE manual — nunca auto-routed.':'');
+  el.innerHTML='<div class="lp-chip-hd">🐮 este prompt: <span class="lp-chip-0">'+(lpTier==='local'?'local · $0 · sem tokens':esc(tierModel(lpTier))+' · subscrição · opt-in')+'</span></div>'
+    +'<div class="lp-tiers" role="group" aria-label="Modelo para o prompt">'+tiers+'</div>'
     +'<div class="lp-chip-note">'+note+'</div>';
   const btns=el.querySelectorAll('[data-tier]');
-  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ lpTier=this.getAttribute('data-tier'); renderChip(); }); }
+  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){
+    if(this.disabled) return;
+    lpTier=this.getAttribute('data-tier');
+    renderChip();
+    // Refresh the prompt-box label in place — NEVER re-render the panel here (it would wipe a
+    // prompt the user already typed).
+    const pl=document.getElementById('lp-prompt-l');
+    if(pl) pl.textContent='pedir ao moo (prompt · '+(lpTier==='local'?'local · $0':tierModel(lpTier)+' · subscrição')+')';
+  }); }
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
 function showEditResult(ok, reason){
@@ -2049,7 +2408,30 @@ function showEditResult(ok, reason){
     'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
     'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
     'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)',
-    'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição' };
+    'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
+    // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
+    'model-applied':'✓ escrito — o moo reescreveu SÓ este elemento (o HMR atualiza o preview)',
+    undone:'↩ desfeito — os bytes anteriores foram repostos ($0, splice inverso)',
+    'undo-stale':'o ficheiro mudou desde a última escrita do Live Edit — desfazer recusado (nada foi escrito)',
+    'nothing-to-undo':'nada para desfazer nesta sessão',
+    'prompt-empty':'escreve primeiro o que queres mudar',
+    'node-too-large':'este elemento é grande demais para reescrita por prompt — edita no editor',
+    'local-model-offline':'moo local offline — arranca o Ollama (ollama serve) ou sobe para cloud',
+    'local-model-timeout':'o moo local demorou demasiado (30s) — tenta de novo ou sobe para cloud',
+    'local-model-empty':'o moo local devolveu vazio — reformula o prompt',
+    'local-model-error':'o moo local falhou — vê o Ollama',
+    'sdk-bridge-missing':'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud',
+    'workspace-untrusted':'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace para ativar',
+    'cloud-bridge-error':'a ponte cloud falhou — vê a sessão do Claude Code',
+    'cloud-model-timeout':'o modelo cloud demorou demasiado — tenta de novo',
+    'cloud-model-empty':'o modelo cloud devolveu vazio — reformula o prompt',
+    'replacement-has-comments':'o modelo devolveu comentários — recusado pela cerca, nada foi escrito',
+    'replacement-parse-error':'o modelo devolveu JSX inválido — recusado pela cerca, nada foi escrito',
+    'not-single-root':'o modelo devolveu mais do que um elemento — recusado pela cerca, nada foi escrito',
+    'replacement-trailing-junk':'o modelo devolveu lixo fora do elemento — recusado pela cerca, nada foi escrito',
+    'empty-replacement':'o modelo devolveu vazio — recusado pela cerca',
+    'range-not-a-node':'o alvo já não é um nó válido — reselecciona',
+    'splice-breaks-parse':'a reescrita partiria o ficheiro — recusado pela cerca, nada foi escrito' };
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
@@ -2084,14 +2466,37 @@ window.addEventListener('message', (ev) => {
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from
   //    MP2). The framed iframe cannot read HOST_TOKEN, so it cannot forge this.
   if (m.__t !== HOST_TOKEN) return;
-  if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes); }
+  if (m.type === 'lp-snapshot'){
+    render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
+    // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
+    // cloud tiers enable/disable from FACTS (never a dead button).
+    const br=m.s && m.s.leBridge;
+    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderChip(); }
+    else if(br) lpBridge=br;
+  }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
-    // MP5.2a — once the delete is applied, the pending mini-diff is history: clear it.
-    if (m.ok && m.reason === 'deleted'){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    // §4 — the live undo depth drives the button state (facts, not claims).
+    if (typeof m.undo === 'number'){
+      lpUndoDepth=m.undo;
+      const ub=document.getElementById('lp-sel-undo');
+      if(ub){ ub.disabled=lpUndoDepth<1; ub.title=lpUndoDepth<1?'nada para desfazer nesta sessão':'desfazer a última escrita do Live Edit — $0, splice inverso'; }
+    }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
+  else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
+  else if (m.type === 'lp-prompt-diff'){ renderPromptDiff(m); } // LP-4 §3 fenced model rewrite preview
+  else if (m.type === 'lp-prompt-status'){
+    // §6 — honest thinking state: WHO is thinking and what it costs, while it thinks.
+    if(m.phase==='thinking'){
+      const el=document.getElementById('lp-edit-msg');
+      if(el){ el.textContent=(!m.tier||m.tier==='local')?'a pensar… (moo local · $0)':'a pensar… ('+tierModel(m.tier)+' · subscrição)'; el.className='lp-ed-msg lp-ed-pending'; }
+    }
+  }
+  else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin

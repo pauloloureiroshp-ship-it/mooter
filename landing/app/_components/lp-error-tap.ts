@@ -225,6 +225,27 @@ export function buildBreadcrumbPath(
   return full;
 }
 
+/**
+ * stampMatches — PURE. Does a `data-insp-path` attribute value identify the wanted node?
+ * Matching is on the FULL stamp — file+line+col, AND tag when the caller knows it. Used by both
+ * the breadcrumb re-select and the LP-4 §5 re-pin after an apply (the byte-splice preserves the
+ * node's start, so its stamp survives the write — same file:line:col identifies the same node).
+ * Fail-soft: junk on either side → false, never a fabricated match.
+ */
+export function stampMatches(
+  attr: string | null | undefined,
+  want: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown },
+): boolean {
+  const p = parseInspPath(attr);
+  if (!p) return false;
+  const file = typeof want.file === 'string' ? want.file : '';
+  const line = typeof want.line === 'number' ? want.line : NaN;
+  const col = typeof want.col === 'number' ? want.col : NaN;
+  const tag = typeof want.tag === 'string' ? want.tag : '';
+  if (!file || !isFinite(line) || !isFinite(col)) return false;
+  return p.file === file && p.line === line && p.col === col && (!tag || (p.tag || '') === tag);
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -540,29 +561,51 @@ export function installLpErrorTap(): void {
       if (!el) return;
       ev.preventDefault();
       ev.stopImmediatePropagation();
+      stopRepin(); // a manual pick wins — never let a pending re-pin watch fight the user
       selectEl(el);
     };
-    // MP5.2a — a breadcrumb chip in the cockpit asks to re-select an ancestor by its stamped
-    // location. Read-only DOM scan for the matching [data-insp-path]; a stale location (HMR moved
-    // the code) simply finds nothing — no fabricated selection.
-    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
-      if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
-      const file = typeof d.file === 'string' ? d.file : '';
-      const line = typeof d.line === 'number' ? d.line : NaN;
-      const col = typeof d.col === 'number' ? d.col : NaN;
-      const tag = typeof d.tag === 'string' ? d.tag : '';
-      if (!file || !isFinite(line) || !isFinite(col)) return;
-      // Disambiguate on the FULL stamp — file+line+col AND tag when given. Several DOM nodes can
-      // still share the full stamp (a .map()/reused component): pin the first, and selectEl's
-      // `repeated` count tells the cockpit to warn that the edit hits the template.
+    // Shared stamped-node finder (breadcrumb re-select + LP-4 §5 re-pin). Disambiguation is on
+    // the FULL stamp — file+line+col AND tag when given (stampMatches). Several DOM nodes can
+    // still share the full stamp (a .map()/reused component): pin the first, and selectEl's
+    // `repeated` count tells the cockpit to warn that the edit hits the template.
+    const findStamped = (want: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): Element | null => {
       const all = document.querySelectorAll('[data-insp-path]');
       for (let i = 0; i < all.length; i++) {
-        const p = parseInspPath(all[i].getAttribute('data-insp-path'));
-        if (p && p.file === file && p.line === line && p.col === col && (!tag || (p.tag || '') === tag)) {
-          selectEl(all[i]);
-          return;
-        }
+        if (stampMatches(all[i].getAttribute('data-insp-path'), want)) return all[i];
       }
+      return null;
+    };
+    // MP5.2a — a breadcrumb chip in the cockpit asks to re-select an ancestor by its stamped
+    // location. Read-only DOM scan; a stale location (HMR moved the code) simply finds nothing —
+    // no fabricated selection.
+    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
+      if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
+      const el = findStamped(d);
+      if (el) selectEl(el);
+    };
+    // LP-4 §5 — re-pin after an apply. The byte-splice preserved the node's start, so the SAME
+    // file:line:col stamp identifies it — but HMR swaps the DOM node a moment later. We watch for
+    // ~5.6s and re-emit lp-select on EVERY new DOM identity (first find + each HMR swap), so the
+    // panel's pin/stamp is refreshed from post-HMR reality and "agora mais escuro" iterates on the
+    // same node with zero re-selection. Only while armed; a manual pick or Esc cancels the watch.
+    let repinTimer: ReturnType<typeof setInterval> | null = null;
+    const stopRepin = (): void => { if (repinTimer) { clearInterval(repinTimer); repinTimer = null; } };
+    const repin = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
+      stopRepin();
+      if (!on) return;
+      let lastEl: Element | null = null;
+      let ticks = 0;
+      const tick = (): void => {
+        ticks++;
+        if (!on || ticks > 14) { stopRepin(); return; }
+        const el = findStamped(d);
+        if (el && el.isConnected && el !== lastEl) {
+          lastEl = el;
+          selectEl(el); // fresh stamp: text/className/rect re-read from the live DOM
+        }
+      };
+      tick();
+      repinTimer = setInterval(tick, 400);
     };
     const onKey = (ev: KeyboardEvent): void => {
       if (on && ev.key === 'Escape') { set(false); post({ type: 'lp-select-mode-off' }); }
@@ -580,6 +623,7 @@ export function installLpErrorTap(): void {
         window.addEventListener('resize', onReflow);
         document.documentElement.style.cursor = 'crosshair';
       } else {
+        stopRepin(); // leaving select mode cancels any pending re-pin watch
         document.removeEventListener('mousemove', onMove, true);
         document.removeEventListener('click', onClick, true);
         document.removeEventListener('keydown', onKey, true);
@@ -589,7 +633,7 @@ export function installLpErrorTap(): void {
         teardown();
       }
     };
-    return { set, reselect };
+    return { set, reselect, repin };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -605,6 +649,13 @@ export function installLpErrorTap(): void {
     // read-only DOM lookup, same origin-locked sender as everything else here.
     if (d.type === 'lp-reselect') {
       try { select.reselect(d); } catch { /* best-effort — a stale crumb selects nothing */ }
+      return;
+    }
+    // LP-4 §5 — the host just applied a write to this node: watch through the HMR swap and
+    // re-emit lp-select with the fresh stamp (pin never stale; re-prompt without re-selecting).
+    // Benign: read-only DOM scans, only while select mode is armed.
+    if (d.type === 'lp-repin') {
+      try { select.repin(d); } catch { /* best-effort — a vanished node re-pins nothing */ }
       return;
     }
     // MP3.3 — the cockpit's back/forward buttons drive the framed site's OWN history (the parent

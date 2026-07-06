@@ -2,7 +2,7 @@
   "name": "mooter-cockpit",
   "displayName": "Mooter — Cost Cockpit for Claude Code",
   "description": "See what your Claude Code routing saves — live decisions, tier mix, counterfactual $ savings. Read-only cockpit for the mooter router. Community project, not affiliated with Anthropic.",
-  "version": "0.16.49",
+  "version": "0.16.50",
   "publisher": "mooter",
   "license": "MIT",
   "repository": {
@@ -49,7 +49,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
-      "description": "Read-only over your local mooter telemetry (~/.claude); never executes workspace code."
+      "description": "Read-only over your local mooter telemetry (~/.claude). The optional Live-Edit cloud escalation runs the workspace's Agent SDK only when you trust the workspace; in an untrusted workspace it stays disabled and no workspace code is executed."
     },
     "virtualWorkspaces": {
       "supported": false,

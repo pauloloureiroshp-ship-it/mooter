@@ -14,6 +14,7 @@ import {
   buildNavPath,
   parseInspPath,
   buildBreadcrumbPath,
+  stampMatches,
 } from './lp-error-tap';
 
 describe('parseStackForSource', () => {
@@ -284,5 +285,22 @@ describe('buildNavPath (MP3.3 route sync)', () => {
     expect(buildNavPath('', '')).toBe('/');
     expect(buildNavPath(null, null)).toBe('/');
     expect(buildNavPath('install', '')).toBe('/install'); // guarantees the leading slash
+  });
+});
+
+describe('stampMatches (LP-4 §5 re-pin / breadcrumb re-select)', () => {
+  const attr = 'C:\ws\landing\app\page.tsx:12:7:img';
+  it('matches on the FULL stamp — file+line+col, and tag when given', () => {
+    expect(stampMatches(attr, { file: 'C:\ws\landing\app\page.tsx', line: 12, col: 7, tag: 'img' })).toBe(true);
+    expect(stampMatches(attr, { file: 'C:\ws\landing\app\page.tsx', line: 12, col: 7 })).toBe(true); // tag optional
+    expect(stampMatches(attr, { file: 'C:\ws\landing\app\page.tsx', line: 12, col: 7, tag: 'div' })).toBe(false);
+    expect(stampMatches(attr, { file: 'C:\ws\landing\app\page.tsx', line: 13, col: 7, tag: 'img' })).toBe(false);
+    expect(stampMatches(attr, { file: 'other.tsx', line: 12, col: 7, tag: 'img' })).toBe(false);
+  });
+  it('is fail-soft on junk (no fabricated match, never throws)', () => {
+    expect(stampMatches(null, { file: 'x.tsx', line: 1, col: 1 })).toBe(false);
+    expect(stampMatches('garbage', { file: 'x.tsx', line: 1, col: 1 })).toBe(false);
+    expect(stampMatches(attr, {})).toBe(false); // an unspecified want can never match
+    expect(stampMatches(attr, { file: 'C:\ws\landing\app\page.tsx', line: '12' as unknown as number, col: 7 })).toBe(false);
   });
 });

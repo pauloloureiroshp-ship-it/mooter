@@ -106,4 +106,6 @@ test('preview stamps the source hash and reports the exact removed line, writing
   assert.ok(diff && diff.ok === true && !diff.stale, 'fresh preview is not stale');
   assert.strictEqual(diff.h, sha(SRC));
   assert.deepStrictEqual(diff.removed, ['      <img src="/a.png" alt="a" />']);
+  // LP-4 §6 — the delete diff also carries the ABSOLUTE path of the file it would write (A7).
+  assert.ok(typeof diff.abs === 'string' && path.isAbsolute(diff.abs), 'absolute path in the delete diff');
 });
