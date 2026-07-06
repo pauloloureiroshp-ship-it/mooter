@@ -12,6 +12,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const vm = require('vm');
 const { spawnSync } = require('child_process');
 
 test('installed layout (no ancestral node_modules): require fails → honest parser-unavailable', (t) => {
@@ -54,4 +55,77 @@ test('vsix packaging contract: runtime dependency declared AND .vscodeignore re-
   assert.notStrictEqual(reinclude, -1,
     '.vscodeignore must re-include node_modules/@babel/parser or the installed extension ships without its edit engine');
   assert.ok(ignoreAll === -1 || reinclude > ignoreAll, 'the negation must come AFTER node_modules/** to win');
+});
+
+// ── Honest UI: the host must FORWARD the missing-parser signal, not collapse it into a generic
+// "parse error" that blames the user's file. Same vm harness as lp-delete-host.test.js, but the
+// engine is a stub playing the broken-install role.
+function loadPanelClassWithEngine(engineStub) {
+  const code = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
+  const realReq = require;
+  const req = (name) => { if (name === 'vscode') return mk(); if (name === './live-edit-ast.js') return engineStub; if (name.charAt(0) === '.') return mk(); return realReq(name); };
+  const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  try { vm.runInContext(code, sandbox, { filename: 'extension.js' }); } catch (e) { /* tolerate top-level activate() errors; the class binding survives */ }
+  return vm.runInContext('typeof LivePreviewPanel === "function" ? LivePreviewPanel : null', sandbox);
+}
+
+function mkWorkspace() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lea-ui-'));
+  fs.writeFileSync(path.join(root, 'page.tsx'), '<div>Hi</div>', 'utf8');
+  return root;
+}
+
+function mkInstance(Panel, root) {
+  const inst = Object.create(Panel.prototype);
+  const posts = [];
+  inst.panel = { webview: { postMessage: (m) => posts.push(m) } };
+  inst.token = 'tok';
+  inst._wsRoot = () => root;
+  return { inst, posts };
+}
+
+test('missing parser is forwarded as parser-unavailable on edit AND delete — never blamed on the file', async () => {
+  const broken = { ok: false, reason: 'parse-error', detail: 'parser-unavailable' };
+  const Panel = loadPanelClassWithEngine({ applyDeterministicEdit: () => broken, deleteNode: () => broken });
+  assert.ok(Panel, 'LivePreviewPanel resolvable from the vm-loaded module');
+  const root = mkWorkspace();
+  try {
+    const { inst, posts } = mkInstance(Panel, root);
+    await inst._applyEdit({ file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' } });
+    await inst._deleteNode({ preview: false, file: 'page.tsx', line: 1, tag: 'div', h: 'stamp' });
+    const results = posts.filter((p) => p.type === 'lp-edit-result');
+    assert.strictEqual(results.length, 2);
+    for (const r of results) {
+      assert.strictEqual(r.ok, false);
+      assert.strictEqual(r.reason, 'parser-unavailable', 'the panel must be able to say "reinstall", not "unparseable file"');
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a REAL file parse error still reports parse-error — the reinstall message must not overreach', async () => {
+  const Panel = loadPanelClassWithEngine({
+    applyDeterministicEdit: () => ({ ok: false, reason: 'parse-error', detail: 'Unexpected token (1:5)' }),
+  });
+  const root = mkWorkspace();
+  try {
+    const { inst, posts } = mkInstance(Panel, root);
+    await inst._applyEdit({ file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' } });
+    const r = posts.find((p) => p.type === 'lp-edit-result');
+    assert.ok(r && r.ok === false && r.reason === 'parse-error');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('panel copy distinguishes the two failures (reinstall vs unparseable file)', () => {
+  const code = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  assert.ok(code.includes("'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)'"),
+    'webview map must carry the reinstall message');
+  assert.ok(code.includes("'parse-error':'não consegui interpretar o ficheiro'"),
+    'webview map must keep the honest file-parse message');
 });
