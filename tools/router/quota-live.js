@@ -211,12 +211,109 @@ function onStatuslineRender(data) {
   writeQuotaLive(data);
 }
 
+// ── MP-Q Q3 — quota defcon (pure logic; inject_context.js wires it) ─────────
+// For a subscription user the weekly (7-day) window is the binding constraint;
+// $ cost is ≈0 at the margin. Defcon shifts routing local-first as the week
+// runs out — but doctrine outranks the optimizer: HIGH_RISK T3 floors
+// (push/deploy/secrets/migrations) NEVER come down, and an explicit user
+// override / active mode applied downstream still wins.
+
+const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
+
+/** @param {number|null|undefined} sevenDayPct @returns {{emoji: string, name: string}|null} */
+function quotaDefconLevel(sevenDayPct) {
+  if (typeof sevenDayPct !== 'number' || !Number.isFinite(sevenDayPct)) return null;
+  if (sevenDayPct >= 95) return { emoji: '⚫', name: 'black' };
+  if (sevenDayPct >= 85) return { emoji: '🔴', name: 'red' };
+  if (sevenDayPct >= 70) return { emoji: '🟡', name: 'yellow' };
+  return { emoji: '🟢', name: 'green' };
+}
+
+/** Lower of two tiers ('T0' lowest). */
+function minTier(a, b) {
+  const ia = TIER_ORDER.indexOf(a), ib = TIER_ORDER.indexOf(b);
+  if (ia < 0) return b;
+  if (ib < 0) return a;
+  return TIER_ORDER[Math.min(ia, ib)];
+}
+
+/**
+ * Apply the weekly-quota defcon to a routing decision (mutates it).
+ *
+ * Bands (percent of the OFFICIAL seven-day window used):
+ *   🟡 ≥70 — borderline T2 decisions (confidence ≤ 0.7) bias down to T1.
+ *   🔴 ≥85 — cap at T2 + aggressive local-first (each tier shifts down one).
+ *   ⚫ ≥95 — cloud only for HIGH_RISK doctrine floors; everything else T0.
+ * HIGH_RISK prompts (hook regex or classifier risk_level:high) are exempt at
+ * every band — the T3 doctrine floor never comes down.
+ * Independently: when the payload exposes an Opus/Fable-class window at 100%,
+ * sets decision.suppress_fable so the agent stops suggesting @fable/T5.
+ *
+ * @param {Record<string, any>} decision classify decision (mutated)
+ * @param {Record<string, any>|null} live readQuotaLive() result
+ * @param {boolean} isHighRisk hook-level HIGH_RISK regex verdict
+ * @returns {Record<string, any>|null} the decision.quota_defcon info, or null
+ *          when no fresh official data / level green with nothing to do
+ */
+function applyQuotaDefcon(decision, live, isHighRisk) {
+  if (!decision || !live || !live.fresh) return null;
+
+  // Fable/Opus-class exhaustion is orthogonal to the tier bands.
+  if (typeof live.opus_or_fable_pct === 'number' && live.opus_or_fable_pct >= 100) {
+    decision.suppress_fable = true;
+  }
+
+  const seven = live.seven_day_pct;
+  const level = quotaDefconLevel(seven);
+  if (!level || level.name === 'green') return null;
+
+  const highRisk = !!isHighRisk || decision.risk_level === 'high';
+  const before = decision.tier;
+  let action;
+
+  if (highRisk) {
+    action = 'T3 doctrine floor kept (high-risk exempt)';
+  } else if (level.name === 'yellow') {
+    action = 'no change';
+    const borderline = typeof decision.confidence === 'number' && decision.confidence <= 0.7;
+    if (decision.tier === 'T2' && borderline) {
+      decision.tier = 'T1';
+      action = 'borderline T2 → T1 (bias local)';
+    }
+  } else if (level.name === 'red') {
+    decision.tier = minTier(TIER_ORDER[Math.max(0, TIER_ORDER.indexOf(decision.tier) - 1)], 'T2');
+    decision.max_tier = minTier(decision.max_tier || 'T3', 'T2');
+    action = `cap T2 + local bias (${before} → ${decision.tier})`;
+  } else { // black
+    decision.tier = 'T0';
+    decision.max_tier = minTier(decision.max_tier || 'T3', 'T0');
+    action = `local only (${before} → T0)`;
+  }
+
+  const target = decision.tier === before ? decision.tier : `${decision.tier} (was ${before})`;
+  const info = {
+    level: level.emoji,
+    seven_day_pct: seven,
+    action,
+    reasoning: `weekly ${seven}% → defcon ${level.emoji} → ${target}`,
+  };
+  decision.quota_defcon = info;
+  if (decision.tier !== before) {
+    decision.escalation_rule = (decision.escalation_rule && decision.escalation_rule !== 'none')
+      ? decision.escalation_rule + '+quota_defcon'
+      : 'quota_defcon';
+  }
+  return info;
+}
+
 module.exports = {
   captureStdinSample,
   extractRateLimits,
   writeQuotaLive,
   readQuotaLive,
   onStatuslineRender,
+  quotaDefconLevel,
+  applyQuotaDefcon,
   mooterHome,
   writeAtomic,
   SAMPLE_BASENAME,
