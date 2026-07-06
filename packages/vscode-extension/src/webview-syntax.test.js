@@ -167,8 +167,12 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   assert.ok(html.includes('nada sai da máquina'), 'local privacy copy present');
   assert.ok(html.includes('@fable é SEMPRE manual'), 'fable manual-only doctrine in the chip');
   assert.ok(html.includes('ponte SDK ausente'), 'bridge-missing disables cloud with the honest reason');
-  // §4 undo button + honest states.
-  assert.ok(html.includes('id="lp-sel-undo"'), 'undo button present');
+  // §4 → LP-4.5 §4: the single "desfazer último" gave way to the unified session feed — every
+  // write (deterministic/fenced/agent) is one row with time + via + file(s) + per-item revert.
+  assert.ok(!html.includes('id="lp-sel-undo"'), 'single undo button replaced by the feed');
+  assert.ok(html.includes('id="lp-feed"'), 'unified feed container present');
+  assert.ok(html.includes("type:'lp-feed-revert'"), 'per-item feed revert wired');
+  assert.ok(html.includes('renderEditsFeed'), 'feed renderer serialised into the webview');
   assert.ok(html.includes('↩ desfeito'), 'undone state copy');
   assert.ok(html.includes('a pensar… (moo local · $0)'), 'honest thinking state (local $0)');
   assert.ok(html.includes('moo local offline'), 'honest offline state');

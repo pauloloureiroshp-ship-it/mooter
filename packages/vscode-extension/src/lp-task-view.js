@@ -76,8 +76,49 @@ function renderMarkdownSafe(text) {
   return html;
 }
 
+// ── renderEditsFeed(items) — LP-4.5 §4 · the UNIFIED session feed: EVERY Live Edit write
+// (deterministic text/class, delete, fenced rewrite, agent task) is one row with time + via +
+// file(s) + a per-item revert. Newest first. Statuses are facts from the host (live/reverted/
+// kept) — a refused revert shows its honest reason inline and keeps the button. Same
+// serialisation contract as everything above (concat-only, backtick-free, esc free variable).
+function renderEditsFeed(items) {
+  var list = Array.isArray(items) ? items : [];
+  function clock(ts) {
+    if (ts == null) return 'n/d';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return 'n/d';
+    return d.toLocaleTimeString(undefined, { hour12: false });
+  }
+  var hd = '<div class="lpfd-hd">✎ mudanças desta sessão de preview' + (list.length ? (' · <b>' + list.length + '</b>') : '') + '</div>';
+  if (!list.length) {
+    return '<div class="lpfd lpfd-empty">' + hd
+      + '<div class="lpfd-nd">ainda nenhuma — cada escrita do Live Edit entra aqui com hora, via e reverter por item</div></div>';
+  }
+  var rows = '';
+  for (var i = list.length - 1; i >= 0; i--) {
+    var e = list[i] || {};
+    var files = Array.isArray(e.files) ? e.files : [];
+    var st;
+    if (e.status === 'reverted') st = '<span class="lpfd-st">↩ revertido</span>';
+    else if (e.status === 'kept') st = '<span class="lpfd-st">✓ mantido</span>';
+    else st = '<button type="button" class="lpfd-rv" data-feed-rv="' + esc(e.id || '') + '" title="repor os bytes anteriores desta mudança — guardado por hash: recusa se o ficheiro mudou entretanto">reverter</button>';
+    var stale = (e.reason === 'undo-stale' || e.reason === 'revert-stale');
+    var why = (e.status === 'live' && e.reason)
+      ? ('<span class="lpfd-why">' + esc(stale ? 'o ficheiro mudou entretanto — reverter recusado' : e.reason) + '</span>')
+      : '';
+    rows += '<div class="lpfd-row">'
+      + '<span class="lpfd-time">' + esc(clock(e.ts)) + '</span>'
+      + '<span class="lpfd-via">' + esc(e.via || 'edição') + '</span>'
+      + '<span class="lpfd-files">' + esc(files.join(' · ')) + '</span>'
+      + st + why
+      + '</div>';
+  }
+  return '<div class="lpfd">' + hd + '<div class="lpfd-list">' + rows + '</div></div>';
+}
+
 module.exports = {
   esc: esc,
   suggestLocalChip: suggestLocalChip,
   renderMarkdownSafe: renderMarkdownSafe,
+  renderEditsFeed: renderEditsFeed,
 };

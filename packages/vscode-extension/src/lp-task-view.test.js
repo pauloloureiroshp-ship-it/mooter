@@ -44,8 +44,31 @@ test('empty/garbage input suggests nothing (no hint noise)', () => {
   assert.strictEqual(LTV.suggestLocalChip('faz qualquer coisa'), false, 'no smell either way → no hint');
 });
 
+// ── renderEditsFeed — the unified session list: time + via + files + honest per-item state.
+test('renderEditsFeed: empty state is honest; rows render newest-first with via/files/states', () => {
+  const empty = LTV.renderEditsFeed([]);
+  assert.ok(empty.includes('ainda nenhuma'), 'honest empty state');
+  assert.ok(!empty.includes('data-feed-rv'), 'no phantom revert buttons');
+  const html = LTV.renderEditsFeed([
+    { id: 'f1', ts: 1751800000000, via: 'texto · $0', files: ['landing/app/page.tsx'], status: 'live', reason: null },
+    { id: 'f2', ts: 1751800060000, via: 'agente · AUTO · subscrição', files: ['a.tsx', 'b.tsx'], status: 'kept', reason: null },
+    { id: 'f3', ts: 1751800120000, via: 'cercada · local $0', files: ['c.tsx'], status: 'reverted', reason: null },
+    { id: 'f4', ts: 1751800180000, via: 'apagar · $0', files: ['d.tsx'], status: 'live', reason: 'undo-stale' },
+  ]);
+  assert.ok(html.indexOf('apagar · $0') < html.indexOf('texto · $0'), 'newest first');
+  assert.ok(html.includes('data-feed-rv="f1"'), 'live item gets its revert button');
+  assert.ok(html.includes('✓ mantido'), 'kept state shown');
+  assert.ok(html.includes('↩ revertido'), 'reverted state shown');
+  assert.ok(!html.includes('data-feed-rv="f2"') && !html.includes('data-feed-rv="f3"'), 'settled items get NO button');
+  assert.ok(html.includes('o ficheiro mudou entretanto — reverter recusado'), 'stale refusal visible inline');
+  assert.ok(html.includes('a.tsx · b.tsx'), 'multi-file agent item lists every file');
+  // XSS: ids/vias/files are attacker-influenceable strings — everything must be escaped.
+  const evil = LTV.renderEditsFeed([{ id: '"><script>x</script>', ts: 1, via: '<b>v</b>', files: ['<img>'], status: 'live' }]);
+  assert.ok(!evil.includes('<script>') && !evil.includes('<img>'), 'feed is esc()-clean');
+});
+
 test('serialisation contract: concat-only source (no backticks/${}), esc as a free variable', () => {
-  for (const fn of [LTV.suggestLocalChip, LTV.renderMarkdownSafe]) {
+  for (const fn of [LTV.suggestLocalChip, LTV.renderMarkdownSafe, LTV.renderEditsFeed]) {
     const src = fn.toString();
     assert.ok(src.indexOf(String.fromCharCode(96)) === -1, fn.name + ': no backtick anywhere — the fn embeds in the host template literal');
     assert.ok(src.indexOf('${') === -1, fn.name + ': no ${} interpolation');

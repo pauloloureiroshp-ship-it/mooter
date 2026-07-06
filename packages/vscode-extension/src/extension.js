@@ -1258,6 +1258,7 @@ class LivePreviewPanel {
       s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
+      s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
@@ -1351,6 +1352,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
     if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
+    if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1485,7 +1487,7 @@ class LivePreviewPanel {
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
+      this._pushUndo(real, source, res.code, (edit.kind === 'class' ? 'classe · $0' : 'texto · $0'), raw); // §4 feed item
       this._postEditResult(true, 'applied');
       // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
       // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
@@ -1493,41 +1495,106 @@ class LivePreviewPanel {
     } catch { fail('error'); }
   }
   _postEditResult(ok, reason) {
-    // §4 — every result carries the live undo depth so the panel can enable/disable "desfazer"
-    // without a second round-trip (0 = nothing to undo; the button says so honestly).
-    const undo = (this._undoStack && this._undoStack.length) || 0;
+    // §4 — every result carries the live revertable depth so the panel state reflects facts.
+    const undo = this._undoDepth();
     try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo }); } catch { /* best-effort */ }
   }
-  // §4 — remember the write we are about to make as an inverse-splice entry (LIFO, capped).
-  // Lazy stack init: unit harnesses build instances without running the constructor.
-  _pushUndo(real, before, after) {
+  // ── LP-4.5 §4 — the UNIFIED session feed. ONE list holds every Live Edit write: splice-kind
+  // items (deterministic text/class, delete, fenced rewrite — each carries its LEU inverse-splice
+  // entry) and agent-kind items (an anchored task's edits, referenced by taskId in _taskReg).
+  // The feed replaces the single "desfazer último" button: every item reverts individually,
+  // always sha-guarded fail-closed. Lazy init: unit harnesses skip the constructor.
+  _feedPush(item) {
+    try {
+      if (!this._feed) { this._feed = []; this._feedSeq = 0; this._feedRev = 0; }
+      item.id = 'f' + (++this._feedSeq);
+      item.ts = Date.now();
+      this._feed.push(item);
+      if (this._feed.length > 50) this._feed.shift();
+      this._feedBump();
+      return item;
+    } catch { return null; }
+  }
+  _feedBump() {
+    this._feedRev = (this._feedRev || 0) + 1;
+    this._post(); // the feed rides the snapshot; bumping reposts it immediately
+  }
+  // Renderable view — never leaks host paths or splice internals to the webview.
+  _feedView() {
+    const items = (this._feed || []).map((e) => ({ id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', reason: e.reason || null }));
+    return { rev: this._feedRev || 0, items };
+  }
+  _undoDepth() {
+    let n = 0;
+    for (const e of (this._feed || [])) { if (e.kind === 'splice' && e.status === 'live') n++; }
+    return n;
+  }
+  // Newest LIVE agent feed item for a taskId (end-scan: a stale settled item never shadows).
+  _feedFindAgent(taskId) {
+    const feed = this._feed || [];
+    for (let i = feed.length - 1; i >= 0; i--) {
+      const e = feed[i];
+      if (e.kind === 'agent' && e.taskId === taskId && e.status === 'live') return e;
+    }
+    return null;
+  }
+  // §4 — remember the write we just made as a feed item carrying its inverse-splice entry.
+  _pushUndo(real, before, after, via, relFile) {
     try {
       if (!LEU) return;
       const e = LEU.makeEntry(real, before, after);
       if (!e) return;
-      if (!this._undoStack) this._undoStack = [];
-      this._undoStack.push(e);
-      if (this._undoStack.length > 20) this._undoStack.shift();
-    } catch { /* undo is best-effort bookkeeping — never blocks the write */ }
+      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null });
+    } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
   }
-  // §4 — "desfazer último": inverse byte-splice of the most recent Live Edit write. FAIL-CLOSED:
-  // the file's CURRENT sha must still match the sha stamped at write time; if anything else wrote
-  // it since (HMR, an agent, the editor), we refuse honestly ('undo-stale') and keep the entry —
-  // a blind revert over someone else's bytes is exactly the lie this product exists to avoid.
+  // Inverse byte-splice of ONE feed item. FAIL-CLOSED: the file's CURRENT sha must still match
+  // the sha stamped at write time; if anything else wrote it since (HMR, an agent, the editor),
+  // we refuse honestly ('undo-stale') and keep the item live with its visible reason — a blind
+  // revert over someone else's bytes is exactly the lie this product exists to avoid.
+  _revertSpliceItem(item) {
+    if (!LEU) return { ok: false, reason: 'engine-unavailable' };
+    let cur;
+    try { cur = fs.readFileSync(item.entry.file, 'utf8'); }
+    catch { return { ok: false, reason: 'undo-stale' }; }
+    const r = LEU.applyUndo(item.entry, cur);
+    if (!r.ok) return r;
+    try { fs.writeFileSync(item.entry.file, r.code, 'utf8'); }
+    catch { return { ok: false, reason: 'error' }; }
+    return { ok: true };
+  }
+  // "desfazer último" (kept as host machinery): revert the NEWEST live splice item — identical
+  // to clicking that item's revert in the feed.
   async _undoLast() {
     try {
       if (!LEU) { this._postEditResult(false, 'engine-unavailable'); return; }
-      const stack = this._undoStack || [];
-      const e = stack[stack.length - 1];
-      if (!e) { this._postEditResult(false, 'nothing-to-undo'); return; }
-      let cur;
-      try { cur = fs.readFileSync(e.file, 'utf8'); }
-      catch { this._postEditResult(false, 'undo-stale'); return; }
-      const r = LEU.applyUndo(e, cur);
-      if (!r.ok) { this._postEditResult(false, r.reason); return; }
-      fs.writeFileSync(e.file, r.code, 'utf8');
-      stack.pop();
+      const feed = this._feed || [];
+      let item = null;
+      for (let i = feed.length - 1; i >= 0; i--) { if (feed[i].kind === 'splice' && feed[i].status === 'live') { item = feed[i]; break; } }
+      if (!item) { this._postEditResult(false, 'nothing-to-undo'); return; }
+      const r = this._revertSpliceItem(item);
+      if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
+      item.status = 'reverted'; item.reason = null;
+      this._feedBump();
       this._postEditResult(true, 'undone');
+    } catch { this._postEditResult(false, 'error'); }
+  }
+  // Per-item revert from the feed. Splice items invert their own span; agent items delegate to
+  // the task registry (sha-guarded per file). Unknown/settled items answer honestly.
+  async _feedRevert(m) {
+    try {
+      const id = (m && typeof m.id === 'string') ? m.id : '';
+      const item = (this._feed || []).find((e) => e.id === id) || null;
+      if (!item || item.status !== 'live') { this._postEditResult(false, 'nothing-to-undo'); return; }
+      if (item.kind === 'splice') {
+        const r = this._revertSpliceItem(item);
+        if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
+        item.status = 'reverted'; item.reason = null;
+        this._feedBump();
+        this._postEditResult(true, 'undone');
+        return;
+      }
+      if (item.kind === 'agent') { this._taskRevert({ taskId: item.taskId, all: true }); return; }
+      this._postEditResult(false, 'error');
     } catch { this._postEditResult(false, 'error'); }
   }
   _postEditDiff(payload) {
@@ -1583,7 +1650,7 @@ class LivePreviewPanel {
       }
       // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code); // §4 — inverse splice, recorded only after a real write
+      this._pushUndo(real, source, res.code, 'apagar · $0', raw); // §4 feed item
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
   }
@@ -1694,7 +1761,10 @@ class LivePreviewPanel {
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom entry that lights the undo button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, s2, res.code); // §4 — inverse splice, recorded only after a real write
+      const vlabel = (m.tier && m.tier !== 'local')
+        ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
+        : 'cercada · local $0';
+      this._pushUndo(real, s2, res.code, vlabel, raw); // §4 feed item
       this._postEditResult(true, 'model-applied');
       // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
       // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
@@ -1765,6 +1835,12 @@ class LivePreviewPanel {
       const edits = Array.isArray(res.edits) ? res.edits : [];
       this._taskReg.set(taskId, edits);
       if (this._taskReg.size > 20) { const k = this._taskReg.keys().next().value; this._taskReg.delete(k); }
+      // §4 — an agent task that edited files is ONE feed item (per-file revert lives in the
+      // result panel; the feed item reverts the whole task, sha-guarded per file).
+      if (edits.length) {
+        const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
+        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null });
+      }
       // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
       // file now) — the user's own pre-existing uncommitted changes never pollute it.
       const view = edits.map((e) => {
@@ -1808,6 +1884,17 @@ class LivePreviewPanel {
         }
       }
       if (!reg.length) this._taskReg.delete(taskId);
+      // §4 — reflect the outcome on the task's feed item: emptied → reverted; a refusal keeps it
+      // live with the honest reason visible. Scan from the end, live-only (newest task wins).
+      const item = this._feedFindAgent(taskId);
+      if (item) {
+        if (!reg.length) { item.status = 'reverted'; item.reason = null; }
+        else {
+          const bad = results.find((r) => !r.ok);
+          if (bad) item.reason = bad.reason || 'error';
+        }
+        this._feedBump();
+      }
       post({ taskId, results, done: !reg.length });
     } catch { post({ taskId: (m && m.taskId) || '', results: [], done: false }); }
   }
@@ -1821,6 +1908,9 @@ class LivePreviewPanel {
       if (!reg || !reg.length) { post({ taskId, ok: false }); return; }
       for (const e of reg) { try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ } }
       this._taskReg.delete(taskId);
+      // §4 — the feed item settles as kept (facts, not claims).
+      const item = this._feedFindAgent(taskId);
+      if (item) { item.status = 'kept'; item.reason = null; this._feedBump(); }
       post({ taskId, ok: true });
     } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
   }
@@ -1930,6 +2020,7 @@ function getLivePreviewHtml(token) {
   // backtick-free source).
   const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
   const renderMarkdownSafeSrc = LTV ? LTV.renderMarkdownSafe.toString() : 'function renderMarkdownSafe(t){return esc(t);}';
+  const renderEditsFeedSrc = LTV ? LTV.renderEditsFeed.toString() : 'function renderEditsFeed(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -2040,6 +2131,20 @@ function getLivePreviewHtml(token) {
   .lpd-btn:hover:not([disabled]){background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   .lpd-btn[disabled]{opacity:.45;cursor:not-allowed}
   .lpd-x:focus-visible,.lpd-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.5 §4 — the unified session feed (one row per Live Edit write, per-item revert). */
+  .lpfd{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
+  .lpfd-hd{font-weight:700;margin-bottom:4px}
+  .lpfd-nd{color:var(--vscode-descriptionForeground);font-style:italic;font-size:11.5px}
+  .lpfd-list{max-height:26vh;overflow:auto}
+  .lpfd-row{display:flex;gap:7px;align-items:baseline;padding:3px 0;border-top:1px solid var(--vscode-widget-border);font-size:11.5px;flex-wrap:wrap}
+  .lpfd-time{opacity:.6;font-variant-numeric:tabular-nums;flex:none}
+  .lpfd-via{flex:none;font-size:10px;padding:1px 7px;border-radius:999px;background:var(--vscode-input-background);border:1px solid var(--vscode-widget-border)}
+  .lpfd-files{flex:1 1 auto;min-width:80px;font-family:var(--vscode-editor-font-family,monospace);font-size:10.5px;word-break:break-all;opacity:.9}
+  .lpfd-st{flex:none;font-size:10.5px;opacity:.9}
+  .lpfd-why{flex-basis:100%;font-size:10.5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B))}
+  .lpfd-rv{flex:none;font:10.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:1px 8px;cursor:pointer}
+  .lpfd-rv:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lpfd-rv:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   .lpbr,.lpdc{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
   .lpbr-hd,.lpdc-hd{font-weight:700;margin-bottom:6px}
   .lpbr-row{margin:3px 0;font-size:12px}
@@ -2084,6 +2189,7 @@ function getLivePreviewHtml(token) {
   </section>
   <aside id="lp-side">
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
+    <div id="lp-feed" role="region" aria-label="Mudanças desta sessão de preview"></div>
     <div id="lp-brain">a carregar…</div>
     <div id="lp-dc"></div>
   </aside>
@@ -2100,6 +2206,7 @@ const isLivePreviewSelfNoise=${isSelfNoiseSrc};
 const isBenignCssWarning=${isBenignCssSrc};
 const suggestLocalChip=${suggestLocalChipSrc};
 const renderMarkdownSafe=${renderMarkdownSafeSrc};
+const renderEditsFeed=${renderEditsFeedSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2273,11 +2380,11 @@ function lpSendRestore(){
 // rewrite, $0) · 't1'/'t2'/'t3'/'fable' (the agent pinned to that subscription model; @fable is
 // manual-only, never auto-routed).
 let lpSelection=null, lpSelectOn=false, lpMode='auto';
-// LP-4 §6 / review P1-B — honest session state driving the panel: undo depth (from lp-edit-result)
-// and the SDK-bridge status (from the snapshot). The WRITE TARGET is NOT a global anymore: every
-// apply (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m), so a
-// second preview in flight can never move where an approved diff lands.
-let lpUndoDepth=0, lpBridge=null;
+// LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
+// the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
+// a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
+// (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
+let lpFeedRev=-1, lpBridge=null;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -2344,8 +2451,7 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button>'
-    +'<button id="lp-sel-undo" class="lp-sel-btn"'+(lpUndoDepth<1?' disabled title="nada para desfazer nesta sessão"':' title="desfazer a última escrita do Live Edit — $0, splice inverso"')+'>↩ desfazer último</button></div>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
@@ -2383,9 +2489,6 @@ function renderSelection(sel){
       else h.style.display='none';
     });
   }
-  // §4 — undo: $0 inverse byte-splice of the LAST Live Edit write (sha-guarded host-side).
-  const ub=document.getElementById('lp-sel-undo');
-  if(ub) ub.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-undo' }); showEditResult(null,'pending'); });
   const cbs=el.querySelectorAll('[data-crumb]');
   for(let i=0;i<cbs.length;i++){ cbs[i].addEventListener('click', function(){
     // Honest gate: re-select needs the 🎯 armed (the tap ignores lp-reselect when off) — say so
@@ -2719,18 +2822,24 @@ window.addEventListener('message', (ev) => {
     const br=m.s && m.s.leBridge;
     if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); }
     else if(br) lpBridge=br;
+    // LP-4.5 §4 — the unified feed rides the snapshot; re-render ONLY when its revision moves so
+    // a poll never steals focus from a feed button mid-click.
+    const fd=m.s && m.s.feed;
+    if(fd && typeof fd.rev==='number' && fd.rev!==lpFeedRev){
+      lpFeedRev=fd.rev;
+      const fe=document.getElementById('lp-feed');
+      if(fe){
+        fe.innerHTML=renderEditsFeed(fd.items);
+        const bs=fe.querySelectorAll('[data-feed-rv]');
+        for(let i=0;i<bs.length;i++){ bs[i].addEventListener('click', function(){ vsapi.postMessage({ type:'lp-feed-revert', id:this.getAttribute('data-feed-rv') }); }); }
+      }
+    }
   }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
     if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
-    // §4 — the live undo depth drives the button state (facts, not claims).
-    if (typeof m.undo === 'number'){
-      lpUndoDepth=m.undo;
-      const ub=document.getElementById('lp-sel-undo');
-      if(ub){ ub.disabled=lpUndoDepth<1; ub.title=lpUndoDepth<1?'nada para desfazer nesta sessão':'desfazer a última escrita do Live Edit — $0, splice inverso'; }
-    }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
