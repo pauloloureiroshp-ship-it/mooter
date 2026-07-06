@@ -31,6 +31,11 @@ import { readFileSync, writeFileSync, mkdtempSync, realpathSync, lstatSync } fro
 import { join, resolve, relative, isAbsolute, sep, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+
+// Raw-bytes sha256, IDENTICAL to the host's sha256File (live-edit-task.js) so the host's revert
+// guard can compare edit.shaAfter (stamped here at edit time) against the file's later hash.
+function sha256File(abs) { return createHash('sha256').update(readFileSync(abs)).digest('hex'); }
 
 function out(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
@@ -240,6 +245,26 @@ async function main() {
     + 'Âncora (o elemento fixado):\n' + (anchor.length ? anchor.join('\n') : '- (sem âncora)') + '\n\n'
     + 'Instrução do utilizador: ' + instruction;
 
+  // review L3 — EDIT-TIME shaAfter. A PostToolUse hook fires the instant an Edit/MultiEdit's write
+  // completes (synchronous SDK continuation, before the next model request). We hash the file RIGHT
+  // THEN and stamp it on the edit record. This is the state the AGENT left the file in — unlike a
+  // verdict-time stamp, which (over a maxTurns:40 session) could adopt a CONCURRENT write (HMR /
+  // editor autosave / another task) as the revert baseline and let a "successful" revert destroy
+  // it. If this hook never fires (older SDK), shaAfter stays unset and the host fails revert closed.
+  const stampEditTime = async (hin) => {
+    try {
+      if (hin && (hin.tool_name === 'Edit' || hin.tool_name === 'MultiEdit')) {
+        const fp = hin.tool_input && hin.tool_input.file_path;
+        if (typeof fp === 'string' && fp) {
+          const a = resolve(fp);
+          const e = edits.find((x) => x.abs === a);
+          if (e) { try { e.shaAfter = sha256File(a); } catch { /* leave unset → host revert fails closed */ } }
+        }
+      }
+    } catch { /* a hook error must NEVER break the session */ }
+    return { continue: true };
+  };
+
   let text = '';
   try {
     for await (const m of query({
@@ -254,6 +279,7 @@ async function main() {
         // known-dangerous tools are additionally hard-blocked below (belt and suspenders).
         disallowedTools: ['Bash', 'Write', 'WebFetch', 'WebSearch', 'NotebookEdit', 'Task', 'KillShell'],
         canUseTool,
+        hooks: { PostToolUse: [{ hooks: [stampEditTime] }] }, // L3: edit-time shaAfter (see above)
       },
     })) {
       if (m && m.type === 'assistant' && m.message && m.message.content) {

@@ -2822,7 +2822,8 @@ function showEditResult(ok, reason){
     'task-timeout':'o agente demorou demasiado (180s) — tenta um pedido mais pequeno',
     'task-bridge-error':'a ponte do agente falhou — vê a sessão do Claude Code',
     'task-empty':'o agente devolveu vazio — reformula o pedido',
-    'revert-stale':'o ficheiro mudou desde a edição do agente — reverter recusado (nada foi escrito)' };
+    'revert-stale':'o ficheiro mudou desde a edição do agente — reverter recusado (nada foi escrito)',
+    'revert-unavailable':'não consigo garantir o reverter deste ficheiro (sem marca da edição) — recusado para não sobrepor bytes de outrem' };
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }

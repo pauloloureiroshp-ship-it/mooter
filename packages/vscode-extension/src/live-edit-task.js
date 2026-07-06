@@ -101,10 +101,18 @@ function runAnchoredTask(input, opts) {
       if (done) return;
       done = true;
       killTree();
-      // Revert guard: stamp each edited file's CURRENT hash — the panel's revert is only valid
-      // while the file still matches (nothing else wrote it since the agent finished).
+      // review L3 — the revert baseline (edit.shaAfter) is stamped RUNNER-side at EDIT time (the
+      // PostToolUse hook), i.e. the file hash the instant the agent's own write landed. We must
+      // NEVER re-stamp it here at VERDICT time: over a long (maxTurns:40) session a concurrent
+      // write during the agent's post-edit continuation window (HMR / editor autosave / another
+      // task) would be silently adopted as the baseline and then destroyed by a "successful"
+      // revert — the exact clobber this product exists to prevent. If the runner did not supply a
+      // shaAfter (e.g. the hook was unavailable), leave it unset: revertEdit then fails CLOSED
+      // ('revert-unavailable') rather than guessing a baseline that could be someone else's bytes.
       if (r && r.ok && Array.isArray(r.edits)) {
-        for (const e of r.edits) { if (e && e.abs) e.shaAfter = sha256File(e.abs); }
+        for (const e of r.edits) {
+          if (e && (typeof e.shaAfter !== 'string' || !e.shaAfter)) e.shaAfter = null;
+        }
       }
       resolvePromise(r);
     };
@@ -173,7 +181,10 @@ function gitDiffFile(snapshotPath, filePath, opts) {
 // uncommitted changes in the file; this puts back exactly — and only — what the agent changed.)
 function revertEdit(edit) {
   try {
-    if (!edit || !edit.abs || !edit.snapshot || !edit.shaAfter) return { ok: false, reason: 'bad-entry' };
+    if (!edit || !edit.abs || !edit.snapshot) return { ok: false, reason: 'bad-entry' };
+    // review L3: a missing edit-time baseline means we cannot prove the file still holds ONLY the
+    // agent's bytes — refuse rather than restore blindly (fail closed, never clobber).
+    if (typeof edit.shaAfter !== 'string' || !edit.shaAfter) return { ok: false, reason: 'revert-unavailable' };
     const cur = sha256File(edit.abs);
     if (!cur) return { ok: false, reason: 'revert-stale' };
     if (cur !== edit.shaAfter) return { ok: false, reason: 'revert-stale' };

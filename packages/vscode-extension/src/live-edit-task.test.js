@@ -58,6 +58,9 @@ function plantFakeSdk(root, mode) {
       "  if (ed.behavior === 'allow') {",
       "    const f = join(ws, 'landing', 'page.tsx');",
       "    writeFileSync(f, readFileSync(f, 'utf8').replace('61 moos', '77 moos'), 'utf8');",
+      // L3: mirror the real SDK — PostToolUse fires the instant the Edit's write completes, so the
+      // runner stamps shaAfter at EDIT time (not verdict time).
+      "    if (options.hooks && options.hooks.PostToolUse) { try { await options.hooks.PostToolUse[0].hooks[0]({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: f } }, 'tuid', { signal: undefined }); } catch (e) {} }",
       "  }",
       "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ prompt, model: options.model, cwd: ws, maxTurns: options.maxTurns, allowedTools: options.allowedTools, disallowedTools: options.disallowedTools, asks }));",
       "  yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Atualizei para 77 moos (valor real do repo).' }] } };",
@@ -117,6 +120,22 @@ function plantFakeSdk(root, mode) {
       "  await ask(join(ws, 'landing', 'page.tsx'), '61', '77');",
       "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ asks }));",
       "  yield { result: 'done' };",
+      '}',
+    ].join('\n');
+  } else if (mode === 'toctou') {
+    // L3 probe: agent Edit -> PostToolUse hook (edit-time shaAfter) -> a CONCURRENT writer lands
+    // BEFORE the verdict. Proves shaAfter tracks the agent's bytes, not the later concurrent write.
+    body = [
+      "import { writeFileSync, readFileSync } from 'node:fs';",
+      "import { join } from 'node:path';",
+      'export async function* query({ options }) {',
+      "  const ws = options.cwd;",
+      "  const f = join(ws, 'landing', 'page.tsx');",
+      "  const r = await options.canUseTool('Edit', { file_path: f, old_string: '61 moos', new_string: '77 moos' });",
+      "  if (r.behavior === 'allow') writeFileSync(f, readFileSync(f, 'utf8').replace('61 moos', '77 moos'), 'utf8');", // the agent's own write
+      "  if (options.hooks && options.hooks.PostToolUse) { try { await options.hooks.PostToolUse[0].hooks[0]({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: f } }, 'tuid', { signal: undefined }); } catch (e) {} }", // stamps shaAfter=hash(agent bytes)
+      "  writeFileSync(f, 'CONCURRENT-200-moos\\n', 'utf8');", // a concurrent writer (HMR/autosave/2nd task) lands after the agent, before the verdict
+      "  yield { result: 'edited' };",
       '}',
     ].join('\n');
   } else if (mode === 'qa') {
@@ -239,8 +258,12 @@ test('e2e ALLOWLIST gauntlet: Bash/WebFetch/WebSearch/Write DENIED; Read/Edit ou
     assert.ok(fs.existsSync(r.edits[0].snapshot), 'snapshot exists');
     assert.strictEqual(fs.readFileSync(r.edits[0].snapshot, 'utf8'), PAGE, 'snapshot holds the BEFORE bytes');
     assert.strictEqual(crypto.createHash('sha256').update(fs.readFileSync(r.edits[0].snapshot)).digest('hex'), shaBefore);
-    assert.strictEqual(r.edits[0].shaAfter, sha(target), 'shaAfter stamps the file as the agent left it');
+    assert.strictEqual(r.edits[0].shaAfter, sha(target), 'shaAfter stamps the file as the agent left it (edit-time hook)');
     assert.ok(fs.readFileSync(target, 'utf8').includes('77 moos'), 'the approved edit really landed');
+    // happy-path revert (no concurrent write): succeeds and restores byte-exact.
+    const rev = LET.revertEdit(r.edits[0]);
+    assert.strictEqual(rev.ok, true, 'clean revert succeeds: ' + JSON.stringify(rev));
+    assert.strictEqual(fs.readFileSync(target, 'utf8'), PAGE, 'revert restores the original bytes exactly');
     assert.deepStrictEqual(r.filesRead, ['landing/page.tsx'], 'filesRead reported');
     assert.ok(r.denied.length >= 6, 'denials reported for honesty: ' + JSON.stringify(r.denied));
 
@@ -306,6 +329,29 @@ test('L2: Edit on sensitive files (.env, CI workflow) DENIED even inside the wor
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('L3: shaAfter is the AGENT edit-time hash (PostToolUse hook), not verdict-time — a concurrent write is NOT clobbered by revert', async () => {
+  const { root } = mkWorkspace('toctou');
+  const abs = path.join(root, 'landing', 'page.tsx');
+  try {
+    const agentContent = PAGE.replace('61 moos', '77 moos'); // what the agent wrote
+    const foreignContent = 'CONCURRENT-200-moos\n';           // what a concurrent writer left before verdict
+    const r = await LET.runAnchoredTask(INPUT, { wsRoot: root, trusted: true, timeoutMs: 30000 });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    assert.strictEqual(r.edits.length, 1);
+    const shaAgent = crypto.createHash('sha256').update(Buffer.from(agentContent, 'utf8')).digest('hex');
+    const shaForeign = crypto.createHash('sha256').update(Buffer.from(foreignContent, 'utf8')).digest('hex');
+    // THE FIX: shaAfter tracks the agent's own bytes (stamped at edit time), NOT the later concurrent write.
+    assert.strictEqual(r.edits[0].shaAfter, shaAgent, 'shaAfter = agent edit-time hash');
+    assert.notStrictEqual(r.edits[0].shaAfter, shaForeign, 'shaAfter is NOT the verdict-time (concurrent) hash — the old bug');
+    // the file now holds the concurrent write; revert must REFUSE (fail closed) and preserve it.
+    assert.strictEqual(fs.readFileSync(abs, 'utf8'), foreignContent, 'file holds the concurrent write at verdict');
+    const rev = LET.revertEdit(r.edits[0]);
+    assert.strictEqual(rev.ok, false, 'revert refuses');
+    assert.strictEqual(rev.reason, 'revert-stale', 'honest stale refusal, not a silent clobber');
+    assert.strictEqual(fs.readFileSync(abs, 'utf8'), foreignContent, 'the concurrent write SURVIVES — no data loss');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('question mode: no edits → kind answer, zero writes, text returned', async () => {
   const { root } = mkWorkspace('qa');
   try {
@@ -351,6 +397,10 @@ test('revertEdit is sha-guarded: reverts exactly the agent bytes; refuses once a
     // garbage entries refuse
     assert.strictEqual(LET.revertEdit(null).ok, false);
     assert.strictEqual(LET.revertEdit({ abs: f }).ok, false);
+    // L3: an edit with no edit-time baseline fails CLOSED (revert-unavailable), never a blind restore.
+    const noBaseline = LET.revertEdit({ abs: f, snapshot: snap });
+    assert.strictEqual(noBaseline.ok, false);
+    assert.strictEqual(noBaseline.reason, 'revert-unavailable');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
