@@ -450,6 +450,7 @@ export function installLpErrorTap(): void {
         tag: parsed.tag,
         rect: { x: r.left, y: r.top, w: r.width, h: r.height },
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
       });
     };
     const onKey = (ev: KeyboardEvent): void => {

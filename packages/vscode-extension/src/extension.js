@@ -88,6 +88,11 @@ try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
 // decides. Fail-soft: absent → the strip stays hidden and the App Stage is unchanged (no crash).
 let LPD = null;
 try { LPD = require('./lp-diagnostics.js'); } catch { LPD = null; }
+// ── LIVE EDIT · MP5.1 — the deterministic $0 edit engine (byte-splice via @babel/parser, ZERO LLM).
+// Pure; the fs read/write lives host-side below. Fail-soft: absent (or @babel/parser missing) → the
+// select panel still opens files (click-to-code), and lp-edit reports 'engine-unavailable' honestly.
+let LEA = null;
+try { LEA = require('./live-edit-ast.js'); } catch { LEA = null; }
 
 function trackerPort() { return vscode.workspace.getConfiguration('mooter').get('trackerPort', 7821); }
 
@@ -1309,6 +1314,7 @@ class LivePreviewPanel {
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
+    if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
@@ -1389,6 +1395,39 @@ class LivePreviewPanel {
       if (line != null) { const pos = new vscode.Position(line - 1, col != null ? col - 1 : 0); opts.selection = new vscode.Range(pos, pos); }
       await vscode.window.showTextDocument(doc, opts);
     } catch { /* best-effort — never crash the panel over an open */ }
+  }
+  // MP5.1 deterministic $0 edit — resolve the selected file (same workspace-containment guard as the
+  // opens), run the byte-splice engine (ZERO LLM), and write it back so Next's HMR repaints the frame.
+  // Honest result: every refusal/failure is reported to the panel with its exact reason (no silent
+  // no-op, no fabricated success). The write is a single full-source writeFileSync — atomic enough,
+  // and the diff is minimal (only the edited span changed), so an editor/git undo is a clean rollback.
+  async _applyEdit(m) {
+    try {
+      const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      const edit = (m && m.edit && typeof m.edit === 'object') ? m.edit : null;
+      if (!raw || !edit) { this._postEditResult(false, 'bad-request'); return; }
+      if (!LEA) { this._postEditResult(false, 'engine-unavailable'); return; }
+      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const root = this._wsRoot();
+      const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
+      let real = null;
+      try {
+        if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+          const r = fs.realpathSync(abs);
+          if (contained(fs.realpathSync(root), r)) real = r;
+        }
+      } catch { /* fall through to the honest result */ }
+      if (!real) { this._postEditResult(false, 'file-not-in-workspace'); return; }
+      const source = fs.readFileSync(real, 'utf8');
+      const res = LEA.applyDeterministicEdit(source, { line: m.line, col: m.col, tag: m.tag }, edit);
+      if (!res.ok) { this._postEditResult(false, res.reason || 'refused'); return; }
+      if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      fs.writeFileSync(real, res.code, 'utf8');
+      this._postEditResult(true, 'applied');
+    } catch { this._postEditResult(false, 'error'); }
+  }
+  _postEditResult(ok, reason) {
+    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || '') }); } catch { /* best-effort */ }
   }
   // Format the error (message + location + stack) and put it on the clipboard, ready to paste
   // into the active Claude Code session. MVP of "enviar à sessão CC" (V2: inject via the cockpit
@@ -1492,6 +1531,14 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-sel-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-sel .lp-sel-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   #lp-sel .lp-sel-btn:focus-visible,#lp-select-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-sel .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
+  #lp-sel .lp-ed-row{display:flex;gap:6px;align-items:center}
+  #lp-sel .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
+  #lp-sel .lp-ed-in:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-sel .lp-ed-msg{font-size:11px;margin-top:8px;min-height:14px}
+  #lp-sel .lp-ed-ok{color:var(--vscode-charts-green,#4CAF6A)}
+  #lp-sel .lp-ed-no{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B))}
+  #lp-sel .lp-ed-pending{opacity:.7}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
@@ -1775,13 +1822,37 @@ function renderSelection(sel){
   if(!sel){ el.style.display='none'; el.innerHTML=''; return; }
   const loc=esc(sel.file||'?')+':'+esc(sel.line==null?'?':sel.line)+(sel.col!=null?(':'+esc(sel.col)):'');
   const tag=esc(sel.tag||'elemento');
-  const txt=sel.text?('<div class="lp-sel-txt">“'+esc(sel.text)+'”</div>'):'';
+  const curText=sel.text||''; const curClass=sel.className||'';
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
-    +'<div class="lp-sel-loc">'+loc+'</div>'+txt
-    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button></div>';
+    +'<div class="lp-sel-loc">'+loc+'</div>'
+    +'<div class="lp-ed-l">texto</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button></div>'
+    +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
+  const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
+  const ti=document.getElementById('lp-ed-text'), tb=document.getElementById('lp-ed-text-b');
+  if(ti&&tb){ tb.addEventListener('click', function(){ sendEdit('text', ti.value); }); ti.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('text', ti.value); } }); }
+  const ci=document.getElementById('lp-ed-class'), cb=document.getElementById('lp-ed-class-b');
+  if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
+}
+// Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
+function showEditResult(ok, reason){
+  const el=document.getElementById('lp-edit-msg'); if(!el) return;
+  if(ok===null){ el.textContent='a aplicar…'; el.className='lp-ed-msg lp-ed-pending'; return; }
+  const map={ applied:'✓ aplicado — $0, sem tokens (o HMR atualiza o preview)', 'no-op':'sem alterações a aplicar',
+    'not-simple-text':'este elemento não é texto simples — edição estrutural chega no MP5.2',
+    'dynamic-classname':'className é dinâmico ({…}) — não é editável deterministicamente',
+    'unsafe-text':'o texto tem < > { } — precisa do modo estrutural', 'unsafe-class':'classe inválida (< > { } ou aspas)',
+    'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
+    'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
+    'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição' };
+  const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
+  el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
 window.addEventListener('message', (ev) => {
   const m = ev.data;
@@ -1807,7 +1878,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ lpSendRestore(); }
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text }; renderSelection(lpSelection); }
+    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className }; renderSelection(lpSelection); }
     else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }
@@ -1816,6 +1887,7 @@ window.addEventListener('message', (ev) => {
   if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){ render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes); }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
+  else if (m.type === 'lp-edit-result'){ showEditResult(m.ok, m.reason); } // MP5.1 honest deterministic-edit feedback
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin
