@@ -186,6 +186,16 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.5 §6 device toggle — 390/768/full buttons drive ONLY the iframe width', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-dev-390"') && html.includes('id="lp-dev-768"') && html.includes('id="lp-dev-full"'), 'three device buttons in the toolbar');
+  assert.ok(html.includes('setDevice(390)') && html.includes('setDevice(768)') && html.includes('setDevice(null)'), 'width presets wired');
+  assert.ok(/f\.style\.width=px\+'px'/.test(html), 'the toggle only sets the iframe width (no UA spoofing claimed)');
+  assert.ok(html.includes('só muda a largura do iframe'), 'honest copy: width only');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

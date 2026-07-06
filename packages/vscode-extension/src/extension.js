@@ -2105,6 +2105,10 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
+  /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
+  #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
+  #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
+  .lp-dev-btn[aria-pressed="true"]{background:var(--vscode-charts-blue,#5A9BD4)!important;color:#0B0A09!important;border-color:transparent!important;font-weight:700}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
   .lp-degrade-in{max-width:440px}
   .lp-degrade-ico{font-size:34px;margin-bottom:8px;opacity:.85}
@@ -2186,6 +2190,9 @@ function getLivePreviewHtml(token) {
         <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
         <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
+        <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
+        <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
+        <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
@@ -2921,6 +2928,24 @@ const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
+// LP-4.5 §6 — device toggle: 📱390 · 📱768 · 💻 full. Honest and cheap: ONLY the iframe width
+// changes (real responsive breakpoints in the user's own dev server) — no UA spoofing claimed.
+function setDevice(px){
+  const f=document.getElementById('lp-frame'), w=document.getElementById('lp-framewrap');
+  if(!f||!w) return;
+  if(px){ f.style.width=px+'px'; f.style.maxWidth='100%'; w.classList.add('lp-dev-narrow'); }
+  else { f.style.width='100%'; f.style.maxWidth=''; w.classList.remove('lp-dev-narrow'); }
+  const map=[['lp-dev-390',390],['lp-dev-768',768],['lp-dev-full',null]];
+  for(let i=0;i<map.length;i++){ const b=document.getElementById(map[i][0]); if(b) b.setAttribute('aria-pressed', map[i][1]===px?'true':'false'); }
+}
+(function(){
+  const d3=document.getElementById('lp-dev-390');
+  if(d3) d3.addEventListener('click', ()=> setDevice(390));
+  const d7=document.getElementById('lp-dev-768');
+  if(d7) d7.addEventListener('click', ()=> setDevice(768));
+  const df=document.getElementById('lp-dev-full');
+  if(df) df.addEventListener('click', ()=> setDevice(null));
+})();
 </script>
 </body></html>`;
 }
