@@ -425,6 +425,12 @@ export function installLpErrorTap(): void {
     let on = false;
     let shadowHost: HTMLElement | null = null;
     let box: HTMLElement | null = null;
+    // MP5.2a select-lock: a SECOND overlay box that stays put once a node is clicked. The hover
+    // box keeps tracking the cursor; this one only moves on re-pin (new click / breadcrumb chip),
+    // repositions on scroll/resize, and clears on Esc or teardown — the selection can no longer
+    // evaporate on mouseout.
+    let pinBox: HTMLElement | null = null;
+    let pinned: Element | null = null;
     const ensure = (): void => {
       if (shadowHost) return;
       shadowHost = document.createElement('div');
@@ -435,13 +441,32 @@ export function installLpErrorTap(): void {
       box.style.cssText =
         'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
       root.appendChild(box);
+      pinBox = document.createElement('div');
+      pinBox.style.cssText =
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px solid #E8888A;background:rgba(232,136,138,0.07);border-radius:3px;box-shadow:0 0 0 2px rgba(232,136,138,0.28);';
+      root.appendChild(pinBox);
       document.documentElement.appendChild(shadowHost);
     };
     const teardown = (): void => {
       if (shadowHost && shadowHost.parentNode) shadowHost.parentNode.removeChild(shadowHost);
       shadowHost = null;
       box = null;
+      pinBox = null;
+      pinned = null;
     };
+    const drawPin = (): void => {
+      if (!pinBox) return;
+      // isConnected: HMR may swap the node out from under the pin — hide instead of lying.
+      if (!pinned || !pinned.isConnected) { pinBox.style.display = 'none'; return; }
+      const r = pinned.getBoundingClientRect();
+      pinBox.style.display = 'block';
+      pinBox.style.left = r.left + 'px';
+      pinBox.style.top = r.top + 'px';
+      pinBox.style.width = r.width + 'px';
+      pinBox.style.height = r.height + 'px';
+    };
+    const pin = (el: Element | null): void => { pinned = el; drawPin(); };
+    const onReflow = (): void => { if (on && pinned) drawPin(); };
     const resolve = (x: number, y: number): Element | null => {
       // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
       // elementsFromPoint lists the whole hit stack (deepest painted first), so the first stamped
@@ -498,6 +523,7 @@ export function installLpErrorTap(): void {
         className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
         path: buildBreadcrumbPath(attrChain(el)), // MP5.2a — root→leaf breadcrumb for the cockpit
       });
+      pin(el); // MP5.2a select-lock — the frame stays put until Esc or a new selection
     };
     const onKey = (ev: KeyboardEvent): void => {
       if (on && ev.key === 'Escape') { set(false); post({ type: 'lp-select-mode-off' }); }
@@ -510,11 +536,16 @@ export function installLpErrorTap(): void {
         document.addEventListener('mousemove', onMove, true);
         document.addEventListener('click', onClick, true);
         document.addEventListener('keydown', onKey, true);
+        // capture-phase scroll catches nested scroll containers, not just the window
+        document.addEventListener('scroll', onReflow, true);
+        window.addEventListener('resize', onReflow);
         document.documentElement.style.cursor = 'crosshair';
       } else {
         document.removeEventListener('mousemove', onMove, true);
         document.removeEventListener('click', onClick, true);
         document.removeEventListener('keydown', onKey, true);
+        document.removeEventListener('scroll', onReflow, true);
+        window.removeEventListener('resize', onReflow);
         document.documentElement.style.cursor = '';
         teardown();
       }
