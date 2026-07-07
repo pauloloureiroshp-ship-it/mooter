@@ -389,6 +389,27 @@ test('Live Preview LP-4.9 §5 presets as the star — top of the simple view, �
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.9 §7 chrome — close (X), minimize, drag, and never covering the pinned node', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The header carries a drag grip + minimize + close (X); a minimized 🐮 chip re-expands.
+  assert.ok(html.includes('id="lp-ctb-x"') && html.includes('id="lp-ctb-min"') && html.includes('id="lp-ctb-grip"'), 'header has close/minimize/grip');
+  assert.ok(html.includes('id="lp-ctb-chip"'), 'minimized chip present');
+  assert.ok(html.includes('aria-label="Fechar a toolbar"') && html.includes('aria-label="Minimizar a toolbar"'), 'chrome buttons are labelled');
+  // X closes; minimize collapses to the chip; the chip re-expands.
+  assert.ok(/xb\.addEventListener\('click', function\(\)\{ hideCanvasToolbar\(\)/.test(html), 'X closes the toolbar');
+  assert.ok(html.includes('lpToolbarMin=true') && html.includes('lpToolbarMin=false'), 'minimize/expand toggle the state');
+  // The positioner tries above→below→right→left and rejects any candidate that covers the pin.
+  assert.ok(html.includes('function lpRectsOverlap'), 'overlap test present (toolbar must not cover the node)');
+  assert.ok(/if\(lpRectsOverlap\(\{x:c\.x,y:c\.y,w:tw,h:th\}, pin\)\) continue;/.test(html), 'candidates covering the pin are skipped');
+  // Drag via the grip updates a manual position; the auto-anchor remains as the no-drag alternative.
+  assert.ok(html.includes("grip.addEventListener('pointerdown'") && html.includes('lpToolbarManualPos='), 'grip drag repositions the toolbar');
+  assert.ok(html.includes('WCAG 2.5.7') || html.includes('no-drag alternative'), 'drag has a documented no-drag alternative (WCAG 2.5.7)');
+  // Chrome sizes meet WCAG 2.2 target size (≥24px).
+  assert.ok(/\.lp-ctb-btn\{[^}]*width:26px;height:26px/.test(html), 'chrome buttons are ≥24px');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

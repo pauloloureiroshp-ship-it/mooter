@@ -2224,7 +2224,17 @@ function getLivePreviewHtml(token, wsRoot) {
   /* LP-4.8 §1 — in-canvas toolbar, floating over the frame anchored to the pin. The overlay
      spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
   .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
-  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:9px 11px}
+  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
+  /* LP-4.9 §7 — toolbar header: grip (drag) + minimize + close. Sticky so it stays while scrolling. */
+  .lp-ctb-hd{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;margin:0 -11px 6px;padding:5px 9px;background:var(--vscode-editorWidget-background);border-bottom:1px solid var(--vscode-widget-border);border-radius:9px 9px 0 0}
+  .lp-ctb-grip{flex:1 1 auto;font-size:10.5px;opacity:.6;cursor:grab;user-select:none;letter-spacing:.04em;touch-action:none}
+  .lp-ctb-grip:active{cursor:grabbing}
+  .lp-ctb-btn{flex:none;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font:13px var(--vscode-font-family);color:var(--vscode-foreground);background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;line-height:1}
+  .lp-ctb-btn:hover{background:var(--vscode-list-hoverBackground);border-color:var(--vscode-widget-border)}
+  .lp-ctb-btn:focus-visible,.lp-ctb-grip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  .lp-ctb-chip{position:absolute;left:8px;top:8px;pointer-events:auto;width:34px;height:34px;display:none;align-items:center;justify-content:center;font-size:17px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:50%;box-shadow:0 6px 20px rgba(0,0,0,.32);cursor:pointer}
+  .lp-ctb-chip:hover{border-color:var(--vscode-focusBorder)}
+  .lp-ctb-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
   .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
   .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -2393,8 +2403,17 @@ function getLivePreviewHtml(token, wsRoot) {
            through to the iframe for continued hover/select; ONLY the toolbar itself is clickable. -->
       <div id="lp-ctb-ov" class="lp-ctb-ov">
         <div id="lp-ctb" class="lp-ctb" role="toolbar" aria-label="Editar o elemento selecionado" aria-hidden="true" style="display:none">
+          <!-- LP-4.9 §7 — header: drag handle (grip) + minimize + close (X). The grip is the drag
+               affordance; the automatic flip-positioning is the no-drag alternative (WCAG 2.5.7). -->
+          <div id="lp-ctb-hd" class="lp-ctb-hd">
+            <span id="lp-ctb-grip" class="lp-ctb-grip" title="Arrastar (ou deixa o posicionamento automático)">⠿ editar</span>
+            <button type="button" id="lp-ctb-min" class="lp-ctb-btn" title="Minimizar" aria-label="Minimizar a toolbar">—</button>
+            <button type="button" id="lp-ctb-x" class="lp-ctb-btn" title="Fechar (Esc)" aria-label="Fechar a toolbar">✕</button>
+          </div>
           <div id="lp-ctb-body"></div>
         </div>
+        <!-- Minimized state: a single 🐮 chip that re-expands on click. -->
+        <button type="button" id="lp-ctb-chip" class="lp-ctb-chip" style="display:none" title="Reabrir a toolbar" aria-label="Reabrir a toolbar de edição">🐮</button>
       </div>
     </div>
   </section>
@@ -2733,28 +2752,52 @@ function wireSkillsMenu(){
 // map it into #lp-framewrap coordinates via the iframe's offset (0,0 full-width; centred in device
 // mode) and clamp so the toolbar never spills outside the frame. Prefer ABOVE the pin, fall back
 // below when there is no room — the toolbar must never cover the very element being edited.
-let lpPinRect=null;
+let lpPinRect=null, lpToolbarManualPos=null, lpToolbarMin=false;
+function lpRectsOverlap(a,b){ return !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y); }
 function positionCanvasToolbar(rect){
-  const tb=document.getElementById('lp-ctb'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
+  const tb=document.getElementById('lp-ctb'), chip=document.getElementById('lp-ctb-chip'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
   if(!tb||!f||!wrap) return;
   if(rect && typeof rect.x==='number') lpPinRect=rect; else rect=lpPinRect;
   if(!rect) return;
   const fx=f.offsetLeft||0, fy=f.offsetTop||0;
   const wrapW=wrap.clientWidth||0, wrapH=wrap.clientHeight||0;
+  const px=fx+(rect.x||0), py=fy+(rect.y||0), pw=rect.w||0, ph=rect.h||0; // pin box in wrap coords
+  const clampX=function(x,w){ return Math.max(6, Math.min(x, wrapW-w-6)); };
+  const clampY=function(y,h){ return Math.max(6, Math.min(y, wrapH-h-6)); };
+  // §7 minimized — place the 🐮 chip at the pin corner (above if it fits, else below); toolbar hidden.
+  if(lpToolbarMin){
+    if(chip){ const cw=chip.offsetWidth||34, chh=chip.offsetHeight||34; chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
+    return;
+  }
   const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
-  let left=fx+(rect.x||0);
-  if(left+tw>wrapW-6) left=wrapW-tw-6;
-  if(left<6) left=6;
-  let top=fy+(rect.y||0)-th-8;                       // prefer above
-  if(top<6) top=fy+(rect.y||0)+(rect.h||0)+8;        // fall back below
-  if(top+th>wrapH-6) top=Math.max(6, wrapH-th-6);
-  tb.style.left=left+'px';
-  tb.style.top=top+'px';
+  // §7 dragged — honour the manual position (clamped into the frame; the auto-anchor is the
+  // no-drag alternative required by WCAG 2.5.7, so dragging is a convenience, never the only way).
+  if(lpToolbarManualPos){ tb.style.left=clampX(lpToolbarManualPos.x, tw)+'px'; tb.style.top=clampY(lpToolbarManualPos.y, th)+'px'; return; }
+  // §7 auto-anchor — try above → below → right → left; take the first that fits AND does not cover
+  // the pin (the toolbar must never hide the very element being edited — Paulo's live pain).
+  const pin={x:px,y:py,w:pw,h:ph};
+  const cands=[
+    {x:clampX(px,tw), y:py-th-8},        // above
+    {x:clampX(px,tw), y:py+ph+8},        // below
+    {x:px+pw+8,       y:clampY(py,th)},  // right
+    {x:px-tw-8,       y:clampY(py,th)},  // left
+  ];
+  let chosen=null;
+  for(let i=0;i<cands.length;i++){
+    const c=cands[i];
+    if(c.x<6||c.y<6||c.x+tw>wrapW-6||c.y+th>wrapH-6) continue;   // off-frame
+    if(lpRectsOverlap({x:c.x,y:c.y,w:tw,h:th}, pin)) continue;   // covers the pin
+    chosen=c; break;
+  }
+  if(!chosen) chosen={x:clampX(px,tw), y:clampY(py+ph+8, th)};   // last resort: clamped below
+  tb.style.left=chosen.x+'px';
+  tb.style.top=chosen.y+'px';
 }
 function hideCanvasToolbar(){
-  const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body');
-  lpPinRect=null;
+  const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body'), chip=document.getElementById('lp-ctb-chip');
+  lpPinRect=null; lpToolbarManualPos=null; lpToolbarMin=false;
   if(tb){ tb.style.display='none'; tb.setAttribute('aria-hidden','true'); }
+  if(chip) chip.style.display='none';
   if(tbb) tbb.innerHTML='';
 }
 function renderSelection(sel){
@@ -2837,7 +2880,14 @@ function renderSelection(sel){
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
     +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
     +'</div>';
-  if(ctbBody){ ctbBody.innerHTML=inputsHTML; if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } }
+  if(ctbBody){
+    ctbBody.innerHTML=inputsHTML;
+    lpToolbarManualPos=null; // §7 — a fresh selection re-anchors (drag is per-selection)
+    const chip=document.getElementById('lp-ctb-chip');
+    // §7 — preserve a minimized toolbar across re-pins (show the 🐮 chip, keep the panel hidden).
+    if(lpToolbarMin){ if(ctb){ ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); } if(chip) chip.style.display='inline-flex'; }
+    else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none'; }
+  }
   else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
@@ -3317,6 +3367,39 @@ window.addEventListener('resize', function(){ positionCanvasToolbar(); });
     hideCanvasToolbar();
     const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus();
   });
+})();
+// LP-4.9 §7 — toolbar chrome (wired once on the static header): close (X), minimize (🐮 chip),
+// re-expand, and drag. The X is the obvious close affordance alongside Esc; minimize collapses to a
+// single chip; drag repositions (with the auto-anchor as the WCAG 2.5.7 no-drag alternative).
+(function(){
+  const ctb=document.getElementById('lp-ctb'), chip=document.getElementById('lp-ctb-chip'),
+        xb=document.getElementById('lp-ctb-x'), mn=document.getElementById('lp-ctb-min'),
+        grip=document.getElementById('lp-ctb-grip'), wrap=document.getElementById('lp-framewrap');
+  if(!ctb) return;
+  if(xb) xb.addEventListener('click', function(){ hideCanvasToolbar(); const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus(); });
+  const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
+  const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); ctb.focus(); };
+  if(mn) mn.addEventListener('click', minimize);
+  if(chip) chip.addEventListener('click', expand);
+  // Drag via the grip. Pointer events; updates lpToolbarManualPos (clamped by positionCanvasToolbar).
+  if(grip){
+    let dragging=false, ox=0, oy=0;
+    grip.addEventListener('pointerdown', function(e){
+      dragging=true; const r=ctb.getBoundingClientRect(), wr=wrap?wrap.getBoundingClientRect():{left:0,top:0};
+      ox=e.clientX-(r.left-wr.left); oy=e.clientY-(r.top-wr.top);
+      try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', function(e){
+      if(!dragging||!wrap) return;
+      const wr=wrap.getBoundingClientRect();
+      lpToolbarManualPos={ x:e.clientX-wr.left-ox, y:e.clientY-wr.top-oy };
+      positionCanvasToolbar();
+    });
+    const stop=function(e){ if(dragging){ dragging=false; try{ grip.releasePointerCapture(e.pointerId); }catch(err){} } };
+    grip.addEventListener('pointerup', stop);
+    grip.addEventListener('pointercancel', stop);
+  }
 })();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
