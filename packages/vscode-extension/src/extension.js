@@ -2175,6 +2175,25 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
+  /* LP-4.8 §1 — in-canvas toolbar, floating over the frame anchored to the pin. The overlay
+     spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
+  .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:9px 11px}
+  .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
+  .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
+  .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
+  .lp-ctb .lp-sel-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
+  .lp-ctb .lp-sel-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lp-ctb .lp-sel-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
+  .lp-ctb .lp-hint{font-size:10.5px;margin-top:4px;color:var(--vscode-charts-green,#4CAF6A);line-height:1.4}
+  .lp-ctb .lp-chip{margin:2px 0;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
+  .lp-ctb .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .lp-ctb .lp-chip-0{color:var(--vscode-charts-green,#4CAF6A);font-weight:700}
+  .lp-ctb .lp-tiers{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+  .lp-ctb .lp-tier{font:10.5px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:999px;padding:2px 9px;cursor:pointer}
+  .lp-ctb .lp-tier.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700}
+  .lp-ctb .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
+  .lp-ctb .lp-ed-in:focus-visible,.lp-ctb .lp-sel-btn:focus-visible,.lp-ctb .lp-tier:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2273,6 +2292,15 @@ function getLivePreviewHtml(token) {
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
       <div id="lp-degrade" class="lp-degrade"></div>
+      <!-- LP-4.8 §1 — the in-canvas toolbar. It lives in the TRUSTED webview (never in the
+           cross-origin site), floating over the frame anchored to the pin: the site's CSS/JS
+           cannot reach it (adversarial L1). The overlay is pointer-events:none so clicks pass
+           through to the iframe for continued hover/select; ONLY the toolbar itself is clickable. -->
+      <div id="lp-ctb-ov" class="lp-ctb-ov">
+        <div id="lp-ctb" class="lp-ctb" role="toolbar" aria-label="Editar o elemento selecionado" aria-hidden="true" style="display:none">
+          <div id="lp-ctb-body"></div>
+        </div>
+      </div>
     </div>
   </section>
   <aside id="lp-side">
@@ -2506,10 +2534,40 @@ function switchToAgent(){
   const bi=document.getElementById('lp-box-in');
   if(bi) bi.focus();
 }
+// LP-4.8 §1 — anchor the floating toolbar to the pin. rect = the node's bounding box in the
+// iframe's OWN viewport coords (the tap sends it on select + on every scroll/resize reflow). We
+// map it into #lp-framewrap coordinates via the iframe's offset (0,0 full-width; centred in device
+// mode) and clamp so the toolbar never spills outside the frame. Prefer ABOVE the pin, fall back
+// below when there is no room — the toolbar must never cover the very element being edited.
+let lpPinRect=null;
+function positionCanvasToolbar(rect){
+  const tb=document.getElementById('lp-ctb'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
+  if(!tb||!f||!wrap) return;
+  if(rect && typeof rect.x==='number') lpPinRect=rect; else rect=lpPinRect;
+  if(!rect) return;
+  const fx=f.offsetLeft||0, fy=f.offsetTop||0;
+  const wrapW=wrap.clientWidth||0, wrapH=wrap.clientHeight||0;
+  const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
+  let left=fx+(rect.x||0);
+  if(left+tw>wrapW-6) left=wrapW-tw-6;
+  if(left<6) left=6;
+  let top=fy+(rect.y||0)-th-8;                       // prefer above
+  if(top<6) top=fy+(rect.y||0)+(rect.h||0)+8;        // fall back below
+  if(top+th>wrapH-6) top=Math.max(6, wrapH-th-6);
+  tb.style.left=left+'px';
+  tb.style.top=top+'px';
+}
+function hideCanvasToolbar(){
+  const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body');
+  lpPinRect=null;
+  if(tb){ tb.style.display='none'; tb.setAttribute('aria-hidden','true'); }
+  if(tbb) tbb.innerHTML='';
+}
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
   if(!el) return;
-  if(!sel){ el.style.display='none'; el.innerHTML=''; return; }
+  if(!sel){ el.style.display='none'; el.innerHTML=''; hideCanvasToolbar(); return; }
+  const ctb=document.getElementById('lp-ctb'), ctbBody=document.getElementById('lp-ctb-body');
   const loc=esc(sel.file||'?')+':'+esc(sel.line==null?'?':sel.line)+(sel.col!=null?(':'+esc(sel.col)):'');
   const tag=esc(sel.tag||'elemento');
   const curText=sel.text||''; const curClass=sel.className||'';
@@ -2540,11 +2598,22 @@ function renderSelection(sel){
   // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
   // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
   if(/^[A-Z]/.test(sel.tag||'')) warn+='<div class="lp-sel-warn">⚠ &lt;'+tag+'&gt; é um componente — o conteúdo vem de DENTRO dele: reescrever este nó não o muda. <button type="button" id="lp-sel-agent" class="lp-sel-btn">resolver com o agente</button></div>';
+  // LP-4.8 §1 — the right panel now shows ONLY context + outputs (breadcrumbs, honest warnings,
+  // the diff mount, the status line). The interactive controls moved to the in-canvas toolbar
+  // below; the diff/feed/resposta live here (the brief: "o painel direito passa a mostrar SÓ
+  // diff/feed/resposta"). getElementById resolves across the whole document, so splitting the
+  // markup across two containers changes nothing for the shared handlers wired further down.
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
     +warn
-    +'<div id="lp-chip" class="lp-chip"></div>'
+    +'<div id="lp-del"></div>'
+    +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
+  el.style.display='block';
+  // LP-4.8 §1 — the in-canvas toolbar (inputs), anchored to the pin. Same ids/wiring as before,
+  // just hosted here instead of the side rail. Falls back to the side panel only if the toolbar
+  // host is absent (defensive — the static markup always ships it).
+  const inputsHTML='<div id="lp-chip" class="lp-chip"></div>'
     +'<div class="lp-ed-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
@@ -2553,10 +2622,9 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
-    +'<div id="lp-del"></div>'
-    +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
-  el.style.display='block';
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>';
+  if(ctbBody){ ctbBody.innerHTML=inputsHTML; if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } }
+  else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
   const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
@@ -2609,6 +2677,8 @@ function renderSelection(sel){
     showEditResult(null,'pending');
   });
   renderModeChips();
+  // Anchor the toolbar to the pin now that it is laid out (offsetWidth/Height are measurable).
+  if(ctbBody) positionCanvasToolbar(sel.rect);
 }
 // MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
 // partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
@@ -2950,6 +3020,9 @@ function showEditResult(ok, reason){
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
+// LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
+// within the frame wrap, so re-anchor the toolbar from the last known pin rect (iframe coords).
+window.addEventListener('resize', function(){ positionCanvasToolbar(); });
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
@@ -2975,6 +3048,10 @@ window.addEventListener('message', (ev) => {
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
     else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); }
+    // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
+    // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
+    // lp-select; it only nudges the toolbar's position, never touches the write path.
+    else if (m.type === 'lp-pin-rect'){ if(m.rect && typeof m.rect.x==='number') positionCanvasToolbar(m.rect); }
     else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }

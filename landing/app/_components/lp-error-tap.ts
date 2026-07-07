@@ -489,8 +489,17 @@ export function installLpErrorTap(): void {
       pinBox.style.width = r.width + 'px';
       pinBox.style.height = r.height + 'px';
     };
-    const pin = (el: Element | null): void => { pinned = el; drawPin(); };
-    const onReflow = (): void => { if (on && pinned) drawPin(); };
+    // LP-4.8 §1 — the cockpit's in-canvas toolbar anchors to the pin, so on every reflow we re-send
+    // the pin's box (iframe-viewport coords) alongside redrawing the local overlay. Read-only: a
+    // getBoundingClientRect on the already-pinned node, posted on the same origin-locked channel as
+    // lp-select — it can only reposition the toolbar, never reach a write path.
+    const postPinRect = (): void => {
+      if (!pinned || !pinned.isConnected) return;
+      const r = pinned.getBoundingClientRect();
+      post({ type: 'lp-pin-rect', rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+    };
+    const pin = (el: Element | null): void => { pinned = el; drawPin(); postPinRect(); };
+    const onReflow = (): void => { if (on && pinned) { drawPin(); postPinRect(); } };
     const resolve = (x: number, y: number): Element | null => {
       // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
       // elementsFromPoint lists the whole hit stack (deepest painted first), so the first stamped

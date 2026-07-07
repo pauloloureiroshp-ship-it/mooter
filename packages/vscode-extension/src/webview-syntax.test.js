@@ -197,6 +197,34 @@ test('Live Preview LP-4.5 §6 device toggle — 390/768/full buttons drive ONLY 
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.8 §1 in-canvas toolbar — floats over the frame anchored to the pin, click-through fence, follows on reflow', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The toolbar is a TRUSTED-webview overlay INSIDE the frame wrap (never injected into the
+  // cross-origin site — adversarial L1). The overlay spans the frame but is click-through so the
+  // iframe still receives hover/select; only the toolbar itself is interactive.
+  assert.ok(html.includes('id="lp-ctb-ov"'), 'toolbar overlay host present');
+  assert.ok(html.includes('id="lp-ctb"'), 'floating toolbar present');
+  assert.ok(html.includes('id="lp-ctb-body"'), 'toolbar body mount present');
+  assert.ok(html.includes('role="toolbar"'), 'toolbar has an ARIA toolbar role');
+  assert.ok(/\.lp-ctb-ov\{[^}]*pointer-events:none/.test(html), 'the overlay is click-through (pointer-events:none)');
+  assert.ok(/\.lp-ctb\{[^}]*pointer-events:auto/.test(html), 'only the toolbar itself catches pointer events');
+  // The interactive controls now live in the toolbar body, not the side rail; the ids/wiring
+  // literals the older tests assert must still be emitted (they are, in inputsHTML).
+  assert.ok(html.includes('id="lp-ctb-body">') === false || html.includes('ctbBody.innerHTML=inputsHTML'), 'inputs render into the toolbar body');
+  assert.ok(html.includes('function positionCanvasToolbar'), 'positioning maps the pin rect into frame-wrap coords');
+  assert.ok(html.includes('function hideCanvasToolbar'), 'a null selection hides the toolbar');
+  // The toolbar FOLLOWS the pin: the tap re-emits lp-pin-rect on scroll/resize and the webview
+  // repositions from it — on the SAME origin-locked untrusted-iframe branch as lp-select.
+  assert.ok(html.includes("m.type === 'lp-pin-rect'"), 'lp-pin-rect handled (toolbar follows the pin on reflow)');
+  assert.ok(/positionCanvasToolbar\(m\.rect\)/.test(html), 'reflow rect repositions the toolbar');
+  // A webview-side resize (panel drag) also re-anchors from the last known rect.
+  assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{ positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-anchors the toolbar');
+  // The controls that MOVED still ship their ids + wiring (regression guard for the split).
+  assert.ok(html.includes('id="lp-chip"') && html.includes('id="lp-box-in"') && html.includes('id="lp-sel-del"'), 'chip/one-box/delete still present after the split');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
