@@ -17,7 +17,9 @@ const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
 // Inline above-the-fold pulse strip — author's real machine numbers (not a community average).
 const heroStats: [string, string, string][] = [
   ['calls routed', '658', 'across the author’s moos'],
-  ['saved vs Opus', '$25.95', 'alltime'],
+  // Honest: "saved" = naive all-Opus ($48.90) − real mooter spend ($25.95) = $22.95 (≈47%).
+  // $25.95 is what was PAID, not saved — the label must show the amount saved.
+  ['saved vs Opus', '$22.95', 'vs $48.90 all-Opus'],
   ['avg savings', '47%', 'vs all-Opus'],
   ['packs installed', '3', 'data · diagram · voice'],
 ];

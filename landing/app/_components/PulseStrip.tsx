@@ -6,7 +6,9 @@
 
 const STATS: { label: string; value: string; sub: string }[] = [
   { label: 'calls routed', value: '658', sub: 'across 7 moos' },
-  { label: 'saved vs Opus', value: '$25.95', sub: 'alltime' },
+  // Honest: "saved" = naive all-Opus ($48.90) − real mooter spend ($25.95) = $22.95 (≈47%).
+  // $25.95 is the amount PAID, not saved — a "saved" label must show what was saved.
+  { label: 'saved vs Opus', value: '$22.95', sub: 'vs $48.90 all-Opus' },
   { label: 'avg savings', value: '47%', sub: 'vs all-Opus' },
   { label: 'packs installed', value: '3', sub: 'data · diagram · voice' },
 ];
