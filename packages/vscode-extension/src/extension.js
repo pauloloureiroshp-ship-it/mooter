@@ -124,6 +124,14 @@ try { LET = require('./live-edit-task.js'); } catch { LET = null; }
 // LP-4.5 — pure one-box view helpers (suggestLocalChip heuristic), serialised into the webview.
 let LTV = null;
 try { LTV = require('./lp-task-view.js'); } catch { LTV = null; }
+// LP-4.8 §2 — deterministic style presets (colour/size/spacing). Pure string logic, serialised
+// into the webview and applied through the existing class-edit fence — $0, no LLM.
+let LPP = null;
+try { LPP = require('./lp-presets.js'); } catch { LPP = null; }
+// LP-4.8 §3 — element-scoped /skills. Vendored defaults (assets/skills/*.md), workspace override
+// under .mooter/skills/. Skills seed the one-box + pin the tier; execution rides the existing fence.
+let LSK = null;
+try { LSK = require('./lp-skills.js'); } catch { LSK = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1896,12 +1904,33 @@ class LivePreviewPanel {
           } catch { /* anchor degrades to file:line only */ }
         }
       }
+      // LP-4.8 §4 — attach-as-reference: extra nodes Cmd/Ctrl-clicked as CONTEXT for this prompt.
+      // Each ref runs the SAME containment resolution as the primary anchor (a path that escapes
+      // the workspace is dropped), is bounded (8 max), and travels workspace-RELATIVE only — the
+      // absolute host path never reaches the model. Refs are read-only pointers; the agent's write
+      // path stays gated by the runner's in-workspace + sensitive-file guards (never a write target).
+      let refs;
+      if (Array.isArray(m.refs) && m.refs.length) {
+        refs = [];
+        for (let i = 0; i < m.refs.length && refs.length < 8; i++) {
+          const r = m.refs[i] || {};
+          const rraw = (typeof r.file === 'string') ? r.file.trim() : '';
+          if (!rraw) continue;
+          const rreal = this._resolveContainedFile(rraw);
+          if (!rreal) continue; // escaped the workspace → dropped, never sent to the model
+          let rrel = rraw;
+          try { const rel = path.relative(this._wsRoot(), rreal); if (rel && !rel.startsWith('..')) rrel = rel.split(path.sep).join('/'); } catch { /* keep raw */ }
+          refs.push({ file: rrel, line: Number.isInteger(r.line) ? r.line : undefined, col: Number.isInteger(r.col) ? r.col : undefined, tag: (typeof r.tag === 'string') ? r.tag.slice(0, 40) : undefined });
+        }
+        if (!refs.length) refs = undefined;
+      }
       this._postTaskStatus({ phase: 'thinking', mode });
       const res = await LET.runAnchoredTask({
         instruction,
         file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
         nodeSource,
         breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+        refs,
         mode,
       }, {
         wsRoot: this._wsRoot(),
@@ -2038,7 +2067,7 @@ class LivePreviewPanel {
     }
   }
   _wire() {
-    this.panel.webview.html = getLivePreviewHtml(this.token);
+    this.panel.webview.html = getLivePreviewHtml(this.token, this._wsRoot());
     this._post();
     this._detectStage();
     // Visibility-aware polling (mirrors data.js's pollIntervalMs idea) — only tick while shown.
@@ -2085,7 +2114,7 @@ LivePreviewPanel.current = null;
 // bus/Brain poll never reloads it and native HMR survives) + a right rail (Brain + Director's
 // Cut, innerHTML-refreshed each poll). The iframe is deliberately NOT sandboxed: it frames the
 // user's OWN trusted dev server and needs same-origin scripts + websockets for HMR to work.
-function getLivePreviewHtml(token) {
+function getLivePreviewHtml(token, wsRoot) {
   const nonce = String(Math.random()).slice(2);
   const hostToken = JSON.stringify(String(token == null ? '' : token));
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
@@ -2102,6 +2131,19 @@ function getLivePreviewHtml(token) {
   const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
   const renderMarkdownSafeSrc = LTV ? LTV.renderMarkdownSafe.toString() : 'function renderMarkdownSafe(t){return esc(t);}';
   const renderEditsFeedSrc = LTV ? LTV.renderEditsFeed.toString() : 'function renderEditsFeed(){return "";}';
+  // LP-4.8 §2 — the deterministic preset engine, serialised in (self-contained: each fn carries its
+  // own catalog/regexes so toString survives the module-scope loss).
+  const mergeClassSrc = LPP ? LPP.mergeClass.toString() : 'function mergeClass(c,cls){return ((c||"")+" "+cls).trim();}';
+  const renderPresetsBarHTMLSrc = LPP ? LPP.renderPresetsBarHTML.toString() : 'function renderPresetsBarHTML(){return "";}';
+  // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
+  // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
+  const skillsRegistry = LSK ? LSK.loadSkills({ wsRoot: wsRoot }) : [];
+  // LP-4.8 §3 hardening — loadSkills reads workspace .mooter/skills/*.md (not trust-gated), so a
+  // cloned repo controls label/hint/template. Escape `<` before it lands in the nonce'd inline
+  // <script> below: without this a field of `</script>…` breaks out of the tag. CSP blocks
+  // execution, so the risk is panel-JS breakage + inert HTML, not RCE — but the fence is cheap.
+  const skillsJson = JSON.stringify(Array.isArray(skillsRegistry) ? skillsRegistry : []).replace(/</g, '\\u003c');
+  const renderSkillsMenuHTMLSrc = LSK ? LSK.renderSkillsMenuHTML.toString() : 'function renderSkillsMenuHTML(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -2175,6 +2217,59 @@ function getLivePreviewHtml(token) {
   #lp-sel .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
   #lp-framewrap{position:relative;flex:1 1 auto;min-height:0}
   #lp-frame{width:100%;height:100%;border:0;background:#fff;display:block}
+  /* LP-4.8 §1 — in-canvas toolbar, floating over the frame anchored to the pin. The overlay
+     spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
+  .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:9px 11px}
+  .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
+  .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
+  .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
+  .lp-ctb .lp-sel-btn{font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
+  .lp-ctb .lp-sel-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lp-ctb .lp-sel-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
+  .lp-ctb .lp-hint{font-size:10.5px;margin-top:4px;color:var(--vscode-charts-green,#4CAF6A);line-height:1.4}
+  .lp-ctb .lp-chip{margin:2px 0;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
+  .lp-ctb .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .lp-ctb .lp-chip-0{color:var(--vscode-charts-green,#4CAF6A);font-weight:700}
+  .lp-ctb .lp-tiers{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+  .lp-ctb .lp-tier{font:10.5px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:999px;padding:2px 9px;cursor:pointer}
+  .lp-ctb .lp-tier.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700}
+  .lp-ctb .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
+  .lp-ctb .lp-ed-in:focus-visible,.lp-ctb .lp-sel-btn:focus-visible,.lp-ctb .lp-tier:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.8 §2 — deterministic preset bar: colour swatches + size/spacing chips, 1-click, $0. */
+  .lp-ctb .lp-pz{margin:6px 0 2px}
+  .lp-pz-l{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.62;margin:7px 0 3px}
+  .lp-pz-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .lp-sw{width:20px;height:20px;padding:0;border:1px solid var(--vscode-widget-border);border-radius:50%;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .lp-sw:hover{border-color:var(--vscode-focusBorder)}
+  .lp-sw-dot{width:14px;height:14px;border-radius:50%;display:block}
+  .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 8px;cursor:pointer}
+  .lp-pz-chip:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lp-sw:focus-visible,.lp-pz-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.8 §3 — /skills dropdown: each item surfaces its tier (honest routing). */
+  .lp-ctb .lp-sk{position:relative;margin-top:8px}
+  .lp-ctb .lp-sk-active{font-size:10px;opacity:.8;margin-top:4px;min-height:12px;color:var(--vscode-charts-green,#4CAF6A)}
+  .lp-sk-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:8;min-width:230px;max-width:320px;max-height:230px;overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.34);padding:4px}
+  .lp-sk-item{display:grid;grid-template-columns:auto 1fr auto;gap:6px 8px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-radius:6px;padding:6px 8px;cursor:pointer;color:var(--vscode-foreground)}
+  .lp-sk-item:hover,.lp-sk-item:focus-visible{background:var(--vscode-list-hoverBackground);outline:none}
+  .lp-sk-item:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-1px}
+  .lp-sk-g{font-size:14px;grid-row:1}
+  .lp-sk-lb{font-weight:700;font-size:12px;grid-row:1}
+  .lp-sk-tier{grid-row:1;font-size:9.5px;padding:1px 7px;border-radius:999px;white-space:nowrap;border:1px solid var(--vscode-widget-border)}
+  .lp-sk-tier-local{color:var(--vscode-charts-green,#4CAF6A)}
+  .lp-sk-tier-auto{color:var(--vscode-charts-blue,#5A9BD4)}
+  .lp-sk-hint{grid-column:1 / -1;grid-row:2;font-size:10px;opacity:.72;line-height:1.35}
+  /* LP-4.8 §4 — attached-reference chips (Cmd/Ctrl-click) — context for the agent prompt. */
+  .lp-ctb .lp-refs{margin:7px 0 2px}
+  .lp-refs-hd{font-size:10px;opacity:.72;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+  .lp-ref-clr{font:9.5px var(--vscode-font-family);color:var(--vscode-foreground);background:transparent;border:1px solid var(--vscode-widget-border);border-radius:5px;padding:0 6px;cursor:pointer}
+  .lp-ref-clr:hover{background:var(--vscode-list-hoverBackground)}
+  .lp-refs-list{display:flex;gap:4px;flex-wrap:wrap}
+  .lp-ref{display:inline-flex;align-items:center;gap:4px;font:10px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:rgba(127,184,138,0.12);border:1px solid rgba(127,184,138,0.5);border-radius:999px;padding:1px 4px 1px 8px}
+  .lp-ref-x{font-size:9px;line-height:1;color:var(--vscode-foreground);background:transparent;border:0;border-radius:50%;padding:2px 4px;cursor:pointer;opacity:.7}
+  .lp-ref-x:hover{opacity:1;background:var(--vscode-list-hoverBackground)}
+  .lp-refs-note{font-size:9.5px;opacity:.7;margin-top:4px;line-height:1.35}
+  .lp-ref-clr:focus-visible,.lp-ref-x:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2273,6 +2368,15 @@ function getLivePreviewHtml(token) {
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
       <div id="lp-degrade" class="lp-degrade"></div>
+      <!-- LP-4.8 §1 — the in-canvas toolbar. It lives in the TRUSTED webview (never in the
+           cross-origin site), floating over the frame anchored to the pin: the site's CSS/JS
+           cannot reach it (adversarial L1). The overlay is pointer-events:none so clicks pass
+           through to the iframe for continued hover/select; ONLY the toolbar itself is clickable. -->
+      <div id="lp-ctb-ov" class="lp-ctb-ov">
+        <div id="lp-ctb" class="lp-ctb" role="toolbar" aria-label="Editar o elemento selecionado" aria-hidden="true" style="display:none">
+          <div id="lp-ctb-body"></div>
+        </div>
+      </div>
     </div>
   </section>
   <aside id="lp-side">
@@ -2295,6 +2399,10 @@ const isBenignCssWarning=${isBenignCssSrc};
 const suggestLocalChip=${suggestLocalChipSrc};
 const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
+const mergeClass=${mergeClassSrc};
+const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
+const LP_SKILLS=${skillsJson};
+const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2468,6 +2576,10 @@ function lpSendRestore(){
 // rewrite, $0) · 't1'/'t2'/'t3'/'fable' (the agent pinned to that subscription model; @fable is
 // manual-only, never auto-routed).
 let lpSelection=null, lpSelectOn=false, lpMode='auto';
+// LP-4.8 §4 — multi-select attach-as-reference: extra nodes Cmd/Ctrl-clicked as CONTEXT for one
+// prompt (Lovable's model, NOT batch-edit). They ride the agent (lp-task) path only; a local $0
+// fenced edit still targets the single pinned node. Each entry: { file, line, col, tag, label }.
+let lpRefs=[];
 // LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
@@ -2489,6 +2601,43 @@ function sendReselect(c){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-reselect', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
 }
+// LP-4.8 §4 — tell the tap to drop a reference box (✕) or all of them (limpar). Origin-targeted
+// into the frame like every other host→tap message (cross-origin, never '*').
+function sendDetach(c){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-detach', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+function sendDetachAll(){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-detach-all' }, curOrigin); }catch(e){} }
+}
+// Render the attached-reference chips (each with a ✕) + a "limpar" clear-all. Rebuilt whenever a
+// ref is attached/removed and after each renderSelection (which recreates the toolbar markup).
+function renderRefs(){
+  const el=document.getElementById('lp-refs'); if(!el) return;
+  if(!lpRefs.length){ el.style.display='none'; el.innerHTML=''; return; }
+  let chips='';
+  for(let i=0;i<lpRefs.length;i++){
+    const r=lpRefs[i]||{}; const base=baseName(r.file||'?');
+    const lbl=esc('<'+(r.tag||'nó')+'> '+base+(r.line!=null?(':'+r.line):''));
+    // Hover shows file:line plus the node's own text (the attach label) so a ref is recognisable.
+    const titleTxt=(r.file||'')+(r.line!=null?(':'+r.line):'')+(r.label?(' — '+r.label):'');
+    chips+='<span class="lp-ref" title="'+esc(titleTxt)+'">'+lbl
+      +'<button type="button" class="lp-ref-x" data-ref="'+i+'" aria-label="remover referência '+lbl+'">✕</button></span>';
+  }
+  el.innerHTML='<div class="lp-refs-hd">referências anexadas ('+lpRefs.length+') — contexto para o agente <button type="button" id="lp-refs-clr" class="lp-ref-clr">limpar</button></div>'
+    +'<div class="lp-refs-list">'+chips+'</div>'
+    +(lpMode==='local'?'<div class="lp-refs-note">o chip local $0 edita só o nó pinado — as referências entram quando subes para o agente</div>':'');
+  el.style.display='block';
+  const xs=el.querySelectorAll('[data-ref]');
+  for(let i=0;i<xs.length;i++){ xs[i].addEventListener('click', function(){
+    const idx=parseInt(this.getAttribute('data-ref'),10);
+    const r=(Number.isInteger(idx)&&idx>=0&&idx<lpRefs.length)?lpRefs[idx]:null;
+    if(r){ sendDetach(r); lpRefs.splice(idx,1); renderRefs(); }
+  }); }
+  const clr=document.getElementById('lp-refs-clr');
+  if(clr) clr.addEventListener('click', function(){ sendDetachAll(); lpRefs=[]; renderRefs(); });
+}
 // LP-4 §5 — after a write, the host asks the tap to watch through the HMR swap and re-emit a
 // FRESH lp-select for the same node (re-prompt without re-selecting). Origin-targeted, never '*'.
 function sendRepin(c){
@@ -2506,10 +2655,78 @@ function switchToAgent(){
   const bi=document.getElementById('lp-box-in');
   if(bi) bi.focus();
 }
+// LP-4.8 §3 — /skills menu wiring. The registry (LP_SKILLS) + the pure renderer are serialised in;
+// this hooks up open/close, keyboard, click-away, and the per-item SEED. A skill only seeds the
+// one-box + pins the tier — the actual write still travels the existing fenced one-box path.
+let lpSkillsAway=false;
+function skillTierMode(tier){ return tier==='auto' ? 'auto' : 'local'; }
+function closeSkillsMenu(){
+  const menu=document.getElementById('lp-sk-menu'), btn=document.getElementById('lp-sk-btn');
+  if(menu) menu.style.display='none';
+  if(btn) btn.setAttribute('aria-expanded','false');
+}
+function wireSkillsMenu(){
+  const btn=document.getElementById('lp-sk-btn'), menu=document.getElementById('lp-sk-menu'), act=document.getElementById('lp-sk-active');
+  if(!btn||!menu) return;
+  menu.innerHTML=renderSkillsMenuHTML(Array.isArray(LP_SKILLS)?LP_SKILLS:[], esc);
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(menu.style.display!=='none'){ closeSkillsMenu(); return; }
+    menu.style.display='block'; btn.setAttribute('aria-expanded','true');
+    const f=menu.querySelector('.lp-sk-item'); if(f) f.focus();
+  });
+  menu.addEventListener('keydown', function(e){ if(e.key==='Escape'){ e.stopPropagation(); closeSkillsMenu(); btn.focus(); } });
+  const items=menu.querySelectorAll('[data-skill]');
+  for(let i=0;i<items.length;i++){ items[i].addEventListener('click', function(){
+    const id=this.getAttribute('data-skill'), tier=this.getAttribute('data-tier'), tpl=this.getAttribute('data-template')||'';
+    const bi=document.getElementById('lp-box-in');
+    if(bi){ bi.value=tpl; bi.focus(); try{ bi.setSelectionRange(tpl.length, tpl.length); }catch(e){} }
+    lpMode=skillTierMode(tier);              // pin the chip to the skill's tier floor (honest routing)
+    renderModeChips();
+    if(act) act.textContent='skill activa: /'+id+' · '+(lpMode==='auto'?'agente · subscrição':'local · $0');
+    closeSkillsMenu();
+    btn.focus();
+  }); }
+  // Click-away closes the menu — wired ONCE on the document (renderSelection re-runs per selection).
+  if(!lpSkillsAway){ lpSkillsAway=true; document.addEventListener('click', function(ev){
+    const mnu=document.getElementById('lp-sk-menu'), bt=document.getElementById('lp-sk-btn');
+    if(mnu && mnu.style.display!=='none' && !mnu.contains(ev.target) && ev.target!==bt) closeSkillsMenu();
+  }); }
+}
+// LP-4.8 §1 — anchor the floating toolbar to the pin. rect = the node's bounding box in the
+// iframe's OWN viewport coords (the tap sends it on select + on every scroll/resize reflow). We
+// map it into #lp-framewrap coordinates via the iframe's offset (0,0 full-width; centred in device
+// mode) and clamp so the toolbar never spills outside the frame. Prefer ABOVE the pin, fall back
+// below when there is no room — the toolbar must never cover the very element being edited.
+let lpPinRect=null;
+function positionCanvasToolbar(rect){
+  const tb=document.getElementById('lp-ctb'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
+  if(!tb||!f||!wrap) return;
+  if(rect && typeof rect.x==='number') lpPinRect=rect; else rect=lpPinRect;
+  if(!rect) return;
+  const fx=f.offsetLeft||0, fy=f.offsetTop||0;
+  const wrapW=wrap.clientWidth||0, wrapH=wrap.clientHeight||0;
+  const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
+  let left=fx+(rect.x||0);
+  if(left+tw>wrapW-6) left=wrapW-tw-6;
+  if(left<6) left=6;
+  let top=fy+(rect.y||0)-th-8;                       // prefer above
+  if(top<6) top=fy+(rect.y||0)+(rect.h||0)+8;        // fall back below
+  if(top+th>wrapH-6) top=Math.max(6, wrapH-th-6);
+  tb.style.left=left+'px';
+  tb.style.top=top+'px';
+}
+function hideCanvasToolbar(){
+  const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body');
+  lpPinRect=null;
+  if(tb){ tb.style.display='none'; tb.setAttribute('aria-hidden','true'); }
+  if(tbb) tbb.innerHTML='';
+}
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
   if(!el) return;
-  if(!sel){ el.style.display='none'; el.innerHTML=''; return; }
+  if(!sel){ el.style.display='none'; el.innerHTML=''; hideCanvasToolbar(); return; }
+  const ctb=document.getElementById('lp-ctb'), ctbBody=document.getElementById('lp-ctb-body');
   const loc=esc(sel.file||'?')+':'+esc(sel.line==null?'?':sel.line)+(sel.col!=null?(':'+esc(sel.col)):'');
   const tag=esc(sel.tag||'elemento');
   const curText=sel.text||''; const curClass=sel.className||'';
@@ -2540,23 +2757,42 @@ function renderSelection(sel){
   // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
   // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
   if(/^[A-Z]/.test(sel.tag||'')) warn+='<div class="lp-sel-warn">⚠ &lt;'+tag+'&gt; é um componente — o conteúdo vem de DENTRO dele: reescrever este nó não o muda. <button type="button" id="lp-sel-agent" class="lp-sel-btn">resolver com o agente</button></div>';
+  // LP-4.8 §1 — the right panel now shows ONLY context + outputs (breadcrumbs, honest warnings,
+  // the diff mount, the status line). The interactive controls moved to the in-canvas toolbar
+  // below; the diff/feed/resposta live here (the brief: "o painel direito passa a mostrar SÓ
+  // diff/feed/resposta"). getElementById resolves across the whole document, so splitting the
+  // markup across two containers changes nothing for the shared handlers wired further down.
   el.innerHTML='<div class="lp-sel-hd">Seleção · &lt;'+tag+'&gt;</div>'
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
     +warn
-    +'<div id="lp-chip" class="lp-chip"></div>'
-    +'<div class="lp-ed-l">texto</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
-    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
-    +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
-    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
+  // LP-4.8 §1 — the in-canvas toolbar (inputs), anchored to the pin. Same ids/wiring as before,
+  // just hosted here instead of the side rail. Falls back to the side panel only if the toolbar
+  // host is absent (defensive — the static markup always ships it).
+  const inputsHTML='<div id="lp-chip" class="lp-chip"></div>'
+    +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
+    +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
+    +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // LP-4.8 §4 — attached references (Cmd/Ctrl-click) live here: chips + ✕ + limpar. They feed the
+    // agent prompt as read-only context; a local $0 edit still targets only the pinned node.
+    +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
+    // LP-4.8 §3 — the /skills dropdown. A skill seeds this same one-box with its template and pins
+    // the chip to its tier floor; execution rides the existing fenced paths (no new write surface).
+    +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
+    +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
+    +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
+    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>';
+  if(ctbBody){ ctbBody.innerHTML=inputsHTML; if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } }
+  else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
   const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
@@ -2564,6 +2800,22 @@ function renderSelection(sel){
   if(ti&&tb){ tb.addEventListener('click', function(){ sendEdit('text', ti.value); }); ti.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('text', ti.value); } }); }
   const ci=document.getElementById('lp-ed-class'), cb=document.getElementById('lp-ed-class-b');
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
+  // LP-4.8 §2 — deterministic presets. A swatch/chip merges its class into the CURRENT className
+  // (mergeClass drops the same-group token so red→blue swaps, never stacks) and feeds the SAME
+  // preview-first class-edit fence — $0, no LLM. The class box mirrors the change so presets and
+  // manual edits compose. Refusals (dynamic className, unsafe chars) surface via showEditResult.
+  const pz=document.getElementById('lp-presets');
+  if(pz){
+    pz.innerHTML=renderPresetsBarHTML(esc);
+    const sw=pz.querySelectorAll('[data-cls]');
+    for(let i=0;i<sw.length;i++){ sw[i].addEventListener('click', function(){
+      const cls=this.getAttribute('data-cls'), grp=this.getAttribute('data-group');
+      const cur=ci?ci.value:(sel.className||'');
+      const next=mergeClass(cur, cls, grp);
+      if(ci) ci.value=next;
+      sendEdit('class', next);
+    }); }
+  }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
   // LP-4.5 — the ONE BOX: any prompt lands here. Default AUTO = the anchored-task agent (reads
@@ -2579,7 +2831,9 @@ function renderSelection(sel){
       vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
     } else {
       const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
-      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc });
+      // LP-4.8 §4 — attach-as-reference: the extra nodes travel as read-only context for the agent.
+      const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
     }
     showEditResult(null,'pending');
   };
@@ -2592,6 +2846,10 @@ function renderSelection(sel){
       else h.style.display='none';
     });
   }
+  // LP-4.8 §3 — /skills. Picking a skill SEEDS this one-box with the skill's template and pins the
+  // chip to the skill's tier floor (routing surfaced, never hidden). Execution then rides the exact
+  // same fenced one-box path (local $0 lp-prompt / anchored lp-task) — /skills adds no write surface.
+  wireSkillsMenu();
   // §5 — "resolver com o agente": switch the box to AUTO (honest refusal when the bridge is off).
   const ag=document.getElementById('lp-sel-agent');
   if(ag) ag.addEventListener('click', switchToAgent);
@@ -2609,6 +2867,9 @@ function renderSelection(sel){
     showEditResult(null,'pending');
   });
   renderModeChips();
+  renderRefs(); // LP-4.8 §4 — repaint the attached-reference chips (toolbar markup was rebuilt)
+  // Anchor the toolbar to the pin now that it is laid out (offsetWidth/Height are measurable).
+  if(ctbBody) positionCanvasToolbar(sel.rect);
 }
 // MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
 // partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
@@ -2950,6 +3211,25 @@ function showEditResult(ok, reason){
   const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
+// LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
+// within the frame wrap, so re-anchor the toolbar from the last known pin rect (iframe coords).
+window.addEventListener('resize', function(){ positionCanvasToolbar(); });
+// LP-4.8 §5 — keyboard/a11y. Esc DISMISSES the in-canvas toolbar, but only when focus is inside it
+// (so it never steals VS Code's global Esc), and never preventDefaults globally. If the /skills menu
+// is open, its own handler closes the menu first (it stopPropagations, so we don't also hide). After
+// hiding, focus returns to the 🎯 toggle so keyboard users are never stranded on a removed node. Tab
+// navigates the controls natively — they are real buttons/inputs in a sensible DOM order.
+(function(){
+  const ctb=document.getElementById('lp-ctb'); if(!ctb) return;
+  ctb.addEventListener('keydown', function(e){
+    if(e.key!=='Escape') return;
+    const menu=document.getElementById('lp-sk-menu');
+    if(menu && menu.style.display!=='none') return; // the menu's Esc handler owns this
+    e.stopPropagation();
+    hideCanvasToolbar();
+    const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus();
+  });
+})();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
@@ -2975,7 +3255,19 @@ window.addEventListener('message', (ev) => {
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
     else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); }
-    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
+    // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
+    // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
+    // lp-select; it only nudges the toolbar's position, never touches the write path.
+    else if (m.type === 'lp-pin-rect'){ if(m.rect && typeof m.rect.x==='number') positionCanvasToolbar(m.rect); }
+    // LP-4.8 §4 — a Cmd/Ctrl-click attached a node as a reference. Dedup by stamp, cap at 8, then
+    // repaint the ref chips. Read-only context (origin-locked branch, same as lp-select).
+    else if (m.type === 'lp-attach'){
+      if(m.file && lpRefs.length<8){
+        const dup=lpRefs.some(function(r){ return r.file===m.file && r.line===m.line && r.col===m.col && r.tag===m.tag; });
+        if(!dup){ lpRefs.push({ file:m.file, line:m.line, col:m.col, tag:m.tag, label:(typeof m.label==='string')?m.label.slice(0,40):'' }); renderRefs(); }
+      }
+    }
+    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); lpRefs=[]; renderRefs(); }
     return;
   }
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from

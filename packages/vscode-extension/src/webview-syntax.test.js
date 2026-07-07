@@ -6,6 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const vm = require('vm');
 
@@ -17,7 +18,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js', './lp-skills.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -194,6 +195,139 @@ test('Live Preview LP-4.5 §6 device toggle — 390/768/full buttons drive ONLY 
   assert.ok(html.includes('setDevice(390)') && html.includes('setDevice(768)') && html.includes('setDevice(null)'), 'width presets wired');
   assert.ok(/f\.style\.width=px\+'px'/.test(html), 'the toggle only sets the iframe width (no UA spoofing claimed)');
   assert.ok(html.includes('só muda a largura do iframe'), 'honest copy: width only');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §1 in-canvas toolbar — floats over the frame anchored to the pin, click-through fence, follows on reflow', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The toolbar is a TRUSTED-webview overlay INSIDE the frame wrap (never injected into the
+  // cross-origin site — adversarial L1). The overlay spans the frame but is click-through so the
+  // iframe still receives hover/select; only the toolbar itself is interactive.
+  assert.ok(html.includes('id="lp-ctb-ov"'), 'toolbar overlay host present');
+  assert.ok(html.includes('id="lp-ctb"'), 'floating toolbar present');
+  assert.ok(html.includes('id="lp-ctb-body"'), 'toolbar body mount present');
+  assert.ok(html.includes('role="toolbar"'), 'toolbar has an ARIA toolbar role');
+  assert.ok(/\.lp-ctb-ov\{[^}]*pointer-events:none/.test(html), 'the overlay is click-through (pointer-events:none)');
+  assert.ok(/\.lp-ctb\{[^}]*pointer-events:auto/.test(html), 'only the toolbar itself catches pointer events');
+  // The interactive controls now live in the toolbar body, not the side rail; the ids/wiring
+  // literals the older tests assert must still be emitted (they are, in inputsHTML).
+  assert.ok(html.includes('id="lp-ctb-body">') === false || html.includes('ctbBody.innerHTML=inputsHTML'), 'inputs render into the toolbar body');
+  assert.ok(html.includes('function positionCanvasToolbar'), 'positioning maps the pin rect into frame-wrap coords');
+  assert.ok(html.includes('function hideCanvasToolbar'), 'a null selection hides the toolbar');
+  // The toolbar FOLLOWS the pin: the tap re-emits lp-pin-rect on scroll/resize and the webview
+  // repositions from it — on the SAME origin-locked untrusted-iframe branch as lp-select.
+  assert.ok(html.includes("m.type === 'lp-pin-rect'"), 'lp-pin-rect handled (toolbar follows the pin on reflow)');
+  assert.ok(/positionCanvasToolbar\(m\.rect\)/.test(html), 'reflow rect repositions the toolbar');
+  // A webview-side resize (panel drag) also re-anchors from the last known rect.
+  assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{ positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-anchors the toolbar');
+  // The controls that MOVED still ship their ids + wiring (regression guard for the split).
+  assert.ok(html.includes('id="lp-chip"') && html.includes('id="lp-box-in"') && html.includes('id="lp-sel-del"'), 'chip/one-box/delete still present after the split');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §2 presets — deterministic colour/size/spacing ride the class-edit fence ($0, no LLM)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The preset bar mounts in the toolbar and the pure engine is serialised in (self-contained).
+  assert.ok(html.includes('id="lp-presets"'), 'preset bar mount present');
+  assert.ok(html.includes('function mergeClass') || /const mergeClass=/.test(html), 'mergeClass serialised into the webview');
+  assert.ok(/const renderPresetsBarHTML=/.test(html), 'preset catalog serialised into the webview');
+  // A preset click merges into the CURRENT className and feeds the EXISTING class-edit preview —
+  // never a model call. The proof: the handler routes through sendEdit('class', next), not lp-task.
+  assert.ok(/mergeClass\(cur, cls, grp\)/.test(html), 'preset merges the class deterministically');
+  assert.ok(/sendEdit\('class', next\)/.test(html), 'preset applies via the class-edit fence (preview-first)');
+  // Honest $0: the preset group is labelled as deterministic, no tokens.
+  assert.ok(html.includes('sem tokens'), 'presets are labelled $0/no-tokens');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §3 /skills — element-scoped skills seed the one-box + pin the tier (no new write surface)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The dropdown button + menu + the serialised registry/renderer are present.
+  assert.ok(html.includes('id="lp-sk-btn"'), '/skills button present');
+  assert.ok(html.includes('id="lp-sk-menu"'), 'skills menu container present');
+  assert.ok(/const LP_SKILLS=\[/.test(html), 'skills registry embedded as JSON');
+  assert.ok(html.includes('function renderSkillsMenuHTML'), 'menu renderer serialised in');
+  assert.ok(html.includes('role="menu"'), 'menu has an ARIA menu role');
+  // The 5 v1 skills are in the embedded registry with honest per-skill tiers.
+  assert.ok(html.includes('"id":"icon"') && html.includes('"id":"section"'), 'v1 skills embedded');
+  assert.ok(html.includes('"tierFloor":"auto"'), '/section floors to the agent');
+  // A skill SEEDS the one-box and pins the chip — it does NOT open a new write path. The proof:
+  // the item handler sets lp-box-in + lpMode, then execution reuses the existing sendBox path.
+  assert.ok(/bi\.value=tpl/.test(html), 'skill seeds the one-box with its template');
+  assert.ok(/lpMode=skillTierMode\(tier\)/.test(html), 'skill pins the chip to its tier floor (routing surfaced)');
+  assert.ok(html.includes('skill activa: /'), 'active-skill indicator shows the routing');
+  // No bespoke skill message type — /skills must not bypass the fence with its own write channel.
+  assert.ok(!/type:'lp-skill-apply'|type:'lp-skill-write'/.test(html), 'no skill-specific write message (rides the existing fence)');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §3 /skills — a hostile workspace-override skill cannot break out of the inline <script>', () => {
+  // loadSkills reads <wsRoot>/.mooter/skills/*.md and is NOT trust-gated, so a cloned repo controls
+  // label/hint/template. The registry is embedded via JSON.stringify into the nonce'd inline script;
+  // a template of `</script>…` would terminate the tag without the `<`→< escape. CSP blocks
+  // execution, so the real risk is panel-JS breakage + inert HTML injection — this pins the fence.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-skill-xss-'));
+  try {
+    const dir = path.join(root, '.mooter', 'skills');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'evil.md'),
+      '---\nid: evil\nlabel: "/evil"\ntier_floor: local\nkind: text\n' +
+      'template: "</script><b>PWN</b> injected"\n---\nhuman docs we never execute\n', 'utf8');
+    const sandbox = loadExtension();
+    const html = sandbox.getLivePreviewHtml('tok', root);
+    // The override was actually exercised (not silently dropped) — the id reaches the embed…
+    assert.ok(html.includes('"id":"evil"'), 'workspace-override skill loaded into the embed');
+    // …but its `<` is neutralised: the raw breakout sequence is absent, the escaped form present.
+    assert.ok(!html.includes('</script><b>PWN'), 'hostile template must NOT reach the DOM unescaped');
+    assert.ok(html.includes('\\u003c/script>\\u003cb>PWN'), 'the `<` is escaped to \\u003c in the embed');
+    // And the whole delivered webview still parses — the script block was not truncated early.
+    parseInlineScript(html);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Live Preview LP-4.8 §4 multi-select — Cmd/Ctrl-click attaches refs as agent context (never a write target)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The ref chips container + attach ingest are present; refs ride the agent (lp-task) path.
+  assert.ok(html.includes('id="lp-refs"'), 'attached-references container present');
+  assert.ok(html.includes("m.type === 'lp-attach'"), 'lp-attach ingested (Cmd/Ctrl-click reference)');
+  assert.ok(/lpRefs\.push\(/.test(html), 'a reference is recorded');
+  assert.ok(/refs:refs/.test(html), 'refs travel with the anchored lp-task');
+  // Dedup + a hard cap so a prompt can never balloon with references.
+  assert.ok(/lpRefs\.length<8/.test(html), 'reference count is capped');
+  // Removal is honest end-to-end: the ✕/limpar tell the tap to drop its overlay box too.
+  assert.ok(html.includes("type:'lp-detach'") && html.includes("type:'lp-detach-all'"), 'detach messages wired to the tap');
+  assert.ok(/postMessage\(\{ type:'lp-detach'[^)]*\}, curOrigin\)/.test(html), 'lp-detach is origin-targeted');
+  // Honest routing note: on the local $0 chip the refs do not apply (single-node fenced edit).
+  assert.ok(html.includes('as referências entram quando subes para o agente'), 'honest note: refs feed the agent, not the $0 fence');
+  // A reference is NEVER a write target — it only rides lp-task as context; there is no ref-write msg.
+  assert.ok(!/type:'lp-ref-edit'|type:'lp-ref-apply'/.test(html), 'no reference write path');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §5 keyboard/a11y — Esc dismisses the toolbar (no VS Code steal), ARIA + focus-visible', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The toolbar is an ARIA toolbar; its controls are labelled for screen readers.
+  assert.ok(/id="lp-ctb"[^>]*role="toolbar"/.test(html), 'toolbar has role=toolbar');
+  assert.ok(html.includes('aria-label="texto do elemento selecionado"'), 'text input labelled');
+  assert.ok(html.includes('aria-label="classe Tailwind do elemento selecionado"'), 'class input labelled');
+  assert.ok(html.includes('aria-label="prompt ancorado neste elemento"'), 'one-box labelled');
+  // Esc DISMISSES the toolbar only when focus is inside it (never steals VS Code's global Esc),
+  // defers to the /skills menu when open, and returns focus to the 🎯 toggle (never stranded).
+  assert.ok(/ctb\.addEventListener\('keydown'/.test(html), 'toolbar Esc handler wired on the toolbar (scoped, not global)');
+  assert.ok(html.includes("if(e.key!=='Escape') return;"), 'the handler only acts on Escape');
+  assert.ok(/hideCanvasToolbar\(\)/.test(html), 'Esc hides the toolbar');
+  assert.ok(html.includes("getElementById('lp-select-btn'); if(sb) sb.focus()"), 'focus returns to the 🎯 toggle');
+  // The /skills menu closes on its own Escape before the toolbar-hide can fire.
+  assert.ok(/menu\.addEventListener\('keydown'[\s\S]{0,120}Escape[\s\S]{0,80}closeSkillsMenu/.test(html), 'skills menu closes on Escape');
+  // Focus-visible outlines on the toolbar controls (keyboard users always see focus).
+  assert.ok(/\.lp-ctb .lp-ed-in:focus-visible/.test(html), 'toolbar controls have focus-visible outlines');
   parseInlineScript(html);
 });
 

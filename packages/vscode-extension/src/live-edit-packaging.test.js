@@ -151,6 +151,16 @@ test('vsix packaging contract: vendored live-edit assets ship; the generator scr
   assert.ok(lines.indexOf('scripts/**') !== -1, 'dev-only scripts/ must be ignored in the vsix');
 });
 
+test('vsix packaging contract: LP-4.8 vendored /skills defaults ship (assets/skills/*.md)', () => {
+  const root = path.join(__dirname, '..');
+  for (const id of ['icon', 'copy', 'restyle', 'a11y', 'section']) {
+    assert.ok(fs.existsSync(path.join(root, 'assets', 'skills', id + '.md')), 'vendored skill ships: ' + id);
+  }
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  assert.ok(!lines.some((l) => l === 'assets/**' || l === 'assets/skills/**' || l === '**/*.md'),
+    '.vscodeignore must not strip the vendored skills from the vsix');
+});
+
 test('vendored whitelist agrees with the lucide v1.0 brand removal (the class this wave kills)', () => {
   const txt = fs.readFileSync(path.join(__dirname, '..', 'assets', 'live-edit', 'lucide-icons.llms.txt'), 'utf8');
   const names = new Set(txt.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && l.charAt(0) !== '#'));
