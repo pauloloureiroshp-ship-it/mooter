@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
 import { execSync } from 'child_process';
+import { realpathSync } from 'fs';
 
 // Live Preview MP2 · red-team loop hole #2(b): the Mooter cockpit's App Stage frames this
 // dev server in a VS Code webview <iframe>. `X-Frame-Options: DENY` would make Chromium refuse
@@ -30,6 +31,21 @@ function resolveBuildSha() {
   }
 }
 
+// Live Edit (FIX-MP-1 · audit P0-1) — served-tree identity. In dev, `process.cwd()` at config-eval
+// time IS the dev server's own root (the tree it compiles + serves). We expose its realpath'd value
+// to the client bundle so the Live Preview host can PROVE the preview it frames comes from the same
+// tree it would write to. Twin worktrees (same repo, sibling paths) otherwise pass containment and
+// the $0 edit lands in the WRONG tree (incident 2026-07-06 06:49). DEV-ONLY: see the `env` gate — the
+// key is never emitted in production, so `process.env.NEXT_PUBLIC_LP_ROOT` tree-shakes to undefined
+// on the deployed mooter.ai site and can never leak a build-machine path.
+function resolveServedRoot() {
+  try {
+    return realpathSync(process.cwd());
+  } catch {
+    return process.cwd();
+  }
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   // Vercel deployment works out of the box; standalone output is used when
@@ -37,6 +53,8 @@ const nextConfig: NextConfig = {
   ...(process.env.FRUGAL_LANDING_STANDALONE === '1' && { output: 'standalone' as const }),
   env: {
     NEXT_PUBLIC_BUILD_SHA: resolveBuildSha(),
+    // DEV-ONLY served-tree marker (FIX-MP-1). Absent in prod → undefined → the host fail-closes.
+    ...(IS_DEV ? { NEXT_PUBLIC_LP_ROOT: resolveServedRoot() } : {}),
   },
   async headers() {
     return [
