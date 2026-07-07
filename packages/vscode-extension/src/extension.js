@@ -132,6 +132,17 @@ try { LPP = require('./lp-presets.js'); } catch { LPP = null; }
 // under .mooter/skills/. Skills seed the one-box + pin the tier; execution rides the existing fence.
 let LSK = null;
 try { LSK = require('./lp-skills.js'); } catch { LSK = null; }
+// LP-5 §0 — Review Security: 4 PURE scanner modules (secret-scan, npm-audit summarizer,
+// xss-scan, csp-check) + the view renderer, serialised into the webview via fn.toString() (same
+// trick as lp-presets.js). None of the 4 scanners does fs/net/vscode — _securityScan() below
+// reads workspace files + runs `npm audit --json` and hands the data in. Fail-soft: an absent
+// module degrades that slice of the review honestly (never a crash, never a fabricated "clean").
+let LPSS = null, LPAS = null, LPXS = null, LPCC = null, LPSECV = null;
+try { LPSS = require('./lp-secret-scan.js'); } catch { LPSS = null; }
+try { LPAS = require('./lp-audit-summary.js'); } catch { LPAS = null; }
+try { LPXS = require('./lp-xss-scan.js'); } catch { LPXS = null; }
+try { LPCC = require('./lp-csp-check.js'); } catch { LPCC = null; }
+try { LPSECV = require('./lp-security-view.js'); } catch { LPSECV = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1372,6 +1383,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
+    if (m.type === 'lp-security-scan') { this._securityScan(); return; } // LP-5 §B global 🛡 review — secrets/xss/csp/npm-audit, local $0
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
       const p = (typeof m.path === 'string') ? m.path.slice(0, 2048) : null;
@@ -1692,6 +1704,88 @@ class LivePreviewPanel {
       }
     } catch { /* refuse below */ }
     return null;
+  }
+  // ── LP-5 §B — Review Security: a bounded, read-only walk of the workspace (never outside it —
+  // same containment discipline as _resolveContainedFile), feeding the 4 PURE scanners. Only
+  // workspace-RELATIVE paths ever reach the webview — no absolute host path leaves this method.
+  // Local, $0: the only process spawned is `npm audit --json` (fail-soft — missing npm, a
+  // timeout, or any spawn error all degrade to an honest ok:false, never a throw); the only
+  // network traffic is npm's OWN registry advisory check inside that command — we send it no
+  // code. Wrapped end-to-end in try/catch: any unexpected failure posts {error:'scan-failed'}.
+  _securityScan() {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      // Skip vendored/build dirs AND test/fixture dirs — a security review audits SHIPPED code, not
+      // the scanners' own test fixtures (whose AKIA…-shaped strings would otherwise flood the panel
+      // with false 'critical' findings, which is exactly what a showcase must not do). Dot-dirs
+      // (.git/.next/.turbo/…) are skipped below by their leading '.'.
+      const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
+      const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
+      const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i; // *.test.tsx / *.spec.js / *.stories.tsx — not shipped product code
+      const ENV_RE = /^\.env(\..*)?$/i;
+      const MAX_FILES = 2000;
+      const MAX_BYTES = 512 * 1024; // skip anything bigger — never read a partial file across a truncation boundary
+      const files = [];
+      let nextConfigAbs = null;
+      const walk = (dir, depth) => {
+        if (depth > 12 || files.length >= MAX_FILES) return;
+        let ents;
+        try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const ent of ents) {
+          if (files.length >= MAX_FILES) return;
+          const name = ent.name;
+          const abs = path.join(dir, name);
+          if (ent.isDirectory()) {
+            if (name.charAt(0) === '.' || SKIP_DIRS.has(name)) continue; // node_modules/.git/.next/dist/… never walked
+            walk(abs, depth + 1);
+            continue;
+          }
+          if (!ent.isFile()) continue;
+          const rel = path.relative(root, abs).split(path.sep).join('/');
+          const isEnv = ENV_RE.test(name);
+          if (name.charAt(0) === '.' && !isEnv) continue; // other dotfiles are out of scope
+          if (TEST_RE.test(name)) continue; // test/spec/story files are not shipped product — skip
+          const isPublic = /(^|\/)public\//i.test(rel);
+          const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
+          const isSrc = SRC_RE.test(name);
+          if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
+          if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
+          try {
+            const st = fs.statSync(abs);
+            if (!st.isFile() || st.size > MAX_BYTES) continue;
+            const content = fs.readFileSync(abs, 'utf8');
+            files.push({ path: rel, content });
+          } catch { /* unreadable → skipped, never blocks the scan */ }
+        }
+      };
+      walk(root, 0);
+
+      const secrets = LPSS ? LPSS.scanSecrets(files) : [];
+      const xss = LPXS ? LPXS.scanXss(files) : [];
+      let csp = { hasCsp: false, findings: [] };
+      if (LPCC) {
+        let cfgText = '';
+        if (nextConfigAbs) { try { cfgText = fs.readFileSync(nextConfigAbs, 'utf8'); } catch { cfgText = ''; } }
+        csp = LPCC.checkCsp(cfgText);
+      }
+
+      // npm audit — FAIL-SOFT. npm exits non-zero when it FINDS vulnerabilities (not a failure
+      // here); missing npm / a timeout / any spawn error all degrade to {ok:false} honestly.
+      let audit = { ok: false };
+      try {
+        const isWin = process.platform === 'win32';
+        const cp = require('child_process').spawnSync(
+          isWin ? 'npm.cmd' : 'npm',
+          ['audit', '--json'],
+          { cwd: root, timeout: 30000, windowsHide: true, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8', shell: isWin }
+        );
+        const out = (cp && typeof cp.stdout === 'string') ? cp.stdout : '';
+        audit = (LPAS && out) ? LPAS.summarizeNpmAudit(out) : { ok: false };
+      } catch { audit = { ok: false }; }
+
+      post({ secrets, xss, csp, audit, scannedFiles: files.length });
+    } catch { post({ error: 'scan-failed' }); }
   }
   // ── LP-4 §3 — anchored prompt: the model path, FENCED. The model (local $0 moo OR the
   // subscription bridge) sees ONLY the selected node's subtree + the instruction — never the
@@ -2151,6 +2245,9 @@ function getLivePreviewHtml(token, wsRoot) {
   // own catalog/regexes so toString survives the module-scope loss).
   const mergeClassSrc = LPP ? LPP.mergeClass.toString() : 'function mergeClass(c,cls){return ((c||"")+" "+cls).trim();}';
   const renderPresetsBarHTMLSrc = LPP ? LPP.renderPresetsBarHTML.toString() : 'function renderPresetsBarHTML(){return "";}';
+  // LP-5 §C — the Review Security renderer, serialised in (self-contained, same fn.toString()
+  // contract as renderPresetsBarHTML above).
+  const renderSecurityFindingsSrc = LPSECV ? LPSECV.renderSecurityFindings.toString() : 'function renderSecurityFindings(){return "";}';
   // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
   // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
   const skillsRegistry = LSK ? LSK.loadSkills({ wsRoot: wsRoot }) : [];
@@ -2169,6 +2266,19 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-root{display:flex;flex-direction:row;height:100vh;min-height:0}
   #lp-stagewrap{flex:1 1 62%;display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--vscode-widget-border)}
   #lp-side{flex:0 0 340px;max-width:46%;overflow:auto;padding:12px 14px;min-width:0}
+  /* LP-5 §C — 🛡 Review Security results panel (global action, local $0). */
+  #lp-security{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55}
+  #lp-security .lp-sec-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
+  #lp-security .lp-sec-meta{opacity:.75;margin-bottom:6px}
+  #lp-security .lp-sec-err{color:var(--vscode-errorForeground,#D9484B)}
+  #lp-security .lp-sec-group{margin-bottom:8px}
+  #lp-security .lp-sec-glabel{font-weight:600;margin-bottom:3px}
+  #lp-security .lp-sec-critical .lp-sec-glabel{color:var(--vscode-charts-red,#E8888A)}
+  #lp-security .lp-sec-warning .lp-sec-glabel{color:var(--vscode-charts-yellow,#E5C07B)}
+  #lp-security .lp-sec-info .lp-sec-glabel{opacity:.8}
+  #lp-security .lp-sec-item{margin:2px 0;word-break:break-word}
+  #lp-security .lp-sec-label{font-weight:600;margin-right:6px}
+  #lp-security .lp-sec-detail{opacity:.85}
   #lp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);flex-wrap:wrap}
   .lp-status{flex:1 1 auto;min-width:120px;display:flex;align-items:center;gap:7px;font-size:12px;overflow:hidden}
   .lp-status .lps-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2447,6 +2557,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
+        <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
+        <button id="lp-security-btn" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
     </div>
@@ -2496,6 +2608,8 @@ function getLivePreviewHtml(token, wsRoot) {
     </div>
   </section>
   <aside id="lp-side">
+    <!-- LP-5 §C — 🛡 Review Security mounts here; hidden until the first scan. -->
+    <div id="lp-security" role="region" aria-label="Review de segurança" style="display:none"></div>
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-feed" role="region" aria-label="Mudanças desta sessão de preview"></div>
     <div id="lp-brain">a carregar…</div>
@@ -2517,6 +2631,7 @@ const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
 const mergeClass=${mergeClassSrc};
 const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
+const renderSecurityFindings=${renderSecurityFindingsSrc};
 const LP_SKILLS=${skillsJson};
 const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
 function render(s){
@@ -3756,6 +3871,14 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-task-revert-result'){ applyTaskRevertResult(m); } // LP-4.5 per-file revert outcomes
   else if (m.type === 'lp-task-keep-result'){ applyTaskKeepResult(m); } // LP-4.5 keep-all outcome
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
+  else if (m.type === 'lp-security-result'){
+    // LP-5 §C — 🛡 review verdict: render into #lp-security via the serialised PURE renderer
+    // (same fn.toString() trick as the presets bar). m carries {secrets,xss,csp,audit,scannedFiles}
+    // or {error:'scan-failed'} — renderSecurityFindings is fail-soft either way.
+    const secBtn2=document.getElementById('lp-security-btn'); if(secBtn2) secBtn2.disabled=false;
+    const secEl2=document.getElementById('lp-security');
+    if(secEl2){ secEl2.style.display='block'; secEl2.innerHTML=renderSecurityFindings(m, esc); }
+  }
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin
@@ -3776,6 +3899,16 @@ const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
+// LP-5 §C — 🛡 Review Security: a GLOBAL action (not per-pin). Click → the host bounded-walks the
+// workspace + runs the 4 pure scanners + npm audit, all local, $0; the result renders into
+// #lp-security via the serialised renderSecurityFindings (same fn.toString() trick as presets).
+const secBtn=document.getElementById('lp-security-btn');
+if(secBtn) secBtn.addEventListener('click', function(){
+  const secEl=document.getElementById('lp-security');
+  if(secEl){ secEl.style.display='block'; secEl.innerHTML='<div class="lp-sec-hdr">🛡 a analisar… ($0 local)</div>'; }
+  secBtn.disabled=true;
+  vsapi.postMessage({ type:'lp-security-scan' });
+});
 // LP-4.5 §6 — device toggle: 📱390 · 📱768 · 💻 full. Honest and cheap: ONLY the iframe width
 // changes (real responsive breakpoints in the user's own dev server) — no UA spoofing claimed.
 function setDevice(px){
