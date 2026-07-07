@@ -1,0 +1,517 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260707060052
+Username: DESKTOP-J26409Q\Paulo Loureiro
+RunAs User: DESKTOP-J26409Q\Paulo Loureiro
+Configuration Name: 
+Machine: DESKTOP-J26409Q (Microsoft Windows NT 10.0.26200.0)
+Host Application: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\Paulo Loureiro\frugal\_handoff\cleanup-info-architecture.ps1
+Process ID: 12000
+PSVersion: 5.1.26100.8737
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8737
+BuildVersion: 10.0.26100.8737
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\Paulo Loureiro\frugal\_handoff\cleanup-log.txt
+=== 1) Estrutura de arquivo ===
+=== 2) Efemeros de junho -> _archive\2026-06 ===
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\MOOTER_DESIGN_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\MOOTER_CLAUDE_DESIGN_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\WAVE_SITE_MOCK_COW_REVERT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\WAVE66_GRAPHIFY_LANDING_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\MASTERPROMPT_LAND_AND_EVAL.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LAND_PARKED_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\ONDA0_BOOTSTRAP_DOCS_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\PERFECT_HANDOFF_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\SITE_HANDOFF_STORY_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\TRIAGE_PARKED_OLD_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\overclock-benchmark-2026-06-28T22-29-55.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\AUDIT_FLEET_ZERO_COST_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\FLEET_W4_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\FLEET_W4_FASE2_EXTRACT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\CTO_COMMAND_DECK_SPEC.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\mock
+=== 3) Efemeros de julho + LP consolidados -> _archive\2026-07 ===
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_PREVIEW_SUPER_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_PREVIEW_HOTRELOAD_TEST.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_PREVIEW_MP4_DIAGNOSTICS_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_PREVIEW_CONSOLIDATE.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\WAVE_LP1_MP3v2_MP4polish.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\WAVE_LP2_MP5_SelectToEdit.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\COCKPIT_HONEST_CONTROLS_BRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\HONEST_CONTROLS_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\FLEET_FASE3_ARM_MASTERPROMPT.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_EDIT_LP4_LP6_VISION.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_EDIT_MP5_SPEC.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_EDIT_MP5_2_SelectLock_Spec.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_EDIT_LP46_CONTEXT_PACK_STUDY.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\LIVE_EDIT_LP47_MOO_QUALITY_UX_STUDY.md
+OK    C:\Users\Paulo Loureiro\frugal\_handoff\INFO_ARCHITECTURE_CLEANUP_HANDOFF.md
+=== 4) Waves historicas de docs\strategy -> docs\archive\waves ===
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE10_ANTHROPIC_SHOWCASE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE10_DYNAMIC_WORKFLOW_MOCKUPS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE10_PHASE_B2B_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE10_PHASE_B2_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE10_PHASE_B_BACKLOG.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE10_STATUSLINE_MOCKUPS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE11_CLOSURE.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE11_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE11_WARM_INTRO_READINESS_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE12_CLOSURE.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE12_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE12_DIFFERENTIATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE12_STATUSLINE_POLISH_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE13_1_DIGEST_STDOUT_FIX_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE13_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE13_MOOS_VISIBILITY_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE13_X_BRAND_CLEANUP_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE13_X_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_14A_QUALITY_AUDIT_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_14C_LORA_STATUSLINE_CHIP_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_14E_SECURITY_AUDIT_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_DAY1_STALE_COPY_FIX_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_DAY2_STATE_AWARE_FIX_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_DAY3_BRAND_PARITY_ONBOARDING_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_DAY4_BRAND_PARITY_DASHBOARD_SETTINGS_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_PRE_VALIDATION_SWEEP_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE14_VALIDATION_INSTRUMENTATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE15_DAY1_LOGINHERO_FIX_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE15_FRIENDS_LAUNCH_AUDIT_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE16-18_DAY2_AUDIT_FIX_MICROBRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE16_18_DAY2_TIER_B_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE16_18_DAY2_TIER_C_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE16_STATUSLINE_REALITY_AUDIT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE17_DATA_PIPELINE_INTEGRITY.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE18_ACCESSIBILITY_AUDIT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE19_DAY2_ENHANCED_STATUSLINE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE19_TOKEN_TRANSPARENCY_REPORTER_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE19_VALIDATION_LIVE_TEST.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE20_FRIENDS_LAUNCH_POLISH_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE21_COHERENCE_AUDIT_DIGEST.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE21_CRITICAL_FIXES_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE21_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE21_DAY1_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE21_DAY2_HOTFIX_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE22_DAY0_SUBAGENTSTOP_PAYLOAD.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE22_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE22_FOUNDATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE23_MOOTER_AUDITS_MOOTER_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE23_PHASE0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE23_PHASE0_V167_SCHEMA.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE23_PHASE1_4_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE24_DAY1_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE24_PRE_LAUNCH_FIXES_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE26_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE26_REAL_SYNC_PASTOR_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE27_CONSOLIDATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE27_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE28_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE28_WORKFLOW_ENGINE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE29_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE29_SYNTHESIS_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_5_CONTINUOUS_ORCHESTRATOR.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_5_DAY1_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_5_DAY2_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_5_DAY3_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_5_DAY4_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_5_PLAN.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_6_CONTINUOUS_ORCHESTRATOR.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_6_DAY1_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_6_DAY2_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_6_DAY3_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_6_DYNAMIC_ORCHESTRATOR.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_6_PLAN.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_7_E2E_SIMULATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_8_LANDING_PARITY_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY1_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY2_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY3_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY4_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY5_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY6_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_DAY7_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE2_PLAN.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE30_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE30_MEGA_SYNTHESIS_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE31_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE31_PASTOR_V2_OBSIDIAN_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE32_1_POLISH_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE32_DAY0_FINDINGS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE32_TRANSPARENCY_PERFORMANCE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_5_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_5_HISTORIC_SPAWN_ORCHESTRATOR_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_6_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_6_MEGA_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_7_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_7_LANDING_ENHANCE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_8_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_9_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_9_VISUAL_MIGRATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_ONBOARDING_AUDIT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE33_ULTIMATE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE39_MULTI_USER_VAULT_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE3_D1_SAFETY_FIX_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE3_D2_ACTIVATION_HUB_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE3_D3_SYNC_STUB_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE3_PLAN.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_OVERVIEW.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_PHASE_A_LANDING_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_PHASE_B_AUTH_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_PHASE_B_SUPABASE_SETUP.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_PHASE_C_DASHBOARD_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_PHASE_D_CF_WORKERS_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE4_PHASE_D_CLOUDFLARE_SETUP.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE53_BRIEF_V3.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE53_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE54_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE55_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE55_SECRETS_SCAN_2026-06-11.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE55_STATUSLINE_PARITY_AUDIT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE56_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE58_2_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE58_3_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE58_4_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE58_7_HYGIENE_BRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE58_8_HYGIENE_CLOSER_BRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE58_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE59_COHERENCE_PASTOR_BENCH_BRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE5_D1_ADAPTER_FORGE_FOUNDATION_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE5_D2_MOOTER_FORGE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE5_D3_STATUSLINE_V2_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE5_D4_BASH_BADGE_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE60_5_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE60_5_REPORT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE60_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE60_REPORT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE61_AUTO_MATRIX_BRIEF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE61_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE61_GRAPHIFY_ARCHITECTURE.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE61_REPORT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE63_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE63_REPORT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE66_BENCHMARK.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE66_DAY0_RECON.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE66_GRAPHIFY_ARCHITECTURE.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE66_MCP_COEXISTENCE_AND_CLAIMS.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE6_5_D1_ADMIN_PANEL_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE6_5_D2_ADMIN_CHARTS_FEEDBACK_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE6_D1_WEB_ONBOARDING_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE6_D2_INSTALL_URL_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE6_SUPABASE_SETUP.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE8_INSTALL_RELIABILITY_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE9_PROD_PARITY_FIX_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE_COUNCIL_MASTERPROMPT_CC.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE_COUNCIL_MEGA_MASTERPROMPT_CC.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE_PACKS_HARDENING_KICKOFF.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE_TOKEN_ECONOMY_ARC_REPORT.md
+OK    C:\Users\Paulo Loureiro\frugal\docs\strategy\WAVE_WCOCKPIT9_COWORK_MIRROR_MASTERPROMPT.md
+=== 5) node_modules acidental em docs\strategy (lixo npm, regeneravel) ===
+OK    docs\strategy\node_modules removido
+=== 6) SYNC.md vira archive (o Cowork escreve o novo em seguida) ===
+OK    C:\Users\Paulo Loureiro\frugal\SYNC.md
+=== 7) git status (nativo, so leitura) ===
+ M AGENTS.md
+ M CLAUDE.md
+ M LOOP.md
+ M MEMORY.md
+ D SYNC.md
+ D _handoff/CTO_COMMAND_DECK_SPEC.md
+ D _handoff/FLEET_W4_FASE2_EXTRACT.md
+ D _handoff/LAND_PARKED_MASTERPROMPT.md
+ D _handoff/LIVE_PREVIEW_SUPER_MASTERPROMPT.md
+ D _handoff/MASTERPROMPT_LAND_AND_EVAL.md
+ D _handoff/MOOTER_CLAUDE_DESIGN_MASTERPROMPT.md
+ D _handoff/MOOTER_DESIGN_MASTERPROMPT.md
+ D _handoff/ONDA0_BOOTSTRAP_DOCS_MASTERPROMPT.md
+ D _handoff/PERFECT_HANDOFF_MASTERPROMPT.md
+ D _handoff/SITE_HANDOFF_STORY_MASTERPROMPT.md
+ D _handoff/TRIAGE_PARKED_OLD_MASTERPROMPT.md
+ D _handoff/WAVE66_GRAPHIFY_LANDING_MASTERPROMPT.md
+ D _handoff/WAVE_SITE_MOCK_COW_REVERT.md
+ D _handoff/mock/export-source/README.md
+ D _handoff/mock/export-source/assets/logos/favicon.svg
+ D _handoff/mock/export-source/assets/logos/frugal-logo-deprecated.svg
+ D _handoff/mock/export-source/assets/logos/mooter-logo-legacy.svg
+ D _handoff/mock/export-source/assets/logos/mooter-mark.svg
+ D _handoff/mock/export-source/colors_and_type.css
+ D _handoff/mock/export-source/handoff/SPEC.md
+ D _handoff/mock/export-source/handoff/_assets-preview.html
+ D _handoff/mock/export-source/handoff/assets/cow-marketplace-512.svg
+ D _handoff/mock/export-source/handoff/assets/cow-mono.svg
+ D _handoff/mock/export-source/handoff/assets/cow.svg
+ D _handoff/mock/export-source/handoff/assets/favicon.svg
+ D _handoff/mock/export-source/mooter-v1-app.jsx
+ D _handoff/mock/export-source/mooter-v1-cmdk.jsx
+ D _handoff/mock/export-source/mooter-v1-cockpit.jsx
+ D _handoff/mock/export-source/mooter-v1-commands.jsx
+ D _handoff/mock/export-source/mooter-v1-demo.jsx
+ D _handoff/mock/export-source/mooter-v1-install.jsx
+ D _handoff/mock/export-source/mooter-v1-iter1.jsx
+ D _handoff/mock/export-source/mooter-v1-marketing.jsx
+ D _handoff/mock/export-source/mooter-v1-onboarding.jsx
+ D _handoff/mock/export-source/mooter-v1-shared.jsx
+ D _handoff/mock/export-source/mooter-v1-showcase.jsx
+ D _handoff/mock/export-source/mooter-v1-stubs.jsx
+ D _handoff/mock/export-source/site/_layout.jsx
+ D _handoff/mock/export-source/site/app/dashboard.html
+ D _handoff/mock/export-source/site/app/packs.html
+ D _handoff/mock/export-source/site/app/settings.html
+ D _handoff/mock/export-source/site/auth.html
+ D _handoff/mock/export-source/site/changelog.html
+ D _handoff/mock/export-source/site/cockpit.html
+ D _handoff/mock/export-source/site/commands.html
+ D _handoff/mock/export-source/site/compare.html
+ D _handoff/mock/export-source/site/conductor.html
+ D _handoff/mock/export-source/site/index.html
+ D _handoff/mock/export-source/site/install.html
+ D _handoff/mock/export-source/site/methodology.html
+ D _handoff/mock/export-source/site/onboarding.html
+ D _handoff/mock/export-source/site/packs.html
+ D _handoff/mock/export-source/site/privacy.html
+ D _handoff/mock/export-source/site/security.html
+ D _handoff/mock/export-source/site/sessions.html
+ D _handoff/mock/export-source/site/under-the-hood.html
+ D _handoff/mock/export-source/site/workflow.html
+ D _handoff/overclock-benchmark-2026-06-28T22-29-55.md
+ D docs/strategy/WAVE10_ANTHROPIC_SHOWCASE_KICKOFF.md
+ D docs/strategy/WAVE10_DYNAMIC_WORKFLOW_MOCKUPS.md
+ D docs/strategy/WAVE10_PHASE_B2B_FINDINGS.md
+ D docs/strategy/WAVE10_PHASE_B2_KICKOFF.md
+ D docs/strategy/WAVE10_PHASE_B_BACKLOG.md
+ D docs/strategy/WAVE10_STATUSLINE_MOCKUPS.md
+ D docs/strategy/WAVE11_CLOSURE.md
+ D docs/strategy/WAVE11_DAY1_FINDINGS.md
+ D docs/strategy/WAVE11_WARM_INTRO_READINESS_KICKOFF.md
+ D docs/strategy/WAVE12_CLOSURE.md
+ D docs/strategy/WAVE12_DAY1_FINDINGS.md
+ D docs/strategy/WAVE12_DIFFERENTIATION_KICKOFF.md
+ D docs/strategy/WAVE12_STATUSLINE_POLISH_MICROBRIEF.md
+ D docs/strategy/WAVE13_1_DIGEST_STDOUT_FIX_MICROBRIEF.md
+ D docs/strategy/WAVE13_DAY1_FINDINGS.md
+ D docs/strategy/WAVE13_MOOS_VISIBILITY_MICROBRIEF.md
+ D docs/strategy/WAVE13_X_BRAND_CLEANUP_MICROBRIEF.md
+ D docs/strategy/WAVE13_X_DAY1_FINDINGS.md
+ D docs/strategy/WAVE14_14A_QUALITY_AUDIT_FINDINGS.md
+ D docs/strategy/WAVE14_14C_LORA_STATUSLINE_CHIP_MICROBRIEF.md
+ D docs/strategy/WAVE14_14E_SECURITY_AUDIT_MICROBRIEF.md
+ D docs/strategy/WAVE14_DAY1_STALE_COPY_FIX_MICROBRIEF.md
+ D docs/strategy/WAVE14_DAY2_STATE_AWARE_FIX_MICROBRIEF.md
+ D docs/strategy/WAVE14_DAY3_BRAND_PARITY_ONBOARDING_MICROBRIEF.md
+ D docs/strategy/WAVE14_DAY4_BRAND_PARITY_DASHBOARD_SETTINGS_MICROBRIEF.md
+ D docs/strategy/WAVE14_PRE_VALIDATION_SWEEP_KICKOFF.md
+ D docs/strategy/WAVE14_VALIDATION_INSTRUMENTATION_KICKOFF.md
+ D docs/strategy/WAVE15_DAY1_LOGINHERO_FIX_MICROBRIEF.md
+ D docs/strategy/WAVE15_FRIENDS_LAUNCH_AUDIT_FINDINGS.md
+ D docs/strategy/WAVE16-18_DAY2_AUDIT_FIX_MICROBRIEF.md
+ D docs/strategy/WAVE16_18_DAY2_TIER_B_FINDINGS.md
+ D docs/strategy/WAVE16_18_DAY2_TIER_C_FINDINGS.md
+ D docs/strategy/WAVE16_STATUSLINE_REALITY_AUDIT.md
+ D docs/strategy/WAVE17_DATA_PIPELINE_INTEGRITY.md
+ D docs/strategy/WAVE18_ACCESSIBILITY_AUDIT.md
+ D docs/strategy/WAVE19_DAY2_ENHANCED_STATUSLINE_KICKOFF.md
+ D docs/strategy/WAVE19_TOKEN_TRANSPARENCY_REPORTER_KICKOFF.md
+ D docs/strategy/WAVE19_VALIDATION_LIVE_TEST.md
+ D docs/strategy/WAVE20_FRIENDS_LAUNCH_POLISH_KICKOFF.md
+ D docs/strategy/WAVE21_COHERENCE_AUDIT_DIGEST.md
+ D docs/strategy/WAVE21_CRITICAL_FIXES_KICKOFF.md
+ D docs/strategy/WAVE21_DAY1_FINDINGS.md
+ D docs/strategy/WAVE21_DAY1_RECON.md
+ D docs/strategy/WAVE21_DAY2_HOTFIX_FINDINGS.md
+ D docs/strategy/WAVE22_DAY0_SUBAGENTSTOP_PAYLOAD.md
+ D docs/strategy/WAVE22_DAY1_FINDINGS.md
+ D docs/strategy/WAVE22_FOUNDATION_KICKOFF.md
+ D docs/strategy/WAVE23_MOOTER_AUDITS_MOOTER_KICKOFF.md
+ D docs/strategy/WAVE23_PHASE0_FINDINGS.md
+ D docs/strategy/WAVE23_PHASE0_V167_SCHEMA.md
+ D docs/strategy/WAVE23_PHASE1_4_FINDINGS.md
+ D docs/strategy/WAVE24_DAY1_FINDINGS.md
+ D docs/strategy/WAVE24_PRE_LAUNCH_FIXES_KICKOFF.md
+ D docs/strategy/WAVE26_DAY0_FINDINGS.md
+ D docs/strategy/WAVE26_REAL_SYNC_PASTOR_KICKOFF.md
+ D docs/strategy/WAVE27_CONSOLIDATION_KICKOFF.md
+ D docs/strategy/WAVE27_DAY0_FINDINGS.md
+ D docs/strategy/WAVE28_DAY0_FINDINGS.md
+ D docs/strategy/WAVE28_WORKFLOW_ENGINE_KICKOFF.md
+ D docs/strategy/WAVE29_DAY0_FINDINGS.md
+ D docs/strategy/WAVE29_SYNTHESIS_KICKOFF.md
+ D docs/strategy/WAVE2_5_CONTINUOUS_ORCHESTRATOR.md
+ D docs/strategy/WAVE2_5_DAY1_KICKOFF.md
+ D docs/strategy/WAVE2_5_DAY2_KICKOFF.md
+ D docs/strategy/WAVE2_5_DAY3_KICKOFF.md
+ D docs/strategy/WAVE2_5_DAY4_KICKOFF.md
+ D docs/strategy/WAVE2_5_PLAN.md
+ D docs/strategy/WAVE2_6_CONTINUOUS_ORCHESTRATOR.md
+ D docs/strategy/WAVE2_6_DAY1_KICKOFF.md
+ D docs/strategy/WAVE2_6_DAY2_KICKOFF.md
+ D docs/strategy/WAVE2_6_DAY3_KICKOFF.md
+ D docs/strategy/WAVE2_6_DYNAMIC_ORCHESTRATOR.md
+ D docs/strategy/WAVE2_6_PLAN.md
+ D docs/strategy/WAVE2_7_E2E_SIMULATION_KICKOFF.md
+ D docs/strategy/WAVE2_8_LANDING_PARITY_KICKOFF.md
+ D docs/strategy/WAVE2_DAY1_KICKOFF.md
+ D docs/strategy/WAVE2_DAY2_KICKOFF.md
+ D docs/strategy/WAVE2_DAY3_KICKOFF.md
+ D docs/strategy/WAVE2_DAY4_KICKOFF.md
+ D docs/strategy/WAVE2_DAY5_KICKOFF.md
+ D docs/strategy/WAVE2_DAY6_KICKOFF.md
+ D docs/strategy/WAVE2_DAY7_KICKOFF.md
+ D docs/strategy/WAVE2_PLAN.md
+ D docs/strategy/WAVE30_DAY0_FINDINGS.md
+ D docs/strategy/WAVE30_MEGA_SYNTHESIS_KICKOFF.md
+ D docs/strategy/WAVE31_DAY0_FINDINGS.md
+ D docs/strategy/WAVE31_PASTOR_V2_OBSIDIAN_KICKOFF.md
+ D docs/strategy/WAVE32_1_POLISH_KICKOFF.md
+ D docs/strategy/WAVE32_DAY0_FINDINGS.md
+ D docs/strategy/WAVE32_TRANSPARENCY_PERFORMANCE_KICKOFF.md
+ D docs/strategy/WAVE33_5_DAY0_RECON.md
+ D docs/strategy/WAVE33_5_HISTORIC_SPAWN_ORCHESTRATOR_KICKOFF.md
+ D docs/strategy/WAVE33_6_DAY0_RECON.md
+ D docs/strategy/WAVE33_6_MEGA_KICKOFF.md
+ D docs/strategy/WAVE33_7_DAY0_RECON.md
+ D docs/strategy/WAVE33_7_LANDING_ENHANCE_KICKOFF.md
+ D docs/strategy/WAVE33_8_DAY0_RECON.md
+ D docs/strategy/WAVE33_9_DAY0_RECON.md
+ D docs/strategy/WAVE33_9_VISUAL_MIGRATION_KICKOFF.md
+ D docs/strategy/WAVE33_DAY0_RECON.md
+ D docs/strategy/WAVE33_ONBOARDING_AUDIT.md
+ D docs/strategy/WAVE33_ULTIMATE_KICKOFF.md
+ D docs/strategy/WAVE39_MULTI_USER_VAULT_KICKOFF.md
+ D docs/strategy/WAVE3_D1_SAFETY_FIX_KICKOFF.md
+ D docs/strategy/WAVE3_D2_ACTIVATION_HUB_KICKOFF.md
+ D docs/strategy/WAVE3_D3_SYNC_STUB_KICKOFF.md
+ D docs/strategy/WAVE3_PLAN.md
+ D docs/strategy/WAVE4_OVERVIEW.md
+ D docs/strategy/WAVE4_PHASE_A_LANDING_KICKOFF.md
+ D docs/strategy/WAVE4_PHASE_B_AUTH_KICKOFF.md
+ D docs/strategy/WAVE4_PHASE_B_SUPABASE_SETUP.md
+ D docs/strategy/WAVE4_PHASE_C_DASHBOARD_KICKOFF.md
+ D docs/strategy/WAVE4_PHASE_D_CF_WORKERS_KICKOFF.md
+ D docs/strategy/WAVE4_PHASE_D_CLOUDFLARE_SETUP.md
+ D docs/strategy/WAVE53_BRIEF_V3.md
+ D docs/strategy/WAVE53_DAY0_RECON.md
+ D docs/strategy/WAVE54_DAY0_RECON.md
+ D docs/strategy/WAVE55_DAY0_RECON.md
+ D docs/strategy/WAVE55_SECRETS_SCAN_2026-06-11.md
+ D docs/strategy/WAVE55_STATUSLINE_PARITY_AUDIT.md
+ D docs/strategy/WAVE56_DAY0_RECON.md
+ D docs/strategy/WAVE58_2_DAY0_RECON.md
+ D docs/strategy/WAVE58_3_DAY0_RECON.md
+ D docs/strategy/WAVE58_4_DAY0_RECON.md
+ D docs/strategy/WAVE58_7_HYGIENE_BRIEF.md
+ D docs/strategy/WAVE58_8_HYGIENE_CLOSER_BRIEF.md
+ D docs/strategy/WAVE58_DAY0_RECON.md
+ D docs/strategy/WAVE59_COHERENCE_PASTOR_BENCH_BRIEF.md
+ D docs/strategy/WAVE5_D1_ADAPTER_FORGE_FOUNDATION_KICKOFF.md
+ D docs/strategy/WAVE5_D2_MOOTER_FORGE_KICKOFF.md
+ D docs/strategy/WAVE5_D3_STATUSLINE_V2_KICKOFF.md
+ D docs/strategy/WAVE5_D4_BASH_BADGE_KICKOFF.md
+ D docs/strategy/WAVE60_5_DAY0_RECON.md
+ D docs/strategy/WAVE60_5_REPORT.md
+ D docs/strategy/WAVE60_DAY0_RECON.md
+ D docs/strategy/WAVE60_REPORT.md
+ D docs/strategy/WAVE61_AUTO_MATRIX_BRIEF.md
+ D docs/strategy/WAVE61_DAY0_RECON.md
+ D docs/strategy/WAVE61_GRAPHIFY_ARCHITECTURE.md
+ D docs/strategy/WAVE61_REPORT.md
+ D docs/strategy/WAVE63_DAY0_RECON.md
+ D docs/strategy/WAVE63_REPORT.md
+ D docs/strategy/WAVE66_BENCHMARK.md
+ D docs/strategy/WAVE66_DAY0_RECON.md
+ D docs/strategy/WAVE66_GRAPHIFY_ARCHITECTURE.md
+ D docs/strategy/WAVE66_MCP_COEXISTENCE_AND_CLAIMS.md
+ D docs/strategy/WAVE6_5_D1_ADMIN_PANEL_KICKOFF.md
+ D docs/strategy/WAVE6_5_D2_ADMIN_CHARTS_FEEDBACK_KICKOFF.md
+ D docs/strategy/WAVE6_D1_WEB_ONBOARDING_KICKOFF.md
+ D docs/strategy/WAVE6_D2_INSTALL_URL_KICKOFF.md
+ D docs/strategy/WAVE6_SUPABASE_SETUP.md
+ D docs/strategy/WAVE8_INSTALL_RELIABILITY_KICKOFF.md
+ D docs/strategy/WAVE9_PROD_PARITY_FIX_KICKOFF.md
+ D docs/strategy/WAVE_COUNCIL_MASTERPROMPT_CC.md
+ D docs/strategy/WAVE_COUNCIL_MEGA_MASTERPROMPT_CC.md
+ D docs/strategy/WAVE_PACKS_HARDENING_KICKOFF.md
+ D docs/strategy/WAVE_TOKEN_ECONOMY_ARC_REPORT.md
+ D docs/strategy/WAVE_WCOCKPIT9_COWORK_MIRROR_MASTERPROMPT.md
+ M landing/app/_components/TwoTerminalDemo.tsx
+ M landing/app/page.tsx
+ M landing/components/Footer.tsx
+ M tools/router/chip-composer.js
+ M tools/router/gsd-statusline.js
+?? _handoff/CONDUCTOR_F0_DISPATCH_MASTERPROMPT.md
+?? _handoff/CONDUCTOR_F0_REDTEAM.md
+?? _handoff/DECK_POLISH_MASTERPROMPT.md
+?? _handoff/FLEET_ARM_GPU_TALO_BRIEF.md
+?? _handoff/FLEET_FASE3_LAUNCH_HANDOFF.md
+?? _handoff/INFO_AUDIT.md
+?? _handoff/LIVE_EDIT_CCA_AUDIT.md
+?? _handoff/LIVE_EDIT_CCA_AUDIT_MASTERPROMPT.md
+?? _handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md
+?? _handoff/LIVE_PREVIEW_FEATURE_STUDY.md
+?? _handoff/LIVE_PREVIEW_MASTER_HANDOFF.md
+?? _handoff/LIVE_PREVIEW_POSTMORTEM_PROTOCOL.md
+?? _handoff/LIVE_PREVIEW_TOTAL_AUDIT_WAVE.md
+?? _handoff/MIRROR_MASTERPROMPTS.md
+?? _handoff/MOOTER_BRIDGE_CONNECTOR_STUDY.md
+?? _handoff/MOOTER_CONDUCTOR_BRIEF.md
+?? _handoff/MOOTER_CONDUCTOR_PRODUCT_DESIGN.md
+?? _handoff/MOOTER_MIRROR_ARCHITECTURE.md
+?? _handoff/MOOTER_PAINS_X_SOTA_BLUEPRINT.md
+?? _handoff/MOOVE_MVP_MASTERPROMPT.md
+?? _handoff/PORTABILITY_LOVABLE_TO_MOOTER_BRIEF.md
+?? _handoff/QUOTA_AWARE_MP.md
+?? _handoff/RUN-CLEANUP.bat
+?? _handoff/SUPER_MP_QUOTA_FLEET.md
+?? _handoff/SUPER_WAVE_LP48_LP5_LP6.md
+?? _handoff/_archive/
+?? _handoff/cleanup-info-architecture.ps1
+?? _handoff/cleanup-log.txt
+?? _handoff/guardian/026d0f38-0ae1-495b-8f12-659900233c6a.md
+?? _handoff/guardian/061aea86-b8f9-4c89-9eb3-174d763833df.md
+?? _handoff/guardian/1f698af0-c58b-46fa-b4fa-94bf0783fff9.md
+?? _handoff/guardian/238afb6f-0ea4-449a-bf92-02dfeb4e871e.md
+?? _handoff/guardian/3c1a726e-f8ee-40cb-9d9d-4915bec47fee.md
+?? _handoff/guardian/48c8155c-a4b4-4320-97e5-6e73d662b7bf.md
+?? _handoff/guardian/55346997-b5ca-40c8-b75d-37ee75d34267.md
+?? _handoff/guardian/55fd1260-5697-4a31-8917-90123725feeb.md
+?? _handoff/guardian/6cace64e-e61f-47d8-8a28-9bcc41ff062c.md
+?? _handoff/guardian/73bf36f0-215b-4132-be65-b167574e2da2.md
+?? _handoff/guardian/73f7ba48-0c26-4d44-840c-7ef5c0d16c45.md
+?? _handoff/guardian/77ea7c3b-8d49-44fb-90b7-f1d674d86798.md
+?? _handoff/guardian/7b671c0a-b16a-4105-8bae-a2e0a76d8b09.md
+?? _handoff/guardian/7ed5684a-5d0e-43b9-a2aa-821c4ef5f98c.md
+?? _handoff/guardian/85d9a37e-22b3-41ad-9f8b-a8862373b332.md
+?? _handoff/guardian/8a323d01-642b-486d-8160-2d59dcda734e.md
+?? _handoff/guardian/8d471133-14e2-4117-8fe0-6557beb1de60.md
+?? _handoff/guardian/afb98bfa-0049-4359-9464-6e003bd650a9.md
+?? _handoff/guardian/b93b5607-6d33-4791-9f4e-e53fc75f4532.md
+?? _handoff/guardian/bfb01d25-a71b-4518-9897-42ca85c371c9.md
+?? _handoff/guardian/cbd3cc49-7bb7-4cd0-93c9-1f24f1a8b1aa.md
+?? _handoff/guardian/cc0501e1-efba-44b0-aef4-91cf5054a370.md
+?? _handoff/guardian/cf270168-a612-4ae4-a755-99e2d307b39f.md
+?? _handoff/guardian/d2df4fc3-9160-4801-ac18-82001bcf9fa9.md
+?? _handoff/guardian/e34b25b9-b779-46bd-be5b-34bcc974043b.md
+?? _handoff/guardian/f01709d5-9408-46df-ac53-dddc4651306f.md
+?? _handoff/guardian/f2611fee-79dd-415d-87d9-1daac0a85674.md
+?? _handoff/guardian/f863f742-78ab-406d-baee-37839e3e7e3e.md
+?? _handoff/guardian/fbb90047-61bf-4a80-8159-af949ffdf306.md
+?? _handoff/reinstall-mooter.cmd
+?? _handoff/repro-live-edit.js
+?? docs/archive/waves/
+?? docs/foundation/CLAUDE_DESKTOP_DISK_MAP.md
+?? docs/foundation/SYNC_ARCHIVE_2026H1.md
+?? docs/foundation/SYSTEM_DESIGN.md
+?? docs/foundation/SYSTEM_DESIGN.pdf
+?? docs/strategy/LIVE_EDIT_ROADMAP.md
+?? docs/strategy/MOOVE_PRODUCT_DESIGN.md
+?? docs/strategy/PORTABILITY_LOVABLE_TO_CC_STUDY.md
+?? tools/router/quota-live.js
+?? tools/router/quota-status.js
+=== FIM - log em _handoff\cleanup-log.txt ===
+**********************
+Windows PowerShell transcript end
+End time: 20260707060053
+**********************

@@ -20,7 +20,7 @@ tier — local Ollama first, cloud only when it earns its cost. Mission:
   `adaptive-learner.ts`, `tes-calculator.ts`, `benchmark-fetcher.ts`, `fable-5-routing.ts`.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
-- **PT-PT in conversation, English in code** and identifiers.
+- **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
 
 ## Tier ladder (the truth, no embellishment)
 
@@ -41,6 +41,7 @@ tier — local Ollama first, cloud only when it earns its cost. Mission:
 | Current project state / next mission | `SYNC.md` |
 | Routing policy detail | `~/.claude/docs/ROUTING_POLICY.md` |
 | Cross-tool agent instructions | `AGENTS.md` |
+| Where each `.md` type lives + lifecycle (handoffs, specs, archive) | `AGENTS.md` § Information architecture |
 | Personal per-dev preferences | `CLAUDE.local.md` (gitignored; template at `CLAUDE.local.md.template`) |
 
 ## Tests
