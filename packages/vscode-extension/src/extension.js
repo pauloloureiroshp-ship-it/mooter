@@ -1366,6 +1366,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
     if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
     if (m.type === 'lp-task') { this._taskRun(m); return; } // LP-4.5 anchored PROJECT task → trusted agent (one-box default)
+    if (m.type === 'lp-task-cancel') { try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ } return; } // LP-4.9 §8 cancel the running agent task
     if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
     if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
@@ -1928,19 +1929,26 @@ class LivePreviewPanel {
       // (zero writes even if the ask looks like an edit); anything else edits. Default 'edit'.
       const intent = (m && m.intent === 'ask') ? 'ask' : 'edit';
       this._postTaskStatus({ phase: 'thinking', mode, intent });
-      const res = await LET.runAnchoredTask({
-        instruction,
-        file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
-        nodeSource,
-        breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
-        refs,
-        intent,
-        mode,
-      }, {
-        wsRoot: this._wsRoot(),
-        trusted: this._workspaceTrusted() === true,
-        onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
-      });
+      // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
+      const ac = (typeof AbortController === 'function') ? new AbortController() : null;
+      this._activeTaskAbort = ac;
+      let res;
+      try {
+        res = await LET.runAnchoredTask({
+          instruction,
+          file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+          nodeSource,
+          breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+          refs,
+          intent,
+          mode,
+        }, {
+          wsRoot: this._wsRoot(),
+          trusted: this._workspaceTrusted() === true,
+          signal: ac ? ac.signal : undefined,
+          onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
+        });
+      } finally { if (this._activeTaskAbort === ac) this._activeTaskAbort = null; }
       if (!res || !res.ok) { fail((res && res.reason) || 'error', res && res.detail); return; }
       // Register the edits HOST-side keyed by taskId: revert must act on OUR record (snapshot +
       // shaAfter), never on paths a webview message hands back (P1-B discipline, agent flavour).
@@ -2242,6 +2250,13 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-toast-warn{background:var(--vscode-inputValidation-warningBackground,#E5C07B);color:#1A1305;border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.6))}
   .lp-toast-in{animation:lpToastIn .18s ease}
   @keyframes lpToastIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  /* LP-4.9 §8 — live progress: the 🐮 spins while the moo/agent works, with an honest tier + cancel. */
+  .lp-progress{position:sticky;bottom:0;display:flex;align-items:center;gap:8px;margin:8px -11px 0;padding:7px 11px;background:var(--vscode-editorWidget-background);border-top:1px solid var(--vscode-widget-border);font-size:11.5px}
+  .lp-spin{display:inline-block;animation:lpSpin 1.1s linear infinite;font-size:14px}
+  @keyframes lpSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.lp-spin{animation:none}}
+  .lp-progress-txt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+  .lp-progress-x{flex:none;min-height:24px}
   .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
   .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -2418,6 +2433,12 @@ function getLivePreviewHtml(token, wsRoot) {
             <button type="button" id="lp-ctb-x" class="lp-ctb-btn" title="Fechar (Esc)" aria-label="Fechar a toolbar">✕</button>
           </div>
           <div id="lp-ctb-body"></div>
+          <!-- LP-4.9 §8 — live progress: 🐮 spinner + honest tier text + cancel (agent runs). -->
+          <div id="lp-progress" class="lp-progress" role="status" aria-live="polite" style="display:none">
+            <span class="lp-spin" aria-hidden="true">🐮</span>
+            <span id="lp-progress-txt" class="lp-progress-txt">a pensar…</span>
+            <button type="button" id="lp-progress-cancel" class="lp-sel-btn lp-progress-x" title="Cancelar a tarefa" style="display:none">cancelar</button>
+          </div>
         </div>
         <!-- Minimized state: a single 🐮 chip that re-expands on click. -->
         <button type="button" id="lp-ctb-chip" class="lp-ctb-chip" style="display:none" title="Reabrir a toolbar" aria-label="Reabrir a toolbar de edição">🐮</button>
@@ -2835,6 +2856,18 @@ function sendFlash(){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-flash' }, curOrigin); }catch(e){} }
 }
+// LP-4.9 §8 — live progress in the toolbar: the 🐮 spins while the moo/agent works, with the
+// HONEST tier ("moo local · $0" vs "Sonnet · subscrição") and a cancel button for agent runs. Never
+// mute: it starts on the first thinking status and ends when a result (any outcome) arrives.
+function lpStartProgress(text, cancellable){
+  const p=document.getElementById('lp-progress'), t=document.getElementById('lp-progress-txt'), c=document.getElementById('lp-progress-cancel');
+  if(!p) return;
+  if(t) t.textContent=text||'a pensar…';
+  if(c) c.style.display=cancellable?'inline-flex':'none';
+  p.style.display='flex';
+}
+function lpUpdateProgress(text){ const t=document.getElementById('lp-progress-txt'); if(t&&text) t.textContent=text; }
+function lpFinishProgress(){ const p=document.getElementById('lp-progress'); if(p) p.style.display='none'; }
 // Short, human reason for the warn toast (the panel still shows the full honest state).
 function toastReason(reason){
   const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
@@ -3421,6 +3454,9 @@ window.addEventListener('resize', function(){ positionCanvasToolbar(); });
         grip=document.getElementById('lp-ctb-grip'), wrap=document.getElementById('lp-framewrap');
   if(!ctb) return;
   if(xb) xb.addEventListener('click', function(){ hideCanvasToolbar(); const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus(); });
+  // LP-4.9 §8 — cancel the running agent task (host aborts it; result comes back 'task-cancelled').
+  const cancelBtn=document.getElementById('lp-progress-cancel');
+  if(cancelBtn) cancelBtn.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-cancel' }); lpUpdateProgress('a cancelar…'); });
   const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
   const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); ctb.focus(); };
   if(mn) mn.addEventListener('click', minimize);
@@ -3516,8 +3552,8 @@ window.addEventListener('message', (ev) => {
       const d=document.getElementById('lp-del'); if(d) d.innerHTML='';
       // LP-4.9 §3 — the $0 write landed: toast on the node + flash it (a deterministic edit is free).
       showToast('ok', (m.reason==='model-applied-dynamic')?'✓ escrito · se o preview não mudou, o conteúdo vem de dentro do componente':'✓ aplicado no preview · $0');
-      sendFlash();
-    } else if (!m.ok) { showToast('warn', '⚠️ '+toastReason(m.reason)); }
+      lpFinishProgress(); sendFlash();
+    } else if (!m.ok) { showToast('warn', '⚠️ '+toastReason(m.reason)); lpFinishProgress(); }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
@@ -3526,27 +3562,29 @@ window.addEventListener('message', (ev) => {
     // §6 — honest thinking state: WHO is thinking and what it costs, while it thinks.
     // LP-4.7 — the quality engine narrates round/sample so a best-of-N burst never looks hung.
     if(m.phase==='thinking'){
+      const prog=(m.round&&m.sample)?(' · ronda '+m.round+'/'+(m.rounds||2)+' · amostra '+m.sample+'/'+(m.of||5)):'';
+      const txt=(!m.tier||m.tier==='local')?('🐮 a pensar… (moo local · $0'+prog+')'):('🐮 a pensar… ('+tierModel(m.tier)+' · subscrição)');
       const el=document.getElementById('lp-edit-msg');
-      if(el){
-        const prog=(m.round&&m.sample)?(' · ronda '+m.round+'/'+(m.rounds||2)+' · amostra '+m.sample+'/'+(m.of||5)):'';
-        el.textContent=(!m.tier||m.tier==='local')?('a pensar… (moo local · $0'+prog+')'):'a pensar… ('+tierModel(m.tier)+' · subscrição)';
-        el.className='lp-ed-msg lp-ed-pending';
-      }
+      if(el){ el.textContent=txt.replace(/^🐮 /,''); el.className='lp-ed-msg lp-ed-pending'; }
+      // LP-4.9 §8 — the local fenced rewrite is fast (≤30s) and not externally cancellable in v1.
+      lpStartProgress(txt, false);
     }
   }
   else if (m.type === 'lp-task-status'){
     // LP-4.5 — live agent progress: what it is doing RIGHT NOW (a ler X / a editar Y), plus every
     // denial (honesty: the fence is visible, not implied).
     const el=document.getElementById('lp-edit-msg');
-    if(el){
-      if(m.phase==='thinking') el.textContent='agente a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
-      else if(m.phase==='tool') el.textContent=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
-      else if(m.phase==='deny') el.textContent='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
-      el.className='lp-ed-msg lp-ed-pending';
-    }
+    let txt='';
+    if(m.phase==='thinking') txt='🐮 a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
+    else if(m.phase==='tool') txt=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
+    else if(m.phase==='deny') txt='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
+    if(el&&txt){ el.textContent=txt.replace(/^🐮 /,''); el.className='lp-ed-msg lp-ed-pending'; }
+    // LP-4.9 §8 — the toolbar spinner mirrors it, with cancel (the agent run can be aborted).
+    if(m.phase==='thinking') lpStartProgress(txt, true); else if(txt) lpUpdateProgress(txt);
   }
   else if (m.type === 'lp-task-result'){
     renderTaskResult(m); // LP-4.5 agent verdict (answer or per-file diffs)
+    lpFinishProgress(); // LP-4.9 §8 — the run ended; stop the spinner (the toast says the outcome)
     // LP-4.9 §3 — honest completion toast: answered (panel), edited (preview + flash), or refused.
     if(!m.ok){ showToast('warn', '⚠️ '+toastReason(m.reason)); }
     else if(m.kind==='answer' || !(Array.isArray(m.edits)&&m.edits.length)){ showToast('ask', '💬 resposta no painel →'); }

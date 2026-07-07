@@ -116,6 +116,12 @@ function runAnchoredTask(input, opts) {
       }
       resolvePromise(r);
     };
+    // LP-4.9 §8 — external cancel (additive; unchanged when no signal is passed). An aborted signal
+    // kills the child tree and resolves 'task-cancelled', exactly like the timeout path.
+    if (o.signal) {
+      if (o.signal.aborted) { finish({ ok: false, reason: 'task-cancelled' }); return; }
+      try { o.signal.addEventListener('abort', () => finish({ ok: false, reason: 'task-cancelled' }), { once: true }); } catch { /* no-op */ }
+    }
     const timeoutMs = (Number.isFinite(o.timeoutMs) && o.timeoutMs > 0) ? o.timeoutMs : DEFAULT_TASK_TIMEOUT_MS;
     const timer = setTimeout(() => finish({ ok: false, reason: 'task-timeout' }), timeoutMs);
     let buf = '';

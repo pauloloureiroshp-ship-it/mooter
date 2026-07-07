@@ -428,6 +428,31 @@ test('Live Preview LP-4.9 §3 real-time feedback — toast says exactly what hap
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.9 §8 live progress — spinning 🐮 with honest tier + cancel, never mute', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-progress"') && html.includes('id="lp-progress-txt"'), 'progress region present');
+  assert.ok(html.includes('class="lp-spin"') && /@keyframes lpSpin/.test(html), 'the 🐮 spinner animates');
+  assert.ok(/@media \(prefers-reduced-motion:reduce\)\{\.lp-spin\{animation:none\}\}/.test(html), 'spinner respects reduced-motion');
+  // Honest tier text on both paths (local $0 vs the agent subscription).
+  assert.ok(html.includes('🐮 a pensar… (moo local · $0') && html.includes("'🐮 a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))"), 'honest tier while thinking');
+  assert.ok(html.includes('function lpStartProgress') && html.includes('function lpFinishProgress'), 'progress starts and ends');
+  // Start on thinking, end on result — never left mute.
+  assert.ok(/lp-task-result'\)\{[\s\S]*?lpFinishProgress\(\)/.test(html), 'progress ends when the task result arrives');
+  // Cancel (agent runs only) posts lp-task-cancel from the WEBVIEW.
+  assert.ok(html.includes("type:'lp-task-cancel'"), 'cancel wired from the toolbar');
+  assert.ok(/lpStartProgress\(txt, true\)/.test(html), 'agent runs show a cancel button');
+  assert.ok(/lpStartProgress\(txt, false\)/.test(html), 'local $0 runs (fast) show no cancel');
+  parseInlineScript(html);
+  // HOST side (Node, not in the webview HTML): the handler aborts the active task, and the runner
+  // honours an AbortSignal additively. Assert against the raw source.
+  const ext = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  assert.ok(ext.includes("m.type === 'lp-task-cancel'") && ext.includes('_activeTaskAbort.abort()'), 'host aborts the active task');
+  assert.ok(ext.includes('signal: ac ? ac.signal : undefined'), 'the run receives the abort signal');
+  const taskSrc = fs.readFileSync(path.join(__dirname, 'live-edit-task.js'), 'utf8');
+  assert.ok(taskSrc.includes("finish({ ok: false, reason: 'task-cancelled' })") && taskSrc.includes("o.signal.addEventListener('abort'"), 'runner kills the child on abort (additive, unchanged without a signal)');
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
