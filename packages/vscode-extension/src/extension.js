@@ -1252,6 +1252,13 @@ class LivePreviewPanel {
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
     // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
     this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
+    // FIX-MP-1 (audit P0-1) — served-tree identity. The realpath'd root the dev server ACTUALLY
+    // serves, learned from the dev-only tap via lp-tree (NEXT_PUBLIC_LP_ROOT). null = UNPROVEN →
+    // every $0 write/preview fail-closes (see _treeConfirmed / _treeGateBlocked). Set to null here so
+    // the gate is active from birth: only a positively-confirmed lineage with _wsRoot() unlocks a
+    // write. (A bare unit-harness instance built via Object.create skips this ctor → _servedRoot is
+    // undefined → NOT gated, so the pre-existing edit/delete host contracts run unchanged.)
+    this._servedRoot = null;
     this._wire();
   }
   static createOrReveal() {
@@ -1268,11 +1275,63 @@ class LivePreviewPanel {
   _wsRoot() {
     return (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
   }
+  // FIX-MP-1 (audit P0-1) — record the root the dev server actually SERVES, relayed by the dev-only
+  // tap (NEXT_PUBLIC_LP_ROOT). Fail-soft: a non-empty string is realpath-normalised when it exists on
+  // this disk (worktree-aware — resolves symlinks so two worktrees never alias), else path-normalised;
+  // anything else clears identity to null (unproven → the gate fail-closes). Never throws. Reposts so
+  // G1 can surface (or clear) the honest mismatch banner immediately.
+  _setServedRoot(raw) {
+    let next = null;
+    try {
+      if (typeof raw === 'string' && raw.trim()) {
+        const p = raw.trim();
+        try { next = fs.realpathSync(p); } catch { next = path.normalize(p); }
+      }
+    } catch { next = null; }
+    this._servedRoot = next;
+    this._post();
+  }
+  // The served tree is CONFIRMED only when its root shares LINEAGE with the VS Code workspace:
+  // identical, or one is a descendant of the other (the landing/ subdir of the real workspace IS a
+  // descendant → confirmed). Twin worktrees are SIBLINGS — neither contains the other → NOT confirmed,
+  // so the $0 write fail-closes (the 06:49 incident). Compares ABSOLUTE realpath'd roots only — never
+  // relative paths (worktrees of the same repo have gemellar relative layouts).
+  _treeConfirmed() {
+    const wsReal = (() => { try { return fs.realpathSync(this._wsRoot()); } catch { return this._wsRoot(); } })();
+    const sr = this._servedRoot;
+    if (!sr || !wsReal) return false;
+    if (sr === wsReal) return true;
+    const within = (parent, child) => { const r = path.relative(parent, child); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+    return within(wsReal, sr) || within(sr, wsReal);
+  }
+  // FIX-MP-1 G2 — the write-time FAIL-CLOSED tree gate. In production the ctor sets _servedRoot=null,
+  // so this is ALWAYS active: no positively-confirmed served-tree lineage → BLOCKED (refuse before any
+  // preview diff or write). A bare unit-harness instance that never opted into the protocol
+  // (_servedRoot === undefined, built via Object.create) is NOT gated — it exercises the pre-existing
+  // edit/delete/open contracts unchanged. Production never reaches undefined (ctor + every lp-tree set it).
+  _treeGateBlocked() {
+    return this._servedRoot !== undefined && !this._treeConfirmed();
+  }
+  // FIX-MP-1 G1 — the honest banner text when the preview is live but comes from an UNCONFIRMED tree.
+  // null when identity is unproven-because-absent (servedRoot null → the write gate already refuses
+  // with its own message) or when confirmed; a factual note naming the served root's basename only when
+  // a served root IS known but its lineage does not match this workspace. Fail-soft, never throws.
+  _treeBanner() {
+    try {
+      if (typeof this._servedRoot === 'string' && this._servedRoot && !this._treeConfirmed()) {
+        const base = path.basename(this._servedRoot) || this._servedRoot;
+        return 'o preview vem de outra árvore (' + base + ') — reinicia o dev server neste workspace para poder editar';
+      }
+    } catch { /* fail-soft */ }
+    return null;
+  }
   _post() {
     try {
       const s = livePreviewSnapshot();
       s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
-      s.stageError = this.urlError || null; // rejected-paste feedback on its own channel
+      // urlError (transient user paste) wins; otherwise FIX-MP-1 G1 surfaces an honest tree-mismatch
+      // banner (the preview is live but comes from a DIFFERENT tree than the one we would write to).
+      s.stageError = this.urlError || this._treeBanner() || null; // both ride the ONE stageError channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
@@ -1359,6 +1418,7 @@ class LivePreviewPanel {
     // ── MP4 (Honest Diagnostics) host commands. Each is a REAL action (honest-controls: no dead
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
+    if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
@@ -1427,6 +1487,9 @@ class LivePreviewPanel {
   // _openErrorFile (an open can never escape the workspace), then reveal line:col. Honest fallback.
   async _openSourceFile(m) {
     try {
+      // FIX-MP-1 G2 — FAIL-CLOSED: without a proven served-tree lineage, don't open a file that may
+      // belong to the WRONG tree (the click-to-code twin of the write incident).
+      if (this._treeGateBlocked()) { vscode.window.showWarningMessage('Live Preview: o preview não vem desta árvore (ou o marcador dev não está presente) — reinicia o dev server neste workspace.'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       if (!raw) return;
       const line = (m && Number.isInteger(m.line) && m.line > 0) ? m.line : null;
@@ -1468,6 +1531,9 @@ class LivePreviewPanel {
       if (preview) this._postEditDiff({ ok: false, reason: String(reason || 'refused') });
       else this._postEditResult(false, reason);
     };
+    // FIX-MP-1 G2 — FAIL-CLOSED tree gate, EARLIEST possible: without a proven served-tree lineage we
+    // neither generate a preview diff nor write. Guards both phases (preview + apply).
+    if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
     try {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const edit = (m && m.edit && typeof m.edit === 'object') ? m.edit : null;
@@ -1628,6 +1694,9 @@ class LivePreviewPanel {
       if (preview) this._postDeleteDiff({ ok: false, reason: String(reason || 'refused') });
       else this._postEditResult(false, reason);
     };
+    // FIX-MP-1 G2 — FAIL-CLOSED tree gate, EARLIEST possible (both phases): no proven served tree →
+    // never preview or delete. Without it a delete could land in a twin worktree (incident 06:49).
+    if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
     try {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       if (!raw) { fail('bad-request'); return; }
@@ -1698,6 +1767,9 @@ class LivePreviewPanel {
   async _promptEdit(m) {
     const fail = (reason, detail) => this._postPromptDiff({ ok: false, reason: String(reason || 'refused'), detail: detail ? String(detail).slice(0, 200) : undefined });
     try {
+      // FIX-MP-1 G2 — FAIL-CLOSED before we read the workspace node and ship its bytes to the model:
+      // an unconfirmed served tree would build a diff of a file the user never saw in the preview.
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -1805,6 +1877,9 @@ class LivePreviewPanel {
   async _promptApply(m) {
     const fail = (reason) => this._postEditResult(false, reason);
     try {
+      // FIX-MP-1 G2 — FAIL-CLOSED, EARLIEST: the one-box default path (tier:'local') writes the
+      // approved model reply. Without a proven served-tree lineage the reply must never land on disk.
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
       if (!raw || !replacement.trim()) { fail('bad-request'); return; }
@@ -1885,6 +1960,9 @@ class LivePreviewPanel {
       if (!instruction) { fail('prompt-empty'); return; }
       if (!LET) { fail('engine-unavailable'); return; }
       if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
+      // FIX-MP-1 G2 — FAIL-CLOSED alongside the trust gate: the anchored agent must not run off a
+      // preview anchor from a sibling served tree (it would edit the wrong tree the user never saw).
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).
@@ -3162,6 +3240,7 @@ function showEditResult(ok, reason){
     'unsafe-text':'o texto tem < > { } — precisa do modo estrutural', 'unsafe-class':'classe inválida (< > { } ou aspas)',
     'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
     'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
+    'preview-tree-mismatch':'o preview não vem desta árvore (ou o marcador dev não está presente) — reinicia o dev server neste workspace',
     'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)',
     'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
     // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
@@ -3251,10 +3330,10 @@ window.addEventListener('message', (ev) => {
         vsapi.postMessage({ type:'lp-state', path: lpState.path, scrollY: lpState.scrollY });
       }
     }
-    else if (m.type === 'lp-ready'){ lpSendRestore(); }
+    else if (m.type === 'lp-ready'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked, same as every tap message)
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); }
+    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); } // FIX-MP-1 — relay served-tree identity on every selection
     // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.

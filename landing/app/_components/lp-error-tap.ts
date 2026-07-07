@@ -264,6 +264,16 @@ export function installLpErrorTap(): void {
   };
   const emit = (e: Omit<TapError, 'type' | 'ts'>): void => post({ type: 'lp-error', ts: Date.now(), ...e });
 
+  // FIX-MP-1 (audit P0-1) — served-tree identity. next.config injects NEXT_PUBLIC_LP_ROOT =
+  // realpath(process.cwd()) in DEV ONLY (the dev server's own root). We relay it to the host so it can
+  // PROVE the preview it frames comes from the tree it would write to; twin worktrees (same repo,
+  // sibling paths) otherwise pass containment and the $0 edit lands in the wrong tree (incident 06:49).
+  // Absent in prod (dev-only env key) → null → the host fail-closes. Read once at install time.
+  const servedRoot: string | null =
+    typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_LP_ROOT
+      ? String(process.env.NEXT_PUBLIC_LP_ROOT)
+      : null;
+
   // True while the Next dev overlay is showing an error — declared up here so console.error can
   // suppress the duplicate it logs for the same failure the overlay already displays.
   let overlayActive = false;
@@ -613,6 +623,7 @@ export function installLpErrorTap(): void {
         className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
         path: buildBreadcrumbPath(attrChain(el)), // MP5.2a — root→leaf breadcrumb for the cockpit
         repeated: repeated > 1 ? repeated : 0, // 0 = unique on screen; N>1 = N live instances
+        servedRoot, // FIX-MP-1 — the tree this dev server serves (dev-only marker; host proves lineage)
       });
       pin(el); // MP5.2a select-lock — the frame stays put until Esc or a new selection
     };
@@ -749,6 +760,7 @@ export function installLpErrorTap(): void {
   });
 
   // Handshake: tell the host we are live so it can send an initial restore even if it missed our
-  // iframe 'load' event (covers the reload race, gate #5).
-  post({ type: 'lp-ready' });
+  // iframe 'load' event (covers the reload race, gate #5). FIX-MP-1 — also carry the served-tree
+  // marker so the host can surface an honest tree-mismatch banner BEFORE the first selection.
+  post({ type: 'lp-ready', servedRoot });
 }
