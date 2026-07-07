@@ -250,11 +250,17 @@ async function main() {
     }).filter(Boolean);
     if (refl.length) anchor.push('- referências (contexto adicional, read-only): ' + refl.join(' · '));
   }
+  // LP-4.9 §1 — the user chose EXPLICITLY (the Edit/Ask toggle). Honour it hard: 'ask' answers only
+  // (zero edits, even if the ask looks like an edit); 'edit' makes the minimal edit. This removes the
+  // ambiguity where the agent's own guess surprised the user (asked → expected an edit, or vice-versa).
+  const intent = (req.intent === 'ask') ? 'ask' : 'edit';
+  const intentRule = (intent === 'ask')
+    ? '- MODO PERGUNTAR (escolhido pelo utilizador): SÓ responde, ZERO edições — mesmo que o pedido pareça uma edição. Cita os ficheiros que leste.\n'
+    : '- MODO EDITAR (escolhido pelo utilizador): o utilizador QUER uma edição. Faz o edit mínimo no sítio CERTO (pode não ser o nó pinado). Se for genuinamente impossível editar, explica porquê.\n';
   const p = 'És o agente de tarefas ancoradas do Live Preview. O utilizador fixou (pin) um elemento '
     + 'no preview e pediu uma tarefa sobre o PROJECTO. Regras:\n'
     + '- responde em PT-BR curto;\n'
-    + '- se for pergunta, SÓ responde (zero edits) e cita os ficheiros que leste;\n'
-    + '- se for edição, faz edits mínimos no sítio CERTO (pode não ser o nó pinado);\n'
+    + intentRule
     + '- nunca inventes números — lê o repo.\n\n'
     + 'Âncora (o elemento fixado):\n' + (anchor.length ? anchor.join('\n') : '- (sem âncora)') + '\n\n'
     + 'Instrução do utilizador: ' + instruction;

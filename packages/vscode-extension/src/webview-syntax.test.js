@@ -148,7 +148,7 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   // LP-4.5 — the ONE BOX on the pin: any prompt, default AUTO = the anchored-task agent; the
   // local $0 chip keeps the LP-4 fenced rewrite reachable; the heuristic only SUGGESTS.
   assert.ok(html.includes('id="lp-box-in"'), 'one-box input present');
-  assert.ok(html.includes('valida estes números'), 'placeholder shows a PROJECT ask (the LP-4.5 case), not only node tweaks');
+  assert.ok(html.includes('os números batem com o projecto'), 'placeholder shows a PROJECT ask (LP-4.9 §1: an ask example), not only node tweaks');
   assert.ok(html.includes("type:'lp-task'"), 'anchored task request wired to the host');
   assert.ok(html.includes("m.type === 'lp-task-result'"), 'agent verdict handled');
   assert.ok(html.includes("m.type === 'lp-task-status'"), 'live agent progress handled (a ler / a editar)');
@@ -328,6 +328,23 @@ test('Live Preview LP-4.8 §5 keyboard/a11y — Esc dismisses the toolbar (no VS
   assert.ok(/menu\.addEventListener\('keydown'[\s\S]{0,120}Escape[\s\S]{0,80}closeSkillsMenu/.test(html), 'skills menu closes on Escape');
   // Focus-visible outlines on the toolbar controls (keyboard users always see focus).
   assert.ok(/\.lp-ctb .lp-ed-in:focus-visible/.test(html), 'toolbar controls have focus-visible outlines');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §1 intent — explicit Edit/Ask toggle removes the "asked vs edited" ambiguity', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The toggle is a visible radiogroup with an honest label; the send button mirrors the intent.
+  assert.ok(html.includes('id="lp-mode-edit"') && html.includes('id="lp-mode-ask"'), 'Edit/Ask toggle present');
+  assert.ok(/role="radiogroup"/.test(html), 'toggle is a radiogroup for a11y');
+  assert.ok(html.includes('Editar muda o site · Perguntar só responde'), 'honest label under the toggle');
+  assert.ok(/sb\.textContent=\(lpIntent==='ask'\)\?'💬 Perguntar':'✏️ Editar'/.test(html), 'send button mirrors the chosen intent');
+  // Ask ALWAYS routes to the agent (local $0 moo cannot answer) and carries intent:'ask'; honest
+  // refusal when the bridge is off — never a dead "answer" button.
+  assert.ok(html.includes("intent:'ask'"), 'ask carries intent to the host');
+  assert.ok(html.includes("intent:'edit'"), 'edit carries intent to the host');
+  assert.ok(/askMode=\(lpMode==='local'\)\?'auto':lpMode/.test(html), 'ask upgrades local→agent (only the agent can answer)');
+  assert.ok(/if\(!br\.available\)\{ showEditResult\(false/.test(html), 'ask refuses honestly when the SDK bridge is off');
   parseInlineScript(html);
 });
 

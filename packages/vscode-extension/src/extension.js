@@ -1924,13 +1924,17 @@ class LivePreviewPanel {
         }
         if (!refs.length) refs = undefined;
       }
-      this._postTaskStatus({ phase: 'thinking', mode });
+      // LP-4.9 §1 — explicit intent from the Edit/Ask toggle. 'ask' forces an answer-only run
+      // (zero writes even if the ask looks like an edit); anything else edits. Default 'edit'.
+      const intent = (m && m.intent === 'ask') ? 'ask' : 'edit';
+      this._postTaskStatus({ phase: 'thinking', mode, intent });
       const res = await LET.runAnchoredTask({
         instruction,
         file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
         nodeSource,
         breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
         refs,
+        intent,
         mode,
       }, {
         wsRoot: this._wsRoot(),
@@ -2270,6 +2274,13 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ref-x:hover{opacity:1;background:var(--vscode-list-hoverBackground)}
   .lp-refs-note{font-size:9.5px;opacity:.7;margin-top:4px;line-height:1.35}
   .lp-ref-clr:focus-visible,.lp-ref-x:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.9 §1 — the explicit Edit/Ask intent toggle (segmented control). */
+  .lp-ctb .lp-mode-tg{display:inline-flex;margin:8px 0 3px;border:1px solid var(--vscode-widget-border);border-radius:7px;overflow:hidden}
+  .lp-mtg{font:11.5px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-input-background);border:0;padding:5px 12px;min-height:26px;cursor:pointer}
+  .lp-mtg+.lp-mtg{border-left:1px solid var(--vscode-widget-border)}
+  .lp-mtg.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;font-weight:700}
+  .lp-mtg:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px}
+  .lp-ctb .lp-mode-hint{font-size:10px;opacity:.72;margin:1px 0 5px;line-height:1.4}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2580,6 +2591,11 @@ let lpSelection=null, lpSelectOn=false, lpMode='auto';
 // prompt (Lovable's model, NOT batch-edit). They ride the agent (lp-task) path only; a local $0
 // fenced edit still targets the single pinned node. Each entry: { file, line, col, tag, label }.
 let lpRefs=[];
+// LP-4.9 §1 — the one-box now carries an EXPLICIT intent so the user knows BEFORE sending whether
+// it will EDIT (write → diff → apply → preview changes) or ASK (read the repo → answer in the
+// panel, zero writes). 'edit' (default) respects the model chip; 'ask' always uses the agent (only
+// it can answer), never the local $0 moo. Kills Paulo's #1 pain: the "I asked, expected an edit".
+let lpIntent='edit';
 // LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
@@ -2778,8 +2794,13 @@ function renderSelection(sel){
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
-    +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
-    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
+    // LP-4.9 §1 — the EXPLICIT intent toggle: the user knows BEFORE sending if this edits or asks.
+    +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'
+    +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
+    +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
+    +'</div>'
+    +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     // LP-4.8 §4 — attached references (Cmd/Ctrl-click) live here: chips + ✕ + limpar. They feed the
     // agent prompt as read-only context; a local $0 edit still targets only the pinned node.
@@ -2826,26 +2847,49 @@ function renderSelection(sel){
   const sendBox=function(){
     const v=bi?bi.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
+    const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
+    const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
+    // LP-4.9 §1 — Perguntar ALWAYS routes to the agent: answering needs to read the repo, which the
+    // local $0 moo cannot do. Honest refusal when the SDK bridge is off (no dead "answer" button).
+    if(lpIntent==='ask'){
+      const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+      if(!br.available){ showEditResult(false,(br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing'); return; }
+      const askMode=(lpMode==='local')?'auto':lpMode; // local can't answer → use the agent tier
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:askMode, intent:'ask', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
+      showEditResult(null,'pending'); return;
+    }
+    // Editar — the write path. Local $0 fenced rewrite, or the anchored agent (intent:edit).
     if(lpMode==='local'){
       // §5 — the rendered text travels so the host can flag dynamic content on the diff.
       vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
     } else {
-      const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
-      // LP-4.8 §4 — attach-as-reference: the extra nodes travel as read-only context for the agent.
-      const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
-      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, intent:'edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
     }
     showEditResult(null,'pending');
   };
+  // LP-4.9 §1 — the intent toggle. The send button label MIRRORS the intent so the action is never
+  // ambiguous, and the local-chip hint only makes sense while EDITING (asking always uses the agent).
+  const renderIntentToggle=function(){
+    const eb=document.getElementById('lp-mode-edit'), ab=document.getElementById('lp-mode-ask');
+    if(eb){ eb.setAttribute('aria-checked', lpIntent==='edit'?'true':'false'); if(lpIntent==='edit') eb.classList.add('on'); else eb.classList.remove('on'); }
+    if(ab){ ab.setAttribute('aria-checked', lpIntent==='ask'?'true':'false'); if(lpIntent==='ask') ab.classList.add('on'); else ab.classList.remove('on'); }
+    const sb=document.getElementById('lp-box-b'); if(sb) sb.textContent=(lpIntent==='ask')?'💬 Perguntar':'✏️ Editar';
+    const bi2=document.getElementById('lp-box-in'); if(bi2) bi2.setAttribute('aria-label', (lpIntent==='ask')?'pergunta ancorada neste elemento':'edição ancorada neste elemento');
+  };
+  const ebtn=document.getElementById('lp-mode-edit'), abtn=document.getElementById('lp-mode-ask');
+  if(ebtn) ebtn.addEventListener('click', function(){ lpIntent='edit'; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h&&!suggestLocalChip(bi?bi.value:'')) h.style.display='none'; });
+  if(abtn) abtn.addEventListener('click', function(){ lpIntent='ask'; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h) h.style.display='none'; });
   if(bi&&bb){
     bb.addEventListener('click', sendBox);
     bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(); } });
     bi.addEventListener('input', function(){
       const h=document.getElementById('lp-box-hint'); if(!h) return;
-      if(lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
+      // The local-chip suggestion only applies to EDITS (asking always uses the agent).
+      if(lpIntent==='edit'&&lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
       else h.style.display='none';
     });
   }
+  renderIntentToggle();
   // LP-4.8 §3 — /skills. Picking a skill SEEDS this one-box with the skill's template and pins the
   // chip to the skill's tier floor (routing surfaced, never hidden). Execution then rides the exact
   // same fenced one-box path (local $0 lp-prompt / anchored lp-task) — /skills adds no write surface.

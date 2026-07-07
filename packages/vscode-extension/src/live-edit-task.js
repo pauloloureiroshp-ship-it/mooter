@@ -148,6 +148,8 @@ function runAnchoredTask(input, opts) {
         nodeSource: input.nodeSource, breadcrumb: input.breadcrumb,
         // LP-4.8 §4 — attach-as-reference: read-only context pointers, already sanitised host-side.
         refs: Array.isArray(input.refs) ? input.refs.slice(0, 8) : undefined,
+        // LP-4.9 §1 — explicit intent: 'ask' = answer only (zero writes), else edit.
+        intent: input.intent === 'ask' ? 'ask' : 'edit',
         model,
       }));
     } catch { /* the close handler still resolves */ }
