@@ -6,6 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const vm = require('vm');
 
@@ -261,6 +262,32 @@ test('Live Preview LP-4.8 §3 /skills — element-scoped skills seed the one-box
   // No bespoke skill message type — /skills must not bypass the fence with its own write channel.
   assert.ok(!/type:'lp-skill-apply'|type:'lp-skill-write'/.test(html), 'no skill-specific write message (rides the existing fence)');
   parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §3 /skills — a hostile workspace-override skill cannot break out of the inline <script>', () => {
+  // loadSkills reads <wsRoot>/.mooter/skills/*.md and is NOT trust-gated, so a cloned repo controls
+  // label/hint/template. The registry is embedded via JSON.stringify into the nonce'd inline script;
+  // a template of `</script>…` would terminate the tag without the `<`→< escape. CSP blocks
+  // execution, so the real risk is panel-JS breakage + inert HTML injection — this pins the fence.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-skill-xss-'));
+  try {
+    const dir = path.join(root, '.mooter', 'skills');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'evil.md'),
+      '---\nid: evil\nlabel: "/evil"\ntier_floor: local\nkind: text\n' +
+      'template: "</script><b>PWN</b> injected"\n---\nhuman docs we never execute\n', 'utf8');
+    const sandbox = loadExtension();
+    const html = sandbox.getLivePreviewHtml('tok', root);
+    // The override was actually exercised (not silently dropped) — the id reaches the embed…
+    assert.ok(html.includes('"id":"evil"'), 'workspace-override skill loaded into the embed');
+    // …but its `<` is neutralised: the raw breakout sequence is absent, the escaped form present.
+    assert.ok(!html.includes('</script><b>PWN'), 'hostile template must NOT reach the DOM unescaped');
+    assert.ok(html.includes('\\u003c/script>\\u003cb>PWN'), 'the `<` is escaped to \\u003c in the embed');
+    // And the whole delivered webview still parses — the script block was not truncated early.
+    parseInlineScript(html);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('Live Preview LP-4.8 §4 multi-select — Cmd/Ctrl-click attaches refs as agent context (never a write target)', () => {

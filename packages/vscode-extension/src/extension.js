@@ -2138,7 +2138,11 @@ function getLivePreviewHtml(token, wsRoot) {
   // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
   // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
   const skillsRegistry = LSK ? LSK.loadSkills({ wsRoot: wsRoot }) : [];
-  const skillsJson = JSON.stringify(Array.isArray(skillsRegistry) ? skillsRegistry : []);
+  // LP-4.8 §3 hardening — loadSkills reads workspace .mooter/skills/*.md (not trust-gated), so a
+  // cloned repo controls label/hint/template. Escape `<` before it lands in the nonce'd inline
+  // <script> below: without this a field of `</script>…` breaks out of the tag. CSP blocks
+  // execution, so the risk is panel-JS breakage + inert HTML, not RCE — but the fence is cheap.
+  const skillsJson = JSON.stringify(Array.isArray(skillsRegistry) ? skillsRegistry : []).replace(/</g, '\\u003c');
   const renderSkillsMenuHTMLSrc = LSK ? LSK.renderSkillsMenuHTML.toString() : 'function renderSkillsMenuHTML(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
