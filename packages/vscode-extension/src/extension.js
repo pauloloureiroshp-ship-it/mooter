@@ -124,6 +124,10 @@ try { LET = require('./live-edit-task.js'); } catch { LET = null; }
 // LP-4.5 — pure one-box view helpers (suggestLocalChip heuristic), serialised into the webview.
 let LTV = null;
 try { LTV = require('./lp-task-view.js'); } catch { LTV = null; }
+// LP-4.8 §2 — deterministic style presets (colour/size/spacing). Pure string logic, serialised
+// into the webview and applied through the existing class-edit fence — $0, no LLM.
+let LPP = null;
+try { LPP = require('./lp-presets.js'); } catch { LPP = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -2102,6 +2106,10 @@ function getLivePreviewHtml(token) {
   const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
   const renderMarkdownSafeSrc = LTV ? LTV.renderMarkdownSafe.toString() : 'function renderMarkdownSafe(t){return esc(t);}';
   const renderEditsFeedSrc = LTV ? LTV.renderEditsFeed.toString() : 'function renderEditsFeed(){return "";}';
+  // LP-4.8 §2 — the deterministic preset engine, serialised in (self-contained: each fn carries its
+  // own catalog/regexes so toString survives the module-scope loss).
+  const mergeClassSrc = LPP ? LPP.mergeClass.toString() : 'function mergeClass(c,cls){return ((c||"")+" "+cls).trim();}';
+  const renderPresetsBarHTMLSrc = LPP ? LPP.renderPresetsBarHTML.toString() : 'function renderPresetsBarHTML(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -2194,6 +2202,16 @@ function getLivePreviewHtml(token) {
   .lp-ctb .lp-tier.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700}
   .lp-ctb .lp-chip-note{font-size:10.5px;opacity:.78;margin-top:6px;line-height:1.45}
   .lp-ctb .lp-ed-in:focus-visible,.lp-ctb .lp-sel-btn:focus-visible,.lp-ctb .lp-tier:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.8 §2 — deterministic preset bar: colour swatches + size/spacing chips, 1-click, $0. */
+  .lp-ctb .lp-pz{margin:6px 0 2px}
+  .lp-pz-l{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.62;margin:7px 0 3px}
+  .lp-pz-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .lp-sw{width:20px;height:20px;padding:0;border:1px solid var(--vscode-widget-border);border-radius:50%;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .lp-sw:hover{border-color:var(--vscode-focusBorder)}
+  .lp-sw-dot{width:14px;height:14px;border-radius:50%;display:block}
+  .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 8px;cursor:pointer}
+  .lp-pz-chip:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .lp-sw:focus-visible,.lp-pz-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2323,6 +2341,8 @@ const isBenignCssWarning=${isBenignCssSrc};
 const suggestLocalChip=${suggestLocalChipSrc};
 const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
+const mergeClass=${mergeClassSrc};
+const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2618,6 +2638,7 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
     +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
@@ -2632,6 +2653,22 @@ function renderSelection(sel){
   if(ti&&tb){ tb.addEventListener('click', function(){ sendEdit('text', ti.value); }); ti.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('text', ti.value); } }); }
   const ci=document.getElementById('lp-ed-class'), cb=document.getElementById('lp-ed-class-b');
   if(ci&&cb){ cb.addEventListener('click', function(){ sendEdit('class', ci.value); }); ci.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendEdit('class', ci.value); } }); }
+  // LP-4.8 §2 — deterministic presets. A swatch/chip merges its class into the CURRENT className
+  // (mergeClass drops the same-group token so red→blue swaps, never stacks) and feeds the SAME
+  // preview-first class-edit fence — $0, no LLM. The class box mirrors the change so presets and
+  // manual edits compose. Refusals (dynamic className, unsafe chars) surface via showEditResult.
+  const pz=document.getElementById('lp-presets');
+  if(pz){
+    pz.innerHTML=renderPresetsBarHTML(esc);
+    const sw=pz.querySelectorAll('[data-cls]');
+    for(let i=0;i<sw.length;i++){ sw[i].addEventListener('click', function(){
+      const cls=this.getAttribute('data-cls'), grp=this.getAttribute('data-group');
+      const cur=ci?ci.value:(sel.className||'');
+      const next=mergeClass(cur, cls, grp);
+      if(ci) ci.value=next;
+      sendEdit('class', next);
+    }); }
+  }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
   // LP-4.5 — the ONE BOX: any prompt lands here. Default AUTO = the anchored-task agent (reads

@@ -17,7 +17,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -222,6 +222,22 @@ test('Live Preview LP-4.8 §1 in-canvas toolbar — floats over the frame anchor
   assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{ positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-anchors the toolbar');
   // The controls that MOVED still ship their ids + wiring (regression guard for the split).
   assert.ok(html.includes('id="lp-chip"') && html.includes('id="lp-box-in"') && html.includes('id="lp-sel-del"'), 'chip/one-box/delete still present after the split');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §2 presets — deterministic colour/size/spacing ride the class-edit fence ($0, no LLM)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The preset bar mounts in the toolbar and the pure engine is serialised in (self-contained).
+  assert.ok(html.includes('id="lp-presets"'), 'preset bar mount present');
+  assert.ok(html.includes('function mergeClass') || /const mergeClass=/.test(html), 'mergeClass serialised into the webview');
+  assert.ok(/const renderPresetsBarHTML=/.test(html), 'preset catalog serialised into the webview');
+  // A preset click merges into the CURRENT className and feeds the EXISTING class-edit preview —
+  // never a model call. The proof: the handler routes through sendEdit('class', next), not lp-task.
+  assert.ok(/mergeClass\(cur, cls, grp\)/.test(html), 'preset merges the class deterministically');
+  assert.ok(/sendEdit\('class', next\)/.test(html), 'preset applies via the class-edit fence (preview-first)');
+  // Honest $0: the preset group is labelled as deterministic, no tokens.
+  assert.ok(html.includes('sem tokens'), 'presets are labelled $0/no-tokens');
   parseInlineScript(html);
 });
 
