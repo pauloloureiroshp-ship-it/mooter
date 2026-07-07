@@ -2616,7 +2616,9 @@ function renderRefs(){
   for(let i=0;i<lpRefs.length;i++){
     const r=lpRefs[i]||{}; const base=baseName(r.file||'?');
     const lbl=esc('<'+(r.tag||'nó')+'> '+base+(r.line!=null?(':'+r.line):''));
-    chips+='<span class="lp-ref" title="'+esc((r.file||'')+(r.line!=null?(':'+r.line):''))+'">'+lbl
+    // Hover shows file:line plus the node's own text (the attach label) so a ref is recognisable.
+    const titleTxt=(r.file||'')+(r.line!=null?(':'+r.line):'')+(r.label?(' — '+r.label):'');
+    chips+='<span class="lp-ref" title="'+esc(titleTxt)+'">'+lbl
       +'<button type="button" class="lp-ref-x" data-ref="'+i+'" aria-label="remover referência '+lbl+'">✕</button></span>';
   }
   el.innerHTML='<div class="lp-refs-hd">referências anexadas ('+lpRefs.length+') — contexto para o agente <button type="button" id="lp-refs-clr" class="lp-ref-clr">limpar</button></div>'
