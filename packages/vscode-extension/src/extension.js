@@ -1904,12 +1904,33 @@ class LivePreviewPanel {
           } catch { /* anchor degrades to file:line only */ }
         }
       }
+      // LP-4.8 §4 — attach-as-reference: extra nodes Cmd/Ctrl-clicked as CONTEXT for this prompt.
+      // Each ref runs the SAME containment resolution as the primary anchor (a path that escapes
+      // the workspace is dropped), is bounded (8 max), and travels workspace-RELATIVE only — the
+      // absolute host path never reaches the model. Refs are read-only pointers; the agent's write
+      // path stays gated by the runner's in-workspace + sensitive-file guards (never a write target).
+      let refs;
+      if (Array.isArray(m.refs) && m.refs.length) {
+        refs = [];
+        for (let i = 0; i < m.refs.length && refs.length < 8; i++) {
+          const r = m.refs[i] || {};
+          const rraw = (typeof r.file === 'string') ? r.file.trim() : '';
+          if (!rraw) continue;
+          const rreal = this._resolveContainedFile(rraw);
+          if (!rreal) continue; // escaped the workspace → dropped, never sent to the model
+          let rrel = rraw;
+          try { const rel = path.relative(this._wsRoot(), rreal); if (rel && !rel.startsWith('..')) rrel = rel.split(path.sep).join('/'); } catch { /* keep raw */ }
+          refs.push({ file: rrel, line: Number.isInteger(r.line) ? r.line : undefined, col: Number.isInteger(r.col) ? r.col : undefined, tag: (typeof r.tag === 'string') ? r.tag.slice(0, 40) : undefined });
+        }
+        if (!refs.length) refs = undefined;
+      }
       this._postTaskStatus({ phase: 'thinking', mode });
       const res = await LET.runAnchoredTask({
         instruction,
         file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
         nodeSource,
         breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+        refs,
         mode,
       }, {
         wsRoot: this._wsRoot(),
@@ -2234,6 +2255,17 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-sk-tier-local{color:var(--vscode-charts-green,#4CAF6A)}
   .lp-sk-tier-auto{color:var(--vscode-charts-blue,#5A9BD4)}
   .lp-sk-hint{grid-column:1 / -1;grid-row:2;font-size:10px;opacity:.72;line-height:1.35}
+  /* LP-4.8 §4 — attached-reference chips (Cmd/Ctrl-click) — context for the agent prompt. */
+  .lp-ctb .lp-refs{margin:7px 0 2px}
+  .lp-refs-hd{font-size:10px;opacity:.72;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+  .lp-ref-clr{font:9.5px var(--vscode-font-family);color:var(--vscode-foreground);background:transparent;border:1px solid var(--vscode-widget-border);border-radius:5px;padding:0 6px;cursor:pointer}
+  .lp-ref-clr:hover{background:var(--vscode-list-hoverBackground)}
+  .lp-refs-list{display:flex;gap:4px;flex-wrap:wrap}
+  .lp-ref{display:inline-flex;align-items:center;gap:4px;font:10px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:rgba(127,184,138,0.12);border:1px solid rgba(127,184,138,0.5);border-radius:999px;padding:1px 4px 1px 8px}
+  .lp-ref-x{font-size:9px;line-height:1;color:var(--vscode-foreground);background:transparent;border:0;border-radius:50%;padding:2px 4px;cursor:pointer;opacity:.7}
+  .lp-ref-x:hover{opacity:1;background:var(--vscode-list-hoverBackground)}
+  .lp-refs-note{font-size:9.5px;opacity:.7;margin-top:4px;line-height:1.35}
+  .lp-ref-clr:focus-visible,.lp-ref-x:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2540,6 +2572,10 @@ function lpSendRestore(){
 // rewrite, $0) · 't1'/'t2'/'t3'/'fable' (the agent pinned to that subscription model; @fable is
 // manual-only, never auto-routed).
 let lpSelection=null, lpSelectOn=false, lpMode='auto';
+// LP-4.8 §4 — multi-select attach-as-reference: extra nodes Cmd/Ctrl-clicked as CONTEXT for one
+// prompt (Lovable's model, NOT batch-edit). They ride the agent (lp-task) path only; a local $0
+// fenced edit still targets the single pinned node. Each entry: { file, line, col, tag, label }.
+let lpRefs=[];
 // LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
@@ -2560,6 +2596,41 @@ function setSelectMode(on){
 function sendReselect(c){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-reselect', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+// LP-4.8 §4 — tell the tap to drop a reference box (✕) or all of them (limpar). Origin-targeted
+// into the frame like every other host→tap message (cross-origin, never '*').
+function sendDetach(c){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-detach', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+function sendDetachAll(){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-detach-all' }, curOrigin); }catch(e){} }
+}
+// Render the attached-reference chips (each with a ✕) + a "limpar" clear-all. Rebuilt whenever a
+// ref is attached/removed and after each renderSelection (which recreates the toolbar markup).
+function renderRefs(){
+  const el=document.getElementById('lp-refs'); if(!el) return;
+  if(!lpRefs.length){ el.style.display='none'; el.innerHTML=''; return; }
+  let chips='';
+  for(let i=0;i<lpRefs.length;i++){
+    const r=lpRefs[i]||{}; const base=baseName(r.file||'?');
+    const lbl=esc('<'+(r.tag||'nó')+'> '+base+(r.line!=null?(':'+r.line):''));
+    chips+='<span class="lp-ref" title="'+esc((r.file||'')+(r.line!=null?(':'+r.line):''))+'">'+lbl
+      +'<button type="button" class="lp-ref-x" data-ref="'+i+'" aria-label="remover referência '+lbl+'">✕</button></span>';
+  }
+  el.innerHTML='<div class="lp-refs-hd">referências anexadas ('+lpRefs.length+') — contexto para o agente <button type="button" id="lp-refs-clr" class="lp-ref-clr">limpar</button></div>'
+    +'<div class="lp-refs-list">'+chips+'</div>'
+    +(lpMode==='local'?'<div class="lp-refs-note">o chip local $0 edita só o nó pinado — as referências entram quando subes para o agente</div>':'');
+  el.style.display='block';
+  const xs=el.querySelectorAll('[data-ref]');
+  for(let i=0;i<xs.length;i++){ xs[i].addEventListener('click', function(){
+    const idx=parseInt(this.getAttribute('data-ref'),10);
+    const r=(Number.isInteger(idx)&&idx>=0&&idx<lpRefs.length)?lpRefs[idx]:null;
+    if(r){ sendDetach(r); lpRefs.splice(idx,1); renderRefs(); }
+  }); }
+  const clr=document.getElementById('lp-refs-clr');
+  if(clr) clr.addEventListener('click', function(){ sendDetachAll(); lpRefs=[]; renderRefs(); });
 }
 // LP-4 §5 — after a write, the host asks the tap to watch through the HMR swap and re-emit a
 // FRESH lp-select for the same node (re-prompt without re-selecting). Origin-targeted, never '*'.
@@ -2704,6 +2775,9 @@ function renderSelection(sel){
     +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // LP-4.8 §4 — attached references (Cmd/Ctrl-click) live here: chips + ✕ + limpar. They feed the
+    // agent prompt as read-only context; a local $0 edit still targets only the pinned node.
+    +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
     // LP-4.8 §3 — the /skills dropdown. A skill seeds this same one-box with its template and pins
     // the chip to its tier floor; execution rides the existing fenced paths (no new write surface).
     +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
@@ -2751,7 +2825,9 @@ function renderSelection(sel){
       vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
     } else {
       const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
-      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc });
+      // LP-4.8 §4 — attach-as-reference: the extra nodes travel as read-only context for the agent.
+      const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
     }
     showEditResult(null,'pending');
   };
@@ -2785,6 +2861,7 @@ function renderSelection(sel){
     showEditResult(null,'pending');
   });
   renderModeChips();
+  renderRefs(); // LP-4.8 §4 — repaint the attached-reference chips (toolbar markup was rebuilt)
   // Anchor the toolbar to the pin now that it is laid out (offsetWidth/Height are measurable).
   if(ctbBody) positionCanvasToolbar(sel.rect);
 }
@@ -3160,7 +3237,15 @@ window.addEventListener('message', (ev) => {
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.
     else if (m.type === 'lp-pin-rect'){ if(m.rect && typeof m.rect.x==='number') positionCanvasToolbar(m.rect); }
-    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
+    // LP-4.8 §4 — a Cmd/Ctrl-click attached a node as a reference. Dedup by stamp, cap at 8, then
+    // repaint the ref chips. Read-only context (origin-locked branch, same as lp-select).
+    else if (m.type === 'lp-attach'){
+      if(m.file && lpRefs.length<8){
+        const dup=lpRefs.some(function(r){ return r.file===m.file && r.line===m.line && r.col===m.col && r.tag===m.tag; });
+        if(!dup){ lpRefs.push({ file:m.file, line:m.line, col:m.col, tag:m.tag, label:(typeof m.label==='string')?m.label.slice(0,40):'' }); renderRefs(); }
+      }
+    }
+    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); lpRefs=[]; renderRefs(); }
     return;
   }
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from

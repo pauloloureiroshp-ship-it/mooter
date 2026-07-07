@@ -263,6 +263,26 @@ test('Live Preview LP-4.8 §3 /skills — element-scoped skills seed the one-box
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.8 §4 multi-select — Cmd/Ctrl-click attaches refs as agent context (never a write target)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The ref chips container + attach ingest are present; refs ride the agent (lp-task) path.
+  assert.ok(html.includes('id="lp-refs"'), 'attached-references container present');
+  assert.ok(html.includes("m.type === 'lp-attach'"), 'lp-attach ingested (Cmd/Ctrl-click reference)');
+  assert.ok(/lpRefs\.push\(/.test(html), 'a reference is recorded');
+  assert.ok(/refs:refs/.test(html), 'refs travel with the anchored lp-task');
+  // Dedup + a hard cap so a prompt can never balloon with references.
+  assert.ok(/lpRefs\.length<8/.test(html), 'reference count is capped');
+  // Removal is honest end-to-end: the ✕/limpar tell the tap to drop its overlay box too.
+  assert.ok(html.includes("type:'lp-detach'") && html.includes("type:'lp-detach-all'"), 'detach messages wired to the tap');
+  assert.ok(/postMessage\(\{ type:'lp-detach'[^)]*\}, curOrigin\)/.test(html), 'lp-detach is origin-targeted');
+  // Honest routing note: on the local $0 chip the refs do not apply (single-node fenced edit).
+  assert.ok(html.includes('as referências entram quando subes para o agente'), 'honest note: refs feed the agent, not the $0 fence');
+  // A reference is NEVER a write target — it only rides lp-task as context; there is no ref-write msg.
+  assert.ok(!/type:'lp-ref-edit'|type:'lp-ref-apply'/.test(html), 'no reference write path');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

@@ -146,6 +146,8 @@ function runAnchoredTask(input, opts) {
         instruction,
         file: input.file, line: input.line, col: input.col, tag: input.tag,
         nodeSource: input.nodeSource, breadcrumb: input.breadcrumb,
+        // LP-4.8 §4 — attach-as-reference: read-only context pointers, already sanitised host-side.
+        refs: Array.isArray(input.refs) ? input.refs.slice(0, 8) : undefined,
         model,
       }));
     } catch { /* the close handler still resolves */ }

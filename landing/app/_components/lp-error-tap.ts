@@ -455,12 +455,18 @@ export function installLpErrorTap(): void {
     // evaporate on mouseout.
     let pinBox: HTMLElement | null = null;
     let pinned: Element | null = null;
+    let root: ShadowRoot | null = null;
+    // LP-4.8 §4 — multi-select attach-as-reference (Lovable's model): Cmd/Ctrl-click pins extra
+    // nodes as CONTEXT for one prompt, not a batch edit. Each gets a persistent dashed box so the
+    // overlay shows all of them; they never move the primary pin (the edit target).
+    const refEls: Element[] = [];
+    const refBoxes: HTMLElement[] = [];
     const ensure = (): void => {
       if (shadowHost) return;
       shadowHost = document.createElement('div');
       shadowHost.setAttribute('data-lp-select-overlay', '');
       shadowHost.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;margin:0;';
-      const root = shadowHost.attachShadow({ mode: 'open' });
+      root = shadowHost.attachShadow({ mode: 'open' });
       box = document.createElement('div');
       box.style.cssText =
         'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
@@ -471,12 +477,19 @@ export function installLpErrorTap(): void {
       root.appendChild(pinBox);
       document.documentElement.appendChild(shadowHost);
     };
+    const clearRefs = (): void => {
+      for (const b of refBoxes) { if (b.parentNode) b.parentNode.removeChild(b); }
+      refBoxes.length = 0;
+      refEls.length = 0;
+    };
     const teardown = (): void => {
+      clearRefs();
       if (shadowHost && shadowHost.parentNode) shadowHost.parentNode.removeChild(shadowHost);
       shadowHost = null;
       box = null;
       pinBox = null;
       pinned = null;
+      root = null;
     };
     const drawPin = (): void => {
       if (!pinBox) return;
@@ -499,7 +512,46 @@ export function installLpErrorTap(): void {
       post({ type: 'lp-pin-rect', rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
     };
     const pin = (el: Element | null): void => { pinned = el; drawPin(); postPinRect(); };
-    const onReflow = (): void => { if (on && pinned) { drawPin(); postPinRect(); } };
+    // Redraw every attached-reference box (HMR may disconnect a node — hide it, never lie).
+    const drawRefs = (): void => {
+      for (let i = 0; i < refBoxes.length; i++) {
+        const el = refEls[i]; const b = refBoxes[i];
+        if (!el || !el.isConnected) { b.style.display = 'none'; continue; }
+        const r = el.getBoundingClientRect();
+        b.style.display = 'block';
+        b.style.left = r.left + 'px'; b.style.top = r.top + 'px';
+        b.style.width = r.width + 'px'; b.style.height = r.height + 'px';
+      }
+    };
+    // Add a node as a reference (dashed box + lp-attach). Dedup by identity; capped at 8 so a prompt
+    // can never balloon. Posts the stamp so the cockpit can list + send it as agent context.
+    const addRef = (el: Element): void => {
+      if (!el || refEls.indexOf(el) !== -1 || refEls.length >= 8) return;
+      const attr = el.getAttribute('data-insp-path');
+      const parsed = parseInspPath(attr);
+      if (!parsed || !root) return;
+      const b = document.createElement('div');
+      b.style.cssText =
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px dashed #7FB88A;background:rgba(127,184,138,0.08);border-radius:3px;';
+      root.appendChild(b);
+      refEls.push(el); refBoxes.push(b);
+      drawRefs();
+      post({
+        type: 'lp-attach',
+        file: parsed.file, line: parsed.line, col: parsed.col, tag: parsed.tag,
+        label: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+      });
+    };
+    // Remove one reference by its stamp (the cockpit's ✕), or all (limpar).
+    const removeRef = (want: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
+      for (let i = refEls.length - 1; i >= 0; i--) {
+        if (stampMatches(refEls[i].getAttribute('data-insp-path'), want)) {
+          const b = refBoxes[i]; if (b && b.parentNode) b.parentNode.removeChild(b);
+          refEls.splice(i, 1); refBoxes.splice(i, 1);
+        }
+      }
+    };
+    const onReflow = (): void => { if (on && pinned) { drawPin(); postPinRect(); } if (on) drawRefs(); };
     const resolve = (x: number, y: number): Element | null => {
       // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
       // elementsFromPoint lists the whole hit stack (deepest painted first), so the first stamped
@@ -570,6 +622,9 @@ export function installLpErrorTap(): void {
       if (!el) return;
       ev.preventDefault();
       ev.stopImmediatePropagation();
+      // LP-4.8 §4 — Cmd/Ctrl-click ATTACHES the node as a reference instead of re-pinning: the
+      // primary selection (the edit target) is untouched; the ref just joins the prompt's context.
+      if (ev.metaKey || ev.ctrlKey) { addRef(el); return; }
       stopRepin(); // a manual pick wins — never let a pending re-pin watch fight the user
       selectEl(el);
     };
@@ -642,7 +697,7 @@ export function installLpErrorTap(): void {
         teardown();
       }
     };
-    return { set, reselect, repin };
+    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -652,6 +707,16 @@ export function installLpErrorTap(): void {
     // MP5.1 — the cockpit toggles select-to-edit mode. Benign: only flips hover/click capture.
     if (d.type === 'lp-select-mode') {
       try { select.set(!!d.on); } catch { /* select mode is best-effort, never breaks the page */ }
+      return;
+    }
+    // LP-4.8 §4 — the cockpit removed a reference chip (✕ or limpar). Benign: removes an overlay
+    // box; no DOM read of the page beyond matching the stamp we already drew.
+    if (d.type === 'lp-detach') {
+      try { select.detach(d); } catch { /* best-effort */ }
+      return;
+    }
+    if (d.type === 'lp-detach-all') {
+      try { select.detachAll(); } catch { /* best-effort */ }
       return;
     }
     // MP5.2a — a breadcrumb chip re-selects an ancestor node (re-pin + fresh lp-select). Benign:

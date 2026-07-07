@@ -236,6 +236,20 @@ async function main() {
   if (req.tag) anchor.push('- elemento: <' + String(req.tag) + '>');
   if (typeof req.breadcrumb === 'string' && req.breadcrumb.trim()) anchor.push('- breadcrumb: ' + req.breadcrumb.trim());
   if (nodeSource.trim()) anchor.push('- fonte do nó (JSX):\n' + nodeSource);
+  // LP-4.8 §4 — multi-select attach-as-reference: extra nodes the user Cmd/Ctrl-clicked as CONTEXT
+  // for this one prompt (Lovable's attach model). They are read-only pointers (file:line <tag>) the
+  // agent should consider; the edit still lands in the RIGHT place, gated by the same in-workspace +
+  // sensitive-file guards — a reference is never a write target.
+  if (Array.isArray(req.refs) && req.refs.length) {
+    const refl = req.refs.slice(0, 8).map((r) => {
+      const f = (r && typeof r.file === 'string') ? r.file : '';
+      if (!f) return null;
+      const ln = (r && Number.isInteger(r.line)) ? (':' + r.line) : '';
+      const tg = (r && typeof r.tag === 'string' && r.tag) ? (' <' + r.tag + '>') : '';
+      return f + ln + tg;
+    }).filter(Boolean);
+    if (refl.length) anchor.push('- referências (contexto adicional, read-only): ' + refl.join(' · '));
+  }
   const p = 'És o agente de tarefas ancoradas do Live Preview. O utilizador fixou (pin) um elemento '
     + 'no preview e pediu uma tarefa sobre o PROJECTO. Regras:\n'
     + '- responde em PT-BR curto;\n'
