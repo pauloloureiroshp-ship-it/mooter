@@ -425,6 +425,14 @@ test('Live Preview LP-4.9 §3 real-time feedback — toast says exactly what hap
   // An edit that landed → "✓ aplicado no preview · $0" + a pin flash.
   assert.ok(html.includes('✓ aplicado no preview · $0'), 'edit-applied toast copy');
   assert.ok(html.includes("showToast('ok'") && html.includes('sendFlash()'), 'apply shows the ok toast and flashes');
+  // Honesty (adversarial pass): $0 appears ONLY for deterministic/local writes. An escalated fenced
+  // rewrite (m.tier t1/t2/t3) says the tier + subscrição — never a false $0 on paid work.
+  assert.ok(/m\.reason==='model-applied' && m\.tier && m\.tier!=='local'/.test(html), 'toast gates $0 on tier');
+  assert.ok(html.includes("'✓ escrito · '+tierModel(m.tier)+' · subscrição'"), 'escalated rewrite toast is honest about cost');
+  // Host threads the tier so the toast can tell the truth.
+  const ext = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  assert.ok(/_postEditResult\(true, m\.dynamic \? 'model-applied-dynamic' : 'model-applied', m\.tier\)/.test(ext), 'host passes the tier to the edit result');
+  assert.ok(/if \(tier && tier !== 'local'\) msg\.tier = String\(tier\)/.test(ext), 'result message carries the non-local tier');
   // A question answered → "💬 resposta no painel →" (points to the panel, no false "changed").
   assert.ok(html.includes('💬 resposta no painel →') && html.includes("showToast('ask'"), 'answer toast points to the panel');
   // A refusal → an honest warn toast.

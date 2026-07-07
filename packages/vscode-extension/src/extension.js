@@ -1512,10 +1512,14 @@ class LivePreviewPanel {
       this._postRepin({ file: raw, line: m.line, col: m.col, tag: m.tag });
     } catch { fail('error'); }
   }
-  _postEditResult(ok, reason) {
+  _postEditResult(ok, reason, tier) {
     // §4 — every result carries the live revertable depth so the panel state reflects facts.
+    // LP-4.9 §3 — the tier rides along so the completion toast tells the TRUTH about cost: a fenced
+    // rewrite escalated to Sonnet/Opus is subscription, not $0 (deterministic edits stay $0).
     const undo = this._undoDepth();
-    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo }); } catch { /* best-effort */ }
+    const msg = { type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo };
+    if (tier && tier !== 'local') msg.tier = String(tier);
+    try { this.panel.webview.postMessage(msg); } catch { /* best-effort */ }
   }
   // ── LP-4.5 §4 — the UNIFIED session feed. ONE list holds every Live Edit write: splice-kind
   // items (deterministic text/class, delete, fenced rewrite — each carries its LEU inverse-splice
@@ -1855,7 +1859,7 @@ class LivePreviewPanel {
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
-      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied');
+      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied', m.tier);
       // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
       // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
       let repinTag = (typeof m.tag === 'string') ? m.tag : '';
@@ -3653,8 +3657,14 @@ window.addEventListener('message', (ev) => {
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
     if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){
       const d=document.getElementById('lp-del'); if(d) d.innerHTML='';
-      // LP-4.9 §3 — the $0 write landed: toast on the node + flash it (a deterministic edit is free).
-      showToast('ok', (m.reason==='model-applied-dynamic')?'✓ escrito · se o preview não mudou, o conteúdo vem de dentro do componente':'✓ aplicado no preview · $0');
+      // LP-4.9 §3 — HONEST cost in the toast: "$0" appears ONLY for deterministic/local writes. A
+      // fenced rewrite escalated to a cloud tier (m.tier t1/t2/t3/fable) says the tier + subscrição,
+      // never a false $0 (verified by the honesty adversarial pass).
+      let okToast;
+      if(m.reason==='model-applied-dynamic') okToast='✓ escrito · se o preview não mudou, o conteúdo vem de dentro do componente';
+      else if(m.reason==='model-applied' && m.tier && m.tier!=='local') okToast='✓ escrito · '+tierModel(m.tier)+' · subscrição';
+      else okToast='✓ aplicado no preview · $0';
+      showToast('ok', okToast);
       lpFinishProgress(); sendFlash();
     } else if (!m.ok) { showToast('warn', '⚠️ '+toastReason(m.reason)); lpFinishProgress(); }
   }
