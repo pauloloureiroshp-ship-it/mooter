@@ -570,6 +570,14 @@ export function installLpErrorTap(): void {
       }
       drawPin(); postPinRect();
     };
+    // LP-4.9 §3 — a short green pulse on the pin box after a write landed (visual only; reverts).
+    const flash = (): void => {
+      if (!pinBox) return;
+      const base = pinBox.style.boxShadow;
+      pinBox.style.transition = 'box-shadow .18s ease';
+      pinBox.style.boxShadow = '0 0 0 3px rgba(127,184,138,.85)';
+      setTimeout(() => { if (pinBox) pinBox.style.boxShadow = base; }, 420);
+    };
     const onReflow = (): void => { if (on && pinned) { drawPin(); postPinRect(); } if (on) drawRefs(); };
     const resolve = (x: number, y: number): Element | null => {
       // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
@@ -717,7 +725,7 @@ export function installLpErrorTap(): void {
         teardown();
       }
     };
-    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs, previewClass, clearPreview: clearPreviewClass };
+    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs, previewClass, clearPreview: clearPreviewClass, flash };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -746,6 +754,11 @@ export function installLpErrorTap(): void {
     }
     if (d.type === 'lp-preview-clear') {
       try { select.clearPreview(); } catch { /* best-effort */ }
+      return;
+    }
+    // LP-4.9 §3 — flash the pin box after a write landed, so the eye lands on what changed.
+    if (d.type === 'lp-flash') {
+      try { select.flash(); } catch { /* best-effort */ }
       return;
     }
     // MP5.2a — a breadcrumb chip re-selects an ancestor node (re-pin + fresh lp-select). Benign:

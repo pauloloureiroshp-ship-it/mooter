@@ -410,6 +410,24 @@ test('Live Preview LP-4.9 §7 chrome — close (X), minimize, drag, and never co
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.9 §3 real-time feedback — toast says exactly what happened + flashes the node', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-ctb-toast"') && /role="status" aria-live="polite"/.test(html), 'a11y-live toast present');
+  assert.ok(html.includes('function showToast'), 'toast renderer present');
+  // An edit that landed → "✓ aplicado no preview · $0" + a pin flash.
+  assert.ok(html.includes('✓ aplicado no preview · $0'), 'edit-applied toast copy');
+  assert.ok(html.includes("showToast('ok'") && html.includes('sendFlash()'), 'apply shows the ok toast and flashes');
+  // A question answered → "💬 resposta no painel →" (points to the panel, no false "changed").
+  assert.ok(html.includes('💬 resposta no painel →') && html.includes("showToast('ask'"), 'answer toast points to the panel');
+  // A refusal → an honest warn toast.
+  assert.ok(html.includes("showToast('warn'") && html.includes('function toastReason'), 'refusal shows an honest warn toast');
+  // The flash is a message to the tap (origin-targeted), which pulses the pin box.
+  assert.ok(html.includes("type:'lp-flash'"), 'flash wired to the tap');
+  assert.ok(/postMessage\(\{ type:'lp-flash' \}, curOrigin\)/.test(html), 'flash is origin-targeted');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

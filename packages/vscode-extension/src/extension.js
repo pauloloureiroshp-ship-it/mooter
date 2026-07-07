@@ -2235,6 +2235,13 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ctb-chip{position:absolute;left:8px;top:8px;pointer-events:auto;width:34px;height:34px;display:none;align-items:center;justify-content:center;font-size:17px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:50%;box-shadow:0 6px 20px rgba(0,0,0,.32);cursor:pointer}
   .lp-ctb-chip:hover{border-color:var(--vscode-focusBorder)}
   .lp-ctb-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
+  /* LP-4.9 §3 — real-time feedback toast (anchored to the node, auto-dismissed). */
+  .lp-ctb-toast{position:absolute;left:8px;top:8px;pointer-events:none;max-width:min(320px,calc(100% - 16px));font:11.5px var(--vscode-font-family);font-weight:600;padding:6px 11px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.34);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lp-toast-ok{background:var(--vscode-charts-green,#4CAF6A);color:#08130C}
+  .lp-toast-ask{background:var(--vscode-charts-blue,#5A9BD4);color:#071018}
+  .lp-toast-warn{background:var(--vscode-inputValidation-warningBackground,#E5C07B);color:#1A1305;border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.6))}
+  .lp-toast-in{animation:lpToastIn .18s ease}
+  @keyframes lpToastIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
   .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -2414,6 +2421,8 @@ function getLivePreviewHtml(token, wsRoot) {
         </div>
         <!-- Minimized state: a single 🐮 chip that re-expands on click. -->
         <button type="button" id="lp-ctb-chip" class="lp-ctb-chip" style="display:none" title="Reabrir a toolbar" aria-label="Reabrir a toolbar de edição">🐮</button>
+        <!-- LP-4.9 §3 — real-time feedback toast, anchored to the node. Announced politely to a11y. -->
+        <div id="lp-ctb-toast" class="lp-ctb-toast" role="status" aria-live="polite" style="display:none"></div>
       </div>
     </div>
   </section>
@@ -2799,6 +2808,41 @@ function hideCanvasToolbar(){
   if(tb){ tb.style.display='none'; tb.setAttribute('aria-hidden','true'); }
   if(chip) chip.style.display='none';
   if(tbb) tbb.innerHTML='';
+}
+// LP-4.9 §3 — real-time feedback. A toast anchored to the node says EXACTLY what happened: an edit
+// landed ("✓ aplicado no preview · $0"), a question was answered ("💬 resposta no painel →"), or a
+// write was refused ("⚠️ …"). Politely announced (aria-live) and auto-dismissed. kind ∈ ok|ask|warn.
+let lpToastTimer=null;
+function showToast(kind, text){
+  const t=document.getElementById('lp-ctb-toast'); if(!t) return;
+  t.className='lp-ctb-toast lp-toast-'+(kind||'ok')+' lp-toast-in';
+  t.textContent=text;
+  t.style.display='block';
+  const f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
+  if(f&&wrap&&lpPinRect){
+    const fx=f.offsetLeft||0, fy=f.offsetTop||0, wrapW=wrap.clientWidth||0;
+    const tw=t.offsetWidth||160, th=t.offsetHeight||28;
+    let left=fx+(lpPinRect.x||0)+((lpPinRect.w||0)/2)-tw/2;
+    left=Math.max(6, Math.min(left, wrapW-tw-6));
+    let top=fy+(lpPinRect.y||0)-th-10; if(top<6) top=fy+(lpPinRect.y||0)+(lpPinRect.h||0)+10;
+    t.style.left=left+'px'; t.style.top=top+'px';
+  }
+  if(lpToastTimer){ try{ clearTimeout(lpToastTimer); }catch(e){} }
+  lpToastTimer=setTimeout(function(){ const el=document.getElementById('lp-ctb-toast'); if(el){ el.style.display='none'; el.classList.remove('lp-toast-in'); } }, 2600);
+}
+// Ask the tap to flash the pin box (a short pulse) so the eye lands on the element that changed.
+function sendFlash(){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-flash' }, curOrigin); }catch(e){} }
+}
+// Short, human reason for the warn toast (the panel still shows the full honest state).
+function toastReason(reason){
+  const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
+    'prompt-empty':'escreve primeiro o que queres', 'file-changed':'o ficheiro mudou — pré-visualiza de novo',
+    'local-model-offline':'moo local offline', 'local-model-timeout':'o moo local demorou demasiado',
+    'task-timeout':'o agente demorou demasiado', 'task-cancelled':'cancelado',
+    'replacement-parse-error':'recusado pela cerca (JSX inválido)', 'not-single-root':'recusado pela cerca' };
+  return m[reason]||(reason?String(reason):'rejeitado');
 }
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
@@ -3468,7 +3512,12 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
-    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){
+      const d=document.getElementById('lp-del'); if(d) d.innerHTML='';
+      // LP-4.9 §3 — the $0 write landed: toast on the node + flash it (a deterministic edit is free).
+      showToast('ok', (m.reason==='model-applied-dynamic')?'✓ escrito · se o preview não mudou, o conteúdo vem de dentro do componente':'✓ aplicado no preview · $0');
+      sendFlash();
+    } else if (!m.ok) { showToast('warn', '⚠️ '+toastReason(m.reason)); }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
@@ -3496,7 +3545,13 @@ window.addEventListener('message', (ev) => {
       el.className='lp-ed-msg lp-ed-pending';
     }
   }
-  else if (m.type === 'lp-task-result'){ renderTaskResult(m); } // LP-4.5 agent verdict (answer or per-file diffs)
+  else if (m.type === 'lp-task-result'){
+    renderTaskResult(m); // LP-4.5 agent verdict (answer or per-file diffs)
+    // LP-4.9 §3 — honest completion toast: answered (panel), edited (preview + flash), or refused.
+    if(!m.ok){ showToast('warn', '⚠️ '+toastReason(m.reason)); }
+    else if(m.kind==='answer' || !(Array.isArray(m.edits)&&m.edits.length)){ showToast('ask', '💬 resposta no painel →'); }
+    else { showToast('ok', '✓ aplicado no preview'); sendFlash(); }
+  }
   else if (m.type === 'lp-task-revert-result'){ applyTaskRevertResult(m); } // LP-4.5 per-file revert outcomes
   else if (m.type === 'lp-task-keep-result'){ applyTaskKeepResult(m); } // LP-4.5 keep-all outcome
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
