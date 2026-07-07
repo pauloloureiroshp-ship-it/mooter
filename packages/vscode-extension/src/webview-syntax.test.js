@@ -17,7 +17,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js', './lp-skills.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -238,6 +238,28 @@ test('Live Preview LP-4.8 §2 presets — deterministic colour/size/spacing ride
   assert.ok(/sendEdit\('class', next\)/.test(html), 'preset applies via the class-edit fence (preview-first)');
   // Honest $0: the preset group is labelled as deterministic, no tokens.
   assert.ok(html.includes('sem tokens'), 'presets are labelled $0/no-tokens');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.8 §3 /skills — element-scoped skills seed the one-box + pin the tier (no new write surface)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The dropdown button + menu + the serialised registry/renderer are present.
+  assert.ok(html.includes('id="lp-sk-btn"'), '/skills button present');
+  assert.ok(html.includes('id="lp-sk-menu"'), 'skills menu container present');
+  assert.ok(/const LP_SKILLS=\[/.test(html), 'skills registry embedded as JSON');
+  assert.ok(html.includes('function renderSkillsMenuHTML'), 'menu renderer serialised in');
+  assert.ok(html.includes('role="menu"'), 'menu has an ARIA menu role');
+  // The 5 v1 skills are in the embedded registry with honest per-skill tiers.
+  assert.ok(html.includes('"id":"icon"') && html.includes('"id":"section"'), 'v1 skills embedded');
+  assert.ok(html.includes('"tierFloor":"auto"'), '/section floors to the agent');
+  // A skill SEEDS the one-box and pins the chip — it does NOT open a new write path. The proof:
+  // the item handler sets lp-box-in + lpMode, then execution reuses the existing sendBox path.
+  assert.ok(/bi\.value=tpl/.test(html), 'skill seeds the one-box with its template');
+  assert.ok(/lpMode=skillTierMode\(tier\)/.test(html), 'skill pins the chip to its tier floor (routing surfaced)');
+  assert.ok(html.includes('skill activa: /'), 'active-skill indicator shows the routing');
+  // No bespoke skill message type — /skills must not bypass the fence with its own write channel.
+  assert.ok(!/type:'lp-skill-apply'|type:'lp-skill-write'/.test(html), 'no skill-specific write message (rides the existing fence)');
   parseInlineScript(html);
 });
 

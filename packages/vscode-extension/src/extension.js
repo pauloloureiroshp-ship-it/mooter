@@ -128,6 +128,10 @@ try { LTV = require('./lp-task-view.js'); } catch { LTV = null; }
 // into the webview and applied through the existing class-edit fence — $0, no LLM.
 let LPP = null;
 try { LPP = require('./lp-presets.js'); } catch { LPP = null; }
+// LP-4.8 §3 — element-scoped /skills. Vendored defaults (assets/skills/*.md), workspace override
+// under .mooter/skills/. Skills seed the one-box + pin the tier; execution rides the existing fence.
+let LSK = null;
+try { LSK = require('./lp-skills.js'); } catch { LSK = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -2042,7 +2046,7 @@ class LivePreviewPanel {
     }
   }
   _wire() {
-    this.panel.webview.html = getLivePreviewHtml(this.token);
+    this.panel.webview.html = getLivePreviewHtml(this.token, this._wsRoot());
     this._post();
     this._detectStage();
     // Visibility-aware polling (mirrors data.js's pollIntervalMs idea) — only tick while shown.
@@ -2089,7 +2093,7 @@ LivePreviewPanel.current = null;
 // bus/Brain poll never reloads it and native HMR survives) + a right rail (Brain + Director's
 // Cut, innerHTML-refreshed each poll). The iframe is deliberately NOT sandboxed: it frames the
 // user's OWN trusted dev server and needs same-origin scripts + websockets for HMR to work.
-function getLivePreviewHtml(token) {
+function getLivePreviewHtml(token, wsRoot) {
   const nonce = String(Math.random()).slice(2);
   const hostToken = JSON.stringify(String(token == null ? '' : token));
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
@@ -2110,6 +2114,11 @@ function getLivePreviewHtml(token) {
   // own catalog/regexes so toString survives the module-scope loss).
   const mergeClassSrc = LPP ? LPP.mergeClass.toString() : 'function mergeClass(c,cls){return ((c||"")+" "+cls).trim();}';
   const renderPresetsBarHTMLSrc = LPP ? LPP.renderPresetsBarHTML.toString() : 'function renderPresetsBarHTML(){return "";}';
+  // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
+  // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
+  const skillsRegistry = LSK ? LSK.loadSkills({ wsRoot: wsRoot }) : [];
+  const skillsJson = JSON.stringify(Array.isArray(skillsRegistry) ? skillsRegistry : []);
+  const renderSkillsMenuHTMLSrc = LSK ? LSK.renderSkillsMenuHTML.toString() : 'function renderSkillsMenuHTML(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -2212,6 +2221,19 @@ function getLivePreviewHtml(token) {
   .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 8px;cursor:pointer}
   .lp-pz-chip:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   .lp-sw:focus-visible,.lp-pz-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.8 §3 — /skills dropdown: each item surfaces its tier (honest routing). */
+  .lp-ctb .lp-sk{position:relative;margin-top:8px}
+  .lp-ctb .lp-sk-active{font-size:10px;opacity:.8;margin-top:4px;min-height:12px;color:var(--vscode-charts-green,#4CAF6A)}
+  .lp-sk-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:8;min-width:230px;max-width:320px;max-height:230px;overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.34);padding:4px}
+  .lp-sk-item{display:grid;grid-template-columns:auto 1fr auto;gap:6px 8px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-radius:6px;padding:6px 8px;cursor:pointer;color:var(--vscode-foreground)}
+  .lp-sk-item:hover,.lp-sk-item:focus-visible{background:var(--vscode-list-hoverBackground);outline:none}
+  .lp-sk-item:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-1px}
+  .lp-sk-g{font-size:14px;grid-row:1}
+  .lp-sk-lb{font-weight:700;font-size:12px;grid-row:1}
+  .lp-sk-tier{grid-row:1;font-size:9.5px;padding:1px 7px;border-radius:999px;white-space:nowrap;border:1px solid var(--vscode-widget-border)}
+  .lp-sk-tier-local{color:var(--vscode-charts-green,#4CAF6A)}
+  .lp-sk-tier-auto{color:var(--vscode-charts-blue,#5A9BD4)}
+  .lp-sk-hint{grid-column:1 / -1;grid-row:2;font-size:10px;opacity:.72;line-height:1.35}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2343,6 +2365,8 @@ const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
 const mergeClass=${mergeClassSrc};
 const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
+const LP_SKILLS=${skillsJson};
+const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   const dcEl=document.getElementById('lp-dc');
@@ -2554,6 +2578,44 @@ function switchToAgent(){
   const bi=document.getElementById('lp-box-in');
   if(bi) bi.focus();
 }
+// LP-4.8 §3 — /skills menu wiring. The registry (LP_SKILLS) + the pure renderer are serialised in;
+// this hooks up open/close, keyboard, click-away, and the per-item SEED. A skill only seeds the
+// one-box + pins the tier — the actual write still travels the existing fenced one-box path.
+let lpSkillsAway=false;
+function skillTierMode(tier){ return tier==='auto' ? 'auto' : 'local'; }
+function closeSkillsMenu(){
+  const menu=document.getElementById('lp-sk-menu'), btn=document.getElementById('lp-sk-btn');
+  if(menu) menu.style.display='none';
+  if(btn) btn.setAttribute('aria-expanded','false');
+}
+function wireSkillsMenu(){
+  const btn=document.getElementById('lp-sk-btn'), menu=document.getElementById('lp-sk-menu'), act=document.getElementById('lp-sk-active');
+  if(!btn||!menu) return;
+  menu.innerHTML=renderSkillsMenuHTML(Array.isArray(LP_SKILLS)?LP_SKILLS:[], esc);
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(menu.style.display!=='none'){ closeSkillsMenu(); return; }
+    menu.style.display='block'; btn.setAttribute('aria-expanded','true');
+    const f=menu.querySelector('.lp-sk-item'); if(f) f.focus();
+  });
+  menu.addEventListener('keydown', function(e){ if(e.key==='Escape'){ e.stopPropagation(); closeSkillsMenu(); btn.focus(); } });
+  const items=menu.querySelectorAll('[data-skill]');
+  for(let i=0;i<items.length;i++){ items[i].addEventListener('click', function(){
+    const id=this.getAttribute('data-skill'), tier=this.getAttribute('data-tier'), tpl=this.getAttribute('data-template')||'';
+    const bi=document.getElementById('lp-box-in');
+    if(bi){ bi.value=tpl; bi.focus(); try{ bi.setSelectionRange(tpl.length, tpl.length); }catch(e){} }
+    lpMode=skillTierMode(tier);              // pin the chip to the skill's tier floor (honest routing)
+    renderModeChips();
+    if(act) act.textContent='skill activa: /'+id+' · '+(lpMode==='auto'?'agente · subscrição':'local · $0');
+    closeSkillsMenu();
+    btn.focus();
+  }); }
+  // Click-away closes the menu — wired ONCE on the document (renderSelection re-runs per selection).
+  if(!lpSkillsAway){ lpSkillsAway=true; document.addEventListener('click', function(ev){
+    const mnu=document.getElementById('lp-sk-menu'), bt=document.getElementById('lp-sk-btn');
+    if(mnu && mnu.style.display!=='none' && !mnu.contains(ev.target) && ev.target!==bt) closeSkillsMenu();
+  }); }
+}
 // LP-4.8 §1 — anchor the floating toolbar to the pin. rect = the node's bounding box in the
 // iframe's OWN viewport coords (the tap sends it on select + on every scroll/resize reflow). We
 // map it into #lp-framewrap coordinates via the iframe's offset (0,0 full-width; centred in device
@@ -2642,6 +2704,11 @@ function renderSelection(sel){
     +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // LP-4.8 §3 — the /skills dropdown. A skill seeds this same one-box with its template and pins
+    // the chip to its tier floor; execution rides the existing fenced paths (no new write surface).
+    +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
+    +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
+    +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
     +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>';
   if(ctbBody){ ctbBody.innerHTML=inputsHTML; if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } }
@@ -2697,6 +2764,10 @@ function renderSelection(sel){
       else h.style.display='none';
     });
   }
+  // LP-4.8 §3 — /skills. Picking a skill SEEDS this one-box with the skill's template and pins the
+  // chip to the skill's tier floor (routing surfaced, never hidden). Execution then rides the exact
+  // same fenced one-box path (local $0 lp-prompt / anchored lp-task) — /skills adds no write surface.
+  wireSkillsMenu();
   // §5 — "resolver com o agente": switch the box to AUTO (honest refusal when the bridge is off).
   const ag=document.getElementById('lp-sel-agent');
   if(ag) ag.addEventListener('click', switchToAgent);
