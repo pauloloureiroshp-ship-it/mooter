@@ -283,6 +283,27 @@ test('Live Preview LP-4.8 §4 multi-select — Cmd/Ctrl-click attaches refs as a
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.8 §5 keyboard/a11y — Esc dismisses the toolbar (no VS Code steal), ARIA + focus-visible', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The toolbar is an ARIA toolbar; its controls are labelled for screen readers.
+  assert.ok(/id="lp-ctb"[^>]*role="toolbar"/.test(html), 'toolbar has role=toolbar');
+  assert.ok(html.includes('aria-label="texto do elemento selecionado"'), 'text input labelled');
+  assert.ok(html.includes('aria-label="classe Tailwind do elemento selecionado"'), 'class input labelled');
+  assert.ok(html.includes('aria-label="prompt ancorado neste elemento"'), 'one-box labelled');
+  // Esc DISMISSES the toolbar only when focus is inside it (never steals VS Code's global Esc),
+  // defers to the /skills menu when open, and returns focus to the 🎯 toggle (never stranded).
+  assert.ok(/ctb\.addEventListener\('keydown'/.test(html), 'toolbar Esc handler wired on the toolbar (scoped, not global)');
+  assert.ok(html.includes("if(e.key!=='Escape') return;"), 'the handler only acts on Escape');
+  assert.ok(/hideCanvasToolbar\(\)/.test(html), 'Esc hides the toolbar');
+  assert.ok(html.includes("getElementById('lp-select-btn'); if(sb) sb.focus()"), 'focus returns to the 🎯 toggle');
+  // The /skills menu closes on its own Escape before the toolbar-hide can fire.
+  assert.ok(/menu\.addEventListener\('keydown'[\s\S]{0,120}Escape[\s\S]{0,80}closeSkillsMenu/.test(html), 'skills menu closes on Escape');
+  // Focus-visible outlines on the toolbar controls (keyboard users always see focus).
+  assert.ok(/\.lp-ctb .lp-ed-in:focus-visible/.test(html), 'toolbar controls have focus-visible outlines');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');

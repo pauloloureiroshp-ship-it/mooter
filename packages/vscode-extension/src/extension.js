@@ -2767,13 +2767,13 @@ function renderSelection(sel){
   // just hosted here instead of the side rail. Falls back to the side panel only if the toolbar
   // host is absent (defensive — the static markup always ships it).
   const inputsHTML='<div id="lp-chip" class="lp-chip"></div>'
-    +'<div class="lp-ed-l">texto</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div class="lp-ed-l">classe (Tailwind · cor · spacing)</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
     +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
-    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     // LP-4.8 §4 — attached references (Cmd/Ctrl-click) live here: chips + ✕ + limpar. They feed the
     // agent prompt as read-only context; a local $0 edit still targets only the pinned node.
@@ -3208,6 +3208,22 @@ function showEditResult(ok, reason){
 // LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
 // within the frame wrap, so re-anchor the toolbar from the last known pin rect (iframe coords).
 window.addEventListener('resize', function(){ positionCanvasToolbar(); });
+// LP-4.8 §5 — keyboard/a11y. Esc DISMISSES the in-canvas toolbar, but only when focus is inside it
+// (so it never steals VS Code's global Esc), and never preventDefaults globally. If the /skills menu
+// is open, its own handler closes the menu first (it stopPropagations, so we don't also hide). After
+// hiding, focus returns to the 🎯 toggle so keyboard users are never stranded on a removed node. Tab
+// navigates the controls natively — they are real buttons/inputs in a sensible DOM order.
+(function(){
+  const ctb=document.getElementById('lp-ctb'); if(!ctb) return;
+  ctb.addEventListener('keydown', function(e){
+    if(e.key!=='Escape') return;
+    const menu=document.getElementById('lp-sk-menu');
+    if(menu && menu.style.display!=='none') return; // the menu's Esc handler owns this
+    e.stopPropagation();
+    hideCanvasToolbar();
+    const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus();
+  });
+})();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
