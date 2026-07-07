@@ -2269,6 +2269,17 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-coach-btn{flex:none;min-height:28px;font:12px var(--vscode-font-family);font-weight:700;color:#0B0A09;background:var(--vscode-charts-red,#E8888A);border:0;border-radius:7px;padding:5px 14px;cursor:pointer}
   .lp-coach-btn2{flex:none;min-height:28px;font:11.5px var(--vscode-font-family);color:var(--vscode-descriptionForeground);background:transparent;border:1px solid var(--vscode-widget-border);border-radius:7px;padding:4px 10px;cursor:pointer}
   .lp-coach-btn:focus-visible,.lp-coach-btn2:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
+  /* LP-4.9 §6 — WCAG 2.2 AA sweep. Target size ≥24px (§2.5.8) on every in-canvas control, and
+     focus never obscured (§2.4.11): scroll-padding keeps a focused control clear of the sticky
+     header/progress bars when the toolbar scrolls. Focus rings come from each control's rule. */
+  .lp-ctb{scroll-padding-top:40px;scroll-padding-bottom:44px}
+  .lp-ctb .lp-sel-btn{min-height:24px}
+  .lp-ctb .lp-tier{min-height:24px;display:inline-flex;align-items:center}
+  .lp-ctb .lp-ref-x{min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+  .lp-ctb .lp-ref-clr{min-height:24px}
+  .lp-ctb .lp-sk-item{min-height:24px}
+  .lp-ctb .lp-ed-in{min-height:24px}
+  #lp-sel .lp-crumb{min-height:24px;display:inline-flex;align-items:center}
   .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
   .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}

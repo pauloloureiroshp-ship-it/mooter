@@ -469,6 +469,25 @@ test('Live Preview LP-4.9 §4 coach marks — first-run onboarding, dismissible,
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.9 §6 WCAG 2.2 AA — target size ≥24px, focus not obscured, ARIA', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // §2.5.8 target size — the in-canvas controls are ≥24px (buttons, chips, swatches, ✕).
+  assert.ok(/\.lp-ctb \.lp-sel-btn\{min-height:24px\}/.test(html), 'toolbar buttons ≥24px');
+  assert.ok(/\.lp-ctb \.lp-ref-x\{min-width:24px;min-height:24px/.test(html), 'reference ✕ is a ≥24px target');
+  assert.ok(/\.lp-ctb \.lp-tier\{min-height:24px/.test(html), 'model chips ≥24px');
+  assert.ok(/\.lp-sw\{width:24px;height:24px/.test(html), 'preset swatches ≥24px');
+  // §2.4.11 focus not obscured — scroll-padding keeps a focused control clear of the sticky bars.
+  assert.ok(/\.lp-ctb\{scroll-padding-top:40px;scroll-padding-bottom:44px\}/.test(html), 'focus not obscured under sticky header/progress');
+  // ARIA on the toggles + swatches + menu + live regions.
+  assert.ok(/role="radio" aria-checked/.test(html), 'intent toggle exposes radio state');
+  assert.ok(html.includes('aria-label="cor do texto') || html.includes('aria-label="fundo'), 'swatches are labelled');
+  assert.ok(html.includes('aria-live="polite"'), 'toast/progress are announced');
+  // §3.2.6 consistent help — the "?" is always in the same place.
+  assert.ok(html.includes('id="lp-ctb-help"'), 'consistent help affordance present');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
