@@ -2257,6 +2257,18 @@ function getLivePreviewHtml(token, wsRoot) {
   @media (prefers-reduced-motion:reduce){.lp-spin{animation:none}}
   .lp-progress-txt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
   .lp-progress-x{flex:none;min-height:24px}
+  /* LP-4.9 §4 — first-run coach marks (dismissible, never repeats). */
+  .lp-coach{position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.28);pointer-events:auto}
+  .lp-coach-card{max-width:min(340px,calc(100% - 32px));background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:11px;box-shadow:0 12px 36px rgba(0,0,0,.42);padding:16px 18px}
+  .lp-coach-t{font-weight:700;font-size:13px;margin-bottom:6px}
+  .lp-coach-d{font-size:12px;line-height:1.5;opacity:.9}
+  .lp-coach-nav{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .lp-coach-dots{flex:1 1 auto;display:flex;gap:5px;justify-content:center}
+  .lp-coach-dot{width:6px;height:6px;border-radius:50%;background:var(--vscode-widget-border)}
+  .lp-coach-dot.on{background:var(--vscode-charts-red,#E8888A)}
+  .lp-coach-btn{flex:none;min-height:28px;font:12px var(--vscode-font-family);font-weight:700;color:#0B0A09;background:var(--vscode-charts-red,#E8888A);border:0;border-radius:7px;padding:5px 14px;cursor:pointer}
+  .lp-coach-btn2{flex:none;min-height:28px;font:11.5px var(--vscode-font-family);color:var(--vscode-descriptionForeground);background:transparent;border:1px solid var(--vscode-widget-border);border-radius:7px;padding:4px 10px;cursor:pointer}
+  .lp-coach-btn:focus-visible,.lp-coach-btn2:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
   .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
   .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -2429,6 +2441,7 @@ function getLivePreviewHtml(token, wsRoot) {
                affordance; the automatic flip-positioning is the no-drag alternative (WCAG 2.5.7). -->
           <div id="lp-ctb-hd" class="lp-ctb-hd">
             <span id="lp-ctb-grip" class="lp-ctb-grip" title="Arrastar (ou deixa o posicionamento automático)">⠿ editar</span>
+            <button type="button" id="lp-ctb-help" class="lp-ctb-btn" title="Como funciona (ajuda)" aria-label="Abrir a ajuda">?</button>
             <button type="button" id="lp-ctb-min" class="lp-ctb-btn" title="Minimizar" aria-label="Minimizar a toolbar">—</button>
             <button type="button" id="lp-ctb-x" class="lp-ctb-btn" title="Fechar (Esc)" aria-label="Fechar a toolbar">✕</button>
           </div>
@@ -2444,6 +2457,18 @@ function getLivePreviewHtml(token, wsRoot) {
         <button type="button" id="lp-ctb-chip" class="lp-ctb-chip" style="display:none" title="Reabrir a toolbar" aria-label="Reabrir a toolbar de edição">🐮</button>
         <!-- LP-4.9 §3 — real-time feedback toast, anchored to the node. Announced politely to a11y. -->
         <div id="lp-ctb-toast" class="lp-ctb-toast" role="status" aria-live="polite" style="display:none"></div>
+      </div>
+      <!-- LP-4.9 §4 — first-run coach marks (3 steps, dismissible, never repeats). Also re-openable
+           from the "?" in the toolbar header (WCAG 2.2 §3.2.6 consistent help). -->
+      <div id="lp-coach" class="lp-coach" role="dialog" aria-label="Como usar o Live Edit" style="display:none">
+        <div class="lp-coach-card">
+          <div id="lp-coach-body" class="lp-coach-body"></div>
+          <div class="lp-coach-nav">
+            <button type="button" id="lp-coach-skip" class="lp-coach-btn2">não mostrar</button>
+            <span id="lp-coach-dots" class="lp-coach-dots" aria-hidden="true"></span>
+            <button type="button" id="lp-coach-next" class="lp-coach-btn">seguinte</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -2667,6 +2692,7 @@ function setSelectMode(on){
   const b=document.getElementById('lp-select-btn');
   if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
   sendSelectMode(lpSelectOn);
+  if(lpSelectOn){ try{ maybeCoachOnArm(); }catch(e){} } // LP-4.9 §4 — first-run onboarding
 }
 // MP5.2a — a breadcrumb chip asks the tap to re-select an ancestor node (re-pin + fresh lp-select).
 // Origin-targeted postMessage into the frame, exactly like sendSelectMode (cross-origin, never '*').
@@ -2868,6 +2894,24 @@ function lpStartProgress(text, cancellable){
 }
 function lpUpdateProgress(text){ const t=document.getElementById('lp-progress-txt'); if(t&&text) t.textContent=text; }
 function lpFinishProgress(){ const p=document.getElementById('lp-progress'); if(p) p.style.display='none'; }
+// LP-4.9 §4 — first-run coach marks: 3 short steps shown the first time the 🎯 arms, dismissible,
+// never repeats (localStorage). Re-openable any time from the "?" (consistent help, WCAG 3.2.6).
+const LP_COACH=[
+  { t:'1 · Clica num elemento', d:'Liga o 🎯 e clica em qualquer coisa no preview para a fixar. A toolbar abre ancorada a esse elemento.' },
+  { t:'2 · Editar ou Perguntar', d:'✏️ Editar muda o site (diff → aplica). 💬 Perguntar só responde no painel. Escolhes ANTES de enviar.' },
+  { t:'3 · Cor e tamanho são $0', d:'As amostras de cor, tamanho e espaçamento aplicam-se num clique — instantâneas, sem tokens, sem custo.' },
+];
+let lpCoachStep=0;
+function renderCoachStep(){
+  const body=document.getElementById('lp-coach-body'), dots=document.getElementById('lp-coach-dots'), next=document.getElementById('lp-coach-next');
+  const s=LP_COACH[lpCoachStep]||LP_COACH[0];
+  if(body) body.innerHTML='<div class="lp-coach-t">'+esc(s.t)+'</div><div class="lp-coach-d">'+esc(s.d)+'</div>';
+  if(dots){ let d=''; for(let i=0;i<LP_COACH.length;i++) d+='<span class="lp-coach-dot'+(i===lpCoachStep?' on':'')+'"></span>'; dots.innerHTML=d; }
+  if(next) next.textContent=(lpCoachStep>=LP_COACH.length-1)?'começar':'seguinte';
+}
+function showCoachMarks(){ lpCoachStep=0; const c=document.getElementById('lp-coach'); if(c){ c.style.display='flex'; renderCoachStep(); const n=document.getElementById('lp-coach-next'); if(n) n.focus(); } }
+function dismissCoachMarks(){ const c=document.getElementById('lp-coach'); if(c) c.style.display='none'; try{ localStorage.setItem('lp-coach-done','1'); }catch(e){} }
+function maybeCoachOnArm(){ let done=false; try{ done=localStorage.getItem('lp-coach-done')==='1'; }catch(e){} if(!done) showCoachMarks(); }
 // Short, human reason for the warn toast (the panel still shows the full honest state).
 function toastReason(reason){
   const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
@@ -3457,6 +3501,13 @@ window.addEventListener('resize', function(){ positionCanvasToolbar(); });
   // LP-4.9 §8 — cancel the running agent task (host aborts it; result comes back 'task-cancelled').
   const cancelBtn=document.getElementById('lp-progress-cancel');
   if(cancelBtn) cancelBtn.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-cancel' }); lpUpdateProgress('a cancelar…'); });
+  // LP-4.9 §4 — coach marks: "?" re-opens help; next steps through / dismisses; skip + Esc dismiss.
+  const helpBtn=document.getElementById('lp-ctb-help');
+  if(helpBtn) helpBtn.addEventListener('click', function(){ showCoachMarks(); });
+  const coachNext=document.getElementById('lp-coach-next'), coachSkip=document.getElementById('lp-coach-skip'), coach=document.getElementById('lp-coach');
+  if(coachNext) coachNext.addEventListener('click', function(){ if(lpCoachStep>=LP_COACH.length-1){ dismissCoachMarks(); const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus(); } else { lpCoachStep++; renderCoachStep(); } });
+  if(coachSkip) coachSkip.addEventListener('click', function(){ dismissCoachMarks(); });
+  if(coach) coach.addEventListener('keydown', function(e){ if(e.key==='Escape'){ e.stopPropagation(); dismissCoachMarks(); } });
   const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
   const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); ctb.focus(); };
   if(mn) mn.addEventListener('click', minimize);

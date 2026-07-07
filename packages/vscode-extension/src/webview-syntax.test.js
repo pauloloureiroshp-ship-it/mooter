@@ -453,6 +453,22 @@ test('Live Preview LP-4.9 §8 live progress — spinning 🐮 with honest tier +
   assert.ok(taskSrc.includes("finish({ ok: false, reason: 'task-cancelled' })") && taskSrc.includes("o.signal.addEventListener('abort'"), 'runner kills the child on abort (additive, unchanged without a signal)');
 });
 
+test('Live Preview LP-4.9 §4 coach marks — first-run onboarding, dismissible, never repeats + "?" help', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-coach"') && /role="dialog"/.test(html), 'coach-marks dialog present');
+  assert.ok(html.includes('function showCoachMarks') && html.includes('function maybeCoachOnArm'), 'first-run trigger present');
+  // Three honest steps: pick → edit/ask → $0 presets.
+  assert.ok(html.includes('Clica num elemento') && html.includes('Editar ou Perguntar') && html.includes('Cor e tamanho são $0'), 'the 3 steps');
+  // Shown only on the FIRST arm; the flag persists so it never repeats.
+  assert.ok(/maybeCoachOnArm\(\)/.test(html), 'coach marks trigger when the 🎯 arms');
+  assert.ok(html.includes("localStorage.getItem('lp-coach-done')") && html.includes("localStorage.setItem('lp-coach-done','1')"), 'dismissal persists (never repeats)');
+  // Re-openable any time from the "?" (WCAG 2.2 §3.2.6 consistent help).
+  assert.ok(html.includes('id="lp-ctb-help"') && /aria-label="Abrir a ajuda"/.test(html), 'the ? re-opens help');
+  assert.ok(/helpBtn\.addEventListener\('click', function\(\)\{ showCoachMarks\(\)/.test(html), 'the ? is wired to the coach marks');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
