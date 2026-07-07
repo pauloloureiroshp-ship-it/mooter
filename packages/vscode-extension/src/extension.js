@@ -1767,6 +1767,9 @@ class LivePreviewPanel {
   async _promptEdit(m) {
     const fail = (reason, detail) => this._postPromptDiff({ ok: false, reason: String(reason || 'refused'), detail: detail ? String(detail).slice(0, 200) : undefined });
     try {
+      // FIX-MP-1 G2 — FAIL-CLOSED before we read the workspace node and ship its bytes to the model:
+      // an unconfirmed served tree would build a diff of a file the user never saw in the preview.
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -1874,6 +1877,9 @@ class LivePreviewPanel {
   async _promptApply(m) {
     const fail = (reason) => this._postEditResult(false, reason);
     try {
+      // FIX-MP-1 G2 — FAIL-CLOSED, EARLIEST: the one-box default path (tier:'local') writes the
+      // approved model reply. Without a proven served-tree lineage the reply must never land on disk.
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
       if (!raw || !replacement.trim()) { fail('bad-request'); return; }
@@ -1954,6 +1960,9 @@ class LivePreviewPanel {
       if (!instruction) { fail('prompt-empty'); return; }
       if (!LET) { fail('engine-unavailable'); return; }
       if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
+      // FIX-MP-1 G2 — FAIL-CLOSED alongside the trust gate: the anchored agent must not run off a
+      // preview anchor from a sibling served tree (it would edit the wrong tree the user never saw).
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).

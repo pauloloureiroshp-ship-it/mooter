@@ -221,3 +221,62 @@ test('incident regression: select carrying a TWIN-WORKTREE served root while edi
   // And the banner names the served tree's basename so the user knows WHICH tree is being served.
   assert.strictEqual(inst._treeBanner(), 'o preview vem de outra árvore (' + path.basename(served.root) + ') — reinicia o dev server neste workspace para poder editar');
 });
+
+// ── (5) The model one-box (default) + agent paths are gated too (final-reviewer NO-SHIP fix) ──────
+// _applyEdit/_deleteNode/_openSourceFile were not enough: the DEFAULT interaction is the anchored
+// prompt (lp-prompt-apply, tier:'local') and the anchored agent (lp-task). Both must fail-closed.
+const REPL = '<h1 className="title">Prompted</h1>';
+
+test('G2: _promptApply (one-box default) with a SIBLING served root writes NOTHING, answers preview-tree-mismatch', async () => {
+  const ws = mkTree('lp-tree-paA-');
+  const served = mkTree('lp-tree-paB-');
+  const { inst, posts } = mkInstance(ws.root);
+  inst._servedRoot = served.root;
+  await inst._promptApply({ file: 'page.tsx', line: 4, tag: 'h1', replacement: REPL, h: sha(SRC), tier: 'local' });
+  assert.strictEqual(fs.readFileSync(ws.file, 'utf8'), SRC, 'the model reply never landed on disk');
+  assert.ok(!posts.some((p) => p.type === 'lp-edit-result' && (p.reason === 'model-applied' || p.reason === 'model-applied-dynamic')), 'no fabricated success');
+  assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.ok === false && p.reason === 'preview-tree-mismatch'), 'honest refusal');
+});
+
+test('G2: _promptApply with servedRoot=null (dev marker absent) fail-closes preview-tree-mismatch', async () => {
+  const { root, file } = mkTree('lp-tree-paNull-');
+  const { inst, posts } = mkInstance(root);
+  inst._servedRoot = null; // identity unproven → refuse
+  await inst._promptApply({ file: 'page.tsx', line: 4, tag: 'h1', replacement: REPL, h: sha(SRC), tier: 'local' });
+  assert.strictEqual(fs.readFileSync(file, 'utf8'), SRC, 'nothing written when identity is unproven');
+  assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.ok === false && p.reason === 'preview-tree-mismatch'));
+});
+
+test('G2: _promptEdit (the feeder) with a SIBLING served root refuses BEFORE shipping node bytes to the model', async () => {
+  const ws = mkTree('lp-tree-peA-');
+  const served = mkTree('lp-tree-peB-');
+  const { inst, posts } = mkInstance(ws.root);
+  inst._servedRoot = served.root;
+  await inst._promptEdit({ file: 'page.tsx', line: 4, tag: 'h1', prompt: 'make it bold' });
+  assert.strictEqual(fs.readFileSync(ws.file, 'utf8'), SRC, 'the feeder wrote nothing');
+  const diff = posts.find((p) => p.type === 'lp-prompt-diff');
+  assert.ok(diff && diff.ok === false && diff.reason === 'preview-tree-mismatch', 'refused on the prompt-diff channel');
+  assert.ok(!posts.some((p) => p.type === 'lp-prompt-status'), 'no fabricated thinking state before the gate');
+});
+
+test('G2: _taskRun (agent) with an UNCONFIRMED served tree refuses alongside the trust gate — agent never runs', async () => {
+  const ws = mkTree('lp-tree-trA-');
+  const served = mkTree('lp-tree-trB-');
+  const { inst, posts } = mkInstance(ws.root);
+  inst._servedRoot = served.root;
+  inst._workspaceTrusted = () => true; // isolate the tree gate from the (passing) trust gate
+  await inst._taskRun({ instruction: 'rename the heading', file: 'page.tsx', line: 4, tag: 'h1', mode: 'auto' });
+  assert.strictEqual(fs.readFileSync(ws.file, 'utf8'), SRC, 'the agent path wrote nothing');
+  assert.ok(posts.some((p) => p.type === 'lp-task-result' && p.ok === false && p.reason === 'preview-tree-mismatch'), 'honest task refusal');
+  assert.ok(!posts.some((p) => p.type === 'lp-task-status' && p.phase === 'thinking'), 'no fabricated agent-thinking before the gate');
+});
+
+test('confirmed (servedRoot === workspace): a fresh _promptApply still writes the fenced model reply', async () => {
+  const { root, file } = mkTree('lp-tree-paOk-');
+  const { inst, posts } = mkInstance(root);
+  inst._servedRoot = root;
+  await inst._promptApply({ file: 'page.tsx', line: 4, tag: 'h1', replacement: REPL, h: sha(SRC), tier: 'local' });
+  const after = fs.readFileSync(file, 'utf8');
+  assert.ok(after.includes('Prompted') && !after.includes('Old headline'), 'the fenced reply landed on the confirmed tree');
+  assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.ok === true && (p.reason === 'model-applied' || p.reason === 'model-applied-dynamic')));
+});
