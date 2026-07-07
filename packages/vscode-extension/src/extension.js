@@ -2239,10 +2239,14 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ctb-grip:active{cursor:grabbing}
   .lp-ctb-btn{flex:none;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font:13px var(--vscode-font-family);color:var(--vscode-foreground);background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;line-height:1}
   .lp-ctb-btn:hover{background:var(--vscode-list-hoverBackground);border-color:var(--vscode-widget-border)}
-  .lp-ctb-btn:focus-visible,.lp-ctb-grip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  .lp-ctb-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   .lp-ctb-chip{position:absolute;left:8px;top:8px;pointer-events:auto;width:34px;height:34px;display:none;align-items:center;justify-content:center;font-size:17px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:50%;box-shadow:0 6px 20px rgba(0,0,0,.32);cursor:pointer}
   .lp-ctb-chip:hover{border-color:var(--vscode-focusBorder)}
   .lp-ctb-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
+  /* §4 — a run stays visible even when minimized: the chip pulses while a task is active. */
+  .lp-ctb-chip.lp-chip-working{animation:lpChipPulse 1s ease-in-out infinite;border-color:var(--vscode-charts-blue,#5A9BD4)}
+  @keyframes lpChipPulse{0%,100%{box-shadow:0 6px 20px rgba(0,0,0,.32)}50%{box-shadow:0 0 0 4px rgba(90,155,212,.5),0 6px 20px rgba(0,0,0,.32)}}
+  @media (prefers-reduced-motion:reduce){.lp-ctb-chip.lp-chip-working{animation:none;border-color:var(--vscode-charts-blue,#5A9BD4)}}
   /* LP-4.9 §3 — real-time feedback toast (anchored to the node, auto-dismissed). */
   .lp-ctb-toast{position:absolute;left:8px;top:8px;pointer-events:none;max-width:min(320px,calc(100% - 16px));font:11.5px var(--vscode-font-family);font-weight:600;padding:6px 11px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.34);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .lp-toast-ok{background:var(--vscode-charts-green,#4CAF6A);color:#08130C}
@@ -2451,7 +2455,7 @@ function getLivePreviewHtml(token, wsRoot) {
           <!-- LP-4.9 §7 — header: drag handle (grip) + minimize + close (X). The grip is the drag
                affordance; the automatic flip-positioning is the no-drag alternative (WCAG 2.5.7). -->
           <div id="lp-ctb-hd" class="lp-ctb-hd">
-            <span id="lp-ctb-grip" class="lp-ctb-grip" title="Arrastar (ou deixa o posicionamento automático)">⠿ editar</span>
+            <span id="lp-ctb-grip" class="lp-ctb-grip" title="Arrastar (ou deixa o posicionamento automático)">⠿ mover</span>
             <button type="button" id="lp-ctb-help" class="lp-ctb-btn" title="Como funciona (ajuda)" aria-label="Abrir a ajuda">?</button>
             <button type="button" id="lp-ctb-min" class="lp-ctb-btn" title="Minimizar" aria-label="Minimizar a toolbar">—</button>
             <button type="button" id="lp-ctb-x" class="lp-ctb-btn" title="Fechar (Esc)" aria-label="Fechar a toolbar">✕</button>
@@ -2471,7 +2475,7 @@ function getLivePreviewHtml(token, wsRoot) {
       </div>
       <!-- LP-4.9 §4 — first-run coach marks (3 steps, dismissible, never repeats). Also re-openable
            from the "?" in the toolbar header (WCAG 2.2 §3.2.6 consistent help). -->
-      <div id="lp-coach" class="lp-coach" role="dialog" aria-label="Como usar o Live Edit" style="display:none">
+      <div id="lp-coach" class="lp-coach" role="dialog" aria-modal="true" aria-label="Como usar o Live Edit" aria-describedby="lp-coach-body" style="display:none">
         <div class="lp-coach-card">
           <div id="lp-coach-body" class="lp-coach-body"></div>
           <div class="lp-coach-nav">
@@ -2898,13 +2902,19 @@ function sendFlash(){
 // mute: it starts on the first thinking status and ends when a result (any outcome) arrives.
 function lpStartProgress(text, cancellable){
   const p=document.getElementById('lp-progress'), t=document.getElementById('lp-progress-txt'), c=document.getElementById('lp-progress-cancel');
+  // §4 — the minimized 🐮 chip also shows "working" so a run is never mute when the toolbar is
+  // collapsed (the user may minimize to watch the preview while the agent works).
+  const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.add('lp-chip-working'); chip.setAttribute('title','A trabalhar… (clica para reabrir)'); }
   if(!p) return;
   if(t) t.textContent=text||'a pensar…';
   if(c) c.style.display=cancellable?'inline-flex':'none';
   p.style.display='flex';
 }
 function lpUpdateProgress(text){ const t=document.getElementById('lp-progress-txt'); if(t&&text) t.textContent=text; }
-function lpFinishProgress(){ const p=document.getElementById('lp-progress'); if(p) p.style.display='none'; }
+function lpFinishProgress(){
+  const p=document.getElementById('lp-progress'); if(p) p.style.display='none';
+  const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.remove('lp-chip-working'); chip.setAttribute('title','Reabrir a toolbar'); }
+}
 // LP-4.9 §4 — first-run coach marks: 3 short steps shown the first time the 🎯 arms, dismissible,
 // never repeats (localStorage). Re-openable any time from the "?" (consistent help, WCAG 3.2.6).
 const LP_COACH=[
@@ -2920,8 +2930,14 @@ function renderCoachStep(){
   if(dots){ let d=''; for(let i=0;i<LP_COACH.length;i++) d+='<span class="lp-coach-dot'+(i===lpCoachStep?' on':'')+'"></span>'; dots.innerHTML=d; }
   if(next) next.textContent=(lpCoachStep>=LP_COACH.length-1)?'começar':'seguinte';
 }
-function showCoachMarks(){ lpCoachStep=0; const c=document.getElementById('lp-coach'); if(c){ c.style.display='flex'; renderCoachStep(); const n=document.getElementById('lp-coach-next'); if(n) n.focus(); } }
-function dismissCoachMarks(){ const c=document.getElementById('lp-coach'); if(c) c.style.display='none'; try{ localStorage.setItem('lp-coach-done','1'); }catch(e){} }
+// §2 (a11y) — a REAL modal: aria-modal + the background made inert so keyboard focus can't escape
+// behind it (belt-and-suspenders with the Tab trap on #lp-coach). Restore inert on dismiss.
+function setCoachBackgroundInert(on){
+  const ids=['lp-ctb-ov','lp-frame'];
+  for(let i=0;i<ids.length;i++){ const el=document.getElementById(ids[i]); if(!el) continue; try{ el.inert=!!on; }catch(e){} el.setAttribute('aria-hidden', on?'true':'false'); }
+}
+function showCoachMarks(){ lpCoachStep=0; const c=document.getElementById('lp-coach'); if(c){ c.style.display='flex'; setCoachBackgroundInert(true); renderCoachStep(); const n=document.getElementById('lp-coach-next'); if(n) n.focus(); } }
+function dismissCoachMarks(){ const c=document.getElementById('lp-coach'); if(c) c.style.display='none'; setCoachBackgroundInert(false); try{ localStorage.setItem('lp-coach-done','1'); }catch(e){} }
 function maybeCoachOnArm(){ let done=false; try{ done=localStorage.getItem('lp-coach-done')==='1'; }catch(e){} if(!done) showCoachMarks(); }
 // Short, human reason for the warn toast (the panel still shows the full honest state).
 function toastReason(reason){
@@ -3013,6 +3029,9 @@ function renderSelection(sel){
     +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
     +'</div>';
   if(ctbBody){
+    // §5/§7 — rebuilding the toolbar destroys a swatch that may be mid-hover (no mouseleave fires),
+    // which would strand a hover-preview on the node. Clear it before we replace the markup.
+    sendClearPreview();
     ctbBody.innerHTML=inputsHTML;
     lpToolbarManualPos=null; // §7 — a fresh selection re-anchors (drag is per-selection)
     const chip=document.getElementById('lp-ctb-chip');
@@ -3087,14 +3106,27 @@ function renderSelection(sel){
   // ambiguous, and the local-chip hint only makes sense while EDITING (asking always uses the agent).
   const renderIntentToggle=function(){
     const eb=document.getElementById('lp-mode-edit'), ab=document.getElementById('lp-mode-ask');
-    if(eb){ eb.setAttribute('aria-checked', lpIntent==='edit'?'true':'false'); if(lpIntent==='edit') eb.classList.add('on'); else eb.classList.remove('on'); }
-    if(ab){ ab.setAttribute('aria-checked', lpIntent==='ask'?'true':'false'); if(lpIntent==='ask') ab.classList.add('on'); else ab.classList.remove('on'); }
+    // §3 (a11y) — a radiogroup is a SINGLE tab stop with arrow-key selection: the checked radio is
+    // tabbable (tabindex 0), the other is not (tabindex -1). aria-checked + .on reflect the state.
+    if(eb){ const on=lpIntent==='edit'; eb.setAttribute('aria-checked', on?'true':'false'); eb.tabIndex=on?0:-1; if(on) eb.classList.add('on'); else eb.classList.remove('on'); }
+    if(ab){ const on=lpIntent==='ask'; ab.setAttribute('aria-checked', on?'true':'false'); ab.tabIndex=on?0:-1; if(on) ab.classList.add('on'); else ab.classList.remove('on'); }
     const sb=document.getElementById('lp-box-b'); if(sb) sb.textContent=(lpIntent==='ask')?'💬 Perguntar':'✏️ Editar';
     const bi2=document.getElementById('lp-box-in'); if(bi2) bi2.setAttribute('aria-label', (lpIntent==='ask')?'pergunta ancorada neste elemento':'edição ancorada neste elemento');
+    // §5 (honesty) — Perguntar ALWAYS runs on the agent; if the local $0 chip is picked, say so here
+    // (no silent "$0" while the run costs subscription). The chip itself stays behind "▾ mais".
+    const hint=document.getElementById('lp-box-l');
+    if(hint) hint.textContent=(lpIntent==='ask'&&lpMode==='local')
+      ? 'Perguntar corre no agente (subscrição), não local · só responde'
+      : 'Editar muda o site · Perguntar só responde';
   };
   const ebtn=document.getElementById('lp-mode-edit'), abtn=document.getElementById('lp-mode-ask');
-  if(ebtn) ebtn.addEventListener('click', function(){ lpIntent='edit'; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h&&!suggestLocalChip(bi?bi.value:'')) h.style.display='none'; });
-  if(abtn) abtn.addEventListener('click', function(){ lpIntent='ask'; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h) h.style.display='none'; });
+  const setIntent=function(v,focus){ lpIntent=v; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h) h.style.display='none'; if(focus){ const t=document.getElementById(v==='ask'?'lp-mode-ask':'lp-mode-edit'); if(t) t.focus(); } };
+  if(ebtn) ebtn.addEventListener('click', function(){ setIntent('edit', false); });
+  if(abtn) abtn.addEventListener('click', function(){ setIntent('ask', false); });
+  // §3 (a11y) — arrow keys move within the radiogroup (2 options → any arrow toggles), APG-style.
+  const onToggleKey=function(e){ if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); setIntent(lpIntent==='ask'?'edit':'ask', true); } };
+  if(ebtn) ebtn.addEventListener('keydown', onToggleKey);
+  if(abtn) abtn.addEventListener('keydown', onToggleKey);
   if(bi&&bb){
     bb.addEventListener('click', sendBox);
     bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(); } });
@@ -3518,7 +3550,16 @@ window.addEventListener('resize', function(){ positionCanvasToolbar(); });
   const coachNext=document.getElementById('lp-coach-next'), coachSkip=document.getElementById('lp-coach-skip'), coach=document.getElementById('lp-coach');
   if(coachNext) coachNext.addEventListener('click', function(){ if(lpCoachStep>=LP_COACH.length-1){ dismissCoachMarks(); const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus(); } else { lpCoachStep++; renderCoachStep(); } });
   if(coachSkip) coachSkip.addEventListener('click', function(){ dismissCoachMarks(); });
-  if(coach) coach.addEventListener('keydown', function(e){ if(e.key==='Escape'){ e.stopPropagation(); dismissCoachMarks(); } });
+  if(coach) coach.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){ e.stopPropagation(); dismissCoachMarks(); return; }
+    // §2 — trap Tab within the dialog's buttons so focus never lands on the inert background.
+    if(e.key==='Tab'){
+      const f=coach.querySelectorAll('button'); if(!f.length) return;
+      const first=f[0], last=f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+    }
+  });
   const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
   const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); ctb.focus(); };
   if(mn) mn.addEventListener('click', minimize);

@@ -345,6 +345,13 @@ test('Live Preview LP-4.9 §1 intent — explicit Edit/Ask toggle removes the "a
   assert.ok(html.includes("intent:'edit'"), 'edit carries intent to the host');
   assert.ok(/askMode=\(lpMode==='local'\)\?'auto':lpMode/.test(html), 'ask upgrades local→agent (only the agent can answer)');
   assert.ok(/if\(!br\.available\)\{ showEditResult\(false/.test(html), 'ask refuses honestly when the SDK bridge is off');
+  // Design-critique #3 (a11y): the radiogroup is a single tab stop (roving tabindex) with arrow-key
+  // selection — not two independent tab stops.
+  assert.ok(/eb\.tabIndex=on\?0:-1/.test(html) && /ab\.tabIndex=on\?0:-1/.test(html), 'roving tabindex on the radiogroup');
+  assert.ok(html.includes("e.key==='ArrowLeft'") && /setIntent\(lpIntent==='ask'\?'edit':'ask', true\)/.test(html), 'arrow keys move within the radiogroup');
+  // Design-critique #5 (honesty): in ask mode with the local $0 chip picked, the hint says the run
+  // uses the agent (subscrição) — no silent "$0" while it costs.
+  assert.ok(html.includes('Perguntar corre no agente (subscrição), não local'), 'ask reconciles the misleading $0 chip');
   parseInlineScript(html);
 });
 
@@ -443,6 +450,9 @@ test('Live Preview LP-4.9 §8 live progress — spinning 🐮 with honest tier +
   assert.ok(html.includes("type:'lp-task-cancel'"), 'cancel wired from the toolbar');
   assert.ok(/lpStartProgress\(txt, true\)/.test(html), 'agent runs show a cancel button');
   assert.ok(/lpStartProgress\(txt, false\)/.test(html), 'local $0 runs (fast) show no cancel');
+  // Design-critique #4: a run stays visible when the toolbar is minimized — the 🐮 chip pulses.
+  assert.ok(html.includes("chip.classList.add('lp-chip-working')") && html.includes("chip.classList.remove('lp-chip-working')"), 'the minimized chip shows working state');
+  assert.ok(/@keyframes lpChipPulse/.test(html), 'the working chip pulses (with reduced-motion fallback)');
   parseInlineScript(html);
   // HOST side (Node, not in the webview HTML): the handler aborts the active task, and the runner
   // honours an AbortSignal additively. Assert against the raw source.
@@ -466,6 +476,10 @@ test('Live Preview LP-4.9 §4 coach marks — first-run onboarding, dismissible,
   // Re-openable any time from the "?" (WCAG 2.2 §3.2.6 consistent help).
   assert.ok(html.includes('id="lp-ctb-help"') && /aria-label="Abrir a ajuda"/.test(html), 'the ? re-opens help');
   assert.ok(/helpBtn\.addEventListener\('click', function\(\)\{ showCoachMarks\(\)/.test(html), 'the ? is wired to the coach marks');
+  // Design-critique #2 (a11y): a REAL modal — aria-modal, described-by, background made inert, Tab trapped.
+  assert.ok(/aria-modal="true"/.test(html) && /aria-describedby="lp-coach-body"/.test(html), 'coach is a proper modal dialog');
+  assert.ok(html.includes('function setCoachBackgroundInert') && /el\.inert=!!on/.test(html), 'background is made inert while the modal is open');
+  assert.ok(html.includes("e.key==='Tab'") && /last\.focus\(\)/.test(html) && /first\.focus\(\)/.test(html), 'Tab is trapped within the dialog');
   parseInlineScript(html);
 });
 
