@@ -143,6 +143,10 @@ try { LPAS = require('./lp-audit-summary.js'); } catch { LPAS = null; }
 try { LPXS = require('./lp-xss-scan.js'); } catch { LPXS = null; }
 try { LPCC = require('./lp-csp-check.js'); } catch { LPCC = null; }
 try { LPSECV = require('./lp-security-view.js'); } catch { LPSECV = null; }
+// LP-6 §0 — 🚀 Publish: PURE popover renderer (commit/push preview + Vercel deploy gate), same
+// fn.toString() serialisation trick. This module renders only; the host below is the sole gate.
+let LPPV = null;
+try { LPPV = require('./lp-publish-view.js'); } catch { LPPV = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1263,6 +1267,12 @@ class LivePreviewPanel {
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
     // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
     this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
+    // LP-6 §B — the LAST 🛡 Review Security verdict (set at the end of _securityScan below). Read
+    // by _publishStatus to decide hasOpenCritical — never re-scans on its own, never fabricated.
+    this._lastSecurity = null;
+    // LP-6 §D — the last REAL deploy URL this session produced (set only on a successful
+    // _publishDeploy). null until a real deploy happens; never inferred.
+    this._lastDeployUrl = null;
     this._wire();
   }
   static createOrReveal() {
@@ -1384,6 +1394,10 @@ class LivePreviewPanel {
     if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-security-scan') { this._securityScan(); return; } // LP-5 §B global 🛡 review — secrets/xss/csp/npm-audit, local $0
+    // LP-6 §B/C/D — 🚀 Publish: status (read-only) → selective commit+push → hard-gated deploy.
+    if (m.type === 'lp-publish-status') { this._publishStatus(); return; }
+    if (m.type === 'lp-publish-commit') { this._publishCommit(m); return; }
+    if (m.type === 'lp-publish-deploy') { this._publishDeploy(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
       const p = (typeof m.path === 'string') ? m.path.slice(0, 2048) : null;
@@ -1784,9 +1798,159 @@ class LivePreviewPanel {
         audit = (LPAS && out) ? LPAS.summarizeNpmAudit(out) : { ok: false };
       } catch { audit = { ok: false }; }
 
+      // LP-6 §B — stash the verdict for _publishStatus's hasOpenCritical check. Overwritten by
+      // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
+      // scan the user just ran and saw fail.
+      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length };
       post({ secrets, xss, csp, audit, scannedFiles: files.length });
-    } catch { post({ error: 'scan-failed' }); }
+    } catch { this._lastSecurity = { error: 'scan-failed' }; post({ error: 'scan-failed' }); }
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LP-6 — 🚀 Publish: status (read-only) → selective commit+push (host-extra, NEVER git add -A)
+  // → hard two-factor-gated Vercel deploy. DRAFT — see _handoff brief for full guard rationale.
+  // The single invariant that matters most: _publishDeploy is UNREACHABLE unless the typed
+  // project name matches EXACTLY what the host itself re-reads from .vercel/project.json, right
+  // there in that method — never trusting anything the webview echoes back as truth.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // hasOpenCritical — PURE-ish read of this._lastSecurity (the verdict of the LAST 🛡 scan this
+  // session ran). Only `secrets` findings count (per brief: an npm-audit "critical" is a supply-
+  // chain risk, not a secret leak baked into the commit — deliberately narrower than the review
+  // panel's own bucketing). No scan yet, or the last scan errored → false (unknown ≠ blocked);
+  // flagged in the handoff for Paulo's review — an errored scan could arguably be conservative
+  // instead and block by default.
+  _hasOpenCriticalSecurity() {
+    const r = this._lastSecurity;
+    if (!r || typeof r !== 'object' || r.error) return false;
+    const secrets = Array.isArray(r.secrets) ? r.secrets : [];
+    return secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical');
+  }
+
+  // _vercelProject(root) — the SINGLE resolver for "is this workspace linked, and to what
+  // project". Read by BOTH _publishStatus (advisory, for the UI hint) AND _publishDeploy (the
+  // actual gate) — one function, so the two can never silently diverge. Checks
+  // <root>/landing/.vercel/project.json first (this repo's real layout), then <root>/.vercel/
+  // project.json. projectName = the linked project's OWN .projectName field, or (fallback) the
+  // basename of the directory that holds .vercel/ — e.g. "landing". Never throws; not linked →
+  // { linked:false, projectName:null, projectDir:null }.
+  _vercelProject(root) {
+    const candidates = [
+      path.join(root || '', 'landing', '.vercel', 'project.json'),
+      path.join(root || '', '.vercel', 'project.json'),
+    ];
+    for (const p of candidates) {
+      try {
+        if (!fs.existsSync(p)) continue;
+        let j = null;
+        try { j = JSON.parse(fs.readFileSync(p, 'utf8')); } catch { j = null; }
+        const vercelDir = path.dirname(p);      // …/.vercel
+        const projectDir = path.dirname(vercelDir); // …/landing (or the wsRoot itself)
+        const name = (j && typeof j.projectName === 'string' && j.projectName.trim())
+          ? j.projectName.trim()
+          : path.basename(projectDir);
+        return { linked: true, projectName: name, projectDir };
+      } catch { /* try next candidate */ }
+    }
+    return { linked: false, projectName: null, projectDir: null };
+  }
+
+  // _publishStatus() — READ-ONLY. Answers "what would Publish do right now": the changed files
+  // (from gitCommitPreview — the SAME preview the selective commit re-validates against, never a
+  // separate/looser read), the default commit message, whether Vercel is linked (+ its expected
+  // project name, shown only as a hint — the deploy gate re-derives it independently), the open-
+  // Critical flag, and the last known REAL deploy URL this session produced (or null — never
+  // guessed).
+  async _publishStatus() {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-status-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      const prev = await extra.gitCommitPreview(root);
+      const touchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
+      const vercel = this._vercelProject(root);
+      post({
+        branch: prev ? prev.branch : null,
+        touchedFiles,
+        defaultMessage: prev ? prev.message : '',
+        vercelLinked: vercel.linked,
+        projectName: vercel.linked ? vercel.projectName : null,
+        hasOpenCritical: this._hasOpenCriticalSecurity(),
+        websiteUrl: this._lastDeployUrl || null,
+      });
+    } catch { post({ error: 'status-failed' }); }
+  }
+
+  // _publishCommit(m) — payload {files, message}. SELECTIVE commit + push, NEVER `git add -A`.
+  // The webview's file list is a SUGGESTION, not authority: we recompute the changed set fresh
+  // (a new gitCommitPreview, not the one the webview saw — the disk may have moved since) and
+  // silently drop anything the user did not actually see change — a file the caller asks for that
+  // is NOT in that fresh set is simply never staged. host-extra.gitCommit does the real
+  // `git add -- <files>` + `git commit`; host-extra.gitPush does the real `git push` (never
+  // --force). Reports the EXACT command string either way (transparency), never a presumed
+  // success.
+  async _publishCommit(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'commit' }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      const reqFiles = Array.isArray(m && m.files) ? m.files.filter((f) => typeof f === 'string' && f) : [];
+      const message = (m && typeof m.message === 'string') ? m.message.trim().slice(0, 500) : '';
+      if (!reqFiles.length || !message) { post({ ok: false, reason: 'bad-request', cmd: '' }); return; }
+      const prev = await extra.gitCommitPreview(root);
+      const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
+      const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
+      if (!files.length) { post({ ok: false, reason: 'no-matching-files', cmd: '' }); return; }
+      const cres = await extra.gitCommit(root, files, message); // `git add -- <files>` then `git commit` — never -A
+      if (!cres.ok) { post({ ok: false, reason: 'commit-failed', out: String(cres.out || '').slice(0, 400), cmd: cres.cmd }); return; }
+      const pres = await extra.gitPush(root); // never --force
+      post({
+        ok: pres.ok,
+        reason: pres.ok ? undefined : 'push-failed',
+        out: String(pres.out || '').slice(0, 400),
+        cmd: cres.cmd + ' && ' + pres.cmd,
+        filesCommitted: files.length,
+      });
+    } catch { post({ ok: false, reason: 'error', cmd: '' }); }
+  }
+
+  // _publishDeploy(m) — payload {projectName}. THE IRREVERSIBLE STEP. HARD TWO-FACTOR GATE:
+  // this method independently re-reads .vercel/project.json (via _vercelProject — the SAME
+  // resolver _publishStatus used to show the hint, called again here fresh) and compares it
+  // BYTE-FOR-BYTE against m.projectName. Anything other than an exact match REFUSES and deploys
+  // NOTHING — the webview is assumed untrusted/possibly wrong; this check is the only thing that
+  // matters. Only on an exact match does `vercel --prod --yes` ever spawn. A missing CLI (ENOENT,
+  // or a shell reporting "not recognized"/"command not found") returns an honest onboarding
+  // reason, never an invented URL. Any other failure (non-zero exit, timeout) is reported as-is —
+  // never presented as success.
+  _publishDeploy(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'deploy' }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      const info = this._vercelProject(root);
+      if (!info.linked) { post({ ok: false, reason: 'not-linked' }); return; }
+      const typed = (m && typeof m.projectName === 'string') ? m.projectName.trim() : '';
+      // ── THE GATE ── deploy is unreachable without this exact match. Nothing above this line
+      // spawns a process; nothing below runs unless it passes.
+      if (!typed || typed !== info.projectName) { post({ ok: false, reason: 'name-mismatch' }); return; }
+      let cp;
+      try {
+        cp = require('child_process').spawnSync('vercel', ['--prod', '--yes'],
+          { cwd: info.projectDir, timeout: 180000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
+      } catch (e) {
+        post({ ok: false, reason: (e && e.code === 'ENOENT') ? 'vercel-cli-missing' : 'spawn-error' });
+        return;
+      }
+      const out = ((cp && typeof cp.stdout === 'string') ? cp.stdout : '') + ((cp && typeof cp.stderr === 'string') ? cp.stderr : '');
+      const notFound = (cp && cp.error && cp.error.code === 'ENOENT')
+        || (cp && cp.status !== 0 && /is not recognized|command not found/i.test(out));
+      if (notFound) { post({ ok: false, reason: 'vercel-cli-missing' }); return; }
+      if (!cp || cp.status !== 0) { post({ ok: false, reason: 'deploy-failed', out: out.slice(0, 800) }); return; }
+      const urlMatch = out.match(/https:\/\/\S+\.vercel\.app\S*/);
+      const url = urlMatch ? urlMatch[0] : null;
+      if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
+      post({ ok: true, url, out: out.slice(0, 800) });
+    } catch { post({ ok: false, reason: 'error' }); }
+  }
+
   // ── LP-4 §3 — anchored prompt: the model path, FENCED. The model (local $0 moo OR the
   // subscription bridge) sees ONLY the selected node's subtree + the instruction — never the
   // file. Whatever it answers is forced through spliceNodeRange (parse + single root + no
@@ -2248,6 +2412,7 @@ function getLivePreviewHtml(token, wsRoot) {
   // LP-5 §C — the Review Security renderer, serialised in (self-contained, same fn.toString()
   // contract as renderPresetsBarHTML above).
   const renderSecurityFindingsSrc = LPSECV ? LPSECV.renderSecurityFindings.toString() : 'function renderSecurityFindings(){return "";}';
+  const renderPublishPopoverSrc = LPPV ? LPPV.renderPublishPopover.toString() : 'function renderPublishPopover(){return "";}';
   // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
   // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
   const skillsRegistry = LSK ? LSK.loadSkills({ wsRoot: wsRoot }) : [];
@@ -2279,6 +2444,23 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-security .lp-sec-item{margin:2px 0;word-break:break-word}
   #lp-security .lp-sec-label{font-weight:600;margin-right:6px}
   #lp-security .lp-sec-detail{opacity:.85}
+  /* LP-6 §E — 🚀 Publish popover (commit/push preview + gated Vercel deploy). */
+  #lp-publish{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55}
+  #lp-publish .lp-pub-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
+  #lp-publish .lp-pub-meta{opacity:.75;margin-bottom:6px}
+  #lp-publish .lp-pub-err{color:var(--vscode-errorForeground,#D9484B)}
+  #lp-publish .lp-pub-url{margin-bottom:6px;word-break:break-all}
+  #lp-publish .lp-pub-cost{opacity:.65;margin-bottom:8px;font-style:italic}
+  #lp-publish .lp-pub-warn{color:var(--vscode-charts-yellow,#E5C07B);margin-bottom:6px}
+  #lp-publish .lp-pub-ok{color:var(--vscode-charts-green,#4EC97A);word-break:break-all}
+  #lp-publish .lp-pub-sec{margin-top:8px;padding-top:8px;border-top:1px solid var(--vscode-widget-border)}
+  #lp-publish .lp-pub-files-hdr{font-weight:600;margin-bottom:4px}
+  #lp-publish .lp-pub-files{max-height:120px;overflow:auto;margin-bottom:6px}
+  #lp-publish .lp-pub-file{opacity:.85;word-break:break-all;margin:1px 0}
+  #lp-publish .lp-pub-msg{width:100%;box-sizing:border-box;margin-bottom:6px;font-family:inherit;font-size:11.5px;resize:vertical}
+  #lp-publish .lp-pub-danger{color:var(--vscode-errorForeground,#D9484B);border-color:var(--vscode-errorForeground,#D9484B)}
+  #lp-publish .lp-pub-gate{margin-top:8px;padding:8px;border:1px dashed var(--vscode-errorForeground,#D9484B);border-radius:6px}
+  #lp-publish .lp-pub-gate-input{width:100%;box-sizing:border-box;margin:6px 0;font-family:inherit;font-size:11.5px}
   #lp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);flex-wrap:wrap}
   .lp-status{flex:1 1 auto;min-width:120px;display:flex;align-items:center;gap:7px;font-size:12px;overflow:hidden}
   .lp-status .lps-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2559,6 +2741,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
         <button id="lp-security-btn" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡</button>
+        <!-- LP-6 §E — Publish: commit+push seletivo, depois deploy Vercel gated por 2º fator (host-side). -->
+        <button id="lp-publish-btn" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
     </div>
@@ -2610,6 +2794,8 @@ function getLivePreviewHtml(token, wsRoot) {
   <aside id="lp-side">
     <!-- LP-5 §C — 🛡 Review Security mounts here; hidden until the first scan. -->
     <div id="lp-security" role="region" aria-label="Review de segurança" style="display:none"></div>
+    <!-- LP-6 §E — 🚀 Publish popover mounts here; hidden until the button is clicked. -->
+    <div id="lp-publish" role="region" aria-label="Publicar" style="display:none"></div>
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-feed" role="region" aria-label="Mudanças desta sessão de preview"></div>
     <div id="lp-brain">a carregar…</div>
@@ -2618,6 +2804,7 @@ function getLivePreviewHtml(token, wsRoot) {
 </div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();
+let lpPublishState=null; // LP-6 §E — last lp-publish-status-result / lp-publish-result payload
 const HOST_TOKEN=${hostToken};
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const renderDirectorsCut=${renderDirectorsCutSrc};
@@ -2632,6 +2819,7 @@ const renderEditsFeed=${renderEditsFeedSrc};
 const mergeClass=${mergeClassSrc};
 const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
 const renderSecurityFindings=${renderSecurityFindingsSrc};
+const renderPublishPopover=${renderPublishPopoverSrc};
 const LP_SKILLS=${skillsJson};
 const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
 function render(s){
@@ -3879,6 +4067,23 @@ window.addEventListener('message', (ev) => {
     const secEl2=document.getElementById('lp-security');
     if(secEl2){ secEl2.style.display='block'; secEl2.innerHTML=renderSecurityFindings(m, esc); }
   }
+  else if (m.type === 'lp-publish-status-result'){
+    // LP-6 §B — status snapshot (branch, touched files, Vercel link + expected project name,
+    // open-Critical flag, last known deploy URL). Rendered via the serialised PURE renderer, same
+    // fn.toString() contract as the security findings above.
+    lpPublishState = m;
+    const el=document.getElementById('lp-publish');
+    if(el){ el.style.display='block'; el.innerHTML=renderPublishPopover(lpPublishState, esc); }
+  }
+  else if (m.type === 'lp-publish-result'){
+    // LP-6 §C/D — outcome of a commit+push or a deploy attempt. Merged into the last known state
+    // and re-rendered; NEVER assumed ok — the host's payload is the only source of truth.
+    lpPublishState = Object.assign({}, lpPublishState, { lastResult: m });
+    const el=document.getElementById('lp-publish');
+    if(el){ el.innerHTML=renderPublishPopover(lpPublishState, esc); }
+    if(m.action==='deploy' && m.ok){ vsapi.postMessage({ type:'lp-publish-status' }); } // refresh → shows the new site URL
+    if(m.action==='commit'){ vsapi.postMessage({ type:'lp-publish-status' }); } // refresh → touched files should now be empty
+  }
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin
@@ -3908,6 +4113,44 @@ if(secBtn) secBtn.addEventListener('click', function(){
   if(secEl){ secEl.style.display='block'; secEl.innerHTML='<div class="lp-sec-hdr">🛡 a analisar… ($0 local)</div>'; }
   secBtn.disabled=true;
   vsapi.postMessage({ type:'lp-security-scan' });
+});
+// LP-6 §E — 🚀 Publish: opens/closes the popover (fetches fresh status on every open — the
+// touched files / Critical flag / Vercel link can all have changed since the last look), then
+// delegates every click INSIDE #lp-publish (the popover's own content is replaced by innerHTML on
+// every re-render, so listeners are attached ONCE here on the stable container, never re-bound).
+const pubBtn=document.getElementById('lp-publish-btn');
+if(pubBtn) pubBtn.addEventListener('click', function(){
+  const el=document.getElementById('lp-publish');
+  if(el && el.style.display==='block'){ el.style.display='none'; return; } // toggle closed, no re-fetch
+  if(el){ el.style.display='block'; el.innerHTML='<div class="lp-pub-hdr">🚀 a preparar…</div>'; }
+  vsapi.postMessage({ type:'lp-publish-status' });
+});
+const pubEl=document.getElementById('lp-publish');
+if(pubEl) pubEl.addEventListener('click', function(e){
+  const t=e.target; if(!t || !t.id) return;
+  if(t.id==='lp-pub-review-btn'){ const b=document.getElementById('lp-security-btn'); if(b) b.click(); return; }
+  if(t.id==='lp-pub-commit-btn'){
+    if(!lpPublishState || !Array.isArray(lpPublishState.touchedFiles) || !lpPublishState.touchedFiles.length) return;
+    const msgEl=document.getElementById('lp-pub-msg');
+    const message=(msgEl && msgEl.value ? msgEl.value : (lpPublishState.defaultMessage||'')).trim();
+    if(!message) return;
+    t.disabled=true;
+    vsapi.postMessage({ type:'lp-publish-commit', files: lpPublishState.touchedFiles.map(function(f){ return (f&&f.path)||f; }), message: message });
+    return;
+  }
+  if(t.id==='lp-pub-deploy-open'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='block'; return; }
+  if(t.id==='lp-pub-deploy-cancel'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='none'; return; }
+  if(t.id==='lp-pub-deploy-confirm'){
+    // Client-side check is a UX courtesy ONLY — the host re-reads .vercel/project.json itself and
+    // is the ONLY thing that can actually authorise the deploy (see extension.js _publishDeploy).
+    const input=document.getElementById('lp-pub-gate-input');
+    const typed=input ? input.value.trim() : '';
+    const expected=lpPublishState && lpPublishState.projectName;
+    if(!typed || !expected || typed!==expected) return;
+    t.disabled=true;
+    vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
+    return;
+  }
 });
 // LP-4.5 §6 — device toggle: 📱390 · 📱768 · 💻 full. Honest and cheap: ONLY the iframe width
 // changes (real responsive breakpoints in the user's own dev server) — no UA spoofing claimed.
