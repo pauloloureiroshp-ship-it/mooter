@@ -2281,6 +2281,11 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-mtg.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;font-weight:700}
   .lp-mtg:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px}
   .lp-ctb .lp-mode-hint{font-size:10px;opacity:.72;margin:1px 0 5px;line-height:1.4}
+  /* LP-4.9 §2 — progressive disclosure: the "▾ mais" chevron + the advanced drawer. */
+  .lp-more{display:block;width:100%;margin:8px 0 2px;font:11px var(--vscode-font-family);color:var(--vscode-descriptionForeground);background:transparent;border:1px dashed var(--vscode-widget-border);border-radius:6px;padding:5px 8px;min-height:26px;cursor:pointer;text-align:center}
+  .lp-more:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-foreground)}
+  .lp-more:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  .lp-adv{margin-top:6px;padding-top:8px;border-top:1px solid var(--vscode-widget-border)}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2788,30 +2793,35 @@ function renderSelection(sel){
   // LP-4.8 §1 — the in-canvas toolbar (inputs), anchored to the pin. Same ids/wiring as before,
   // just hosted here instead of the side rail. Falls back to the side panel only if the toolbar
   // host is absent (defensive — the static markup always ships it).
-  const inputsHTML='<div id="lp-chip" class="lp-chip"></div>'
-    +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
-    // LP-4.9 §1 — the EXPLICIT intent toggle: the user knows BEFORE sending if this edits or asks.
-    +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'
+  // LP-4.9 §2 — progressive disclosure. The toolbar opens MINIMAL: intent toggle + one-box + send
+  // (+ refs, invisible until used). Everything an engineer occasionally needs — model chips, raw
+  // text/class edits, presets, /skills, open/delete — lives behind "▾ mais". Simple by default,
+  // the power one click away. The expanded/collapsed choice is remembered per session (localStorage).
+  const inputsHTML=
+    // ── SIMPLE (always visible) ──
+    '<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
     +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
     +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
     +'</div>'
     +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
-    // LP-4.8 §4 — attached references (Cmd/Ctrl-click) live here: chips + ✕ + limpar. They feed the
-    // agent prompt as read-only context; a local $0 edit still targets only the pinned node.
     +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
-    // LP-4.8 §3 — the /skills dropdown. A skill seeds this same one-box with its template and pins
-    // the chip to its tier floor; execution rides the existing fenced paths (no new write surface).
+    +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Mostrar/ocultar os controlos avançados">▾ mais</button>'
+    // ── ADVANCED (collapsed by default) ──
+    +'<div id="lp-adv" class="lp-adv" style="display:none">'
+    +'<div id="lp-chip" class="lp-chip"></div>'
+    +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
     +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
     +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
     +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>';
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
+    +'</div>';
   if(ctbBody){ ctbBody.innerHTML=inputsHTML; if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } }
   else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
@@ -2890,6 +2900,16 @@ function renderSelection(sel){
     });
   }
   renderIntentToggle();
+  // LP-4.9 §2 — progressive disclosure: restore the remembered expanded state and wire "▾ mais".
+  const moreBtn=document.getElementById('lp-more'), advEl=document.getElementById('lp-adv');
+  const setAdv=function(open){
+    if(advEl) advEl.style.display=open?'block':'none';
+    if(moreBtn){ moreBtn.setAttribute('aria-expanded', open?'true':'false'); moreBtn.textContent=open?'▴ menos':'▾ mais'; }
+    try{ localStorage.setItem('lp-adv-open', open?'1':'0'); }catch(e){}
+  };
+  let advOpen=false; try{ advOpen=localStorage.getItem('lp-adv-open')==='1'; }catch(e){}
+  setAdv(advOpen);
+  if(moreBtn) moreBtn.addEventListener('click', function(){ setAdv(advEl?advEl.style.display==='none':true); positionCanvasToolbar(); });
   // LP-4.8 §3 — /skills. Picking a skill SEEDS this one-box with the skill's template and pins the
   // chip to the skill's tier floor (routing surfaced, never hidden). Execution then rides the exact
   // same fenced one-box path (local $0 lp-prompt / anchored lp-task) — /skills adds no write surface.

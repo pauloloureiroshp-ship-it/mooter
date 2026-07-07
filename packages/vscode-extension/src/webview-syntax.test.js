@@ -348,6 +348,25 @@ test('Live Preview LP-4.9 §1 intent — explicit Edit/Ask toggle removes the "a
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.9 §2 progressive disclosure — minimal by default, power behind "▾ mais" (remembered)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The advanced drawer exists, is collapsed by default, and the chevron controls it via ARIA.
+  assert.ok(html.includes('id="lp-adv"'), 'advanced drawer present');
+  assert.ok(/id="lp-adv" class="lp-adv" style="display:none"/.test(html), 'advanced is collapsed by default');
+  assert.ok(html.includes('id="lp-more"') && /aria-controls="lp-adv"/.test(html), 'chevron controls the drawer');
+  // The engineer controls moved INTO the drawer (still present — just not in the minimal view).
+  const advStart = html.indexOf('id="lp-adv"');
+  const advChunk = html.slice(advStart, advStart + 1200);
+  assert.ok(advChunk.includes('id="lp-chip"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-presets"') && advChunk.includes('id="lp-sk-btn"'), 'chips/raw-edits/presets/skills live in the drawer');
+  // The minimal view keeps the intent toggle + one-box (they must NOT be inside the drawer).
+  assert.ok(html.indexOf('id="lp-box-in"') < advStart, 'the one-box stays in the minimal view');
+  assert.ok(html.indexOf('id="lp-mode-edit"') < advStart, 'the intent toggle stays in the minimal view');
+  // The expanded/collapsed choice is remembered per session (localStorage), restored on render.
+  assert.ok(html.includes("localStorage.setItem('lp-adv-open'") && html.includes("localStorage.getItem('lp-adv-open')"), 'the drawer state persists per session');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
