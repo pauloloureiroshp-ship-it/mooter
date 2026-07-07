@@ -2244,10 +2244,13 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ctb .lp-pz{margin:6px 0 2px}
   .lp-pz-l{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.62;margin:7px 0 3px}
   .lp-pz-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-  .lp-sw{width:20px;height:20px;padding:0;border:1px solid var(--vscode-widget-border);border-radius:50%;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-  .lp-sw:hover{border-color:var(--vscode-focusBorder)}
-  .lp-sw-dot{width:14px;height:14px;border-radius:50%;display:block}
-  .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 8px;cursor:pointer}
+  .lp-sw{width:24px;height:24px;padding:0;border:1px solid var(--vscode-widget-border);border-radius:50%;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .lp-sw:hover{border-color:var(--vscode-focusBorder);transform:scale(1.12)}
+  .lp-sw-dot{width:17px;height:17px;border-radius:50%;display:block}
+  .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 9px;min-height:24px;cursor:pointer}
+  /* LP-4.9 §5 — presets as the star: the top of the simple view, breathing room, "$0" cue. */
+  .lp-ctb .lp-pz-star{margin:2px 0 8px;padding:2px 0 8px;border-bottom:1px solid var(--vscode-widget-border)}
+  .lp-pz-star .lp-pz-l:first-child{margin-top:0}
   .lp-pz-chip:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   .lp-sw:focus-visible,.lp-pz-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* LP-4.8 §3 — /skills dropdown: each item surfaces its tier (honest routing). */
@@ -2632,6 +2635,17 @@ function sendDetachAll(){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-detach-all' }, curOrigin); }catch(e){} }
 }
+// LP-4.9 §5 — hover-preview: ask the tap to VISUALLY apply a className to the pinned element (live
+// DOM only, no file write) so a preset shows its effect before you commit — the Lovable gesture.
+// Origin-targeted into the frame; the tap saves the original and restores it on clear.
+function sendPreviewClass(cn){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-preview-class', className:String(cn==null?'':cn) }, curOrigin); }catch(e){} }
+}
+function sendClearPreview(){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-preview-clear' }, curOrigin); }catch(e){} }
+}
 // Render the attached-reference chips (each with a ✕) + a "limpar" clear-all. Rebuilt whenever a
 // ref is attached/removed and after each renderSelection (which recreates the toolbar markup).
 function renderRefs(){
@@ -2799,7 +2813,9 @@ function renderSelection(sel){
   // the power one click away. The expanded/collapsed choice is remembered per session (localStorage).
   const inputsHTML=
     // ── SIMPLE (always visible) ──
-    '<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
+    // §5 — presets are the STAR: the instant $0 gesture (colour/size/spacing) sits at the very top.
+    '<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
+    +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
     +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
     +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
     +'</div>'
@@ -2815,7 +2831,6 @@ function renderSelection(sel){
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
     +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
     +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
     +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
@@ -2838,14 +2853,23 @@ function renderSelection(sel){
   const pz=document.getElementById('lp-presets');
   if(pz){
     pz.innerHTML=renderPresetsBarHTML(esc);
+    // LP-4.9 §5 — hover/focus PREVIEWS the preset on the live element (no write); click applies via
+    // the fence. mouseleave/blur restores. The next className is computed from the class box (the
+    // live source of truth), so previews and manual edits compose.
+    const previewOf=function(btn){ const cur=ci?ci.value:(sel.className||''); return mergeClass(cur, btn.getAttribute('data-cls'), btn.getAttribute('data-group')); };
     const sw=pz.querySelectorAll('[data-cls]');
-    for(let i=0;i<sw.length;i++){ sw[i].addEventListener('click', function(){
-      const cls=this.getAttribute('data-cls'), grp=this.getAttribute('data-group');
-      const cur=ci?ci.value:(sel.className||'');
-      const next=mergeClass(cur, cls, grp);
-      if(ci) ci.value=next;
-      sendEdit('class', next);
-    }); }
+    for(let i=0;i<sw.length;i++){
+      sw[i].addEventListener('mouseenter', function(){ sendPreviewClass(previewOf(this)); });
+      sw[i].addEventListener('mouseleave', function(){ sendClearPreview(); });
+      sw[i].addEventListener('focus', function(){ sendPreviewClass(previewOf(this)); });
+      sw[i].addEventListener('blur', function(){ sendClearPreview(); });
+      sw[i].addEventListener('click', function(){
+        const next=previewOf(this);
+        sendClearPreview();          // drop the visual preview; the real write takes over via HMR
+        if(ci) ci.value=next;
+        sendEdit('class', next);
+      });
+    }
   }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });

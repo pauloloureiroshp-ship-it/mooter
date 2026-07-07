@@ -235,7 +235,7 @@ test('Live Preview LP-4.8 §2 presets — deterministic colour/size/spacing ride
   assert.ok(/const renderPresetsBarHTML=/.test(html), 'preset catalog serialised into the webview');
   // A preset click merges into the CURRENT className and feeds the EXISTING class-edit preview —
   // never a model call. The proof: the handler routes through sendEdit('class', next), not lp-task.
-  assert.ok(/mergeClass\(cur, cls, grp\)/.test(html), 'preset merges the class deterministically');
+  assert.ok(/mergeClass\(cur, btn\.getAttribute\('data-cls'\), btn\.getAttribute\('data-group'\)\)/.test(html), 'preset merges the class deterministically');
   assert.ok(/sendEdit\('class', next\)/.test(html), 'preset applies via the class-edit fence (preview-first)');
   // Honest $0: the preset group is labelled as deterministic, no tokens.
   assert.ok(html.includes('sem tokens'), 'presets are labelled $0/no-tokens');
@@ -358,12 +358,34 @@ test('Live Preview LP-4.9 §2 progressive disclosure — minimal by default, pow
   // The engineer controls moved INTO the drawer (still present — just not in the minimal view).
   const advStart = html.indexOf('id="lp-adv"');
   const advChunk = html.slice(advStart, advStart + 1200);
-  assert.ok(advChunk.includes('id="lp-chip"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-presets"') && advChunk.includes('id="lp-sk-btn"'), 'chips/raw-edits/presets/skills live in the drawer');
+  assert.ok(advChunk.includes('id="lp-chip"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'chips/raw-edits/skills live in the drawer');
   // The minimal view keeps the intent toggle + one-box (they must NOT be inside the drawer).
   assert.ok(html.indexOf('id="lp-box-in"') < advStart, 'the one-box stays in the minimal view');
   assert.ok(html.indexOf('id="lp-mode-edit"') < advStart, 'the intent toggle stays in the minimal view');
   // The expanded/collapsed choice is remembered per session (localStorage), restored on render.
   assert.ok(html.includes("localStorage.setItem('lp-adv-open'") && html.includes("localStorage.getItem('lp-adv-open')"), 'the drawer state persists per session');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §5 presets as the star — top of the simple view, ≥24px, hover-preview', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The preset bar sits in the MINIMAL view (before the advanced drawer), flagged as the star.
+  const advStart = html.indexOf('id="lp-adv"');
+  assert.ok(html.indexOf('id="lp-presets"') < advStart, 'presets live in the simple view, not the drawer');
+  assert.ok(html.includes('lp-pz-star'), 'presets flagged as the star row');
+  // WCAG 2.2 §2.5.8 target size: swatches are ≥24px.
+  assert.ok(/\.lp-sw\{width:24px;height:24px/.test(html), 'swatches are ≥24px (WCAG 2.2 target size)');
+  // Hover/focus PREVIEWS on the live element; click applies via the existing fence.
+  assert.ok(/addEventListener\('mouseenter', function\(\)\{ sendPreviewClass/.test(html), 'hover previews the preset');
+  assert.ok(/addEventListener\('focus', function\(\)\{ sendPreviewClass/.test(html), 'keyboard focus previews too (a11y parity)');
+  assert.ok(html.includes("type:'lp-preview-class'") && html.includes("type:'lp-preview-clear'"), 'preview messages wired to the tap');
+  assert.ok(/postMessage\(\{ type:'lp-preview-class'[^}]*\}, curOrigin\)/.test(html), 'preview is origin-targeted (never *)');
+  // The preview is visual-only: the click clears it, then routes through sendEdit (the class fence).
+  const ci0 = html.indexOf('const next=previewOf(this);');
+  assert.ok(ci0 !== -1, 'the click handler computes the merged class via previewOf');
+  const clickChunk = html.slice(ci0, ci0 + 200);
+  assert.ok(clickChunk.includes('sendClearPreview()') && clickChunk.includes("sendEdit('class', next)"), 'click clears the preview then applies via the fence');
   parseInlineScript(html);
 });
 
