@@ -2347,6 +2347,10 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-mtg.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;font-weight:700}
   .lp-mtg:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px}
   .lp-ctb .lp-mode-hint{font-size:10px;opacity:.72;margin:1px 0 5px;line-height:1.4}
+  /* LP-4.9 loop-fix §C — the project-context/route line (always visible in the simple view). */
+  .lp-ctx{font-size:10.5px;line-height:1.4;margin:4px 0 2px;padding:5px 8px;border-radius:6px}
+  .lp-ctx-ok{color:var(--vscode-charts-green,#4CAF6A);background:rgba(76,175,106,.10);border:1px solid rgba(76,175,106,.35)}
+  .lp-ctx-warn{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   /* LP-4.9 §2 — progressive disclosure: the "▾ mais" chevron + the advanced drawer. */
   .lp-more{display:block;width:100%;margin:8px 0 2px;font:11px var(--vscode-font-family);color:var(--vscode-descriptionForeground);background:transparent;border:1px dashed var(--vscode-widget-border);border-radius:6px;padding:5px 8px;min-height:26px;cursor:pointer;text-align:center}
   .lp-more:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-foreground)}
@@ -2919,6 +2923,31 @@ function lpFinishProgress(){
   const p=document.getElementById('lp-progress'); if(p) p.style.display='none';
   const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.remove('lp-chip-working'); chip.setAttribute('title','Reabrir a toolbar'); }
 }
+// LP-4.9 loop-fix §C — the always-visible context/route line. Tells the user, BEFORE sending, what
+// THIS action does with the project: agent = reads the whole repo + edits in the right place; local
+// $0 = only this node, no project context; and how to turn the agent on when it is off. Driven by
+// the SDK-bridge status (lpBridge) + the chosen intent/tier. Answers "não sei se apanha o contexto".
+function renderCtxLine(){
+  const el=document.getElementById('lp-ctx'); if(!el) return;
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  if(lpIntent==='ask'){
+    el.className='lp-ctx '+(br.available?'lp-ctx-ok':'lp-ctx-warn');
+    el.textContent=br.available
+      ? '🤖 Perguntar lê o projeto todo e responde no painel — não escreve nada'
+      : '⚠️ Perguntar precisa do agente — ativa a ponte SDK + confia no workspace (senão não há resposta)';
+    return;
+  }
+  const localOnly=(lpMode==='local')||!br.available;
+  if(localOnly){
+    el.className='lp-ctx lp-ctx-warn';
+    el.textContent=!br.available
+      ? '⚠️ agente OFF → edita SÓ este elemento, sem contexto do projeto. Liga: instala @anthropic-ai/claude-agent-sdk no workspace + confia no workspace'
+      : '🐮 local $0 → edita SÓ este elemento (sem contexto do projeto). Muda o tier em "▾ mais" para o agente ler o projeto';
+  } else {
+    el.className='lp-ctx lp-ctx-ok';
+    el.textContent='🤖 o agente lê o projeto TODO e edita no sítio certo (pode não ser este nó) · diff antes de manter';
+  }
+}
 // LP-4.9 §4 — first-run coach marks: 3 short steps shown the first time the 🎯 arms, dismissible,
 // never repeats (localStorage). Re-openable any time from the "?" (consistent help, WCAG 3.2.6).
 const LP_COACH=[
@@ -3017,6 +3046,10 @@ function renderSelection(sel){
     +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // LP-4.9 loop-fix §C — ALWAYS-visible context/route line: tells the user, before sending,
+    // whether THIS edit reads the whole project (agent) or only this node (local $0), and how to
+    // enable the agent when it is off. Answers "não sei se apanha o contexto do projeto".
+    +'<div id="lp-ctx" class="lp-ctx" role="status"></div>'
     +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
     +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Mostrar/ocultar os controlos avançados">▾ mais</button>'
     // ── ADVANCED (collapsed by default) ──
@@ -3092,16 +3125,21 @@ function renderSelection(sel){
     // local $0 moo cannot do. Honest refusal when the SDK bridge is off (no dead "answer" button).
     if(lpIntent==='ask'){
       const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
-      if(!br.available){ showEditResult(false,(br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing'); return; }
+      if(!br.available){ showEditResult(false,(br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing'); showToast('warn','⚠️ '+toastReason((br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing')); return; }
       const askMode=(lpMode==='local')?'auto':lpMode; // local can't answer → use the agent tier
+      lpStartProgress('🐮 a enviar a pergunta…', true); // instant IN-CANVAS feedback (never mute)
       vsapi.postMessage({ type:'lp-task', instruction:v, mode:askMode, intent:'ask', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
       showEditResult(null,'pending'); return;
     }
     // Editar — the write path. Local $0 fenced rewrite, or the anchored agent (intent:edit).
+    // LP-4.9 loop-fix — start the toolbar progress the INSTANT we send, so the in-canvas surface is
+    // never mute while the host works (the panel's "a aplicar…" is easy to miss when you watch the site).
     if(lpMode==='local'){
+      lpStartProgress('🐮 a reescrever este elemento… (moo local · $0)', false);
       // §5 — the rendered text travels so the host can flag dynamic content on the diff.
       vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
     } else {
+      lpStartProgress('🐮 a enviar ao agente…', true);
       vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, intent:'edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
     }
     showEditResult(null,'pending');
@@ -3122,6 +3160,7 @@ function renderSelection(sel){
     if(hint) hint.textContent=(lpIntent==='ask'&&lpMode==='local')
       ? 'Perguntar corre no agente (subscrição), não local · só responde'
       : 'Editar muda o site · Perguntar só responde';
+    renderCtxLine(); // §C — keep the project-context line in sync with the intent/tier
   };
   const ebtn=document.getElementById('lp-mode-edit'), abtn=document.getElementById('lp-mode-ask');
   const setIntent=function(v,focus){ lpIntent=v; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h) h.style.display='none'; if(focus){ const t=document.getElementById(v==='ask'?'lp-mode-ask':'lp-mode-edit'); if(t) t.focus(); } };
@@ -3636,7 +3675,7 @@ window.addEventListener('message', (ev) => {
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
-    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); }
+    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); renderCtxLine(); }
     else if(br) lpBridge=br;
     // LP-4.5 §4 — the unified feed rides the snapshot; re-render ONLY when its revision moves so
     // a poll never steals focus from a feed button mid-click.
@@ -3670,7 +3709,18 @@ window.addEventListener('message', (ev) => {
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
-  else if (m.type === 'lp-prompt-diff'){ renderPromptDiff(m); } // LP-4 §3 fenced model rewrite preview
+  else if (m.type === 'lp-prompt-diff'){
+    renderPromptDiff(m); // LP-4 §3 fenced model rewrite preview
+    // LP-4.9 loop-fix — the local rewrite is preview-first (diff lands in the panel to approve). Say
+    // so IN-CANVAS so the user knows to look right; and surface failures as a toast, never silent.
+    lpFinishProgress();
+    if(!m.ok){
+      if(m.reason==='local-quality-exhausted') showToast('warn','⚠️ o moo local não ficou confiante — vê a opção de subir de tier no painel →');
+      else showToast('warn','⚠️ '+toastReason(m.reason));
+    } else {
+      showToast('ask','📝 proposta pronta — revê e aplica no painel →');
+    }
+  }
   else if (m.type === 'lp-prompt-status'){
     // §6 — honest thinking state: WHO is thinking and what it costs, while it thinks.
     // LP-4.7 — the quality engine narrates round/sample so a best-of-N burst never looks hung.

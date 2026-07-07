@@ -510,6 +510,28 @@ test('Live Preview LP-4.9 §6 WCAG 2.2 AA — target size ≥24px, focus not obs
   parseInlineScript(html);
 });
 
+test('Live Preview LP-4.9 loop-fix — never mute in-canvas + project-context transparency', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // A — sending starts the toolbar progress INSTANTLY (not just the side panel), for every path.
+  assert.ok(html.includes("lpStartProgress('🐮 a enviar ao agente…', true)"), 'agent send shows instant in-canvas progress');
+  assert.ok(html.includes("lpStartProgress('🐮 a reescrever este elemento… (moo local · $0)', false)"), 'local send shows instant in-canvas progress');
+  assert.ok(html.includes("lpStartProgress('🐮 a enviar a pergunta…', true)"), 'ask send shows instant in-canvas progress');
+  // B — the local (lp-prompt) path surfaces in-canvas: a toast on diff-ready and on failure.
+  assert.ok(html.includes("showToast('ask','📝 proposta pronta — revê e aplica no painel →')"), 'diff-ready toast points to the panel');
+  assert.ok(html.includes("showToast('warn','⚠️ o moo local não ficou confiante"), 'local-quality-exhausted surfaces in-canvas');
+  // A honest refusal when asking with no bridge now ALSO toasts (was panel-only).
+  assert.ok(/if\(!br\.available\)\{ showEditResult\(false[^}]*showToast\('warn'/.test(html), 'ask refusal toasts in-canvas');
+  // C — the always-visible context line tells the user if the edit reads the PROJECT or only the node.
+  assert.ok(html.includes('id="lp-ctx"') && html.includes('function renderCtxLine'), 'context/route line present');
+  assert.ok(html.includes('o agente lê o projeto TODO e edita no sítio certo'), 'agent-available copy: full project context');
+  assert.ok(html.includes('edita SÓ este elemento, sem contexto do projeto'), 'agent-off copy: local-only, no project context + how to enable');
+  assert.ok(html.includes('@anthropic-ai/claude-agent-sdk'), 'tells the user how to turn the agent on');
+  // The context line refreshes when the SDK-bridge status changes.
+  assert.ok(/renderModeChips\(\); renderCtxLine\(\)/.test(html), 'context line refreshes on bridge change');
+  parseInlineScript(html);
+});
+
 test('Live Preview MP4 tap messages are origin-locked (event.origin + source), not token-forgeable', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
