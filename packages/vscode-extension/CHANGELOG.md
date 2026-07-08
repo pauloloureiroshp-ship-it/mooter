@@ -2,6 +2,13 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.62] — 2026-07-08 — Data-hop: click a value → the agent follows it to its source and edits there
+
+### Added
+
+- **The moat: "click → follow to the data source → edit the right place."** When you pin an element and ask the agent about it, the host now traces every value the element renders back to where it is defined. For each imported symbol used in the pinned node (e.g. `M.savedUsd`), the data-hop follows the import to its **definition file**, shows the declaration, and — crucially — surfaces what that value is **derived from**, so the agent edits the *origin* primitive rather than the derived display value. On the landing hero, clicking the savings number lands directly on `app/lib/canonical-metrics.ts` and names `AUTHOR_PROOF.mooterPaidUsd` / `allOpusBaselineUsd` (the single source from 0.16.60) — the "click the savings box → the agent knows where the number comes from, and edits it correctly" loop, end to end. A bounded, honestly-labelled textual find-references list gives the blast radius (which files mention the symbol).
+  This is **deterministic and $0-local** (go-to-definition + find-references over the import graph — no LSP server, no embeddings; a full LSP/ast-grep path stays a future opt-in). It runs **within the existing fence**: every file it reads is realpath-contained exactly like the agent's own tool fence (a symlink/junction inside the workspace pointing outside is never followed), paths are workspace-relative, it is bounded and fail-soft, and the pinned node's source (already rendered) is used only to decide which symbols to trace — no new data leaves the machine. Verified by an adversarial review (containment, no path leak, no regex-hang, fence unchanged).
+
 ## [0.16.61] — 2026-07-08 — Context Engine: the anchored agent gets the right context before it explores
 
 ### Added
