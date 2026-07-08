@@ -2,6 +2,15 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.61] — 2026-07-08 — Context Engine: the anchored agent gets the right context before it explores
+
+### Added
+
+- **The Live Edit "ask/edit about the project" agent now starts with a $0-local context pack** instead of discovering everything by exploring the repo live (measured ~20s to answer / ~50s to edit with only two files — it did not scale to "any click, in real time"). Before any model token is spent, the host computes, entirely on your machine:
+  - an **import-scoped slice** — the files reachable from the pinned element through the local import graph (bounded breadth-first walk). Clicking the savings box on the landing hero lands directly on `canonical-metrics.ts` (the single source from 0.16.60), so "click → the agent knows where the number comes from" works;
+  - a **repo-map** — a compact PageRank table of contents of the repo's most-imported modules and their exports (Aider-style, no embeddings), ~1–2K tokens.
+  This is **within the existing fence**: the anchored agent already reads the trusted workspace, so the pack only front-loads what it would have read — a speed and cost win, not new access. Paths are workspace-relative only (no host path / username leak), everything is bounded (file/depth/byte caps, cycle-safe), and it is fail-soft (any error → empty pack → the agent falls back to today's behaviour). The import-slice read path enforces the **same lexical + realpath containment** as the agent's own tool fence, so a symlink/junction inside the workspace pointing outside can never pull out-of-workspace content into the context sent to the model (verified by an adversarial review that reproduced and then closed the escape).
+
 ## [0.16.60] — 2026-07-08 — Cross-device Live Edit: the tree gate works on macOS, not only Windows
 
 ### Fixed
