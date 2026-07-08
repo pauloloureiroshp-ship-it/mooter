@@ -508,6 +508,7 @@ class CockpitProvider {
   constructor(ctx, data) { this.ctx = ctx; this.data = data; }
   resolveWebviewView(view) {
     view.webview.options = { enableScripts: true };
+    this._view = view; // F1 · so "Mooter: Show advanced views" can postMessage to the live cockpit.
     // ── GUARDIAN:F0 ── current auto-compact override (read once at view creation — env changes
     // via SetEnvironmentVariable only land in NEW processes, so process.env IS the honest "active" value).
     const _gPctRaw = process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE;
@@ -528,7 +529,7 @@ class CockpitProvider {
     // Throttle polling to the panel's visibility (fewer background CLI spawns when hidden).
     this.data.setVisible(view.visible);
     const vis = view.onDidChangeVisibility(() => { this.data.setVisible(view.visible); reWarm(); });
-    view.onDidDispose(() => { sub.dispose(); vis.dispose(); });
+    view.onDidDispose(() => { sub.dispose(); vis.dispose(); if (this._view === view) this._view = null; });
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
@@ -4340,7 +4341,15 @@ function activate(ctx) {
   const data = new DataService();
   ctx.subscriptions.push({ dispose: () => data.dispose() });
   makeStatusBar(ctx, data);
-  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', new CockpitProvider(ctx, data)));
+  const cockpitProvider = new CockpitProvider(ctx, data);
+  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', cockpitProvider));
+  // F1 · progressive disclosure — reveal/fold the advanced tabs (Setup·Agents·Decisions·Doctor).
+  // Focuses the cockpit first, then toggles; one retry covers a just-created (not-yet-ready) webview.
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.showAdvancedViews', async () => {
+    try { await vscode.commands.executeCommand('mooterCockpit.focus'); } catch { /* best-effort */ }
+    const post = () => { const v = cockpitProvider._view; if (v && v.webview) { try { v.webview.postMessage({ type: 'mooter-adv', action: 'toggle' }); } catch { /* best-effort */ } return true; } return false; };
+    if (!post()) setTimeout(post, 350);
+  }));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openCockpit', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newSession', newSession));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openSessionTab', openSessionTab)); // Deck Floor (Fase 2): wave=sessão=aba deep-link
@@ -4431,6 +4440,10 @@ function getHtml(guardianPct = null) {
   .taboverflow>summary:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
   .taboverflow .menu{left:auto;right:0}
   .taboverflow .mi[aria-checked="true"]{color:var(--r);font-weight:700}
+  /* F1 · progressive disclosure — the advanced tabs (Setup·Agents·Decisions·Doctor) fold away by
+     default so the deck reads calm; "Mooter: Show advanced views" flips body.mooter-adv-hidden.
+     Nothing loses access — the overflow returns intact when revealed. */
+  body.mooter-adv-hidden .taboverflow{display:none}
   /* ── Deck Phase 1 · header spine: project switcher · +New · inbox-by-exception ──
      Disclosure menus use <details>/<summary> for free keyboard + focus semantics.
      Every state carries a glyph + label (not colour alone) — WCAG 1.4.1. */
@@ -5169,7 +5182,7 @@ function getHtml(guardianPct = null) {
   .pc-phchip{font-size:8.5px;color:var(--bmuted);background:var(--surface2);border-radius:5px;padding:1px 6px;text-transform:uppercase;letter-spacing:.04em}
   .pc-estado{font-size:9.5px;color:var(--bmuted);margin:2px 0 5px}
   .pc-estado .pc-fk{color:var(--bmuted)}
-</style></head><body>
+</style></head><body class="mooter-adv-hidden">
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
 <div class="brand"><span id="brandCow" class="livecow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
@@ -5210,7 +5223,16 @@ function goTab(name){document.querySelectorAll('.tab').forEach(x=>{const on=x.da
   ov.querySelectorAll('.mi[data-v]').forEach(function(m){var go=function(){goTab(m.dataset.v);ov.open=false;if(sm)sm.focus();};m.onclick=go;m.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   ov.addEventListener('keydown',function(e){if(e.key==='Escape'){ov.open=false;if(sm)sm.focus();}});
   document.addEventListener('click',function(e){if(ov.open&&!ov.contains(e.target))ov.open=false;});})();
-try{var _rt=(vsapi.getState()||{}).tab;if(_rt&&_rt!=='cockpit')goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
+// F1 · advanced views (Setup·Agents·Decisions·Doctor) are hidden by default. The command
+// "Mooter: Show advanced views" posts {type:'mooter-adv'} to flip this; the choice persists per webview.
+var ADV_TABS={setup:1,herd:1,decisions:1,doctor:1};
+function applyAdv(on){var b=document.body;if(!b)return;if(on)b.classList.remove('mooter-adv-hidden');else b.classList.add('mooter-adv-hidden');
+  var ov=document.getElementById('taboverflow');if(ov&&on){try{ov.open=true;var sm=ov.querySelector('summary');if(sm)sm.focus();}catch(e){}}
+  try{var st=vsapi.getState()||{};st.advViews=!!on;vsapi.setState(st);}catch(e){}}
+(function(){var on=false;try{on=(vsapi.getState()||{}).advViews===true;}catch(e){}if(on)applyAdv(true);})();
+window.addEventListener('message',function(ev){var m=ev&&ev.data;if(!m||m.type!=='mooter-adv')return;var cur=!document.body.classList.contains('mooter-adv-hidden');applyAdv(m.action==='show'?true:(m.action==='hide'?false:!cur));});
+// Restore the last tab — but never land on a hidden advanced tab while advanced views are folded away.
+try{var _rt=(vsapi.getState()||{}).tab;var _advOn=!document.body.classList.contains('mooter-adv-hidden');if(_rt&&_rt!=='cockpit'&&(_advOn||!ADV_TABS[_rt]))goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
 // ARCH TREE TAB (Frente E): persisted mode for the Arquitectura Viva view (🌳 tree · 📊 ceo · 🔌 wt).
 let archModeCur='tree';try{var _am=(vsapi.getState()||{}).archMode;if(_am)archModeCur=_am;}catch(e){}
 // DELIVERY COCKPIT · Frente B v2 — persisted grouping axis for the Project command tab (Fase↔Squad).
@@ -5516,7 +5538,7 @@ function renderEconomicsLens(s){
     body+='<div class="lrow"><span class="lk">Router mix</span><span class="lbar">'+seg+'</span><span class="lwhy">'+tot+' decisões (contagens, não $)</span></div>';
   } else body+='<div class="lrow"><span class="lk">Router mix</span><span class="lv">'+lNd()+'</span></div>';
   var bud=(s&&s.budget&&s.budget.monthly_budget_usd)||0;
-  body+='<div class="lrow"><span class="lk">Budget</span><span class="lv">'+(bud>0?('tecto $'+bud+'/mês'):lNd())+' · <span class="lwhy">gasto n/d</span> <span class="lsoon">🌊 W6</span></span></div>';
+  body+='<div class="lrow"><span class="lk">Budget</span><span class="lv">'+(bud>0?('tecto $'+bud+'/mês'):lNd())+' · <span class="lwhy">gasto n/d</span></span></div>';
   var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
   body+='<div class="lrow"><span class="lk">Plano</span><span class="lv">'+(plan||lNd())+' <span class="lwhy">· %/sem n/d</span></span></div>';
   body+='<div class="lwhy" style="margin-top:2px">a poupança vem do <b>routing</b> (a máquina responde; o tier é recomendação, não fatura) — não de trade-off de qualidade.</div>';
@@ -5540,8 +5562,9 @@ function renderFoundationsLens(s){
   return '<div class="card lens'+cc('lens-found')+'" data-collap="lens-found" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🏗️ Foundations</div><div class="lens-body">'+body+'</div></div>';
 }
 // 🧠 Brain — Pastor (TF-IDF, real) · Guardian (deck signal = s.mc.totals.ctxFull) · Ledger. Handoff
-// is honest by level: sessão ✓ · projeto ✓ (ação) · wave 🌊 (não existe artefacto ainda). Adapters(W7)
-// /Insights-TTL(W9)/Graph(W10) have no data source → explicit 🌊 placeholders, never fabricated numbers.
+// is honest by level: sessão ✓ · projeto ✓ (ação). F1 · progressive disclosure: the aspirational
+// wave placeholders (wave-level handoff, Adapters W7 / Insights-TTL W9 / Graph W10) are no longer
+// rendered on the default surface — no half-built advertisement; they return once a data source ships.
 function renderBrainLens(s){
   var ins=(s&&s.insights)||{},nDec=((s&&s.decisions)||[]).length,body='';
   // R5 · densidade — Pastor como chips (conf · cache · N) em vez de uma linha corrida; mesma honestidade.
@@ -5552,8 +5575,7 @@ function renderBrainLens(s){
   body+='<div class="lrow"><span class="lk">🛡️ Guardian</span><span class="lv">'+gTxt+ac+'</span></div>';
   var led=s&&s.ledger,lsess=(led&&led.sessions!=null)?led.sessions:null,hm=(led&&led.session&&led.session.lastModel)||null;
   body+='<div class="lrow"><span class="lk">📒 Ledger</span><span class="lv">'+(lsess==null?lNd():(lsess+' sessões'))+(hm?(' · host '+esc(String(hm))):'')+'</span></div>';
-  body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv">sessão ✓ · projeto ✓ <span class="lwhy">(ação)</span> · wave <span class="lsoon">🌊</span></span></div>';
-  body+='<div class="lrow" style="flex-wrap:wrap;gap:6px;margin-top:1px"><span class="lchip">🧬 Adapters <span class="lsoon">🌊 W7</span></span><span class="lchip">💡 Insights <span class="lsoon">🌊 W9 TTL</span></span><span class="lchip">🕸️ Graph <span class="lsoon">🌊 W10</span></span></div>';
+  body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv">sessão ✓ · projeto ✓ <span class="lwhy">(ação)</span></span></div>';
   body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Insights ↗</span></div>';
   return '<div class="card lens'+cc('lens-brain')+'" data-collap="lens-brain" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">'+body+'</div></div>';
 }

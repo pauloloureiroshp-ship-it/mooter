@@ -109,6 +109,11 @@
         "title": "Open Live Preview 🎬",
         "category": "Mooter",
         "icon": "$(preview)"
+      },
+      {
+        "command": "mooter.showAdvancedViews",
+        "title": "Show advanced views (Setup · Agents · Decisions · Doctor)",
+        "category": "Mooter"
       }
     ],
     "menus": {
