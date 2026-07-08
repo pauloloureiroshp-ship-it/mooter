@@ -77,6 +77,12 @@ let LPV = null;
 try { LPV = require('./live-preview-view.js'); } catch { LPV = null; }
 let HC = null;
 try { HC = require('./hook-collector.js'); } catch { HC = null; }
+// ── DIRECTOR'S CUT v2 · F1 (additive, read-only, DATA ONLY — no UI yet) — the host-side
+// aggregator crossing decisions.log × execution.log × pricing.js (~est) × _handoff/fleet
+// into the nullable byDay/byModel/fleet snapshot fields the v2 lenses will render in a
+// later wave. Fail-soft: absent → the three fields stay null and nothing else changes.
+let LPA = null;
+try { LPA = require('./lp-aggregates.js'); } catch { LPA = null; }
 // ── LIVE PREVIEW · MP2 (App Stage) — the PURE dev-server detector + honest stage resolver +
 // the origin-lock URL validator (loop hole #3). fs reads / TCP probes live host-side below;
 // this module only decides. Fail-soft: absent → the panel still renders Director's Cut + Brain
@@ -1139,9 +1145,20 @@ function livePreviewSnapshot() {
     let gpu = null;
     try { if (MCSNAP) gpu = MCSNAP.readCache('gpu', MCSNAP.mooterCacheDir()); } catch { gpu = null; }
     const brain = LPV ? LPV.buildBrainData(decisions, sid, events, gpu) : null;
-    return { events: scoped, sid, sidKnown: !!sid, brain };
+    // ── Director's Cut v2 · F1 (additive): byDay/byModel/fleet aggregates. Read-only over
+    // the same sources the panel already trusts (bus events + decisions.log) plus the exec
+    // log / pricing.js (~est) / fleet JSONs read inside lp-aggregates (all tail-reads /
+    // tiny files — cheap at the 7s poll cadence). Nullable by contract: any failure (or
+    // LPA absent) leaves the three fields null and every existing consumer untouched.
+    let agg = null;
+    try { if (LPA) agg = LPA.collectAggregates({ wsRoot, events, decisions }); } catch { agg = null; }
+    const a = agg || {};
+    return {
+      events: scoped, sid, sidKnown: !!sid, brain,
+      byDay: a.byDay || null, byModel: a.byModel || null, fleet: a.fleet || null,
+    };
   } catch {
-    return { events: [], sid: null, sidKnown: false, brain: null };
+    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null };
   }
 }
 
