@@ -11,16 +11,17 @@ import CommunityPulse from './_components/CommunityPulse';
 import WhyLocalCards from './_components/WhyLocalCards';
 import HandoffStory from './_components/HandoffStory';
 import AuthErrorBanner from './_components/AuthErrorBanner';
+import { M } from './lib/canonical-metrics';
 
 const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
 
 // Inline above-the-fold pulse strip — author's real machine numbers (not a community average).
 const heroStats: [string, string, string][] = [
-  ['calls routed', '658', 'across the author’s moos'],
-  // Honest: "saved" = naive all-Opus ($48.90) − real mooter spend ($25.95) = $22.95 (≈47%).
-  // $25.95 is what was PAID, not saved — the label must show the amount saved.
-  ['saved vs Opus', '$22.95', 'vs $48.90 all-Opus'],
-  ['avg savings', '47%', 'vs all-Opus'],
+  ['calls routed', M.routedCalls, 'across the author’s moos'],
+  // "saved" = naive all-Opus − real mooter spend, DERIVED in canonical-metrics.ts (so the amount PAID,
+  // $25.95, is never shown under a "saved" label). Single source → the hero, PulseStrip, cockpit + SEO agree.
+  ['saved vs Opus', M.savedUsd, `vs ${M.baselineUsd} all-Opus`],
+  ['avg savings', M.savedPct, 'vs all-Opus'],
   ['packs installed', '3', 'data · diagram · voice'],
 ];
 
@@ -57,7 +58,7 @@ export default function Page() {
                 Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
                 But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
                 environment and routes every prompt to the optimal model. Comparable quality on routine tasks, a fraction of the spend —{' '}
-                <strong style={{ color: 'var(--color-text)' }}>47% saved vs all-Opus across the author&apos;s own 658 routed calls</strong>. Real data, not a community average.{' '}
+                <strong style={{ color: 'var(--color-text)' }}>{M.savedPct} saved vs all-Opus across the author&apos;s own {M.routedCalls} routed calls</strong>. Real data, not a community average.{' '}
                 <a href="/methodology" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   See the benchmark *
                 </a>

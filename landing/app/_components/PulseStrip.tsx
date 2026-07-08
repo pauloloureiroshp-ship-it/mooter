@@ -4,12 +4,14 @@
 // CommunityPulse, which is reserved for opted-in herd telemetry once devices
 // start phoning home. Static server component — no client JS, no fetch.
 
+import { M } from '../lib/canonical-metrics';
+
 const STATS: { label: string; value: string; sub: string }[] = [
-  { label: 'calls routed', value: '658', sub: 'across 7 moos' },
-  // Honest: "saved" = naive all-Opus ($48.90) − real mooter spend ($25.95) = $22.95 (≈47%).
-  // $25.95 is the amount PAID, not saved — a "saved" label must show what was saved.
-  { label: 'saved vs Opus', value: '$22.95', sub: 'vs $48.90 all-Opus' },
-  { label: 'avg savings', value: '47%', sub: 'vs all-Opus' },
+  { label: 'calls routed', value: M.routedCalls, sub: 'across 7 moos' },
+  // "saved" = naive all-Opus − real mooter spend, DERIVED in canonical-metrics.ts so the amount PAID
+  // ($25.95) can never appear under a "saved" label. Single source → no drift across surfaces.
+  { label: 'saved vs Opus', value: M.savedUsd, sub: `vs ${M.baselineUsd} all-Opus` },
+  { label: 'avg savings', value: M.savedPct, sub: 'vs all-Opus' },
   { label: 'packs installed', value: '3', sub: 'data · diagram · voice' },
 ];
 

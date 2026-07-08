@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Eyebrow from '@/components/Eyebrow';
 import MonoNum from '@/components/MonoNum';
+import { M } from '../lib/canonical-metrics';
 
 // TwoTerminalDemo — the two-terminal live-typing savings showpiece (Wave 60).
 // Same six prompts streamed into vanilla Claude Code (everything → Opus) vs
@@ -348,7 +349,7 @@ export default function TwoTerminalDemo() {
           </div>
           <div style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--color-muted)', maxWidth: 380, lineHeight: 1.5 }}>
             *Illustrative trace. The headline <MonoNum color="var(--color-text)">{pctSaved}%</MonoNum> is measured across the author&apos;s
-            real <MonoNum color="var(--color-text)">658</MonoNum> routed calls — not this six-prompt demo, and not a community average.
+            real <MonoNum color="var(--color-text)">{M.routedCalls}</MonoNum> routed calls — not this six-prompt demo, and not a community average.
           </div>
         </div>
       </div>
