@@ -17,7 +17,10 @@
 
 import { spawnSync } from "node:child_process";
 
-export const FLEET_MODEL = process.env.FLEET_LOCAL_MODEL || "qwen3:30b";
+// Same precedence as local-pillar's DEFAULT_MODEL — FLEET_MODEL (day/night selector)
+// must win, else the cycle pre-flight checks the wrong (heavy) model and false-backs-off
+// while the light day model is resident and working.
+export const FLEET_MODEL = process.env.FLEET_MODEL || process.env.FLEET_LOCAL_MODEL || "qwen3:30b";
 const MODEL_VRAM_MB = (Number(process.env.FLEET_MODEL_VRAM_GB) || 19) * 1024;
 const HEADROOM_MB = Number(process.env.FLEET_VRAM_HEADROOM_MB) || 1024;
 const PS_TIMEOUT_MS = 3000;
