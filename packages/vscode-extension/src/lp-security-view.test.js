@@ -21,6 +21,8 @@ test('renderSecurityFindings: honest header always present, even on empty/no fin
   const html = renderSecurityFindings({ secrets: [], xss: [], csp: { hasCsp: false, findings: [] }, audit: { ok: false }, scannedFiles: 12 });
   assert.ok(html.includes('Não substitui auditoria humana'), 'never claims to replace a human audit');
   assert.ok(html.includes('cobre secret-scan, npm audit, CSP e XSS estático'), 'header states scope');
+  assert.ok(html.includes('npm audit consulta o registry npm'), 'honest caveat: npm audit makes a registry network call');
+  assert.ok(html.includes('nenhum código teu sai'), 'honest: no workspace code leaves the box');
   assert.ok(html.includes('nada encontrado pelos 4 scanners estáticos'), 'honest empty state');
   assert.ok(html.includes('12 ficheiros analisados'), 'scanned-file count surfaced');
   assert.ok(html.includes('npm audit indisponível'), 'audit ok:false is never presented as clean');

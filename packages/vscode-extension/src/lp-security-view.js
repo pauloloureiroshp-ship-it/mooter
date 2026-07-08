@@ -97,7 +97,7 @@ function buildItems(result) {
 // the unit tests. Never throws.
 function renderSecurityFindings(result, esc) {
   var e = (typeof esc === 'function') ? esc : defaultEsc;
-  var HEADER = '<div class="lp-sec-hdr">🛡 Review local — cobre secret-scan, npm audit, CSP e XSS estático. Não substitui auditoria humana.</div>';
+  var HEADER = '<div class="lp-sec-hdr">🛡 Review local — cobre secret-scan, npm audit, CSP e XSS estático. O secret-scan, o CSP e o XSS correm 100% na tua máquina; o npm audit consulta o registry npm para comparar versões (nenhum código teu sai). Não substitui auditoria humana.</div>';
 
   if (result && typeof result === 'object' && result.error) {
     return HEADER + '<div class="lp-sec-meta lp-sec-err">falhou: ' + e(String(result.error)) + '</div>';
