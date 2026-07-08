@@ -470,6 +470,48 @@ function renderFleetLanes(fleet) {
     + '</div>';
 }
 
+// ── renderWorkPill(events, nowMs) — 🐮 honest work heartbeat (Director's Cut v2 · F3). Pure +
+// concat-only + ES5, same serialisation contract as the other lenses (free-var esc only, no
+// backtick, no dollar-brace even in this comment). Derives state from the most-recent MEANINGFUL
+// bus event (a work verb OR a Stop). A crash NEVER looks like work: >=90s with no Stop reads
+// "sem sinal ha Xs", never an eternal spinner. nowMs is injectable for tests; defaults to now.
+function renderWorkPill(events, nowMs) {
+  var list = (events && Array.isArray(events)) ? events : [];
+  var now = (typeof nowMs === 'number') ? nowMs : Date.now();
+  function ageShort(ms) {
+    var s = Math.floor((ms < 0 ? 0 : ms) / 1000);
+    if (s < 60) return s + 's';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + 'm';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + 'h';
+    return Math.floor(h / 24) + 'd';
+  }
+  var VERBS = { file: 'a editar…', task: 'a tarefar…', route: 'a rotear…', reason: 'a pensar (local $0)…' };
+  var best = null;
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    if (!e) continue;
+    var k = e.kind;
+    if (k !== 'server' && !VERBS[k]) continue;
+    var t = Date.parse(e.ts);
+    if (isNaN(t)) continue;
+    if (!best || t > best.t) best = { t: t, kind: k };
+  }
+  var cls, label;
+  if (!best) { cls = 'idle'; label = 'sem sinal ainda'; }
+  else if (best.kind === 'server') { cls = 'done'; label = '✓ pronto'; }
+  else {
+    var age = now - best.t;
+    if (age < 90000) { cls = 'working'; label = VERBS[best.kind]; }
+    else { cls = 'stale'; label = 'sem sinal há ' + ageShort(age); }
+  }
+  return '<div class="lp-work ' + cls + '" role="status" aria-live="polite">'
+    + '<span class="lpw-cow" aria-hidden="true">🐮</span>'
+    + '<span class="lpw-txt">' + esc(label) + '</span>'
+    + '</div>';
+}
+
 module.exports = {
   esc: esc,
   parseBusJsonl: parseBusJsonl,
@@ -481,4 +523,5 @@ module.exports = {
   renderDayBreakdown: renderDayBreakdown,
   renderModelBreakdown: renderModelBreakdown,
   renderFleetLanes: renderFleetLanes,
+  renderWorkPill: renderWorkPill,
 };

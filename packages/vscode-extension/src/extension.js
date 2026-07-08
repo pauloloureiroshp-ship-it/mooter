@@ -1585,6 +1585,7 @@ function getLivePreviewHtml(token) {
   const renderDayBreakdownSrc = LPV ? LPV.renderDayBreakdown.toString() : 'function renderDayBreakdown(){return "";}';
   const renderModelBreakdownSrc = LPV ? LPV.renderModelBreakdown.toString() : 'function renderModelBreakdown(){return "";}';
   const renderFleetLanesSrc = LPV ? LPV.renderFleetLanes.toString() : 'function renderFleetLanes(){return "";}';
+  const renderWorkPillSrc = LPV ? LPV.renderWorkPill.toString() : 'function renderWorkPill(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1715,6 +1716,13 @@ function getLivePreviewHtml(token) {
   .lpx-lane{padding:4px 0;border-bottom:1px solid var(--vscode-panel-border,#2a2a2a)}
   .lpx-lane-hd{font-weight:600;color:var(--vscode-foreground,#e6e6e6)}
   .lpx-lane-meta{font-size:10px;color:var(--vscode-descriptionForeground,#9a9a9a)}
+  @keyframes lpworkpulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .lp-work{display:flex;align-items:center;gap:6px;margin:2px 0 6px;font-size:11px;color:var(--vscode-descriptionForeground,#9a9a9a)}
+  .lp-work .lpw-cow{font-size:13px;line-height:1}
+  .lp-work.working{color:var(--vscode-foreground,#e6e6e6)}
+  .lp-work.working .lpw-cow{animation:lpworkpulse 1.6s ease-in-out infinite}
+  .lp-work.done{color:var(--vscode-testing-iconPassed,#4CAF6A)}
+  .lp-work.stale{color:var(--vscode-editorWarning-foreground,#cca700)}
   @media (max-width:820px){
     #lp-root{flex-direction:column}
     #lp-stagewrap{flex:1 1 auto;border-right:0;border-bottom:1px solid var(--vscode-widget-border)}
@@ -1748,6 +1756,7 @@ function getLivePreviewHtml(token) {
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-brain">a carregar…</div>
     <div id="lp-dc">
+      <div id="lp-work-mount"></div>
       <div id="lp-tabs" role="tablist" aria-label="Lentes do Director's Cut">
         <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0">Stream</button>
         <button type="button" class="lp-tab" role="tab" id="lp-tab-day" aria-selected="false" aria-controls="lp-pane-day" data-tab="day" tabindex="-1">Dia</button>
@@ -1774,11 +1783,19 @@ const isBenignCssWarning=${isBenignCssSrc};
 const renderDayBreakdown=${renderDayBreakdownSrc};
 const renderModelBreakdown=${renderModelBreakdownSrc};
 const renderFleetLanes=${renderFleetLanesSrc};
+const renderWorkPill=${renderWorkPillSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
   lpLastSnap = s;
+  renderWork(s);
   renderLens(lpDcTab);
+}
+function renderWork(s){
+  const el=document.getElementById('lp-work-mount'); if(!el) return;
+  const html=renderWorkPill((s&&s.events)||[]);
+  if(html===lpWorkSig) return; lpWorkSig=html;
+  el.innerHTML=html;
 }
 function lpPane(tab){ return document.getElementById(tab==='stream'?'lp-pane-stream':tab==='day'?'lp-pane-day':tab==='model'?'lp-pane-model':'lp-pane-fleet'); }
 function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify([(s&&s.events)||[], !!(s&&s.sidKnown)]); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
@@ -1877,6 +1894,7 @@ let lpRoutesSig=null;
 let lpDcTab='stream';
 let lpLastSnap=null;
 let lpLensSig={stream:null,day:null,model:null,fleet:null};
+let lpWorkSig=null;
 function populateRoutes(routes){
   const sel=document.getElementById('lp-routes');
   if(!sel) return;
