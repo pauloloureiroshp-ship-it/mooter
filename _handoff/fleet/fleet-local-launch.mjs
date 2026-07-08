@@ -24,6 +24,16 @@ function runPillar(loop, deps) {
 
 const maxRounds = Number(process.env.FLEET_MAX_ROUNDS) || 6;
 
-runFleet({ dryRun: false, runPillar, maxRounds })
+// Admission is no longer the GPU governor — local-pillar's VRAM gate is. Open
+// poolWidth + gpuHeavyConcurrent so every eligible pillar gets its round (the old
+// gpuHeavyConcurrent:1 admitted ONE gpu-heavy pillar per round, starving council +
+// seguranca below the ≥2-real-rounds gate). The VRAM gate still serializes real
+// generation to what the 4090 physically fits (≈1 qwen3:30b). Env-overridable.
+const caps = {
+  poolWidth: Number(process.env.FLEET_POOL_WIDTH) || 16,
+  gpuHeavyConcurrent: Number(process.env.FLEET_GPU_CONCURRENT) || 16,
+};
+
+runFleet({ dryRun: false, runPillar, maxRounds, caps })
   .then((s) => { console.log("[fleet-local] shutdown:", JSON.stringify(s)); process.exit(0); })
   .catch((e) => { console.error("[fleet-local] fatal:", e && e.message); process.exit(1); });

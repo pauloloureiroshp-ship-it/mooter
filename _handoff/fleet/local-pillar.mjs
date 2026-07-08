@@ -29,12 +29,10 @@
 
 "use strict";
 
-import { readFileSync, writeFileSync, appendFileSync, renameSync } from "node:fs";
+import { readFileSync, writeFileSync, appendFileSync, renameSync, existsSync } from "node:fs";
 import { dirname, join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-
-import { runBoundedPool } from "../../packages/overclock-moo/src/pool.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -46,6 +44,15 @@ const GENERATE_TIMEOUT_MS = Number(process.env.FLEET_GENERATE_TIMEOUT_MS) || 120
 const TAGS_TIMEOUT_MS = 3_000;
 const ROUND_TIMEOUT_MS = Number(process.env.FLEET_ROUND_TIMEOUT_MS) || 600_000;
 const NUM_PREDICT = Number(process.env.FLEET_NUM_PREDICT) || 220;
+// Resident footprint of the default local model (qwen3:30b ≈ 19GB). Governs how
+// many generations physically fit on the GPU at once — see computeGenSlots.
+const MODEL_VRAM_GB = Number(process.env.FLEET_MODEL_VRAM_GB) || 19;
+// Pillars with no meaningful local job: run in DOCUMENTED-IDLE mode (no GPU, no
+// generation, a one-line DECISIONS.md entry) instead of a silent no-op. Empty by
+// default — every pillar can draft a charter-grounded proposal. Opt-in via env.
+const IDLE_PILLARS = new Set(
+  (process.env.FLEET_IDLE_PILLARS || "").split(",").map((s) => s.trim()).filter(Boolean),
+);
 
 function abs(p) { return isAbsolute(p) ? p : resolve(REPO, p); }
 function num(x) { return Number.isFinite(x) ? x : null; }
@@ -124,6 +131,22 @@ export function buildProposal(loop, { artifact, estCloudTokens, round, model }) 
   };
 }
 
+// ── documented-idle proposal (pure) — for pillars with no local job. Passes the
+// Proof Gate via the mandatory honesty section and makes ZERO quantitative claims
+// (nothing was generated), so it is honest by construction — never a fabricated win.
+export function buildIdleProposal(loop, round) {
+  const body =
+    `## Proposal ${loop.id} — round ${round} (DOCUMENTED IDLE)\n\n` +
+    `No specialized local job this round (see ${loop.id}/DECISIONS.md). A local moo would only ` +
+    `restate the charter, so the pillar idles honestly instead of burning a GPU slot.\n\n` +
+    `### o que NÃO verifiquei / pode falhar se\n` +
+    `- Nada foi gerado nem medido (idle deliberado). Pode falhar se o charter passar a ter trabalho local acionável — remover de FLEET_IDLE_PILLARS nesse caso.\n`;
+  return {
+    proposal: { id: `prop-${loop.id}-r${round}`, state: "drafted", reversible: true, run_event_id: `run-${loop.id}-r${round}`, body, claims: [] },
+    events: [],
+  };
+}
+
 // ── GPU snapshot (honest n/d when nvidia-smi absent) ─────────────────────────
 function queryGpu() {
   const r = spawnSync(
@@ -171,13 +194,48 @@ async function ollamaGenerate(model, prompt) {
   };
 }
 
-// Intra-round saturation via the shared bounded pool + a thermal comfort clamp
-// (never exceeds width; reduces to 1 above 80°C). Real work only — no busywork.
+// ── VRAM-governed generation allocator (the REAL GPU governor) ───────────────
+// The orchestrator's poolWidth admits N pillars per round; the launcher opens it
+// so every pillar gets a round. That is admission — NOT how many can physically
+// generate at once. On a single 4090 (24GB) a qwen3:30b generation needs ~19GB,
+// so only ONE fits; two would thrash/OOM and each caller would trip its 120s
+// AbortSignal (the exact serialization that produced 10 timeout incidents).
+// This gate caps CONCURRENT generations across ALL pillars in the process to what
+// VRAM allows (≈1). Waiters queue on the slot; the 120s generate timeout only
+// starts AFTER a slot is acquired, so waiting is never counted as a hung call.
+export function computeGenSlots({ totalMb, envSlots } = {}) {
+  if (Number.isFinite(envSlots) && envSlots >= 1) return Math.floor(envSlots);
+  if (!Number.isFinite(totalMb) || totalMb <= 0) return 1;
+  return Math.max(1, Math.min(2, Math.floor(totalMb / 1024 / MODEL_VRAM_GB)));
+}
+// A counting semaphore. Increment is SYNCHRONOUS after the gate check (JS is
+// single-threaded) so inFlight NEVER exceeds `slots` — same hard-cap discipline
+// as the Overclock runBoundedPool it replaces for the cross-pillar case.
+export function makeGenGate(slots) {
+  let inFlight = 0, peak = 0;
+  const waiters = [];
+  const acquire = () => new Promise((res) => {
+    const attempt = () => {
+      if (inFlight < slots) { inFlight++; if (inFlight > peak) peak = inFlight; res(); }
+      else waiters.push(attempt);
+    };
+    attempt();
+  });
+  const release = () => { inFlight = Math.max(0, inFlight - 1); const next = waiters.shift(); if (next) next(); };
+  return { acquire, release, get inFlight() { return inFlight; }, get peak() { return peak; }, slots };
+}
+
+const GEN_SLOTS = computeGenSlots({ totalMb: queryGpu().totalMb, envSlots: Number(process.env.FLEET_GEN_SLOTS) });
+const genGate = makeGenGate(GEN_SLOTS);
+
+// One generation, through the VRAM gate. Real work only — no busywork.
 async function runRoundWork(prompt, model) {
-  const comfort = async () => { const g = queryGpu(); return g.temp !== null && g.temp > 80 ? 1 : 1; };
-  let gen = null;
-  await runBoundedPool([{ prompt }], 1, async (job) => { gen = await ollamaGenerate(model, job.prompt); return gen; }, { comfort });
-  return gen;
+  await genGate.acquire();
+  try {
+    return await ollamaGenerate(model, prompt);
+  } finally {
+    genGate.release();
+  }
 }
 
 // ── the pillar round (runPillar) ─────────────────────────────────────────────
@@ -194,6 +252,22 @@ export async function localPillar(loop, { now } = {}) {
   const appendLedger = (rec) => {
     try { appendFileSync(ledgerPath, JSON.stringify({ ts: iso(), pillar: loop.id, round, ...rec }) + "\n"); } catch { /* never crash the fleet */ }
   };
+
+  // DOCUMENTED IDLE: no generation, no GPU slot, a one-line DECISIONS entry (once)
+  // and a clean ok:true round for the gate — never a silent no-op nor a timeout.
+  if (IDLE_PILLARS.has(loop.id)) {
+    const decPath = join(pillarDir, "DECISIONS.md");
+    if (!readText(decPath).includes("idle-local:")) {
+      try {
+        const header = readText(decPath).trim() ? "" : `# DECISIONS — ${loop.id}\n\n`;
+        appendFileSync(decPath, `${header}- ${iso()} · idle-local: sem job local acionável (charter é wave cloud/CC-once) → idle DOCUMENTADO, nunca falha silenciosa. Remover de FLEET_IDLE_PILLARS quando houver trabalho local.\n`);
+      } catch { /* decisions is advisory here */ }
+    }
+    const { proposal, events } = buildIdleProposal(loop, round);
+    atomicWriteJSON(statePath, { ...prev, status: "active", pillar: loop.id, round, last_run_ts: iso(), sessionId, measuredTotal: (Number(prev.measuredTotal) || 0) + 1, updated_at: iso(), idle: true });
+    appendLedger({ event: "round", engine: "local-idle", delta: "n/d", est_cloud_tokens_avoided: "n/d", quota_source: "local-$0", idle: true });
+    return { proposal, events, engine: "local-idle", costUsd: 0, gpuMinutes: 0 };
+  }
 
   let timer;
   const roundTimeout = new Promise((_, rej) => {
