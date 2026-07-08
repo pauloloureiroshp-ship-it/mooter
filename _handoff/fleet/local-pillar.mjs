@@ -34,6 +34,8 @@ import { dirname, join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
+import { preflight } from "./vram-preflight.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 
@@ -269,6 +271,27 @@ export async function localPillar(loop, { now } = {}) {
     return { proposal, events, engine: "local-idle", costUsd: 0, gpuMinutes: 0 };
   }
 
+  // F4 PRE-FLIGHT: refuse to generate on a CONTENDED GPU (a foreign model resident +
+  // too little free VRAM for the fleet model) — Ollama would spill to CPU and a single
+  // generation hangs >120s (proven 2026-07-08). Record a JUSTIFIED incident, bump the
+  // per-pillar streak, and surface at 3-in-a-row in the cronista queue. We NEVER unload
+  // a foreign model (not ours). A probe failure returns ok:true → never blocked on it.
+  const contention = await preflight({ ollamaHost: OLLAMA, fleetModel: DEFAULT_MODEL });
+  if (!contention.ok) {
+    const streak = (Number(prev.contentionStreak) || 0) + 1;
+    appendLedger({ event: "incident", engine: "local-preflight", reason: "vram-contention", detail: contention.reason, foreign_models: contention.foreignModels, vram_free_mb: contention.freeMb, streak });
+    atomicWriteJSON(statePath, { ...prev, status: "active", pillar: loop.id, round: Number(prev.round) || 0, last_run_ts: iso(), sessionId, contentionStreak: streak, updated_at: iso(), last_incident: contention.reason });
+    if (streak >= 3) {
+      try {
+        const decPath = join(pillarDir, "..", "cronista", "DECISIONS.md");
+        appendFileSync(decPath, `- ${iso()} · vram-contention (${loop.id}): ${contention.foreignModels.join(", ")} resident ${streak} ciclos seguidos → a fleet NÃO gera (evita CPU fallback silencioso). A rota/VRAM é decisão do Paulo; a fleet nunca descarrega modelo de outro processo.\n`);
+      } catch { /* advisory */ }
+    }
+    // Honest: a contention skip did NOT generate — throw so the orchestrator logs a
+    // clean incident + ok:false, never a fabricated proposal.
+    throw new Error(contention.reason);
+  }
+
   let timer;
   const roundTimeout = new Promise((_, rej) => {
     timer = setTimeout(() => rej(new Error(`round timeout > ${ROUND_TIMEOUT_MS}ms`)), ROUND_TIMEOUT_MS);
@@ -312,6 +335,7 @@ export async function localPillar(loop, { now } = {}) {
       measuredWins: (Number(prev.measuredWins) || 0) + (gatePassed ? 1 : 0),
       measuredTotal: (Number(prev.measuredTotal) || 0) + 1,
       openProposals: (Number(prev.openProposals) || 0) + 1,
+      contentionStreak: 0,
       updated_at: iso(),
     });
     appendLedger({
