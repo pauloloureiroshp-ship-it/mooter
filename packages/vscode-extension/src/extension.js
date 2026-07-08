@@ -1317,13 +1317,82 @@ class LivePreviewPanel {
   // descendant → confirmed). Twin worktrees are SIBLINGS — neither contains the other → NOT confirmed,
   // so the $0 write fail-closes (the 06:49 incident). Compares ABSOLUTE realpath'd roots only — never
   // relative paths (worktrees of the same repo have gemellar relative layouts).
+  // FIX cross-device (2026-07-08). The gate proved lineage with path.relative, which is CASE-INSENSITIVE
+  // on win32 and CASE-SENSITIVE on posix → a case-only difference between the workspace path and the served
+  // root silently passed on Windows but FAIL-CLOSED on macOS ("só funcionou no Windows"). The correct answer
+  // is NOT to guess case-sensitivity from process.platform — a case-SENSITIVE volume mounted on macOS/Windows
+  // (case-sensitive APFS, NTFS per-dir/WSL) would then fold two genuinely-distinct sibling trees together and
+  // reopen the 06:49 P0. So the gate uses FILESYSTEM IDENTITY (dev+ino) as the authority, and only falls back
+  // to an EMPIRICALLY-probed case-fold (fail-safe → case-SENSITIVE) when a root cannot be stat'd.
+
+  // stat identity "dev:ino" of a path, or null if it cannot be stat'd. This is the OS's own notion of "same
+  // directory" — correct on case-sensitive AND case-insensitive volumes, and immune to Unicode fold quirks.
+  // ino === 0 means the filesystem does not expose a reliable inode (some FAT/network volumes on Windows).
+  // Treat it as unstat-able (null) so the caller falls back to the string path instead of false-confirming
+  // every tree as identical ('0:0' === '0:0').
+  static _statId(p) { try { const s = fs.statSync(p); if (!s || Number(s.ino) === 0) return null; return String(s.dev) + ':' + String(s.ino); } catch { return null; } }
+
+  // Lineage by filesystem identity: identical inode, OR one is an ANCESTOR of the other (walk up, compare
+  // inodes). Returns true/false when both roots are stat-able; null when either cannot be stat'd (→ caller
+  // falls back to string compare). SIBLINGS have distinct inodes and never appear in each other's ancestry
+  // → false (kills the P0), regardless of case-sensitivity or Unicode.
+  static _sharesLineageByInode(a, b) {
+    const idA = LivePreviewPanel._statId(a), idB = LivePreviewPanel._statId(b);
+    if (idA === null || idB === null) return null;
+    if (idA === idB) return true;
+    const climbsTo = (start, targetId) => {
+      let cur = path.resolve(start);
+      for (let i = 0; i < 64; i++) {
+        const parent = path.dirname(cur);
+        if (parent === cur) break; // reached the volume root
+        cur = parent;
+        if (LivePreviewPanel._statId(cur) === targetId) return true;
+      }
+      return false;
+    };
+    return climbsTo(a, idB) || climbsTo(b, idA);
+  }
+
+  // EMPIRICAL case-sensitivity probe — never guesses from process.platform. A case-flipped form of an
+  // existing path resolves to the SAME inode ⇒ the filesystem at `anchor` is case-INSENSITIVE. Fail-safe:
+  // any doubt (no cased letters, unreadable, flipped form absent/other inode) → false = treat as
+  // case-SENSITIVE → the gate stays STRICTER and never over-confirms a sibling.
+  static _caseInsensitiveFS(anchor) {
+    try {
+      if (typeof anchor !== 'string' || !anchor) return false;
+      const lower = anchor.toLowerCase(), upper = anchor.toUpperCase();
+      const flipped = anchor === lower ? upper : lower;
+      if (flipped === anchor) return false; // no cased letters to flip → cannot prove → assume sensitive
+      const id = LivePreviewPanel._statId(anchor);
+      return id !== null && LivePreviewPanel._statId(flipped) === id;
+    } catch { return false; }
+  }
+
+  // PURE string fallback (used only when a root is not stat-able). `ci` = is this filesystem case-insensitive
+  // (from the empirical probe). Folds case iff ci; the '..'/isAbsolute checks stay case-independent so a
+  // sibling or a traversal still fails closed. `P` is the path flavour (defaults to host `path`; injected in tests).
+  static _canonCase(s, ci) { return ci ? String(s).toLowerCase() : String(s); }
+  static _within(parent, child, ci, P) {
+    P = P || path;
+    const r = P.relative(LivePreviewPanel._canonCase(parent, ci), LivePreviewPanel._canonCase(child, ci));
+    return !!r && !r.startsWith('..') && !P.isAbsolute(r);
+  }
+  static _sharesLineage(a, b, ci, P) {
+    if (!a || !b) return false;
+    if (LivePreviewPanel._canonCase(a, ci) === LivePreviewPanel._canonCase(b, ci)) return true;
+    return LivePreviewPanel._within(a, b, ci, P) || LivePreviewPanel._within(b, a, ci, P);
+  }
   _treeConfirmed() {
     const wsReal = (() => { try { return fs.realpathSync(this._wsRoot()); } catch { return this._wsRoot(); } })();
     const sr = this._servedRoot;
     if (!sr || !wsReal) return false;
-    if (sr === wsReal) return true;
-    const within = (parent, child) => { const r = path.relative(parent, child); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
-    return within(wsReal, sr) || within(sr, wsReal);
+    // Authority: filesystem identity — correct on every volume, no platform/Unicode guessing.
+    const byInode = LivePreviewPanel._sharesLineageByInode(sr, wsReal);
+    if (byInode !== null) return byInode;
+    // Fallback only when a root is not stat-able (e.g. a normalize()'d non-existent served marker):
+    // empirically-probed case-fold, fail-safe to case-SENSITIVE.
+    const ci = LivePreviewPanel._caseInsensitiveFS(wsReal);
+    return LivePreviewPanel._sharesLineage(sr, wsReal, ci, path);
   }
   // FIX-MP-1 G2 — the write-time FAIL-CLOSED tree gate. In production the ctor sets _servedRoot=null,
   // so this is ALWAYS active: no positively-confirmed served-tree lineage → BLOCKED (refuse before any
@@ -1340,8 +1409,12 @@ class LivePreviewPanel {
   _treeBanner() {
     try {
       if (typeof this._servedRoot === 'string' && this._servedRoot && !this._treeConfirmed()) {
-        const base = path.basename(this._servedRoot) || this._servedRoot;
-        return 'o preview vem de outra árvore (' + base + ') — reinicia o dev server neste workspace para poder editar';
+        // Show the last TWO segments (…/parent/base) so a genuine cross-tree mismatch is legible — a
+        // bare basename reads as absurd when two trees share it (…/frugal/landing vs …/lp49/landing).
+        // (A case-only difference now CONFIRMS via _sharesLineage, so this banner fires only for real mismatches.)
+        const parts = this._servedRoot.split(/[\\/]+/).filter(Boolean);
+        const label = parts.length >= 2 ? ('…/' + parts.slice(-2).join('/')) : (parts[0] || this._servedRoot);
+        return 'o preview vem de outra árvore (' + label + ') — reinicia o dev server neste workspace para poder editar';
       }
     } catch { /* fail-soft */ }
     return null;
@@ -1477,7 +1550,7 @@ class LivePreviewPanel {
       // Containment guard (path traversal defence-in-depth): `path.relative` avoids the sibling-dir
       // trap of a raw prefix check (`C:\ws` must NOT accept `C:\ws-evil`), and realpath re-checks
       // after resolving symlinks so a workspace symlink cannot point the open outside the workspace.
-      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const roots = [this._wsRoot()];
       let hit = null;
       for (const root of roots) {
@@ -1521,7 +1594,7 @@ class LivePreviewPanel {
       if (!raw) return;
       const line = (m && Number.isInteger(m.line) && m.line > 0) ? m.line : null;
       const col = (m && Number.isInteger(m.col) && m.col > 0) ? m.col : null;
-      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const root = this._wsRoot();
       const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
       let real = null;
@@ -1566,7 +1639,7 @@ class LivePreviewPanel {
       const edit = (m && m.edit && typeof m.edit === 'object') ? m.edit : null;
       if (!raw || !edit) { fail('bad-request'); return; }
       if (!LEA) { fail('engine-unavailable'); return; }
-      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const root = this._wsRoot();
       const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
       let real = null;
@@ -1732,7 +1805,7 @@ class LivePreviewPanel {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       if (!raw) { fail('bad-request'); return; }
       if (!LEA || typeof LEA.deleteNode !== 'function') { fail('engine-unavailable'); return; }
-      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const root = this._wsRoot();
       const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
       let real = null;
@@ -1778,7 +1851,7 @@ class LivePreviewPanel {
   // path.relative (no sibling-dir trap) + realpath re-check (no symlink escape). null = refuse.
   _resolveContainedFile(raw) {
     try {
-      const contained = (root, abs) => { const r = path.relative(root, abs); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+      const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const root = this._wsRoot();
       const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.join(root, raw);
       if (contained(root, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
