@@ -186,3 +186,74 @@ test('buildContextPack: combines repo-map + slice, honest header; empty when not
   const emptyPack = LEC.buildContextPack('', '', {});
   assert.strictEqual(emptyPack.text, '', 'nothing resolvable → empty pack (agent falls back)');
 });
+
+// ── (C) DATA-HOP (Wave 2.3) ───────────────────────────────────────────────────────────────────────
+test('extractImportBindings: default / named / aliased / namespace', () => {
+  const src = "import M, { a, b as c } from './x';\nimport * as NS from './y';\nimport D from './z';";
+  const b = LEC.extractImportBindings(src);
+  const by = (n) => b.find((x) => x.name === n);
+  assert.ok(by('M') && by('M').spec === './x' && by('M').kind === 'default', 'default M');
+  assert.ok(by('a') && by('a').kind === 'named', 'named a');
+  assert.ok(by('c') && by('c').spec === './x', 'aliased local name c');
+  assert.ok(by('NS') && by('NS').kind === 'namespace', 'namespace NS');
+  assert.ok(by('D') && by('D').spec === './z', 'default D from another module');
+});
+
+test('locateDefinition: finds the declaration + what it is derived from', () => {
+  const src = ['export const baseline = 48.9;', 'export const paid = 25.95;', 'export const savedUsd = round2(baseline - paid);'].join('\n');
+  const d = LEC.locateDefinition(src, 'savedUsd', 4);
+  assert.ok(d.excerpt.includes('savedUsd'), 'excerpt has the declaration');
+  assert.ok(d.derivedFrom.includes('baseline') && d.derivedFrom.includes('paid'), 'traces the primitives (not Math/round2)');
+});
+
+test('buildDataHop: the SAVINGS example — click {M.savedUsd} → lands on canonical-metrics + the primitive', () => {
+  const root = mkRepo({
+    'app/lib/canonical-metrics.ts': [
+      'export const AUTHOR_PROOF = { allOpusBaselineUsd: 48.9, mooterPaidUsd: 25.95 };',
+      'const round2 = (n) => Math.round(n * 100) / 100;',
+      'export const savedUsd = round2(AUTHOR_PROOF.allOpusBaselineUsd - AUTHOR_PROOF.mooterPaidUsd);',
+      'export const M = { savedUsd: "$" + savedUsd };',
+    ].join('\n'),
+    'app/page.tsx': "import { M } from './lib/canonical-metrics';\nexport default function P(){ return <div>{M.savedUsd}</div>; }",
+  });
+  const r = LEC.buildDataHop(root, 'app/page.tsx', '<div className="saved">{M.savedUsd}</div>', {});
+  const hop = r.hops.find((h) => h.symbol === 'M.savedUsd');
+  assert.ok(hop, 'traced M.savedUsd');
+  assert.strictEqual(hop.importedFrom, 'app/lib/canonical-metrics.ts', 'lands on the canonical source');
+  assert.ok(r.text.includes('canonical-metrics.ts') && r.text.includes('savedUsd'), 'trail names source + symbol');
+  assert.ok(hop.derivedFrom.some((d) => d.includes('AUTHOR_PROOF')), 'surfaces the derivation → edit the ORIGIN primitive');
+});
+
+test('buildDataHop: only traces symbols the node USES; external imports skipped; fail-soft', () => {
+  const root = mkRepo({
+    'app/x.ts': 'export const X = 1;',
+    'app/page.tsx': "import React from 'react';\nimport { X } from './x';\nexport default function P(){ return <div>{X}</div>; }",
+  });
+  const r = LEC.buildDataHop(root, 'app/page.tsx', '<div>{X}</div>', {});
+  assert.ok(r.hops.some((h) => h.symbol === 'X'), 'traces the used local import X');
+  assert.ok(!r.hops.some((h) => h.symbol === 'React'), 'React (external, not in node) skipped');
+  assert.deepStrictEqual(LEC.buildDataHop('', '', '', {}), { text: '', hops: [], tokenEstimate: 0 });
+});
+
+test('buildDataHop: a symlinked import target outside the workspace is NOT traced (realpath fence)', () => {
+  const outside = mkRepo({ 'secret.ts': 'export const SECRET = "AKIA-XYZ-DATAHOP";' });
+  const root = mkRepo({ 'app/page.tsx': "import { SECRET } from './linked/secret';\nexport default function P(){ return <div>{SECRET}</div>; }" });
+  let linked = false;
+  try { fs.symlinkSync(outside, path.join(root, 'app', 'linked'), 'junction'); linked = true; } catch { /* unsupported */ }
+  const r = LEC.buildDataHop(root, 'app/page.tsx', '<div>{SECRET}</div>', {});
+  if (linked) {
+    assert.ok(!r.text.includes('AKIA-XYZ-DATAHOP'), 'symlinked out-of-workspace definition never leaks into the trail');
+    assert.ok(!r.hops.some((h) => h.importedFrom.includes('secret')), 'the escaping import is not resolved');
+  }
+});
+
+test('findReferences: bounded workspace search (blast radius)', () => {
+  const root = mkRepo({
+    'a.ts': 'import { U } from "./u"; export const a = U;',
+    'b.ts': 'import { U } from "./u"; export const b = U;',
+    'u.ts': 'export const U = 1;',
+  });
+  const r = LEC.findReferences(root, 'U', {});
+  assert.ok(r.count >= 3, 'finds U across a, b, u');
+  assert.deepStrictEqual(LEC.findReferences(root, 'bad symbol!', {}), { files: [], count: 0 });
+});
