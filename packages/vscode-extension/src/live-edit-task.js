@@ -156,7 +156,13 @@ function runAnchoredTask(input, opts) {
     try {
       const anchorFile = (input && typeof input.file === 'string') ? input.file : '';
       if (anchorFile && (!o.contextEngine || o.contextEngine.enabled !== false)) {
-        const pack = LECTX.buildContextPack(wsRoot, anchorFile, (o.contextEngine && o.contextEngine.opts) || {});
+        // Wave 2.3 — pass the pinned node's source so the data-hop can trace the values it renders
+        // (e.g. M.savedUsd) back to their definition file. anchorSource is repo content, not new data.
+        const ceOpts = Object.assign(
+          { anchorSource: (input && typeof input.nodeSource === 'string') ? input.nodeSource : undefined },
+          (o.contextEngine && o.contextEngine.opts) || {},
+        );
+        const pack = LECTX.buildContextPack(wsRoot, anchorFile, ceOpts);
         if (pack && typeof pack.text === 'string') contextPack = pack.text;
       }
     } catch { contextPack = ''; }

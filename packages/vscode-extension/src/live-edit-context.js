@@ -78,6 +78,39 @@ function extractExports(source) {
   return Array.from(names);
 }
 
+function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+const IMPORT_STMT_RE = /(?:^|\n)\s*import\s+([^;'"]*?)\s+from\s+['"]([^'"]+)['"]/g;
+
+/**
+ * Local binding names introduced by each import + the specifier they come from:
+ *   import Default, { a, b as c } from 'x'  →  [{name:'Default',spec:'x'}, {name:'a',...}, {name:'c',...}]
+ *   import * as NS from 'x'                 →  [{name:'NS', spec:'x', kind:'namespace'}]
+ * These are the symbols the data-hop can trace from the pinned node back to their definition file.
+ */
+function extractImportBindings(source) {
+  const s = String(source || '');
+  const out = [];
+  IMPORT_STMT_RE.lastIndex = 0;
+  let m;
+  while ((m = IMPORT_STMT_RE.exec(s)) !== null) {
+    const clause = m[1].trim();
+    const spec = m[2];
+    const ns = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/);
+    if (ns) { out.push({ name: ns[1], spec, kind: 'namespace' }); continue; }
+    const brace = clause.match(/\{([^}]*)\}/);
+    if (brace) {
+      for (const part of brace[1].split(',')) {
+        const local = part.trim().split(/\s+as\s+/).pop().trim();
+        if (/^[A-Za-z_$][\w$]*$/.test(local)) out.push({ name: local, spec, kind: 'named' });
+      }
+    }
+    const def = clause.match(/^([A-Za-z_$][\w$]*)\s*(?:,|$)/);
+    if (def) out.push({ name: def[1], spec, kind: 'default' });
+  }
+  return out;
+}
+
 // ── module resolution (LOCAL specifiers only; bare specifiers are external → skipped) ─────────────
 /** Read tsconfig-style path aliases once (best-effort): returns [{prefix, base}] for `@/*`-style maps. */
 function readAliases(wsRoot) {
@@ -331,32 +364,150 @@ function pageRank(n, outEdges, iterations, damping) {
   return pr;
 }
 
+// ── (C) DATA-HOP — "clico → segue até à fonte de dados" (Wave 2.3, the moat) ──────────────────────
+/** A few source lines from index `i` (each indented, long lines clipped). */
+function excerptAt(lines, i, maxLines) {
+  const start = Math.max(0, i);
+  return lines.slice(start, start + maxLines).map((l) => '    ' + (l.length > 160 ? l.slice(0, 157) + '…' : l)).join('\n');
+}
+
+/** Locate the declaration of `name` in `defSrc`; return an excerpt + the identifiers it is DERIVED from
+ *  (the RHS of `name = <expr>`), so the agent edits the SOURCE primitive, not the derived value. */
+function locateDefinition(defSrc, name, maxLines) {
+  const lines = String(defSrc).split(/\r?\n/);
+  if (!name) {
+    const i = lines.findIndex((l) => /export\s+default/.test(l));
+    return { excerpt: excerptAt(lines, i >= 0 ? i : 0, maxLines), derivedFrom: [] };
+  }
+  const declRe = new RegExp('(export\\s+)?(const|let|var|function|class|type|interface)\\s+' + escapeRe(name) + '\\b');
+  let idx = lines.findIndex((l) => declRe.test(l));
+  if (idx < 0) idx = lines.findIndex((l) => new RegExp('(^|[^\\w$])' + escapeRe(name) + '\\s*[:=]').test(l)); // object member
+  if (idx < 0) return { excerpt: excerptAt(lines, 0, maxLines), derivedFrom: [] };
+  const derivedFrom = [];
+  const declLine = lines[idx];
+  const eq = declLine.indexOf('=');
+  if (eq >= 0) {
+    const rhs = declLine.slice(eq + 1);
+    const idRe = /\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\b/g;
+    let im;
+    const SKIP = /^(Math|Number|String|Boolean|Array|Object|JSON|parseInt|parseFloat|round2|usd|toFixed|true|false|null|undefined)\b/;
+    while ((im = idRe.exec(rhs)) !== null) {
+      const id = im[1];
+      if (!SKIP.test(id) && !/^\d/.test(id) && id !== name && derivedFrom.indexOf(id) === -1) derivedFrom.push(id);
+    }
+  }
+  return { excerpt: excerptAt(lines, idx, maxLines), derivedFrom: derivedFrom.slice(0, 6) };
+}
+
+/** Bounded workspace-wide references to a bare symbol (blast radius): which source files mention it. */
+function findReferences(wsRoot, symbol, opts) {
+  const o = opts || {};
+  const empty = { files: [], count: 0 };
+  try {
+    if (!wsRoot || !symbol || !/^[A-Za-z_$][\w$]*$/.test(symbol)) return empty;
+    const files = walkSources(wsRoot, o.maxScan || 500);
+    const re = new RegExp('\\b' + escapeRe(symbol) + '\\b');
+    const hits = [];
+    for (const f of files) {
+      if (hits.length >= (o.maxHits || 24)) break;
+      const src = readCapped(f, 48000);
+      if (src != null && re.test(src)) hits.push(relPosix(wsRoot, f));
+    }
+    return { files: hits, count: hits.length };
+  } catch { return empty; }
+}
+
 /**
- * buildContextPack(wsRoot, anchorFile, opts) → { text, tokenEstimate, slice, repoMap }.
- * The combined block the runner prepends to the agent prompt: repo-map TOC + the import slice for the
- * clicked element. Honest header; empty sections are omitted. Never throws.
+ * buildDataHop(wsRoot, anchorFile, anchorSource, opts) → { text, hops, tokenEstimate }.
+ * For each IMPORTED symbol actually used in the pinned node's source, follow it to its DEFINITION file +
+ * declaration, surface what it is DERIVED from, and (for the primary hop) its references (blast radius).
+ * This is the moat: "click the savings box → the agent lands on the one place the number is defined."
+ * Read paths are realpath-contained (same fence as the runner). Bounded + fail-soft.
+ */
+function buildDataHop(wsRoot, anchorFile, anchorSource, opts) {
+  const o = opts || {};
+  const maxHops = o.maxHops || 6;
+  const defLines = o.defExcerptLines || 6;
+  const empty = { text: '', hops: [], tokenEstimate: 0 };
+  try {
+    if (!wsRoot || !anchorFile || !anchorSource) return empty;
+    const anchorAbs = path.isAbsolute(anchorFile) ? path.normalize(anchorFile) : path.resolve(wsRoot, anchorFile);
+    if (!containedReal(wsRoot, anchorAbs)) return empty;
+    const anchorSrc = readCapped(anchorAbs, o.perFileReadCap || 64000);
+    if (anchorSrc == null) return empty;
+    const bindings = extractImportBindings(anchorSrc);
+    if (!bindings.length) return empty;
+    const aliases = readAliases(wsRoot);
+    const node = String(anchorSource);
+    const hops = [];
+    const seen = new Set();
+    for (const b of bindings) {
+      if (hops.length >= maxHops) break;
+      const useRe = new RegExp('\\b' + escapeRe(b.name) + '\\b(?:\\s*\\.\\s*([A-Za-z_$][\\w$]*))?');
+      const um = useRe.exec(node);
+      if (!um) continue; // this import is not referenced by the pinned node
+      const member = um[1] || null;
+      const defAbs = resolveLocal(anchorAbs, b.spec, wsRoot, aliases);
+      if (!defAbs) continue; // external (react/next) or unresolvable
+      const key = relPosix(wsRoot, defAbs) + '::' + (member || b.name);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const defSrc = readCapped(defAbs, o.perFileReadCap || 64000);
+      if (defSrc == null) continue;
+      const target = member || (b.kind === 'default' ? null : b.name);
+      const def = locateDefinition(defSrc, target, defLines);
+      hops.push({ symbol: member ? (b.name + '.' + member) : b.name, importedFrom: relPosix(wsRoot, defAbs), target, excerpt: def.excerpt, derivedFrom: def.derivedFrom });
+    }
+    if (!hops.length) return empty;
+    // Blast radius for the primary hop only (one walk) — where else the source symbol is used.
+    let refs = null;
+    if (o.references !== false && hops[0].target) {
+      const r = findReferences(wsRoot, hops[0].target, o.refOpts);
+      if (r.count > 1) refs = r;
+    }
+    const lines = hops.map((h) => {
+      let s = '• ' + h.symbol + ' → definido em ' + h.importedFrom;
+      if (h.derivedFrom && h.derivedFrom.length) s += '  (derivado de ' + h.derivedFrom.join(', ') + ' — edita a ORIGEM, não o valor derivado)';
+      return s + '\n' + h.excerpt;
+    });
+    if (refs) lines.push('↳ "' + hops[0].target + '" aparece em ' + refs.count + ' ficheiro(s) (referências textuais por nome — confirma o âmbito): ' + refs.files.slice(0, 10).join(', '));
+    const text = lines.join('\n\n');
+    return { text, hops, tokenEstimate: Math.ceil(text.length / 4) };
+  } catch { return empty; }
+}
+
+/**
+ * buildContextPack(wsRoot, anchorFile, opts) → { text, tokenEstimate, slice, repoMap, dataHop }.
+ * The combined block the runner prepends to the agent prompt: repo-map TOC + import slice + (when the
+ * pinned node's source is provided via opts.anchorSource) the data-hop trail. Empty sections omitted.
  */
 function buildContextPack(wsRoot, anchorFile, opts) {
   const o = opts || {};
   const repoMap = buildRepoMap(wsRoot, o.repoMap);
   const slice = buildImportSlice(wsRoot, anchorFile, o.slice);
+  const dataHop = o.anchorSource ? buildDataHop(wsRoot, anchorFile, o.anchorSource, o.dataHop) : { text: '', hops: [], tokenEstimate: 0 };
   const parts = [];
-  if (repoMap.text) parts.push('Repo-map (módulos centrais por PageRank — TOC, $0 local):\n' + repoMap.text);
+  if (dataHop.text) parts.push('Data-hop (de onde vêm os valores do elemento fixado — segue até à fonte e edita lá):\n' + dataHop.text);
   if (slice.text) parts.push('Ficheiros ligados ao elemento fixado (grafo de imports, $0 local):\n' + slice.text);
+  if (repoMap.text) parts.push('Repo-map (módulos centrais por PageRank — TOC, $0 local):\n' + repoMap.text);
   const text = parts.length
     ? ('Contexto do projecto (pré-computado localmente, $0 — usa-o para saltar a exploração; lê o ficheiro '
         + 'completo com Read quando precisares dos detalhes):\n\n' + parts.join('\n\n'))
     : '';
-  return { text, tokenEstimate: Math.ceil(text.length / 4), slice, repoMap };
+  return { text, tokenEstimate: Math.ceil(text.length / 4), slice, repoMap, dataHop };
 }
 
 module.exports = {
   buildImportSlice,
   buildRepoMap,
   buildContextPack,
+  buildDataHop,
+  findReferences,
   // exported for unit tests:
   extractSpecifiers,
   extractExports,
+  extractImportBindings,
+  locateDefinition,
   resolveLocal,
   readAliases,
   pageRank,
