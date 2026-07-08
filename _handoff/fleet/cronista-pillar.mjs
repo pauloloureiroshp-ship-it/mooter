@@ -114,9 +114,12 @@ export async function cronistaPillar(loop, { now } = {}) {
   const badTotal = snaps.reduce((a, s) => a + s.badLines, 0);
   if (badTotal > 0) incoherences.push(`${badTotal} malformed ledger line(s) across ${snaps.filter((s) => s.badLines).map((s) => s.id).join(", ")}`);
 
-  // 4 · stalled pillars
-  const maxRound = snaps.reduce((m, s) => Math.max(m, s.round), 0);
-  const stalled = snaps.filter((s) => s.round > 0 && maxRound - s.round > 2 && s.state.status !== "paused");
+  // 4 · stalled pillars — compare ONLY pillars active in the current regime, so a
+  // stale seed STATE (an old dry-run left at round N, status != "active") never
+  // makes a fresh pillar look "behind".
+  const activeSnaps = snaps.filter((s) => (s.state.status || "") === "active");
+  const maxRound = activeSnaps.reduce((m, s) => Math.max(m, s.round), 0);
+  const stalled = activeSnaps.filter((s) => s.round > 0 && maxRound - s.round > 2);
   for (const s of stalled) incoherences.push(`pillar '${s.id}' stalled: round ${s.round} vs fleet max ${maxRound}`);
 
   // 5 · U2 re-verification
