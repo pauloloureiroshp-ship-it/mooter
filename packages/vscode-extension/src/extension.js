@@ -1964,6 +1964,11 @@ class LivePreviewPanel {
       const reqFiles = Array.isArray(m && m.files) ? m.files.filter((f) => typeof f === 'string' && f) : [];
       const message = (m && typeof m.message === 'string') ? m.message.trim().slice(0, 500) : '';
       if (!reqFiles.length || !message) { post({ ok: false, reason: 'bad-request', cmd: '' }); return; }
+      // FIX-REVIEW MED — fail-closed, BEFORE any staging: an OPEN Critical secret finding blocks the
+      // commit+push at the HOST. The webview button-disable is advisory only; a forged/buggy
+      // lp-publish-commit must not let a scanned secret reach the remote. Escape hatch = explicit
+      // override (the brief's "override explícito com aviso vermelho"), never a silent default.
+      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open', cmd: '' }); return; }
       const prev = await extra.gitCommitPreview(root);
       const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
       const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
@@ -2000,6 +2005,11 @@ class LivePreviewPanel {
       // ── THE GATE ── deploy is unreachable without this exact match. Nothing above this line
       // spawns a process; nothing below runs unless it passes.
       if (!typed || typed !== info.projectName) { post({ ok: false, reason: 'name-mismatch' }); return; }
+      // FIX-REVIEW MED — fail-closed secondary gate on the IRREVERSIBLE step: an OPEN Critical
+      // security finding blocks the deploy at the HOST too (the webview button-disable is advisory
+      // and bypassable by a forged message). Escape hatch = explicit override (brief's red-warning
+      // path), never silent. The two-factor name gate above remains the primary, non-overridable gate.
+      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open' }); return; }
       let cp;
       try {
         cp = require('child_process').spawnSync('vercel', ['--prod', '--yes'],

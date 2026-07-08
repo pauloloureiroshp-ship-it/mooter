@@ -58,6 +58,71 @@ function deployWith(root, typedName, spawnSpy) {
   return posted;
 }
 
+// Variant that also injects _lastSecurity and passes a full deploy payload — for the fail-closed
+// Critical-secret gate (FIX-REVIEW MED). deployWith leaves _lastSecurity unset → no open Critical.
+function deployRaw(root, payload, spawnSpy, lastSecurity) {
+  const Panel = loadPanelWithFakeSpawn(spawnSpy);
+  assert.ok(Panel, 'LivePreviewPanel loaded');
+  const fakeThis = Object.create(Panel.prototype);
+  fakeThis.token = 'T';
+  fakeThis._wsRoot = () => root;
+  fakeThis._lastSecurity = lastSecurity || null;
+  let posted = null;
+  fakeThis.panel = { webview: { postMessage: (m) => { posted = m; } } };
+  fakeThis._publishDeploy(payload);
+  return posted;
+}
+
+// _publishCommit is async and refuses on an open Critical BEFORE any git; spawnSync is stubbed but
+// unused on that path. Returns a promise of the posted message.
+function commitRaw(root, payload, lastSecurity) {
+  const Panel = loadPanelWithFakeSpawn(() => ({ status: 0, stdout: '', stderr: '' }));
+  assert.ok(Panel, 'LivePreviewPanel loaded');
+  const fakeThis = Object.create(Panel.prototype);
+  fakeThis.token = 'T';
+  fakeThis._wsRoot = () => root;
+  fakeThis._lastSecurity = lastSecurity || null;
+  let posted = null;
+  fakeThis.panel = { webview: { postMessage: (m) => { posted = m; } } };
+  return Promise.resolve(fakeThis._publishCommit(payload)).then(() => posted);
+}
+
+test('LP-6 deploy gate: an OPEN Critical finding blocks deploy (critical-open) even on the exact name, never spawns', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: '', stderr: '' }; },
+      { secrets: [{ severity: 'critical', rule: 'aws-key' }] });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, 'critical-open');
+    assert.strictEqual(calls.length, 0, 'vercel NEVER spawned while a Critical finding is open');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('LP-6 deploy gate: an explicit overrideCritical lets the exact-name deploy through the Critical gate', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    const r = deployRaw(root, { projectName: 'showcase-proj', overrideCritical: true },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'https://showcase-proj.vercel.app\n', stderr: '' }; },
+      { secrets: [{ severity: 'critical', rule: 'aws-key' }] });
+    assert.strictEqual(calls.length, 1, 'the explicit override reaches the spawn');
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.url, 'https://showcase-proj.vercel.app');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('LP-6 commit gate: an OPEN Critical secret blocks the selective commit (critical-open) before any git', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-pub-crit-'));
+  try {
+    const r = await commitRaw(root, { files: ['landing/app/page.tsx'], message: 'x' },
+      { secrets: [{ severity: 'critical', rule: 'stripe-key' }] });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, 'critical-open');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('LP-6 deploy gate: a WRONG project name refuses (name-mismatch) and NEVER spawns vercel', () => {
   const root = mkLinkedWorkspace('showcase-proj');
   const calls = [];
