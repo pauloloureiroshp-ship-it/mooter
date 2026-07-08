@@ -269,11 +269,17 @@ async function main() {
   const intentRule = (intent === 'ask')
     ? '- MODO PERGUNTAR (escolhido pelo utilizador): SÓ responde, ZERO edições — mesmo que o pedido pareça uma edição. Cita os ficheiros que leste.\n'
     : '- MODO EDITAR (escolhido pelo utilizador): o utilizador QUER uma edição. Faz o edit mínimo no sítio CERTO (pode não ser o nó pinado). Se for genuinamente impossível editar, explica porquê.\n';
+  // Context Engine (Wave 2.2) — the host pre-computed a $0-local context pack (repo-map TOC + import
+  // slice for the pinned file). Front-load it so the agent skips blind Read/Grep exploration; it is
+  // advisory (the agent still Reads the full file for details). Bounded + workspace-relative host-side.
+  const ctxBlock = (typeof req.contextPack === 'string' && req.contextPack.trim())
+    ? (req.contextPack.trim() + '\n\n') : '';
   const p = 'És o agente de tarefas ancoradas do Live Preview. O utilizador fixou (pin) um elemento '
     + 'no preview e pediu uma tarefa sobre o PROJECTO. Regras:\n'
     + '- responde em PT-BR curto;\n'
     + intentRule
     + '- nunca inventes números — lê o repo.\n\n'
+    + ctxBlock
     + 'Âncora (o elemento fixado):\n' + (anchor.length ? anchor.join('\n') : '- (sem âncora)') + '\n\n'
     + 'Instrução do utilizador: ' + instruction;
 

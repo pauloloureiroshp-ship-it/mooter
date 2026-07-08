@@ -27,6 +27,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const LEC = require('./live-edit-cloud.js');
+const LECTX = require('./live-edit-context.js'); // Context Engine (Wave 2.2): $0-local repo-map + import slice
 
 // Model per chip. AUTO routes to Sonnet — the quality/tool-use default the vision names for
 // project tasks. @fable is MANUAL ONLY (tier ladder doctrine: never auto-routed; there is no T4).
@@ -147,6 +148,18 @@ function runAnchoredTask(input, opts) {
       if (buf) onLine(buf); // a verdict without a trailing newline still counts
       finish({ ok: false, reason: 'task-bridge-error', detail: 'no verdict from runner' });
     });
+    // Context Engine (Wave 2.2) — compute the $0-local context pack (repo-map TOC + import slice for the
+    // pinned file) BEFORE the agent runs, so it skips the 20-52s of blind Read/Grep exploration. Same
+    // fence: the trust-gated agent already reads this workspace; this only front-loads what it would read.
+    // Fail-soft + bounded (RULER): any error / no anchor → empty string → the agent falls back unchanged.
+    let contextPack = '';
+    try {
+      const anchorFile = (input && typeof input.file === 'string') ? input.file : '';
+      if (anchorFile && (!o.contextEngine || o.contextEngine.enabled !== false)) {
+        const pack = LECTX.buildContextPack(wsRoot, anchorFile, (o.contextEngine && o.contextEngine.opts) || {});
+        if (pack && typeof pack.text === 'string') contextPack = pack.text;
+      }
+    } catch { contextPack = ''; }
     try {
       cp.stdin.end(JSON.stringify({
         instruction,
@@ -156,6 +169,8 @@ function runAnchoredTask(input, opts) {
         refs: Array.isArray(input.refs) ? input.refs.slice(0, 8) : undefined,
         // LP-4.9 §1 — explicit intent: 'ask' = answer only (zero writes), else edit.
         intent: input.intent === 'ask' ? 'ask' : 'edit',
+        // Wave 2.2 — pre-computed local context (workspace-relative, bounded). '' when disabled/empty.
+        contextPack,
         model,
       }));
     } catch { /* the close handler still resolves */ }
