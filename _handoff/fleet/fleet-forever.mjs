@@ -50,7 +50,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let cycle = 0;
 let contentionCycles = 0;
 while (cycle < maxCycles) {
-  if (existsSync(STOP)) { console.log("[fleet-forever] STOP sentinel — exiting."); break; }
+  // STOP sentinel = clean PAUSE, not process exit. Under pm2 (autorestart) an exit
+  // would just be restarted into the same STOP — a crash-loop. Idle-wait until STOP
+  // is removed; full shutdown is `pm2 stop mooter-fleet`.
+  while (existsSync(STOP)) {
+    console.log("[fleet-forever] STOP sentinel present — PAUSED (remove it to resume; `pm2 stop mooter-fleet` to shut down).");
+    await sleep(Math.min(cycleGapMs, 15_000));
+  }
   // Pre-flight BEFORE the cycle: a contended GPU means skip generation this cycle.
   const pf = await preflight({});
   if (!pf.ok) {
