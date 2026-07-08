@@ -11,9 +11,10 @@
   },
   "pillars": [
     { "id": "matriz",          "workdir": "_handoff/fleet/matriz",          "priority": 0.8, "gpu_heavy": true,  "cloud_heavy": false, "daysQuota": 2 },
-    { "id": "seguranca",       "workdir": "_handoff/fleet/seguranca",       "priority": 0.8, "gpu_heavy": false, "cloud_heavy": true,  "daysQuota": 2 },
+    { "id": "seguranca",       "workdir": "_handoff/fleet/seguranca",       "priority": 0.8, "gpu_heavy": true,  "cloud_heavy": false, "daysQuota": 2 },
     { "id": "bench-eval",      "workdir": "_handoff/fleet/bench-eval",      "priority": 0.7, "gpu_heavy": true,  "cloud_heavy": false, "daysQuota": 2 },
-    { "id": "council",         "workdir": "_handoff/fleet/council",         "priority": 0.7, "gpu_heavy": false, "cloud_heavy": true,  "daysQuota": 2 },
+    { "id": "council",         "workdir": "_handoff/fleet/council",         "priority": 0.7, "gpu_heavy": true,  "cloud_heavy": false, "daysQuota": 2 },
+    { "id": "cronista",        "workdir": "_handoff/fleet/cronista",        "priority": 0.6, "gpu_heavy": false, "cloud_heavy": false, "daysQuota": 6 },
     { "id": "integracoes-llm", "workdir": "_handoff/fleet/integracoes-llm", "priority": 0.7, "gpu_heavy": true,  "cloud_heavy": false, "daysQuota": 2 },
     { "id": "lora-dora",       "workdir": "_handoff/fleet/lora-dora",       "priority": 0.6, "gpu_heavy": true,  "cloud_heavy": false, "daysQuota": 1 },
     { "id": "vscode-plugin",   "workdir": "_handoff/fleet/vscode-plugin",   "priority": 0.6, "gpu_heavy": false, "cloud_heavy": false, "daysQuota": 3 },
