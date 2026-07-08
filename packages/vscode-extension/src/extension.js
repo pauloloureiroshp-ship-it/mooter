@@ -4555,11 +4555,13 @@ function getHtml(guardianPct = null) {
   .hwbar>span{display:block;height:100%;transition:width .5s ease}
   .hwstrip .nd{font-style:italic;opacity:.7}
   .hwstrip .lwhy{font-size:9px}
+  .hwc-nd{opacity:.8}/* F2 · grouped honest absence chip — muted so absences don't compete with live signals */
   /* 🏁 Pipeline conveyor */
   .pipeline{margin:0 0 8px;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
   .prail{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
   .pstage{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--vscode-widget-border);background:var(--vscode-input-background)}
   .pstage.bott{border-color:var(--warn);color:var(--warn)}
+  .pstage-nd{opacity:.5}/* F2 · un-sourced stage (spec/plan have no per-session signal yet) — muted, not measured-empty */
   .parrow{opacity:.4;font-size:10px}
   .pipeline .lwhy{font-size:9px;margin-top:4px;display:block}
   /* ⇄ Handoff flow — animated particle down each pipe (reduced-motion disables it globally). */
@@ -5182,6 +5184,34 @@ function getHtml(guardianPct = null) {
   .pc-phchip{font-size:8.5px;color:var(--bmuted);background:var(--surface2);border-radius:5px;padding:1px 6px;text-transform:uppercase;letter-spacing:.04em}
   .pc-estado{font-size:9.5px;color:var(--bmuted);margin:2px 0 5px}
   .pc-estado .pc-fk{color:var(--bmuted)}
+  /* ─────────────────────────────────────────────────────────────────────────
+     Calm Layout v1 (cockpit layout UX) — ADDITIVE refinements only. Layered at
+     the end so it overrides earlier rules by order; !important only where inline
+     styles on lens/herd/fleet cards would otherwise win. No markup changed.
+     Goal: one clear hierarchy — hero anchors, sections breathe, telemetry recedes.
+     ───────────────────────────────────────────────────────────────────────── */
+  /* rhythm — let vertical space carry the structure instead of stacked borders */
+  #v-cockpit>.card,#v-cockpit>.lens,#v-cockpit>.pincard{margin-bottom:12px!important}
+  #v-cockpit>.card{border-radius:10px;border-color:color-mix(in srgb,var(--vscode-widget-border) 65%,transparent)}
+  #v-cockpit>.card:not(.hero):not(.collapsed){padding:14px 14px}
+  /* hero — the ONE number that matters gets weight, air, and a softer frame */
+  #v-cockpit>.card.hero{padding:17px 16px 15px;border-radius:13px;border-color:color-mix(in srgb,var(--g) 55%,transparent)}
+  .hero .big{font-size:35px;line-height:1.05;letter-spacing:-.6px;margin:1px 0 3px}
+  .hero .lbl{font-size:10.5px;margin-bottom:3px}
+  /* section headers — consistent, quiet, a touch more air so each card reads as one block */
+  #v-cockpit .card>.collaphead,#v-cockpit .lens>.collaphead,#v-cockpit .pincard>.collaphead{
+    font-size:10.5px;letter-spacing:.6px;opacity:.9}
+  #v-cockpit .card>.collaphead:hover,#v-cockpit .lens>.collaphead:hover{opacity:1}
+  /* collapsed telemetry — a quiet, tappable row (▸ label), not a wall of data */
+  #v-cockpit .card.collapsed,#v-cockpit .lens.collapsed{padding:9px 14px!important;opacity:.72;
+    transition:opacity .12s ease;background:color-mix(in srgb,var(--vscode-editorWidget-background) 60%,transparent)}
+  #v-cockpit .card.collapsed:hover,#v-cockpit .lens.collapsed:hover{opacity:1}
+  #v-cockpit .card.collapsed .chev,#v-cockpit .lens.collapsed .chev{opacity:.6}
+  /* command bar — settle it into the chrome instead of competing as a loud pill */
+  .intentwrap{margin:9px 0 12px}
+  /* de-escalate the secondary red: keep the inbox turn loud, calm the rest */
+  #v-cockpit .pincard{border-color:color-mix(in srgb,var(--acc-warm) 45%,transparent)}
+  @media (prefers-reduced-motion:reduce){#v-cockpit .card.collapsed,#v-cockpit .lens.collapsed{transition:none}}
 </style></head><body class="mooter-adv-hidden">
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
@@ -5197,7 +5227,7 @@ function getHtml(guardianPct = null) {
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 run a command, or describe it… (→ /mooter command)"><button class="sm" id="intentGo" title="resolve to a Mooter command and offer to run it">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
 <!-- ARCH TREE TAB (Frente E · Arquitectura Viva) — renders purely from s.mc (MissionControlSnapshot). Separate from the Frente G Mission Control region. -->
-<div class="view" id="view-arch"><div id="v-arch"><div class="empty">🌳 Arquitectura viva — connecting…</div></div></div>
+<div class="view" id="view-arch"><div id="v-arch"><div class="empty">🔌 Arquitectura · system map — a ligar…</div></div></div>
 <div class="view" id="view-setup"><div id="v-setup"><div class="empty">…</div></div><div class="lbl" style="margin:14px 2px 6px">Install</div><div id="v-install"></div><div class="lbl" style="margin:14px 2px 6px">Models</div><div id="v-models"></div></div>
 <div class="view" id="view-herd"><div id="v-herd"><div class="empty">…</div></div></div>
 <div class="view" id="view-decisions"><div id="v-insights"></div><div id="v-decisions"><div class="empty">No decisions yet</div></div></div>
@@ -5266,7 +5296,19 @@ let ledgerScope='session';let lastSnap=null;
 // R6 · Mooter Score collapsed by DEFAULT (seeded on fresh state only) so its 6 items + fix buttons
 // stop stealing the cockpit — a 🎯 Score X/Y ⌄ chip that expands on click. Once the user toggles any
 // section, their persisted set wins (no re-surprise).
-const collapsed=new Set((function(){try{return (vsapi.getState()||{}).collapsed||['score'];}catch{return ['score'];}})());
+// Calm-by-default (cockpit layout UX): fresh installs open with the value surface visible —
+// hero savings · live sessions · next-prompt model · router mix · tokens — and the insider
+// telemetry lenses (Flow/Economics/Foundations/Brain) + the local fleet + score BORN collapsed
+// (one click to expand, choice persists). Existing users keep their saved layout (persisted set wins).
+const _CALM_COLLAPSED=['score','lens-flow','lens-econ','lens-found','lens-brain','fleet'];
+const collapsed=new Set((function(){try{
+  const st=vsapi.getState()||{};
+  // One-time layout migration: existing users adopt the calm default ONCE (the insider lenses
+  // fold in on top of whatever they had), then the flag stops it re-applying so every later
+  // toggle persists normally. Fresh installs (no saved state) just start calm.
+  if(!st.layoutCalmV1){st.layoutCalmV1=1;st.collapsed=[...new Set([...(st.collapsed||[]),..._CALM_COLLAPSED])];try{vsapi.setState(st);}catch{}}
+  return st.collapsed||_CALM_COLLAPSED;
+}catch{return _CALM_COLLAPSED;}})());
 function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
 // Sessions-always-visible (runtime-diagnosed via _handoff/herd-diag.json): a persisted 'grp:*'
 // project-group collapse survives reload and is BORN collapsed (cc()→.grpsec.collapsed → the CSS
@@ -5497,7 +5539,7 @@ function renderFlowLens(s){
   else if(pc.forecast_missing){body='<div class="nd">forecast por gerar</div>'+(pc.cli_hint?'<div class="lwhy">'+esc(String(pc.cli_hint))+'</div>':'');}
   else{
     var w=(pc.flow&&pc.flow.wip)||{};
-    var wipTxt=(w.active==null&&w.total==null)?lNd():('<b>'+(w.active==null?'—':w.active)+'</b> em curso · '+(w.total==null?'—':w.total)+' wt (lim '+(w.limit||3)+')'+(w.over?' <span style="color:var(--warn)">⚠ acima</span>':''));
+    var wipTxt=(w.active==null&&w.total==null)?lNd():('<b>'+(w.active==null?lNd():w.active)+'</b> em curso · '+(w.total==null?lNd():w.total)+' wt (lim '+(w.limit||3)+')'+(w.over?' <span style="color:var(--warn)">⚠ acima</span>':''));
     body+='<div class="lrow"><span class="lk">WIP</span><span class="lv">'+wipTxt+'</span></div>';
     var needN=(pc.flow&&pc.flow.need_you)?pc.flow.need_you.length:0;
     var dep=pc.flow&&pc.flow.deploy_freq_per_week,wd=pc.flow&&pc.flow.waves_done;
@@ -5524,11 +5566,13 @@ function renderEconomicsLens(s){
   var m=(s&&s.metrics)||{},eff=s&&s.effectiveSession;var M=(eff&&s.sessionMetrics)?s.sessionMetrics:m;
   var decs=(s&&s.decisions)||[],decScoped=eff?decs.filter(function(d){return d&&d.sid===eff;}):decs;
   var body='';
-  body+='<div class="lrow"><span class="lk">Poupança</span><span class="lv">$'+Number(M.saved||0).toFixed(2)+' <span class="lwhy">('+(M.saved_pct||0)+'% abaixo de all-Opus · advisory)</span></span></div>';
+  // F2 · honesto — a null saved_pct shows n/d, not a fabricated "0%" (the $ stays advisory).
+  body+='<div class="lrow"><span class="lk">Poupança</span><span class="lv">$'+Number(M.saved||0).toFixed(2)+' <span class="lwhy">('+(M.saved_pct!=null?(M.saved_pct+'% abaixo de all-Opus · advisory'):(lNd()+' · advisory'))+')</span></span></div>';
   // R5 · densidade — mini-barra do % poupado vs all-Opus. saved_pct é real/advisory; sem fonte → n/d (honesto).
   var svRaw=(M&&M.saved_pct!=null)?Number(M.saved_pct):null;
-  if(svRaw==null){body+='<div class="lrow"><span class="lk"></span><span class="lv">'+lNd()+' <span class="lwhy">% vs all-Opus</span></span></div>';}
-  else{var svPct=Math.max(0,Math.min(100,svRaw));body+='<div class="lrow"><span class="lk"></span><span class="lbar" title="'+svPct+'% abaixo de all-Opus (advisory)"><span style="width:'+svPct+'%;background:var(--ok)"></span></span><span class="lwhy">'+svPct+'% vs all-Opus</span></div>';}
+  // F2 · n/d agrupado — a bare "n/d % vs all-Opus" bar under the Poupança row is pure noise; render the
+  // mini-bar only when there is a real percentage (the Poupança row above already states the advisory %).
+  if(svRaw!=null){var svPct=Math.max(0,Math.min(100,svRaw));body+='<div class="lrow"><span class="lk"></span><span class="lbar" title="'+svPct+'% abaixo de all-Opus (advisory)"><span style="width:'+svPct+'%;background:var(--ok)"></span></span><span class="lwhy">'+svPct+'% vs all-Opus</span></div>';}
   if(!(s&&s.trackerUp))body+='<div class="lwhy" style="color:var(--acc-warm)">⚠ tracker offline — último conhecido</div>';
   var gs=(typeof M.guaranteed_saved==='number')?M.guaranteed_saved:0,oa=M.option_a_hits||0;
   body+='<div class="lrow"><span class="lk">Real ✓</span><span class="lv" style="color:var(--ok)">$'+gs.toFixed(2)+' · '+oa+' dispatch'+(oa===1?'':'es')+' local'+(oa===1?'':'is')+' reais</span></div>';
@@ -5538,7 +5582,10 @@ function renderEconomicsLens(s){
     body+='<div class="lrow"><span class="lk">Router mix</span><span class="lbar">'+seg+'</span><span class="lwhy">'+tot+' decisões (contagens, não $)</span></div>';
   } else body+='<div class="lrow"><span class="lk">Router mix</span><span class="lv">'+lNd()+'</span></div>';
   var bud=(s&&s.budget&&s.budget.monthly_budget_usd)||0;
-  body+='<div class="lrow"><span class="lk">Budget</span><span class="lv">'+(bud>0?('tecto $'+bud+'/mês'):lNd())+' · <span class="lwhy">gasto n/d</span></span></div>';
+  // F2 · n/d agrupado — when there is no budget source, state the cost absence ONCE (was "n/d · gasto n/d").
+  if(bud>0)body+='<div class="lrow"><span class="lk">Budget</span><span class="lv">tecto $'+bud+'/mês <span class="lwhy">· gasto n/d</span></span></div>';
+  else body+='<div class="lrow"><span class="lk">Custo</span><span class="lv">'+lNd()+' <span class="lwhy">sem fonte de gasto (budget · gasto n/d)</span></span></div>';
+  // Economics owns the plan/subscription line (single home — dropped from the hardware strip + Foundations chip).
   var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
   body+='<div class="lrow"><span class="lk">Plano</span><span class="lv">'+(plan||lNd())+' <span class="lwhy">· %/sem n/d</span></span></div>';
   body+='<div class="lwhy" style="margin-top:2px">a poupança vem do <b>routing</b> (a máquina responde; o tier é recomendação, não fatura) — não de trade-off de qualidade.</div>';
@@ -5555,9 +5602,12 @@ function renderFoundationsLens(s){
   var docColor=fail?'var(--danger)':(warn?'var(--warn)':'var(--ok)');
   var docChip='<span class="lchip" style="border-color:'+docColor+'" title="'+fail+' a falhar · '+warn+' avisos">🩺 Doctor '+pass+'/'+checks.length+(fail?' · '+fail+' ✗':' ✓')+'</span>';
   var secChip=(s&&s.security&&String(s.security).trim())?'<span class="lchip" title="resumo do CLI mooter security (sandbox 4-layer)">🛡️ Security · sandbox 4-layer</span>':'<span class="lchip">🛡️ Security · '+lNd()+'</span>';
-  var gpu=(s&&s.hw&&s.hw.name)||(s&&s.device&&s.device.hardware&&s.device.hardware.gpu)||null;
-  var setup=(gpu?esc(String(gpu)):lNd())+' · '+((s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):lNd())+' · '+Object.keys((s&&s.packs)||{}).length+' packs';
-  var body='<div class="lrow" style="flex-wrap:wrap;gap:6px">'+archChip+docChip+secChip+'<span class="lchip" title="hardware · subscription · packs">⚙️ '+setup+'</span></div>';
+  // F2 · sem duplicação — the subscription profile moves to Economics (single home). The GPU NAME here reads
+  // the STATIC hw-capability profile (s.hw / s.device) — a DISTINCT datum from the strip's LIVE nvidia-smi
+  // utilisation, so it stays: the strip may read n/d live while the machine's GPU model is still known here.
+  var gpuName=(s&&s.hw&&s.hw.name)||(s&&s.device&&s.device.hardware&&s.device.hardware.gpu)||null;
+  var setup=(gpuName?esc(String(gpuName)):lNd())+' · '+Object.keys((s&&s.packs)||{}).length+' packs';
+  var body='<div class="lrow" style="flex-wrap:wrap;gap:6px">'+archChip+docChip+secChip+'<span class="lchip" title="GPU (perfil estático) · packs instalados">⚙️ '+setup+'</span></div>';
   body+='<div class="lrow" style="margin-top:3px"><span class="llink" data-goto="doctor" role="button" tabindex="0">Doctor ↗</span></div>';
   return '<div class="card lens'+cc('lens-found')+'" data-collap="lens-found" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🏗️ Foundations</div><div class="lens-body">'+body+'</div></div>';
 }
@@ -5568,14 +5618,16 @@ function renderFoundationsLens(s){
 function renderBrainLens(s){
   var ins=(s&&s.insights)||{},nDec=((s&&s.decisions)||[]).length,body='';
   // R5 · densidade — Pastor como chips (conf · cache · N) em vez de uma linha corrida; mesma honestidade.
-  body+='<div class="lrow" style="flex-wrap:wrap;gap:6px"><span class="lk">🧠 Pastor</span><span class="lchip" title="confiança do Pastor (s.insights)">conf '+(ins.confNow!=null?esc(String(ins.confNow)):'—')+'</span><span class="lchip" title="taxa de cache do Pastor">cache '+(ins.cacheRate!=null?esc(String(ins.cacheRate)):'—')+'</span><span class="lchip" title="decisões observadas">N='+nDec+'</span><span class="lwhy">TF-IDF, não neural</span></div>';
+  body+='<div class="lrow" style="flex-wrap:wrap;gap:6px"><span class="lk">🧠 Pastor</span><span class="lchip" title="confiança do Pastor (s.insights)">conf '+(ins.confNow!=null?esc(String(ins.confNow)):lNd())+'</span><span class="lchip" title="taxa de cache do Pastor">cache '+(ins.cacheRate!=null?esc(String(ins.cacheRate)):lNd())+'</span><span class="lchip" title="decisões observadas">N='+nDec+'</span><span class="lwhy">TF-IDF, não neural</span></div>';
   var gf=(s&&s.mc&&s.mc.totals&&s.mc.totals.ctxFull);
   var gTxt=(gf==null)?lNd():(gf>0?('⚠ '+gf+' sessõe'+(gf===1?'':'s')+' ≥80% ctx'):'🟢 contexto saudável');
   var ac=(typeof GUARDIAN_AUTOCOMPACT_PCT==='number')?(' · auto-compact @'+GUARDIAN_AUTOCOMPACT_PCT+'%'):'';
   body+='<div class="lrow"><span class="lk">🛡️ Guardian</span><span class="lv">'+gTxt+ac+'</span></div>';
   var led=s&&s.ledger,lsess=(led&&led.sessions!=null)?led.sessions:null,hm=(led&&led.session&&led.session.lastModel)||null;
   body+='<div class="lrow"><span class="lk">📒 Ledger</span><span class="lv">'+(lsess==null?lNd():(lsess+' sessões'))+(hm?(' · host '+esc(String(hm))):'')+'</span></div>';
-  body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv">sessão ✓ · projeto ✓ <span class="lwhy">(ação)</span></span></div>';
+  // F2 · honesto — this is a fixed capability (copy session/project handoff), not a live green health
+  // signal; render it as a capability so the constant ✓✓ stops reading as live status among the live rows.
+  body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv"><span class="lwhy">copia</span> sessão · projeto <span class="lwhy">(ação)</span></span></div>';
   body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Insights ↗</span></div>';
   return '<div class="card lens'+cc('lens-brain')+'" data-collap="lens-brain" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">'+body+'</div></div>';
 }
@@ -5596,15 +5648,15 @@ function renderHwStrip(s){
     chips+='<span class="hwc" title="'+esc(String(name))+' · utilização de compute (nvidia-smi)">🎮 '+(util!=null?('<b>'+util+'%</b>'):lNd())+' <span class="hwbar"><span style="width:'+barPct+'%;background:'+barColor+'"></span></span></span>';
     chips+='<span class="hwc" title="VRAM em uso">🧠 '+((usedPct!=null)?('<b>'+usedPct+'%</b> VRAM'):lNd())+'</span>';
     chips+='<span class="hwc" title="quantos moos locais cabem na VRAM livre (overclock)">🟢 cabem <b>'+(fits!=null?('+'+fits):'n/d')+'</b> moos</span>';
+    // F2 · n/d agrupado — temp + CPU never carry a source in this snapshot; group the two absences
+    // into ONE muted chip instead of scattering two separate n/d cells along the live strip.
+    chips+='<span class="hwc hwc-nd" title="este snapshot não amostra temperatura nem CPU">🌡️ sensores '+lNd()+' <span class="lwhy">temp · CPU</span></span>';
   } else {
-    chips+='<span class="hwc" title="nvidia-smi não escreveu cache — sem GPU NVIDIA ou monitor parado">🎮 GPU '+lNd()+' <span class="lwhy">nvidia-smi ausente</span></span>';
+    // F2 · n/d agrupado — no hardware source at all: ONE honest chip, not four scattered n/d cells.
+    chips+='<span class="hwc hwc-nd" title="nvidia-smi não escreveu cache — sem GPU NVIDIA ou monitor parado">🎮 hardware '+lNd()+' <span class="lwhy">nvidia-smi ausente</span></span>';
   }
   var tps=(s&&s.localSpeed&&s.localSpeed.latest&&s.localSpeed.latest.tps!=null)?s.localSpeed.latest.tps:null;
   if(tps!=null)chips+='<span class="hwc" title="tok/s local medido (WS1)">⚡ <b>'+tps+'</b> tok/s</span>';
-  chips+='<span class="hwc" title="a nvidia-smi neste cache não reporta temperatura">🌡️ '+lNd()+'</span>';
-  chips+='<span class="hwc" title="sem amostragem de CPU no snapshot">CPU '+lNd()+'</span>';
-  var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
-  chips+='<span class="hwc" title="plano de subscrição · limite semanal não exposto">💳 '+(plan||lNd())+' <span class="lwhy">%/sem n/d</span></span>';
   return '<div class="hwstrip" role="group" aria-label="hardware">'+chips+'</div>';
 }
 // 🏁 Pipeline — spec→plan→exec→review→ship. Load is derived from each session's REAL git/state signal
@@ -5622,19 +5674,23 @@ function renderPipeline(s){
   }
   var max=0,bott=null,k;for(k in load){if(load[k]>max){max=load[k];bott=k;}}
   var segs='',q;for(q=0;q<stages.length;q++){var key=stages[q][0],n=load[key],isB=(bott===key&&max>0);
-    segs+='<span class="pstage'+(isB?' bott':'')+'" title="'+key+' · '+n+' sessõe'+(n===1?'':'s')+(isB?' · gargalo':'')+'">'+stages[q][1]+' '+key+' <b>'+n+'</b>'+(isB?' ⛔':'')+'</span>';
+    // F2 · honesto — spec/plan have no per-session stage signal yet, so they are always 0. Mute them so
+    // the hard "0" reads as "un-sourced" rather than measured-empty (the count stays truthful).
+    var unsourced=(key==='spec'||key==='plan');
+    segs+='<span class="pstage'+(isB?' bott':'')+(unsourced?' pstage-nd':'')+'" title="'+key+' · '+(unsourced?'sem sinal por sessão · ':'')+n+' sessõe'+(n===1?'':'s')+(isB?' · gargalo':'')+'">'+stages[q][1]+' '+key+' <b>'+n+'</b>'+(isB?' ⛔':'')+'</span>';
     if(q<stages.length-1)segs+='<span class="parrow">→</span>';
   }
   var foot=placed?(placed+'/'+rows.length+' sessões colocadas · derivado de git/estado'):(rows.length?'sem sinal de etapa por sessão — n/d':'sem sessão ativa · as 5 etapas iluminam-se quando abres uma');
   return '<div class="pipeline" role="group" aria-label="pipeline spec plan exec review ship"><div class="prail">'+segs+'</div><span class="lwhy">🏁 '+foot+'</span></div>';
 }
-// ⇄ Handoff flow — the context river (Cowork→CC→moos→Ledger) with a particle down each pipe. Purely
-// decorative + honest legend; the animation is CSS-only so reduced-motion switches it off globally.
+// ⇄ Handoff flow — a diagram/legend of the context path (Cowork→CC→moos→Ledger). The particle is CSS-only
+// decoration (reduced-motion stills it). F2 · honesto: it is a static map, NOT a live work-aware feed —
+// the legend says so, so the animation stops reading as data flowing when nothing is being measured.
 function renderHandoffFlow(){
   var pipe='<span class="hpipe"><span class="hpart"></span></span>';
-  return '<div class="hoflow" role="img" aria-label="fluxo de handoff: Cowork → CC → moos → Ledger">'
+  return '<div class="hoflow" role="img" aria-label="mapa do caminho do contexto: Cowork → CC → moos → Ledger">'
     +'<span class="hnode">🧠 Cowork</span>'+pipe+'<span class="hnode">💬 CC</span>'+pipe+'<span class="hnode">🐮 moos</span>'+pipe+'<span class="hnode">📒 Ledger</span>'
-    +'<span class="lwhy" style="width:100%;margin-top:3px">nunca seca · nunca mente (work-aware)</span></div>';
+    +'<span class="lwhy" style="width:100%;margin-top:3px">mapa do caminho do contexto — Cowork → CC → moos → Ledger</span></div>';
 }
 // ── GUARDIAN:F1 ── pressure ladder + 🪶 chip embedded as webview siblings. In dev the
 // real advisor fn is injected (single source of truth); the inline mirror is the fallback
@@ -5662,7 +5718,7 @@ function wirePc(root){if(!root)return;wireButtons(root);
 // persisted axis, then wire it. Guarded so a bad render never blanks the tab (mirrors renderArchView).
 function renderPcView(s){
   const host=$('#v-pc');if(!host)return;
-  if(!s||!s.pc){host.innerHTML='<div class="empty">🛩️ Project command — sem snapshot ainda (espera o próximo refresh)…</div>';return;}
+  if(!s||!s.pc){host.innerHTML='<div class="empty">🛩️ Project command — à espera do primeiro snapshot…</div>';return;}
   let html;try{html=renderProjectCommand(s.pc,{axis:pcAxis});}catch(er){html='<div class="pc-nd">Project command — erro de render · '+esc(String(er&&er.message||er))+'</div>';}
   host.innerHTML=html;try{wirePc(host);}catch(e){}
 }
@@ -6155,7 +6211,7 @@ window.addEventListener('message',(e)=>{
   // Honest: no snapshot.mc yet → "sem snapshot". Never throws (guarded); wires Moo + pilot bus.
   try{
     const vmc=$('#v-mc');
-    if(vmc){ vmc.innerHTML=s.mc?renderMissionControl(s.mc):'<div class="empty">Mission Control — sem snapshot ainda (espera o próximo refresh)…</div>'; wireMc(vmc); }
+    if(vmc){ vmc.innerHTML=s.mc?renderMissionControl(s.mc):'<div class="empty">Mission Control — à espera do primeiro snapshot…</div>'; wireMc(vmc); }
   }catch(_mc){ try{const vmc2=$('#v-mc');if(vmc2)vmc2.innerHTML='<div class="mc-nd">Mission Control — erro de render</div>';}catch(__mc){} }
   // ── DELIVERY COCKPIT TAB · Frente B — render the Project command tab PURELY from s.pc.
   // Honest: no snapshot.pc yet → "sem snapshot". Never throws (guarded); wires chevron + rows.
