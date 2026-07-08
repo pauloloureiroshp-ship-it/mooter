@@ -4,6 +4,7 @@ import './globals.css';
 import CmdKPalette from './_components/CmdKPalette';
 import LpErrorTap from './_components/LpErrorTap';
 import versionInfo from './version.json';
+import { M } from './lib/canonical-metrics';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -59,17 +60,17 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'mooter — The router for Claude Code',
-    description: '47% saved vs all-Opus across 658 routed calls — real data from the author’s own machine, not a community average. Open source · MIT.',
+    description: `${M.savedPct} saved vs all-Opus across ${M.routedCalls} routed calls — real data from the author’s own machine, not a community average. Open source · MIT.`,
     type: 'website',
     url: 'https://mooter.ai',
     siteName: 'mooter',
-    images: [{ url: '/api/og?savings=47%25', width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
+    images: [{ url: `/api/og?savings=${encodeURIComponent(M.savedPct)}`, width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'mooter — The router for Claude Code',
-    description: '47% saved vs all-Opus across 658 routed calls. Real data. Zero proxy. Just a hook. MIT.',
-    images: ['/api/og?savings=47%25'],
+    description: `${M.savedPct} saved vs all-Opus across ${M.routedCalls} routed calls. Real data. Zero proxy. Just a hook. MIT.`,
+    images: [`/api/og?savings=${encodeURIComponent(M.savedPct)}`],
   },
 };
 

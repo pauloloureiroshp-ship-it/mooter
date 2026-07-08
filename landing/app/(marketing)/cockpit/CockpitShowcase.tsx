@@ -5,6 +5,7 @@ import Eyebrow from '@/components/Eyebrow';
 import Card from '@/components/Card';
 import Btn from '@/components/Btn';
 import MooterMark from '@/components/MooterMark';
+import { M } from '../../lib/canonical-metrics';
 
 // Wave 60 — port of _handoff/mock/export-source/mooter-v1-cockpit.jsx
 // (CockpitArtboard + CockpitPlugin + tab bodies) into real TSX. The VS Code
@@ -413,12 +414,12 @@ function CockpitTab({
                       color: offline ? V.text : GREEN,
                     }}
                   >
-                    $25.95
+                    {M.paidUsd}
                   </span>
-                  <span style={{ fontFamily: MONO, fontSize: 12, color: GREEN }}>47% below</span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: GREEN }}>{M.savedPct} below</span>
                 </div>
                 <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim, marginTop: 3 }}>
-                  real <span style={{ color: V.text }}>$25.95</span> vs naive <span style={{ color: V.dim }}>$48.90</span>
+                  real <span style={{ color: V.text }}>{M.paidUsd}</span> vs naive <span style={{ color: V.dim }}>{M.baselineUsd}</span>
                 </div>
               </div>
               <Sparkline values={[2, 3, 2.4, 4, 3.2, 5, 4.6, 6.1]} color={offline ? V.dim : GREEN} />
@@ -1286,7 +1287,7 @@ function CockpitPlugin({ width, scenario }: { width: Width; scenario: Scenario }
 const NOTES: [string, string][] = [
   [
     'honesty',
-    'Hero leads with the real $25.95 (green = genuine positive). In first-run, $0.00 is muted with a CTA — never green for a zero. Estimates carry “token-estimated · advisory”.',
+    `Hero leads with the real ${M.paidUsd} (green = genuine positive). In first-run, $0.00 is muted with a CTA — never green for a zero. Estimates carry “token-estimated · advisory”.`,
   ],
   [
     '≤5 tabs',
