@@ -201,11 +201,12 @@ function renderMissionControl(snapshot) {
   out += '</div><div class="mcf-menu" title="mais">⋯</div></div>';
 
   // ── 2 · Pilot actions ─────────────────────────────────────────────────────
+  // F2 · sem duplicação — Overclock lives ONLY in the GPU card (where the VRAM/fits context is); the pilot
+  // keeps spawn as the one quick action. Each of spawn/Overclock now renders once per screen, not twice.
   out += '<div class="mc-pilot">'
     + btn('❚❚ pausar tudo', 'pauseAll', null, 'mc-warn', 'escreve a flag global de pausa (os runners honram-na)')
     + btn('▶ retomar', 'resumeAll', null, '', 'limpa a flag de pausa')
     + btn('＋ spawn moo', 'spawnMoo', 'qwen3:30b', 'mc-ok', 'enche a GPU com um worker local ($0)')
-    + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
     + btn('⇄ handoff geral', 'projHandoff', (s.project || ''), '', 'gera o handoff do projecto e copia')
     + btn('🔄', 'refresh', null, '', 'força um refresh do snapshot')
     + '</div>';
@@ -405,6 +406,10 @@ function renderMissionControl(snapshot) {
     return '<div class="mcf-oc-counter" style="font-size:10.5px;margin-top:6px;line-height:1.55;border-top:1px solid var(--vscode-widget-border);padding-top:5px">'
       + '🔥 <b>Overclock Moo</b> · ' + parts + '</div>';
   }
+  // F2 · consistência — shared PREFIX for the GPU-absent state; the CAUSE stays branch-appropriate: the
+  // overclock branch implies a GPU exists (so the cause is a stalled monitor), while the fully-absent branch
+  // may also mean no NVIDIA GPU at all. (Was two fully-divergent strings; now unified prefix, honest cause.)
+  var gpuAbsentBase = '⚪ n/d — nvidia-smi não escreveu cache';
   out += '<div class="mc-card">';
   if (gpu && (gpu.totalMb != null || gpu.freeMb != null || gpu.gpus)) {
     var totMb = num(gpu.totalMb), freeMb = num(gpu.freeMb);
@@ -423,8 +428,7 @@ function renderMissionControl(snapshot) {
       + (tps == null ? '' : '<span class="mcf-bk"><b>' + Math.round(tps) + '</b> tok/s</span>')
       + '<span class="mcf-spacer"></span>'
       + '<span class="mcf-star">🏆 ' + (freeMb == null ? nd(null) : (freeMb / 1024).toFixed(1) + ' GB livre') + ' → cabem <b>' + (fits == null ? 'n/d' : ('+' + fits)) + '</b> moos</span>'
-      + btn('＋ spawn', 'spawnMoo', 'qwen3:30b', 'mc-ok')
-      + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
+      + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0) — spawn rápido na barra de topo')
       + '</div>';
     // segmented gauge: 10 slots; filled = used VRAM; trailing fits slots = ghost capacity.
     var SEG = 10;
@@ -448,14 +452,14 @@ function renderMissionControl(snapshot) {
   } else if (gpu && gpu.overclock) {
     // gpu-snapshot absent (no nvidia-smi) but we have overclock data — show minimal header + counter.
     out += '<div class="mc-lbl">🖥️ GPU</div>'
-      + '<div class="mc-nd" style="font-size:10.5px">⚪ n/d — nvidia-smi cache ausente (monitor parado?)</div>';
+      + '<div class="mc-nd" style="font-size:10.5px">' + gpuAbsentBase + ' (monitor parado)</div>';
     var ocHtml2 = ocCounter(oc);
     if (ocHtml2) out += ocHtml2;
     out += '<div style="margin-top:6px">'
       + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
       + '</div>';
   } else {
-    out += '<div class="mc-lbl">🖥️ GPU</div><div class="mc-nd">⚪ n/d — nvidia-smi não escreveu cache (sem GPU NVIDIA ou monitor parado)</div>';
+    out += '<div class="mc-lbl">🖥️ GPU</div><div class="mc-nd">' + gpuAbsentBase + ' (sem GPU NVIDIA ou monitor parado)</div>';
     out += '<div style="margin-top:6px">'
       + btn('🔥 Overclock', 'overclockMoo', null, 'mc-overclock', 'reclamar GPU ociosa com moos locais ($0)')
       + '</div>';

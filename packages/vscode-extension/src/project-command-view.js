@@ -114,8 +114,9 @@ function renderProjectCommand(pc, opts) {
     + '</div>';
 
   // ── FRONTEIRA: a jornada, não o agora (não duplica o Mission Control) ──────
-  out += '<div class="pc-frontier">🛩️ <b>A jornada</b> — o plano ao longo do tempo (waves · squads · forecast). '
-    + 'Para o <b>agora</b> vivo (sessões deste instante) → aba 🎛️ Mission Control.</div>';
+  // F2 · densidade — condensed to one dim line; the "→ Mission Control" cross-link moves into the title.
+  out += '<div class="pc-frontier" title="para o agora vivo (sessões deste instante) → aba 🎛️ Mission Control">'
+    + '🛩️ <b>A jornada</b> — o plano ao longo do tempo (waves · squads · forecast) · <span class="pc-dim">agora vivo → Mission Control</span></div>';
 
   // ── FLUXO / WIP band + "precisa de ti" (real signals) ─────────────────────
   out += flowBand(s.flow);
@@ -128,19 +129,29 @@ function renderProjectCommand(pc, opts) {
     out += '<div class="pc-banner pc-stale">⚠️ <b>Forecast STALE</b> — o roadmap mudou desde que este forecast foi gerado (o âmbito moveu-se). '
       + 'Corre o CLI outra vez para reconciliar; até lá os cones abaixo são do âmbito antigo.</div>';
   }
+  // F2 · n/d agrupado — scope_hash + generated_ts arrive together from forecast.json; when BOTH are absent
+  // state it once ("forecast por gerar") instead of two adjacent n/d chips in the premise banner.
+  var genTxt = s.generated_ts ? String(s.generated_ts).slice(0, 16).replace('T', ' ') : null;
+  var scopeCells = (scopeShort == null && genTxt == null)
+    ? '<span class="pc-sk"><span class="pc-nd">forecast por gerar — corre o CLI</span></span>'
+    : '<span class="pc-sk">âmbito congelado @ <b>' + (scopeShort ? esc(scopeShort) : '<span class="pc-nd">n/d</span>') + '</b></span>'
+      + '<span class="pc-vr"></span>'
+      + '<span class="pc-sk">gerado ' + nd(genTxt) + '</span>';
   out += '<div class="pc-scope">'
     + '<span class="pc-sk">distribuição, não promessa</span>'
     + '<span class="pc-vr"></span>'
-    + '<span class="pc-sk">âmbito congelado @ <b>' + (scopeShort ? esc(scopeShort) : '<span class="pc-nd">n/d</span>') + '</b></span>'
-    + '<span class="pc-vr"></span>'
-    + '<span class="pc-sk">gerado ' + nd(s.generated_ts ? String(s.generated_ts).slice(0, 16).replace('T', ' ') : null) + '</span>'
+    + scopeCells
     + (injTxt ? '<span class="pc-vr"></span><span class="pc-sk" title="injection rate — waves não-planeadas históricas / planeadas">📈 ' + esc(injTxt) + '</span>' : '')
     + '</div>';
 
+  // F2 · densidade — a 0-count legend entry ("◐ a calibrar 0 waves") reads as filler; show the quantifier
+  // only when there is a real non-zero cohort. The cone forecast explainer lives here ONCE (was reprinted
+  // on every cone card via pc-await).
   out += '<div class="pc-legend">'
     + '<span class="pc-st pc-cone">● forecast</span> P50/P90 com base'
-    + '<span class="pc-vr"></span><span class="pc-st pc-cal">◐ a calibrar</span> ' + (num(counts.calibrating) != null ? counts.calibrating : 0) + ' waves (n&lt;k eventos)'
-    + '<span class="pc-vr"></span><span class="pc-st pc-nob">○ sem base</span> ' + (num(counts.no_base) != null ? counts.no_base : 0) + ' waves (classe não declarada)'
+    + '<span class="pc-vr"></span><span class="pc-st pc-cal">◐ a calibrar</span>' + (num(counts.calibrating) ? ' ' + counts.calibrating + ' waves (n&lt;k eventos)' : '')
+    + '<span class="pc-vr"></span><span class="pc-st pc-nob">○ sem base</span>' + (num(counts.no_base) ? ' ' + counts.no_base + ' waves (classe não declarada)' : '')
+    + '<span class="pc-vr"></span><span class="pc-dim">🕰 o wall inclui a espera por ti; o work são só os moos activos</span>'
     + '</div>';
 
   // ── AXIS: por Fase ↔ por Squad ─────────────────────────────────────────────
@@ -191,10 +202,19 @@ function renderProjectCommand(pc, opts) {
       + ' <span class="pc-dim">· limite ' + (num(wip.limit) != null ? wip.limit : 3) + '</span>'
       + (over ? ' <span class="pc-wipx">⚠ acima</span>' : '') + '</span>';
 
-    // DORA-flavoured flow (real from git) + honest n/d where the Ledger is cold.
-    html += '<span class="pc-flowk" title="merges no main por semana (últimos 30d)">🚀 <b>' + (num(f.deploy_freq_per_week) != null ? f.deploy_freq_per_week : '<span class="pc-nd">n/d</span>') + '</b> <span class="pc-dim">merges/sem</span></span>';
+    // DORA-flavoured flow (real from git). F2 · n/d agrupado — show only the metrics that have a real value
+    // as chips, and collapse the cold ones (merges-freq · cycle-time) into ONE trailing "n/d — Ledger a
+    // calibrar" note instead of stamping a separate n/d chip per metric.
+    var depF = num(f.deploy_freq_per_week), cyc = num(f.cycle_time);
+    if (depF != null) html += '<span class="pc-flowk" title="merges no main por semana (últimos 30d)">🚀 <b>' + depF + '</b> <span class="pc-dim">merges/sem</span></span>';
     html += '<span class="pc-flowk" title="waves marcadas ✅ no roadmap">✅ <b>' + (num(f.waves_done) != null ? f.waves_done : 0) + '</b> <span class="pc-dim">entregues</span></span>';
-    html += '<span class="pc-flowk" title="tempo de ciclo intent→gate (chega quando o Ledger tiver spans)">⏱ <span class="pc-dim">cycle</span> ' + (num(f.cycle_time) != null ? esc(f.cycle_time) : '<span class="pc-nd">n/d — Ledger a calibrar</span>') + '</span>';
+    if (cyc != null) html += '<span class="pc-flowk" title="tempo de ciclo intent→gate">⏱ <span class="pc-dim">cycle</span> ' + esc(cyc) + '</span>';
+    if (depF == null || cyc == null) {
+      var miss = [];
+      if (depF == null) miss.push('merges/sem');
+      if (cyc == null) miss.push('cycle');
+      html += '<span class="pc-flowk pc-dim" title="métricas DORA — chegam quando o Ledger tiver spans">📉 ' + esc(miss.join(' · ')) + ' <span class="pc-nd">n/d</span> — Ledger a calibrar</span>';
+    }
     html += '</div>';
 
     // "precisa de ti" strip: the actual sessions, click-to-tab.
@@ -275,7 +295,7 @@ function renderProjectCommand(pc, opts) {
       }
       depHtml = '<span class="pc-deps"><span class="pc-depk">deps</span>' + chips.join('') + '</span>';
     } else {
-      depHtml = '<span class="pc-deps"><span class="pc-depk">deps</span><span class="pc-dep none">— nenhuma</span></span>';
+      depHtml = ''; // F2 · densidade — a dependency-free wave spends no chip on "deps — nenhuma".
     }
 
     // forecast line — never a fake cone.
@@ -286,10 +306,10 @@ function renderProjectCommand(pc, opts) {
       var wallTxt = (f.human && f.human.wall) ? esc(f.human.wall)
         : ('P50 wall ' + (human(f.p50_wall) || 'n/d') + ' · P90 wall ' + (human(f.p90_wall) || 'n/d'));
       var relTxt = (num(f.reliability) != null) ? (' <span class="pc-rel" title="cobertura empírica dos teus P90">· fiabilidade ' + Math.round(f.reliability * 100) + '%</span>') : '';
+      // F2 · densidade — the wall-vs-work explainer is printed ONCE in the legend, not per cone card.
       fcLine = '<div class="pc-fc pc-fc-cone" title="' + (f.premises && f.premises.reading ? esc(f.premises.reading) : 'distribuição se as premissas se mantiverem') + '">'
         + '<span class="pc-fk">⏱ trabalho</span> ' + workTxt
-        + ' <span class="pc-fk">🕰 relógio</span> ' + wallTxt + relTxt
-        + '<div class="pc-await">o wall inclui a espera por ti; o work são só os moos activos</div></div>';
+        + ' <span class="pc-fk">🕰 relógio</span> ' + wallTxt + relTxt + '</div>';
     } else if (f.state === 'calibrating') {
       fcLine = '<div class="pc-fc pc-fc-cal">📊 a calibrar <b>' + esc(f.calibrating_progress || ((num(f.samples_n) != null ? f.samples_n : 0) + '/' + (num(s.k) != null ? s.k : 8))) + '</b>'
         + ' — sem cone até haver base comparável <span class="pc-fk">(≥ k eventos da classe)</span></div>';
@@ -329,7 +349,7 @@ function renderProjectCommand(pc, opts) {
 
     var subs = '<div class="pc-subs" data-wave-subs="' + id + '" hidden>';
     if (sess.length) { for (var xi = 0; xi < sess.length; xi++) subs += sessionRow(sess[xi]); }
-    else subs += '<div class="pc-nd" style="padding:6px 8px">⚪ nenhuma sessão ligada — associa-se via masterprompt no Ledger (kind:intent) ou nome/worktree</div>';
+    else subs += '<div class="pc-nd" style="padding:6px 8px" title="associa-se via masterprompt no Ledger (kind:intent) ou nome/worktree">⚪ nenhuma sessão ligada</div>';
     subs += '</div>';
 
     // squad chip (phase axis) / phase chip (squad axis) — the wave↔squad↔phase linkage, visible.
@@ -372,23 +392,29 @@ function renderProjectCommand(pc, opts) {
     var stCls = (ss.status === 'working') ? 'work' : (ss.status === 'needs-you' ? 'warn' : 'idle');
     var stTitle = (ss.status === 'working') ? 'a trabalhar' : (ss.status === 'needs-you' ? 'à tua espera' : 'inactiva');
     var dirty = num(ss.dirty), ahead = num(ss.ahead);
-    var gitPin = (ss.branch != null)
-      ? '<span class="pc-gitpin"><span class="pc-branch">' + esc(ss.branch) + '</span>' + (ss.sha ? '<span class="pc-sha">@' + esc(ss.sha) + '</span>' : '') + '</span>'
-      : '<span class="pc-nd">sem branch</span>';
-    var chips = '<span class="pc-chip' + (dirty ? ' pc-red' : '') + '" title="uncommitted — alterações por guardar num commit">✎ ' + (dirty == null ? '<span class="pc-nd">n/d</span>' : dirty) + '</span>'
-      + '<span class="pc-chip' + (ahead ? ' pc-amber' : '') + '" title="unpushed — commits por enviar ao remoto">↑ ' + (ahead == null ? '<span class="pc-nd">n/d</span>' : ahead) + '</span>';
-    var tail = ss.sid
-      ? '<span class="pc-open" title="abrir/focar esta sessão no VS Code">🔗</span>'
-      : '<span class="pc-nd">🔗 n/d</span>';
+    // F2 · n/d agrupado — a session with zero git signals (no branch/dirty/ahead/sid) states it ONCE
+    // instead of scattering four separate n/d tokens (sem branch · ✎ n/d · ↑ n/d · 🔗 n/d) across the row.
+    var gitRegion;
+    if (ss.branch == null && dirty == null && ahead == null && !ss.sid) {
+      gitRegion = '<span class="pc-spacer"></span><span class="pc-nd">n/d — sessão sem sinais git</span>';
+    } else {
+      var gitPin = (ss.branch != null)
+        ? '<span class="pc-gitpin"><span class="pc-branch">' + esc(ss.branch) + '</span>' + (ss.sha ? '<span class="pc-sha">@' + esc(ss.sha) + '</span>' : '') + '</span>'
+        : '<span class="pc-nd">sem branch</span>';
+      var chips = '<span class="pc-chip' + (dirty ? ' pc-red' : '') + '" title="uncommitted — alterações por guardar num commit">✎ ' + (dirty == null ? '<span class="pc-nd">n/d</span>' : dirty) + '</span>'
+        + '<span class="pc-chip' + (ahead ? ' pc-amber' : '') + '" title="unpushed — commits por enviar ao remoto">↑ ' + (ahead == null ? '<span class="pc-nd">n/d</span>' : ahead) + '</span>';
+      var tail = ss.sid
+        ? '<span class="pc-open" title="abrir/focar esta sessão no VS Code">🔗</span>'
+        : '<span class="pc-nd">🔗 n/d</span>';
+      gitRegion = gitPin + '<span class="pc-spacer"></span>' + chips + tail;
+    }
     var attr = ss.sid ? (' data-a="openSession" data-x="' + esc(ss.sid) + '" role="button" tabindex="0"') : '';
     var cls = 'pc-srow' + (ss.sid ? ' link' : '') + (dirty ? ' dirty' : '');
     return '<div class="' + cls + '"' + attr + '>'
       + '<span class="pc-sdot ' + stCls + '" title="' + esc(stTitle) + '"></span>'
       + '<span class="pc-stopic">' + topicEmoji(ss) + '</span>'
       + '<span class="pc-sname">' + nd(ss.name) + '</span>'
-      + gitPin
-      + '<span class="pc-spacer"></span>'
-      + chips + tail
+      + gitRegion
       + '</div>';
   }
 }

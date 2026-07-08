@@ -43,7 +43,6 @@ export default function Page() {
 
               <h1 className="hero-h1" style={{ fontSize: 'clamp(56px, 13vw, 168px)', fontWeight: 700, lineHeight: 0.92, margin: '22px 0 0', display: 'inline-flex', alignItems: 'flex-start', gap: 8 }}>
                 Got
-                <CrookOutline size={48} />
                 Moo<span style={{ color: 'var(--color-accent)' }}>?</span>
               </h1>
 

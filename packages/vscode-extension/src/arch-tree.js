@@ -108,7 +108,8 @@ function renderArchTree(snapshot, mode) {
     if (g.ahead != null && g.ahead > 0) marks += '<span class="arch-mk ahead" title="commits por enviar (push)">↑' + g.ahead + '</span>';
     var model = sess.model ? ('<span class="arch-model">' + famEmojiL(sess.model) + ' ' + esc(modelShort(sess.model)) + '</span>') : ('<span class="arch-model">' + nd + '</span>');
     var tin = fmtTok(sess.tokIn), tout = fmtTok(sess.tokOut);
-    var tok = (tin != null || tout != null) ? ('<span class="arch-tok">↓' + (tin != null ? tin : 'n/d') + ' ↑' + (tout != null ? tout : 'n/d') + '</span>') : '';
+    // F2 · consistência — absent tokens use the styled honest-absence span (nd), like the model slot above.
+    var tok = (tin != null || tout != null) ? ('<span class="arch-tok">↓' + (tin != null ? tin : nd) + ' ↑' + (tout != null ? tout : nd) + '</span>') : '';
     var open = sid ? ' data-arch-sid="' + esc(sid) + '" role="button" tabindex="0"' : '';
     var name = sess.topic || sess.name || '';
     return '<div class="arch-leaf arch-gitrow ' + gitState(sess) + '"' + open + ' aria-label="abrir ramo: ' + esc(name) + '" title="abrir esta sessão — ' + esc(name) + '">'
@@ -129,35 +130,46 @@ function renderArchTree(snapshot, mode) {
     + gitRows + '</div></div>';
 
   // contratos — nó estrutural (todas as vistas renderizam do MESMO snapshot §6). Sem métricas inventadas.
-  var contratos = conn('📜 contratos', '<span class="arch-dash live"></span>', '🧩 schema §6 · 1 snapshot', 'contrato de dados — Cockpit/Mission Control/system map renderizam do mesmo snapshot');
+  // F2 · honesto — this is a CONSTANT structural fact, not a live measurement, so it uses the STATIC dash
+  // (no 'live' pulse). The animated flow is reserved for genuinely live signals (online devices, active loops).
+  var contratos = conn('📜 contratos', '<span class="arch-dash"></span>', '🧩 schema §6 · 1 snapshot', 'contrato de dados — Cockpit/Mission Control/system map renderizam do mesmo snapshot');
 
-  // hub → devices (Frente F). null → honest "sync pending".
-  var remoteBlock;
-  if (s.remote && Array.isArray(s.remote.devices) && s.remote.devices.length) {
+  // hub → devices (Frente F). Live only when the remote cache carries devices.
+  var remoteLive = !!(s.remote && Array.isArray(s.remote.devices) && s.remote.devices.length);
+  var remoteBlock = '';
+  if (remoteLive) {
     var drows = '';
     for (var di = 0; di < s.remote.devices.length; di++) {
       var dv = s.remote.devices[di];
       drows += conn('🛰 hub', '<span class="arch-dash' + (dv.online ? ' live' : '') + '"></span>', (dv.online ? '🟢 ' : '⚪ ') + esc(dv.os || 'device') + ' <span style="opacity:.6">(' + (dv.sessions != null ? dv.sessions : '?') + ')</span>', 'dispositivo remoto via hub');
     }
     remoteBlock = drows;
-  } else {
-    remoteBlock = '<div class="arch-pending" title="o collector cross-machine (Frente F) ainda não escreveu o cache remote — estado normal até F aterrar">🔌 sync pending · hub→devices (Frente F)</div>';
   }
 
-  // registo → Notion/Obsidian. Aggregate per-session sync; null top-level → pending.
+  // registo → Notion/Obsidian. Aggregate per-session sync; live only when there is a real sync.
   var nCount = 0, oCount = 0;
   for (var si = 0; si < sessions.length; si++) {
     var sy = sessions[si] && sessions[si].sync;
     if (sy && sy.notion) nCount++;
     if (sy && sy.obsidian) oCount++;
   }
-  var regBlock;
-  if (nCount || oCount || s.sync) {
+  var regLive = !!(nCount || oCount || s.sync);
+  var regBlock = '';
+  if (regLive) {
     regBlock = conn('📝 registo', '<span class="arch-dash live"></span>', 'Ⓝ Notion <b>' + nCount + '</b> · Ⓞ Obsidian <b>' + oCount + '</b>', 'sessões com registo sincronizado (Notion/Obsidian)');
-  } else {
-    regBlock = '<div class="arch-pending" title="sem sincronização de registo detectada ainda (collector de sync — Frente F)">🔌 sync pending · registo→Notion/Obsidian</div>';
   }
-  var nodes = '<div class="arch-gitsec"><div class="lbl">🔗 nós &amp; fluxos</div>' + contratos + remoteBlock + regBlock + '</div>';
+
+  // F2 · n/d agrupado + iconografia — the not-yet-landed Frente F absences collapse into ONE muted pending
+  // block naming each pending sub-item once, with a distinct ⏳ glyph (🔌 stays reserved for the connected
+  // root, not the pending state). Honest: still "sync pending · Frente F", nothing fabricated.
+  var pending = '';
+  if (!remoteLive || !regLive) {
+    var pit = [];
+    if (!remoteLive) pit.push('hub→devices');
+    if (!regLive) pit.push('registo→Notion/Obsidian');
+    pending = '<div class="arch-pending" title="o collector cross-machine (Frente F) ainda não escreveu o cache — estado normal até F aterrar">⏳ sync pending · Frente F · ' + esc(pit.join(' · ')) + '</div>';
+  }
+  var nodes = '<div class="arch-gitsec"><div class="lbl">🔗 nós &amp; fluxos</div>' + contratos + remoteBlock + regBlock + pending + '</div>';
 
   // loops (autopilot) as flow connections.
   var loopBlock = '';
@@ -166,8 +178,10 @@ function renderArchTree(snapshot, mode) {
     var lrows = '';
     for (var lpi = 0; lpi < loops.length; lpi++) {
       var lp = loops[lpi];
-      var rnd = (typeof lp.round === 'number') ? (lp.round + (lp.maxRounds != null ? '/' + lp.maxRounds : '')) : 'n/d';
-      lrows += conn('🔁 ' + esc(lp.kind || 'loop'), '<span class="arch-dash' + (lp.active ? ' live' : '') + '"></span>', (lp.active ? '🟢 round ' : '⚪ round ') + esc(rnd) + (lp.model ? ' · ' + esc(modelShort(lp.model)) : ''), 'loop-runner — ' + (lp.active ? 'activo' : 'inactivo'));
+      // F2 · consistência — a numberless round renders the styled honest-absence span, not raw "n/d" text.
+      var hasRound = (typeof lp.round === 'number');
+      var roundHtml = hasRound ? esc(lp.round + (lp.maxRounds != null ? '/' + lp.maxRounds : '')) : nd;
+      lrows += conn('🔁 ' + esc(lp.kind || 'loop'), '<span class="arch-dash' + (lp.active ? ' live' : '') + '"></span>', (lp.active ? '🟢 round ' : '⚪ round ') + roundHtml + (lp.model ? ' · ' + esc(modelShort(lp.model)) : ''), 'loop-runner — ' + (lp.active ? 'activo' : 'inactivo'));
     }
     loopBlock = '<div class="arch-gitsec"><div class="lbl">🔁 Loops</div>' + lrows + '</div>';
   }

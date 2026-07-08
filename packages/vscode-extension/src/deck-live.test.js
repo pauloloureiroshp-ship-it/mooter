@@ -32,10 +32,12 @@ test('hardware strip reads s.mc.gpu; nvidia-smi absent ⇒ n/d, never crashes', 
   assert.match(S, /const hwStripCard=\(function\(\)\{try\{return renderHwStrip\(s\)/, 'strip is try/guarded');
 });
 
-test('hardware strip is honest: temp/CPU/Max render n/d (no source) — never fabricated', () => {
-  assert.match(S, /não reporta temperatura/, 'temp is n/d (nvidia-smi parser has no temp)');
-  assert.match(S, /sem amostragem de CPU/, 'CPU is n/d (no sampling)');
-  assert.match(S, /%\/sem n\/d/, 'weekly Max is n/d (no such datum)');
+test('hardware strip is honest: temp+CPU grouped into ONE n/d chip (no source) — never fabricated', () => {
+  // F2 · n/d agrupado — temp and CPU have no source in this snapshot, so they collapse into a single
+  // muted "sensores n/d" chip instead of two scattered n/d cells along the live strip.
+  assert.match(S, /não amostra temperatura nem CPU/, 'temp+CPU grouped into one honest absence chip');
+  assert.match(S, /🌡️ sensores '\+lNd\(\)/, 'the grouped chip renders one n/d, not two');
+  assert.match(S, /%\/sem n\/d/, 'weekly Max n/d now lives in the Economics plan line (single home)');
 });
 
 test('pipeline: 5 GSD stages, load from real git/state, bottleneck marked, spec/plan not faked', () => {
@@ -47,9 +49,11 @@ test('pipeline: 5 GSD stages, load from real git/state, bottleneck marked, spec/
   assert.match(S, /derivado de git\/estado/, 'load basis stated honestly');
 });
 
-test('handoff flow: Cowork→CC→moos→Ledger with the work-aware legend', () => {
-  assert.match(S, /🧠 Cowork[\s\S]{0,120}💬 CC[\s\S]{0,120}🐮 moos[\s\S]{0,120}📒 Ledger/, 'four-node river');
-  assert.match(S, /nunca seca · nunca mente \(work-aware\)/, 'honest legend');
+test('handoff flow: Cowork→CC→moos→Ledger as an honest static map (no false live claim)', () => {
+  assert.match(S, /🧠 Cowork[\s\S]{0,120}💬 CC[\s\S]{0,120}🐮 moos[\s\S]{0,120}📒 Ledger/, 'four-node path');
+  // F2 · honesto — it is a diagram of the context path, not a live work-aware feed.
+  assert.match(S, /mapa do caminho do contexto/, 'labelled as a static map');
+  assert.ok(!/work-aware/.test(S.replace(/\/\/[^\n]*/g, '')), 'the false "work-aware" live claim is gone');
 });
 
 test('header cow animates by mode (crazy/lazy/gentle)', () => {

@@ -3013,3 +3013,38 @@ Side effects: upsert em D1 `devices` table
 - ✅ VS Code ext F0 PASS · Kill Frugal W1-W3 em prod no Mac · heartbeat restaurado (1º real da história) · npm installer e2e validado
 - 🔜 Ler: docs/rebrand/{RECONCILE-BRIEF,KILL-FRUGAL-MASTERPROMPT}, packages/vscode-extension/docs/, docs/community/GOOD-FIRST-ISSUES.md
 - ⚠️ packs WIP (_packhint_entry.ts) continua unstaged no Mac — terminar antes de mais waves
+
+<!-- mooter-handoff:e423f0bf-9ece-486f-a3b3-1a4659db508e -->
+### ⇄ Handoff · ⇄ COWORK→CC · Resposta ao STOP (Layout+UX Live Previ · 2026-07-08 12:00
+
+```
+⇄ MOO HANDOFF · frugal-eyeball · ⇄ COWORK→CC · Resposta ao/e423f0bf · 2026-07-08 12:00
+STATE:  🟢 in-progress
+TL;DR:  🟢 in-progress · wave/layout-ux-da @3f8f93e (journal) · 0 decisões
+── PARA TI ──
+  Estado:  ainda a trabalhar (ou sem journal para confirmar)
+  Onde:    wave/layout-ux-da @3f8f93e (journal) · frugal-eyeball
+  Pediste: —
+  Moo fez: Develop web layouts and UX for a stop sign.
+  A-seguir:correr o gate (final-reviewer) e mergear se verde
+ASK:    verify+merge → ✅ Verificar e juntar
+HEAD:   3f8f93e "feat(cockpit): F1 — hide half-built surface (Layout+UX wave, D)"
+BASE:   wave/layout-ux-da @3f8f93e (journal) · main+1 · local (no push) · ⚠ tree trocado
+GATE:   classify.js ✓ frozen · HEAD toca 3 fich.: package.json, deck-lenses.test.js, extension.js
+TREE:   ⚠ 16 uncommitted fora do HEAD (ambiente)
+FRESH:  vault 5d ago · Notion — · handoff agora
+DELTA:  2 turnos · 1 commits desde o último handoff
+PENDING:"Diff F2 completo e verde (939/939). Lancei o **fan-out adversarial** (w841qc145) para refutar o diff antes do GATE 2 — 3 revisores independentes em `high` effort a caçar regressões de honestidade, fabricação, bugs de lógica de agrupamento e concat-safety. Aguardo os veredictos para corrigir o que fo"
+~narrativa (qwen · best-effort): Develop web layouts and UX for a stop sign.
+NEXT:   correr o gate (final-reviewer) e mergear se verde
+LAST:   Bash cd "c:/Users/Paulo Loureiro/frugal-eyeball/packa · Bash cd "c:/Users/Paulo Loureiro/frugal-eyeball" && e · Workflow Adversarial verification of the Phase 2 diff
+
+~RECAP (qwen · best-effort):
+  cd "c:/Users/Paulo Loureiro/frugal-eyeball/packa", cd "c:/Users/Paulo Loureiro/frugal-eyeball", Adversarial verification of the Phase 2 diff, UX Layout review.
+
+model claude-opus-4-8 · mode moo · saved $-21.45 (sessão)
+compressed locally (T0 · qwen2.5:3b · $0 · local best-effort) · ~0.8k tok saved vs screenshot (est.)
+facts: complete
+⇄ END HANDOFF
+```
+<!-- /mooter-handoff:e423f0bf-9ece-486f-a3b3-1a4659db508e -->
