@@ -2,6 +2,16 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.60] — 2026-07-08 — Cross-device Live Edit: the tree gate works on macOS, not only Windows
+
+### Fixed
+
+- **The Live Preview "did nothing" on macOS (worked only on Windows).** The FIX-MP-1 tree gate proved that the preview comes from the same tree it would write to using `path.relative`, which is **case-insensitive on Windows but case-sensitive on macOS/Linux**. A case-only difference between the VS Code workspace path and the dev server's served root was silently tolerated on Windows and **fail-closed on the Mac** — so every `$0` edit/delete/prompt-apply was blocked with no visible effect. The gate now proves lineage by **filesystem identity (`dev`+`ino`)** — correct on case-sensitive *and* case-insensitive volumes, with no `process.platform` guessing and immune to Unicode case-fold quirks. Twin-worktree siblings have distinct inodes and never share ancestry, so the 06:49 wrong-tree P0 stays closed on every platform. A `dev:ino` reading of `0` (some FAT/network volumes) is treated as unstat-able → safe string fallback gated by an **empirical case-sensitivity probe** (fail-safe to case-sensitive). Verified by an adversarial two-round review (round 1 caught a `process.platform`-proxy regression that reopened the P0 on case-sensitive APFS/NTFS volumes; round 2 shipped clean) and 917 passing tests including a case-sensitive-volume sibling regression matrix.
+
+### Added
+
+- **Portable macOS launcher** `_handoff/prove-live-edit.command` — derives the repo from its own location (no hardcoded paths), builds a **fresh** vsix from the current branch, installs it, starts the `landing/` dev server, and opens VS Code on the served tree so the gate opens.
+
 ## [0.16.37] — 2026-06-27 — Sessions always visible: runtime-diagnosed collapse + bullet-proof invariant
 
 ### Fixed
