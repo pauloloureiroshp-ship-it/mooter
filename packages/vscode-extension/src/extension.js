@@ -1529,7 +1529,8 @@ class LivePreviewPanel {
     this.timer = setInterval(() => { if (this.panel.visible) this._post(); }, data_.pollIntervalMs(true));
     // App Stage re-probe on a slower cadence (a TCP sweep, never on the render path).
     this.stageTimer = setInterval(() => { if (this.panel.visible) this._detectStage(); }, 4000);
-    this.panel.onDidChangeViewState(() => { if (this.panel.visible) { this._post(); this._detectStage(); } });
+    this._busPost = (extra && extra.mkDebounce) ? extra.mkDebounce(() => { if (this.panel.visible) this._post(); }, 1500) : null;
+    this.panel.onDidChangeViewState(() => { if (this.panel.visible) { this._post(); this._detectStage(); if (this._busPost) this._busPost.cancel(); } });
     this.panel.webview.onDidReceiveMessage((m) => this._onMessage(m));
     // Best-effort fs.watch on the bus directory for near-live updates between polls — a missed
     // event (dir not created yet, watcher error) is still covered by the poll above, so this
@@ -1537,13 +1538,14 @@ class LivePreviewPanel {
     try {
       const busFile = HC ? HC.eventsPath(this._wsRoot()) : path.join(this._wsRoot(), '_handoff', 'live-preview', 'events.jsonl');
       this.watcher = fs.watch(path.dirname(busFile), { persistent: false }, (_e, f) => {
-        if (f === 'events.jsonl' && this.panel.visible) this._post();
+        if (f === 'events.jsonl') { if (this._busPost) this._busPost(); else if (this.panel.visible) this._post(); }
       });
     } catch { this.watcher = null; }
     this.panel.onDidDispose(() => {
       if (this.timer) clearInterval(this.timer);
       if (this.stageTimer) clearInterval(this.stageTimer);
       try { if (this.watcher) this.watcher.close(); } catch { /* best-effort */ }
+      try { if (this._busPost) this._busPost.cancel(); } catch { /* best-effort */ }
       LivePreviewPanel.current = null;
     });
   }
@@ -1580,6 +1582,9 @@ function getLivePreviewHtml(token) {
   // with the SAME source of truth as the pure decision layer (no JS drift between them).
   const isSelfNoiseSrc = LPD ? LPD.isLivePreviewSelfNoise.toString() : 'function isLivePreviewSelfNoise(){return false;}';
   const isBenignCssSrc = LPD ? LPD.isBenignCssWarning.toString() : 'function isBenignCssWarning(){return false;}';
+  const renderDayBreakdownSrc = LPV ? LPV.renderDayBreakdown.toString() : 'function renderDayBreakdown(){return "";}';
+  const renderModelBreakdownSrc = LPV ? LPV.renderModelBreakdown.toString() : 'function renderModelBreakdown(){return "";}';
+  const renderFleetLanesSrc = LPV ? LPV.renderFleetLanes.toString() : 'function renderFleetLanes(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1692,6 +1697,24 @@ function getLivePreviewHtml(token) {
   .lpdc-glyph{flex:none}
   .lpdc-body{flex:1;min-width:0;word-break:break-word}
   .lpdc-meta{opacity:.7;font-size:10.5px}
+  .lp-tabs{display:flex;gap:4px;margin:6px 0 4px;flex-wrap:wrap}
+  .lp-tab{font:inherit;font-size:11px;padding:3px 10px;min-height:24px;border:1px solid var(--vscode-panel-border,#3a3a3a);border-radius:11px;background:transparent;color:var(--vscode-descriptionForeground,#9a9a9a);cursor:pointer}
+  .lp-tab.on{background:var(--vscode-button-secondaryBackground,#33373d);color:var(--vscode-foreground,#e6e6e6);border-color:var(--vscode-focusBorder,#4a7fb5)}
+  .lp-tab:focus-visible{outline:2px solid var(--vscode-focusBorder,#4a7fb5);outline-offset:1px}
+  .lpx{font-size:11px}
+  .lpx-hero{display:flex;align-items:baseline;gap:6px;margin:6px 0}
+  .lpx-hero-n{font-size:20px;font-weight:600;color:var(--vscode-foreground,#e6e6e6)}
+  .lpx-hero-l{font-size:11px;color:var(--vscode-descriptionForeground,#9a9a9a)}
+  .lpx-tbl{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+  .lpx-tr{display:flex;gap:8px;align-items:center;padding:2px 0;border-bottom:1px solid var(--vscode-panel-border,#2a2a2a)}
+  .lpx-tr:first-child{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground,#8a8a8a)}
+  .lpx-cell{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px}
+  .lpx-cell .lpbr-mix{min-width:40px;flex:1}
+  .lpx-chip{display:inline-block;font-size:10px;padding:0 6px;border-radius:8px;background:var(--vscode-badge-background,#4d4d4d);color:var(--vscode-badge-foreground,#fff);line-height:16px}
+  .lpx-foot{margin-top:6px;font-size:10px;color:var(--vscode-descriptionForeground,#8a8a8a)}
+  .lpx-lane{padding:4px 0;border-bottom:1px solid var(--vscode-panel-border,#2a2a2a)}
+  .lpx-lane-hd{font-weight:600;color:var(--vscode-foreground,#e6e6e6)}
+  .lpx-lane-meta{font-size:10px;color:var(--vscode-descriptionForeground,#9a9a9a)}
   @media (max-width:820px){
     #lp-root{flex-direction:column}
     #lp-stagewrap{flex:1 1 auto;border-right:0;border-bottom:1px solid var(--vscode-widget-border)}
@@ -1724,7 +1747,18 @@ function getLivePreviewHtml(token) {
   <aside id="lp-side">
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-brain">a carregar…</div>
-    <div id="lp-dc"></div>
+    <div id="lp-dc">
+      <div id="lp-tabs" role="tablist" aria-label="Lentes do Director's Cut">
+        <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0">Stream</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-day" aria-selected="false" aria-controls="lp-pane-day" data-tab="day" tabindex="-1">Dia</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-model" aria-selected="false" aria-controls="lp-pane-model" data-tab="model" tabindex="-1">LLM</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-fleet" aria-selected="false" aria-controls="lp-pane-fleet" data-tab="fleet" tabindex="-1">Fleet</button>
+      </div>
+      <div id="lp-pane-stream" role="tabpanel" aria-labelledby="lp-tab-stream"></div>
+      <div id="lp-pane-day" role="tabpanel" aria-labelledby="lp-tab-day" hidden></div>
+      <div id="lp-pane-model" role="tabpanel" aria-labelledby="lp-tab-model" hidden></div>
+      <div id="lp-pane-fleet" role="tabpanel" aria-labelledby="lp-tab-fleet" hidden></div>
+    </div>
   </aside>
 </div>
 <script nonce="${nonce}">
@@ -1737,12 +1771,45 @@ const renderStageStatus=${renderStageStatusSrc};
 const renderErrorStrip=${renderErrorStripSrc};
 const isLivePreviewSelfNoise=${isSelfNoiseSrc};
 const isBenignCssWarning=${isBenignCssSrc};
+const renderDayBreakdown=${renderDayBreakdownSrc};
+const renderModelBreakdown=${renderModelBreakdownSrc};
+const renderFleetLanes=${renderFleetLanesSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
-  const dcEl=document.getElementById('lp-dc');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
-  if(dcEl) dcEl.innerHTML = renderDirectorsCut((s && s.events) || [], { sidKnown: !!(s && s.sidKnown) });
+  lpLastSnap = s;
+  renderLens(lpDcTab);
 }
+function lpPane(tab){ return document.getElementById(tab==='stream'?'lp-pane-stream':tab==='day'?'lp-pane-day':tab==='model'?'lp-pane-model':'lp-pane-fleet'); }
+function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify([(s&&s.events)||[], !!(s&&s.sidKnown)]); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
+function renderLens(tab){
+  const s=lpLastSnap; const el=lpPane(tab); if(!el) return;
+  const sig=lpSig(tab,s); if(sig===lpLensSig[tab]) return; lpLensSig[tab]=sig;
+  let sc=0; const oldS=el.querySelector('.lpdc-stream'); if(oldS) sc=oldS.scrollTop;
+  if(tab==='stream') el.innerHTML=renderDirectorsCut((s&&s.events)||[], { sidKnown: !!(s&&s.sidKnown) });
+  else if(tab==='day') el.innerHTML=renderDayBreakdown(s&&s.byDay);
+  else if(tab==='model') el.innerHTML=renderModelBreakdown(s&&s.byModel);
+  else if(tab==='fleet') el.innerHTML=renderFleetLanes(s&&s.fleet);
+  const nS=el.querySelector('.lpdc-stream'); if(nS&&sc) nS.scrollTop=sc;
+}
+function setTab(tab){
+  const order=['stream','day','model','fleet']; if(order.indexOf(tab)<0) return;
+  lpDcTab=tab;
+  for(let i=0;i<order.length;i++){ const t=order[i]; const on=(t===tab);
+    const btn=document.getElementById('lp-tab-'+t); const pane=lpPane(t);
+    if(btn){ if(on) btn.classList.add('on'); else btn.classList.remove('on'); btn.setAttribute('aria-selected',on?'true':'false'); btn.tabIndex=on?0:-1; }
+    if(pane){ if(on) pane.removeAttribute('hidden'); else pane.setAttribute('hidden','hidden'); }
+  }
+  renderLens(tab);
+}
+(function(){ const strip=document.getElementById('lp-tabs'); if(!strip) return; const order=['stream','day','model','fleet'];
+  strip.addEventListener('click', function(e){ const b=(e.target&&e.target.closest)?e.target.closest('.lp-tab'):null; if(b&&b.getAttribute('data-tab')){ setTab(b.getAttribute('data-tab')); b.focus(); } });
+  strip.addEventListener('keydown', function(e){ const cur=order.indexOf(lpDcTab); let ni=-1;
+    if(e.key==='ArrowRight'||e.key==='ArrowDown') ni=(cur+1)%order.length;
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp') ni=(cur-1+order.length)%order.length;
+    else if(e.key==='Home') ni=0; else if(e.key==='End') ni=order.length-1;
+    if(ni>=0){ e.preventDefault(); setTab(order[ni]); const nb=document.getElementById('lp-tab-'+order[ni]); if(nb) nb.focus(); } });
+})();
 function applyError(err){
   const el=document.getElementById('lp-error');
   if(!el) return;
@@ -1807,6 +1874,9 @@ function reflectRoute(path){
 }
 // Rebuild the routes picker ONLY when the set changes (never wipe a mid-poll selection). esc-safe.
 let lpRoutesSig=null;
+let lpDcTab='stream';
+let lpLastSnap=null;
+let lpLensSig={stream:null,day:null,model:null,fleet:null};
 function populateRoutes(routes){
   const sel=document.getElementById('lp-routes');
   if(!sel) return;

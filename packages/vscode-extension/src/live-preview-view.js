@@ -244,6 +244,232 @@ function renderBrain(brain) {
     + '</div>';
 }
 
+// ── renderDayBreakdown(byDay) — 📅 per-day rollup lens (Director's Cut v2 · F2, Unit A).
+// byDay is the host-side day-bucket aggregate (newest day FIRST) or null/malformed — never
+// throws. Concat-only + ES5, same serialisation contract as renderDirectorsCut/renderBrain
+// above: relies ONLY on the free-var esc, no module state, no closures over outer vars.
+function renderDayBreakdown(byDay) {
+  var b = (byDay && typeof byDay === 'object') ? byDay : null;
+  var days = (b && Array.isArray(b.days)) ? b.days : null;
+  if (!b || !days || !days.length) {
+    return '<div class="lpx lpdc-empty">sem decisões ainda</div>';
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+
+  var now = new Date();
+  var today = ymd(now);
+  var yestDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  var yesterday = ymd(yestDate);
+
+  // dayLabel() already returns safe/escaped HTML — never wrap its result in esc() again at the
+  // call site (that would double-escape a raw 'YYYY-MM-DD' day string containing entities).
+  function dayLabel(day) {
+    if (day === today) return 'Hoje';
+    if (day === yesterday) return 'Ontem';
+    return esc(day);
+  }
+
+  var newest = days[0] || {};
+  var newestDec = newest.decisions || {};
+  var heroPct = (typeof newestDec.pctLocal === 'number') ? newestDec.pctLocal : null;
+  var heroNum = (heroPct != null) ? (esc(heroPct) + '% local') : '<span class="lpdc-nd">n/d</span>';
+  var heroLabel = (newest.day === today) ? 'local hoje' : dayLabel(newest.day);
+
+  var order = [['T0', 'var(--t0,#4CAF6A)'], ['T1', 'var(--t1,#5A9BD4)'], ['T2', 'var(--t2,#A78BFA)'], ['T3', 'var(--t3,#D46A5A)']];
+
+  var rows = '';
+  for (var i = 0; i < days.length; i++) {
+    var d = days[i] || {};
+    var ev = d.events || {};
+    var dec = d.decisions || {};
+    var tiers = dec.tiers || {};
+    var total = dec.total || 0;
+    var mix;
+    if (total > 0) {
+      var seg = '';
+      var legend = '';
+      for (var j = 0; j < order.length; j++) {
+        var k = order[j][0];
+        var n = tiers[k] || 0;
+        var pct = Math.round(100 * n / total);
+        if (pct > 0) seg += '<span style="width:' + pct + '%;background:' + order[j][1] + '" title="' + k + ' ' + n + '"></span>';
+        legend += (legend ? ' ' : '') + k + ':' + n;
+      }
+      mix = '<div class="lpbr-mix">' + seg + '</div><span class="lpx-cell">' + legend + '</span>';
+    } else {
+      mix = '<span class="lpdc-nd">n/d</span>';
+    }
+    var pctTxt = (typeof dec.pctLocal === 'number') ? (esc(dec.pctLocal) + '%') : '<span class="lpdc-nd">n/d</span>';
+    var costTxt = (typeof dec.costEstUsd === 'number' && isFinite(dec.costEstUsd)) ? ('~est. $' + dec.costEstUsd.toFixed(4)) : '<span class="lpdc-nd">n/d</span>';
+    if (dec.costUncounted > 0) costTxt += ' · ' + esc(dec.costUncounted) + ' sem ~est.';
+    rows += '<div class="lpx-tr">'
+      + '<span class="lpx-cell">' + dayLabel(d.day) + '</span>'
+      + '<span class="lpx-cell">' + (ev.total != null ? ev.total : 0) + '</span>'
+      + '<span class="lpx-cell">' + total + '</span>'
+      + '<span class="lpx-cell">' + mix + '</span>'
+      + '<span class="lpx-cell">' + pctTxt + '</span>'
+      + '<span class="lpx-cell">' + costTxt + '</span>'
+      + '</div>';
+  }
+
+  var win = (b.window && typeof b.window === 'object') ? b.window : {};
+  var winEvents = (win.events != null) ? win.events : 0;
+  var winDecisions = (win.decisions != null) ? win.decisions : 0;
+  // Honest scope (adversarial F2 finding): only the bus events are workspace-scoped; the
+  // decisions/tiers/cost come from the machine-wide ~/.claude decisions.log (no cwd filter),
+  // so each scope is labelled where it belongs rather than a single misleading "workspace".
+  var foot = 'janela recente: ' + winEvents + ' eventos (deste workspace) · ' + winDecisions + ' decisões (todas as sessões desta máquina) — não é histórico completo';
+  if (win.unplaced > 0) foot += ' · ' + win.unplaced + ' sem data';
+
+  return '<div class="lpx">'
+    + '<div class="lpx-hero"><div class="lpx-hero-n">' + heroNum + '</div><div class="lpx-hero-l">' + heroLabel + '</div></div>'
+    + '<div class="lpx-tbl">'
+    + '<div class="lpx-tr"><span class="lpx-cell">dia</span><span class="lpx-cell">eventos</span><span class="lpx-cell">decisões</span><span class="lpx-cell">tiers</span><span class="lpx-cell">local</span><span class="lpx-cell">custo</span></div>'
+    + rows
+    + '</div>'
+    + '<div class="lpx-foot">' + foot + '</div>'
+    + '</div>';
+}
+
+// ── renderModelBreakdown(byModel) — 🤖 per-model rollup lens (Director's Cut v2 · F2, Unit A).
+// byModel is the host-side model aggregate or null/malformed — never throws. Concat-only + ES5,
+// same serialisation contract as above; relies ONLY on the free-var esc. "ops reais" (from
+// execution.log, ops.total) and "rotas" (from decisions.log, routes) are DISTINCT numbers and
+// are NEVER merged into one column — that distinction is the whole point of this lens.
+function renderModelBreakdown(byModel) {
+  var b = (byModel && typeof byModel === 'object') ? byModel : null;
+  var models = (b && Array.isArray(b.models)) ? b.models : null;
+  if (!b || !models || !models.length) {
+    return '<div class="lpx lpdc-empty">sem decisões ainda</div>';
+  }
+
+  var totals = (b.totals && typeof b.totals === 'object') ? b.totals : {};
+  var win = (b.window && typeof b.window === 'object') ? b.window : {};
+
+  var savedTxt = (typeof totals.savedEstUsd === 'number' && isFinite(totals.savedEstUsd))
+    ? ('$' + totals.savedEstUsd.toFixed(4))
+    : '<span class="lpdc-nd">n/d</span>';
+
+  var tierColors = { T0: 'var(--t0,#4CAF6A)', T1: 'var(--t1,#5A9BD4)', T2: 'var(--t2,#A78BFA)', T3: 'var(--t3,#D46A5A)', T5: 'var(--t5,#C9A227)' };
+
+  var rows = '';
+  for (var i = 0; i < models.length; i++) {
+    var m = models[i] || {};
+    var ops = m.ops || {};
+    var tier = m.tier || null;
+    var isFable = tier === 'T5';
+    var tierStyle = tier ? (' style="background:' + (tierColors[tier] || 'var(--vscode-descriptionForeground,#8a8a8a)') + '"') : '';
+    var tierChip = '<span class="lpx-chip"' + tierStyle + '>' + esc(tier || 'n/d') + '</span>';
+    var localChip = (m.local === true) ? ' <span class="lpx-chip">$0 local</span>' : '';
+    var optInChip = isFable ? ' <span class="lpx-chip">opt-in</span>' : '';
+    var opsTotal = (ops.total != null) ? ops.total : 0;
+    var routes = (m.routes != null) ? m.routes : 0;
+    var costTxt;
+    if (isFable) {
+      costTxt = '<span class="lpx-chip">opt-in</span>';
+    } else if (typeof m.costEstUsd === 'number' && isFinite(m.costEstUsd)) {
+      costTxt = '~est. $' + m.costEstUsd.toFixed(4);
+    } else {
+      costTxt = '<span class="lpdc-nd">n/d</span>';
+    }
+    rows += '<div class="lpx-tr">'
+      + '<span class="lpx-cell">' + esc(m.model) + '</span>'
+      + '<span class="lpx-cell">' + tierChip + optInChip + '</span>'
+      + '<span class="lpx-cell">' + localChip + '</span>'
+      + '<span class="lpx-cell">' + opsTotal + '</span>'
+      + '<span class="lpx-cell">' + routes + '</span>'
+      + '<span class="lpx-cell">' + costTxt + '</span>'
+      + '</div>';
+  }
+
+  var winDecisions = (win.decisions != null) ? win.decisions : 0;
+  var winExecOps = (win.execOps != null) ? win.execOps : 0;
+  var foot = 'janela recente: ' + winDecisions + ' rotas · ' + winExecOps + ' ops — todas as sessões desta máquina';
+  if (win.opsUnattributed > 0) foot += ' · ' + win.opsUnattributed + ' ops sem modelo resolvido';
+  if (totals.costUncounted > 0) foot += ' · ' + totals.costUncounted + ' sem ~est.';
+
+  var totalsCostTxt = (typeof totals.costEstUsd === 'number' && isFinite(totals.costEstUsd)) ? ('$' + totals.costEstUsd.toFixed(4)) : '<span class="lpdc-nd">n/d</span>';
+  var totalsSavedTxt = (typeof totals.savedEstUsd === 'number' && isFinite(totals.savedEstUsd)) ? ('$' + totals.savedEstUsd.toFixed(4)) : '<span class="lpdc-nd">n/d</span>';
+  var footTotals = '~est. ' + totalsCostTxt + ' · poupança vs all-Opus ~est. ' + totalsSavedTxt;
+
+  return '<div class="lpx">'
+    + '<div class="lpx-hero"><div class="lpx-hero-n">' + savedTxt + '</div><div class="lpx-hero-l">poupança vs all-Opus ~est.</div></div>'
+    + '<div class="lpx-tbl">'
+    + '<div class="lpx-tr"><span class="lpx-cell">modelo</span><span class="lpx-cell">tier</span><span class="lpx-cell">local</span><span class="lpx-cell">ops reais</span><span class="lpx-cell">rotas</span><span class="lpx-cell">custo</span></div>'
+    + rows
+    + '</div>'
+    + '<div class="lpx-foot">' + foot + '<br>' + footTotals + '</div>'
+    + '</div>';
+}
+
+// ── renderFleetLanes(fleet) — 🚦 GSD fleet swimlanes lens (Director's Cut v2 · F2, Unit A).
+// fleet is the host-side mission-control snapshot or null/malformed — never throws. Concat-only
+// + ES5, same serialisation contract as above; relies ONLY on the free-var esc. A rest banner
+// NEVER hides a stale heartbeat — the age is always computed and shown beside the raw timestamp.
+function renderFleetLanes(fleet) {
+  var f = (fleet && typeof fleet === 'object') ? fleet : null;
+  if (!f) {
+    return '<div class="lpx lpdc-empty">sem sinais da frota ainda</div>';
+  }
+
+  function ageTxt(ts) {
+    var t = Date.parse(ts);
+    if (isNaN(t)) return null;
+    var diffMs = Date.now() - t;
+    if (diffMs < 0) diffMs = 0;
+    var s = Math.floor(diffMs / 1000);
+    if (s < 60) return 'há ' + s + 's';
+    var mnt = Math.floor(s / 60);
+    if (mnt < 60) return 'há ' + mnt + 'm';
+    var h = Math.floor(mnt / 60);
+    if (h < 24) return 'há ' + h + 'h';
+    var dd = Math.floor(h / 24);
+    return 'há ' + dd + 'd';
+  }
+
+  var hb = (f.heartbeat && typeof f.heartbeat === 'object') ? f.heartbeat : null;
+
+  var restBanner = (f.resting === true) ? '<div class="lpx-hero"><span class="lpx-chip">frota em repouso</span></div>' : '';
+
+  var hbTxt;
+  if (hb && hb.ts) {
+    var age = ageTxt(hb.ts);
+    hbTxt = 'último sinal: ' + esc(hb.ts) + (age ? ' (' + age + ')' : '');
+  } else {
+    hbTxt = '<span class="lpdc-nd">n/d (sem heartbeat)</span>';
+  }
+  var dryRunChip = (hb && hb.dryRun === true) ? ' <span class="lpx-chip">dry-run</span>' : '';
+
+  var pillars = (f.pillars && Array.isArray(f.pillars)) ? f.pillars : [];
+  var lanes = '';
+  for (var i = 0; i < pillars.length; i++) {
+    var p = pillars[i] || {};
+    var gpuTag = (p.gpuHeavy === true) ? ' 🔥GPU' : '';
+    var status = (p.status != null && p.status !== '') ? esc(p.status) : 'n/d';
+    var roundTxt = (p.round != null) ? ('round ' + esc(p.round)) : '';
+    var runTxt;
+    if (p.running === true) runTxt = 'a correr';
+    else if (p.running === false) runTxt = 'parado';
+    else runTxt = '<span class="lpdc-nd">n/d (sem heartbeat)</span>';
+
+    lanes += '<div class="lpx-lane">'
+      + '<div class="lpx-lane-hd">' + esc(p.id) + gpuTag + '</div>'
+      + '<div class="lpx-lane-meta">' + status + (roundTxt ? ' · ' + roundTxt : '') + ' · ' + runTxt + '</div>'
+      + '</div>';
+  }
+
+  var noPillarsNote = (!pillars.length && hb) ? '<div class="lpdc-nd">sem pilares</div>' : '';
+
+  return '<div class="lpx">'
+    + restBanner
+    + '<div class="lpx-foot">' + hbTxt + dryRunChip + '</div>'
+    + lanes
+    + noPillarsNote
+    + '</div>';
+}
+
 module.exports = {
   esc: esc,
   parseBusJsonl: parseBusJsonl,
@@ -252,4 +478,7 @@ module.exports = {
   buildBrainData: buildBrainData,
   renderDirectorsCut: renderDirectorsCut,
   renderBrain: renderBrain,
+  renderDayBreakdown: renderDayBreakdown,
+  renderModelBreakdown: renderModelBreakdown,
+  renderFleetLanes: renderFleetLanes,
 };

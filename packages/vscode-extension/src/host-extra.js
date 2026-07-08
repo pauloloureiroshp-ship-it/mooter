@@ -2731,6 +2731,16 @@ function warmLocalGenModel(timeoutMs) {
   return true;
 }
 
+// DCV2 F2 Unit B: pure debounce factory (host-side, testable) — used to coalesce rapid
+// fs.watch bursts (e.g. the events.jsonl bus writer) into a single trailing _post().
+function mkDebounce(fn, ms) {
+  var t = null;
+  function g() { if (t) clearTimeout(t); t = setTimeout(function () { t = null; fn(); }, ms); }
+  g.flush = function () { if (t) { clearTimeout(t); t = null; } fn(); };
+  g.cancel = function () { if (t) { clearTimeout(t); t = null; } };
+  return g;
+}
+
 module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, ollamaModels, readMode, setMode, readSubProfile, ansiToHtml, statuslineHtml, slashStatus, installSlashCommands, installPack, ROUTER,
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
@@ -2746,4 +2756,5 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   sessionGitFromJournal, reconcileSessionGit, _treeHeadSha, _sessionBranchLabel, worktreeParked,
   // PERFECT HANDOFF v2 — pure helpers (STATE machine · PARA TI · Ledger projection · single count):
   _deriveState, _stateLabel, _stateHuman, _askHuman, _resumeFor, _sessionAhead, _parseAskInput,
-  _projectLedger, _ledgerGateLine, sessionLedgerEvents };
+  _projectLedger, _ledgerGateLine, sessionLedgerEvents,
+  mkDebounce };
