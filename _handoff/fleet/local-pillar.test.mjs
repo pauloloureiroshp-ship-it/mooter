@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { assembleContext, buildProposal, buildIdleProposal, computeGenSlots, makeGenGate } from "./local-pillar.mjs";
+import { assembleContext, buildProposal, buildIdleProposal, computeGenSlots, makeGenGate, resolveModel } from "./local-pillar.mjs";
 import { gateProposal } from "../../packages/fleet-commander/src/proof-gate.mjs";
 
 const LOOP = { id: "matriz", pillar: { id: "matriz", workdir: "_handoff/fleet/matriz" } };
@@ -43,6 +43,13 @@ test("buildProposal without measured tokens still passes (honesty section only)"
 test("buildProposal always carries the mandatory honesty section", () => {
   const { proposal } = buildProposal(LOOP, { artifact: "x", estCloudTokens: 1, round: 1, model: "m" });
   assert.match(proposal.body, /pode falhar se/i);
+});
+
+test("resolveModel: per-pillar fleet.json model wins over the global fallback", () => {
+  assert.equal(resolveModel({ pillar: { model: "qwen2.5-coder:14b" } }, "qwen3:30b"), "qwen2.5-coder:14b");
+  assert.equal(resolveModel({ pillar: {} }, "qwen3:30b"), "qwen3:30b");
+  assert.equal(resolveModel({}, "gemma3:12b"), "gemma3:12b");
+  assert.equal(resolveModel(null, "qwen3:30b"), "qwen3:30b");
 });
 
 test("computeGenSlots: a 24GB 4090 fits exactly ONE qwen3:30b generation", () => {

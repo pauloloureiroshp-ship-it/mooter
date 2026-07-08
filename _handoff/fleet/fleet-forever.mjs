@@ -27,6 +27,16 @@ function runPillar(loop, deps) {
 const FLEET_DIR = process.env.FLEET_DIR || "_handoff/fleet";
 const STOP = join(FLEET_DIR, "STOP");
 const roundsPerCycle = Number(process.env.FLEET_ROUNDS_PER_CYCLE) || 3;
+
+// MODEL POLICY (Option C). By DAY the fleet runs a light coder model that fits
+// alongside the router (FLEET_MODEL, e.g. qwen2.5-coder:14b ≈ 9GB) — set once, the
+// per-pillar selector in local-pillar honours any fleet.json "model" override.
+// NIGHT window (SPEC ONLY — not wired yet): when the clock is inside
+// [FLEET_NIGHT_FROM, FLEET_NIGHT_TO] (e.g. "02:00".."07:00"), swap FLEET_MODEL for
+// FLEET_NIGHT_MODEL (e.g. qwen3:30b) for an EXCLUSIVE heavy pass — the router load is
+// lowest overnight, so the 30B fits. Wiring the clock check is a follow-up.
+const NIGHT_MODEL = process.env.FLEET_NIGHT_MODEL || null; // reserved; window not yet enforced
+if (NIGHT_MODEL) console.log(`[fleet-forever] night model reserved: ${NIGHT_MODEL} (window enforcement is a follow-up)`);
 const backoffMs = Number(process.env.FLEET_CONTENTION_BACKOFF_MS) || 120_000;
 const cycleGapMs = Number(process.env.FLEET_CYCLE_GAP_MS) || 5_000;
 const maxCycles = Number(process.env.FLEET_MAX_CYCLES) || Infinity;

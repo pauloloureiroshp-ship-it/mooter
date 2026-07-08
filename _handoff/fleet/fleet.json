@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Fleet roster (F2). One entry per scaffolded pillar under _handoff/fleet/<id>/. priority is a SEED impact (0..1), not a measured value — the scheduler multiplies it by live staleness and a Beta(1,1) hit-rate prior, so a cold pillar sits neutral until the Ledger proves it. gpu_heavy = uses the 4090 for local generation (capped at 1 concurrent). cloud_heavy = its triage/eval consumes the Opus frontier budget (H4). daysQuota = max runs/day per pillar.",
+  "note": "Fleet roster (F2). One entry per scaffolded pillar under _handoff/fleet/<id>/. priority is a SEED impact (0..1), not a measured value — the scheduler multiplies it by live staleness and a Beta(1,1) hit-rate prior, so a cold pillar sits neutral until the Ledger proves it. gpu_heavy = uses the 4090 for local generation. cloud_heavy = its triage/eval consumes the Opus frontier budget (H4). daysQuota = max runs/day per pillar. model = OPTIONAL per-pillar Ollama model override (Option C); absent → global default via FLEET_MODEL env → FLEET_LOCAL_MODEL → qwen3:30b. GPU concurrency is governed by local-pillar's VRAM gate, not by an admission cap.",
   "caps": {
     "gpuHeavyConcurrent": 1,
     "cloudConcurrent": 2,

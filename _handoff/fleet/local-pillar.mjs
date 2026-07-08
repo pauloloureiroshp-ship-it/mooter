@@ -40,7 +40,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 
 const OLLAMA = process.env.OLLAMA_HOST?.replace(/\/$/, "") || "http://127.0.0.1:11434";
-const DEFAULT_MODEL = process.env.FLEET_LOCAL_MODEL || "qwen3:30b";
+// Global default model: FLEET_MODEL (day/night selector) → FLEET_LOCAL_MODEL (legacy)
+// → qwen3:30b. A pillar overrides per-pillar via its "model" field in fleet.json.
+const DEFAULT_MODEL = process.env.FLEET_MODEL || process.env.FLEET_LOCAL_MODEL || "qwen3:30b";
 const CONTEXT_CHAR_CAP = Number(process.env.FLEET_CONTEXT_CHAR_CAP) || 6000;
 const GENERATE_TIMEOUT_MS = Number(process.env.FLEET_GENERATE_TIMEOUT_MS) || 120_000;
 const TAGS_TIMEOUT_MS = 3_000;
@@ -58,6 +60,13 @@ const IDLE_PILLARS = new Set(
 
 function abs(p) { return isAbsolute(p) ? p : resolve(REPO, p); }
 function num(x) { return Number.isFinite(x) ? x : null; }
+
+// Per-pillar model selector (Option C): the pillar's fleet.json "model" field wins,
+// else the global default. Lets the fleet run a light coder model by day (fits
+// alongside the router) and reserve qwen3:30b for an exclusive night window.
+export function resolveModel(loop, fallback = DEFAULT_MODEL) {
+  return (loop && loop.pillar && loop.pillar.model) || fallback;
+}
 
 // ── disk helpers (crash-only: authoritative state lives here) ────────────────
 export function atomicWriteJSON(path, obj) {
@@ -276,7 +285,8 @@ export async function localPillar(loop, { now } = {}) {
   // generation hangs >120s (proven 2026-07-08). Record a JUSTIFIED incident, bump the
   // per-pillar streak, and surface at 3-in-a-row in the cronista queue. We NEVER unload
   // a foreign model (not ours). A probe failure returns ok:true → never blocked on it.
-  const contention = await preflight({ ollamaHost: OLLAMA, fleetModel: DEFAULT_MODEL });
+  const fleetModel = resolveModel(loop);
+  const contention = await preflight({ ollamaHost: OLLAMA, fleetModel });
   if (!contention.ok) {
     const streak = (Number(prev.contentionStreak) || 0) + 1;
     appendLedger({ event: "incident", engine: "local-preflight", reason: "vram-contention", detail: contention.reason, foreign_models: contention.foreignModels, vram_free_mb: contention.freeMb, streak });
@@ -298,8 +308,8 @@ export async function localPillar(loop, { now } = {}) {
   });
 
   const doRound = async () => {
-    // 1 · resolve model (Ollama down → throw → clean incident)
-    const model = pickModel(await ollamaTags(), DEFAULT_MODEL);
+    // 1 · resolve model (per-pillar/global; Ollama down → throw → clean incident)
+    const model = pickModel(await ollamaTags(), fleetModel);
     if (!model) throw new Error("no ollama model available");
     // 2 · bounded context
     const ctx = readPillarContext(pillarDir);
