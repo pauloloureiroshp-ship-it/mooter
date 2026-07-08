@@ -218,8 +218,11 @@ test('incident regression: select carrying a TWIN-WORKTREE served root while edi
   await inst._applyEdit({ preview: false, file: 'page.tsx', line: 4, tag: 'h1', edit: TEXT_EDIT, h: sha(SRC) });
   assert.strictEqual(fs.readFileSync(ws.file, 'utf8'), before, 'the workspace file is byte-identical — nothing was written');
   assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.ok === false && p.reason === 'preview-tree-mismatch'), 'refused with the honest tree-mismatch reason');
-  // And the banner names the served tree's basename so the user knows WHICH tree is being served.
-  assert.strictEqual(inst._treeBanner(), 'o preview vem de outra árvore (' + path.basename(served.root) + ') — reinicia o dev server neste workspace para poder editar');
+  // And the banner names the served tree's last two segments so the user knows WHICH tree is being served
+  // (cross-device fix: …/parent/base is legible where a bare basename could read as absurd).
+  const _bp = served.root.split(/[\\/]+/).filter(Boolean);
+  const _bl = _bp.length >= 2 ? ('…/' + _bp.slice(-2).join('/')) : (_bp[0] || served.root);
+  assert.strictEqual(inst._treeBanner(), 'o preview vem de outra árvore (' + _bl + ') — reinicia o dev server neste workspace para poder editar');
 });
 
 // ── (5) The model one-box (default) + agent paths are gated too (final-reviewer NO-SHIP fix) ──────
