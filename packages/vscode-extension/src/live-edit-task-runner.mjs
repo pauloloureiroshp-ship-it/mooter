@@ -129,6 +129,11 @@ async function main() {
   const nodeSource = typeof req.nodeSource === 'string' ? req.nodeSource : '';
   const model = (typeof req.model === 'string' && req.model) ? req.model : 'claude-sonnet-4-6';
   if (!instruction) { out({ ok: false, reason: 'bad-request' }); return; }
+  // LP-4.9 §1 — "Perguntar" (Ask) is a FENCE, not just a prompt line: in ask mode Edit/MultiEdit are
+  // DENIED by canUseTool below, so "zero escrita" is true by construction (a misread ask, or repo
+  // content that prompt-injects an edit, still cannot write). Everywhere else this runner makes hard
+  // guarantees; Ask now matches. The UI label, the completion toast, and the fence all agree.
+  const askOnly = (req.intent === 'ask');
   let query;
   try { query = await loadQuery(sdkDir); }
   catch (e) { out({ ok: false, reason: 'sdk-bridge-missing', detail: String((e && e.message) || e).slice(0, 200) }); return; }
@@ -185,6 +190,13 @@ async function main() {
         }
       }
       if (tool === 'Edit' || tool === 'MultiEdit') {
+        // LP-4.9 §1 — Ask mode is read-only BY CONSTRUCTION: refuse every write, whatever the model
+        // decided. The user chose "Perguntar"; "zero escrita" is enforced here, not merely requested.
+        if (askOnly) {
+          if (denied.length < 40) denied.push({ tool, why: 'ask-mode-read-only' });
+          out({ ev: 'deny', tool, why: 'ask-mode-read-only' });
+          return deny('modo Perguntar: só respondo, zero escrita — a edição foi negada. Muda para ✏️ Editar para aplicar mudanças.');
+        }
         const target = typeof inp.file_path === 'string' ? inp.file_path : '';
         if (!target) return deny('tarefa ancorada: edição sem file_path — negado');
         const abs = resolve(target);
@@ -250,11 +262,17 @@ async function main() {
     }).filter(Boolean);
     if (refl.length) anchor.push('- referências (contexto adicional, read-only): ' + refl.join(' · '));
   }
+  // LP-4.9 §1 — the user chose EXPLICITLY (the Edit/Ask toggle). Honour it hard: 'ask' answers only
+  // (zero edits, even if the ask looks like an edit); 'edit' makes the minimal edit. The prompt rule
+  // below is the SOFT layer; the canUseTool deny above is the HARD fence — both agree.
+  const intent = askOnly ? 'ask' : 'edit';
+  const intentRule = (intent === 'ask')
+    ? '- MODO PERGUNTAR (escolhido pelo utilizador): SÓ responde, ZERO edições — mesmo que o pedido pareça uma edição. Cita os ficheiros que leste.\n'
+    : '- MODO EDITAR (escolhido pelo utilizador): o utilizador QUER uma edição. Faz o edit mínimo no sítio CERTO (pode não ser o nó pinado). Se for genuinamente impossível editar, explica porquê.\n';
   const p = 'És o agente de tarefas ancoradas do Live Preview. O utilizador fixou (pin) um elemento '
     + 'no preview e pediu uma tarefa sobre o PROJECTO. Regras:\n'
     + '- responde em PT-BR curto;\n'
-    + '- se for pergunta, SÓ responde (zero edits) e cita os ficheiros que leste;\n'
-    + '- se for edição, faz edits mínimos no sítio CERTO (pode não ser o nó pinado);\n'
+    + intentRule
     + '- nunca inventes números — lê o repo.\n\n'
     + 'Âncora (o elemento fixado):\n' + (anchor.length ? anchor.join('\n') : '- (sem âncora)') + '\n\n'
     + 'Instrução do utilizador: ' + instruction;
@@ -291,7 +309,11 @@ async function main() {
         // canUseTool (proven live in the LP-4.5 gate) — an auto-approved Edit would skip the
         // snapshot and break the diff/revert promise. canUseTool is the ONE fence; the
         // known-dangerous tools are additionally hard-blocked below (belt and suspenders).
-        disallowedTools: ['Bash', 'Write', 'WebFetch', 'WebSearch', 'NotebookEdit', 'Task', 'KillShell'],
+        // LP-4.9 §1 — in Ask mode, Edit/MultiEdit join the hard-block list too (belt and suspenders
+        // over the canUseTool deny), so the SDK never even offers them.
+        disallowedTools: askOnly
+          ? ['Bash', 'Write', 'WebFetch', 'WebSearch', 'NotebookEdit', 'Task', 'KillShell', 'Edit', 'MultiEdit']
+          : ['Bash', 'Write', 'WebFetch', 'WebSearch', 'NotebookEdit', 'Task', 'KillShell'],
         canUseTool,
         hooks: { PostToolUse: [{ hooks: [stampEditTime] }] }, // L3: edit-time shaAfter (see above)
       },

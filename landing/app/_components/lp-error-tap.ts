@@ -493,6 +493,7 @@ export function installLpErrorTap(): void {
       refEls.length = 0;
     };
     const teardown = (): void => {
+      clearPreviewClass(); // restore any hover-preview before we lose the pin
       clearRefs();
       if (shadowHost && shadowHost.parentNode) shadowHost.parentNode.removeChild(shadowHost);
       shadowHost = null;
@@ -561,6 +562,32 @@ export function installLpErrorTap(): void {
         }
       }
     };
+    // LP-4.9 §5 — hover-preview: the cockpit asks to VISUALLY apply a className to the pinned element
+    // (live DOM only — no file write). We save the original once and restore it on clear/new pick, so
+    // a preview can never leak into a real edit. Read/writes only the pinned node's class attribute.
+    let previewSaved: { el: Element; cls: string | null } | null = null;
+    const previewClass = (className: string): void => {
+      if (!pinned || !pinned.isConnected) return;
+      if (!previewSaved || previewSaved.el !== pinned) previewSaved = { el: pinned, cls: pinned.getAttribute('class') };
+      try { pinned.setAttribute('class', className); } catch { /* SVG/edge — best-effort */ }
+      drawPin(); postPinRect();
+    };
+    const clearPreviewClass = (): void => {
+      if (!previewSaved) return;
+      const saved = previewSaved; previewSaved = null;
+      if (saved.el && saved.el.isConnected) {
+        try { if (saved.cls == null) saved.el.removeAttribute('class'); else saved.el.setAttribute('class', saved.cls); } catch { /* best-effort */ }
+      }
+      drawPin(); postPinRect();
+    };
+    // LP-4.9 §3 — a short green pulse on the pin box after a write landed (visual only; reverts).
+    const flash = (): void => {
+      if (!pinBox) return;
+      const base = pinBox.style.boxShadow;
+      pinBox.style.transition = 'box-shadow .18s ease';
+      pinBox.style.boxShadow = '0 0 0 3px rgba(127,184,138,.85)';
+      setTimeout(() => { if (pinBox) pinBox.style.boxShadow = base; }, 420);
+    };
     const onReflow = (): void => { if (on && pinned) { drawPin(); postPinRect(); } if (on) drawRefs(); };
     const resolve = (x: number, y: number): Element | null => {
       // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
@@ -604,6 +631,7 @@ export function installLpErrorTap(): void {
       const attr = el.getAttribute('data-insp-path');
       const parsed = parseInspPath(attr);
       if (!parsed) return;
+      clearPreviewClass(); // a fresh pick drops any lingering hover-preview on the old node
       // Honest multi-instance signal: the SAME stamp on several DOM nodes means the source node
       // renders more than once (a .map(), a reused component) — any edit/delete hits the template,
       // i.e. every instance. Counted by attribute equality (not a CSS selector: Windows paths
@@ -708,7 +736,7 @@ export function installLpErrorTap(): void {
         teardown();
       }
     };
-    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs };
+    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs, previewClass, clearPreview: clearPreviewClass, flash };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -728,6 +756,20 @@ export function installLpErrorTap(): void {
     }
     if (d.type === 'lp-detach-all') {
       try { select.detachAll(); } catch { /* best-effort */ }
+      return;
+    }
+    // LP-4.9 §5 — hover-preview a preset's className on the pinned element (visual only, no write).
+    if (d.type === 'lp-preview-class') {
+      try { select.previewClass(typeof d.className === 'string' ? d.className : ''); } catch { /* best-effort */ }
+      return;
+    }
+    if (d.type === 'lp-preview-clear') {
+      try { select.clearPreview(); } catch { /* best-effort */ }
+      return;
+    }
+    // LP-4.9 §3 — flash the pin box after a write landed, so the eye lands on what changed.
+    if (d.type === 'lp-flash') {
+      try { select.flash(); } catch { /* best-effort */ }
       return;
     }
     // MP5.2a — a breadcrumb chip re-selects an ancestor node (re-pin + fresh lp-select). Benign:

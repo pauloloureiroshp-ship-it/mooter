@@ -18,7 +18,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js', './lp-skills.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js', './lp-skills.js', './lp-security-view.js', './lp-publish-view.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -148,7 +148,7 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   // LP-4.5 — the ONE BOX on the pin: any prompt, default AUTO = the anchored-task agent; the
   // local $0 chip keeps the LP-4 fenced rewrite reachable; the heuristic only SUGGESTS.
   assert.ok(html.includes('id="lp-box-in"'), 'one-box input present');
-  assert.ok(html.includes('valida estes números'), 'placeholder shows a PROJECT ask (the LP-4.5 case), not only node tweaks');
+  assert.ok(html.includes('os números batem com o projecto'), 'placeholder shows a PROJECT ask (LP-4.9 §1: an ask example), not only node tweaks');
   assert.ok(html.includes("type:'lp-task'"), 'anchored task request wired to the host');
   assert.ok(html.includes("m.type === 'lp-task-result'"), 'agent verdict handled');
   assert.ok(html.includes("m.type === 'lp-task-status'"), 'live agent progress handled (a ler / a editar)');
@@ -235,7 +235,7 @@ test('Live Preview LP-4.8 §2 presets — deterministic colour/size/spacing ride
   assert.ok(/const renderPresetsBarHTML=/.test(html), 'preset catalog serialised into the webview');
   // A preset click merges into the CURRENT className and feeds the EXISTING class-edit preview —
   // never a model call. The proof: the handler routes through sendEdit('class', next), not lp-task.
-  assert.ok(/mergeClass\(cur, cls, grp\)/.test(html), 'preset merges the class deterministically');
+  assert.ok(/mergeClass\(cur, btn\.getAttribute\('data-cls'\), btn\.getAttribute\('data-group'\)\)/.test(html), 'preset merges the class deterministically');
   assert.ok(/sendEdit\('class', next\)/.test(html), 'preset applies via the class-edit fence (preview-first)');
   // Honest $0: the preset group is labelled as deterministic, no tokens.
   assert.ok(html.includes('sem tokens'), 'presets are labelled $0/no-tokens');
@@ -328,6 +328,207 @@ test('Live Preview LP-4.8 §5 keyboard/a11y — Esc dismisses the toolbar (no VS
   assert.ok(/menu\.addEventListener\('keydown'[\s\S]{0,120}Escape[\s\S]{0,80}closeSkillsMenu/.test(html), 'skills menu closes on Escape');
   // Focus-visible outlines on the toolbar controls (keyboard users always see focus).
   assert.ok(/\.lp-ctb .lp-ed-in:focus-visible/.test(html), 'toolbar controls have focus-visible outlines');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §1 intent — explicit Edit/Ask toggle removes the "asked vs edited" ambiguity', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The toggle is a visible radiogroup with an honest label; the send button mirrors the intent.
+  assert.ok(html.includes('id="lp-mode-edit"') && html.includes('id="lp-mode-ask"'), 'Edit/Ask toggle present');
+  assert.ok(/role="radiogroup"/.test(html), 'toggle is a radiogroup for a11y');
+  assert.ok(html.includes('Editar muda o site · Perguntar só responde'), 'honest label under the toggle');
+  assert.ok(/sb\.textContent=\(lpIntent==='ask'\)\?'💬 Perguntar':'✏️ Editar'/.test(html), 'send button mirrors the chosen intent');
+  // Ask ALWAYS routes to the agent (local $0 moo cannot answer) and carries intent:'ask'; honest
+  // refusal when the bridge is off — never a dead "answer" button.
+  assert.ok(html.includes("intent:'ask'"), 'ask carries intent to the host');
+  assert.ok(html.includes("intent:'edit'"), 'edit carries intent to the host');
+  assert.ok(/askMode=\(lpMode==='local'\)\?'auto':lpMode/.test(html), 'ask upgrades local→agent (only the agent can answer)');
+  assert.ok(/if\(!br\.available\)\{ showEditResult\(false/.test(html), 'ask refuses honestly when the SDK bridge is off');
+  // Design-critique #3 (a11y): the radiogroup is a single tab stop (roving tabindex) with arrow-key
+  // selection — not two independent tab stops.
+  assert.ok(/eb\.tabIndex=on\?0:-1/.test(html) && /ab\.tabIndex=on\?0:-1/.test(html), 'roving tabindex on the radiogroup');
+  assert.ok(html.includes("e.key==='ArrowLeft'") && /setIntent\(lpIntent==='ask'\?'edit':'ask', true\)/.test(html), 'arrow keys move within the radiogroup');
+  // Design-critique #5 (honesty): in ask mode with the local $0 chip picked, the hint says the run
+  // uses the agent (subscrição) — no silent "$0" while it costs.
+  assert.ok(html.includes('Perguntar corre no agente (subscrição), não local'), 'ask reconciles the misleading $0 chip');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §2 progressive disclosure — minimal by default, power behind "▾ mais" (remembered)', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The advanced drawer exists, is collapsed by default, and the chevron controls it via ARIA.
+  assert.ok(html.includes('id="lp-adv"'), 'advanced drawer present');
+  assert.ok(/id="lp-adv" class="lp-adv" style="display:none"/.test(html), 'advanced is collapsed by default');
+  assert.ok(html.includes('id="lp-more"') && /aria-controls="lp-adv"/.test(html), 'chevron controls the drawer');
+  // The engineer controls moved INTO the drawer (still present — just not in the minimal view).
+  const advStart = html.indexOf('id="lp-adv"');
+  const advChunk = html.slice(advStart, advStart + 1200);
+  assert.ok(advChunk.includes('id="lp-chip"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'chips/raw-edits/skills live in the drawer');
+  // The minimal view keeps the intent toggle + one-box (they must NOT be inside the drawer).
+  assert.ok(html.indexOf('id="lp-box-in"') < advStart, 'the one-box stays in the minimal view');
+  assert.ok(html.indexOf('id="lp-mode-edit"') < advStart, 'the intent toggle stays in the minimal view');
+  // The expanded/collapsed choice is remembered per session (localStorage), restored on render.
+  assert.ok(html.includes("localStorage.setItem('lp-adv-open'") && html.includes("localStorage.getItem('lp-adv-open')"), 'the drawer state persists per session');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §5 presets as the star — top of the simple view, ≥24px, hover-preview', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The preset bar sits in the MINIMAL view (before the advanced drawer), flagged as the star.
+  const advStart = html.indexOf('id="lp-adv"');
+  assert.ok(html.indexOf('id="lp-presets"') < advStart, 'presets live in the simple view, not the drawer');
+  assert.ok(html.includes('lp-pz-star'), 'presets flagged as the star row');
+  // WCAG 2.2 §2.5.8 target size: swatches are ≥24px.
+  assert.ok(/\.lp-sw\{width:24px;height:24px/.test(html), 'swatches are ≥24px (WCAG 2.2 target size)');
+  // Hover/focus PREVIEWS on the live element; click applies via the existing fence.
+  assert.ok(/addEventListener\('mouseenter', function\(\)\{ sendPreviewClass/.test(html), 'hover previews the preset');
+  assert.ok(/addEventListener\('focus', function\(\)\{ sendPreviewClass/.test(html), 'keyboard focus previews too (a11y parity)');
+  assert.ok(html.includes("type:'lp-preview-class'") && html.includes("type:'lp-preview-clear'"), 'preview messages wired to the tap');
+  assert.ok(/postMessage\(\{ type:'lp-preview-class'[^}]*\}, curOrigin\)/.test(html), 'preview is origin-targeted (never *)');
+  // The preview is visual-only: the click clears it, then routes through sendEdit (the class fence).
+  const ci0 = html.indexOf('const next=previewOf(this);');
+  assert.ok(ci0 !== -1, 'the click handler computes the merged class via previewOf');
+  const clickChunk = html.slice(ci0, ci0 + 200);
+  assert.ok(clickChunk.includes('sendClearPreview()') && clickChunk.includes("sendEdit('class', next)"), 'click clears the preview then applies via the fence');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §7 chrome — close (X), minimize, drag, and never covering the pinned node', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // The header carries a drag grip + minimize + close (X); a minimized 🐮 chip re-expands.
+  assert.ok(html.includes('id="lp-ctb-x"') && html.includes('id="lp-ctb-min"') && html.includes('id="lp-ctb-grip"'), 'header has close/minimize/grip');
+  assert.ok(html.includes('id="lp-ctb-chip"'), 'minimized chip present');
+  assert.ok(html.includes('aria-label="Fechar a toolbar"') && html.includes('aria-label="Minimizar a toolbar"'), 'chrome buttons are labelled');
+  // X closes; minimize collapses to the chip; the chip re-expands.
+  assert.ok(/xb\.addEventListener\('click', function\(\)\{ hideCanvasToolbar\(\)/.test(html), 'X closes the toolbar');
+  assert.ok(html.includes('lpToolbarMin=true') && html.includes('lpToolbarMin=false'), 'minimize/expand toggle the state');
+  // The positioner tries above→below→right→left and rejects any candidate that covers the pin.
+  assert.ok(html.includes('function lpRectsOverlap'), 'overlap test present (toolbar must not cover the node)');
+  assert.ok(/if\(lpRectsOverlap\(\{x:c\.x,y:c\.y,w:tw,h:th\}, pin\)\) continue;/.test(html), 'candidates covering the pin are skipped');
+  // Drag via the grip updates a manual position; the auto-anchor remains as the no-drag alternative.
+  assert.ok(html.includes("grip.addEventListener('pointerdown'") && html.includes('lpToolbarManualPos='), 'grip drag repositions the toolbar');
+  assert.ok(html.includes('WCAG 2.5.7') || html.includes('no-drag alternative'), 'drag has a documented no-drag alternative (WCAG 2.5.7)');
+  // Chrome sizes meet WCAG 2.2 target size (≥24px).
+  assert.ok(/\.lp-ctb-btn\{[^}]*width:26px;height:26px/.test(html), 'chrome buttons are ≥24px');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §3 real-time feedback — toast says exactly what happened + flashes the node', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-ctb-toast"') && /role="status" aria-live="polite"/.test(html), 'a11y-live toast present');
+  assert.ok(html.includes('function showToast'), 'toast renderer present');
+  // An edit that landed → "✓ aplicado no preview · $0" + a pin flash.
+  assert.ok(html.includes('✓ aplicado no preview · $0'), 'edit-applied toast copy');
+  assert.ok(html.includes("showToast('ok'") && html.includes('sendFlash()'), 'apply shows the ok toast and flashes');
+  // Honesty (adversarial pass): $0 appears ONLY for deterministic/local writes. An escalated fenced
+  // rewrite (m.tier t1/t2/t3) says the tier + subscrição — never a false $0 on paid work.
+  assert.ok(/m\.reason==='model-applied' && m\.tier && m\.tier!=='local'/.test(html), 'toast gates $0 on tier');
+  assert.ok(html.includes("'✓ escrito · '+tierModel(m.tier)+' · subscrição'"), 'escalated rewrite toast is honest about cost');
+  // Host threads the tier so the toast can tell the truth.
+  const ext = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  assert.ok(/_postEditResult\(true, m\.dynamic \? 'model-applied-dynamic' : 'model-applied', m\.tier\)/.test(ext), 'host passes the tier to the edit result');
+  assert.ok(/if \(tier && tier !== 'local'\) msg\.tier = String\(tier\)/.test(ext), 'result message carries the non-local tier');
+  // A question answered → "💬 resposta no painel →" (points to the panel, no false "changed").
+  assert.ok(html.includes('💬 resposta no painel →') && html.includes("showToast('ask'"), 'answer toast points to the panel');
+  // A refusal → an honest warn toast.
+  assert.ok(html.includes("showToast('warn'") && html.includes('function toastReason'), 'refusal shows an honest warn toast');
+  // The flash is a message to the tap (origin-targeted), which pulses the pin box.
+  assert.ok(html.includes("type:'lp-flash'"), 'flash wired to the tap');
+  assert.ok(/postMessage\(\{ type:'lp-flash' \}, curOrigin\)/.test(html), 'flash is origin-targeted');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §8 live progress — spinning 🐮 with honest tier + cancel, never mute', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-progress"') && html.includes('id="lp-progress-txt"'), 'progress region present');
+  assert.ok(html.includes('class="lp-spin"') && /@keyframes lpSpin/.test(html), 'the 🐮 spinner animates');
+  assert.ok(/@media \(prefers-reduced-motion:reduce\)\{\.lp-spin\{animation:none\}\}/.test(html), 'spinner respects reduced-motion');
+  // Honest tier text on both paths (local $0 vs the agent subscription).
+  assert.ok(html.includes('🐮 a pensar… (moo local · $0') && html.includes("'🐮 a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))"), 'honest tier while thinking');
+  assert.ok(html.includes('function lpStartProgress') && html.includes('function lpFinishProgress'), 'progress starts and ends');
+  // Start on thinking, end on result — never left mute.
+  assert.ok(/lp-task-result'\)\{[\s\S]*?lpFinishProgress\(\)/.test(html), 'progress ends when the task result arrives');
+  // Cancel (agent runs only) posts lp-task-cancel from the WEBVIEW.
+  assert.ok(html.includes("type:'lp-task-cancel'"), 'cancel wired from the toolbar');
+  assert.ok(/lpStartProgress\(txt, true\)/.test(html), 'agent runs show a cancel button');
+  assert.ok(/lpStartProgress\(txt, false\)/.test(html), 'local $0 runs (fast) show no cancel');
+  // Design-critique #4: a run stays visible when the toolbar is minimized — the 🐮 chip pulses.
+  assert.ok(html.includes("chip.classList.add('lp-chip-working')") && html.includes("chip.classList.remove('lp-chip-working')"), 'the minimized chip shows working state');
+  assert.ok(/@keyframes lpChipPulse/.test(html), 'the working chip pulses (with reduced-motion fallback)');
+  parseInlineScript(html);
+  // HOST side (Node, not in the webview HTML): the handler aborts the active task, and the runner
+  // honours an AbortSignal additively. Assert against the raw source.
+  const ext = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  assert.ok(ext.includes("m.type === 'lp-task-cancel'") && ext.includes('_activeTaskAbort.abort()'), 'host aborts the active task');
+  assert.ok(ext.includes('signal: ac ? ac.signal : undefined'), 'the run receives the abort signal');
+  const taskSrc = fs.readFileSync(path.join(__dirname, 'live-edit-task.js'), 'utf8');
+  assert.ok(taskSrc.includes("finish({ ok: false, reason: 'task-cancelled' })") && taskSrc.includes("o.signal.addEventListener('abort'"), 'runner kills the child on abort (additive, unchanged without a signal)');
+});
+
+test('Live Preview LP-4.9 §4 coach marks — first-run onboarding, dismissible, never repeats + "?" help', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(html.includes('id="lp-coach"') && /role="dialog"/.test(html), 'coach-marks dialog present');
+  assert.ok(html.includes('function showCoachMarks') && html.includes('function maybeCoachOnArm'), 'first-run trigger present');
+  // Three honest steps: pick → edit/ask → $0 presets.
+  assert.ok(html.includes('Clica num elemento') && html.includes('Editar ou Perguntar') && html.includes('Cor e tamanho são $0'), 'the 3 steps');
+  // Shown only on the FIRST arm; the flag persists so it never repeats.
+  assert.ok(/maybeCoachOnArm\(\)/.test(html), 'coach marks trigger when the 🎯 arms');
+  assert.ok(html.includes("localStorage.getItem('lp-coach-done')") && html.includes("localStorage.setItem('lp-coach-done','1')"), 'dismissal persists (never repeats)');
+  // Re-openable any time from the "?" (WCAG 2.2 §3.2.6 consistent help).
+  assert.ok(html.includes('id="lp-ctb-help"') && /aria-label="Abrir a ajuda"/.test(html), 'the ? re-opens help');
+  assert.ok(/helpBtn\.addEventListener\('click', function\(\)\{ showCoachMarks\(\)/.test(html), 'the ? is wired to the coach marks');
+  // Design-critique #2 (a11y): a REAL modal — aria-modal, described-by, background made inert, Tab trapped.
+  assert.ok(/aria-modal="true"/.test(html) && /aria-describedby="lp-coach-body"/.test(html), 'coach is a proper modal dialog');
+  assert.ok(html.includes('function setCoachBackgroundInert') && /el\.inert=!!on/.test(html), 'background is made inert while the modal is open');
+  assert.ok(html.includes("e.key==='Tab'") && /last\.focus\(\)/.test(html) && /first\.focus\(\)/.test(html), 'Tab is trapped within the dialog');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 §6 WCAG 2.2 AA — target size ≥24px, focus not obscured, ARIA', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // §2.5.8 target size — the in-canvas controls are ≥24px (buttons, chips, swatches, ✕).
+  assert.ok(/\.lp-ctb \.lp-sel-btn\{min-height:24px\}/.test(html), 'toolbar buttons ≥24px');
+  assert.ok(/\.lp-ctb \.lp-ref-x\{min-width:24px;min-height:24px/.test(html), 'reference ✕ is a ≥24px target');
+  assert.ok(/\.lp-ctb \.lp-tier\{min-height:24px/.test(html), 'model chips ≥24px');
+  assert.ok(/\.lp-sw\{width:24px;height:24px/.test(html), 'preset swatches ≥24px');
+  // §2.4.11 focus not obscured — scroll-padding keeps a focused control clear of the sticky bars.
+  assert.ok(/\.lp-ctb\{scroll-padding-top:40px;scroll-padding-bottom:44px\}/.test(html), 'focus not obscured under sticky header/progress');
+  // ARIA on the toggles + swatches + menu + live regions.
+  assert.ok(/role="radio" aria-checked/.test(html), 'intent toggle exposes radio state');
+  assert.ok(html.includes('aria-label="cor do texto') || html.includes('aria-label="fundo'), 'swatches are labelled');
+  assert.ok(html.includes('aria-live="polite"'), 'toast/progress are announced');
+  // §3.2.6 consistent help — the "?" is always in the same place.
+  assert.ok(html.includes('id="lp-ctb-help"'), 'consistent help affordance present');
+  parseInlineScript(html);
+});
+
+test('Live Preview LP-4.9 loop-fix — never mute in-canvas + project-context transparency', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  // A — sending starts the toolbar progress INSTANTLY (not just the side panel), for every path.
+  assert.ok(html.includes("lpStartProgress('🐮 a enviar ao agente…', true)"), 'agent send shows instant in-canvas progress');
+  assert.ok(html.includes("lpStartProgress('🐮 a reescrever este elemento… (moo local · $0)', false)"), 'local send shows instant in-canvas progress');
+  assert.ok(html.includes("lpStartProgress('🐮 a enviar a pergunta…', true)"), 'ask send shows instant in-canvas progress');
+  // B — the local (lp-prompt) path surfaces in-canvas: a toast on diff-ready and on failure.
+  assert.ok(html.includes("showToast('ask','📝 proposta pronta — revê e aplica no painel →')"), 'diff-ready toast points to the panel');
+  assert.ok(html.includes("showToast('warn','⚠️ o moo local não ficou confiante"), 'local-quality-exhausted surfaces in-canvas');
+  // A honest refusal when asking with no bridge now ALSO toasts (was panel-only).
+  assert.ok(/if\(!br\.available\)\{ showEditResult\(false[^}]*showToast\('warn'/.test(html), 'ask refusal toasts in-canvas');
+  // C — the always-visible context line tells the user if the edit reads the PROJECT or only the node.
+  assert.ok(html.includes('id="lp-ctx"') && html.includes('function renderCtxLine'), 'context/route line present');
+  assert.ok(html.includes('o agente lê o projeto TODO e edita no sítio certo'), 'agent-available copy: full project context');
+  assert.ok(html.includes('edita SÓ este elemento, sem contexto do projeto'), 'agent-off copy: local-only, no project context + how to enable');
+  assert.ok(html.includes('@anthropic-ai/claude-agent-sdk'), 'tells the user how to turn the agent on');
+  // The context line refreshes when the SDK-bridge status changes.
+  assert.ok(/renderModeChips\(\); renderCtxLine\(\)/.test(html), 'context line refreshes on bridge change');
   parseInlineScript(html);
 });
 

@@ -132,6 +132,21 @@ try { LPP = require('./lp-presets.js'); } catch { LPP = null; }
 // under .mooter/skills/. Skills seed the one-box + pin the tier; execution rides the existing fence.
 let LSK = null;
 try { LSK = require('./lp-skills.js'); } catch { LSK = null; }
+// LP-5 §0 — Review Security: 4 PURE scanner modules (secret-scan, npm-audit summarizer,
+// xss-scan, csp-check) + the view renderer, serialised into the webview via fn.toString() (same
+// trick as lp-presets.js). None of the 4 scanners does fs/net/vscode — _securityScan() below
+// reads workspace files + runs `npm audit --json` and hands the data in. Fail-soft: an absent
+// module degrades that slice of the review honestly (never a crash, never a fabricated "clean").
+let LPSS = null, LPAS = null, LPXS = null, LPCC = null, LPSECV = null;
+try { LPSS = require('./lp-secret-scan.js'); } catch { LPSS = null; }
+try { LPAS = require('./lp-audit-summary.js'); } catch { LPAS = null; }
+try { LPXS = require('./lp-xss-scan.js'); } catch { LPXS = null; }
+try { LPCC = require('./lp-csp-check.js'); } catch { LPCC = null; }
+try { LPSECV = require('./lp-security-view.js'); } catch { LPSECV = null; }
+// LP-6 §0 — 🚀 Publish: PURE popover renderer (commit/push preview + Vercel deploy gate), same
+// fn.toString() serialisation trick. This module renders only; the host below is the sole gate.
+let LPPV = null;
+try { LPPV = require('./lp-publish-view.js'); } catch { LPPV = null; }
 // LP-3.2 — a MISSING parser (broken/old install: the vsix must ship @babel/parser) is not a file
 // parse error; give it its own reason so the panel says "reinstall" instead of blaming the file.
 function leaFailReason(res) {
@@ -1252,6 +1267,12 @@ class LivePreviewPanel {
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
     // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
     this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
+    // LP-6 §B — the LAST 🛡 Review Security verdict (set at the end of _securityScan below). Read
+    // by _publishStatus to decide hasOpenCritical — never re-scans on its own, never fabricated.
+    this._lastSecurity = null;
+    // LP-6 §D — the last REAL deploy URL this session produced (set only on a successful
+    // _publishDeploy). null until a real deploy happens; never inferred.
+    this._lastDeployUrl = null;
     // FIX-MP-1 (audit P0-1) — served-tree identity. The realpath'd root the dev server ACTUALLY
     // serves, learned from the dev-only tap via lp-tree (NEXT_PUBLIC_LP_ROOT). null = UNPROVEN →
     // every $0 write/preview fail-closes (see _treeConfirmed / _treeGateBlocked). Set to null here so
@@ -1426,11 +1447,17 @@ class LivePreviewPanel {
     if (m.type === 'lp-prompt') { this._promptEdit(m); return; } // LP-4 §3 anchored prompt → model → fenced preview
     if (m.type === 'lp-prompt-apply') { this._promptApply(m); return; } // LP-4 §3 approved replacement → hash-guarded write
     if (m.type === 'lp-task') { this._taskRun(m); return; } // LP-4.5 anchored PROJECT task → trusted agent (one-box default)
+    if (m.type === 'lp-task-cancel') { try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ } return; } // LP-4.9 §8 cancel the running agent task
     if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
     if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
+    if (m.type === 'lp-security-scan') { this._securityScan(); return; } // LP-5 §B global 🛡 review — secrets/xss/csp/npm-audit, local $0
+    // LP-6 §B/C/D — 🚀 Publish: status (read-only) → selective commit+push → hard-gated deploy.
+    if (m.type === 'lp-publish-status') { this._publishStatus(); return; }
+    if (m.type === 'lp-publish-commit') { this._publishCommit(m); return; }
+    if (m.type === 'lp-publish-deploy') { this._publishDeploy(m); return; }
     if (m.type === 'lp-state') {
       // Mirror the tap's last route+scroll so a future reload (or panel re-open) can restore it.
       const p = (typeof m.path === 'string') ? m.path.slice(0, 2048) : null;
@@ -1577,10 +1604,14 @@ class LivePreviewPanel {
       this._postRepin({ file: raw, line: m.line, col: m.col, tag: m.tag });
     } catch { fail('error'); }
   }
-  _postEditResult(ok, reason) {
+  _postEditResult(ok, reason, tier) {
     // §4 — every result carries the live revertable depth so the panel state reflects facts.
+    // LP-4.9 §3 — the tier rides along so the completion toast tells the TRUTH about cost: a fenced
+    // rewrite escalated to Sonnet/Opus is subscription, not $0 (deterministic edits stay $0).
     const undo = this._undoDepth();
-    try { this.panel.webview.postMessage({ type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo }); } catch { /* best-effort */ }
+    const msg = { type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo };
+    if (tier && tier !== 'local') msg.tier = String(tier);
+    try { this.panel.webview.postMessage(msg); } catch { /* best-effort */ }
   }
   // ── LP-4.5 §4 — the UNIFIED session feed. ONE list holds every Live Edit write: splice-kind
   // items (deterministic text/class, delete, fenced rewrite — each carries its LEU inverse-splice
@@ -1757,6 +1788,248 @@ class LivePreviewPanel {
     } catch { /* refuse below */ }
     return null;
   }
+  // ── LP-5 §B — Review Security: a bounded, read-only walk of the workspace (never outside it —
+  // same containment discipline as _resolveContainedFile), feeding the 4 PURE scanners. Only
+  // workspace-RELATIVE paths ever reach the webview — no absolute host path leaves this method.
+  // Local, $0: the only process spawned is `npm audit --json` (fail-soft — missing npm, a
+  // timeout, or any spawn error all degrade to an honest ok:false, never a throw); the only
+  // network traffic is npm's OWN registry advisory check inside that command — we send it no
+  // code. Wrapped end-to-end in try/catch: any unexpected failure posts {error:'scan-failed'}.
+  _securityScan() {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      // Skip vendored/build dirs AND test/fixture dirs — a security review audits SHIPPED code, not
+      // the scanners' own test fixtures (whose AKIA…-shaped strings would otherwise flood the panel
+      // with false 'critical' findings, which is exactly what a showcase must not do). Dot-dirs
+      // (.git/.next/.turbo/…) are skipped below by their leading '.'.
+      const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
+      const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
+      const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i; // *.test.tsx / *.spec.js / *.stories.tsx — not shipped product code
+      const ENV_RE = /^\.env(\..*)?$/i;
+      const MAX_FILES = 2000;
+      const MAX_BYTES = 512 * 1024; // skip anything bigger — never read a partial file across a truncation boundary
+      const files = [];
+      let nextConfigAbs = null;
+      const walk = (dir, depth) => {
+        if (depth > 12 || files.length >= MAX_FILES) return;
+        let ents;
+        try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const ent of ents) {
+          if (files.length >= MAX_FILES) return;
+          const name = ent.name;
+          const abs = path.join(dir, name);
+          if (ent.isDirectory()) {
+            if (name.charAt(0) === '.' || SKIP_DIRS.has(name)) continue; // node_modules/.git/.next/dist/… never walked
+            walk(abs, depth + 1);
+            continue;
+          }
+          if (!ent.isFile()) continue;
+          const rel = path.relative(root, abs).split(path.sep).join('/');
+          const isEnv = ENV_RE.test(name);
+          if (name.charAt(0) === '.' && !isEnv) continue; // other dotfiles are out of scope
+          if (TEST_RE.test(name)) continue; // test/spec/story files are not shipped product — skip
+          const isPublic = /(^|\/)public\//i.test(rel);
+          const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
+          const isSrc = SRC_RE.test(name);
+          if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
+          if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
+          try {
+            const st = fs.statSync(abs);
+            if (!st.isFile() || st.size > MAX_BYTES) continue;
+            const content = fs.readFileSync(abs, 'utf8');
+            files.push({ path: rel, content });
+          } catch { /* unreadable → skipped, never blocks the scan */ }
+        }
+      };
+      walk(root, 0);
+
+      const secrets = LPSS ? LPSS.scanSecrets(files) : [];
+      const xss = LPXS ? LPXS.scanXss(files) : [];
+      let csp = { hasCsp: false, findings: [] };
+      if (LPCC) {
+        let cfgText = '';
+        if (nextConfigAbs) { try { cfgText = fs.readFileSync(nextConfigAbs, 'utf8'); } catch { cfgText = ''; } }
+        csp = LPCC.checkCsp(cfgText);
+      }
+
+      // npm audit — FAIL-SOFT. npm exits non-zero when it FINDS vulnerabilities (not a failure
+      // here); missing npm / a timeout / any spawn error all degrade to {ok:false} honestly.
+      let audit = { ok: false };
+      try {
+        const isWin = process.platform === 'win32';
+        const cp = require('child_process').spawnSync(
+          isWin ? 'npm.cmd' : 'npm',
+          ['audit', '--json'],
+          { cwd: root, timeout: 30000, windowsHide: true, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8', shell: isWin }
+        );
+        const out = (cp && typeof cp.stdout === 'string') ? cp.stdout : '';
+        audit = (LPAS && out) ? LPAS.summarizeNpmAudit(out) : { ok: false };
+      } catch { audit = { ok: false }; }
+
+      // LP-6 §B — stash the verdict for _publishStatus's hasOpenCritical check. Overwritten by
+      // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
+      // scan the user just ran and saw fail.
+      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length };
+      post({ secrets, xss, csp, audit, scannedFiles: files.length });
+    } catch { this._lastSecurity = { error: 'scan-failed' }; post({ error: 'scan-failed' }); }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LP-6 — 🚀 Publish: status (read-only) → selective commit+push (host-extra, NEVER git add -A)
+  // → hard two-factor-gated Vercel deploy. DRAFT — see _handoff brief for full guard rationale.
+  // The single invariant that matters most: _publishDeploy is UNREACHABLE unless the typed
+  // project name matches EXACTLY what the host itself re-reads from .vercel/project.json, right
+  // there in that method — never trusting anything the webview echoes back as truth.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // hasOpenCritical — PURE-ish read of this._lastSecurity (the verdict of the LAST 🛡 scan this
+  // session ran). Only `secrets` findings count (per brief: an npm-audit "critical" is a supply-
+  // chain risk, not a secret leak baked into the commit — deliberately narrower than the review
+  // panel's own bucketing). No scan yet, or the last scan errored → false (unknown ≠ blocked);
+  // flagged in the handoff for Paulo's review — an errored scan could arguably be conservative
+  // instead and block by default.
+  _hasOpenCriticalSecurity() {
+    const r = this._lastSecurity;
+    if (!r || typeof r !== 'object' || r.error) return false;
+    const secrets = Array.isArray(r.secrets) ? r.secrets : [];
+    return secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical');
+  }
+
+  // _vercelProject(root) — the SINGLE resolver for "is this workspace linked, and to what
+  // project". Read by BOTH _publishStatus (advisory, for the UI hint) AND _publishDeploy (the
+  // actual gate) — one function, so the two can never silently diverge. Checks
+  // <root>/landing/.vercel/project.json first (this repo's real layout), then <root>/.vercel/
+  // project.json. projectName = the linked project's OWN .projectName field, or (fallback) the
+  // basename of the directory that holds .vercel/ — e.g. "landing". Never throws; not linked →
+  // { linked:false, projectName:null, projectDir:null }.
+  _vercelProject(root) {
+    const candidates = [
+      path.join(root || '', 'landing', '.vercel', 'project.json'),
+      path.join(root || '', '.vercel', 'project.json'),
+    ];
+    for (const p of candidates) {
+      try {
+        if (!fs.existsSync(p)) continue;
+        let j = null;
+        try { j = JSON.parse(fs.readFileSync(p, 'utf8')); } catch { j = null; }
+        const vercelDir = path.dirname(p);      // …/.vercel
+        const projectDir = path.dirname(vercelDir); // …/landing (or the wsRoot itself)
+        const name = (j && typeof j.projectName === 'string' && j.projectName.trim())
+          ? j.projectName.trim()
+          : path.basename(projectDir);
+        return { linked: true, projectName: name, projectDir };
+      } catch { /* try next candidate */ }
+    }
+    return { linked: false, projectName: null, projectDir: null };
+  }
+
+  // _publishStatus() — READ-ONLY. Answers "what would Publish do right now": the changed files
+  // (from gitCommitPreview — the SAME preview the selective commit re-validates against, never a
+  // separate/looser read), the default commit message, whether Vercel is linked (+ its expected
+  // project name, shown only as a hint — the deploy gate re-derives it independently), the open-
+  // Critical flag, and the last known REAL deploy URL this session produced (or null — never
+  // guessed).
+  async _publishStatus() {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-status-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      const prev = await extra.gitCommitPreview(root);
+      const touchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
+      const vercel = this._vercelProject(root);
+      post({
+        branch: prev ? prev.branch : null,
+        touchedFiles,
+        defaultMessage: prev ? prev.message : '',
+        vercelLinked: vercel.linked,
+        projectName: vercel.linked ? vercel.projectName : null,
+        hasOpenCritical: this._hasOpenCriticalSecurity(),
+        websiteUrl: this._lastDeployUrl || null,
+      });
+    } catch { post({ error: 'status-failed' }); }
+  }
+
+  // _publishCommit(m) — payload {files, message}. SELECTIVE commit + push, NEVER `git add -A`.
+  // The webview's file list is a SUGGESTION, not authority: we recompute the changed set fresh
+  // (a new gitCommitPreview, not the one the webview saw — the disk may have moved since) and
+  // silently drop anything the user did not actually see change — a file the caller asks for that
+  // is NOT in that fresh set is simply never staged. host-extra.gitCommit does the real
+  // `git add -- <files>` + `git commit`; host-extra.gitPush does the real `git push` (never
+  // --force). Reports the EXACT command string either way (transparency), never a presumed
+  // success.
+  async _publishCommit(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'commit' }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      const reqFiles = Array.isArray(m && m.files) ? m.files.filter((f) => typeof f === 'string' && f) : [];
+      const message = (m && typeof m.message === 'string') ? m.message.trim().slice(0, 500) : '';
+      if (!reqFiles.length || !message) { post({ ok: false, reason: 'bad-request', cmd: '' }); return; }
+      // FIX-REVIEW MED — fail-closed, BEFORE any staging: an OPEN Critical secret finding blocks the
+      // commit+push at the HOST. The webview button-disable is advisory only; a forged/buggy
+      // lp-publish-commit must not let a scanned secret reach the remote. Escape hatch = explicit
+      // override (the brief's "override explícito com aviso vermelho"), never a silent default.
+      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open', cmd: '' }); return; }
+      const prev = await extra.gitCommitPreview(root);
+      const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
+      const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
+      if (!files.length) { post({ ok: false, reason: 'no-matching-files', cmd: '' }); return; }
+      const cres = await extra.gitCommit(root, files, message); // `git add -- <files>` then `git commit` — never -A
+      if (!cres.ok) { post({ ok: false, reason: 'commit-failed', out: String(cres.out || '').slice(0, 400), cmd: cres.cmd }); return; }
+      const pres = await extra.gitPush(root); // never --force
+      post({
+        ok: pres.ok,
+        reason: pres.ok ? undefined : 'push-failed',
+        out: String(pres.out || '').slice(0, 400),
+        cmd: cres.cmd + ' && ' + pres.cmd,
+        filesCommitted: files.length,
+      });
+    } catch { post({ ok: false, reason: 'error', cmd: '' }); }
+  }
+
+  // _publishDeploy(m) — payload {projectName}. THE IRREVERSIBLE STEP. HARD TWO-FACTOR GATE:
+  // this method independently re-reads .vercel/project.json (via _vercelProject — the SAME
+  // resolver _publishStatus used to show the hint, called again here fresh) and compares it
+  // BYTE-FOR-BYTE against m.projectName. Anything other than an exact match REFUSES and deploys
+  // NOTHING — the webview is assumed untrusted/possibly wrong; this check is the only thing that
+  // matters. Only on an exact match does `vercel --prod --yes` ever spawn. A missing CLI (ENOENT,
+  // or a shell reporting "not recognized"/"command not found") returns an honest onboarding
+  // reason, never an invented URL. Any other failure (non-zero exit, timeout) is reported as-is —
+  // never presented as success.
+  _publishDeploy(m) {
+    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'deploy' }, payload)); } catch { /* best-effort */ } };
+    try {
+      const root = this._wsRoot();
+      const info = this._vercelProject(root);
+      if (!info.linked) { post({ ok: false, reason: 'not-linked' }); return; }
+      const typed = (m && typeof m.projectName === 'string') ? m.projectName.trim() : '';
+      // ── THE GATE ── deploy is unreachable without this exact match. Nothing above this line
+      // spawns a process; nothing below runs unless it passes.
+      if (!typed || typed !== info.projectName) { post({ ok: false, reason: 'name-mismatch' }); return; }
+      // FIX-REVIEW MED — fail-closed secondary gate on the IRREVERSIBLE step: an OPEN Critical
+      // security finding blocks the deploy at the HOST too (the webview button-disable is advisory
+      // and bypassable by a forged message). Escape hatch = explicit override (brief's red-warning
+      // path), never silent. The two-factor name gate above remains the primary, non-overridable gate.
+      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open' }); return; }
+      let cp;
+      try {
+        cp = require('child_process').spawnSync('vercel', ['--prod', '--yes'],
+          { cwd: info.projectDir, timeout: 180000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
+      } catch (e) {
+        post({ ok: false, reason: (e && e.code === 'ENOENT') ? 'vercel-cli-missing' : 'spawn-error' });
+        return;
+      }
+      const out = ((cp && typeof cp.stdout === 'string') ? cp.stdout : '') + ((cp && typeof cp.stderr === 'string') ? cp.stderr : '');
+      const notFound = (cp && cp.error && cp.error.code === 'ENOENT')
+        || (cp && cp.status !== 0 && /is not recognized|command not found/i.test(out));
+      if (notFound) { post({ ok: false, reason: 'vercel-cli-missing' }); return; }
+      if (!cp || cp.status !== 0) { post({ ok: false, reason: 'deploy-failed', out: out.slice(0, 800) }); return; }
+      const urlMatch = out.match(/https:\/\/\S+\.vercel\.app\S*/);
+      const url = urlMatch ? urlMatch[0] : null;
+      if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
+      post({ ok: true, url, out: out.slice(0, 800) });
+    } catch { post({ ok: false, reason: 'error' }); }
+  }
+
   // ── LP-4 §3 — anchored prompt: the model path, FENCED. The model (local $0 moo OR the
   // subscription bridge) sees ONLY the selected node's subtree + the instruction — never the
   // file. Whatever it answers is forced through spliceNodeRange (parse + single root + no
@@ -1929,7 +2202,7 @@ class LivePreviewPanel {
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
-      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied');
+      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied', m.tier);
       // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
       // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
       let repinTag = (typeof m.tag === 'string') ? m.tag : '';
@@ -2002,19 +2275,30 @@ class LivePreviewPanel {
         }
         if (!refs.length) refs = undefined;
       }
-      this._postTaskStatus({ phase: 'thinking', mode });
-      const res = await LET.runAnchoredTask({
-        instruction,
-        file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
-        nodeSource,
-        breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
-        refs,
-        mode,
-      }, {
-        wsRoot: this._wsRoot(),
-        trusted: this._workspaceTrusted() === true,
-        onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
-      });
+      // LP-4.9 §1 — explicit intent from the Edit/Ask toggle. 'ask' forces an answer-only run
+      // (zero writes even if the ask looks like an edit); anything else edits. Default 'edit'.
+      const intent = (m && m.intent === 'ask') ? 'ask' : 'edit';
+      this._postTaskStatus({ phase: 'thinking', mode, intent });
+      // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
+      const ac = (typeof AbortController === 'function') ? new AbortController() : null;
+      this._activeTaskAbort = ac;
+      let res;
+      try {
+        res = await LET.runAnchoredTask({
+          instruction,
+          file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+          nodeSource,
+          breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+          refs,
+          intent,
+          mode,
+        }, {
+          wsRoot: this._wsRoot(),
+          trusted: this._workspaceTrusted() === true,
+          signal: ac ? ac.signal : undefined,
+          onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
+        });
+      } finally { if (this._activeTaskAbort === ac) this._activeTaskAbort = null; }
       if (!res || !res.ok) { fail((res && res.reason) || 'error', res && res.detail); return; }
       // Register the edits HOST-side keyed by taskId: revert must act on OUR record (snapshot +
       // shaAfter), never on paths a webview message hands back (P1-B discipline, agent flavour).
@@ -2213,6 +2497,10 @@ function getLivePreviewHtml(token, wsRoot) {
   // own catalog/regexes so toString survives the module-scope loss).
   const mergeClassSrc = LPP ? LPP.mergeClass.toString() : 'function mergeClass(c,cls){return ((c||"")+" "+cls).trim();}';
   const renderPresetsBarHTMLSrc = LPP ? LPP.renderPresetsBarHTML.toString() : 'function renderPresetsBarHTML(){return "";}';
+  // LP-5 §C — the Review Security renderer, serialised in (self-contained, same fn.toString()
+  // contract as renderPresetsBarHTML above).
+  const renderSecurityFindingsSrc = LPSECV ? LPSECV.renderSecurityFindings.toString() : 'function renderSecurityFindings(){return "";}';
+  const renderPublishPopoverSrc = LPPV ? LPPV.renderPublishPopover.toString() : 'function renderPublishPopover(){return "";}';
   // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
   // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
   const skillsRegistry = LSK ? LSK.loadSkills({ wsRoot: wsRoot }) : [];
@@ -2231,6 +2519,36 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-root{display:flex;flex-direction:row;height:100vh;min-height:0}
   #lp-stagewrap{flex:1 1 62%;display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--vscode-widget-border)}
   #lp-side{flex:0 0 340px;max-width:46%;overflow:auto;padding:12px 14px;min-width:0}
+  /* LP-5 §C — 🛡 Review Security results panel (global action, local $0). */
+  #lp-security{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55}
+  #lp-security .lp-sec-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
+  #lp-security .lp-sec-meta{opacity:.75;margin-bottom:6px}
+  #lp-security .lp-sec-err{color:var(--vscode-errorForeground,#D9484B)}
+  #lp-security .lp-sec-group{margin-bottom:8px}
+  #lp-security .lp-sec-glabel{font-weight:600;margin-bottom:3px}
+  #lp-security .lp-sec-critical .lp-sec-glabel{color:var(--vscode-charts-red,#E8888A)}
+  #lp-security .lp-sec-warning .lp-sec-glabel{color:var(--vscode-charts-yellow,#E5C07B)}
+  #lp-security .lp-sec-info .lp-sec-glabel{opacity:.8}
+  #lp-security .lp-sec-item{margin:2px 0;word-break:break-word}
+  #lp-security .lp-sec-label{font-weight:600;margin-right:6px}
+  #lp-security .lp-sec-detail{opacity:.85}
+  /* LP-6 §E — 🚀 Publish popover (commit/push preview + gated Vercel deploy). */
+  #lp-publish{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55}
+  #lp-publish .lp-pub-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
+  #lp-publish .lp-pub-meta{opacity:.75;margin-bottom:6px}
+  #lp-publish .lp-pub-err{color:var(--vscode-errorForeground,#D9484B)}
+  #lp-publish .lp-pub-url{margin-bottom:6px;word-break:break-all}
+  #lp-publish .lp-pub-cost{opacity:.65;margin-bottom:8px;font-style:italic}
+  #lp-publish .lp-pub-warn{color:var(--vscode-charts-yellow,#E5C07B);margin-bottom:6px}
+  #lp-publish .lp-pub-ok{color:var(--vscode-charts-green,#4EC97A);word-break:break-all}
+  #lp-publish .lp-pub-sec{margin-top:8px;padding-top:8px;border-top:1px solid var(--vscode-widget-border)}
+  #lp-publish .lp-pub-files-hdr{font-weight:600;margin-bottom:4px}
+  #lp-publish .lp-pub-files{max-height:120px;overflow:auto;margin-bottom:6px}
+  #lp-publish .lp-pub-file{opacity:.85;word-break:break-all;margin:1px 0}
+  #lp-publish .lp-pub-msg{width:100%;box-sizing:border-box;margin-bottom:6px;font-family:inherit;font-size:11.5px;resize:vertical}
+  #lp-publish .lp-pub-danger{color:var(--vscode-errorForeground,#D9484B);border-color:var(--vscode-errorForeground,#D9484B)}
+  #lp-publish .lp-pub-gate{margin-top:8px;padding:8px;border:1px dashed var(--vscode-errorForeground,#D9484B);border-radius:6px}
+  #lp-publish .lp-pub-gate-input{width:100%;box-sizing:border-box;margin:6px 0;font-family:inherit;font-size:11.5px}
   #lp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);flex-wrap:wrap}
   .lp-status{flex:1 1 auto;min-width:120px;display:flex;align-items:center;gap:7px;font-size:12px;overflow:hidden}
   .lp-status .lps-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2298,7 +2616,58 @@ function getLivePreviewHtml(token, wsRoot) {
   /* LP-4.8 §1 — in-canvas toolbar, floating over the frame anchored to the pin. The overlay
      spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
   .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
-  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:9px 11px}
+  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
+  /* LP-4.9 §7 — toolbar header: grip (drag) + minimize + close. Sticky so it stays while scrolling. */
+  .lp-ctb-hd{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;margin:0 -11px 6px;padding:5px 9px;background:var(--vscode-editorWidget-background);border-bottom:1px solid var(--vscode-widget-border);border-radius:9px 9px 0 0}
+  .lp-ctb-grip{flex:1 1 auto;font-size:10.5px;opacity:.6;cursor:grab;user-select:none;letter-spacing:.04em;touch-action:none}
+  .lp-ctb-grip:active{cursor:grabbing}
+  .lp-ctb-btn{flex:none;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font:13px var(--vscode-font-family);color:var(--vscode-foreground);background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;line-height:1}
+  .lp-ctb-btn:hover{background:var(--vscode-list-hoverBackground);border-color:var(--vscode-widget-border)}
+  .lp-ctb-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  .lp-ctb-chip{position:absolute;left:8px;top:8px;pointer-events:auto;width:34px;height:34px;display:none;align-items:center;justify-content:center;font-size:17px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:50%;box-shadow:0 6px 20px rgba(0,0,0,.32);cursor:pointer}
+  .lp-ctb-chip:hover{border-color:var(--vscode-focusBorder)}
+  .lp-ctb-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
+  /* §4 — a run stays visible even when minimized: the chip pulses while a task is active. */
+  .lp-ctb-chip.lp-chip-working{animation:lpChipPulse 1s ease-in-out infinite;border-color:var(--vscode-charts-blue,#5A9BD4)}
+  @keyframes lpChipPulse{0%,100%{box-shadow:0 6px 20px rgba(0,0,0,.32)}50%{box-shadow:0 0 0 4px rgba(90,155,212,.5),0 6px 20px rgba(0,0,0,.32)}}
+  @media (prefers-reduced-motion:reduce){.lp-ctb-chip.lp-chip-working{animation:none;border-color:var(--vscode-charts-blue,#5A9BD4)}}
+  /* LP-4.9 §3 — real-time feedback toast (anchored to the node, auto-dismissed). */
+  .lp-ctb-toast{position:absolute;left:8px;top:8px;pointer-events:none;max-width:min(320px,calc(100% - 16px));font:11.5px var(--vscode-font-family);font-weight:600;padding:6px 11px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.34);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lp-toast-ok{background:var(--vscode-charts-green,#4CAF6A);color:#08130C}
+  .lp-toast-ask{background:var(--vscode-charts-blue,#5A9BD4);color:#071018}
+  .lp-toast-warn{background:var(--vscode-inputValidation-warningBackground,#E5C07B);color:#1A1305;border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.6))}
+  .lp-toast-in{animation:lpToastIn .18s ease}
+  @keyframes lpToastIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  /* LP-4.9 §8 — live progress: the 🐮 spins while the moo/agent works, with an honest tier + cancel. */
+  .lp-progress{position:sticky;bottom:0;display:flex;align-items:center;gap:8px;margin:8px -11px 0;padding:7px 11px;background:var(--vscode-editorWidget-background);border-top:1px solid var(--vscode-widget-border);font-size:11.5px}
+  .lp-spin{display:inline-block;animation:lpSpin 1.1s linear infinite;font-size:14px}
+  @keyframes lpSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.lp-spin{animation:none}}
+  .lp-progress-txt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+  .lp-progress-x{flex:none;min-height:24px}
+  /* LP-4.9 §4 — first-run coach marks (dismissible, never repeats). */
+  .lp-coach{position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.28);pointer-events:auto}
+  .lp-coach-card{max-width:min(340px,calc(100% - 32px));background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:11px;box-shadow:0 12px 36px rgba(0,0,0,.42);padding:16px 18px}
+  .lp-coach-t{font-weight:700;font-size:13px;margin-bottom:6px}
+  .lp-coach-d{font-size:12px;line-height:1.5;opacity:.9}
+  .lp-coach-nav{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .lp-coach-dots{flex:1 1 auto;display:flex;gap:5px;justify-content:center}
+  .lp-coach-dot{width:6px;height:6px;border-radius:50%;background:var(--vscode-widget-border)}
+  .lp-coach-dot.on{background:var(--vscode-charts-red,#E8888A)}
+  .lp-coach-btn{flex:none;min-height:28px;font:12px var(--vscode-font-family);font-weight:700;color:#0B0A09;background:var(--vscode-charts-red,#E8888A);border:0;border-radius:7px;padding:5px 14px;cursor:pointer}
+  .lp-coach-btn2{flex:none;min-height:28px;font:11.5px var(--vscode-font-family);color:var(--vscode-descriptionForeground);background:transparent;border:1px solid var(--vscode-widget-border);border-radius:7px;padding:4px 10px;cursor:pointer}
+  .lp-coach-btn:focus-visible,.lp-coach-btn2:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
+  /* LP-4.9 §6 — WCAG 2.2 AA sweep. Target size ≥24px (§2.5.8) on every in-canvas control, and
+     focus never obscured (§2.4.11): scroll-padding keeps a focused control clear of the sticky
+     header/progress bars when the toolbar scrolls. Focus rings come from each control's rule. */
+  .lp-ctb{scroll-padding-top:40px;scroll-padding-bottom:44px}
+  .lp-ctb .lp-sel-btn{min-height:24px}
+  .lp-ctb .lp-tier{min-height:24px;display:inline-flex;align-items:center}
+  .lp-ctb .lp-ref-x{min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+  .lp-ctb .lp-ref-clr{min-height:24px}
+  .lp-ctb .lp-sk-item{min-height:24px}
+  .lp-ctb .lp-ed-in{min-height:24px}
+  #lp-sel .lp-crumb{min-height:24px;display:inline-flex;align-items:center}
   .lp-ctb .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   .lp-ctb .lp-ed-row{display:flex;gap:6px;align-items:center}
   .lp-ctb .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -2318,10 +2687,13 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ctb .lp-pz{margin:6px 0 2px}
   .lp-pz-l{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.62;margin:7px 0 3px}
   .lp-pz-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-  .lp-sw{width:20px;height:20px;padding:0;border:1px solid var(--vscode-widget-border);border-radius:50%;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-  .lp-sw:hover{border-color:var(--vscode-focusBorder)}
-  .lp-sw-dot{width:14px;height:14px;border-radius:50%;display:block}
-  .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 8px;cursor:pointer}
+  .lp-sw{width:24px;height:24px;padding:0;border:1px solid var(--vscode-widget-border);border-radius:50%;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .lp-sw:hover{border-color:var(--vscode-focusBorder);transform:scale(1.12)}
+  .lp-sw-dot{width:17px;height:17px;border-radius:50%;display:block}
+  .lp-pz-chip{font:10.5px var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:4px 9px;min-height:24px;cursor:pointer}
+  /* LP-4.9 §5 — presets as the star: the top of the simple view, breathing room, "$0" cue. */
+  .lp-ctb .lp-pz-star{margin:2px 0 8px;padding:2px 0 8px;border-bottom:1px solid var(--vscode-widget-border)}
+  .lp-pz-star .lp-pz-l:first-child{margin-top:0}
   .lp-pz-chip:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   .lp-sw:focus-visible,.lp-pz-chip:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* LP-4.8 §3 — /skills dropdown: each item surfaces its tier (honest routing). */
@@ -2348,6 +2720,22 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ref-x:hover{opacity:1;background:var(--vscode-list-hoverBackground)}
   .lp-refs-note{font-size:9.5px;opacity:.7;margin-top:4px;line-height:1.35}
   .lp-ref-clr:focus-visible,.lp-ref-x:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  /* LP-4.9 §1 — the explicit Edit/Ask intent toggle (segmented control). */
+  .lp-ctb .lp-mode-tg{display:inline-flex;margin:8px 0 3px;border:1px solid var(--vscode-widget-border);border-radius:7px;overflow:hidden}
+  .lp-mtg{font:11.5px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-input-background);border:0;padding:5px 12px;min-height:26px;cursor:pointer}
+  .lp-mtg+.lp-mtg{border-left:1px solid var(--vscode-widget-border)}
+  .lp-mtg.on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;font-weight:700}
+  .lp-mtg:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px}
+  .lp-ctb .lp-mode-hint{font-size:10px;opacity:.72;margin:1px 0 5px;line-height:1.4}
+  /* LP-4.9 loop-fix §C — the project-context/route line (always visible in the simple view). */
+  .lp-ctx{font-size:10.5px;line-height:1.4;margin:4px 0 2px;padding:5px 8px;border-radius:6px}
+  .lp-ctx-ok{color:var(--vscode-charts-green,#4CAF6A);background:rgba(76,175,106,.10);border:1px solid rgba(76,175,106,.35)}
+  .lp-ctx-warn{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
+  /* LP-4.9 §2 — progressive disclosure: the "▾ mais" chevron + the advanced drawer. */
+  .lp-more{display:block;width:100%;margin:8px 0 2px;font:11px var(--vscode-font-family);color:var(--vscode-descriptionForeground);background:transparent;border:1px dashed var(--vscode-widget-border);border-radius:6px;padding:5px 8px;min-height:26px;cursor:pointer;text-align:center}
+  .lp-more:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-foreground)}
+  .lp-more:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  .lp-adv{margin-top:6px;padding-top:8px;border-top:1px solid var(--vscode-widget-border)}
   /* LP-4.5 §6 — device toggle: ONLY the iframe width changes (dev preview, zero deps). */
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
@@ -2439,6 +2827,10 @@ function getLivePreviewHtml(token, wsRoot) {
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
+        <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
+        <button id="lp-security-btn" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡</button>
+        <!-- LP-6 §E — Publish: commit+push seletivo, depois deploy Vercel gated por 2º fator (host-side). -->
+        <button id="lp-publish-btn" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
     </div>
@@ -2452,12 +2844,46 @@ function getLivePreviewHtml(token, wsRoot) {
            through to the iframe for continued hover/select; ONLY the toolbar itself is clickable. -->
       <div id="lp-ctb-ov" class="lp-ctb-ov">
         <div id="lp-ctb" class="lp-ctb" role="toolbar" aria-label="Editar o elemento selecionado" aria-hidden="true" style="display:none">
+          <!-- LP-4.9 §7 — header: drag handle (grip) + minimize + close (X). The grip is the drag
+               affordance; the automatic flip-positioning is the no-drag alternative (WCAG 2.5.7). -->
+          <div id="lp-ctb-hd" class="lp-ctb-hd">
+            <span id="lp-ctb-grip" class="lp-ctb-grip" title="Arrastar (ou deixa o posicionamento automático)">⠿ mover</span>
+            <button type="button" id="lp-ctb-help" class="lp-ctb-btn" title="Como funciona (ajuda)" aria-label="Abrir a ajuda">?</button>
+            <button type="button" id="lp-ctb-min" class="lp-ctb-btn" title="Minimizar" aria-label="Minimizar a toolbar">—</button>
+            <button type="button" id="lp-ctb-x" class="lp-ctb-btn" title="Fechar (Esc)" aria-label="Fechar a toolbar">✕</button>
+          </div>
           <div id="lp-ctb-body"></div>
+          <!-- LP-4.9 §8 — live progress: 🐮 spinner + honest tier text + cancel (agent runs). -->
+          <div id="lp-progress" class="lp-progress" role="status" aria-live="polite" style="display:none">
+            <span class="lp-spin" aria-hidden="true">🐮</span>
+            <span id="lp-progress-txt" class="lp-progress-txt">a pensar…</span>
+            <button type="button" id="lp-progress-cancel" class="lp-sel-btn lp-progress-x" title="Cancelar a tarefa" style="display:none">cancelar</button>
+          </div>
+        </div>
+        <!-- Minimized state: a single 🐮 chip that re-expands on click. -->
+        <button type="button" id="lp-ctb-chip" class="lp-ctb-chip" style="display:none" title="Reabrir a toolbar" aria-label="Reabrir a toolbar de edição">🐮</button>
+        <!-- LP-4.9 §3 — real-time feedback toast, anchored to the node. Announced politely to a11y. -->
+        <div id="lp-ctb-toast" class="lp-ctb-toast" role="status" aria-live="polite" style="display:none"></div>
+      </div>
+      <!-- LP-4.9 §4 — first-run coach marks (3 steps, dismissible, never repeats). Also re-openable
+           from the "?" in the toolbar header (WCAG 2.2 §3.2.6 consistent help). -->
+      <div id="lp-coach" class="lp-coach" role="dialog" aria-modal="true" aria-label="Como usar o Live Edit" aria-describedby="lp-coach-body" style="display:none">
+        <div class="lp-coach-card">
+          <div id="lp-coach-body" class="lp-coach-body"></div>
+          <div class="lp-coach-nav">
+            <button type="button" id="lp-coach-skip" class="lp-coach-btn2">não mostrar</button>
+            <span id="lp-coach-dots" class="lp-coach-dots" aria-hidden="true"></span>
+            <button type="button" id="lp-coach-next" class="lp-coach-btn">seguinte</button>
+          </div>
         </div>
       </div>
     </div>
   </section>
   <aside id="lp-side">
+    <!-- LP-5 §C — 🛡 Review Security mounts here; hidden until the first scan. -->
+    <div id="lp-security" role="region" aria-label="Review de segurança" style="display:none"></div>
+    <!-- LP-6 §E — 🚀 Publish popover mounts here; hidden until the button is clicked. -->
+    <div id="lp-publish" role="region" aria-label="Publicar" style="display:none"></div>
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-feed" role="region" aria-label="Mudanças desta sessão de preview"></div>
     <div id="lp-brain">a carregar…</div>
@@ -2466,6 +2892,7 @@ function getLivePreviewHtml(token, wsRoot) {
 </div>
 <script nonce="${nonce}">
 const vsapi=acquireVsCodeApi();
+let lpPublishState=null; // LP-6 §E — last lp-publish-status-result / lp-publish-result payload
 const HOST_TOKEN=${hostToken};
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const renderDirectorsCut=${renderDirectorsCutSrc};
@@ -2479,6 +2906,8 @@ const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
 const mergeClass=${mergeClassSrc};
 const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
+const renderSecurityFindings=${renderSecurityFindingsSrc};
+const renderPublishPopover=${renderPublishPopoverSrc};
 const LP_SKILLS=${skillsJson};
 const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
 function render(s){
@@ -2658,6 +3087,11 @@ let lpSelection=null, lpSelectOn=false, lpMode='auto';
 // prompt (Lovable's model, NOT batch-edit). They ride the agent (lp-task) path only; a local $0
 // fenced edit still targets the single pinned node. Each entry: { file, line, col, tag, label }.
 let lpRefs=[];
+// LP-4.9 §1 — the one-box now carries an EXPLICIT intent so the user knows BEFORE sending whether
+// it will EDIT (write → diff → apply → preview changes) or ASK (read the repo → answer in the
+// panel, zero writes). 'edit' (default) respects the model chip; 'ask' always uses the agent (only
+// it can answer), never the local $0 moo. Kills Paulo's #1 pain: the "I asked, expected an edit".
+let lpIntent='edit';
 // LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
@@ -2672,6 +3106,7 @@ function setSelectMode(on){
   const b=document.getElementById('lp-select-btn');
   if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
   sendSelectMode(lpSelectOn);
+  if(lpSelectOn){ try{ maybeCoachOnArm(); }catch(e){} } // LP-4.9 §4 — first-run onboarding
 }
 // MP5.2a — a breadcrumb chip asks the tap to re-select an ancestor node (re-pin + fresh lp-select).
 // Origin-targeted postMessage into the frame, exactly like sendSelectMode (cross-origin, never '*').
@@ -2688,6 +3123,17 @@ function sendDetach(c){
 function sendDetachAll(){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-detach-all' }, curOrigin); }catch(e){} }
+}
+// LP-4.9 §5 — hover-preview: ask the tap to VISUALLY apply a className to the pinned element (live
+// DOM only, no file write) so a preset shows its effect before you commit — the Lovable gesture.
+// Origin-targeted into the frame; the tap saves the original and restores it on clear.
+function sendPreviewClass(cn){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-preview-class', className:String(cn==null?'':cn) }, curOrigin); }catch(e){} }
+}
+function sendClearPreview(){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-preview-clear' }, curOrigin); }catch(e){} }
 }
 // Render the attached-reference chips (each with a ✕) + a "limpar" clear-all. Rebuilt whenever a
 // ref is attached/removed and after each renderSelection (which recreates the toolbar markup).
@@ -2776,29 +3222,155 @@ function wireSkillsMenu(){
 // map it into #lp-framewrap coordinates via the iframe's offset (0,0 full-width; centred in device
 // mode) and clamp so the toolbar never spills outside the frame. Prefer ABOVE the pin, fall back
 // below when there is no room — the toolbar must never cover the very element being edited.
-let lpPinRect=null;
+let lpPinRect=null, lpToolbarManualPos=null, lpToolbarMin=false;
+function lpRectsOverlap(a,b){ return !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y); }
 function positionCanvasToolbar(rect){
-  const tb=document.getElementById('lp-ctb'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
+  const tb=document.getElementById('lp-ctb'), chip=document.getElementById('lp-ctb-chip'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
   if(!tb||!f||!wrap) return;
   if(rect && typeof rect.x==='number') lpPinRect=rect; else rect=lpPinRect;
   if(!rect) return;
   const fx=f.offsetLeft||0, fy=f.offsetTop||0;
   const wrapW=wrap.clientWidth||0, wrapH=wrap.clientHeight||0;
+  const px=fx+(rect.x||0), py=fy+(rect.y||0), pw=rect.w||0, ph=rect.h||0; // pin box in wrap coords
+  const clampX=function(x,w){ return Math.max(6, Math.min(x, wrapW-w-6)); };
+  const clampY=function(y,h){ return Math.max(6, Math.min(y, wrapH-h-6)); };
+  // §7 minimized — place the 🐮 chip at the pin corner (above if it fits, else below); toolbar hidden.
+  if(lpToolbarMin){
+    if(chip){ const cw=chip.offsetWidth||34, chh=chip.offsetHeight||34; chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
+    return;
+  }
   const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
-  let left=fx+(rect.x||0);
-  if(left+tw>wrapW-6) left=wrapW-tw-6;
-  if(left<6) left=6;
-  let top=fy+(rect.y||0)-th-8;                       // prefer above
-  if(top<6) top=fy+(rect.y||0)+(rect.h||0)+8;        // fall back below
-  if(top+th>wrapH-6) top=Math.max(6, wrapH-th-6);
-  tb.style.left=left+'px';
-  tb.style.top=top+'px';
+  // §7 dragged — honour the manual position (clamped into the frame; the auto-anchor is the
+  // no-drag alternative required by WCAG 2.5.7, so dragging is a convenience, never the only way).
+  if(lpToolbarManualPos){ tb.style.left=clampX(lpToolbarManualPos.x, tw)+'px'; tb.style.top=clampY(lpToolbarManualPos.y, th)+'px'; return; }
+  // §7 auto-anchor — try above → below → right → left; take the first that fits AND does not cover
+  // the pin (the toolbar must never hide the very element being edited — Paulo's live pain).
+  const pin={x:px,y:py,w:pw,h:ph};
+  const cands=[
+    {x:clampX(px,tw), y:py-th-8},        // above
+    {x:clampX(px,tw), y:py+ph+8},        // below
+    {x:px+pw+8,       y:clampY(py,th)},  // right
+    {x:px-tw-8,       y:clampY(py,th)},  // left
+  ];
+  let chosen=null;
+  for(let i=0;i<cands.length;i++){
+    const c=cands[i];
+    if(c.x<6||c.y<6||c.x+tw>wrapW-6||c.y+th>wrapH-6) continue;   // off-frame
+    if(lpRectsOverlap({x:c.x,y:c.y,w:tw,h:th}, pin)) continue;   // covers the pin
+    chosen=c; break;
+  }
+  if(!chosen) chosen={x:clampX(px,tw), y:clampY(py+ph+8, th)};   // last resort: clamped below
+  tb.style.left=chosen.x+'px';
+  tb.style.top=chosen.y+'px';
 }
 function hideCanvasToolbar(){
-  const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body');
-  lpPinRect=null;
+  const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body'), chip=document.getElementById('lp-ctb-chip');
+  lpPinRect=null; lpToolbarManualPos=null; lpToolbarMin=false;
   if(tb){ tb.style.display='none'; tb.setAttribute('aria-hidden','true'); }
+  if(chip) chip.style.display='none';
   if(tbb) tbb.innerHTML='';
+}
+// LP-4.9 §3 — real-time feedback. A toast anchored to the node says EXACTLY what happened: an edit
+// landed ("✓ aplicado no preview · $0"), a question was answered ("💬 resposta no painel →"), or a
+// write was refused ("⚠️ …"). Politely announced (aria-live) and auto-dismissed. kind ∈ ok|ask|warn.
+let lpToastTimer=null;
+function showToast(kind, text){
+  const t=document.getElementById('lp-ctb-toast'); if(!t) return;
+  t.className='lp-ctb-toast lp-toast-'+(kind||'ok')+' lp-toast-in';
+  t.textContent=text;
+  t.style.display='block';
+  const f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
+  if(f&&wrap&&lpPinRect){
+    const fx=f.offsetLeft||0, fy=f.offsetTop||0, wrapW=wrap.clientWidth||0;
+    const tw=t.offsetWidth||160, th=t.offsetHeight||28;
+    let left=fx+(lpPinRect.x||0)+((lpPinRect.w||0)/2)-tw/2;
+    left=Math.max(6, Math.min(left, wrapW-tw-6));
+    let top=fy+(lpPinRect.y||0)-th-10; if(top<6) top=fy+(lpPinRect.y||0)+(lpPinRect.h||0)+10;
+    t.style.left=left+'px'; t.style.top=top+'px';
+  }
+  if(lpToastTimer){ try{ clearTimeout(lpToastTimer); }catch(e){} }
+  lpToastTimer=setTimeout(function(){ const el=document.getElementById('lp-ctb-toast'); if(el){ el.style.display='none'; el.classList.remove('lp-toast-in'); } }, 2600);
+}
+// Ask the tap to flash the pin box (a short pulse) so the eye lands on the element that changed.
+function sendFlash(){
+  const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
+  if(w&&curOrigin){ try{ w.postMessage({ type:'lp-flash' }, curOrigin); }catch(e){} }
+}
+// LP-4.9 §8 — live progress in the toolbar: the 🐮 spins while the moo/agent works, with the
+// HONEST tier ("moo local · $0" vs "Sonnet · subscrição") and a cancel button for agent runs. Never
+// mute: it starts on the first thinking status and ends when a result (any outcome) arrives.
+function lpStartProgress(text, cancellable){
+  const p=document.getElementById('lp-progress'), t=document.getElementById('lp-progress-txt'), c=document.getElementById('lp-progress-cancel');
+  // §4 — the minimized 🐮 chip also shows "working" so a run is never mute when the toolbar is
+  // collapsed (the user may minimize to watch the preview while the agent works).
+  const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.add('lp-chip-working'); chip.setAttribute('title','A trabalhar… (clica para reabrir)'); }
+  if(!p) return;
+  if(t) t.textContent=text||'a pensar…';
+  if(c) c.style.display=cancellable?'inline-flex':'none';
+  p.style.display='flex';
+}
+function lpUpdateProgress(text){ const t=document.getElementById('lp-progress-txt'); if(t&&text) t.textContent=text; }
+function lpFinishProgress(){
+  const p=document.getElementById('lp-progress'); if(p) p.style.display='none';
+  const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.remove('lp-chip-working'); chip.setAttribute('title','Reabrir a toolbar'); }
+}
+// LP-4.9 loop-fix §C — the always-visible context/route line. Tells the user, BEFORE sending, what
+// THIS action does with the project: agent = reads the whole repo + edits in the right place; local
+// $0 = only this node, no project context; and how to turn the agent on when it is off. Driven by
+// the SDK-bridge status (lpBridge) + the chosen intent/tier. Answers "não sei se apanha o contexto".
+function renderCtxLine(){
+  const el=document.getElementById('lp-ctx'); if(!el) return;
+  const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  if(lpIntent==='ask'){
+    el.className='lp-ctx '+(br.available?'lp-ctx-ok':'lp-ctx-warn');
+    el.textContent=br.available
+      ? '🤖 Perguntar lê o projeto todo e responde no painel — não escreve nada'
+      : '⚠️ Perguntar precisa do agente — ativa a ponte SDK + confia no workspace (senão não há resposta)';
+    return;
+  }
+  const localOnly=(lpMode==='local')||!br.available;
+  if(localOnly){
+    el.className='lp-ctx lp-ctx-warn';
+    el.textContent=!br.available
+      ? '⚠️ agente OFF → edita SÓ este elemento, sem contexto do projeto. Liga: instala @anthropic-ai/claude-agent-sdk no workspace + confia no workspace'
+      : '🐮 local $0 → edita SÓ este elemento (sem contexto do projeto). Muda o tier em "▾ mais" para o agente ler o projeto';
+  } else {
+    el.className='lp-ctx lp-ctx-ok';
+    el.textContent='🤖 o agente lê o projeto TODO e edita no sítio certo (pode não ser este nó) · diff antes de manter';
+  }
+}
+// LP-4.9 §4 — first-run coach marks: 3 short steps shown the first time the 🎯 arms, dismissible,
+// never repeats (localStorage). Re-openable any time from the "?" (consistent help, WCAG 3.2.6).
+const LP_COACH=[
+  { t:'1 · Clica num elemento', d:'Liga o 🎯 e clica em qualquer coisa no preview para a fixar. A toolbar abre ancorada a esse elemento.' },
+  { t:'2 · Editar ou Perguntar', d:'✏️ Editar muda o site (diff → aplica). 💬 Perguntar só responde no painel. Escolhes ANTES de enviar.' },
+  { t:'3 · Cor e tamanho são $0', d:'As amostras de cor, tamanho e espaçamento aplicam-se num clique — instantâneas, sem tokens, sem custo.' },
+];
+let lpCoachStep=0;
+function renderCoachStep(){
+  const body=document.getElementById('lp-coach-body'), dots=document.getElementById('lp-coach-dots'), next=document.getElementById('lp-coach-next');
+  const s=LP_COACH[lpCoachStep]||LP_COACH[0];
+  if(body) body.innerHTML='<div class="lp-coach-t">'+esc(s.t)+'</div><div class="lp-coach-d">'+esc(s.d)+'</div>';
+  if(dots){ let d=''; for(let i=0;i<LP_COACH.length;i++) d+='<span class="lp-coach-dot'+(i===lpCoachStep?' on':'')+'"></span>'; dots.innerHTML=d; }
+  if(next) next.textContent=(lpCoachStep>=LP_COACH.length-1)?'começar':'seguinte';
+}
+// §2 (a11y) — a REAL modal: aria-modal + the background made inert so keyboard focus can't escape
+// behind it (belt-and-suspenders with the Tab trap on #lp-coach). Restore inert on dismiss.
+function setCoachBackgroundInert(on){
+  const ids=['lp-ctb-ov','lp-frame'];
+  for(let i=0;i<ids.length;i++){ const el=document.getElementById(ids[i]); if(!el) continue; try{ el.inert=!!on; }catch(e){} el.setAttribute('aria-hidden', on?'true':'false'); }
+}
+function showCoachMarks(){ lpCoachStep=0; const c=document.getElementById('lp-coach'); if(c){ c.style.display='flex'; setCoachBackgroundInert(true); renderCoachStep(); const n=document.getElementById('lp-coach-next'); if(n) n.focus(); } }
+function dismissCoachMarks(){ const c=document.getElementById('lp-coach'); if(c) c.style.display='none'; setCoachBackgroundInert(false); try{ localStorage.setItem('lp-coach-done','1'); }catch(e){} }
+function maybeCoachOnArm(){ let done=false; try{ done=localStorage.getItem('lp-coach-done')==='1'; }catch(e){} if(!done) showCoachMarks(); }
+// Short, human reason for the warn toast (the panel still shows the full honest state).
+function toastReason(reason){
+  const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
+    'prompt-empty':'escreve primeiro o que queres', 'file-changed':'o ficheiro mudou — pré-visualiza de novo',
+    'local-model-offline':'moo local offline', 'local-model-timeout':'o moo local demorou demasiado',
+    'task-timeout':'o agente demorou demasiado', 'task-cancelled':'cancelado',
+    'replacement-parse-error':'recusado pela cerca (JSX inválido)', 'not-single-root':'recusado pela cerca' };
+  return m[reason]||(reason?String(reason):'rejeitado');
 }
 function renderSelection(sel){
   const el=document.getElementById('lp-sel');
@@ -2850,26 +3422,51 @@ function renderSelection(sel){
   // LP-4.8 §1 — the in-canvas toolbar (inputs), anchored to the pin. Same ids/wiring as before,
   // just hosted here instead of the side rail. Falls back to the side panel only if the toolbar
   // host is absent (defensive — the static markup always ships it).
-  const inputsHTML='<div id="lp-chip" class="lp-chip"></div>'
+  // LP-4.9 §2 — progressive disclosure. The toolbar opens MINIMAL: intent toggle + one-box + send
+  // (+ refs, invisible until used). Everything an engineer occasionally needs — model chips, raw
+  // text/class edits, presets, /skills, open/delete — lives behind "▾ mais". Simple by default,
+  // the power one click away. The expanded/collapsed choice is remembered per session (localStorage).
+  const inputsHTML=
+    // ── SIMPLE (always visible) ──
+    // §5 — presets are the STAR: the instant $0 gesture (colour/size/spacing) sits at the very top.
+    '<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
+    +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
+    +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
+    +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
+    +'</div>'
+    +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
+    +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // LP-4.9 loop-fix §C — ALWAYS-visible context/route line: tells the user, before sending,
+    // whether THIS edit reads the whole project (agent) or only this node (local $0), and how to
+    // enable the agent when it is off. Answers "não sei se apanha o contexto do projeto".
+    +'<div id="lp-ctx" class="lp-ctx" role="status"></div>'
+    +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
+    +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Mostrar/ocultar os controlos avançados">▾ mais</button>'
+    // ── ADVANCED (collapsed by default) ──
+    +'<div id="lp-adv" class="lp-adv" style="display:none">'
+    +'<div id="lp-chip" class="lp-chip"></div>'
     +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
-    +'<div id="lp-presets" class="lp-pz" role="group" aria-label="Presets determinísticos — cor, tamanho, espaçamento ($0, sem tokens)"></div>'
-    +'<div id="lp-box-l" class="lp-ed-l">qualquer prompt — pergunta ou edição, ancorado neste elemento</div>'
-    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: valida estes números com o projecto · muda a cor para rosa" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn" title="AUTO: o agente lê o repo e responde ou edita no sítio certo — diff antes de manter">executar</button></div>'
-    +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
-    // LP-4.8 §4 — attached references (Cmd/Ctrl-click) live here: chips + ✕ + limpar. They feed the
-    // agent prompt as read-only context; a local $0 edit still targets only the pinned node.
-    +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
-    // LP-4.8 §3 — the /skills dropdown. A skill seeds this same one-box with its template and pins
-    // the chip to its tier floor; execution rides the existing fenced paths (no new write surface).
     +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
     +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
     +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
     +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
-    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>';
-  if(ctbBody){ ctbBody.innerHTML=inputsHTML; if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } }
+    +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
+    +'</div>';
+  if(ctbBody){
+    // §5/§7 — rebuilding the toolbar destroys a swatch that may be mid-hover (no mouseleave fires),
+    // which would strand a hover-preview on the node. Clear it before we replace the markup.
+    sendClearPreview();
+    ctbBody.innerHTML=inputsHTML;
+    lpToolbarManualPos=null; // §7 — a fresh selection re-anchors (drag is per-selection)
+    const chip=document.getElementById('lp-ctb-chip');
+    // §7 — preserve a minimized toolbar across re-pins (show the 🐮 chip, keep the panel hidden).
+    if(lpToolbarMin){ if(ctb){ ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); } if(chip) chip.style.display='inline-flex'; }
+    else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none'; }
+  }
   else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
@@ -2885,14 +3482,23 @@ function renderSelection(sel){
   const pz=document.getElementById('lp-presets');
   if(pz){
     pz.innerHTML=renderPresetsBarHTML(esc);
+    // LP-4.9 §5 — hover/focus PREVIEWS the preset on the live element (no write); click applies via
+    // the fence. mouseleave/blur restores. The next className is computed from the class box (the
+    // live source of truth), so previews and manual edits compose.
+    const previewOf=function(btn){ const cur=ci?ci.value:(sel.className||''); return mergeClass(cur, btn.getAttribute('data-cls'), btn.getAttribute('data-group')); };
     const sw=pz.querySelectorAll('[data-cls]');
-    for(let i=0;i<sw.length;i++){ sw[i].addEventListener('click', function(){
-      const cls=this.getAttribute('data-cls'), grp=this.getAttribute('data-group');
-      const cur=ci?ci.value:(sel.className||'');
-      const next=mergeClass(cur, cls, grp);
-      if(ci) ci.value=next;
-      sendEdit('class', next);
-    }); }
+    for(let i=0;i<sw.length;i++){
+      sw[i].addEventListener('mouseenter', function(){ sendPreviewClass(previewOf(this)); });
+      sw[i].addEventListener('mouseleave', function(){ sendClearPreview(); });
+      sw[i].addEventListener('focus', function(){ sendPreviewClass(previewOf(this)); });
+      sw[i].addEventListener('blur', function(){ sendClearPreview(); });
+      sw[i].addEventListener('click', function(){
+        const next=previewOf(this);
+        sendClearPreview();          // drop the visual preview; the real write takes over via HMR
+        if(ci) ci.value=next;
+        sendEdit('class', next);
+      });
+    }
   }
   const ob=document.getElementById('lp-sel-open');
   if(ob) ob.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-source', file:sel.file, line:sel.line, col:sel.col }); });
@@ -2904,26 +3510,78 @@ function renderSelection(sel){
   const sendBox=function(){
     const v=bi?bi.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
+    const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
+    const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
+    // LP-4.9 §1 — Perguntar ALWAYS routes to the agent: answering needs to read the repo, which the
+    // local $0 moo cannot do. Honest refusal when the SDK bridge is off (no dead "answer" button).
+    if(lpIntent==='ask'){
+      const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+      if(!br.available){ showEditResult(false,(br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing'); showToast('warn','⚠️ '+toastReason((br.reason==='workspace-untrusted')?'workspace-untrusted':'sdk-bridge-missing')); return; }
+      const askMode=(lpMode==='local')?'auto':lpMode; // local can't answer → use the agent tier
+      lpStartProgress('🐮 a enviar a pergunta…', true); // instant IN-CANVAS feedback (never mute)
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:askMode, intent:'ask', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
+      showEditResult(null,'pending'); return;
+    }
+    // Editar — the write path. Local $0 fenced rewrite, or the anchored agent (intent:edit).
+    // LP-4.9 loop-fix — start the toolbar progress the INSTANT we send, so the in-canvas surface is
+    // never mute while the host works (the panel's "a aplicar…" is easy to miss when you watch the site).
     if(lpMode==='local'){
+      lpStartProgress('🐮 a reescrever este elemento… (moo local · $0)', false);
       // §5 — the rendered text travels so the host can flag dynamic content on the diff.
       vsapi.postMessage({ type:'lp-prompt', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, prompt:v, tier:'local', selText:String(sel.text||'').slice(0,200) });
     } else {
-      const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
-      // LP-4.8 §4 — attach-as-reference: the extra nodes travel as read-only context for the agent.
-      const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
-      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
+      lpStartProgress('🐮 a enviar ao agente…', true);
+      vsapi.postMessage({ type:'lp-task', instruction:v, mode:lpMode, intent:'edit', file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, breadcrumb:bc, refs:refs });
     }
     showEditResult(null,'pending');
   };
+  // LP-4.9 §1 — the intent toggle. The send button label MIRRORS the intent so the action is never
+  // ambiguous, and the local-chip hint only makes sense while EDITING (asking always uses the agent).
+  const renderIntentToggle=function(){
+    const eb=document.getElementById('lp-mode-edit'), ab=document.getElementById('lp-mode-ask');
+    // §3 (a11y) — a radiogroup is a SINGLE tab stop with arrow-key selection: the checked radio is
+    // tabbable (tabindex 0), the other is not (tabindex -1). aria-checked + .on reflect the state.
+    if(eb){ const on=lpIntent==='edit'; eb.setAttribute('aria-checked', on?'true':'false'); eb.tabIndex=on?0:-1; if(on) eb.classList.add('on'); else eb.classList.remove('on'); }
+    if(ab){ const on=lpIntent==='ask'; ab.setAttribute('aria-checked', on?'true':'false'); ab.tabIndex=on?0:-1; if(on) ab.classList.add('on'); else ab.classList.remove('on'); }
+    const sb=document.getElementById('lp-box-b'); if(sb) sb.textContent=(lpIntent==='ask')?'💬 Perguntar':'✏️ Editar';
+    const bi2=document.getElementById('lp-box-in'); if(bi2) bi2.setAttribute('aria-label', (lpIntent==='ask')?'pergunta ancorada neste elemento':'edição ancorada neste elemento');
+    // §5 (honesty) — Perguntar ALWAYS runs on the agent; if the local $0 chip is picked, say so here
+    // (no silent "$0" while the run costs subscription). The chip itself stays behind "▾ mais".
+    const hint=document.getElementById('lp-box-l');
+    if(hint) hint.textContent=(lpIntent==='ask'&&lpMode==='local')
+      ? 'Perguntar corre no agente (subscrição), não local · só responde'
+      : 'Editar muda o site · Perguntar só responde';
+    renderCtxLine(); // §C — keep the project-context line in sync with the intent/tier
+  };
+  const ebtn=document.getElementById('lp-mode-edit'), abtn=document.getElementById('lp-mode-ask');
+  const setIntent=function(v,focus){ lpIntent=v; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h) h.style.display='none'; if(focus){ const t=document.getElementById(v==='ask'?'lp-mode-ask':'lp-mode-edit'); if(t) t.focus(); } };
+  if(ebtn) ebtn.addEventListener('click', function(){ setIntent('edit', false); });
+  if(abtn) abtn.addEventListener('click', function(){ setIntent('ask', false); });
+  // §3 (a11y) — arrow keys move within the radiogroup (2 options → any arrow toggles), APG-style.
+  const onToggleKey=function(e){ if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); setIntent(lpIntent==='ask'?'edit':'ask', true); } };
+  if(ebtn) ebtn.addEventListener('keydown', onToggleKey);
+  if(abtn) abtn.addEventListener('keydown', onToggleKey);
   if(bi&&bb){
     bb.addEventListener('click', sendBox);
     bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(); } });
     bi.addEventListener('input', function(){
       const h=document.getElementById('lp-box-hint'); if(!h) return;
-      if(lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
+      // The local-chip suggestion only applies to EDITS (asking always uses the agent).
+      if(lpIntent==='edit'&&lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
       else h.style.display='none';
     });
   }
+  renderIntentToggle();
+  // LP-4.9 §2 — progressive disclosure: restore the remembered expanded state and wire "▾ mais".
+  const moreBtn=document.getElementById('lp-more'), advEl=document.getElementById('lp-adv');
+  const setAdv=function(open){
+    if(advEl) advEl.style.display=open?'block':'none';
+    if(moreBtn){ moreBtn.setAttribute('aria-expanded', open?'true':'false'); moreBtn.textContent=open?'▴ menos':'▾ mais'; }
+    try{ localStorage.setItem('lp-adv-open', open?'1':'0'); }catch(e){}
+  };
+  let advOpen=false; try{ advOpen=localStorage.getItem('lp-adv-open')==='1'; }catch(e){}
+  setAdv(advOpen);
+  if(moreBtn) moreBtn.addEventListener('click', function(){ setAdv(advEl?advEl.style.display==='none':true); positionCanvasToolbar(); });
   // LP-4.8 §3 — /skills. Picking a skill SEEDS this one-box with the skill's template and pins the
   // chip to the skill's tier floor (routing surfaced, never hidden). Execution then rides the exact
   // same fenced one-box path (local $0 lp-prompt / anchored lp-task) — /skills adds no write surface.
@@ -3309,6 +3967,58 @@ window.addEventListener('resize', function(){ positionCanvasToolbar(); });
     const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus();
   });
 })();
+// LP-4.9 §7 — toolbar chrome (wired once on the static header): close (X), minimize (🐮 chip),
+// re-expand, and drag. The X is the obvious close affordance alongside Esc; minimize collapses to a
+// single chip; drag repositions (with the auto-anchor as the WCAG 2.5.7 no-drag alternative).
+(function(){
+  const ctb=document.getElementById('lp-ctb'), chip=document.getElementById('lp-ctb-chip'),
+        xb=document.getElementById('lp-ctb-x'), mn=document.getElementById('lp-ctb-min'),
+        grip=document.getElementById('lp-ctb-grip'), wrap=document.getElementById('lp-framewrap');
+  if(!ctb) return;
+  if(xb) xb.addEventListener('click', function(){ hideCanvasToolbar(); const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus(); });
+  // LP-4.9 §8 — cancel the running agent task (host aborts it; result comes back 'task-cancelled').
+  const cancelBtn=document.getElementById('lp-progress-cancel');
+  if(cancelBtn) cancelBtn.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-cancel' }); lpUpdateProgress('a cancelar…'); });
+  // LP-4.9 §4 — coach marks: "?" re-opens help; next steps through / dismisses; skip + Esc dismiss.
+  const helpBtn=document.getElementById('lp-ctb-help');
+  if(helpBtn) helpBtn.addEventListener('click', function(){ showCoachMarks(); });
+  const coachNext=document.getElementById('lp-coach-next'), coachSkip=document.getElementById('lp-coach-skip'), coach=document.getElementById('lp-coach');
+  if(coachNext) coachNext.addEventListener('click', function(){ if(lpCoachStep>=LP_COACH.length-1){ dismissCoachMarks(); const sb=document.getElementById('lp-select-btn'); if(sb) sb.focus(); } else { lpCoachStep++; renderCoachStep(); } });
+  if(coachSkip) coachSkip.addEventListener('click', function(){ dismissCoachMarks(); });
+  if(coach) coach.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){ e.stopPropagation(); dismissCoachMarks(); return; }
+    // §2 — trap Tab within the dialog's buttons so focus never lands on the inert background.
+    if(e.key==='Tab'){
+      const f=coach.querySelectorAll('button'); if(!f.length) return;
+      const first=f[0], last=f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+    }
+  });
+  const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
+  const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); ctb.focus(); };
+  if(mn) mn.addEventListener('click', minimize);
+  if(chip) chip.addEventListener('click', expand);
+  // Drag via the grip. Pointer events; updates lpToolbarManualPos (clamped by positionCanvasToolbar).
+  if(grip){
+    let dragging=false, ox=0, oy=0;
+    grip.addEventListener('pointerdown', function(e){
+      dragging=true; const r=ctb.getBoundingClientRect(), wr=wrap?wrap.getBoundingClientRect():{left:0,top:0};
+      ox=e.clientX-(r.left-wr.left); oy=e.clientY-(r.top-wr.top);
+      try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', function(e){
+      if(!dragging||!wrap) return;
+      const wr=wrap.getBoundingClientRect();
+      lpToolbarManualPos={ x:e.clientX-wr.left-ox, y:e.clientY-wr.top-oy };
+      positionCanvasToolbar();
+    });
+    const stop=function(e){ if(dragging){ dragging=false; try{ grip.releasePointerCapture(e.pointerId); }catch(err){} } };
+    grip.addEventListener('pointerup', stop);
+    grip.addEventListener('pointercancel', stop);
+  }
+})();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
@@ -3357,7 +4067,7 @@ window.addEventListener('message', (ev) => {
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
-    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); }
+    if(br && (!lpBridge || lpBridge.available!==br.available)){ lpBridge=br; if(document.getElementById('lp-chip')) renderModeChips(); renderCtxLine(); }
     else if(br) lpBridge=br;
     // LP-4.5 §4 — the unified feed rides the snapshot; re-render ONLY when its revision moves so
     // a poll never steals focus from a feed button mid-click.
@@ -3376,38 +4086,93 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
     // MP5.2a/LP-4 — once a write lands, the pending mini-diff is history: clear it.
-    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){ const d=document.getElementById('lp-del'); if(d) d.innerHTML=''; }
+    if (m.ok && (m.reason === 'deleted' || m.reason === 'applied' || m.reason === 'model-applied' || m.reason === 'model-applied-dynamic')){
+      const d=document.getElementById('lp-del'); if(d) d.innerHTML='';
+      // LP-4.9 §3 — HONEST cost in the toast: "$0" appears ONLY for deterministic/local writes. A
+      // fenced rewrite escalated to a cloud tier (m.tier t1/t2/t3/fable) says the tier + subscrição,
+      // never a false $0 (verified by the honesty adversarial pass).
+      let okToast;
+      if(m.reason==='model-applied-dynamic') okToast='✓ escrito · se o preview não mudou, o conteúdo vem de dentro do componente';
+      else if(m.reason==='model-applied' && m.tier && m.tier!=='local') okToast='✓ escrito · '+tierModel(m.tier)+' · subscrição';
+      else okToast='✓ aplicado no preview · $0';
+      showToast('ok', okToast);
+      lpFinishProgress(); sendFlash();
+    } else if (!m.ok) { showToast('warn', '⚠️ '+toastReason(m.reason)); lpFinishProgress(); }
   }
   else if (m.type === 'lp-delete-diff'){ renderDeleteDiff(m); } // MP5.2a delete preview (mini-diff before any write)
   else if (m.type === 'lp-edit-diff'){ renderEditDiff(m); } // LP-4 §0 edit preview (fence simétrica: diff + hash antes de escrever)
-  else if (m.type === 'lp-prompt-diff'){ renderPromptDiff(m); } // LP-4 §3 fenced model rewrite preview
+  else if (m.type === 'lp-prompt-diff'){
+    renderPromptDiff(m); // LP-4 §3 fenced model rewrite preview
+    // LP-4.9 loop-fix — the local rewrite is preview-first (diff lands in the panel to approve). Say
+    // so IN-CANVAS so the user knows to look right; and surface failures as a toast, never silent.
+    lpFinishProgress();
+    if(!m.ok){
+      if(m.reason==='local-quality-exhausted') showToast('warn','⚠️ o moo local não ficou confiante — vê a opção de subir de tier no painel →');
+      else showToast('warn','⚠️ '+toastReason(m.reason));
+    } else {
+      showToast('ask','📝 proposta pronta — revê e aplica no painel →');
+    }
+  }
   else if (m.type === 'lp-prompt-status'){
     // §6 — honest thinking state: WHO is thinking and what it costs, while it thinks.
     // LP-4.7 — the quality engine narrates round/sample so a best-of-N burst never looks hung.
     if(m.phase==='thinking'){
+      const prog=(m.round&&m.sample)?(' · ronda '+m.round+'/'+(m.rounds||2)+' · amostra '+m.sample+'/'+(m.of||5)):'';
+      const txt=(!m.tier||m.tier==='local')?('🐮 a pensar… (moo local · $0'+prog+')'):('🐮 a pensar… ('+tierModel(m.tier)+' · subscrição)');
       const el=document.getElementById('lp-edit-msg');
-      if(el){
-        const prog=(m.round&&m.sample)?(' · ronda '+m.round+'/'+(m.rounds||2)+' · amostra '+m.sample+'/'+(m.of||5)):'';
-        el.textContent=(!m.tier||m.tier==='local')?('a pensar… (moo local · $0'+prog+')'):'a pensar… ('+tierModel(m.tier)+' · subscrição)';
-        el.className='lp-ed-msg lp-ed-pending';
-      }
+      if(el){ el.textContent=txt.replace(/^🐮 /,''); el.className='lp-ed-msg lp-ed-pending'; }
+      // LP-4.9 §8 — the local fenced rewrite is fast (≤30s) and not externally cancellable in v1.
+      lpStartProgress(txt, false);
     }
   }
   else if (m.type === 'lp-task-status'){
     // LP-4.5 — live agent progress: what it is doing RIGHT NOW (a ler X / a editar Y), plus every
     // denial (honesty: the fence is visible, not implied).
     const el=document.getElementById('lp-edit-msg');
-    if(el){
-      if(m.phase==='thinking') el.textContent='agente a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
-      else if(m.phase==='tool') el.textContent=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
-      else if(m.phase==='deny') el.textContent='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
-      el.className='lp-ed-msg lp-ed-pending';
-    }
+    let txt='';
+    if(m.phase==='thinking') txt='🐮 a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
+    else if(m.phase==='tool') txt=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
+    else if(m.phase==='deny') txt='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
+    if(el&&txt){ el.textContent=txt.replace(/^🐮 /,''); el.className='lp-ed-msg lp-ed-pending'; }
+    // LP-4.9 §8 — the toolbar spinner mirrors it, with cancel (the agent run can be aborted).
+    if(m.phase==='thinking') lpStartProgress(txt, true); else if(txt) lpUpdateProgress(txt);
   }
-  else if (m.type === 'lp-task-result'){ renderTaskResult(m); } // LP-4.5 agent verdict (answer or per-file diffs)
+  else if (m.type === 'lp-task-result'){
+    renderTaskResult(m); // LP-4.5 agent verdict (answer or per-file diffs)
+    lpFinishProgress(); // LP-4.9 §8 — the run ended; stop the spinner (the toast says the outcome)
+    // LP-4.9 §3 — honest completion toast: answered (panel), edited (preview + flash), or refused.
+    if(!m.ok){ showToast('warn', '⚠️ '+toastReason(m.reason)); }
+    else if(m.kind==='answer' || !(Array.isArray(m.edits)&&m.edits.length)){ showToast('ask', '💬 resposta no painel →'); }
+    else { showToast('ok', '✓ aplicado no preview'); sendFlash(); }
+  }
   else if (m.type === 'lp-task-revert-result'){ applyTaskRevertResult(m); } // LP-4.5 per-file revert outcomes
   else if (m.type === 'lp-task-keep-result'){ applyTaskKeepResult(m); } // LP-4.5 keep-all outcome
   else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
+  else if (m.type === 'lp-security-result'){
+    // LP-5 §C — 🛡 review verdict: render into #lp-security via the serialised PURE renderer
+    // (same fn.toString() trick as the presets bar). m carries {secrets,xss,csp,audit,scannedFiles}
+    // or {error:'scan-failed'} — renderSecurityFindings is fail-soft either way.
+    const secBtn2=document.getElementById('lp-security-btn'); if(secBtn2) secBtn2.disabled=false;
+    const secEl2=document.getElementById('lp-security');
+    if(secEl2){ secEl2.style.display='block'; secEl2.innerHTML=renderSecurityFindings(m, esc); }
+  }
+  else if (m.type === 'lp-publish-status-result'){
+    // LP-6 §B — status snapshot (branch, touched files, Vercel link + expected project name,
+    // open-Critical flag, last known deploy URL). Rendered via the serialised PURE renderer, same
+    // fn.toString() contract as the security findings above.
+    lpPublishState = m;
+    const el=document.getElementById('lp-publish');
+    if(el){ el.style.display='block'; el.innerHTML=renderPublishPopover(lpPublishState, esc); }
+  }
+  else if (m.type === 'lp-publish-result'){
+    // LP-6 §C/D — outcome of a commit+push or a deploy attempt. Merged into the last known state
+    // and re-rendered; NEVER assumed ok — the host's payload is the only source of truth.
+    lpPublishState = Object.assign({}, lpPublishState, { lastResult: m });
+    const el=document.getElementById('lp-publish');
+    if(el){ el.innerHTML=renderPublishPopover(lpPublishState, esc); }
+    if(m.action==='deploy' && m.ok){ vsapi.postMessage({ type:'lp-publish-status' }); } // refresh → shows the new site URL
+    if(m.action==='commit'){ vsapi.postMessage({ type:'lp-publish-status' }); } // refresh → touched files should now be empty
+  }
 });
 const urlInput=document.getElementById('lp-url');
 // The address bar now navigates AND re-points: the host's resolveNavTarget decides (a same-origin
@@ -3428,6 +4193,54 @@ const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
+// LP-5 §C — 🛡 Review Security: a GLOBAL action (not per-pin). Click → the host bounded-walks the
+// workspace + runs the 4 pure scanners + npm audit, all local, $0; the result renders into
+// #lp-security via the serialised renderSecurityFindings (same fn.toString() trick as presets).
+const secBtn=document.getElementById('lp-security-btn');
+if(secBtn) secBtn.addEventListener('click', function(){
+  const secEl=document.getElementById('lp-security');
+  if(secEl){ secEl.style.display='block'; secEl.innerHTML='<div class="lp-sec-hdr">🛡 a analisar… ($0 local)</div>'; }
+  secBtn.disabled=true;
+  vsapi.postMessage({ type:'lp-security-scan' });
+});
+// LP-6 §E — 🚀 Publish: opens/closes the popover (fetches fresh status on every open — the
+// touched files / Critical flag / Vercel link can all have changed since the last look), then
+// delegates every click INSIDE #lp-publish (the popover's own content is replaced by innerHTML on
+// every re-render, so listeners are attached ONCE here on the stable container, never re-bound).
+const pubBtn=document.getElementById('lp-publish-btn');
+if(pubBtn) pubBtn.addEventListener('click', function(){
+  const el=document.getElementById('lp-publish');
+  if(el && el.style.display==='block'){ el.style.display='none'; return; } // toggle closed, no re-fetch
+  if(el){ el.style.display='block'; el.innerHTML='<div class="lp-pub-hdr">🚀 a preparar…</div>'; }
+  vsapi.postMessage({ type:'lp-publish-status' });
+});
+const pubEl=document.getElementById('lp-publish');
+if(pubEl) pubEl.addEventListener('click', function(e){
+  const t=e.target; if(!t || !t.id) return;
+  if(t.id==='lp-pub-review-btn'){ const b=document.getElementById('lp-security-btn'); if(b) b.click(); return; }
+  if(t.id==='lp-pub-commit-btn'){
+    if(!lpPublishState || !Array.isArray(lpPublishState.touchedFiles) || !lpPublishState.touchedFiles.length) return;
+    const msgEl=document.getElementById('lp-pub-msg');
+    const message=(msgEl && msgEl.value ? msgEl.value : (lpPublishState.defaultMessage||'')).trim();
+    if(!message) return;
+    t.disabled=true;
+    vsapi.postMessage({ type:'lp-publish-commit', files: lpPublishState.touchedFiles.map(function(f){ return (f&&f.path)||f; }), message: message });
+    return;
+  }
+  if(t.id==='lp-pub-deploy-open'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='block'; return; }
+  if(t.id==='lp-pub-deploy-cancel'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='none'; return; }
+  if(t.id==='lp-pub-deploy-confirm'){
+    // Client-side check is a UX courtesy ONLY — the host re-reads .vercel/project.json itself and
+    // is the ONLY thing that can actually authorise the deploy (see extension.js _publishDeploy).
+    const input=document.getElementById('lp-pub-gate-input');
+    const typed=input ? input.value.trim() : '';
+    const expected=lpPublishState && lpPublishState.projectName;
+    if(!typed || !expected || typed!==expected) return;
+    t.disabled=true;
+    vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
+    return;
+  }
+});
 // LP-4.5 §6 — device toggle: 📱390 · 📱768 · 💻 full. Honest and cheap: ONLY the iframe width
 // changes (real responsive breakpoints in the user's own dev server) — no UA spoofing claimed.
 function setDevice(px){

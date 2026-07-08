@@ -150,6 +150,26 @@ function plantFakeSdk(root, mode) {
       "  yield { result: 'Sim — 61 moos bate certo com landing/page.tsx.' };",
       '}',
     ].join('\n');
+  } else if (mode === 'askedit') {
+    // LP-4.9 §1 probe: in ASK mode the agent still READS to answer, but an Edit it (mis)attempts on
+    // an otherwise-legit in-workspace file must be DENIED by the fence — "zero escrita" by construction.
+    body = [
+      "import { writeFileSync, readFileSync } from 'node:fs';",
+      "import { dirname, join } from 'node:path';",
+      "import { fileURLToPath } from 'node:url';",
+      'export async function* query({ options }) {',
+      "  const here = dirname(fileURLToPath(import.meta.url));",
+      "  const ws = options.cwd;",
+      "  const asks = [];",
+      "  const rd = await options.canUseTool('Read', { file_path: join(ws, 'landing', 'page.tsx') });",
+      "  asks.push({ tool: 'Read', behavior: rd.behavior });",
+      "  const ed = await options.canUseTool('Edit', { file_path: join(ws, 'landing', 'page.tsx'), old_string: '61 moos', new_string: '77 moos' });",
+      "  asks.push({ tool: 'Edit', behavior: ed.behavior });",
+      "  if (ed.behavior === 'allow') { const f = join(ws, 'landing', 'page.tsx'); writeFileSync(f, readFileSync(f, 'utf8').replace('61 moos', '77 moos'), 'utf8'); }",
+      "  writeFileSync(join(here, 'spy.json'), JSON.stringify({ disallowedTools: options.disallowedTools, asks }));",
+      "  yield { result: 'Em modo pergunta: 61 moos bate certo (não editei nada).' };",
+      '}',
+    ].join('\n');
   } else {
     body = [
       'export async function* query() {',
@@ -349,6 +369,26 @@ test('L3: shaAfter is the AGENT edit-time hash (PostToolUse hook), not verdict-t
     assert.strictEqual(rev.ok, false, 'revert refuses');
     assert.strictEqual(rev.reason, 'revert-stale', 'honest stale refusal, not a silent clobber');
     assert.strictEqual(fs.readFileSync(abs, 'utf8'), foreignContent, 'the concurrent write SURVIVES — no data loss');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('LP-4.9 §1 ASK is a FENCE: an Edit the agent attempts in ask mode is DENIED in-workspace; file untouched; Edit/MultiEdit hard-blocked', async () => {
+  const { root, sdkDir } = mkWorkspace('askedit');
+  try {
+    const target = path.join(root, 'landing', 'page.tsx');
+    const r = await LET.runAnchoredTask(
+      Object.assign({}, INPUT, { intent: 'ask' }),
+      { wsRoot: root, trusted: true, timeoutMs: 30000 },
+    );
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    const spy = JSON.parse(fs.readFileSync(path.join(sdkDir, 'spy.json'), 'utf8'));
+    const by = {}; for (const a of spy.asks) by[a.tool] = a.behavior;
+    assert.strictEqual(by.Read, 'allow', 'ask mode STILL reads the repo to answer');
+    assert.strictEqual(by.Edit, 'deny', 'ask mode DENIES Edit at the fence (zero escrita by construction, not just a prompt line)');
+    assert.ok(spy.disallowedTools.includes('Edit') && spy.disallowedTools.includes('MultiEdit'), 'Edit/MultiEdit hard-blocked in disallowedTools too (belt and suspenders)');
+    assert.strictEqual(fs.readFileSync(target, 'utf8'), PAGE, 'the file is byte-identical — nothing was written in ask mode');
+    assert.strictEqual(r.kind, 'answer', 'no edits landed → an answer verdict');
+    assert.ok(r.denied.some((d) => d.why === 'ask-mode-read-only'), 'the ask-mode denial is reported honestly');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

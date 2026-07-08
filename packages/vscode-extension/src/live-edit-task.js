@@ -116,6 +116,12 @@ function runAnchoredTask(input, opts) {
       }
       resolvePromise(r);
     };
+    // LP-4.9 §8 — external cancel (additive; unchanged when no signal is passed). An aborted signal
+    // kills the child tree and resolves 'task-cancelled', exactly like the timeout path.
+    if (o.signal) {
+      if (o.signal.aborted) { finish({ ok: false, reason: 'task-cancelled' }); return; }
+      try { o.signal.addEventListener('abort', () => finish({ ok: false, reason: 'task-cancelled' }), { once: true }); } catch { /* no-op */ }
+    }
     const timeoutMs = (Number.isFinite(o.timeoutMs) && o.timeoutMs > 0) ? o.timeoutMs : DEFAULT_TASK_TIMEOUT_MS;
     const timer = setTimeout(() => finish({ ok: false, reason: 'task-timeout' }), timeoutMs);
     let buf = '';
@@ -148,6 +154,8 @@ function runAnchoredTask(input, opts) {
         nodeSource: input.nodeSource, breadcrumb: input.breadcrumb,
         // LP-4.8 §4 — attach-as-reference: read-only context pointers, already sanitised host-side.
         refs: Array.isArray(input.refs) ? input.refs.slice(0, 8) : undefined,
+        // LP-4.9 §1 — explicit intent: 'ask' = answer only (zero writes), else edit.
+        intent: input.intent === 'ask' ? 'ask' : 'edit',
         model,
       }));
     } catch { /* the close handler still resolves */ }
