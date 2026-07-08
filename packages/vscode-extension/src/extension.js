@@ -1153,12 +1153,15 @@ function livePreviewSnapshot() {
     let agg = null;
     try { if (LPA) agg = LPA.collectAggregates({ wsRoot, events, decisions }); } catch { agg = null; }
     const a = agg || {};
+    let journal = null;
+    try { if (LPA && sid) journal = LPA.readJournal(sid); } catch { journal = null; }
     return {
       events: scoped, sid, sidKnown: !!sid, brain,
       byDay: a.byDay || null, byModel: a.byModel || null, fleet: a.fleet || null,
+      journal: journal,
     };
   } catch {
-    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null };
+    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null, journal: null };
   }
 }
 
@@ -1586,6 +1589,7 @@ function getLivePreviewHtml(token) {
   const renderModelBreakdownSrc = LPV ? LPV.renderModelBreakdown.toString() : 'function renderModelBreakdown(){return "";}';
   const renderFleetLanesSrc = LPV ? LPV.renderFleetLanes.toString() : 'function renderFleetLanes(){return "";}';
   const renderWorkPillSrc = LPV ? LPV.renderWorkPill.toString() : 'function renderWorkPill(){return "";}';
+  const renderJournalCardSrc = LPV ? LPV.renderJournalCard.toString() : 'function renderJournalCard(){return "";}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -1723,6 +1727,10 @@ function getLivePreviewHtml(token) {
   .lp-work.working .lpw-cow{animation:lpworkpulse 1.6s ease-in-out infinite}
   .lp-work.done{color:var(--vscode-testing-iconPassed,#4CAF6A)}
   .lp-work.stale{color:var(--vscode-editorWarning-foreground,#cca700)}
+    .lp-jrnl{margin:0 0 6px;padding:6px 8px;border-radius:6px;background:var(--vscode-textBlockQuote-background,#26292e);border-left:2px solid var(--vscode-charts-green,#4CAF6A)}
+    .lp-jrnl-nd{color:var(--vscode-descriptionForeground,#8a8a8a);font-size:11px;border-left-color:var(--vscode-panel-border,#3a3a3a);background:transparent}
+    .lp-jrnl-hd{font-size:10px;color:var(--vscode-descriptionForeground,#9a9a9a);margin-bottom:3px}
+    .lp-jrnl-tx{font-size:11px;color:var(--vscode-foreground,#e0e0e0);white-space:pre-wrap;max-height:96px;overflow:auto}
   @media (max-width:820px){
     #lp-root{flex-direction:column}
     #lp-stagewrap{flex:1 1 auto;border-right:0;border-bottom:1px solid var(--vscode-widget-border)}
@@ -1784,6 +1792,7 @@ const renderDayBreakdown=${renderDayBreakdownSrc};
 const renderModelBreakdown=${renderModelBreakdownSrc};
 const renderFleetLanes=${renderFleetLanesSrc};
 const renderWorkPill=${renderWorkPillSrc};
+const renderJournalCard=${renderJournalCardSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
@@ -1798,12 +1807,12 @@ function renderWork(s){
   el.innerHTML=html;
 }
 function lpPane(tab){ return document.getElementById(tab==='stream'?'lp-pane-stream':tab==='day'?'lp-pane-day':tab==='model'?'lp-pane-model':'lp-pane-fleet'); }
-function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify([(s&&s.events)||[], !!(s&&s.sidKnown)]); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
+function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify([(s&&s.events)||[], !!(s&&s.sidKnown), (s&&s.journal)||null]); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
 function renderLens(tab){
   const s=lpLastSnap; const el=lpPane(tab); if(!el) return;
   const sig=lpSig(tab,s); if(sig===lpLensSig[tab]) return; lpLensSig[tab]=sig;
   let sc=0; const oldS=el.querySelector('.lpdc-stream'); if(oldS) sc=oldS.scrollTop;
-  if(tab==='stream') el.innerHTML=renderDirectorsCut((s&&s.events)||[], { sidKnown: !!(s&&s.sidKnown) });
+  if(tab==='stream') el.innerHTML=renderJournalCard(s&&s.journal)+renderDirectorsCut((s&&s.events)||[], { sidKnown: !!(s&&s.sidKnown) });
   else if(tab==='day') el.innerHTML=renderDayBreakdown(s&&s.byDay);
   else if(tab==='model') el.innerHTML=renderModelBreakdown(s&&s.byModel);
   else if(tab==='fleet') el.innerHTML=renderFleetLanes(s&&s.fleet);

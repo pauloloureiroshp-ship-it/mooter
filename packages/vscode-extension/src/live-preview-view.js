@@ -512,6 +512,31 @@ function renderWorkPill(events, nowMs) {
     + '</div>';
 }
 
+// ── renderJournalCard(journal) — 📝 the local $0 auto-journal (Director's Cut v2 · F4). Pure +
+// concat-only + ES5 (free-var esc only, no backtick, no dollar-brace even here). journal is the
+// nullable { text, updatedAt } from the host readJournal(sid) — a best-effort local qwen summary,
+// NEVER load-bearing. Null / no text -> honest "sem resumo local ainda". Shows hh:mm from the
+// mtime and, if the summary is stale (>10min), its age, so a frozen journal reads as frozen.
+function renderJournalCard(journal) {
+  var j = (journal && typeof journal === 'object') ? journal : null;
+  if (!j || !j.text) {
+    return '<div class="lp-jrnl lp-jrnl-nd">sem resumo local ainda</div>';
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  var meta = 'resumo local (qwen · best-effort)';
+  var ua = (typeof j.updatedAt === 'number' && isFinite(j.updatedAt)) ? j.updatedAt : null;
+  if (ua != null) {
+    var d = new Date(ua);
+    meta += ' · ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var ageMin = Math.floor((Date.now() - ua) / 60000);
+    if (ageMin > 10) meta += ' · há ' + (ageMin < 60 ? (ageMin + 'm') : (Math.floor(ageMin / 60) + 'h'));
+  }
+  return '<div class="lp-jrnl">'
+    + '<div class="lp-jrnl-hd">' + esc(meta) + '</div>'
+    + '<div class="lp-jrnl-tx">' + esc(j.text) + '</div>'
+    + '</div>';
+}
+
 module.exports = {
   esc: esc,
   parseBusJsonl: parseBusJsonl,
@@ -524,4 +549,5 @@ module.exports = {
   renderModelBreakdown: renderModelBreakdown,
   renderFleetLanes: renderFleetLanes,
   renderWorkPill: renderWorkPill,
+  renderJournalCard: renderJournalCard,
 };

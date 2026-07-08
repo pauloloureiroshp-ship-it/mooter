@@ -133,6 +133,40 @@ function loadPricing(candidates) {
   return null;
 }
 
+// ── journal (host-side session summary — reuse ~/.claude/tools/router/handoff-journal.js, the
+// SAME runtime-only resolution as pricing above; NEVER the workspace copy). Best-effort: any
+// failure (module/file absent, unreadable) leaves it null and the panel says "sem resumo local
+// ainda". Never throws.
+function journalCandidates() {
+  try { return [path.join(os.homedir(), '.claude', 'tools', 'router', 'handoff-journal.js')]; } catch { return []; }
+}
+function loadJournalMod(paths) {
+  const list = Array.isArray(paths) ? paths : [];
+  for (let i = 0; i < list.length; i++) {
+    try {
+      const m = require(list[i]);
+      if (m && typeof m.readSummary === 'function' && typeof m.summaryPath === 'function') return m;
+    } catch { /* try next candidate */ }
+  }
+  return null;
+}
+// readJournal(sid, opts?) -> { text, updatedAt } | null. updatedAt = mtime (epoch ms) of the
+// summary file, or null if unstattable. No sid / no module / no summary -> null (honest).
+// opts.journalMod / opts.journalPaths are test injection seams (mirror pricingPaths).
+function readJournal(sid, o) {
+  o = o || {};
+  if (!sid) return null;
+  try {
+    const mod = o.journalMod || loadJournalMod(o.journalPaths || journalCandidates());
+    if (!mod) return null;
+    const text = mod.readSummary(sid);
+    if (!text) return null;
+    let updatedAt = null;
+    try { updatedAt = fs.statSync(mod.summaryPath(sid)).mtimeMs; } catch { updatedAt = null; }
+    return { text: String(text), updatedAt: updatedAt };
+  } catch { return null; }
+}
+
 // Tiers estimateTurnCost can honestly price (TIER_TO_PRICING_KEY domain). T5/@fable is
 // opt-in-only and has no auto-routing price key — its decisions are counted as
 // costUncounted, never priced as $0 (a fabricated zero is still a fabrication).
@@ -479,6 +513,9 @@ module.exports = {
   readExecutionTail,
   pricingCandidates,
   loadPricing,
+  journalCandidates,
+  loadJournalMod,
+  readJournal,
   decisionCostEst,
   decisionNaiveOpusEst,
   buildByDay,
