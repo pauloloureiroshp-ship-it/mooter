@@ -1,0 +1,11 @@
+# Fleet runtime artifacts — the loop writes these to disk continuously and NEVER
+# commits them (crash-only: authoritative state lives on disk, not in git). The
+# seeds (STATE.json, OUTBOX.md, CRITERIA.md, STANDING_POLICY.json) stay tracked;
+# their per-round mutation is expected runtime drift, not source.
+fleet-ledger*.jsonl
+fleet-heartbeat.json
+*/ledger.jsonl
+*/HANDOFF_NEXT.md
+cronista/DIGEST.md
+*.tmp
+STOP

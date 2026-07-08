@@ -149,7 +149,7 @@ export async function cronistaPillar(loop, { now } = {}) {
     `- U2 re-verify: ${u2 ? `${u2.pillar} r${u2.round} claimed ${u2.claimed} vs derived ${u2.derived} → ${u2.ok ? "OK" : "**MISMATCH**"}` : "n/d (no numeric claim yet)"}\n\n` +
     `## Incoherences (report-only — the fleet never auto-fixes another pillar)\n` +
     `${incoherences.length ? incoherences.map((i) => `- ${i}`).join("\n") : "- none"}\n`;
-  try { writeFileSync(join(FLEET_DIR, "DIGEST.md"), digest); } catch { /* digest is advisory */ }
+  try { writeFileSync(join(FLEET_DIR, "cronista", "DIGEST.md"), digest); } catch { /* digest is advisory */ }
 
   // ── HANDOFF_NEXT.md per roster pillar (pre-baked, resume-ready) ──
   for (const s of snaps) {
