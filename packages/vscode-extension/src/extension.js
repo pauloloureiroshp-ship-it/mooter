@@ -1289,7 +1289,7 @@ class LivePreviewPanel {
     // App Stage <iframe> is a DIFFERENT origin (http://localhost) and cannot read this token
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
     // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
-    this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
+    this.token = 'lp' + crypto.randomBytes(24).toString('hex'); // P1-3: CSPRNG, not guessable Math.random — this is the host→webview auth secret (m.__t === HOST_TOKEN)
     // LP-6 §B — the LAST 🛡 Review Security verdict (set at the end of _securityScan below). Read
     // by _publishStatus to decide hasOpenCritical — never re-scans on its own, never fabricated.
     this._lastSecurity = null;
@@ -2672,7 +2672,7 @@ LivePreviewPanel.current = null;
 // Cut, innerHTML-refreshed each poll). The iframe is deliberately NOT sandboxed: it frames the
 // user's OWN trusted dev server and needs same-origin scripts + websockets for HMR to work.
 function getLivePreviewHtml(token, wsRoot) {
-  const nonce = String(Math.random()).slice(2);
+  const nonce = crypto.randomBytes(16).toString('hex'); // P1-3: CSPRNG CSP nonce
   const hostToken = JSON.stringify(String(token == null ? '' : token));
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
   const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
@@ -4699,7 +4699,7 @@ module.exports = { activate, deactivate };
 // ───────────────────────── webview ─────────────────────────
 // ───────────────────────── webview v0.3 ─────────────────────────
 function getHtml(guardianPct = null) {
-  const nonce = String(Math.random()).slice(2);
+  const nonce = crypto.randomBytes(16).toString('hex'); // P1-3: CSPRNG CSP nonce
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
