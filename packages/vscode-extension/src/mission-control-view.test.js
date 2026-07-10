@@ -8,6 +8,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { renderMissionControl, renderMissionControlSafe } = require('./mission-control-view.js');
 
@@ -79,8 +81,8 @@ test('renders the full snapshot without throwing, non-empty HTML', () => {
   const html = noThrow('full', FULL);
   assert.ok(html.indexOf('Mission Control') !== -1);
   assert.ok(html.indexOf('frugal-front-G') !== -1, 'project name appears');
-  // worktree git-graph link → openSession with the sid
-  assert.ok(html.indexOf('data-a="openSession" data-x="sess-1"') !== -1, 'worktree row links to openSession');
+  // worktree git-graph link → canonical openSessionTab with the sid + available title
+  assert.ok(html.indexOf('data-a="openSessionTab" data-x="sess-1" data-title="Build MC view"') !== -1, 'worktree row links to openSessionTab with title');
   // pilot actions present
   for (const cmd of ['pauseAll', 'resumeAll', 'spawnMoo', 'projHandoff', 'refresh']) {
     assert.ok(html.indexOf('data-a="' + cmd + '"') !== -1, 'pilot action ' + cmd + ' present');
@@ -201,7 +203,33 @@ test('MCV2: sessions grouped by task_group with correct dependency badges', () =
   assert.ok(html.indexOf('⚠️') !== -1 && html.indexOf('irreversível à frente') !== -1, 'irreversible-ahead badge');
   // the irreversible session and the open link
   assert.ok(html.indexOf('apply ledger migration') !== -1, 'irreversible session name');
-  assert.ok(html.indexOf('data-a="openSession" data-x="sx-3"') !== -1, 'session open link wired');
+  assert.ok(html.indexOf('data-a="openSessionTab" data-x="sx-3" data-title="apply ledger migration"') !== -1, 'session open link wired to canonical tab command');
+});
+
+test('W-UX: pure session-open controls use openSessionTab; push keeps open-and-scope', () => {
+  const html = renderMissionControl(FULL);
+  const tip = 'title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)"';
+  assert.match(html, /class="mcv2-tgopen" data-a="openSessionTab"[^>]*data-title="Build MC view"/, 'task-group link uses canonical tab command');
+  assert.match(html, /class="mcf-brow[^"]*" data-a="openSessionTab"[^>]*data-title="Build MC view"/, 'branch row uses canonical tab command');
+  assert.match(html, /class="mcf-gitlink" data-a="openSessionTab"[^>]*data-title="Remote moo"/, 'git link uses canonical tab command');
+  assert.equal(html.split(tip).length - 1, 4, 'every rendered pure-open control has the exact honest tooltip');
+  assert.match(html, /class="mcf-pushbtn" data-a="openSession"[^>]*title="abrir para rever e enviar"/, 'push action keeps backward-compatible open-and-scope path');
+});
+
+test('W-UX: legacy openSession delegates to mooter.openSessionTab and keeps cockpit scope', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  const start = src.indexOf("if (m.cmd === 'openSession') {");
+  const end = src.indexOf('// ── DELIVERY COCKPIT', start);
+  assert.ok(start !== -1 && end > start, 'openSession handler found');
+  const handler = src.slice(start, end);
+  assert.match(handler, /executeCommand\('mooter\.openSessionTab', \{ id, title \}\)/, 'delegates to registered canonical command with id + title');
+  assert.doesNotMatch(handler, /claude-vscode\.primaryEditor\.open/, 'does not duplicate primary editor opening');
+  assert.match(handler, /this\.data\.selectedSession = id; this\.data\.refresh\(true\)/, 'keeps cockpit scope + refresh');
+  const tabStart = src.indexOf("if (m.cmd === 'openSessionTab') {");
+  const tabEnd = src.indexOf('// ═', tabStart);
+  const tabHandler = src.slice(tabStart, tabEnd);
+  assert.match(tabHandler, /executeCommand\('mooter\.openSessionTab', m\.arg\)/, 'pure tab path uses the registered command');
+  assert.doesNotMatch(tabHandler, /selectedSession|refresh\(true\)/, 'pure tab path does not scope the cockpit');
 });
 
 test('MCV2: sessions lacking task_group fall into an honest n/d group', () => {

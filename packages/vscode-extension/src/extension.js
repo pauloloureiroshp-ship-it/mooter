@@ -561,13 +561,11 @@ class CockpitProvider {
       }
       if (m.cmd === 'selectSession') { const a = String(m.arg || 'auto'); this.data.selectedSession = (a === 'all' || a === 'auto') ? a : a.replace(/[^a-zA-Z0-9._-]/g, ''); this.data.refresh(true); }
       if (m.cmd === 'openSession') {
-        // Open/focus that exact Claude Code session in the editor. The extension's URI
-        // handler maps /open?session=<id> → claude-vscode.primaryEditor.open(id); we call
-        // the command directly (URI as fallback), then scope the cockpit to it.
-        const id = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        // Backward-compatible open-and-scope path: the registered deep-link owns tab opening.
+        const id = String((m.arg && typeof m.arg === 'object') ? m.arg.id : m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const title = String((m.arg && typeof m.arg === 'object') ? m.arg.title || '' : '');
         if (id) {
-          try { await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', id); }
-          catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
+          await vscode.commands.executeCommand('mooter.openSessionTab', { id, title });
           this.data.selectedSession = id; this.data.refresh(true);
         }
       }
@@ -727,8 +725,6 @@ class CockpitProvider {
       // session (wave=sessão=aba). Routes through the registered mooter.openSessionTab command.
       if (m.cmd === 'openSessionTab') {
         vscode.commands.executeCommand('mooter.openSessionTab', m.arg);
-        const _id = String((m.arg && m.arg.id) || m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
-        if (_id) { this.data.selectedSession = _id; this.data.refresh(true); }
       }
       // ════════════════════════════════════════════════════════════════════════
       // WCOCKPIT-9 (Bloco C): fluxo Commit & Push por sessão. SEMPRE host-side (execFile git,
@@ -5614,6 +5610,7 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
   else if(a.startsWith('openUrl:'))send('openUrl',a.slice(8));
   else if(a.startsWith('pull:'))send('pull',a.slice(5));
   else if(a.startsWith('tab:'))goTab(a.slice(4));
+  else if(a==='openSessionTab')send(a,{id:b.dataset.x,title:b.dataset.title||''});
   else send(a,b.dataset.x);
 });}
 // WCOCKPIT-3: session card renderer (from row-renderer.js — safe when fn.toString() serialised)

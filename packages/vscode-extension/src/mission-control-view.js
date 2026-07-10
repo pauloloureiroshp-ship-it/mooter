@@ -319,8 +319,9 @@ function renderMissionControl(snapshot) {
         var ds = depState(rss.deps);
         var rname = nd(rss.name);
         var rmodel = rss.model ? (famEmoji(rss.model) + ' ' + esc(modelShort(rss.model))) : nd(null);
+        // W-UX: pure open controls use the canonical tab command; push keeps open-and-scope.
         var openTail = rss.sid
-          ? '<button class="mcv2-tgopen" data-a="openSession" data-x="' + esc(rss.sid) + '" title="abrir esta sessão">🔗</button>'
+          ? '<button class="mcv2-tgopen" data-a="openSessionTab" data-x="' + esc(rss.sid) + '" data-title="' + esc(rss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗</button>'
           : '<span class="mc-nd">🔗 n/d</span>';
         out += '<div class="mcv2-tgrow ' + ds.cls + '" title="' + esc(ds.label) + '">'
           + '<span class="mcv2-depdot">' + ds.dot + '</span>'
@@ -495,7 +496,7 @@ function renderMissionControl(snapshot) {
       var spine = '<div class="mcf-spine"><div class="mcf-line' + (last ? ' half' : '') + '"></div>'
         + '<div class="mcf-node" style="border-color:' + col + '"></div><div class="mcf-conn" style="background:' + col + '"></div></div>';
       if (t.sid) {
-        out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><button class="mcf-brow' + (stCls === 'push' ? ' attn' : (hot ? ' hot' : '')) + '" data-a="openSession" data-x="' + esc(t.sid) + '" title="abrir esta sessão no VSCode">' + label + '</button></div></div>';
+        out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><button class="mcf-brow' + (stCls === 'push' ? ' attn' : (hot ? ' hot' : '')) + '" data-a="openSessionTab" data-x="' + esc(t.sid) + '" data-title="' + esc(t.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">' + label + '</button></div></div>';
       } else {
         out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><div class="mcf-brow nolink" title="sem sessão ligada">' + label + '</div></div></div>';
       }
@@ -569,7 +570,7 @@ function renderMissionControl(snapshot) {
       + (ss.git && ss.git.pushNeeded === true && ss.sid
         ? '<button class="mcf-pushbtn" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir para rever e enviar">✅ push?</button>'
         : (ss.sid
-          ? '<button class="mcf-gitlink" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir sessão">🔗 git</button>'
+          ? '<button class="mcf-gitlink" data-a="openSessionTab" data-x="' + esc(ss.sid) + '" data-title="' + esc(ss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗 git</button>'
           : '<span class="mc-nd">🔗 n/d</span>'));
     // ── GUARDIAN:F3 ── "⇄ Saltar para fresca": surge SÓ no limiar de delírio (advise ≥90,
     // contrato F1 pressureLadder). ss.ctxPct já vem do snapshot MC (mc-snapshot). Clique → handler
