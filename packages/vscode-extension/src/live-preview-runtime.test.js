@@ -320,3 +320,10 @@ test('W2 CONTEXT CHIP stays honest on TIER SWITCH: agent (repo ✓) → local $0
   auto.dispatchEvent(h.mkEvent('click'));
   assert.ok(/repo ✓/.test(chip.textContent || '') && chip.style.display !== 'none', 'back to auto → 📚 repo ✓ returns (agent reads the repo)');
 });
+
+// ── F0.3/F0.4: the 🛡 Review and 🚀 Publish top-toolbar actions carry VISIBLE text labels. ──
+test('F0.3/F0.4: 🛡 Review + 🚀 Publish show text labels (discoverable, not just tooltips)', () => {
+  const html = loadModule().getLivePreviewHtml('tok');
+  assert.ok(/id="lp-security-btn"[^>]*>🛡 Review</.test(html), 'the security action shows the label "🛡 Review"');
+  assert.ok(/id="lp-publish-btn"[^>]*>🚀 Publish</.test(html), 'the publish action shows the label "🚀 Publish"');
+});

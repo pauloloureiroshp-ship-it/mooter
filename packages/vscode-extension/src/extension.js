@@ -2711,6 +2711,8 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-url{width:190px;max-width:40vw;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
   #lp-controls button{font:12px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-controls button:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  /* F0.3/F0.4 — the primary actions carry a VISIBLE text label (not just a tooltip): a touch of weight, never wrap. */
+  #lp-controls .lp-labeled{white-space:nowrap;font-weight:600}
   #lp-back,#lp-fwd{padding:3px 7px;font-weight:700}
   #lp-routes{font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 5px;max-width:24vw;cursor:pointer}
   #lp-controls button:focus-visible,#lp-url:focus-visible,#lp-routes:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
@@ -3020,9 +3022,9 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
-        <button id="lp-security-btn" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡</button>
+        <button id="lp-security-btn" class="lp-labeled" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡 Review</button>
         <!-- LP-6 §E — Publish: commit+push seletivo, depois deploy Vercel gated por 2º fator (host-side). -->
-        <button id="lp-publish-btn" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀</button>
+        <button id="lp-publish-btn" class="lp-labeled" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀 Publish</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
     </div>
