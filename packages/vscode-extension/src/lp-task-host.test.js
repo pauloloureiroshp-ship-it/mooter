@@ -24,7 +24,7 @@ function loadPanelClass(stubs) {
     if (name.charAt(0) === '.') return mk();
     return realReq(name);
   };
-  const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise, Map, Set };
+  const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise, Map, Set, AbortController };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   try { vm.runInContext(code, sandbox, { filename: 'extension.js' }); } catch (e) { /* tolerate top-level activate() errors */ }
@@ -249,6 +249,29 @@ test('keep drops the record + snapshots; a second keep says there is nothing to 
     inst._taskKeep({ taskId });
     kr = posts.filter((p) => p.type === 'lp-task-keep-result').pop();
     assert.strictEqual(kr.ok, false, 'honest: nothing left to keep');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('N2 (F7): a second lp-task while one is running is refused (task-busy) — the running agent is not orphaned', async () => {
+  let gateResolve;
+  const gate = new Promise((res) => { gateResolve = res; });
+  let calls = 0;
+  const task = { runAnchoredTask: async () => { calls++; await gate; return { ok: true, kind: 'answer', text: 'x' }; }, gitDiffFile: () => ({ ok: true, lines: [] }) };
+  const Panel = loadPanelClass({ task });
+  const root = setup();
+  try {
+    const { inst, posts } = mkInstance(Panel, root, true);
+    const p1 = inst._taskRun(Object.assign({ instruction: 'primeira tarefa' }, TARGET)); // sets _activeTaskAbort, awaits the pending bridge
+    const p2 = inst._taskRun(Object.assign({ instruction: 'segunda tarefa' }, TARGET)); // must bounce off the busy guard
+    await p2;
+    const busy = posts.find((p) => p.type === 'lp-task-result' && p.reason === 'task-busy');
+    assert.ok(busy && busy.ok === false, 'the second task is refused honestly as busy');
+    assert.strictEqual(calls, 1, 'the bridge was invoked exactly once — no second agent started');
+    assert.ok(inst._activeTaskAbort, 'the FIRST task still owns the abort controller (cancel still reaches it — not orphaned)');
+    gateResolve();
+    await p1;
+    assert.ok(posts.some((p) => p.type === 'lp-task-result' && p.ok === true && p.kind === 'answer'), 'the first task completes normally once unblocked');
+    assert.strictEqual(inst._activeTaskAbort, null, 'the abort controller is cleared after the run');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

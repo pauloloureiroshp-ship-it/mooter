@@ -164,3 +164,26 @@ test('review P3-c: a FAILED disk write leaves NO phantom undo entry (button stay
   const u = posts.filter((p) => p.type === 'lp-edit-result').pop();
   assert.ok(u && u.reason === 'nothing-to-undo', 'no phantom entry to (wrongly) undo');
 });
+
+test('N1 (F7): undo REFUSES when the served tree changed since the edit — preview-tree-mismatch, nothing written', async () => {
+  const root = setup();
+  const file = path.join(root, 'page.tsx');
+  const { inst, posts } = mkInstance(Panel, root);
+  // Forward edit while the harness is un-gated (_servedRoot === undefined) — creates the undo entry.
+  await inst._applyEdit({ preview: false, file: 'page.tsx', line: 5, tag: 'h1', edit: { kind: 'text', value: 'New headline' }, h: sha(SRC) });
+  const edited = fs.readFileSync(file, 'utf8');
+  assert.ok(edited.includes('New headline'), 'edit landed');
+  // The dev server restarts onto a SIBLING worktree → the tree gate must now block ALL writes, incl. undo.
+  const sibling = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lp-undo-sib-')));
+  inst._servedRoot = sibling;
+  try {
+    await inst._undoLast();
+    assert.strictEqual(fs.readFileSync(file, 'utf8'), edited, 'undo wrote NOTHING onto the now-unconfirmed tree');
+    const r = posts.find((p) => p.type === 'lp-edit-result' && p.reason === 'preview-tree-mismatch');
+    assert.ok(r && r.ok === false, 'honest fail-closed refusal, same reason as every forward write path');
+    // And the entry is kept (the refusal is visible, not a silent drop) — a re-confirmed tree can still undo.
+    inst._servedRoot = fs.realpathSync(root);
+    await inst._undoLast();
+    assert.strictEqual(fs.readFileSync(file, 'utf8'), SRC, 'once the tree is confirmed again, the undo restores byte-identical');
+  } finally { fs.rmSync(sibling, { recursive: true, force: true }); }
+});

@@ -1803,6 +1803,11 @@ class LivePreviewPanel {
   // revert over someone else's bytes is exactly the lie this product exists to avoid.
   _revertSpliceItem(item) {
     if (!LEU) return { ok: false, reason: 'engine-unavailable' };
+    // N1 (FIX-MP-1 parity) — an undo/revert is a WRITE. If the served tree is no longer the confirmed
+    // one (dev server restarted onto a sibling worktree since the edit), writing even an inverse splice
+    // would land on a tree the user is not previewing → the same "preview that lies". Fail-closed, like
+    // every forward write path. (A bare Object.create harness has _servedRoot===undefined → not gated.)
+    if (this._treeGateBlocked()) return { ok: false, reason: 'preview-tree-mismatch' };
     let cur;
     try { cur = fs.readFileSync(item.entry.file, 'utf8'); }
     catch { return { ok: false, reason: 'undo-stale' }; }
@@ -2377,6 +2382,10 @@ class LivePreviewPanel {
       // F3 (W1) — no pinned selection in the store → refuse before the agent runs anchorless
       // (defense-in-depth; the honest webview already hides the one-box until an element is pinned).
       if (this._selectionMissing()) { fail('no-selection'); return; }
+      // N2 — enforce the "one active task at a time" invariant the cancel machinery ASSUMES: a second
+      // lp-task while one is running would overwrite _activeTaskAbort (orphaning the first — cancel would
+      // only reach the second) and run two agents at once. Refuse honestly; the running one is untouched.
+      if (this._activeTaskAbort) { fail('task-busy'); return; }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).
@@ -4313,6 +4322,7 @@ function showEditResult(ok, reason){
     undone:'↩ desfeito — os bytes anteriores foram repostos ($0, splice inverso)',
     'undo-stale':'o ficheiro mudou desde a última escrita do Live Edit — desfazer recusado (nada foi escrito)',
     'nothing-to-undo':'nada para desfazer nesta sessão',
+    'task-busy':'já há uma tarefa do agente a correr — espera que termine (ou cancela-a) antes de lançar outra',
     'prompt-empty':'escreve primeiro o que queres mudar',
     'node-too-large':'este elemento é grande demais para reescrita por prompt — edita no editor',
     'local-model-offline':'moo local offline — arranca o Ollama (ollama serve) ou sobe para cloud',
