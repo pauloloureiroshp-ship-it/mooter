@@ -415,3 +415,15 @@ test('F5/P1-5: repeated>1 → multi-instance (.map()) warning fires with the exa
   assert.ok(html.indexOf('×3') !== -1 && html.indexOf('TODOS os itens') !== -1, 'repeated node → honest template-wide warning with the live count');
   assert.strictEqual(html.indexOf(SHARED_WARN), -1, 'same-file repeated node does not ALSO fire the shared-component warning');
 });
+
+// ── F6 (P1-6): the 5.2a limitations must be VISIBLE to the user, not buried in a comment ───────────
+// The "frame is pinned to the FIRST instance" fact lived only in a source comment; the user editing a
+// .map()'d node had no way to know the highlight box tracks instance #1 while the write hits the whole
+// template. Surface it in the multi-instance warning copy.
+test('F6/P1-6: the multi-instance warning states the frame is pinned to the FIRST instance (limitation surfaced, not just commented)', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', tag: 'li', repeated: 4, path: [ { file: 'landing/app/page.tsx', tag: 'ul', label: 'ul' }, { file: 'landing/app/page.tsx', tag: 'li', label: 'li' } ] });
+  const html = selHtml(h);
+  assert.ok(/presa à 1ª instância/.test(html), 'the user must SEE that the highlight tracks instance #1 while the edit hits the template');
+  assert.ok(html.indexOf('TODOS os itens') !== -1, 'and still that the edit affects every rendered item');
+});

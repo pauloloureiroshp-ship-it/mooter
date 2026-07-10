@@ -3794,7 +3794,7 @@ function renderSelection(sel){
     :'';
   // Honest multi-instance warning: the tap counted the same stamp on N live DOM nodes — the
   // selection is pinned to the FIRST instance, but any edit/delete lands on the template.
-  if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a edição afeta o template, ou seja TODOS os itens.</div>';
+  if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a moldura está presa à 1ª instância, mas a edição afeta o template, ou seja TODOS os itens.</div>'; // P1-6: surface the frame-pinned-to-first-instance limitation that used to live only in a comment
   // LP-4.5 §5 — dynamic-component honesty, BEFORE any fenced rewrite: an uppercase tag is a
   // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
   // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
