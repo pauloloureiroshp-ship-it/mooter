@@ -2536,7 +2536,16 @@ class LivePreviewPanel {
   }
   // LP-4 §6 — is the subscription bridge usable from this workspace? A cheap fs fact, cached 30s
   // (it rides every snapshot poll). Fail-soft: absent module → honest 'sdk-bridge-missing'.
+  // F0.5.2 — an EMPTY window (no folder open) is NOT "SDK missing": it needs a FOLDER first. Kept
+  // out of the 30s cache so opening a folder lights up the readiness immediately.
+  _hasWorkspace() {
+    try { const wfs = vscode.workspace && vscode.workspace.workspaceFolders; return !!(wfs && wfs.length); }
+    catch { return false; }
+  }
   _leBridgeStatus() {
+    // F0.5.2 — tri-state: no-workspace ≠ sdk-missing ≠ untrusted. The honest reason drives the right
+    // 1-click action in the UI (open a folder / install the SDK / trust the workspace) — never a lie.
+    if (!this._hasWorkspace()) return { available: false, reason: 'no-workspace' };
     const now = Date.now();
     if (this._leBridge && this._leBridgeTs && (now - this._leBridgeTs) < 30000) return this._leBridge;
     // review P1-A: the cloud bridge runs the workspace's SDK, so it is gated on Workspace Trust.
@@ -3628,7 +3637,7 @@ function dismissCoachMarks(){ const c=document.getElementById('lp-coach'); if(c)
 function maybeCoachOnArm(){ let done=false; try{ done=localStorage.getItem('lp-coach-done')==='1'; }catch(e){} if(!done) showCoachMarks(); }
 // Short, human reason for the warn toast (the panel still shows the full honest state).
 function toastReason(reason){
-  const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
+  const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente', 'no-workspace':'sem pasta aberta',
     'no-selection':'sem elemento fixado — escolhe um no preview',
     'prompt-empty':'escreve primeiro o que queres', 'file-changed':'o ficheiro mudou — pré-visualiza de novo',
     'local-model-offline':'moo local offline', 'local-model-timeout':'o moo local demorou demasiado',
@@ -4027,7 +4036,9 @@ function renderEscalationOffer(m, el){
   const ev=(m&&m.evidence&&typeof m.evidence==='object')?m.evidence:{};
   const why=esc(ev.lastReason||'recusado')+(ev.lastDetail?(' — '+esc(String(ev.lastDetail).slice(0,160))):'');
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
-  const disReason=(br.reason==='workspace-untrusted')
+  const disReason=(br.reason==='no-workspace')
+    ? 'sem pasta aberta — abre a pasta do projeto nesta janela primeiro (o agente lê o repo)'
+    : (br.reason==='workspace-untrusted')
     ? 'workspace não confiável — confia no workspace (Manage Workspace Trust) para subir para cloud'
     : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Escalação com evidência">'
@@ -4140,7 +4151,9 @@ function renderModeChips(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
   // review P1-A: the disabled-reason is HONEST about which gate failed — trust vs missing SDK.
-  const disReason=(br.reason==='workspace-untrusted')
+  const disReason=(br.reason==='no-workspace')
+    ? 'sem pasta aberta — abre a pasta do projeto nesta janela primeiro (o agente lê o repo)'
+    : (br.reason==='workspace-untrusted')
     ? 'workspace não confiável — o agente corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
     : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para ativar o agente';
   if(lpMode!=='local'&&!br.available) lpMode='local'; // honest fallback, visible in the chips
@@ -4207,6 +4220,7 @@ function showEditResult(ok, reason){
     'local-model-empty':'o moo local devolveu vazio — reformula o prompt',
     'local-model-error':'o moo local falhou — vê o Ollama',
     'sdk-bridge-missing':'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud',
+    'no-workspace':'sem pasta aberta — abre a pasta do projeto nesta janela (o agente lê o repo)',
     'workspace-untrusted':'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace para ativar',
     'cloud-bridge-error':'a ponte cloud falhou — vê a sessão do Claude Code',
     'cloud-model-timeout':'o modelo cloud demorou demasiado — tenta de novo',
