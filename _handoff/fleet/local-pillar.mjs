@@ -41,7 +41,11 @@ const REPO = resolve(HERE, "..", "..");
 const OLLAMA = process.env.OLLAMA_HOST?.replace(/\/$/, "") || "http://127.0.0.1:11434";
 // Global default model: FLEET_MODEL (day/night selector) → FLEET_LOCAL_MODEL (legacy)
 // → qwen3:30b. A pillar overrides per-pillar via its "model" field in fleet.json.
-const DEFAULT_MODEL = process.env.FLEET_MODEL || process.env.FLEET_LOCAL_MODEL || "qwen3:30b";
+// Resolved LAZILY (per call) so the night-window per-cycle FLEET_MODEL swap in
+// fleet-forever.mjs takes effect on the next cycle instead of freezing at load.
+export function defaultModel() {
+  return process.env.FLEET_MODEL || process.env.FLEET_LOCAL_MODEL || "qwen3:30b";
+}
 const CONTEXT_CHAR_CAP = Number(process.env.FLEET_CONTEXT_CHAR_CAP) || 6000;
 const GENERATE_TIMEOUT_MS = Number(process.env.FLEET_GENERATE_TIMEOUT_MS) || 120_000;
 const TAGS_TIMEOUT_MS = 3_000;
@@ -63,7 +67,7 @@ function num(x) { return Number.isFinite(x) ? x : null; }
 // Per-pillar model selector (Option C): the pillar's fleet.json "model" field wins,
 // else the global default. Lets the fleet run a light coder model by day (fits
 // alongside the router) and reserve qwen3:30b for an exclusive night window.
-export function resolveModel(loop, fallback = DEFAULT_MODEL) {
+export function resolveModel(loop, fallback = defaultModel()) {
   return (loop && loop.pillar && loop.pillar.model) || fallback;
 }
 

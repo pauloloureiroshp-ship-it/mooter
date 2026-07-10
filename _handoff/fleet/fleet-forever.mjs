@@ -19,6 +19,7 @@ import { runFleet } from "./fleet-orchestrator.mjs";
 import { localPillar } from "./local-pillar.mjs";
 import { cronistaPillar } from "./cronista-pillar.mjs";
 import { preflight } from "./vram-preflight.mjs";
+import { activeModel, parseHHMM } from "./night-window.mjs";
 
 function runPillar(loop, deps) {
   return loop.id === "cronista" ? cronistaPillar(loop, deps) : localPillar(loop, deps);
@@ -31,12 +32,20 @@ const roundsPerCycle = Number(process.env.FLEET_ROUNDS_PER_CYCLE) || 3;
 // MODEL POLICY (Option C). By DAY the fleet runs a light coder model that fits
 // alongside the router (FLEET_MODEL, e.g. qwen2.5-coder:14b ≈ 9GB) — set once, the
 // per-pillar selector in local-pillar honours any fleet.json "model" override.
-// NIGHT window (SPEC ONLY — not wired yet): when the clock is inside
-// [FLEET_NIGHT_FROM, FLEET_NIGHT_TO] (e.g. "02:00".."07:00"), swap FLEET_MODEL for
-// FLEET_NIGHT_MODEL (e.g. qwen3:30b) for an EXCLUSIVE heavy pass — the router load is
-// lowest overnight, so the 30B fits. Wiring the clock check is a follow-up.
-const NIGHT_MODEL = process.env.FLEET_NIGHT_MODEL || null; // reserved; window not yet enforced
-if (NIGHT_MODEL) console.log(`[fleet-forever] night model reserved: ${NIGHT_MODEL} (window enforcement is a follow-up)`);
+// NIGHT window (WIRED): inside [FLEET_NIGHT_START, FLEET_NIGHT_END) local time in
+// FLEET_NIGHT_TZ the fleet swaps FLEET_MODEL for FLEET_NIGHT_MODEL (e.g. qwen3:30b)
+// for an exclusive heavy pass — router load is lowest overnight, so the 30B fits.
+// The swap is re-evaluated at the START of each cycle (clean transition: a running
+// cycle keeps its model, the next one picks up the change). VRAM pre-flight still
+// governs — if the 30B does not fit it backs off, never CPU-fallback.
+const DAY_MODEL = process.env.FLEET_MODEL || process.env.FLEET_LOCAL_MODEL || null;
+const NIGHT_MODEL = process.env.FLEET_NIGHT_MODEL || null;
+const NIGHT_TZ = process.env.FLEET_NIGHT_TZ || "America/Sao_Paulo";
+const NIGHT_START_RAW = process.env.FLEET_NIGHT_START || "00:00";
+const NIGHT_END_RAW = process.env.FLEET_NIGHT_END || "07:00";
+const NIGHT_START_MIN = parseHHMM(NIGHT_START_RAW) ?? 0;
+const NIGHT_END_MIN = parseHHMM(NIGHT_END_RAW) ?? 7 * 60;
+if (NIGHT_MODEL) console.log(`[fleet-forever] night window ${NIGHT_START_RAW}-${NIGHT_END_RAW} ${NIGHT_TZ}: ${NIGHT_MODEL} (day: ${DAY_MODEL || "default"})`);
 const backoffMs = Number(process.env.FLEET_CONTENTION_BACKOFF_MS) || 120_000;
 const cycleGapMs = Number(process.env.FLEET_CYCLE_GAP_MS) || 5_000;
 const maxCycles = Number(process.env.FLEET_MAX_CYCLES) || Infinity;
@@ -67,6 +76,18 @@ while (cycle < maxCycles) {
   }
   contentionCycles = 0;
   cycle++;
+  // Night-window model selection — evaluated at the start of the cycle. local-pillar
+  // reads FLEET_MODEL lazily, so this swap governs THIS cycle's generation.
+  if (NIGHT_MODEL) {
+    const want = activeModel({
+      now: new Date(), dayModel: DAY_MODEL, nightModel: NIGHT_MODEL,
+      startMin: NIGHT_START_MIN, endMin: NIGHT_END_MIN, tz: NIGHT_TZ,
+    });
+    if (want && want !== process.env.FLEET_MODEL) {
+      console.log(`[fleet-forever] model window: FLEET_MODEL ${process.env.FLEET_MODEL || "(unset)"} -> ${want}`);
+      process.env.FLEET_MODEL = want;
+    }
+  }
   try {
     const s = await runFleet({ dryRun: false, runPillar, maxRounds: roundsPerCycle, caps });
     console.log(`[fleet-forever] cycle ${cycle} shutdown:`, JSON.stringify(s));
