@@ -3710,31 +3710,28 @@ function renderSelection(sel){
   // text/class edits, presets, /skills, open/delete — lives behind "▾ mais". Simple by default,
   // the power one click away. The expanded/collapsed choice is remembered per session (localStorage).
   const inputsHTML=
-    // ── SIMPLE (always visible) ──
-    // F3 (W1) — the anchor chip AT the input: shows the pinned element (📍 file:line · <tag>) right
-    // at the prompt so the edit target is visible. loc/tag already esc'd above.
+    // ── SIMPLE (always visible) — F0.1: PROMPT-FIRST. anchor · Editar/Perguntar · prompt(autofocus) · tier · context. ──
+    // F3 (W1) — the anchor chip AT the input: shows the pinned element (📍 file:line · <tag>). loc/tag already esc'd above.
     '<div class="lp-anchor-in" title="Este prompt está ancorado a este elemento (ficheiro:linha) — o alvo da edição">📍 '+esc(baseName(sel.file||'?'))+':'+esc(sel.line==null?'?':sel.line)+' · &lt;'+tag+'&gt;</div>'
-    // §5 — presets are the STAR: the instant $0 gesture (colour/size/spacing) sits at the very top.
-    +'<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
     +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
     +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
     +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
     +'</div>'
     +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
+    // F0.1 — the prompt box is the star (autofocus on a fresh pin, wired below); the tier picker sits under it.
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
-    // LP-4.9 loop-fix §C — ALWAYS-visible context/route line: tells the user, before sending,
-    // whether THIS edit reads the whole project (agent) or only this node (local $0), and how to
-    // enable the agent when it is off. Answers "não sei se apanha o contexto do projeto".
+    // F0.1 — the model/tier picker (local $0 · Haiku · Sonnet · Opus · @fable) is now ALWAYS visible, under the box.
+    +'<div id="lp-chip" class="lp-chip"></div>'
+    // LP-4.9 loop-fix §C + W2 — ALWAYS-visible context/route line + honest context-source chip.
     +'<div id="lp-ctx" class="lp-ctx" role="status"></div>'
-    // W2 — honest context-source chip: what the agent's context actually covers (repo ✓ via the
-    // Context Engine; Notion n/d because Camada C is not wired). Hidden unless the agent reads the repo.
     +'<span id="lp-ctx-src" class="lp-ctx-src" role="status" title="Fontes de contexto do agente" style="display:none"></span>'
     +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
-    +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Mostrar/ocultar os controlos avançados">▾ mais</button>'
-    // ── ADVANCED (collapsed by default) ──
+    // ── ▾ AJUSTES RÁPIDOS (collapsed) — F0.1: the instant $0 style presets + raw text/class edits, /skills, open/delete. ──
+    +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Ajustes rápidos de estilo + controlos avançados">▾ ajustes rápidos</button>'
     +'<div id="lp-adv" class="lp-adv" style="display:none">'
-    +'<div id="lp-chip" class="lp-chip"></div>'
+    // §5 — the instant $0 style gesture (colour/size/spacing), moved off the top into the quick-adjust drawer.
+    +'<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
     +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
@@ -3754,7 +3751,9 @@ function renderSelection(sel){
     const chip=document.getElementById('lp-ctb-chip');
     // §7 — preserve a minimized toolbar across re-pins (show the 🐮 chip, keep the panel hidden).
     if(lpToolbarMin){ if(ctb){ ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); } if(chip) chip.style.display='inline-flex'; }
-    else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none'; }
+    else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none';
+      // F0.1 — pin ready to type: focus the prompt box on a fresh selection (only when the toolbar is shown).
+      const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} } }
   }
   else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
@@ -3865,7 +3864,7 @@ function renderSelection(sel){
   const moreBtn=document.getElementById('lp-more'), advEl=document.getElementById('lp-adv');
   const setAdv=function(open){
     if(advEl) advEl.style.display=open?'block':'none';
-    if(moreBtn){ moreBtn.setAttribute('aria-expanded', open?'true':'false'); moreBtn.textContent=open?'▴ menos':'▾ mais'; }
+    if(moreBtn){ moreBtn.setAttribute('aria-expanded', open?'true':'false'); moreBtn.textContent=open?'▴ menos':'▾ ajustes rápidos'; }
     try{ localStorage.setItem('lp-adv-open', open?'1':'0'); }catch(e){}
   };
   let advOpen=false; try{ advOpen=localStorage.getItem('lp-adv-open')==='1'; }catch(e){}

@@ -327,3 +327,17 @@ test('F0.3/F0.4: 🛡 Review + 🚀 Publish show text labels (discoverable, not 
   assert.ok(/id="lp-security-btn"[^>]*>🛡 Review</.test(html), 'the security action shows the label "🛡 Review"');
   assert.ok(/id="lp-publish-btn"[^>]*>🚀 Publish</.test(html), 'the publish action shows the label "🚀 Publish"');
 });
+
+// ── F0.1: prompt-first — the box is the star (autofocus on pin), tier picker under it, presets collapsed. ──
+test('F0.1: after a pin, the prompt box is focused and sits above the tier picker + ▾ ajustes rápidos drawer', () => {
+  const h = bootWebview(true); fireSelect(h);
+  const bi = h.env.doc.getElementById('lp-box-in');
+  assert.ok(bi, 'the prompt box rendered');
+  assert.strictEqual(h.env.doc.activeElement, bi, 'the prompt box is autofocused on a fresh pin (ready to type)');
+  const html = loadModule().getLivePreviewHtml('tok');
+  const iBox = html.indexOf('id="lp-box-in"'), iChip = html.indexOf('id="lp-chip"');
+  const iMore = html.indexOf('id="lp-more"'), iAdv = html.indexOf('id="lp-adv"'), iPresets = html.indexOf('id="lp-presets"');
+  assert.ok(iBox < iChip && iChip < iMore, 'order: prompt box → tier picker → ▾ ajustes rápidos (prompt-first)');
+  assert.ok(iPresets > iAdv, 'presets are collapsed inside the ▾ ajustes rápidos drawer');
+  assert.ok(/▾ ajustes rápidos/.test(html), 'the drawer is labelled "▾ ajustes rápidos"');
+});

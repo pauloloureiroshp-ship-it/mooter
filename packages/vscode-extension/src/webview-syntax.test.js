@@ -355,17 +355,19 @@ test('Live Preview LP-4.9 §1 intent — explicit Edit/Ask toggle removes the "a
   parseInlineScript(html);
 });
 
-test('Live Preview LP-4.9 §2 progressive disclosure — minimal by default, power behind "▾ mais" (remembered)', () => {
+test('Live Preview LP-4.9 §2 / F0.1 progressive disclosure — prompt-first minimal view, presets behind "▾ ajustes rápidos" (remembered)', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
   // The advanced drawer exists, is collapsed by default, and the chevron controls it via ARIA.
   assert.ok(html.includes('id="lp-adv"'), 'advanced drawer present');
   assert.ok(/id="lp-adv" class="lp-adv" style="display:none"/.test(html), 'advanced is collapsed by default');
   assert.ok(html.includes('id="lp-more"') && /aria-controls="lp-adv"/.test(html), 'chevron controls the drawer');
-  // The engineer controls moved INTO the drawer (still present — just not in the minimal view).
+  // F0.1 — the QUICK-ADJUST presets + raw text/class edits + skills moved INTO the drawer (one click away).
   const advStart = html.indexOf('id="lp-adv"');
   const advChunk = html.slice(advStart, advStart + 1200);
-  assert.ok(advChunk.includes('id="lp-chip"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'chips/raw-edits/skills live in the drawer');
+  assert.ok(advChunk.includes('id="lp-presets"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'quick-adjust presets/raw-edits/skills live in the drawer');
+  // F0.1 — the model/tier picker moved UP into the minimal (prompt-first) view, like the one-box.
+  assert.ok(html.indexOf('id="lp-chip"') < advStart, 'the tier picker stays in the minimal view');
   // The minimal view keeps the intent toggle + one-box (they must NOT be inside the drawer).
   assert.ok(html.indexOf('id="lp-box-in"') < advStart, 'the one-box stays in the minimal view');
   assert.ok(html.indexOf('id="lp-mode-edit"') < advStart, 'the intent toggle stays in the minimal view');
@@ -377,9 +379,9 @@ test('Live Preview LP-4.9 §2 progressive disclosure — minimal by default, pow
 test('Live Preview LP-4.9 §5 presets as the star — top of the simple view, ≥24px, hover-preview', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
-  // The preset bar sits in the MINIMAL view (before the advanced drawer), flagged as the star.
+  // F0.1 — the preset bar moved into the ▾ ajustes rápidos drawer (prompt-first); it stays the star of that row.
   const advStart = html.indexOf('id="lp-adv"');
-  assert.ok(html.indexOf('id="lp-presets"') < advStart, 'presets live in the simple view, not the drawer');
+  assert.ok(html.indexOf('id="lp-presets"') > advStart, 'F0.1 — presets live one click away in the drawer, not on top');
   assert.ok(html.includes('lp-pz-star'), 'presets flagged as the star row');
   // WCAG 2.2 §2.5.8 target size: swatches are ≥24px.
   assert.ok(/\.lp-sw\{width:24px;height:24px/.test(html), 'swatches are ≥24px (WCAG 2.2 target size)');
