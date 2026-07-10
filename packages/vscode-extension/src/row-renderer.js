@@ -53,9 +53,9 @@ function stageColor(st) {
 
 // WCOCKPIT-3: per-session mode metadata
 var MODES_UI = [
-  ['lazy', '💤', 'LazyMoo — local-first'],
-  ['moo', '🐮', 'Moo — balanced'],
-  ['crazy', '⚡', 'CrazyMoo — max power']
+  ['lazy', '💤', 'activar LazyMoo nesta sessão — privilegia modelos locais e baratos'],
+  ['moo', '🐮', 'activar Moo nesta sessão — deixa o router escolher o tier mínimo adequado'],
+  ['crazy', '⚡', 'activar CrazyMoo nesta sessão — força o tier de maior capacidade']
 ];
 
 // WCOCKPIT-3: model options for per-session dropdown
@@ -260,11 +260,12 @@ function renderRow(r, opts) {
   if (curModel && !matched) {
     modelOpts += '<option value="' + esc(curModel) + '" selected>' + esc(curModel) + ' (set)</option>';
   }
-  var modelSel = '<select class="smodsel" data-msess="' + esc(sid) + '" title="model for this session — Claude tiers + local Ollama">' + modelOpts + '</select>';
+  var modelSel = '<select class="smodsel" data-msess="' + esc(sid) + '" title="selecciona e guarda o modelo desta sessão; Auto deixa o Moo decidir, os restantes fixam o modelo indicado">' + modelOpts + '</select>';
 
   // ── Auto-pilot toggle ──
   var autoOn = !!r.auto;
-  var autoBtn = '<button class="sauto' + (autoOn ? ' on' : '') + '" data-msess="' + esc(sid) + '" data-mauto="' + String(autoOn) + '" title="auto-pilot: Moo adapts model to task">' + (autoOn ? '⚡ auto' : 'auto') + '</button>';
+  var autoTitle = autoOn ? 'desactivar o auto-pilot desta sessão; mantém o modelo actualmente seleccionado' : 'activar o auto-pilot nesta sessão; o Moo adapta o modelo a cada tarefa';
+  var autoBtn = '<button class="sauto' + (autoOn ? ' on' : '') + '" data-msess="' + esc(sid) + '" data-mauto="' + String(autoOn) + '" title="' + autoTitle + '">' + (autoOn ? '⚡ auto' : 'auto') + '</button>';
 
   // ── WCOCKPIT-9 (Bloco F): LoopMoo toggle (separado do segmented lazy/moo/crazy: aquilo é
   // intensidade de routing; LoopMoo é o MODO de interacção — autopilot loop 🔁). Degradação
@@ -300,7 +301,7 @@ function renderRow(r, opts) {
   var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree: ' + esc(r.worktree) + '">⌥' + esc(r.worktree) + '</span>' : '';
   // ↺→👁 HONESTO: não há sync remoto a partir do cockpit; isto carimba a hora de revisão local ("marcar visto").
   var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="marcar Notion e Obsidian como vistos agora (carimbo local)" title="marcar visto — carimba a hora de revisão local. Não há sync remoto a partir do cockpit; clica o chip para abrir a página/ficheiro.">👁</button>';
-  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="close this session (archive, reversible)" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
+  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="arquivar esta sessão no cockpit" title="arquiva esta sessão no cockpit; é reversível, reaparece se voltar a ter actividade e não apaga ficheiros nem a conversa">✕</button>';
   var ctrl = '<div class="sctrl">' + modelSel + autoBtn + loopBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
 
   // ── F1: 1st-prompt subline (only when a Cowork title was promoted to the name) ──
@@ -524,7 +525,7 @@ function renderRow(r, opts) {
     + '" title="' + (r.pinned ? 'sessão fixada — clica para soltar' : 'fixar sessão (fica no topo, nunca auto-arquiva)')
     + '" aria-label="' + (r.pinned ? 'soltar sessão' : 'fixar sessão') + '" aria-pressed="' + (r.pinned ? 'true' : 'false') + '" data-quick="pin">📌</button>';
   var _handoffQuick = '<button class="squick handoff" data-qhandoff="' + esc(sid) + '" title="gerar o handoff desta sessão, mostrá-lo aqui e copiá-lo" aria-label="gerar handoff desta sessão" data-quick="handoff">⇄</button>';
-  var _openQuick = '<button class="squick sopen" data-a="openSessionTab" data-x="' + esc(sid) + '" data-title="' + esc(nm) + '" title="abrir esta sessão num separador Claude Code" aria-label="abrir esta sessão num separador Claude Code" data-quick="open">↗</button>';
+  var _openQuick = '<button class="squick sopen" data-a="openSessionTab" data-x="' + esc(sid) + '" data-title="' + esc(nm) + '" title="abre a aba desta sessão no Claude Code; foca a existente e nunca cria um duplicado" aria-label="abrir esta sessão no Claude Code" data-quick="open">↗</button>';
   var _collapsed = opts.rowCollapsed !== false;
   var _disclose = '<button class="sdisclose collaphead" title="mostrar ou ocultar os detalhes e controlos desta sessão" aria-label="mostrar ou ocultar os detalhes e controlos desta sessão" aria-expanded="' + (_collapsed ? 'false' : 'true') + '"><span class="chev">▾</span></button>';
   return '<div class="srow' + (_collapsed ? ' collapsed' : '') + (sel ? ' on' : '') + (r.pinned ? ' pinned' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')

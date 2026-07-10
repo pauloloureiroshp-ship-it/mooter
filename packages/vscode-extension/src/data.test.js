@@ -1395,7 +1395,7 @@ test('WCOCKPIT-9 (Bloco B) renderRow: já NÃO usa o layout de duas linhas .stop
 test('WCOCKPIT-9 (Bloco B) renderRow: aria-label preserva o nome completo (a11y)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('aria-label="sessão: test session"'), 'row group carries the full session name');
-  assert.ok(html.includes('aria-label="abrir esta sessão num separador Claude Code"'), 'open action is explicit and labelled');
+  assert.ok(html.includes('aria-label="abrir esta sessão no Claude Code"'), 'open action is explicit and labelled');
 });
 
 test('B3 renderRow: disclosure nasce compacto e o conteúdo expandido preserva todos os controlos', () => {

@@ -141,7 +141,7 @@ function renderSkillsMenuHTML(skills, esc) {
     h += '<button type="button" class="lp-sk-item" role="menuitem"'
       + ' data-skill="' + e(s.id || '') + '"'
       + ' data-tier="' + e(floor) + '"'
-      + ' data-template="' + e(s.template || '') + '">'
+      + ' data-template="' + e(s.template || '') + '" title="selecciona a skill ' + e(s.label || s.id || 'n/d') + ' e preenche o prompt ancorado; não executa até enviares">'
       + '<span class="lp-sk-g">' + e(s.glyph || '•') + '</span>'
       + '<span class="lp-sk-lb">' + e(s.label || ('/' + (s.id || ''))) + '</span>'
       + '<span class="lp-sk-tier lp-sk-tier-' + e(floor) + '">' + e(tierTxt) + '</span>'

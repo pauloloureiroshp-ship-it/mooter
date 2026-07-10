@@ -213,7 +213,7 @@ test('W-UX: pure session-open controls use openSessionTab; push keeps open-and-s
   assert.match(html, /class="mcf-brow[^"]*" data-a="openSessionTab"[^>]*data-title="Build MC view"/, 'branch row uses canonical tab command');
   assert.match(html, /class="mcf-gitlink" data-a="openSessionTab"[^>]*data-title="Remote moo"/, 'git link uses canonical tab command');
   assert.equal(html.split(tip).length - 1, 4, 'every rendered pure-open control has the exact honest tooltip');
-  assert.match(html, /class="mcf-pushbtn" data-a="openSession"[^>]*title="abrir para rever e enviar"/, 'push action keeps backward-compatible open-and-scope path');
+  assert.match(html, /class="mcf-pushbtn" data-a="openSession"[^>]*title="abre os detalhes desta sessão para rever os commits locais; não executa push"/, 'push action keeps backward-compatible open-and-scope path and states that it never pushes');
 });
 
 test('W-UX: legacy openSession delegates to mooter.openSessionTab and keeps cockpit scope', () => {

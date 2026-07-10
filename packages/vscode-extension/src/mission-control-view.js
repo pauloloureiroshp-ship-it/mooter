@@ -90,7 +90,7 @@ function renderMissionControl(snapshot) {
   function letterFor(i) { return (i < 26) ? String.fromCharCode(65 + i) : String(i + 1); }
   function btn(label, cmd, arg, cls, title) {
     var x = (arg == null) ? '' : ' data-x="' + esc(arg) + '"';
-    var t = title ? ' title="' + esc(title) + '"' : '';
+    var t = ' title="' + esc(title || 'executar esta acção no Mission Control') + '"';
     return '<button class="mc-btn ' + (cls || '') + '" data-a="' + esc(cmd) + '"' + x + t + '>' + label + '</button>';
   }
   // ── MCV2 helpers (serialised with the function — concat-only, no module-scope refs) ──
@@ -568,7 +568,7 @@ function renderMissionControl(snapshot) {
       + '<span class="mcf-syn">O<span class="mcf-d ' + oOn + '"></span></span>'
       + '<span class="mcf-sdot ' + stCls + '" style="width:8px;height:8px"></span><span>' + dev + '</span>'
       + (ss.git && ss.git.pushNeeded === true && ss.sid
-        ? '<button class="mcf-pushbtn" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir para rever e enviar">✅ push?</button>'
+        ? '<button class="mcf-pushbtn" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abre os detalhes desta sessão para rever os commits locais; não executa push">✅ push?</button>'
         : (ss.sid
           ? '<button class="mcf-gitlink" data-a="openSessionTab" data-x="' + esc(ss.sid) + '" data-title="' + esc(ss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗 git</button>'
           : '<span class="mc-nd">🔗 n/d</span>'));
@@ -619,12 +619,12 @@ function renderMissionControl(snapshot) {
 
   // ── 9 · Assistente Moo (input → askMoo; stream renderizado por wireMc) ─────
   out += '<div class="mc-card"><div class="mc-lbl">🐮 Pergunta ao Moo <span class="mc-sub">local · $0 · só mission control + handoff</span></div>'
-    + '<div class="mc-mooin"><input id="mcMooIn" placeholder="ex: o que precisa de mim agora?" autocomplete="off"><button class="mc-btn mc-ok" id="mcMooGo">→</button></div>'
+    + '<div class="mc-mooin"><input id="mcMooIn" placeholder="ex: o que precisa de mim agora?" autocomplete="off" title="escreve uma pergunta sobre o snapshot actual do Mission Control e os handoffs locais" aria-label="pergunta para o Moo local"><button class="mc-btn mc-ok" id="mcMooGo" title="envia esta pergunta ao assistente Moo local; usa apenas o snapshot e os handoffs, sem escrita no projecto" aria-label="enviar pergunta ao Moo local">→</button></div>'
     + '<div class="mc-eg">'
-    + '<button class="mc-chip mc-q" data-q="O que precisa de mim agora?">o que precisa de mim?</button>'
-    + '<button class="mc-chip mc-q" data-q="Gera o handoff geral do projecto.">handoff geral</button>'
-    + '<button class="mc-chip mc-q" data-q="Qual a sessão com maior gasto de tokens?">maior gasto de tokens</button>'
-    + '<button class="mc-chip mc-q" data-q="Quanta folga de GPU tenho para mais moos?">folga de GPU?</button>'
+    + '<button class="mc-chip mc-q" data-q="O que precisa de mim agora?" title="preenche e envia esta pergunta ao Moo local: o que precisa de mim agora?">o que precisa de mim?</button>'
+    + '<button class="mc-chip mc-q" data-q="Gera o handoff geral do projecto." title="preenche e envia ao Moo local o pedido de handoff geral do projecto">handoff geral</button>'
+    + '<button class="mc-chip mc-q" data-q="Qual a sessão com maior gasto de tokens?" title="preenche e envia ao Moo local a pergunta sobre a sessão com maior gasto de tokens no snapshot">maior gasto de tokens</button>'
+    + '<button class="mc-chip mc-q" data-q="Quanta folga de GPU tenho para mais moos?" title="preenche e envia ao Moo local a pergunta sobre a folga de GPU registada no snapshot">folga de GPU?</button>'
     + '</div>'
     + '<div class="mc-mooout" id="mcMooOut"></div></div>';
 
