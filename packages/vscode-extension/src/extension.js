@@ -1303,6 +1303,15 @@ class LivePreviewPanel {
     // write. (A bare unit-harness instance built via Object.create skips this ctor → _servedRoot is
     // undefined → NOT gated, so the pre-existing edit/delete host contracts run unchanged.)
     this._servedRoot = null;
+    // F3 (W1) — the host-side record of the pinned selection, fed by the origin-locked lp-pin relay
+    // (a sibling of lp-tree, posted on every lp-select). Read by (1) the fail-closed gate below, so
+    // NO prompt path talks to the LLM before ANY element is pinned this session, and (2) _taskRun,
+    // which forwards its rendered .selText into the agent's anchor block so a dynamic-<p> ask sees the
+    // text the user sees. HONEST SCOPE: the chip and the generate paths still carry the anchor on
+    // their own messages (the store is not yet their sole reader) — full unification is a later step.
+    // null from birth → _selectionMissing() default-denies until a pin arrives; a bare Object.create
+    // harness leaves it undefined → NOT gated (pre-existing host contracts run unchanged).
+    this._selection = null;
     this._wire();
   }
   static createOrReveal() {
@@ -1425,6 +1434,32 @@ class LivePreviewPanel {
   _treeGateBlocked() {
     return this._servedRoot !== undefined && !this._treeConfirmed();
   }
+  // F3 (W1) — record the pinned selection relayed from the webview (lp-pin). Bounded + sanitised;
+  // a missing/empty file clears it. Never throws. This is the ONLY writer of this._selection.
+  // Read today: .file (by the fail-closed gate _selectionMissing) and .selText (by _taskRun → the
+  // agent's anchor block, so a dynamic-<p> ask sees the rendered text). .line/.col/.tag are recorded
+  // as the pin's identity but not yet read here — the paths still take the anchor from the message.
+  _setSelection(m) {
+    try {
+      const file = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (!file) { this._selection = null; return; }
+      this._selection = {
+        file: file.slice(0, 1024),
+        line: Number.isInteger(m && m.line) ? m.line : null,
+        col: Number.isInteger(m && m.col) ? m.col : null,
+        tag: (m && typeof m.tag === 'string') ? m.tag.slice(0, 60) : '',
+        selText: (m && typeof m.selText === 'string') ? m.selText.replace(/\s+/g, ' ').trim().slice(0, 200) : '',
+      };
+    } catch { this._selection = null; }
+  }
+  // F3 (W1) — the fail-closed selection gate, shaped EXACTLY like _treeGateBlocked: default-DENY in
+  // production (the ctor sets _selection=null → BLOCKED until a pin arrives, so no prompt path talks
+  // to the LLM without a pinned selection — the agent asks instead of guessing). A bare Object.create
+  // unit harness never runs the ctor (_selection === undefined) → NOT gated, so the pre-existing
+  // lp-edit/lp-task/lp-prompt host contracts (which pass the anchor on the message) run unchanged.
+  _selectionMissing() {
+    return this._selection !== undefined && !(this._selection && this._selection.file);
+  }
   // FIX-MP-1 G1 — the honest banner text when the preview is live but comes from an UNCONFIRMED tree.
   // null when identity is unproven-because-absent (servedRoot null → the write gate already refuses
   // with its own message) or when confirmed; a factual note naming the served root's basename only when
@@ -1536,6 +1571,7 @@ class LivePreviewPanel {
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
+    if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
@@ -2139,6 +2175,8 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED before we read the workspace node and ship its bytes to the model:
       // an unconfirmed served tree would build a diff of a file the user never saw in the preview.
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
+      // F3 (W1) — no pinned selection in the store → refuse, never rewrite a node the user did not pin.
+      if (this._selectionMissing()) { fail('no-selection'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -2332,6 +2370,9 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED alongside the trust gate: the anchored agent must not run off a
       // preview anchor from a sibling served tree (it would edit the wrong tree the user never saw).
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
+      // F3 (W1) — no pinned selection in the store → refuse before the agent runs anchorless
+      // (defense-in-depth; the honest webview already hides the one-box until an element is pinned).
+      if (this._selectionMissing()) { fail('no-selection'); return; }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).
@@ -2374,6 +2415,10 @@ class LivePreviewPanel {
       // LP-4.9 §1 — explicit intent from the Edit/Ask toggle. 'ask' forces an answer-only run
       // (zero writes even if the ask looks like an edit); anything else edits. Default 'edit'.
       const intent = (m && m.intent === 'ask') ? 'ask' : 'edit';
+      // F3 (W1) — the rendered text of the pinned node comes from the host SelectionStore (the record
+      // fed by lp-pin), NOT the message, so an ask/edit agent sees what the user sees even when the
+      // JSX is dynamic. Guarded: a bare Object.create harness has no store → '' (contract unchanged).
+      const selText = (this._selection && typeof this._selection.selText === 'string') ? this._selection.selText : '';
       this._postTaskStatus({ phase: 'thinking', mode, intent });
       // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
       const ac = (typeof AbortController === 'function') ? new AbortController() : null;
@@ -2384,6 +2429,7 @@ class LivePreviewPanel {
           instruction,
           file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
           nodeSource,
+          selText,
           breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
           refs,
           intent,
@@ -2655,6 +2701,12 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);flex-wrap:wrap}
   .lp-status{flex:1 1 auto;min-width:120px;display:flex;align-items:center;gap:7px;font-size:12px;overflow:hidden}
   .lp-status .lps-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* F3 (W1) — the anchor chip: the pinned element, always visible next to the select button
+     (persistent) and at the top of the one-box (per-pin). Honest 'sem seleção' state when unpinned.
+     Badge bg/fg only → guaranteed contrast in light AND dark; opacity/weight signal the pinned state. */
+  .lp-anchor{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 9px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;opacity:.65}
+  .lp-anchor.on{opacity:1;font-weight:600}
+  .lp-anchor-in{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;margin:0 0 6px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-weight:600}
   #lp-controls{display:flex;gap:5px;align-items:center;flex:none}
   #lp-url{width:190px;max-width:40vw;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
   #lp-controls button{font:12px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
@@ -2958,6 +3010,7 @@ function getLivePreviewHtml(token, wsRoot) {
         <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
         <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
+        <span id="lp-anchor" class="lp-anchor" role="status" aria-live="polite" title="O elemento fixado — o alvo do prompt. Sem âncora, nenhum prompt é enviado.">📍 sem seleção</span>
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
         <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
         <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
@@ -3563,13 +3616,33 @@ function maybeCoachOnArm(){ let done=false; try{ done=localStorage.getItem('lp-c
 // Short, human reason for the warn toast (the panel still shows the full honest state).
 function toastReason(reason){
   const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
+    'no-selection':'sem elemento fixado — escolhe um no preview',
     'prompt-empty':'escreve primeiro o que queres', 'file-changed':'o ficheiro mudou — pré-visualiza de novo',
     'local-model-offline':'moo local offline', 'local-model-timeout':'o moo local demorou demasiado',
     'task-timeout':'o agente demorou demasiado', 'task-cancelled':'cancelado',
     'replacement-parse-error':'recusado pela cerca (JSX inválido)', 'not-single-root':'recusado pela cerca' };
   return m[reason]||(reason?String(reason):'rejeitado');
 }
+// F3 (W1) — the persistent anchor chip in the toolbar: '📍 file:line · <tag>' when a node is
+// pinned, an honest '📍 sem seleção' when not. Concat-only + esc(); &lt;&gt; for the literal tag.
+// Driven from the webview sel object (the same pin the host store mirrors); after an apply-time
+// lp-repin it may briefly show the pre-repin file:line until the tap re-emits lp-select.
+function updateAnchorChip(sel){
+  const a=document.getElementById('lp-anchor');
+  if(!a) return;
+  if(sel&&sel.file){
+    const tg=esc(sel.tag||'elemento');
+    a.innerHTML='📍 '+esc(baseName(sel.file))+':'+esc(sel.line==null?'?':sel.line)+' · &lt;'+tg+'&gt;';
+    a.className='lp-anchor on';
+    a.title='Elemento fixado: '+(sel.file||'')+':'+(sel.line==null?'?':sel.line)+' — o alvo do prompt';
+  } else {
+    a.innerHTML='📍 sem seleção';
+    a.className='lp-anchor';
+    a.title='Sem elemento fixado — clica 🎯 e escolhe um elemento no preview. Sem âncora, nenhum prompt é enviado.';
+  }
+}
 function renderSelection(sel){
+  updateAnchorChip(sel); // F3 — keep the persistent anchor chip honest on every (de)selection
   const el=document.getElementById('lp-sel');
   if(!el) return;
   if(!sel){ el.style.display='none'; el.innerHTML=''; hideCanvasToolbar(); return; }
@@ -3625,8 +3698,11 @@ function renderSelection(sel){
   // the power one click away. The expanded/collapsed choice is remembered per session (localStorage).
   const inputsHTML=
     // ── SIMPLE (always visible) ──
+    // F3 (W1) — the anchor chip AT the input: shows the pinned element (📍 file:line · <tag>) right
+    // at the prompt so the edit target is visible. loc/tag already esc'd above.
+    '<div class="lp-anchor-in" title="Este prompt está ancorado a este elemento (ficheiro:linha) — o alvo da edição">📍 '+esc(baseName(sel.file||'?'))+':'+esc(sel.line==null?'?':sel.line)+' · &lt;'+tag+'&gt;</div>'
     // §5 — presets are the STAR: the instant $0 gesture (colour/size/spacing) sits at the very top.
-    '<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
+    +'<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
     +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
     +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
     +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
@@ -4096,6 +4172,7 @@ function showEditResult(ok, reason){
     'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
     'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
     'preview-tree-mismatch':'o preview não vem desta árvore (ou o marcador dev não está presente) — reinicia o dev server neste workspace',
+    'no-selection':'sem elemento fixado — clica 🎯 e escolhe um elemento no preview primeiro (sem âncora, o agente pergunta em vez de adivinhar)',
     'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)',
     'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
     // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
@@ -4240,7 +4317,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked, same as every tap message)
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); } // FIX-MP-1 — relay served-tree identity on every selection
+    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
     // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.

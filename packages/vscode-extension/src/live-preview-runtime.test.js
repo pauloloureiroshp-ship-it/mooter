@@ -224,3 +224,70 @@ test('RUNTIME: bridge OFF routes Editar to the local $0 path (lp-prompt), not a 
   assert.strictEqual(sent.type, 'lp-prompt', 'bridge off → local fenced rewrite (lp-prompt), never a doomed lp-task');
   assert.strictEqual(sent.tier, 'local', 'runs on the local $0 tier');
 });
+
+// ── F3 (W1): every prompt path carries the anchor envelope, no path talks to the LLM before an
+//    element is pinned, and the anchor chip is honest ('sem seleção' → '📍 file:line · <tag>'). ──
+function sendWith(h, text) {
+  const bi = h.env.doc.getElementById('lp-box-in');
+  bi.value = text;
+  const before = h.posted.length;
+  h.env.doc.getElementById('lp-box-b').dispatchEvent(h.mkEvent('click'));
+  return h.posted.slice(before);
+}
+function assertEnvelope(msg) {
+  assert.ok(msg, 'a message was posted on send');
+  assert.strictEqual(msg.file, 'landing/app/page.tsx', 'the envelope carries the pinned file');
+  assert.strictEqual(msg.line, 5, 'the envelope carries the pinned line');
+  assert.strictEqual(msg.tag, 'h1', 'the envelope carries the pinned tag');
+}
+
+test('F3 ENVELOPE: the local $0 path (lp-prompt) carries the pinned selection', () => {
+  const h = bootWebview(false); // bridge OFF → local $0
+  fireSelect(h);
+  const sent = sendWith(h, 'encurta este texto').filter((x) => x.type === 'lp-prompt');
+  assert.strictEqual(sent.length, 1, 'exactly one lp-prompt posted');
+  assertEnvelope(sent[0]);
+  assert.strictEqual(sent[0].tier, 'local', 'local $0 tier');
+});
+
+test('F3 ENVELOPE: the agent edit path (lp-task/edit) carries the pinned selection', () => {
+  const h = bootWebview(true); // bridge ON → the anchored agent
+  fireSelect(h);
+  const sent = sendWith(h, 'muda o título').filter((x) => x.type === 'lp-task');
+  assert.strictEqual(sent.length, 1, 'exactly one lp-task posted');
+  assert.strictEqual(sent[0].intent, 'edit', 'edit intent');
+  assertEnvelope(sent[0]);
+});
+
+test('F3 ENVELOPE: the ask path (lp-task/ask) carries the pinned selection', () => {
+  const h = bootWebview(true); // ask needs the bridge ON
+  fireSelect(h);
+  h.env.doc.getElementById('lp-mode-ask').dispatchEvent(h.mkEvent('click')); // flip intent → Perguntar
+  const sent = sendWith(h, 'os números batem com o projeto?').filter((x) => x.type === 'lp-task');
+  assert.strictEqual(sent.length, 1, 'exactly one lp-task posted');
+  assert.strictEqual(sent[0].intent, 'ask', 'ask intent');
+  assertEnvelope(sent[0]);
+});
+
+test('F3 FAIL-CLOSED: no selection → no one-box, ZERO write/LLM messages can be posted', () => {
+  const h = bootWebview(false); // NO fireSelect → nothing pinned
+  assert.strictEqual(h.env.doc.getElementById('lp-box-in'), null, 'no one-box exists without a pinned selection');
+  assert.strictEqual(h.env.doc.getElementById('lp-box-b'), null, 'no send button exists without a pinned selection');
+  const WRITE = ['lp-prompt', 'lp-task', 'lp-prompt-apply', 'lp-edit', 'lp-delete'];
+  const writes = h.posted.filter((x) => WRITE.indexOf(x.type) !== -1);
+  assert.strictEqual(writes.length, 0, 'no prompt/write path can talk to the LLM without a pinned selection');
+});
+
+test('F3 STORE + CHIP: selecting relays exactly one lp-pin to the host SelectionStore and the anchor chip goes honest', () => {
+  const h = bootWebview(false);
+  const chip = h.env.doc.getElementById('lp-anchor');
+  assert.ok(chip, 'the persistent anchor chip exists in the toolbar (the always-visible affordance)');
+  const before = h.posted.length;
+  fireSelect(h);
+  const pins = h.posted.slice(before).filter((x) => x.type === 'lp-pin');
+  assert.strictEqual(pins.length, 1, 'exactly one lp-pin relayed to the host store on select');
+  assert.strictEqual(pins[0].file, 'landing/app/page.tsx', 'the lp-pin carries the anchor file');
+  assert.strictEqual(pins[0].tag, 'h1', 'the lp-pin carries the anchor tag');
+  assert.ok(/page\.tsx/.test(chip.innerHTML || ''), 'pinned → the chip names the file');
+  assert.ok(/h1/.test(chip.innerHTML || ''), 'pinned → the chip names the tag');
+});

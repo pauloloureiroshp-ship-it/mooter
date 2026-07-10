@@ -2,6 +2,18 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.64] — 2026-07-10 — F3 (Live Preview, the heart): host SelectionStore + fail-closed gate + anchor chip
+
+### Added
+
+- **Host-side SelectionStore** — the single record of the pinned selection, fed by an origin-locked `lp-pin` relay — plus a **fail-closed gate**: no prompt path talks to the LLM before an element is pinned this session (the agent asks instead of guessing).
+- **The rendered pinned text now reaches the agent**: a dynamic `<p>{t('key')}</p>` ask sees what the user actually sees on screen, not just the JSX source. The hard tool fence (canUseTool / askOnly / tree-gate / spliceNodeRange) is byte-untouched.
+- **Anchor chip** `📍 file:line · <tag>` / `📍 sem seleção` — the pin is visible at the toolbar and at the prompt input.
+
+### Notes
+
+- Rebased onto the MEO lineage (0.16.63). `classify.js` sha frozen; engine fence byte-untouched.
+
 ## [0.16.63] — 2026-07-10 — MEO — Moo Executive Officer (rename + WCAG polish), integrated onto the release lineage
 
 ### Added

@@ -2,7 +2,7 @@
   "name": "mooter-cockpit",
   "displayName": "Mooter — Cost Cockpit for Claude Code",
   "description": "See what your Claude Code routing saves — live decisions, tier mix, counterfactual $ savings. Read-only cockpit for the mooter router. Community project, not affiliated with Anthropic.",
-  "version": "0.16.63",
+  "version": "0.16.64",
   "publisher": "mooter",
   "license": "MIT",
   "repository": {
