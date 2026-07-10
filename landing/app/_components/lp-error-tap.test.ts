@@ -15,6 +15,7 @@ import {
   parseInspPath,
   buildBreadcrumbPath,
   stampMatches,
+  hmrReconnectDelay,
 } from './lp-error-tap';
 
 describe('parseStackForSource', () => {
@@ -302,5 +303,22 @@ describe('stampMatches (LP-4 §5 re-pin / breadcrumb re-select)', () => {
     expect(stampMatches('garbage', { file: 'x.tsx', line: 1, col: 1 })).toBe(false);
     expect(stampMatches(attr, {})).toBe(false); // an unspecified want can never match
     expect(stampMatches(attr, { file: 'C:\ws\landing\app\page.tsx', line: '12' as unknown as number, col: 7 })).toBe(false);
+  });
+});
+
+describe('hmrReconnectDelay (F2/P1-7 — bounded reconnect, no storm)', () => {
+  it('starts at 1s and backs off, capped at 5s (monotonic non-decreasing)', () => {
+    expect(hmrReconnectDelay(0)).toBe(1000);
+    expect(hmrReconnectDelay(1)).toBe(2000);
+    expect(hmrReconnectDelay(2)).toBe(4000);
+    expect(hmrReconnectDelay(3)).toBe(5000); // 8000 → capped
+    expect(hmrReconnectDelay(10)).toBe(5000);
+    let prev = 0;
+    for (let a = 0; a < 12; a++) { const d = hmrReconnectDelay(a); expect(d).toBeGreaterThanOrEqual(prev); expect(d).toBeLessThanOrEqual(5000); prev = d; }
+  });
+  it('is fail-soft on junk input (never negative / NaN — no tight reconnect loop)', () => {
+    expect(hmrReconnectDelay(-5)).toBe(1000);
+    expect(hmrReconnectDelay(NaN as unknown as number)).toBe(1000);
+    expect(hmrReconnectDelay(Infinity)).toBe(5000);
   });
 });

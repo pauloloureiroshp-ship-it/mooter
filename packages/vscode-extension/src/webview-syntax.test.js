@@ -76,6 +76,9 @@ test('Live Preview MP4 diagnostics strip is hosted + parses as delivered (concat
   const html = sandbox.getLivePreviewHtml('tok');
   // The strip container lives BETWEEN the toolbar and the iframe and is hidden until it has an error.
   assert.ok(html.includes('id="lp-diag"'), 'diagnostics strip container present');
+  // F2 (P1-7) — the hot-reload-down banner ships HIDDEN and honest (role=status/aria-live), lit only by the tap.
+  assert.ok(/id="lp-hmr"[^>]*role="status"[^>]*aria-live/.test(html), 'lp-hmr banner is an aria-live status region');
+  assert.ok(/id="lp-hmr"[^>]*style="display:none"/.test(html), 'lp-hmr ships hidden — no stale lie when hot-reload is healthy');
   // The honest strip renderer is serialised in via fn.toString() exactly like renderStageStatus.
   assert.ok(/const renderErrorStrip=function/.test(html), 'renderErrorStrip serialised into the webview');
   // The whole inline script (incl. the serialised renderErrorStrip) still parses as delivered.

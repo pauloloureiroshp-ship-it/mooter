@@ -2980,6 +2980,7 @@ function getLivePreviewHtml(token, wsRoot) {
   .lps-stale{background:var(--vscode-charts-yellow,#E5C07B)}
   .lps-wait{background:var(--vscode-charts-blue,#5A9BD4)}
   #lp-error{flex-basis:100%;order:9;color:var(--vscode-inputValidation-errorForeground,var(--vscode-errorForeground,#D9484B));font-size:11.5px;padding:1px 2px}
+  #lp-hmr{flex-basis:100%;order:10;font-size:11.5px;padding:2px 7px;margin-top:2px;border-radius:5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   /* MP4 — Honest Diagnostics strip. Sits BETWEEN the toolbar and the iframe; hidden when 0 errors. */
   #lp-diag{display:none;flex-direction:column;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);font-size:12px;max-height:34%;overflow:auto}
   #lp-diag.lpd-show{display:flex}
@@ -3095,6 +3096,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-publish-btn" class="lp-labeled" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀 Publish</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
+      <!-- F2 (P1-7) — honest hot-reload-down banner: when the tap's HMR socket drops, the preview may be STALE. -->
+      <div id="lp-hmr" role="status" aria-live="polite" style="display:none"></div>
       <!-- F0.5.3 — readiness semaphore: 4 honest lights (pasta · dev server · árvore · agente) + 1-click fixes. -->
       <div id="lp-ready" class="lp-ready" role="status" aria-label="Prontidão do Live Preview" style="display:none"></div>
     </div>
@@ -3414,6 +3417,14 @@ function lpIngest(raw){
 function lpClearErrors(kind){
   if(!kind||kind==='all') lpErrors=[]; else lpErrors=lpErrors.filter((e)=>e && e.kind!==kind);
   lpRenderStrip();
+}
+// F2 (P1-7) — honest hot-reload-down banner. The tap owns the truth (its HMR socket dropped); we only
+// reflect it. textContent (never innerHTML) — the copy is static, so there is nothing to inject.
+function setHmrStale(down){
+  var el=document.getElementById('lp-hmr');
+  if(!el) return;
+  if(down){ el.textContent='⚠ hot-reload desligado — o preview pode estar desatualizado. A tentar reconectar…'; el.style.display='block'; }
+  else { el.style.display='none'; el.textContent=''; }
 }
 // Delegated, CSP-safe click handler for the strip buttons — reads data-act/data-idx, looks the
 // full error (incl. stack) up in lpErrors, and dispatches a REAL action to the host.
@@ -4450,6 +4461,8 @@ window.addEventListener('message', (ev) => {
     if (!curOrigin || ev.origin !== curOrigin) return; // ORIGIN LOCK (event.origin validated)
     if (m.type === 'lp-error'){ lpIngest(m); }
     else if (m.type === 'lp-error-clear'){ lpClearErrors(m.kind); }
+    else if (m.type === 'lp-hmr-down'){ setHmrStale(true); } // F2 (P1-7) — hot-reload channel dropped: the preview may be stale (origin-locked)
+    else if (m.type === 'lp-hmr-up'){ setHmrStale(false); } // F2 — reconnected: clear the honest stale banner
     else if (m.type === 'lp-nav'){ if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav)
     else if (m.type === 'lp-state'){
       if (typeof m.path === 'string'){

@@ -427,3 +427,30 @@ test('F6/P1-6: the multi-instance warning states the frame is pinned to the FIRS
   assert.ok(/presa à 1ª instância/.test(html), 'the user must SEE that the highlight tracks instance #1 while the edit hits the template');
   assert.ok(html.indexOf('TODOS os itens') !== -1, 'and still that the edit affects every rendered item');
 });
+
+// ── F2 (P1-7): honest hot-reload-down banner — the preview must never silently fake freshness ──────
+// When the tap's HMR socket drops (dev server down / hot-reload dead), edits stop reflecting while the
+// frame still LOOKS fresh. The tap posts lp-hmr-down (origin-locked); the webview must SHOW it, and
+// clear it on lp-hmr-up (reconnect). Driven through the same origin-locked iframe channel as lp-select.
+function fireTap(h, data) {
+  h.win.dispatchEvent(h.mkEvent('message', { data: data, source: h.frame.contentWindow, origin: 'http://localhost:7819' }));
+}
+test('F2/P1-7: lp-hmr-down shows the honest stale banner; lp-hmr-up clears it', () => {
+  const h = bootWebview(false);
+  const hmr = () => h.env.doc.getElementById('lp-hmr');
+  assert.ok(hmr(), '#lp-hmr mount is present in the body');
+  // (The static default is display:none in the shipped HTML — asserted in webview-syntax.test.js. The
+  // hand-rolled DOM does not reflect a static style attribute into .style, so here we assert behaviour.)
+  fireTap(h, { type: 'lp-hmr-down' });
+  assert.strictEqual(hmr().style.display, 'block', 'down → the banner is shown');
+  assert.ok(/hot-reload desligado/.test(hmr().textContent || ''), 'honest copy: the preview may be stale');
+  fireTap(h, { type: 'lp-hmr-up' });
+  assert.strictEqual(hmr().style.display, 'none', 'up (reconnected) → banner cleared');
+  assert.strictEqual(hmr().textContent, '', 'no stale copy left behind');
+});
+test('F2/P1-7: an lp-hmr-down that is NOT from the origin-locked frame is ignored (no spoofed banner)', () => {
+  const h = bootWebview(false);
+  // Wrong source (not the frame) — the origin lock must drop it, exactly like every other tap message.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-hmr-down' }, source: { name: 'evil' }, origin: 'http://localhost:7819' }));
+  assert.notStrictEqual(h.env.doc.getElementById('lp-hmr').style.display, 'block', 'a non-frame sender cannot fake the stale banner');
+});
