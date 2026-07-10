@@ -341,3 +341,17 @@ test('F0.1: after a pin, the prompt box is focused and sits above the tier picke
   assert.ok(iPresets > iAdv, 'presets are collapsed inside the ▾ ajustes rápidos drawer');
   assert.ok(/▾ ajustes rápidos/.test(html), 'the drawer is labelled "▾ ajustes rápidos"');
 });
+
+// ── F0.5.1: an empty window (no folder) → honest "open folder" screen + button, never a dead state. ──
+test('F0.5.1: no folder → honest empty-window screen with an "Abrir a pasta" button that posts lp-open-folder', () => {
+  const h = bootWebview(false);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: false, degraded: true, reason: 'sem pasta' }, leBridge: { available: false, reason: 'no-workspace' }, feed: { rev: 0, items: [] } } }, source: h.win, origin: null }));
+  const deg = h.env.doc.getElementById('lp-degrade');
+  assert.ok(/Nenhuma pasta aberta/.test(deg.innerHTML || ''), 'shows the honest empty-window screen, not the "start the dev server" lie');
+  const btn = h.env.doc.getElementById('lp-open-folder');
+  assert.ok(btn, 'the "Abrir a pasta" button is present (never a dead state)');
+  const before = h.posted.length;
+  btn.dispatchEvent(h.mkEvent('click'));
+  const posted = h.posted.slice(before).filter(function (x) { return x.type === 'lp-open-folder'; });
+  assert.strictEqual(posted.length, 1, 'clicking posts lp-open-folder → the host opens the folder in this window');
+});

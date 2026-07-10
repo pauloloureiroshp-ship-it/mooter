@@ -1571,6 +1571,7 @@ class LivePreviewPanel {
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
+    if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
     if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
@@ -2915,6 +2916,9 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-degrade-r{font-size:12.5px;margin-bottom:10px}
   .lp-degrade-h{font-size:11.5px;opacity:.85;line-height:1.5}
   .lp-degrade-h code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px}
+  /* F0.5.1 — the honest empty-window action: ONE prominent primary button. */
+  .lp-open-folder{font:13px var(--vscode-font-family);font-weight:600;color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;border-radius:6px;padding:8px 16px;cursor:pointer;margin-top:4px}
+  .lp-open-folder:hover{background:var(--vscode-button-hoverBackground)}
   .lps-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--vscode-descriptionForeground)}
   .lps-on{background:var(--vscode-charts-green,#4CAF6A)}
   .lps-off{background:var(--vscode-descriptionForeground)}
@@ -3193,14 +3197,27 @@ function applyStage(stage){
   if(degrade){
     degrade.style.display = hasUrl ? 'none' : 'flex';
     if(!hasUrl){
-      const reason = (st && st.reason) ? st.reason : 'nenhum dev server detetado';
-      const html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
-        + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
-        + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
-        + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
-        + 'ou cola o URL na barra acima. Entretanto o MEO continua a fazer stream à direita.</div></div>';
+      let html;
+      if(lpNoWorkspace){
+        // F0.5.1 — honest empty-window screen: never a dead state, never the "start the dev server"
+        // lie (you cannot, without a folder). ONE button opens the project folder in THIS window.
+        html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">📂</div>'
+          + '<div class="lp-degrade-t">Nenhuma pasta aberta nesta janela</div>'
+          + '<div class="lp-degrade-r">O Live Preview precisa da pasta do teu projeto para servir o site e editar.</div>'
+          + '<div class="lp-degrade-h"><button type="button" id="lp-open-folder" class="lp-open-folder">📂 Abrir a pasta do projeto nesta janela</button></div></div>';
+      } else {
+        const reason = (st && st.reason) ? st.reason : 'nenhum dev server detetado';
+        html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
+          + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
+          + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
+          + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
+          + 'ou cola o URL na barra acima. Entretanto o MEO continua a fazer stream à direita.</div></div>';
+      }
       // Only rewrite when the copy changes — otherwise a poll wipes any text selection in the hint.
-      if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html; }
+      if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html;
+        // F0.5.1 — re-wire the open-folder button after each rewrite (host opens the folder picker).
+        var ofb=document.getElementById('lp-open-folder'); if(ofb) ofb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-folder' }); });
+      }
     } else { lastDegradeHtml = null; }
   }
   // Only touch the iframe when the URL actually changes — preserves HMR/scroll across polls
@@ -3359,7 +3376,7 @@ let lpIntent='edit';
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
-let lpFeedRev=-1, lpBridge=null;
+let lpFeedRev=-1, lpBridge=null, lpNoWorkspace=false;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -4370,6 +4387,7 @@ window.addEventListener('message', (ev) => {
   //    MP2). The framed iframe cannot read HOST_TOKEN, so it cannot forge this.
   if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){
+    lpNoWorkspace = !!(m.s && m.s.leBridge && m.s.leBridge.reason === 'no-workspace'); // F0.5.1 — empty-window signal for applyStage
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
