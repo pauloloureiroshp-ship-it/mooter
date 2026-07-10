@@ -28,8 +28,8 @@
 | 1 | **W-LAND (batch landing)** | inspect (read-only, no worktree) | n/a | ✅ **PASS** | #235–#239 | done |
 | 2 | **W3 (First-Magic onboarding)** | `frugal-wave-w3` · `wave-w3` | `ef140b5` | 🅿️ **PR #240** (E2E✅ · LH→CI · vsix→Paulo) | #240 | done (residual→Paulo) |
 | 3 | **W-UX (Live Sessions clean)** | `frugal-wave-ux` · `wave-ux` | (confront) | 🤝 **DELEGATED → Codex plane** | — | (Codex owns) |
-| 4 | **W15 (CTO Command Deck F0+1)** | — | — | ⬜ pending | — | **NEXT** |
-| 5 | W6 (Budget/Economics spans) | — | — | ⬜ pending | — | — |
+| 4 | **W15 (CTO Deck F0+1)** | verify-only (main c5cda85) | n/a | ✅ **ALREADY SHIPPED** (confront) | — | done |
+| 5 | **W6 (Budget/Economics spans)** | — | — | ⬜ pending | — | **NEXT** |
 | 6 | W5 (Moo Loop Sessions) | — | — | ⬜ pending | — | — |
 | 7 | W7 (Forge nightly schedule) | — | — | ⬜ pending | — | — |
 | 8 | FRONTIER specs (W8/W9) | — | — | ⬜ pending | — | — |
@@ -95,5 +95,13 @@ Worktree `frugal-wave-ux` · branch `wave-ux` from `origin/main` (c5cda85 — **
 4. **Auto-detect** new tabs (confront `host-extra.recentSessions` poll vs event) + exact tooltips (Fase 5 — mostly already present).
 - Invariants: classify frozen · `renderRow`/`renderGroupHeader` **concat-only** (webview-syntax.test) · selective adds · atomic commits per block · **no push/merge without OK** · fleet & `~/frugal` tree untouched.
 
+## Wave 4 — W15 · CTO Command Deck (F0+1) — ✅ ALREADY SHIPPED (confront, 2026-07-10)
+
+Opened a `feat/deck-tokens` worktree, confronted `packages/vscode-extension/src/extension.js` vs the spec, and found **F0 and F1 are already implemented on main** — the spec (2026-07-03) predates the `deck-*` waves that landed it. **The runner did NOT re-build** (confront-before-emit doctrine); worktree removed (R6, git-pruned — one orphan dir left on disk, cert-guard blocks `rm -rf`, harmless, Paulo can delete `../frugal-deck-tokens`).
+
+- **F0 tokens/foundation ✅** — `:root` token layer (extension.js:4498, "the ONLY sanctioned home for a colour literal") maps every brand colour to `var(--vscode-*, #fallback)` (structural + semantic + tier ladder + dim tints + categorical). High-contrast block (`body.vscode-high-contrast*`, l.4535). `prefers-reduced-motion` (l.2619 global + LP blocks). True bare-hex violations ≈ 2, both sanctioned/intentional (`--on-bright` literal for text-on-chip; `#lp-frame` white iframe bg). Other files: host-extra/live-preview-view already all-`var()`; row-renderer's 3 are SVG **brand-logo** colours; lp-presets' 12 are LP **palette data** (LP trilho — not CSS).
+- **F1 spine ✅** — project switcher `.pswitch` (`role=radiogroup`, "one company, one click"), `+ New ▾` multi-type (💬 CC · ♾️ Loop `🌊 W5` · ⏰ Schedule `🌊 W5`, honest disabled placeholders), `renderInbox()` (l.5919) with `🙋 N your turn` reading **real** `cowork-waiting` data, WCAG roles/focus. `deck-shell.test.js` 5/5 green.
+- **F2–F5 evidence:** `deck-floor/lenses/live/verify.js` + their tests all exist → the whole CTO Deck likely shipped via prior waves. **Residual = Paulo's verification** (visual 3-theme gate + `deck-verify` button audit), not a re-build.
+
 ## §RESUME
-Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; Wave 2 (W3) runner-complete (PR #240); **Wave 3 (W-UX) DELEGATED to the Codex plane — do NOT touch `wave-ux`**. **Start at Wave 4 (W15 · CTO Command Deck, Fase 0 tokens + Fase 1 spine+inbox)** — execute `_handoff/CTO_COMMAND_DECK_SPEC.md` (Fases 2–5 return to the queue as new items). New worktree(s) per the spec from main ATUAL (`git fetch` first) per R5. Verify brakes first."
+Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; W3 runner-complete (PR #240); W-UX DELEGATED (don't touch `wave-ux`); **W15 F0+1 already shipped on main (confront — no re-build)**. **Start at Wave 5 (W6 · Budget/Economics spans)** — span-level cost in the cockpit Economics lens + `est_cloud_tokens_avoided` from the fleet-ledger + quota-live chip wire (MP-Q synergy). New worktree `wave-w6` from main ATUAL (`git fetch` first) per R5; only `packages/vscode-extension/**` (+ where the ledger/quota sources live). Verify brakes first."
