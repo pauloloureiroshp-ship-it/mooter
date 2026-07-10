@@ -169,3 +169,49 @@ test('_treeConfirmed: unstat-able served root falls back to string compare (stil
   inst._servedRoot = path.join(ws.root, 'landing'); // NOT created on disk → inode returns null → string fallback
   assert.strictEqual(inst._treeConfirmed(), true, 'fallback confirms the descendant via empirical case-fold');
 });
+
+// ── (7) CROSSDEVICE_RECON §2 REPRO, verbatim scenarios A/B/C, BOTH path semantics ─────────────────
+// F8: the recon's §2 reproduction table becomes an executable regression. The verdict is governed by
+// TWO independent case rules, and these tests pin both: (i) the injected `ci` (the EMPIRICAL FS
+// case-fold — the only dimension a single host cannot vary for real), which drives root-vs-root
+// equality and posix containment; and (ii) the path FLAVOUR's own rule inside P.relative —
+// path.win32 is inherently case-INSENSITIVE, path.posix is case-SENSITIVE. The old bug was that the OS
+// alone decided; the fix makes an ACTUAL case-insensitive volume (ci=true) confirm on either OS, while
+// a genuinely case-SENSITIVE volume (ci=false) stays fail-closed — killing the "só funcionou no Windows".
+for (const FX of [POSIX, WIN]) {
+  const os_ = FX === WIN ? 'win32' : 'posix';
+  // Scenario A — served root IDENTICAL to workspace root → CONFIRMED regardless of ci or flavour.
+  test('§2 repro [' + os_ + '] Scenario A (identical roots) → CONFIRMED', () => {
+    assert.strictEqual(Panel._sharesLineage(FX.root, FX.root, true, FX.P), true);
+    assert.strictEqual(Panel._sharesLineage(FX.root, FX.root, false, FX.P), true);
+  });
+  // Scenario C — the ROOT segment differs only by case (frugal vs Frugal), root-vs-root, NO containment.
+  // With nothing to contain, P.relative cannot fold anything, so the verdict rides PURELY on the injected
+  // ci — CONFIRMED on a case-insensitive FS, BLOCKED (fail-closed, no over-fold) on a case-sensitive one —
+  // identically on BOTH OSes. This is the invariant that keeps the 06:49 P0 closed.
+  test('§2 repro [' + os_ + '] Scenario C (root-segment case-diff) → ci-governed: CONFIRMED insensitive / BLOCKED sensitive', () => {
+    assert.strictEqual(Panel._sharesLineage(FX.root, FX.rootCased, true, FX.P), true, 'case-insensitive volume → same tree → CONFIRMED');
+    assert.strictEqual(Panel._sharesLineage(FX.root, FX.rootCased, false, FX.P), false, 'case-sensitive volume → distinct siblings → fail-closed');
+  });
+}
+// Scenario B — a case-differing ANCESTOR of a descendant (…/frugal vs …/Frugal/landing). Now containment
+// engages, so the PATH FLAVOUR's rule participates. This is EXACTLY the recon's §2 "win32 CONFIRMED /
+// posix BLOCKED" row — now a governed, documented contract rather than a silent divergence:
+test('§2 repro [posix] Scenario B (case-diff ancestor of a descendant) → ci-governed', () => {
+  const landingCased = '/Users/paulo/Frugal/landing'; // ws=/Users/paulo/frugal
+  assert.strictEqual(Panel._sharesLineage(POSIX.root, landingCased, true, POSIX.P), true, 'case-insensitive volume (macOS-APFS default) → CONFIRMED');
+  assert.strictEqual(Panel._sharesLineage(POSIX.root, landingCased, false, POSIX.P), false, 'case-sensitive volume → fail-closed');
+});
+test('§2 repro [win32] Scenario B (case-diff ancestor of a descendant) → CONFIRMED (path.win32 containment is inherently case-insensitive)', () => {
+  const landingCased = 'C:\\Users\\paulo\\Frugal\\landing'; // ws=C:\Users\paulo\frugal
+  assert.strictEqual(Panel._sharesLineage(WIN.root, landingCased, true, WIN.P), true);
+  assert.strictEqual(Panel._sharesLineage(WIN.root, landingCased, false, WIN.P), true, 'path.win32.relative folds case in containment regardless of the probe — Windows reality');
+});
+// The fix's headline claim, made explicit: on a case-INSENSITIVE FS the verdict no longer depends on the
+// OS — posix now AGREES with win32 (the "só funcionou no Windows" cross-device bug is closed).
+test('§2 repro: on a case-insensitive FS posix and win32 AGREE (the cross-device bug is closed)', () => {
+  const posixVerdict = Panel._sharesLineage(POSIX.root, POSIX.rootCased, true, POSIX.P);
+  const win32Verdict = Panel._sharesLineage(WIN.root, WIN.rootCased, true, WIN.P);
+  assert.strictEqual(posixVerdict, win32Verdict, 'same FS case-fold → same verdict, regardless of OS');
+  assert.strictEqual(posixVerdict, true, 'and that verdict is CONFIRMED');
+});
