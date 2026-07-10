@@ -1,5 +1,11 @@
 # Live Edit — Roadmap & Spec Vivo (canônico)
 
+> **FECHO "produção perfeita" (F-close), 2026-07-10** — PR único `wave/lp-producao-perfeita` → main
+> (base `origin/main @c5cda85` / extensão `v0.16.66` / suites `1086/1086`), a superseder #234/#241/#242.
+> Fechados com teste: W0→W2 · F0.1–F9 · findings P1-2/3/4/5/6/7 + N1/N2 · Codex D1/D5/D6(P0, TOCTOU fechado
+> por revisão adversarial). Motor `classify.js` sha frozen; 0 deps novas. **Merge/deploy = gatilho do Paulo.**
+> D7/D8/D9 (ícones/CTA/refresh-polish) e W5-real/W6 ficam fora deste PR (notados, não bloqueiam).
+>
 > **Reconciliado na Wave W0 (Verdade), 2026-07-10** contra `origin/main @f5a1f04` / extensão
 > `v0.16.62` / suites `939/939`. Descoberta-chave: **main estava À FRENTE deste roadmap** —
 > LP-4.8/4.9/5/6, Context Engine, cross-device e F1+F2 já em main; FIX-MP-1 (P0-1) e FIX-MP-2

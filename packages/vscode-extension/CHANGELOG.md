@@ -2,6 +2,48 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.66] — 2026-07-10 — Live Preview "produção perfeita": the F-close (F0.1–F9 · D1/D5/D6)
+
+The Live Preview close — every open finding fixed with a test, plus the Codex D-series (independent audit)
+and an independent design/honesty critique. Suite **1086 pass / 0 fail**. `classify.js` sha frozen; no new deps.
+
+### Security
+
+- **D6 (P0) — Security is now a FAIL-CLOSED prerequisite of Publish.** Commit + deploy are BLOCKED unless the
+  last 🛡 scan is present, not errored, FRESH (bound to the **content** of the exact files it scanned — an
+  adversarial review found and we closed an untracked/staged/gitignored-file TOCTOU), and clear of open
+  Criticals (a baked secret, or a prod-exposed npm-audit critical/high; dev-only never blocks). The forgeable
+  `overrideCritical` webview bypass is **removed**.
+- **F3 (P1-3)** — the host→webview auth token and both CSP nonces now use `crypto.randomBytes`, not `Math.random`.
+- **F7 (N1)** — undo/revert re-checks the tree gate (a write to a since-changed served tree fail-closes).
+
+### Added
+
+- **F1** — E2E $0 edit-cycle proof on a real git tree (apply +1/−1 → revert → clean).
+- **F2 (P1-7)** — honest "hot-reload desligado" banner + bounded HMR reconnect in the tap (no silently-stale preview).
+- **F6 (P1-6)** — the multi-instance limitation ("a moldura fica presa à 1ª instância") is surfaced to the user.
+- **F0.2** — per-node history feed, persisted across a panel close/reopen (workspaceState, display-only); prior-session
+  items are read-only "histórico"; clicking a node shows its history.
+- **D5** — pin/edit/revert/security/publish now leave a typed, redacted trace in the MEO/diary bus.
+- **D1** — the toolbar wraps instead of overflowing; device presets show the honest effective width.
+- **F7 (N2)** — one active agent task at a time (a concurrent task is refused, not silently orphaned).
+
+### Changed / Honesty (F9 design critique)
+
+- Publish cost line: the false absolute "edições $0 · review $0 · deploy $0" → "sem cobrança do Mooter · edições
+  locais $0 · cloud = a tua subscrição · deploy = a tua conta Vercel".
+- "Publicado" now requires a REAL deploy this session (a bare linked-project URL is "Site ligado").
+- The "sem SDK" readiness light: the mislabelled "instalar" button (opened a folder picker) → a real
+  `como instalar` action (copy the command / open a pre-filled terminal, never auto-run).
+- The applied/deleted toasts no longer promise "o HMR atualiza o preview" when hot-reload is known to be down.
+- **F5 (P1-5)** — behavioural test coverage for the component-scope + multi-instance warnings.
+- **F8** — the cross-device casing repro (CROSSDEVICE_RECON §2) is an executable regression on both path semantics.
+
+### Notes
+
+- Supersedes PRs #234 (W0), #241 (W1/F3), #242 (W2) — this single PR carries all three lineages plus the F-close.
+- `classify.js` sha `427d8c0b…4bc48f` frozen; engine fence byte-untouched except the F1/F7/F8-allowlisted tree-gate.
+
 ## [0.16.65] — 2026-07-10 — W2 (Live Preview): agent bridge + honest total-repo context chip
 
 ### Added

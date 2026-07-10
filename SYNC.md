@@ -5,8 +5,9 @@
 > **Snapshot, não log** (regra ≤200 linhas, `AGENTS.md` § Information architecture).
 > Histórico pré-W0 (2026-06-11 → 07-08) arquivado em `docs/foundation/SYNC_ARCHIVE_2026.md`.
 
-**Atualizado:** 2026-07-10 · **main @** `f5a1f04` (PR #231) · **extensão** `v0.16.62` ·
-**suites extensão** `939/939` pass · `classify.js` sha `427d8c0b…4bc48f` **FROZEN/intacta**.
+**Atualizado:** 2026-07-10 · **main @** `c5cda85` (#237-MEO) · **extensão** `v0.16.66` ·
+**suites extensão** `1086/1086` pass · `classify.js` sha `427d8c0b…4bc48f` **FROZEN/intacta**.
+**Frente LP: FECHADA num único PR** `wave/lp-producao-perfeita` → main (supersede #234/#241/#242) — GATE humano (merge/deploy = Paulo).
 
 ---
 
@@ -18,29 +19,27 @@ Spec viva do arco = `docs/strategy/LIVE_EDIT_ROADMAP.md`.
 
 | Wave | Conteúdo | Estado |
 |---|---|---|
-| **W0** Verdade | git-truth vs docs · checklist A-E com evidência · veredicto findings · reconciliar docs | ✅ **feito** (relatório 07-10; este PR reconcilia os docs) |
-| **W1** F3 — o coração | seleção = estado partilhado (SelectionStore host-side) · prompt-por-LLM óbvio · stage é rei · feed em direto | 🔜 **próxima** (GO dado; arranca após merge deste PR) |
-| **W2** Ponte agente + contexto repo | `@anthropic-ai/claude-agent-sdk` + trust · "projeto TODO" ON · chip honesto `repo ✓ · Notion n/d` | ⏳ depende de W1 |
-| **W3** Produção-ready | herda P1-3/4/5/6/7 + N1/N2 + prova E2E ciclo $0 + probe Mac + casing/launcher | ⏳ |
-| **W4** Polish beat-Lovable | design-critique §2 · light/dark · motion · estados vazio/loading/erro | ⏳ |
-| **W5** Publish real 1× + CCA | funil edito→🛡→🚀 em produção (two-factor, gatilho Paulo) · evals CI | ⏳ |
-| **W6** Camada C | Notion/vault no prompt (D1-D3) · chip `repo ✓ · Notion ✓` | ⏳ |
+| **W0** Verdade | git-truth vs docs · checklist A-E · veredicto findings · reconciliar docs | ✅ **feito** (`c8916fe`) |
+| **W1** F3 — o coração | SelectionStore host-side · prompt óbvio · stage é rei · feed em direto | ✅ **feito** (`3cb9724`) |
+| **W2** Ponte agente + contexto repo | `@anthropic-ai/claude-agent-sdk` + trust · "projeto TODO" · chip `repo ✓ · Notion n/d` | ✅ **feito** (`fb27d0d`,`ae17c91`; P1-A re-verificado) |
+| **W3** Produção-ready | P1-2/3/4/5/6/7 + N1/N2 + E2E ciclo $0 + casing/probe Mac | ✅ **feito** (F1–F8; P1-2/P1-4 já em main) |
+| **W4** Polish beat-Lovable | design-critique · light/dark · motion · estados vazio/loading/erro | ✅ **feito** (F9 — critique independente + honesty fixes) |
+| **W5** Publish real 1× + CCA | funil edito→🛡→🚀 em produção (two-factor, gatilho Paulo) · evals CI | 🔜 **terreno pronto** (deploy real = gatilho do Paulo — nunca autónomo) |
+| **W6** Camada C | Notion/vault no prompt · chip `repo ✓ · Notion ✓` | ⏳ (fora deste PR) |
+| **+ Codex D-series** | auditoria independente D1–D10 | ✅ D6(P0)/D1/D5 fechados neste PR; D4=F0.1, D2=F5/F6, D10-HMR=F2, D10-RNG=F3; D7/D8/D9 notados |
+| **+ F0.2** | histórico por-nó persistido (workspaceState, só display) | ✅ **feito** (`a0848c1`) |
 
-### Verdade do W0 (2026-07-10) — main está À FRENTE dos docs
+### Estado dos findings (2026-07-10) — TODOS fechados neste PR
 
-**JÁ em main (verde):** LP-4→4.9 · LP-5 🛡 Security · LP-6 🚀 Publish · Context Engine
-(repo-map+slice+data-hop) · cross-device tree-gate · F1+F2 layout (PR #231) · harness runtime L1.
-**Findings do audit — fechados:** P0-1 tree-identity (FIX-MP-1: `b0ac59b`+`f428a86`+`938010f`) ·
-P1-2 fence de edit simétrico (FIX-MP-2: `fbb3622`).
-**Findings — ABERTOS (a W3 herda):** P1-3 nonce/`Math.random` (`extension.js:1270/2554/4368`) ·
-P1-4 Director's Cut scroll (`:2987-2993`) · P1-5 teste component-scope (só string-presence) ·
-P1-6 copy limitações (parcial) · P1-7 HMR morto (`lp-error-tap.ts:415` engole erro) ·
-N1 undo não re-checa tree-gate (baixo risco) · N2 "one active task" não imposto.
-**Checklist §5:** A lógica ✅ (runtime+host), visual pendente de spot-check humano · B 🛡 ✅ ·
-C 🚀 ✅ (nits: override sem UI, onboarding copy) · D UX → W4 · E 939/939 ✅, N1/N2 abertos.
-
-**F3 (W1) não iniciado** — SelectionStore host-side único não existe em main. É o bug provado
-2026-07-08 (o chat "não vejo texto selecionado" com nó pinado). Prioridade zero da W1.
+**Audit LIVE_PREVIEW_AUDIT_FINDINGS (P0/P1/N):** P0-1 tree-identity (FIX-MP-1, já em main) · P1-2 fence de edit
+(já em main) · **P1-3** nonce/token→CSPRNG (`d14471f`) · **P1-4** DC scroll (já em main + teste `dcv2-tabstate`) ·
+**P1-5** teste comportamental component-scope (`d9c9f18`) · **P1-6** copy limitações visível (`2867b1a`) ·
+**P1-7** HMR morto → banner honesto + reconnect (`006be49`) · **N1** undo re-checa tree-gate + **N2** one-active-task (`3ea259f`).
+**Codex D-series (auditoria independente):** **D6(P0)** Security→Publish fail-closed + TOCTOU fechado por revisão
+adversarial (`613fa5c`,`a0848c1`) · **D1** responsividade (`c0e976b`) · **D5** eventos no MEO (`4df079b`) ·
+D4=F0.1 · D2=F5/F6 · D10-HMR=F2 · D10-RNG=F3 · D10-$0/Publicado=F9 (`6bfb770`) · D7/D8/D9 (ícones/CTA) notados, não bloqueiam.
+**Checklist §5:** A/B/C/E provados por testes (host+runtime+E2E git); **D** = F9 (critique independente) ✅;
+spot-checks GUI (screenshots) ficam para o Paulo. Suite **1086/1086**; `classify.js` sha frozen; 0 deps novas; tap TS compila em CI.
 
 ---
 
