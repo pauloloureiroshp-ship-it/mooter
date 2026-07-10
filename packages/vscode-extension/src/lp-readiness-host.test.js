@@ -50,3 +50,12 @@ test('F0.5.2: folder + trust but no SDK → reason "sdk-bridge-missing" (the rea
     assert.strictEqual(r.reason, 'sdk-bridge-missing', 'trusted folder without the SDK → install it (honest, actionable)');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('F0.5.4: Open Live Preview is discoverable — a titled palette command + a keybinding (not just an anonymous icon)', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const cmd = (pkg.contributes.commands || []).find(function (c) { return c.command === 'mooter.openLivePreview'; });
+  assert.ok(cmd && /Live Preview/.test(cmd.title || ''), 'the command has a clear palette title');
+  const kb = (pkg.contributes.keybindings || []).find(function (k) { return k.command === 'mooter.openLivePreview'; });
+  assert.ok(kb && kb.key, 'a keybinding promotes Open Live Preview beyond the anonymous header icon');
+});
+

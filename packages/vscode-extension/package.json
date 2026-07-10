@@ -130,6 +130,13 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "mooter.openLivePreview",
+        "key": "ctrl+k ctrl+m",
+        "mac": "cmd+k cmd+m"
+      }
+    ],
     "configuration": {
       "title": "Mooter",
       "properties": {
