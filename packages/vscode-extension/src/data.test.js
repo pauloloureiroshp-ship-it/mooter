@@ -804,7 +804,7 @@ test('B3 renderRow: emits data-state + searchable data-name per session', () => 
   const active = rr.renderRow(Object.assign({}, SAMPLE_ROW, { working: true }), {});
   assert.ok(active.includes('data-state="active"'), 'working tagged active');
   const cowork = rr.renderRow(Object.assign({}, SAMPLE_ROW, { waitingForCowork: true, coworkStatus: 'cowork_working' }), {});
-  assert.ok(cowork.includes('data-state="cowork"'), 'waiting-for-cowork tagged cowork');
+  assert.ok(cowork.includes('data-state="active"'), 'waiting-for-cowork remains active work');
 });
 
 test('WCOCKPIT-3 renderRow: worktree chip present when worktree set', () => {
@@ -1202,7 +1202,7 @@ test('WCOCKPIT-5 gitStage: async (returns Promise, not a sync value)', () => {
 });
 
 // ── WCOCKPIT-6: progressive disclosure + group rollup dedup ──
-test('WCOCKPIT-6 renderRow: per-session controls wrapped in .sdrawer (hidden until hover/selected)', () => {
+test('WCOCKPIT-6 renderRow: per-session controls wrapped in .sdrawer behind the row disclosure', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
   assert.ok(html.includes('class="sdrawer"'), 'controls must be wrapped in .sdrawer');
   const di = html.indexOf('class="sdrawer"');
@@ -1366,19 +1366,24 @@ test('WCOCKPIT-9 renderGroupHeader: origin=unassigned → 📁 + "sem Cowork" (S
 
 // ── WCOCKPIT-9 (Bloco B) — cartão compacto: nome + estado numa só .sline ──
 
-test('WCOCKPIT-9 (Bloco B) renderRow: nome + estado + id coabitam numa única .sline', () => {
+test('B3 renderRow: linha compacta contém dot + tipo + título + estado + modelo + 3 acções rápidas', () => {
   const row = Object.assign({}, SAMPLE_ROW, { working: true });
   const html = rr.renderRow(row, {});
   assert.ok(html.includes('class="sline"'), 'compact single-line container .sline present');
+  assert.ok(html.includes('class="srowdot active"'), 'canonical state dot present');
+  assert.ok(html.includes('class="stype"'), 'honest session type present');
   assert.ok(html.includes('class="sname"'), 'name span present');
-  assert.ok(html.includes('class="sstate"'), 'state span present on the same line');
-  assert.ok(html.includes('class="sid"'), 'short id span present');
-  // ordem na linha: nome → estado → id → llm
+  assert.ok(html.includes('class="sstate active"'), 'state chip present on the same line');
+  assert.ok(html.includes('class="sllm"'), 'short model label present');
+  assert.equal((html.match(/data-quick="/g) || []).length, 3, 'exactly pin + handoff + open quick actions');
+  // B3 order: dot → type → name → state → model → quick actions.
+  const iDot = html.indexOf('class="srowdot');
+  const iType = html.indexOf('class="stype"');
   const iName = html.indexOf('class="sname"');
-  const iState = html.indexOf('class="sstate"');
-  const iId = html.indexOf('class="sid"');
+  const iState = html.indexOf('class="sstate');
   const iLlm = html.indexOf('class="sllm"');
-  assert.ok(iName < iState && iState < iId && iId < iLlm, 'name, state, id, llm sit in order on one line');
+  const iQuick = html.indexOf('class="squickactions"');
+  assert.ok(iDot < iType && iType < iName && iName < iState && iState < iLlm && iLlm < iQuick, 'compact features sit in the required order');
 });
 
 test('WCOCKPIT-9 (Bloco B) renderRow: já NÃO usa o layout de duas linhas .stop/.ssub', () => {
@@ -1389,12 +1394,46 @@ test('WCOCKPIT-9 (Bloco B) renderRow: já NÃO usa o layout de duas linhas .stop
 
 test('WCOCKPIT-9 (Bloco B) renderRow: aria-label preserva o nome completo (a11y)', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
-  assert.ok(html.includes('aria-label="open session: test session"'), 'aria-label carries the full session name');
+  assert.ok(html.includes('aria-label="sessão: test session"'), 'row group carries the full session name');
+  assert.ok(html.includes('aria-label="abrir esta sessão no Claude Code"'), 'open action is explicit and labelled');
 });
 
-test('WCOCKPIT-9 (Bloco B) renderRow: drawer continua presente (revelado por CSS só na selecção)', () => {
+test('B3 renderRow: disclosure nasce compacto e o conteúdo expandido preserva todos os controlos', () => {
   const html = rr.renderRow(SAMPLE_ROW, {});
-  assert.ok(html.includes('class="sdrawer"'), 'drawer markup still emitted (CSS gates its visibility to .on/:focus-within)');
+  assert.match(html, /class="srow collapsed"/, 'default is compact');
+  assert.ok(html.includes('class="sdisclose collaphead"'), 'dedicated disclosure exists');
+  assert.ok(html.includes('aria-expanded="false"'), 'default disclosure state is accessible');
+  assert.ok(html.includes('class="sdetails"'), 'full detail remains in the DOM');
+  for (const control of ['data-mmode="lazy"', 'class="smodsel"', 'class="sauto"', 'class="sloop"', 'data-a="handoff"', 'data-a="archiveSession"']) {
+    assert.ok(html.includes(control), 'expanded detail preserves ' + control);
+  }
+  const expanded = rr.renderRow(SAMPLE_ROW, { rowCollapsed: false });
+  assert.ok(!/class="srow collapsed/.test(expanded), 'remembered expanded state is rendered');
+  assert.ok(expanded.includes('aria-expanded="true"'), 'expanded disclosure state is accessible');
+});
+
+test('B3 orderSessionsByState: needs-you precede active, which precede idle/done', () => {
+  const rows = [
+    Object.assign({}, SAMPLE_ROW, { id: 'idle', fullId: 'idle', lastActiveTs: 30 }),
+    Object.assign({}, SAMPLE_ROW, { id: 'active', fullId: 'active', working: true, lastActiveTs: 20 }),
+    Object.assign({}, SAMPLE_ROW, { id: 'needs', fullId: 'needs', needsYou: true, lastActiveTs: 10 }),
+  ];
+  assert.deepEqual(rr.orderSessionsByState(rows).map((r) => r.id), ['needs', 'active', 'idle']);
+});
+
+test('B3 webview: project groups contain ordered state buckets; idle + rows use persisted collapse', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  const needs = src.indexOf("['needs','🟡','Precisa de ti'");
+  const active = src.indexOf("['active','🟢','Activas'");
+  const idle = src.indexOf("['idle','✅','Idle / done'");
+  assert.ok(needs >= 0 && needs < active && active < idle, 'bucket composition is needs → active → idle');
+  assert.match(src, /d\[0\]==='idle'\?ccBorn\(id,true\):cc\(id\)/, 'idle bucket is born collapsed once');
+  assert.match(src, /rowCollapsed:ccBorn\(rk,true\)/, 'each row reuses the persisted collapse mechanism');
+  assert.match(src, /statebucket\.collapsed>[*]:not\(\.collaphead\)/, 'collapsed bucket keeps its header visible');
+  assert.match(src, /h\.setAttribute\('aria-expanded',String\(open\)\)/, 'shared disclosure wiring updates aria-expanded');
+  assert.match(src, /e\.key==='Enter'\|\|e\.key===' '/, 'shared disclosure wiring supports Enter and Space');
+  assert.match(src, /\.squick,\.sdisclose\{width:24px;height:24px;min-width:24px/, 'new actions meet the 24px target floor');
+  assert.match(src, /prefers-reduced-motion:reduce\)\{\.chev\{transition:none\}/, 'chevron motion respects reduced-motion');
 });
 
 // ── WCOCKPIT-9 (Bloco D) — modelos locais Ollama no dropdown por sessão ──
@@ -2243,7 +2282,7 @@ test('⇄ F1 renderRow: coworkTitle LEADS the name; 1st prompt preserved as ↳ 
   assert.ok(html.includes('<span class="sname">Cowork · auth refactor</span>'), 'cowork title is the primary name');
   assert.ok(html.includes('↳ fix the auth bug now'), '1st prompt preserved as a ↳ subline');
   assert.ok(html.includes('class="ssub coworksub"'), 'subline uses the coworksub class');
-  assert.ok(html.includes('open session: Cowork · auth refactor'), 'aria-label/tooltip leads with the cowork title');
+  assert.ok(html.includes('sessão: Cowork · auth refactor'), 'row aria-label leads with the cowork title');
 });
 
 test('⇄ F1 renderRow: no coworkTitle → name = 1st prompt; NO subline (never fabricated)', () => {

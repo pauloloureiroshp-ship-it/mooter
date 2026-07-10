@@ -29,7 +29,7 @@ test('project switcher ships with radiogroup semantics + a haspopup summary', ()
   const html = renderHtml();
   assert.match(html, /id="pswitch"/, 'switcher container present');
   assert.match(html, /id="pswitchMenu"[^>]*role="radiogroup"/, 'switcher menu is a radiogroup');
-  assert.match(html, /<summary[^>]*aria-haspopup="true"[^>]*aria-label="switch project/, 'switcher summary announces itself');
+  assert.match(html, /<summary[^>]*aria-haspopup="true"[^>]*aria-label="mudar de projecto/, 'switcher summary announces itself in PT-PT');
   assert.match(html, /id="proj"/, 'current-project label kept (host handler depends on #proj)');
 });
 

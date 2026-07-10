@@ -53,9 +53,9 @@ function stageColor(st) {
 
 // WCOCKPIT-3: per-session mode metadata
 var MODES_UI = [
-  ['lazy', '💤', 'LazyMoo — local-first'],
-  ['moo', '🐮', 'Moo — balanced'],
-  ['crazy', '⚡', 'CrazyMoo — max power']
+  ['lazy', '💤', 'activar LazyMoo nesta sessão — privilegia modelos locais e baratos'],
+  ['moo', '🐮', 'activar Moo nesta sessão — deixa o router escolher o tier mínimo adequado'],
+  ['crazy', '⚡', 'activar CrazyMoo nesta sessão — força o tier de maior capacidade']
 ];
 
 // WCOCKPIT-3: model options for per-session dropdown
@@ -126,6 +126,26 @@ function deriveStages(gitStage, branch, attr) {
   return { stages: stages, safe: safe, behind: behind };
 }
 
+// B3: one canonical state order for both the rendered row and the board buckets.
+// Errors are exceptions that need attention; Cowork waits remain active work.
+function sessionStateKey(r) {
+  r = r || {};
+  if (r.error || /^(error|failed)$/i.test(String(r.status || ''))) return 'needs';
+  if (r.needsYou) return 'needs';
+  if (r.working || r.waitingForCowork) return 'active';
+  return 'idle';
+}
+
+function orderSessionsByState(rows) {
+  var rank = { needs: 0, active: 1, idle: 2 };
+  return (Array.isArray(rows) ? rows.slice() : []).sort(function(a, b) {
+    var d = rank[sessionStateKey(a)] - rank[sessionStateKey(b)];
+    if (d) return d;
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return (+b.lastActiveTs || 0) - (+a.lastActiveTs || 0);
+  });
+}
+
 // ── Main row renderer ──────────────────────────────────────────────────────────
 // opts: { selSess, effSess, branchCount, nowMs }
 // Calls esc/agoFmt/famEmoji/modelLabel/stageColor — must be in scope.
@@ -156,9 +176,11 @@ function renderRow(r, opts) {
   var firstPrompt = r.name || ('session ' + r.id);
   var nm = r.coworkTitle || firstPrompt;
 
-  // Badge: cowork > working > needsYou > ago
+  // Badge: error > cowork > working > needsYou > honest age
   var badge;
-  if (r.waitingForCowork) {
+  if (r.error || /^(error|failed)$/i.test(String(r.status || ''))) {
+    badge = '<span class="alertdot"></span><span class="needsyou">erro</span>';
+  } else if (r.waitingForCowork) {
     // The conversation title now leads the row name → don't repeat it in the badge when it is the
     // same string (não dupliques o título); show just the live state. Badge itself always continues.
     var cwTitleDup = !!(r.coworkTitle && r.coworkTitle === nm);
@@ -170,8 +192,10 @@ function renderRow(r, opts) {
     badge = '<span class="livedot"></span>working';
   } else if (r.needsYou) {
     badge = '<span class="alertdot"></span><span class="needsyou">your turn</span>';
-  } else {
+  } else if (r.ageMs != null) {
     badge = esc(agoFmt(r.ageMs)) + ' ago';
+  } else {
+    badge = 'n/d';
   }
 
   // SCM (branch + PR chip) — branch chip suppressed when it equals the group's (header shows it once)
@@ -236,11 +260,12 @@ function renderRow(r, opts) {
   if (curModel && !matched) {
     modelOpts += '<option value="' + esc(curModel) + '" selected>' + esc(curModel) + ' (set)</option>';
   }
-  var modelSel = '<select class="smodsel" data-msess="' + esc(sid) + '" title="model for this session — Claude tiers + local Ollama">' + modelOpts + '</select>';
+  var modelSel = '<select class="smodsel" data-msess="' + esc(sid) + '" title="selecciona e guarda o modelo desta sessão; Auto deixa o Moo decidir, os restantes fixam o modelo indicado">' + modelOpts + '</select>';
 
   // ── Auto-pilot toggle ──
   var autoOn = !!r.auto;
-  var autoBtn = '<button class="sauto' + (autoOn ? ' on' : '') + '" data-msess="' + esc(sid) + '" data-mauto="' + String(autoOn) + '" title="auto-pilot: Moo adapts model to task">' + (autoOn ? '⚡ auto' : 'auto') + '</button>';
+  var autoTitle = autoOn ? 'desactivar o auto-pilot desta sessão; mantém o modelo actualmente seleccionado' : 'activar o auto-pilot nesta sessão; o Moo adapta o modelo a cada tarefa';
+  var autoBtn = '<button class="sauto' + (autoOn ? ' on' : '') + '" data-msess="' + esc(sid) + '" data-mauto="' + String(autoOn) + '" title="' + autoTitle + '">' + (autoOn ? '⚡ auto' : 'auto') + '</button>';
 
   // ── WCOCKPIT-9 (Bloco F): LoopMoo toggle (separado do segmented lazy/moo/crazy: aquilo é
   // intensidade de routing; LoopMoo é o MODO de interacção — autopilot loop 🔁). Degradação
@@ -276,7 +301,7 @@ function renderRow(r, opts) {
   var wtChip = r.worktree ? '<span class="wtchip" title="git linked worktree: ' + esc(r.worktree) + '">⌥' + esc(r.worktree) + '</span>' : '';
   // ↺→👁 HONESTO: não há sync remoto a partir do cockpit; isto carimba a hora de revisão local ("marcar visto").
   var refreshBtn = '<button class="intrefresh" data-a="refreshIntegrations" data-x="' + esc(sid) + '" aria-label="marcar Notion e Obsidian como vistos agora (carimbo local)" title="marcar visto — carimba a hora de revisão local. Não há sync remoto a partir do cockpit; clica o chip para abrir a página/ficheiro.">👁</button>';
-  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="close this session (archive, reversible)" title="close this session in the cockpit (archive — reversible; reappears if it becomes active again, nothing is deleted)">✕</button>';
+  var archiveBtn = '<button class="sarch" data-a="archiveSession" data-x="' + esc(sid) + '" aria-label="arquivar esta sessão no cockpit" title="arquiva esta sessão no cockpit; é reversível, reaparece se voltar a ter actividade e não apaga ficheiros nem a conversa">✕</button>';
   var ctrl = '<div class="sctrl">' + modelSel + autoBtn + loopBtn + '<span class="sint">' + notionChip + obsChip + (wtChip || '') + refreshBtn + '</span>' + archiveBtn + '</div>';
 
   // ── F1: 1st-prompt subline (only when a Cowork title was promoted to the name) ──
@@ -479,34 +504,44 @@ function renderRow(r, opts) {
     wtStyle = ' style="border-left-color:' + _wtc + ';border-top-left-radius:0;border-bottom-left-radius:0"';
   }
 
-  // WCOCKPIT-9 (Bloco B): cartão compacto — nome + estado + id COABITAM numa única .sline
-  // (antes eram duas linhas .stop + .ssub). O drawer (.sdrawer) continua só na selecção
-  // (.on / :focus-within — ver CSS). aria-label preserva o nome completo (a11y).
+  // B3: the compact .sline keeps only the operational ruler; .sdetails owns the existing full card.
   var pin = sel ? (selSess === 'auto' ? ' · auto' : ' · pinned') : '';
-  // B3 — declutter: estado canónico + nome-pesquisável em data-attrs para o filtro/procura client-side
-  // (needs-you / active / idle / cowork). Aditivo; o filtro vive no webview e só esconde/mostra .srow.
-  var _rowState = r.waitingForCowork ? 'cowork' : (r.working ? 'active' : (r.needsYou ? 'needs' : 'idle'));
+  // B3 — the project stays the outer context; state buckets are the minimal-diff inner hierarchy.
+  var _rowState = (r.error || /^(error|failed)$/i.test(String(r.status || '')) || r.needsYou) ? 'needs' : ((r.working || r.waitingForCowork) ? 'active' : 'idle');
   var _searchName = esc(String((nm || '') + ' ' + (r.id || '') + ' ' + (firstPrompt || '')).toLowerCase().slice(0, 200));
-  // Deck Floor (Fase 2): session type glyph (💬 CC · ♾️ LoopMoo). ⏰ Schedule has no per-session
-  // source yet, so it is never fabricated — a plain session reads as 💬.
-  var _stype = r.loop
-    ? '<span class="stype" title="tipo: LoopMoo (autopilot loop)" aria-label="type: loop">♾️</span>'
-    : '<span class="stype" title="tipo: sessão Claude Code" aria-label="type: CC session">💬</span>';
+  // Type is derived only from real row fields. No schedule signal means the honest CC default.
+  var _stype = r.scheduled
+    ? '<span class="stype" title="tipo: sessão agendada" aria-label="tipo: sessão agendada">⏰</span>'
+    : (r.loop
+      ? '<span class="stype" title="tipo: LoopMoo (autopilot loop)" aria-label="tipo: loop">♾️</span>'
+      : '<span class="stype" title="tipo: sessão Claude Code" aria-label="tipo: sessão Claude Code">💬</span>');
+  var _hasError = !!r.error || /^(error|failed)$/i.test(String(r.status || ''));
+  var _stateText = _hasError ? '⚠️ erro' : (r.needsYou ? '🙋 precisa de ti' : (r.working ? 'a trabalhar' : (r.waitingForCowork ? '⏸️ Cowork' : '💤 idle')));
+  var _stateTitle = _hasError ? 'estado: erro reportado pela sessão' : (r.needsYou ? 'estado: à espera da tua resposta' : (r.working ? 'estado: a gerar agora' : (r.waitingForCowork ? 'estado: à espera do Cowork' : 'estado: idle/done')));
+  var _stateDot = '<span class="srowdot ' + _rowState + '" role="img" aria-label="' + esc(_stateTitle) + '" title="' + esc(_stateTitle) + '"></span>';
+  var _stateChip = '<span class="sstate ' + _rowState + '" title="' + esc(_stateTitle) + '">' + esc(_stateText) + '</span>';
   // Deck Floor (Fase 2): persistent pin toggle (📌). Filled = pinned (mode-registry, survives reload).
   var _pinBtn = '<button class="spin' + (r.pinned ? ' on' : '') + '" data-psess="' + esc(r.fullId) + '" data-pinned="' + String(!!r.pinned)
     + '" title="' + (r.pinned ? 'sessão fixada — clica para soltar' : 'fixar sessão (fica no topo, nunca auto-arquiva)')
-    + '" aria-label="' + (r.pinned ? 'unpin session' : 'pin session') + '" aria-pressed="' + (r.pinned ? 'true' : 'false') + '">📌</button>';
-  return '<div class="srow' + (sel ? ' on' : '') + (r.pinned ? ' pinned' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
-    + '"' + wtStyle + ' data-sess="' + esc(r.fullId) + '" data-state="' + _rowState + '" data-name="' + _searchName + '" role="button" tabindex="0" aria-label="open session: ' + esc(nm) + '" title="open this session in Claude Code — ' + esc(nm) + '">'
-    + '<span class="livecow' + cowCls + '">🐮</span>'
+    + '" aria-label="' + (r.pinned ? 'soltar sessão' : 'fixar sessão') + '" aria-pressed="' + (r.pinned ? 'true' : 'false') + '" data-quick="pin">📌</button>';
+  var _handoffQuick = '<button class="squick handoff" data-qhandoff="' + esc(sid) + '" title="gerar o handoff desta sessão, mostrá-lo aqui e copiá-lo" aria-label="gerar handoff desta sessão" data-quick="handoff">⇄</button>';
+  var _openQuick = '<button class="squick sopen" data-a="openSessionTab" data-x="' + esc(sid) + '" data-title="' + esc(nm) + '" title="abre a aba desta sessão no Claude Code; foca a existente e nunca cria um duplicado" aria-label="abrir esta sessão no Claude Code" data-quick="open">↗</button>';
+  var _collapsed = opts.rowCollapsed !== false;
+  var _disclose = '<button class="sdisclose collaphead" title="mostrar ou ocultar os detalhes e controlos desta sessão" aria-label="mostrar ou ocultar os detalhes e controlos desta sessão" aria-expanded="' + (_collapsed ? 'false' : 'true') + '"><span class="chev">▾</span></button>';
+  return '<div class="srow' + (_collapsed ? ' collapsed' : '') + (sel ? ' on' : '') + (r.pinned ? ' pinned' : '') + (r.needsYou ? ' needs' : '') + (r.waitingForCowork ? ' cowork-row' : '')
+    + '"' + wtStyle + ' data-collap="sess:' + esc(r.fullId) + '" data-sess="' + esc(r.fullId) + '" data-state="' + _rowState + '" data-name="' + _searchName + '" role="group" aria-label="sessão: ' + esc(nm) + '">'
     + '<div class="sbody">'
     + '<div class="sline">'
+      + _stateDot
       + _stype
       + '<span class="sname">' + esc(nm) + '</span>'
-      + '<span class="sstate">' + badge + '</span>'
-      + safeChip
-      + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
-      + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : '—') + '</span>'
+      + _stateChip
+      + '<span class="sllm">' + famEmoji(r.model) + ' ' + esc(r.model ? modelLabel(r.model) : 'n/d') + '</span>'
+      + '<span class="squickactions" aria-label="acções rápidas">' + _pinBtn + _handoffQuick + _openQuick + '</span>'
+      + _disclose
+    + '</div>'
+    + '<div class="sdetails">'
+      + '<div class="sdetailhead"><span class="livecow' + cowCls + '">🐮</span><span>' + badge + '</span>' + safeChip + '<span class="sid">· ' + esc(r.id) + pin + '</span>'
       + (r.ctxTokens ? ('<span style="font-size:9.5px;margin-left:6px;color:' + ((/opus|sonnet|haiku|claude/i.test(String(r.model || '')) && r.ctxTokens / 200000 >= 0.8) ? 'var(--danger)' : 'var(--vscode-descriptionForeground)') + '" title="approx context-window fill on the last turn — input + cache tokens read from the transcript">\u{1F9E0} ' + (r.ctxTokens >= 1000 ? ((Math.round(r.ctxTokens / 100) / 10) + 'k') : String(r.ctxTokens)) + (/opus|sonnet|haiku|claude/i.test(String(r.model || '')) ? (r.ctxTokens >= 200000 ? ' max' : (' ' + Math.round(100 * r.ctxTokens / 200000) + '%')) : '') + '</span>') : '')
       // -- GUARDIAN:F1 -- pressure chip, only for 200k-window (claude) models; ctxPct = tokens/200k. guardianChip is a webview-injected sibling (typeof-guarded so host-side renderRow calls skip it). Concat-only: no backticks here (renderRow.toString() must stay template-literal-free).
       + ((typeof guardianChip === 'function' && r.ctxTokens && /opus|sonnet|haiku|claude/i.test(String(r.model || ''))) ? guardianChip(100 * r.ctxTokens / 200000, esc) : '')
@@ -515,8 +550,7 @@ function renderRow(r, opts) {
     + '<div class="sdrawer">' + modeSeg + ctrl + slashPicker + gitBtn + handoffBtn + jumpBtn + localMooBlock + '</div>'
     + hoffPanel
     + '</div>'
-    + _pinBtn
-    + '<span class="sopen" title="open in Claude Code">↗</span>'
+    + '</div>'
     + '</div>';
 }
 
@@ -532,7 +566,7 @@ function renderGroupHeader(key, group, opts) {
   var gneed = 0, br = null, gs = null, i;
   var repoSet = {};
   for (i = 0; i < group.length; i++) {
-    if (group[i].needsYou) gneed++;
+    if (group[i].needsYou || group[i].error || /^(error|failed)$/i.test(String(group[i].status || ''))) gneed++;
     if (!br && group[i].branch) br = group[i].branch;
     if (!gs && group[i].gitStage) gs = group[i].gitStage;
     if (group[i].repoFolder) repoSet[group[i].repoFolder] = 1;
@@ -572,7 +606,7 @@ function renderGroupHeader(key, group, opts) {
     + '<pre class="hoffp-pre"></pre>'
     + '<button class="sgitbtn hoffcopy" data-a="hoffCopy" data-x="' + esc(key) + '" aria-label="copy this project handoff to the clipboard again" title="copia outra vez o handoff do projecto para o clipboard">📋 Copiar</button>'
     + '</div>';
-  return '<div class="ghd collaphead"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + projBtn + '</div>' + hoffPanel;
+  return '<div class="ghd collaphead" title="expandir ou recolher este projecto e todas as suas sessões" aria-label="expandir ou recolher o projecto ' + esc(key) + '"><span class="chev">▾</span>' + keyHtml + repoSub + meta + count + projBtn + '</div>' + hoffPanel;
 }
 
 // ── WS3: Local Moo Fleet ─────────────────────────────────────────────────────────
@@ -696,4 +730,4 @@ function inboxRepoSummary(rows) {
   return out;
 }
 
-module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, renderRow, renderGroupHeader, renderLocalFleet, MODES_UI, SESS_MODELS, deriveStages, STAGE_META, isMetaPath, inboxRepoSummary };
+module.exports = { esc, agoFmt, famEmoji, modelLabel, stageColor, sessionStateKey, orderSessionsByState, renderRow, renderGroupHeader, renderLocalFleet, MODES_UI, SESS_MODELS, deriveStages, STAGE_META, isMetaPath, inboxRepoSummary };

@@ -71,7 +71,7 @@ function renderPublishPopover(state, esc) {
   var branchLine = '<div class="lp-pub-meta">branch: ' + e(branch) + '</div>';
   var costLine = '<div class="lp-pub-cost">edições $0 · review $0 · deploy $0</div>';
 
-  var reviewBtn = '<button type="button" id="lp-pub-review-btn" class="lp-sel-btn">🛡 Rever segurança</button>';
+  var reviewBtn = '<button type="button" id="lp-pub-review-btn" class="lp-sel-btn" title="executa localmente secret-scan, npm audit, CSP e XSS estático; não altera ficheiros nem substitui revisão humana">🛡 Rever segurança</button>';
 
   var filesBlock = files.length
     ? '<div class="lp-pub-files-hdr">' + files.length + ' ficheiro' + (files.length === 1 ? '' : 's') + ' por commitar:</div>'
@@ -83,8 +83,8 @@ function renderPublishPopover(state, esc) {
   var criticalNote = hasCritical
     ? '<div class="lp-pub-warn">⚠ resolve o Critical no 🛡 Review Security primeiro.</div>'
     : '';
-  var commitBlock = '<textarea id="lp-pub-msg" class="lp-pub-msg" rows="2" aria-label="Mensagem de commit">' + msgVal + '</textarea>'
-    + '<button type="button" id="lp-pub-commit-btn" class="lp-sel-btn"' + commitDisabled + '>Atualizar (commit + push)</button>';
+  var commitBlock = '<textarea id="lp-pub-msg" class="lp-pub-msg" rows="2" aria-label="Mensagem de commit" title="edita a mensagem usada pelo commit selectivo dos ficheiros listados">' + msgVal + '</textarea>'
+    + '<button type="button" id="lp-pub-commit-btn" class="lp-sel-btn" title="cria um commit apenas com os ficheiros listados e faz push sem force; fica bloqueado se a review tiver Critical"' + commitDisabled + '>Atualizar (commit + push)</button>';
 
   var deployBlock;
   if (!vercelLinked) {
@@ -92,12 +92,12 @@ function renderPublishPopover(state, esc) {
   } else if (hasCritical) {
     deployBlock = '<div class="lp-pub-warn">⚠ deploy bloqueado — resolve o Critical no 🛡 Review Security primeiro.</div>';
   } else {
-    deployBlock = '<button type="button" id="lp-pub-deploy-open" class="lp-sel-btn lp-pub-danger">Publicar (deploy Vercel — IRREVERSÍVEL)</button>'
+    deployBlock = '<button type="button" id="lp-pub-deploy-open" class="lp-sel-btn lp-pub-danger" title="abre a confirmação por nome do projecto; ainda não executa o deploy Vercel">Publicar (deploy Vercel — IRREVERSÍVEL)</button>'
       + '<div id="lp-pub-gate" class="lp-pub-gate" style="display:none" role="group" aria-label="Confirmar deploy">'
       + '<div class="lp-pub-warn">Escreve exactamente o nome do projeto (<code>' + e(projectName) + '</code>) para confirmar — o host verifica outra vez antes de correr.</div>'
-      + '<input type="text" id="lp-pub-gate-input" class="lp-pub-gate-input" autocomplete="off" spellcheck="false" placeholder="' + e(projectName) + '" aria-label="Nome do projeto para confirmar o deploy" />'
-      + '<button type="button" id="lp-pub-deploy-confirm" class="lp-sel-btn lp-pub-danger">Confirmar deploy</button>'
-      + '<button type="button" id="lp-pub-deploy-cancel" class="lp-sel-btn">cancelar</button>'
+      + '<input type="text" id="lp-pub-gate-input" class="lp-pub-gate-input" autocomplete="off" spellcheck="false" placeholder="' + e(projectName) + '" aria-label="Nome do projeto para confirmar o deploy" title="escreve exactamente o nome do projecto para desbloquear o deploy Vercel" />'
+      + '<button type="button" id="lp-pub-deploy-confirm" class="lp-sel-btn lp-pub-danger" title="verifica novamente o nome e executa o deploy Vercel irreversível deste projecto">Confirmar deploy</button>'
+      + '<button type="button" id="lp-pub-deploy-cancel" class="lp-sel-btn" title="fecha a confirmação sem executar o deploy">cancelar</button>'
       + '</div>';
   }
 

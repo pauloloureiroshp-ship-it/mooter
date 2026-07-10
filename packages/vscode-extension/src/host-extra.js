@@ -11,6 +11,7 @@ const { execFile, execFileSync } = require('child_process');
 const { httpJson, isProbePrompt } = require('./data.js');
 
 const ROUTER = path.join(os.homedir(), '.claude', 'tools', 'router');
+const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 const MODE_FILE = path.join(ROUTER, '.mooter-mode.json');
 // Ollama port — 11434 in prod; overridable ONLY via env so runtime smoke tests can point the
 // real ollamaDoing/ollamaRecap/_ollamaGenerate at a fake server (down/slow) without touching 11434.
@@ -472,7 +473,7 @@ function costFor(model, u) {
   return ((u.in || 0) * pin + (u.out || 0) * pout + (u.cw || 0) * pin * 1.25 + (u.cr || 0) * pin * 0.1) / 1e6;
 }
 function listSessionFiles() {
-  const root = path.join(os.homedir(), '.claude', 'projects');
+  const root = CLAUDE_PROJECTS_DIR;
   const out = [];
   try {
     for (const proj of fs.readdirSync(root)) {
@@ -485,6 +486,45 @@ function listSessionFiles() {
     }
   } catch { /* no projects dir */ }
   return out.sort((a, b) => b.mtime - a.mtime);
+}
+
+// Keeper 4: detect a newly-created Claude Code transcript without running recentSessions()
+// on every filesystem write. The recursive watcher is reliable for this local NTFS directory
+// on Windows; only the cheap directory scan runs on a burst. A deep refresh happens solely when
+// a new *.jsonl path appears while the cockpit is visible. Watch failure returns null, leaving
+// the existing bounded deep poll as the honest fallback.
+function sessionFileKeys(files) {
+  return (files || []).map((x) => String(x && x.file || x)).filter((x) => x.endsWith('.jsonl')).sort();
+}
+function newSessionFileKeys(previous, current) {
+  const before = new Set(previous || []);
+  return (current || []).filter((x) => !before.has(x));
+}
+function recentRefreshAllowed(visible, busy, lastDeepAt, now, minMs) {
+  if (!visible || busy) return false;
+  return !lastDeepAt || now - lastDeepAt >= minMs;
+}
+function watchRecentSessions(onNewSession, opts) {
+  opts = opts || {};
+  const watch = opts.watch || fs.watch.bind(fs);
+  const list = opts.list || listSessionFiles;
+  const visible = opts.visible || function () { return true; };
+  const root = opts.root || CLAUDE_PROJECTS_DIR;
+  const debounceMs = Number.isFinite(opts.debounceMs) ? Math.max(0, opts.debounceMs) : 250;
+  let known;
+  try { known = sessionFileKeys(list()); } catch { known = []; }
+  const scan = mkDebounce(function () {
+    let next;
+    try { next = sessionFileKeys(list()); } catch { return; }
+    const added = newSessionFileKeys(known, next);
+    known = next;
+    if (!added.length || !visible()) return;
+    try { onNewSession(added); } catch { /* watcher callbacks never escape into the host */ }
+  }, debounceMs);
+  try {
+    const handle = watch(root, { persistent: false, recursive: true }, function () { scan(); });
+    return { close: function () { scan.cancel(); try { handle.close(); } catch { /* already closed */ } } };
+  } catch { scan.cancel(); return null; }
 }
 // Aggregate one or more session files by model. Dedup turns by message.id.
 // `lastModel` = the model of the most recent real usage line — the host model that
@@ -2757,4 +2797,4 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   // PERFECT HANDOFF v2 — pure helpers (STATE machine · PARA TI · Ledger projection · single count):
   _deriveState, _stateLabel, _stateHuman, _askHuman, _resumeFor, _sessionAhead, _parseAskInput,
   _projectLedger, _ledgerGateLine, sessionLedgerEvents,
-  mkDebounce };
+  mkDebounce, sessionFileKeys, newSessionFileKeys, recentRefreshAllowed, watchRecentSessions };

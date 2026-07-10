@@ -232,7 +232,7 @@ function writeMcFlag(name, obj) {
 }
 
 class DataService {
-  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.tick = 0; this.busy = false; this.visible = true; this.selectedSession = 'auto'; }
+  constructor() { this.listeners = new Set(); this.snapshot = {}; this.timer = null; this.watcher = null; this.sessionWatcher = null; this.tick = 0; this.busy = false; this.visible = true; this.selectedSession = 'auto'; this._lastDeepAt = 0; }
   onUpdate(fn) { this.listeners.add(fn); return { dispose: () => this.listeners.delete(fn) }; }
   async refresh(deep) {
     // Overlap guard: deep refreshes fan out up to 8 CLI execs (≤9s each). Without
@@ -252,6 +252,7 @@ class DataService {
     // Deep work runs when visible; ALSO force it on the very first refresh (deep && tick 1)
     // so a panel that starts collapsed still gets a full first paint instead of 60s of zeros.
     const doDeep = ((deep || this.tick % 3 === 1) && this.visible) || (deep && this.tick === 1);
+    if (doDeep) this._lastDeepAt = Date.now();
     if (doDeep) jobs.push(extra.ollamaModels(), extra.statuslineHtml(), extra.slashStatus(), extra.effortGet(), extra.whyNotFable(), extra.trailJson(), extra.securitySummary(), extra.feedbackSpans());
     // Per-session savings come from the SAME tracker pipeline (/metrics?session_id) so
     // they can never drift from the global figure — one source of truth (honesty).
@@ -409,6 +410,15 @@ class DataService {
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => this.refresh(false), data_.pollIntervalMs(this.visible));
   }
+  // New-session fs.watch notifications are allowed one deep-refresh budget per normal deep
+  // cadence (3 visible ticks = 21s). Existing periodic/explicit deep refreshes keep working;
+  // a busy or recently-deep host simply lets that bounded poll discover the tab instead.
+  refreshForNewSession() {
+    const minMs = data_.pollIntervalMs(true) * 3;
+    if (!extra.recentRefreshAllowed(this.visible, this.busy, this._lastDeepAt, Date.now(), minMs)) return false;
+    this.refresh(true);
+    return true;
+  }
   // Called by the webview provider on visibility change. Visible → fast cadence + an
   // immediate refresh; hidden → slow shallow polling (keeps the status bar warm cheaply).
   setVisible(v) {
@@ -426,8 +436,11 @@ class DataService {
         if (f === 'decisions.log') this.refresh(false);
       });
     } catch { /* poll covers */ }
+    try {
+      this.sessionWatcher = extra.watchRecentSessions(() => this.refreshForNewSession(), { visible: () => this.visible });
+    } catch { /* the existing 21s visible deep poll covers new sessions */ }
   }
-  dispose() { if (this.timer) clearInterval(this.timer); if (this.watcher) this.watcher.close(); this.listeners.clear(); }
+  dispose() { if (this.timer) clearInterval(this.timer); if (this.watcher) this.watcher.close(); if (this.sessionWatcher) this.sessionWatcher.close(); this.listeners.clear(); }
 }
 
 function makeStatusBar(ctx, data) {
@@ -561,13 +574,11 @@ class CockpitProvider {
       }
       if (m.cmd === 'selectSession') { const a = String(m.arg || 'auto'); this.data.selectedSession = (a === 'all' || a === 'auto') ? a : a.replace(/[^a-zA-Z0-9._-]/g, ''); this.data.refresh(true); }
       if (m.cmd === 'openSession') {
-        // Open/focus that exact Claude Code session in the editor. The extension's URI
-        // handler maps /open?session=<id> → claude-vscode.primaryEditor.open(id); we call
-        // the command directly (URI as fallback), then scope the cockpit to it.
-        const id = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        // Backward-compatible open-and-scope path: the registered deep-link owns tab opening.
+        const id = String((m.arg && typeof m.arg === 'object') ? m.arg.id : m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const title = String((m.arg && typeof m.arg === 'object') ? m.arg.title || '' : '');
         if (id) {
-          try { await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', id); }
-          catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
+          await vscode.commands.executeCommand('mooter.openSessionTab', { id, title });
           this.data.selectedSession = id; this.data.refresh(true);
         }
       }
@@ -650,6 +661,7 @@ class CockpitProvider {
       if (m.cmd === 'rate') {
         const r = await extra.rateSpan(m.arg && m.arg.id, m.arg && m.arg.n);
         vscode.window.setStatusBarMessage(r.ok ? '🐮 feedback saved — the Pastor learns' : '🐮 could not save feedback', 3500);
+        this.data.refresh(true);
       }
       if (m.cmd === 'intent') {
         const res = await extra.intentResolve(m.arg);
@@ -727,8 +739,6 @@ class CockpitProvider {
       // session (wave=sessão=aba). Routes through the registered mooter.openSessionTab command.
       if (m.cmd === 'openSessionTab') {
         vscode.commands.executeCommand('mooter.openSessionTab', m.arg);
-        const _id = String((m.arg && m.arg.id) || m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
-        if (_id) { this.data.selectedSession = _id; this.data.refresh(true); }
       }
       // ════════════════════════════════════════════════════════════════════════
       // WCOCKPIT-9 (Bloco C): fluxo Commit & Push por sessão. SEMPRE host-side (execFile git,
@@ -2955,7 +2965,7 @@ function getLivePreviewHtml(token, wsRoot) {
       <div id="lp-controls">
         <button id="lp-back" title="Recuar no site" aria-label="Recuar">‹</button>
         <button id="lp-fwd" title="Avançar no site" aria-label="Avançar">›</button>
-        <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
+        <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" title="introduz uma rota ou URL localhost para abrir no App Stage; não aceita hosts remotos" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
         <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
@@ -3008,9 +3018,9 @@ function getLivePreviewHtml(token, wsRoot) {
         <div class="lp-coach-card">
           <div id="lp-coach-body" class="lp-coach-body"></div>
           <div class="lp-coach-nav">
-            <button type="button" id="lp-coach-skip" class="lp-coach-btn2">não mostrar</button>
+            <button type="button" id="lp-coach-skip" class="lp-coach-btn2" title="fecha este guia e não o volta a mostrar neste perfil local">não mostrar</button>
             <span id="lp-coach-dots" class="lp-coach-dots" aria-hidden="true"></span>
-            <button type="button" id="lp-coach-next" class="lp-coach-btn">seguinte</button>
+            <button type="button" id="lp-coach-next" class="lp-coach-btn" title="avança para o passo seguinte deste guia">seguinte</button>
           </div>
         </div>
       </div>
@@ -3028,10 +3038,10 @@ function getLivePreviewHtml(token, wsRoot) {
       <div id="lp-meo-hd" class="lp-meo-hd"><div class="lp-meo-t">🐮 MEO — Moo Executive Officer</div><div class="lp-meo-sub">o teu cockpit executivo · dados reais, custos ~est.</div></div>
       <div id="lp-work-mount"></div>
       <div id="lp-tabs" role="tablist" aria-label="Lentes do MEO">
-        <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0">Stream</button>
-        <button type="button" class="lp-tab" role="tab" id="lp-tab-day" aria-selected="false" aria-controls="lp-pane-day" data-tab="day" tabindex="-1">Dia</button>
-        <button type="button" class="lp-tab" role="tab" id="lp-tab-model" aria-selected="false" aria-controls="lp-pane-model" data-tab="model" tabindex="-1">LLM</button>
-        <button type="button" class="lp-tab" role="tab" id="lp-tab-fleet" aria-selected="false" aria-controls="lp-pane-fleet" data-tab="fleet" tabindex="-1">Fleet</button>
+        <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0" title="mostra o fluxo cronológico real de eventos do App Stage">Stream</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-day" aria-selected="false" aria-controls="lp-pane-day" data-tab="day" tabindex="-1" title="agrupa os eventos reais por dia">Dia</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-model" aria-selected="false" aria-controls="lp-pane-model" data-tab="model" tabindex="-1" title="agrupa os eventos reais por modelo LLM">LLM</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-fleet" aria-selected="false" aria-controls="lp-pane-fleet" data-tab="fleet" tabindex="-1" title="mostra o estado real das sessões e workers da fleet">Fleet</button>
       </div>
       <div id="lp-pane-stream" role="tabpanel" aria-labelledby="lp-tab-stream"></div>
       <div id="lp-pane-day" role="tabpanel" aria-labelledby="lp-tab-day" hidden></div>
@@ -3344,9 +3354,9 @@ function renderRefs(){
     // Hover shows file:line plus the node's own text (the attach label) so a ref is recognisable.
     const titleTxt=(r.file||'')+(r.line!=null?(':'+r.line):'')+(r.label?(' — '+r.label):'');
     chips+='<span class="lp-ref" title="'+esc(titleTxt)+'">'+lbl
-      +'<button type="button" class="lp-ref-x" data-ref="'+i+'" aria-label="remover referência '+lbl+'">✕</button></span>';
+      +'<button type="button" class="lp-ref-x" data-ref="'+i+'" aria-label="remover referência '+lbl+'" title="remove esta referência do próximo prompt; não apaga o ficheiro original">✕</button></span>';
   }
-  el.innerHTML='<div class="lp-refs-hd">referências anexadas ('+lpRefs.length+') — contexto para o agente <button type="button" id="lp-refs-clr" class="lp-ref-clr">limpar</button></div>'
+  el.innerHTML='<div class="lp-refs-hd">referências anexadas ('+lpRefs.length+') — contexto para o agente <button type="button" id="lp-refs-clr" class="lp-ref-clr" title="remove todas as referências do próximo prompt; não apaga os ficheiros originais">limpar</button></div>'
     +'<div class="lp-refs-list">'+chips+'</div>'
     +(lpMode==='local'?'<div class="lp-refs-note">o chip local $0 edita só o nó pinado — as referências entram quando subes para o agente</div>':'');
   el.style.display='block';
@@ -3603,7 +3613,7 @@ function renderSelection(sel){
   // LP-4.5 §5 — dynamic-component honesty, BEFORE any fenced rewrite: an uppercase tag is a
   // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
   // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
-  if(/^[A-Z]/.test(sel.tag||'')) warn+='<div class="lp-sel-warn">⚠ &lt;'+tag+'&gt; é um componente — o conteúdo vem de DENTRO dele: reescrever este nó não o muda. <button type="button" id="lp-sel-agent" class="lp-sel-btn">resolver com o agente</button></div>';
+  if(/^[A-Z]/.test(sel.tag||'')) warn+='<div class="lp-sel-warn">⚠ &lt;'+tag+'&gt; é um componente — o conteúdo vem de DENTRO dele: reescrever este nó não o muda. <button type="button" id="lp-sel-agent" class="lp-sel-btn" title="abre o modo de edição por agente ancorado neste componente; só escreve depois de mostrar o diff">resolver com o agente</button></div>';
   // LP-4.8 §1 — the right panel now shows ONLY context + outputs (breadcrumbs, honest warnings,
   // the diff mount, the status line). The interactive controls moved to the in-canvas toolbar
   // below; the diff/feed/resposta live here (the brief: "o painel direito passa a mostrar SÓ
@@ -3632,7 +3642,7 @@ function renderSelection(sel){
     +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
     +'</div>'
     +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
-    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
+    +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" title="descreve a alteração ou pergunta ancorada no elemento seleccionado" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="envia o prompt no modo escolhido; Editar mostra o diff antes de manter e Perguntar não escreve">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
     // LP-4.9 loop-fix §C — ALWAYS-visible context/route line: tells the user, before sending,
     // whether THIS edit reads the whole project (agent) or only this node (local $0), and how to
@@ -3644,13 +3654,13 @@ function renderSelection(sel){
     +'<div id="lp-adv" class="lp-adv" style="display:none">'
     +'<div id="lp-chip" class="lp-chip"></div>'
     +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" title="define o novo texto deste elemento; só é escrito depois de confirmares o diff" /><button id="lp-ed-text-b" class="lp-sel-btn" title="prepara uma edição determinística do texto por $0 e mostra o diff antes de escrever">aplicar</button></div>'
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" title="define a nova classe deste elemento; só é escrita depois de confirmares o diff" /><button id="lp-ed-class-b" class="lp-sel-btn" title="prepara uma edição determinística da classe por $0 e mostra o diff antes de escrever">aplicar</button></div>'
     +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
     +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
     +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
-    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn">abrir no editor</button>'
+    +'<div class="lp-sel-acts"><button id="lp-sel-open" class="lp-sel-btn" title="abre no editor o ficheiro e a linha de origem deste elemento">abrir no editor</button>'
     +'<button id="lp-sel-del" class="lp-sel-btn" title="apagar é determinístico — $0, sem tokens">🗑 apagar elemento</button></div>'
     +'</div>';
   if(ctbBody){
@@ -3830,7 +3840,7 @@ function renderDeleteDiff(m){
     +staleWarn
     +exprWarn
     +rows
-    +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn" title="confirma o diff e apaga apenas este elemento do ficheiro indicado">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn" title="cancela este diff sem escrever no ficheiro">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-del-apply');
   if(ap) ap.addEventListener('click', function(){
@@ -3865,7 +3875,7 @@ function renderEditDiff(m){
     +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
     +rows
-    +'<div class="lp-sel-acts"><button id="lp-ed-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-ed-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-ed-apply" class="lp-sel-btn" title="confirma o diff e escreve esta alteração no ficheiro indicado">aplicar — escrever</button><button id="lp-ed-cancel" class="lp-sel-btn" title="cancela este diff sem escrever no ficheiro">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-ed-apply');
   if(ap) ap.addEventListener('click', function(){
@@ -3905,14 +3915,14 @@ function renderPromptDiff(m){
   const who=((!m.tier||m.tier==='local')?'moo local · $0':esc(m.model||tierModel(m.tier))+' · subscrição')+qNote;
   const staleWarn=m.stale?'<div class="lp-sel-warn">⚠ o ficheiro mudou desde a pré-visualização — nada foi escrito. Revê o diff (regenerado) e aplica de novo.</div>':'';
   // §5 — dynamic-content honesty BEFORE aplicar: this write may not change what is rendered.
-  const dynWarn=m.dynamic?'<div class="lp-sel-warn">⚠ o conteúdo vem de dentro do componente — reescrever este nó não o muda. <button type="button" id="lp-pr-agent" class="lp-sel-btn">resolver com o agente</button></div>':'';
+  const dynWarn=m.dynamic?'<div class="lp-sel-warn">⚠ o conteúdo vem de dentro do componente — reescrever este nó não o muda. <button type="button" id="lp-pr-agent" class="lp-sel-btn" title="volta ao editor por agente ancorado neste componente; só escreve depois de mostrar o diff">resolver com o agente</button></div>':'';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Pré-visualização da reescrita">'
     +'<div class="lp-diff-hd">reescrita por prompt · linha '+esc(m.start==null?'?':m.start)+' — '+who+' · cercada: só este nó</div>'
     +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
     +dynWarn
     +rows
-    +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn" title="confirma o diff proposto pelo agente e escreve apenas os ficheiros listados">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn" title="cancela esta proposta sem escrever nos ficheiros">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-pr-apply');
   if(ap) ap.addEventListener('click', function(){
@@ -3944,8 +3954,8 @@ function renderEscalationOffer(m, el){
     +'<div class="lp-diff-l lp-diff-rm">último motivo: '+why+'</div>'
     +'<div class="lp-diff-l">nada foi escrito. Subir para Sonnet (subscrição) com o mesmo pedido?</div>'
     +'<div class="lp-sel-acts">'
-    +'<button id="lp-esc-t2" class="lp-sel-btn"'+(br.available?'':(' disabled title="'+esc(disReason)+'"'))+'>subir para Sonnet · subscrição</button>'
-    +'<button id="lp-esc-cancel" class="lp-sel-btn">cancelar</button>'
+    +'<button id="lp-esc-t2" class="lp-sel-btn"'+(br.available?' title="envia o mesmo pedido ancorado para Sonnet através da subscrição configurada; pode ter custo"':(' disabled title="'+esc(disReason)+'"'))+'>subir para Sonnet · subscrição</button>'
+    +'<button id="lp-esc-cancel" class="lp-sel-btn" title="fecha esta escolha e mantém o pedido local sem nova execução">cancelar</button>'
     +'</div></div>';
   const up=document.getElementById('lp-esc-t2');
   if(up) up.addEventListener('click', function(){
@@ -4623,21 +4633,31 @@ function getHtml(guardianPct = null) {
   .card.graph{border-color:var(--g)} .card.graph .lbl{color:var(--g)}
   .livecow{font-size:22px;line-height:1}
   .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
-  .srow{display:flex;align-items:center;gap:9px;padding:5px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
+  .srow{display:block;padding:3px 5px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:default;background:var(--vscode-editorWidget-background)}
   .srow:hover{background:var(--vscode-list-hoverBackground)}
   .srow.on{border-left-color:var(--g);background:var(--gdim)}
   .srow .livecow{font-size:18px}
-  .sbody{flex:1;min-width:0}
+  .sbody{width:100%;min-width:0}
   .stop{display:flex;gap:8px;align-items:center;justify-content:space-between}
   .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
   .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
   /* WCOCKPIT-9 (Bloco B): compact single-line card — name + state + id on one .sline */
-  .sline{display:flex;align-items:baseline;gap:5px;min-width:0}
-  .sline .sname{flex:0 1 auto;min-width:34px}
-  .sline .sstate{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;color:var(--vscode-descriptionForeground);display:inline-flex;align-items:center;gap:4px}
+  .sline{display:flex;align-items:center;gap:5px;min-width:0;min-height:24px;white-space:nowrap}
+  .sline .sname{flex:1 1 auto;min-width:34px}
+  .sline .sstate{flex:none;max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;color:var(--vscode-descriptionForeground);display:inline-flex;align-items:center;gap:4px;border:1px solid var(--vscode-widget-border);border-radius:8px;padding:1px 5px}
   .sline .sid{flex:none;font-size:9px;color:var(--vscode-descriptionForeground);opacity:.6;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace)}
-  .sline .sllm{margin-left:auto;flex:none}
+  .sline .sllm{flex:none;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srowdot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;background:var(--vscode-descriptionForeground)}
+  .srowdot.needs{background:var(--vscode-charts-yellow)}.srowdot.active{background:var(--vscode-charts-green)}
+  .sstate.needs,.sstate.active{color:var(--vscode-foreground);font-weight:600}
+  .squickactions{display:inline-flex;align-items:center;gap:1px;flex:none}
+  .squick,.sdisclose{width:24px;height:24px;min-width:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-color:transparent;background:transparent;font-size:12px;opacity:.65}
+  .squick:hover,.sdisclose:hover{opacity:1;border-color:var(--vscode-widget-border);background:var(--vscode-list-hoverBackground)}
+  .squick:focus-visible,.sdisclose:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px;opacity:1}
+  .sdisclose .chev{margin:0;font-size:9px}
+  .sdetailhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:9.5px;color:var(--vscode-descriptionForeground)}
+  .sdetails{margin-top:4px;padding:5px 3px 3px;border-top:1px dashed var(--vscode-widget-border)}
   .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .scmpr{font-weight:600;font-size:9.5px}
@@ -4650,7 +4670,7 @@ function getHtml(guardianPct = null) {
   /* Deck Floor (Fase 2): session type glyph + persistent pin. Pinned = filled 📌 + warm left rail
      (shape marker, not colour-only — WCAG 1.4.1). */
   .stype{font-size:11px;flex:none;margin-right:1px}
-  .spin{all:unset;cursor:pointer;font-size:12px;flex:none;opacity:.28;padding:0 3px;line-height:1;filter:grayscale(1)}
+  .spin{all:unset;cursor:pointer;font-size:12px;flex:none;opacity:.28;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;line-height:1;filter:grayscale(1)}
   .spin:hover{opacity:.85;filter:none}
   .spin.on{opacity:1;filter:none}
   .spin:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
@@ -4802,17 +4822,20 @@ function getHtml(guardianPct = null) {
   .ssafe.amber{color:var(--acc-warm);background:rgba(229,192,123,.12)}
   .ssafe.blue{color:var(--blue);background:rgba(90,155,212,.12)}
   .ssafe.repo{color:var(--vscode-descriptionForeground);background:rgba(128,128,128,.12);font-weight:500}
-  /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
-     (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
-     height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
-  .sdrawer{display:none;margin-top:5px;padding-top:5px;border-top:1px dashed var(--vscode-widget-border)}
-  .srow.on .sdrawer,.srow:focus-within .sdrawer{display:block}
+  /* B3: the row disclosure owns all detail visibility; selection never changes row height. */
+  .sdrawer{display:block;margin-top:5px;padding-top:5px;border-top:1px dashed var(--vscode-widget-border)}
+  .srow.collapsed .sdetails{display:none}
+  .srow.collapsed .sdisclose .chev{transform:rotate(-90deg)}
   .srow{position:relative}
-  .srow::after{content:"⋯";position:absolute;right:8px;bottom:3px;font-size:11px;opacity:.3;line-height:1}
-  .srow:hover::after{opacity:.6}
-  .srow.on::after,.srow:focus-within::after{content:""}
   /* WCOCKPIT-6: group header rollup (branch + git stage once per project) */
   .ghd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:11px 2px 4px;font-size:9px;letter-spacing:.04em}
+  .statebucket{display:flex;flex-direction:column;gap:4px;margin:4px 0 7px}
+  .statehead{min-height:24px;display:flex;align-items:center;gap:5px;padding:0 5px;border-bottom:1px solid var(--vscode-widget-border);font-size:9.5px;color:var(--vscode-descriptionForeground)}
+  .statehead .statecount{margin-left:auto;font-variant-numeric:tabular-nums}
+  .statebucket.collapsed>*:not(.collaphead){display:none!important}
+  .statebucket.collapsed .statehead .chev{transform:rotate(-90deg)}
+  .statebucket.needs .statehead{color:var(--vscode-foreground);font-weight:600}
+  .statehead:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   .ghkey{text-transform:uppercase;opacity:.65;font-weight:600}
   .ghsrc{font-weight:600;text-transform:none;letter-spacing:0;font-size:8.5px;opacity:.85}
   .ghsrc.cw{color:var(--blue-bright)}
@@ -4829,7 +4852,7 @@ function getHtml(guardianPct = null) {
   .ghtip{color:var(--acc-warm);font-weight:600}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
-  .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
+  .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center}.stars span:hover,.stars span.on{opacity:1}
   .intentwrap{display:flex;gap:6px;margin:0 0 10px}
   .intentwrap input{flex:1;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 10px;font:12px var(--vscode-font-family)}
   .intentres{font-size:11px;color:var(--vscode-descriptionForeground);margin:-4px 0 8px;display:none}
@@ -4839,6 +4862,7 @@ function getHtml(guardianPct = null) {
   .collaphead:hover{color:var(--vscode-foreground)}
   .collaphead:focus-visible{outline:1px solid var(--r);outline-offset:2px;border-radius:3px}
   .chev{display:inline-block;font-size:8px;opacity:.5;margin-right:6px;transition:transform .15s ease;vertical-align:middle}
+  @media (prefers-reduced-motion:reduce){.chev{transition:none}}
   .card.collapsed .chev{transform:rotate(-90deg)}
   .card.collapsed>*:not(.collaphead){display:none!important}
   .grpsec.collapsed>*:not(.collaphead){display:none!important}
@@ -4899,9 +4923,10 @@ function getHtml(guardianPct = null) {
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
   /* B1 — optimistic perceived-speed: o controlo salta JÁ; "a aplicar…" pulsa no painel até o snapshot reconciliar */
-  .applytag{font-size:9px;color:var(--acc-warm);margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
+  .applytag{font-size:9px;color:var(--vscode-descriptionForeground);margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
   @keyframes applypulse{0%,100%{opacity:.4}50%{opacity:1}}
-  .applying{outline:1px solid rgba(229,192,123,.45);outline-offset:1px}
+  .applying{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
+  #modeBadge,#budSet,#v-models button[data-eff],.sseg .smode,.smodsel,button.sauto,button.sloop{min-height:24px}
   @media (prefers-reduced-motion:reduce){.applytag{animation:none}}
   /* B4 — vista viva do moo local por sessão (estado do acumulador, read-only) */
   .smoo{margin-top:6px;padding:6px 7px;border:1px dashed var(--vscode-widget-border);border-radius:6px;background:var(--vscode-editorWidget-background)}
@@ -4925,9 +4950,9 @@ function getHtml(guardianPct = null) {
   button.hf:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
   .herdempty{font-size:10px;color:var(--vscode-descriptionForeground);text-align:center;padding:12px 8px}
   .herdempty button{font-size:9.5px;padding:2px 9px;margin-left:6px}
-  .srow[hidden],.grpsec[hidden]{display:none!important}
+  .srow[hidden],.statebucket[hidden],.grpsec[hidden]{display:none!important}
   /* compacto: esconde as sublines pesadas (mantém nome+estado+modelo na .sline e o drawer na selecção) */
-  .herd.compact .sbody>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
+  .herd.compact .sdetails>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
   /* ── MISSION CONTROL TAB · Frente G ── */
   .mc-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px}
   .mc-title{font-size:13px;font-weight:700;color:var(--r)}.mc-proj{font-size:11px;color:var(--vscode-descriptionForeground);font-weight:400}
@@ -5338,16 +5363,16 @@ function getHtml(guardianPct = null) {
 </style></head><body class="mooter-adv-hidden">
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
-<div class="brand"><span id="brandCow" class="livecow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
+<div class="brand"><span id="brandCow" class="livecow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="mudar de projecto" title="abre a lista de projectos reais vistos nas sessões e muda todo o deck para o projecto escolhido"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="criar sessão Claude Code" title="abre o menu de criação; neste momento só Nova sessão CC está disponível">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc" title="abre uma nova sessão Claude Code">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo ainda não está disponível neste menu"> <span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Agendar ainda não está disponível neste menu"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
 <div class="tabs">
   <!-- R1 · priority-collapse: 4 delivery tabs stay in the bar; the rest fold into ··· (nothing loses access). -->
-  <div class="tab on" data-v="cockpit">🐮 Cockpit</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc">🛩️ Project command</div><div class="tab" data-v="arch">🌳 Arquitectura</div><details class="taboverflow" id="taboverflow"><summary aria-haspopup="menu" aria-label="mais separadores (Setup · Agents · Decisions · Doctor)" title="mais — Setup · Agents · Decisions · Doctor">··· <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="Mais separadores"><button class="mi" role="menuitemradio" data-v="setup">⚙️ Setup</button><button class="mi" role="menuitemradio" data-v="herd">🤖 Agents</button><button class="mi" role="menuitemradio" data-v="decisions">🔬 Decisions</button><button class="mi" role="menuitemradio" data-v="doctor">🩺 Doctor</button></div></details>
+  <div class="tab on" data-v="cockpit" role="button" tabindex="0" title="mostra as sessões recentes e os controlos operacionais do cockpit">🐮 Cockpit</div><!-- MISSION CONTROL TAB · Frente G --><div class="tab" data-v="mc" role="button" tabindex="0" title="mostra o snapshot consolidado do Mission Control e as acções locais disponíveis">🎛️ Mission Control</div><!-- DELIVERY COCKPIT TAB · Frente B --><div class="tab" data-v="pc" role="button" tabindex="0" title="mostra o estado de entrega do projecto a partir dos sinais reais de git e sessões">🛩️ Project command</div><div class="tab" data-v="arch" role="button" tabindex="0" title="mostra o mapa de arquitectura derivado do snapshot actual">🌳 Arquitectura</div><details class="taboverflow" id="taboverflow"><summary aria-haspopup="menu" aria-label="mais separadores" title="abre os separadores Setup, Agents, Decisions e Doctor">··· <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="Mais separadores"><button class="mi" role="menuitemradio" data-v="setup" title="mostra hardware, software, subscrições e limites guardados localmente">⚙️ Setup</button><button class="mi" role="menuitemradio" data-v="herd" title="mostra os agentes e modelos registados no snapshot actual">🤖 Agents</button><button class="mi" role="menuitemradio" data-v="decisions" title="mostra as decisões de routing reais e permite avaliá-las">🔬 Decisions</button><button class="mi" role="menuitemradio" data-v="doctor" title="mostra os diagnósticos locais e as correcções disponíveis">🩺 Doctor</button></div></details>
 </div>
 </div>
 <!-- B9 — command bar (not a chatbot): natural language OR a /command resolves to a real Mooter command via the classifier; a leading "/" runs straight through. -->
-<div class="intentwrap"><input id="intentIn" placeholder="🐮 run a command, or describe it… (→ /mooter command)"><button class="sm" id="intentGo" title="resolve to a Mooter command and offer to run it">→</button></div><div class="intentres" id="intentRes"></div>
+<div class="intentwrap"><input id="intentIn" placeholder="🐮 run a command, or describe it… (→ /mooter command)" title="escreve um comando /mooter ou descreve a intenção; o cockpit resolve-a antes de executar" aria-label="comando ou intenção para o Mooter"><button class="sm" id="intentGo" title="resolve o texto para um comando Mooter real e mostra-o antes de o executar" aria-label="resolver comando">→</button></div><div class="intentres" id="intentRes"></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
 <!-- ARCH TREE TAB (Frente E · Arquitectura Viva) — renders purely from s.mc (MissionControlSnapshot). Separate from the Frente G Mission Control region. -->
 <div class="view" id="view-arch"><div id="v-arch"><div class="empty">🔌 Arquitectura · system map — a ligar…</div></div></div>
@@ -5432,7 +5457,10 @@ const collapsed=new Set((function(){try{
   if(!st.layoutCalmV1){st.layoutCalmV1=1;st.collapsed=[...new Set([...(st.collapsed||[]),..._CALM_COLLAPSED])];try{vsapi.setState(st);}catch{}}
   return st.collapsed||_CALM_COLLAPSED;
 }catch{return _CALM_COLLAPSED;}})());
-function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
+const collapseKnown=new Set((function(){try{return (vsapi.getState()||{}).collapseKnown||[];}catch{return [];}})());
+function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];st.collapseKnown=[...collapseKnown];vsapi.setState(st);}catch{}}
+// B3: seed compact rows + idle buckets once; the same persisted collapse Set remembers later toggles.
+function ccBorn(id,bornCollapsed){if(!collapseKnown.has(id)){collapseKnown.add(id);if(bornCollapsed)collapsed.add(id);saveCollapsed();}return cc(id);}
 // Sessions-always-visible (runtime-diagnosed via _handoff/herd-diag.json): a persisted 'grp:*'
 // project-group collapse survives reload and is BORN collapsed (cc()→.grpsec.collapsed → the CSS
 // rule .grpsec.collapsed>*:not(.collaphead){display:none} hides every .srow), so the herd shows 0
@@ -5461,7 +5489,7 @@ function saveHerdPrefs(){try{const st=vsapi.getState()||{};st.herdFilter=herdFil
 function applyHerdFilter(){
   const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
   const bar=document.querySelector('#v-cockpit .herdfilter');
-  if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
+  if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .statebucket').forEach(b=>{b.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
   cont.classList.toggle('compact',!!herdCompact);
   const q=(herdQuery||'').toLowerCase().trim();
   let f=herdFilter||'all';if(HF_VALID.indexOf(f)<0)f='all'; // filtro inválido/legado → 'all' (nunca esconde por acidente)
@@ -5475,6 +5503,7 @@ function applyHerdFilter(){
   // as sessões reverte para mostrar todas. O cockpit nunca pode deixar a herd vazia sem o user escolher.
   // Procura sem match é o ÚNICO estado-vazio (mostra o "Ver todas"); um filtro de estado nunca lá chega.
   if(f!=='all'&&!q&&shown===0&&total>0){rows.forEach(r=>{r.hidden=false;});shown=total;f='all';herdFilter='all';}
+  document.querySelectorAll('#v-cockpit .statebucket').forEach(b=>{const any=[...b.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);b.hidden=!any;const forceOpen=any&&(f!=='all'||!!q);const folded=forceOpen?false:collapsed.has(b.dataset.collap);b.classList.toggle('collapsed',folded);const h=b.querySelector('.statehead');if(h)h.setAttribute('aria-expanded',String(!folded));});
   document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{const any=[...g.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);g.hidden=!any;});
   document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>b.classList.toggle('on',b.dataset.hf===f));
   const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.classList.toggle('on',!!herdCompact);
@@ -5512,6 +5541,8 @@ function enforceHerdVisible(){
   const rows=[...cont.querySelectorAll('.srow[data-state]')];if(!rows.length)return; // no sessions → nothing to guard
   if((herdQuery||'').trim())return;        // an active search owns the empty-state; never override it
   if(rows.some(herdRowVisible))return;     // ≥1 already visible → invariant already holds
+  const folded=[...cont.querySelectorAll('.statebucket.collapsed .statehead')];
+  if(folded.some(h=>!herdAncestorCollapsed(h)))return; // B3: a visible bucket header is intentional disclosure, not an empty herd
   let purged=false;
   rows.forEach(r=>{r.hidden=false;let n=r.parentElement;while(n&&n.id!=='v-cockpit'){if(n.classList&&n.classList.contains('collapsed')&&(n.classList.contains('card')||n.classList.contains('grpsec'))){n.classList.remove('collapsed');const id=n.dataset&&n.dataset.collap;if(id&&collapsed.has(id)){collapsed.delete(id);purged=true;}}n=n.parentElement;}});
   if(herdFilter!=='all')herdFilter='all';
@@ -5529,7 +5560,7 @@ function cc(id){return collapsed.has(id)?' collapsed':'';}
 // Build a uniform collapsible header (chevron + title). Click/Enter toggles; clicks on
 // interactive children (e.g. the ledger scope pills [data-ls]) are ignored so they don't collapse.
 function chead(title,cls){return '<div class="'+(cls||'lbl')+' collaphead"><span class="chev">▾</span>'+title+'</div>';}
-function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();};h.onclick=tog;h.setAttribute('role','button');h.setAttribute('tabindex','0');h.setAttribute('aria-label','toggle section');h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog();}});});}
+function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const sync=()=>{const open=!c.classList.contains('collapsed');h.setAttribute('aria-expanded',String(open));if(!h.getAttribute('aria-label'))h.setAttribute('aria-label','expandir ou recolher esta secção');if(!h.getAttribute('title'))h.setAttribute('title','expandir ou recolher esta secção');};const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;if(ev&&ev.stopPropagation)ev.stopPropagation();const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();sync();};h.onclick=tog;if(h.tagName!=='BUTTON'){h.setAttribute('role','button');h.setAttribute('tabindex','0');}sync();h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog(e);}});});}
 // ⇄ Handoff v2 — inline live panel state. The whole cockpit re-renders on every snapshot, so the
 // panel CONTENT must live OUTSIDE the DOM (here) and be re-applied after each render (hydrateHoff).
 // Keyed by data-hoff id (session id OR project key). status: 'ready' (skeleton copiado) | 'enriched'
@@ -5580,7 +5611,7 @@ function ledgerHtml(s){
   const scopeLbl=(ledgerScope==='all')?'all time':'this session';
   const total=L.rows.reduce((a,r)=>a+(r.cost||0),0);
   const sidChip=(scoped&&ledgerScope!=='all')?(' <span style="opacity:.55;font-size:9px">· '+esc((s.effectiveSession||'').slice(0,8))+'</span>'):'';
-  const tog='<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>';
+  const tog='<span style="float:right">'+['session','all'].map(sc=>'<span data-ls="'+sc+'" role="button" tabindex="0" title="'+(sc==='session'?'mostra no ledger apenas os tokens da sessão seleccionada':'mostra no ledger os tokens de todas as sessões registadas')+'" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:4px;border:1px solid var(--vscode-widget-border);'+(ledgerScope===sc?'background:var(--gdim);color:var(--g);border-color:var(--g)':'color:var(--vscode-descriptionForeground)')+'">'+(sc==='session'?'This session':'All time')+'</span>').join('')+'</span>';
   const head=chead('🧾 Tokens by model'+sidChip+' '+tog);
   // Cloud rows (real). saved = "—" (a billed row can't "save vs Opus" — it IS the spend).
   const cloudTr=L.rows.map(r=>'<tr><td title="'+esc(r.model)+'">'+esc(modelLabel(r.model))+'</td><td>'+lFmt(r.in)+'</td><td>'+lFmt(r.out)+'</td><td title="read '+lFmt(r.cr)+' / write '+lFmt(r.cw)+'">'+lFmt((r.cr||0)+(r.cw||0))+'</td><td>'+(r.cost==null?'—':'$'+r.cost.toFixed(2))+'</td><td class="sv">—</td></tr>').join('');
@@ -5602,18 +5633,20 @@ function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelec
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 // B1 — optimistic perceived-speed: depois de aplicar o novo estado JÁ no DOM (.on salta no clique),
 // mostra "⟳ a aplicar…" no PAINEL junto ao controlo até o próximo snapshot reconciliar (o re-render
-// reconstrói #v-cockpit e limpa a tag). Safety timeout caso um refresh demore/falhe. Nunca lança.
+// reconstrói o painel e limpa a tag). Safety timeout cobre os applies CLI de até 8s. Nunca lança.
 function flashApply(el){try{if(!el)return;el.classList.add('applying');
   var host=(el.closest&&(el.closest('.sdrawer')||el.closest('.srow')||el.closest('.card')||el.closest('.brand')))||el.parentNode;
   if(host&&!host.querySelector('.applytag')){var t=document.createElement('span');t.className='applytag';t.textContent='⟳ a aplicar…';host.appendChild(t);
-    setTimeout(function(){try{t.remove();}catch(_){}try{el.classList.remove('applying');}catch(_){}} ,2500);}
+    setTimeout(function(){try{t.remove();}catch(_){}try{el.classList.remove('applying');}catch(_){}} ,10000);}
 }catch(_){}}
+function clearApply(){try{document.querySelectorAll('.applytag').forEach(function(x){try{x.remove();}catch(_){}});document.querySelectorAll('.applying').forEach(function(x){try{x.classList.remove('applying');}catch(_){}});}catch(_){}}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
   if(a.startsWith('term:'))send('term',a.slice(5));
   else if(a.startsWith('openUrl:'))send('openUrl',a.slice(8));
   else if(a.startsWith('pull:'))send('pull',a.slice(5));
   else if(a.startsWith('tab:'))goTab(a.slice(4));
+  else if(a==='openSessionTab')send(a,{id:b.dataset.x,title:b.dataset.title||''});
   else send(a,b.dataset.x);
 });}
 // WCOCKPIT-3: session card renderer (from row-renderer.js — safe when fn.toString() serialised)
@@ -5621,6 +5654,8 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
 // scope in the webview, so renderRow's free refs to STAGE_META/deriveStages must be declared here).
 const STAGE_META=${RR?JSON.stringify(RR.STAGE_META):'[]'};
 const deriveStages=${RR?RR.deriveStages.toString():'function deriveStages(){return {stages:{},safe:{level:"green",label:"",action:null},behind:null};}'};
+const sessionStateKey=${RR&&RR.sessionStateKey?RR.sessionStateKey.toString():'function sessionStateKey(r){return r&&r.needsYou?"needs":(r&&(r.working||r.waitingForCowork)?"active":"idle");}'};
+const orderSessionsByState=${RR&&RR.orderSessionsByState?RR.orderSessionsByState.toString():'function orderSessionsByState(rows){return rows||[];}'};
 const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // HONEST-CONTROLS D2: inbox meta-classifier + per-repo collapse (siblings — renderInbox calls them)
@@ -5680,7 +5715,7 @@ function renderFlowLens(s){
       body+='<div class="lrow"><span class="lk">Forecast</span><span class="lv">'+fcTxt+'</span></div>';
     }
   }
-  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="pc" role="button" tabindex="0">Project command ↗</span></div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="pc" role="button" tabindex="0" title="abre o separador Project command">Project command ↗</span></div>';
   return '<div class="card lens'+cc('lens-flow')+'" data-collap="lens-flow" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>📊 Flow</div><div class="lens-body">'+body+'</div></div>';
 }
 // 💰 Economics — savings (advisory) + real executed ($0 dispatches) + router mix (COUNTS, not $ —
@@ -5712,7 +5747,7 @@ function renderEconomicsLens(s){
   var plan=(s&&s.sub&&s.sub.profile)?esc(String(s.sub.profile)):null;
   body+='<div class="lrow"><span class="lk">Plano</span><span class="lv">'+(plan||lNd())+' <span class="lwhy">· %/sem n/d</span></span></div>';
   body+='<div class="lwhy" style="margin-top:2px">a poupança vem do <b>routing</b> (a máquina responde; o tier é recomendação, não fatura) — não de trade-off de qualidade.</div>';
-  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Decisions ↗</span></div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0" title="abre o separador Decisions">Decisions ↗</span></div>';
   return '<div class="card lens'+cc('lens-econ')+'" data-collap="lens-econ" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>💰 Economics</div><div class="lens-body">'+body+'</div></div>';
 }
 // 🏗️ Foundations — chips from real probes. Security shows summary presence only (there is NO
@@ -5731,7 +5766,7 @@ function renderFoundationsLens(s){
   var gpuName=(s&&s.hw&&s.hw.name)||(s&&s.device&&s.device.hardware&&s.device.hardware.gpu)||null;
   var setup=(gpuName?esc(String(gpuName)):lNd())+' · '+Object.keys((s&&s.packs)||{}).length+' packs';
   var body='<div class="lrow" style="flex-wrap:wrap;gap:6px">'+archChip+docChip+secChip+'<span class="lchip" title="GPU (perfil estático) · packs instalados">⚙️ '+setup+'</span></div>';
-  body+='<div class="lrow" style="margin-top:3px"><span class="llink" data-goto="doctor" role="button" tabindex="0">Doctor ↗</span></div>';
+  body+='<div class="lrow" style="margin-top:3px"><span class="llink" data-goto="doctor" role="button" tabindex="0" title="abre o separador Doctor">Doctor ↗</span></div>';
   return '<div class="card lens'+cc('lens-found')+'" data-collap="lens-found" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🏗️ Foundations</div><div class="lens-body">'+body+'</div></div>';
 }
 // 🧠 Brain — Pastor (TF-IDF, real) · Guardian (deck signal = s.mc.totals.ctxFull) · Ledger. Handoff
@@ -5751,7 +5786,7 @@ function renderBrainLens(s){
   // F2 · honesto — this is a fixed capability (copy session/project handoff), not a live green health
   // signal; render it as a capability so the constant ✓✓ stops reading as live status among the live rows.
   body+='<div class="lrow"><span class="lk">⇄ Handoff</span><span class="lv"><span class="lwhy">copia</span> sessão · projeto <span class="lwhy">(ação)</span></span></div>';
-  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0">Insights ↗</span></div>';
+  body+='<div class="lrow" style="margin-top:2px"><span class="llink" data-goto="decisions" role="button" tabindex="0" title="abre o separador Decisions com os insights de routing">Insights ↗</span></div>';
   return '<div class="card lens'+cc('lens-brain')+'" data-collap="lens-brain" style="padding:9px 11px;margin-bottom:8px"><div class="lbl collaphead"><span class="chev">▾</span>🧠 Brain</div><div class="lens-body">'+body+'</div></div>';
 }
 // ── Deck Phase 4 · Vida ──────────────────────────────────────────────────────
@@ -5908,7 +5943,7 @@ function renderSwitcher(s){
   var menu=$('#pswitchMenu');if(!menu)return;
   function opt(label,val,isAll){var on=isAll?!deckProject:(deckProject===val);
     var cnt=isAll?rs.length:rs.filter(function(r){return projOf(r)===val;}).length;
-    return '<button class="mi" role="radio" aria-checked="'+(on?'true':'false')+'" data-proj="'+esc(val||'')+'"><span><span class="tick">'+(on?'✓ ':'')+'</span>'+esc(label)+'</span><span class="mcount">'+cnt+'</span></button>';}
+    return '<button class="mi" role="radio" aria-checked="'+(on?'true':'false')+'" data-proj="'+esc(val||'')+'" title="filtra todo o deck pelo projecto '+esc(label)+'; não altera ficheiros nem sessões"><span><span class="tick">'+(on?'✓ ':'')+'</span>'+esc(label)+'</span><span class="mcount">'+cnt+'</span></button>';}
   var html=opt('All projects','',true);
   for(var k=0;k<projs.length;k++)html+=opt(projs[k],projs[k],false);
   menu.innerHTML=html;
@@ -5961,11 +5996,11 @@ window.addEventListener('message',(e)=>{
   if(e.data.type==='moo-stream'){mcMoo.status='thinking';mcMoo.out=(mcMoo.out||'')+(e.data.chunk||'');mcApply();return;}
   if(e.data.type==='moo-done'){mcMoo.status='idle';mcMoo.out=e.data.text||mcMoo.out||'';if(e.data.model)mcMoo.model=e.data.model;mcApply();return;}
   if(e.data.type==='intent'){const r=e.data.res;
-    if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun">run</button>';
+    if(r&&r.cmd){inR.innerHTML='→ <b>'+esc(r.cmd)+'</b>'+(r.conf!=null?' <span style="opacity:.7">(conf '+r.conf+(r.rule?' · '+esc(r.rule):'')+')</span>':'')+' <button class="sm" id="intentRun" title="executa este comando Mooter no terminal integrado">executar</button>';
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
-    else {inR.innerHTML='🐮 not a known command — <button class="sm" id="intentTerm">open Terminal</button> to run it manually';var _it=document.getElementById('intentTerm');if(_it)_it.onclick=function(){goTab('doctor');};}
+    else {inR.innerHTML='🐮 comando desconhecido — <button class="sm" id="intentTerm" title="abre o separador Doctor com os comandos de terminal disponíveis">abrir Doctor</button> para o executar manualmente';var _it=document.getElementById('intentTerm');if(_it)_it.onclick=function(){goTab('doctor');};}
     return;}
-  if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
+  if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;clearApply();
   // B2 — stable scroll: the periodic snapshot re-renders every view's innerHTML, which
   // resets the document scroll and makes the panel jump/flicker. Capture the active scroll
   // now and restore it after all views are rebuilt (only the visible view has height, so a
@@ -5991,7 +6026,7 @@ window.addEventListener('message',(e)=>{
        {ok:false,t:'mooter engine',d:'one command — local routing + savings',b:['Install engine','install']},
        {ok:(s.ollama||[]).length>0,t:'Ollama (free T0)',d:'optional',b:['ollama.com →','openUrl:https://ollama.com/download']},
        {ok:false,t:'First routed prompt',d:'launch a session'}]
-      .map((st,i)=>'<div class="wstep'+(st.ok?' done':'')+'"><div class="n">'+(st.ok?'✓':i+1)+'</div><div class="w">'+esc(st.t)+'<small>'+esc(st.d)+'</small></div>'+(st.b?'<button data-a="'+st.b[1]+'">'+esc(st.b[0])+'</button>':'')+'</div>').join('')+'</div>';
+      .map((st,i)=>'<div class="wstep'+(st.ok?' done':'')+'"><div class="n">'+(st.ok?'✓':i+1)+'</div><div class="w">'+esc(st.t)+'<small>'+esc(st.d)+'</small></div>'+(st.b?'<button data-a="'+st.b[1]+'" title="executa este passo do setup: '+esc(st.b[0])+'">'+esc(st.b[0])+'</button>':'')+'</div>').join('')+'</div>';
     wireButtons($('#v-cockpit'));return;
   }
 
@@ -6016,9 +6051,9 @@ window.addEventListener('message',(e)=>{
   // WCOCKPIT-9 (Bloco D): passa os modelos locais REAIS (snapshot.ollama) ao dropdown por sessão.
   // (Bloco F): loopActive = liveness honesta do loop-runner. (Bloco E): slashCommands = picker real.
   const localModels=s.ollama||[];const loopActive=!!s.loopActive;const slashCommands=s.slashList||[];
-  const rowFor=(r,gctx)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey,localModels,loopActive,slashCommands});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
-  // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
-  const sorted=[...rsess].sort((a,b)=>{if(!!a.pinned!==!!b.pinned)return a.pinned?-1:1;if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
+  const rowFor=(r,gctx)=>{try{const rk='sess:'+r.fullId;return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey,localModels,loopActive,slashCommands,rowCollapsed:ccBorn(rk,true).indexOf('collapsed')>=0});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
+  // B3: state is the primary order; pin + recency only sort within the same state.
+  const sorted=orderSessionsByState(rsess);
   // WCOCKPIT-9 (Bloco A): agrupa por PROJETO COWORK real (espelho). O repoFolder deixa de
   // mascarar-se de projeto: é fallback ROTULADO ('repo (sem Cowork)') só quando há repo git
   // real (branch/gitStage); um cwd qualquer (ex.: System32) cai em 'Unassigned · sem Cowork'.
@@ -6030,19 +6065,25 @@ window.addEventListener('message',(e)=>{
   // WCOCKPIT-6: roll up branch + git stage to the group header; pass as context so cards dedup.
   const gitKeyOf=(r)=>r.gitStage?(r.gitStage.state+':'+(r.gitStage.dirty||0)+':'+(r.gitStage.ahead||0)):'';
   const groupCtx=(gr)=>{let branch=null,gitKey=null;for(const r of gr){if(!branch&&r.branch)branch=r.branch;if(!gitKey&&r.gitStage)gitKey=gitKeyOf(r);}return{branch,gitKey};};
-  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('')+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">Nenhuma sessão ativa</div><div class="sub" style="margin:4px 0 10px">Abre um separador Claude Code e envia um prompt — o Mooter roteia-o e a herd acende-se.</div><button class="go" data-a="launch">★&nbsp; New CC — começar</button></div>';
+  // B3 minimal composition: keep the real project grouping, then order three state buckets inside it.
+  const stateBuckets=(k,gr,gc)=>[
+    ['needs','🟡','Precisa de ti','expandir ou recolher as sessões que precisam de ti'],
+    ['active','🟢','Activas','expandir ou recolher as sessões activas'],
+    ['idle','✅','Idle / done','expandir ou recolher as sessões idle/done; estão recolhidas por defeito']
+  ].map(d=>{const rows=gr.filter(r=>sessionStateKey(r)===d[0]);if(!rows.length)return '';const id='state:'+k+':'+d[0];const cl=d[0]==='idle'?ccBorn(id,true):cc(id);const open=cl.indexOf('collapsed')<0;return '<div class="statebucket '+d[0]+cl+'" data-collap="'+esc(id)+'" data-bucket="'+d[0]+'"><div class="statehead collaphead" title="'+d[3]+'" aria-label="'+d[3]+'" aria-expanded="'+String(open)+'"><span class="chev">▾</span><span>'+d[1]+' '+d[2]+'</span><span class="statecount">'+rows.length+'</span></div>'+rows.map(r=>rowFor(r,gc)).join('')+'</div>';}).join('');
+  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+stateBuckets(k,gr,gc)+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">Nenhuma sessão ativa</div><div class="sub" style="margin:4px 0 10px">Abre um separador Claude Code e envia um prompt — o Mooter roteia-o e a herd acende-se.</div><button class="go" data-a="launch" title="abre uma nova sessão Claude Code">★&nbsp; New CC — começar</button></div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
-  const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
-  const needN=rsess.filter(r=>r.needsYou).length;
+  const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0" title="muda os números do cockpit para o total combinado de todas as sessões"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
+  const needN=rsess.filter(r=>sessionStateKey(r)==='needs').length;
   const clearableN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).length; // WCOCKPIT-7: old & safe-to-close
   // B3 — declutter: contadores por estado + barra de filtro/procura (só quando há sessões suficientes
   // para densidade importar; <5 sessões não esconde idle por defeito, para não surpreender).
-  const activeN=rsess.filter(r=>r.working||r.waitingForCowork).length;
-  const idleN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork).length;
+  const activeN=rsess.filter(r=>sessionStateKey(r)==='active').length;
+  const idleN=rsess.filter(r=>sessionStateKey(r)==='idle').length;
   const showFilter=rsess.length>=5;
-  const hfBar=showFilter?('<div class="herdfilter"><input class="herdq" placeholder="🔎 filtrar sessões…" aria-label="filtrar sessões por nome" value="'+esc(herdQuery)+'"><div class="herdchips" role="toolbar" aria-label="filtrar a herd por estado">'
+  const hfBar=showFilter?('<div class="herdfilter"><input class="herdq" placeholder="🔎 filtrar sessões…" aria-label="filtrar sessões por nome" title="filtra localmente as sessões visíveis por nome, id ou primeiro prompt" value="'+esc(herdQuery)+'"><div class="herdchips" role="toolbar" aria-label="filtrar a herd por estado">'
     +'<button class="hf" data-hf="atencao" title="precisam de ti + activas (esconde idle/done)">🎯 Atenção</button>'
     +'<button class="hf" data-hf="needs" title="só as que esperam pela tua resposta">🟡 Precisam <b>'+needN+'</b></button>'
     +'<button class="hf" data-hf="active" title="a gerar agora ou à espera do Cowork">🟢 Activas <b>'+activeN+'</b></button>'
@@ -6050,7 +6091,7 @@ window.addEventListener('message',(e)=>{
     +'<button class="hf" data-hf="all" title="mostrar todas">Todas <b>'+rsess.length+'</b></button>'
     +'<button class="hf hfcompact" data-hfc="1" title="modo compacto — esconde sublines para densidade">▾ compacto</button>'
     +'</div></div>'):'';
-  const hfEmpty=showFilter?'<div class="herdempty" hidden role="status"><span class="herdemptytxt"></span><button class="sm" data-hf="all">Ver todas</button></div>':'';
+  const hfEmpty=showFilter?'<div class="herdempty" hidden role="status"><span class="herdemptytxt"></span><button class="sm" data-hf="all" title="limpa o filtro de estado e volta a mostrar todas as sessões">Ver todas</button></div>':'';
   const herdCard='<div class="card'+cc('herd')+'" style="padding:9px 11px;margin-bottom:8px" data-collap="herd"><div class="lbl collaphead"><span class="chev">▾</span>🐄 Live sessions <span style="float:right;display:inline-flex;gap:7px;align-items:center;opacity:.6;font-size:9px">'+(clearableN?'<button class="clrdone" title="close '+clearableN+' old session'+(clearableN===1?'':'s')+' that already did their job — archive, reversible">🧹 clear '+clearableN+'</button>':'')+'<span>'+rsess.length+' recent'+(needN?' · '+needN+' need you':'')+'</span></span></div>'+hfBar+'<div class="herd">'+herdRows+allRow+'</div>'+hfEmpty+linkNote+'<div class="sub" style="font-size:9px;margin-top:6px">● working (generating) · <span class="needsyou">⬤ your turn</span> (Claude finished, waiting for your reply) · <b>click a cow to open that session in Claude Code</b>. Reads ~/.claude logs · branch/PR via git+gh.</div></div>';
   // WS3: Local Moo Fleet — local moos working on handoffs in PARALLEL with the cloud CC ($0).
   // Read-only render from the snapshot (recent rows carry .localMoo; s.localSpeed = measured tok/s).
@@ -6091,7 +6132,7 @@ window.addEventListener('message',(e)=>{
   $('#v-cockpit').innerHTML=
     // B1 — primary action at the TOP (was buried at the bottom), full-width CTA weight.
     // B8 — caption: what it does + what happens next (Mooter routes every prompt).
-    '<button class="go" data-a="launch" style="margin-bottom:4px">✱&nbsp; New Claude Code session</button>'+
+    '<button class="go" data-a="launch" style="margin-bottom:4px" title="abre uma nova sessão Claude Code">✱&nbsp; New Claude Code session</button>'+
     '<div class="hint" style="margin:0 0 10px">opens a fresh Claude Code tab — Mooter routes every prompt to the cheapest tier that fits · '+esc(MOO[s.mode]||s.mode)+' active</div>'+
     hwStripCard+
     pipelineCard+
@@ -6121,7 +6162,7 @@ window.addEventListener('message',(e)=>{
         + '<div class="sub" style="margin-top:3px"><span style="color:var(--g)">✓ this machine:</span> ~<b>' + gTok.toLocaleString() + '</b> ctx-tokens saved · ' + gRes + ' graph-resolved</div>'
         + '</div>';
     })()+
-    '<div class="seg" style="margin-bottom:2px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0">'+MOO[mo]+'</div>').join('')+'</div>'+
+    '<div class="seg" style="margin-bottom:2px">'+['zen','auto','beast'].map(mo=>'<div class="mo'+(s.mode===mo?' on':'')+'" data-m="'+mo+'" role="button" tabindex="0" title="'+(mo==='zen'?'activa LazyMoo como modo global; privilegia modelos locais e baratos':(mo==='beast'?'activa CrazyMoo como modo global; força o tier de maior capacidade':'activa Moo como modo global; deixa o router escolher o tier mínimo adequado'))+'">'+MOO[mo]+'</div>').join('')+'</div>'+
     '<div class="hint" style="margin:0 0 8px;text-align:left;font-size:9px">🐄 LazyMoo saves most · 🐮 Moo balances · 🐂 CrazyMoo always strongest — sets the default tier for new prompts</div>'+
     '<div class="card pincard'+cc('pin')+'" data-collap="pin"><div class="pinhead collaphead"><span class="chev">▾</span>🎯 Next prompt model</div><div class="pinsub">picks the model for your very next prompt — auto-routed, no paste</div><select id="pinSel" title="picks the model for your very next prompt — auto-routed, no paste" class="pinsel">'+pinOpts+'</select>'+(curPin?'<div class="pinnow">→ pinned: <b>'+esc(curPin)+'</b>'+(isHeavyLocal(curPin)?' <span style="opacity:.65;font-size:9px">\u00b7 modelo pesado: 1\u00aa resposta pode levar ~1-2min (cold-load + CPU)</span>':'')+'</div>':'')+'</div>'+
     fleetCard+
@@ -6133,7 +6174,7 @@ window.addEventListener('message',(e)=>{
     foundationsLens+
     handoffFlowCard+
     '<div class="card'+cc('score')+'" data-collap="score"><div class="lbl collaphead"><span class="chev">▾</span>🎯 Mooter Score · '+score.done+'/'+score.total+'</div><div class="scorebar"><div class="f" style="width:'+score.pct+'%"></div></div>'+
-    (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'">fix</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
+    (pend.length?pend.map(c=>'<div class="dr"><span>◻︎</span><div class="w">'+esc(c.t)+'</div><button class="sm" data-a="'+esc(c.fix)+'" title="executa a correcção indicada para '+esc(c.t)+'">corrigir</button></div>').join(''):'<div class="sub">🏆 perfect setup — nothing pending</div>')+'</div>'+
     '<div class="row"><div class="card"><div class="v">'+(M.prompts||0)+'</div><div class="k">Prompts</div></div><div class="card"><div class="v">'+(me.prompts_today!=null?me.prompts_today:'—')+'</div><div class="k">Today</div></div><div class="card"><div class="v">$'+(M.avg_saved_per_prompt||0).toFixed(3)+'</div><div class="k">Avg saved</div></div></div>'+
     '<div class="card'+cc('recs')+'" data-collap="recs"><div class="lbl collaphead"><span class="chev">▾</span>Router mix · last '+decScoped.length+' <span style="float:right;opacity:.6;font-size:9px">advisory</span>'+mixBar+'</div>'+mixLabels+localSpark(decScoped)+'<div class="sub" style="font-size:9px;margin-top:5px">T0 = local · the host model answers, so the tier is a suggestion not a bill. <b>Ran last:</b> '+(lv&&lv.real?esc(lv.emoji)+' '+esc(modelLabel(lv.model)):'host model')+' · '+realLocalN+' real local</div></div>'+
     '<div id="tokLedger">'+ledgerHtml(s)+'</div>';
@@ -6143,6 +6184,7 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{const go=()=>{const seg=el.parentNode;if(seg)seg.querySelectorAll('.mo').forEach(x=>x.classList.remove('on'));el.classList.add('on');flashApply(el);send('mode',el.dataset.m);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{flashApply(ps);send('pinNext',ps.value);};})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSessionTab',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  document.querySelectorAll('#v-cockpit .squick').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(b.dataset.qhandoff)send('handoff',b.dataset.qhandoff);else if(o)o.call(b,e);};});
   // Deck Floor (Fase 2): persistent pin toggle — stops row-open propagation; persists via host→mode-registry.
   document.querySelectorAll('#v-cockpit .spin[data-psess]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const next=b.dataset.pinned!=='true';b.classList.toggle('on',next);b.dataset.pinned=String(next);b.setAttribute('aria-pressed',String(next));flashApply(b);send('pinSession',{sid:b.dataset.psess,pinned:next});};b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});
@@ -6155,21 +6197,23 @@ window.addEventListener('message',(e)=>{
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};
-  const bud=(s.budget&&s.budget.monthly_budget_usd)||0;
+  const budgetValue=s.budget&&s.budget.monthly_budget_usd;
+  const hasBudget=budgetValue!=null&&Number.isFinite(Number(budgetValue));
+  const bud=hasBudget?Number(budgetValue):'';
   const kv=(k,v)=>'<div class="kv"><span>'+esc(k)+'</span><span>'+(v==null||v===''?'<i style="color:var(--r)">missing</i>':esc(v))+'</span></div>';
   $('#v-setup').innerHTML=
     '<div class="card"><div class="lbl">🎮 Hardware</div>'+kv('GPU',hw.name||hwd.gpu||null)+kv('VRAM',hw.vram_mb?(hw.vram_mb/1024).toFixed(0)+' GB':null)+kv('Tier',hw.hw_tier||hwd.hw_tier)+kv('RAM',hwd.ram_gb?hwd.ram_gb+' GB':null)+kv('CPU cores',hwd.cpu_cores)+kv('Platform',(hwd.platform||'')+(hwd.arch?'/'+hwd.arch:''))+
-      (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
+      (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px" title="executa no terminal a detecção local de hardware e software; guarda o perfil em ~/.mooter">Detectar agora</button>':'')+'</div>'+
     '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',(s.ollama||[]).length?'running · '+(s.ollama.length)+' models':(sw.ollama_installed?'installed (stopped)':'offline'))+'</div>'+
     '<div class="card"><div class="lbl">🔑 Subscriptions</div>'+kv('Anthropic',subs.anthropic||(s.sub&&s.sub.profile))+kv('OpenAI',subs.openai)+kv('Gemini',subs.gemini)+kv('Ollama',subs.ollama)+'<div class="sub" style="margin-top:5px">keys & tiers drive T1-T3 budgets</div></div>'+
-    '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>'+
+    '<div class="card"><div class="lbl">💰 Orçamento mensal — guardado localmente</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10" placeholder="n/d" aria-label="Orçamento mensal em dólares" title="define o limite mensal em dólares; fica apenas na configuração local do Mooter"><button class="sm" id="budSet" title="guarda este limite mensal na configuração local do Mooter; não efectua qualquer cobrança">Aplicar</button><span class="sub">'+(hasBudget?'limite guardado: $'+bud+'/mês':'sem limite guardado · n/d')+'</span></div></div>'+
     // ── GUARDIAN:F0 ── context guardrail card — write CLAUDE_AUTOCOMPACT_PCT_OVERRIDE so CC auto-compacts BEFORE the ~83% delirium line.
     '<div class="card"><div class="lbl">🛡️ Context guardrail — auto-compact antecipado</div>'+
       '<div class="sub" style="margin-top:6px">Estado actual: <b>'+(GUARDIAN_AUTOCOMPACT_PCT!=null?('auto-compact aos '+GUARDIAN_AUTOCOMPACT_PCT+'%'):'default do Claude Code (~83%)')+'</b></div>'+
-      '<div style="display:flex;gap:6px;margin-top:8px">'+[70,75,80].map(p=>'<button class="sm'+(GUARDIAN_AUTOCOMPACT_PCT===p?'" style="border-color:var(--g);color:var(--g)':'')+'" data-a="setAutoCompact" data-x="'+p+'">'+p+'%</button>').join('')+'</div>'+
+      '<div style="display:flex;gap:6px;margin-top:8px">'+[70,75,80].map(p=>'<button class="sm'+(GUARDIAN_AUTOCOMPACT_PCT===p?'" style="border-color:var(--g);color:var(--g)':'')+'" data-a="setAutoCompact" data-x="'+p+'" title="guarda '+p+'% como limiar local de auto-compact para novas sessões; requer reabrir o VS Code">'+p+'%</button>').join('')+'</div>'+
       '<div class="sub" style="margin-top:7px">Baixa o limiar do auto-compact do Claude Code para a sessão compactar <b>antes</b> da zona de delírio. Só baixa (nunca sobe). Aplica-se a <b>sessões NOVAS</b> — reabre o VS Code.</div></div>';
     // ── /GUARDIAN:F0 ──
-  const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>send('budget',bi.value);
+  const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>{bs.classList.add('on');flashApply(bs);send('budget',bi.value);};
   wireButtons($('#v-setup'));
 
   // ── INSTALL: recomendados p/ hardware + packs (req 4)
@@ -6178,9 +6222,9 @@ window.addEventListener('message',(e)=>{
   const reco=hw.recommended_t0;
   $('#v-install').innerHTML='<div class="card"><div class="lbl">Local models — matched to your '+esc(hw.name||'hardware')+'</div>'+
     (avail.length?avail.map(x=>{const inst=(s.ollama||[]).some(o=>o.name.startsWith(x.model.split(':')[0]));
-      return '<div class="dr"><span>'+(x.can_run?'✅':'⛔')+'</span><div class="w">'+esc(x.model)+(x.model===reco?' <span class="pill ok">recommended</span>':'')+'<small>'+(x.can_run?'fits your VRAM':'too big for this GPU')+'</small></div>'+(inst?'<span class="pill ok">installed</span>':(x.can_run?'<button class="sm" data-a="pull:'+esc(x.model)+'">pull</button>':''))+'</div>';}).join(''):
+      return '<div class="dr"><span>'+(x.can_run?'✅':'⛔')+'</span><div class="w">'+esc(x.model)+(x.model===reco?' <span class="pill ok">recommended</span>':'')+'<small>'+(x.can_run?'fits your VRAM':'too big for this GPU')+'</small></div>'+(inst?'<span class="pill ok">installed</span>':(x.can_run?'<button class="sm" data-a="pull:'+esc(x.model)+'" title="executa ollama pull '+esc(x.model)+' no terminal para instalar este modelo local">pull</button>':''))+'</div>';}).join(''):
       '<div class="sub">no hardware probe yet — run Detect in Setup</div>')+'</div>'+
-    '<div class="card"><div class="lbl">Moo Packs</div><div class="sub" style="margin:6px 0">'+(s.packs?Object.keys(s.packs).map(p=>'<span class="pill ok">'+esc(p)+'</span>').join(''):'none installed')+'</div><button class="sm" data-a="term:mooter pack list">Browse packs →</button></div>';
+    '<div class="card"><div class="lbl">Moo Packs</div><div class="sub" style="margin:6px 0">'+(s.packs?Object.keys(s.packs).map(p=>'<span class="pill ok">'+esc(p)+'</span>').join(''):'none installed')+'</div><button class="sm" data-a="term:mooter pack list" title="executa mooter pack list no terminal para listar os packs disponíveis">Ver packs →</button></div>';
   wireButtons($('#v-install'));
 
   // ── MODELS: Moo trio + quant/LoRA (req 5,6)
@@ -6190,7 +6234,7 @@ window.addEventListener('message',(e)=>{
     '<div class="sub" style="margin-top:7px">Mode: <b>'+esc(MOO[s.mode]||s.mode)+'</b> — switch from the header badge or the 🐮 Cockpit tab.</div>'+
     '<div class="sub" style="margin-top:5px">🐄 LazyMoo = local-first · 🐮 Moo = balanced · 🐂 CrazyMoo = strongest rung (<b>Fable 5</b> when T5 @fable opt-in is active, otherwise Opus).</div></div>'+
     '<div class="card"><div class="lbl">Effort — how hard the Moo tries to save</div><div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">'+
-    ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--g);color:var(--g)':'')+'" data-eff="'+l+'">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
+    ['low','default','high','ultramoo'].map(l=>'<button class="sm'+((s.effort||'default')===l?'" style="border-color:var(--g);color:var(--g)':'')+'" data-eff="'+l+'" title="guarda o esforço '+l+' para o router; altera a profundidade de poupança, sem executar um prompt">'+(l==='ultramoo'?'🐮 ultramoo':l)+'</button>').join('')+
     '</div><div class="sub" style="margin-top:6px">ultramoo = max thrift (compression + caveman prose)</div></div>'+
     (s.whynot?'<div class="card"><div class="lbl">Why not Fable 5? — per-decision honesty</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.whynot)+'</div></div>':'')+
     '<div class="card"><div class="lbl">🧬 Engine intelligence</div>'+
@@ -6198,7 +6242,7 @@ window.addEventListener('message',(e)=>{
     '<div class="kv"><span>Adapter</span><span>'+esc(adapter==='baseline'?'baseline (none installed)':adapter)+'</span></div>'+
     '<div class="kv"><span>Routing learned</span><span>'+esc((m.prompts||0))+' decisions · TF-IDF</span></div>'+
     '<div class="sub" style="font-size:9px;margin-top:4px">No neural LoRA/DoRA is trained here — adapter training is a manual GPU job. The router learns by TF-IDF + EWMA over real decisions, not by updating model weights.</div>'+
-    '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px">Refresh quant</button> <button class="sm" data-a="term:mooter forge install">Forge adapter →</button></div>'+
+    '<button class="sm" data-a="term:mooter quant status" style="margin-top:6px" title="executa mooter quant status no terminal para actualizar o snapshot de quantização">Actualizar quant</button> <button class="sm" data-a="term:mooter forge install" title="executa mooter forge install no terminal para iniciar a instalação de um adapter">Forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Local models (T0 · free)</div><div style="margin-top:6px">'+((s.ollama||[]).map(x=>'<span class="pill">'+esc(x.name)+(x.sizeGb?' · '+x.sizeGb+'GB':'')+'</span>').join('')||'<span class="sub">Ollama offline</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">Subscription</div><div class="sub" style="margin-top:5px">'+(s.sub?'<span class="pill ok">'+esc(s.sub.profile)+'</span>':'not configured')+'</div></div>';
   document.querySelectorAll('#v-models button[data-eff]').forEach(el=>el.onclick=()=>{document.querySelectorAll('#v-models button[data-eff]').forEach(x=>{x.style.borderColor='';x.style.color='';});el.style.borderColor='var(--g)';el.style.color='var(--g)';flashApply(el);send('effort',el.dataset.eff);});
@@ -6285,7 +6329,7 @@ window.addEventListener('message',(e)=>{
         +'</div>';
     })()+
     '<div class="card hero"><div class="lbl">Routing intelligence</div><div class="big">'+(ins.cacheRate!=null?ins.cacheRate+'%':'—')+'</div><div class="sub">classifier cache-hit rate · confidence <b>'+(ins.confNow!=null?ins.confNow:'—')+'</b>'+(confDelta!=null?' <span style="color:'+(confDelta>=0?'var(--g)':'var(--t3)')+'">'+(confDelta>=0?'▲':'▼')+Math.abs(confDelta).toFixed(2)+'</span> vs previous window':'')+'</div></div>'+
-    '<div class="card"><div class="lbl">📦 Quantization (all local models)</div>'+(qa.length?qa.map(q=>'<div class="kv"><span>'+esc(q.name)+'</span><span>'+esc(q.quant||'?')+(q.sizeGb?' · '+q.sizeGb+'GB':'')+'</span></div>').join(''):'<div class="sub" style="margin-top:5px">no snapshot — <button class="sm" data-a="term:mooter quant status">run quant status</button></div>')+'</div>'+
+    '<div class="card"><div class="lbl">📦 Quantization (all local models)</div>'+(qa.length?qa.map(q=>'<div class="kv"><span>'+esc(q.name)+'</span><span>'+esc(q.quant||'?')+(q.sizeGb?' · '+q.sizeGb+'GB':'')+'</span></div>').join(''):'<div class="sub" style="margin-top:5px">no snapshot — <button class="sm" data-a="term:mooter quant status" title="executa mooter quant status no terminal para criar o snapshot local de quantização">run quant status</button></div>')+'</div>'+
     '<div class="card"><div class="lbl">🧠 Pastor learning · TF-IDF (not neural LoRA)</div>'+
     '<div class="kv"><span>Adapter</span><span>'+esc(((s.prefs&&s.prefs.adapter)||'baseline')==='baseline'?'baseline (none installed)':(s.prefs.adapter))+'</span></div>'+
     '<div class="kv"><span>Mechanism</span><span>TF-IDF + EWMA over real decisions</span></div>'+
@@ -6293,7 +6337,7 @@ window.addEventListener('message',(e)=>{
     '<div class="kv"><span>Training corpus</span><span>'+(ins.trainingLines!=null?ins.trainingLines+' examples':'— (none yet)')+'</span></div>'+
     '<div class="kv"><span>Hub sync</span><span>'+(ins.lastHubPush?esc(ins.lastHubPush.slice(0,16).replace('T',' ')):'never')+'</span></div>'+
     '<div class="sub" style="font-size:9px;margin-top:4px">Neural LoRA/DoRA training is a manual GPU job — not running here. "Learning" = TF-IDF routing + confidence calibration over your real decisions.</div>'+
-    '<button class="sm" data-a="term:mooter fable-observe stats" style="margin-top:6px">fable stats</button> <button class="sm" data-a="term:mooter forge install">forge adapter →</button></div>'+
+    '<button class="sm" data-a="term:mooter fable-observe stats" style="margin-top:6px" title="executa mooter fable-observe stats no terminal e mostra as observações reais">fable stats</button> <button class="sm" data-a="term:mooter forge install" title="executa mooter forge install no terminal para iniciar a instalação de um adapter">forge adapter →</button></div>'+
     '<div class="card"><div class="lbl">Per-prompt evolution (newest first)</div>'+decs.slice(0,8).map(d=>'<div class="kv"><span style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((d.preview||'').slice(0,42))+'</span><span><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span> conf '+esc(d.conf)+'</span></div>').join('')+'</div>';
   wireButtons($('#v-insights'));
 
@@ -6301,33 +6345,33 @@ window.addEventListener('message',(e)=>{
   const spans=s.spans||[];
   function spanFor(d){const p=(d.preview||'').slice(0,28);if(!p)return null;const hit=spans.find(x=>x.line.includes(p.slice(0,20)));return hit?hit.id:null;}
   if(decs.length){$('#v-decisions').innerHTML=decs.map((d,i)=>{const sid=spanFor(d);const key=d.ts||('i'+i);
-    return '<div class="dec'+(openDecs.has(key)?' open':'')+'" data-key="'+esc(key)+'" role="button" tabindex="0" aria-label="toggle decision detail"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div>'+
+    return '<div class="dec'+(openDecs.has(key)?' open':'')+'" data-key="'+esc(key)+'" role="button" tabindex="0" aria-label="mostrar ou ocultar o detalhe desta decisão" title="mostra ou oculta o modelo, categoria, confiança, regra e avaliação desta decisão"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div>'+
     '<div class="ddet">model <b>'+esc(d.model)+'</b> · '+esc(d.cat)+' · conf <b>'+esc(d.conf)+'</b>'+(d.rule&&d.rule!=='none'?' · rule <b>'+esc(d.rule)+'</b>':'')+
-    (sid?'<span class="stars" data-sid="'+esc(sid)+'">'+[1,2,3,4,5].map(n=>'<span data-n="'+n+'">★</span>').join('')+'</span>':'')+'</div></div>';}).join('');
+    (sid?'<span class="stars" data-sid="'+esc(sid)+'" role="radiogroup" aria-label="Avaliação desta decisão">'+[1,2,3,4,5].map(n=>'<span data-n="'+n+'" role="radio" tabindex="0" aria-checked="false" title="Avaliar com '+n+' de 5 estrelas">★</span>').join('')+'</span>':'')+'</div></div>';}).join('');
     document.querySelectorAll('.dec').forEach(el=>{const tog=()=>{const open=el.classList.toggle('open');const k=el.dataset.key;if(open)openDecs.add(k);else openDecs.delete(k);};el.onclick=(ev)=>{if(ev.target.closest('.stars'))return;tog();};el.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('.stars')){e.preventDefault();tog();}});});
-    document.querySelectorAll('.stars span').forEach(st=>st.onclick=()=>{const w=st.parentElement;const n=+st.dataset.n;
-      w.querySelectorAll('span').forEach(x=>x.classList.toggle('on',+x.dataset.n<=n));send('rate',{id:w.dataset.sid,n});});}
+    document.querySelectorAll('.stars span').forEach(st=>{const rate=()=>{const w=st.parentElement;const n=+st.dataset.n;
+      w.querySelectorAll('span').forEach(x=>{const on=+x.dataset.n<=n;x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on));});flashApply(w);send('rate',{id:w.dataset.sid,n});};st.onclick=rate;st.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();rate();}});});}
 
   // ── TERMINAL (req 2)
   $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">renderer warming up…</span>')+'</div></div>'+
     '<div class="card"><div class="lbl">mooter commands → integrated terminal</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">'+
-    ['mooter doctor','mooter savings','mooter sessions list','mooter why-not-fable','mooter quant status','mooter sync'].map(c=>'<button data-a="term:'+esc(c)+'">'+esc(c.replace('mooter ',''))+'</button>').join('')+
+    ['mooter doctor','mooter savings','mooter sessions list','mooter why-not-fable','mooter quant status','mooter sync'].map(c=>'<button data-a="term:'+esc(c)+'" title="executa '+esc(c)+' no terminal integrado">'+esc(c.replace('mooter ',''))+'</button>').join('')+
     '</div><div class="hint">identical on macOS and Windows — the CLI is the contract</div></div>';
   wireButtons($('#v-terminal'));
 
   // ── DOCTOR + 10 slash (req 10)
   const ok=(b)=>b?'✅':(b===null?'🟡':'❌');const sl=s.slash||{};
   $('#v-doctor').innerHTML='<div class="card">'+(function(){var ck=score.checks||[];var pass=ck.filter(function(c){return c.ok===true;}).length;var bad=ck.some(function(c){return c.ok===false;});var warn=ck.some(function(c){return c.ok===null;});var col=bad?'var(--danger)':(warn?'var(--acc-warm)':'var(--g)');var lbl=bad?'needs attention':(warn?'check warnings':'all checks passing');return '<div class="drsum" role="status" aria-live="polite" style="display:flex;align-items:center;gap:8px;font-weight:700;margin:2px 0 9px;color:'+col+'"><span style="font-size:14px">'+(bad?'❌':(warn?'🟡':'✅'))+'</span><span>'+pass+'/'+ck.length+' — '+lbl+'</span></div>';})()+
-    (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+(c.detail?'<small>'+esc(c.detail)+'</small>':'')+'</div>'+(c.ok||!c.fix?'':'<button class="sm" data-a="'+esc(c.fix)+'">fix</button>')+'</div>').join('')+'</div>'+
+    (score.checks||[]).map(c=>'<div class="dr"><span>'+ok(c.ok)+'</span><div class="w">'+esc(c.t)+(c.detail?'<small>'+esc(c.detail)+'</small>':'')+'</div>'+(c.ok||!c.fix?'':'<button class="sm" data-a="'+esc(c.fix)+'" title="executa a correcção indicada para '+esc(c.t)+'">corrigir</button>')+'</div>').join('')+'</div>'+
     '<div class="card"><div class="lbl">Slash commands · '+(sl.installed?'installed ✓':'NOT installed')+'</div>'+
     '<div class="sub" style="margin:7px 0 3px">Modes</div><div>'+['zen','auto','beast'].map(mo=>'<span class="pill ok">'+MOO[mo]+'</span>').join('')+'</div>'+
     '<div class="sub" style="margin:8px 0 3px">/mooter sub-commands</div><div>'+(s.slashCmds||[]).map(c=>'<span class="pill'+(sl.installed?' ok':'')+'">/'+esc(c)+'</span>').join('')+'</div>'+
     '<div class="sub" style="margin:8px 0 3px">Claude pins</div><div>'+Object.keys(PIN_CLOUD).map(k=>'<span class="pill">/'+esc(PIN_CLOUD[k])+'</span>').join('')+'</div>'+
     '<div class="sub" style="margin:8px 0 3px">Local pins (Ollama)</div><div>'+Object.keys(PIN_LOCAL).map(n=>{const have=(s.ollama||[]).some(o=>o.name===n);return '<span class="pill'+(have?' ok':' warn')+'" title="'+(have?'model installed':'run: ollama pull '+esc(n))+'">/'+esc(PIN_LOCAL[n])+(have?'':' ⚠')+'</span>';}).join('')+'</div>'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px"><button class="sm" data-a="slashInstall">'+(sl.installed?'Update /mooter skill':'Install /mooter skill')+'</button><button class="sm" data-a="term:mooter init">🔑 Connect account &amp; keys</button></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px"><button class="sm" data-a="slashInstall" title="'+(sl.installed?'actualiza a skill /mooter instalada no Claude Code':'instala a skill /mooter no Claude Code')+'">'+(sl.installed?'Update /mooter skill':'Install /mooter skill')+'</button><button class="sm" data-a="term:mooter init" title="executa mooter init no terminal para configurar a conta e as chaves">🔑 Connect account &amp; keys</button></div>'+
     '<div class="sub" style="margin-top:6px;font-size:10px">⚠ = pin whose Ollama model is not pulled yet</div></div>'+
     (s.security?'<div class="card"><div class="lbl">🛡️ Sandbox security (4-layer)</div><div class="term" style="margin-top:8px;font-size:10.5px;white-space:pre-wrap">'+esc(s.security)+'</div></div>':'')+
-    '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1">Full doctor →</button><button data-a="refresh" style="flex:1">Refresh</button></div>';
+    '<div style="display:flex;gap:6px"><button data-a="term:mooter doctor" style="flex:1" title="executa mooter doctor no terminal integrado">Full doctor →</button><button data-a="refresh" style="flex:1" title="força um deep refresh do cockpit e dos diagnósticos">Actualizar</button></div>';
   wireButtons($('#v-doctor'));
 
   // ── MISSION CONTROL TAB · Frente G — render the Mission Control tab PURELY from s.mc.

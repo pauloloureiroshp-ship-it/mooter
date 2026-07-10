@@ -246,7 +246,7 @@ function renderErrorStrip(state) {
     '<div class="lpd-head"><span class="lpd-sum">' + esc(sum.join(' · ')) + '</span>' +
     '<span class="lpd-spacer"></span>';
   if (live.length > 1) {
-    head += '<button class="lpd-x" type="button" data-act="toggle">' +
+    head += '<button class="lpd-x" type="button" data-act="toggle" title="' + (expanded ? 'mostra apenas o erro mais recente' : 'mostra todos os erros registados neste strip') + '">' +
       (expanded ? 'ocultar' : 'ver todos (' + live.length + ')') + '</button>';
   }
   head += '<button class="lpd-x" type="button" data-act="dismiss" title="Limpar o strip até ao próximo erro">dispensar</button></div>';
@@ -269,9 +269,9 @@ function renderErrorStrip(state) {
     else if (hasFile) loc = '<span class="lpd-loc">' + esc(e.file) + '</span>';
 
     var openBtn = hasFile
-      ? '<button class="lpd-btn" type="button" data-act="open" data-idx="' + esc(origIdx) + '">abrir ficheiro</button>'
+      ? '<button class="lpd-btn" type="button" data-act="open" data-idx="' + esc(origIdx) + '" title="abre no editor o ficheiro e a linha associados a este erro">abrir ficheiro</button>'
       : '<button class="lpd-btn" type="button" disabled title="sem localização — abre a consola do dev server">abrir ficheiro</button>';
-    var copyBtn = '<button class="lpd-btn" type="button" data-act="copy" data-idx="' + esc(origIdx) + '">enviar à CC</button>';
+    var copyBtn = '<button class="lpd-btn" type="button" data-act="copy" data-idx="' + esc(origIdx) + '" title="copia este erro para o input da sessão Claude Code; não o envia automaticamente">enviar à CC</button>';
 
     rows +=
       '<div class="lpd-row ' + rowCls + '">' +

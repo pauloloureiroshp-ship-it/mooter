@@ -6,9 +6,12 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
 const path = require('path');
 const x = require('./host-extra.js');
 const rr = require('./row-renderer');
+const EXT_SRC = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+const HOST_SRC = fs.readFileSync(path.join(__dirname, 'host-extra.js'), 'utf8');
 
 // ── webview-sim harness: deserialize renderRow exactly as getHtml() does (fn.toString + new Function) ──
 function _wv_esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -197,3 +200,49 @@ test('inboxRepoSummary: two distinct dirty repos → two entries; clean rows ign
 
 // small alias so the test body reads cleanly
 function x_inbox(rows){ return rr.inboxRepoSummary(rows); }
+
+// ── W-UX B1: optimistic control feedback + snapshot reconciliation ──────────────
+test('B1 already-shipped controls update the panel immediately before sending', () => {
+  const shipped = [
+    ["curMode=nx;$('#modeBadge').textContent=", "flashApply($('#modeBadge'));send('mode',nx)"],
+    ["flashApply(ps);send('pinNext',ps.value)", "id=\"pinSel\""],
+    ["el.style.borderColor='var(--g)';el.style.color='var(--g)';flashApply(el);send('effort',el.dataset.eff)", "button[data-eff]"],
+    ["b.classList.add('on');flashApply(b);send('setMode'", ".smode[data-msess]"],
+    ["flashApply(s);send('setModel'", ".smodsel[data-msess]"],
+    ["b.classList.toggle('on',next);b.dataset.mauto=String(next)", "flashApply(b);send('setAuto'"],
+    ["b.classList.toggle('on',next);b.dataset.mloop=String(next)", "flashApply(b);send('setLoop'"],
+  ];
+  for (const pair of shipped) {
+    assert.ok(EXT_SRC.includes(pair[0]), pair[0]);
+    assert.ok(EXT_SRC.includes(pair[1]), pair[1]);
+  }
+});
+
+test('B1 budget and rating controls now update optimistically in-panel', () => {
+  assert.ok(EXT_SRC.includes("bs.classList.add('on');flashApply(bs);send('budget',bi.value)"), 'budget button flips now, then sends');
+  assert.ok(EXT_SRC.includes("x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on))"), 'rating stars flip now with accessible state');
+  assert.ok(EXT_SRC.includes("flashApply(w);send('rate',{id:w.dataset.sid,n})"), 'rating exposes in-panel apply feedback');
+  assert.ok(EXT_SRC.includes('role="radiogroup" aria-label="Avaliação desta decisão"'), 'rating has an honest PT-PT label');
+  assert.ok(EXT_SRC.includes('placeholder="n/d"') && EXT_SRC.includes('sem limite guardado · n/d'), 'missing budget is explicit, never fabricated as zero');
+});
+
+test('B1 every optimistic state is cleared and rebuilt from the next snapshot', () => {
+  assert.ok(EXT_SRC.includes("lastSnap=s;clearApply();"), 'snapshot clears pending visual state');
+  assert.ok(EXT_SRC.includes("function clearApply(){try{document.querySelectorAll('.applytag')"), 'apply tags are removed centrally');
+  assert.ok(EXT_SRC.includes("document.querySelectorAll('.applying')"), 'optimistic outlines are removed centrally');
+  assert.ok(EXT_SRC.includes("curMode=s.mode||'auto';$('#modeBadge').textContent="), 'header mode reconciles from snapshot truth');
+  for (const view of ["$('#v-cockpit').innerHTML=", "$('#v-setup').innerHTML=", "$('#v-models').innerHTML=", "$('#v-decisions').innerHTML="]) {
+    assert.ok(EXT_SRC.includes(view), view + ' must rebuild from snapshot');
+  }
+  const rateHost = EXT_SRC.slice(EXT_SRC.indexOf("if (m.cmd === 'rate')"), EXT_SRC.indexOf("if (m.cmd === 'intent')"));
+  assert.ok(rateHost.includes('this.data.refresh(true);'), 'rating forces reconciliation after success or rejection');
+});
+
+test('B1 slow CLI applies keep an honest reduced-motion-safe panel hint', () => {
+  assert.ok(HOST_SRC.includes("return cli(['effort', 'set', level], 8000)"), 'effort may take up to 8s');
+  assert.ok(HOST_SRC.includes("return cli(['feedback', 'span', id, String(v)], 8000)"), 'rating may take up to 8s');
+  assert.ok(EXT_SRC.includes('⟳ a aplicar…') && /,\s*10000\);/.test(EXT_SRC), 'hint covers the slow apply window');
+  assert.ok(EXT_SRC.includes('@media (prefers-reduced-motion:reduce){.applytag{animation:none}}'), 'hint respects reduced motion');
+  assert.ok(EXT_SRC.includes('.applytag{font-size:9px;color:var(--vscode-descriptionForeground)') && EXT_SRC.includes('.applying{outline:1px solid var(--vscode-focusBorder)'), 'new B1 styling uses VS Code tokens');
+  assert.ok(EXT_SRC.includes('.stars span{cursor:pointer;opacity:.4;font-size:12px;min-width:24px;min-height:24px'), 'rating targets are at least 24px');
+});

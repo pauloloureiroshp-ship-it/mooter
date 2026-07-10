@@ -364,7 +364,7 @@ test('Live Preview LP-4.9 §2 progressive disclosure — minimal by default, pow
   assert.ok(html.includes('id="lp-more"') && /aria-controls="lp-adv"/.test(html), 'chevron controls the drawer');
   // The engineer controls moved INTO the drawer (still present — just not in the minimal view).
   const advStart = html.indexOf('id="lp-adv"');
-  const advChunk = html.slice(advStart, advStart + 1200);
+  const advChunk = html.slice(advStart, advStart + 2200); // Keeper 4 exact tooltips add honest copy inside the same drawer
   assert.ok(advChunk.includes('id="lp-chip"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'chips/raw-edits/skills live in the drawer');
   // The minimal view keeps the intent toggle + one-box (they must NOT be inside the drawer).
   assert.ok(html.indexOf('id="lp-box-in"') < advStart, 'the one-box stays in the minimal view');

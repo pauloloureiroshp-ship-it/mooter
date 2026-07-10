@@ -90,7 +90,7 @@ function renderMissionControl(snapshot) {
   function letterFor(i) { return (i < 26) ? String.fromCharCode(65 + i) : String(i + 1); }
   function btn(label, cmd, arg, cls, title) {
     var x = (arg == null) ? '' : ' data-x="' + esc(arg) + '"';
-    var t = title ? ' title="' + esc(title) + '"' : '';
+    var t = ' title="' + esc(title || 'executar esta acção no Mission Control') + '"';
     return '<button class="mc-btn ' + (cls || '') + '" data-a="' + esc(cmd) + '"' + x + t + '>' + label + '</button>';
   }
   // ── MCV2 helpers (serialised with the function — concat-only, no module-scope refs) ──
@@ -319,8 +319,9 @@ function renderMissionControl(snapshot) {
         var ds = depState(rss.deps);
         var rname = nd(rss.name);
         var rmodel = rss.model ? (famEmoji(rss.model) + ' ' + esc(modelShort(rss.model))) : nd(null);
+        // W-UX: pure open controls use the canonical tab command; push keeps open-and-scope.
         var openTail = rss.sid
-          ? '<button class="mcv2-tgopen" data-a="openSession" data-x="' + esc(rss.sid) + '" title="abrir esta sessão">🔗</button>'
+          ? '<button class="mcv2-tgopen" data-a="openSessionTab" data-x="' + esc(rss.sid) + '" data-title="' + esc(rss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗</button>'
           : '<span class="mc-nd">🔗 n/d</span>';
         out += '<div class="mcv2-tgrow ' + ds.cls + '" title="' + esc(ds.label) + '">'
           + '<span class="mcv2-depdot">' + ds.dot + '</span>'
@@ -495,7 +496,7 @@ function renderMissionControl(snapshot) {
       var spine = '<div class="mcf-spine"><div class="mcf-line' + (last ? ' half' : '') + '"></div>'
         + '<div class="mcf-node" style="border-color:' + col + '"></div><div class="mcf-conn" style="background:' + col + '"></div></div>';
       if (t.sid) {
-        out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><button class="mcf-brow' + (stCls === 'push' ? ' attn' : (hot ? ' hot' : '')) + '" data-a="openSession" data-x="' + esc(t.sid) + '" title="abrir esta sessão no VSCode">' + label + '</button></div></div>';
+        out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><button class="mcf-brow' + (stCls === 'push' ? ' attn' : (hot ? ' hot' : '')) + '" data-a="openSessionTab" data-x="' + esc(t.sid) + '" data-title="' + esc(t.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">' + label + '</button></div></div>';
       } else {
         out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><div class="mcf-brow nolink" title="sem sessão ligada">' + label + '</div></div></div>';
       }
@@ -567,9 +568,9 @@ function renderMissionControl(snapshot) {
       + '<span class="mcf-syn">O<span class="mcf-d ' + oOn + '"></span></span>'
       + '<span class="mcf-sdot ' + stCls + '" style="width:8px;height:8px"></span><span>' + dev + '</span>'
       + (ss.git && ss.git.pushNeeded === true && ss.sid
-        ? '<button class="mcf-pushbtn" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir para rever e enviar">✅ push?</button>'
+        ? '<button class="mcf-pushbtn" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abre os detalhes desta sessão para rever os commits locais; não executa push">✅ push?</button>'
         : (ss.sid
-          ? '<button class="mcf-gitlink" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir sessão">🔗 git</button>'
+          ? '<button class="mcf-gitlink" data-a="openSessionTab" data-x="' + esc(ss.sid) + '" data-title="' + esc(ss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗 git</button>'
           : '<span class="mc-nd">🔗 n/d</span>'));
     // ── GUARDIAN:F3 ── "⇄ Saltar para fresca": surge SÓ no limiar de delírio (advise ≥90,
     // contrato F1 pressureLadder). ss.ctxPct já vem do snapshot MC (mc-snapshot). Clique → handler
@@ -618,12 +619,12 @@ function renderMissionControl(snapshot) {
 
   // ── 9 · Assistente Moo (input → askMoo; stream renderizado por wireMc) ─────
   out += '<div class="mc-card"><div class="mc-lbl">🐮 Pergunta ao Moo <span class="mc-sub">local · $0 · só mission control + handoff</span></div>'
-    + '<div class="mc-mooin"><input id="mcMooIn" placeholder="ex: o que precisa de mim agora?" autocomplete="off"><button class="mc-btn mc-ok" id="mcMooGo">→</button></div>'
+    + '<div class="mc-mooin"><input id="mcMooIn" placeholder="ex: o que precisa de mim agora?" autocomplete="off" title="escreve uma pergunta sobre o snapshot actual do Mission Control e os handoffs locais" aria-label="pergunta para o Moo local"><button class="mc-btn mc-ok" id="mcMooGo" title="envia esta pergunta ao assistente Moo local; usa apenas o snapshot e os handoffs, sem escrita no projecto" aria-label="enviar pergunta ao Moo local">→</button></div>'
     + '<div class="mc-eg">'
-    + '<button class="mc-chip mc-q" data-q="O que precisa de mim agora?">o que precisa de mim?</button>'
-    + '<button class="mc-chip mc-q" data-q="Gera o handoff geral do projecto.">handoff geral</button>'
-    + '<button class="mc-chip mc-q" data-q="Qual a sessão com maior gasto de tokens?">maior gasto de tokens</button>'
-    + '<button class="mc-chip mc-q" data-q="Quanta folga de GPU tenho para mais moos?">folga de GPU?</button>'
+    + '<button class="mc-chip mc-q" data-q="O que precisa de mim agora?" title="preenche e envia esta pergunta ao Moo local: o que precisa de mim agora?">o que precisa de mim?</button>'
+    + '<button class="mc-chip mc-q" data-q="Gera o handoff geral do projecto." title="preenche e envia ao Moo local o pedido de handoff geral do projecto">handoff geral</button>'
+    + '<button class="mc-chip mc-q" data-q="Qual a sessão com maior gasto de tokens?" title="preenche e envia ao Moo local a pergunta sobre a sessão com maior gasto de tokens no snapshot">maior gasto de tokens</button>'
+    + '<button class="mc-chip mc-q" data-q="Quanta folga de GPU tenho para mais moos?" title="preenche e envia ao Moo local a pergunta sobre a folga de GPU registada no snapshot">folga de GPU?</button>'
     + '</div>'
     + '<div class="mc-mooout" id="mcMooOut"></div></div>';
 
