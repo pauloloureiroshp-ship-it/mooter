@@ -238,6 +238,71 @@ function spliceNodeRange(source, range, replacement) {
   return { ok: true, code, changed: code !== source, kind: 'splice' };
 }
 
+// ── LP-4.7 §3/§4 — insertImports: the ONLY way a verified new import reaches the file. The
+// splice fence bounds the node write; an import the model DECLARED (envelope) and the asset
+// fence VERIFIED still has to land at the top of the file — deterministically, byte-spliced,
+// re-parsed. Same discipline as spliceNodeRange: each statement must parse as exactly ONE
+// ImportDeclaration covering every byte (no comment/junk smuggling), locals already bound are
+// skipped idempotently, a partial collision refuses fail-closed, and the OUTPUT must re-parse
+// or nothing is returned. Still zero LLM in this module.
+function insertImports(source, statements) {
+  if (typeof source !== 'string' || !source) return { ok: false, reason: 'no-source' };
+  const list = Array.isArray(statements) ? statements.map((s) => String(s == null ? '' : s).trim()).filter(Boolean) : null;
+  if (!list) return { ok: false, reason: 'bad-imports' };
+  if (list.length === 0) return { ok: true, code: source, changed: false, inserted: [], kind: 'imports' };
+  const p = parse(source);
+  if (p.error) return { ok: false, reason: 'parse-error', detail: p.error };
+  const body = (p.ast.program && p.ast.program.body) || [];
+  const bound = new Map(); // local name → source module (skip is only honest for the SAME source)
+  let lastImport = null;
+  for (const n of body) {
+    if (n.type !== 'ImportDeclaration') continue;
+    lastImport = n;
+    const src = String((n.source && n.source.value) || '');
+    for (const s of n.specifiers || []) { if (s.local && s.local.name) bound.set(s.local.name, src); }
+  }
+  const queued = [];
+  const queuedBound = new Set();
+  for (const raw of list) {
+    const rp = parse(raw);
+    if (rp.error) return { ok: false, reason: 'import-parse-error', detail: rp.error };
+    if (((rp.ast && rp.ast.comments) || []).length > 0) return { ok: false, reason: 'import-has-comments' };
+    const b = (rp.ast.program && rp.ast.program.body) || [];
+    if (b.length !== 1 || b[0].type !== 'ImportDeclaration') return { ok: false, reason: 'not-an-import' };
+    if (b[0].start !== 0 || b[0].end !== raw.length) return { ok: false, reason: 'import-trailing-junk' };
+    const stmtSource = String((b[0].source && b[0].source.value) || '');
+    const locals = (b[0].specifiers || []).map((s) => s.local && s.local.name).filter(Boolean);
+    // "Already in the FILE from the SAME module" skips idempotently. The same local bound from a
+    // DIFFERENT module is a conflict (silently keeping the old one would swap the symbol the
+    // model meant), as is colliding with another QUEUED statement.
+    const queuedClash = locals.filter((l) => queuedBound.has(l));
+    if (queuedClash.length > 0) return { ok: false, reason: 'import-conflicts', detail: queuedClash.join(', ') + ' já importado' };
+    const clash = locals.filter((l) => bound.has(l) && bound.get(l) !== stmtSource);
+    if (clash.length > 0) return { ok: false, reason: 'import-conflicts', detail: clash.map((l) => l + ' já vem de ' + bound.get(l)).join(', ') };
+    const already = locals.filter((l) => bound.has(l));
+    if (locals.length > 0 && already.length === locals.length) continue; // fully present — idempotent skip
+    if (already.length > 0) return { ok: false, reason: 'import-conflicts', detail: already.join(', ') + ' já importado' };
+    for (const l of locals) queuedBound.add(l);
+    queued.push(raw);
+  }
+  if (queued.length === 0) return { ok: true, code: source, changed: false, inserted: [], kind: 'imports' };
+  const joined = queued.join('\n');
+  let code;
+  if (lastImport) {
+    code = source.slice(0, lastImport.end) + '\n' + joined + source.slice(lastImport.end);
+  } else {
+    const dirs = (p.ast.program && p.ast.program.directives) || [];
+    const inter = p.ast.program && p.ast.program.interpreter;
+    const at = dirs.length ? dirs[dirs.length - 1].end : (inter ? inter.end : 0);
+    code = at > 0
+      ? source.slice(0, at) + '\n' + joined + source.slice(at)
+      : joined + '\n' + source;
+  }
+  const check = parse(code);
+  if (check.error) return { ok: false, reason: 'imports-break-parse', detail: check.error };
+  return { ok: true, code, changed: true, inserted: queued, kind: 'imports' };
+}
+
 // Whether the target node sits inside a JSX expression container ({…} — a .map(), a ternary, an
 // &&-guard). The panel uses this for the honest warning (spec §5.2): deleting JSX inside a .map()
 // removes it from the template — i.e. from EVERY rendered item, not just the one that was clicked.
@@ -290,6 +355,7 @@ module.exports = {
   locateRange,
   deleteNode,
   spliceNodeRange,
+  insertImports,
   diffRemovedLines,
   isInsideExpression,
   PARSE_OPTS,

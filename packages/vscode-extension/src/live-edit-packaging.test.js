@@ -94,7 +94,7 @@ test('missing parser is forwarded as parser-unavailable on edit AND delete — n
   const root = mkWorkspace();
   try {
     const { inst, posts } = mkInstance(Panel, root);
-    await inst._applyEdit({ file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' } });
+    await inst._applyEdit({ preview: false, file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' }, h: 'stamp' });
     await inst._deleteNode({ preview: false, file: 'page.tsx', line: 1, tag: 'div', h: 'stamp' });
     const results = posts.filter((p) => p.type === 'lp-edit-result');
     assert.strictEqual(results.length, 2);
@@ -114,12 +114,59 @@ test('a REAL file parse error still reports parse-error — the reinstall messag
   const root = mkWorkspace();
   try {
     const { inst, posts } = mkInstance(Panel, root);
-    await inst._applyEdit({ file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' } });
+    await inst._applyEdit({ preview: false, file: 'page.tsx', line: 1, tag: 'div', edit: { kind: 'text', value: 'x' }, h: 'stamp' });
     const r = posts.find((p) => p.type === 'lp-edit-result');
     assert.ok(r && r.ok === false && r.reason === 'parse-error');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+// LP-4 §2 — the headless SDK runner must SHIP in the vsix (src/*.mjs ships by default — the
+// overclock-fill.mjs precedent), and no ignore rule may silently strip it. The SDK itself is NOT
+// bundled (zero new deps): it is resolved from the workspace at runtime by live-edit-cloud.js.
+test('vsix packaging contract: live-edit-sdk-runner.mjs ships and no ignore rule strips .mjs', () => {
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(__dirname, 'live-edit-sdk-runner.mjs')), 'runner exists in src/');
+  // LP-4.5 — the anchored-task agent runner ships under the same contract.
+  assert.ok(fs.existsSync(path.join(__dirname, 'live-edit-task-runner.mjs')), 'task runner exists in src/');
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  assert.ok(!lines.some((l) => l === '**/*.mjs' || l === 'src/**' || l === 'src/*.mjs'),
+    '.vscodeignore must not strip the src .mjs runners from the vsix');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(!(pkg.dependencies && pkg.dependencies['@anthropic-ai/claude-agent-sdk']),
+    'the Agent SDK must NOT become a bundled dependency — it is resolved from the workspace (no API key, no new deps)');
+});
+
+// LP-4.7 — the asset fence's ground truth must SHIP in the vsix (the whitelist and the brand
+// SVGs are the product's knowledge, not dev fixtures) and no ignore rule may strip it. The
+// dev-only generator script must NOT ship.
+test('vsix packaging contract: vendored live-edit assets ship; the generator script does not', () => {
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'live-edit', 'lucide-icons.llms.txt')), 'whitelist vendored');
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'live-edit', 'brand', 'github.svg')), 'github brand svg vendored');
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  assert.ok(!lines.some((l) => l === 'assets/**' || l === 'assets/live-edit/**' || l === '**/*.svg' || l === '**/*.txt'),
+    '.vscodeignore must not strip the vendored asset fence from the vsix');
+  assert.ok(lines.indexOf('scripts/**') !== -1, 'dev-only scripts/ must be ignored in the vsix');
+});
+
+test('vsix packaging contract: LP-4.8 vendored /skills defaults ship (assets/skills/*.md)', () => {
+  const root = path.join(__dirname, '..');
+  for (const id of ['icon', 'copy', 'restyle', 'a11y', 'section']) {
+    assert.ok(fs.existsSync(path.join(root, 'assets', 'skills', id + '.md')), 'vendored skill ships: ' + id);
+  }
+  const lines = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  assert.ok(!lines.some((l) => l === 'assets/**' || l === 'assets/skills/**' || l === '**/*.md'),
+    '.vscodeignore must not strip the vendored skills from the vsix');
+});
+
+test('vendored whitelist agrees with the lucide v1.0 brand removal (the class this wave kills)', () => {
+  const txt = fs.readFileSync(path.join(__dirname, '..', 'assets', 'live-edit', 'lucide-icons.llms.txt'), 'utf8');
+  const names = new Set(txt.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && l.charAt(0) !== '#'));
+  assert.ok(names.size > 1000, 'full export surface, not a sample');
+  assert.ok(names.has('ArrowDown') && names.has('Star'), 'real icon names present');
+  assert.ok(!names.has('Github') && !names.has('Twitter'), 'removed brand icons must NOT be importable');
 });
 
 test('panel copy distinguishes the two failures (reinstall vs unparseable file)', () => {

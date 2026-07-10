@@ -225,6 +225,27 @@ export function buildBreadcrumbPath(
   return full;
 }
 
+/**
+ * stampMatches — PURE. Does a `data-insp-path` attribute value identify the wanted node?
+ * Matching is on the FULL stamp — file+line+col, AND tag when the caller knows it. Used by both
+ * the breadcrumb re-select and the LP-4 §5 re-pin after an apply (the byte-splice preserves the
+ * node's start, so its stamp survives the write — same file:line:col identifies the same node).
+ * Fail-soft: junk on either side → false, never a fabricated match.
+ */
+export function stampMatches(
+  attr: string | null | undefined,
+  want: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown },
+): boolean {
+  const p = parseInspPath(attr);
+  if (!p) return false;
+  const file = typeof want.file === 'string' ? want.file : '';
+  const line = typeof want.line === 'number' ? want.line : NaN;
+  const col = typeof want.col === 'number' ? want.col : NaN;
+  const tag = typeof want.tag === 'string' ? want.tag : '';
+  if (!file || !isFinite(line) || !isFinite(col)) return false;
+  return p.file === file && p.line === line && p.col === col && (!tag || (p.tag || '') === tag);
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -242,6 +263,16 @@ export function installLpErrorTap(): void {
     }
   };
   const emit = (e: Omit<TapError, 'type' | 'ts'>): void => post({ type: 'lp-error', ts: Date.now(), ...e });
+
+  // FIX-MP-1 (audit P0-1) — served-tree identity. next.config injects NEXT_PUBLIC_LP_ROOT =
+  // realpath(process.cwd()) in DEV ONLY (the dev server's own root). We relay it to the host so it can
+  // PROVE the preview it frames comes from the tree it would write to; twin worktrees (same repo,
+  // sibling paths) otherwise pass containment and the $0 edit lands in the wrong tree (incident 06:49).
+  // Absent in prod (dev-only env key) → null → the host fail-closes. Read once at install time.
+  const servedRoot: string | null =
+    typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_LP_ROOT
+      ? String(process.env.NEXT_PUBLIC_LP_ROOT)
+      : null;
 
   // True while the Next dev overlay is showing an error — declared up here so console.error can
   // suppress the duplicate it logs for the same failure the overlay already displays.
@@ -434,12 +465,18 @@ export function installLpErrorTap(): void {
     // evaporate on mouseout.
     let pinBox: HTMLElement | null = null;
     let pinned: Element | null = null;
+    let root: ShadowRoot | null = null;
+    // LP-4.8 §4 — multi-select attach-as-reference (Lovable's model): Cmd/Ctrl-click pins extra
+    // nodes as CONTEXT for one prompt, not a batch edit. Each gets a persistent dashed box so the
+    // overlay shows all of them; they never move the primary pin (the edit target).
+    const refEls: Element[] = [];
+    const refBoxes: HTMLElement[] = [];
     const ensure = (): void => {
       if (shadowHost) return;
       shadowHost = document.createElement('div');
       shadowHost.setAttribute('data-lp-select-overlay', '');
       shadowHost.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;margin:0;';
-      const root = shadowHost.attachShadow({ mode: 'open' });
+      root = shadowHost.attachShadow({ mode: 'open' });
       box = document.createElement('div');
       box.style.cssText =
         'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
@@ -450,12 +487,20 @@ export function installLpErrorTap(): void {
       root.appendChild(pinBox);
       document.documentElement.appendChild(shadowHost);
     };
+    const clearRefs = (): void => {
+      for (const b of refBoxes) { if (b.parentNode) b.parentNode.removeChild(b); }
+      refBoxes.length = 0;
+      refEls.length = 0;
+    };
     const teardown = (): void => {
+      clearPreviewClass(); // restore any hover-preview before we lose the pin
+      clearRefs();
       if (shadowHost && shadowHost.parentNode) shadowHost.parentNode.removeChild(shadowHost);
       shadowHost = null;
       box = null;
       pinBox = null;
       pinned = null;
+      root = null;
     };
     const drawPin = (): void => {
       if (!pinBox) return;
@@ -468,8 +513,82 @@ export function installLpErrorTap(): void {
       pinBox.style.width = r.width + 'px';
       pinBox.style.height = r.height + 'px';
     };
-    const pin = (el: Element | null): void => { pinned = el; drawPin(); };
-    const onReflow = (): void => { if (on && pinned) drawPin(); };
+    // LP-4.8 §1 — the cockpit's in-canvas toolbar anchors to the pin, so on every reflow we re-send
+    // the pin's box (iframe-viewport coords) alongside redrawing the local overlay. Read-only: a
+    // getBoundingClientRect on the already-pinned node, posted on the same origin-locked channel as
+    // lp-select — it can only reposition the toolbar, never reach a write path.
+    const postPinRect = (): void => {
+      if (!pinned || !pinned.isConnected) return;
+      const r = pinned.getBoundingClientRect();
+      post({ type: 'lp-pin-rect', rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+    };
+    const pin = (el: Element | null): void => { pinned = el; drawPin(); postPinRect(); };
+    // Redraw every attached-reference box (HMR may disconnect a node — hide it, never lie).
+    const drawRefs = (): void => {
+      for (let i = 0; i < refBoxes.length; i++) {
+        const el = refEls[i]; const b = refBoxes[i];
+        if (!el || !el.isConnected) { b.style.display = 'none'; continue; }
+        const r = el.getBoundingClientRect();
+        b.style.display = 'block';
+        b.style.left = r.left + 'px'; b.style.top = r.top + 'px';
+        b.style.width = r.width + 'px'; b.style.height = r.height + 'px';
+      }
+    };
+    // Add a node as a reference (dashed box + lp-attach). Dedup by identity; capped at 8 so a prompt
+    // can never balloon. Posts the stamp so the cockpit can list + send it as agent context.
+    const addRef = (el: Element): void => {
+      if (!el || refEls.indexOf(el) !== -1 || refEls.length >= 8) return;
+      const attr = el.getAttribute('data-insp-path');
+      const parsed = parseInspPath(attr);
+      if (!parsed || !root) return;
+      const b = document.createElement('div');
+      b.style.cssText =
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px dashed #7FB88A;background:rgba(127,184,138,0.08);border-radius:3px;';
+      root.appendChild(b);
+      refEls.push(el); refBoxes.push(b);
+      drawRefs();
+      post({
+        type: 'lp-attach',
+        file: parsed.file, line: parsed.line, col: parsed.col, tag: parsed.tag,
+        label: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+      });
+    };
+    // Remove one reference by its stamp (the cockpit's ✕), or all (limpar).
+    const removeRef = (want: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
+      for (let i = refEls.length - 1; i >= 0; i--) {
+        if (stampMatches(refEls[i].getAttribute('data-insp-path'), want)) {
+          const b = refBoxes[i]; if (b && b.parentNode) b.parentNode.removeChild(b);
+          refEls.splice(i, 1); refBoxes.splice(i, 1);
+        }
+      }
+    };
+    // LP-4.9 §5 — hover-preview: the cockpit asks to VISUALLY apply a className to the pinned element
+    // (live DOM only — no file write). We save the original once and restore it on clear/new pick, so
+    // a preview can never leak into a real edit. Read/writes only the pinned node's class attribute.
+    let previewSaved: { el: Element; cls: string | null } | null = null;
+    const previewClass = (className: string): void => {
+      if (!pinned || !pinned.isConnected) return;
+      if (!previewSaved || previewSaved.el !== pinned) previewSaved = { el: pinned, cls: pinned.getAttribute('class') };
+      try { pinned.setAttribute('class', className); } catch { /* SVG/edge — best-effort */ }
+      drawPin(); postPinRect();
+    };
+    const clearPreviewClass = (): void => {
+      if (!previewSaved) return;
+      const saved = previewSaved; previewSaved = null;
+      if (saved.el && saved.el.isConnected) {
+        try { if (saved.cls == null) saved.el.removeAttribute('class'); else saved.el.setAttribute('class', saved.cls); } catch { /* best-effort */ }
+      }
+      drawPin(); postPinRect();
+    };
+    // LP-4.9 §3 — a short green pulse on the pin box after a write landed (visual only; reverts).
+    const flash = (): void => {
+      if (!pinBox) return;
+      const base = pinBox.style.boxShadow;
+      pinBox.style.transition = 'box-shadow .18s ease';
+      pinBox.style.boxShadow = '0 0 0 3px rgba(127,184,138,.85)';
+      setTimeout(() => { if (pinBox) pinBox.style.boxShadow = base; }, 420);
+    };
+    const onReflow = (): void => { if (on && pinned) { drawPin(); postPinRect(); } if (on) drawRefs(); };
     const resolve = (x: number, y: number): Element | null => {
       // MP5.2a "descend to the node": pick the DEEPEST stamped element under the cursor.
       // elementsFromPoint lists the whole hit stack (deepest painted first), so the first stamped
@@ -512,6 +631,7 @@ export function installLpErrorTap(): void {
       const attr = el.getAttribute('data-insp-path');
       const parsed = parseInspPath(attr);
       if (!parsed) return;
+      clearPreviewClass(); // a fresh pick drops any lingering hover-preview on the old node
       // Honest multi-instance signal: the SAME stamp on several DOM nodes means the source node
       // renders more than once (a .map(), a reused component) — any edit/delete hits the template,
       // i.e. every instance. Counted by attribute equality (not a CSS selector: Windows paths
@@ -531,6 +651,7 @@ export function installLpErrorTap(): void {
         className: el.getAttribute('class') || '', // prefill the class editor (getAttribute: SVG-safe)
         path: buildBreadcrumbPath(attrChain(el)), // MP5.2a — root→leaf breadcrumb for the cockpit
         repeated: repeated > 1 ? repeated : 0, // 0 = unique on screen; N>1 = N live instances
+        servedRoot, // FIX-MP-1 — the tree this dev server serves (dev-only marker; host proves lineage)
       });
       pin(el); // MP5.2a select-lock — the frame stays put until Esc or a new selection
     };
@@ -540,29 +661,54 @@ export function installLpErrorTap(): void {
       if (!el) return;
       ev.preventDefault();
       ev.stopImmediatePropagation();
+      // LP-4.8 §4 — Cmd/Ctrl-click ATTACHES the node as a reference instead of re-pinning: the
+      // primary selection (the edit target) is untouched; the ref just joins the prompt's context.
+      if (ev.metaKey || ev.ctrlKey) { addRef(el); return; }
+      stopRepin(); // a manual pick wins — never let a pending re-pin watch fight the user
       selectEl(el);
     };
-    // MP5.2a — a breadcrumb chip in the cockpit asks to re-select an ancestor by its stamped
-    // location. Read-only DOM scan for the matching [data-insp-path]; a stale location (HMR moved
-    // the code) simply finds nothing — no fabricated selection.
-    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
-      if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
-      const file = typeof d.file === 'string' ? d.file : '';
-      const line = typeof d.line === 'number' ? d.line : NaN;
-      const col = typeof d.col === 'number' ? d.col : NaN;
-      const tag = typeof d.tag === 'string' ? d.tag : '';
-      if (!file || !isFinite(line) || !isFinite(col)) return;
-      // Disambiguate on the FULL stamp — file+line+col AND tag when given. Several DOM nodes can
-      // still share the full stamp (a .map()/reused component): pin the first, and selectEl's
-      // `repeated` count tells the cockpit to warn that the edit hits the template.
+    // Shared stamped-node finder (breadcrumb re-select + LP-4 §5 re-pin). Disambiguation is on
+    // the FULL stamp — file+line+col AND tag when given (stampMatches). Several DOM nodes can
+    // still share the full stamp (a .map()/reused component): pin the first, and selectEl's
+    // `repeated` count tells the cockpit to warn that the edit hits the template.
+    const findStamped = (want: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): Element | null => {
       const all = document.querySelectorAll('[data-insp-path]');
       for (let i = 0; i < all.length; i++) {
-        const p = parseInspPath(all[i].getAttribute('data-insp-path'));
-        if (p && p.file === file && p.line === line && p.col === col && (!tag || (p.tag || '') === tag)) {
-          selectEl(all[i]);
-          return;
-        }
+        if (stampMatches(all[i].getAttribute('data-insp-path'), want)) return all[i];
       }
+      return null;
+    };
+    // MP5.2a — a breadcrumb chip in the cockpit asks to re-select an ancestor by its stamped
+    // location. Read-only DOM scan; a stale location (HMR moved the code) simply finds nothing —
+    // no fabricated selection.
+    const reselect = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
+      if (!on) return; // only while select mode is armed — no zero-interaction selection oracle
+      const el = findStamped(d);
+      if (el) selectEl(el);
+    };
+    // LP-4 §5 — re-pin after an apply. The byte-splice preserved the node's start, so the SAME
+    // file:line:col stamp identifies it — but HMR swaps the DOM node a moment later. We watch for
+    // ~5.6s and re-emit lp-select on EVERY new DOM identity (first find + each HMR swap), so the
+    // panel's pin/stamp is refreshed from post-HMR reality and "agora mais escuro" iterates on the
+    // same node with zero re-selection. Only while armed; a manual pick or Esc cancels the watch.
+    let repinTimer: ReturnType<typeof setInterval> | null = null;
+    const stopRepin = (): void => { if (repinTimer) { clearInterval(repinTimer); repinTimer = null; } };
+    const repin = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown }): void => {
+      stopRepin();
+      if (!on) return;
+      let lastEl: Element | null = null;
+      let ticks = 0;
+      const tick = (): void => {
+        ticks++;
+        if (!on || ticks > 14) { stopRepin(); return; }
+        const el = findStamped(d);
+        if (el && el.isConnected && el !== lastEl) {
+          lastEl = el;
+          selectEl(el); // fresh stamp: text/className/rect re-read from the live DOM
+        }
+      };
+      tick();
+      repinTimer = setInterval(tick, 400);
     };
     const onKey = (ev: KeyboardEvent): void => {
       if (on && ev.key === 'Escape') { set(false); post({ type: 'lp-select-mode-off' }); }
@@ -580,6 +726,7 @@ export function installLpErrorTap(): void {
         window.addEventListener('resize', onReflow);
         document.documentElement.style.cursor = 'crosshair';
       } else {
+        stopRepin(); // leaving select mode cancels any pending re-pin watch
         document.removeEventListener('mousemove', onMove, true);
         document.removeEventListener('click', onClick, true);
         document.removeEventListener('keydown', onKey, true);
@@ -589,7 +736,7 @@ export function installLpErrorTap(): void {
         teardown();
       }
     };
-    return { set, reselect };
+    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs, previewClass, clearPreview: clearPreviewClass, flash };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -601,10 +748,41 @@ export function installLpErrorTap(): void {
       try { select.set(!!d.on); } catch { /* select mode is best-effort, never breaks the page */ }
       return;
     }
+    // LP-4.8 §4 — the cockpit removed a reference chip (✕ or limpar). Benign: removes an overlay
+    // box; no DOM read of the page beyond matching the stamp we already drew.
+    if (d.type === 'lp-detach') {
+      try { select.detach(d); } catch { /* best-effort */ }
+      return;
+    }
+    if (d.type === 'lp-detach-all') {
+      try { select.detachAll(); } catch { /* best-effort */ }
+      return;
+    }
+    // LP-4.9 §5 — hover-preview a preset's className on the pinned element (visual only, no write).
+    if (d.type === 'lp-preview-class') {
+      try { select.previewClass(typeof d.className === 'string' ? d.className : ''); } catch { /* best-effort */ }
+      return;
+    }
+    if (d.type === 'lp-preview-clear') {
+      try { select.clearPreview(); } catch { /* best-effort */ }
+      return;
+    }
+    // LP-4.9 §3 — flash the pin box after a write landed, so the eye lands on what changed.
+    if (d.type === 'lp-flash') {
+      try { select.flash(); } catch { /* best-effort */ }
+      return;
+    }
     // MP5.2a — a breadcrumb chip re-selects an ancestor node (re-pin + fresh lp-select). Benign:
     // read-only DOM lookup, same origin-locked sender as everything else here.
     if (d.type === 'lp-reselect') {
       try { select.reselect(d); } catch { /* best-effort — a stale crumb selects nothing */ }
+      return;
+    }
+    // LP-4 §5 — the host just applied a write to this node: watch through the HMR swap and
+    // re-emit lp-select with the fresh stamp (pin never stale; re-prompt without re-selecting).
+    // Benign: read-only DOM scans, only while select mode is armed.
+    if (d.type === 'lp-repin') {
+      try { select.repin(d); } catch { /* best-effort — a vanished node re-pins nothing */ }
       return;
     }
     // MP3.3 — the cockpit's back/forward buttons drive the framed site's OWN history (the parent
@@ -624,6 +802,7 @@ export function installLpErrorTap(): void {
   });
 
   // Handshake: tell the host we are live so it can send an initial restore even if it missed our
-  // iframe 'load' event (covers the reload race, gate #5).
-  post({ type: 'lp-ready' });
+  // iframe 'load' event (covers the reload race, gate #5). FIX-MP-1 — also carry the served-tree
+  // marker so the host can surface an honest tree-mismatch banner BEFORE the first selection.
+  post({ type: 'lp-ready', servedRoot });
 }

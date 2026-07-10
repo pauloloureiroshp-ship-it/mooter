@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { M } from '../lib/canonical-metrics';
 
 // Wave 11 PR-A — honest hero copy (D1-1) + OAuth-error banner (D2-4).
 const root = join(__dirname, '..', '..');
@@ -15,7 +16,12 @@ describe('Wave 11 PR-A landing', () => {
     const src = read('app/page.tsx');
     expect(src).not.toContain('Same results');
     expect(src).not.toContain('up to 90% less cost');
-    expect(src).toContain('47% saved vs all-Opus');
+    // Wave 2.1 — the number now derives from the single canonical source (lib/canonical-metrics.ts)
+    // instead of a hardcoded literal. Assert the wiring + that the canonical value is still the honest 47%.
+    expect(M.savedPct).toBe('47%');
+    expect(M.routedCalls).toBe('658');
+    expect(src).toContain('canonical-metrics');
+    expect(src).toContain('saved vs all-Opus');
     expect(src).toContain('not a community average');
     expect(src).toContain('href="/methodology"');
   });

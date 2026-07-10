@@ -49,13 +49,15 @@ test('Economics is honest: advisory savings + real $ + router mix by COUNTS + bu
   assert.match(S, /não de trade-off de qualidade/, 'authored AI-attribution copy present');
 });
 
-test('Brain: Pastor(TF-IDF)+Guardian(ctxFull)+Ledger real; wave-handoff + W7/W9/W10 are honest 🌊', () => {
+test('Brain: Pastor(TF-IDF)+Guardian(ctxFull)+Ledger real; F1 folds away aspirational wave placeholders', () => {
   assert.match(S, /s\.insights/, 'Pastor from s.insights');
   assert.match(S, /TF-IDF, não neural/, 'honest: not neural');
   assert.match(S, /s\.mc\.totals\.ctxFull/, 'Guardian deck signal = ctxFull');
   assert.match(S, /s\.ledger/, 'Ledger real');
-  assert.match(S, /🌊 W7[\s\S]{0,80}🌊 W9[\s\S]{0,80}🌊 W10/, 'Adapters/Insights-TTL/Graph are 🌊 placeholders');
-  assert.match(S, /wave <span class="lsoon">🌊/, 'wave-level handoff is honestly not-yet-built');
+  // F1 · progressive disclosure — half-built wave advertisements are no longer rendered on the default
+  // surface (nothing visible half-built). Sc is comment-stripped so honest `//` notes don't false-match.
+  assert.ok(!/🌊 W7|🌊 W9 TTL|🌊 W10/.test(Sc), 'Adapters/Insights-TTL/Graph W-placeholders no longer rendered');
+  assert.ok(!/wave <span class="lsoon">🌊/.test(Sc), 'wave-level handoff placeholder removed');
 });
 
 test('Foundations: Arch-frozen + Doctor from s.score.checks; NO fabricated differential-privacy metric', () => {

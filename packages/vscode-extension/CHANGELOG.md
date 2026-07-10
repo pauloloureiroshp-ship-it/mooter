@@ -13,6 +13,32 @@ All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Kee
 - ⚠️ "MEO" is INTERNAL plugin naming only. Before any public/marketing use, verify trademark — known collision: MEO = Altice Portugal (telecom).
 - Version race between release lineages is a known, tracked anomaly; F5 intentionally ships no version bump — the bump is resolved when this branch integrates (F6).
 
+## [0.16.62] — 2026-07-08 — Data-hop: click a value → the agent follows it to its source and edits there
+
+### Added
+
+- **The moat: "click → follow to the data source → edit the right place."** When you pin an element and ask the agent about it, the host now traces every value the element renders back to where it is defined. For each imported symbol used in the pinned node (e.g. `M.savedUsd`), the data-hop follows the import to its **definition file**, shows the declaration, and — crucially — surfaces what that value is **derived from**, so the agent edits the *origin* primitive rather than the derived display value. On the landing hero, clicking the savings number lands directly on `app/lib/canonical-metrics.ts` and names `AUTHOR_PROOF.mooterPaidUsd` / `allOpusBaselineUsd` (the single source from 0.16.60) — the "click the savings box → the agent knows where the number comes from, and edits it correctly" loop, end to end. A bounded, honestly-labelled textual find-references list gives the blast radius (which files mention the symbol).
+  This is **deterministic and $0-local** (go-to-definition + find-references over the import graph — no LSP server, no embeddings; a full LSP/ast-grep path stays a future opt-in). It runs **within the existing fence**: every file it reads is realpath-contained exactly like the agent's own tool fence (a symlink/junction inside the workspace pointing outside is never followed), paths are workspace-relative, it is bounded and fail-soft, and the pinned node's source (already rendered) is used only to decide which symbols to trace — no new data leaves the machine. Verified by an adversarial review (containment, no path leak, no regex-hang, fence unchanged).
+
+## [0.16.61] — 2026-07-08 — Context Engine: the anchored agent gets the right context before it explores
+
+### Added
+
+- **The Live Edit "ask/edit about the project" agent now starts with a $0-local context pack** instead of discovering everything by exploring the repo live (measured ~20s to answer / ~50s to edit with only two files — it did not scale to "any click, in real time"). Before any model token is spent, the host computes, entirely on your machine:
+  - an **import-scoped slice** — the files reachable from the pinned element through the local import graph (bounded breadth-first walk). Clicking the savings box on the landing hero lands directly on `canonical-metrics.ts` (the single source from 0.16.60), so "click → the agent knows where the number comes from" works;
+  - a **repo-map** — a compact PageRank table of contents of the repo's most-imported modules and their exports (Aider-style, no embeddings), ~1–2K tokens.
+  This is **within the existing fence**: the anchored agent already reads the trusted workspace, so the pack only front-loads what it would have read — a speed and cost win, not new access. Paths are workspace-relative only (no host path / username leak), everything is bounded (file/depth/byte caps, cycle-safe), and it is fail-soft (any error → empty pack → the agent falls back to today's behaviour). The import-slice read path enforces the **same lexical + realpath containment** as the agent's own tool fence, so a symlink/junction inside the workspace pointing outside can never pull out-of-workspace content into the context sent to the model (verified by an adversarial review that reproduced and then closed the escape).
+
+## [0.16.60] — 2026-07-08 — Cross-device Live Edit: the tree gate works on macOS, not only Windows
+
+### Fixed
+
+- **The Live Preview "did nothing" on macOS (worked only on Windows).** The FIX-MP-1 tree gate proved that the preview comes from the same tree it would write to using `path.relative`, which is **case-insensitive on Windows but case-sensitive on macOS/Linux**. A case-only difference between the VS Code workspace path and the dev server's served root was silently tolerated on Windows and **fail-closed on the Mac** — so every `$0` edit/delete/prompt-apply was blocked with no visible effect. The gate now proves lineage by **filesystem identity (`dev`+`ino`)** — correct on case-sensitive *and* case-insensitive volumes, with no `process.platform` guessing and immune to Unicode case-fold quirks. Twin-worktree siblings have distinct inodes and never share ancestry, so the 06:49 wrong-tree P0 stays closed on every platform. A `dev:ino` reading of `0` (some FAT/network volumes) is treated as unstat-able → safe string fallback gated by an **empirical case-sensitivity probe** (fail-safe to case-sensitive). Verified by an adversarial two-round review (round 1 caught a `process.platform`-proxy regression that reopened the P0 on case-sensitive APFS/NTFS volumes; round 2 shipped clean) and 917 passing tests including a case-sensitive-volume sibling regression matrix.
+
+### Added
+
+- **Portable macOS launcher** `_handoff/prove-live-edit.command` — derives the repo from its own location (no hardcoded paths), builds a **fresh** vsix from the current branch, installs it, starts the `landing/` dev server, and opens VS Code on the served tree so the gate opens.
+
 ## [0.16.37] — 2026-06-27 — Sessions always visible: runtime-diagnosed collapse + bullet-proof invariant
 
 ### Fixed

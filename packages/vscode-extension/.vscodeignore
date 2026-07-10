@@ -7,3 +7,4 @@ docs/**
 .gitignore
 .eslintrc*
 **/.DS_Store
+scripts/**
