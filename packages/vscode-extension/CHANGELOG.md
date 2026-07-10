@@ -2,7 +2,7 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
-## [Unreleased] — MEO F5
+## [0.16.63] — 2026-07-10 — MEO — Moo Executive Officer (rename + WCAG polish), integrated onto the release lineage
 
 ### Added
 
@@ -11,7 +11,7 @@ All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Kee
 ### Notes
 
 - ⚠️ "MEO" is INTERNAL plugin naming only. Before any public/marketing use, verify trademark — known collision: MEO = Altice Portugal (telecom).
-- Version race between release lineages is a known, tracked anomaly; F5 intentionally ships no version bump — the bump is resolved when this branch integrates (F6).
+- This release integrates the MEO cockpit (F5) onto origin/main 0.16.62 (which had already absorbed lp-4.9 + the PR #231 cockpit layout) and resolves the known version-race anomaly between lineages by bumping to the global max + 1 (0.16.62 → 0.16.63).
 
 ## [0.16.62] — 2026-07-08 — Data-hop: click a value → the agent follows it to its source and edits there
 
