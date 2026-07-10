@@ -3013,3 +3013,13 @@ Side effects: upsert em D1 `devices` table
 - ✅ VS Code ext F0 PASS · Kill Frugal W1-W3 em prod no Mac · heartbeat restaurado (1º real da história) · npm installer e2e validado
 - 🔜 Ler: docs/rebrand/{RECONCILE-BRIEF,KILL-FRUGAL-MASTERPROMPT}, packages/vscode-extension/docs/, docs/community/GOOD-FIRST-ISSUES.md
 - ⚠️ packs WIP (_packhint_entry.ts) continua unstaged no Mac — terminar antes de mais waves
+
+<!-- fleet-auto:begin -->
+## Fleet (auto)
+
+- **2026-07-10** — cronista round 2400 · 12 pillars · GPU peak 0/cap 1
+- rounds (cumulative): 9637 · incidents: 57 · incoherences now: 8
+- measured wins: 24/9625 · est cloud tokens avoided: 23772 ($0, all local)
+- open two-factor proposals (Paulo gate): 6
+- source: _handoff/fleet/cronista/DIGEST.md · updated 2026-07-10T11:44:37.774Z
+<!-- fleet-auto:end -->

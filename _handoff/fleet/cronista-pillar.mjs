@@ -27,6 +27,7 @@ import { dirname, join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { atomicWriteJSON } from "./local-pillar.mjs";
+import { composeFleetMirror, upsertFleetSection } from "./fleet-sync-mirror.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -190,6 +191,25 @@ export async function cronistaPillar(loop, { now } = {}) {
       updated_at: iso(),
     });
   } catch { /* state advisory */ }
+
+  // ── SYNC.md mirror (F3): a 5-line dated snapshot under "## Fleet (auto)" so the
+  // project sees the fleet's pulse without opening the worktree. Advisory; the try
+  // guard keeps a SYNC write failure from ever crashing the fleet.
+  try {
+    let twoFactor = 0;
+    for (const s of snaps) {
+      const dec = readText(join(s.dir, "DECISIONS.md"));
+      if (dec) twoFactor += (dec.match(/PROPOSAL|PENDENTE PAULO/gi) || []).length;
+    }
+    const block = composeFleetMirror({
+      date: iso().slice(0, 10), iso: iso(), round,
+      pillars: snaps.length, peakGpu, gpuCap,
+      rounds: totals.rounds, incidents: totals.incidents, incoherences: incoherences.length,
+      wins: totals.wins, total: totals.total, avoided: totals.avoided, twoFactor,
+    });
+    const syncPath = abs("SYNC.md");
+    writeFileSync(syncPath, upsertFleetSection(readText(syncPath), block));
+  } catch { /* mirror is advisory — never crash the fleet */ }
 
   // ── proposal (qualitative — reports harmony; passes the gate via honesty section) ──
   const body =
