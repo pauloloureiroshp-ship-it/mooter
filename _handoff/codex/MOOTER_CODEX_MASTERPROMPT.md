@@ -1,6 +1,10 @@
 # 🐮🤖 MOOTER — Wave 62: The Codex Plane (Tri-Agent Fabric)
 ### The Master Prompt of Master Prompts — OpenAI Codex as a first-class Mooter agent plane
 
+> **STATUS: SUPERSEDED — NÃO EXECUTAR COMO WAVE ATIVA.** O desenho do capsule
+> append-only abaixo é histórico. O template atual em `scaffold/HANDOFF.template.md`
+> trata o packet como work order/projeção e aponta para um Ledger único.
+
 > **What this is.** A single, self-contained brief to paste into **Claude Code** (the principal
 > orchestrator). It turns OpenAI Codex into a third agent plane inside Mooter — running as
 > **parallel workers in isolated git worktrees**, alongside Claude Code (principal) and the local

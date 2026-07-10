@@ -66,6 +66,22 @@ test('an unanswered AskUserQuestion (no following result) → zero decisions', (
   assert.deepEqual(deriveDecisions(lines), [], 'unanswered prompt is not a decision');
 });
 
+test('a failed AskUserQuestion tool_result is never recorded as a human decision', () => {
+  const ask = { message: { role: 'assistant', content: [
+    { type: 'tool_use', name: 'AskUserQuestion', id: 'ask-error', input: { questions: [
+      { question: 'Choose a base?', options: [{ label: 'main' }, { label: 'feature' }] },
+    ] } },
+  ] } };
+  const flagged = { message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'ask-error', is_error: true, content: 'InputValidationError: invalid questions' },
+  ] } };
+  const textual = { message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'ask-error', content: '<tool_use_error>InputValidationError: too many questions</tool_use_error>' },
+  ] } };
+  assert.deepEqual(deriveDecisions([ask, flagged]), [], 'is_error result is not an answer');
+  assert.deepEqual(deriveDecisions([ask, textual]), [], 'textual tool error is not an answer');
+});
+
 test('never throws on garbage; accepts pre-parsed objects', () => {
   assert.doesNotThrow(() => deriveDecisions(['{bad', '', null, 42, { message: null }]));
   assert.deepEqual(deriveDecisions(null), []);

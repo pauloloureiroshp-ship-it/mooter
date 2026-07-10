@@ -1,6 +1,13 @@
 # 🐮👑 Mooter — MASTER ORCHESTRATION (o masterprompt dos masterprompts)
 
-A **única fonte de verdade**. Todas as specs/masterprompts ramificam daqui. Estado: `main @ 0ccb824` (2026-06-30).
+> **STATUS: SUPERSEDED — NÃO EXECUTAR.** Snapshot histórico de `main @ 0ccb824`
+> (2026-06-30), mantido temporariamente no topo à espera de arquivo com gate humano.
+> Desde 2026-07-10, a verdade operacional é `git/worktree + Ledger`; `SYNC.md` é a
+> projeção do estado atual e `docs/strategy/PERFECT_HANDOFF_SPEC.md` é o spec vivo.
+
+Este documento foi a fonte de orquestração da ronda de 2026-06-30. Vários packets
+citados abaixo já estão em `_handoff/_archive/`; tratá-lo como instrução ativa pode
+reiniciar trabalho concluído ou operar sobre SHAs antigos.
 
 ## ⚖️ Invariantes de OURO (valem para TODAS as sessões)
 - **1 sessão CC por worktree isolado:** `git worktree add ../frugal-X -b feat/X main`. Nunca em main, nunca no worktree de outra.
