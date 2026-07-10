@@ -8,6 +8,7 @@
 Full detail: `_handoff/waves/WLAND_INVENTORY.md`. Inspected the 23 most recent unmerged branches (read-only).
 
 ### Draft PRs opened by the runner — review + merge/close (5)
+> **Conflict handling (Paulo's rule):** do **not** hand-resolve #237/#238. Merge the clean ones first (#235, #236, #239); then the runner rebases the conflicted branches onto new main in their own worktrees and re-opens.
 - [ ] **PR #235** — `feat/pm-adapters` (opt-in Ledger→PM bridge). Clean merge.
 - [ ] **PR #236** — `feat/lp-cockpit-layout` (deterministic trivial-bypass classifier). Clean, but **standalone/unwired** and its test is a narrative print script — decide policy + wire before relying on it.
 - [ ] **PR #237** — `wave/directors-cut-v2` (local Live-Preview DCv2, ~1300 lines tests). ⚠️ Conflicts `SYNC.md` + `extension.js`; confirm it is NOT folded into the cloud MP5 trilho before landing.

@@ -11,6 +11,15 @@
 
 ---
 
+## Runner doctrine (BINDING — applies to ALL waves)
+
+1. **Inventory / sweep / classification work NEVER runs in cloud subagents.** It goes to the **FLEET**: write the task into the right pillar's INBOX (`_handoff/fleet/<pillar>/INBOX.md`) — **cronista** for inventories, **bench-eval** for classifications — and collect the OUTBOX next round ($0). The Wave 1 W-LAND fan-out (23 cloud subagents, ~1.2M tokens) violated token-diet and must **not** recur.
+2. **Cloud subagent only when reasoning must be deep AND isolated AND immediate** — and never many at once (no 23-wide fan-outs).
+3. **Conflict PRs stay Paulo's** until he merges the clean ones; *then* the runner rebases each onto new main in its own worktree and re-opens. Never hand-resolve conflicts mid-air.
+4. Unchanged: worktree-per-wave from main ATUAL (R5) · selective adds · classify sha proven per wave · no merge/push to main (drafts yes; merge = Paulo) · destructive → DECISIONS · conflicts reported, never force-resolved.
+
+---
+
 ## Queue status
 
 | # | Wave | Worktree / branch | Final sha | Gate | Draft PR | Next |
