@@ -2855,8 +2855,11 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-anchor{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 9px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;opacity:.65}
   .lp-anchor.on{opacity:1;font-weight:600}
   .lp-anchor-in{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;margin:0 0 6px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-  #lp-controls{display:flex;gap:5px;align-items:center;flex:none}
-  #lp-url{width:190px;max-width:40vw;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
+  /* D1 — the controls must WRAP, not overflow. #lp-controls was flex:none (one indivisible row that
+     burst its container at 1024/821px, worsened by the 🛡 Review / 🚀 Publish labels). Now it wraps and
+     shrinks; #lp-url flexes to fill its row. */
+  #lp-controls{display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex:1 1 auto;min-width:0}
+  #lp-url{flex:1 1 160px;min-width:120px;max-width:100%;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
   #lp-controls button{font:12px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-controls button:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   /* F0.3/F0.4 — the primary actions carry a VISIBLE text label (not just a tooltip): a touch of weight, never wrap. */
@@ -2932,7 +2935,7 @@ function getLivePreviewHtml(token, wsRoot) {
   /* LP-4.8 §1 — in-canvas toolbar, floating over the frame anchored to the pin. The overlay
      spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
   .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
-  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
+  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:min(248px,calc(100% - 16px));max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
   /* LP-4.9 §7 — toolbar header: grip (drag) + minimize + close. Sticky so it stays while scrolling. */
   .lp-ctb-hd{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;margin:0 -11px 6px;padding:5px 9px;background:var(--vscode-editorWidget-background);border-bottom:1px solid var(--vscode-widget-border);border-radius:9px 9px 0 0}
   .lp-ctb-grip{flex:1 1 auto;font-size:10.5px;opacity:.6;cursor:grab;user-select:none;letter-spacing:.04em;touch-action:none}
@@ -3058,6 +3061,7 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
   .lp-dev-btn[aria-pressed="true"]{background:var(--vscode-charts-blue,#5A9BD4)!important;color:#0B0A09!important;border-color:transparent!important;font-weight:700}
+  .lp-dev-note{font-size:11px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));white-space:normal}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
   .lp-degrade-in{max-width:440px}
   .lp-degrade-ico{font-size:34px;margin-bottom:8px;opacity:.85}
@@ -3165,6 +3169,12 @@ function getLivePreviewHtml(token, wsRoot) {
     #lp-stagewrap{flex:1 1 auto;border-right:0;border-bottom:1px solid var(--vscode-widget-border)}
     #lp-side{flex:0 0 auto;max-width:none;max-height:42vh}
   }
+  /* D1 — at narrow widths the URL takes its own full row and the controls stay wrapped (no overflow). */
+  @media (max-width:560px){
+    #lp-controls{width:100%}
+    #lp-url{flex-basis:100%}
+    #lp-status{width:100%}
+  }
 </style>
 </head><body>
 <div id="lp-root">
@@ -3181,6 +3191,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
         <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
         <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
+        <!-- D1 — honest effective-width note: a preset caps at 100% of the panel, so 768px can deliver less. -->
+        <span id="lp-dev-note" class="lp-dev-note" role="status" aria-live="polite" style="display:none"></span>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
@@ -4794,6 +4806,19 @@ function setDevice(px){
   else { f.style.width='100%'; f.style.maxWidth=''; w.classList.remove('lp-dev-narrow'); }
   const map=[['lp-dev-390',390],['lp-dev-768',768],['lp-dev-full',null]];
   for(let i=0;i<map.length;i++){ const b=document.getElementById(map[i][0]); if(b) b.setAttribute('aria-pressed', map[i][1]===px?'true':'false'); }
+  // D1 — HONEST effective width: the preset caps at 100% of the panel (maxWidth:100%), so a 768px request
+  // can render narrower. Read the real width and, when it falls short, say so instead of promising a lie.
+  const note=document.getElementById('lp-dev-note');
+  if(note){
+    try{
+      if(!px){ note.style.display='none'; note.textContent=''; }
+      else {
+        let eff=0; try{ eff=Math.round(f.getBoundingClientRect().width)||f.clientWidth||0; }catch(_){ eff=0; }
+        if(eff && eff < px-1){ note.textContent='⚠ '+px+'px pedido · '+eff+'px efetivo — o painel limita (alarga a janela ou recolhe o lado)'; note.style.display='inline'; }
+        else { note.style.display='none'; note.textContent=''; }
+      }
+    }catch(_){ /* note is best-effort */ }
+  }
 }
 (function(){
   const d3=document.getElementById('lp-dev-390');

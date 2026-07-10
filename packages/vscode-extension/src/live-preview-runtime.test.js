@@ -455,6 +455,18 @@ test('F2/P1-7: an lp-hmr-down that is NOT from the origin-locked frame is ignore
   assert.notStrictEqual(h.env.doc.getElementById('lp-hmr').style.display, 'block', 'a non-frame sender cannot fake the stale banner');
 });
 
+test('D1: a device preset that cannot fit shows the honest EFFECTIVE width (never a silent "768" lie)', () => {
+  const h = bootWebview(false);
+  const btn768 = h.env.doc.getElementById('lp-dev-768');
+  const note = () => h.env.doc.getElementById('lp-dev-note');
+  assert.ok(btn768 && note(), 'device button + effective-width note mount present');
+  btn768.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(note().style.display, 'inline', 'the note shows when the panel caps the preset below the requested width');
+  assert.ok(/768px pedido/.test(note().textContent || '') && /efetivo/.test(note().textContent || ''), 'states requested vs effective honestly: ' + note().textContent);
+  h.env.doc.getElementById('lp-dev-full').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(note().style.display, 'none', 'full width clears the note (nothing to warn about)');
+});
+
 // ── F0.2: clicking a node shows ITS history (per-node feed by nodeKey; prior-session items labelled) ──
 function pushFeed(h, items) {
   h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:7819/' }, leBridge: { available: false }, feed: { rev: 99, items: items } } }, source: h.win, origin: null }));

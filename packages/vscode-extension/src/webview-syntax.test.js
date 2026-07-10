@@ -79,6 +79,9 @@ test('Live Preview MP4 diagnostics strip is hosted + parses as delivered (concat
   // F2 (P1-7) — the hot-reload-down banner ships HIDDEN and honest (role=status/aria-live), lit only by the tap.
   assert.ok(/id="lp-hmr"[^>]*role="status"[^>]*aria-live/.test(html), 'lp-hmr banner is an aria-live status region');
   assert.ok(/id="lp-hmr"[^>]*style="display:none"/.test(html), 'lp-hmr ships hidden — no stale lie when hot-reload is healthy');
+  // D1 — the controls WRAP instead of overflowing (flex-wrap on #lp-controls), and the honest effective-width note exists.
+  assert.ok(/#lp-controls\{[^}]*flex-wrap:wrap/.test(html), '#lp-controls wraps (no single-row overflow at narrow widths)');
+  assert.ok(html.includes('id="lp-dev-note"'), 'the device-preset effective-width note is present');
   // The honest strip renderer is serialised in via fn.toString() exactly like renderStageStatus.
   assert.ok(/const renderErrorStrip=function/.test(html), 'renderErrorStrip serialised into the webview');
   // The whole inline script (incl. the serialised renderErrorStrip) still parses as delivered.
