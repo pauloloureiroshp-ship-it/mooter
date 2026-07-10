@@ -2,6 +2,21 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.65] — 2026-07-10 — W2 (Live Preview): agent bridge + honest total-repo context chip
+
+### Added
+
+- **Agent SDK as a workspace devDependency** — `@anthropic-ai/claude-agent-sdk` declared in the root `package.json` (the workspace anchor the runner `import()`s from at edit time). Never bundled in this extension vsix; resolved from the trusted workspace only.
+- **Honest context-source chip** `📚 repo ✓ · Notion n/d` — shown only when the agent actually reads the repo (Context Engine: repo-map + import-slice + data-hop, pre-computed $0, not blind grep). Camada C (Notion/3rd brain) is not wired → never faked. Kept honest across every tier change.
+
+### Security
+
+- **P1-A re-verified** after the SDK dep move: the Workspace-Trust gate holds on every SDK-import path (host + engine), the SDK dir is wsRoot-contained, and the manifest is honest. 3 regression tests + adversarial re-review (3 attackers → BLOCKED, 0 exploitable).
+
+### Notes
+
+- Rebased onto the MEO + F3 lineage (0.16.64). `classify.js` sha frozen; engine fence byte-untouched.
+
 ## [0.16.64] — 2026-07-10 — F3 (Live Preview, the heart): host SelectionStore + fail-closed gate + anchor chip
 
 ### Added
