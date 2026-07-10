@@ -22,6 +22,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      # Install runtime deps BEFORE testing/packaging: the live-edit engine needs
+      # @babel/parser both to pass `node --test` and to be bundled into the vsix.
+      # Without this the test step fails on a fresh runner and the published vsix
+      # would ship without its parser (live-edit broken in the marketplace build).
+      - name: Install deps
+        run: npm ci
       - name: Test
         run: node --test src/*.test.js
       - name: Publish to VS Code Marketplace
