@@ -1453,6 +1453,9 @@ class LivePreviewPanel {
         tag: (m && typeof m.tag === 'string') ? m.tag.slice(0, 60) : '',
         selText: (m && typeof m.selText === 'string') ? m.selText.replace(/\s+/g, ' ').trim().slice(0, 200) : '',
       };
+      // D5 — trace a pin ONCE per distinct node (the tap re-pins on every HMR/reflow; de-dup avoids spam).
+      const pk = this._selection.file + '|' + this._selection.line + '|' + this._selection.tag;
+      if (pk !== this._lastPinKey) { this._lastPinKey = pk; this._emitLpEvent('pin', { kind: 'server', nodeKey: this._selection, summary: 'pin <' + (this._selection.tag || '?') + '>' }); }
     } catch { this._selection = null; }
   }
   // F3 (W1) — the fail-closed selection gate, shaped EXACTLY like _treeGateBlocked: default-DENY in
@@ -1480,9 +1483,32 @@ class LivePreviewPanel {
     } catch { /* fail-soft */ }
     return null;
   }
+  // D5 — leave an HONEST trace of Live Preview actions in the MEO/diary bus (events.jsonl); today the
+  // panel only READS the bus. Typed + REDACTED: nodeKey + a bounded summary only — never a secret, a full
+  // prompt, or before/after bytes. sid = the active session the panel last saw, so the diary scopes it.
+  // Fail-soft: telemetry never blocks a Live Preview action, and it silently no-ops without hook-collector.
+  _emitLpEvent(action, fields) {
+    try {
+      if (!HC || typeof HC.appendEvent !== 'function') return;
+      const f = fields || {};
+      const nk = f.nodeKey && typeof f.nodeKey === 'object' ? f.nodeKey : null;
+      HC.appendEvent(this._wsRoot(), {
+        ts: new Date().toISOString(),
+        sid: (typeof this._lpSid === 'string' && this._lpSid) ? this._lpSid : null,
+        kind: (typeof f.kind === 'string' && f.kind) ? f.kind : 'file',
+        tool: 'live-preview',
+        path: (typeof f.path === 'string') ? f.path.slice(0, 400) : null,
+        summary: (typeof f.summary === 'string') ? f.summary.slice(0, 200) : null,
+        tier: null, model: null, cost: null, local: true,
+        lp: String(action || 'event').slice(0, 40),
+        node: nk ? { file: (typeof nk.file === 'string' ? nk.file : null), line: (nk.line != null ? nk.line : null), tag: (typeof nk.tag === 'string' ? nk.tag : null) } : null,
+      });
+    } catch { /* best-effort — never blocks */ }
+  }
   _post() {
     try {
       const s = livePreviewSnapshot();
+      this._lpSid = (s && typeof s.sid === 'string' && s.sid) ? s.sid : (this._lpSid || null); // D5 — cache the active sid for emitted LP events
       s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
       // urlError (transient user paste) wins; otherwise FIX-MP-1 G1 surfaces an honest tree-mismatch
       // banner (the preview is live but comes from a DIFFERENT tree than the one we would write to).
@@ -1766,6 +1792,7 @@ class LivePreviewPanel {
       this._feed.push(item);
       if (this._feed.length > 50) this._feed.shift();
       this._feedBump();
+      this._emitLpEvent(item.kind === 'agent' ? 'agent' : 'edit', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: item.via || null }); // D5
       return item;
     } catch { return null; }
   }
@@ -1875,6 +1902,7 @@ class LivePreviewPanel {
       if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
       item.status = 'reverted'; item.reason = null;
       this._feedBump();
+      this._emitLpEvent('revert', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: 'revert (desfazer último)' }); // D5
       this._postEditResult(true, 'undone');
     } catch { this._postEditResult(false, 'error'); }
   }
@@ -1890,6 +1918,7 @@ class LivePreviewPanel {
         if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
         item.status = 'reverted'; item.reason = null;
         this._feedBump();
+        this._emitLpEvent('revert', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: 'revert (por item)' }); // D5
         this._postEditResult(true, 'undone');
         return;
       }
@@ -2021,6 +2050,9 @@ class LivePreviewPanel {
       // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
       // scan the user just ran and saw fail.
       this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length, fingerprint };
+      // D5 — trace the review in the diary: COUNTS only, never a secret value or a file path with the leak.
+      const nSec = Array.isArray(secrets) ? secrets.length : 0, nXss = Array.isArray(xss) ? xss.length : 0;
+      this._emitLpEvent('security', { kind: 'server', summary: 'review · ' + nSec + ' secrets · ' + nXss + ' xss · ' + files.length + ' ficheiros' });
       post({ secrets, xss, csp, audit, scannedFiles: files.length });
     } catch { this._lastSecurity = { error: 'scan-failed' }; post({ error: 'scan-failed' }); }
   }
@@ -2200,6 +2232,7 @@ class LivePreviewPanel {
       const cres = await extra.gitCommit(root, files, message); // `git add -- <files>` then `git commit` — never -A
       if (!cres.ok) { post({ ok: false, reason: 'commit-failed', out: String(cres.out || '').slice(0, 400), cmd: cres.cmd }); return; }
       const pres = await extra.gitPush(root); // never --force
+      this._emitLpEvent('publish', { kind: 'server', summary: 'commit+push · ' + files.length + ' ficheiros · ' + (pres.ok ? 'ok' : 'push-failed') }); // D5
       post({
         ok: pres.ok,
         reason: pres.ok ? undefined : 'push-failed',
@@ -2249,6 +2282,7 @@ class LivePreviewPanel {
       const urlMatch = out.match(/https:\/\/\S+\.vercel\.app\S*/);
       const url = urlMatch ? urlMatch[0] : null;
       if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
+      this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null }); // D5 — the deploy URL is public; safe to trace
       post({ ok: true, url, out: out.slice(0, 800) });
     } catch { post({ ok: false, reason: 'error' }); }
   }
