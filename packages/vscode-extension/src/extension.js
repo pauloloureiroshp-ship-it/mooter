@@ -1486,6 +1486,7 @@ class LivePreviewPanel {
       s.stageError = this.urlError || this._treeBanner() || null; // both ride the ONE stageError channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
+      s.readiness = this._readiness();      // F0.5.3: the 4-light readiness semaphore (honest facts)
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
@@ -1572,6 +1573,8 @@ class LivePreviewPanel {
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
     if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
+    if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
+    if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
     if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
@@ -2558,6 +2561,44 @@ class LivePreviewPanel {
     this._leBridgeTs = now;
     return this._leBridge;
   }
+  // F0.5.3 — the 4-light readiness the semaphore renders: workspace · dev server (+port/source) ·
+  // served tree (marker matches this workspace?) · agent (SDK+trust, from the tri-state reason).
+  // Pure FACT — never fabricates "ready". The sticky-port case (Docker 200 on :3000) surfaces as
+  // devServer:true with tree:'mismatch' + the port/source, so the user SEES the wrong one.
+  _readiness() {
+    const br = this._leBridgeStatus();
+    const st = this.stage || {};
+    const hasWs = this._hasWorkspace();
+    const devUp = !!(st.url && !st.degraded);
+    let tree; // 'ok' (marker matches) | 'mismatch' (sticky-port / old branch) | 'unknown' (no server)
+    if (!devUp || this._servedRoot === undefined || this._servedRoot === null) tree = 'unknown';
+    else tree = this._treeConfirmed() ? 'ok' : 'mismatch';
+    return {
+      workspace: hasWs,
+      devServer: devUp,
+      port: (st.port != null) ? String(st.port) : null,
+      source: (typeof st.source === 'string') ? st.source : null,
+      tree: tree,
+      sdk: !!br.available,                                  // available ⇒ SDK found AND trusted
+      trust: hasWs && (br.reason !== 'workspace-untrusted'),
+      reason: br.reason || null,
+    };
+  }
+  // F0.5.3 — recover from a sticky-port / stale-tree preview WITHOUT touching the terminal yourself.
+  // GATED (modal confirm — the agent never runs a command blindly): open a terminal in the served
+  // tree (or the workspace root) and run the dev command, then re-probe so the readiness lights update.
+  async _restartDevServer() {
+    try {
+      if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Live Preview: abre a pasta do projeto primeiro (janela sem pasta).'); return; }
+      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta servida e corro "npm run dev".', { modal: true }, 'Reiniciar');
+      if (pick !== 'Reiniciar') return;
+      const cwd = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : this._wsRoot();
+      const term = vscode.window.createTerminal({ name: 'Mooter — dev server', cwd });
+      term.show(); term.sendText('npm run dev');
+      // re-probe shortly after so the semaphore reflects the fresh server (not the sticky one).
+      setTimeout(() => { try { this.routes = null; this._detectStage(); } catch { /* best-effort */ } }, 3500);
+    } catch { /* best-effort — never throw into the host */ }
+  }
   // vscode.workspace.isTrusted is a boolean in real VS Code; default to trusted only when the API
   // does not expose the flag at all (never downgrade a genuine `false`).
   _workspaceTrusted() {
@@ -2711,6 +2752,11 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);flex-wrap:wrap}
   .lp-status{flex:1 1 auto;min-width:120px;display:flex;align-items:center;gap:7px;font-size:12px;overflow:hidden}
   .lp-status .lps-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* F0.5.3 — readiness semaphore: a compact row of honest lights + 1-click fixes. */
+  .lp-ready{display:none;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:11px;padding:4px 2px 2px;color:var(--vscode-descriptionForeground)}
+  .lp-ready .lp-rl{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .lp-ready .lp-rfix{font:10.5px var(--vscode-font-family);color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;border-radius:5px;padding:1px 7px;cursor:pointer}
+  .lp-ready .lp-rfix:hover{background:var(--vscode-button-hoverBackground)}
   /* F3 (W1) — the anchor chip: the pinned element, always visible next to the select button
      (persistent) and at the top of the one-box (per-pin). Honest 'sem seleção' state when unpinned.
      Badge bg/fg only → guaranteed contrast in light AND dark; opacity/weight signal the pinned state. */
@@ -3040,6 +3086,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-publish-btn" class="lp-labeled" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀 Publish</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
+      <!-- F0.5.3 — readiness semaphore: 4 honest lights (pasta · dev server · árvore · agente) + 1-click fixes. -->
+      <div id="lp-ready" class="lp-ready" role="status" aria-label="Prontidão do Live Preview" style="display:none"></div>
     </div>
     <div id="lp-diag" role="log" aria-label="Diagnóstico do preview (erros de runtime e build)"></div>
     <div id="lp-framewrap">
@@ -3139,8 +3187,43 @@ function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
   lpLastSnap = s;
+  renderReadiness(s && s.readiness); // F0.5.3 — the 4-light readiness semaphore
   renderWork(s);
   renderLens(lpDcTab);
+}
+// F0.5.3 — the readiness semaphore: 4 honest lights (pasta · dev server+porta/fonte · árvore · agente)
+// with a 1-click fix per unlit light. Sticky-port shows the wrong :porta (fonte) so the user SEES it.
+let lpReadySig='';
+function renderReadiness(r){
+  const el=document.getElementById('lp-ready'); if(!el) return;
+  if(!r){ if(lpReadySig!==''){ lpReadySig=''; el.innerHTML=''; el.style.display='none'; } return; }
+  const lit=function(state,label,fix,fixlabel){
+    const dot=state==='ok'?'🟢':(state==='warn'?'🟡':'🔴');
+    return '<span class="lp-rl">'+dot+' '+esc(label)+(fix?(' <button type="button" class="lp-rfix" data-fix="'+esc(fix)+'">'+esc(fixlabel)+'</button>'):'')+'</span>';
+  };
+  const parts=[];
+  if(!r.workspace){ parts.push(lit('bad','sem pasta','folder','Abrir pasta')); }
+  else {
+    parts.push(lit('ok','pasta',null,null));
+    if(r.devServer) parts.push(lit('ok',':'+(r.port||'?')+(r.source?(' '+r.source):''),'reprobe','re-probar'));
+    else parts.push(lit('bad','sem dev server','reprobe','re-probar'));
+    if(r.tree==='ok') parts.push(lit('ok','árvore',null,null));
+    else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
+    if(r.sdk) parts.push(lit('ok','agente',null,null));
+    else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
+    else parts.push(lit('bad','sem SDK','folder','instalar'));
+  }
+  const html=parts.join('');
+  if(html===lpReadySig) return; lpReadySig=html;
+  el.innerHTML=html; el.style.display=parts.length?'flex':'none';
+  const btns=el.querySelectorAll('[data-fix]');
+  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ readinessFix(this.getAttribute('data-fix')); }); }
+}
+function readinessFix(f){
+  if(f==='reprobe') vsapi.postMessage({ type:'lp-redetect' });
+  else if(f==='folder') vsapi.postMessage({ type:'lp-open-folder' });
+  else if(f==='trust') vsapi.postMessage({ type:'lp-trust' });
+  else if(f==='restart') vsapi.postMessage({ type:'lp-restart-dev' });
 }
 function renderWork(s){
   const el=document.getElementById('lp-work-mount'); if(!el) return;

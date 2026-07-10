@@ -355,3 +355,23 @@ test('F0.5.1: no folder → honest empty-window screen with an "Abrir a pasta" b
   const posted = h.posted.slice(before).filter(function (x) { return x.type === 'lp-open-folder'; });
   assert.strictEqual(posted.length, 1, 'clicking posts lp-open-folder → the host opens the folder in this window');
 });
+
+// ── F0.5.3: readiness semaphore — 4 honest lights + 1-click fix per unlit light (sticky-port visible). ──
+test('F0.5.3: the semaphore shows port+source + tree state, and each fix button posts the right message', () => {
+  const h = bootWebview(false);
+  // sticky-port: folder ok, dev server up on :3000 (Docker), served tree MISMATCH, agent untrusted.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:3000/', port: 3000, source: 'probe' }, leBridge: { available: false, reason: 'workspace-untrusted' }, readiness: { workspace: true, devServer: true, port: '3000', source: 'probe', tree: 'mismatch', sdk: false, trust: false, reason: 'workspace-untrusted' }, feed: { rev: 0, items: [] } } }, source: h.win, origin: null }));
+  const el = h.env.doc.getElementById('lp-ready');
+  assert.ok(el, 'the semaphore element exists');
+  assert.ok(/:3000 probe/.test(el.innerHTML || ''), 'shows the dev-server port + source — the sticky one is VISIBLE, not hidden');
+  assert.ok(/outra árvore/.test(el.innerHTML || ''), 'the served-tree light is amber (mismatch) — the sticky-port/old-branch case');
+  const restart = el.querySelector('[data-fix="restart"]');
+  assert.ok(restart, 'the tree-mismatch light offers a "reiniciar dev server" fix');
+  let before = h.posted.length;
+  restart.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-restart-dev'; }), 'restart fix posts lp-restart-dev (gated host-side)');
+  const trust = el.querySelector('[data-fix="trust"]');
+  before = h.posted.length;
+  trust.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-trust'; }), 'trust fix posts lp-trust (Manage Workspace Trust)');
+});
