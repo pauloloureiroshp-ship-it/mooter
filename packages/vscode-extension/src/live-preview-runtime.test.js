@@ -291,3 +291,32 @@ test('F3 STORE + CHIP: selecting relays exactly one lp-pin to the host Selection
   assert.ok(/page\.tsx/.test(chip.innerHTML || ''), 'pinned → the chip names the file');
   assert.ok(/h1/.test(chip.innerHTML || ''), 'pinned → the chip names the tag');
 });
+
+// ── W2: the honest context-source chip — repo ✓ (Context Engine) · Notion n/d (Camada C not wired). ──
+test('W2 CONTEXT CHIP: bridge ON → honest "repo ✓ · Notion n/d"; bridge OFF → hidden (never fakes context)', () => {
+  const on = bootWebview(true); fireSelect(on); // bridge ON → agent reads the project
+  const chipOn = on.env.doc.getElementById('lp-ctx-src');
+  assert.ok(chipOn, 'the context-source chip element exists');
+  assert.ok(/repo ✓/.test(chipOn.textContent || ''), 'bridge ON → repo ✓ (the Context Engine reads the repo)');
+  assert.ok(/Notion n\/d/.test(chipOn.textContent || ''), 'honest: Notion n/d (Camada C not wired) — never faked');
+  assert.notStrictEqual(chipOn.style.display, 'none', 'the chip is visible when the agent reads the project');
+  const off = bootWebview(false); fireSelect(off); // bridge OFF → local $0, only this node
+  const chipOff = off.env.doc.getElementById('lp-ctx-src');
+  assert.strictEqual(chipOff.style.display, 'none', 'bridge OFF (local $0) → no context-source chip (honest: it edits only this node)');
+});
+
+test('W2 CONTEXT CHIP stays honest on TIER SWITCH: agent (repo ✓) → local $0 (hidden) → agent (repo ✓)', () => {
+  const h = bootWebview(true); fireSelect(h); // bridge ON, default edit+auto → agent reads the repo
+  const chip = h.env.doc.getElementById('lp-ctx-src');
+  const tier = (mode) => { const c = h.env.doc.getElementById('lp-chip'); return c && c.querySelector('[data-mode="' + mode + '"]'); };
+  assert.ok(/repo ✓/.test(chip.textContent || '') && chip.style.display !== 'none', 'auto → 📚 repo ✓ visible');
+  // switch to the local $0 tier — the fenced local rewrite reads NOTHING from the repo
+  const local = tier('local');
+  assert.ok(local, 'the local tier chip exists');
+  local.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'none', 'local $0 → the chip HIDES (no stale "repo ✓" lie)');
+  // back to the agent — the honest chip returns
+  const auto = tier('auto');
+  auto.dispatchEvent(h.mkEvent('click'));
+  assert.ok(/repo ✓/.test(chip.textContent || '') && chip.style.display !== 'none', 'back to auto → 📚 repo ✓ returns (agent reads the repo)');
+});

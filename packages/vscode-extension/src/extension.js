@@ -2884,6 +2884,8 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ctb .lp-mode-hint{font-size:10px;opacity:.72;margin:1px 0 5px;line-height:1.4}
   /* LP-4.9 loop-fix §C — the project-context/route line (always visible in the simple view). */
   .lp-ctx{font-size:10.5px;line-height:1.4;margin:4px 0 2px;padding:5px 8px;border-radius:6px}
+  /* W2 — honest context-source chip (repo ✓ · Notion n/d). Badge bg/fg → contrast in both themes. */
+  .lp-ctx-src{align-items:center;gap:4px;font-size:10px;margin:0 0 4px;padding:2px 8px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap}
   .lp-ctx-ok{color:var(--vscode-charts-green,#4CAF6A);background:rgba(76,175,106,.10);border:1px solid rgba(76,175,106,.35)}
   .lp-ctx-warn{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   /* LP-4.9 §2 — progressive disclosure: the "▾ mais" chevron + the advanced drawer. */
@@ -3571,6 +3573,15 @@ function lpFinishProgress(){
 function renderCtxLine(){
   const el=document.getElementById('lp-ctx'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  // W2 — honest context-source chip. The agent reads the repo via the Context Engine (repo-map +
+  // import-slice + data-hop, pré-computado $0, NÃO grep às cegas) when the bridge is ON and this is
+  // an ask OR a non-local edit. Camada C (Notion/3rd brain) não está ligada → 'Notion n/d', nunca fingir.
+  const readsProject=!!br.available&&(lpIntent==='ask'||lpMode!=='local');
+  const csrc=document.getElementById('lp-ctx-src');
+  if(csrc){
+    if(readsProject){ csrc.textContent='📚 repo ✓ · Notion n/d'; csrc.title='Contexto do agente: repo via Context Engine (repo-map · import-slice · data-hop, pré-computado $0). Notion/3rd brain ainda não ligados (Camada C).'; csrc.style.display='inline-flex'; }
+    else { csrc.style.display='none'; csrc.textContent=''; }
+  }
   if(lpIntent==='ask'){
     el.className='lp-ctx '+(br.available?'lp-ctx-ok':'lp-ctx-warn');
     el.textContent=br.available
@@ -3714,6 +3725,9 @@ function renderSelection(sel){
     // whether THIS edit reads the whole project (agent) or only this node (local $0), and how to
     // enable the agent when it is off. Answers "não sei se apanha o contexto do projeto".
     +'<div id="lp-ctx" class="lp-ctx" role="status"></div>'
+    // W2 — honest context-source chip: what the agent's context actually covers (repo ✓ via the
+    // Context Engine; Notion n/d because Camada C is not wired). Hidden unless the agent reads the repo.
+    +'<span id="lp-ctx-src" class="lp-ctx-src" role="status" title="Fontes de contexto do agente" style="display:none"></span>'
     +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
     +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Mostrar/ocultar os controlos avançados">▾ mais</button>'
     // ── ADVANCED (collapsed by default) ──
@@ -4156,6 +4170,10 @@ function renderModeChips(){
     const bi2=document.getElementById('lp-box-in'), h=document.getElementById('lp-box-hint');
     if(h){ if(bi2&&lpMode!=='local'&&suggestLocalChip(bi2.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; } else h.style.display='none'; }
   }); }
+  // W2 — the ctx line AND the honest context chip must track EVERY tier change (incl. the →local
+  // fallback above): renderCtxLine reflects the current lpMode, so a switch to 'local $0' drops the
+  // '📚 repo ✓' chip instead of leaving it lying. Cheap (two elements); safe if the toolbar is absent.
+  renderCtxLine();
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
 function showEditResult(ok, reason){
